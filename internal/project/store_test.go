@@ -79,3 +79,13 @@ func TestOpenPathWithSpecialChars(t *testing.T) {
 	require.NoError(t, s.Close())
 	assert.FileExists(t, dbPath)
 }
+
+func TestOpenRelativePath(t *testing.T) {
+	t.Chdir(t.TempDir())
+	s, err := project.Open("rel.db")
+	require.NoError(t, err)
+	_, err = s.Create(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	require.NoError(t, s.Close())
+	assert.FileExists(t, "rel.db")
+}
