@@ -80,7 +80,7 @@ func (a *app) dial(ctx context.Context) (*rpc.Client, error) {
 	}
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENOENT) {
-			return nil, fmt.Errorf("clubmate-core is not running (socket %s)", socket)
+			return nil, fmt.Errorf("%w (socket %s)", errCoreNotRunning, socket)
 		}
 		return nil, err
 	}

@@ -238,7 +238,8 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-func TestCoreStartStatusStop(t *testing.T) {
+func coreCLI(t *testing.T) func(args ...string) (string, int) {
+	t.Helper()
 	bins := t.TempDir()
 	for _, name := range []string{"clubmate", "clubmate-core", "clubmate-session"} {
 		data, err := os.ReadFile(testutil.BuildBinary(t, "clubmate/cmd/"+name))
@@ -266,8 +267,17 @@ func TestCoreStartStatusStop(t *testing.T) {
 			_ = syscall.Kill(pid, syscall.SIGTERM)
 		}
 	})
+	return clubmate
+}
+
+func TestCoreStartStatusStop(t *testing.T) {
+	clubmate := coreCLI(t)
 
 	out, code := clubmate("core", "status")
+	assert.Equal(t, 3, code)
+	assert.Equal(t, "not running\n", out)
+
+	out, code = clubmate("core", "stop")
 	assert.Equal(t, 3, code)
 	assert.Equal(t, "not running\n", out)
 
@@ -286,6 +296,47 @@ func TestCoreStartStatusStop(t *testing.T) {
 	_, code = clubmate("core", "stop")
 	assert.Equal(t, 0, code)
 
+	out, code = clubmate("core", "start")
+	assert.Equal(t, 0, code)
+	assert.Regexp(t, `^started pid=\d+\n$`, out)
+
+	_, code = clubmate("core", "stop")
+	assert.Equal(t, 0, code)
+
 	_, code = clubmate("core", "status")
 	assert.Equal(t, 3, code)
+}
+
+func TestSessionSurvivesCoreStop(t *testing.T) {
+	clubmate := coreCLI(t)
+	_, code := clubmate("core", "start")
+	require.Equal(t, 0, code)
+	var p project.Project
+	out, _ := clubmate("project", "create", "demo", "--json")
+	require.NoError(t, json.Unmarshal([]byte(out), &p))
+	out, _ = clubmate("session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")
+	sid := strings.TrimSpace(out)
+	var before []session.Session
+	out, _ = clubmate("session", "list", "--json")
+	require.NoError(t, json.Unmarshal([]byte(out), &before))
+	require.Len(t, before, 1)
+	require.Equal(t, sid, before[0].ID)
+	s := before[0]
+	t.Cleanup(func() {
+		_ = syscall.Kill(-s.PGID, syscall.SIGKILL)
+		_ = syscall.Kill(s.HostPID, syscall.SIGKILL)
+	})
+
+	_, code = clubmate("core", "stop")
+	require.Equal(t, 0, code)
+	assert.True(t, testutil.Alive(s.HostPID))
+	assert.True(t, testutil.Alive(s.ChildPID))
+
+	_, code = clubmate("core", "start")
+	require.Equal(t, 0, code)
+	var list []session.Session
+	out, _ = clubmate("session", "list", "--json")
+	require.NoError(t, json.Unmarshal([]byte(out), &list))
+	require.Len(t, list, 1)
+	assert.Equal(t, session.StateRunning, list[0].State)
 }

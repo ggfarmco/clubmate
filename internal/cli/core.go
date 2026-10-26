@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 
 	"clubmate/internal/paths"
 )
@@ -21,6 +22,8 @@ const (
 	pollInterval = 50 * time.Millisecond
 	pingTimeout  = time.Second
 )
+
+var errCoreNotRunning = errors.New("clubmate-core is not running")
 
 type pingInfo struct {
 	Version string `json:"version"`
@@ -39,10 +42,9 @@ func (a *app) coreStatusCmd() *cobra.Command {
 		Short: "Show whether the core is running",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			info, ok := a.ping(cmd.Context())
-			if !ok {
-				fmt.Fprintln(a.out, "not running")
-				return &ExitError{Code: exitNotUp}
+			info, err := a.ping(cmd.Context())
+			if err != nil {
+				return a.notRunning(err)
 			}
 			fmt.Fprintf(a.out, "running pid=%d version=%s\n", info.PID, info.Version)
 			return nil
@@ -57,9 +59,13 @@ func (a *app) coreStartCmd() *cobra.Command {
 		Short: "Start the core in the background",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, ok := a.ping(cmd.Context()); ok {
+			_, err := a.ping(cmd.Context())
+			if err == nil {
 				fmt.Fprintln(a.out, "already running")
 				return nil
+			}
+			if !errors.Is(err, errCoreNotRunning) {
+				return err
 			}
 			dirs, err := paths.Resolve()
 			if err != nil {
@@ -68,7 +74,7 @@ func (a *app) coreStartCmd() *cobra.Command {
 			if err := spawnCore(dirs); err != nil {
 				return err
 			}
-			info, ok := a.waitFor(cmd.Context(), wait, true)
+			info, ok := a.waitUp(cmd.Context(), wait)
 			if !ok {
 				return fmt.Errorf("core did not start; see %s", coreLogPath(dirs))
 			}
@@ -87,44 +93,68 @@ func (a *app) coreStopCmd() *cobra.Command {
 		Short: "Stop the core",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			info, err := a.ping(cmd.Context())
+			if err != nil {
+				return a.notRunning(err)
+			}
 			if err := a.call(cmd.Context(), "core.shutdown", struct{}{}, nil); err != nil {
 				return err
 			}
-			if _, ok := a.waitFor(cmd.Context(), wait, false); !ok {
+			if !waitExit(cmd.Context(), wait, info.PID) {
 				return errors.New("core did not stop in time")
 			}
 			fmt.Fprintln(a.out, "stopped")
 			return nil
 		},
 	}
-	cmd.Flags().DurationVar(&wait, "wait", 5*time.Second, "how long to wait for the core to stop")
+	cmd.Flags().DurationVar(&wait, "wait", 5*time.Second, "how long to wait for the core to exit")
 	return cmd
 }
 
-func (a *app) ping(ctx context.Context) (pingInfo, bool) {
+func (a *app) notRunning(err error) error {
+	if !errors.Is(err, errCoreNotRunning) {
+		return err
+	}
+	fmt.Fprintln(a.out, "not running")
+	return &ExitError{Code: exitNotUp}
+}
+
+func (a *app) ping(ctx context.Context) (pingInfo, error) {
 	var info pingInfo
 	ctx, cancel := context.WithTimeout(ctx, pingTimeout)
 	defer cancel()
 	err := a.call(ctx, "core.ping", struct{}{}, &info)
-	return info, err == nil
+	return info, err
 }
 
-func (a *app) waitFor(ctx context.Context, wait time.Duration, wantUp bool) (pingInfo, bool) {
+func (a *app) waitUp(ctx context.Context, wait time.Duration) (pingInfo, bool) {
+	var info pingInfo
+	ok := poll(ctx, wait, func(ctx context.Context) bool {
+		var err error
+		info, err = a.ping(ctx)
+		return err == nil
+	})
+	return info, ok
+}
+
+func waitExit(ctx context.Context, wait time.Duration, pid int) bool {
+	return poll(ctx, wait, func(context.Context) bool {
+		return errors.Is(unix.Kill(pid, 0), unix.ESRCH)
+	})
+}
+
+func poll(ctx context.Context, wait time.Duration, done func(context.Context) bool) bool {
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for {
-		info, up := a.ping(ctx)
-		if ctx.Err() != nil {
-			return info, false
-		}
-		if up == wantUp {
-			return info, true
+		if done(ctx) {
+			return true
 		}
 		select {
 		case <-ctx.Done():
-			return info, false
+			return false
 		case <-ticker.C:
 		}
 	}
