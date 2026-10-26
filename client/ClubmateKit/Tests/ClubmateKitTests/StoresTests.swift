@@ -111,6 +111,39 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testRestartUnderTrafficKeepsReceivingUpdates() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        weak var released: ProjectUIStore?
+        do {
+            let store = ProjectUIStore(client: client, projectID: project.id)
+            released = store
+            let select = UIEvent(projectId: project.id, slot: "terminals.sidebar", nodeId: "terminals", action: "select", value: .string("x"))
+            try await store.start()
+            try await waitUntil { store.slots["terminals.main"] != nil }
+            _ = try await client.uiSubscribe(projectID: project.id)
+            let traffic = Task {
+                while !Task.isCancelled { _ = try? await client.uiEvent(select) }
+            }
+            for _ in 0..<50 {
+                await store.stop()
+                let first = Task { try await store.start() }
+                await Task.yield()
+                await store.stop()
+                try await store.start()
+                try await first.value
+            }
+            traffic.cancel()
+            await traffic.value
+            let rev = try XCTUnwrap(store.slots["terminals.main"]?.rev)
+            _ = try await client.uiEvent(select)
+            try await waitUntil { (store.slots["terminals.main"]?.rev ?? 0) > rev }
+            await store.stop()
+        }
+        try await waitUntil { released == nil }
+        await client.close()
+    }
+
     func testUIActionContract() {
         let rows: [(SDUINode, UIAction.Trigger, String, JSONValue)] = [
             (node("button", "new"), .click, "new", .null),

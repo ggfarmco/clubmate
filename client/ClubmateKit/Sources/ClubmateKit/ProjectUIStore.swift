@@ -37,7 +37,7 @@ public final class ProjectUIStore {
         starting = true
         listener = Task { [weak self] in
             for await notification in stream {
-                await self?.receive(notification)
+                await self?.receive(notification, generation)
             }
             guard !Task.isCancelled else { return }
             self?.connected = false
@@ -86,9 +86,11 @@ public final class ProjectUIStore {
         }
     }
 
-    private func receive(_ notification: RPCNotification) async {
+    private func receive(_ notification: RPCNotification, _ generation: Int) async {
+        guard generation == self.generation, !Task.isCancelled else { return }
         if starting {
             await withCheckedContinuation { gate = $0 }
+            guard generation == self.generation else { return }
         }
         if route(notification) { await recover() }
     }
