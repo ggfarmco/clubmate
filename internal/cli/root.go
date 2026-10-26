@@ -64,7 +64,11 @@ func (a *app) call(ctx context.Context, method string, params, result any) error
 		return err
 	}
 	socket := dirs.CoreSocket()
-	c, err := rpc.Dial(ctx, socket)
+	err = dirs.CheckRuntime()
+	var c *rpc.Client
+	if err == nil {
+		c, err = rpc.Dial(ctx, socket)
+	}
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENOENT) {
 			return fmt.Errorf("clubmate-core is not running (socket %s)", socket)

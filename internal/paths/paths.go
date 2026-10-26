@@ -3,6 +3,7 @@ package paths
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,6 +19,7 @@ var (
 	ErrSocketPathTooLong  = errors.New("socket path too long")
 	ErrCoreRunning        = errors.New("core already running")
 	ErrInsecureRuntimeDir = errors.New("insecure runtime dir")
+	ErrUntrustedPeer      = errors.New("untrusted socket peer")
 )
 
 type Dirs struct {
@@ -50,10 +52,35 @@ func (d Dirs) Ensure() error {
 			return fmt.Errorf("create %s: %w", dir, err)
 		}
 	}
+	return d.CheckRuntime()
+}
+
+func (d Dirs) CheckRuntime() error {
 	for _, dir := range []string{d.Runtime, filepath.Join(d.Runtime, "s")} {
-		if err := checkPrivateDir(dir); err != nil {
+		if err := CheckPrivate(dir); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func VerifyPeer(conn *net.UnixConn) error {
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		return fmt.Errorf("peer credentials: %w", err)
+	}
+	var cred *unix.Xucred
+	var credErr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, credErr = unix.GetsockoptXucred(int(fd), unix.SOL_LOCAL, unix.LOCAL_PEERCRED)
+	}); err != nil {
+		return fmt.Errorf("peer credentials: %w", err)
+	}
+	if credErr != nil {
+		return fmt.Errorf("peer credentials: %w", credErr)
+	}
+	if int(cred.Uid) != os.Getuid() {
+		return ErrUntrustedPeer
 	}
 	return nil
 }
@@ -97,7 +124,7 @@ func LockCore(d Dirs) (func(), error) {
 	return func() { f.Close() }, nil
 }
 
-func checkPrivateDir(dir string) error {
+func CheckPrivate(dir string) error {
 	fi, err := os.Lstat(dir)
 	if err != nil {
 		return fmt.Errorf("stat %s: %w", dir, err)

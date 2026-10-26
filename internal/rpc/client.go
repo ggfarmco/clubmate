@@ -7,6 +7,8 @@ import (
 	"net"
 
 	"github.com/sourcegraph/jsonrpc2"
+
+	"clubmate/internal/paths"
 )
 
 type Client struct {
@@ -17,6 +19,10 @@ func Dial(ctx context.Context, socket string) (*Client, error) {
 	var d net.Dialer
 	nc, err := d.DialContext(ctx, "unix", socket)
 	if err != nil {
+		return nil, fmt.Errorf("dial %s: %w", socket, err)
+	}
+	if err := verifyConn(nc); err != nil {
+		nc.Close()
 		return nil, fmt.Errorf("dial %s: %w", socket, err)
 	}
 	handler := jsonrpc2.HandlerWithError(func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) {
@@ -37,4 +43,12 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 
 func (c *Client) Close() error {
 	return c.conn.Close()
+}
+
+func verifyConn(nc net.Conn) error {
+	uc, ok := nc.(*net.UnixConn)
+	if !ok {
+		return paths.ErrUntrustedPeer
+	}
+	return paths.VerifyPeer(uc)
 }

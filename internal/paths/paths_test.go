@@ -1,6 +1,7 @@
 package paths_test
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -77,4 +78,22 @@ func TestLockCoreIsExclusive(t *testing.T) {
 	unlock2, err := paths.LockCore(d)
 	require.NoError(t, err)
 	unlock2()
+}
+
+func TestCheckRuntimeRejectsInsecureDir(t *testing.T) {
+	d := testutil.ShortDirs(t)
+	require.NoError(t, d.CheckRuntime())
+	require.NoError(t, os.Chmod(d.Runtime, 0o755))
+	assert.ErrorIs(t, d.CheckRuntime(), paths.ErrInsecureRuntimeDir)
+}
+
+func TestVerifyPeerAcceptsSameUID(t *testing.T) {
+	d := testutil.ShortDirs(t)
+	l, err := net.Listen("unix", d.CoreSocket())
+	require.NoError(t, err)
+	defer l.Close()
+	c, err := net.Dial("unix", d.CoreSocket())
+	require.NoError(t, err)
+	defer c.Close()
+	assert.NoError(t, paths.VerifyPeer(c.(*net.UnixConn)))
 }

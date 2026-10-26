@@ -47,12 +47,18 @@ func attach(ctx context.Context, id string, stdin *os.File, stdout io.Writer) (i
 	if err != nil {
 		return 1, err
 	}
+	if err := dirs.CheckRuntime(); err != nil {
+		return 1, fmt.Errorf("attach %s: %w", id, err)
+	}
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "unix", dirs.SessionSocket(id))
 	if err != nil {
 		return 1, fmt.Errorf("attach %s: %w", id, err)
 	}
 	defer conn.Close()
+	if err := verifyPeer(conn); err != nil {
+		return 1, fmt.Errorf("attach %s: %w", id, err)
+	}
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
@@ -95,6 +101,14 @@ func attach(ctx context.Context, id string, stdin *os.File, stdout io.Writer) (i
 	go fw.forwardStdin(stdin)
 
 	return readLoop(conn, stdout)
+}
+
+func verifyPeer(conn net.Conn) error {
+	uc, ok := conn.(*net.UnixConn)
+	if !ok {
+		return paths.ErrUntrustedPeer
+	}
+	return paths.VerifyPeer(uc)
 }
 
 func readLoop(conn net.Conn, stdout io.Writer) (int, error) {
