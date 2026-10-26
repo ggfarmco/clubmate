@@ -1,6 +1,7 @@
 package sdui_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -15,9 +16,9 @@ const prj = "prj_0123456789abcdef"
 
 func TestStoreKeepsPreviousTreeOnInvalidRender(t *testing.T) {
 	s := internalsdui.NewStore()
-	rev, err := s.Render(prj, "terminals.main", "terminals", sdui.Empty("none"))
+	rev, err := s.Render(t.Context(), prj, "terminals.main", "terminals", sdui.Empty("none"))
 	require.NoError(t, err)
-	_, err = s.Render(prj, "terminals.main", "terminals", sdui.Node{Type: "marquee"})
+	_, err = s.Render(t.Context(), prj, "terminals.main", "terminals", sdui.Node{Type: "marquee"})
 	require.ErrorIs(t, err, internalsdui.ErrInvalidTree)
 	views := s.Get(prj)
 	require.Len(t, views, 1)
@@ -25,11 +26,20 @@ func TestStoreKeepsPreviousTreeOnInvalidRender(t *testing.T) {
 	assert.Equal(t, "empty", views[0].Tree.Type)
 }
 
+func TestStoreRejectsRenderFromCancelledCaller(t *testing.T) {
+	s := internalsdui.NewStore()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := s.Render(ctx, prj, "a.main", "a", sdui.Empty("late"))
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, s.Get(prj))
+}
+
 func TestStoreRevPerSlotAndSortedGet(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(prj, "b.main", "b", sdui.Empty("1"))
-	_, _ = s.Render(prj, "a.main", "a", sdui.Empty("1"))
-	rev, _ := s.Render(prj, "a.main", "a", sdui.Empty("2"))
+	_, _ = s.Render(t.Context(), prj, "b.main", "b", sdui.Empty("1"))
+	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("1"))
+	rev, _ := s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("2"))
 	assert.EqualValues(t, 2, rev)
 	views := s.Get(prj)
 	require.Len(t, views, 2)
@@ -39,13 +49,13 @@ func TestStoreRevPerSlotAndSortedGet(t *testing.T) {
 
 func TestSubscribeDeliversCurrentThenUpdates(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(prj, "a.main", "a", sdui.Empty("old"))
-	_, _ = s.Render("prj_other", "a.main", "a", sdui.Empty("other"))
+	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("old"))
+	_, _ = s.Render(t.Context(), "prj_other", "a.main", "a", sdui.Empty("other"))
 	sub, err := s.Subscribe(prj)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
 	assert.Equal(t, "old", recv(t, sub).Tree.Props["text"])
-	_, _ = s.Render(prj, "a.main", "a", sdui.Empty("new"))
+	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("new"))
 	got := recv(t, sub)
 	assert.Equal(t, "new", got.Tree.Props["text"])
 	assert.EqualValues(t, 2, got.Rev)
@@ -53,9 +63,9 @@ func TestSubscribeDeliversCurrentThenUpdates(t *testing.T) {
 
 func TestClearOwnerRemovesSlotsAndNotifies(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(prj, "a.main", "a", sdui.Empty("x"))
-	_, _ = s.Render("prj_other", "a.sidebar", "a", sdui.Empty("x"))
-	_, _ = s.Render(prj, "b.main", "b", sdui.Empty("x"))
+	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
+	_, _ = s.Render(t.Context(), "prj_other", "a.sidebar", "a", sdui.Empty("x"))
+	_, _ = s.Render(t.Context(), prj, "b.main", "b", sdui.Empty("x"))
 	sub, _ := s.Subscribe(prj)
 	t.Cleanup(sub.Close)
 	for range 2 {
@@ -74,7 +84,7 @@ func TestSlowSubscriberIsDropped(t *testing.T) {
 	s := internalsdui.NewStore()
 	sub, _ := s.Subscribe(prj)
 	for range 200 {
-		_, _ = s.Render(prj, "a.main", "a", sdui.Empty("x"))
+		_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
 	}
 	for range sub.C() {
 	}

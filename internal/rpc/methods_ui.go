@@ -149,7 +149,7 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if err := s.requireProject(ctx, p.ProjectID); err != nil {
 		return revResult{}, err
 	}
-	rev, err := u.store.Render(p.ProjectID, p.Slot, caller.PluginID, p.Tree)
+	rev, err := u.store.Render(ctx, p.ProjectID, p.Slot, caller.PluginID, p.Tree)
 	return revResult{Rev: rev}, err
 }
 

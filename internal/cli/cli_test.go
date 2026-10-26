@@ -168,7 +168,7 @@ func TestUIDumpPrintsOutline(t *testing.T) {
 	store := startCoreWithUI(t)
 	var p project.Project
 	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
-	_, err := store.Render(p.ID, "echo.main", "echo", sdui.VStack(sdui.Text("hello"), sdui.Toggle("on", true)))
+	_, err := store.Render(t.Context(), p.ID, "echo.main", "echo", sdui.VStack(sdui.Text("hello"), sdui.Toggle("on", true)))
 	require.NoError(t, err)
 	want := "echo.main rev=1 owner=echo\n" +
 		"  stack direction=vertical\n" +

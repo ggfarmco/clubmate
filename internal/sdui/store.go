@@ -1,6 +1,7 @@
 package sdui
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -50,12 +51,15 @@ func NewStore() *Store {
 	}
 }
 
-func (s *Store) Render(projectID, slot, owner string, n sdui.Node) (int64, error) {
+func (s *Store) Render(ctx context.Context, projectID, slot, owner string, n sdui.Node) (int64, error) {
 	if err := Validate(n); err != nil {
 		return 0, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	key := slotKey{projectID, slot}
 	s.revs[key]++
 	view := SlotView{ProjectID: projectID, Slot: slot, Owner: owner, Rev: s.revs[key], Tree: n}
