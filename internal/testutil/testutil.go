@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,8 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/core"
 	"clubmate/internal/paths"
+	"clubmate/internal/proc"
+	"clubmate/internal/project"
+	"clubmate/internal/session"
 )
+
+const testKillGrace = 300 * time.Millisecond
 
 type builtBinary struct {
 	once sync.Once
@@ -34,6 +41,19 @@ func ShortDirs(t *testing.T) paths.Dirs {
 	d := paths.Dirs{State: t.TempDir(), Runtime: runtime}
 	require.NoError(t, d.Ensure())
 	return d
+}
+
+func NewService(t *testing.T) *core.Service {
+	t.Helper()
+	dirs := ShortDirs(t)
+	bin := BuildBinary(t, "clubmate/cmd/clubmate-session")
+	store, err := project.Open(dirs.DB())
+	require.NoError(t, err)
+	t.Cleanup(func() { store.Close() })
+	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
+	svc := core.NewService(store, session.NewManager(dirs, bin), tracker, proc.Snapshot, core.WithKillGrace(testKillGrace))
+	t.Cleanup(func() { killLeftovers(svc) })
+	return svc
 }
 
 func BuildBinary(t *testing.T, pkg string) string {
@@ -57,6 +77,22 @@ func Eventually(t *testing.T, cond func() bool, timeout time.Duration) {
 
 func Alive(pid int) bool {
 	return unix.Kill(pid, 0) == nil
+}
+
+func killLeftovers(svc *core.Service) {
+	ctx := context.Background()
+	sessions, _ := svc.ListSessions(ctx, "")
+	nodes, _ := svc.ProcessTree(ctx, core.TreeFilter{})
+	for _, n := range nodes {
+		_ = unix.Kill(n.Process.PID, unix.SIGKILL)
+	}
+	for _, s := range sessions {
+		if s.State != session.StateRunning || s.PGID <= 1 || s.HostPID <= 1 {
+			continue
+		}
+		_ = unix.Kill(-s.PGID, unix.SIGKILL)
+		_ = unix.Kill(s.HostPID, unix.SIGKILL)
+	}
 }
 
 func build(pkg string) (string, error) {

@@ -59,7 +59,7 @@ func Snapshot() ([]Process, error) {
 }
 
 func readUsage() (map[int]usage, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,rss=,pcpu=").Output()
+	out, err := exec.Command("/bin/ps", "-axo", "pid=,rss=,pcpu=").Output()
 	if err != nil {
 		return nil, fmt.Errorf("run ps: %w", err)
 	}

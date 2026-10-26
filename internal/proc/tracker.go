@@ -56,8 +56,10 @@ func (t *Tracker) Attribute(procs []Process, roots []SessionRoot) []Node {
 	rootByPGID := make(map[int]string, len(roots))
 	rootIDs := make(map[string]bool, len(roots))
 	for _, r := range roots {
-		rootByPGID[r.PGID] = r.SessionID
 		rootIDs[r.SessionID] = true
+		if r.PGID > 1 {
+			rootByPGID[r.PGID] = r.SessionID
+		}
 	}
 
 	present := make(map[procKey]bool, len(procs))
