@@ -3,19 +3,30 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/core"
+	"clubmate/internal/id"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/session"
 )
 
-const Version = "0.1.0"
+const (
+	Version = "0.1.0"
+
+	projectPrefix = "prj"
+
+	acceptBackoffMin = 5 * time.Millisecond
+	acceptBackoffMax = time.Second
+)
 
 type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
 
@@ -55,15 +66,50 @@ func Serve(ctx context.Context, l net.Listener, svc *core.Service) error {
 	defer wg.Wait()
 	defer cancel()
 	defer stopListener()
+	var backoff time.Duration
 	for {
 		nc, err := l.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
-			return fmt.Errorf("accept: %w", err)
+			if !retryableAccept(err) {
+				return fmt.Errorf("accept: %w", err)
+			}
+			backoff = nextBackoff(backoff)
+			if !sleep(ctx, backoff) {
+				return nil
+			}
+			continue
 		}
+		backoff = 0
 		wg.Go(func() { serveConn(ctx, nc, handler) })
+	}
+}
+
+func retryableAccept(err error) bool {
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return true
+	}
+	return errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE)
+}
+
+func nextBackoff(d time.Duration) time.Duration {
+	if d == 0 {
+		return acceptBackoffMin
+	}
+	return min(d*2, acceptBackoffMax)
+}
+
+func sleep(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -105,32 +151,68 @@ func methodTable(svc *core.Service) map[string]handlerFunc {
 			return nonNil(list), err
 		}),
 		"project.get": method(func(ctx context.Context, p idParams) (project.Project, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return project.Project{}, err
+			}
 			return encodeProject(svc.GetProject(ctx, p.ID))
 		}),
 		"project.addRepo": method(func(ctx context.Context, p addRepoParams) (project.Project, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return project.Project{}, err
+			}
 			return encodeProject(svc.AddRepo(ctx, p.ID, p.Path))
 		}),
 		"project.delete": method(func(ctx context.Context, p idParams) (empty, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return empty{}, err
+			}
 			return empty{}, svc.DeleteProject(ctx, p.ID)
 		}),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
+			if err := requireID(projectPrefix, p.ProjectID); err != nil {
+				return session.Session{}, err
+			}
 			return svc.CreateSession(ctx, p)
 		}),
 		"session.list": method(func(ctx context.Context, p listSessionsParams) ([]session.Session, error) {
+			if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+				return nil, err
+			}
 			list, err := svc.ListSessions(ctx, p.ProjectID)
 			return nonNil(list), err
 		}),
 		"session.get": method(func(ctx context.Context, p idParams) (session.Session, error) {
+			if err := requireID(session.IDPrefix, p.ID); err != nil {
+				return session.Session{}, err
+			}
 			return svc.GetSession(ctx, p.ID)
 		}),
 		"session.kill": method(func(ctx context.Context, p idParams) (empty, error) {
+			if err := requireID(session.IDPrefix, p.ID); err != nil {
+				return empty{}, err
+			}
 			return empty{}, svc.KillSession(ctx, p.ID)
 		}),
+		"session.remove": method(func(ctx context.Context, p idParams) (empty, error) {
+			if err := requireID(session.IDPrefix, p.ID); err != nil {
+				return empty{}, err
+			}
+			return empty{}, svc.RemoveSession(ctx, p.ID)
+		}),
 		"process.tree": method(func(ctx context.Context, f core.TreeFilter) ([]proc.Node, error) {
+			if err := optionalID(projectPrefix, f.ProjectID); err != nil {
+				return nil, err
+			}
+			if err := optionalID(session.IDPrefix, f.SessionID); err != nil {
+				return nil, err
+			}
 			nodes, err := svc.ProcessTree(ctx, f)
 			return nonNil(nodes), err
 		}),
 		"process.kill": method(func(ctx context.Context, p core.KillRequest) (killResult, error) {
+			if err := optionalID(session.IDPrefix, p.SessionID); err != nil {
+				return killResult{}, err
+			}
 			killed, err := svc.KillProcesses(ctx, p)
 			return killResult{Killed: nonNil(killed)}, err
 		}),
@@ -151,6 +233,20 @@ func method[P, R any](fn func(ctx context.Context, p P) (R, error)) handlerFunc 
 		}
 		return result, nil
 	}
+}
+
+func requireID(prefix, s string) error {
+	if id.Valid(prefix, s) {
+		return nil
+	}
+	return &jsonrpc2.Error{Code: codeInvalidParams, Message: fmt.Sprintf("invalid %s id: %q", prefix, s)}
+}
+
+func optionalID(prefix, s string) error {
+	if s == "" {
+		return nil
+	}
+	return requireID(prefix, s)
 }
 
 func encodeProject(p project.Project, err error) (project.Project, error) {

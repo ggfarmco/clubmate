@@ -74,3 +74,16 @@ func TestAttachToExitedSessionReportsExitCode(t *testing.T) {
 	assert.Equal(t, 3, exit.Code)
 	assert.Equal(t, "session "+sid+" exited (code 3)\n", stderr.String())
 }
+
+func TestSessionRemoveCommand(t *testing.T) {
+	startCore(t)
+	var p project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "true")))
+	testutil.Eventually(t, func() bool {
+		var list []session.Session
+		return json.Unmarshal(run(t, "session", "list", "--json"), &list) == nil && len(list) == 1 && list[0].State == session.StateExited
+	}, 3*time.Second)
+	run(t, "session", "remove", sid)
+	assert.JSONEq(t, `[]`, string(run(t, "session", "list", "--json")))
+}

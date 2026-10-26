@@ -17,11 +17,13 @@ const (
 	codeInternal       = jsonrpc2.CodeInternalError
 	codeNotFound       = -32004
 	codeNotTracked     = -32010
+	codeSessionRunning = -32011
 )
 
 var (
 	ErrNotFound       = errors.New("not found")
 	ErrNotTracked     = errors.New("not tracked")
+	ErrSessionRunning = errors.New("session is running")
 	ErrInvalidParams  = errors.New("invalid params")
 	ErrMethodNotFound = errors.New("method not found")
 )
@@ -41,6 +43,8 @@ func (e *RemoteError) Is(target error) bool {
 		return e.Code == codeNotFound
 	case ErrNotTracked:
 		return e.Code == codeNotTracked
+	case ErrSessionRunning:
+		return e.Code == codeSessionRunning
 	case ErrInvalidParams:
 		return e.Code == codeInvalidParams
 	case ErrMethodNotFound:
@@ -63,6 +67,8 @@ func errorCode(err error) int64 {
 		return codeNotFound
 	case errors.Is(err, core.ErrNotTracked):
 		return codeNotTracked
+	case errors.Is(err, session.ErrRunning):
+		return codeSessionRunning
 	case errors.Is(err, project.ErrInvalidRepo),
 		errors.Is(err, project.ErrDuplicateRepo),
 		errors.Is(err, project.ErrEmptyName),

@@ -114,6 +114,10 @@ func (s *Service) GetSession(ctx context.Context, id string) (session.Session, e
 	return s.sessions.Get(ctx, id)
 }
 
+func (s *Service) RemoveSession(ctx context.Context, id string) error {
+	return s.sessions.Remove(ctx, id)
+}
+
 func (s *Service) KillSession(ctx context.Context, id string) error {
 	if _, err := s.sessions.Get(ctx, id); err != nil {
 		return err

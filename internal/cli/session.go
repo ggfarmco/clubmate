@@ -16,7 +16,7 @@ const fallbackShell = "/bin/zsh"
 
 func (a *app) sessionCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "session", Short: "Manage sessions"}
-	cmd.AddCommand(a.sessionCreateCmd(), a.sessionListCmd(), a.sessionKillCmd())
+	cmd.AddCommand(a.sessionCreateCmd(), a.sessionListCmd(), a.sessionKillCmd(), a.sessionRemoveCmd())
 	return cmd
 }
 
@@ -83,6 +83,21 @@ func (a *app) sessionKillCmd() *cobra.Command {
 				return err
 			}
 			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "killed", args[0]) })
+		},
+	}
+}
+
+func (a *app) sessionRemoveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <id>",
+		Short: "Remove an exited session",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var res struct{}
+			if err := a.call(cmd.Context(), "session.remove", map[string]string{"id": args[0]}, &res); err != nil {
+				return err
+			}
+			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "removed", args[0]) })
 		},
 	}
 }

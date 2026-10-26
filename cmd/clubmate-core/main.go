@@ -109,5 +109,10 @@ func hostBinary() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve executable: %w", err)
 	}
-	return filepath.Join(filepath.Dir(exe), "clubmate-session"), nil
+	bin := filepath.Join(filepath.Dir(exe), "clubmate-session")
+	info, err := os.Stat(bin)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+		return "", fmt.Errorf("clubmate-session not found next to clubmate-core: %s", bin)
+	}
+	return bin, nil
 }
