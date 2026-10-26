@@ -3,6 +3,7 @@ package sdui_test
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,6 +40,10 @@ func TestValidate(t *testing.T) {
 		{"json null items", sdui.Node{Type: "list", ID: "l", Props: map[string]any{"items": nil}}, true},
 		{"empty item id", sdui.List("l", []sdui.Item{{ID: "", Label: "A"}}, ""), false},
 		{"duplicate item ids", sdui.List("l", []sdui.Item{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}, ""), false},
+		{"button with action", sdui.WithAction(sdui.Button("b", "Go", ""), "tab.open"), true},
+		{"bad action", sdui.WithAction(sdui.Button("b", "Go", ""), "Bad Action"), false},
+		{"action too long", sdui.WithAction(sdui.Button("b", "Go", ""), "a"+strings.Repeat("b", 64)), false},
+		{"action on text", sdui.WithAction(sdui.Text("a"), "go"), false},
 		{"select", sdui.Select("s", []sdui.Option{{Value: "a", Label: "A"}}, "a"), true},
 	}
 	for _, tt := range tests {

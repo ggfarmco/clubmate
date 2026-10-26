@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 
@@ -12,9 +13,12 @@ import (
 )
 
 const (
-	maxNodes = 5000
-	maxDepth = 32
+	maxNodes     = 5000
+	maxDepth     = 32
+	maxActionLen = 64
 )
+
+var actionPattern = regexp.MustCompile(`^[a-z][a-z0-9.-]*$`)
 
 var ErrInvalidTree = errors.New("invalid sdui tree")
 
@@ -50,19 +54,19 @@ var (
 		"scroll": {children: childRule{1, 1}},
 		"tabs": {
 			required:    []string{"items", "selected"},
-			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString},
+			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
 		"list": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString},
+			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
 		"tree": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString},
+			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -72,23 +76,23 @@ var (
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
 		"textField": {
-			props:       map[string]propCheck{"value": isString, "placeholder": isString},
+			props:       map[string]propCheck{"value": isString, "placeholder": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
-		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool}, children: noChildren, interactive: true},
+		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck}, children: noChildren, interactive: true},
 		"select": {
 			required:    []string{"options"},
-			props:       map[string]propCheck{"options": listOf(optionCheck), "value": isString},
+			props:       map[string]propCheck{"options": listOf(optionCheck), "value": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
-		"form":    {children: anyChildren, interactive: true},
+		"form":    {props: map[string]propCheck{"action": actionCheck}, children: anyChildren, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
 		"empty":   {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 	}
@@ -217,6 +221,14 @@ func isString(_ *validator, v any) error {
 func isBool(_ *validator, v any) error {
 	if _, ok := v.(bool); !ok {
 		return errors.New("must be a boolean")
+	}
+	return nil
+}
+
+func actionCheck(_ *validator, v any) error {
+	s, ok := v.(string)
+	if !ok || len(s) == 0 || len(s) > maxActionLen || !actionPattern.MatchString(s) {
+		return fmt.Errorf("must match %s and be 1-%d characters", actionPattern, maxActionLen)
 	}
 	return nil
 }
