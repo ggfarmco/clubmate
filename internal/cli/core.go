@@ -107,7 +107,7 @@ func (a *app) coreStopCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().DurationVar(&wait, "wait", 5*time.Second, "how long to wait for the core to exit")
+	cmd.Flags().DurationVar(&wait, "wait", 20*time.Second, "how long to wait for the core to exit")
 	return cmd
 }
 
