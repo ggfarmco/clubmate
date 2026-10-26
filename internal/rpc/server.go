@@ -10,6 +10,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/core"
+	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/session"
 )
@@ -94,16 +95,20 @@ func methodTable(svc *core.Service) map[string]handlerFunc {
 			return pingResult{Version: Version}, nil
 		}),
 		"project.create": method(func(ctx context.Context, p createProjectParams) (project.Project, error) {
-			return svc.CreateProject(ctx, p.Name, p.Repos)
+			return encodeProject(svc.CreateProject(ctx, p.Name, p.Repos))
 		}),
 		"project.list": method(func(ctx context.Context, _ empty) ([]project.Project, error) {
-			return svc.ListProjects(ctx)
+			list, err := svc.ListProjects(ctx)
+			for i := range list {
+				list[i].Repos = nonNil(list[i].Repos)
+			}
+			return nonNil(list), err
 		}),
 		"project.get": method(func(ctx context.Context, p idParams) (project.Project, error) {
-			return svc.GetProject(ctx, p.ID)
+			return encodeProject(svc.GetProject(ctx, p.ID))
 		}),
 		"project.addRepo": method(func(ctx context.Context, p addRepoParams) (project.Project, error) {
-			return svc.AddRepo(ctx, p.ID, p.Path)
+			return encodeProject(svc.AddRepo(ctx, p.ID, p.Path))
 		}),
 		"project.delete": method(func(ctx context.Context, p idParams) (empty, error) {
 			return empty{}, svc.DeleteProject(ctx, p.ID)
@@ -112,7 +117,8 @@ func methodTable(svc *core.Service) map[string]handlerFunc {
 			return svc.CreateSession(ctx, p)
 		}),
 		"session.list": method(func(ctx context.Context, p listSessionsParams) ([]session.Session, error) {
-			return svc.ListSessions(ctx, p.ProjectID)
+			list, err := svc.ListSessions(ctx, p.ProjectID)
+			return nonNil(list), err
 		}),
 		"session.get": method(func(ctx context.Context, p idParams) (session.Session, error) {
 			return svc.GetSession(ctx, p.ID)
@@ -120,10 +126,13 @@ func methodTable(svc *core.Service) map[string]handlerFunc {
 		"session.kill": method(func(ctx context.Context, p idParams) (empty, error) {
 			return empty{}, svc.KillSession(ctx, p.ID)
 		}),
-		"process.tree": method(svc.ProcessTree),
+		"process.tree": method(func(ctx context.Context, f core.TreeFilter) ([]proc.Node, error) {
+			nodes, err := svc.ProcessTree(ctx, f)
+			return nonNil(nodes), err
+		}),
 		"process.kill": method(func(ctx context.Context, p core.KillRequest) (killResult, error) {
 			killed, err := svc.KillProcesses(ctx, p)
-			return killResult{Killed: killed}, err
+			return killResult{Killed: nonNil(killed)}, err
 		}),
 	}
 }
@@ -142,4 +151,16 @@ func method[P, R any](fn func(ctx context.Context, p P) (R, error)) handlerFunc 
 		}
 		return result, nil
 	}
+}
+
+func encodeProject(p project.Project, err error) (project.Project, error) {
+	p.Repos = nonNil(p.Repos)
+	return p, err
+}
+
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }

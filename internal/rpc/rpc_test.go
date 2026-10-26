@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"testing"
 
@@ -41,6 +42,18 @@ func TestRPCProjectRoundTrip(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
 	require.Len(t, list, 1)
 	assert.Equal(t, p.ID, list[0].ID)
+}
+
+func TestRPCEmptyListsEncodeAsArrays(t *testing.T) {
+	c := startServer(t)
+	for _, method := range []string{"project.list", "session.list", "process.tree"} {
+		var raw json.RawMessage
+		require.NoError(t, c.Call(t.Context(), method, struct{}{}, &raw))
+		assert.JSONEq(t, `[]`, string(raw), method)
+	}
+	var p json.RawMessage
+	require.NoError(t, c.Call(t.Context(), "project.create", map[string]any{"name": "bare"}, &p))
+	assert.Contains(t, string(p), `"repos":[]`)
 }
 
 func TestRPCSessionCreateUsesCamelCaseParams(t *testing.T) {
