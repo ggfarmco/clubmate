@@ -18,6 +18,7 @@ import (
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
+	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 )
 
@@ -55,6 +56,12 @@ func NewServiceWithBus(t *testing.T) (*core.Service, *bus.Bus) {
 	require.NoError(t, err)
 	t.Cleanup(func() { b.Close() })
 	return newService(t, core.WithBus(b)), b
+}
+
+func NewRPCServer(t *testing.T) (*rpc.Server, *bus.Bus) {
+	t.Helper()
+	svc, b := NewServiceWithBus(t)
+	return rpc.NewServer(svc, b), b
 }
 
 func newService(t *testing.T, opts ...core.Option) *core.Service {

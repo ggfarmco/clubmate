@@ -10,9 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sourcegraph/jsonrpc2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
@@ -21,13 +23,19 @@ import (
 
 func startServer(t *testing.T) *rpc.Client {
 	t.Helper()
-	svc := testutil.NewService(t)
+	c, _ := startServerWithBus(t)
+	return c
+}
+
+func startServerWithBus(t *testing.T) (*rpc.Client, *bus.Bus) {
+	t.Helper()
+	srv, b := testutil.NewRPCServer(t)
 	dirs := testutil.ShortDirs(t)
 	l, err := net.Listen("unix", dirs.CoreSocket())
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- rpc.Serve(ctx, l, svc) }()
+	go func() { done <- srv.Serve(ctx, l) }()
 	c, err := rpc.Dial(ctx, dirs.CoreSocket())
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -35,7 +43,7 @@ func startServer(t *testing.T) *rpc.Client {
 		cancel()
 		assert.NoError(t, <-done)
 	})
-	return c
+	return c, b
 }
 
 func TestRPCProjectRoundTrip(t *testing.T) {
@@ -98,6 +106,8 @@ func TestRPCErrorCodes(t *testing.T) {
 		{"domain validation", "project.create", map[string]any{"name": ""}, rpc.ErrInvalidParams},
 		{"bad params", "project.get", "oops", rpc.ErrInvalidParams},
 		{"unknown method", "nope.nope", struct{}{}, rpc.ErrMethodNotFound},
+		{"invalid topic", "bus.publish", map[string]any{"topic": "Bad Topic"}, rpc.ErrInvalidParams},
+		{"unknown subscription", "bus.unsubscribe", map[string]any{"subscription": "sub_0000000000000000"}, rpc.ErrNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -227,6 +237,20 @@ func TestRPCSessionOwnerCannotBeSetByParams(t *testing.T) {
 	var mine []session.Session
 	require.NoError(t, c.Call(t.Context(), "session.list", map[string]string{"owner": "terminals"}, &mine))
 	assert.Empty(t, mine)
+}
+
+func TestRPCSessionOwnerIsPluginCaller(t *testing.T) {
+	srv, _ := testutil.NewRPCServer(t)
+	coreSide, pluginSide := net.Pipe()
+	srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), rpc.Caller{PluginID: "terminals"})
+	plugin := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(pluginSide), jsonrpc2.HandlerWithError(
+		func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) { return nil, nil }))
+	t.Cleanup(func() { plugin.Close() })
+	var p project.Project
+	require.NoError(t, plugin.Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &p))
+	var s session.Session
+	require.NoError(t, plugin.Call(t.Context(), "session.create", map[string]any{"projectId": p.ID, "command": []string{"true"}}, &s))
+	assert.Equal(t, "terminals", s.Owner)
 }
 
 func TestRPCSessionListRejectsBadOwner(t *testing.T) {

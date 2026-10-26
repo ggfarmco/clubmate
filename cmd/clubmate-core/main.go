@@ -85,7 +85,7 @@ func run(logger *slog.Logger) error {
 	}()
 
 	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", rpc.Version)
-	serveErr := rpc.Serve(ctx, listener, svc)
+	serveErr := rpc.NewServer(svc, eventBus).Serve(ctx, listener)
 	stop()
 	<-loopDone
 	logger.Info("clubmate-core stopped")

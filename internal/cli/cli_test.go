@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,14 +15,13 @@ import (
 
 	"clubmate/internal/cli"
 	"clubmate/internal/project"
-	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 )
 
 func startCore(t *testing.T) {
 	t.Helper()
-	svc := testutil.NewService(t)
+	srv, _ := testutil.NewRPCServer(t)
 	dirs := testutil.ShortDirs(t)
 	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
 	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
@@ -29,7 +29,7 @@ func startCore(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- rpc.Serve(ctx, l, svc) }()
+	go func() { done <- srv.Serve(ctx, l) }()
 	t.Cleanup(func() {
 		cancel()
 		assert.NoError(t, <-done)
@@ -86,4 +86,46 @@ func TestSessionRemoveCommand(t *testing.T) {
 	}, 3*time.Second)
 	run(t, "session", "remove", sid)
 	assert.JSONEq(t, `[]`, string(run(t, "session", "list", "--json")))
+}
+
+func TestBusPublishAndRead(t *testing.T) {
+	startCore(t)
+	run(t, "bus", "publish", "demo.x", `{"a":1}`, "--json")
+	out := strings.TrimSpace(string(run(t, "bus", "read", "demo.*", "--json")))
+	require.NotContains(t, out, "\n")
+	assert.Contains(t, out, `"demo.x"`)
+}
+
+func TestBusReadFollowStreamsNewEvents(t *testing.T) {
+	startCore(t)
+	run(t, "bus", "publish", "demo.old")
+	var stdout syncBuffer
+	root := cli.NewRoot(&stdout, &stdout)
+	root.SetArgs([]string{"bus", "read", "demo.*", "--follow"})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- root.ExecuteContext(ctx) }()
+	testutil.Eventually(t, func() bool { return strings.Contains(stdout.String(), "demo.old") }, 3*time.Second)
+	run(t, "bus", "publish", "demo.new", `{"n":2}`)
+	testutil.Eventually(t, func() bool { return strings.Contains(stdout.String(), `demo.new`) }, 3*time.Second)
+	cancel()
+	require.NoError(t, <-done)
+	assert.Equal(t, 2, strings.Count(stdout.String(), " cli "))
+}
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

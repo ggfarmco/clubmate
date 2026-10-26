@@ -5,6 +5,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/core"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
@@ -63,7 +64,7 @@ func toRPCError(err error) *jsonrpc2.Error {
 
 func errorCode(err error) int64 {
 	switch {
-	case errors.Is(err, project.ErrNotFound), errors.Is(err, session.ErrNotFound):
+	case errors.Is(err, project.ErrNotFound), errors.Is(err, session.ErrNotFound), errors.Is(err, errUnknownSubscription):
 		return codeNotFound
 	case errors.Is(err, core.ErrNotTracked):
 		return codeNotTracked
@@ -74,7 +75,12 @@ func errorCode(err error) int64 {
 		errors.Is(err, project.ErrEmptyName),
 		errors.Is(err, core.ErrEmptyKillRequest),
 		errors.Is(err, core.ErrOrphansNeedSession),
-		errors.Is(err, proc.ErrUnsafePID):
+		errors.Is(err, proc.ErrUnsafePID),
+		errors.Is(err, bus.ErrInvalidTopic),
+		errors.Is(err, bus.ErrInvalidPattern),
+		errors.Is(err, bus.ErrInvalidPayload),
+		errors.Is(err, bus.ErrPayloadTooLarge),
+		errors.Is(err, errEmptyConsumer):
 		return codeInvalidParams
 	}
 	return codeInternal
