@@ -54,11 +54,11 @@ type Session struct {
 }
 
 type CreateRequest struct {
-	ProjectID string
-	Title     string
-	Command   []string
-	Cwd       string
-	Env       []string
+	ProjectID string   `json:"projectId"`
+	Title     string   `json:"title"`
+	Command   []string `json:"command"`
+	Cwd       string   `json:"cwd"`
+	Env       []string `json:"env"`
 }
 
 type Manager struct {

@@ -10,6 +10,7 @@ import (
 
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
+	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 )
 
@@ -40,6 +41,16 @@ func TestRPCProjectRoundTrip(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
 	require.Len(t, list, 1)
 	assert.Equal(t, p.ID, list[0].ID)
+}
+
+func TestRPCSessionCreateUsesCamelCaseParams(t *testing.T) {
+	c := startServer(t)
+	var p project.Project
+	require.NoError(t, c.Call(t.Context(), "project.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
+	var s session.Session
+	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"projectId": p.ID, "command": []string{"sh", "-c", "exec cat"}}, &s))
+	t.Cleanup(func() { c.Call(context.Background(), "session.kill", map[string]string{"id": s.ID}, nil) })
+	assert.Equal(t, p.ID, s.ProjectID)
 }
 
 func TestRPCPing(t *testing.T) {
