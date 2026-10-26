@@ -22,6 +22,7 @@ const (
 	codeNotTracked        = -32010
 	codeSessionRunning    = -32011
 	codePluginUnavailable = -32012
+	codePluginError       = -32013
 )
 
 var (
@@ -31,11 +32,18 @@ var (
 	ErrInvalidParams     = errors.New("invalid params")
 	ErrMethodNotFound    = errors.New("method not found")
 	ErrPluginUnavailable = errors.New("plugin unavailable")
+	ErrPluginError       = errors.New("plugin error")
 )
 
 type RemoteError struct {
 	Code    int
 	Message string
+}
+
+type PluginError struct {
+	PluginID string
+	Method   string
+	Message  string
 }
 
 func (e *RemoteError) Error() string {
@@ -56,8 +64,18 @@ func (e *RemoteError) Is(target error) bool {
 		return e.Code == codeMethodNotFound
 	case ErrPluginUnavailable:
 		return e.Code == codePluginUnavailable
+	case ErrPluginError:
+		return e.Code == codePluginError
 	}
 	return false
+}
+
+func (e *PluginError) Error() string {
+	return "plugin " + e.PluginID + " " + e.Method + ": " + e.Message
+}
+
+func (e *PluginError) Is(target error) bool {
+	return target == ErrPluginError
 }
 
 func toRPCError(err error) *jsonrpc2.Error {
@@ -78,6 +96,8 @@ func errorCode(err error) int64 {
 		return codeNotFound
 	case errors.Is(err, ErrPluginUnavailable):
 		return codePluginUnavailable
+	case errors.Is(err, ErrPluginError):
+		return codePluginError
 	case errors.Is(err, core.ErrNotTracked):
 		return codeNotTracked
 	case errors.Is(err, session.ErrRunning):

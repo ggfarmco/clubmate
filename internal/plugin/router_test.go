@@ -1,11 +1,16 @@
 package plugin_test
 
 import (
+	"context"
 	"encoding/json"
+	"net"
+	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/sourcegraph/jsonrpc2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -66,6 +71,30 @@ func TestClearOwnerOnPluginCrash(t *testing.T) {
 	assert.Equal(t, "text", nextView(t, c, sub.Subscription).Tree.Type)
 }
 
+func TestPluginErrorsAreRewrapped(t *testing.T) {
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t, testutil.EchoPluginDir(t))
+	c := h.Client(t)
+	testutil.Eventually(t, func() bool { return len(h.Sup.PIDs()) == 1 && h.Sup.Statuses()[0].State == plugin.StateRunning }, 5*time.Second)
+	err = c.Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "echo.main", "nodeId": "x", "action": "nope"}, nil)
+	require.ErrorIs(t, err, rpc.ErrPluginError)
+	assert.EqualError(t, err, `plugin echo ui.event: unknown action "nope"`)
+}
+
+func TestCallTimesOutWhenPluginStopsReading(t *testing.T) {
+	coreSide, pluginSide := net.Pipe()
+	conn := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), noopHandler{})
+	t.Cleanup(func() { pluginSide.Close() })
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	_, err := plugin.CallConn(ctx, conn, "wedged", "ui.event", json.RawMessage(`{}`))
+	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
+	conn.Close()
+	testutil.Eventually(t, func() bool { return !strings.Contains(goroutines(), "plugin.callConn") }, 2*time.Second)
+}
+
 func TestRoutingToStoppedPluginIsUnavailable(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
 	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
@@ -90,6 +119,10 @@ func TestSubscriptionIDsAreScopedByKind(t *testing.T) {
 	assert.NoError(t, c.Call(t.Context(), "ui.unsubscribe", sub, nil))
 }
 
+type noopHandler struct{}
+
+func (noopHandler) Handle(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) {}
+
 func nextView(t *testing.T, c *rpc.Client, sid string) internalsdui.SlotView {
 	t.Helper()
 	select {
@@ -103,4 +136,9 @@ func nextView(t *testing.T, c *rpc.Client, sid string) internalsdui.SlotView {
 		t.Fatal("no ui.updated notification")
 		return internalsdui.SlotView{}
 	}
+}
+
+func goroutines() string {
+	buf := make([]byte, 1<<20)
+	return string(buf[:runtime.Stack(buf, true)])
 }

@@ -49,13 +49,38 @@ func (r *Router) call(ctx context.Context, pluginID, method string, params json.
 	}
 	ctx, cancel := context.WithTimeout(ctx, routeTimeout)
 	defer cancel()
-	var out json.RawMessage
-	err := conn.Call(ctx, method, params, &out)
-	if errors.Is(err, jsonrpc2.ErrClosed) {
-		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
+	return callConn(ctx, conn, pluginID, method, params)
+}
+
+func callConn(ctx context.Context, conn *jsonrpc2.Conn, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
+	type reply struct {
+		out json.RawMessage
+		err error
 	}
-	if err != nil {
-		return nil, fmt.Errorf("plugin %s %s: %w", pluginID, method, err)
+	replies := make(chan reply, 1)
+	go func() {
+		var out json.RawMessage
+		err := conn.Call(ctx, method, params, &out)
+		replies <- reply{out: out, err: err}
+	}()
+	select {
+	case r := <-replies:
+		if r.err != nil {
+			return nil, callError(pluginID, method, r.err)
+		}
+		return r.out, nil
+	case <-ctx.Done():
+		return nil, callError(pluginID, method, ctx.Err())
 	}
-	return out, nil
+}
+
+func callError(pluginID, method string, err error) error {
+	var rpcErr *jsonrpc2.Error
+	switch {
+	case errors.As(err, &rpcErr):
+		return &rpc.PluginError{PluginID: pluginID, Method: method, Message: rpcErr.Message}
+	case errors.Is(err, jsonrpc2.ErrClosed), errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("%w: plugin %s %s: %w", ErrPluginUnavailable, pluginID, method, err)
+	}
+	return fmt.Errorf("plugin %s %s: %w", pluginID, method, err)
 }
