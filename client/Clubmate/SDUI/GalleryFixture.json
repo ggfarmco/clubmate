@@ -1,0 +1,163 @@
+{
+  "type": "split",
+  "props": {"direction": "horizontal"},
+  "children": [
+    {
+      "type": "stack",
+      "props": {"direction": "vertical"},
+      "children": [
+        {
+          "type": "stack",
+          "props": {"direction": "horizontal"},
+          "children": [
+            {"type": "icon", "props": {"name": "folder"}},
+            {"type": "text", "props": {"text": " clubmate ", "style": "title"}},
+            {"type": "badge", "props": {"text": "3", "tone": "accent"}}
+          ]
+        },
+        {"type": "text", "props": {"text": "FILES", "style": "muted"}},
+        {
+          "type": "tree",
+          "id": "files",
+          "props": {
+            "selected": "main-go",
+            "items": [
+              {
+                "id": "cmd", "label": "cmd", "icon": "folder", "hasChildren": true, "expanded": true,
+                "children": [
+                  {
+                    "id": "cmd-core", "label": "clubmate-core", "icon": "folder", "hasChildren": true, "expanded": true,
+                    "children": [{"id": "main-go", "label": "main.go", "icon": "doc.text", "detail": "2 KB"}]
+                  },
+                  {"id": "cmd-cli", "label": "clubmate", "icon": "folder", "hasChildren": true, "expanded": false}
+                ]
+              },
+              {"id": "internal", "label": "internal", "icon": "folder", "hasChildren": true, "expanded": false},
+              {"id": "readme", "label": "README.md", "icon": "doc.richtext", "badge": "M"}
+            ]
+          }
+        },
+        {"type": "text", "props": {"text": "SESSIONS", "style": "muted"}},
+        {
+          "type": "list",
+          "id": "sessions",
+          "props": {
+            "selected": "s2",
+            "items": [
+              {"id": "s1", "label": "zsh", "icon": "terminal", "detail": "~/clubmate"},
+              {"id": "s2", "label": "make test", "icon": "terminal", "detail": "running", "badge": "live"},
+              {"id": "s3", "label": "nvim", "icon": "terminal", "detail": "exited"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "stack",
+      "props": {"direction": "vertical"},
+      "children": [
+        {
+          "type": "tabs",
+          "id": "views",
+          "props": {
+            "selected": "overview",
+            "items": [
+              {"id": "overview", "label": "Overview", "icon": "square.grid.2x2"},
+              {"id": "terminals", "label": "Terminals", "badge": "2"},
+              {"id": "settings", "label": "Settings"}
+            ]
+          }
+        },
+        {
+          "type": "split",
+          "props": {"direction": "vertical"},
+          "children": [
+            {
+              "type": "scroll",
+              "children": [
+                {
+                  "type": "stack",
+                  "props": {"direction": "vertical"},
+                  "children": [
+                    {"type": "text", "props": {"text": "Text styles", "style": "title"}},
+                    {"type": "text", "props": {"text": "body: the quick brown fox", "style": "body"}},
+                    {"type": "text", "props": {"text": "muted: secondary information", "style": "muted"}},
+                    {"type": "text", "props": {"text": "mono: go test ./...", "style": "mono"}},
+                    {
+                      "type": "stack",
+                      "props": {"direction": "horizontal"},
+                      "children": [
+                        {"type": "badge", "props": {"text": "neutral"}},
+                        {"type": "badge", "props": {"text": "accent", "tone": "accent"}},
+                        {"type": "badge", "props": {"text": "success", "tone": "success"}},
+                        {"type": "badge", "props": {"text": "warning", "tone": "warning"}},
+                        {"type": "badge", "props": {"text": "danger", "tone": "danger"}}
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "props": {"direction": "horizontal"},
+                      "children": [
+                        {"type": "icon", "props": {"name": "terminal"}},
+                        {"type": "icon", "props": {"name": "gearshape"}},
+                        {"type": "icon", "props": {"name": "bolt.fill"}},
+                        {"type": "icon", "props": {"name": "no.such.symbol"}}
+                      ]
+                    },
+                    {"type": "markdown", "props": {"text": "**markdown** with _emphasis_, `code` and a [link](https://example.com)"}},
+                    {
+                      "type": "stack",
+                      "props": {"direction": "horizontal"},
+                      "children": [
+                        {"type": "button", "id": "new", "props": {"label": "New session", "icon": "plus"}},
+                        {"type": "button", "id": "refresh", "props": {"label": "Refresh", "action": "refresh"}},
+                        {"type": "button", "id": "boom", "props": {"label": "Fail", "icon": "exclamationmark.triangle", "action": "fail"}}
+                      ]
+                    },
+                    {
+                      "type": "form",
+                      "id": "settings-form",
+                      "props": {"action": "settings.save"},
+                      "children": [
+                        {"type": "textField", "id": "name", "props": {"value": "clubmate", "placeholder": "Project name"}},
+                        {
+                          "type": "stack",
+                          "props": {"direction": "horizontal"},
+                          "children": [
+                            {"type": "toggle", "id": "autostart", "props": {"value": true}},
+                            {"type": "text", "props": {"text": " start sessions on open"}}
+                          ]
+                        },
+                        {
+                          "type": "select",
+                          "id": "shell",
+                          "props": {
+                            "value": "zsh",
+                            "options": [
+                              {"value": "zsh", "label": "zsh"},
+                              {"value": "bash", "label": "bash"},
+                              {"value": "fish", "label": "fish"}
+                            ]
+                          }
+                        },
+                        {"type": "button", "id": "save", "props": {"label": "Save", "icon": "checkmark"}}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "split",
+              "props": {"direction": "horizontal"},
+              "children": [
+                {"type": "surface", "props": {"sessionId": "ses_0123456789abcdef"}},
+                {"type": "empty", "props": {"text": "No session selected"}}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
