@@ -2,7 +2,9 @@ package plugin_test
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"syscall"
 	"testing"
 	"time"
 
@@ -65,6 +67,27 @@ func TestPluginsDoNotInheritMarkersAndAreNotInProcessTree(t *testing.T) {
 	for _, n := range nodes {
 		assert.NotEqual(t, pid, n.Process.PID)
 	}
+}
+
+func TestSupervisorKillsLeftoverProcessGroupWhenPluginExits(t *testing.T) {
+	t.Setenv("ECHO_FORK_SLEEP", "1")
+	h := newHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	sub, err := h.bus.Subscribe("echo.forked", 0)
+	require.NoError(t, err)
+	t.Cleanup(sub.Close)
+	h.start(t, testutil.EchoPluginDir(t))
+	var forked struct {
+		PID int `json:"pid"`
+	}
+	select {
+	case ev := <-sub.C():
+		require.NoError(t, json.Unmarshal(ev.Payload, &forked))
+	case <-time.After(5 * time.Second):
+		t.Fatal("echo plugin never forked")
+	}
+	t.Cleanup(func() { _ = syscall.Kill(forked.PID, syscall.SIGKILL) })
+	testutil.Eventually(t, func() bool { return h.sup.Statuses()[0].State == "backoff" }, 5*time.Second)
+	testutil.Eventually(t, func() bool { return !testutil.Alive(forked.PID) }, 5*time.Second)
 }
 
 func newHarness(t *testing.T, opts ...plugin.SupervisorOption) *harness {

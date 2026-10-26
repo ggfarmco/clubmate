@@ -115,7 +115,7 @@ func (m *Manager) List(_ context.Context, f ListFilter) ([]Session, error) {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
 			continue
 		}
-		meta, err := sessionhost.ReadMeta(filepath.Join(m.dirs.SessionsDir(), e.Name()))
+		meta, err := readMeta(filepath.Join(m.dirs.SessionsDir(), e.Name()))
 		if err != nil {
 			continue
 		}
@@ -135,7 +135,7 @@ func (m *Manager) Get(_ context.Context, sid string) (Session, error) {
 	if !id.Valid(IDPrefix, sid) {
 		return Session{}, fmt.Errorf("session %q: %w", sid, ErrNotFound)
 	}
-	meta, err := sessionhost.ReadMeta(m.dirs.SessionMeta(sid))
+	meta, err := readMeta(m.dirs.SessionMeta(sid))
 	if errors.Is(err, os.ErrNotExist) {
 		return Session{}, fmt.Errorf("session %s: %w", sid, ErrNotFound)
 	}
@@ -216,6 +216,18 @@ func (m *Manager) startError(sid string) error {
 	return fmt.Errorf("%w: see %s", ErrHostStartTimeout, m.dirs.SessionLog(sid))
 }
 
+func readMeta(path string) (sessionhost.Meta, error) {
+	meta, err := sessionhost.ReadMeta(path)
+	if err != nil || meta.ExitCode != nil || hostAlive(meta.HostPID) {
+		return meta, err
+	}
+	again, err := sessionhost.ReadMeta(path)
+	if err != nil {
+		return meta, nil
+	}
+	return again, nil
+}
+
 func fromMeta(meta sessionhost.Meta) Session {
 	return Session{
 		ID:        meta.ID,
@@ -237,10 +249,14 @@ func deriveState(meta sessionhost.Meta) State {
 	if meta.ExitCode != nil {
 		return StateExited
 	}
-	if meta.HostPID <= 1 || unix.Kill(meta.HostPID, 0) != nil {
+	if !hostAlive(meta.HostPID) {
 		return StateLost
 	}
 	return StateRunning
+}
+
+func hostAlive(pid int) bool {
+	return pid > 1 && unix.Kill(pid, 0) == nil
 }
 
 func exists(path string) bool {

@@ -136,8 +136,13 @@ func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts .
 }
 
 func (s *Supervisor) Start(ctx context.Context, manifests []Manifest) {
-	ctx, cancel := context.WithCancel(ctx)
 	s.mu.Lock()
+	if s.cancel != nil {
+		s.mu.Unlock()
+		s.logger.Warn("plugin supervisor already started, ignoring Start")
+		return
+	}
+	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	for _, m := range manifests {
 		s.plugins[m.ID] = &instance{status: Status{ID: m.ID, State: StateStarting, Manifest: m}}
@@ -374,6 +379,7 @@ func initialize(ctx context.Context, m Manifest, conn *jsonrpc2.Conn) error {
 
 func (p *process) wait() {
 	p.waitErr = p.cmd.Wait()
+	p.signal(syscall.SIGKILL)
 	close(p.exited)
 }
 
