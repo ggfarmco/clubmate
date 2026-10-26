@@ -2,10 +2,12 @@ package main_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
@@ -36,6 +38,7 @@ func TestExitedTerminalCanBeRestarted(t *testing.T) {
 	main := h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
 	old := main.Props["sessionId"].(string)
 	require.NoError(t, h.Svc.KillSession(t.Context(), old))
+	testutil.Eventually(t, func() bool { return h.GetSession(t, old).State != session.StateRunning }, 5*time.Second)
 	require.NoError(t, h.Svc.CheckTransitions(t.Context()))
 	h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return contains(n, "button") })
 	h.Event(t, p.ID, "terminals.main", "restart", "restart", nil)

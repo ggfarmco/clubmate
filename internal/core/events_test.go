@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -46,6 +47,34 @@ func TestKillSessionPublishesKilled(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, killed, 1)
 	assert.JSONEq(t, `{"id":"`+s.ID+`"}`, string(killed[0].Payload))
+}
+
+func TestKilledSessionCanBeRemovedImmediately(t *testing.T) {
+	svc, _ := testutil.NewServiceWithBus(t)
+	p, err := svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	s, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Command: []string{"sh", "-c", "exec cat"}})
+	require.NoError(t, err)
+	require.NoError(t, svc.KillSession(t.Context(), s.ID))
+	assert.NoError(t, svc.RemoveSession(t.Context(), s.ID))
+}
+
+func TestEventSurvivesCancelledRequest(t *testing.T) {
+	svc, b := testutil.NewServiceWithBus(t)
+	p, err := svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	s, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Command: []string{"sh", "-c", "exit 0"}})
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool {
+		got, _ := svc.GetSession(t.Context(), s.ID)
+		return got.State == session.StateExited
+	}, 3*time.Second)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	require.NoError(t, svc.RemoveSession(ctx, s.ID))
+	removed, err := b.Read(t.Context(), "session.removed", 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, removed, 1)
 }
 
 func topics(evs []bus.Event) []string {

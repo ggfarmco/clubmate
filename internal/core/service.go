@@ -21,6 +21,8 @@ const (
 	DefaultKillGrace = 3 * time.Second
 	startTimeSlack   = time.Second
 	eventSource      = "core"
+	stopPoll         = 20 * time.Millisecond
+	stopSettle       = 2 * time.Second
 )
 
 var (
@@ -185,6 +187,9 @@ func (s *Service) KillSession(ctx context.Context, id string) error {
 	if err := proc.KillTree(ctx, nodePIDs(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill session %s: %w", id, err)
 	}
+	if err := s.awaitStopped(ctx, id); err != nil {
+		return err
+	}
 	s.publish(ctx, "session.killed", idPayload{ID: id})
 	return nil
 }
@@ -317,8 +322,31 @@ func (s *Service) publish(ctx context.Context, topic string, payload any) {
 		s.logger.Error("marshal event", "topic", topic, "err", err)
 		return
 	}
-	if _, err := s.bus.Publish(ctx, topic, eventSource, raw); err != nil {
+	if _, err := s.bus.Publish(context.WithoutCancel(ctx), topic, eventSource, raw); err != nil {
 		s.logger.Error("publish event", "topic", topic, "err", err)
+	}
+}
+
+func (s *Service) awaitStopped(ctx context.Context, id string) error {
+	deadline := time.NewTimer(s.killGrace + stopSettle)
+	defer deadline.Stop()
+	tick := time.NewTicker(stopPoll)
+	defer tick.Stop()
+	for {
+		sess, err := s.sessions.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if sess.State != session.StateRunning {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return fmt.Errorf("kill session %s: %w", id, session.ErrRunning)
+		case <-tick.C:
+		}
 	}
 }
 
