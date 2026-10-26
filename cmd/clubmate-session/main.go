@@ -25,5 +25,6 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer stop()
+	context.AfterFunc(ctx, stop)
 	return sessionhost.Run(ctx, cfg)
 }

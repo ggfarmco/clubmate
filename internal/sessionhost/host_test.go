@@ -5,8 +5,11 @@ import (
 	"context"
 	"net"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -19,6 +22,8 @@ import (
 )
 
 const waitTimeout = 3 * time.Second
+
+var bgPID = regexp.MustCompile(`bg:(\d+)\r?\n`)
 
 type testClient struct {
 	conn net.Conn
@@ -62,6 +67,20 @@ func TestSessionHostExit(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m.ExitCode)
 	assert.Equal(t, 7, *m.ExitCode)
+	assert.NoFileExists(t, cfg.Socket)
+}
+
+func TestSessionHostExitsWhileBackgroundJobHoldsPTY(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `set -m; sleep 30 & echo bg:$!; read x; exit 3`)
+	done := startHost(t, cfg)
+	c := dial(t, cfg.Socket)
+	testutil.Eventually(t, func() bool { return bgPID.MatchString(c.output()) }, waitTimeout)
+	pid, err := strconv.Atoi(bgPID.FindStringSubmatch(c.output())[1])
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Kill(pid, syscall.SIGKILL) })
+	c.send(t, "go\n")
+	assert.Equal(t, 3, c.waitExit(t))
+	require.NoError(t, <-done)
 	assert.NoFileExists(t, cfg.Socket)
 }
 
@@ -120,11 +139,13 @@ func dial(t *testing.T, socket string) *testClient {
 
 func (c *testClient) waitOutput(t *testing.T, substr string) {
 	t.Helper()
-	testutil.Eventually(t, func() bool {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		return strings.Contains(c.out.String(), substr)
-	}, waitTimeout)
+	testutil.Eventually(t, func() bool { return strings.Contains(c.output(), substr) }, waitTimeout)
+}
+
+func (c *testClient) output() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.out.String()
 }
 
 func (c *testClient) resize(t *testing.T, cols, rows uint16) {

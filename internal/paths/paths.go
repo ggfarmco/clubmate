@@ -42,7 +42,7 @@ func Resolve() (Dirs, error) {
 }
 
 func (d Dirs) Ensure() error {
-	if len(d.SessionSocket(strings.Repeat("x", 20))) > maxSocketPath || len(d.CoreSocket()) > maxSocketPath {
+	if len(d.SessionSocket(strings.Repeat("x", 20)))+len(".tmp") > maxSocketPath || len(d.CoreSocket()) > maxSocketPath {
 		return fmt.Errorf("runtime dir %q: %w", d.Runtime, ErrSocketPathTooLong)
 	}
 	for _, dir := range []string{d.State, d.SessionsDir(), d.Runtime, filepath.Join(d.Runtime, "s")} {
