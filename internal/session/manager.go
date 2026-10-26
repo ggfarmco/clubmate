@@ -115,17 +115,17 @@ func (m *Manager) List(_ context.Context, f ListFilter) ([]Session, error) {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
 			continue
 		}
-		meta, err := readMeta(filepath.Join(m.dirs.SessionsDir(), e.Name()))
+		s, err := readSession(filepath.Join(m.dirs.SessionsDir(), e.Name()))
 		if err != nil {
 			continue
 		}
-		if f.ProjectID != "" && meta.ProjectID != f.ProjectID {
+		if f.ProjectID != "" && s.ProjectID != f.ProjectID {
 			continue
 		}
-		if f.Owner != "" && meta.Owner != f.Owner {
+		if f.Owner != "" && s.Owner != f.Owner {
 			continue
 		}
-		sessions = append(sessions, fromMeta(meta))
+		sessions = append(sessions, s)
 	}
 	sort.Slice(sessions, func(i, j int) bool { return sessions[i].StartedAt.Before(sessions[j].StartedAt) })
 	return sessions, nil
@@ -135,14 +135,11 @@ func (m *Manager) Get(_ context.Context, sid string) (Session, error) {
 	if !id.Valid(IDPrefix, sid) {
 		return Session{}, fmt.Errorf("session %q: %w", sid, ErrNotFound)
 	}
-	meta, err := readMeta(m.dirs.SessionMeta(sid))
+	s, err := readSession(m.dirs.SessionMeta(sid))
 	if errors.Is(err, os.ErrNotExist) {
 		return Session{}, fmt.Errorf("session %s: %w", sid, ErrNotFound)
 	}
-	if err != nil {
-		return Session{}, err
-	}
-	return fromMeta(meta), nil
+	return s, err
 }
 
 func (m *Manager) Remove(ctx context.Context, sid string) error {
@@ -216,19 +213,25 @@ func (m *Manager) startError(sid string) error {
 	return fmt.Errorf("%w: see %s", ErrHostStartTimeout, m.dirs.SessionLog(sid))
 }
 
-func readMeta(path string) (sessionhost.Meta, error) {
+func readSession(path string) (Session, error) {
 	meta, err := sessionhost.ReadMeta(path)
-	if err != nil || meta.ExitCode != nil || hostAlive(meta.HostPID) {
-		return meta, err
+	if err != nil {
+		return Session{}, err
+	}
+	if meta.ExitCode != nil {
+		return fromMeta(meta, StateExited), nil
+	}
+	if hostAlive(meta.HostPID) {
+		return fromMeta(meta, StateRunning), nil
 	}
 	again, err := sessionhost.ReadMeta(path)
-	if err != nil {
-		return meta, nil
+	if err != nil || again.ExitCode == nil {
+		return fromMeta(meta, StateLost), nil
 	}
-	return again, nil
+	return fromMeta(again, StateExited), nil
 }
 
-func fromMeta(meta sessionhost.Meta) Session {
+func fromMeta(meta sessionhost.Meta, state State) Session {
 	return Session{
 		ID:        meta.ID,
 		ProjectID: meta.ProjectID,
@@ -240,19 +243,9 @@ func fromMeta(meta sessionhost.Meta) Session {
 		ChildPID:  meta.ChildPID,
 		PGID:      meta.PGID,
 		StartedAt: meta.StartedAt,
-		State:     deriveState(meta),
+		State:     state,
 		ExitCode:  meta.ExitCode,
 	}
-}
-
-func deriveState(meta sessionhost.Meta) State {
-	if meta.ExitCode != nil {
-		return StateExited
-	}
-	if !hostAlive(meta.HostPID) {
-		return StateLost
-	}
-	return StateRunning
 }
 
 func hostAlive(pid int) bool {
