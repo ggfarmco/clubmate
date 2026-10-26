@@ -25,7 +25,7 @@ struct Theme: Sendable {
         return .custom(fontFamily, size: size)
     }
 
-    static let kanagawa = Theme(
+    static let fallback = Theme(
         background: Color(hex: 0x1F1F28),
         foreground: Color(hex: 0xDCD7BA),
         selection: Color(hex: 0x2D4F67),
@@ -48,7 +48,7 @@ extension Color {
 }
 
 private struct ThemeKey: EnvironmentKey {
-    static let defaultValue = Theme.kanagawa
+    static let defaultValue = Theme.fallback
 }
 
 extension EnvironmentValues {

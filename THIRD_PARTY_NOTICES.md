@@ -13,6 +13,7 @@ Clubmate builds on the following MIT-licensed projects.
 - Source: https://github.com/umputun/agterm
 - License: MIT, Copyright (c) 2026 Umputun
 - Use: `scripts/build-ghostty.sh`, `client/project.yml` and the libghostty embedding approach are adapted from agterm's `scripts/setup.sh` and `project.yml`.
+- Use: `client/Clubmate/Ghostty/GhosttyApp.swift`, `GhosttyCallbacks.swift`, `TerminalSurfaceView.swift` and `SurfaceDeck.swift` adapt agterm's `agterm/Ghostty/GhosttyApp.swift`, `GhosttyCallbacks.swift`, `GhosttySurfaceView.swift` (+Input, +FirstResponder, +Visibility) and its eager terminal deck: config layering with ssh shell features forced off, coalesced wakeup tick, clipboard callbacks, surface creation at non-zero size with wake retry, keyboard/IME/mouse forwarding, mounted-once surfaces with occlusion for hidden ones.
 
 ## macterm
 
