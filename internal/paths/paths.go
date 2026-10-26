@@ -89,6 +89,14 @@ func (d Dirs) DB() string {
 	return filepath.Join(d.State, "clubmate.db")
 }
 
+func (d Dirs) BusDB() string {
+	return filepath.Join(d.State, "bus.db")
+}
+
+func (d Dirs) PluginsDB() string {
+	return filepath.Join(d.State, "plugins.db")
+}
+
 func (d Dirs) CoreSocket() string {
 	return filepath.Join(d.Runtime, "core.sock")
 }
