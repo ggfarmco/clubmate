@@ -415,7 +415,11 @@ func (p *process) waitExit(d time.Duration, hurry <-chan struct{}) bool {
 }
 
 func (p *process) signal(sig syscall.Signal) {
-	_ = syscall.Kill(-p.cmd.Process.Pid, sig)
+	pid := p.cmd.Process.Pid
+	if pid <= 1 {
+		return
+	}
+	_ = syscall.Kill(-pid, sig)
 }
 
 func (ps pipeStream) Read(b []byte) (int, error) {
