@@ -19,6 +19,8 @@ import (
 const (
 	projectPrefix      = "prj"
 	shutdownReplyGrace = 100 * time.Millisecond
+
+	notifyCoreStopping = "core.stopping"
 )
 
 var ownerPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
@@ -168,7 +170,10 @@ func (s *Server) shutdownCore(ctx context.Context, _ empty) (empty, error) {
 		return empty{}, invalidParams("core.shutdown is not available to plugins")
 	}
 	if fn := s.shutdown.Load(); fn != nil {
-		time.AfterFunc(shutdownReplyGrace, *fn)
+		time.AfterFunc(shutdownReplyGrace, func() {
+			s.notifyClients(notifyCoreStopping)
+			(*fn)()
+		})
 	}
 	return empty{}, nil
 }

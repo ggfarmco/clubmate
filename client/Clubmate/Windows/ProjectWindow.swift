@@ -44,7 +44,7 @@ struct ProjectWindow: View {
                     SidebarPane(store: store, slot: "\(section).sidebar")
                     SlotPane(store: store, slot: "\(section).main")
                 }
-                StatusBar(connection: connection(store), section: store.sections.first { $0.id == section }?.title ?? section)
+                StatusBar(connection: connection(store), section: store.sections.first { $0.id == section }?.title ?? section) { [app] in app.retry() }
             }
         } else {
             EmptyNodeView(text: placeholder)
@@ -64,7 +64,7 @@ struct ProjectWindow: View {
         switch app.phase {
         case .ready: store.connected ? .connected : .reconnecting
         case .starting, .reconnecting: .reconnecting
-        case .failed: .disconnected
+        case .failed(let message): .failed(message)
         }
     }
 }

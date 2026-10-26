@@ -35,6 +35,16 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testCoreStopIsSurfaced() async throws {
+        let client = try await startCore()
+        let stream = client.subscribeNotifications()
+        try core?.cli("core", "stop")
+        let notification = await first(stream, within: .seconds(3))
+        XCTAssertEqual(notification?.method, "core.stopping")
+        XCTAssertTrue(client.stoppedIntentionally)
+        await client.close()
+    }
+
     func testRefusesInsecureRuntime() async throws {
         let base = try TestCore.makeTempDir()
         defer { try? FileManager.default.removeItem(at: base) }

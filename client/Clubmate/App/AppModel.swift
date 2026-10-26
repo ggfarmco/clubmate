@@ -55,6 +55,10 @@ final class AppModel {
 
     func connectionLost() {
         guard phase == .ready, recovery == nil else { return }
+        if client?.stoppedIntentionally == true {
+            phase = .failed("Core stopped")
+            return
+        }
         phase = .reconnecting
         recovery = Task {
             var delay = Duration.milliseconds(500)

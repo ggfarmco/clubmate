@@ -5,6 +5,7 @@ public final class CoreClient {
     private let connection: RPCConnection
     private var subscribers: [UUID: AsyncStream<RPCNotification>.Continuation] = [:]
     private var pumpFinished = false
+    public private(set) var stoppedIntentionally = false
 
     public init(connection: RPCConnection) {
         self.connection = connection
@@ -102,6 +103,7 @@ public final class CoreClient {
     }
 
     private func broadcast(_ notification: RPCNotification) {
+        if notification.method == "core.stopping" { stoppedIntentionally = true }
         for continuation in subscribers.values {
             continuation.yield(notification)
         }

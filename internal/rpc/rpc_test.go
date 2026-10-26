@@ -259,7 +259,7 @@ func TestRPCSessionListRejectsBadOwner(t *testing.T) {
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
 
-func TestRPCShutdownIsCLIOnlyAndRepliesBeforeStopping(t *testing.T) {
+func TestRPCShutdownIsCLIOnlyAndNotifiesClients(t *testing.T) {
 	srv, _ := testutil.NewRPCServer(t)
 	stopped := make(chan struct{})
 	srv.SetShutdown(func() { close(stopped) })
@@ -274,8 +274,23 @@ func TestRPCShutdownIsCLIOnlyAndRepliesBeforeStopping(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 
+	coreSide, peerSide := net.Pipe()
+	srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), rpc.Caller{})
+	notes := make(chan string, 1)
+	watcher := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(peerSide), jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		notes <- req.Method
+		return nil, nil
+	}))
+	t.Cleanup(func() { watcher.Close() })
+
 	cli := connectAs(t, srv, rpc.Caller{})
 	require.NoError(t, cli.Call(t.Context(), "core.shutdown", struct{}{}, nil))
+	select {
+	case method := <-notes:
+		assert.Equal(t, "core.stopping", method)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no core.stopping notification")
+	}
 	testutil.Eventually(t, func() bool {
 		select {
 		case <-stopped:
