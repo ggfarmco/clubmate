@@ -101,6 +101,10 @@ func Run(ctx context.Context, cfg Config) error {
 	return metaErr
 }
 
+func StripMarkers(env []string) []string {
+	return slices.DeleteFunc(env, isMarker)
+}
+
 func (h *host) serve(ctx context.Context, cmd *exec.Cmd, ln net.Listener) int {
 	exited := make(chan struct{})
 	defer close(exited)
@@ -251,7 +255,7 @@ func writeData(w io.Writer, data []byte) error {
 }
 
 func childEnv(cfg Config) []string {
-	env := slices.DeleteFunc(append(os.Environ(), cfg.Env...), isMarker)
+	env := StripMarkers(append(os.Environ(), cfg.Env...))
 	env = append(env, sessionMarker+cfg.ID, projectMarker+cfg.ProjectID)
 	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "TERM=") }) {
 		env = append(env, defaultTerm)

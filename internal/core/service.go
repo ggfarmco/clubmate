@@ -142,13 +142,18 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 		byPID[p.PID] = p
 	}
 	projectOf := make(map[string]string, len(sessions))
+	hosts := make(map[int]bool, len(sessions))
 	roots := make([]proc.SessionRoot, 0, len(sessions))
 	for _, sess := range sessions {
 		projectOf[sess.ID] = sess.ProjectID
+		hosts[sess.HostPID] = true
 		roots = append(roots, rootOf(sess, byPID))
 	}
 	var out []proc.Node
 	for _, n := range s.tracker.Attribute(procs, roots) {
+		if hosts[n.Process.PID] {
+			continue
+		}
 		if f.SessionID != "" && n.SessionID != f.SessionID {
 			continue
 		}

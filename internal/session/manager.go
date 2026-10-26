@@ -157,6 +157,7 @@ func (m *Manager) spawn(sid string, payload []byte) (int, error) {
 	}
 	defer logFile.Close()
 	cmd := exec.Command(m.hostBin)
+	cmd.Env = sessionhost.StripMarkers(os.Environ())
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Stdout = logFile

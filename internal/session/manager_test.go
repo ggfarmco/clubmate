@@ -3,6 +3,8 @@ package session_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"clubmate/internal/id"
+	"clubmate/internal/proc"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
@@ -35,6 +38,18 @@ func TestManagerSessionsSurviveManagerRestart(t *testing.T) {
 	require.Len(t, list, 1)
 	assert.Equal(t, s.ID, list[0].ID)
 	assert.Equal(t, session.StateRunning, list[0].State)
+}
+
+func TestManagerHostDoesNotInheritMarkers(t *testing.T) {
+	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
+	t.Setenv("CLUBMATE_PROJECT_ID", "prj_outer")
+	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
+	s := spawn(t, session.NewManager(dirs, bin), "sh", "-c", "exec cat")
+	env, err := proc.ReadEnv(s.HostPID)
+	require.NoError(t, err)
+	assert.False(t, slices.ContainsFunc(env, func(kv string) bool {
+		return strings.HasPrefix(kv, "CLUBMATE_SESSION_ID=") || strings.HasPrefix(kv, "CLUBMATE_PROJECT_ID=")
+	}), env)
 }
 
 func TestManagerExitedAndLost(t *testing.T) {

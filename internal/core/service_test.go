@@ -76,14 +76,26 @@ func TestProcessTreeIgnoresStaleRoots(t *testing.T) {
 	svc := fakeService(t, dirs, snap)
 	nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{})
 	require.NoError(t, err)
-	var got []int
-	for _, n := range nodes {
-		got = append(got, n.Process.PID)
-	}
-	assert.ElementsMatch(t, []int{779, 901}, got)
+	assert.ElementsMatch(t, []int{779, 901}, pids(nodes))
 	_, err = svc.KillProcesses(t.Context(), core.KillRequest{PIDs: []int{bystander}})
 	assert.ErrorIs(t, err, core.ErrNotTracked)
 	assert.True(t, testutil.Alive(bystander))
+}
+
+func TestProcessTreeNeverReturnsSessionHosts(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	t0 := time.Now().Add(-time.Hour)
+	self := os.Getpid()
+	writeMeta(t, dirs.SessionMeta("ses_outer"), sessionhost.Meta{ID: "ses_outer", ProjectID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
+	writeMeta(t, dirs.SessionMeta("ses_inner"), sessionhost.Meta{ID: "ses_inner", ProjectID: "prj_x", HostPID: 902, ChildPID: 903, PGID: 903, StartedAt: t0})
+	snap := []proc.Process{
+		{PID: self, PPID: 1, PGID: self, Comm: "host", StartTime: t0.Add(-time.Minute)},
+		{PID: 779, PPID: self, PGID: 779, Comm: "child", StartTime: t0},
+		{PID: 902, PPID: 779, PGID: 902, Comm: "clubmate-session", StartTime: t0},
+	}
+	nodes, err := fakeService(t, dirs, snap).ProcessTree(t.Context(), core.TreeFilter{})
+	require.NoError(t, err)
+	assert.Equal(t, []int{779}, pids(nodes))
 }
 
 func TestCreateSessionRequiresProject(t *testing.T) {
@@ -151,6 +163,14 @@ func fakeService(t *testing.T, dirs paths.Dirs, snap []proc.Process) *core.Servi
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(func(int) ([]string, error) { return nil, nil }, os.Getpid())
 	return core.NewService(store, session.NewManager(dirs, "unused"), tracker, func() ([]proc.Process, error) { return snap, nil })
+}
+
+func pids(nodes []proc.Node) []int {
+	var out []int
+	for _, n := range nodes {
+		out = append(out, n.Process.PID)
+	}
+	return out
 }
 
 func startBystander(t *testing.T) int {
