@@ -5,6 +5,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -106,6 +107,13 @@ func TestSessionHostExitsWhileBackgroundJobHoldsPTY(t *testing.T) {
 	assert.Equal(t, 3, c.waitExit(t))
 	require.NoError(t, <-done)
 	assert.NoFileExists(t, cfg.Socket)
+}
+
+func TestSessionHostListenFailureRemovesMeta(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", "exec cat")
+	cfg.Socket = filepath.Join(filepath.Dir(cfg.Socket), "missing", "x.sock")
+	require.Error(t, sessionhost.Run(t.Context(), cfg))
+	assert.NoFileExists(t, cfg.MetaPath)
 }
 
 func testConfig(t *testing.T, command ...string) sessionhost.Config {

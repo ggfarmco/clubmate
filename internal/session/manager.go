@@ -177,12 +177,11 @@ func (m *Manager) awaitReady(ctx context.Context, sid string, pid int) error {
 	tick := time.NewTicker(pollInterval)
 	defer tick.Stop()
 	for {
-		hostGone := errors.Is(unix.Kill(pid, 0), unix.ESRCH)
-		if exists(m.dirs.SessionMeta(sid)) && (hostGone || exists(m.dirs.SessionSocket(sid))) {
+		if exists(m.dirs.SessionMeta(sid)) && exists(m.dirs.SessionSocket(sid)) {
 			return nil
 		}
-		if hostGone {
-			return m.startError(sid)
+		if errors.Is(unix.Kill(pid, 0), unix.ESRCH) {
+			return m.exitedEarly(sid)
 		}
 		select {
 		case <-ctx.Done():
@@ -192,6 +191,14 @@ func (m *Manager) awaitReady(ctx context.Context, sid string, pid int) error {
 		case <-tick.C:
 		}
 	}
+}
+
+func (m *Manager) exitedEarly(sid string) error {
+	meta, err := sessionhost.ReadMeta(m.dirs.SessionMeta(sid))
+	if err != nil || meta.ExitCode == nil {
+		return m.startError(sid)
+	}
+	return nil
 }
 
 func (m *Manager) startError(sid string) error {

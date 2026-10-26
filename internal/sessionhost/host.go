@@ -81,6 +81,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	ln, err := listen(cfg.Socket)
 	if err != nil {
+		os.Remove(cfg.MetaPath)
 		return abort(cmd, err)
 	}
 	h := &host{

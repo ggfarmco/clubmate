@@ -119,10 +119,16 @@ func TestManagerRemove(t *testing.T) {
 }
 
 func TestManagerCreateFailsWhenHostDies(t *testing.T) {
-	dirs := testutil.ShortDirs(t)
-	m := session.NewManager(dirs, "/usr/bin/false")
-	_, err := m.Create(t.Context(), session.CreateRequest{ProjectID: "prj_x", Command: []string{"true"}})
-	assert.ErrorIs(t, err, session.ErrHostStartTimeout)
+	metaOnly := filepath.Join(t.TempDir(), "host")
+	script := `#!/bin/sh
+printf '{"hostPid":1}' > "$(sed -n 's/.*"metaPath":"\([^"]*\)".*/\1/p')"
+`
+	require.NoError(t, os.WriteFile(metaOnly, []byte(script), 0o700))
+	for _, host := range []string{"/usr/bin/false", metaOnly} {
+		m := session.NewManager(testutil.ShortDirs(t), host)
+		_, err := m.Create(t.Context(), session.CreateRequest{ProjectID: "prj_x", Command: []string{"true"}})
+		assert.ErrorIs(t, err, session.ErrHostStartTimeout, host)
+	}
 }
 
 func TestManagerCreateFastExit(t *testing.T) {
