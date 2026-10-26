@@ -61,10 +61,19 @@ final class SurfaceDeck {
         var ids = Set<String>()
         var stack = slots.values.map(\.tree)
         while let node = stack.popLast() {
-            if node.type == "surface", let id = node.string("sessionId") { ids.insert(id) }
+            switch node.type {
+            case "surface": ids.formUnion([node.string("sessionId")].compactMap { $0 })
+            case "list": ids.formUnion(node.items().map(\.id))
+            case "tree": ids.formUnion(flatten(node.treeItems()))
+            default: break
+            }
             stack.append(contentsOf: node.children)
         }
         return ids
+    }
+
+    private static func flatten(_ items: [SDUITreeItem]) -> [String] {
+        items.flatMap { [$0.id] + flatten($0.children) }
     }
 
     private func apply(focus: Bool) {
