@@ -1,2 +1,4 @@
 bin/
 .superpowers/
+.build/
+.swiftpm/
