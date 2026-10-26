@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,6 +104,31 @@ func EchoPluginDir(t *testing.T) string {
 	copyFile(t, bin, filepath.Join(dir, "echo"), 0o755)
 	copyFile(t, filepath.Join(filepath.Dir(self), "plugins", "echo", "plugin.json"), filepath.Join(dir, "plugin.json"), 0o600)
 	return root
+}
+
+func BuildPluginDir(t *testing.T, pkg, manifestPath string) string {
+	t.Helper()
+	bin := BuildBinary(t, pkg)
+	manifest := filepath.Join(moduleRoot(t), manifestPath)
+	var m struct {
+		ID string `json:"id"`
+	}
+	data, err := os.ReadFile(manifest)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(data, &m))
+	root := t.TempDir()
+	dir := filepath.Join(root, m.ID)
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	copyFile(t, bin, filepath.Join(dir, filepath.Base(pkg)), 0o755)
+	copyFile(t, manifest, filepath.Join(dir, "plugin.json"), 0o600)
+	return root
+}
+
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	gomod, err := exec.Command("go", "env", "GOMOD").Output()
+	require.NoError(t, err)
+	return filepath.Dir(strings.TrimSpace(string(gomod)))
 }
 
 func Eventually(t *testing.T, cond func() bool, timeout time.Duration) {

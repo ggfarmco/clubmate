@@ -1,0 +1,14 @@
+{
+  "id": "terminals",
+  "name": "Terminals",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["terminals"],
+  "contributes": {
+    "sections": [{"id": "terminals", "title": "Terminals", "icon": "terminal", "order": 20}],
+    "commands": [
+      {"id": "terminals.new", "title": "New Terminal"},
+      {"id": "terminals.close", "title": "Close Terminal"}
+    ]
+  }
+}

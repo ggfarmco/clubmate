@@ -25,11 +25,11 @@ type uiUpdated struct {
 }
 
 func TestUIRenderEventAndOwnership(t *testing.T) {
-	h := newHarness(t)
-	p, err := h.svc.CreateProject(t.Context(), "demo", nil)
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
-	h.start(t, testutil.EchoPluginDir(t))
-	c := h.client(t)
+	h.Start(t, testutil.EchoPluginDir(t))
+	c := h.Client(t)
 	testutil.Eventually(t, func() bool {
 		var views []internalsdui.SlotView
 		_ = c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &views)
@@ -41,25 +41,25 @@ func TestUIRenderEventAndOwnership(t *testing.T) {
 	var echoed map[string]any
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"n": 1}}, &echoed))
 	assert.Equal(t, map[string]any{"n": 1.0}, echoed)
-	err = h.pluginCall(t, "echo", "ui.render", map[string]any{"projectId": p.ID, "slot": "terminals.main", "tree": map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}})
+	err = h.PluginCall(t, "echo", "ui.render", map[string]any{"projectId": p.ID, "slot": "terminals.main", "tree": map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}})
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
 
 func TestClearOwnerOnPluginCrash(t *testing.T) {
-	h := newHarness(t, plugin.WithBackoff(10*time.Millisecond, 50*time.Millisecond))
-	p, err := h.svc.CreateProject(t.Context(), "demo", nil)
+	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 50*time.Millisecond))
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
-	h.start(t, testutil.EchoPluginDir(t))
-	c := h.client(t)
+	h.Start(t, testutil.EchoPluginDir(t))
+	c := h.Client(t)
 	testutil.Eventually(t, func() bool {
 		var views []internalsdui.SlotView
 		_ = c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &views)
-		return len(views) == 1 && len(h.sup.PIDs()) == 1
+		return len(views) == 1 && len(h.Sup.PIDs()) == 1
 	}, 5*time.Second)
 	var sub subscription
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
 	assert.Equal(t, "text", nextView(t, c, sub.Subscription).Tree.Type)
-	require.NoError(t, syscall.Kill(h.sup.PIDs()[0], syscall.SIGKILL))
+	require.NoError(t, syscall.Kill(h.Sup.PIDs()[0], syscall.SIGKILL))
 	cleared := nextView(t, c, sub.Subscription)
 	assert.Equal(t, "echo.main", cleared.Slot)
 	assert.Equal(t, "empty", cleared.Tree.Type)
@@ -68,22 +68,22 @@ func TestClearOwnerOnPluginCrash(t *testing.T) {
 
 func TestRoutingToStoppedPluginIsUnavailable(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
-	h := newHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
-	p, err := h.svc.CreateProject(t.Context(), "demo", nil)
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
-	h.start(t, testutil.EchoPluginDir(t))
-	c := h.client(t)
-	testutil.Eventually(t, func() bool { return h.sup.Statuses()[0].State == "backoff" }, 5*time.Second)
+	h.Start(t, testutil.EchoPluginDir(t))
+	c := h.Client(t)
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
 	err = c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID}, nil)
 	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
 }
 
 func TestSubscriptionIDsAreScopedByKind(t *testing.T) {
-	h := newHarness(t)
-	p, err := h.svc.CreateProject(t.Context(), "demo", nil)
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
-	h.start(t)
-	c := h.client(t)
+	h.Start(t)
+	c := h.Client(t)
 	var sub subscription
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
 	assert.ErrorIs(t, c.Call(t.Context(), "bus.unsubscribe", sub, nil), rpc.ErrNotFound)
