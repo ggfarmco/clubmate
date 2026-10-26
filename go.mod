@@ -4,6 +4,7 @@ go 1.27.0
 
 require (
 	github.com/creack/pty v1.1.24
+	github.com/sourcegraph/jsonrpc2 v0.2.3
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.61.0
