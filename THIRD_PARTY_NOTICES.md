@@ -18,7 +18,7 @@ Clubmate builds on the following MIT-licensed projects.
 ## macterm
 
 - Source: https://github.com/thdxg/macterm
-- License: MIT
+- License: MIT, Copyright (c) 2026 Macterm
 - Use: the approach to driving libghostty's C API from a Swift 6 strict-concurrency AppKit/SwiftUI app, via agterm's bridge, which was adapted from macterm.
 
 ## MIT License

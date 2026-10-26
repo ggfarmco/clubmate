@@ -2,7 +2,7 @@ bin/
 .superpowers/
 .build/
 .swiftpm/
-build/
+/build/
 .ghostty-build-stamp
 client/GhosttyKit.xcframework
 client/Clubmate.xcodeproj
