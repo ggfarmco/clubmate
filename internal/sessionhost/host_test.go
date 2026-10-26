@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/proc"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
 	"clubmate/internal/wire"
@@ -45,6 +47,28 @@ func TestSessionHostStreamsAndReplays(t *testing.T) {
 	require.NoError(t, err)
 	assert.Positive(t, m.ChildPID)
 	assert.Equal(t, m.ChildPID, m.PGID)
+}
+
+func TestSessionHostReplacesInheritedMarkers(t *testing.T) {
+	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
+	cfg := testConfig(t, os.Args[0], "-test.run=^TestHelperSleep$")
+	cfg.Env = []string{"CLUBMATE_HELPER_SLEEP=1", "CLUBMATE_PROJECT_ID=prj_outer"}
+	startHost(t, cfg)
+	m, err := sessionhost.ReadMeta(cfg.MetaPath)
+	require.NoError(t, err)
+	env, err := proc.ReadEnv(m.ChildPID)
+	require.NoError(t, err)
+	markers := slices.DeleteFunc(env, func(kv string) bool {
+		return !strings.HasPrefix(kv, "CLUBMATE_") || strings.HasPrefix(kv, "CLUBMATE_HELPER")
+	})
+	assert.Equal(t, []string{"CLUBMATE_SESSION_ID=ses_test", "CLUBMATE_PROJECT_ID=prj_test"}, markers)
+}
+
+func TestHelperSleep(t *testing.T) {
+	if os.Getenv("CLUBMATE_HELPER_SLEEP") == "" {
+		t.Skip()
+	}
+	time.Sleep(30 * time.Second)
 }
 
 func TestSessionHostResize(t *testing.T) {

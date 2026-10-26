@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"clubmate/internal/session"
+	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
 )
 
@@ -60,6 +61,14 @@ func TestManagerListFiltersByProject(t *testing.T) {
 	other, err := m.List(t.Context(), "prj_other")
 	require.NoError(t, err)
 	assert.Empty(t, other)
+}
+
+func TestManagerUnsignalableHostIsLost(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	require.NoError(t, sessionhost.WriteMeta(dirs.SessionMeta("ses_eperm"), sessionhost.Meta{ID: "ses_eperm", HostPID: 1}))
+	s, err := session.NewManager(dirs, "unused").Get(t.Context(), "ses_eperm")
+	require.NoError(t, err)
+	assert.Equal(t, session.StateLost, s.State)
 }
 
 func TestManagerGetUnknown(t *testing.T) {

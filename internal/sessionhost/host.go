@@ -28,6 +28,8 @@ const (
 	initialRows       = 24
 	exitFlushTimeout  = 2 * time.Second
 	defaultTerm       = "TERM=xterm-256color"
+	sessionMarker     = "CLUBMATE_SESSION_ID="
+	projectMarker     = "CLUBMATE_PROJECT_ID="
 )
 
 var ErrEmptyCommand = errors.New("sessionhost: empty command")
@@ -249,12 +251,16 @@ func writeData(w io.Writer, data []byte) error {
 }
 
 func childEnv(cfg Config) []string {
-	env := append(os.Environ(), cfg.Env...)
-	env = append(env, "CLUBMATE_SESSION_ID="+cfg.ID, "CLUBMATE_PROJECT_ID="+cfg.ProjectID)
+	env := slices.DeleteFunc(append(os.Environ(), cfg.Env...), isMarker)
+	env = append(env, sessionMarker+cfg.ID, projectMarker+cfg.ProjectID)
 	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "TERM=") }) {
 		env = append(env, defaultTerm)
 	}
 	return env
+}
+
+func isMarker(kv string) bool {
+	return strings.HasPrefix(kv, sessionMarker) || strings.HasPrefix(kv, projectMarker)
 }
 
 func listen(sock string) (net.Listener, error) {

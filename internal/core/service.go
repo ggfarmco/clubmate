@@ -13,11 +13,15 @@ import (
 	"clubmate/internal/session"
 )
 
-const DefaultKillGrace = 3 * time.Second
+const (
+	DefaultKillGrace = 3 * time.Second
+	startTimeSlack   = time.Second
+)
 
 var (
-	ErrNotTracked       = errors.New("process is not tracked by any session")
-	ErrEmptyKillRequest = errors.New("kill request selects no processes")
+	ErrNotTracked         = errors.New("process is not tracked by any session")
+	ErrEmptyKillRequest   = errors.New("kill request selects no processes")
+	ErrOrphansNeedSession = errors.New("orphansOnly requires a session id")
 )
 
 type TreeFilter struct {
@@ -133,11 +137,15 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 	if err != nil {
 		return nil, err
 	}
+	byPID := make(map[int]proc.Process, len(procs))
+	for _, p := range procs {
+		byPID[p.PID] = p
+	}
 	projectOf := make(map[string]string, len(sessions))
 	roots := make([]proc.SessionRoot, 0, len(sessions))
 	for _, sess := range sessions {
 		projectOf[sess.ID] = sess.ProjectID
-		roots = append(roots, rootOf(sess))
+		roots = append(roots, rootOf(sess, byPID))
 	}
 	var out []proc.Node
 	for _, n := range s.tracker.Attribute(procs, roots) {
@@ -153,6 +161,9 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 }
 
 func (s *Service) KillProcesses(ctx context.Context, r KillRequest) ([]int, error) {
+	if r.OrphansOnly && r.SessionID == "" {
+		return nil, ErrOrphansNeedSession
+	}
 	if len(r.PIDs) == 0 && !r.OrphansOnly {
 		return nil, ErrEmptyKillRequest
 	}
@@ -208,11 +219,25 @@ func selectTargets(requested []int, candidates map[int]bool) ([]int, error) {
 	return slices.Compact(targets), nil
 }
 
-func rootOf(sess session.Session) proc.SessionRoot {
+func rootOf(sess session.Session, byPID map[int]proc.Process) proc.SessionRoot {
+	root := proc.SessionRoot{SessionID: sess.ID}
 	if sess.State != session.StateRunning {
-		return proc.SessionRoot{SessionID: sess.ID}
+		return root
 	}
-	return proc.SessionRoot{SessionID: sess.ID, RootPID: sess.ChildPID, PGID: sess.PGID}
+	host, hostOK := byPID[sess.HostPID]
+	child, childOK := byPID[sess.ChildPID]
+	if !hostOK || !childOK || child.PGID != sess.PGID {
+		return root
+	}
+	if startedAfter(host, sess.StartedAt) || startedAfter(child, sess.StartedAt) {
+		return root
+	}
+	root.RootPID, root.PGID = sess.ChildPID, sess.PGID
+	return root
+}
+
+func startedAfter(p proc.Process, startedAt time.Time) bool {
+	return p.StartTime.After(startedAt.Add(startTimeSlack))
 }
 
 func defaultCwd(p project.Project) (string, error) {

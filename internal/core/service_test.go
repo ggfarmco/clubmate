@@ -3,6 +3,8 @@ package core_test
 import (
 	"context"
 	"os"
+	"os/exec"
+	"syscall"
 	"testing"
 	"time"
 
@@ -39,10 +41,12 @@ func TestKillOrphansOnlyKeepsSession(t *testing.T) {
 	assert.Equal(t, session.StateRunning, s.State)
 }
 
-func TestKillProcessesRefusesUntracked(t *testing.T) {
+func TestKillProcessesRefusesInvalidRequests(t *testing.T) {
 	svc := testutil.NewService(t)
 	_, err := svc.KillProcesses(t.Context(), core.KillRequest{PIDs: []int{os.Getpid()}})
 	assert.ErrorIs(t, err, core.ErrNotTracked)
+	_, err = svc.KillProcesses(t.Context(), core.KillRequest{OrphansOnly: true})
+	assert.ErrorIs(t, err, core.ErrOrphansNeedSession)
 }
 
 func TestDeleteProjectKillsItsSessions(t *testing.T) {
@@ -53,17 +57,33 @@ func TestDeleteProjectKillsItsSessions(t *testing.T) {
 	assert.ErrorIs(t, err, project.ErrNotFound)
 }
 
-func TestProcessTreeIgnoresPGIDOfStoppedSessions(t *testing.T) {
+func TestProcessTreeIgnoresStaleRoots(t *testing.T) {
 	dirs := testutil.ShortDirs(t)
-	code := 0
-	writeMeta(t, dirs.SessionMeta("ses_exited"), sessionhost.Meta{ID: "ses_exited", ProjectID: "prj_x", HostPID: 1, ChildPID: 777, PGID: 777, ExitCode: &code})
-	writeMeta(t, dirs.SessionMeta("ses_running"), sessionhost.Meta{ID: "ses_running", ProjectID: "prj_x", HostPID: os.Getpid(), ChildPID: 778, PGID: 778})
-	snap := []proc.Process{{PID: 900, PPID: 1, PGID: 777, Comm: "unrelated"}, {PID: 901, PPID: 1, PGID: 778, Comm: "child"}}
+	t0 := time.Now().Add(-time.Hour)
+	self, code := os.Getpid(), 0
+	bystander := startBystander(t)
+	writeMeta(t, dirs.SessionMeta("ses_exited"), sessionhost.Meta{ID: "ses_exited", ProjectID: "prj_x", HostPID: 1, ChildPID: 777, PGID: 777, StartedAt: t0, ExitCode: &code})
+	writeMeta(t, dirs.SessionMeta("ses_stale"), sessionhost.Meta{ID: "ses_stale", ProjectID: "prj_x", HostPID: self, ChildPID: 778, PGID: 778, StartedAt: t0.Add(-time.Hour)})
+	writeMeta(t, dirs.SessionMeta("ses_live"), sessionhost.Meta{ID: "ses_live", ProjectID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
+	snap := []proc.Process{
+		{PID: self, PPID: 1, PGID: self, Comm: "host", StartTime: t0.Add(-time.Minute)},
+		{PID: 900, PPID: 1, PGID: 777, Comm: "unrelated", StartTime: t0},
+		{PID: 778, PPID: self, PGID: 778, Comm: "reused", StartTime: t0},
+		{PID: bystander, PPID: 1, PGID: 778, Comm: "unrelated", StartTime: t0},
+		{PID: 779, PPID: self, PGID: 779, Comm: "child", StartTime: t0},
+		{PID: 901, PPID: 1, PGID: 779, Comm: "member", StartTime: t0},
+	}
 	svc := fakeService(t, dirs, snap)
 	nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{})
 	require.NoError(t, err)
-	require.Len(t, nodes, 1)
-	assert.Equal(t, 901, nodes[0].Process.PID)
+	var got []int
+	for _, n := range nodes {
+		got = append(got, n.Process.PID)
+	}
+	assert.ElementsMatch(t, []int{779, 901}, got)
+	_, err = svc.KillProcesses(t.Context(), core.KillRequest{PIDs: []int{bystander}})
+	assert.ErrorIs(t, err, core.ErrNotTracked)
+	assert.True(t, testutil.Alive(bystander))
 }
 
 func TestCreateSessionRequiresProject(t *testing.T) {
@@ -131,6 +151,23 @@ func fakeService(t *testing.T, dirs paths.Dirs, snap []proc.Process) *core.Servi
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(func(int) ([]string, error) { return nil, nil }, os.Getpid())
 	return core.NewService(store, session.NewManager(dirs, "unused"), tracker, func() ([]proc.Process, error) { return snap, nil })
+}
+
+func startBystander(t *testing.T) int {
+	t.Helper()
+	cmd := exec.Command("sleep", "300")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	require.NoError(t, cmd.Start())
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		<-done
+	})
+	return cmd.Process.Pid
 }
 
 func writeMeta(t *testing.T, path string, m sessionhost.Meta) {

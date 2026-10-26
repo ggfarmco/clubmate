@@ -213,7 +213,7 @@ func deriveState(meta sessionhost.Meta) State {
 	if meta.ExitCode != nil {
 		return StateExited
 	}
-	if errors.Is(unix.Kill(meta.HostPID, 0), unix.ESRCH) {
+	if meta.HostPID <= 1 || unix.Kill(meta.HostPID, 0) != nil {
 		return StateLost
 	}
 	return StateRunning
