@@ -258,3 +258,30 @@ func TestRPCSessionListRejectsBadOwner(t *testing.T) {
 	err := c.Call(t.Context(), "session.list", map[string]string{"owner": "Bad Owner"}, nil)
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
+
+func TestRPCShutdownIsCLIOnlyAndRepliesBeforeStopping(t *testing.T) {
+	srv, _ := testutil.NewRPCServer(t)
+	stopped := make(chan struct{})
+	srv.SetShutdown(func() { close(stopped) })
+
+	plugin := connectAs(t, srv, rpc.Caller{PluginID: "terminals"})
+	var rpcErr *jsonrpc2.Error
+	require.ErrorAs(t, plugin.Call(t.Context(), "core.shutdown", struct{}{}, nil), &rpcErr)
+	assert.EqualValues(t, -32602, rpcErr.Code)
+	select {
+	case <-stopped:
+		t.Fatal("shutdown ran for a plugin caller")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	cli := connectAs(t, srv, rpc.Caller{})
+	require.NoError(t, cli.Call(t.Context(), "core.shutdown", struct{}{}, nil))
+	testutil.Eventually(t, func() bool {
+		select {
+		case <-stopped:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second)
+}

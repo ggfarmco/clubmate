@@ -105,6 +105,7 @@ func run(logger *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	srv.SetShutdown(stop)
 
 	loopDone := make(chan struct{})
 	go func() {

@@ -37,6 +37,7 @@ type Server struct {
 	methods    map[string]handlerFunc
 	pluginList atomic.Pointer[func() any]
 	ui         atomic.Pointer[uiState]
+	shutdown   atomic.Pointer[func()]
 }
 
 type ServerOption func(*Server)
@@ -56,6 +57,10 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.pluginMethods())
 	maps.Copy(s.methods, s.uiMethods())
 	return s
+}
+
+func (s *Server) SetShutdown(fn func()) {
+	s.shutdown.Store(&fn)
 }
 
 func Serve(ctx context.Context, l net.Listener, svc *core.Service) error {

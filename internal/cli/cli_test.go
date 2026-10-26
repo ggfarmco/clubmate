@@ -5,10 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -233,4 +236,56 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+func TestCoreStartStatusStop(t *testing.T) {
+	bins := t.TempDir()
+	for _, name := range []string{"clubmate", "clubmate-core", "clubmate-session"} {
+		data, err := os.ReadFile(testutil.BuildBinary(t, "clubmate/cmd/"+name))
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(bins, name), data, 0o755))
+	}
+	dirs := testutil.ShortDirs(t)
+	env := append(os.Environ(), "CLUBMATE_STATE_DIR="+dirs.State, "CLUBMATE_RUNTIME_DIR="+dirs.Runtime)
+	clubmate := func(args ...string) (string, int) {
+		cmd := exec.Command(filepath.Join(bins, "clubmate"), args...)
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return string(out), exit.ExitCode()
+		}
+		require.NoError(t, err, string(out))
+		return string(out), 0
+	}
+	t.Cleanup(func() {
+		out, code := clubmate("core", "status")
+		var pid int
+		if code == 0 {
+			_, _ = fmt.Sscanf(out, "running pid=%d", &pid)
+			_ = syscall.Kill(pid, syscall.SIGTERM)
+		}
+	})
+
+	out, code := clubmate("core", "status")
+	assert.Equal(t, 3, code)
+	assert.Equal(t, "not running\n", out)
+
+	out, code = clubmate("core", "start")
+	assert.Equal(t, 0, code)
+	assert.Regexp(t, `^started pid=\d+\n$`, out)
+
+	out, code = clubmate("core", "status")
+	assert.Equal(t, 0, code)
+	assert.Regexp(t, `^running pid=\d+ version=\S+\n$`, out)
+
+	out, code = clubmate("core", "start")
+	assert.Equal(t, 0, code)
+	assert.Equal(t, "already running\n", out)
+
+	_, code = clubmate("core", "stop")
+	assert.Equal(t, 0, code)
+
+	_, code = clubmate("core", "status")
+	assert.Equal(t, 3, code)
 }

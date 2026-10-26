@@ -3,7 +3,9 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -14,7 +16,10 @@ import (
 	"clubmate/internal/session"
 )
 
-const projectPrefix = "prj"
+const (
+	projectPrefix      = "prj"
+	shutdownReplyGrace = 100 * time.Millisecond
+)
 
 var ownerPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
 
@@ -39,6 +44,7 @@ type listSessionsParams struct {
 
 type pingResult struct {
 	Version string `json:"version"`
+	PID     int    `json:"pid"`
 }
 
 type killResult struct {
@@ -49,8 +55,9 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 	svc := s.svc
 	return map[string]handlerFunc{
 		"core.ping": method(func(context.Context, empty) (pingResult, error) {
-			return pingResult{Version: Version}, nil
+			return pingResult{Version: Version, PID: os.Getpid()}, nil
 		}),
+		"core.shutdown": method(s.shutdownCore),
 		"project.create": method(func(ctx context.Context, p createProjectParams) (project.Project, error) {
 			return encodeProject(svc.CreateProject(ctx, p.Name, p.Repos))
 		}),
@@ -151,4 +158,14 @@ func optionalID(prefix, s string) error {
 func encodeProject(p project.Project, err error) (project.Project, error) {
 	p.Repos = nonNil(p.Repos)
 	return p, err
+}
+
+func (s *Server) shutdownCore(ctx context.Context, _ empty) (empty, error) {
+	if CallerFrom(ctx).IsPlugin() {
+		return empty{}, invalidParams("core.shutdown is not available to plugins")
+	}
+	if fn := s.shutdown.Load(); fn != nil {
+		time.AfterFunc(shutdownReplyGrace, *fn)
+	}
+	return empty{}, nil
 }

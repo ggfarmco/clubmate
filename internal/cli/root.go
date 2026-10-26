@@ -40,7 +40,7 @@ func NewRoot(stdout, stderr io.Writer) *cobra.Command {
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	root.PersistentFlags().BoolVar(&a.asJSON, "json", false, "print raw result as JSON")
-	root.AddCommand(a.projectCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd())
+	root.AddCommand(a.projectCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd(), a.coreCmd())
 	return root
 }
 
