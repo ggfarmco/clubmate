@@ -1,0 +1,170 @@
+package sessionhost_test
+
+import (
+	"bytes"
+	"context"
+	"net"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/sessionhost"
+	"clubmate/internal/testutil"
+	"clubmate/internal/wire"
+)
+
+const waitTimeout = 3 * time.Second
+
+type testClient struct {
+	conn net.Conn
+	mu   sync.Mutex
+	out  bytes.Buffer
+	exit chan int
+}
+
+func TestSessionHostStreamsAndReplays(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `printf "ready:$CLUBMATE_SESSION_ID"; exec cat`)
+	startHost(t, cfg)
+	a := dial(t, cfg.Socket)
+	a.waitOutput(t, "ready:ses_test")
+	b := dial(t, cfg.Socket)
+	b.waitOutput(t, "ready:ses_test")
+	b.send(t, "ping\n")
+	a.waitOutput(t, "ping")
+	m, err := sessionhost.ReadMeta(cfg.MetaPath)
+	require.NoError(t, err)
+	assert.Positive(t, m.ChildPID)
+	assert.Equal(t, m.ChildPID, m.PGID)
+}
+
+func TestSessionHostResize(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `read x; stty size; exec cat`)
+	startHost(t, cfg)
+	c := dial(t, cfg.Socket)
+	c.resize(t, 100, 40)
+	c.send(t, "go\n")
+	c.waitOutput(t, "40 100")
+}
+
+func TestSessionHostExit(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `read x; exit 7`)
+	done := startHost(t, cfg)
+	c := dial(t, cfg.Socket)
+	c.send(t, "go\n")
+	assert.Equal(t, 7, c.waitExit(t))
+	require.NoError(t, <-done)
+	m, err := sessionhost.ReadMeta(cfg.MetaPath)
+	require.NoError(t, err)
+	require.NotNil(t, m.ExitCode)
+	assert.Equal(t, 7, *m.ExitCode)
+	assert.NoFileExists(t, cfg.Socket)
+}
+
+func testConfig(t *testing.T, command ...string) sessionhost.Config {
+	t.Helper()
+	d := testutil.ShortDirs(t)
+	return sessionhost.Config{
+		ID:        "ses_test",
+		ProjectID: "prj_test",
+		Command:   command,
+		Socket:    d.SessionSocket("ses_test"),
+		MetaPath:  d.SessionMeta("ses_test"),
+	}
+}
+
+func startHost(t *testing.T, cfg sessionhost.Config) <-chan error {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- sessionhost.Run(ctx, cfg)
+		close(done)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-done:
+			assert.NoError(t, err)
+		case <-time.After(waitTimeout):
+			t.Error("session host did not stop")
+		}
+	})
+	testutil.Eventually(t, func() bool {
+		_, err := os.Stat(cfg.Socket)
+		return err == nil
+	}, waitTimeout)
+	return done
+}
+
+func dial(t *testing.T, socket string) *testClient {
+	t.Helper()
+	conn, err := net.Dial("unix", socket)
+	require.NoError(t, err)
+	c := &testClient{conn: conn, exit: make(chan int, 1)}
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		c.readLoop()
+	}()
+	t.Cleanup(func() {
+		conn.Close()
+		<-stopped
+	})
+	return c
+}
+
+func (c *testClient) waitOutput(t *testing.T, substr string) {
+	t.Helper()
+	testutil.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return strings.Contains(c.out.String(), substr)
+	}, waitTimeout)
+}
+
+func (c *testClient) resize(t *testing.T, cols, rows uint16) {
+	t.Helper()
+	require.NoError(t, wire.WriteFrame(c.conn, wire.Frame{Type: wire.FrameResize, Payload: wire.ResizePayload(cols, rows)}))
+}
+
+func (c *testClient) send(t *testing.T, s string) {
+	t.Helper()
+	require.NoError(t, wire.WriteFrame(c.conn, wire.Frame{Type: wire.FrameData, Payload: []byte(s)}))
+}
+
+func (c *testClient) waitExit(t *testing.T) int {
+	t.Helper()
+	select {
+	case code := <-c.exit:
+		return code
+	case <-time.After(waitTimeout):
+		require.FailNow(t, "no exit frame")
+		return 0
+	}
+}
+
+func (c *testClient) readLoop() {
+	for {
+		f, err := wire.ReadFrame(c.conn)
+		if err != nil {
+			return
+		}
+		switch f.Type {
+		case wire.FrameData:
+			c.mu.Lock()
+			c.out.Write(f.Payload)
+			c.mu.Unlock()
+		case wire.FrameExit:
+			code, err := wire.ParseExit(f.Payload)
+			if err != nil {
+				return
+			}
+			c.exit <- code
+		}
+	}
+}
