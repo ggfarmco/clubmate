@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SDUINode: Codable, Sendable, Equatable, Identifiable {
+public struct SDUINode: Codable, Sendable, Equatable {
     public var type: String
     public var id: String?
     public var props: [String: JSONValue]

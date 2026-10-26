@@ -9,12 +9,15 @@ public final class ProjectsStore {
     @ObservationIgnored private let client: CoreClient
     @ObservationIgnored private var subscription: String?
     @ObservationIgnored private var listener: Task<Void, Never>?
+    @ObservationIgnored private var generation = 0
 
     public init(client: CoreClient) {
         self.client = client
     }
 
     public func start() async throws {
+        guard listener == nil else { return }
+        let generation = self.generation
         let stream = client.subscribeNotifications()
         listener = Task { [weak self] in
             for await notification in stream {
@@ -24,19 +27,17 @@ public final class ProjectsStore {
         do {
             try await subscribe()
         } catch {
-            listener?.cancel()
-            listener = nil
+            if generation == self.generation { halt() }
             throw error
         }
     }
 
     public func stop() async {
-        listener?.cancel()
-        listener = nil
+        let subscription = self.subscription
+        halt()
         if let subscription {
             try? await client.busUnsubscribe(subscription)
         }
-        subscription = nil
     }
 
     public func load() async throws {
@@ -50,8 +51,23 @@ public final class ProjectsStore {
     }
 
     private func subscribe() async throws {
-        subscription = try await client.busSubscribe(pattern: "project.*", after: .max)
-        try await load()
+        let generation = self.generation
+        let subscription = try await client.busSubscribe(pattern: "project.*", after: .max)
+        guard generation == self.generation else {
+            try? await client.busUnsubscribe(subscription)
+            return
+        }
+        self.subscription = subscription
+        let projects = try await client.listProjects()
+        guard generation == self.generation else { return }
+        self.projects = projects
+    }
+
+    private func halt() {
+        generation += 1
+        listener?.cancel()
+        listener = nil
+        subscription = nil
     }
 
     private func receive(_ notification: RPCNotification) async {

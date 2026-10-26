@@ -17,7 +17,9 @@ public final class ProjectUIStore {
 
     @ObservationIgnored private var client: CoreClient
     @ObservationIgnored private var subscription: String?
-    @ObservationIgnored private var backlog: [RPCNotification] = []
+    @ObservationIgnored private var gate: CheckedContinuation<Void, Never>?
+    @ObservationIgnored private var starting = false
+    @ObservationIgnored private var generation = 0
     @ObservationIgnored private var revs: [String: Int64] = [:]
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var saving: Task<Void, Never>?
@@ -29,7 +31,10 @@ public final class ProjectUIStore {
     }
 
     public func start() async throws {
+        guard listener == nil else { return }
+        let generation = self.generation
         let stream = client.subscribeNotifications()
+        starting = true
         listener = Task { [weak self] in
             for await notification in stream {
                 await self?.receive(notification)
@@ -38,24 +43,24 @@ public final class ProjectUIStore {
             self?.connected = false
         }
         do {
-            sections = try await client.uiSections()
-            replace(with: try await client.uiGet(projectID: projectID))
-            try await restoreSection()
-            subscription = try await client.uiSubscribe(projectID: projectID)
+            let sections = try await client.uiSections()
+            guard generation == self.generation else { return }
+            self.sections = sections
+            let views = try await client.uiGet(projectID: projectID)
+            guard generation == self.generation else { return }
+            replace(with: views)
+            let state = try await client.uiStateGet(projectID: projectID)
+            guard generation == self.generation else { return }
+            restoreSection(from: state)
+            let subscription = try await client.uiSubscribe(projectID: projectID)
+            guard generation == self.generation else { return await discard(subscription) }
+            self.subscription = subscription
         } catch {
-            listener?.cancel()
-            listener = nil
-            backlog = []
+            if generation == self.generation { halt() }
             throw error
         }
         connected = true
-        let early = backlog
-        backlog = []
-        var closed = false
-        for notification in early {
-            closed = route(notification) || closed
-        }
-        if closed { await recover() }
+        openGate()
     }
 
     public func reconnect(using client: CoreClient) async throws {
@@ -65,14 +70,9 @@ public final class ProjectUIStore {
     }
 
     public func stop() async {
-        listener?.cancel()
-        listener = nil
-        if let subscription {
-            try? await client.uiUnsubscribe(subscription)
-        }
-        subscription = nil
-        backlog = []
-        connected = false
+        let subscription = self.subscription
+        halt()
+        if let subscription { await discard(subscription) }
         await saving?.value
     }
 
@@ -87,11 +87,29 @@ public final class ProjectUIStore {
     }
 
     private func receive(_ notification: RPCNotification) async {
-        guard subscription != nil else {
-            backlog.append(notification)
-            return
+        if starting {
+            await withCheckedContinuation { gate = $0 }
         }
         if route(notification) { await recover() }
+    }
+
+    private func openGate() {
+        starting = false
+        gate?.resume()
+        gate = nil
+    }
+
+    private func halt() {
+        generation += 1
+        listener?.cancel()
+        listener = nil
+        subscription = nil
+        connected = false
+        openGate()
+    }
+
+    private func discard(_ subscription: String) async {
+        try? await client.uiUnsubscribe(subscription)
     }
 
     private func route(_ notification: RPCNotification) -> Bool {
@@ -104,13 +122,24 @@ public final class ProjectUIStore {
     }
 
     private func recover() async {
+        let generation = self.generation
         revs = [:]
-        do {
-            subscription = try await client.uiSubscribe(projectID: projectID)
-            replace(with: try await client.uiGet(projectID: projectID))
-        } catch {
-            connected = false
+        guard let subscription = try? await client.uiSubscribe(projectID: projectID) else {
+            return lose(generation)
         }
+        let views = try? await client.uiGet(projectID: projectID)
+        guard generation == self.generation, let views else {
+            await discard(subscription)
+            return lose(generation)
+        }
+        self.subscription = subscription
+        replace(with: views)
+    }
+
+    private func lose(_ generation: Int) {
+        guard generation == self.generation else { return }
+        subscription = nil
+        connected = false
     }
 
     private func replace(with views: [SlotView]) {
@@ -125,8 +154,8 @@ public final class ProjectUIStore {
         slots[view.slot] = view
     }
 
-    private func restoreSection() async throws {
-        let saved = try await client.uiStateGet(projectID: projectID)?.objectValue?["section"]?.stringValue
+    private func restoreSection(from state: JSONValue?) {
+        let saved = state?.objectValue?["section"]?.stringValue
         restoring = true
         defer { restoring = false }
         selectedSection = sections.first { $0.id == saved }?.id ?? sections.first?.id

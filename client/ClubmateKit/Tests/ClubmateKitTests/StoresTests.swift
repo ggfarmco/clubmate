@@ -94,6 +94,23 @@ final class StoresTests: XCTestCase {
         await fresh.close()
     }
 
+    func testStopDuringStartLeavesNoSubscription() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let store = ProjectUIStore(client: client, projectID: project.id)
+        let starting = Task { try await store.start() }
+        await Task.yield()
+        await store.stop()
+        try await starting.value
+        XCTAssertFalse(store.connected)
+
+        let stream = client.subscribeNotifications()
+        _ = try await client.commandRun(id: "terminals.new", projectID: project.id)
+        let update = await firstUIUpdate(stream, within: .milliseconds(500))
+        XCTAssertNil(update)
+        await client.close()
+    }
+
     func testUIActionContract() {
         let rows: [(SDUINode, UIAction.Trigger, String, JSONValue)] = [
             (node("button", "new"), .click, "new", .null),
@@ -126,6 +143,22 @@ final class StoresTests: XCTestCase {
 
 private func node(_ type: String, _ id: String, action: String? = nil) -> SDUINode {
     SDUINode(type: type, id: id, props: action.map { ["action": .string($0)] } ?? [:])
+}
+
+private func firstUIUpdate(_ stream: AsyncStream<RPCNotification>, within timeout: Duration) async -> RPCNotification? {
+    await withTaskGroup(of: RPCNotification?.self) { group in
+        group.addTask {
+            for await notification in stream where notification.method == "ui.updated" { return notification }
+            return nil
+        }
+        group.addTask {
+            try? await Task.sleep(for: timeout)
+            return nil
+        }
+        let result = await group.next() ?? nil
+        group.cancelAll()
+        return result
+    }
 }
 
 @MainActor
