@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"golang.org/x/sys/unix"
 
 	"clubmate/internal/wire"
 )
@@ -36,6 +37,7 @@ var ErrEmptyCommand = errors.New("sessionhost: empty command")
 
 type host struct {
 	ptmx       *os.File
+	pgid       int
 	ring       *wire.Ring
 	maxPending int
 	mu         sync.Mutex
@@ -86,6 +88,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	h := &host{
 		ptmx:       ptmx,
+		pgid:       meta.PGID,
 		ring:       wire.NewRing(cfg.Scrollback),
 		maxPending: max(maxPendingBytes, 2*cfg.Scrollback),
 		clients:    map[*client]struct{}{},
@@ -223,12 +226,27 @@ func (h *host) handle(f wire.Frame) {
 	case wire.FrameData:
 		h.ptmx.Write(f.Payload)
 	case wire.FrameResize:
-		cols, rows, err := wire.ParseResize(f.Payload)
-		if err != nil {
-			return
-		}
-		pty.Setsize(h.ptmx, &pty.Winsize{Cols: cols, Rows: rows})
+		h.resize(f.Payload)
 	}
+}
+
+func (h *host) resize(payload []byte) {
+	cols, rows, err := wire.ParseResize(payload)
+	if err != nil || cols == 0 || rows == 0 {
+		return
+	}
+	if err := pty.Setsize(h.ptmx, &pty.Winsize{Cols: cols, Rows: rows}); err != nil {
+		return
+	}
+	unix.Kill(-h.foregroundPGID(), unix.SIGWINCH)
+}
+
+func (h *host) foregroundPGID() int {
+	pgid, err := unix.IoctlGetInt(int(h.ptmx.Fd()), unix.TIOCGPGRP)
+	if err != nil || pgid <= 1 {
+		return h.pgid
+	}
+	return pgid
 }
 
 func (h *host) drop(c *client) {

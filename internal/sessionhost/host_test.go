@@ -81,6 +81,17 @@ func TestSessionHostResize(t *testing.T) {
 	c.waitOutput(t, "40 100")
 }
 
+func TestSessionHostResizeAlwaysSignalsWinch(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `set -m; sh -c 'trap "echo winch" WINCH; echo ready; while :; do sleep 0.05; done'`)
+	startHost(t, cfg)
+	c := dial(t, cfg.Socket)
+	c.waitOutput(t, "ready")
+	for want := 1; want <= 2; want++ {
+		c.resize(t, 80, 24)
+		testutil.Eventually(t, func() bool { return strings.Count(c.output(), "winch") == want }, waitTimeout)
+	}
+}
+
 func TestSessionHostExit(t *testing.T) {
 	cfg := testConfig(t, "sh", "-c", `read x; exit 7`)
 	done := startHost(t, cfg)
