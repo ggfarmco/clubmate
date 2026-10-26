@@ -151,12 +151,23 @@ func (t *Tracker) prune(present map[procKey]bool) {
 
 func markDuplicates(nodes []Node) {
 	type commKey struct{ session, comm string }
-	counts := make(map[commKey]int, len(nodes))
+	members := make(map[commKey]map[int]bool, len(nodes))
 	for _, n := range nodes {
-		counts[commKey{n.SessionID, n.Process.Comm}]++
+		k := commKey{n.SessionID, n.Process.Comm}
+		if members[k] == nil {
+			members[k] = make(map[int]bool)
+		}
+		members[k][n.Process.PID] = true
+	}
+	instances := make(map[commKey]int, len(members))
+	for _, n := range nodes {
+		k := commKey{n.SessionID, n.Process.Comm}
+		if !members[k][n.Process.PPID] {
+			instances[k]++
+		}
 	}
 	for i := range nodes {
-		nodes[i].Duplicate = counts[commKey{nodes[i].SessionID, nodes[i].Process.Comm}] > 1
+		nodes[i].Duplicate = instances[commKey{nodes[i].SessionID, nodes[i].Process.Comm}] > 1
 	}
 }
 

@@ -57,3 +57,27 @@ func TestAttributeCachesEnvAndSortsOutput(t *testing.T) {
 	assert.Equal(t, 1, reads[8])
 	assert.Equal(t, 1, reads[9])
 }
+
+func TestDuplicateIgnoresSameNameChild(t *testing.T) {
+	t0 := time.Unix(1000, 0)
+	tr := proc.NewTracker(func(int) ([]string, error) { return nil, nil })
+	roots := []proc.SessionRoot{{SessionID: "ses_a", RootPID: 10, PGID: 1000}}
+	snap := []proc.Process{
+		{PID: 10, PPID: 5, PGID: 1000, Comm: "nvim", StartTime: t0},
+		{PID: 11, PPID: 10, PGID: 1000, Comm: "nvim", StartTime: t0},
+		{PID: 20, PPID: 10, PGID: 20, Comm: "gopls", StartTime: t0},
+		{PID: 21, PPID: 20, PGID: 20, Comm: "gopls", StartTime: t0},
+	}
+	for _, n := range tr.Attribute(snap, roots) {
+		assert.False(t, n.Duplicate, n.Process.PID)
+	}
+
+	snap = append(snap, proc.Process{PID: 30, PPID: 10, PGID: 30, Comm: "gopls", StartTime: t0})
+	nodes := tr.Attribute(snap, roots)
+	for _, pid := range []int{20, 21, 30} {
+		assert.True(t, node(nodes, pid).Duplicate, pid)
+	}
+	for _, pid := range []int{10, 11} {
+		assert.False(t, node(nodes, pid).Duplicate, pid)
+	}
+}
