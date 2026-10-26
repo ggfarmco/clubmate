@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -14,8 +15,9 @@ import (
 const maxSocketPath = 103
 
 var (
-	ErrSocketPathTooLong = errors.New("socket path too long")
-	ErrCoreRunning       = errors.New("core already running")
+	ErrSocketPathTooLong  = errors.New("socket path too long")
+	ErrCoreRunning        = errors.New("core already running")
+	ErrInsecureRuntimeDir = errors.New("insecure runtime dir")
 )
 
 type Dirs struct {
@@ -46,6 +48,11 @@ func (d Dirs) Ensure() error {
 	for _, dir := range []string{d.State, d.SessionsDir(), d.Runtime, filepath.Join(d.Runtime, "s")} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("create %s: %w", dir, err)
+		}
+	}
+	for _, dir := range []string{d.Runtime, filepath.Join(d.Runtime, "s")} {
+		if err := checkPrivateDir(dir); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -88,4 +95,16 @@ func LockCore(d Dirs) (func(), error) {
 		return nil, fmt.Errorf("lock core: %w", err)
 	}
 	return func() { f.Close() }, nil
+}
+
+func checkPrivateDir(dir string) error {
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", dir, err)
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 || int(st.Uid) != os.Getuid() || fi.Mode().Perm() != 0o700 {
+		return fmt.Errorf("%s: %w", dir, ErrInsecureRuntimeDir)
+	}
+	return nil
 }

@@ -40,6 +40,33 @@ func TestEnsureRejectsLongRuntimeDir(t *testing.T) {
 	assert.ErrorIs(t, d.Ensure(), paths.ErrSocketPathTooLong)
 }
 
+func TestEnsureRejectsInsecureRuntimeDir(t *testing.T) {
+	tests := map[string]func(t *testing.T, base string) string{
+		"loose mode": func(t *testing.T, base string) string {
+			dir := filepath.Join(base, "rt")
+			require.NoError(t, os.Mkdir(dir, 0o755))
+			require.NoError(t, os.Chmod(dir, 0o755))
+			return dir
+		},
+		"symlink": func(t *testing.T, base string) string {
+			target := filepath.Join(base, "target")
+			require.NoError(t, os.Mkdir(target, 0o700))
+			link := filepath.Join(base, "link")
+			require.NoError(t, os.Symlink(target, link))
+			return link
+		},
+	}
+	for name, setup := range tests {
+		t.Run(name, func(t *testing.T) {
+			base, err := os.MkdirTemp("/tmp", "cmt")
+			require.NoError(t, err)
+			t.Cleanup(func() { os.RemoveAll(base) })
+			d := paths.Dirs{State: t.TempDir(), Runtime: setup(t, base)}
+			assert.ErrorIs(t, d.Ensure(), paths.ErrInsecureRuntimeDir)
+		})
+	}
+}
+
 func TestLockCoreIsExclusive(t *testing.T) {
 	d := testutil.ShortDirs(t)
 	unlock, err := paths.LockCore(d)
