@@ -1,0 +1,171 @@
+import Darwin
+import Foundation
+import XCTest
+
+import ClubmateKit
+
+@MainActor
+final class StoresTests: XCTestCase {
+    private var core: TestCore?
+
+    override func tearDown() async throws {
+        await core?.stop()
+        core = nil
+    }
+
+    func testTerminalsFlow() async throws {
+        let client = try await startCore()
+        let projects = ProjectsStore(client: client)
+        try await projects.start()
+        let project = try await projects.create(name: "demo", repos: [])
+        XCTAssertEqual(projects.projects.map(\.id), [project.id])
+        let other = try await client.createProject(name: "other")
+        try await waitUntil { projects.projects.map(\.id).contains(other.id) }
+
+        let store = ProjectUIStore(client: client, projectID: project.id)
+        try await store.start()
+        XCTAssertEqual(store.sections.map(\.id), ["terminals", "echo"])
+        XCTAssertEqual(store.selectedSection, "terminals")
+        let button = try await waitFor { store.slots["terminals.sidebar"]?.tree.find(id: "new") }
+        _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", projectID: project.id)).get()
+        try await waitUntil { store.slots["terminals.main"]?.tree.type == "surface" }
+        XCTAssertEqual(store.slots["terminals.sidebar"]?.tree.find(id: "terminals")?.items().map(\.label), ["Terminal 1"])
+
+        let close = SDUINode(type: "button", id: "close")
+        _ = try await store.send(UIAction.event(for: close, trigger: .click, slot: "terminals.main", projectID: project.id)).get()
+        try await waitUntil { store.slots["terminals.main"]?.tree.type == "empty" }
+        await store.stop()
+        await projects.stop()
+        await client.close()
+    }
+
+    func testSelectedSectionPersists() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        try await client.uiStateSet(projectID: project.id, state: .object(["sidebarWidth": .number(240)]))
+
+        let first = ProjectUIStore(client: client, projectID: project.id)
+        try await first.start()
+        XCTAssertEqual(first.selectedSection, "terminals")
+        first.selectedSection = "echo"
+        await first.stop()
+        let state = try await client.uiStateGet(projectID: project.id)
+        XCTAssertEqual(state, .object(["sidebarWidth": .number(240), "section": .string("echo")]))
+
+        let second = ProjectUIStore(client: client, projectID: project.id)
+        try await second.start()
+        XCTAssertEqual(second.selectedSection, "echo")
+        await second.stop()
+        await client.close()
+    }
+
+    func testPluginCrashEmptiesThenRerenders() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let store = ProjectUIStore(client: client, projectID: project.id)
+        try await store.start()
+        try await waitUntil { store.slots["terminals.main"]?.tree.string("text") == "Create a terminal" }
+
+        let pid = try await waitFor { try await terminalsPID(client) }
+        XCTAssertEqual(kill(pid, SIGKILL), 0)
+        try await waitUntil { mainText(store) == "" }
+        try await waitUntil(within: .seconds(10)) { mainText(store).map { !$0.isEmpty } ?? false }
+        await store.stop()
+        await client.close()
+    }
+
+    func testReconnectRefetches() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let store = ProjectUIStore(client: client, projectID: project.id)
+        try await store.start()
+        try await waitUntil { store.slots["terminals.main"] != nil }
+        await client.close()
+        try await waitUntil { !store.connected }
+
+        guard let paths = core?.paths else { throw TestFailure(description: "no core") }
+        let fresh = try await CoreClient.connect(paths: paths)
+        try await store.reconnect(using: fresh)
+        XCTAssertTrue(store.connected)
+        let button = try XCTUnwrap(store.slots["terminals.sidebar"]?.tree.find(id: "new"))
+        _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", projectID: project.id)).get()
+        try await waitUntil { store.slots["terminals.main"]?.tree.type == "surface" }
+        await store.stop()
+        await fresh.close()
+    }
+
+    func testUIActionContract() {
+        let rows: [(SDUINode, UIAction.Trigger, String, JSONValue)] = [
+            (node("button", "new"), .click, "new", .null),
+            (node("button", "b", action: "go"), .click, "go", .null),
+            (node("list", "l"), .select("i1"), "select", .string("i1")),
+            (node("list", "l", action: "pick"), .select("i1"), "pick", .string("i1")),
+            (node("tree", "t", action: "open"), .select("i1"), "open", .string("i1")),
+            (node("tree", "t", action: "open"), .expand("i1"), "expand", .string("i1")),
+            (node("tree", "t", action: "open"), .collapse("i1"), "collapse", .string("i1")),
+            (node("tabs", "tabs"), .select("t2"), "select", .string("t2")),
+            (node("textField", "q"), .submit(.string("hi")), "submit", .string("hi")),
+            (node("textField", "q", action: "search"), .submit(.string("hi")), "search", .string("hi")),
+            (node("toggle", "on"), .toggle(true), "toggle", .bool(true)),
+            (node("select", "s"), .change("v"), "select", .string("v")),
+            (node("form", "f"), .submit(.object(["name": .string("x")])), "submit", .object(["name": .string("x")])),
+            (node("form", "f", action: "create"), .submit(.object([:])), "create", .object([:])),
+        ]
+        for (node, trigger, action, value) in rows {
+            let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", projectID: "prj_1")
+            XCTAssertEqual(event, UIEvent(projectId: "prj_1", slot: "x.main", nodeId: node.id ?? "", action: action, value: value), "\(node.type) \(trigger)")
+        }
+    }
+
+    private func startCore() async throws -> CoreClient {
+        let core = try await TestCore.start()
+        self.core = core
+        return try await CoreClient.connect(paths: core.paths)
+    }
+}
+
+private func node(_ type: String, _ id: String, action: String? = nil) -> SDUINode {
+    SDUINode(type: type, id: id, props: action.map { ["action": .string($0)] } ?? [:])
+}
+
+@MainActor
+private func mainText(_ store: ProjectUIStore) -> String? {
+    guard let tree = store.slots["terminals.main"]?.tree, tree.type == "empty" else { return nil }
+    return tree.string("text")
+}
+
+@MainActor
+private func terminalsPID(_ client: CoreClient) async throws -> pid_t? {
+    guard case .array(let plugins) = try await client.call(method: "plugin.list") else { return nil }
+    for case .object(let plugin) in plugins where plugin["id"] == .string("terminals") {
+        if plugin["state"] == .string("running"), case .number(let pid)? = plugin["pid"], pid > 0 {
+            return pid_t(pid)
+        }
+    }
+    return nil
+}
+
+private extension SDUINode {
+    func find(id: String) -> SDUINode? {
+        if self.id == id { return self }
+        for child in children {
+            if let found = child.find(id: id) { return found }
+        }
+        return nil
+    }
+}
+
+@MainActor
+func waitUntil(within timeout: Duration = .seconds(5), _ condition: () async throws -> Bool) async throws {
+    _ = try await waitFor(within: timeout) { try await condition() ? true : nil }
+}
+
+@MainActor
+func waitFor<T>(within timeout: Duration = .seconds(5), _ value: () async throws -> T?) async throws -> T {
+    let deadline = ContinuousClock.now + timeout
+    while true {
+        if let result = try await value() { return result }
+        guard ContinuousClock.now < deadline else { throw TestFailure(description: "condition not met within \(timeout)") }
+        try await Task.sleep(for: .milliseconds(20))
+    }
+}

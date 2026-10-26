@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SDUINode: Codable, Sendable, Equatable {
+public struct SDUINode: Codable, Sendable, Equatable, Identifiable {
     public var type: String
     public var id: String?
     public var props: [String: JSONValue]
@@ -30,7 +30,7 @@ public struct SlotView: Codable, Sendable, Equatable {
     public let tree: SDUINode
 }
 
-public struct Section: Codable, Sendable, Equatable {
+public struct SectionInfo: Codable, Sendable, Equatable {
     public let id: String
     public let title: String
     public let icon: String

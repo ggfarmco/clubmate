@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 
@@ -24,10 +25,13 @@ final class ClubmateKitTests: XCTestCase {
 
     func testNotificationsDelivered() async throws {
         let client = try await startCore()
+        let streams = [client.subscribeNotifications(), client.subscribeNotifications()]
         _ = try await client.busSubscribe(pattern: "demo.*", after: 0)
         try core?.cli("bus", "publish", "demo.x", "{}")
-        let notification = await first(client.notifications, within: .seconds(3))
-        XCTAssertEqual(notification?.method, "bus.event")
+        for stream in streams {
+            let notification = await first(stream, within: .seconds(3))
+            XCTAssertEqual(notification?.method, "bus.event")
+        }
         await client.close()
     }
 
@@ -43,6 +47,25 @@ final class ClubmateKitTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? ClubmateError, .insecureRuntime(paths.runtime.path(percentEncoded: false)))
         }
+    }
+
+    func testCallDeadline() async throws {
+        let base = try TestCore.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let paths = ClubmatePaths(state: base.appending(path: "state"), runtime: base.appending(path: "run"))
+        for dir in [paths.runtime, paths.sessionsSocketDir] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        let server = try listen(at: paths.coreSocket.path(percentEncoded: false))
+        defer { close(server) }
+        let connection = try await RPCConnection.connect(paths: paths)
+        do {
+            let _: JSONValue = try await connection.call("core.ping", JSONValue.object([:]), timeout: .milliseconds(200))
+            XCTFail("call without a reply returned")
+        } catch {
+            XCTAssertEqual(error as? ClubmateError, .timeout)
+        }
+        await connection.close()
     }
 
     func testLauncherStartsCore() async throws {
@@ -70,6 +93,20 @@ final class ClubmateKitTests: XCTestCase {
         let core = try await TestCore.start()
         self.core = core
         return try await CoreClient.connect(paths: core.paths)
+    }
+
+    private func listen(at path: String) throws -> Int32 {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &addr.sun_path) { $0.copyBytes(from: Array(path.utf8)) }
+        let bound = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        guard fd >= 0, bound == 0, Darwin.listen(fd, 1) == 0 else {
+            throw TestFailure(description: "listen \(path): \(String(cString: strerror(errno)))")
+        }
+        return fd
     }
 
     private func first(_ stream: AsyncStream<RPCNotification>, within timeout: Duration) async -> RPCNotification? {

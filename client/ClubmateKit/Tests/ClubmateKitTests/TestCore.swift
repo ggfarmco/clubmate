@@ -72,6 +72,7 @@ final class TestCore {
     }
 
     func stop() async {
+        await killSessions()
         if let pid = await runningPID() {
             if (try? cli("core", "stop")) == nil {
                 kill(pid_t(pid), SIGTERM)
@@ -108,6 +109,18 @@ final class TestCore {
         throw TestFailure(description: "core did not start: \(output)")
     }
 
+    private func killSessions() async {
+        guard let client = try? await CoreClient.connect(paths: paths) else { return }
+        if case .array(let sessions)? = try? await client.call(method: "session.list") {
+            for case .object(let session) in sessions where session["state"] == .string("running") {
+                if let id = session["id"] {
+                    _ = try? await client.call(method: "session.kill", params: .object(["id": id]))
+                }
+            }
+        }
+        await client.close()
+    }
+
     private func runningPID() async -> Int? {
         guard let client = try? await CoreClient.connect(paths: paths) else { return nil }
         let ping = try? await client.ping()
@@ -132,12 +145,14 @@ private func buildGoBinaries() throws -> URL {
         root = root.deletingLastPathComponent()
     }
     let bin = package.appending(path: ".build/clubmate-go/bin", directoryHint: .isDirectory)
-    let terminals = bin.appending(path: "plugins/terminals", directoryHint: .isDirectory)
     let env = URL(fileURLWithPath: "/usr/bin/env")
     try TestCore.run(env, ["go", "build", "-o", bin.path(percentEncoded: false), "./cmd/..."], cwd: root)
-    try TestCore.run(env, ["go", "build", "-o", terminals.appending(path: "terminals").path(percentEncoded: false), "./plugins/terminals"], cwd: root)
-    let manifest = terminals.appending(path: "plugin.json")
-    try? fm.removeItem(at: manifest)
-    try fm.copyItem(at: root.appending(path: "plugins/terminals/plugin.json"), to: manifest)
+    for (id, source) in [("terminals", "plugins/terminals"), ("echo", "internal/testutil/plugins/echo")] {
+        let dir = bin.appending(path: "plugins/\(id)", directoryHint: .isDirectory)
+        try TestCore.run(env, ["go", "build", "-o", dir.appending(path: id).path(percentEncoded: false), "./\(source)"], cwd: root)
+        let manifest = dir.appending(path: "plugin.json")
+        try? fm.removeItem(at: manifest)
+        try fm.copyItem(at: root.appending(path: "\(source)/plugin.json"), to: manifest)
+    }
     return bin
 }

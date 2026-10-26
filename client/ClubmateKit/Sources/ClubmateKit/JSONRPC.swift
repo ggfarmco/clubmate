@@ -51,6 +51,7 @@ public actor RPCConnection {
     private let notify: AsyncStream<RPCNotification>.Continuation
     private var nextID = 1
     private var pending: [Int: CheckedContinuation<Data, any Error>] = [:]
+    private var timers: [Int: Task<Void, Never>] = [:]
     private var closed = false
 
     private init(fd: Int32) {
@@ -72,7 +73,7 @@ public actor RPCConnection {
         return connection
     }
 
-    public func call<P: Encodable & Sendable, R: Decodable & Sendable>(_ method: String, _ params: P) async throws -> R {
+    public func call<P: Encodable & Sendable, R: Decodable & Sendable>(_ method: String, _ params: P, timeout: Duration = .seconds(10)) async throws -> R {
         guard !closed else { throw ClubmateError.notRunning }
         let id = nextID
         nextID += 1
@@ -80,10 +81,14 @@ public actor RPCConnection {
         line.append(0x0A)
         let response: Data = try await withCheckedThrowingContinuation { continuation in
             pending[id] = continuation
+            timers[id] = Task {
+                guard (try? await Task.sleep(for: timeout)) != nil else { return }
+                expire(id)
+            }
             do {
                 try write(line)
             } catch {
-                pending.removeValue(forKey: id)?.resume(throwing: error)
+                resolve(id)?.resume(throwing: error)
             }
         }
         do {
@@ -119,7 +124,7 @@ public actor RPCConnection {
             notify.yield(RPCNotification(method: method, params: header.params ?? .null))
             return
         }
-        guard let id = header.id, let continuation = pending.removeValue(forKey: id) else { return }
+        guard let id = header.id, let continuation = resolve(id) else { return }
         if let error = header.error {
             continuation.resume(throwing: ClubmateError.rpc(code: error.code, message: error.message))
         } else {
@@ -127,10 +132,21 @@ public actor RPCConnection {
         }
     }
 
+    private func resolve(_ id: Int) -> CheckedContinuation<Data, any Error>? {
+        timers.removeValue(forKey: id)?.cancel()
+        return pending.removeValue(forKey: id)
+    }
+
+    private func expire(_ id: Int) {
+        resolve(id)?.resume(throwing: ClubmateError.timeout)
+    }
+
     private func finish() {
         closed = true
         let waiting = pending
         pending = [:]
+        timers.values.forEach { $0.cancel() }
+        timers = [:]
         for continuation in waiting.values {
             continuation.resume(throwing: ClubmateError.notRunning)
         }
@@ -220,6 +236,32 @@ private struct Header: Decodable {
     let method: String?
     let params: JSONValue?
     let error: ErrorBody?
+}
+
+extension JSONValue {
+    public var stringValue: String? {
+        if case .string(let value) = self { return value }
+        return nil
+    }
+
+    public var boolValue: Bool? {
+        if case .bool(let value) = self { return value }
+        return nil
+    }
+
+    public var arrayValue: [JSONValue]? {
+        if case .array(let value) = self { return value }
+        return nil
+    }
+
+    public var objectValue: [String: JSONValue]? {
+        if case .object(let value) = self { return value }
+        return nil
+    }
+
+    func decode<T: Decodable>(_ type: T.Type) throws -> T {
+        try JSONDecoder.clubmate.decode(type, from: JSONEncoder().encode(self))
+    }
 }
 
 extension JSONDecoder {

@@ -2,13 +2,18 @@ import Foundation
 
 @MainActor
 public final class CoreClient {
-    public nonisolated let notifications: AsyncStream<RPCNotification>
-
     private let connection: RPCConnection
+    private var subscribers: [UUID: AsyncStream<RPCNotification>.Continuation] = [:]
+    private var pumpFinished = false
 
     public init(connection: RPCConnection) {
         self.connection = connection
-        notifications = connection.notifications
+        Task { [weak self, notifications = connection.notifications] in
+            for await notification in notifications {
+                self?.broadcast(notification)
+            }
+            self?.finishSubscribers()
+        }
     }
 
     public static func connect(paths: ClubmatePaths) async throws -> CoreClient {
@@ -17,6 +22,24 @@ public final class CoreClient {
 
     public func close() async {
         await connection.close()
+    }
+
+    public func subscribeNotifications() -> AsyncStream<RPCNotification> {
+        let (stream, continuation) = AsyncStream.makeStream(of: RPCNotification.self)
+        guard !pumpFinished else {
+            continuation.finish()
+            return stream
+        }
+        let id = UUID()
+        subscribers[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { @MainActor in self?.subscribers.removeValue(forKey: id) }
+        }
+        return stream
+    }
+
+    public func call(method: String, params: JSONValue = .object([:]), timeout: Duration = .seconds(10)) async throws -> JSONValue {
+        try await connection.call(method, params, timeout: timeout)
     }
 
     public func ping() async throws -> PingResult {
@@ -31,7 +54,7 @@ public final class CoreClient {
         try await connection.call("project.create", CreateProjectParams(name: name, repos: repos))
     }
 
-    public func uiSections() async throws -> [Section] {
+    public func uiSections() async throws -> [SectionInfo] {
         try await connection.call("ui.sections", NoParams())
     }
 
@@ -49,7 +72,7 @@ public final class CoreClient {
     }
 
     public func uiEvent(_ event: UIEvent) async throws -> JSONValue {
-        try await connection.call("ui.event", event)
+        try await connection.call("ui.event", event, timeout: .seconds(8))
     }
 
     public func commandList() async throws -> [Command] {
@@ -57,7 +80,7 @@ public final class CoreClient {
     }
 
     public func commandRun(id: String, projectID: String, args: JSONValue = .null) async throws -> JSONValue {
-        try await connection.call("command.run", CommandRunParams(id: id, projectId: projectID, args: args))
+        try await connection.call("command.run", CommandRunParams(id: id, projectId: projectID, args: args), timeout: .seconds(8))
     }
 
     public func uiStateGet(projectID: String) async throws -> JSONValue? {
@@ -72,6 +95,25 @@ public final class CoreClient {
     public func busSubscribe(pattern: String, after: Int64 = 0) async throws -> String {
         let result: SubscriptionParams = try await connection.call("bus.subscribe", BusSubscribeParams(pattern: pattern, after: after))
         return result.subscription
+    }
+
+    public func busUnsubscribe(_ subscription: String) async throws {
+        let _: NoParams = try await connection.call("bus.unsubscribe", SubscriptionParams(subscription: subscription))
+    }
+
+    private func broadcast(_ notification: RPCNotification) {
+        for continuation in subscribers.values {
+            continuation.yield(notification)
+        }
+    }
+
+    private func finishSubscribers() {
+        pumpFinished = true
+        let finished = subscribers
+        subscribers = [:]
+        for continuation in finished.values {
+            continuation.finish()
+        }
     }
 }
 
