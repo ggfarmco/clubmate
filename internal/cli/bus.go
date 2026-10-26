@@ -75,7 +75,7 @@ func (a *app) busReadCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().Int64Var(&opts.after, "after", 0, "only events with seq greater than this")
-	cmd.Flags().IntVar(&opts.limit, "limit", defaultReadLimit, "max events to read before following")
+	cmd.Flags().IntVar(&opts.limit, "limit", defaultReadLimit, "max events per read (with --follow, the page size)")
 	cmd.Flags().BoolVar(&opts.follow, "follow", false, "keep printing new events until interrupted")
 	return cmd
 }
@@ -88,24 +88,33 @@ func (a *app) busRead(ctx context.Context, pattern string, opts busReadOptions) 
 		return err
 	}
 	defer c.Close()
-	var events []bus.Event
-	if err := c.Call(ctx, "bus.read", map[string]any{"pattern": pattern, "after": opts.after, "limit": opts.limit}, &events); err != nil {
-		return err
-	}
 	if !a.asJSON {
 		fmt.Fprintln(a.out, "SEQ TIME TOPIC SOURCE PAYLOAD")
 	}
-	after := opts.after
-	for _, e := range events {
-		if err := a.printEvent(e); err != nil {
-			return err
-		}
-		after = e.Seq
-	}
-	if !opts.follow {
-		return nil
+	after, err := a.printBacklog(ctx, c, pattern, opts)
+	if err != nil || !opts.follow {
+		return err
 	}
 	return a.follow(ctx, c, pattern, after)
+}
+
+func (a *app) printBacklog(ctx context.Context, c *rpc.Client, pattern string, opts busReadOptions) (int64, error) {
+	after := opts.after
+	for {
+		var events []bus.Event
+		if err := c.Call(ctx, "bus.read", map[string]any{"pattern": pattern, "after": after, "limit": opts.limit}, &events); err != nil {
+			return 0, err
+		}
+		for _, e := range events {
+			if err := a.printEvent(e); err != nil {
+				return 0, err
+			}
+			after = e.Seq
+		}
+		if !opts.follow || len(events) == 0 {
+			return after, nil
+		}
+	}
 }
 
 func (a *app) follow(ctx context.Context, c *rpc.Client, pattern string, after int64) error {
@@ -122,29 +131,34 @@ func (a *app) follow(ctx context.Context, c *rpc.Client, pattern string, after i
 		case <-c.Done():
 			return errCoreDisconnected
 		case n := <-c.Notifications():
-			if err := a.handleBusNotification(n); err != nil {
+			seq, err := a.handleBusNotification(n)
+			if err != nil {
 				return err
+			}
+			after = max(after, seq)
+			if dropped := c.Dropped(); dropped > 0 {
+				return fmt.Errorf("%d events dropped; re-run with --after %d", dropped, after)
 			}
 		}
 	}
 }
 
-func (a *app) handleBusNotification(n rpc.Notification) error {
+func (a *app) handleBusNotification(n rpc.Notification) (int64, error) {
 	switch n.Method {
 	case "bus.event":
 		var ev busEventNotification
 		if err := json.Unmarshal(n.Params, &ev); err != nil {
-			return fmt.Errorf("decode bus event: %w", err)
+			return 0, fmt.Errorf("decode bus event: %w", err)
 		}
-		return a.printEvent(ev.Event)
+		return ev.Event.Seq, a.printEvent(ev.Event)
 	case "bus.closed":
 		var closed busClosedNotification
 		if err := json.Unmarshal(n.Params, &closed); err != nil {
-			return fmt.Errorf("decode bus closed: %w", err)
+			return 0, fmt.Errorf("decode bus closed: %w", err)
 		}
-		return fmt.Errorf("subscription closed: %s", closed.Error)
+		return 0, fmt.Errorf("subscription closed: %s", closed.Error)
 	}
-	return nil
+	return 0, nil
 }
 
 func (a *app) printEvent(e bus.Event) error {

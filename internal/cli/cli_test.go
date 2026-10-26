@@ -13,15 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/cli"
 	"clubmate/internal/project"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 )
 
-func startCore(t *testing.T) {
+func startCore(t *testing.T) *bus.Bus {
 	t.Helper()
-	srv, _ := testutil.NewRPCServer(t)
+	srv, b := testutil.NewRPCServer(t)
 	dirs := testutil.ShortDirs(t)
 	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
 	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
@@ -34,6 +35,7 @@ func startCore(t *testing.T) {
 		cancel()
 		assert.NoError(t, <-done)
 	})
+	return b
 }
 
 func run(t *testing.T, args ...string) []byte {
@@ -113,12 +115,42 @@ func TestBusReadFollowStreamsNewEvents(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(stdout.String(), " cli "))
 }
 
+func TestBusReadFollowPagesBacklogBeyondLimit(t *testing.T) {
+	b := startCore(t)
+	for range 300 {
+		_, err := b.Publish(t.Context(), "demo.x", "test", nil)
+		require.NoError(t, err)
+	}
+	stdout := syncBuffer{delay: time.Millisecond}
+	root := cli.NewRoot(&stdout, &stdout)
+	root.SetArgs([]string{"bus", "read", "demo.*", "--limit", "100", "--follow", "--json"})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- root.ExecuteContext(ctx) }()
+	testutil.Eventually(t, func() bool { return strings.Count(stdout.String(), "\n") >= 300 }, 3*time.Second)
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+	var seqs []int64
+	for line := range strings.Lines(stdout.String()) {
+		var e bus.Event
+		require.NoError(t, json.Unmarshal([]byte(line), &e))
+		seqs = append(seqs, e.Seq)
+	}
+	require.Len(t, seqs, 300)
+	for i, seq := range seqs {
+		assert.Equal(t, int64(i+1), seq)
+	}
+}
+
 type syncBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
+	mu    sync.Mutex
+	buf   bytes.Buffer
+	delay time.Duration
 }
 
 func (b *syncBuffer) Write(p []byte) (int, error) {
+	time.Sleep(b.delay)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.Write(p)

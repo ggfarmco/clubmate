@@ -1,8 +1,13 @@
 package rpc_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"net"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +48,36 @@ func TestRPCBusClosedNotifiesSubscriber(t *testing.T) {
 	assert.JSONEq(t, `{"subscription":"`+sub.Subscription+`","error":"bus closed"}`, string(n.Params))
 }
 
+func TestRPCBusUnsubscribeStopsDelivery(t *testing.T) {
+	c := startServer(t)
+	var sub struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, c.Call(t.Context(), "bus.subscribe", map[string]any{"pattern": "demo.*"}, &sub))
+	require.NoError(t, c.Call(t.Context(), "bus.unsubscribe", sub, nil))
+	require.NoError(t, c.Call(t.Context(), "bus.publish", map[string]any{"topic": "demo.hello"}, nil))
+	select {
+	case n := <-c.Notifications():
+		assert.Failf(t, "unexpected notification", "%s %s", n.Method, n.Params)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+func TestRPCBusSubscriptionReleasedWhenForwardingFails(t *testing.T) {
+	srv, b := testutil.NewRPCServer(t)
+	for range 1000 {
+		_, err := b.Publish(t.Context(), "demo.x", "test", nil)
+		require.NoError(t, err)
+	}
+	coreSide, clientSide := net.Pipe()
+	srv.ServeConn(t.Context(), failingNotifyStream{jsonrpc2.NewPlainObjectStream(coreSide)}, rpc.Caller{})
+	client := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(clientSide), jsonrpc2.HandlerWithError(
+		func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) { return nil, nil }))
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, client.Call(t.Context(), "bus.subscribe", map[string]any{"pattern": "demo.*"}, nil))
+	testutil.Eventually(t, func() bool { return !strings.Contains(goroutines(), "bus.(*Subscription).backfill") }, 2*time.Second)
+}
+
 func TestRPCReentrantCallsDoNotDeadlock(t *testing.T) {
 	srv, _ := testutil.NewRPCServer(t)
 	coreSide, pluginSide := net.Pipe()
@@ -60,6 +95,23 @@ func TestRPCReentrantCallsDoNotDeadlock(t *testing.T) {
 	var n int
 	require.NoError(t, conn.Call(ctx, "plugin.ping", nil, &n))
 	assert.Equal(t, 0, n)
+}
+
+type failingNotifyStream struct {
+	jsonrpc2.ObjectStream
+}
+
+func (s failingNotifyStream) WriteObject(v any) error {
+	raw, err := json.Marshal(v)
+	if err == nil && bytes.Contains(raw, []byte(`"method":"bus.event"`)) {
+		return errors.New("write failed")
+	}
+	return s.ObjectStream.WriteObject(v)
+}
+
+func goroutines() string {
+	buf := make([]byte, 1<<20)
+	return string(buf[:runtime.Stack(buf, true)])
 }
 
 func recvNotification(t *testing.T, c *rpc.Client) rpc.Notification {

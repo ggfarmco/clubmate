@@ -53,6 +53,7 @@ func (r *subscriptions) add(stop func(), forward forwardFunc) (string, error) {
 	r.wg.Go(func() {
 		defer r.remove(sid)
 		defer close(e.finished)
+		defer e.stop()
 		forward(sid, e.done)
 	})
 	return sid, nil
