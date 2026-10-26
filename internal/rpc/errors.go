@@ -7,6 +7,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/core"
+	"clubmate/internal/kv"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/session"
@@ -80,6 +81,9 @@ func errorCode(err error) int64 {
 		errors.Is(err, bus.ErrInvalidPattern),
 		errors.Is(err, bus.ErrInvalidPayload),
 		errors.Is(err, bus.ErrPayloadTooLarge),
+		errors.Is(err, kv.ErrInvalidKey),
+		errors.Is(err, kv.ErrInvalidValue),
+		errors.Is(err, kv.ErrValueTooLarge),
 		errors.Is(err, errEmptyConsumer):
 		return codeInvalidParams
 	}

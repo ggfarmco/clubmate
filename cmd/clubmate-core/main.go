@@ -14,6 +14,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/core"
+	"clubmate/internal/kv"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
@@ -66,6 +67,12 @@ func run(logger *slog.Logger) error {
 	}
 	defer eventBus.Close()
 
+	pluginKV, err := kv.Open(dirs.PluginsDB())
+	if err != nil {
+		return fmt.Errorf("open plugin storage: %w", err)
+	}
+	defer pluginKV.Close()
+
 	listener, err := listen(dirs.CoreSocket())
 	if err != nil {
 		return err
@@ -85,7 +92,7 @@ func run(logger *slog.Logger) error {
 	}()
 
 	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", rpc.Version)
-	serveErr := rpc.NewServer(svc, eventBus).Serve(ctx, listener)
+	serveErr := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV)).Serve(ctx, listener)
 	stop()
 	<-loopDone
 	logger.Info("clubmate-core stopped")

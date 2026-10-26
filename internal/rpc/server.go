@@ -15,6 +15,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/core"
+	"clubmate/internal/kv"
 )
 
 const (
@@ -31,10 +32,15 @@ type empty struct{}
 type Server struct {
 	svc     *core.Service
 	bus     *bus.Bus
+	kv      *kv.Store
 	methods map[string]handlerFunc
 }
 
 type ServerOption func(*Server)
+
+func WithKV(store *kv.Store) ServerOption {
+	return func(s *Server) { s.kv = store }
+}
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	s := &Server{svc: svc, bus: b}
@@ -43,6 +49,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	}
 	s.methods = s.coreMethods()
 	maps.Copy(s.methods, s.busMethods())
+	maps.Copy(s.methods, s.storageMethods())
 	return s
 }
 
