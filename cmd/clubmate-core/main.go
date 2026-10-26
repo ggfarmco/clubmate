@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/core"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
@@ -59,6 +60,12 @@ func run(logger *slog.Logger) error {
 	}
 	defer store.Close()
 
+	eventBus, err := bus.Open(dirs.BusDB())
+	if err != nil {
+		return fmt.Errorf("open bus: %w", err)
+	}
+	defer eventBus.Close()
+
 	listener, err := listen(dirs.CoreSocket())
 	if err != nil {
 		return err
@@ -66,7 +73,7 @@ func run(logger *slog.Logger) error {
 	defer os.Remove(dirs.CoreSocket())
 
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
-	svc := core.NewService(store, session.NewManager(dirs, hostBin), tracker, proc.Snapshot)
+	svc := core.NewService(store, session.NewManager(dirs, hostBin), tracker, proc.Snapshot, core.WithBus(eventBus), core.WithLogger(logger))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

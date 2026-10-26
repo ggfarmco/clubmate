@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/core"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
@@ -45,13 +46,26 @@ func ShortDirs(t *testing.T) paths.Dirs {
 
 func NewService(t *testing.T) *core.Service {
 	t.Helper()
+	return newService(t)
+}
+
+func NewServiceWithBus(t *testing.T) (*core.Service, *bus.Bus) {
+	t.Helper()
+	b, err := bus.Open(filepath.Join(t.TempDir(), "bus.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { b.Close() })
+	return newService(t, core.WithBus(b)), b
+}
+
+func newService(t *testing.T, opts ...core.Option) *core.Service {
+	t.Helper()
 	dirs := ShortDirs(t)
 	bin := BuildBinary(t, "clubmate/cmd/clubmate-session")
 	store, err := project.Open(dirs.DB())
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
-	svc := core.NewService(store, session.NewManager(dirs, bin), tracker, proc.Snapshot, core.WithKillGrace(testKillGrace))
+	svc := core.NewService(store, session.NewManager(dirs, bin), tracker, proc.Snapshot, append(opts, core.WithKillGrace(testKillGrace))...)
 	t.Cleanup(func() { killLeftovers(svc) })
 	return svc
 }
