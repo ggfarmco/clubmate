@@ -3,137 +3,151 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/core"
-	"clubmate/internal/proc"
-	"clubmate/internal/project"
-	"clubmate/internal/session"
+	"clubmate/internal/kv"
 )
 
-const Version = "0.1.0"
+const (
+	Version = "0.1.0"
+
+	acceptBackoffMin = 5 * time.Millisecond
+	acceptBackoffMax = time.Second
+)
 
 type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
 
-type idParams struct {
-	ID string `json:"id"`
-}
-
-type createProjectParams struct {
-	Name  string   `json:"name"`
-	Repos []string `json:"repos"`
-}
-
-type addRepoParams struct {
-	ID   string `json:"id"`
-	Path string `json:"path"`
-}
-
-type listSessionsParams struct {
-	ProjectID string `json:"projectId"`
-}
-
-type pingResult struct {
-	Version string `json:"version"`
-}
-
-type killResult struct {
-	Killed []int `json:"killed"`
-}
-
 type empty struct{}
 
+type Server struct {
+	svc        *core.Service
+	bus        *bus.Bus
+	kv         *kv.Store
+	methods    map[string]handlerFunc
+	pluginList atomic.Pointer[func() any]
+	ui         atomic.Pointer[uiState]
+}
+
+type ServerOption func(*Server)
+
+func WithKV(store *kv.Store) ServerOption {
+	return func(s *Server) { s.kv = store }
+}
+
+func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
+	s := &Server{svc: svc, bus: b}
+	for _, opt := range opts {
+		opt(s)
+	}
+	s.methods = s.coreMethods()
+	maps.Copy(s.methods, s.busMethods())
+	maps.Copy(s.methods, s.storageMethods())
+	maps.Copy(s.methods, s.pluginMethods())
+	maps.Copy(s.methods, s.uiMethods())
+	return s
+}
+
 func Serve(ctx context.Context, l net.Listener, svc *core.Service) error {
+	return NewServer(svc, nil).Serve(ctx, l)
+}
+
+func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 	ctx, cancel := context.WithCancel(ctx)
 	stopListener := context.AfterFunc(ctx, func() { l.Close() })
-	handler := newHandler(svc)
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	defer cancel()
 	defer stopListener()
+	var backoff time.Duration
 	for {
 		nc, err := l.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
-			return fmt.Errorf("accept: %w", err)
+			if !retryableAccept(err) {
+				return fmt.Errorf("accept: %w", err)
+			}
+			backoff = nextBackoff(backoff)
+			if !sleep(ctx, backoff) {
+				return nil
+			}
+			continue
 		}
-		wg.Go(func() { serveConn(ctx, nc, handler) })
+		backoff = 0
+		wg.Go(func() {
+			_, done := s.open(ctx, jsonrpc2.NewPlainObjectStream(nc), Caller{})
+			<-done
+		})
 	}
 }
 
-func serveConn(ctx context.Context, nc net.Conn, handler jsonrpc2.Handler) {
-	conn := jsonrpc2.NewConn(ctx, jsonrpc2.NewPlainObjectStream(nc), handler)
-	stop := context.AfterFunc(ctx, func() { conn.Close() })
-	defer stop()
-	<-conn.DisconnectNotify()
+func (s *Server) ServeConn(ctx context.Context, stream jsonrpc2.ObjectStream, caller Caller) *jsonrpc2.Conn {
+	conn, _ := s.open(ctx, stream, caller)
+	return conn
 }
 
-func newHandler(svc *core.Service) jsonrpc2.Handler {
-	methods := methodTable(svc)
-	return jsonrpc2.HandlerWithError(func(ctx context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
-		fn, ok := methods[req.Method]
+func (s *Server) open(ctx context.Context, stream jsonrpc2.ObjectStream, caller Caller) (*jsonrpc2.Conn, <-chan struct{}) {
+	subs := newSubscriptions()
+	ctx = withSubscriptions(WithCaller(ctx, caller), subs)
+	conn := jsonrpc2.NewConn(ctx, stream, jsonrpc2.AsyncHandler(s.handler()))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		<-conn.DisconnectNotify()
+		subs.closeAll()
+	}()
+	return conn, done
+}
+
+func (s *Server) handler() jsonrpc2.Handler {
+	return jsonrpc2.HandlerWithError(func(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		fn, ok := s.methods[req.Method]
 		if !ok {
 			return nil, &jsonrpc2.Error{Code: codeMethodNotFound, Message: "method not found: " + req.Method}
 		}
-		result, err := fn(ctx, req.Params)
+		result, err := fn(withConn(ctx, conn), req.Params)
 		if err != nil {
 			return nil, toRPCError(err)
 		}
 		return result, nil
-	})
+	}).SuppressErrClosed()
 }
 
-func methodTable(svc *core.Service) map[string]handlerFunc {
-	return map[string]handlerFunc{
-		"core.ping": method(func(context.Context, empty) (pingResult, error) {
-			return pingResult{Version: Version}, nil
-		}),
-		"project.create": method(func(ctx context.Context, p createProjectParams) (project.Project, error) {
-			return encodeProject(svc.CreateProject(ctx, p.Name, p.Repos))
-		}),
-		"project.list": method(func(ctx context.Context, _ empty) ([]project.Project, error) {
-			list, err := svc.ListProjects(ctx)
-			for i := range list {
-				list[i].Repos = nonNil(list[i].Repos)
-			}
-			return nonNil(list), err
-		}),
-		"project.get": method(func(ctx context.Context, p idParams) (project.Project, error) {
-			return encodeProject(svc.GetProject(ctx, p.ID))
-		}),
-		"project.addRepo": method(func(ctx context.Context, p addRepoParams) (project.Project, error) {
-			return encodeProject(svc.AddRepo(ctx, p.ID, p.Path))
-		}),
-		"project.delete": method(func(ctx context.Context, p idParams) (empty, error) {
-			return empty{}, svc.DeleteProject(ctx, p.ID)
-		}),
-		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
-			return svc.CreateSession(ctx, p)
-		}),
-		"session.list": method(func(ctx context.Context, p listSessionsParams) ([]session.Session, error) {
-			list, err := svc.ListSessions(ctx, p.ProjectID)
-			return nonNil(list), err
-		}),
-		"session.get": method(func(ctx context.Context, p idParams) (session.Session, error) {
-			return svc.GetSession(ctx, p.ID)
-		}),
-		"session.kill": method(func(ctx context.Context, p idParams) (empty, error) {
-			return empty{}, svc.KillSession(ctx, p.ID)
-		}),
-		"process.tree": method(func(ctx context.Context, f core.TreeFilter) ([]proc.Node, error) {
-			nodes, err := svc.ProcessTree(ctx, f)
-			return nonNil(nodes), err
-		}),
-		"process.kill": method(func(ctx context.Context, p core.KillRequest) (killResult, error) {
-			killed, err := svc.KillProcesses(ctx, p)
-			return killResult{Killed: nonNil(killed)}, err
-		}),
+func retryableAccept(err error) bool {
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return true
+	}
+	return errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE)
+}
+
+func nextBackoff(d time.Duration) time.Duration {
+	if d == 0 {
+		return acceptBackoffMin
+	}
+	return min(d*2, acceptBackoffMax)
+}
+
+func sleep(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -151,11 +165,6 @@ func method[P, R any](fn func(ctx context.Context, p P) (R, error)) handlerFunc 
 		}
 		return result, nil
 	}
-}
-
-func encodeProject(p project.Project, err error) (project.Project, error) {
-	p.Repos = nonNil(p.Repos)
-	return p, err
 }
 
 func nonNil[T any](s []T) []T {

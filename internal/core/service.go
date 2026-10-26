@@ -2,12 +2,16 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
+	"sync"
 	"time"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/session"
@@ -16,6 +20,9 @@ import (
 const (
 	DefaultKillGrace = 3 * time.Second
 	startTimeSlack   = time.Second
+	eventSource      = "core"
+	stopPoll         = 20 * time.Millisecond
+	stopSettle       = 2 * time.Second
 )
 
 var (
@@ -35,6 +42,10 @@ type KillRequest struct {
 	OrphansOnly bool   `json:"orphansOnly"`
 }
 
+type idPayload struct {
+	ID string `json:"id"`
+}
+
 type Option func(*Service)
 
 type Service struct {
@@ -43,6 +54,33 @@ type Service struct {
 	tracker   *proc.Tracker
 	snapshot  func() ([]proc.Process, error)
 	killGrace time.Duration
+	bus       *bus.Bus
+	logger    *slog.Logger
+	exclude   func() []int
+
+	transitionsMu sync.Mutex
+	baselined     bool
+	reported      map[string]bool
+}
+
+type sessionExited struct {
+	ID        string        `json:"id"`
+	ProjectID string        `json:"projectId"`
+	Owner     string        `json:"owner"`
+	State     session.State `json:"state"`
+	ExitCode  *int          `json:"exitCode"`
+}
+
+func WithBus(b *bus.Bus) Option {
+	return func(s *Service) { s.bus = b }
+}
+
+func WithLogger(l *slog.Logger) Option {
+	return func(s *Service) { s.logger = l }
+}
+
+func WithExcludePIDs(fn func() []int) Option {
+	return func(s *Service) { s.exclude = fn }
 }
 
 func WithKillGrace(d time.Duration) Option {
@@ -56,6 +94,8 @@ func NewService(projects *project.Store, sessions *session.Manager, tracker *pro
 		tracker:   tracker,
 		snapshot:  snapshot,
 		killGrace: DefaultKillGrace,
+		logger:    slog.New(slog.DiscardHandler),
+		reported:  map[string]bool{},
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -64,7 +104,12 @@ func NewService(projects *project.Store, sessions *session.Manager, tracker *pro
 }
 
 func (s *Service) CreateProject(ctx context.Context, name string, repos []string) (project.Project, error) {
-	return s.projects.Create(ctx, name, repos)
+	p, err := s.projects.Create(ctx, name, repos)
+	if err != nil {
+		return project.Project{}, err
+	}
+	s.publish(ctx, "project.created", map[string]any{"project": p})
+	return p, nil
 }
 
 func (s *Service) ListProjects(ctx context.Context) ([]project.Project, error) {
@@ -90,7 +135,11 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if err := proc.KillTree(ctx, nodePIDs(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill project %s: %w", id, err)
 	}
-	return s.projects.Delete(ctx, id)
+	if err := s.projects.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.publish(ctx, "project.deleted", idPayload{ID: id})
+	return nil
 }
 
 func (s *Service) CreateSession(ctx context.Context, req session.CreateRequest) (session.Session, error) {
@@ -103,15 +152,28 @@ func (s *Service) CreateSession(ctx context.Context, req session.CreateRequest) 
 			return session.Session{}, err
 		}
 	}
-	return s.sessions.Create(ctx, req)
+	sess, err := s.sessions.Create(ctx, req)
+	if err != nil {
+		return session.Session{}, err
+	}
+	s.publish(ctx, "session.created", map[string]any{"session": sess})
+	return sess, nil
 }
 
-func (s *Service) ListSessions(ctx context.Context, projectID string) ([]session.Session, error) {
-	return s.sessions.List(ctx, projectID)
+func (s *Service) ListSessions(ctx context.Context, f session.ListFilter) ([]session.Session, error) {
+	return s.sessions.List(ctx, f)
 }
 
 func (s *Service) GetSession(ctx context.Context, id string) (session.Session, error) {
 	return s.sessions.Get(ctx, id)
+}
+
+func (s *Service) RemoveSession(ctx context.Context, id string) error {
+	if err := s.sessions.Remove(ctx, id); err != nil {
+		return err
+	}
+	s.publish(ctx, "session.removed", idPayload{ID: id})
+	return nil
 }
 
 func (s *Service) KillSession(ctx context.Context, id string) error {
@@ -125,11 +187,49 @@ func (s *Service) KillSession(ctx context.Context, id string) error {
 	if err := proc.KillTree(ctx, nodePIDs(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill session %s: %w", id, err)
 	}
+	if err := s.awaitStopped(ctx, id); err != nil {
+		return err
+	}
+	s.publish(ctx, "session.killed", idPayload{ID: id})
+	return nil
+}
+
+func (s *Service) CheckTransitions(ctx context.Context) error {
+	s.transitionsMu.Lock()
+	defer s.transitionsMu.Unlock()
+	sessions, err := s.sessions.List(ctx, session.ListFilter{})
+	if err != nil {
+		return err
+	}
+	present := make(map[string]bool, len(sessions))
+	for _, sess := range sessions {
+		present[sess.ID] = true
+		if sess.State == session.StateRunning || s.reported[sess.ID] {
+			continue
+		}
+		s.reported[sess.ID] = true
+		if !s.baselined {
+			continue
+		}
+		s.publish(ctx, "session.exited", sessionExited{
+			ID:        sess.ID,
+			ProjectID: sess.ProjectID,
+			Owner:     sess.Owner,
+			State:     sess.State,
+			ExitCode:  sess.ExitCode,
+		})
+	}
+	for id := range s.reported {
+		if !present[id] {
+			delete(s.reported, id)
+		}
+	}
+	s.baselined = true
 	return nil
 }
 
 func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, error) {
-	sessions, err := s.sessions.List(ctx, "")
+	sessions, err := s.sessions.List(ctx, session.ListFilter{})
 	if err != nil {
 		return nil, err
 	}
@@ -142,16 +242,21 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 		byPID[p.PID] = p
 	}
 	projectOf := make(map[string]string, len(sessions))
-	hosts := make(map[int]bool, len(sessions))
+	excluded := make(map[int]bool, len(sessions))
 	roots := make([]proc.SessionRoot, 0, len(sessions))
 	for _, sess := range sessions {
 		projectOf[sess.ID] = sess.ProjectID
-		hosts[sess.HostPID] = true
+		excluded[sess.HostPID] = true
 		roots = append(roots, rootOf(sess, byPID))
+	}
+	if s.exclude != nil {
+		for _, pid := range s.exclude() {
+			excluded[pid] = true
+		}
 	}
 	var out []proc.Node
 	for _, n := range s.tracker.Attribute(procs, roots) {
-		if hosts[n.Process.PID] {
+		if excluded[n.Process.PID] {
 			continue
 		}
 		if f.SessionID != "" && n.SessionID != f.SessionID {
@@ -201,6 +306,46 @@ func (s *Service) RefreshLoop(ctx context.Context, every time.Duration) {
 			return
 		case <-tick.C:
 			_, _ = s.ProcessTree(ctx, TreeFilter{})
+			if err := s.CheckTransitions(ctx); err != nil && ctx.Err() == nil {
+				s.logger.Error("check session transitions", "err", err)
+			}
+		}
+	}
+}
+
+func (s *Service) publish(ctx context.Context, topic string, payload any) {
+	if s.bus == nil {
+		return
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		s.logger.Error("marshal event", "topic", topic, "err", err)
+		return
+	}
+	if _, err := s.bus.Publish(context.WithoutCancel(ctx), topic, eventSource, raw); err != nil {
+		s.logger.Error("publish event", "topic", topic, "err", err)
+	}
+}
+
+func (s *Service) awaitStopped(ctx context.Context, id string) error {
+	deadline := time.NewTimer(s.killGrace + stopSettle)
+	defer deadline.Stop()
+	tick := time.NewTicker(stopPoll)
+	defer tick.Stop()
+	for {
+		sess, err := s.sessions.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if sess.State != session.StateRunning {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return fmt.Errorf("kill session %s: %w", id, session.ErrRunning)
+		case <-tick.C:
 		}
 	}
 }

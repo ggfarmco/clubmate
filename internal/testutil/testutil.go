@@ -2,9 +2,11 @@ package testutil
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -13,10 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/core"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
+	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 )
 
@@ -45,13 +49,32 @@ func ShortDirs(t *testing.T) paths.Dirs {
 
 func NewService(t *testing.T) *core.Service {
 	t.Helper()
+	return newService(t)
+}
+
+func NewServiceWithBus(t *testing.T, opts ...core.Option) (*core.Service, *bus.Bus) {
+	t.Helper()
+	b, err := bus.Open(filepath.Join(t.TempDir(), "bus.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { b.Close() })
+	return newService(t, append(opts, core.WithBus(b))...), b
+}
+
+func NewRPCServer(t *testing.T) (*rpc.Server, *bus.Bus) {
+	t.Helper()
+	svc, b := NewServiceWithBus(t)
+	return rpc.NewServer(svc, b), b
+}
+
+func newService(t *testing.T, opts ...core.Option) *core.Service {
+	t.Helper()
 	dirs := ShortDirs(t)
 	bin := BuildBinary(t, "clubmate/cmd/clubmate-session")
 	store, err := project.Open(dirs.DB())
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
-	svc := core.NewService(store, session.NewManager(dirs, bin), tracker, proc.Snapshot, core.WithKillGrace(testKillGrace))
+	svc := core.NewService(store, session.NewManager(dirs, bin), tracker, proc.Snapshot, append(opts, core.WithKillGrace(testKillGrace))...)
 	t.Cleanup(func() { killLeftovers(svc) })
 	return svc
 }
@@ -70,6 +93,44 @@ func BuildBinary(t *testing.T, pkg string) string {
 	return b.path
 }
 
+func EchoPluginDir(t *testing.T) string {
+	t.Helper()
+	bin := BuildBinary(t, "clubmate/internal/testutil/plugins/echo")
+	_, self, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	root := t.TempDir()
+	dir := filepath.Join(root, "echo")
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	copyFile(t, bin, filepath.Join(dir, "echo"), 0o755)
+	copyFile(t, filepath.Join(filepath.Dir(self), "plugins", "echo", "plugin.json"), filepath.Join(dir, "plugin.json"), 0o600)
+	return root
+}
+
+func BuildPluginDir(t *testing.T, pkg, manifestPath string) string {
+	t.Helper()
+	bin := BuildBinary(t, pkg)
+	manifest := filepath.Join(moduleRoot(t), manifestPath)
+	var m struct {
+		ID string `json:"id"`
+	}
+	data, err := os.ReadFile(manifest)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(data, &m))
+	root := t.TempDir()
+	dir := filepath.Join(root, m.ID)
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	copyFile(t, bin, filepath.Join(dir, filepath.Base(pkg)), 0o755)
+	copyFile(t, manifest, filepath.Join(dir, "plugin.json"), 0o600)
+	return root
+}
+
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	gomod, err := exec.Command("go", "env", "GOMOD").Output()
+	require.NoError(t, err)
+	return filepath.Dir(strings.TrimSpace(string(gomod)))
+}
+
 func Eventually(t *testing.T, cond func() bool, timeout time.Duration) {
 	t.Helper()
 	require.Eventually(t, cond, timeout, 20*time.Millisecond)
@@ -79,9 +140,16 @@ func Alive(pid int) bool {
 	return unix.Kill(pid, 0) == nil
 }
 
+func copyFile(t *testing.T, src, dst string, perm os.FileMode) {
+	t.Helper()
+	data, err := os.ReadFile(src)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(dst, data, perm))
+}
+
 func killLeftovers(svc *core.Service) {
 	ctx := context.Background()
-	sessions, _ := svc.ListSessions(ctx, "")
+	sessions, _ := svc.ListSessions(ctx, session.ListFilter{})
 	nodes, _ := svc.ProcessTree(ctx, core.TreeFilter{})
 	for _, n := range nodes {
 		_ = unix.Kill(n.Process.PID, unix.SIGKILL)

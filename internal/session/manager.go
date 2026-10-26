@@ -44,6 +44,7 @@ type Session struct {
 	ID        string    `json:"id"`
 	ProjectID string    `json:"projectId"`
 	Title     string    `json:"title"`
+	Owner     string    `json:"owner"`
 	Command   []string  `json:"command"`
 	Cwd       string    `json:"cwd"`
 	HostPID   int       `json:"hostPid"`
@@ -57,9 +58,15 @@ type Session struct {
 type CreateRequest struct {
 	ProjectID string   `json:"projectId"`
 	Title     string   `json:"title"`
+	Owner     string   `json:"-"`
 	Command   []string `json:"command"`
 	Cwd       string   `json:"cwd"`
 	Env       []string `json:"env"`
+}
+
+type ListFilter struct {
+	ProjectID string
+	Owner     string
 }
 
 type Manager struct {
@@ -77,6 +84,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error
 		ID:        sid,
 		ProjectID: req.ProjectID,
 		Title:     req.Title,
+		Owner:     req.Owner,
 		Command:   req.Command,
 		Cwd:       req.Cwd,
 		Env:       req.Env,
@@ -97,7 +105,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error
 	return m.Get(ctx, sid)
 }
 
-func (m *Manager) List(_ context.Context, projectID string) ([]Session, error) {
+func (m *Manager) List(_ context.Context, f ListFilter) ([]Session, error) {
 	entries, err := os.ReadDir(m.dirs.SessionsDir())
 	if err != nil {
 		return nil, fmt.Errorf("read sessions dir: %w", err)
@@ -107,14 +115,17 @@ func (m *Manager) List(_ context.Context, projectID string) ([]Session, error) {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
 			continue
 		}
-		meta, err := sessionhost.ReadMeta(filepath.Join(m.dirs.SessionsDir(), e.Name()))
+		s, err := readSession(filepath.Join(m.dirs.SessionsDir(), e.Name()))
 		if err != nil {
 			continue
 		}
-		if projectID != "" && meta.ProjectID != projectID {
+		if f.ProjectID != "" && s.ProjectID != f.ProjectID {
 			continue
 		}
-		sessions = append(sessions, fromMeta(meta))
+		if f.Owner != "" && s.Owner != f.Owner {
+			continue
+		}
+		sessions = append(sessions, s)
 	}
 	sort.Slice(sessions, func(i, j int) bool { return sessions[i].StartedAt.Before(sessions[j].StartedAt) })
 	return sessions, nil
@@ -124,14 +135,11 @@ func (m *Manager) Get(_ context.Context, sid string) (Session, error) {
 	if !id.Valid(IDPrefix, sid) {
 		return Session{}, fmt.Errorf("session %q: %w", sid, ErrNotFound)
 	}
-	meta, err := sessionhost.ReadMeta(m.dirs.SessionMeta(sid))
+	s, err := readSession(m.dirs.SessionMeta(sid))
 	if errors.Is(err, os.ErrNotExist) {
 		return Session{}, fmt.Errorf("session %s: %w", sid, ErrNotFound)
 	}
-	if err != nil {
-		return Session{}, err
-	}
-	return fromMeta(meta), nil
+	return s, err
 }
 
 func (m *Manager) Remove(ctx context.Context, sid string) error {
@@ -205,30 +213,43 @@ func (m *Manager) startError(sid string) error {
 	return fmt.Errorf("%w: see %s", ErrHostStartTimeout, m.dirs.SessionLog(sid))
 }
 
-func fromMeta(meta sessionhost.Meta) Session {
+func readSession(path string) (Session, error) {
+	meta, err := sessionhost.ReadMeta(path)
+	if err != nil {
+		return Session{}, err
+	}
+	if meta.ExitCode != nil {
+		return fromMeta(meta, StateExited), nil
+	}
+	if hostAlive(meta.HostPID) {
+		return fromMeta(meta, StateRunning), nil
+	}
+	again, err := sessionhost.ReadMeta(path)
+	if err != nil || again.ExitCode == nil {
+		return fromMeta(meta, StateLost), nil
+	}
+	return fromMeta(again, StateExited), nil
+}
+
+func fromMeta(meta sessionhost.Meta, state State) Session {
 	return Session{
 		ID:        meta.ID,
 		ProjectID: meta.ProjectID,
 		Title:     meta.Title,
+		Owner:     meta.Owner,
 		Command:   meta.Command,
 		Cwd:       meta.Cwd,
 		HostPID:   meta.HostPID,
 		ChildPID:  meta.ChildPID,
 		PGID:      meta.PGID,
 		StartedAt: meta.StartedAt,
-		State:     deriveState(meta),
+		State:     state,
 		ExitCode:  meta.ExitCode,
 	}
 }
 
-func deriveState(meta sessionhost.Meta) State {
-	if meta.ExitCode != nil {
-		return StateExited
-	}
-	if meta.HostPID <= 1 || unix.Kill(meta.HostPID, 0) != nil {
-		return StateLost
-	}
-	return StateRunning
+func hostAlive(pid int) bool {
+	return pid > 1 && unix.Kill(pid, 0) == nil
 }
 
 func exists(path string) bool {

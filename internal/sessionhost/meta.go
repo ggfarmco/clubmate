@@ -11,6 +11,7 @@ type Config struct {
 	ID         string   `json:"id"`
 	ProjectID  string   `json:"projectId"`
 	Title      string   `json:"title"`
+	Owner      string   `json:"owner"`
 	Command    []string `json:"command"`
 	Cwd        string   `json:"cwd"`
 	Env        []string `json:"env"`
@@ -23,6 +24,7 @@ type Meta struct {
 	ID        string     `json:"id"`
 	ProjectID string     `json:"projectId"`
 	Title     string     `json:"title"`
+	Owner     string     `json:"owner"`
 	Command   []string   `json:"command"`
 	Cwd       string     `json:"cwd"`
 	HostPID   int        `json:"hostPid"`

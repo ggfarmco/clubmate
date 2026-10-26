@@ -98,6 +98,26 @@ func TestProcessTreeNeverReturnsSessionHosts(t *testing.T) {
 	assert.Equal(t, []int{779}, pids(nodes))
 }
 
+func TestProcessTreeOmitsExcludedPIDs(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	t0 := time.Now().Add(-time.Hour)
+	self := os.Getpid()
+	excluded := startBystander(t)
+	writeMeta(t, dirs.SessionMeta("ses_live"), sessionhost.Meta{ID: "ses_live", ProjectID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
+	snap := []proc.Process{
+		{PID: self, PPID: 1, PGID: self, Comm: "host", StartTime: t0.Add(-time.Minute)},
+		{PID: 779, PPID: self, PGID: 779, Comm: "child", StartTime: t0},
+		{PID: excluded, PPID: 779, PGID: 779, Comm: "plugin", StartTime: t0},
+	}
+	svc := fakeService(t, dirs, snap, core.WithExcludePIDs(func() []int { return []int{excluded} }))
+	nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{})
+	require.NoError(t, err)
+	assert.Equal(t, []int{779}, pids(nodes))
+	_, err = svc.KillProcesses(t.Context(), core.KillRequest{PIDs: []int{excluded}})
+	assert.ErrorIs(t, err, core.ErrNotTracked)
+	assert.True(t, testutil.Alive(excluded))
+}
+
 func TestCreateSessionRequiresProject(t *testing.T) {
 	svc := testutil.NewService(t)
 	_, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: "prj_missing", Command: []string{"true"}})
@@ -156,13 +176,13 @@ func sessionWithOrphan(t *testing.T) (*core.Service, session.Session, int) {
 	return svc, sess, orphanPID
 }
 
-func fakeService(t *testing.T, dirs paths.Dirs, snap []proc.Process) *core.Service {
+func fakeService(t *testing.T, dirs paths.Dirs, snap []proc.Process, opts ...core.Option) *core.Service {
 	t.Helper()
 	store, err := project.Open(dirs.DB())
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(func(int) ([]string, error) { return nil, nil }, os.Getpid())
-	return core.NewService(store, session.NewManager(dirs, "unused"), tracker, func() ([]proc.Process, error) { return snap, nil })
+	return core.NewService(store, session.NewManager(dirs, "unused"), tracker, func() ([]proc.Process, error) { return snap, nil }, opts...)
 }
 
 func pids(nodes []proc.Node) []int {

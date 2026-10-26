@@ -2,17 +2,32 @@ package rpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"sync/atomic"
 
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/paths"
 )
 
+const notificationBuffer = 64
+
 type Client struct {
-	conn *jsonrpc2.Conn
+	conn  *jsonrpc2.Conn
+	inbox *inbox
+}
+
+type Notification struct {
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
+}
+
+type inbox struct {
+	notes   chan Notification
+	dropped atomic.Int64
 }
 
 func Dial(ctx context.Context, socket string) (*Client, error) {
@@ -25,11 +40,9 @@ func Dial(ctx context.Context, socket string) (*Client, error) {
 		nc.Close()
 		return nil, fmt.Errorf("dial %s: %w", socket, err)
 	}
-	handler := jsonrpc2.HandlerWithError(func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) {
-		return nil, &jsonrpc2.Error{Code: codeMethodNotFound, Message: "client accepts no calls"}
-	})
-	conn := jsonrpc2.NewConn(context.WithoutCancel(ctx), jsonrpc2.NewPlainObjectStream(nc), handler)
-	return &Client{conn: conn}, nil
+	in := &inbox{notes: make(chan Notification, notificationBuffer)}
+	conn := jsonrpc2.NewConn(context.WithoutCancel(ctx), jsonrpc2.NewPlainObjectStream(nc), in)
+	return &Client{conn: conn, inbox: in}, nil
 }
 
 func (c *Client) Call(ctx context.Context, method string, params, result any) error {
@@ -41,8 +54,36 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 	return err
 }
 
+func (c *Client) Notifications() <-chan Notification {
+	return c.inbox.notes
+}
+
+func (c *Client) Dropped() int64 {
+	return c.inbox.dropped.Load()
+}
+
+func (c *Client) Done() <-chan struct{} {
+	return c.conn.DisconnectNotify()
+}
+
 func (c *Client) Close() error {
 	return c.conn.Close()
+}
+
+func (in *inbox) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
+	if !req.Notif {
+		_ = conn.ReplyWithError(ctx, req.ID, &jsonrpc2.Error{Code: codeMethodNotFound, Message: "client accepts no calls"})
+		return
+	}
+	n := Notification{Method: req.Method}
+	if req.Params != nil {
+		n.Params = *req.Params
+	}
+	select {
+	case in.notes <- n:
+	default:
+		in.dropped.Add(1)
+	}
 }
 
 func verifyConn(nc net.Conn) error {

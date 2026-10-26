@@ -1,0 +1,24 @@
+package plugin_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/plugin"
+)
+
+func TestLoadRejectsCommandOutsideDir(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, `{"id":"bad","name":"Bad","version":"0.1.0","protocol":1,"command":["../../bin/sh"]}`)
+	_, err := plugin.Load(dir)
+	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
+}
+
+func writeManifest(t *testing.T, dir, body string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(body), 0o600))
+}

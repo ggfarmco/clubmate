@@ -40,7 +40,7 @@ func NewRoot(stdout, stderr io.Writer) *cobra.Command {
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	root.PersistentFlags().BoolVar(&a.asJSON, "json", false, "print raw result as JSON")
-	root.AddCommand(a.projectCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd())
+	root.AddCommand(a.projectCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd())
 	return root
 }
 
@@ -59,9 +59,18 @@ func Execute() int {
 }
 
 func (a *app) call(ctx context.Context, method string, params, result any) error {
-	dirs, err := paths.Resolve()
+	c, err := a.dial(ctx)
 	if err != nil {
 		return err
+	}
+	defer c.Close()
+	return c.Call(ctx, method, params, result)
+}
+
+func (a *app) dial(ctx context.Context) (*rpc.Client, error) {
+	dirs, err := paths.Resolve()
+	if err != nil {
+		return nil, err
 	}
 	socket := dirs.CoreSocket()
 	err = dirs.CheckRuntime()
@@ -71,12 +80,11 @@ func (a *app) call(ctx context.Context, method string, params, result any) error
 	}
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENOENT) {
-			return fmt.Errorf("clubmate-core is not running (socket %s)", socket)
+			return nil, fmt.Errorf("clubmate-core is not running (socket %s)", socket)
 		}
-		return err
+		return nil, err
 	}
-	defer c.Close()
-	return c.Call(ctx, method, params, result)
+	return c, nil
 }
 
 func (a *app) render(v any, human func(w io.Writer)) error {
