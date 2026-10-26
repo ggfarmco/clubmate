@@ -16,6 +16,7 @@ import (
 
 	"clubmate/internal/id"
 	"clubmate/internal/paths"
+	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/wire"
 )
@@ -35,7 +36,7 @@ func (a *app) attachCmd() *cobra.Command {
 		Short: "Attach this terminal to a session",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			code, err := attach(cmd.Context(), args[0], os.Stdin, a.out)
+			code, err := a.attach(cmd.Context(), args[0], os.Stdin, cmd.ErrOrStderr())
 			if err != nil {
 				return err
 			}
@@ -47,10 +48,40 @@ func (a *app) attachCmd() *cobra.Command {
 	}
 }
 
-func attach(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (int, error) {
+func (a *app) attach(ctx context.Context, sid string, stdin *os.File, stderr io.Writer) (int, error) {
 	if !id.Valid(session.IDPrefix, sid) {
 		return 1, fmt.Errorf("attach %q: %w", sid, ErrInvalidSessionID)
 	}
+	s, err := a.lookupSession(ctx, sid)
+	if err != nil {
+		return 1, err
+	}
+	switch s.State {
+	case session.StateExited:
+		code := 1
+		if s.ExitCode != nil {
+			code = *s.ExitCode
+		}
+		fmt.Fprintf(stderr, "session %s exited (code %d)\n", sid, code)
+		return code, nil
+	case session.StateLost:
+		fmt.Fprintf(stderr, "session %s lost\n", sid)
+		return 1, nil
+	}
+	return stream(ctx, sid, stdin, a.out)
+}
+
+func (a *app) lookupSession(ctx context.Context, sid string) (session.Session, error) {
+	var s session.Session
+	err := a.call(ctx, "session.get", map[string]string{"id": sid}, &s)
+	var remote *rpc.RemoteError
+	if errors.As(err, &remote) {
+		return session.Session{}, fmt.Errorf("attach %s: %w", sid, err)
+	}
+	return s, nil
+}
+
+func stream(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (int, error) {
 	dirs, err := paths.Resolve()
 	if err != nil {
 		return 1, err

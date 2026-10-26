@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +15,7 @@ import (
 	"clubmate/internal/cli"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
+	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 )
 
@@ -52,4 +55,22 @@ func TestProjectCreateAndListJSON(t *testing.T) {
 	var list []project.Project
 	require.NoError(t, json.Unmarshal(run(t, "project", "list", "--json"), &list))
 	assert.Len(t, list, 1)
+}
+
+func TestAttachToExitedSessionReportsExitCode(t *testing.T) {
+	startCore(t)
+	var p project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "sh", "-c", "exit 3")))
+	testutil.Eventually(t, func() bool {
+		var list []session.Session
+		return json.Unmarshal(run(t, "session", "list", "--json"), &list) == nil && len(list) == 1 && list[0].State == session.StateExited
+	}, 3*time.Second)
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRoot(&stdout, &stderr)
+	root.SetArgs([]string{"attach", sid})
+	var exit *cli.ExitError
+	require.ErrorAs(t, root.Execute(), &exit)
+	assert.Equal(t, 3, exit.Code)
+	assert.Equal(t, "session "+sid+" exited (code 3)\n", stderr.String())
 }
