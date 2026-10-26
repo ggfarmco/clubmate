@@ -180,7 +180,7 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, projectID string) 
 		return err
 	}
 	idx := slices.IndexFunc(sessions, func(s pluginsdk.Session) bool { return s.ID == selected })
-	if idx < 0 {
+	if idx < 0 || sessions[idx].State == "running" {
 		return nil
 	}
 	if err := a.spawn(ctx, h, projectID, sessions[idx].Title); err != nil {
@@ -199,6 +199,10 @@ func (a *app) closeSession(ctx context.Context, h *pluginsdk.Host, projectID, id
 		return nil
 	}
 	if err := a.removeSession(ctx, h, sessions[idx]); err != nil {
+		return err
+	}
+	selected, err := a.selected(ctx, h, projectID)
+	if err != nil || selected != id {
 		return err
 	}
 	rest := slices.Delete(slices.Clone(sessions), idx, idx+1)
@@ -241,11 +245,25 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, projectID string) e
 		a.known[s.ID] = projectID
 		terminals = append(terminals, terminal{ID: s.ID, Title: s.Title, State: s.State, ExitCode: s.ExitCode})
 	}
+	resolved := resolveSelection(terminals, selected)
+	if resolved != selected {
+		if err := a.persistSelection(ctx, h, projectID, resolved); err != nil {
+			return err
+		}
+		selected = resolved
+	}
 	if _, err := h.Render(ctx, projectID, sidebarSlot, sidebarView(terminals, selected)); err != nil {
 		return err
 	}
 	_, err = h.Render(ctx, projectID, mainSlot, mainView(terminals, selected))
 	return err
+}
+
+func (a *app) persistSelection(ctx context.Context, h *pluginsdk.Host, projectID, id string) error {
+	if id == "" {
+		return h.StorageDelete(ctx, selectedKey(projectID))
+	}
+	return h.StorageSet(ctx, selectedKey(projectID), id)
 }
 
 func (a *app) selected(ctx context.Context, h *pluginsdk.Host, projectID string) (string, error) {
@@ -257,7 +275,11 @@ func (a *app) selected(ctx context.Context, h *pluginsdk.Host, projectID string)
 func maxNumber(sessions []pluginsdk.Session) int {
 	highest := 0
 	for _, s := range sessions {
-		n, err := strconv.Atoi(strings.TrimPrefix(s.Title, titlePrefix))
+		num, ok := strings.CutPrefix(s.Title, titlePrefix)
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(num)
 		if err == nil && n > highest {
 			highest = n
 		}

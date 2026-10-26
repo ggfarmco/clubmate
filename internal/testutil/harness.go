@@ -79,6 +79,9 @@ func (h *PluginHarness) Start(t *testing.T, searchPath ...string) {
 
 func (h *PluginHarness) Client(t *testing.T) *rpc.Client {
 	t.Helper()
+	if h.client != nil {
+		return h.client
+	}
 	l, err := net.Listen("unix", h.Dirs.CoreSocket())
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -91,6 +94,7 @@ func (h *PluginHarness) Client(t *testing.T) *rpc.Client {
 		cancel()
 		assert.NoError(t, <-done)
 	})
+	h.client = c
 	return c
 }
 
@@ -118,7 +122,7 @@ func (h *PluginHarness) CreateProject(t *testing.T, name string) project.Project
 
 func (h *PluginHarness) WaitSlot(t *testing.T, projectID, slot string, cond func(sdui.Node) bool) sdui.Node {
 	t.Helper()
-	c := h.rpcClient(t)
+	c := h.Client(t)
 	var found sdui.Node
 	require.Eventually(t, func() bool {
 		var views []internalsdui.SlotView
@@ -141,7 +145,7 @@ func (h *PluginHarness) Event(t *testing.T, projectID, slot, nodeID, action stri
 	raw, err := json.Marshal(value)
 	require.NoError(t, err)
 	params := map[string]any{"projectId": projectID, "slot": slot, "nodeId": nodeID, "action": action, "value": json.RawMessage(raw)}
-	require.NoError(t, h.rpcClient(t).Call(t.Context(), "ui.event", params, nil))
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.event", params, nil))
 }
 
 func (h *PluginHarness) GetSession(t *testing.T, id string) session.Session {
@@ -157,14 +161,6 @@ func (h *PluginHarness) WaitSessionGone(t *testing.T, id string) {
 		_, err := h.Svc.GetSession(t.Context(), id)
 		return errors.Is(err, session.ErrNotFound)
 	}, harnessWait, 20*time.Millisecond)
-}
-
-func (h *PluginHarness) rpcClient(t *testing.T) *rpc.Client {
-	t.Helper()
-	if h.client == nil {
-		h.client = h.Client(t)
-	}
-	return h.client
 }
 
 func (noopHandler) Handle(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) {}

@@ -32,6 +32,7 @@ func TestExitedTerminalCanBeRestarted(t *testing.T) {
 	require.NoError(t, h.Svc.CheckTransitions(t.Context()))
 	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
 	h.Event(t, p.ID, "terminals.sidebar", "new", "new", nil)
+	assert.Same(t, h.Client(t), h.Client(t))
 	main := h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
 	old := main.Props["sessionId"].(string)
 	require.NoError(t, h.Svc.KillSession(t.Context(), old))

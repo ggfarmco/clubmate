@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 
 	"clubmate/pkg/sdui"
 )
@@ -44,6 +45,16 @@ func mainView(terminals []terminal, selected string) sdui.Node {
 		)
 	}
 	return sdui.Empty("Create a terminal")
+}
+
+func resolveSelection(terminals []terminal, selected string) string {
+	if slices.ContainsFunc(terminals, func(t terminal) bool { return t.ID == selected }) {
+		return selected
+	}
+	if len(terminals) > 0 {
+		return terminals[0].ID
+	}
+	return ""
 }
 
 func detail(t terminal) string {
