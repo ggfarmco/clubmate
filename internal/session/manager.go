@@ -44,6 +44,7 @@ type Session struct {
 	ID        string    `json:"id"`
 	ProjectID string    `json:"projectId"`
 	Title     string    `json:"title"`
+	Owner     string    `json:"owner"`
 	Command   []string  `json:"command"`
 	Cwd       string    `json:"cwd"`
 	HostPID   int       `json:"hostPid"`
@@ -57,9 +58,15 @@ type Session struct {
 type CreateRequest struct {
 	ProjectID string   `json:"projectId"`
 	Title     string   `json:"title"`
+	Owner     string   `json:"-"`
 	Command   []string `json:"command"`
 	Cwd       string   `json:"cwd"`
 	Env       []string `json:"env"`
+}
+
+type ListFilter struct {
+	ProjectID string
+	Owner     string
 }
 
 type Manager struct {
@@ -77,6 +84,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error
 		ID:        sid,
 		ProjectID: req.ProjectID,
 		Title:     req.Title,
+		Owner:     req.Owner,
 		Command:   req.Command,
 		Cwd:       req.Cwd,
 		Env:       req.Env,
@@ -97,7 +105,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error
 	return m.Get(ctx, sid)
 }
 
-func (m *Manager) List(_ context.Context, projectID string) ([]Session, error) {
+func (m *Manager) List(_ context.Context, f ListFilter) ([]Session, error) {
 	entries, err := os.ReadDir(m.dirs.SessionsDir())
 	if err != nil {
 		return nil, fmt.Errorf("read sessions dir: %w", err)
@@ -111,7 +119,10 @@ func (m *Manager) List(_ context.Context, projectID string) ([]Session, error) {
 		if err != nil {
 			continue
 		}
-		if projectID != "" && meta.ProjectID != projectID {
+		if f.ProjectID != "" && meta.ProjectID != f.ProjectID {
+			continue
+		}
+		if f.Owner != "" && meta.Owner != f.Owner {
 			continue
 		}
 		sessions = append(sessions, fromMeta(meta))
@@ -210,6 +221,7 @@ func fromMeta(meta sessionhost.Meta) Session {
 		ID:        meta.ID,
 		ProjectID: meta.ProjectID,
 		Title:     meta.Title,
+		Owner:     meta.Owner,
 		Command:   meta.Command,
 		Cwd:       meta.Cwd,
 		HostPID:   meta.HostPID,

@@ -71,6 +71,7 @@ func Run(ctx context.Context, cfg Config) error {
 		ID:        cfg.ID,
 		ProjectID: cfg.ProjectID,
 		Title:     cfg.Title,
+		Owner:     cfg.Owner,
 		Command:   slices.Clone(cfg.Command),
 		Cwd:       cfg.Cwd,
 		HostPID:   os.Getpid(),

@@ -81,7 +81,7 @@ func Alive(pid int) bool {
 
 func killLeftovers(svc *core.Service) {
 	ctx := context.Background()
-	sessions, _ := svc.ListSessions(ctx, "")
+	sessions, _ := svc.ListSessions(ctx, session.ListFilter{})
 	nodes, _ := svc.ProcessTree(ctx, core.TreeFilter{})
 	for _, n := range nodes {
 		_ = unix.Kill(n.Process.PID, unix.SIGKILL)

@@ -60,9 +60,9 @@ func (a *app) sessionListCmd() *cobra.Command {
 			}
 			return a.render(list, func(w io.Writer) {
 				table(w, func(tw *tabwriter.Writer) {
-					fmt.Fprintln(tw, "ID\tPROJECT\tSTATE\tTITLE\tCOMMAND")
+					fmt.Fprintln(tw, "ID\tPROJECT\tOWNER\tSTATE\tTITLE\tCOMMAND")
 					for _, s := range list {
-						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", s.ID, s.ProjectID, s.State, s.Title, strings.Join(s.Command, " "))
+						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", s.ID, s.ProjectID, s.Owner, s.State, s.Title, strings.Join(s.Command, " "))
 					}
 				})
 			})

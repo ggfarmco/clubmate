@@ -33,7 +33,7 @@ func spawn(t *testing.T, m *session.Manager, command ...string) session.Session 
 func TestManagerSessionsSurviveManagerRestart(t *testing.T) {
 	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
 	s := spawn(t, session.NewManager(dirs, bin), "sh", "-c", "exec cat")
-	list, err := session.NewManager(dirs, bin).List(t.Context(), "prj_x")
+	list, err := session.NewManager(dirs, bin).List(t.Context(), session.ListFilter{ProjectID: "prj_x"})
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.Equal(t, s.ID, list[0].ID)
@@ -72,10 +72,10 @@ func TestManagerListFiltersByProject(t *testing.T) {
 	m := session.NewManager(dirs, bin)
 	spawn(t, m, "sh", "-c", "exec cat")
 	require.NoError(t, os.WriteFile(dirs.SessionMeta("ses_bad"), []byte("{"), 0o600))
-	all, err := m.List(t.Context(), "")
+	all, err := m.List(t.Context(), session.ListFilter{})
 	require.NoError(t, err)
 	assert.Len(t, all, 1)
-	other, err := m.List(t.Context(), "prj_other")
+	other, err := m.List(t.Context(), session.ListFilter{ProjectID: "prj_other"})
 	require.NoError(t, err)
 	assert.Empty(t, other)
 }
@@ -139,4 +139,24 @@ func TestManagerCreateFastExit(t *testing.T) {
 		got, _ := m.Get(t.Context(), s.ID)
 		return got.State == session.StateExited && got.ExitCode != nil && *got.ExitCode == 0
 	}, 3*time.Second)
+}
+
+func TestManagerPersistsOwner(t *testing.T) {
+	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
+	m := session.NewManager(dirs, bin)
+	s, err := m.Create(t.Context(), session.CreateRequest{ProjectID: "prj_0123456789abcdef", Owner: "terminals", Command: []string{"sh", "-c", "exec cat"}})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = unix.Kill(-s.PGID, unix.SIGKILL)
+		_ = unix.Kill(s.HostPID, unix.SIGKILL)
+	})
+	got, err := session.NewManager(dirs, bin).Get(t.Context(), s.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "terminals", got.Owner)
+	mine, err := m.List(t.Context(), session.ListFilter{Owner: "terminals"})
+	require.NoError(t, err)
+	assert.Len(t, mine, 1)
+	other, err := m.List(t.Context(), session.ListFilter{Owner: "other"})
+	require.NoError(t, err)
+	assert.Empty(t, other)
 }

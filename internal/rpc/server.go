@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -28,6 +29,8 @@ const (
 	acceptBackoffMax = time.Second
 )
 
+var ownerPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
+
 type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
 
 type idParams struct {
@@ -46,6 +49,7 @@ type addRepoParams struct {
 
 type listSessionsParams struct {
 	ProjectID string `json:"projectId"`
+	Owner     string `json:"owner"`
 }
 
 type pingResult struct {
@@ -172,13 +176,17 @@ func methodTable(svc *core.Service) map[string]handlerFunc {
 			if err := requireID(projectPrefix, p.ProjectID); err != nil {
 				return session.Session{}, err
 			}
+			p.Owner = ""
 			return svc.CreateSession(ctx, p)
 		}),
 		"session.list": method(func(ctx context.Context, p listSessionsParams) ([]session.Session, error) {
 			if err := optionalID(projectPrefix, p.ProjectID); err != nil {
 				return nil, err
 			}
-			list, err := svc.ListSessions(ctx, p.ProjectID)
+			if p.Owner != "" && !ownerPattern.MatchString(p.Owner) {
+				return nil, &jsonrpc2.Error{Code: codeInvalidParams, Message: fmt.Sprintf("invalid owner: %q", p.Owner)}
+			}
+			list, err := svc.ListSessions(ctx, session.ListFilter{ProjectID: p.ProjectID, Owner: p.Owner})
 			return nonNil(list), err
 		}),
 		"session.get": method(func(ctx context.Context, p idParams) (session.Session, error) {

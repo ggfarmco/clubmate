@@ -216,3 +216,21 @@ func TestRPCServeReturnsOnFatalAcceptError(t *testing.T) {
 	defer inner.Close()
 	assert.ErrorContains(t, rpc.Serve(t.Context(), l, svc), "boom")
 }
+
+func TestRPCSessionOwnerCannotBeSetByParams(t *testing.T) {
+	c := startServer(t)
+	p := createProject(t, c)
+	var s session.Session
+	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"projectId": p.ID, "owner": "terminals", "command": []string{"sh", "-c", "exec cat"}}, &s))
+	t.Cleanup(func() { _ = c.Call(context.Background(), "session.kill", map[string]string{"id": s.ID}, nil) })
+	assert.Empty(t, s.Owner)
+	var mine []session.Session
+	require.NoError(t, c.Call(t.Context(), "session.list", map[string]string{"owner": "terminals"}, &mine))
+	assert.Empty(t, mine)
+}
+
+func TestRPCSessionListRejectsBadOwner(t *testing.T) {
+	c := startServer(t)
+	err := c.Call(t.Context(), "session.list", map[string]string{"owner": "Bad Owner"}, nil)
+	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
+}

@@ -106,8 +106,8 @@ func (s *Service) CreateSession(ctx context.Context, req session.CreateRequest) 
 	return s.sessions.Create(ctx, req)
 }
 
-func (s *Service) ListSessions(ctx context.Context, projectID string) ([]session.Session, error) {
-	return s.sessions.List(ctx, projectID)
+func (s *Service) ListSessions(ctx context.Context, f session.ListFilter) ([]session.Session, error) {
+	return s.sessions.List(ctx, f)
 }
 
 func (s *Service) GetSession(ctx context.Context, id string) (session.Session, error) {
@@ -133,7 +133,7 @@ func (s *Service) KillSession(ctx context.Context, id string) error {
 }
 
 func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, error) {
-	sessions, err := s.sessions.List(ctx, "")
+	sessions, err := s.sessions.List(ctx, session.ListFilter{})
 	if err != nil {
 		return nil, err
 	}
