@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -50,12 +51,12 @@ func NewService(t *testing.T) *core.Service {
 	return newService(t)
 }
 
-func NewServiceWithBus(t *testing.T) (*core.Service, *bus.Bus) {
+func NewServiceWithBus(t *testing.T, opts ...core.Option) (*core.Service, *bus.Bus) {
 	t.Helper()
 	b, err := bus.Open(filepath.Join(t.TempDir(), "bus.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { b.Close() })
-	return newService(t, core.WithBus(b)), b
+	return newService(t, append(opts, core.WithBus(b))...), b
 }
 
 func NewRPCServer(t *testing.T) (*rpc.Server, *bus.Bus) {
@@ -91,6 +92,19 @@ func BuildBinary(t *testing.T, pkg string) string {
 	return b.path
 }
 
+func EchoPluginDir(t *testing.T) string {
+	t.Helper()
+	bin := BuildBinary(t, "clubmate/internal/testutil/plugins/echo")
+	_, self, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	root := t.TempDir()
+	dir := filepath.Join(root, "echo")
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	copyFile(t, bin, filepath.Join(dir, "echo"), 0o755)
+	copyFile(t, filepath.Join(filepath.Dir(self), "plugins", "echo", "plugin.json"), filepath.Join(dir, "plugin.json"), 0o600)
+	return root
+}
+
 func Eventually(t *testing.T, cond func() bool, timeout time.Duration) {
 	t.Helper()
 	require.Eventually(t, cond, timeout, 20*time.Millisecond)
@@ -98,6 +112,13 @@ func Eventually(t *testing.T, cond func() bool, timeout time.Duration) {
 
 func Alive(pid int) bool {
 	return unix.Kill(pid, 0) == nil
+}
+
+func copyFile(t *testing.T, src, dst string, perm os.FileMode) {
+	t.Helper()
+	data, err := os.ReadFile(src)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(dst, data, perm))
 }
 
 func killLeftovers(svc *core.Service) {

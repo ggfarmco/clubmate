@@ -54,6 +54,7 @@ type Service struct {
 	killGrace time.Duration
 	bus       *bus.Bus
 	logger    *slog.Logger
+	exclude   func() []int
 
 	transitionsMu sync.Mutex
 	baselined     bool
@@ -74,6 +75,10 @@ func WithBus(b *bus.Bus) Option {
 
 func WithLogger(l *slog.Logger) Option {
 	return func(s *Service) { s.logger = l }
+}
+
+func WithExcludePIDs(fn func() []int) Option {
+	return func(s *Service) { s.exclude = fn }
 }
 
 func WithKillGrace(d time.Duration) Option {
@@ -232,16 +237,21 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 		byPID[p.PID] = p
 	}
 	projectOf := make(map[string]string, len(sessions))
-	hosts := make(map[int]bool, len(sessions))
+	excluded := make(map[int]bool, len(sessions))
 	roots := make([]proc.SessionRoot, 0, len(sessions))
 	for _, sess := range sessions {
 		projectOf[sess.ID] = sess.ProjectID
-		hosts[sess.HostPID] = true
+		excluded[sess.HostPID] = true
 		roots = append(roots, rootOf(sess, byPID))
+	}
+	if s.exclude != nil {
+		for _, pid := range s.exclude() {
+			excluded[pid] = true
+		}
 	}
 	var out []proc.Node
 	for _, n := range s.tracker.Attribute(procs, roots) {
-		if hosts[n.Process.PID] {
+		if excluded[n.Process.PID] {
 			continue
 		}
 		if f.SessionID != "" && n.SessionID != f.SessionID {

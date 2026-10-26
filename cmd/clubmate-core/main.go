@@ -16,13 +16,17 @@ import (
 	"clubmate/internal/core"
 	"clubmate/internal/kv"
 	"clubmate/internal/paths"
+	"clubmate/internal/plugin"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 )
 
-const refreshEvery = 2 * time.Second
+const (
+	refreshEvery      = 2 * time.Second
+	pluginStopTimeout = 15 * time.Second
+)
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -51,7 +55,11 @@ func run(logger *slog.Logger) error {
 	}
 	defer unlock()
 
-	hostBin, err := hostBinary()
+	exe, err := coreExecutable()
+	if err != nil {
+		return err
+	}
+	hostBin, err := hostBinary(exe)
 	if err != nil {
 		return err
 	}
@@ -79,8 +87,18 @@ func run(logger *slog.Logger) error {
 	}
 	defer os.Remove(dirs.CoreSocket())
 
+	manifests, discoverErrs := plugin.Discover(plugin.SearchPath(exe, dirs))
+	for _, err := range discoverErrs {
+		logger.Error("plugin discovery", "err", err)
+	}
+
+	var sup *plugin.Supervisor
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
-	svc := core.NewService(store, session.NewManager(dirs, hostBin), tracker, proc.Snapshot, core.WithBus(eventBus), core.WithLogger(logger))
+	svc := core.NewService(store, session.NewManager(dirs, hostBin), tracker, proc.Snapshot,
+		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }))
+	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV))
+	sup = plugin.NewSupervisor(srv, dirs, logger)
+	srv.SetPluginList(func() any { return sup.Statuses() })
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -91,9 +109,11 @@ func run(logger *slog.Logger) error {
 		svc.RefreshLoop(ctx, refreshEvery)
 	}()
 
-	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", rpc.Version)
-	serveErr := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV)).Serve(ctx, listener)
+	sup.Start(ctx, manifests)
+	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", rpc.Version, "plugins", len(manifests))
+	serveErr := srv.Serve(ctx, listener)
 	stop()
+	stopPlugins(sup)
 	<-loopDone
 	logger.Info("clubmate-core stopped")
 	return serveErr
@@ -114,7 +134,13 @@ func listen(socket string) (net.Listener, error) {
 	return l, nil
 }
 
-func hostBinary() (string, error) {
+func stopPlugins(sup *plugin.Supervisor) {
+	ctx, cancel := context.WithTimeout(context.Background(), pluginStopTimeout)
+	defer cancel()
+	sup.Stop(ctx)
+}
+
+func coreExecutable() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("executable path: %w", err)
@@ -123,6 +149,10 @@ func hostBinary() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve executable: %w", err)
 	}
+	return exe, nil
+}
+
+func hostBinary(exe string) (string, error) {
 	bin := filepath.Join(filepath.Dir(exe), "clubmate-session")
 	info, err := os.Stat(bin)
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {

@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -30,10 +31,11 @@ type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
 type empty struct{}
 
 type Server struct {
-	svc     *core.Service
-	bus     *bus.Bus
-	kv      *kv.Store
-	methods map[string]handlerFunc
+	svc        *core.Service
+	bus        *bus.Bus
+	kv         *kv.Store
+	methods    map[string]handlerFunc
+	pluginList atomic.Pointer[func() any]
 }
 
 type ServerOption func(*Server)
@@ -50,6 +52,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	s.methods = s.coreMethods()
 	maps.Copy(s.methods, s.busMethods())
 	maps.Copy(s.methods, s.storageMethods())
+	maps.Copy(s.methods, s.pluginMethods())
 	return s
 }
 

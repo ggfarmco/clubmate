@@ -47,7 +47,7 @@ func (d Dirs) Ensure() error {
 	if len(d.SessionSocket(strings.Repeat("x", 20)))+len(".tmp") > maxSocketPath || len(d.CoreSocket()) > maxSocketPath {
 		return fmt.Errorf("runtime dir %q: %w", d.Runtime, ErrSocketPathTooLong)
 	}
-	for _, dir := range []string{d.State, d.SessionsDir(), d.Runtime, filepath.Join(d.Runtime, "s")} {
+	for _, dir := range []string{d.State, d.SessionsDir(), d.PluginsDir(), d.Runtime, filepath.Join(d.Runtime, "s")} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("create %s: %w", dir, err)
 		}
@@ -115,6 +115,14 @@ func (d Dirs) SessionMeta(id string) string {
 
 func (d Dirs) SessionLog(id string) string {
 	return filepath.Join(d.SessionsDir(), id+".log")
+}
+
+func (d Dirs) PluginsDir() string {
+	return filepath.Join(d.State, "plugins")
+}
+
+func (d Dirs) PluginLog(id string) string {
+	return filepath.Join(d.PluginsDir(), id+".log")
 }
 
 func LockCore(d Dirs) (func(), error) {

@@ -1,0 +1,11 @@
+{
+  "id": "echo",
+  "name": "Echo",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["echo"],
+  "contributes": {
+    "sections": [{"id": "echo", "title": "Echo", "order": 99}],
+    "commands": [{"id": "echo.say", "title": "Say"}]
+  }
+}
