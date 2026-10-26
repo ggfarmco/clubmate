@@ -1,7 +1,6 @@
 package rpc_test
 
 import (
-	"net"
 	"path/filepath"
 	"testing"
 
@@ -31,14 +30,7 @@ func TestRPCStorageIsolatedPerPlugin(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	srv := rpc.NewServer(svc, b, rpc.WithKV(store))
-	connect := func(plugin string) *jsonrpc2.Conn {
-		coreSide, pluginSide := net.Pipe()
-		conn := srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), rpc.Caller{PluginID: plugin})
-		client := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(pluginSide), nil)
-		t.Cleanup(func() { client.Close(); conn.Close() })
-		return client
-	}
-	a, other := connect("a"), connect("b")
+	a, other := connectAs(t, srv, rpc.Caller{PluginID: "a"}), connectAs(t, srv, rpc.Caller{PluginID: "b"})
 	require.NoError(t, a.Call(t.Context(), "storage.set", map[string]any{"key": "k", "value": map[string]int{"n": 1}}, nil))
 	var got storageGet
 	require.NoError(t, a.Call(t.Context(), "storage.get", map[string]any{"key": "k"}, &got))

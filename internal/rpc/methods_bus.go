@@ -84,14 +84,14 @@ func (s *Server) busMethods() map[string]handlerFunc {
 			if p.Consumer == "" {
 				return seqResult{}, errEmptyConsumer
 			}
-			seq, err := b.Cursor(ctx, p.Consumer)
+			seq, err := b.Cursor(ctx, consumerName(ctx, p.Consumer))
 			return seqResult{Seq: seq}, err
 		}),
 		"bus.cursor.set": method(func(ctx context.Context, p cursorParams) (empty, error) {
 			if p.Consumer == "" {
 				return empty{}, errEmptyConsumer
 			}
-			return empty{}, b.SetCursor(ctx, p.Consumer, p.Seq)
+			return empty{}, b.SetCursor(ctx, consumerName(ctx, p.Consumer), p.Seq)
 		}),
 	}
 	if b == nil {
@@ -104,6 +104,13 @@ func (s *Server) busMethods() map[string]handlerFunc {
 
 func busUnavailable(context.Context, *json.RawMessage) (any, error) {
 	return nil, errNoBus
+}
+
+func consumerName(ctx context.Context, consumer string) string {
+	if c := CallerFrom(ctx); c.IsPlugin() {
+		return c.String() + "/" + consumer
+	}
+	return consumer
 }
 
 func forwardBus(ctx context.Context, conn *jsonrpc2.Conn, sub *bus.Subscription) forwardFunc {

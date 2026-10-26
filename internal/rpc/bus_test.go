@@ -97,6 +97,21 @@ func TestRPCReentrantCallsDoNotDeadlock(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
+func TestRPCBusCursorsAreScopedPerPlugin(t *testing.T) {
+	srv, _ := testutil.NewRPCServer(t)
+	conns := []*jsonrpc2.Conn{connectAs(t, srv, rpc.Caller{PluginID: "a"}), connectAs(t, srv, rpc.Caller{PluginID: "b"}), connectAs(t, srv, rpc.Caller{})}
+	for i, c := range conns {
+		require.NoError(t, c.Call(t.Context(), "bus.cursor.set", map[string]any{"consumer": "x", "seq": i + 1}, nil))
+	}
+	for i, c := range conns {
+		var got struct {
+			Seq int64 `json:"seq"`
+		}
+		require.NoError(t, c.Call(t.Context(), "bus.cursor.get", map[string]any{"consumer": "x"}, &got))
+		assert.EqualValues(t, i+1, got.Seq)
+	}
+}
+
 type failingNotifyStream struct {
 	jsonrpc2.ObjectStream
 }
@@ -123,4 +138,13 @@ func recvNotification(t *testing.T, c *rpc.Client) rpc.Notification {
 		require.FailNow(t, "no notification within 2s")
 		return rpc.Notification{}
 	}
+}
+
+func connectAs(t *testing.T, srv *rpc.Server, caller rpc.Caller) *jsonrpc2.Conn {
+	t.Helper()
+	coreSide, peerSide := net.Pipe()
+	conn := srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), caller)
+	client := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(peerSide), nil)
+	t.Cleanup(func() { client.Close(); conn.Close() })
+	return client
 }
