@@ -26,7 +26,7 @@ struct ProjectWindow: View {
                 if session == nil, let projectID { session = app.session(for: projectID) }
             }
             .onChange(of: session?.store?.connected) { old, new in
-                if old == true, new == false { app.connectionLost() }
+                if old == true, new == false, session?.closed == false { app.connectionLost() }
             }
     }
 

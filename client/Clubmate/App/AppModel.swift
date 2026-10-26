@@ -168,7 +168,7 @@ final class ProjectSession {
     private(set) var store: ProjectUIStore?
     private(set) var failure: String?
 
-    @ObservationIgnored private var closed = false
+    private(set) var closed = false
 
     var attached: Bool { store != nil }
 
