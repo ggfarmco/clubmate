@@ -104,7 +104,11 @@ func TestSDKShutdownEndsRun(t *testing.T) {
 	var res json.RawMessage
 	require.NoError(t, conn.Call(t.Context(), "plugin.shutdown", nil, &res))
 	assert.JSONEq(t, `{}`, string(res))
-	<-shut
+	select {
+	case <-shut:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Shutdown not called")
+	}
 	select {
 	case err := <-done:
 		assert.NoError(t, err)
@@ -132,7 +136,12 @@ func TestSDKHostStorageAndSessions(t *testing.T) {
 		})
 	}()
 	require.NoError(t, conn.Call(t.Context(), "plugin.initialize", map[string]any{"protocol": 1, "pluginId": "echo"}, nil))
-	h := <-ready
+	var h *pluginsdk.Host
+	select {
+	case h = <-ready:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Init not called")
+	}
 	ctx := t.Context()
 	assert.Equal(t, "echo", h.PluginID())
 
@@ -179,3 +188,76 @@ func startPlugin(t *testing.T, p pluginsdk.Plugin, done chan<- error) *jsonrpc2.
 type noopHandler struct{}
 
 func (noopHandler) Handle(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) {}
+
+func TestSDKRejectsSecondInitialize(t *testing.T) {
+	conn := startPlugin(t, pluginsdk.Plugin{}, nil)
+	params := map[string]any{"protocol": 1, "pluginId": "echo"}
+	require.NoError(t, conn.Call(t.Context(), "plugin.initialize", params, nil))
+	var rpcErr *jsonrpc2.Error
+	require.ErrorAs(t, conn.Call(t.Context(), "plugin.initialize", params, nil), &rpcErr)
+}
+
+func TestSDKDeliversBusClosed(t *testing.T) {
+	got := make(chan string, 1)
+	conn := startPlugin(t, pluginsdk.Plugin{
+		BusClosed: func(_ context.Context, _ *pluginsdk.Host, sub string, err error) {
+			got <- sub + ":" + err.Error()
+		},
+	}, nil)
+	require.NoError(t, conn.Notify(t.Context(), "bus.closed", map[string]any{"subscription": "sub_x", "error": "slow"}))
+	select {
+	case v := <-got:
+		assert.Equal(t, "sub_x:slow", v)
+	case <-time.After(3 * time.Second):
+		t.Fatal("no bus.closed")
+	}
+}
+
+func TestSDKBusEventsAreOrderedAndMayCallCore(t *testing.T) {
+	const n = 50
+	seqs := make(chan int64, n)
+	h := startWithCore(t, pluginsdk.Plugin{
+		BusEvent: func(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
+			_, _ = h.ListProjects(ctx)
+			seqs <- ev.Seq
+		},
+	})
+	_, err := h.Subscribe(t.Context(), "*", 0)
+	require.NoError(t, err)
+	for range n {
+		_, err := h.Publish(t.Context(), "t.x", nil)
+		require.NoError(t, err)
+	}
+	var last int64
+	for range n {
+		select {
+		case seq := <-seqs:
+			assert.Greater(t, seq, last)
+			last = seq
+		case <-time.After(5 * time.Second):
+			t.Fatal("bus events stalled")
+		}
+	}
+}
+
+func startWithCore(t *testing.T, p pluginsdk.Plugin) *pluginsdk.Host {
+	t.Helper()
+	srv, _ := testutil.NewRPCServer(t)
+	coreSide, pluginSide := net.Pipe()
+	conn := srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), rpc.Caller{PluginID: "echo"})
+	t.Cleanup(func() { conn.Close() })
+	ready := make(chan *pluginsdk.Host, 1)
+	p.Init = func(_ context.Context, h *pluginsdk.Host) error {
+		ready <- h
+		return nil
+	}
+	go func() { _ = pluginsdk.RunConn(t.Context(), pluginSide, p) }()
+	require.NoError(t, conn.Call(t.Context(), "plugin.initialize", map[string]any{"protocol": 1, "pluginId": "echo"}, nil))
+	select {
+	case h := <-ready:
+		return h
+	case <-time.After(3 * time.Second):
+		t.Fatal("Init not called")
+		return nil
+	}
+}
