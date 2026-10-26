@@ -17,6 +17,8 @@ Interactive types (`tabs list tree button textField toggle select form`) accept 
 
 ## Item shapes
 
+`items` and `options` accept `null` as an empty list.
+
 - item (`tabs`, `list`): `{id*, label*, detail, icon, badge}`, all strings, ids unique and non-empty.
 - tree item (`tree`): item fields plus `hasChildren` (bool), `expanded` (bool), `children` (tree items).
 - option (`select`): `{value*, label*}`.
@@ -28,7 +30,7 @@ Interactive types (`tabs list tree button textField toggle select form`) accept 
 | stack | direction* (`vertical`\|`horizontal`) | any | no |
 | split | direction* (`vertical`\|`horizontal`) | 2-4 | no |
 | scroll | none | exactly 1 | no |
-| tabs | items* (item[]), selected (string), action | none | yes |
+| tabs | items* (item[]), selected* (string), action | none | yes |
 | list | items* (item[]), selected (string), action | none | yes |
 | tree | items* (tree item[]), selected (string), action | none | yes |
 | text | text* (string), style (`body`\|`muted`\|`title`\|`mono`) | none | no |
@@ -49,7 +51,11 @@ A slot is named `<section>.sidebar` or `<section>.main`. A section is registered
 
 ## Revisions
 
-Every slot (per project) has a revision counter that starts at 1 and increases by 1 on each render. When a plugin stops or crashes, its slots are cleared: the counter increments and the tree becomes `empty` with empty text. Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a lower or equal `rev`.
+Every slot (per project) has a revision counter that starts at 1 and increases by 1 on each render. When a plugin stops or crashes, its slots are cleared: the counter increments and the tree becomes `empty` with empty text. The cleared slot is removed from the store: the `empty` view (rev + 1) is delivered only to live subscribers, and later `ui.get` or subscribe replays omit the slot. Clients should treat an `empty` update with text `""` as the slot being gone.
+
+Revisions are in-memory and reset when the core restarts; clients must reset their rev map on reconnect.
+
+Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a lower or equal `rev`.
 
 ## RPC methods
 
@@ -61,8 +67,12 @@ Every slot (per project) has a revision counter that starts at 1 and increases b
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{projectId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{projectId, slot, tree}` (plugin callers only) | `{rev}` |
+| command.list | none | `[{id, title, plugin}]` |
+| command.run | `{id, projectId, args}` | plugin-defined JSON |
 
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
+
+`command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
 
 `ui.event` requires a non-empty `action`, a valid slot and a registered section. It is routed to the owning plugin.
 
