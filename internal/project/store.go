@@ -52,7 +52,7 @@ func Open(path string) (*Store, error) {
 	q.Add("_pragma", "journal_mode(WAL)")
 	q.Add("_pragma", "foreign_keys(1)")
 	q.Add("_pragma", "busy_timeout(5000)")
-	db, err := sql.Open("sqlite", "file:"+path+"?"+q.Encode())
+	db, err := sql.Open("sqlite", (&url.URL{Scheme: "file", Path: path, RawQuery: q.Encode()}).String())
 	if err != nil {
 		return nil, fmt.Errorf("open project db: %w", err)
 	}

@@ -1,6 +1,7 @@
 package project_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -65,4 +66,16 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, s.Delete(t.Context(), p.ID))
 	_, err := s.Get(t.Context(), p.ID)
 	assert.ErrorIs(t, err, project.ErrNotFound)
+}
+
+func TestOpenPathWithSpecialChars(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "a #b?c%41 d")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	dbPath := filepath.Join(dir, "clubmate.db")
+	s, err := project.Open(dbPath)
+	require.NoError(t, err)
+	_, err = s.Create(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	require.NoError(t, s.Close())
+	assert.FileExists(t, dbPath)
 }
