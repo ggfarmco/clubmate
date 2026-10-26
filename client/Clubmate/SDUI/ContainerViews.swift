@@ -42,12 +42,9 @@ struct SplitNodeView: View {
 struct ScrollNodeView: View {
     let node: SDUINode
 
-    @Environment(\.theme) private var theme
-
     var body: some View {
         ScrollView {
             SDUIChildren(node: node)
-                .padding(theme.gutter)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
@@ -79,5 +76,22 @@ struct FormNodeView: View {
         .onChange(of: state.submissions) {
             dispatch(node, .submit(.object(state.values)))
         }
+        .onChange(of: fieldIDs) { _, ids in
+            state.values = state.values.filter { ids.contains($0.key) }
+        }
     }
+
+    private var fieldIDs: Set<String> {
+        var ids: Set<String> = []
+        func visit(_ children: [SDUINode]) {
+            for child in children where child.type != "form" {
+                if FormNodeView.fieldTypes.contains(child.type), let id = child.id { ids.insert(id) }
+                visit(child.children)
+            }
+        }
+        visit(node.children)
+        return ids
+    }
+
+    private static let fieldTypes: Set<String> = ["textField", "toggle", "select"]
 }

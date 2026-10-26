@@ -30,7 +30,7 @@ struct ButtonNodeView: View {
     }
 
     private func click() {
-        guard let form else { return dispatch(node, .click) }
+        guard let form, node.string("action") == nil else { return dispatch(node, .click) }
         form.submit()
     }
 }
@@ -51,6 +51,7 @@ struct TextFieldNodeView: View {
             .padding(.horizontal, 6)
             .frame(minWidth: 160, minHeight: theme.rowHeight)
             .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 1))
+            .padding(.horizontal, theme.gutter)
             .onSubmit(submit)
             .onChange(of: node.string("value"), initial: true) { _, value in
                 text = value ?? ""
@@ -62,7 +63,7 @@ struct TextFieldNodeView: View {
     }
 
     private func submit() {
-        guard let form else { return dispatch(node, .submit(.string(text))) }
+        guard let form, node.string("action") == nil else { return dispatch(node, .submit(.string(text))) }
         form.submit()
     }
 }
@@ -81,6 +82,7 @@ struct ToggleNodeView: View {
             .controlSize(.mini)
             .labelsHidden()
             .tint(theme.accent)
+            .padding(.horizontal, theme.gutter)
             .onChange(of: node.bool("value"), initial: true) { _, value in
                 isOn = value ?? false
             }
@@ -92,7 +94,7 @@ struct ToggleNodeView: View {
 
     private func change(_ value: Bool) {
         isOn = value
-        if form == nil { dispatch(node, .toggle(value)) }
+        if form == nil || node.string("action") != nil { dispatch(node, .toggle(value)) }
     }
 }
 
@@ -120,6 +122,7 @@ struct SelectNodeView: View {
         .padding(.horizontal, 6)
         .frame(height: theme.rowHeight)
         .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 1))
+        .padding(.horizontal, theme.gutter)
         .onChange(of: node.string("value"), initial: true) { _, current in
             value = current ?? options.first?.value ?? ""
         }
@@ -131,6 +134,6 @@ struct SelectNodeView: View {
 
     private func choose(_ option: String) {
         value = option
-        if form == nil { dispatch(node, .change(option)) }
+        if form == nil || node.string("action") != nil { dispatch(node, .change(option)) }
     }
 }

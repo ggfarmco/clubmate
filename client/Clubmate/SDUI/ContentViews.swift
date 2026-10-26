@@ -18,13 +18,10 @@ struct TextNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        let text = Text(node.string("text") ?? "")
-        switch node.string("style") {
-        case "muted": text.font(theme.ui).foregroundStyle(theme.muted)
-        case "title": text.font(theme.title).foregroundStyle(theme.foreground)
-        case "mono": text.font(.system(size: 12, design: .monospaced)).foregroundStyle(theme.foreground)
-        default: text.font(theme.ui).foregroundStyle(theme.foreground)
-        }
+        Text(node.string("text") ?? "")
+            .font(node.string("style") == "title" ? theme.title : theme.ui)
+            .foregroundStyle(node.string("style") == "muted" ? theme.muted : theme.foreground)
+            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -45,6 +42,7 @@ struct BadgeNodeView: View {
 
     var body: some View {
         BadgeLabel(text: node.string("text") ?? "", tone: tone)
+            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -73,6 +71,7 @@ struct IconNodeView: View {
         Image(systemName: SymbolName.resolve(node.string("name")))
             .font(theme.ui)
             .foregroundStyle(theme.foreground)
+            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -84,7 +83,12 @@ struct MarkdownNodeView: View {
     private var content: AttributedString {
         let source = node.string("text") ?? ""
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: source, options: options)) ?? AttributedString(source)
+        var content = (try? AttributedString(markdown: source, options: options)) ?? AttributedString(source)
+        for run in content.runs where run.inlinePresentationIntent?.contains(.code) == true {
+            content[run.range].font = theme.ui
+            content[run.range].backgroundColor = theme.foreground.opacity(0.1)
+        }
+        return content
     }
 
     var body: some View {
@@ -93,6 +97,7 @@ struct MarkdownNodeView: View {
             .foregroundStyle(theme.foreground)
             .tint(theme.accent)
             .textSelection(.enabled)
+            .padding(.horizontal, theme.gutter)
     }
 }
 
@@ -105,6 +110,7 @@ struct EmptyNodeView: View {
         Text(text)
             .font(theme.ui)
             .foregroundStyle(theme.muted)
+            .padding(.horizontal, theme.gutter)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -118,5 +124,6 @@ struct UnsupportedNodeView: View {
         Text("unsupported: \(type)")
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
+            .padding(.horizontal, theme.gutter)
     }
 }

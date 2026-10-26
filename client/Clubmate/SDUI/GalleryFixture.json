@@ -11,7 +11,7 @@
           "props": {"direction": "horizontal"},
           "children": [
             {"type": "icon", "props": {"name": "folder"}},
-            {"type": "text", "props": {"text": " clubmate ", "style": "title"}},
+            {"type": "text", "props": {"text": "clubmate", "style": "title"}},
             {"type": "badge", "props": {"text": "3", "tone": "accent"}}
           ]
         },
@@ -125,7 +125,7 @@
                           "props": {"direction": "horizontal"},
                           "children": [
                             {"type": "toggle", "id": "autostart", "props": {"value": true}},
-                            {"type": "text", "props": {"text": " start sessions on open"}}
+                            {"type": "text", "props": {"text": "start sessions on open"}}
                           ]
                         },
                         {
@@ -140,7 +140,14 @@
                             ]
                           }
                         },
-                        {"type": "button", "id": "save", "props": {"label": "Save", "icon": "checkmark"}}
+                        {
+                          "type": "stack",
+                          "props": {"direction": "horizontal"},
+                          "children": [
+                            {"type": "button", "id": "save", "props": {"label": "Save", "icon": "checkmark"}},
+                            {"type": "button", "id": "cancel", "props": {"label": "Cancel", "action": "settings.cancel"}}
+                          ]
+                        }
                       ]
                     }
                   ]

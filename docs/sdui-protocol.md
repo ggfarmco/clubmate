@@ -95,3 +95,12 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | form | submit | `props.action ?? "submit"` | object `{fieldNodeId: value}` |
 
 `nodeId` is the `id` of the node that fired the event.
+
+## Forms
+
+A `form` collects the values of the `textField`, `toggle` and `select` nodes among its descendants (nested forms collect their own fields), keyed by the field node `id`. The value is the field's current text, bool or option value; fields that disappear from the tree are dropped.
+
+- A `button` without an `action` prop inside a form submits the form: the form sends `props.action ?? "submit"` with the collected object as `value` and the form's `id` as `nodeId`.
+- Return in a `textField` without an `action` prop submits the form the same way.
+- Fields without an `action` prop inside a form are silent: they only update the collected values.
+- A field or button with its own `action` prop sends its own event per the contract above (fields still update the collected values); it does not submit the form.
