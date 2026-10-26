@@ -48,15 +48,15 @@ func Scroll(child Node) Node {
 }
 
 func Tabs(id string, items []Item, selected string) Node {
-	return Node{Type: "tabs", ID: id, Props: map[string]any{"items": items, "selected": selected}}
+	return Node{Type: "tabs", ID: id, Props: map[string]any{"items": nonNil(items), "selected": selected}}
 }
 
 func List(id string, items []Item, selected string) Node {
-	return Node{Type: "list", ID: id, Props: withOptional(map[string]any{"items": items}, "selected", selected)}
+	return Node{Type: "list", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
 }
 
 func Tree(id string, items []TreeItem, selected string) Node {
-	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": items}, "selected", selected)}
+	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
 }
 
 func Text(text string) Node {
@@ -93,7 +93,7 @@ func Toggle(id string, value bool) Node {
 }
 
 func Select(id string, options []Option, value string) Node {
-	return Node{Type: "select", ID: id, Props: withOptional(map[string]any{"options": options}, "value", value)}
+	return Node{Type: "select", ID: id, Props: withOptional(map[string]any{"options": nonNil(options)}, "value", value)}
 }
 
 func Form(id string, children ...Node) Node {
@@ -113,4 +113,11 @@ func withOptional(props map[string]any, key, value string) map[string]any {
 		props[key] = value
 	}
 	return props
+}
+
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }

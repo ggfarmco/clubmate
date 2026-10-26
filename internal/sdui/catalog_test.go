@@ -2,6 +2,7 @@ package sdui_test
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +35,10 @@ func TestValidate(t *testing.T) {
 		{"tree nested", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "A", Children: []sdui.TreeItem{{ID: "b", Label: "B"}}}}, ""), true},
 		{"tree bad nested", sdui.Node{Type: "tree", ID: "t", Props: map[string]any{"items": []any{map[string]any{"id": "a", "label": "A", "children": []any{map[string]any{"id": "b"}}}}}}, false},
 		{"toggle false", sdui.Toggle("t", false), true},
+		{"list nil items", sdui.List("l", nil, ""), true},
+		{"json null items", sdui.Node{Type: "list", ID: "l", Props: map[string]any{"items": nil}}, true},
+		{"empty item id", sdui.List("l", []sdui.Item{{ID: "", Label: "A"}}, ""), false},
+		{"duplicate item ids", sdui.List("l", []sdui.Item{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}, ""), false},
 		{"select", sdui.Select("s", []sdui.Option{{Value: "a", Label: "A"}}, "a"), true},
 	}
 	for _, tt := range tests {
@@ -73,4 +78,18 @@ func TestValidateLimits(t *testing.T) {
 		wide[i] = sdui.Text("x")
 	}
 	assert.ErrorIs(t, internalsdui.Validate(sdui.VStack(wide...)), internalsdui.ErrInvalidTree)
+}
+
+func TestValidateItemLimits(t *testing.T) {
+	items := make([]sdui.Item, 5001)
+	for i := range items {
+		items[i] = sdui.Item{ID: strconv.Itoa(i), Label: "x"}
+	}
+	assert.ErrorIs(t, internalsdui.Validate(sdui.List("l", items, "")), internalsdui.ErrInvalidTree)
+
+	item := sdui.TreeItem{ID: "leaf", Label: "x"}
+	for i := range 40 {
+		item = sdui.TreeItem{ID: "n" + strconv.Itoa(i), Label: "x", Children: []sdui.TreeItem{item}}
+	}
+	assert.ErrorIs(t, internalsdui.Validate(sdui.Tree("t", []sdui.TreeItem{item}, "")), internalsdui.ErrInvalidTree)
 }

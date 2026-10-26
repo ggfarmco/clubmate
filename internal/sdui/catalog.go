@@ -18,7 +18,7 @@ const (
 
 var ErrInvalidTree = errors.New("invalid sdui tree")
 
-type propCheck func(v any) error
+type propCheck func(c *validator, v any) error
 
 type childRule struct {
 	min, max int
@@ -40,7 +40,7 @@ var (
 	badgeTones = []string{"neutral", "accent", "success", "warning", "danger"}
 
 	itemFields = map[string]propCheck{
-		"id": isString, "label": isString, "detail": isString, "icon": isString, "badge": isString,
+		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString,
 	}
 	itemRequired = []string{"id", "label"}
 
@@ -95,8 +95,10 @@ var (
 )
 
 type validator struct {
-	nodes int
-	ids   map[string]struct{}
+	nodes   int
+	depth   int
+	ids     map[string]struct{}
+	itemIDs map[string]struct{}
 }
 
 func Validate(n sdui.Node) error {
@@ -104,14 +106,22 @@ func Validate(n sdui.Node) error {
 	return v.node(n, n.Type, 1)
 }
 
+func (v *validator) countNode() error {
+	v.nodes++
+	if v.nodes > maxNodes {
+		return fmt.Errorf("more than %d nodes", maxNodes)
+	}
+	return nil
+}
+
 func (v *validator) node(n sdui.Node, path string, depth int) error {
 	if depth > maxDepth {
 		return invalid(path, "depth exceeds %d", maxDepth)
 	}
-	v.nodes++
-	if v.nodes > maxNodes {
-		return invalid(path, "more than %d nodes", maxNodes)
+	if err := v.countNode(); err != nil {
+		return invalid(path, "%v", err)
 	}
+	v.depth = depth
 	sp, ok := catalog[n.Type]
 	if !ok {
 		return invalid(path, "unknown type %q", n.Type)
@@ -119,7 +129,7 @@ func (v *validator) node(n sdui.Node, path string, depth int) error {
 	if err := v.identity(n, sp, path); err != nil {
 		return err
 	}
-	if err := checkProps(n, sp, path); err != nil {
+	if err := v.checkProps(n, sp, path); err != nil {
 		return err
 	}
 	if err := checkChildCount(n, sp, path); err != nil {
@@ -147,7 +157,7 @@ func (v *validator) identity(n sdui.Node, sp spec, path string) error {
 	return nil
 }
 
-func checkProps(n sdui.Node, sp spec, path string) error {
+func (v *validator) checkProps(n sdui.Node, sp spec, path string) error {
 	props, err := normalize(n.Props)
 	if err != nil {
 		return invalid(path, "props: %v", err)
@@ -162,7 +172,8 @@ func checkProps(n sdui.Node, sp spec, path string) error {
 		if !ok {
 			return invalid(path, "unknown prop %s", name)
 		}
-		if err := check(value); err != nil {
+		v.itemIDs = map[string]struct{}{}
+		if err := check(v, value); err != nil {
 			return invalid(path, "prop %s: %v", name, err)
 		}
 	}
@@ -196,14 +207,14 @@ func invalid(path, format string, args ...any) error {
 	return fmt.Errorf("%w: %s: %s", ErrInvalidTree, path, fmt.Sprintf(format, args...))
 }
 
-func isString(v any) error {
+func isString(_ *validator, v any) error {
 	if _, ok := v.(string); !ok {
 		return errors.New("must be a string")
 	}
 	return nil
 }
 
-func isBool(v any) error {
+func isBool(_ *validator, v any) error {
 	if _, ok := v.(bool); !ok {
 		return errors.New("must be a boolean")
 	}
@@ -211,7 +222,7 @@ func isBool(v any) error {
 }
 
 func oneOf(allowed []string) propCheck {
-	return func(v any) error {
+	return func(_ *validator, v any) error {
 		s, ok := v.(string)
 		if !ok || !slices.Contains(allowed, s) {
 			return fmt.Errorf("must be one of %v", allowed)
@@ -220,7 +231,7 @@ func oneOf(allowed []string) propCheck {
 	}
 }
 
-func sessionIDCheck(v any) error {
+func sessionIDCheck(_ *validator, v any) error {
 	s, ok := v.(string)
 	if !ok || !id.Valid("ses", s) {
 		return errors.New("must be a valid session id")
@@ -229,13 +240,19 @@ func sessionIDCheck(v any) error {
 }
 
 func listOf(item propCheck) propCheck {
-	return func(v any) error {
+	return func(c *validator, v any) error {
+		if v == nil {
+			return nil
+		}
 		list, ok := v.([]any)
 		if !ok {
 			return errors.New("must be an array")
 		}
 		for i, e := range list {
-			if err := item(e); err != nil {
+			if err := c.countNode(); err != nil {
+				return err
+			}
+			if err := item(c, e); err != nil {
 				return fmt.Errorf("[%d]: %w", i, err)
 			}
 		}
@@ -244,7 +261,7 @@ func listOf(item propCheck) propCheck {
 }
 
 func objectCheck(required []string, fields map[string]propCheck) propCheck {
-	return func(v any) error {
+	return func(c *validator, v any) error {
 		obj, ok := v.(map[string]any)
 		if !ok {
 			return errors.New("must be an object")
@@ -259,7 +276,7 @@ func objectCheck(required []string, fields map[string]propCheck) propCheck {
 			if !ok {
 				return fmt.Errorf("unknown field %s", name)
 			}
-			if err := check(value); err != nil {
+			if err := check(c, value); err != nil {
 				return fmt.Errorf("%s: %w", name, err)
 			}
 		}
@@ -267,18 +284,38 @@ func objectCheck(required []string, fields map[string]propCheck) propCheck {
 	}
 }
 
-func itemCheck(v any) error {
-	return objectCheck(itemRequired, itemFields)(v)
-}
-
-func optionCheck(v any) error {
-	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString})(v)
-}
-
-func treeItemCheck(v any) error {
-	fields := map[string]propCheck{"hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck)}
-	for k, c := range itemFields {
-		fields[k] = c
+func uniqueItemID(c *validator, v any) error {
+	s, ok := v.(string)
+	if !ok {
+		return errors.New("must be a string")
 	}
-	return objectCheck(itemRequired, fields)(v)
+	if s == "" {
+		return errors.New("must not be empty")
+	}
+	if _, dup := c.itemIDs[s]; dup {
+		return fmt.Errorf("duplicate item id %q", s)
+	}
+	c.itemIDs[s] = struct{}{}
+	return nil
+}
+
+func itemCheck(c *validator, v any) error {
+	return objectCheck(itemRequired, itemFields)(c, v)
+}
+
+func optionCheck(c *validator, v any) error {
+	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString})(c, v)
+}
+
+func treeItemCheck(c *validator, v any) error {
+	c.depth++
+	defer func() { c.depth-- }()
+	if c.depth > maxDepth {
+		return fmt.Errorf("depth exceeds %d", maxDepth)
+	}
+	fields := map[string]propCheck{"hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck)}
+	for k, f := range itemFields {
+		fields[k] = f
+	}
+	return objectCheck(itemRequired, fields)(c, v)
 }
