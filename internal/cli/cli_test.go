@@ -1,13 +1,17 @@
 package cli_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
 	"net"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/cli"
+	"clubmate/internal/paths"
 	"clubmate/internal/plugin"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
@@ -27,8 +32,9 @@ import (
 
 func startCore(t *testing.T) *bus.Bus {
 	t.Helper()
-	srv, b := testutil.NewRPCServer(t)
-	serve(t, srv)
+	dirs := testutil.ShortDirs(t)
+	srv, b := testutil.NewRPCServerIn(t, dirs)
+	serveIn(t, srv, dirs)
 	return b
 }
 
@@ -45,7 +51,11 @@ func startCoreWithUI(t *testing.T) *internalsdui.Store {
 
 func serve(t *testing.T, srv *rpc.Server) {
 	t.Helper()
-	dirs := testutil.ShortDirs(t)
+	serveIn(t, srv, testutil.ShortDirs(t))
+}
+
+func serveIn(t *testing.T, srv *rpc.Server, dirs paths.Dirs) {
+	t.Helper()
 	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
 	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
 	l, err := net.Listen("unix", dirs.CoreSocket())
@@ -96,6 +106,35 @@ func TestAttachToExitedSessionReportsExitCode(t *testing.T) {
 	require.ErrorAs(t, root.Execute(), &exit)
 	assert.Equal(t, 3, exit.Code)
 	assert.Equal(t, "session "+sid+" exited (code 3)\n", stderr.String())
+}
+
+func TestAttachExitsQuietlyOnSIGHUP(t *testing.T) {
+	startCore(t)
+	var p project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")))
+	dirs, err := paths.Resolve()
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool {
+		_, err := os.Stat(dirs.SessionSocket(sid))
+		return err == nil
+	}, 3*time.Second)
+	cmd := exec.Command(testutil.BuildBinary(t, "clubmate/cmd/clubmate"), "attach", sid)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	stdin, err := cmd.StdinPipe()
+	require.NoError(t, err)
+	stdout, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	_, err = stdin.Write([]byte("ping\n"))
+	require.NoError(t, err)
+	_, err = bufio.NewReader(stdout).ReadString('\n')
+	require.NoError(t, err)
+	require.NoError(t, cmd.Process.Signal(syscall.SIGHUP))
+	require.NoError(t, cmd.Wait(), stderr.String())
+	assert.Empty(t, stderr.String())
 }
 
 func TestSessionRemoveCommand(t *testing.T) {

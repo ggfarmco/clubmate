@@ -54,21 +54,35 @@ func NewService(t *testing.T) *core.Service {
 
 func NewServiceWithBus(t *testing.T, opts ...core.Option) (*core.Service, *bus.Bus) {
 	t.Helper()
+	return NewServiceWithBusIn(t, ShortDirs(t), opts...)
+}
+
+func NewServiceWithBusIn(t *testing.T, dirs paths.Dirs, opts ...core.Option) (*core.Service, *bus.Bus) {
+	t.Helper()
 	b, err := bus.Open(filepath.Join(t.TempDir(), "bus.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { b.Close() })
-	return newService(t, append(opts, core.WithBus(b))...), b
+	return newServiceIn(t, dirs, append(opts, core.WithBus(b))...), b
 }
 
 func NewRPCServer(t *testing.T) (*rpc.Server, *bus.Bus) {
 	t.Helper()
-	svc, b := NewServiceWithBus(t)
+	return NewRPCServerIn(t, ShortDirs(t))
+}
+
+func NewRPCServerIn(t *testing.T, dirs paths.Dirs) (*rpc.Server, *bus.Bus) {
+	t.Helper()
+	svc, b := NewServiceWithBusIn(t, dirs)
 	return rpc.NewServer(svc, b), b
 }
 
 func newService(t *testing.T, opts ...core.Option) *core.Service {
 	t.Helper()
-	dirs := ShortDirs(t)
+	return newServiceIn(t, ShortDirs(t), opts...)
+}
+
+func newServiceIn(t *testing.T, dirs paths.Dirs, opts ...core.Option) *core.Service {
+	t.Helper()
 	bin := BuildBinary(t, "clubmate/cmd/clubmate-session")
 	store, err := project.Open(dirs.DB())
 	require.NoError(t, err)

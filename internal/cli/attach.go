@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -21,7 +22,10 @@ import (
 	"clubmate/internal/wire"
 )
 
-const stdinChunk = 32 * 1024
+const (
+	stdinChunk    = 32 * 1024
+	lookupTimeout = 2 * time.Second
+)
 
 var ErrInvalidSessionID = errors.New("invalid session id")
 
@@ -52,7 +56,12 @@ func (a *app) attach(ctx context.Context, sid string, stdin *os.File, stderr io.
 	if !id.Valid(session.IDPrefix, sid) {
 		return 1, fmt.Errorf("attach %q: %w", sid, ErrInvalidSessionID)
 	}
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGHUP)
+	defer stop()
 	s, err := a.lookupSession(ctx, sid)
+	if ctx.Err() != nil {
+		return 0, nil
+	}
 	if err != nil {
 		return 1, err
 	}
@@ -68,11 +77,17 @@ func (a *app) attach(ctx context.Context, sid string, stdin *os.File, stderr io.
 		fmt.Fprintf(stderr, "session %s lost\n", sid)
 		return 1, nil
 	}
-	return stream(ctx, sid, stdin, a.out)
+	code, err := stream(ctx, sid, stdin, a.out)
+	if ctx.Err() != nil {
+		return 0, nil
+	}
+	return code, err
 }
 
 func (a *app) lookupSession(ctx context.Context, sid string) (session.Session, error) {
 	var s session.Session
+	ctx, cancel := context.WithTimeout(ctx, lookupTimeout)
+	defer cancel()
 	err := a.call(ctx, "session.get", map[string]string{"id": sid}, &s)
 	var remote *rpc.RemoteError
 	if errors.As(err, &remote) {
@@ -99,8 +114,6 @@ func stream(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (
 		return 1, fmt.Errorf("attach %s: %w", sid, err)
 	}
 
-	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGHUP)
-	defer stop()
 	closeOnCancel := context.AfterFunc(ctx, func() { conn.Close() })
 	defer closeOnCancel()
 
