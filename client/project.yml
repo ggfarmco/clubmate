@@ -1,0 +1,75 @@
+name: Clubmate
+options:
+  bundleIdPrefix: com.clubmate
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SDKROOT: macosx
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: NO
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_HARDENED_RUNTIME: YES
+    OTHER_CODE_SIGN_FLAGS: "--options=runtime"
+    ENABLE_APP_SANDBOX: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    CLANG_CXX_LIBRARY: "libc++"
+  configs:
+    Debug:
+      ENABLE_DEBUG_DYLIB: NO
+
+packages:
+  ClubmateKit:
+    path: ClubmateKit
+
+targets:
+  Clubmate:
+    type: application
+    platform: macOS
+    sources:
+      - path: Clubmate
+        excludes:
+          - "Info.plist"
+          - "Resources/ghostty"
+          - "Resources/terminfo"
+      - path: Clubmate/Resources/ghostty
+        type: folder
+        buildPhase: resources
+      - path: Clubmate/Resources/terminfo
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app
+        PRODUCT_NAME: Clubmate
+        INFOPLIST_FILE: Clubmate/Info.plist
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        OTHER_LDFLAGS:
+          - "-lc++"
+        OTHER_SWIFT_FLAGS:
+          - "-Xcc"
+          - "-Wno-incomplete-umbrella"
+    postBuildScripts:
+      - name: Bundle Go binaries
+        basedOnDependencyAnalysis: false
+        script: |
+          "$SRCROOT/../scripts/bundle-app.sh" "$TARGET_BUILD_DIR/$WRAPPER_NAME"
+    dependencies:
+      - framework: GhosttyKit.xcframework
+        embed: false
+      - package: ClubmateKit
+      - sdk: Carbon.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: QuartzCore.framework
+      - sdk: IOKit.framework
+      - sdk: CoreText.framework
