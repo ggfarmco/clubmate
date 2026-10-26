@@ -84,7 +84,10 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := requireID(projectPrefix, p.ID); err != nil {
 				return empty{}, err
 			}
-			return empty{}, svc.DeleteProject(ctx, p.ID)
+			if err := svc.DeleteProject(ctx, p.ID); err != nil {
+				return empty{}, err
+			}
+			return empty{}, s.deleteUIState(ctx, p.ID)
 		}),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
 			if err := requireID(projectPrefix, p.ProjectID); err != nil {

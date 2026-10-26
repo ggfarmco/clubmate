@@ -54,6 +54,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	s.methods = s.coreMethods()
 	maps.Copy(s.methods, s.busMethods())
 	maps.Copy(s.methods, s.storageMethods())
+	maps.Copy(s.methods, s.uiStateMethods())
 	maps.Copy(s.methods, s.pluginMethods())
 	maps.Copy(s.methods, s.uiMethods())
 	return s
