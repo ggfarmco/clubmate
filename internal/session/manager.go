@@ -172,10 +172,11 @@ func (m *Manager) awaitReady(ctx context.Context, sid string, pid int) error {
 	tick := time.NewTicker(pollInterval)
 	defer tick.Stop()
 	for {
-		if exists(m.dirs.SessionSocket(sid)) && exists(m.dirs.SessionMeta(sid)) {
+		hostGone := errors.Is(unix.Kill(pid, 0), unix.ESRCH)
+		if exists(m.dirs.SessionMeta(sid)) && (hostGone || exists(m.dirs.SessionSocket(sid))) {
 			return nil
 		}
-		if errors.Is(unix.Kill(pid, 0), unix.ESRCH) {
+		if hostGone {
 			return m.startError(sid)
 		}
 		select {

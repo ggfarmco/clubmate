@@ -90,3 +90,13 @@ func TestManagerCreateFailsWhenHostDies(t *testing.T) {
 	_, err := m.Create(t.Context(), session.CreateRequest{ProjectID: "prj_x", Command: []string{"true"}})
 	assert.ErrorIs(t, err, session.ErrHostStartTimeout)
 }
+
+func TestManagerCreateFastExit(t *testing.T) {
+	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
+	m := session.NewManager(dirs, bin)
+	s := spawn(t, m, "true")
+	testutil.Eventually(t, func() bool {
+		got, _ := m.Get(t.Context(), s.ID)
+		return got.State == session.StateExited && got.ExitCode != nil && *got.ExitCode == 0
+	}, 3*time.Second)
+}
