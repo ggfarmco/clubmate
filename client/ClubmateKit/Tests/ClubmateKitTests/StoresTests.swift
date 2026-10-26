@@ -42,11 +42,11 @@ final class StoresTests: XCTestCase {
     func testSelectedSectionPersists() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")
-        try await client.uiStateSet(projectID: project.id, state: .object(["sidebarWidth": .number(240)]))
-
         let first = ProjectUIStore(client: client, projectID: project.id)
         try await first.start()
         XCTAssertEqual(first.selectedSection, "terminals")
+        XCTAssertNil(first.sidebarWidth)
+        first.sidebarWidth = 240
         first.selectedSection = "echo"
         await first.stop()
         let state = try await client.uiStateGet(projectID: project.id)
@@ -55,6 +55,7 @@ final class StoresTests: XCTestCase {
         let second = ProjectUIStore(client: client, projectID: project.id)
         try await second.start()
         XCTAssertEqual(second.selectedSection, "echo")
+        XCTAssertEqual(second.sidebarWidth, 240)
         await second.stop()
         await client.close()
     }
@@ -165,6 +166,24 @@ final class StoresTests: XCTestCase {
             let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", projectID: "prj_1")
             XCTAssertEqual(event, UIEvent(projectId: "prj_1", slot: "x.main", nodeId: node.id ?? "", action: action, value: value), "\(node.type) \(trigger)")
         }
+    }
+
+    func testSectionCommandInvocations() throws {
+        let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
+        [{"id":"terminals.new","title":"New","plugin":"terminals"},
+         {"id":"terminals.close","title":"Close","plugin":"terminals"},
+         {"id":"echo.say","title":"Say","plugin":"echo"}]
+        """#.utf8))
+        let main = SDUINode(type: "stack", children: [SDUINode(type: "surface", props: ["sessionId": .string("ses_1")])])
+
+        XCTAssertEqual(CommandInvocation.new(section: "terminals", commands: commands), CommandInvocation(id: "terminals.new"))
+        XCTAssertNil(CommandInvocation.new(section: "echo", commands: commands))
+        XCTAssertEqual(
+            CommandInvocation.close(section: "terminals", main: main, commands: commands),
+            CommandInvocation(id: "terminals.close", args: .object(["sessionId": .string("ses_1")]))
+        )
+        XCTAssertNil(CommandInvocation.close(section: "terminals", main: SDUINode(type: "empty"), commands: commands))
+        XCTAssertNil(CommandInvocation.close(section: "echo", main: main, commands: commands))
     }
 
     private func startCore() async throws -> CoreClient {

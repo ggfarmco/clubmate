@@ -22,8 +22,12 @@ final class EventBanner {
 }
 
 private struct EventBannerModifier: ViewModifier {
-    @State private var banner = EventBanner()
+    let shared: EventBanner?
+
+    @State private var own = EventBanner()
     @Environment(\.theme) private var theme
+
+    private var banner: EventBanner { shared ?? own }
 
     func body(content: Content) -> some View {
         content
@@ -48,8 +52,8 @@ private struct EventBannerModifier: ViewModifier {
 }
 
 extension View {
-    func eventBanner() -> some View {
-        modifier(EventBannerModifier())
+    func eventBanner(_ banner: EventBanner? = nil) -> some View {
+        modifier(EventBannerModifier(shared: banner))
     }
 }
 

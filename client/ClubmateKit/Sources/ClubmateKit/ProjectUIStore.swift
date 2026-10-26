@@ -14,6 +14,12 @@ public final class ProjectUIStore {
             updateState("section", .string(selectedSection))
         }
     }
+    public var sidebarWidth: Double? {
+        didSet {
+            guard !restoring, sidebarWidth != oldValue, let sidebarWidth else { return }
+            updateState("sidebarWidth", .number(sidebarWidth))
+        }
+    }
 
     @ObservationIgnored private var client: CoreClient
     @ObservationIgnored private var subscription: String?
@@ -51,7 +57,7 @@ public final class ProjectUIStore {
             replace(with: views)
             let state = try await client.uiStateGet(projectID: projectID)
             guard generation == self.generation else { return }
-            restoreSection(from: state)
+            restore(from: state)
             let subscription = try await client.uiSubscribe(projectID: projectID)
             guard generation == self.generation else { return await discard(subscription) }
             self.subscription = subscription
@@ -77,8 +83,16 @@ public final class ProjectUIStore {
     }
 
     public func send(_ event: UIEvent) async -> Result<JSONValue, ClubmateError> {
+        await result { try await self.client.uiEvent(event) }
+    }
+
+    public func run(_ invocation: CommandInvocation) async -> Result<JSONValue, ClubmateError> {
+        await result { try await self.client.commandRun(id: invocation.id, projectID: self.projectID, args: invocation.args) }
+    }
+
+    private func result(_ call: () async throws -> JSONValue) async -> Result<JSONValue, ClubmateError> {
         do {
-            return .success(try await client.uiEvent(event))
+            return .success(try await call())
         } catch let error as ClubmateError {
             return .failure(error)
         } catch {
@@ -156,11 +170,12 @@ public final class ProjectUIStore {
         slots[view.slot] = view
     }
 
-    private func restoreSection(from state: JSONValue?) {
-        let saved = state?.objectValue?["section"]?.stringValue
+    private func restore(from state: JSONValue?) {
+        let saved = state?.objectValue ?? [:]
         restoring = true
         defer { restoring = false }
-        selectedSection = sections.first { $0.id == saved }?.id ?? sections.first?.id
+        selectedSection = sections.first { $0.id == saved["section"]?.stringValue }?.id ?? sections.first?.id
+        sidebarWidth = saved["sidebarWidth"]?.numberValue
     }
 
     private func updateState(_ key: String, _ value: JSONValue) {
