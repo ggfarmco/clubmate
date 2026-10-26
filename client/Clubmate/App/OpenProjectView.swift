@@ -68,9 +68,6 @@ struct OpenProjectView: View {
                 Rectangle().fill(theme.border).frame(width: 1)
                 slot("\(section).main", store)
             }
-            .onChange(of: store.slots, initial: true) { _, slots in
-                model.deck.sync(referenced: SurfaceDeck.sessionIDs(in: slots))
-            }
         } else {
             EmptyNodeView(text: model.failure ?? "Connecting…")
         }

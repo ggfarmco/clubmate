@@ -14,6 +14,8 @@ final class TerminalSurfaceView: NSView {
     private var trackingArea: NSTrackingArea?
     private var markedText = ""
     private var keyTextAccumulator: [String]?
+    private var focusAttempts = 0
+    private var focusHeld = 0
 
     init(sessionID: String) {
         self.sessionID = sessionID
@@ -64,8 +66,28 @@ final class TerminalSurfaceView: NSView {
     }
 
     func focus() {
-        guard let window, window.firstResponder !== self else { return }
-        window.makeFirstResponder(self)
+        focusAttempts = 0
+        focusHeld = 0
+        retryFocus()
+    }
+
+    func confirmPaste(_ payload: ClipboardPayload, state: UInt) {
+        guard let surface else { return }
+        guard let window else {
+            return ghostty_surface_deny_clipboard_request(surface, UnsafeMutableRawPointer(bitPattern: state))
+        }
+        let alert = NSAlert()
+        alert.messageText = "Paste potentially unsafe text?"
+        alert.informativeText = Self.preview(payload.preview)
+        alert.addButton(withTitle: "Paste")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let surface = self?.surface else { return }
+            guard response == .alertFirstButtonReturn else {
+                return ghostty_surface_deny_clipboard_request(surface, UnsafeMutableRawPointer(bitPattern: state))
+            }
+            GhosttyCallbacks.complete(surface, payload, confirmed: true, state: state)
+        }
     }
 
     override func setFrameSize(_ newSize: NSSize) {
@@ -90,7 +112,7 @@ final class TerminalSurfaceView: NSView {
         let center = NotificationCenter.default
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.updateFocus() }
+                MainActor.assumeIsolated { self?.windowKeyChanged() }
             })
         }
         observers.append(center.addObserver(forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main) { [weak self] _ in
@@ -122,7 +144,10 @@ final class TerminalSurfaceView: NSView {
             config.env_var_count = buffer.count
             return ghostty_surface_new(app, &config)
         }
-        guard let surface else { return releaseCStrings() }
+        guard let surface else {
+            ghosttyLog.notice("ghostty_surface_new failed for \(self.sessionID, privacy: .public); retrying on resize or wake")
+            return releaseCStrings()
+        }
         ghostty_surface_set_color_scheme(surface, GhosttyApp.shared.colorScheme)
         updateDisplayID()
         updateSize()
@@ -160,6 +185,25 @@ final class TerminalSurfaceView: NSView {
               let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32
         else { return }
         ghostty_surface_set_display_id(surface, id)
+    }
+
+    private func windowKeyChanged() {
+        if let window, window.isKeyWindow, visible, window.firstResponder === window { focus() }
+        updateFocus()
+    }
+
+    private func retryFocus() {
+        guard !destroyed, visible, let window else { return }
+        if window.firstResponder !== self { window.makeFirstResponder(self) }
+        updateFocus()
+        focusHeld = window.firstResponder === self ? focusHeld + 1 : 0
+        focusAttempts += 1
+        guard focusHeld < 3, focusAttempts < 40 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.retryFocus() }
+    }
+
+    private static func preview(_ text: String) -> String {
+        text.count > 400 ? String(text.prefix(400)) + "…" : text
     }
 
     private func updateFocus() {

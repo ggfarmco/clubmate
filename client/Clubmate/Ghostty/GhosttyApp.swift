@@ -1,8 +1,11 @@
 import AppKit
+import os
 
 import GhosttyKit
 
 import ClubmateKit
+
+let ghosttyLog = Logger(subsystem: "app.clubmate", category: "ghostty")
 
 @MainActor
 final class GhosttyApp {
@@ -10,6 +13,7 @@ final class GhosttyApp {
 
     private(set) var app: ghostty_app_t?
     private(set) var theme = Theme.fallback
+    private(set) var failure: String?
     let colorScheme: ghostty_color_scheme_e
 
     private var config: ghostty_config_t?
@@ -20,9 +24,15 @@ final class GhosttyApp {
         if let resources = Bundle.main.resourceURL?.appending(path: "ghostty") {
             setenv("GHOSTTY_RESOURCES_DIR", resources.path(percentEncoded: false), 1)
         }
-        guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else { return }
+        guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
+            fail("ghostty_init failed")
+            return
+        }
         setlocale(LC_NUMERIC, "C")
-        guard let config = Self.loadConfig() else { return }
+        guard let config = loadConfig() else {
+            fail("ghostty_config_new failed")
+            return
+        }
         var runtime = ghostty_runtime_config_s()
         runtime.supports_selection_clipboard = false
         runtime.wakeup_cb = { _ in GhosttyCallbacks.wakeup() }
@@ -39,6 +49,7 @@ final class GhosttyApp {
         runtime.close_surface_cb = { userdata, _ in GhosttyCallbacks.closeSurface(userdata) }
         guard let app = ghostty_app_new(&runtime, config) else {
             ghostty_config_free(config)
+            fail("ghostty_app_new failed")
             return
         }
         self.app = app
@@ -59,30 +70,47 @@ final class GhosttyApp {
         ClubmatePaths.resolve().state.appending(path: "ghostty.conf")
     }
 
-    private static func loadConfig() -> ghostty_config_t? {
+    private func fail(_ message: String) {
+        ghosttyLog.error("\(message, privacy: .public)")
+        failure = message
+    }
+
+    private func loadConfig() -> ghostty_config_t? {
         guard let config = ghostty_config_new() else { return nil }
         ghostty_config_load_default_files(config)
-        let overlay = overlayURL.path(percentEncoded: false)
+        ghostty_config_load_recursive_files(config)
+        let overlay = Self.overlayURL.path(percentEncoded: false)
         if FileManager.default.fileExists(atPath: overlay) {
             overlay.withCString { ghostty_config_load_file(config, $0) }
         }
-        ghostty_config_load_recursive_files(config)
-        forceSSHFeaturesOff(config)
+        if let error = Self.forceSSHFeaturesOff(config) { fail(error) }
         ghostty_config_finalize(config)
+        for index in 0..<ghostty_config_diagnostics_count(config) {
+            if let message = ghostty_config_get_diagnostic(config, index).message {
+                ghosttyLog.warning("config: \(String(cString: message), privacy: .public)")
+            }
+        }
         return config
     }
 
-    private static func forceSSHFeaturesOff(_ config: ghostty_config_t) {
+    private static func forceSSHFeaturesOff(_ config: ghostty_config_t) -> String? {
         let key = "shell-integration-features"
         var bits: UInt32 = 0
-        guard key.withCString({ ghostty_config_get(config, &bits, $0, UInt(key.utf8.count)) }) else { return }
+        guard key.withCString({ ghostty_config_get(config, &bits, $0, UInt(key.utf8.count)) }) else {
+            return "cannot read \(key); ssh shell features left as configured"
+        }
         let features = ["cursor", "sudo", "title", "ssh-env", "ssh-terminfo", "path"]
         let value = features.enumerated().map { index, name in
             bits & (1 << UInt32(index)) != 0 && !name.hasPrefix("ssh-") ? name : "no-" + name
         }.joined(separator: ",")
         let file = FileManager.default.temporaryDirectory.appending(path: "clubmate-ghostty-\(UUID().uuidString).conf")
-        guard (try? "\(key) = \(value)\n".write(to: file, atomically: true, encoding: .utf8)) != nil else { return }
+        do {
+            try "\(key) = \(value)\n".write(to: file, atomically: true, encoding: .utf8)
+        } catch {
+            return "ssh shell features override failed: \(error.localizedDescription)"
+        }
         file.path(percentEncoded: false).withCString { ghostty_config_load_file(config, $0) }
         try? FileManager.default.removeItem(at: file)
+        return nil
     }
 }

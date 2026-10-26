@@ -5,18 +5,33 @@ struct SurfaceHost: View {
 
     @Environment(\.surfaceDeck) private var deck
     @Environment(\.theme) private var theme
+    @State private var host = UUID()
 
     var body: some View {
-        if let deck, !sessionID.isEmpty {
-            SurfaceDeckRepresentable(deck: deck, sessionID: sessionID)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if GhosttyApp.shared.app == nil {
+            placeholder(GhosttyApp.shared.failure ?? "terminal unavailable")
+        } else if let deck, !sessionID.isEmpty {
+            Group {
+                if deck.owner == host {
+                    SurfaceDeckRepresentable(deck: deck, sessionID: sessionID)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    placeholder("one terminal per window")
+                }
+            }
+            .task(id: deck.owner) { deck.claim(host) }
+            .onDisappear { deck.release(host) }
         } else {
-            Text("terminal \(sessionID)")
-                .font(theme.ui)
-                .foregroundStyle(theme.muted)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(theme.background, ignoresSafeAreaEdges: [])
+            placeholder("terminal \(sessionID)")
         }
+    }
+
+    private func placeholder(_ text: String) -> some View {
+        Text(text)
+            .font(theme.ui)
+            .foregroundStyle(theme.muted)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(theme.background, ignoresSafeAreaEdges: [])
     }
 }
 

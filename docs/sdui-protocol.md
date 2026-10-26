@@ -45,6 +45,8 @@ Interactive types (`tabs list tree button textField toggle select form`) accept 
 | surface | sessionId* (`ses_` id) | none | no |
 | empty | text* (string) | none | no |
 
+A window shows at most one `surface` node at a time in v1. The client keeps every terminal it has shown mounted until the session's attach exits or the window closes, so switching between sessions is instant. A second `surface` visible in the same window at once renders a placeholder.
+
 ## Slots
 
 A slot is named `<section>.sidebar` or `<section>.main`. A section is registered by a plugin, which owns both of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project.
