@@ -20,6 +20,7 @@ import (
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
+	"clubmate/internal/sdui"
 	"clubmate/internal/session"
 )
 
@@ -97,8 +98,10 @@ func run(logger *slog.Logger) error {
 	svc := core.NewService(store, session.NewManager(dirs, hostBin), tracker, proc.Snapshot,
 		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }))
 	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV))
-	sup = plugin.NewSupervisor(srv, dirs, logger)
+	uiStore := sdui.NewStore()
+	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner))
 	srv.SetPluginList(func() any { return sup.Statuses() })
+	srv.SetUI(uiStore, sdui.NewSections(plugin.SectionDefs(manifests)), plugin.NewRouter(sup))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

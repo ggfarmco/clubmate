@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"clubmate/internal/sdui"
 )
 
 const (
@@ -66,6 +68,16 @@ func Load(dir string) (Manifest, error) {
 		return Manifest{}, err
 	}
 	return m, nil
+}
+
+func SectionDefs(manifests []Manifest) []sdui.SectionDef {
+	var defs []sdui.SectionDef
+	for _, m := range manifests {
+		for _, s := range m.Contributes.Sections {
+			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Plugin: m.ID})
+		}
+	}
+	return defs
 }
 
 func (m Manifest) Executable() string {

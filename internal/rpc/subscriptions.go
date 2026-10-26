@@ -10,7 +10,12 @@ import (
 	"clubmate/internal/id"
 )
 
-const subscriptionPrefix = "sub"
+const (
+	subscriptionPrefix = "sub"
+
+	kindBus = "bus"
+	kindUI  = "ui"
+)
 
 var (
 	errUnknownSubscription = errors.New("unknown subscription")
@@ -27,6 +32,7 @@ type subscriptions struct {
 }
 
 type subscriptionEntry struct {
+	kind     string
 	stop     func()
 	done     chan struct{}
 	finished chan struct{}
@@ -40,7 +46,7 @@ func newSubscriptions() *subscriptions {
 	return &subscriptions{entries: map[string]*subscriptionEntry{}}
 }
 
-func (r *subscriptions) add(stop func(), forward forwardFunc) (string, error) {
+func (r *subscriptions) add(kind string, stop func(), forward forwardFunc) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
@@ -48,7 +54,7 @@ func (r *subscriptions) add(stop func(), forward forwardFunc) (string, error) {
 		return "", errConnClosed
 	}
 	sid := id.New(subscriptionPrefix)
-	e := &subscriptionEntry{stop: stop, done: make(chan struct{}), finished: make(chan struct{})}
+	e := &subscriptionEntry{kind: kind, stop: stop, done: make(chan struct{}), finished: make(chan struct{})}
 	r.entries[sid] = e
 	r.wg.Go(func() {
 		defer r.remove(sid)
@@ -59,14 +65,15 @@ func (r *subscriptions) add(stop func(), forward forwardFunc) (string, error) {
 	return sid, nil
 }
 
-func (r *subscriptions) cancel(sid string) error {
+func (r *subscriptions) cancel(kind, sid string) error {
 	r.mu.Lock()
 	e, ok := r.entries[sid]
-	delete(r.entries, sid)
-	r.mu.Unlock()
-	if !ok {
+	if !ok || e.kind != kind {
+		r.mu.Unlock()
 		return errUnknownSubscription
 	}
+	delete(r.entries, sid)
+	r.mu.Unlock()
 	e.end()
 	return nil
 }

@@ -54,7 +54,7 @@ type busEventParams struct {
 	Event        bus.Event `json:"event"`
 }
 
-type busClosedParams struct {
+type closedParams struct {
 	Subscription string `json:"subscription"`
 	Error        string `json:"error"`
 }
@@ -74,11 +74,11 @@ func (s *Server) busMethods() map[string]handlerFunc {
 			if err != nil {
 				return subscriptionParams{}, err
 			}
-			sid, err := subscriptionsFrom(ctx).add(sub.Close, forwardBus(ctx, connFrom(ctx), sub))
+			sid, err := subscriptionsFrom(ctx).add(kindBus, sub.Close, forwardBus(ctx, connFrom(ctx), sub))
 			return subscriptionParams{Subscription: sid}, err
 		}),
 		"bus.unsubscribe": method(func(ctx context.Context, p subscriptionParams) (empty, error) {
-			return empty{}, subscriptionsFrom(ctx).cancel(p.Subscription)
+			return empty{}, subscriptionsFrom(ctx).cancel(kindBus, p.Subscription)
 		}),
 		"bus.cursor.get": method(func(ctx context.Context, p cursorParams) (seqResult, error) {
 			if p.Consumer == "" {
@@ -114,7 +114,7 @@ func forwardBus(ctx context.Context, conn *jsonrpc2.Conn, sub *bus.Subscription)
 				return
 			case e, ok := <-sub.C():
 				if !ok {
-					notifyDropped(ctx, conn, sid, sub.Err())
+					notifyDropped(ctx, conn, notifyBusClosed, sid, sub.Err())
 					return
 				}
 				if err := conn.Notify(ctx, notifyBusEvent, busEventParams{Subscription: sid, Event: e}); err != nil {
@@ -125,9 +125,9 @@ func forwardBus(ctx context.Context, conn *jsonrpc2.Conn, sub *bus.Subscription)
 	}
 }
 
-func notifyDropped(ctx context.Context, conn *jsonrpc2.Conn, sid string, err error) {
+func notifyDropped(ctx context.Context, conn *jsonrpc2.Conn, method, sid string, err error) {
 	if err == nil {
 		return
 	}
-	_ = conn.Notify(ctx, notifyBusClosed, busClosedParams{Subscription: sid, Error: err.Error()})
+	_ = conn.Notify(ctx, method, closedParams{Subscription: sid, Error: err.Error()})
 }

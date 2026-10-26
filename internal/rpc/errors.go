@@ -10,24 +10,27 @@ import (
 	"clubmate/internal/kv"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
+	"clubmate/internal/sdui"
 	"clubmate/internal/session"
 )
 
 const (
-	codeMethodNotFound = jsonrpc2.CodeMethodNotFound
-	codeInvalidParams  = jsonrpc2.CodeInvalidParams
-	codeInternal       = jsonrpc2.CodeInternalError
-	codeNotFound       = -32004
-	codeNotTracked     = -32010
-	codeSessionRunning = -32011
+	codeMethodNotFound    = jsonrpc2.CodeMethodNotFound
+	codeInvalidParams     = jsonrpc2.CodeInvalidParams
+	codeInternal          = jsonrpc2.CodeInternalError
+	codeNotFound          = -32004
+	codeNotTracked        = -32010
+	codeSessionRunning    = -32011
+	codePluginUnavailable = -32012
 )
 
 var (
-	ErrNotFound       = errors.New("not found")
-	ErrNotTracked     = errors.New("not tracked")
-	ErrSessionRunning = errors.New("session is running")
-	ErrInvalidParams  = errors.New("invalid params")
-	ErrMethodNotFound = errors.New("method not found")
+	ErrNotFound          = errors.New("not found")
+	ErrNotTracked        = errors.New("not tracked")
+	ErrSessionRunning    = errors.New("session is running")
+	ErrInvalidParams     = errors.New("invalid params")
+	ErrMethodNotFound    = errors.New("method not found")
+	ErrPluginUnavailable = errors.New("plugin unavailable")
 )
 
 type RemoteError struct {
@@ -51,6 +54,8 @@ func (e *RemoteError) Is(target error) bool {
 		return e.Code == codeInvalidParams
 	case ErrMethodNotFound:
 		return e.Code == codeMethodNotFound
+	case ErrPluginUnavailable:
+		return e.Code == codePluginUnavailable
 	}
 	return false
 }
@@ -65,8 +70,14 @@ func toRPCError(err error) *jsonrpc2.Error {
 
 func errorCode(err error) int64 {
 	switch {
-	case errors.Is(err, project.ErrNotFound), errors.Is(err, session.ErrNotFound), errors.Is(err, errUnknownSubscription):
+	case errors.Is(err, project.ErrNotFound),
+		errors.Is(err, session.ErrNotFound),
+		errors.Is(err, errUnknownSubscription),
+		errors.Is(err, errUnknownSection),
+		errors.Is(err, errUnknownCommand):
 		return codeNotFound
+	case errors.Is(err, ErrPluginUnavailable):
+		return codePluginUnavailable
 	case errors.Is(err, core.ErrNotTracked):
 		return codeNotTracked
 	case errors.Is(err, session.ErrRunning):
@@ -84,7 +95,8 @@ func errorCode(err error) int64 {
 		errors.Is(err, kv.ErrInvalidKey),
 		errors.Is(err, kv.ErrInvalidValue),
 		errors.Is(err, kv.ErrValueTooLarge),
-		errors.Is(err, errEmptyConsumer):
+		errors.Is(err, errEmptyConsumer),
+		errors.Is(err, sdui.ErrInvalidTree):
 		return codeInvalidParams
 	}
 	return codeInternal

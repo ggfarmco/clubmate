@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -15,14 +16,35 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/cli"
+	"clubmate/internal/plugin"
 	"clubmate/internal/project"
+	"clubmate/internal/rpc"
+	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
 )
 
 func startCore(t *testing.T) *bus.Bus {
 	t.Helper()
 	srv, b := testutil.NewRPCServer(t)
+	serve(t, srv)
+	return b
+}
+
+func startCoreWithUI(t *testing.T) *internalsdui.Store {
+	t.Helper()
+	srv, _ := testutil.NewRPCServer(t)
+	store := internalsdui.NewStore()
+	sections := internalsdui.NewSections([]internalsdui.SectionDef{{ID: "echo", Title: "Echo", Plugin: "echo"}})
+	sup := plugin.NewSupervisor(srv, testutil.ShortDirs(t), slog.New(slog.DiscardHandler))
+	srv.SetUI(store, sections, plugin.NewRouter(sup))
+	serve(t, srv)
+	return store
+}
+
+func serve(t *testing.T, srv *rpc.Server) {
+	t.Helper()
 	dirs := testutil.ShortDirs(t)
 	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
 	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
@@ -35,7 +57,6 @@ func startCore(t *testing.T) *bus.Bus {
 		cancel()
 		assert.NoError(t, <-done)
 	})
-	return b
 }
 
 func run(t *testing.T, args ...string) []byte {
@@ -141,6 +162,19 @@ func TestBusReadFollowPagesBacklogBeyondLimit(t *testing.T) {
 	for i, seq := range seqs {
 		assert.Equal(t, int64(i+1), seq)
 	}
+}
+
+func TestUIDumpPrintsOutline(t *testing.T) {
+	store := startCoreWithUI(t)
+	var p project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	_, err := store.Render(p.ID, "echo.main", "echo", sdui.VStack(sdui.Text("hello"), sdui.Toggle("on", true)))
+	require.NoError(t, err)
+	want := "echo.main rev=1 owner=echo\n" +
+		"  stack direction=vertical\n" +
+		"    text text=hello\n" +
+		"    toggle#on value=true\n"
+	assert.Equal(t, want, string(run(t, "ui", "dump", "--project", p.ID)))
 }
 
 type syncBuffer struct {

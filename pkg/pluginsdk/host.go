@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
+
+	"clubmate/pkg/sdui"
 )
 
 type Project struct {
@@ -99,6 +101,12 @@ func (h *Host) Subscribe(ctx context.Context, pattern string, after int64) (stri
 	return out.Subscription, err
 }
 
+func (h *Host) Render(ctx context.Context, projectID, slot string, n sdui.Node) (int64, error) {
+	var out renderResult
+	err := h.Call(ctx, "ui.render", renderParams{ProjectID: projectID, Slot: slot, Tree: n}, &out)
+	return out.Rev, err
+}
+
 func (h *Host) StorageGet(ctx context.Context, key string, out any) (bool, error) {
 	var res storageGetResult
 	if err := h.Call(ctx, "storage.get", storageKeyParams{Key: key}, &res); err != nil {
@@ -151,6 +159,16 @@ type subscribeParams struct {
 
 type subscribeResult struct {
 	Subscription string `json:"subscription"`
+}
+
+type renderParams struct {
+	ProjectID string    `json:"projectId"`
+	Slot      string    `json:"slot"`
+	Tree      sdui.Node `json:"tree"`
+}
+
+type renderResult struct {
+	Rev int64 `json:"rev"`
 }
 
 type storageKeyParams struct {
