@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	IDPrefix     = "ses"
 	startTimeout = 3 * time.Second
 	pollInterval = 20 * time.Millisecond
 )
@@ -71,7 +72,7 @@ func NewManager(dirs paths.Dirs, hostBin string) *Manager {
 }
 
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error) {
-	sid := id.New("ses")
+	sid := id.New(IDPrefix)
 	cfg := sessionhost.Config{
 		ID:        sid,
 		ProjectID: req.ProjectID,
@@ -120,6 +121,9 @@ func (m *Manager) List(_ context.Context, projectID string) ([]Session, error) {
 }
 
 func (m *Manager) Get(_ context.Context, sid string) (Session, error) {
+	if !id.Valid(IDPrefix, sid) {
+		return Session{}, fmt.Errorf("session %q: %w", sid, ErrNotFound)
+	}
 	meta, err := sessionhost.ReadMeta(m.dirs.SessionMeta(sid))
 	if errors.Is(err, os.ErrNotExist) {
 		return Session{}, fmt.Errorf("session %s: %w", sid, ErrNotFound)

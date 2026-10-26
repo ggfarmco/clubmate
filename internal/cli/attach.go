@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,11 +14,15 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	"clubmate/internal/id"
 	"clubmate/internal/paths"
+	"clubmate/internal/session"
 	"clubmate/internal/wire"
 )
 
 const stdinChunk = 32 * 1024
+
+var ErrInvalidSessionID = errors.New("invalid session id")
 
 type frameWriter struct {
 	mu   sync.Mutex
@@ -42,22 +47,25 @@ func (a *app) attachCmd() *cobra.Command {
 	}
 }
 
-func attach(ctx context.Context, id string, stdin *os.File, stdout io.Writer) (int, error) {
+func attach(ctx context.Context, sid string, stdin *os.File, stdout io.Writer) (int, error) {
+	if !id.Valid(session.IDPrefix, sid) {
+		return 1, fmt.Errorf("attach %q: %w", sid, ErrInvalidSessionID)
+	}
 	dirs, err := paths.Resolve()
 	if err != nil {
 		return 1, err
 	}
 	if err := dirs.CheckRuntime(); err != nil {
-		return 1, fmt.Errorf("attach %s: %w", id, err)
+		return 1, fmt.Errorf("attach %s: %w", sid, err)
 	}
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, "unix", dirs.SessionSocket(id))
+	conn, err := d.DialContext(ctx, "unix", dirs.SessionSocket(sid))
 	if err != nil {
-		return 1, fmt.Errorf("attach %s: %w", id, err)
+		return 1, fmt.Errorf("attach %s: %w", sid, err)
 	}
 	defer conn.Close()
 	if err := verifyPeer(conn); err != nil {
-		return 1, fmt.Errorf("attach %s: %w", id, err)
+		return 1, fmt.Errorf("attach %s: %w", sid, err)
 	}
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGHUP)

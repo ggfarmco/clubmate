@@ -2,6 +2,7 @@ package session_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/id"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
@@ -65,15 +67,23 @@ func TestManagerListFiltersByProject(t *testing.T) {
 
 func TestManagerUnsignalableHostIsLost(t *testing.T) {
 	dirs := testutil.ShortDirs(t)
-	require.NoError(t, sessionhost.WriteMeta(dirs.SessionMeta("ses_eperm"), sessionhost.Meta{ID: "ses_eperm", HostPID: 1}))
-	s, err := session.NewManager(dirs, "unused").Get(t.Context(), "ses_eperm")
+	sid := id.New("ses")
+	require.NoError(t, sessionhost.WriteMeta(dirs.SessionMeta(sid), sessionhost.Meta{ID: sid, HostPID: 1}))
+	s, err := session.NewManager(dirs, "unused").Get(t.Context(), sid)
 	require.NoError(t, err)
 	assert.Equal(t, session.StateLost, s.State)
 }
 
 func TestManagerGetUnknown(t *testing.T) {
 	m := session.NewManager(testutil.ShortDirs(t), "unused")
-	_, err := m.Get(t.Context(), "ses_nope")
+	_, err := m.Get(t.Context(), id.New("ses"))
+	assert.ErrorIs(t, err, session.ErrNotFound)
+}
+
+func TestManagerRejectsMalformedID(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.State, "x.json"), []byte(`{"hostPid":1}`), 0o600))
+	_, err := session.NewManager(dirs, "unused").Get(t.Context(), "../x")
 	assert.ErrorIs(t, err, session.ErrNotFound)
 }
 
