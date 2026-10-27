@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	internalsdui "clubmate/internal/sdui"
 	"clubmate/pkg/sdui"
 )
 
@@ -63,4 +64,30 @@ func TestMissingRepoRoot(t *testing.T) {
 	assert.Equal(t, "missing", items[0].Detail)
 	assert.False(t, items[0].HasChildren)
 	assert.Empty(t, items[0].Children)
+}
+
+func countItems(items []sdui.TreeItem) int {
+	n := len(items)
+	for _, it := range items {
+		n += countItems(it.Children)
+	}
+	return n
+}
+
+func TestTreeCapPassesValidation(t *testing.T) {
+	root := t.TempDir()
+	expanded := map[string]bool{root: true}
+	dir := root
+	for range 8 {
+		for i := range 999 {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, fmt.Sprintf("f%03d", i)), nil, 0o600))
+		}
+		dir = filepath.Join(dir, "a")
+		require.NoError(t, os.Mkdir(dir, 0o700))
+		expanded[dir] = true
+	}
+	items := buildTree([]Root{{Path: root}}, expanded, nil)
+	assert.LessOrEqual(t, countItems(items), 4950)
+	assert.GreaterOrEqual(t, countItems(items), 4800)
+	require.NoError(t, internalsdui.Validate(treeView(items, "")))
 }

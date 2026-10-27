@@ -12,7 +12,7 @@ import (
 
 const (
 	maxEntries = 1000
-	maxItems   = 5000
+	maxItems   = 4900
 	maxDepth   = 24
 	moreSuffix = "\x00more"
 
@@ -72,9 +72,13 @@ func (b *builder) expand(item *sdui.TreeItem, depth int) {
 
 func (b *builder) children(dir string, depth int) []sdui.TreeItem {
 	entries := readEntries(dir)
-	shown := min(len(entries), maxEntries, max(maxItems-b.count, 0))
-	items := make([]sdui.TreeItem, 0, shown+1)
-	for _, e := range entries[:shown] {
+	items := make([]sdui.TreeItem, 0, min(len(entries), maxEntries)+1)
+	rest := 0
+	for i, e := range entries {
+		if i >= maxEntries || b.count >= maxItems-1 {
+			rest = len(entries) - i
+			break
+		}
 		b.count++
 		path := filepath.Join(dir, e.name)
 		item := sdui.TreeItem{ID: path, Label: e.name, Icon: iconFile, Badge: b.status[path]}
@@ -90,7 +94,8 @@ func (b *builder) children(dir string, depth int) []sdui.TreeItem {
 		}
 		items = append(items, item)
 	}
-	if rest := len(entries) - shown; rest > 0 {
+	if rest > 0 {
+		b.count++
 		items = append(items, sdui.TreeItem{ID: dir + "/" + moreSuffix, Label: fmt.Sprintf("… %d more", rest)})
 	}
 	return items

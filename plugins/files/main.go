@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -52,6 +53,9 @@ type state struct {
 	synced   bool
 	dead     bool
 	pending  bool
+	running  bool
+	dirty    bool
+	renderMu sync.Mutex
 	repos    []string
 	expanded map[string]bool
 	selected string
@@ -123,7 +127,10 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 }
 
 func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSChange) {
-	s := a.get(ev.ProjectID)
+	s := a.lookup(ev.ProjectID)
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return s.expanded[filepath.Dir(p)] }))
 	s.mu.Unlock()
@@ -166,6 +173,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.reveal(ctx, h, cmd.ProjectID, args.Path)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
+}
+
+func (a *app) lookup(id string) *state {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.projects[id]
 }
 
 func (a *app) get(id string) *state {
@@ -327,8 +340,24 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 	time.AfterFunc(delay, func() {
 		s.mu.Lock()
 		s.pending = false
+		if s.running {
+			s.dirty = true
+			s.mu.Unlock()
+			return
+		}
+		s.running = true
 		s.mu.Unlock()
-		logError("refresh "+id, a.refresh(context.Background(), h, id, s))
+		for {
+			logError("refresh "+id, a.refresh(context.Background(), h, id, s))
+			s.mu.Lock()
+			if !s.dirty {
+				s.running = false
+				s.mu.Unlock()
+				return
+			}
+			s.dirty = false
+			s.mu.Unlock()
+		}
 	})
 }
 
@@ -344,16 +373,20 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
+	s.renderMu.Lock()
+	defer s.renderMu.Unlock()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.dead {
+		s.mu.Unlock()
 		return nil
 	}
 	roots := make([]Root, len(s.repos))
 	for i, r := range s.repos {
 		roots[i] = Root{Path: r}
 	}
-	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, s.expanded, s.status), s.selected))
+	expanded, status, selected := maps.Clone(s.expanded), s.status, s.selected
+	s.mu.Unlock()
+	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status), selected))
 	return err
 }
 
