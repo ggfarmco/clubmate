@@ -28,8 +28,10 @@ func watchRepo(t *testing.T) (*rpc.Client, string, string, string) {
 	h := testutil.NewHarness(t)
 	h.Start(t)
 	repo := t.TempDir()
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	gone := t.TempDir()
+	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{gone, repo})
 	require.NoError(t, err)
+	require.NoError(t, os.Remove(gone))
 	c := h.Client(t)
 	var w struct {
 		Watch string `json:"watch"`
@@ -70,6 +72,13 @@ func TestFSWatchNotifies(t *testing.T) {
 	assert.False(t, ev.Overflow)
 
 	require.NoError(t, c.Call(t.Context(), "fs.unwatch", map[string]string{"watch": watch}, nil))
+	for drained := false; !drained; {
+		select {
+		case <-c.Notifications():
+		default:
+			drained = true
+		}
+	}
 	require.NoError(t, os.WriteFile(filepath.Join(repo, "b.txt"), []byte("b"), 0o644))
 	select {
 	case n := <-c.Notifications():

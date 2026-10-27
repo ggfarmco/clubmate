@@ -52,7 +52,8 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 	for _, repo := range proj.Repos {
 		root, err := filepath.EvalSymlinks(repo)
 		if err != nil {
-			return watchParams{}, fmt.Errorf("resolve repo %s: %w", repo, err)
+			s.logger.Warn("fs.watch skips unresolvable repo", "repo", repo, "err", err)
+			continue
 		}
 		roots = append(roots, root)
 	}

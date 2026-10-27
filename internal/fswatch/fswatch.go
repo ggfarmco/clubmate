@@ -12,6 +12,7 @@ const (
 	latency      = 200 * time.Millisecond
 	overflowOver = 1000
 	gitDir       = "/.git/"
+	lossy        = fsevents.MustScanSubDirs | fsevents.KernelDropped | fsevents.UserDropped
 )
 
 func Keep(path string) bool {
@@ -89,17 +90,25 @@ func (p *pending) add(batch []fsevents.Event) {
 		if p.overflow {
 			return
 		}
+		if ev.Flags&lossy != 0 {
+			p.setOverflow()
+			return
+		}
 		if _, ok := p.seen[ev.Path]; ok || !Keep(ev.Path) {
 			continue
 		}
 		p.seen[ev.Path] = struct{}{}
 		p.paths = append(p.paths, ev.Path)
 		if len(p.paths) > overflowOver {
-			p.overflow = true
-			p.paths = nil
-			p.seen = nil
+			p.setOverflow()
 		}
 	}
+}
+
+func (p *pending) setOverflow() {
+	p.overflow = true
+	p.paths = nil
+	p.seen = nil
 }
 
 func (p *pending) emit(fn func(paths []string, overflow bool)) {

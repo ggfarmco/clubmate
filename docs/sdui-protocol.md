@@ -104,9 +104,9 @@ A command with `"hidden": true` in its manifest entry is still listed and runnab
 
 ## File watching
 
-`fs.watch` starts one FSEvents stream over the project's repos as they are at call time (repos added later are not covered; call `fs.watch` again). It ends on `fs.unwatch` or when the connection closes. Roots are symlink-resolved, so paths are real paths (`/private/var/...`, not `/var/...`).
+`fs.watch` starts one FSEvents stream over the project's repos as they are at call time (repos added later are not covered; call `fs.watch` again). It ends on `fs.unwatch` or when the connection closes. Repos that cannot be resolved (missing or deleted) are skipped and the rest are watched; a project with no resolvable repos gets a watch that never emits. Roots are symlink-resolved, so paths are real paths (`/private/var/...`, not `/var/...`).
 
-- `fs.changed` `{watch, projectId, paths, overflow}`: sent to the watching connection with a 200ms coalescing window. `paths` is deduplicated. Under any `.git/` only `HEAD`, `index` and `refs/heads/**` are reported. A window with more than 1000 paths is sent as `overflow: true` with `paths: []`; the receiver rescans.
+- `fs.changed` `{watch, projectId, paths, overflow}`: sent to the watching connection with a 200ms coalescing window. `paths` is deduplicated. Under any `.git/` only `HEAD`, `index` and `refs/heads/**` are reported. A window with more than 1000 paths, or one in which FSEvents reports dropped or coalesced events (MustScanSubDirs, KernelDropped, UserDropped), is sent as `overflow: true` with `paths: []`; the receiver rescans.
 
 Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.UnwatchFS`.
 
