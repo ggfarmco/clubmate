@@ -49,7 +49,7 @@ func (a *app) processTreeCmd() *cobra.Command {
 func (a *app) processKillCmd() *cobra.Command {
 	var req core.KillRequest
 	cmd := &cobra.Command{
-		Use:   "kill <pid>... | --session <id> --orphans",
+		Use:   "kill <pid>... | (--session <id> | --project <id>) --orphans",
 		Short: "Kill tracked processes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
@@ -73,7 +73,8 @@ func (a *app) processKillCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&req.SessionID, "session", "", "session id")
-	cmd.Flags().BoolVar(&req.OrphansOnly, "orphans", false, "kill only orphaned processes of the session")
+	cmd.Flags().StringVar(&req.ProjectID, "project", "", "project id")
+	cmd.Flags().BoolVar(&req.OrphansOnly, "orphans", false, "kill only orphaned processes of the session or project")
 	return cmd
 }
 

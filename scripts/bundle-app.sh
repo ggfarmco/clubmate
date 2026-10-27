@@ -19,5 +19,5 @@ cp "$ROOT/bin/clubmate" "$ROOT/bin/clubmate-core" "$ROOT/bin/clubmate-session" "
 cp -R "$ROOT/bin/plugins" "$DEST/plugins"
 
 codesign --force --options runtime --sign - \
-  "$DEST/clubmate" "$DEST/clubmate-core" "$DEST/clubmate-session" "$DEST/plugins/terminals/terminals" "$DEST/plugins/editor-nvim/editor-nvim" "$DEST/plugins/files/files"
+  "$DEST/clubmate" "$DEST/clubmate-core" "$DEST/clubmate-session" "$DEST/plugins/terminals/terminals" "$DEST/plugins/editor-nvim/editor-nvim" "$DEST/plugins/files/files" "$DEST/plugins/processes/processes"
 codesign --force --options runtime --sign - --deep "$APP"

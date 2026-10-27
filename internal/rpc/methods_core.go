@@ -140,6 +140,9 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := optionalID(session.IDPrefix, p.SessionID); err != nil {
 				return killResult{}, err
 			}
+			if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+				return killResult{}, err
+			}
 			killed, err := svc.KillProcesses(ctx, p)
 			return killResult{Killed: nonNil(killed)}, err
 		}),

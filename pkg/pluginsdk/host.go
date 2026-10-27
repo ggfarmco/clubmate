@@ -32,6 +32,28 @@ type Session struct {
 	ExitCode  *int      `json:"exitCode"`
 }
 
+type ProcessInfo struct {
+	PID    int     `json:"pid"`
+	PPID   int     `json:"ppid"`
+	Comm   string  `json:"comm"`
+	RSSKiB int64   `json:"rssKiB"`
+	CPU    float64 `json:"cpu"`
+}
+
+type ProcessNode struct {
+	Process   ProcessInfo `json:"process"`
+	SessionID string      `json:"sessionId"`
+	Orphan    bool        `json:"orphan"`
+	Duplicate bool        `json:"duplicate"`
+}
+
+type KillRequest struct {
+	PIDs        []int  `json:"pids"`
+	SessionID   string `json:"sessionId"`
+	ProjectID   string `json:"projectId"`
+	OrphansOnly bool   `json:"orphansOnly"`
+}
+
 type Event struct {
 	Seq     int64           `json:"seq"`
 	Topic   string          `json:"topic"`
@@ -99,6 +121,18 @@ func (h *Host) RemoveSession(ctx context.Context, id string) error {
 	return h.Call(ctx, "session.remove", idParams{ID: id}, nil)
 }
 
+func (h *Host) ProcessTree(ctx context.Context, projectID, sessionID string) ([]ProcessNode, error) {
+	var out []ProcessNode
+	err := h.Call(ctx, "process.tree", processTreeParams{ProjectID: projectID, SessionID: sessionID}, &out)
+	return out, err
+}
+
+func (h *Host) KillProcesses(ctx context.Context, req KillRequest) ([]int, error) {
+	var out killResult
+	err := h.Call(ctx, "process.kill", req, &out)
+	return out.Killed, err
+}
+
 func (h *Host) Publish(ctx context.Context, topic string, payload any) (Event, error) {
 	var out Event
 	err := h.Call(ctx, "bus.publish", publishParams{Topic: topic, Payload: payload}, &out)
@@ -150,6 +184,15 @@ func (h *Host) StorageList(ctx context.Context, prefix string) ([]string, error)
 	var res storageListResult
 	err := h.Call(ctx, "storage.list", storageListParams{Prefix: prefix}, &res)
 	return res.Keys, err
+}
+
+type processTreeParams struct {
+	ProjectID string `json:"projectId"`
+	SessionID string `json:"sessionId"`
+}
+
+type killResult struct {
+	Killed []int `json:"killed"`
 }
 
 type idParams struct {

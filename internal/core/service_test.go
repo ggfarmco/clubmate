@@ -41,6 +41,21 @@ func TestKillOrphansOnlyKeepsSession(t *testing.T) {
 	assert.Equal(t, session.StateRunning, s.State)
 }
 
+func TestKillOrphansScopedToProject(t *testing.T) {
+	svc := testutil.NewService(t)
+	a, err := svc.CreateProject(t.Context(), "a", nil)
+	require.NoError(t, err)
+	b, err := svc.CreateProject(t.Context(), "b", nil)
+	require.NoError(t, err)
+	orphanA := testutil.StartOrphanSession(t, svc, a.ID)
+	orphanB := testutil.StartOrphanSession(t, svc, b.ID)
+	killed, err := svc.KillProcesses(t.Context(), core.KillRequest{ProjectID: a.ID, OrphansOnly: true})
+	require.NoError(t, err)
+	assert.Equal(t, []int{orphanA}, killed)
+	testutil.Eventually(t, func() bool { return !testutil.Alive(orphanA) }, 5*time.Second)
+	assert.True(t, testutil.Alive(orphanB))
+}
+
 func TestKillProcessesRefusesInvalidRequests(t *testing.T) {
 	svc := testutil.NewService(t)
 	_, err := svc.KillProcesses(t.Context(), core.KillRequest{PIDs: []int{os.Getpid()}})

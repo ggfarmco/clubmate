@@ -178,6 +178,27 @@ func copyFile(t *testing.T, src, dst string, perm os.FileMode) {
 	require.NoError(t, os.WriteFile(dst, data, perm))
 }
 
+func StartOrphanSession(t *testing.T, svc *core.Service, projectID string) int {
+	t.Helper()
+	sess, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: projectID, Command: []string{"/bin/sh", "-c", "(sleep 60 &); sleep 300"}})
+	require.NoError(t, err)
+	orphan := 0
+	Eventually(t, func() bool {
+		nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{SessionID: sess.ID})
+		if err != nil {
+			return false
+		}
+		for _, n := range nodes {
+			if n.Orphan && n.Process.Comm == "sleep" {
+				orphan = n.Process.PID
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second)
+	return orphan
+}
+
 func killLeftovers(svc *core.Service) {
 	ctx := context.Background()
 	sessions, _ := svc.ListSessions(ctx, session.ListFilter{})

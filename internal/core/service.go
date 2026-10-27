@@ -28,7 +28,7 @@ const (
 var (
 	ErrNotTracked         = errors.New("process is not tracked by any session")
 	ErrEmptyKillRequest   = errors.New("kill request selects no processes")
-	ErrOrphansNeedSession = errors.New("orphansOnly requires a session id")
+	ErrOrphansNeedSession = errors.New("orphansOnly requires a session or project id")
 )
 
 type TreeFilter struct {
@@ -39,6 +39,7 @@ type TreeFilter struct {
 type KillRequest struct {
 	PIDs        []int  `json:"pids"`
 	SessionID   string `json:"sessionId"`
+	ProjectID   string `json:"projectId"`
 	OrphansOnly bool   `json:"orphansOnly"`
 }
 
@@ -137,7 +138,7 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := proc.KillTree(ctx, nodePIDs(nodes), s.killGrace); err != nil {
+	if err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill project %s: %w", id, err)
 	}
 	if err := s.projects.Delete(ctx, id); err != nil {
@@ -189,7 +190,7 @@ func (s *Service) KillSession(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := proc.KillTree(ctx, nodePIDs(nodes), s.killGrace); err != nil {
+	if err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill session %s: %w", id, err)
 	}
 	if err := s.awaitStopped(ctx, id); err != nil {
@@ -276,30 +277,34 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 }
 
 func (s *Service) KillProcesses(ctx context.Context, r KillRequest) ([]int, error) {
-	if r.OrphansOnly && r.SessionID == "" {
+	if r.OrphansOnly && r.SessionID == "" && r.ProjectID == "" {
 		return nil, ErrOrphansNeedSession
 	}
 	if len(r.PIDs) == 0 && !r.OrphansOnly {
 		return nil, ErrEmptyKillRequest
 	}
-	nodes, err := s.ProcessTree(ctx, TreeFilter{SessionID: r.SessionID})
+	nodes, err := s.ProcessTree(ctx, TreeFilter{SessionID: r.SessionID, ProjectID: r.ProjectID})
 	if err != nil {
 		return nil, err
 	}
-	candidates := make(map[int]bool, len(nodes))
+	candidates := make(map[int]proc.Node, len(nodes))
 	for _, n := range nodes {
 		if !r.OrphansOnly || n.Orphan {
-			candidates[n.Process.PID] = true
+			candidates[n.Process.PID] = n
 		}
 	}
-	targets, err := selectTargets(r.PIDs, candidates)
+	pids, err := selectPIDs(r.PIDs, candidates)
 	if err != nil {
 		return nil, err
+	}
+	targets := make([]proc.Target, 0, len(pids))
+	for _, pid := range pids {
+		targets = append(targets, targetOf(candidates[pid]))
 	}
 	if err := proc.KillTree(ctx, targets, s.killGrace); err != nil {
 		return nil, fmt.Errorf("kill processes: %w", err)
 	}
-	return targets, nil
+	return pids, nil
 }
 
 func (s *Service) RefreshLoop(ctx context.Context, every time.Duration) {
@@ -355,7 +360,7 @@ func (s *Service) awaitStopped(ctx context.Context, id string) error {
 	}
 }
 
-func selectTargets(requested []int, candidates map[int]bool) ([]int, error) {
+func selectPIDs(requested []int, candidates map[int]proc.Node) ([]int, error) {
 	if len(requested) == 0 {
 		var all []int
 		for pid := range candidates {
@@ -365,7 +370,7 @@ func selectTargets(requested []int, candidates map[int]bool) ([]int, error) {
 		return all, nil
 	}
 	for _, pid := range requested {
-		if !candidates[pid] {
+		if _, ok := candidates[pid]; !ok {
 			return nil, fmt.Errorf("pid %d: %w", pid, ErrNotTracked)
 		}
 	}
@@ -406,10 +411,14 @@ func defaultCwd(p project.Project) (string, error) {
 	return home, nil
 }
 
-func nodePIDs(nodes []proc.Node) []int {
-	var pids []int
+func nodeTargets(nodes []proc.Node) []proc.Target {
+	targets := make([]proc.Target, 0, len(nodes))
 	for _, n := range nodes {
-		pids = append(pids, n.Process.PID)
+		targets = append(targets, targetOf(n))
 	}
-	return pids
+	return targets
+}
+
+func targetOf(n proc.Node) proc.Target {
+	return proc.Target{PID: n.Process.PID, Start: n.Process.StartTime}
 }
