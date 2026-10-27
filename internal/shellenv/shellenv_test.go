@@ -46,3 +46,17 @@ func TestResolveTimesOut(t *testing.T) {
 	require.Error(t, err)
 	require.Less(t, time.Since(start), time.Second)
 }
+
+func TestMalformedEntriesAreSkipped(t *testing.T) {
+	shell := fakeShell(t, `printf '\n__CLUBMATE_ENV__\n'
+printf 'CM_A=1\0=bad\0NOEQ\0CM_B=2\0CM_TRUNC=partial'`)
+	saved := os.Environ()
+	t.Cleanup(func() { require.NoError(t, shellenv.Apply(saved)) })
+
+	resolved, err := shellenv.Resolve(context.Background(), shell)
+	require.NoError(t, err)
+	require.NotContains(t, resolved, "CM_TRUNC=partial")
+	require.NoError(t, shellenv.Apply(resolved))
+
+	require.Equal(t, []string{"CM_A=1", "CM_B=2"}, os.Environ())
+}

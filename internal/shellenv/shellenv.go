@@ -3,6 +3,7 @@ package shellenv
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -39,8 +40,9 @@ func Resolve(ctx context.Context, shell string) ([]string, error) {
 	if !found {
 		return nil, fmt.Errorf("run %s: env marker not found", shell)
 	}
+	chunks := bytes.Split(payload, []byte{0})
 	var env []string
-	for _, entry := range bytes.Split(payload, []byte{0}) {
+	for _, entry := range chunks[:len(chunks)-1] {
 		if len(entry) > 0 {
 			env = append(env, string(entry))
 		}
@@ -79,12 +81,17 @@ func Merge(base, resolved []string) []string {
 }
 
 func Apply(env []string) error {
+	valid := slices.DeleteFunc(slices.Clone(env), func(entry string) bool {
+		key, _, ok := strings.Cut(entry, "=")
+		return !ok || key == "" || strings.ContainsRune(entry, 0)
+	})
 	os.Clearenv()
-	for _, entry := range env {
+	var errs []error
+	for _, entry := range valid {
 		key, value, _ := strings.Cut(entry, "=")
 		if err := os.Setenv(key, value); err != nil {
-			return fmt.Errorf("setenv %s: %w", key, err)
+			errs = append(errs, fmt.Errorf("setenv %s: %w", key, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
