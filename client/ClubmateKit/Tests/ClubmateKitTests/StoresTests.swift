@@ -194,6 +194,26 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(CommandPalette.rank(entries, query: ""), entries)
     }
 
+    func testPaletteEntries() throws {
+        let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
+        [{"id":"editor-nvim.terminal","title":"Open Terminal Here","plugin":"editor-nvim","hidden":false},
+         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true}]
+        """#.utf8))
+        let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
+        [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"project","plugin":"editor-nvim"},
+         {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","plugin":"terminals"}]
+        """#.utf8))
+
+        let entries = CommandPalette.entries(commands: commands, sections: sections)
+
+        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Open Projects"])
+        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘⇧O"])
+        XCTAssertEqual(
+            entries.map { PaletteAction(entryID: $0.id) },
+            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .openProjects]
+        )
+    }
+
     func testAppScopeStore() async throws {
         let client = try await startCore()
         let store = ProjectUIStore(client: client, projectID: "")

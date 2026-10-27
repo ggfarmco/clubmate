@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
@@ -30,8 +31,82 @@ struct ButtonNodeView: View {
     }
 
     private func click() {
+        guard let message = node.confirmation() else { return perform() }
+        Task {
+            if await Confirmation.ask(message, action: node.string("label") ?? "OK") { perform() }
+        }
+    }
+
+    private func perform() {
         guard let form, node.string("action") == nil else { return dispatch(node, .click) }
         form.submit()
+    }
+}
+
+@MainActor
+enum Confirmation {
+    static func ask(_ message: String, action: String) async -> Bool {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.addButton(withTitle: action)
+        alert.addButton(withTitle: "Cancel")
+        guard let window = NSApp.keyWindow else { return alert.runModal() == .alertFirstButtonReturn }
+        return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
+    }
+}
+
+struct FolderFieldNodeView: View {
+    let node: SDUINode
+
+    @State private var paths: [String] = []
+    @State private var hovering = false
+    @Environment(\.sduiDispatch) private var dispatch
+    @Environment(FormState.self) private var form: FormState?
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button(action: pick) {
+                HStack(spacing: 5) {
+                    Image(systemName: "folder")
+                    Text(node.string("label") ?? "")
+                }
+                .font(theme.ui)
+                .foregroundStyle(theme.foreground)
+                .padding(.horizontal, theme.gutter)
+                .frame(height: theme.rowHeight)
+                .background(RoundedRectangle(cornerRadius: 3).fill(hovering ? theme.foreground.opacity(0.08) : .clear))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            ForEach(paths, id: \.self) { path in
+                Text((path as NSString).abbreviatingWithTildeInPath)
+                    .font(theme.uiSmall.monospaced())
+                    .foregroundStyle(theme.muted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, theme.gutter * 2)
+            }
+        }
+        .onChange(of: node.values(), initial: true) { _, values in
+            paths = values
+        }
+        .onChange(of: paths, initial: true) { _, value in
+            guard let id = node.id else { return }
+            form?.values[id] = .array(value.map(JSONValue.string))
+        }
+    }
+
+    private func pick() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK else { return }
+        paths = panel.urls.map(\.path)
+        if form == nil || node.string("action") != nil { dispatch(node, .pick(paths)) }
     }
 }
 

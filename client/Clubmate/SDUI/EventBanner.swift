@@ -34,16 +34,7 @@ private struct EventBannerModifier: ViewModifier {
             .environment(banner)
             .overlay(alignment: .bottom) {
                 if let message = banner.message {
-                    Text(message)
-                        .font(theme.ui)
-                        .foregroundStyle(theme.foreground)
-                        .lineLimit(2)
-                        .padding(.horizontal, theme.gutter * 1.5)
-                        .padding(.vertical, theme.gutter * 0.75)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(theme.danger.opacity(0.25))
-                        .background(theme.background)
-                        .overlay(alignment: .top) { theme.border.frame(height: 1) }
+                    BannerLabel(text: message, edge: .top)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -51,22 +42,29 @@ private struct EventBannerModifier: ViewModifier {
     }
 }
 
-extension View {
-    func eventBanner(_ banner: EventBanner? = nil) -> some View {
-        modifier(EventBannerModifier(shared: banner))
+struct BannerLabel: View {
+    let text: String
+    let edge: Alignment
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(text)
+            .font(theme.ui)
+            .foregroundStyle(theme.foreground)
+            .lineLimit(2)
+            .textSelection(.enabled)
+            .padding(.horizontal, theme.gutter * 1.5)
+            .padding(.vertical, theme.gutter * 0.75)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.danger.opacity(0.25))
+            .background(theme.background)
+            .overlay(alignment: edge) { theme.border.frame(height: 1) }
     }
 }
 
-extension ClubmateError {
-    var bannerText: String {
-        switch self {
-        case .insecureRuntime(let detail): "insecure runtime: \(detail)"
-        case .untrustedPeer: "untrusted core peer"
-        case .notRunning: "core is not running"
-        case .timeout: "request timed out"
-        case .rpc(let code, let message): "\(message) (\(code))"
-        case .protocolError(let detail): "protocol error: \(detail)"
-        case .coreStartFailed(let detail): "core start failed: \(detail)"
-        }
+extension View {
+    func eventBanner(_ banner: EventBanner? = nil) -> some View {
+        modifier(EventBannerModifier(shared: banner))
     }
 }

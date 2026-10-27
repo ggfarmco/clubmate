@@ -57,3 +57,47 @@ public enum CommandPalette {
         character.isLetter || character.isNumber
     }
 }
+
+public enum PaletteAction: Hashable, Sendable {
+    case command(String)
+    case section(String)
+    case openProjects
+
+    public init?(entryID: String) {
+        if let id = entryID.dropPrefix("command:") {
+            self = .command(id)
+        } else if let id = entryID.dropPrefix("section:") {
+            self = .section(id)
+        } else if entryID == "projects" {
+            self = .openProjects
+        } else {
+            return nil
+        }
+    }
+
+    public var entryID: String {
+        switch self {
+        case .command(let id): "command:\(id)"
+        case .section(let id): "section:\(id)"
+        case .openProjects: "projects"
+        }
+    }
+}
+
+extension CommandPalette {
+    public static func entries(commands: [Command], sections: [SectionInfo]) -> [PaletteEntry] {
+        let commandEntries = commands.filter { !$0.hidden }.map {
+            PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: $0.id)
+        }
+        let sectionEntries = sections.enumerated().map { index, section in
+            PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
+        }
+        return commandEntries + sectionEntries + [PaletteEntry(id: PaletteAction.openProjects.entryID, title: "Open Projects", detail: "⌘⇧O")]
+    }
+}
+
+private extension String {
+    func dropPrefix(_ prefix: String) -> String? {
+        hasPrefix(prefix) ? String(dropFirst(prefix.count)) : nil
+    }
+}
