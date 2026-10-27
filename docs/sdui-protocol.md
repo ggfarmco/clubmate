@@ -115,6 +115,8 @@ A command with `"hidden": true` in its manifest entry is still listed and runnab
 
 `command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
 
+`editor-nvim.restart` takes optional args `{force}`. Without `force: true` it first asks the running nvim for modified buffers and fails with `unsaved buffers: <names>` (names relative to the project repos, `[No Name]` for unnamed buffers) if there are any; the session is left running. If nvim does not answer within the RPC deadline it is restarted anyway. editor-nvim starts nvim in the first project repo that exists, else in `$HOME`; if the session cannot be started its main slot shows the error and a Restart button.
+
 `ui.event` requires a non-empty `action`, a valid slot and a registered section. It is routed to the owning plugin.
 
 ## Notifications

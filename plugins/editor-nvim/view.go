@@ -46,6 +46,10 @@ func exitedView(code *int) sdui.Node {
 	return sdui.VStack(sdui.Text(text), sdui.Button("restart", "Restart", "arrow.clockwise"))
 }
 
+func failedView(err error) sdui.Node {
+	return sdui.VStack(sdui.Text("Neovim failed to start: "+err.Error()), sdui.Button("restart", "Restart", "arrow.clockwise"))
+}
+
 func statusView(st status, repos []string) sdui.Node {
 	var items []sdui.Node
 	if st.File != "" {

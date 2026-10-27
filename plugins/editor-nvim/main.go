@@ -24,6 +24,7 @@ const (
 	stateRunning  = "running"
 	renderDelay   = 30 * time.Millisecond
 	branchTimeout = 2 * time.Second
+	noName        = "[No Name]"
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 	errNoPath         = errors.New("open: path is required")
 	errUnknownCommand = errors.New("unknown command")
 	errUnknownAction  = errors.New("unknown action")
+	errUnsaved        = errors.New("unsaved buffers")
 )
 
 type projectEvent struct {
@@ -57,6 +59,18 @@ type pathEvent struct {
 
 type terminalArgs struct {
 	Cwd string `json:"cwd"`
+}
+
+type restartArgs struct {
+	Force bool `json:"force"`
+}
+
+type projectPayload struct {
+	Project pluginsdk.Project `json:"project"`
+}
+
+type deletedPayload struct {
+	ID string `json:"id"`
 }
 
 type app struct {
@@ -97,7 +111,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.opened", "session.exited"} {
+	for _, pattern := range []string{"ui.opened", "session.exited", "project.updated", "project.deleted"} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -133,6 +147,20 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		if exited.Owner == h.PluginID() {
 			a.exited(ctx, h, exited)
 		}
+	case "project.updated":
+		var p projectPayload
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			logError("project.updated", err)
+			return
+		}
+		a.projectUpdated(h, p.Project)
+	case "project.deleted":
+		var p deletedPayload
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			logError("project.deleted", err)
+			return
+		}
+		a.drop(p.ID)
 	}
 }
 
@@ -140,7 +168,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if ev.Action != "restart" {
 		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 	}
-	return nil, a.restart(ctx, h, a.editor(ev.ProjectID))
+	return nil, a.restart(ctx, h, a.editor(ev.ProjectID), false)
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -168,7 +196,13 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	case "terminal":
 		return nil, a.terminal(ctx, h, e)
 	case "restart":
-		return nil, a.restart(ctx, h, e)
+		var args restartArgs
+		if len(cmd.Args) > 0 {
+			if err := json.Unmarshal(cmd.Args, &args); err != nil {
+				return nil, fmt.Errorf("restart args: %w", err)
+			}
+		}
+		return nil, a.restart(ctx, h, e, args.Force)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -182,6 +216,39 @@ func (a *app) editor(projectID string) *editor {
 		a.editors[projectID] = e
 	}
 	return e
+}
+
+func (a *app) lookup(projectID string) *editor {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.editors[projectID]
+}
+
+func (a *app) projectUpdated(h *pluginsdk.Host, p pluginsdk.Project) {
+	e := a.lookup(p.ID)
+	if e == nil {
+		return
+	}
+	root, err := projectRoot(p)
+	if err != nil {
+		logError("project.updated", err)
+		return
+	}
+	e.setProject(p.Repos, root)
+	a.scheduleStatus(h, e)
+}
+
+func (a *app) drop(projectID string) {
+	a.mu.Lock()
+	e := a.editors[projectID]
+	delete(a.editors, projectID)
+	a.mu.Unlock()
+	if e == nil {
+		return
+	}
+	if c := e.reset(); c != nil {
+		go c.close()
+	}
 }
 
 func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, projectID string) {
@@ -218,7 +285,7 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	e.setProject(p.Repos, root)
 	s, err := a.session(ctx, h, e.id, root, sock)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, renderMain(ctx, h, e.id, failedView(err)))
 	}
 	e.setSession(s)
 	if err := renderMain(ctx, h, e.id, runningView(s)); err != nil {
@@ -264,9 +331,14 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, s
 	return s.ID, err
 }
 
-func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor) error {
+func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor, force bool) error {
 	e.life.Lock()
 	defer e.life.Unlock()
+	if c := e.connected(); c != nil && !force {
+		if names, err := c.modified(); err == nil && len(names) > 0 {
+			return fmt.Errorf("%w: %s", errUnsaved, e.relativeNames(names))
+		}
+	}
 	if c := e.reset(); c != nil {
 		c.close()
 	}
@@ -287,7 +359,10 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor) error {
 }
 
 func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {
-	e := a.editor(ev.ProjectID)
+	e := a.lookup(ev.ProjectID)
+	if e == nil {
+		return
+	}
 	c, ok := e.exited(ev.ID)
 	if !ok {
 		return
@@ -412,6 +487,19 @@ func (e *editor) projectRoot() string {
 	return e.root
 }
 
+func (e *editor) relativeNames(names []string) string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	shown := make([]string, 0, len(names))
+	for _, n := range names {
+		if n == "" {
+			n = noName
+		}
+		shown = append(shown, relative(n, e.repos))
+	}
+	return strings.Join(shown, ", ")
+}
+
 func (e *editor) update(ev nvimEvent, branch string, refresh bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -427,8 +515,10 @@ func renderMain(ctx context.Context, h *pluginsdk.Host, projectID string, n sdui
 }
 
 func projectRoot(p pluginsdk.Project) (string, error) {
-	if len(p.Repos) > 0 {
-		return p.Repos[0], nil
+	for _, r := range p.Repos {
+		if info, err := os.Stat(r); err == nil && info.IsDir() {
+			return r, nil
+		}
 	}
 	return os.UserHomeDir()
 }

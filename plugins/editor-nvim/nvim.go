@@ -135,6 +135,22 @@ func (c *client) open(path string, line int) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(openLua, nil, path, line) })
 }
 
+func (c *client) modified() ([]string, error) {
+	var bufs []struct {
+		Name string `msgpack:"name"`
+	}
+	if err := c.call(func(v *nvim.Nvim) error {
+		return v.Call("getbufinfo", &bufs, map[string]int{"bufmodified": 1})
+	}); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(bufs))
+	for _, b := range bufs {
+		names = append(names, b.Name)
+	}
+	return names, nil
+}
+
 func (c *client) call(fn func(*nvim.Nvim) error) error {
 	errc := make(chan error, 1)
 	go func() { errc <- fn(c.v) }()

@@ -120,7 +120,34 @@ func TestExitedShowsRestart(t *testing.T) {
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
 }
 
+func TestRestartRefusesUnsavedBuffers(t *testing.T) {
+	e := startEditor(t)
+	path := e.file(t, "a.go")
+	require.NoError(t, e.open(t, path, 1))
+	require.NoError(t, dial(t, e.sock).Command("normal! ix"))
+	restart := func(args any) error {
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": args}, nil)
+	}
+	require.ErrorContains(t, restart(nil), "unsaved buffers: a.go")
+	assert.Equal(t, []string{e.sessionID}, e.running(t))
+	require.NoError(t, restart(map[string]any{"force": true}))
+	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
+}
+
+func TestMissingFirstRepoStartsInNext(t *testing.T) {
+	e := startEditorIn(t, true)
+	assert.Equal(t, e.repo, e.h.GetSession(t, e.sessionID).Cwd)
+}
+
 func startEditor(t *testing.T) *editor {
+	t.Helper()
+	return startEditorIn(t, false)
+}
+
+func startEditorIn(t *testing.T, missingFirst bool) *editor {
 	t.Helper()
 	if _, err := exec.LookPath("nvim"); err != nil {
 		t.Skip("nvim not in PATH")
@@ -131,8 +158,15 @@ func startEditor(t *testing.T) *editor {
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"))
 	repo, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	repos := []string{repo}
+	if missingFirst {
+		repos = []string{t.TempDir(), repo}
+	}
+	p, err := h.Svc.CreateProject(t.Context(), "demo", repos)
 	require.NoError(t, err)
+	if missingFirst {
+		require.NoError(t, os.RemoveAll(repos[0]))
+	}
 	e := &editor{h: h, projectID: p.ID, repo: repo}
 	t.Cleanup(func() { e.killAll(t) })
 	var sub struct {
