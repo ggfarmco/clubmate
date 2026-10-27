@@ -44,7 +44,7 @@ private final class KeyMonitorView: NSView {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let consumed = MainActor.assumeIsolated {
-                guard let self, let window = self.window, event.window === window else { return false }
+                guard let self, let window = self.window, event.window === window, !(window.firstResponder is TerminalSurfaceView) else { return false }
                 return self.handle?(event) == true
             }
             return consumed ? nil : event

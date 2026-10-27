@@ -92,4 +92,10 @@ extension SDUINode {
     public func confirmation() -> String? {
         string("confirm").flatMap { $0.isEmpty ? nil : $0 }
     }
+
+    public func confirmActionTitle() -> String {
+        let label = string("label") ?? ""
+        let title = label.hasSuffix("…") ? String(label.dropLast()) : label
+        return title.isEmpty ? "OK" : title
+    }
 }

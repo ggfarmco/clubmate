@@ -195,6 +195,14 @@ final class StoresTests: XCTestCase {
         }
     }
 
+    func testConfirmActionTitle() {
+        let labels: [String?] = ["Discard…", "Delete", nil]
+        let titles = labels.map { label in
+            SDUINode(type: "button", id: "b", props: label.map { ["label": .string($0)] } ?? [:]).confirmActionTitle()
+        }
+        XCTAssertEqual(titles, ["Discard", "Delete", "OK"])
+    }
+
     func testFolderFieldInForm() {
         let form = SDUINode(type: "form", id: "f", children: [
             SDUINode(type: "textField", id: "name"),
