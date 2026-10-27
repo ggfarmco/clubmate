@@ -46,10 +46,10 @@ func mainView(nodes []pluginsdk.ProcessNode, selected int, auto bool) sdui.Node 
 	}
 	var controls []sdui.Node
 	if confirm, ok := killConfirm(nodes, selected); ok {
-		controls = append(controls, withConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), confirm))
+		controls = append(controls, sdui.WithConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), confirm))
 	}
 	controls = append(controls,
-		withConfirm(sdui.Button(orphanKill, "Kill orphans", "trash"), "Kill all orphan processes?"),
+		sdui.WithConfirm(sdui.Button(orphanKill, "Kill orphans", "trash"), "Kill all orphan processes?"),
 		sdui.WithAction(sdui.Toggle(autoKill, auto), autoKill),
 		sdui.Text("Auto-kill orphans"),
 		sdui.MutedText(fmt.Sprintf("%d processes · %d orphans", len(nodes), orphans)),
@@ -115,14 +115,4 @@ func killConfirm(nodes []pluginsdk.ProcessNode, selected int) (string, bool) {
 		return "", false
 	}
 	return fmt.Sprintf("Kill %s (%d) and its children?", nodes[i].Process.Comm, selected), true
-}
-
-func withConfirm(n sdui.Node, text string) sdui.Node {
-	props := make(map[string]any, len(n.Props)+1)
-	for k, v := range n.Props {
-		props[k] = v
-	}
-	props["confirm"] = text
-	n.Props = props
-	return n
 }
