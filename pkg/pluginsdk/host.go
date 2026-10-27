@@ -87,6 +87,20 @@ func (h *Host) GetProject(ctx context.Context, id string) (Project, error) {
 	return out, err
 }
 
+func (h *Host) CreateProject(ctx context.Context, name string, repos []string) (Project, error) {
+	var out Project
+	err := h.Call(ctx, "project.create", createProjectParams{Name: name, Repos: repos}, &out)
+	return out, err
+}
+
+func (h *Host) DeleteProject(ctx context.Context, id string) error {
+	return h.Call(ctx, "project.delete", idParams{ID: id}, nil)
+}
+
+func (h *Host) OpenProject(ctx context.Context, id string) error {
+	return h.Call(ctx, "project.open", idParams{ID: id}, nil)
+}
+
 func (h *Host) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
 	var out Session
 	err := h.Call(ctx, "session.create", req, &out)
@@ -193,6 +207,11 @@ type processTreeParams struct {
 
 type killResult struct {
 	Killed []int `json:"killed"`
+}
+
+type createProjectParams struct {
+	Name  string   `json:"name"`
+	Repos []string `json:"repos"`
 }
 
 type idParams struct {

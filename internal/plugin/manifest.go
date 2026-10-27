@@ -49,6 +49,7 @@ type Section struct {
 	Title string `json:"title"`
 	Icon  string `json:"icon"`
 	Order int    `json:"order"`
+	Scope string `json:"scope"`
 }
 
 type CommandDef struct {
@@ -81,7 +82,7 @@ func SectionDefs(manifests []Manifest) []sdui.SectionDef {
 	var defs []sdui.SectionDef
 	for _, m := range manifests {
 		for _, s := range m.Contributes.Sections {
-			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Plugin: m.ID})
+			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Scope: s.Scope, Plugin: m.ID})
 		}
 	}
 	return defs
@@ -134,6 +135,11 @@ func (m Manifest) validate() error {
 	}
 	if err := m.validateIDs("section", sectionIDs); err != nil {
 		return err
+	}
+	for _, s := range m.Contributes.Sections {
+		if s.Scope != "" && s.Scope != sdui.ScopeProject && s.Scope != sdui.ScopeApp {
+			return invalid(m.Dir, "section %q has invalid scope %q", s.ID, s.Scope)
+		}
 	}
 	commandIDs := make([]string, 0, len(m.Contributes.Commands))
 	for _, c := range m.Contributes.Commands {

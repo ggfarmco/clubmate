@@ -85,6 +85,12 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
+		"folderField": {
+			required:    []string{"label"},
+			props:       map[string]propCheck{"label": isString, "values": listOf(isString), "action": actionCheck},
+			children:    noChildren,
+			interactive: true,
+		},
 		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck}, children: noChildren, interactive: true},
 		"select": {
 			required:    []string{"options"},

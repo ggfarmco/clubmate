@@ -1,0 +1,10 @@
+{
+  "id": "projects",
+  "name": "Projects",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["projects"],
+  "contributes": {
+    "sections": [{"id": "projects", "title": "Projects", "icon": "folder", "order": 0, "scope": "app"}]
+  }
+}

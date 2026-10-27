@@ -340,3 +340,34 @@ func TestSessionSurvivesCoreStop(t *testing.T) {
 	require.Len(t, list, 1)
 	assert.Equal(t, session.StateRunning, list[0].State)
 }
+
+func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
+	startCore(t)
+	var p project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	var launched []string
+	open := func() {
+		root := cli.NewRootWithLauncher(&bytes.Buffer{}, &bytes.Buffer{}, func(_ context.Context, id string) error {
+			launched = append(launched, id)
+			return nil
+		})
+		root.SetArgs([]string{"project", "open", p.ID})
+		require.NoError(t, root.Execute())
+	}
+	open()
+	assert.Equal(t, []string{p.ID}, launched)
+
+	dirs, err := paths.Resolve()
+	require.NoError(t, err)
+	client, err := rpc.Dial(t.Context(), dirs.CoreSocket())
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	open()
+	assert.Len(t, launched, 1)
+	select {
+	case n := <-client.Notifications():
+		assert.Equal(t, "project.open", n.Method)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no project.open notification")
+	}
+}

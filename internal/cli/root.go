@@ -28,10 +28,15 @@ func (e *ExitError) Error() string {
 type app struct {
 	out    io.Writer
 	asJSON bool
+	launch func(ctx context.Context, projectID string) error
 }
 
 func NewRoot(stdout, stderr io.Writer) *cobra.Command {
-	a := &app{out: stdout}
+	return newRoot(stdout, stderr, launchApp)
+}
+
+func newRoot(stdout, stderr io.Writer, launch func(ctx context.Context, projectID string) error) *cobra.Command {
+	a := &app{out: stdout, launch: launch}
 	root := &cobra.Command{
 		Use:           "clubmate",
 		SilenceUsage:  true,

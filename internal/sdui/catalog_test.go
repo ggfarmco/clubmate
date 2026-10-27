@@ -44,6 +44,9 @@ func TestValidate(t *testing.T) {
 		{"bad action", sdui.WithAction(sdui.Button("b", "Go", ""), "Bad Action"), false},
 		{"action too long", sdui.WithAction(sdui.Button("b", "Go", ""), "a"+strings.Repeat("b", 64)), false},
 		{"action on text", sdui.WithAction(sdui.Text("a"), "go"), false},
+		{"folderField", sdui.WithAction(sdui.FolderField("r", "Choose folders…", []string{"/a"}), "pick"), true},
+		{"folderField without label", sdui.Node{Type: "folderField", ID: "r"}, false},
+		{"folderField bad values", sdui.Node{Type: "folderField", ID: "r", Props: map[string]any{"label": "L", "values": []any{1}}}, false},
 		{"select", sdui.Select("s", []sdui.Option{{Value: "a", Label: "A"}}, "a"), true},
 	}
 	for _, tt := range tests {

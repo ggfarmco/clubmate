@@ -8,6 +8,10 @@ build:
 	cp plugins/files/plugin.json bin/plugins/files/
 	go build -o bin/plugins/processes/processes ./plugins/processes
 	cp plugins/processes/plugin.json bin/plugins/processes/
+	go build -o bin/plugins/projects/projects ./plugins/projects
+	cp plugins/projects/plugin.json bin/plugins/projects/
+	go build -o bin/plugins/projects/projects ./plugins/projects
+	cp plugins/projects/plugin.json bin/plugins/projects/
 
 run-core: build
 	bin/clubmate-core

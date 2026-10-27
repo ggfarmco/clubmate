@@ -13,7 +13,7 @@ Plugins render trees of nodes into slots; clients draw them and send events back
 - `props`: only the listed props are accepted; unknown props are rejected. `*` marks required props.
 - `children`: count limited per type.
 
-Interactive types (`tabs list tree button textField toggle select form`) accept an optional `action` prop: a string of 1-64 chars matching `^[a-z][a-z0-9.-]*$`. It overrides the default action name sent in `ui.event`.
+Interactive types (`tabs list tree button textField folderField toggle select form`) accept an optional `action` prop: a string of 1-64 chars matching `^[a-z][a-z0-9.-]*$`. It overrides the default action name sent in `ui.event`.
 
 ## Item shapes
 
@@ -39,6 +39,7 @@ Interactive types (`tabs list tree button textField toggle select form`) accept 
 | markdown | text* (string) | none | no |
 | button | label* (string), icon (string), confirm (string), action | none | yes |
 | textField | value (string), placeholder (string), action | none | yes |
+| folderField | label* (string), values (string[]), action | none | yes |
 | toggle | value* (bool), action | none | yes |
 | select | options* (option[]), value (string), action | none | yes |
 | form | action | any | yes |
@@ -51,7 +52,16 @@ A window shows at most one `surface` node at a time in v1. The client keeps ever
 
 ## Slots
 
-A slot is named `<section>.sidebar`, `<section>.main` or `<section>.status`. A section is registered by a plugin, which owns all of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project.
+A slot is named `<section>.sidebar`, `<section>.main` or `<section>.status`. A section is registered by a plugin, which owns all of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project, unless the section has `scope: "app"`.
+
+### Scope
+
+A manifest section has `scope`: `"project"` (default) or `"app"`; any other value fails manifest load. `ui.sections` returns it. Slots of an app-scope section are not tied to a project and are rendered, read, subscribed and sent events with `projectId: ""`:
+
+- `ui.get` and `ui.subscribe` with `""` cover only app-scope slots; with a project id, only project-scope slots.
+- `ui.render` and `ui.event` with `""` on a project-scope slot, or with a project id on an app-scope slot, fail with invalid params.
+- `ui.subscribe` with `""` does not count toward presence and publishes no `ui.opened`/`ui.idle`.
+- App-scope slots of a stopped or crashed plugin are cleared like project slots (the `empty` view is delivered to live subscribers).
 
 The `.status` slot is a compact status line for the section; clients show it in the status area while the section is active.
 
@@ -77,8 +87,8 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 
 | method | params | result |
 |---|---|---|
-| ui.sections | none | `[{id, title, icon, order, plugin}]` |
-| ui.get | `{projectId}` | `[SlotView]` sorted by slot |
+| ui.sections | none | `[{id, title, icon, order, scope, plugin}]` |
+| ui.get | `{projectId}` (`""` for app scope) | `[SlotView]` sorted by slot |
 | ui.subscribe | `{projectId}` | `{subscription}` |
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{projectId, slot, nodeId, action, value}` | plugin-defined JSON |
@@ -88,6 +98,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, plugin, hidden}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
+| project.open | `{id}` | `{clients}` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
@@ -95,6 +106,8 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
 
 `process.kill` with `orphansOnly` kills only orphaned processes and needs `sessionId` or `projectId` (otherwise invalid params). With `projectId`, only that project's orphans are killed; with `sessionId`, only that session's. Without `orphansOnly`, `pids` must be tracked processes. Each target is signalled only if its start time still matches the tracked one, so a reused pid is skipped.
+
+`project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connected non-plugin client except the caller and returns how many were notified. `clubmate project open <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
 
 `command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
 
@@ -122,6 +135,7 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 
 ## Core notifications
 
+- `project.open` `{id}`: sent to every connected client (not to plugins, not to the caller of `project.open`); the client shows that project.
 - `core.stopping` (no params): sent to every connected client (not to plugins) after `core.shutdown` has replied and right before the core stops. A client that sees the connection end after `core.stopping` treats the stop as intentional and does not restart the core; a connection that ends without it is an unexpected loss.
 
 ## Presence
@@ -143,13 +157,14 @@ The core creates `<runtime>/p/<pluginId>` (mode 0700) and passes its path to the
 | textField | submit | `props.action ?? "submit"` | text |
 | toggle | change | `props.action ?? "toggle"` | bool |
 | select | change | `props.action ?? "select"` | option value |
+| folderField | pick folders | `props.action ?? "pick"` | string[] of absolute paths |
 | form | submit | `props.action ?? "submit"` | object `{fieldNodeId: value}` |
 
 `nodeId` is the `id` of the node that fired the event.
 
 ## Forms
 
-A `form` collects the values of the `textField`, `toggle` and `select` nodes among its descendants (nested forms collect their own fields), keyed by the field node `id`. The value is the field's current text, bool or option value; fields that disappear from the tree are dropped.
+A `form` collects the values of the `textField`, `folderField`, `toggle` and `select` nodes among its descendants (nested forms collect their own fields), keyed by the field node `id`. The value is the field's current text, bool, option value or (`folderField`) string[] of chosen paths; fields that disappear from the tree are dropped.
 
 - A `button` without an `action` prop inside a form submits the form: the form sends `props.action ?? "submit"` with the collected object as `value` and the form's `id` as `nodeId`.
 - Return in a `textField` without an `action` prop submits the form the same way.

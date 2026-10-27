@@ -1,0 +1,53 @@
+package main_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
+)
+
+func listItems(n sdui.Node) []sdui.Item {
+	for _, c := range n.Children {
+		if c.Type != "list" {
+			continue
+		}
+		var items []sdui.Item
+		for _, raw := range c.Props["items"].([]any) {
+			m := raw.(map[string]any)
+			items = append(items, sdui.Item{ID: m["id"].(string), Label: m["label"].(string)})
+		}
+		return items
+	}
+	return nil
+}
+
+func TestCreateAndDeleteProject(t *testing.T) {
+	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/projects", "plugins/projects/plugin.json"))
+	repo := filepath.Join(t.TempDir(), "alpha")
+	require.NoError(t, os.Mkdir(repo, 0o755))
+	h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool { return n.Type == "stack" })
+
+	h.Event(t, "", "projects.main", "create", "create", map[string]any{"name": "", "repos": []string{repo}})
+	projects, err := h.Svc.ListProjects(t.Context())
+	require.NoError(t, err)
+	require.Len(t, projects, 1)
+	assert.Equal(t, "alpha", projects[0].Name)
+	id := projects[0].ID
+	h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool {
+		items := listItems(n)
+		return len(items) == 1 && items[0].ID == id && items[0].Label == "alpha"
+	})
+
+	h.Event(t, "", "projects.main", "projects", "select", id)
+	h.Event(t, "", "projects.main", "delete", "delete", nil)
+	h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool { return len(listItems(n)) == 0 })
+	projects, err = h.Svc.ListProjects(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, projects)
+}

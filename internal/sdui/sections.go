@@ -6,11 +6,17 @@ import (
 	"strings"
 )
 
+const (
+	ScopeProject = "project"
+	ScopeApp     = "app"
+)
+
 type SectionDef struct {
 	ID     string
 	Title  string
 	Icon   string
 	Order  int
+	Scope  string
 	Plugin string
 }
 
@@ -19,6 +25,7 @@ type Section struct {
 	Title  string `json:"title"`
 	Icon   string `json:"icon"`
 	Order  int    `json:"order"`
+	Scope  string `json:"scope"`
 	Plugin string `json:"plugin"`
 }
 
@@ -30,11 +37,12 @@ type ViewDef struct {
 type Sections struct {
 	list   []Section
 	owners map[string]string
+	scopes map[string]string
 	views  map[string]string
 }
 
 func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
-	s := &Sections{list: []Section{}, owners: map[string]string{}, views: map[string]string{}}
+	s := &Sections{list: []Section{}, owners: map[string]string{}, scopes: map[string]string{}, views: map[string]string{}}
 	for _, v := range views {
 		s.views[v.Slot] = v.Plugin
 	}
@@ -43,6 +51,8 @@ func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
 			continue
 		}
 		s.owners[d.ID] = d.Plugin
+		d.Scope = cmp.Or(d.Scope, ScopeProject)
+		s.scopes[d.ID] = d.Scope
 		s.list = append(s.list, Section(d))
 	}
 	slices.SortFunc(s.list, func(a, b Section) int {
@@ -69,6 +79,15 @@ func (s *Sections) SlotOwner(slot string) (string, bool) {
 		return "", false
 	}
 	return s.Owner(section)
+}
+
+func (s *Sections) SlotScope(slot string) (string, bool) {
+	section, ok := SlotSection(slot)
+	if !ok {
+		return "", false
+	}
+	scope, ok := s.scopes[section]
+	return scope, ok
 }
 
 func SlotSection(slot string) (string, bool) {
