@@ -7,7 +7,7 @@ public struct CoreLauncher: Sendable {
         self.cliPath = cliPath
     }
 
-    public func ensureRunning(paths: ClubmatePaths, wait: Duration = .seconds(5)) async throws {
+    public func ensureRunning(paths: ClubmatePaths, wait: Duration = .seconds(15)) async throws {
         do {
             try await probe(paths)
             return
