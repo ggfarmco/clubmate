@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -193,7 +194,7 @@ func TestHookCreatesNoKeymaps(t *testing.T) {
 func TestDiffOpensSideBySide(t *testing.T) {
 	e := startEditor(t)
 	path := e.file(t, "a.go")
-	for _, args := range [][]string{{"init", "-q"}, {"add", "a.go"}, {"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a"}} {
+	for _, args := range [][]string{{"init", "-q", "-b", "trunk"}, {"add", "a.go"}, {"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a"}} {
 		out, err := exec.Command("git", append([]string{"-C", e.repo}, args...)...).CombinedOutput()
 		require.NoError(t, err, string(out))
 	}
@@ -205,6 +206,9 @@ func TestDiffOpensSideBySide(t *testing.T) {
 	assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
 	assert.Equal(t, "clubmate://index/a.go", eval[string](t, v, "bufname(winbufnr(1))"))
 	assert.Equal(t, path, eval[string](t, v, "fnamemodify(bufname(winbufnr(2)), ':p')"))
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool {
+		return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.Props["text"] == "trunk" })
+	})
 }
 
 func TestRestartIgnoresScratchBuffers(t *testing.T) {
