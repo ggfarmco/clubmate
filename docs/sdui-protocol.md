@@ -84,6 +84,8 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.event | `{projectId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{projectId, slot, tree}` (plugin callers only) | `{rev}` |
 | ui.presence | none | `[projectId]`, projects that currently have UI subscribers |
+| fs.watch | `{projectId}` | `{watch}` |
+| fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, plugin, hidden}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
 
@@ -99,6 +101,18 @@ A command with `"hidden": true` in its manifest entry is still listed and runnab
 
 - `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the project are replayed first.
 - `ui.closed` `{subscription, error}`: the subscription ended with an error (for example it fell behind); resubscribe and replace local state.
+
+## File watching
+
+`fs.watch` starts one FSEvents stream over the project's repos as they are at call time (repos added later are not covered; call `fs.watch` again). It ends on `fs.unwatch` or when the connection closes. Roots are symlink-resolved, so paths are real paths (`/private/var/...`, not `/var/...`).
+
+- `fs.changed` `{watch, projectId, paths, overflow}`: sent to the watching connection with a 200ms coalescing window. `paths` is deduplicated. Under any `.git/` only `HEAD`, `index` and `refs/heads/**` are reported. A window with more than 1000 paths is sent as `overflow: true` with `paths: []`; the receiver rescans.
+
+Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.UnwatchFS`.
+
+## Bus topics
+
+- `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`). Existing `fs.watch` streams do not follow; re-watch on this event.
 
 ## Core notifications
 

@@ -111,6 +111,16 @@ func (h *Host) Subscribe(ctx context.Context, pattern string, after int64) (stri
 	return out.Subscription, err
 }
 
+func (h *Host) WatchFS(ctx context.Context, projectID string) (string, error) {
+	var out watchResult
+	err := h.Call(ctx, "fs.watch", projectParams{ProjectID: projectID}, &out)
+	return out.Watch, err
+}
+
+func (h *Host) UnwatchFS(ctx context.Context, watch string) error {
+	return h.Call(ctx, "fs.unwatch", watchResult{Watch: watch}, nil)
+}
+
 func (h *Host) Render(ctx context.Context, projectID, slot string, n sdui.Node) (int64, error) {
 	var out renderResult
 	err := h.Call(ctx, "ui.render", renderParams{ProjectID: projectID, Slot: slot, Tree: n}, &out)
@@ -183,6 +193,14 @@ type renderParams struct {
 	ProjectID string    `json:"projectId"`
 	Slot      string    `json:"slot"`
 	Tree      sdui.Node `json:"tree"`
+}
+
+type projectParams struct {
+	ProjectID string `json:"projectId"`
+}
+
+type watchResult struct {
+	Watch string `json:"watch"`
 }
 
 type renderResult struct {

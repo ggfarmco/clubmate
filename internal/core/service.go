@@ -121,7 +121,12 @@ func (s *Service) GetProject(ctx context.Context, id string) (project.Project, e
 }
 
 func (s *Service) AddRepo(ctx context.Context, id, path string) (project.Project, error) {
-	return s.projects.AddRepo(ctx, id, path)
+	p, err := s.projects.AddRepo(ctx, id, path)
+	if err != nil {
+		return project.Project{}, err
+	}
+	s.publish(ctx, "project.updated", map[string]any{"project": p})
+	return p, nil
 }
 
 func (s *Service) DeleteProject(ctx context.Context, id string) error {

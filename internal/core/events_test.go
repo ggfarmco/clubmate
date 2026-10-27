@@ -30,10 +30,12 @@ func TestCoreEventsForProjectAndSessionLifecycle(t *testing.T) {
 	exited, _ := b.Read(t.Context(), "session.exited", 0, 0)
 	require.Len(t, exited, 1)
 	assert.JSONEq(t, `{"id":"`+s.ID+`","projectId":"`+p.ID+`","owner":"","state":"exited","exitCode":4}`, string(exited[0].Payload))
+	_, err = svc.AddRepo(t.Context(), p.ID, t.TempDir())
+	require.NoError(t, err)
 	require.NoError(t, svc.RemoveSession(t.Context(), s.ID))
 	require.NoError(t, svc.DeleteProject(t.Context(), p.ID))
 	all, _ := b.Read(t.Context(), "*", 0, 0)
-	assert.Equal(t, []string{"project.created", "session.created", "session.exited", "session.removed", "project.deleted"}, topics(all))
+	assert.Equal(t, []string{"project.created", "session.created", "session.exited", "project.updated", "session.removed", "project.deleted"}, topics(all))
 }
 
 func TestKillSessionPublishesKilled(t *testing.T) {
