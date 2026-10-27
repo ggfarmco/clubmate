@@ -17,7 +17,12 @@ const (
 	waitDelay = 2 * time.Second
 )
 
-var errLimit = errors.New("output limit reached")
+var (
+	errLimit         = errors.New("output limit reached")
+	ErrNoDefaultBase = errors.New("no default base branch")
+	ErrNoMergeBase   = errors.New("no merge base")
+	ErrUnknownRef    = errors.New("unknown ref")
+)
 
 type Entry struct {
 	Path, Orig string
@@ -180,4 +185,72 @@ func Branch(ctx context.Context, repo string) (string, error) {
 		return "", err
 	}
 	return "(detached " + strings.TrimSpace(string(out)) + ")", nil
+}
+
+func DefaultBase(ctx context.Context, repo string) (string, error) {
+	if out, err := Run(ctx, repo, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		if base := strings.TrimSpace(string(out)); base != "" {
+			return base, nil
+		}
+	}
+	for _, name := range []string{"main", "master"} {
+		if _, err := Run(ctx, repo, "rev-parse", "-q", "--verify", "refs/heads/"+name); err == nil {
+			return name, nil
+		}
+	}
+	return "", ErrNoDefaultBase
+}
+
+func MergeBase(ctx context.Context, repo, base, head string) (string, error) {
+	for _, ref := range []string{base, head} {
+		if _, err := Run(ctx, repo, "rev-parse", "-q", "--verify", ref+"^{commit}"); err != nil {
+			return "", fmt.Errorf("%w: %s", ErrUnknownRef, ref)
+		}
+	}
+	out, err := Run(ctx, repo, "merge-base", base, head)
+	if err != nil {
+		if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 {
+			return "", ErrNoMergeBase
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func Branches(ctx context.Context, repo string) ([]string, error) {
+	out, err := Run(ctx, repo, "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes")
+	if err != nil {
+		return nil, err
+	}
+	branches := []string{}
+	for _, name := range strings.Split(string(out), "\n") {
+		if name == "" || name == "origin/HEAD" || name == "origin" {
+			continue
+		}
+		branches = append(branches, name)
+	}
+	return branches, nil
+}
+
+func ChangedSince(ctx context.Context, repo, rev string) ([]Entry, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	out, err := run(ctx, repo, nil, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return nil, err
+	}
+	top := strings.TrimSuffix(string(out), "\n")
+	out, err = run(ctx, repo, nil, "diff", "--name-status", "-z", "--no-renames", rev, "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	entries := []Entry{}
+	fields := bytes.Split(out, []byte{0})
+	for i := 0; i+1 < len(fields); i += 2 {
+		if len(fields[i]) == 0 {
+			break
+		}
+		entries = append(entries, Entry{X: fields[i][0], Y: ' ', Path: abs(top, string(fields[i+1]))})
+	}
+	return entries, nil
 }

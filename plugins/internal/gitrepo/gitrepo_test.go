@@ -161,3 +161,99 @@ func TestRunLimited(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, string(ee.Stderr), "missing")
 }
+
+func commitFile(t *testing.T, repo, name, content string) {
+	t.Helper()
+	write(t, filepath.Join(repo, name), content)
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-q", "-m", name)
+}
+
+func revParse(t *testing.T, repo, ref string) string {
+	t.Helper()
+	out, err := exec.Command("git", "-C", repo, "rev-parse", ref).Output()
+	require.NoError(t, err)
+	return strings.TrimSpace(string(out))
+}
+
+func TestDefaultBase(t *testing.T) {
+	master := t.TempDir()
+	git(t, master, "init", "-q", "-b", "master")
+	commitFile(t, master, "a", "a")
+	base, err := gitrepo.DefaultBase(t.Context(), master)
+	require.NoError(t, err)
+	assert.Equal(t, "master", base)
+
+	origin := t.TempDir()
+	git(t, origin, "init", "-q", "-b", "develop")
+	commitFile(t, origin, "a", "a")
+	clone := filepath.Join(t.TempDir(), "clone")
+	git(t, filepath.Dir(clone), "clone", "-q", origin, clone)
+	base, err = gitrepo.DefaultBase(t.Context(), clone)
+	require.NoError(t, err)
+	assert.Equal(t, "origin/develop", base)
+
+	trunk := t.TempDir()
+	git(t, trunk, "init", "-q", "-b", "trunk")
+	commitFile(t, trunk, "a", "a")
+	_, err = gitrepo.DefaultBase(t.Context(), trunk)
+	assert.ErrorIs(t, err, gitrepo.ErrNoDefaultBase)
+}
+
+func TestMergeBaseAndChanges(t *testing.T) {
+	repo := newRepo(t)
+	commitFile(t, repo, "a.go", "package x\n")
+	commitFile(t, repo, "d.go", "package x\n")
+	baseSHA := revParse(t, repo, "HEAD")
+	git(t, repo, "checkout", "-q", "-b", "feature/x")
+	commitFile(t, repo, "n.go", "package x\n")
+	commitFile(t, repo, "a.go", "package y\n")
+	git(t, repo, "rm", "-q", "d.go")
+	git(t, repo, "commit", "-q", "-m", "rm")
+
+	mb, err := gitrepo.MergeBase(t.Context(), repo, "main", "HEAD")
+	require.NoError(t, err)
+	assert.Equal(t, baseSHA, mb)
+
+	entries, err := gitrepo.ChangedSince(t.Context(), repo, mb)
+	require.NoError(t, err)
+	got := map[string]byte{}
+	for _, e := range entries {
+		assert.Equal(t, byte(' '), e.Y)
+		got[e.Path] = e.X
+	}
+	assert.Equal(t, map[string]byte{
+		filepath.Join(repo, "n.go"): 'A',
+		filepath.Join(repo, "a.go"): 'M',
+		filepath.Join(repo, "d.go"): 'D',
+	}, got)
+
+	_, err = gitrepo.MergeBase(t.Context(), repo, "nope", "HEAD")
+	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)
+
+	git(t, repo, "checkout", "-q", "--orphan", "lone")
+	git(t, repo, "rm", "-rf", "-q", ".")
+	commitFile(t, repo, "z", "z")
+	_, err = gitrepo.MergeBase(t.Context(), repo, "main", "HEAD")
+	assert.ErrorIs(t, err, gitrepo.ErrNoMergeBase)
+}
+
+func TestMergeBaseUnbornHead(t *testing.T) {
+	repo := newRepo(t)
+	_, err := gitrepo.MergeBase(t.Context(), repo, "main", "HEAD")
+	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)
+}
+
+func TestBranches(t *testing.T) {
+	origin := t.TempDir()
+	git(t, origin, "init", "-q", "-b", "main")
+	commitFile(t, origin, "a", "a")
+	clone := filepath.Join(t.TempDir(), "clone")
+	git(t, filepath.Dir(clone), "clone", "-q", origin, clone)
+
+	branches, err := gitrepo.Branches(t.Context(), clone)
+	require.NoError(t, err)
+	assert.Contains(t, branches, "main")
+	assert.Contains(t, branches, "origin/main")
+	assert.NotContains(t, branches, "origin/HEAD")
+}
