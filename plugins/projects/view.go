@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	listID      = "projects"
-	openAction  = "open"
-	deleteAction    = "delete"
-	formID      = "new"
-	createName  = "name"
-	createRepos = "repos"
-	submitID    = "submit"
-	detailSep   = "  "
+	listID       = "projects"
+	openAction   = "open"
+	deleteAction = "delete"
+	formID       = "new"
+	createName   = "name"
+	createRepos  = "repos"
+	submitID     = "submit"
+	detailSep    = "  "
 )
 
 func mainView(projects []pluginsdk.Project, selected, home string) sdui.Node {

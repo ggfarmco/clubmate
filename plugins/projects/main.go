@@ -30,6 +30,7 @@ type createParams struct {
 }
 
 type app struct {
+	renderMu sync.Mutex
 	mu       sync.Mutex
 	selected string
 	home     string
@@ -64,7 +65,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case selectAction:
 		err = a.selectProject(ctx, h, ev)
 	case openAction:
-		err = h.OpenProject(ctx, a.current())
+		err = a.openSelected(ctx, h)
 	case deleteAction:
 		err = a.deleteSelected(ctx, h)
 	case createAction:
@@ -82,6 +83,14 @@ func (a *app) current() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.selected
+}
+
+func (a *app) openSelected(ctx context.Context, h *pluginsdk.Host) error {
+	id := a.current()
+	if id == "" {
+		return nil
+	}
+	return h.OpenProject(ctx, id)
 }
 
 func (a *app) selectProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
@@ -125,6 +134,8 @@ func createProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent)
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host) error {
+	a.renderMu.Lock()
+	defer a.renderMu.Unlock()
 	projects, err := h.ListProjects(ctx)
 	if err != nil {
 		return err

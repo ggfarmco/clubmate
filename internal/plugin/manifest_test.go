@@ -30,3 +30,11 @@ func TestLoadRejectsInvalidViewSlot(t *testing.T) {
 	_, err := plugin.Load(dir)
 	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
 }
+
+func TestLoadRejectsInvalidSectionScope(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","scope":"global"}]}}`)
+	_, err := plugin.Load(dir)
+	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
+}
