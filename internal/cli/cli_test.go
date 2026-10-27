@@ -1,13 +1,20 @@
 package cli_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,6 +23,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/cli"
+	"clubmate/internal/paths"
 	"clubmate/internal/plugin"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
@@ -27,8 +35,9 @@ import (
 
 func startCore(t *testing.T) *bus.Bus {
 	t.Helper()
-	srv, b := testutil.NewRPCServer(t)
-	serve(t, srv)
+	dirs := testutil.ShortDirs(t)
+	srv, b := testutil.NewRPCServerIn(t, dirs)
+	serveIn(t, srv, dirs)
 	return b
 }
 
@@ -45,7 +54,11 @@ func startCoreWithUI(t *testing.T) *internalsdui.Store {
 
 func serve(t *testing.T, srv *rpc.Server) {
 	t.Helper()
-	dirs := testutil.ShortDirs(t)
+	serveIn(t, srv, testutil.ShortDirs(t))
+}
+
+func serveIn(t *testing.T, srv *rpc.Server, dirs paths.Dirs) {
+	t.Helper()
 	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
 	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
 	l, err := net.Listen("unix", dirs.CoreSocket())
@@ -96,6 +109,35 @@ func TestAttachToExitedSessionReportsExitCode(t *testing.T) {
 	require.ErrorAs(t, root.Execute(), &exit)
 	assert.Equal(t, 3, exit.Code)
 	assert.Equal(t, "session "+sid+" exited (code 3)\n", stderr.String())
+}
+
+func TestAttachExitsQuietlyOnSIGHUP(t *testing.T) {
+	startCore(t)
+	var p project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")))
+	dirs, err := paths.Resolve()
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool {
+		_, err := os.Stat(dirs.SessionSocket(sid))
+		return err == nil
+	}, 3*time.Second)
+	cmd := exec.Command(testutil.BuildBinary(t, "clubmate/cmd/clubmate"), "attach", sid)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	stdin, err := cmd.StdinPipe()
+	require.NoError(t, err)
+	stdout, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	_, err = stdin.Write([]byte("ping\n"))
+	require.NoError(t, err)
+	_, err = bufio.NewReader(stdout).ReadString('\n')
+	require.NoError(t, err)
+	require.NoError(t, cmd.Process.Signal(syscall.SIGHUP))
+	require.NoError(t, cmd.Wait(), stderr.String())
+	assert.Empty(t, stderr.String())
 }
 
 func TestSessionRemoveCommand(t *testing.T) {
@@ -194,4 +236,107 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+func coreCLI(t *testing.T) func(args ...string) (string, int) {
+	t.Helper()
+	bins := t.TempDir()
+	for _, name := range []string{"clubmate", "clubmate-core", "clubmate-session"} {
+		data, err := os.ReadFile(testutil.BuildBinary(t, "clubmate/cmd/"+name))
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(bins, name), data, 0o755))
+	}
+	dirs := testutil.ShortDirs(t)
+	env := append(os.Environ(), "CLUBMATE_STATE_DIR="+dirs.State, "CLUBMATE_RUNTIME_DIR="+dirs.Runtime)
+	clubmate := func(args ...string) (string, int) {
+		cmd := exec.Command(filepath.Join(bins, "clubmate"), args...)
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return string(out), exit.ExitCode()
+		}
+		require.NoError(t, err, string(out))
+		return string(out), 0
+	}
+	t.Cleanup(func() {
+		out, code := clubmate("core", "status")
+		var pid int
+		if code == 0 {
+			_, _ = fmt.Sscanf(out, "running pid=%d", &pid)
+			_ = syscall.Kill(pid, syscall.SIGTERM)
+		}
+	})
+	return clubmate
+}
+
+func TestCoreStartStatusStop(t *testing.T) {
+	clubmate := coreCLI(t)
+
+	out, code := clubmate("core", "status")
+	assert.Equal(t, 3, code)
+	assert.Equal(t, "not running\n", out)
+
+	out, code = clubmate("core", "stop")
+	assert.Equal(t, 3, code)
+	assert.Equal(t, "not running\n", out)
+
+	out, code = clubmate("core", "start")
+	assert.Equal(t, 0, code)
+	assert.Regexp(t, `^started pid=\d+\n$`, out)
+
+	out, code = clubmate("core", "status")
+	assert.Equal(t, 0, code)
+	assert.Regexp(t, `^running pid=\d+ version=\S+\n$`, out)
+
+	out, code = clubmate("core", "start")
+	assert.Equal(t, 0, code)
+	assert.Equal(t, "already running\n", out)
+
+	_, code = clubmate("core", "stop")
+	assert.Equal(t, 0, code)
+
+	out, code = clubmate("core", "start")
+	assert.Equal(t, 0, code)
+	assert.Regexp(t, `^started pid=\d+\n$`, out)
+
+	_, code = clubmate("core", "stop")
+	assert.Equal(t, 0, code)
+
+	_, code = clubmate("core", "status")
+	assert.Equal(t, 3, code)
+}
+
+func TestSessionSurvivesCoreStop(t *testing.T) {
+	clubmate := coreCLI(t)
+	_, code := clubmate("core", "start")
+	require.Equal(t, 0, code)
+	var p project.Project
+	out, _ := clubmate("project", "create", "demo", "--json")
+	require.NoError(t, json.Unmarshal([]byte(out), &p))
+	out, _ = clubmate("session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")
+	sid := strings.TrimSpace(out)
+	var before []session.Session
+	out, _ = clubmate("session", "list", "--json")
+	require.NoError(t, json.Unmarshal([]byte(out), &before))
+	require.Len(t, before, 1)
+	require.Equal(t, sid, before[0].ID)
+	s := before[0]
+	t.Cleanup(func() {
+		_ = syscall.Kill(-s.PGID, syscall.SIGKILL)
+		_ = syscall.Kill(s.HostPID, syscall.SIGKILL)
+	})
+
+	_, code = clubmate("core", "stop")
+	require.Equal(t, 0, code)
+	assert.True(t, testutil.Alive(s.HostPID))
+	assert.True(t, testutil.Alive(s.ChildPID))
+
+	_, code = clubmate("core", "start")
+	require.Equal(t, 0, code)
+	var list []session.Session
+	out, _ = clubmate("session", "list", "--json")
+	require.NoError(t, json.Unmarshal([]byte(out), &list))
+	require.Len(t, list, 1)
+	assert.Equal(t, session.StateRunning, list[0].State)
 }

@@ -40,7 +40,7 @@ func NewRoot(stdout, stderr io.Writer) *cobra.Command {
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	root.PersistentFlags().BoolVar(&a.asJSON, "json", false, "print raw result as JSON")
-	root.AddCommand(a.projectCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd())
+	root.AddCommand(a.projectCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd(), a.coreCmd())
 	return root
 }
 
@@ -80,7 +80,7 @@ func (a *app) dial(ctx context.Context) (*rpc.Client, error) {
 	}
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENOENT) {
-			return nil, fmt.Errorf("clubmate-core is not running (socket %s)", socket)
+			return nil, fmt.Errorf("%w (socket %s)", errCoreNotRunning, socket)
 		}
 		return nil, err
 	}

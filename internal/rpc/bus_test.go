@@ -144,7 +144,11 @@ func connectAs(t *testing.T, srv *rpc.Server, caller rpc.Caller) *jsonrpc2.Conn 
 	t.Helper()
 	coreSide, peerSide := net.Pipe()
 	conn := srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), caller)
-	client := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(peerSide), nil)
+	client := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(peerSide), jsonrpc2.HandlerWithError(ignoreRequest))
 	t.Cleanup(func() { client.Close(); conn.Close() })
 	return client
+}
+
+func ignoreRequest(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) {
+	return nil, nil
 }

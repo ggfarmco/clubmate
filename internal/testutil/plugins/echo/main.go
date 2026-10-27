@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -28,6 +30,9 @@ func main() {
 	p := pluginsdk.Plugin{Init: initialize, BusEvent: busEvent, UIEvent: uiEvent, Command: command}
 	if os.Getenv("ECHO_FORK_SLEEP") == "1" {
 		p.Init = forkSleepAndExit
+	}
+	if os.Getenv("ECHO_WEDGE") == "1" {
+		p.Init = wedgeAfterInit
 	}
 	pluginsdk.Main(p)
 }
@@ -87,5 +92,16 @@ func forkSleepAndExit(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	os.Exit(0)
+	return nil
+}
+
+func wedgeAfterInit(ctx context.Context, h *pluginsdk.Host) error {
+	if err := initialize(ctx, h); err != nil {
+		return err
+	}
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		_ = syscall.Kill(os.Getpid(), syscall.SIGSTOP)
+	}()
 	return nil
 }

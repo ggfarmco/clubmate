@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -278,7 +279,7 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process) error {
 	if err := initialize(ctx, m, p.conn); err != nil {
 		if ctx.Err() != nil {
-			s.shutdown(p)
+			s.shutdown(m.ID, p)
 			return nil
 		}
 		return p.abort(err)
@@ -290,7 +291,7 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process) error {
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
 	select {
 	case <-ctx.Done():
-		s.shutdown(p)
+		s.shutdown(m.ID, p)
 		return nil
 	case <-p.exited:
 		return p.abort(errExited)
@@ -299,9 +300,9 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process) error {
 	}
 }
 
-func (s *Supervisor) shutdown(p *process) {
+func (s *Supervisor) shutdown(id string, p *process) {
 	ctx, cancel := context.WithTimeout(s.hurryCtx, shutdownRequestTimeout)
-	err := p.conn.Call(ctx, "plugin.shutdown", struct{}{}, nil)
+	_, err := callConn(ctx, p.conn, id, "plugin.shutdown", json.RawMessage("{}"))
 	cancel()
 	if err != nil {
 		s.logger.Debug("plugin shutdown request", "pid", p.cmd.Process.Pid, "err", err)

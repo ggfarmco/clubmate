@@ -1,2 +1,10 @@
 bin/
 .superpowers/
+.build/
+.swiftpm/
+/build/
+.ghostty-build-stamp
+client/GhosttyKit.xcframework
+client/Clubmate.xcodeproj
+client/Clubmate/Resources/ghostty
+client/Clubmate/Resources/terminfo

@@ -1,0 +1,85 @@
+import SwiftUI
+
+import ClubmateKit
+
+typealias UIEventSink = @Sendable (UIEvent) async -> Result<JSONValue, ClubmateError>
+
+struct SDUIDispatch: Sendable {
+    var slot = ""
+    var projectID = ""
+    var sink: UIEventSink = { _ in .success(.null) }
+    var banner: EventBanner?
+
+    @MainActor
+    func callAsFunction(_ node: SDUINode, _ trigger: UIAction.Trigger) {
+        let event = UIAction.event(for: node, trigger: trigger, slot: slot, projectID: projectID)
+        Task { [sink, banner] in
+            if case .failure(let error) = await sink(event) {
+                banner?.show(error.bannerText)
+            }
+        }
+    }
+}
+
+private struct SDUIDispatchKey: EnvironmentKey {
+    static let defaultValue = SDUIDispatch()
+}
+
+extension EnvironmentValues {
+    var sduiDispatch: SDUIDispatch {
+        get { self[SDUIDispatchKey.self] }
+        set { self[SDUIDispatchKey.self] = newValue }
+    }
+}
+
+struct SDUIView: View {
+    let node: SDUINode
+    let slot: String
+    let projectID: String
+    let send: UIEventSink
+
+    @Environment(EventBanner.self) private var banner: EventBanner?
+
+    var body: some View {
+        SDUINodeView(node: node)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, sink: send, banner: banner))
+    }
+}
+
+struct SDUINodeView: View {
+    let node: SDUINode
+
+    var body: some View {
+        switch node.type {
+        case "stack": StackNodeView(node: node)
+        case "split": SplitNodeView(node: node)
+        case "scroll": ScrollNodeView(node: node)
+        case "tabs": TabsNodeView(node: node)
+        case "list": ListNodeView(node: node)
+        case "tree": TreeNodeView(node: node)
+        case "text": TextNodeView(node: node)
+        case "badge": BadgeNodeView(node: node)
+        case "icon": IconNodeView(node: node)
+        case "markdown": MarkdownNodeView(node: node)
+        case "button": ButtonNodeView(node: node)
+        case "textField": TextFieldNodeView(node: node)
+        case "toggle": ToggleNodeView(node: node)
+        case "select": SelectNodeView(node: node)
+        case "form": FormNodeView(node: node)
+        case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
+        case "empty": EmptyNodeView(text: node.string("text") ?? "")
+        default: UnsupportedNodeView(type: node.type)
+        }
+    }
+}
+
+struct SDUIChildren: View {
+    let node: SDUINode
+
+    var body: some View {
+        ForEach(node.identifiedChildren) { child in
+            SDUINodeView(node: child.node)
+        }
+    }
+}

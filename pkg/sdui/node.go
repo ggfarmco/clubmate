@@ -108,6 +108,16 @@ func Empty(text string) Node {
 	return Node{Type: "empty", Props: map[string]any{"text": text}}
 }
 
+func WithAction(n Node, action string) Node {
+	props := make(map[string]any, len(n.Props)+1)
+	for k, v := range n.Props {
+		props[k] = v
+	}
+	props["action"] = action
+	n.Props = props
+	return n
+}
+
 func withOptional(props map[string]any, key, value string) map[string]any {
 	if value != "" {
 		props[key] = value

@@ -1,7 +1,10 @@
 package plugin_test
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -75,4 +78,37 @@ func TestSupervisorKillsLeftoverProcessGroupWhenPluginExits(t *testing.T) {
 	t.Cleanup(func() { _ = syscall.Kill(forked.PID, syscall.SIGKILL) })
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
 	testutil.Eventually(t, func() bool { return !testutil.Alive(forked.PID) }, 5*time.Second)
+}
+
+func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
+	t.Setenv("ECHO_WEDGE", "1")
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	sub, err := h.Bus.Subscribe("echo.ready", 0)
+	require.NoError(t, err)
+	t.Cleanup(sub.Close)
+	h.Start(t, testutil.EchoPluginDir(t))
+	select {
+	case <-sub.C():
+	case <-time.After(5 * time.Second):
+		t.Fatal("echo plugin never reported ready")
+	}
+	require.Len(t, h.Sup.PIDs(), 1)
+	pid := h.Sup.PIDs()[0]
+	time.Sleep(500 * time.Millisecond)
+	for i := range 40 {
+		h.CreateProject(t, fmt.Sprintf("%d-%s", i, strings.Repeat("x", 4000)))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stopped := make(chan struct{})
+	go func() {
+		h.Sup.Stop(ctx)
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Stop hung on wedged plugin")
+	}
+	assert.False(t, testutil.Alive(pid))
 }

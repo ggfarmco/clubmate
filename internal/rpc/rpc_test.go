@@ -258,3 +258,45 @@ func TestRPCSessionListRejectsBadOwner(t *testing.T) {
 	err := c.Call(t.Context(), "session.list", map[string]string{"owner": "Bad Owner"}, nil)
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
+
+func TestRPCShutdownIsCLIOnlyAndNotifiesClients(t *testing.T) {
+	srv, _ := testutil.NewRPCServer(t)
+	stopped := make(chan struct{})
+	srv.SetShutdown(func() { close(stopped) })
+
+	plugin := connectAs(t, srv, rpc.Caller{PluginID: "terminals"})
+	var rpcErr *jsonrpc2.Error
+	require.ErrorAs(t, plugin.Call(t.Context(), "core.shutdown", struct{}{}, nil), &rpcErr)
+	assert.EqualValues(t, -32602, rpcErr.Code)
+	select {
+	case <-stopped:
+		t.Fatal("shutdown ran for a plugin caller")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	coreSide, peerSide := net.Pipe()
+	srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), rpc.Caller{})
+	notes := make(chan string, 1)
+	watcher := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(peerSide), jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		notes <- req.Method
+		return nil, nil
+	}))
+	t.Cleanup(func() { watcher.Close() })
+
+	cli := connectAs(t, srv, rpc.Caller{})
+	require.NoError(t, cli.Call(t.Context(), "core.shutdown", struct{}{}, nil))
+	select {
+	case method := <-notes:
+		assert.Equal(t, "core.stopping", method)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no core.stopping notification")
+	}
+	testutil.Eventually(t, func() bool {
+		select {
+		case <-stopped:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second)
+}

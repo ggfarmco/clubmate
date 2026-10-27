@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -24,6 +25,8 @@ const (
 
 	acceptBackoffMin = 5 * time.Millisecond
 	acceptBackoffMax = time.Second
+
+	notifyClientsTimeout = time.Second
 )
 
 type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
@@ -37,6 +40,9 @@ type Server struct {
 	methods    map[string]handlerFunc
 	pluginList atomic.Pointer[func() any]
 	ui         atomic.Pointer[uiState]
+	shutdown   atomic.Pointer[func()]
+	clientsMu  sync.Mutex
+	clients    map[*jsonrpc2.Conn]struct{}
 }
 
 type ServerOption func(*Server)
@@ -46,16 +52,21 @@ func WithKV(store *kv.Store) ServerOption {
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]struct{}{}}
 	for _, opt := range opts {
 		opt(s)
 	}
 	s.methods = s.coreMethods()
 	maps.Copy(s.methods, s.busMethods())
 	maps.Copy(s.methods, s.storageMethods())
+	maps.Copy(s.methods, s.uiStateMethods())
 	maps.Copy(s.methods, s.pluginMethods())
 	maps.Copy(s.methods, s.uiMethods())
 	return s
+}
+
+func (s *Server) SetShutdown(fn func()) {
+	s.shutdown.Store(&fn)
 }
 
 func Serve(ctx context.Context, l net.Listener, svc *core.Service) error {
@@ -102,13 +113,48 @@ func (s *Server) open(ctx context.Context, stream jsonrpc2.ObjectStream, caller 
 	subs := newSubscriptions()
 	ctx = withSubscriptions(WithCaller(ctx, caller), subs)
 	conn := jsonrpc2.NewConn(ctx, stream, jsonrpc2.AsyncHandler(s.handler()))
+	if !caller.IsPlugin() {
+		s.trackClient(conn)
+	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		<-conn.DisconnectNotify()
+		s.untrackClient(conn)
 		subs.closeAll()
 	}()
 	return conn, done
+}
+
+func (s *Server) trackClient(conn *jsonrpc2.Conn) {
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
+	s.clients[conn] = struct{}{}
+}
+
+func (s *Server) untrackClient(conn *jsonrpc2.Conn) {
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
+	delete(s.clients, conn)
+}
+
+func (s *Server) notifyClients(method string) {
+	s.clientsMu.Lock()
+	conns := slices.Collect(maps.Keys(s.clients))
+	s.clientsMu.Unlock()
+	var wg sync.WaitGroup
+	for _, conn := range conns {
+		wg.Go(func() { _ = conn.Notify(context.Background(), method, nil) })
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wg.Wait()
+	}()
+	select {
+	case <-done:
+	case <-time.After(notifyClientsTimeout):
+	}
 }
 
 func (s *Server) handler() jsonrpc2.Handler {
