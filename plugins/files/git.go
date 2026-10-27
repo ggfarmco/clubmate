@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"maps"
+	"os"
 	"path/filepath"
 
 	"clubmate/plugins/internal/gitrepo"
@@ -45,34 +45,28 @@ func statusCode(x, y byte) string {
 }
 
 func collectIgnored(ctx context.Context, repo string, expanded map[string]bool) (map[string]bool, error) {
-	ignored := map[string]bool{}
-	queue := []string{repo}
-	total := 0
-	for len(queue) > 0 && total < maxItems {
-		dir := queue[0]
-		queue = queue[1:]
-		if !expanded[dir] {
-			continue
+	var paths []string
+	var walk func(dir string)
+	walk = func(dir string) {
+		if !expanded[dir] || (dir != repo && nestedRepo(dir)) {
+			return
 		}
-		entries := readEntries(dir)
-		if len(entries) > maxEntries {
-			entries = entries[:maxEntries]
-		}
-		paths := make([]string, len(entries))
-		for i, e := range entries {
-			paths[i] = filepath.Join(dir, e.name)
-		}
-		total += len(paths)
-		found, err := gitrepo.Ignored(ctx, repo, paths)
-		if err != nil {
-			return nil, err
-		}
-		maps.Copy(ignored, found)
-		for i, e := range entries {
-			if e.dir && !e.link && !found[paths[i]] {
-				queue = append(queue, paths[i])
+		for i, e := range readEntries(dir) {
+			if i >= maxEntries || len(paths) >= maxItems {
+				return
+			}
+			p := filepath.Join(dir, e.name)
+			paths = append(paths, p)
+			if e.dir && !e.link {
+				walk(p)
 			}
 		}
 	}
-	return ignored, nil
+	walk(repo)
+	return gitrepo.Ignored(ctx, repo, paths)
+}
+
+func nestedRepo(dir string) bool {
+	_, err := os.Lstat(filepath.Join(dir, ".git"))
+	return err == nil
 }

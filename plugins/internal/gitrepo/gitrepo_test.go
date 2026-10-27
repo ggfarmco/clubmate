@@ -12,10 +12,15 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
+func TestMain(m *testing.M) {
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	os.Exit(m.Run())
+}
+
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 }

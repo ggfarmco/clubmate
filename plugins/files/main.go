@@ -403,6 +403,12 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		}
 	}
 	s.mu.Lock()
+	for dir := range s.expanded {
+		if !expanded[dir] {
+			s.dirty = true
+			break
+		}
+	}
 	for _, repo := range repos {
 		if _, ok := status[repo]; !ok {
 			status[repo] = s.status[repo]
@@ -525,7 +531,7 @@ func (a *app) classify(ctx context.Context, s *state, dir string) {
 		muted = s.ignored[repo][p]
 	}
 	s.mu.Unlock()
-	if muted {
+	if muted || (dir != repo && nestedRepo(dir)) {
 		return
 	}
 	entries := readEntries(dir)
