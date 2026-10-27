@@ -120,6 +120,23 @@ func EchoPluginDir(t *testing.T) string {
 	return root
 }
 
+func EchoPluginDirAs(t *testing.T, manifests ...string) string {
+	t.Helper()
+	bin := BuildBinary(t, "clubmate/internal/testutil/plugins/echo")
+	root := t.TempDir()
+	for _, manifest := range manifests {
+		var m struct {
+			ID string `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(manifest), &m))
+		dir := filepath.Join(root, m.ID)
+		require.NoError(t, os.Mkdir(dir, 0o700))
+		copyFile(t, bin, filepath.Join(dir, "echo"), 0o755)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o600))
+	}
+	return root
+}
+
 func BuildPluginDir(t *testing.T, pkg, manifestPath string) string {
 	t.Helper()
 	bin := BuildBinary(t, pkg)

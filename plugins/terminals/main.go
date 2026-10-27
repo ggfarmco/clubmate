@@ -223,7 +223,7 @@ func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.
 }
 
 func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, projectID, title string) error {
-	s, err := h.CreateSession(ctx, projectID, title, []string{shell(), "-l"})
+	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{ProjectID: projectID, Title: title, Command: []string{shell(), "-l"}})
 	if err != nil {
 		return err
 	}

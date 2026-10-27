@@ -22,3 +22,11 @@ func writeManifest(t *testing.T, dir, body string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(body), 0o600))
 }
+
+func TestLoadRejectsInvalidViewSlot(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"views":[{"slot":"alpha.footer"}]}}`)
+	_, err := plugin.Load(dir)
+	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
+}

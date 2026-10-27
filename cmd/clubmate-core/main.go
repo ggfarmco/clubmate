@@ -108,7 +108,7 @@ func run(logger *slog.Logger) error {
 	uiStore := sdui.NewStore()
 	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner))
 	srv.SetPluginList(func() any { return sup.Statuses() })
-	srv.SetUI(uiStore, sdui.NewSections(plugin.SectionDefs(manifests)), plugin.NewRouter(sup))
+	srv.SetUI(uiStore, sdui.NewSections(plugin.SectionDefs(manifests), plugin.ViewDefs(manifests, logger)...), plugin.NewRouter(sup))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

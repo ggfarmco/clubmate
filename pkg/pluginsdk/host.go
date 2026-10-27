@@ -65,10 +65,20 @@ func (h *Host) GetProject(ctx context.Context, id string) (Project, error) {
 	return out, err
 }
 
-func (h *Host) CreateSession(ctx context.Context, projectID, title string, command []string) (Session, error) {
+func (h *Host) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
 	var out Session
-	err := h.Call(ctx, "session.create", createSessionParams{ProjectID: projectID, Title: title, Command: command}, &out)
+	err := h.Call(ctx, "session.create", req, &out)
 	return out, err
+}
+
+func (h *Host) Presence(ctx context.Context) ([]string, error) {
+	var out []string
+	err := h.Call(ctx, "ui.presence", struct{}{}, &out)
+	return out, err
+}
+
+func (h *Host) RunCommand(ctx context.Context, id, projectID string, args any, out any) error {
+	return h.Call(ctx, "command.run", runCommandParams{ID: id, ProjectID: projectID, Args: args}, out)
 }
 
 func (h *Host) ListSessions(ctx context.Context, projectID string, mine bool) ([]Session, error) {
@@ -136,10 +146,18 @@ type idParams struct {
 	ID string `json:"id"`
 }
 
-type createSessionParams struct {
+type SessionRequest struct {
 	ProjectID string   `json:"projectId"`
 	Title     string   `json:"title"`
 	Command   []string `json:"command"`
+	Cwd       string   `json:"cwd"`
+	Env       []string `json:"env"`
+}
+
+type runCommandParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"projectId"`
+	Args      any    `json:"args"`
 }
 
 type listSessionsParams struct {

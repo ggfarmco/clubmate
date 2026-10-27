@@ -60,6 +60,10 @@ func Run(p Plugin) error {
 	return err
 }
 
+func RuntimeDir() string {
+	return os.Getenv("CLUBMATE_PLUGIN_RUNTIME_DIR")
+}
+
 func Main(p Plugin) {
 	if Run(p) != nil {
 		os.Exit(1)

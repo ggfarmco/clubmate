@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -33,6 +34,7 @@ type Command struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Plugin string `json:"plugin"`
+	Hidden bool   `json:"hidden"`
 }
 
 type uiState struct {
@@ -84,6 +86,7 @@ func (s *Server) uiMethods() map[string]handlerFunc {
 		"ui.get":         method(s.uiGet),
 		"ui.subscribe":   method(s.uiSubscribe),
 		"ui.unsubscribe": method(s.uiUnsubscribe),
+		"ui.presence":    method(s.uiPresence),
 		"ui.render":      method(s.uiRender),
 		"ui.event":       method(s.uiEvent),
 		"command.list":   method(s.commandList),
@@ -122,8 +125,16 @@ func (s *Server) uiSubscribe(ctx context.Context, p projectParams) (subscription
 	if err != nil {
 		return subscriptionParams{}, err
 	}
-	sid, err := subscriptionsFrom(ctx).add(kindUI, sub.Close, forwardUI(ctx, connFrom(ctx), sub))
+	leave := s.presence.join(s.bus, p.ProjectID)
+	sid, err := subscriptionsFrom(ctx).add(kindUI, sync.OnceFunc(func() {
+		sub.Close()
+		leave()
+	}), forwardUI(ctx, connFrom(ctx), sub))
 	return subscriptionParams{Subscription: sid}, err
+}
+
+func (s *Server) uiPresence(context.Context, empty) ([]string, error) {
+	return nonNil(s.presence.projects()), nil
 }
 
 func (s *Server) uiUnsubscribe(ctx context.Context, p subscriptionParams) (empty, error) {
@@ -139,11 +150,10 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if err != nil {
 		return revResult{}, err
 	}
-	section, ok := sdui.SlotSection(p.Slot)
-	if !ok {
+	if _, ok := sdui.SlotSection(p.Slot); !ok {
 		return revResult{}, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
-	if owner, _ := u.sections.Owner(section); owner != caller.PluginID {
+	if owner, _ := u.sections.SlotOwner(p.Slot); owner != caller.PluginID {
 		return revResult{}, invalidParams(fmt.Sprintf("slot %q is not owned by plugin %q", p.Slot, caller.PluginID))
 	}
 	if err := s.requireProject(ctx, p.ProjectID); err != nil {
@@ -168,7 +178,7 @@ func (s *Server) uiEvent(ctx context.Context, p uiEventParams) (json.RawMessage,
 	if !ok {
 		return nil, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
-	owner, ok := u.sections.Owner(section)
+	owner, ok := u.sections.SlotOwner(p.Slot)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errUnknownSection, section)
 	}

@@ -40,6 +40,7 @@ type Server struct {
 	methods    map[string]handlerFunc
 	pluginList atomic.Pointer[func() any]
 	ui         atomic.Pointer[uiState]
+	presence   presence
 	shutdown   atomic.Pointer[func()]
 	clientsMu  sync.Mutex
 	clients    map[*jsonrpc2.Conn]struct{}

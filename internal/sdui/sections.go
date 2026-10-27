@@ -22,13 +22,22 @@ type Section struct {
 	Plugin string `json:"plugin"`
 }
 
+type ViewDef struct {
+	Slot   string
+	Plugin string
+}
+
 type Sections struct {
 	list   []Section
 	owners map[string]string
+	views  map[string]string
 }
 
-func NewSections(defs []SectionDef) *Sections {
-	s := &Sections{list: []Section{}, owners: map[string]string{}}
+func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
+	s := &Sections{list: []Section{}, owners: map[string]string{}, views: map[string]string{}}
+	for _, v := range views {
+		s.views[v.Slot] = v.Plugin
+	}
 	for _, d := range defs {
 		if _, dup := s.owners[d.ID]; dup {
 			continue
@@ -51,8 +60,19 @@ func (s *Sections) Owner(sectionID string) (string, bool) {
 	return plugin, ok
 }
 
+func (s *Sections) SlotOwner(slot string) (string, bool) {
+	if plugin, ok := s.views[slot]; ok {
+		return plugin, true
+	}
+	section, ok := SlotSection(slot)
+	if !ok {
+		return "", false
+	}
+	return s.Owner(section)
+}
+
 func SlotSection(slot string) (string, bool) {
-	for _, suffix := range []string{".sidebar", ".main"} {
+	for _, suffix := range []string{".sidebar", ".main", ".status"} {
 		if section, ok := strings.CutSuffix(slot, suffix); ok && section != "" {
 			return section, true
 		}

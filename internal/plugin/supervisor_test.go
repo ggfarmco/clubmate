@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"syscall"
 	"testing"
@@ -33,6 +34,15 @@ func TestSupervisorStartsPluginThatCallsCore(t *testing.T) {
 	st := h.Sup.Statuses()
 	require.Len(t, st, 1)
 	assert.Equal(t, "running", st[0].State)
+}
+
+func TestSupervisorCreatesPluginRuntimeDir(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDir(t))
+	testutil.Eventually(t, func() bool { return len(h.Sup.PIDs()) == 1 }, 5*time.Second)
+	info, err := os.Stat(h.Dirs.PluginRuntime("echo"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o700), info.Mode().Perm())
 }
 
 func TestSupervisorGivesUpOnCrashLoop(t *testing.T) {

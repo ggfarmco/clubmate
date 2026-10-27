@@ -37,7 +37,7 @@ Interactive types (`tabs list tree button textField toggle select form`) accept 
 | badge | text* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`) | none | no |
 | icon | name* (string) | none | no |
 | markdown | text* (string) | none | no |
-| button | label* (string), icon (string), action | none | yes |
+| button | label* (string), icon (string), confirm (string), action | none | yes |
 | textField | value (string), placeholder (string), action | none | yes |
 | toggle | value* (bool), action | none | yes |
 | select | options* (option[]), value (string), action | none | yes |
@@ -47,9 +47,23 @@ Interactive types (`tabs list tree button textField toggle select form`) accept 
 
 A window shows at most one `surface` node at a time in v1. The client keeps every terminal it has shown mounted until the session's attach exits or the window closes, so switching between sessions is instant. A second `surface` visible in the same window at once renders a placeholder.
 
+`button.confirm`: when set, the client asks the user to confirm with that text before sending the event.
+
 ## Slots
 
-A slot is named `<section>.sidebar` or `<section>.main`. A section is registered by a plugin, which owns both of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project.
+A slot is named `<section>.sidebar`, `<section>.main` or `<section>.status`. A section is registered by a plugin, which owns all of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project.
+
+The `.status` slot is a compact status line for the section; clients show it in the status area while the section is active.
+
+### Views
+
+A plugin may claim a slot of another plugin's section with `contributes.views`:
+
+```json
+{"contributes": {"views": [{"slot": "alpha.sidebar"}]}}
+```
+
+The claiming plugin becomes the owner of that slot instead of the section owner: only it may `ui.render` the slot and `ui.event` for it is routed to it. Slot syntax is validated at manifest load. A view on a section that no plugin registers is ignored and logged. When two plugins claim one slot, the later manifest in discovery order loses its claim and the conflict is logged.
 
 ## Revisions
 
@@ -69,10 +83,13 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{projectId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{projectId, slot, tree}` (plugin callers only) | `{rev}` |
-| command.list | none | `[{id, title, plugin}]` |
+| ui.presence | none | `[projectId]`, projects that currently have UI subscribers |
+| command.list | none | `[{id, title, plugin, hidden}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
 
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
+
+A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
 
 `command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
 
@@ -86,6 +103,14 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 ## Core notifications
 
 - `core.stopping` (no params): sent to every connected client (not to plugins) after `core.shutdown` has replied and right before the core stops. A client that sees the connection end after `core.stopping` treats the stop as intentional and does not restart the core; a connection that ends without it is an unexpected loss.
+
+## Presence
+
+The core publishes `ui.opened` `{projectId}` on the durable bus when a project's UI subscriber count goes from 0 to 1, and `ui.idle` `{projectId}` when it goes from 1 to 0.
+
+## Plugin runtime dir
+
+The core creates `<runtime>/p/<pluginId>` (mode 0700) and passes its path to the plugin in `CLUBMATE_PLUGIN_RUNTIME_DIR` (`pluginsdk.RuntimeDir()`).
 
 ## ui.event contract
 

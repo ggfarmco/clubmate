@@ -69,11 +69,11 @@ func busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Eve
 	}
 }
 
-func uiEvent(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
+func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
 	if ev.Action != "say" {
 		return nil, fmt.Errorf("unknown action %q", ev.Action)
 	}
-	return map[string]json.RawMessage{"said": ev.Value}, nil
+	return map[string]any{"said": ev.Value, "plugin": h.PluginID()}, nil
 }
 
 func command(_ context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {

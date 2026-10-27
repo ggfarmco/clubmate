@@ -39,7 +39,8 @@ const (
 	killAfter              = 5 * time.Second
 	crashKillGrace         = 500 * time.Millisecond
 
-	pluginIDEnv = "CLUBMATE_PLUGIN_ID"
+	pluginIDEnv   = "CLUBMATE_PLUGIN_ID"
+	runtimeDirEnv = "CLUBMATE_PLUGIN_RUNTIME_DIR"
 )
 
 var (
@@ -258,9 +259,13 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 	defer stdoutW.Close()
+	runtimeDir := s.dirs.PluginRuntime(m.ID)
+	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create plugin runtime dir: %w", err)
+	}
 	cmd := exec.Command(m.Executable(), m.Command[1:]...)
 	cmd.Dir = m.Dir
-	cmd.Env = append(sessionhost.StripMarkers(os.Environ()), pluginIDEnv+"="+m.ID)
+	cmd.Env = append(sessionhost.StripMarkers(os.Environ()), pluginIDEnv+"="+m.ID, runtimeDirEnv+"="+runtimeDir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdinR, stdoutW, logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
