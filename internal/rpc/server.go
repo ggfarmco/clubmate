@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net"
 	"slices"
@@ -41,6 +42,7 @@ type Server struct {
 	pluginList atomic.Pointer[func() any]
 	ui         atomic.Pointer[uiState]
 	presence   presence
+	logger     *slog.Logger
 	shutdown   atomic.Pointer[func()]
 	clientsMu  sync.Mutex
 	clients    map[*jsonrpc2.Conn]struct{}
@@ -52,8 +54,12 @@ func WithKV(store *kv.Store) ServerOption {
 	return func(s *Server) { s.kv = store }
 }
 
+func WithLogger(l *slog.Logger) ServerOption {
+	return func(s *Server) { s.logger = l }
+}
+
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]struct{}{}}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]struct{}{}, logger: slog.New(slog.DiscardHandler)}
 	for _, opt := range opts {
 		opt(s)
 	}

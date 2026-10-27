@@ -125,7 +125,7 @@ func (s *Server) uiSubscribe(ctx context.Context, p projectParams) (subscription
 	if err != nil {
 		return subscriptionParams{}, err
 	}
-	leave := s.presence.join(s.bus, p.ProjectID)
+	leave := s.presence.join(s.bus, s.logger, p.ProjectID)
 	sid, err := subscriptionsFrom(ctx).add(kindUI, sync.OnceFunc(func() {
 		sub.Close()
 		leave()

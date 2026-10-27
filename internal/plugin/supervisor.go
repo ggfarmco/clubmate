@@ -248,6 +248,10 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 		return nil, fmt.Errorf("open plugin log: %w", err)
 	}
 	defer logFile.Close()
+	runtimeDir := s.dirs.PluginRuntime(m.ID)
+	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create plugin runtime dir: %w", err)
+	}
 	stdinR, stdinW, err := os.Pipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdin pipe: %w", err)
@@ -259,10 +263,6 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 	defer stdoutW.Close()
-	runtimeDir := s.dirs.PluginRuntime(m.ID)
-	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
-		return nil, fmt.Errorf("create plugin runtime dir: %w", err)
-	}
 	cmd := exec.Command(m.Executable(), m.Command[1:]...)
 	cmd.Dir = m.Dir
 	cmd.Env = append(sessionhost.StripMarkers(os.Environ()), pluginIDEnv+"="+m.ID, runtimeDirEnv+"="+runtimeDir)
