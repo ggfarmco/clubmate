@@ -60,7 +60,10 @@ struct CommandPaletteView: View {
         .lineLimit(1)
         .padding(.horizontal, theme.gutter * 1.5)
         .frame(height: theme.rowHeight + 2)
-        .background(selected ? theme.selection : .clear, ignoresSafeAreaEdges: [])
+        .background(selected ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+        .overlay(alignment: .leading) {
+            if selected { theme.accent.frame(width: 2) }
+        }
         .contentShape(Rectangle())
     }
 

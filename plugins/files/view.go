@@ -12,5 +12,5 @@ func treeView(items []sdui.TreeItem, selected string) sdui.Node {
 	if len(items) == 0 {
 		return sdui.Empty(noRepos)
 	}
-	return sdui.Tree(treeID, items, selected)
+	return sdui.Scroll(sdui.Tree(treeID, items, selected))
 }

@@ -20,7 +20,9 @@ const (
 
 func items(t *testing.T, n sdui.Node) []sdui.TreeItem {
 	t.Helper()
-	raw, err := json.Marshal(n.Props["items"])
+	require.Equal(t, "scroll", n.Type)
+	require.Len(t, n.Children, 1)
+	raw, err := json.Marshal(n.Children[0].Props["items"])
 	require.NoError(t, err)
 	var out []sdui.TreeItem
 	require.NoError(t, json.Unmarshal(raw, &out))
@@ -56,14 +58,14 @@ func TestBufferEventReveals(t *testing.T) {
 		Subscription string `json:"subscription"`
 	}
 	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
-	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Type == "tree" })
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Type == "scroll" })
 
 	payload, err := json.Marshal(map[string]string{"projectId": p.ID, "path": file})
 	require.NoError(t, err)
 	_, err = h.Bus.Publish(t.Context(), "editor.buffer", "editor-nvim", payload)
 	require.NoError(t, err)
 
-	tree := h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Props["selected"] == file })
+	tree := h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return len(n.Children) == 1 && n.Children[0].Props["selected"] == file })
 	for _, dir := range []string{filepath.Join(repo, "x"), nested} {
 		it, ok := find(items(t, tree), dir)
 		require.True(t, ok, dir)

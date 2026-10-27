@@ -46,6 +46,8 @@ struct ProjectWindow: View {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
                 }
+                .frame(maxHeight: .infinity)
+                .clipped()
                 StatusBar(connection: connection(store), section: store.sections.first { $0.id == section }?.title ?? section) { [app] in
                     app.retry()
                 } trailing: {
