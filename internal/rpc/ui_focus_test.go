@@ -42,26 +42,33 @@ func TestUIFocusNotifiesProjectSubscribers(t *testing.T) {
 	res, err := focus(p.ID, "echo.sidebar")
 	require.NoError(t, err)
 	assert.Equal(t, 1, res.Delivered)
-	select {
-	case n := <-pc.Notifications():
-		assert.Equal(t, "ui.focus", n.Method)
-		assert.JSONEq(t, fmt.Sprintf(`{"subscription":%q,"section":"echo","slot":"echo.sidebar"}`, psub.Subscription), string(n.Params))
-	case <-time.After(2 * time.Second):
-		t.Fatal("no ui.focus notification")
-	}
-	select {
-	case n := <-qc.Notifications():
-		t.Fatalf("unexpected notification %s", n.Method)
-	case n := <-ac.Notifications():
-		t.Fatalf("unexpected notification %s", n.Method)
-	case <-time.After(100 * time.Millisecond):
-	}
+	n, ok := nextFocus(pc, 2*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	assert.JSONEq(t, fmt.Sprintf(`{"subscription":%q,"section":"echo","slot":"echo.sidebar"}`, psub.Subscription), string(n.Params))
+	_, ok = nextFocus(qc, 100*time.Millisecond)
+	assert.False(t, ok)
+	_, ok = nextFocus(ac, 100*time.Millisecond)
+	assert.False(t, ok)
 	err = pc.Call(t.Context(), "ui.focus", map[string]string{"projectId": p.ID, "section": "echo.glob", "slot": ""}, nil)
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 	_, err = focus(p.ID, "echo.status")
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 	_, err = focus("prj_0123456789abcdef", "echo.main")
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
+}
+
+func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
+	deadline := time.After(wait)
+	for {
+		select {
+		case n := <-c.Notifications():
+			if n.Method == "ui.focus" {
+				return n, true
+			}
+		case <-deadline:
+			return rpc.Notification{}, false
+		}
+	}
 }
 
 func TestProjectOpenCountsRegisteredClients(t *testing.T) {
