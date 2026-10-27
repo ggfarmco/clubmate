@@ -21,6 +21,20 @@ final class SupervisorTests: XCTestCase {
         XCTAssertEqual(delays.values, [0.5, 1, 2, 4, 5, 5, 5, 5, 5, 5].map { Duration.seconds($0) })
     }
 
+    func testSupervisorFailsFastOnPermanentError() async throws {
+        let delays = Recorder<Duration>()
+        let connects = Recorder<Int>()
+        let error = ClubmateError.insecureRuntime("/run")
+        let supervisor = ConnectionSupervisor(connect: {
+            connects.add(1)
+            throw error
+        }, sleep: { await delays.add($0) })
+        supervisor.start()
+        try await waitUntil { supervisor.phase == .failed(error.message) }
+        XCTAssertEqual(connects.values.count, 1)
+        XCTAssertEqual(delays.values, [])
+    }
+
     func testSupervisorStopsOnIntentionalShutdown() async throws {
         let core = try await TestCore.start()
         self.core = core

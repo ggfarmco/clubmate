@@ -173,9 +173,12 @@ public final class ProjectUIStore {
     }
 
     private func heal(_ generation: Int) async {
+        let client = self.client
         guard generation == self.generation, client.isAlive else { return }
+        await stop()
+        guard generation + 1 == self.generation, client === self.client else { return }
         do {
-            try await reconnect(using: client)
+            try await start()
         } catch {
             failure = describe(error)
         }
