@@ -26,4 +26,8 @@ func TestProcessTreeView(t *testing.T) {
 	toolbar := mainView(nodes, 2, true).Children[0]
 	assert.Equal(t, "Kill nvim (2) and its children?", toolbar.Children[0].Props["confirm"])
 	assert.Equal(t, "3 processes · 1 orphans", toolbar.Children[4].Props["text"])
+
+	idle := mainView(nodes, 0, false).Children[0]
+	assert.Len(t, idle.Children, 4)
+	assert.Equal(t, "kill-orphans", idle.Children[0].ID)
 }

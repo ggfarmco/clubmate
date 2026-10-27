@@ -30,21 +30,22 @@ func StartTime(pid int) (time.Time, error) {
 	return time.Unix(int64(k.Proc.P_starttime.Sec), int64(k.Proc.P_starttime.Usec)*1000), nil
 }
 
-func KillTree(ctx context.Context, targets []Target, grace time.Duration) error {
+func KillTree(ctx context.Context, targets []Target, grace time.Duration) ([]int, error) {
 	self := os.Getpid()
 	for _, t := range targets {
 		if t.PID <= 1 || t.PID == self {
-			return fmt.Errorf("%w %d", ErrUnsafePID, t.PID)
+			return nil, fmt.Errorf("%w %d", ErrUnsafePID, t.PID)
 		}
 	}
 
-	errs := signalAll(targets, unix.SIGTERM)
+	signalled, errs := signalAll(targets, unix.SIGTERM)
 	survivors := awaitExit(ctx, targets, grace)
-	errs = append(errs, signalAll(survivors, unix.SIGKILL)...)
+	_, killErrs := signalAll(survivors, unix.SIGKILL)
+	errs = append(errs, killErrs...)
 	if err := ctx.Err(); err != nil {
 		errs = append(errs, err)
 	}
-	return errors.Join(errs...)
+	return signalled, errors.Join(errs...)
 }
 
 func awaitExit(ctx context.Context, targets []Target, grace time.Duration) []Target {
@@ -67,17 +68,22 @@ func awaitExit(ctx context.Context, targets []Target, grace time.Duration) []Tar
 	}
 }
 
-func signalAll(targets []Target, sig unix.Signal) []error {
+func signalAll(targets []Target, sig unix.Signal) ([]int, []error) {
+	var sent []int
 	var errs []error
 	for _, t := range targets {
 		if !matches(t) {
 			continue
 		}
-		if err := unix.Kill(t.PID, sig); err != nil && !errors.Is(err, unix.ESRCH) {
+		err := unix.Kill(t.PID, sig)
+		switch {
+		case err == nil:
+			sent = append(sent, t.PID)
+		case !errors.Is(err, unix.ESRCH):
 			errs = append(errs, fmt.Errorf("signal %d with %s: %w", t.PID, sig, err))
 		}
 	}
-	return errs
+	return sent, errs
 }
 
 func alive(targets []Target) []Target {

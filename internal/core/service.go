@@ -138,7 +138,7 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
+	if _, err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill project %s: %w", id, err)
 	}
 	if err := s.projects.Delete(ctx, id); err != nil {
@@ -190,7 +190,7 @@ func (s *Service) KillSession(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
+	if _, err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill session %s: %w", id, err)
 	}
 	if err := s.awaitStopped(ctx, id); err != nil {
@@ -301,10 +301,11 @@ func (s *Service) KillProcesses(ctx context.Context, r KillRequest) ([]int, erro
 	for _, pid := range pids {
 		targets = append(targets, targetOf(candidates[pid]))
 	}
-	if err := proc.KillTree(ctx, targets, s.killGrace); err != nil {
+	killed, err := proc.KillTree(ctx, targets, s.killGrace)
+	if err != nil {
 		return nil, fmt.Errorf("kill processes: %w", err)
 	}
-	return pids, nil
+	return killed, nil
 }
 
 func (s *Service) RefreshLoop(ctx context.Context, every time.Duration) {

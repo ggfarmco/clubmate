@@ -10,15 +10,14 @@ import (
 )
 
 const (
-	allID       = "all"
-	sessionsID  = "sessions"
-	treeID      = "processes"
-	selectPID   = "select-pid"
-	killAction  = "kill"
-	orphanKill  = "kill-orphans"
-	autoKill    = "autokill"
-	kibPerMiB   = 1024
-	noSelection = "Kill the selected process and its children?"
+	allID      = "all"
+	sessionsID = "sessions"
+	treeID     = "processes"
+	selectPID  = "select-pid"
+	killAction = "kill"
+	orphanKill = "kill-orphans"
+	autoKill   = "autokill"
+	kibPerMiB  = 1024
 )
 
 type sessionRow struct {
@@ -45,13 +44,17 @@ func mainView(nodes []pluginsdk.ProcessNode, selected int, auto bool) sdui.Node 
 			orphans++
 		}
 	}
-	toolbar := sdui.HStack(
-		withConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), killConfirm(nodes, selected)),
+	var controls []sdui.Node
+	if confirm, ok := killConfirm(nodes, selected); ok {
+		controls = append(controls, withConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), confirm))
+	}
+	controls = append(controls,
 		withConfirm(sdui.Button(orphanKill, "Kill orphans", "trash"), "Kill all orphan processes?"),
 		sdui.WithAction(sdui.Toggle(autoKill, auto), autoKill),
 		sdui.Text("Auto-kill orphans"),
 		sdui.MutedText(fmt.Sprintf("%d processes · %d orphans", len(nodes), orphans)),
 	)
+	toolbar := sdui.HStack(controls...)
 	if len(nodes) == 0 {
 		return sdui.VStack(toolbar, sdui.Empty("No processes"))
 	}
@@ -106,12 +109,12 @@ func badge(n pluginsdk.ProcessNode) string {
 	return ""
 }
 
-func killConfirm(nodes []pluginsdk.ProcessNode, selected int) string {
+func killConfirm(nodes []pluginsdk.ProcessNode, selected int) (string, bool) {
 	i := slices.IndexFunc(nodes, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == selected })
 	if i < 0 {
-		return noSelection
+		return "", false
 	}
-	return fmt.Sprintf("Kill %s (%d) and its children?", nodes[i].Process.Comm, selected)
+	return fmt.Sprintf("Kill %s (%d) and its children?", nodes[i].Process.Comm, selected), true
 }
 
 func withConfirm(n sdui.Node, text string) sdui.Node {

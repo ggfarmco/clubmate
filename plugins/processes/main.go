@@ -123,31 +123,49 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	st, err := a.state(ctx, h, ev.ProjectID)
+	var snap projectState
+	if err == nil {
+		snap = *st
+	}
+	a.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
 	switch ev.Action {
 	case "expand", "collapse":
 		return nil, nil
-	case "select":
-		err = a.selectSession(ctx, h, ev, st)
-	case selectPID:
-		err = selectProcess(ev, st)
 	case killAction:
-		err = a.killSelected(ctx, h, ev.ProjectID, st)
+		err = killSelected(ctx, h, ev.ProjectID, snap)
 	case orphanKill:
-		_, err = a.killOrphans(ctx, h, ev.ProjectID, st.session)
-	case autoKill:
-		err = a.toggleAuto(ctx, h, ev, st)
+		_, err = killOrphans(ctx, h, ev.ProjectID, snap.session)
 	default:
-		err = fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+		err = a.update(ctx, h, ev, st)
 	}
 	if err != nil {
 		return nil, err
 	}
-	return nil, a.render(ctx, h, ev.ProjectID)
+	return nil, a.renderLocked(ctx, h, ev.ProjectID)
+}
+
+func (a *app) update(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *projectState) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	switch ev.Action {
+	case "select":
+		return a.selectSession(ctx, h, ev, st)
+	case selectPID:
+		return selectProcess(ev, st)
+	case autoKill:
+		return a.toggleAuto(ctx, h, ev, st)
+	}
+	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+}
+
+func (a *app) renderLocked(ctx context.Context, h *pluginsdk.Host, id string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.render(ctx, h, id)
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -158,15 +176,19 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, errNoProject
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	st, err := a.state(ctx, h, cmd.ProjectID)
+	session := ""
+	if err == nil {
+		session = st.session
+	}
+	a.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	if _, err := a.killOrphans(ctx, h, cmd.ProjectID, st.session); err != nil {
+	if _, err := killOrphans(ctx, h, cmd.ProjectID, session); err != nil {
 		return nil, err
 	}
-	return nil, a.render(ctx, h, cmd.ProjectID)
+	return nil, a.renderLocked(ctx, h, cmd.ProjectID)
 }
 
 func (a *app) selectSession(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *projectState) error {
@@ -201,11 +223,11 @@ func selectProcess(ev pluginsdk.UIEvent, st *projectState) error {
 	return nil
 }
 
-func (a *app) killSelected(ctx context.Context, h *pluginsdk.Host, projectID string, st *projectState) error {
+func killSelected(ctx context.Context, h *pluginsdk.Host, projectID string, st projectState) error {
 	if st.pid == 0 {
 		return nil
 	}
-	nodes, err := h.ProcessTree(ctx, projectID, "")
+	nodes, err := h.ProcessTree(ctx, projectID, st.session)
 	if err != nil {
 		return err
 	}
@@ -213,11 +235,11 @@ func (a *app) killSelected(ctx context.Context, h *pluginsdk.Host, projectID str
 	if len(pids) == 0 {
 		return nil
 	}
-	_, err = h.KillProcesses(ctx, pluginsdk.KillRequest{PIDs: pids})
+	_, err = h.KillProcesses(ctx, pluginsdk.KillRequest{PIDs: pids, ProjectID: projectID, SessionID: st.session})
 	return err
 }
 
-func (a *app) killOrphans(ctx context.Context, h *pluginsdk.Host, projectID, sessionID string) ([]int, error) {
+func killOrphans(ctx context.Context, h *pluginsdk.Host, projectID, sessionID string) ([]int, error) {
 	return h.KillProcesses(ctx, pluginsdk.KillRequest{ProjectID: projectID, SessionID: sessionID, OrphansOnly: true})
 }
 
@@ -230,15 +252,11 @@ func (a *app) toggleAuto(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UI
 	if !on {
 		return h.StorageDelete(ctx, autoKillKey(ev.ProjectID))
 	}
-	if err := h.StorageSet(ctx, autoKillKey(ev.ProjectID), true); err != nil {
-		return err
-	}
-	a.sweep(ctx, h, ev.ProjectID)
-	return nil
+	return h.StorageSet(ctx, autoKillKey(ev.ProjectID), true)
 }
 
-func (a *app) sweep(ctx context.Context, h *pluginsdk.Host, projectID string) {
-	killed, err := a.killOrphans(ctx, h, projectID, "")
+func sweep(ctx context.Context, h *pluginsdk.Host, projectID string) {
+	killed, err := killOrphans(ctx, h, projectID, "")
 	if err != nil {
 		logError("auto-kill "+projectID, err)
 		return
@@ -283,10 +301,10 @@ func (a *app) autoKillLoop(ctx context.Context, h *pluginsdk.Host) {
 				enabled = append(enabled, id)
 			}
 		}
-		for _, id := range enabled {
-			a.sweep(ctx, h, id)
-		}
 		a.mu.Unlock()
+		for _, id := range enabled {
+			sweep(ctx, h, id)
+		}
 	}
 }
 
