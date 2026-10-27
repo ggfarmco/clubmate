@@ -135,7 +135,7 @@ struct TreeNodeView: View {
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
-        .background(KeyMonitor(active: focused, handle: handle))
+        .keyMonitor(active: focused, handle: handle)
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
@@ -167,50 +167,6 @@ struct TreeNodeView: View {
         case nil: break
         }
         return true
-    }
-}
-
-private struct KeyMonitor: NSViewRepresentable {
-    let active: Bool
-    let handle: @MainActor (NSEvent) -> Bool
-
-    func makeNSView(context: Context) -> KeyMonitorView {
-        KeyMonitorView()
-    }
-
-    func updateNSView(_ view: KeyMonitorView, context: Context) {
-        view.handle = handle
-        view.active = active
-    }
-}
-
-final class KeyMonitorView: NSView {
-    var handle: (@MainActor (NSEvent) -> Bool)?
-    var active = false {
-        didSet { update() }
-    }
-
-    private var monitor: Any?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        update()
-    }
-
-    private func update() {
-        let wanted = active && window != nil
-        if wanted, monitor == nil {
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                let consumed = MainActor.assumeIsolated {
-                    guard let self, let window = self.window, event.window === window else { return false }
-                    return self.handle?(event) == true
-                }
-                return consumed ? nil : event
-            }
-        } else if !wanted, let monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
     }
 }
 

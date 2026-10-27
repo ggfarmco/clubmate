@@ -33,13 +33,20 @@ extension EnvironmentValues {
     }
 }
 
+struct FocusTarget: Equatable {
+    let slot: String
+    let serial: Int
+}
+
 @MainActor
 @Observable
 final class FocusRouter {
-    private(set) var pending: String?
+    private(set) var pending: FocusTarget?
+    @ObservationIgnored private var serial = 0
 
     func request(_ slot: String) {
-        pending = slot
+        serial += 1
+        pending = FocusTarget(slot: slot, serial: serial)
     }
 
     func requestMain(from slot: String) {
@@ -48,7 +55,7 @@ final class FocusRouter {
     }
 
     func take(_ slot: String) -> Bool {
-        guard pending == slot else { return false }
+        guard pending?.slot == slot else { return false }
         pending = nil
         return true
     }

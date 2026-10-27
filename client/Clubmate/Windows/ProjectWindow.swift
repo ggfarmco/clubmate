@@ -138,10 +138,14 @@ private struct MainFocus: ViewModifier {
             .focusable(surface == nil)
             .focusEffectDisabled()
             .focused($focused)
-            .onChange(of: router?.pending, initial: true) {
-                guard router?.take(slot) == true else { return }
-                if let surface { deck?.focus(surface) } else { focused = true }
-            }
+            .onChange(of: router?.pending, initial: true) { claim() }
+            .onChange(of: slot) { claim() }
+            .onChange(of: surface) { claim() }
+    }
+
+    private func claim() {
+        guard router?.take(slot) == true else { return }
+        if let surface { deck?.focus(surface) } else { focused = true }
     }
 }
 
