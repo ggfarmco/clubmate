@@ -228,6 +228,11 @@ func TestDiffOpensSideBySide(t *testing.T) {
 			assert.Equal(t, tc.rightLines, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
 		})
 	}
+	tabs := eval[int](t, v, "tabpagenr('$')")
+	args := map[string]any{"path": a, "base": "index", "target": "worktree"}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
+	assert.Equal(t, tabs, eval[int](t, v, "tabpagenr('$')"))
+	assert.Equal(t, 1, eval[int](t, v, "len(filter(range(1, tabpagenr('$')), {_, t -> index(tabpagebuflist(t), bufnr('"+a+"')) >= 0}))"))
 	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool {
 		return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.Props["text"] == "trunk" })
 	})

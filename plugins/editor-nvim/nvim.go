@@ -63,10 +63,25 @@ local function scratch(name, text, dos)
   vim.bo[buf].modifiable = false
   vim.bo[buf].filetype = ft
 end
+local function stale(tab)
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+    local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(w))
+    if name == "clubmate://head/" .. rel or name == "clubmate://index/" .. rel then return true end
+  end
+  return false
+end
 if target == "worktree" then
   vim.cmd.tabedit(vim.fn.fnameescape(path))
 else
   vim.cmd.tabnew()
+end
+local current = vim.api.nvim_get_current_tabpage()
+for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+  if tab ~= current and stale(tab) then
+    pcall(vim.cmd.tabclose, vim.api.nvim_tabpage_get_number(tab))
+  end
+end
+if target ~= "worktree" then
   scratch("clubmate://index/" .. rel, right, false)
 end
 local dos = vim.bo.fileformat == "dos"
