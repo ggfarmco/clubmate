@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
@@ -56,6 +57,31 @@ func TestExitedTerminalCanBeRestarted(t *testing.T) {
 	assert.NotEqual(t, old, fresh)
 	assert.Equal(t, "Terminal 1", h.GetSession(t, fresh).Title)
 	h.WaitSessionGone(t, old)
+}
+
+func TestNewTerminalFocusesMainSlot(t *testing.T) {
+	h := newHarness(t)
+	p := h.CreateProject(t, "demo")
+	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
+	c := h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case n := <-c.Notifications():
+			if n.Method != "ui.focus" {
+				continue
+			}
+			var got struct{ Section, Slot string }
+			require.NoError(t, json.Unmarshal(n.Params, &got))
+			assert.Equal(t, "terminals", got.Section)
+			assert.Equal(t, "terminals.main", got.Slot)
+			return
+		case <-deadline:
+			t.Fatal("no ui.focus notification")
+		}
+	}
 }
 
 func newHarness(t *testing.T) *testutil.PluginHarness {

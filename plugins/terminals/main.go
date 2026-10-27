@@ -17,6 +17,7 @@ import (
 const (
 	sidebarSlot  = "terminals.sidebar"
 	mainSlot     = "terminals.main"
+	sectionID    = "terminals"
 	titlePrefix  = "Terminal "
 	defaultShell = "/bin/zsh"
 )
@@ -80,7 +81,13 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if err := a.act(ctx, h, ev); err != nil {
 		return nil, err
 	}
-	return nil, a.render(ctx, h, ev.ProjectID)
+	if err := a.render(ctx, h, ev.ProjectID); err != nil {
+		return nil, err
+	}
+	if ev.Action == "new" {
+		return nil, h.Focus(ctx, ev.ProjectID, sectionID, mainSlot)
+	}
+	return nil, nil
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -108,7 +115,13 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	default:
 		return nil, fmt.Errorf("%w: command %q", errUnknownAction, cmd.ID)
 	}
-	return nil, a.render(ctx, h, cmd.ProjectID)
+	if err := a.render(ctx, h, cmd.ProjectID); err != nil {
+		return nil, err
+	}
+	if cmd.ID == "terminals.new" {
+		return nil, h.Focus(ctx, cmd.ProjectID, sectionID, mainSlot)
+	}
+	return nil, nil
 }
 
 func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {

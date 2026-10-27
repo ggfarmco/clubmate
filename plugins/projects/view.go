@@ -19,7 +19,7 @@ const (
 	detailSep    = "  "
 )
 
-func mainView(projects []pluginsdk.Project, selected, home, formID string) sdui.Node {
+func mainView(projects []pluginsdk.Project, selected, home, formID, deleting, failure string) sdui.Node {
 	items := make([]sdui.Item, 0, len(projects))
 	for _, p := range projects {
 		items = append(items, sdui.Item{ID: p.ID, Label: p.Name, Detail: repoDetail(p.Repos, home)})
@@ -27,6 +27,12 @@ func mainView(projects []pluginsdk.Project, selected, home, formID string) sdui.
 	nodes := []sdui.Node{
 		{Type: "text", Props: map[string]any{"text": "Projects", "style": "title"}},
 		sdui.List(listID, items, selected),
+	}
+	if deleting != "" {
+		nodes = slices.Insert(nodes, 1, sdui.MutedText("Deleting "+deleting+"…"))
+	}
+	if failure != "" {
+		nodes = slices.Insert(nodes, 1, sdui.Badge("Delete failed: "+failure, "danger"))
 	}
 	if i := slices.IndexFunc(projects, func(p pluginsdk.Project) bool { return p.ID == selected }); i >= 0 {
 		name := projects[i].Name
