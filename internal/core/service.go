@@ -141,6 +141,18 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if _, err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
 		return fmt.Errorf("kill project %s: %w", id, err)
 	}
+	sessions, err := s.sessions.List(ctx, session.ListFilter{ProjectID: id})
+	if err != nil {
+		return err
+	}
+	for _, sess := range sessions {
+		if err := s.awaitStopped(ctx, sess.ID); err != nil {
+			return err
+		}
+		if err := s.RemoveSession(ctx, sess.ID); err != nil {
+			return err
+		}
+	}
 	if err := s.projects.Delete(ctx, id); err != nil {
 		return err
 	}

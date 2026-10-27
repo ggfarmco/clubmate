@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
@@ -36,6 +37,20 @@ func formID(n sdui.Node) string {
 	return ""
 }
 
+func opens(c *rpc.Client) int {
+	n := 0
+	for {
+		select {
+		case note := <-c.Notifications():
+			if note.Method == "project.open" {
+				n++
+			}
+		default:
+			return n
+		}
+	}
+}
+
 func TestCreateAndDeleteProject(t *testing.T) {
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/projects", "plugins/projects/plugin.json"))
 	repo := filepath.Join(t.TempDir(), "alpha")
@@ -54,6 +69,9 @@ func TestCreateAndDeleteProject(t *testing.T) {
 	})
 
 	h.Event(t, "", "projects.main", "projects", "select", id)
+	assert.Zero(t, opens(h.Client(t)))
+	h.Event(t, "", "projects.main", "open", "open", nil)
+	assert.Equal(t, 1, opens(h.Client(t)))
 	h.Event(t, "", "projects.main", "delete", "delete", nil)
 	h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool { return len(listItems(n)) == 0 })
 	projects, err = h.Svc.ListProjects(t.Context())

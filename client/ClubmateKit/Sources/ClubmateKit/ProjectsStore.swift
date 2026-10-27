@@ -90,3 +90,14 @@ public final class ProjectsStore {
 private struct BusNotification: Decodable {
     let subscription: String
 }
+
+public struct ProjectPresence: Sendable, Equatable {
+    public private(set) var seen = false
+
+    public init() {}
+
+    public mutating func observe(_ present: Bool) -> Bool {
+        if present { seen = true }
+        return seen && !present
+    }
+}

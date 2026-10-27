@@ -145,6 +145,13 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testProjectPresenceReportsDeletionAfterSeen() {
+        var presence = ProjectPresence()
+        XCTAssertFalse(presence.observe(false))
+        XCTAssertFalse(presence.observe(true))
+        XCTAssertTrue(presence.observe(false))
+    }
+
     func testUIActionContract() {
         let rows: [(SDUINode, UIAction.Trigger, String, JSONValue)] = [
             (node("button", "new"), .click, "new", .null),

@@ -64,7 +64,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	var err error
 	switch ev.Action {
 	case selectAction:
-		err = a.selectProject(ctx, h, ev)
+		err = a.selectProject(ev)
 	case openAction:
 		err = a.openSelected(ctx, h)
 	case deleteAction:
@@ -94,7 +94,7 @@ func (a *app) openSelected(ctx context.Context, h *pluginsdk.Host) error {
 	return h.OpenProject(ctx, id)
 }
 
-func (a *app) selectProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
+func (a *app) selectProject(ev pluginsdk.UIEvent) error {
 	var id string
 	if err := json.Unmarshal(ev.Value, &id); err != nil {
 		return fmt.Errorf("select value: %w", err)
@@ -102,7 +102,7 @@ func (a *app) selectProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk
 	a.mu.Lock()
 	a.selected = id
 	a.mu.Unlock()
-	return h.OpenProject(ctx, id)
+	return nil
 }
 
 func (a *app) deleteSelected(ctx context.Context, h *pluginsdk.Host) error {

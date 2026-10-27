@@ -75,11 +75,19 @@ func (s *Store) Get(projectID string) []SlotView {
 }
 
 func (s *Store) ClearOwner(owner string) {
+	s.clear(func(_ slotKey, view SlotView) bool { return view.Owner == owner })
+}
+
+func (s *Store) DropProject(projectID string) {
+	s.clear(func(key slotKey, _ SlotView) bool { return key.project == projectID })
+}
+
+func (s *Store) clear(match func(slotKey, SlotView) bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var cleared []SlotView
 	for key, view := range s.slots {
-		if view.Owner != owner {
+		if !match(key, view) {
 			continue
 		}
 		delete(s.slots, key)
@@ -87,7 +95,7 @@ func (s *Store) ClearOwner(owner string) {
 		cleared = append(cleared, SlotView{
 			ProjectID: key.project,
 			Slot:      key.slot,
-			Owner:     owner,
+			Owner:     view.Owner,
 			Rev:       s.revs[key],
 			Tree:      sdui.Empty(""),
 		})

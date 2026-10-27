@@ -70,6 +70,9 @@ func TestDeleteProjectKillsItsSessions(t *testing.T) {
 	testutil.Eventually(t, func() bool { return !testutil.Alive(orphanPID) }, 5*time.Second)
 	_, err := svc.GetProject(t.Context(), sess.ProjectID)
 	assert.ErrorIs(t, err, project.ErrNotFound)
+	left, err := svc.ListSessions(t.Context(), session.ListFilter{ProjectID: sess.ProjectID})
+	require.NoError(t, err)
+	assert.Empty(t, left)
 }
 
 func TestProcessTreeIgnoresStaleRoots(t *testing.T) {

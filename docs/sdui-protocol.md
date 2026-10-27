@@ -81,6 +81,8 @@ The claiming plugin becomes the owner of that slot instead of the section owner:
 
 Every slot (per project) has a revision counter that starts at 1 and increases by 1 on each render. When a plugin stops or crashes, its slots are cleared: the counter increments and the tree becomes `empty` with empty text. The cleared slot is removed from the store: the `empty` view (rev + 1) is delivered only to live subscribers, and later `ui.get` or subscribe replays omit the slot. Clients render that view like any other update (an empty pane) and do not get the slot back from `ui.get` after a reconnect.
 
+`project.delete` clears every slot of the deleted project the same way (the `empty` view at rev + 1 to live subscribers; `ui.get` for that project then returns `[]`). Before deleting, the core kills the project's processes, waits for each of its sessions to stop and removes them, publishing `session.removed` `{id}` for each; then it deletes the project and publishes `project.deleted` `{id}`. If a session does not stop within the kill grace, the delete fails and the project is kept. Clients close a project window when its project disappears from `project.list` after having been listed.
+
 Revisions are in-memory and reset when the core restarts; clients must reset their rev map on reconnect.
 
 Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a lower or equal `rev`.

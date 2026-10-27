@@ -94,6 +94,9 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := svc.DeleteProject(ctx, p.ID); err != nil {
 				return empty{}, err
 			}
+			if u, err := s.uiState(); err == nil {
+				u.store.DropProject(p.ID)
+			}
 			return empty{}, s.deleteUIState(ctx, p.ID)
 		}),
 		"project.open": method(s.projectOpen),

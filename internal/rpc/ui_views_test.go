@@ -73,6 +73,23 @@ func TestPresenceEvents(t *testing.T) {
 	assert.JSONEq(t, fmt.Sprintf(`{"projectId":%q}`, p.ID), string(events[0].Payload))
 }
 
+func TestProjectDeleteDropsSlots(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha"}]}`)))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()
+		return len(st) == 1 && st[0].State == plugin.StateRunning
+	}, 5*time.Second)
+	p := h.CreateProject(t, "demo")
+	c := h.Client(t)
+	tree := map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": "alpha.main", "tree": tree}))
+	require.NoError(t, c.Call(t.Context(), "project.delete", map[string]string{"id": p.ID}, nil))
+	var views []internalsdui.SlotView
+	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &views))
+	assert.Equal(t, []internalsdui.SlotView{}, views)
+}
+
 func TestHiddenCommandListed(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.secret","title":"Secret","hidden":true},{"id":"alpha.open","title":"Open"}]}`)))

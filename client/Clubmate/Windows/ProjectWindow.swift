@@ -9,7 +9,9 @@ struct ProjectWindow: View {
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
     @State private var session: ProjectSession?
+    @State private var presence = ProjectPresence()
 
     var body: some View {
         content
@@ -27,6 +29,15 @@ struct ProjectWindow: View {
                 app.launch(openWindow)
                 if session == nil, let projectID { session = app.session(for: projectID) }
             }
+            .onChange(of: listed, initial: true) { _, present in
+                guard let present, presence.observe(present) else { return }
+                dismiss()
+            }
+    }
+
+    private var listed: Bool? {
+        guard let projectID, let projects = app.projects?.projects else { return nil }
+        return projects.contains { $0.id == projectID }
     }
 
     private var title: String {

@@ -80,6 +80,22 @@ func TestClearOwnerRemovesSlotsAndNotifies(t *testing.T) {
 	assert.Empty(t, s.Get("prj_other"))
 }
 
+func TestDropProjectRemovesSlotsAndNotifies(t *testing.T) {
+	s := internalsdui.NewStore()
+	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
+	_, _ = s.Render(t.Context(), "prj_other", "a.main", "a", sdui.Empty("x"))
+	sub, _ := s.Subscribe(prj)
+	t.Cleanup(sub.Close)
+	recv(t, sub)
+	s.DropProject(prj)
+	got := recv(t, sub)
+	assert.Equal(t, "a.main", got.Slot)
+	assert.EqualValues(t, 2, got.Rev)
+	assert.Equal(t, sdui.Empty(""), got.Tree)
+	assert.Empty(t, s.Get(prj))
+	assert.Len(t, s.Get("prj_other"), 1)
+}
+
 func TestSlowSubscriberIsDropped(t *testing.T) {
 	s := internalsdui.NewStore()
 	sub, _ := s.Subscribe(prj)
