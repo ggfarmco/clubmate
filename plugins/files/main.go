@@ -164,7 +164,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
 			return nil, err
 		}
-		return nil, a.refresh(ctx, h, cmd.ProjectID, s)
+		a.schedule(h, cmd.ProjectID, s, 0)
+		return nil, nil
 	case "files.reveal":
 		var args pathArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
