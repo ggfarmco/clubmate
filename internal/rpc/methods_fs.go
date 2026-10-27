@@ -3,7 +3,10 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -56,7 +59,9 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 			continue
 		}
 		roots = append(roots, root)
+		roots = append(roots, worktreeRoots(root)...)
 	}
+	roots = slices.Compact(slices.Sorted(slices.Values(roots)))
 	changes := make(chan fsChange)
 	quit := make(chan struct{})
 	stop := func() {}
@@ -76,6 +81,38 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 		stop()
 	}), forwardFS(ctx, connFrom(ctx), p.ProjectID, changes))
 	return watchParams{Watch: sid}, err
+}
+
+func worktreeRoots(repo string) []string {
+	data, err := os.ReadFile(filepath.Join(repo, ".git"))
+	if err != nil {
+		return nil
+	}
+	target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir:")
+	if !ok {
+		return nil
+	}
+	target = strings.TrimSpace(target)
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(repo, target)
+	}
+	gitdir, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return nil
+	}
+	roots := []string{gitdir}
+	common, err := os.ReadFile(filepath.Join(gitdir, "commondir"))
+	if err != nil {
+		return roots
+	}
+	commonDir := strings.TrimSpace(string(common))
+	if !filepath.IsAbs(commonDir) {
+		commonDir = filepath.Join(gitdir, commonDir)
+	}
+	if resolved, err := filepath.EvalSymlinks(commonDir); err == nil {
+		roots = append(roots, resolved)
+	}
+	return roots
 }
 
 func (s *Server) fsUnwatch(ctx context.Context, p watchParams) (empty, error) {

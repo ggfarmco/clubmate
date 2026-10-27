@@ -20,7 +20,11 @@ func Keep(path string) bool {
 	if !found {
 		return true
 	}
-	return rest == "HEAD" || rest == "index" || strings.HasPrefix(rest, "refs/heads/")
+	if rest == "HEAD" || rest == "index" || strings.HasPrefix(rest, "refs/heads/") {
+		return true
+	}
+	name, file, ok := strings.Cut(strings.TrimPrefix(rest, "worktrees/"), "/")
+	return strings.HasPrefix(rest, "worktrees/") && ok && name != "" && (file == "HEAD" || file == "index")
 }
 
 func Watch(roots []string, fn func(paths []string, overflow bool)) (func(), error) {

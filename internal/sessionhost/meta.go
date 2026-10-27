@@ -30,6 +30,7 @@ type Meta struct {
 	HostPID   int        `json:"hostPid"`
 	ChildPID  int        `json:"childPid"`
 	PGID      int        `json:"pgid"`
+	HostStart time.Time  `json:"hostStart"`
 	StartedAt time.Time  `json:"startedAt"`
 	ExitCode  *int       `json:"exitCode"`
 	ExitedAt  *time.Time `json:"exitedAt"`

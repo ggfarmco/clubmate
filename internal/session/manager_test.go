@@ -89,6 +89,17 @@ func TestManagerUnsignalableHostIsLost(t *testing.T) {
 	assert.Equal(t, session.StateLost, s.State)
 }
 
+func TestSessionLostWhenHostPIDReused(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	sid := id.New("ses")
+	start, err := proc.StartTime(os.Getpid())
+	require.NoError(t, err)
+	require.NoError(t, sessionhost.WriteMeta(dirs.SessionMeta(sid), sessionhost.Meta{ID: sid, HostPID: os.Getpid(), HostStart: start.Add(-time.Hour)}))
+	s, err := session.NewManager(dirs, "unused").Get(t.Context(), sid)
+	require.NoError(t, err)
+	assert.Equal(t, session.StateLost, s.State)
+}
+
 func TestManagerGetUnknown(t *testing.T) {
 	m := session.NewManager(testutil.ShortDirs(t), "unused")
 	_, err := m.Get(t.Context(), id.New("ses"))

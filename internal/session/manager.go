@@ -17,6 +17,7 @@ import (
 
 	"clubmate/internal/id"
 	"clubmate/internal/paths"
+	"clubmate/internal/proc"
 	"clubmate/internal/sessionhost"
 )
 
@@ -221,7 +222,7 @@ func readSession(path string) (Session, error) {
 	if meta.ExitCode != nil {
 		return fromMeta(meta, StateExited), nil
 	}
-	if hostAlive(meta.HostPID) {
+	if hostAlive(meta) {
 		return fromMeta(meta, StateRunning), nil
 	}
 	again, err := sessionhost.ReadMeta(path)
@@ -248,8 +249,15 @@ func fromMeta(meta sessionhost.Meta, state State) Session {
 	}
 }
 
-func hostAlive(pid int) bool {
-	return pid > 1 && unix.Kill(pid, 0) == nil
+func hostAlive(meta sessionhost.Meta) bool {
+	if meta.HostPID <= 1 || unix.Kill(meta.HostPID, 0) != nil {
+		return false
+	}
+	if meta.HostStart.IsZero() {
+		return true
+	}
+	start, err := proc.StartTime(meta.HostPID)
+	return err == nil && start.Equal(meta.HostStart)
 }
 
 func exists(path string) bool {
