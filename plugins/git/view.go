@@ -73,7 +73,7 @@ func (l leaf) id() string {
 }
 
 func (l leaf) discardable() bool {
-	return l.Group == groupChanges && l.Code != "A"
+	return l.Group == groupChanges && slices.Contains([]string{"M", "D", "T"}, l.Code)
 }
 
 func (l leaf) rel() string {

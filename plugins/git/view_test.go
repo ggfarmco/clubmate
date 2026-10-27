@@ -44,7 +44,7 @@ func TestDiffViewTruncates(t *testing.T) {
 
 func TestDiscardConfirm(t *testing.T) {
 	repo := "/r"
-	changes := &leaf{Repo: repo, Group: groupChanges, Path: "/r/b.go"}
+	changes := &leaf{Repo: repo, Group: groupChanges, Path: "/r/b.go", Code: "M"}
 	d, ok := button(mainView(mainModel{Sel: changes, Repos: []string{repo}, FormID: "commit-0"}), discardAction)
 	require.True(t, ok)
 	assert.Equal(t, changes.id(), d.ID)

@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,33 +246,38 @@ func TestPlainDirIsNotARepo(t *testing.T) {
 
 func TestDiscard(t *testing.T) {
 	repo := newRepo(t, "b.go")
+	write(t, filepath.Join(repo, "c.go"), "cee\n")
 	git(t, repo, "add", ".")
 	git(t, repo, "commit", "-qm", "init")
 	write(t, filepath.Join(repo, "b.go"), "two\n")
 	write(t, filepath.Join(repo, "f.go"), "keep\n")
 	git(t, repo, "add", "-N", "f.go")
+	require.NoError(t, os.Rename(filepath.Join(repo, "c.go"), filepath.Join(repo, "d.go")))
+	git(t, repo, "add", "-N", "d.go")
 	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (2)"]) == 2 })
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (3)"]) == 3 })
 	discard := func(leaf string) error {
 		return h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": mainSlot, "nodeId": leaf, "action": "discard", "value": nil}, nil)
 	}
 
-	added := repo + "\x00changes\x00" + filepath.Join(repo, "f.go")
-	h.Event(t, id, sidebarSlot, "git", "select", added)
-	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "stage"); return ok })
-	_, ok := find(main, added)
-	assert.False(t, ok)
-	assert.ErrorContains(t, discard(added), "intent-to-add")
-	content, err := os.ReadFile(filepath.Join(repo, "f.go"))
-	require.NoError(t, err)
-	assert.Equal(t, "keep\n", string(content))
+	for name, content := range map[string]string{"f.go": "keep\n", "d.go": "cee\n"} {
+		leaf := repo + "\x00changes\x00" + filepath.Join(repo, name)
+		h.Event(t, id, sidebarSlot, "git", "select", leaf)
+		main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return strings.Contains(fmt.Sprint(n), name) })
+		_, ok := find(main, leaf)
+		assert.False(t, ok, name)
+		assert.ErrorContains(t, discard(leaf), "cannot be discarded", name)
+		got, err := os.ReadFile(filepath.Join(repo, name))
+		require.NoError(t, err)
+		assert.Equal(t, content, string(got), name)
+	}
 
 	modified := repo + "\x00changes\x00" + filepath.Join(repo, "b.go")
 	h.Event(t, id, sidebarSlot, "git", "select", modified)
 	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, modified); return ok })
 	require.NoError(t, discard(modified))
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (1)"]) == 1 })
-	content, err = os.ReadFile(filepath.Join(repo, "b.go"))
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (2)"]) == 2 })
+	content, err := os.ReadFile(filepath.Join(repo, "b.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "one\n", string(content))
 }
