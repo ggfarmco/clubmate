@@ -50,6 +50,8 @@ A window shows at most one `surface` node at a time in v1. The client keeps ever
 
 `button.confirm`: when set, the client asks the user to confirm with that text before sending the event.
 
+Input fields are uncontrolled: `value`/`values` on `textField`, `folderField`, `toggle` and `select` are initial values. The client keeps what the user entered while the node keeps its identity. A changed `value` in a later render replaces it, but re-rendering an unchanged one does not. To reset a form (e.g. after a successful submit), the plugin renders it with a new node `id`. The client then discards the form's field state and starts again from the props. Actions are routed by `action`, not by `id`, so rotating ids (e.g. `create-<n>`) does not change event handling.
+
 ## Slots
 
 A slot is named `<section>.sidebar`, `<section>.main` or `<section>.status`. A section is registered by a plugin, which owns all of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project, unless the section has `scope: "app"`.

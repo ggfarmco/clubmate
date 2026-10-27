@@ -33,6 +33,7 @@ type app struct {
 	renderMu sync.Mutex
 	mu       sync.Mutex
 	selected string
+	created  int
 	home     string
 }
 
@@ -69,7 +70,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case deleteAction:
 		err = a.deleteSelected(ctx, h)
 	case createAction:
-		err = createProject(ctx, h, ev)
+		err = a.createProject(ctx, h, ev)
 	default:
 		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 	}
@@ -118,7 +119,7 @@ func (a *app) deleteSelected(ctx context.Context, h *pluginsdk.Host) error {
 	return nil
 }
 
-func createProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
+func (a *app) createProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
 	var f createParams
 	if err := json.Unmarshal(ev.Value, &f); err != nil {
 		return fmt.Errorf("create value: %w", err)
@@ -129,8 +130,13 @@ func createProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent)
 	if f.Name == "" {
 		f.Name = filepath.Base(f.Repos[0])
 	}
-	_, err := h.CreateProject(ctx, f.Name, f.Repos)
-	return err
+	if _, err := h.CreateProject(ctx, f.Name, f.Repos); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.created++
+	a.mu.Unlock()
+	return nil
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host) error {
@@ -145,6 +151,6 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host) error {
 	if !slices.ContainsFunc(projects, func(p pluginsdk.Project) bool { return p.ID == a.selected }) {
 		a.selected = ""
 	}
-	_, err = h.Render(ctx, "", mainSlot, mainView(projects, a.selected, a.home))
+	_, err = h.Render(ctx, "", mainSlot, mainView(projects, a.selected, a.home, fmt.Sprintf("create-%d", a.created)))
 	return err
 }

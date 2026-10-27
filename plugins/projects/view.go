@@ -13,14 +13,13 @@ const (
 	listID       = "projects"
 	openAction   = "open"
 	deleteAction = "delete"
-	formID       = "new"
 	createName   = "name"
 	createRepos  = "repos"
 	submitID     = "submit"
 	detailSep    = "  "
 )
 
-func mainView(projects []pluginsdk.Project, selected, home string) sdui.Node {
+func mainView(projects []pluginsdk.Project, selected, home, formID string) sdui.Node {
 	items := make([]sdui.Item, 0, len(projects))
 	for _, p := range projects {
 		items = append(items, sdui.Item{ID: p.ID, Label: p.Name, Detail: repoDetail(p.Repos, home)})

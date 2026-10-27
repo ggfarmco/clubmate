@@ -27,11 +27,20 @@ func listItems(n sdui.Node) []sdui.Item {
 	return nil
 }
 
+func formID(n sdui.Node) string {
+	for _, c := range n.Children {
+		if c.Type == "form" {
+			return c.ID
+		}
+	}
+	return ""
+}
+
 func TestCreateAndDeleteProject(t *testing.T) {
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/projects", "plugins/projects/plugin.json"))
 	repo := filepath.Join(t.TempDir(), "alpha")
 	require.NoError(t, os.Mkdir(repo, 0o755))
-	h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool { return n.Type == "stack" })
+	initial := h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool { return n.Type == "stack" })
 
 	h.Event(t, "", "projects.main", "create", "create", map[string]any{"name": "", "repos": []string{repo}})
 	projects, err := h.Svc.ListProjects(t.Context())
@@ -41,7 +50,7 @@ func TestCreateAndDeleteProject(t *testing.T) {
 	id := projects[0].ID
 	h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool {
 		items := listItems(n)
-		return len(items) == 1 && items[0].ID == id && items[0].Label == "alpha"
+		return len(items) == 1 && items[0].ID == id && items[0].Label == "alpha" && formID(n) != formID(initial)
 	})
 
 	h.Event(t, "", "projects.main", "projects", "select", id)

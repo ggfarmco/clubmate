@@ -13,7 +13,6 @@ final class AppModel {
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
 
-    @ObservationIgnored private var client: CoreClient?
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var openWindow: OpenWindowAction?
@@ -25,6 +24,7 @@ final class AppModel {
         let link = ModelLink()
         supervisor = ConnectionSupervisor { try await link.connect() }
         link.model = self
+        trackClient()
     }
 
     static func launchProjectID(_ arguments: [String]) -> String? {
@@ -52,7 +52,7 @@ final class AppModel {
         if let existing = sessions[projectID] { return existing }
         let session = ProjectSession(projectID: projectID)
         sessions[projectID] = session
-        if let client { session.adopt(client, supervisor) }
+        if let client = supervisor.client { session.adopt(client, supervisor) }
         return session
     }
 
@@ -78,12 +78,8 @@ final class AppModel {
             let projects = ProjectsStore(client: client)
             try await projects.start()
             await self.projects?.stop()
-            self.client = client
             self.projects = projects
             self.commands = commands
-            for session in [projectsSession] + sessions.values {
-                session.adopt(client, supervisor)
-            }
             listen(client)
             if let id = launchProject {
                 launchProject = nil
@@ -93,6 +89,15 @@ final class AppModel {
         } catch {
             await client.close()
             throw error
+        }
+    }
+
+    private func trackClient() {
+        guard let client = withObservationTracking({ supervisor.client }, onChange: { [weak self] in
+            Task { @MainActor in self?.trackClient() }
+        }) else { return }
+        for session in [projectsSession] + sessions.values {
+            session.adopt(client, supervisor)
         }
     }
 
