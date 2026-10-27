@@ -14,6 +14,7 @@ const subscriptionBuffer = 64
 
 var (
 	ErrSlowSubscriber = errors.New("slow subscriber dropped")
+	ErrUnknownProject = errors.New("unknown project")
 )
 
 type SlotView struct {
@@ -33,6 +34,8 @@ type Store struct {
 	slots map[slotKey]SlotView
 	revs  map[slotKey]int64
 	subs  map[*Subscription]struct{}
+
+	dropped map[string]struct{}
 }
 
 type Subscription struct {
@@ -48,6 +51,8 @@ func NewStore() *Store {
 		slots: map[slotKey]SlotView{},
 		revs:  map[slotKey]int64{},
 		subs:  map[*Subscription]struct{}{},
+
+		dropped: map[string]struct{}{},
 	}
 }
 
@@ -59,6 +64,9 @@ func (s *Store) Render(ctx context.Context, projectID, slot, owner string, n sdu
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return 0, err
+	}
+	if _, gone := s.dropped[projectID]; gone {
+		return 0, ErrUnknownProject
 	}
 	key := slotKey{projectID, slot}
 	s.revs[key]++
@@ -79,6 +87,9 @@ func (s *Store) ClearOwner(owner string) {
 }
 
 func (s *Store) DropProject(projectID string) {
+	s.mu.Lock()
+	s.dropped[projectID] = struct{}{}
+	s.mu.Unlock()
 	s.clear(func(key slotKey, _ SlotView) bool { return key.project == projectID })
 }
 

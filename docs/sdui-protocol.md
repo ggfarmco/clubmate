@@ -102,6 +102,8 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, plugin, hidden}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
+| ui.focus | `{projectId, section, slot}` | `{delivered}` |
+| client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 
@@ -111,7 +113,13 @@ A command with `"hidden": true` in its manifest entry is still listed and runnab
 
 `process.kill` with `orphansOnly` kills only orphaned processes and needs `sessionId` or `projectId` (otherwise invalid params). With `projectId`, only that project's orphans are killed; with `sessionId`, only that session's. Without `orphansOnly`, `pids` must be tracked processes. Each target is signalled only if its start time still matches the tracked one, so a reused pid is skipped.
 
-`project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connected non-plugin client except the caller and returns how many were notified. `clubmate project open <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
+`project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connection that registered `"project.open"` via `client.register`, except the caller, and returns how many were notified (`clients`). `clubmate project open <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
+
+`client.register` marks the calling connection for the listed handles; the only handle is `"project.open"` and anything else is invalid params. Registration lasts for the connection.
+
+`ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`; `Host.Register` wraps `client.register`.
+
+`ui.render` is invalid params for a project that has been deleted.
 
 `command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
 
@@ -122,6 +130,7 @@ A command with `"hidden": true` in its manifest entry is still listed and runnab
 ## Notifications
 
 - `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the project are replayed first.
+- `ui.focus` `{subscription, section, slot}`: the client should show `section`, and `slot` when non-empty, for that subscription's project.
 - `ui.closed` `{subscription, error}`: the subscription ended with an error (for example it fell behind); resubscribe and replace local state.
 
 ## File watching
@@ -141,7 +150,7 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 
 ## Core notifications
 
-- `project.open` `{id}`: sent to every connected client (not to plugins, not to the caller of `project.open`); the client shows that project.
+- `project.open` `{id}`: sent to every connection that registered `"project.open"` (not to plugins, not to the caller of `project.open`); the client shows that project.
 - `core.stopping` (no params): sent to every connected client (not to plugins) after `core.shutdown` has replied and right before the core stops. A client that sees the connection end after `core.stopping` treats the stop as intentional and does not restart the core; a connection that ends without it is an unexpected loss.
 
 ## Presence

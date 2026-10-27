@@ -1,9 +1,7 @@
 package rpc_test
 
 import (
-	"context"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
@@ -11,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/plugin"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
@@ -148,40 +145,4 @@ func TestAppScopeSlots(t *testing.T) {
 	events, err := h.Bus.Read(t.Context(), "ui.*", 0, 0)
 	require.NoError(t, err)
 	assert.Empty(t, events)
-}
-
-func TestProjectOpenNotifiesClients(t *testing.T) {
-	srv, _ := testutil.NewRPCServer(t)
-	dirs := testutil.ShortDirs(t)
-	l, err := net.Listen("unix", dirs.CoreSocket())
-	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- srv.Serve(ctx, l) }()
-	listener, err := rpc.Dial(t.Context(), dirs.CoreSocket())
-	require.NoError(t, err)
-	caller, err := rpc.Dial(t.Context(), dirs.CoreSocket())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		listener.Close()
-		caller.Close()
-		cancel()
-		<-done
-	})
-	var p project.Project
-	require.NoError(t, caller.Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &p))
-	var res struct {
-		Clients int `json:"clients"`
-	}
-	require.NoError(t, caller.Call(t.Context(), "project.open", map[string]string{"id": p.ID}, &res))
-	assert.Equal(t, 1, res.Clients)
-	select {
-	case n := <-listener.Notifications():
-		assert.Equal(t, "project.open", n.Method)
-		assert.JSONEq(t, fmt.Sprintf(`{"id":%q}`, p.ID), string(n.Params))
-	case <-time.After(2 * time.Second):
-		t.Fatal("no project.open notification")
-	}
-	err = caller.Call(t.Context(), "project.open", map[string]string{"id": "prj_0123456789abcdef"}, &res)
-	assert.ErrorIs(t, err, rpc.ErrNotFound)
 }

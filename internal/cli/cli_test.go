@@ -362,6 +362,7 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 	client, err := rpc.Dial(t.Context(), dirs.CoreSocket())
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Close() })
+	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"project.open"}}, nil))
 	open()
 	assert.Len(t, launched, 1)
 	select {

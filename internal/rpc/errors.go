@@ -116,7 +116,8 @@ func errorCode(err error) int64 {
 		errors.Is(err, kv.ErrInvalidValue),
 		errors.Is(err, kv.ErrValueTooLarge),
 		errors.Is(err, errEmptyConsumer),
-		errors.Is(err, sdui.ErrInvalidTree):
+		errors.Is(err, sdui.ErrInvalidTree),
+		errors.Is(err, sdui.ErrUnknownProject):
 		return codeInvalidParams
 	}
 	return codeInternal

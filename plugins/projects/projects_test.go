@@ -68,6 +68,7 @@ func TestCreateAndDeleteProject(t *testing.T) {
 		return len(items) == 1 && items[0].ID == id && items[0].Label == "alpha" && formID(n) != formID(initial)
 	})
 
+	require.NoError(t, h.Client(t).Call(t.Context(), "client.register", map[string][]string{"handles": {"project.open"}}, nil))
 	h.Event(t, "", "projects.main", "projects", "select", id)
 	assert.Zero(t, opens(h.Client(t)))
 	h.Event(t, "", "projects.main", "open", "open", nil)
