@@ -50,7 +50,7 @@ func Snapshot() ([]Process, error) {
 			PPID:      int(k.Eproc.Ppid),
 			PGID:      int(k.Eproc.Pgid),
 			Comm:      commString(k.Proc.P_comm[:]),
-			StartTime: time.Unix(int64(k.Proc.P_starttime.Sec), int64(k.Proc.P_starttime.Usec)*1000),
+			StartTime: startOf(k),
 			RSSKiB:    u.rssKiB,
 			CPU:       u.cpu,
 		})

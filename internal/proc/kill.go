@@ -27,7 +27,11 @@ func StartTime(pid int) (time.Time, error) {
 	if int(k.Proc.P_pid) != pid {
 		return time.Time{}, unix.ESRCH
 	}
-	return time.Unix(int64(k.Proc.P_starttime.Sec), int64(k.Proc.P_starttime.Usec)*1000), nil
+	return startOf(k), nil
+}
+
+func startOf(k *unix.KinfoProc) time.Time {
+	return time.Unix(int64(k.Proc.P_starttime.Sec), int64(k.Proc.P_starttime.Usec)*1000)
 }
 
 func KillTree(ctx context.Context, targets []Target, grace time.Duration) ([]int, error) {
