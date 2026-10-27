@@ -17,17 +17,30 @@ const (
 
 func Keep(path string) bool {
 	_, rest, found := strings.Cut(path, gitDir)
-	if !found {
-		return true
-	}
+	return !found || keepGit(rest)
+}
+
+func keepGit(rest string) bool {
 	if rest == "HEAD" || rest == "index" || strings.HasPrefix(rest, "refs/heads/") {
 		return true
 	}
-	name, file, ok := strings.Cut(strings.TrimPrefix(rest, "worktrees/"), "/")
-	return strings.HasPrefix(rest, "worktrees/") && ok && name != "" && (file == "HEAD" || file == "index")
+	linked, ok := strings.CutPrefix(rest, "worktrees/")
+	name, file, hasFile := strings.Cut(linked, "/")
+	return ok && hasFile && name != "" && (file == "HEAD" || file == "index")
 }
 
-func Watch(roots []string, fn func(paths []string, overflow bool)) (func(), error) {
+func keeper(gitRoots []string) func(string) bool {
+	return func(path string) bool {
+		for _, root := range gitRoots {
+			if rest, ok := strings.CutPrefix(path, root+"/"); ok {
+				return keepGit(rest)
+			}
+		}
+		return Keep(path)
+	}
+}
+
+func Watch(roots, gitRoots []string, fn func(paths []string, overflow bool)) (func(), error) {
 	es := &fsevents.EventStream{
 		Paths:   roots,
 		Latency: latency,
@@ -41,7 +54,8 @@ func Watch(roots []string, fn func(paths []string, overflow bool)) (func(), erro
 	finished := make(chan struct{})
 	go func() {
 		defer close(finished)
-		pending := newPending()
+		keep := keeper(gitRoots)
+		pending := newPending(keep)
 		var flush <-chan time.Time
 		for {
 			select {
@@ -76,13 +90,14 @@ func Watch(roots []string, fn func(paths []string, overflow bool)) (func(), erro
 }
 
 type pending struct {
+	keep     func(string) bool
 	seen     map[string]struct{}
 	paths    []string
 	overflow bool
 }
 
-func newPending() *pending {
-	return &pending{seen: map[string]struct{}{}}
+func newPending(keep func(string) bool) *pending {
+	return &pending{keep: keep, seen: map[string]struct{}{}}
 }
 
 func (p *pending) empty() bool {
@@ -98,7 +113,7 @@ func (p *pending) add(batch []fsevents.Event) {
 			p.setOverflow()
 			return
 		}
-		if _, ok := p.seen[ev.Path]; ok || !Keep(ev.Path) {
+		if _, ok := p.seen[ev.Path]; ok || !p.keep(ev.Path) {
 			continue
 		}
 		p.seen[ev.Path] = struct{}{}
@@ -121,5 +136,5 @@ func (p *pending) emit(fn func(paths []string, overflow bool)) {
 	} else if len(p.paths) > 0 {
 		fn(p.paths, false)
 	}
-	*p = *newPending()
+	*p = *newPending(p.keep)
 }

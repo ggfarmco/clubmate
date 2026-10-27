@@ -68,7 +68,10 @@ func Run(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("start session: %w", err)
 	}
 	defer ptmx.Close()
-	hostStart, _ := proc.StartTime(os.Getpid())
+	hostStart, err := proc.StartTime(os.Getpid())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "clubmate-session: host start time unavailable:", err)
+	}
 	meta := Meta{
 		ID:        cfg.ID,
 		ProjectID: cfg.ProjectID,

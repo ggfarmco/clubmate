@@ -125,3 +125,37 @@ func TestFSWatchWorktree(t *testing.T) {
 		return slices.ContainsFunc(ev.Paths, func(p string) bool { return strings.HasPrefix(p, filepath.Join(realMain, ".git")+"/") })
 	})
 }
+
+func TestFSWatchBareWorktreeFiltersGitInternals(t *testing.T) {
+	git := func(dir string, args ...string) {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	seed := t.TempDir()
+	git(seed, "init", "-q", "-b", "main")
+	git(seed, "commit", "-q", "--allow-empty", "-m", "init")
+	bare := filepath.Join(t.TempDir(), "repo.git")
+	git(seed, "clone", "-q", "--bare", seed, bare)
+	wt := filepath.Join(t.TempDir(), "wt")
+	git(bare, "worktree", "add", "-q", wt)
+
+	h := testutil.NewHarness(t)
+	h.Start(t)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{wt})
+	require.NoError(t, err)
+	c := h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"projectId": p.ID}, nil))
+
+	realBare, err := filepath.EvalSymlinks(bare)
+	require.NoError(t, err)
+	git(wt, "commit", "-q", "--allow-empty", "-m", "x")
+	var paths []string
+	awaitFS(t, c, func(ev fsChanged) bool {
+		paths = append(paths, ev.Paths...)
+		return slices.ContainsFunc(paths, func(p string) bool {
+			return strings.HasPrefix(p, realBare+"/refs/heads/") || strings.HasPrefix(p, realBare+"/worktrees/")
+		})
+	})
+	assert.False(t, slices.ContainsFunc(paths, func(p string) bool { return strings.HasPrefix(p, realBare+"/objects/") }), paths)
+}

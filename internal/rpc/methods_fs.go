@@ -52,6 +52,7 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 		return watchParams{}, err
 	}
 	roots := make([]string, 0, len(proj.Repos))
+	var gitRoots []string
 	for _, repo := range proj.Repos {
 		root, err := filepath.EvalSymlinks(repo)
 		if err != nil {
@@ -59,14 +60,16 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 			continue
 		}
 		roots = append(roots, root)
-		roots = append(roots, worktreeRoots(root)...)
+		linked := worktreeRoots(root)
+		roots = append(roots, linked...)
+		gitRoots = append(gitRoots, linked...)
 	}
 	roots = slices.Compact(slices.Sorted(slices.Values(roots)))
 	changes := make(chan fsChange)
 	quit := make(chan struct{})
 	stop := func() {}
 	if len(roots) > 0 {
-		stop, err = fswatch.Watch(roots, func(paths []string, overflow bool) {
+		stop, err = fswatch.Watch(roots, gitRoots, func(paths []string, overflow bool) {
 			select {
 			case changes <- fsChange{paths: paths, overflow: overflow}:
 			case <-quit:
@@ -100,19 +103,19 @@ func worktreeRoots(repo string) []string {
 	if err != nil {
 		return nil
 	}
-	roots := []string{gitdir}
 	common, err := os.ReadFile(filepath.Join(gitdir, "commondir"))
 	if err != nil {
-		return roots
+		return []string{gitdir}
 	}
 	commonDir := strings.TrimSpace(string(common))
 	if !filepath.IsAbs(commonDir) {
 		commonDir = filepath.Join(gitdir, commonDir)
 	}
-	if resolved, err := filepath.EvalSymlinks(commonDir); err == nil {
-		roots = append(roots, resolved)
+	resolved, err := filepath.EvalSymlinks(commonDir)
+	if err != nil {
+		return []string{gitdir}
 	}
-	return roots
+	return []string{resolved}
 }
 
 func (s *Server) fsUnwatch(ctx context.Context, p watchParams) (empty, error) {
