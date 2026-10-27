@@ -14,30 +14,51 @@ const killPollInterval = 50 * time.Millisecond
 
 var ErrUnsafePID = errors.New("refusing to signal pid")
 
-func KillTree(ctx context.Context, pids []int, grace time.Duration) error {
+type Target struct {
+	PID   int
+	Start time.Time
+}
+
+func StartTime(pid int) (time.Time, error) {
+	k, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if int(k.Proc.P_pid) != pid {
+		return time.Time{}, unix.ESRCH
+	}
+	return startOf(k), nil
+}
+
+func startOf(k *unix.KinfoProc) time.Time {
+	return time.Unix(int64(k.Proc.P_starttime.Sec), int64(k.Proc.P_starttime.Usec)*1000)
+}
+
+func KillTree(ctx context.Context, targets []Target, grace time.Duration) ([]int, error) {
 	self := os.Getpid()
-	for _, pid := range pids {
-		if pid <= 1 || pid == self {
-			return fmt.Errorf("%w %d", ErrUnsafePID, pid)
+	for _, t := range targets {
+		if t.PID <= 1 || t.PID == self {
+			return nil, fmt.Errorf("%w %d", ErrUnsafePID, t.PID)
 		}
 	}
 
-	errs := signalAll(pids, unix.SIGTERM)
-	survivors := awaitExit(ctx, pids, grace)
-	errs = append(errs, signalAll(survivors, unix.SIGKILL)...)
+	signalled, errs := signalAll(targets, unix.SIGTERM)
+	survivors := awaitExit(ctx, targets, grace)
+	_, killErrs := signalAll(survivors, unix.SIGKILL)
+	errs = append(errs, killErrs...)
 	if err := ctx.Err(); err != nil {
 		errs = append(errs, err)
 	}
-	return errors.Join(errs...)
+	return signalled, errors.Join(errs...)
 }
 
-func awaitExit(ctx context.Context, pids []int, grace time.Duration) []int {
+func awaitExit(ctx context.Context, targets []Target, grace time.Duration) []Target {
 	deadline := time.NewTimer(grace)
 	defer deadline.Stop()
 	tick := time.NewTicker(killPollInterval)
 	defer tick.Stop()
 	for {
-		survivors := alive(pids)
+		survivors := alive(targets)
 		if len(survivors) == 0 {
 			return nil
 		}
@@ -51,22 +72,35 @@ func awaitExit(ctx context.Context, pids []int, grace time.Duration) []int {
 	}
 }
 
-func signalAll(pids []int, sig unix.Signal) []error {
+func signalAll(targets []Target, sig unix.Signal) ([]int, []error) {
+	var sent []int
 	var errs []error
-	for _, pid := range pids {
-		if err := unix.Kill(pid, sig); err != nil && !errors.Is(err, unix.ESRCH) {
-			errs = append(errs, fmt.Errorf("signal %d with %s: %w", pid, sig, err))
+	for _, t := range targets {
+		if !matches(t) {
+			continue
+		}
+		err := unix.Kill(t.PID, sig)
+		switch {
+		case err == nil:
+			sent = append(sent, t.PID)
+		case !errors.Is(err, unix.ESRCH):
+			errs = append(errs, fmt.Errorf("signal %d with %s: %w", t.PID, sig, err))
 		}
 	}
-	return errs
+	return sent, errs
 }
 
-func alive(pids []int) []int {
-	var out []int
-	for _, pid := range pids {
-		if unix.Kill(pid, 0) == nil {
-			out = append(out, pid)
+func alive(targets []Target) []Target {
+	var out []Target
+	for _, t := range targets {
+		if matches(t) {
+			out = append(out, t)
 		}
 	}
 	return out
+}
+
+func matches(t Target) bool {
+	start, err := StartTime(t.PID)
+	return err == nil && start.Equal(t.Start)
 }

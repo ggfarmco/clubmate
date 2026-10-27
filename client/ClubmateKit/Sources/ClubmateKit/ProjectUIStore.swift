@@ -8,6 +8,7 @@ public final class ProjectUIStore {
     public private(set) var sections: [SectionInfo] = []
     public private(set) var slots: [String: SlotView] = [:]
     public private(set) var connected = false
+    public private(set) var failure: String?
     public var selectedSection: String? {
         didSet {
             guard !restoring, selectedSection != oldValue, let selectedSection else { return }
@@ -51,21 +52,25 @@ public final class ProjectUIStore {
         do {
             let sections = try await client.uiSections()
             guard generation == self.generation else { return }
-            self.sections = sections
+            self.sections = sections.filter { $0.scope == scope }
             let views = try await client.uiGet(projectID: projectID)
             guard generation == self.generation else { return }
             replace(with: views)
-            let state = try await client.uiStateGet(projectID: projectID)
+            let state = isAppScope ? nil : try await client.uiStateGet(projectID: projectID)
             guard generation == self.generation else { return }
             restore(from: state)
             let subscription = try await client.uiSubscribe(projectID: projectID)
             guard generation == self.generation else { return await discard(subscription) }
             self.subscription = subscription
         } catch {
-            if generation == self.generation { halt() }
+            if generation == self.generation {
+                halt()
+                if (error as? ClubmateError)?.isTransient != true { failure = describe(error) }
+            }
             throw error
         }
         connected = true
+        failure = nil
         openGate()
     }
 
@@ -73,6 +78,14 @@ public final class ProjectUIStore {
         await stop()
         self.client = client
         try await start()
+    }
+
+    func attach(_ client: CoreClient) async {
+        do {
+            try await reconnect(using: client)
+        } catch {
+            await heal(generation)
+        }
     }
 
     public func stop() async {
@@ -156,6 +169,27 @@ public final class ProjectUIStore {
         guard generation == self.generation else { return }
         subscription = nil
         connected = false
+        Task { [weak self] in await self?.heal(generation) }
+    }
+
+    private func heal(_ generation: Int) async {
+        let client = self.client
+        guard generation == self.generation, client.isAlive else { return }
+        await stop()
+        guard generation + 1 == self.generation, client === self.client else { return }
+        do {
+            try await start()
+        } catch {
+            failure = describe(error)
+        }
+    }
+
+    private var isAppScope: Bool { projectID.isEmpty }
+
+    private var scope: String { isAppScope ? "app" : "project" }
+
+    private func describe(_ error: any Error) -> String {
+        (error as? ClubmateError)?.message ?? "\(error)"
     }
 
     private func replace(with views: [SlotView]) {
@@ -179,6 +213,7 @@ public final class ProjectUIStore {
     }
 
     private func updateState(_ key: String, _ value: JSONValue) {
+        guard !isAppScope else { return }
         let previous = saving
         saving = Task {
             await previous?.value

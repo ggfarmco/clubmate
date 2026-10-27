@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -14,18 +15,26 @@ import (
 
 func TestTerminalsLifecycle(t *testing.T) {
 	h := newHarness(t)
-	p := h.CreateProject(t, "demo")
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo, t.TempDir()})
+	require.NoError(t, err)
 	sidebar := h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
 	assert.Equal(t, "stack", sidebar.Type)
-	h.Event(t, p.ID, "terminals.sidebar", "new", "new", nil)
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
 	main := h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
 	sid := main.Props["sessionId"].(string)
 	s := h.GetSession(t, sid)
 	assert.Equal(t, "terminals", s.Owner)
 	assert.Equal(t, "Terminal 1", s.Title)
+	assert.Equal(t, repo, s.Cwd)
 	h.Event(t, p.ID, "terminals.main", "close", "close", nil)
 	h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "empty" })
 	h.WaitSessionGone(t, sid)
+	other := p.Repos[1]
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID, "args": map[string]string{"cwd": other}}, nil))
+	main = h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
+	assert.Equal(t, other, h.GetSession(t, main.Props["sessionId"].(string)).Cwd)
 }
 
 func TestExitedTerminalCanBeRestarted(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -36,6 +37,11 @@ type Manifest struct {
 type Contributes struct {
 	Sections []Section    `json:"sections"`
 	Commands []CommandDef `json:"commands"`
+	Views    []View       `json:"views"`
+}
+
+type View struct {
+	Slot string `json:"slot"`
 }
 
 type Section struct {
@@ -43,11 +49,13 @@ type Section struct {
 	Title string `json:"title"`
 	Icon  string `json:"icon"`
 	Order int    `json:"order"`
+	Scope string `json:"scope"`
 }
 
 type CommandDef struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Hidden bool   `json:"hidden"`
 }
 
 func Load(dir string) (Manifest, error) {
@@ -74,7 +82,34 @@ func SectionDefs(manifests []Manifest) []sdui.SectionDef {
 	var defs []sdui.SectionDef
 	for _, m := range manifests {
 		for _, s := range m.Contributes.Sections {
-			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Plugin: m.ID})
+			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Scope: s.Scope, Plugin: m.ID})
+		}
+	}
+	return defs
+}
+
+func ViewDefs(manifests []Manifest, logger *slog.Logger) []sdui.ViewDef {
+	sections := map[string]bool{}
+	for _, m := range manifests {
+		for _, s := range m.Contributes.Sections {
+			sections[s.ID] = true
+		}
+	}
+	claimed := map[string]string{}
+	var defs []sdui.ViewDef
+	for _, m := range manifests {
+		for _, v := range m.Contributes.Views {
+			section, _ := sdui.SlotSection(v.Slot)
+			if !sections[section] {
+				logger.Warn("view ignored: section not registered", "plugin", m.ID, "slot", v.Slot)
+				continue
+			}
+			if first, ok := claimed[v.Slot]; ok {
+				logger.Warn("view ignored: slot already claimed", "plugin", m.ID, "slot", v.Slot, "owner", first)
+				continue
+			}
+			claimed[v.Slot] = m.ID
+			defs = append(defs, sdui.ViewDef{Slot: v.Slot, Plugin: m.ID})
 		}
 	}
 	return defs
@@ -101,11 +136,24 @@ func (m Manifest) validate() error {
 	if err := m.validateIDs("section", sectionIDs); err != nil {
 		return err
 	}
+	for _, s := range m.Contributes.Sections {
+		if s.Scope != "" && s.Scope != sdui.ScopeProject && s.Scope != sdui.ScopeApp {
+			return invalid(m.Dir, "section %q has invalid scope %q", s.ID, s.Scope)
+		}
+	}
 	commandIDs := make([]string, 0, len(m.Contributes.Commands))
 	for _, c := range m.Contributes.Commands {
 		commandIDs = append(commandIDs, c.ID)
 	}
-	return m.validateIDs("command", commandIDs)
+	if err := m.validateIDs("command", commandIDs); err != nil {
+		return err
+	}
+	for _, v := range m.Contributes.Views {
+		if _, ok := sdui.SlotSection(v.Slot); !ok {
+			return invalid(m.Dir, "invalid view slot %q", v.Slot)
+		}
+	}
+	return nil
 }
 
 func (m Manifest) validateCommand() error {

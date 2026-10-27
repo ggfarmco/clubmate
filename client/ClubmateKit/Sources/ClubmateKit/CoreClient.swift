@@ -7,6 +7,8 @@ public final class CoreClient {
     private var pumpFinished = false
     public private(set) var stoppedIntentionally = false
 
+    var isAlive: Bool { !pumpFinished }
+
     public init(connection: RPCConnection) {
         self.connection = connection
         Task { [weak self, notifications = connection.notifications] in
@@ -36,6 +38,19 @@ public final class CoreClient {
         continuation.onTermination = { [weak self] _ in
             Task { @MainActor in self?.subscribers.removeValue(forKey: id) }
         }
+        return stream
+    }
+
+    public func projectOpenRequests() -> AsyncStream<String> {
+        let notifications = subscribeNotifications()
+        let (stream, continuation) = AsyncStream.makeStream(of: String.self)
+        let pump = Task {
+            for await notification in notifications where notification.method == "project.open" {
+                if let id = notification.params.objectValue?["id"]?.stringValue { continuation.yield(id) }
+            }
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in pump.cancel() }
         return stream
     }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -33,6 +34,7 @@ type Command struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Plugin string `json:"plugin"`
+	Hidden bool   `json:"hidden"`
 }
 
 type uiState struct {
@@ -84,6 +86,7 @@ func (s *Server) uiMethods() map[string]handlerFunc {
 		"ui.get":         method(s.uiGet),
 		"ui.subscribe":   method(s.uiSubscribe),
 		"ui.unsubscribe": method(s.uiUnsubscribe),
+		"ui.presence":    method(s.uiPresence),
 		"ui.render":      method(s.uiRender),
 		"ui.event":       method(s.uiEvent),
 		"command.list":   method(s.commandList),
@@ -104,7 +107,7 @@ func (s *Server) uiGet(_ context.Context, p projectParams) ([]sdui.SlotView, err
 	if err != nil {
 		return nil, err
 	}
-	if err := requireID(projectPrefix, p.ProjectID); err != nil {
+	if err := optionalID(projectPrefix, p.ProjectID); err != nil {
 		return nil, err
 	}
 	return nonNil(u.store.Get(p.ProjectID)), nil
@@ -115,15 +118,26 @@ func (s *Server) uiSubscribe(ctx context.Context, p projectParams) (subscription
 	if err != nil {
 		return subscriptionParams{}, err
 	}
-	if err := requireID(projectPrefix, p.ProjectID); err != nil {
+	if err := optionalID(projectPrefix, p.ProjectID); err != nil {
 		return subscriptionParams{}, err
 	}
 	sub, err := u.store.Subscribe(p.ProjectID)
 	if err != nil {
 		return subscriptionParams{}, err
 	}
-	sid, err := subscriptionsFrom(ctx).add(kindUI, sub.Close, forwardUI(ctx, connFrom(ctx), sub))
+	leave := func() {}
+	if p.ProjectID != "" {
+		leave = s.presence.join(s.bus, s.logger, p.ProjectID)
+	}
+	sid, err := subscriptionsFrom(ctx).add(kindUI, sync.OnceFunc(func() {
+		sub.Close()
+		leave()
+	}), forwardUI(ctx, connFrom(ctx), sub))
 	return subscriptionParams{Subscription: sid}, err
+}
+
+func (s *Server) uiPresence(context.Context, empty) ([]string, error) {
+	return nonNil(s.presence.projects()), nil
 }
 
 func (s *Server) uiUnsubscribe(ctx context.Context, p subscriptionParams) (empty, error) {
@@ -139,14 +153,13 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if err != nil {
 		return revResult{}, err
 	}
-	section, ok := sdui.SlotSection(p.Slot)
-	if !ok {
+	if _, ok := sdui.SlotSection(p.Slot); !ok {
 		return revResult{}, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
-	if owner, _ := u.sections.Owner(section); owner != caller.PluginID {
+	if owner, _ := u.sections.SlotOwner(p.Slot); owner != caller.PluginID {
 		return revResult{}, invalidParams(fmt.Sprintf("slot %q is not owned by plugin %q", p.Slot, caller.PluginID))
 	}
-	if err := s.requireProject(ctx, p.ProjectID); err != nil {
+	if err := s.requireSlotScope(ctx, u, p.Slot, p.ProjectID); err != nil {
 		return revResult{}, err
 	}
 	rev, err := u.store.Render(ctx, p.ProjectID, p.Slot, caller.PluginID, p.Tree)
@@ -158,9 +171,6 @@ func (s *Server) uiEvent(ctx context.Context, p uiEventParams) (json.RawMessage,
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireProject(ctx, p.ProjectID); err != nil {
-		return nil, err
-	}
 	if p.Action == "" {
 		return nil, invalidParams("action is required")
 	}
@@ -168,9 +178,12 @@ func (s *Server) uiEvent(ctx context.Context, p uiEventParams) (json.RawMessage,
 	if !ok {
 		return nil, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
-	owner, ok := u.sections.Owner(section)
+	owner, ok := u.sections.SlotOwner(p.Slot)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errUnknownSection, section)
+	}
+	if err := s.requireSlotScope(ctx, u, p.Slot, p.ProjectID); err != nil {
+		return nil, err
 	}
 	raw, err := json.Marshal(p)
 	if err != nil {
@@ -214,6 +227,17 @@ func (s *Server) uiState() (*uiState, error) {
 		return nil, errNoUI
 	}
 	return u, nil
+}
+
+func (s *Server) requireSlotScope(ctx context.Context, u *uiState, slot, projectID string) error {
+	scope, _ := u.sections.SlotScope(slot)
+	if scope != sdui.ScopeApp {
+		return s.requireProject(ctx, projectID)
+	}
+	if projectID != "" {
+		return invalidParams(fmt.Sprintf("slot %q is app-scope and takes an empty projectId", slot))
+	}
+	return nil
 }
 
 func (s *Server) requireProject(ctx context.Context, projectID string) error {

@@ -36,7 +36,7 @@ func (r *Router) Commands() []rpc.Command {
 	var out []rpc.Command
 	for _, st := range r.sup.Statuses() {
 		for _, c := range st.Manifest.Contributes.Commands {
-			out = append(out, rpc.Command{ID: c.ID, Title: c.Title, Plugin: st.ID})
+			out = append(out, rpc.Command{ID: c.ID, Title: c.Title, Plugin: st.ID, Hidden: c.Hidden})
 		}
 	}
 	return out

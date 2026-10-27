@@ -34,12 +34,20 @@ type CommandRun struct {
 	Args      json.RawMessage `json:"args"`
 }
 
+type FSChange struct {
+	Watch     string   `json:"watch"`
+	ProjectID string   `json:"projectId"`
+	Paths     []string `json:"paths"`
+	Overflow  bool     `json:"overflow"`
+}
+
 type Plugin struct {
 	Init      func(ctx context.Context, h *Host) error
 	UIEvent   func(ctx context.Context, h *Host, ev UIEvent) (any, error)
 	Command   func(ctx context.Context, h *Host, cmd CommandRun) (any, error)
 	BusEvent  func(ctx context.Context, h *Host, sub string, ev Event)
 	BusClosed func(ctx context.Context, h *Host, sub string, err error)
+	FSChanged func(ctx context.Context, h *Host, ev FSChange)
 	Shutdown  func(ctx context.Context, h *Host)
 }
 
@@ -58,6 +66,10 @@ func Run(p Plugin) error {
 		fmt.Fprintln(os.Stderr, "plugin:", err)
 	}
 	return err
+}
+
+func RuntimeDir() string {
+	return os.Getenv("CLUBMATE_PLUGIN_RUNTIME_DIR")
 }
 
 func Main(p Plugin) {
@@ -167,6 +179,8 @@ func (rt *runtime) notify(ctx context.Context, h *Host, req *jsonrpc2.Request) {
 		rt.busEvent(ctx, h, req)
 	case "bus.closed":
 		rt.busClosed(ctx, h, req)
+	case "fs.changed":
+		rt.fsChanged(ctx, h, req)
 	}
 }
 
@@ -254,6 +268,18 @@ func (rt *runtime) busClosed(ctx context.Context, h *Host, req *jsonrpc2.Request
 		return
 	}
 	rt.plugin.BusClosed(ctx, h, p.Subscription, cause)
+}
+
+func (rt *runtime) fsChanged(ctx context.Context, h *Host, req *jsonrpc2.Request) {
+	if rt.plugin.FSChanged == nil {
+		return
+	}
+	var ev FSChange
+	if err := decode(req, &ev); err != nil {
+		fmt.Fprintln(os.Stderr, "plugin: bad fs.changed:", err)
+		return
+	}
+	rt.plugin.FSChanged(ctx, h, ev)
 }
 
 func (rt *runtime) currentID() string {

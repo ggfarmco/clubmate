@@ -1,0 +1,13 @@
+{
+  "id": "processes",
+  "name": "Processes",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["processes"],
+  "contributes": {
+    "sections": [{"id": "processes", "title": "Processes", "icon": "cpu", "order": 30}],
+    "commands": [
+      {"id": "processes.kill-orphans", "title": "Kill Orphan Processes"}
+    ]
+  }
+}

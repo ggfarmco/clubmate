@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net"
 	"slices"
@@ -40,6 +41,8 @@ type Server struct {
 	methods    map[string]handlerFunc
 	pluginList atomic.Pointer[func() any]
 	ui         atomic.Pointer[uiState]
+	presence   presence
+	logger     *slog.Logger
 	shutdown   atomic.Pointer[func()]
 	clientsMu  sync.Mutex
 	clients    map[*jsonrpc2.Conn]struct{}
@@ -51,8 +54,12 @@ func WithKV(store *kv.Store) ServerOption {
 	return func(s *Server) { s.kv = store }
 }
 
+func WithLogger(l *slog.Logger) ServerOption {
+	return func(s *Server) { s.logger = l }
+}
+
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]struct{}{}}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]struct{}{}, logger: slog.New(slog.DiscardHandler)}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -62,6 +69,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.uiStateMethods())
 	maps.Copy(s.methods, s.pluginMethods())
 	maps.Copy(s.methods, s.uiMethods())
+	maps.Copy(s.methods, s.fsMethods())
 	return s
 }
 
@@ -138,13 +146,21 @@ func (s *Server) untrackClient(conn *jsonrpc2.Conn) {
 	delete(s.clients, conn)
 }
 
-func (s *Server) notifyClients(method string) {
+func (s *Server) notifyClients(method string, params any, except *jsonrpc2.Conn) int {
 	s.clientsMu.Lock()
 	conns := slices.Collect(maps.Keys(s.clients))
 	s.clientsMu.Unlock()
 	var wg sync.WaitGroup
+	var sent atomic.Int32
 	for _, conn := range conns {
-		wg.Go(func() { _ = conn.Notify(context.Background(), method, nil) })
+		if conn == except {
+			continue
+		}
+		wg.Go(func() {
+			if conn.Notify(context.Background(), method, params) == nil {
+				sent.Add(1)
+			}
+		})
 	}
 	done := make(chan struct{})
 	go func() {
@@ -155,6 +171,7 @@ func (s *Server) notifyClients(method string) {
 	case <-done:
 	case <-time.After(notifyClientsTimeout):
 	}
+	return int(sent.Load())
 }
 
 func (s *Server) handler() jsonrpc2.Handler {

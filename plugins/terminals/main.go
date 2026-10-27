@@ -37,6 +37,10 @@ type closeArgs struct {
 	SessionID string `json:"sessionId"`
 }
 
+type newArgs struct {
+	Cwd string `json:"cwd"`
+}
+
 type app struct {
 	mu    sync.Mutex
 	known map[string]string
@@ -84,7 +88,13 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	defer a.mu.Unlock()
 	switch cmd.ID {
 	case "terminals.new":
-		if err := a.create(ctx, h, cmd.ProjectID); err != nil {
+		var args newArgs
+		if len(cmd.Args) > 0 {
+			if err := json.Unmarshal(cmd.Args, &args); err != nil {
+				return nil, fmt.Errorf("terminals.new args: %w", err)
+			}
+		}
+		if err := a.create(ctx, h, cmd.ProjectID, args.Cwd); err != nil {
 			return nil, err
 		}
 	case "terminals.close":
@@ -143,7 +153,7 @@ func (a *app) eventProject(ev pluginsdk.Event) (string, error) {
 func (a *app) act(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
 	switch ev.Action {
 	case "new":
-		return a.create(ctx, h, ev.ProjectID)
+		return a.create(ctx, h, ev.ProjectID, "")
 	case "select":
 		var id string
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
@@ -162,12 +172,12 @@ func (a *app) act(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) 
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
-func (a *app) create(ctx context.Context, h *pluginsdk.Host, projectID string) error {
+func (a *app) create(ctx context.Context, h *pluginsdk.Host, projectID, cwd string) error {
 	sessions, err := h.ListSessions(ctx, projectID, true)
 	if err != nil {
 		return err
 	}
-	return a.spawn(ctx, h, projectID, titlePrefix+strconv.Itoa(maxNumber(sessions)+1))
+	return a.spawn(ctx, h, projectID, titlePrefix+strconv.Itoa(maxNumber(sessions)+1), cwd)
 }
 
 func (a *app) restart(ctx context.Context, h *pluginsdk.Host, projectID string) error {
@@ -183,7 +193,7 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, projectID string) 
 	if idx < 0 || sessions[idx].State == "running" {
 		return nil
 	}
-	if err := a.spawn(ctx, h, projectID, sessions[idx].Title); err != nil {
+	if err := a.spawn(ctx, h, projectID, sessions[idx].Title, sessions[idx].Cwd); err != nil {
 		return err
 	}
 	return a.removeSession(ctx, h, sessions[idx])
@@ -222,8 +232,8 @@ func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.
 	return h.RemoveSession(ctx, s.ID)
 }
 
-func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, projectID, title string) error {
-	s, err := h.CreateSession(ctx, projectID, title, []string{shell(), "-l"})
+func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, projectID, title, cwd string) error {
+	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{ProjectID: projectID, Title: title, Command: []string{shell(), "-l"}, Cwd: cwd})
 	if err != nil {
 		return err
 	}

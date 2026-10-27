@@ -32,6 +32,28 @@ type Session struct {
 	ExitCode  *int      `json:"exitCode"`
 }
 
+type ProcessInfo struct {
+	PID    int     `json:"pid"`
+	PPID   int     `json:"ppid"`
+	Comm   string  `json:"comm"`
+	RSSKiB int64   `json:"rssKiB"`
+	CPU    float64 `json:"cpu"`
+}
+
+type ProcessNode struct {
+	Process   ProcessInfo `json:"process"`
+	SessionID string      `json:"sessionId"`
+	Orphan    bool        `json:"orphan"`
+	Duplicate bool        `json:"duplicate"`
+}
+
+type KillRequest struct {
+	PIDs        []int  `json:"pids"`
+	SessionID   string `json:"sessionId"`
+	ProjectID   string `json:"projectId"`
+	OrphansOnly bool   `json:"orphansOnly"`
+}
+
 type Event struct {
 	Seq     int64           `json:"seq"`
 	Topic   string          `json:"topic"`
@@ -65,10 +87,34 @@ func (h *Host) GetProject(ctx context.Context, id string) (Project, error) {
 	return out, err
 }
 
-func (h *Host) CreateSession(ctx context.Context, projectID, title string, command []string) (Session, error) {
-	var out Session
-	err := h.Call(ctx, "session.create", createSessionParams{ProjectID: projectID, Title: title, Command: command}, &out)
+func (h *Host) CreateProject(ctx context.Context, name string, repos []string) (Project, error) {
+	var out Project
+	err := h.Call(ctx, "project.create", createProjectParams{Name: name, Repos: repos}, &out)
 	return out, err
+}
+
+func (h *Host) DeleteProject(ctx context.Context, id string) error {
+	return h.Call(ctx, "project.delete", idParams{ID: id}, nil)
+}
+
+func (h *Host) OpenProject(ctx context.Context, id string) error {
+	return h.Call(ctx, "project.open", idParams{ID: id}, nil)
+}
+
+func (h *Host) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
+	var out Session
+	err := h.Call(ctx, "session.create", req, &out)
+	return out, err
+}
+
+func (h *Host) Presence(ctx context.Context) ([]string, error) {
+	var out []string
+	err := h.Call(ctx, "ui.presence", struct{}{}, &out)
+	return out, err
+}
+
+func (h *Host) RunCommand(ctx context.Context, id, projectID string, args any, out any) error {
+	return h.Call(ctx, "command.run", runCommandParams{ID: id, ProjectID: projectID, Args: args}, out)
 }
 
 func (h *Host) ListSessions(ctx context.Context, projectID string, mine bool) ([]Session, error) {
@@ -89,6 +135,18 @@ func (h *Host) RemoveSession(ctx context.Context, id string) error {
 	return h.Call(ctx, "session.remove", idParams{ID: id}, nil)
 }
 
+func (h *Host) ProcessTree(ctx context.Context, projectID, sessionID string) ([]ProcessNode, error) {
+	var out []ProcessNode
+	err := h.Call(ctx, "process.tree", processTreeParams{ProjectID: projectID, SessionID: sessionID}, &out)
+	return out, err
+}
+
+func (h *Host) KillProcesses(ctx context.Context, req KillRequest) ([]int, error) {
+	var out killResult
+	err := h.Call(ctx, "process.kill", req, &out)
+	return out.Killed, err
+}
+
 func (h *Host) Publish(ctx context.Context, topic string, payload any) (Event, error) {
 	var out Event
 	err := h.Call(ctx, "bus.publish", publishParams{Topic: topic, Payload: payload}, &out)
@@ -99,6 +157,16 @@ func (h *Host) Subscribe(ctx context.Context, pattern string, after int64) (stri
 	var out subscribeResult
 	err := h.Call(ctx, "bus.subscribe", subscribeParams{Pattern: pattern, After: after}, &out)
 	return out.Subscription, err
+}
+
+func (h *Host) WatchFS(ctx context.Context, projectID string) (string, error) {
+	var out watchResult
+	err := h.Call(ctx, "fs.watch", projectParams{ProjectID: projectID}, &out)
+	return out.Watch, err
+}
+
+func (h *Host) UnwatchFS(ctx context.Context, watch string) error {
+	return h.Call(ctx, "fs.unwatch", watchResult{Watch: watch}, nil)
 }
 
 func (h *Host) Render(ctx context.Context, projectID, slot string, n sdui.Node) (int64, error) {
@@ -132,14 +200,36 @@ func (h *Host) StorageList(ctx context.Context, prefix string) ([]string, error)
 	return res.Keys, err
 }
 
+type processTreeParams struct {
+	ProjectID string `json:"projectId"`
+	SessionID string `json:"sessionId"`
+}
+
+type killResult struct {
+	Killed []int `json:"killed"`
+}
+
+type createProjectParams struct {
+	Name  string   `json:"name"`
+	Repos []string `json:"repos"`
+}
+
 type idParams struct {
 	ID string `json:"id"`
 }
 
-type createSessionParams struct {
+type SessionRequest struct {
 	ProjectID string   `json:"projectId"`
 	Title     string   `json:"title"`
 	Command   []string `json:"command"`
+	Cwd       string   `json:"cwd"`
+	Env       []string `json:"env"`
+}
+
+type runCommandParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"projectId"`
+	Args      any    `json:"args"`
 }
 
 type listSessionsParams struct {
@@ -165,6 +255,14 @@ type renderParams struct {
 	ProjectID string    `json:"projectId"`
 	Slot      string    `json:"slot"`
 	Tree      sdui.Node `json:"tree"`
+}
+
+type projectParams struct {
+	ProjectID string `json:"projectId"`
+}
+
+type watchResult struct {
+	Watch string `json:"watch"`
 }
 
 type renderResult struct {

@@ -95,6 +95,20 @@ func TestSDKDeliversBusEventWithSubscription(t *testing.T) {
 	}
 }
 
+func TestSDKDeliversFSChanged(t *testing.T) {
+	got := make(chan pluginsdk.FSChange, 1)
+	conn := startPlugin(t, pluginsdk.Plugin{
+		FSChanged: func(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.FSChange) { got <- ev },
+	}, nil)
+	require.NoError(t, conn.Notify(t.Context(), "fs.changed", map[string]any{"watch": "sub_w", "projectId": "prj_x", "paths": []string{"/r/a"}, "overflow": true}))
+	select {
+	case ev := <-got:
+		assert.Equal(t, pluginsdk.FSChange{Watch: "sub_w", ProjectID: "prj_x", Paths: []string{"/r/a"}, Overflow: true}, ev)
+	case <-time.After(3 * time.Second):
+		t.Fatal("no fs change")
+	}
+}
+
 func TestSDKShutdownEndsRun(t *testing.T) {
 	shut := make(chan struct{}, 1)
 	done := make(chan error, 1)

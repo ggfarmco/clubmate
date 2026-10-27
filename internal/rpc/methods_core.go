@@ -21,6 +21,7 @@ const (
 	shutdownReplyGrace = 100 * time.Millisecond
 
 	notifyCoreStopping = "core.stopping"
+	notifyProjectOpen  = "project.open"
 )
 
 var ownerPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
@@ -47,6 +48,10 @@ type listSessionsParams struct {
 type pingResult struct {
 	Version string `json:"version"`
 	PID     int    `json:"pid"`
+}
+
+type openResult struct {
+	Clients int `json:"clients"`
 }
 
 type killResult struct {
@@ -89,8 +94,12 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := svc.DeleteProject(ctx, p.ID); err != nil {
 				return empty{}, err
 			}
+			if u, err := s.uiState(); err == nil {
+				u.store.DropProject(p.ID)
+			}
 			return empty{}, s.deleteUIState(ctx, p.ID)
 		}),
+		"project.open": method(s.projectOpen),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
 			if err := requireID(projectPrefix, p.ProjectID); err != nil {
 				return session.Session{}, err
@@ -140,6 +149,9 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := optionalID(session.IDPrefix, p.SessionID); err != nil {
 				return killResult{}, err
 			}
+			if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+				return killResult{}, err
+			}
 			killed, err := svc.KillProcesses(ctx, p)
 			return killResult{Killed: nonNil(killed)}, err
 		}),
@@ -171,9 +183,16 @@ func (s *Server) shutdownCore(ctx context.Context, _ empty) (empty, error) {
 	}
 	if fn := s.shutdown.Load(); fn != nil {
 		time.AfterFunc(shutdownReplyGrace, func() {
-			s.notifyClients(notifyCoreStopping)
+			s.notifyClients(notifyCoreStopping, nil, nil)
 			(*fn)()
 		})
 	}
 	return empty{}, nil
+}
+
+func (s *Server) projectOpen(ctx context.Context, p idParams) (openResult, error) {
+	if err := s.requireProject(ctx, p.ID); err != nil {
+		return openResult{}, err
+	}
+	return openResult{Clients: s.notifyClients(notifyProjectOpen, p, connFrom(ctx))}, nil
 }

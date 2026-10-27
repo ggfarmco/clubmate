@@ -15,7 +15,7 @@ struct SDUIDispatch: Sendable {
         let event = UIAction.event(for: node, trigger: trigger, slot: slot, projectID: projectID)
         Task { [sink, banner] in
             if case .failure(let error) = await sink(event) {
-                banner?.show(error.bannerText)
+                banner?.show(error.message)
             }
         }
     }
@@ -64,6 +64,7 @@ struct SDUINodeView: View {
         case "markdown": MarkdownNodeView(node: node)
         case "button": ButtonNodeView(node: node)
         case "textField": TextFieldNodeView(node: node)
+        case "folderField": FolderFieldNodeView(node: node)
         case "toggle": ToggleNodeView(node: node)
         case "select": SelectNodeView(node: node)
         case "form": FormNodeView(node: node)

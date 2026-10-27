@@ -14,14 +14,13 @@ struct ClubmateApp: App {
         Window("Projects", id: "projects") {
             Group {
                 if gallery {
-                    GalleryView()
+                    GalleryView().eventBanner()
                 } else {
                     ProjectsWindow()
                 }
             }
             .environment(app)
             .environment(\.theme, GhosttyApp.shared.theme)
-            .eventBanner()
         }
         .defaultSize(width: 560, height: 420)
         .keyboardShortcut("o", modifiers: [.command, .shift])
@@ -47,16 +46,25 @@ private struct ProjectCommands: Commands {
 
     @FocusedValue(\.projectSession) private var session
 
+    private var store: ProjectUIStore? {
+        session?.isApp == false ? session?.store : nil
+    }
+
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("New") { run { .new(section: $0.selectedSection, commands: $1) } }
                 .keyboardShortcut("n")
-                .disabled(session?.store == nil)
+                .disabled(store == nil)
             Button("Close Session") {
                 run { .close(section: $0.selectedSection, main: $0.selectedSection.flatMap($0.mainTree), commands: $1) }
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
-            .disabled(session?.store == nil)
+            .disabled(store == nil)
+        }
+        CommandGroup(before: .toolbar) {
+            Button("Command Palette") { session?.paletteShown.toggle() }
+                .keyboardShortcut("k")
+                .disabled(session == nil)
         }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in
@@ -68,12 +76,12 @@ private struct ProjectCommands: Commands {
     }
 
     private func run(_ resolve: (ProjectUIStore, [Command]) -> CommandInvocation?) {
-        guard let session, let store = session.store else { return }
+        guard let session, let store else { return }
         session.run(resolve(store, app.commands))
     }
 
     private func section(_ index: Int) -> SectionInfo? {
-        guard let sections = session?.store?.sections, sections.indices.contains(index - 1) else { return nil }
+        guard let sections = store?.sections, sections.indices.contains(index - 1) else { return nil }
         return sections[index - 1]
     }
 
@@ -83,7 +91,7 @@ private struct ProjectCommands: Commands {
 
     private func selectSection(_ index: Int) {
         guard let id = section(index)?.id else { return }
-        session?.store?.selectedSection = id
+        store?.selectedSection = id
     }
 }
 

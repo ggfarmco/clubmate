@@ -8,7 +8,10 @@ struct ProjectWindow: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
     @State private var session: ProjectSession?
+    @State private var presence = ProjectPresence()
 
     var body: some View {
         content
@@ -17,17 +20,24 @@ struct ProjectWindow: View {
             .navigationTitle(title)
             .environment(\.surfaceDeck, session?.deck)
             .eventBanner(session?.banner)
+            .commandPalette(session, entries: paletteEntries, run: perform)
             .focusedSceneValue(\.projectSession, session)
             .background(WindowCloseObserver { [app] in
                 if let session { app.close(session) }
             })
             .onAppear {
-                app.launch()
+                app.launch(openWindow)
                 if session == nil, let projectID { session = app.session(for: projectID) }
             }
-            .onChange(of: session?.store?.connected) { old, new in
-                if old == true, new == false, session?.closed == false { app.connectionLost() }
+            .onChange(of: listed, initial: true) { _, present in
+                guard let present, presence.observe(present) else { return }
+                dismiss()
             }
+    }
+
+    private var listed: Bool? {
+        guard let projectID, let projects = app.projects?.projects else { return nil }
+        return projects.contains { $0.id == projectID }
     }
 
     private var title: String {
@@ -43,8 +53,19 @@ struct ProjectWindow: View {
                     theme.border.frame(width: 1)
                     SidebarPane(store: store, slot: "\(section).sidebar")
                     SlotPane(store: store, slot: "\(section).main")
+                        .overlay(alignment: .top) {
+                            if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
+                        }
                 }
-                StatusBar(connection: connection(store), section: store.sections.first { $0.id == section }?.title ?? section) { [app] in app.retry() }
+                .frame(maxHeight: .infinity)
+                .clipped()
+                StatusBar(connection: connection(store), section: store.sections.first { $0.id == section }?.title ?? section) { [app] in
+                    app.retry()
+                } trailing: {
+                    if store.slots["\(section).status"] != nil {
+                        SlotPane(store: store, slot: "\(section).status")
+                    }
+                }
             }
         } else {
             EmptyNodeView(text: placeholder)
@@ -52,24 +73,40 @@ struct ProjectWindow: View {
     }
 
     private var placeholder: String {
-        if let failure = session?.failure { return failure }
+        if let store = session?.store {
+            if let failure = store.failure { return failure }
+            if store.connected, store.sections.isEmpty { return "No plugins provide sections" }
+        }
         switch app.phase {
-        case .starting: return "Starting core…"
+        case .connecting: return "Starting core…"
         case .failed(let message): return message
         case .ready, .reconnecting: return "Connecting…"
         }
     }
 
-    private func connection(_ store: ProjectUIStore) -> StatusBar.Connection {
+    private func connection(_ store: ProjectUIStore) -> ConnectionStatus {
         switch app.phase {
-        case .ready: store.connected ? .connected : .reconnecting
-        case .starting, .reconnecting: .reconnecting
+        case .ready: store.connected ? .connected : .connecting
+        case .connecting: .connecting
+        case .reconnecting(let attempt): .reconnecting(attempt: attempt)
         case .failed(let message): .failed(message)
+        }
+    }
+
+    private func paletteEntries() -> [PaletteEntry] {
+        CommandPalette.entries(commands: app.commands, sections: session?.store?.sections ?? [])
+    }
+
+    private func perform(_ action: PaletteAction) {
+        switch action {
+        case .command(let id): session?.run(CommandInvocation(id: id))
+        case .section(let id): session?.store?.selectedSection = id
+        case .openProjects: openWindow(id: "projects")
         }
     }
 }
 
-private struct SlotPane: View {
+struct SlotPane: View {
     let store: ProjectUIStore
     let slot: String
 

@@ -88,6 +88,10 @@ func TextField(id, value, placeholder string) Node {
 	return Node{Type: "textField", ID: id, Props: withOptional(props, "placeholder", placeholder)}
 }
 
+func FolderField(id, label string, values []string) Node {
+	return Node{Type: "folderField", ID: id, Props: map[string]any{"label": label, "values": nonNil(values)}}
+}
+
 func Toggle(id string, value bool) Node {
 	return Node{Type: "toggle", ID: id, Props: map[string]any{"value": value}}
 }
@@ -114,6 +118,16 @@ func WithAction(n Node, action string) Node {
 		props[k] = v
 	}
 	props["action"] = action
+	n.Props = props
+	return n
+}
+
+func WithConfirm(n Node, text string) Node {
+	props := make(map[string]any, len(n.Props)+1)
+	for k, v := range n.Props {
+		props[k] = v
+	}
+	props["confirm"] = text
 	n.Props = props
 	return n
 }

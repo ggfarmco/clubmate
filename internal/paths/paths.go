@@ -121,6 +121,10 @@ func (d Dirs) PluginsDir() string {
 	return filepath.Join(d.State, "plugins")
 }
 
+func (d Dirs) PluginRuntime(id string) string {
+	return filepath.Join(d.Runtime, "p", id)
+}
+
 func (d Dirs) PluginLog(id string) string {
 	return filepath.Join(d.PluginsDir(), id+".log")
 }

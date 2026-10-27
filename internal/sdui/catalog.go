@@ -76,12 +76,18 @@ var (
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "action": actionCheck},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
 		"textField": {
 			props:       map[string]propCheck{"value": isString, "placeholder": isString, "action": actionCheck},
+			children:    noChildren,
+			interactive: true,
+		},
+		"folderField": {
+			required:    []string{"label"},
+			props:       map[string]propCheck{"label": isString, "values": listOf(isString), "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},

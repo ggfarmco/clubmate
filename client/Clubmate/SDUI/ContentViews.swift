@@ -4,9 +4,9 @@ import SwiftUI
 import ClubmateKit
 
 enum SymbolName {
-    static func resolve(_ name: String?) -> String {
+    static func resolve(_ name: String?, fallback: String = "questionmark.square") -> String {
         guard let name, NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil else {
-            return "questionmark.square"
+            return fallback
         }
         return name
     }

@@ -20,17 +20,37 @@ func TestKillTreeEscalates(t *testing.T) {
 	require.NoError(t, gone.Run())
 	stubborn := startGroup(t, "sh", "-c", `trap "" TERM; sleep 30`)
 	plain := startGroup(t, "sleep", "30")
-	pids := []int{stubborn, plain, gone.Process.Pid}
-	require.NoError(t, proc.KillTree(t.Context(), pids, 300*time.Millisecond))
+	targets := []proc.Target{targetOf(t, stubborn), targetOf(t, plain), {PID: gone.Process.Pid, Start: time.Now()}}
+	killed, err := proc.KillTree(t.Context(), targets, 300*time.Millisecond)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int{stubborn, plain}, killed)
 	testutil.Eventually(t, func() bool { return !testutil.Alive(stubborn) && !testutil.Alive(plain) }, 2*time.Second)
 }
 
 func TestKillTreeRefusesUnsafePIDs(t *testing.T) {
 	plain := startGroup(t, "sleep", "30")
-	for _, pids := range [][]int{{plain, 1}, {plain, os.Getpid()}} {
-		assert.ErrorIs(t, proc.KillTree(t.Context(), pids, 0), proc.ErrUnsafePID)
+	for _, unsafe := range []int{1, os.Getpid()} {
+		targets := []proc.Target{targetOf(t, plain), {PID: unsafe}}
+		_, err := proc.KillTree(t.Context(), targets, 0)
+		assert.ErrorIs(t, err, proc.ErrUnsafePID)
 	}
 	assert.True(t, testutil.Alive(plain))
+}
+
+func TestKillTreeSkipsReusedPID(t *testing.T) {
+	pid := startGroup(t, "sleep", "30")
+	reused := proc.Target{PID: pid, Start: targetOf(t, pid).Start.Add(-time.Hour)}
+	killed, err := proc.KillTree(t.Context(), []proc.Target{reused}, 100*time.Millisecond)
+	require.NoError(t, err)
+	assert.Empty(t, killed)
+	assert.True(t, testutil.Alive(pid))
+}
+
+func targetOf(t *testing.T, pid int) proc.Target {
+	t.Helper()
+	start, err := proc.StartTime(pid)
+	require.NoError(t, err)
+	return proc.Target{PID: pid, Start: start}
 }
 
 func startGroup(t *testing.T, name string, args ...string) int {

@@ -74,24 +74,10 @@ struct FormNodeView: View {
         }
         .environment(state)
         .onChange(of: state.submissions) {
-            dispatch(node, .submit(.object(state.values)))
+            dispatch(node, .submit(UIForm.collect(state.values, in: node)))
         }
-        .onChange(of: fieldIDs) { _, ids in
+        .onChange(of: UIForm.fieldIDs(in: node)) { _, ids in
             state.values = state.values.filter { ids.contains($0.key) }
         }
     }
-
-    private var fieldIDs: Set<String> {
-        var ids: Set<String> = []
-        func visit(_ children: [SDUINode]) {
-            for child in children where child.type != "form" {
-                if FormNodeView.fieldTypes.contains(child.type), let id = child.id { ids.insert(id) }
-                visit(child.children)
-            }
-        }
-        visit(node.children)
-        return ids
-    }
-
-    private static let fieldTypes: Set<String> = ["textField", "toggle", "select"]
 }

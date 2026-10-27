@@ -120,6 +120,23 @@ func EchoPluginDir(t *testing.T) string {
 	return root
 }
 
+func EchoPluginDirAs(t *testing.T, manifests ...string) string {
+	t.Helper()
+	bin := BuildBinary(t, "clubmate/internal/testutil/plugins/echo")
+	root := t.TempDir()
+	for _, manifest := range manifests {
+		var m struct {
+			ID string `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(manifest), &m))
+		dir := filepath.Join(root, m.ID)
+		require.NoError(t, os.Mkdir(dir, 0o700))
+		copyFile(t, bin, filepath.Join(dir, "echo"), 0o755)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o600))
+	}
+	return root
+}
+
 func BuildPluginDir(t *testing.T, pkg, manifestPath string) string {
 	t.Helper()
 	bin := BuildBinary(t, pkg)
@@ -159,6 +176,27 @@ func copyFile(t *testing.T, src, dst string, perm os.FileMode) {
 	data, err := os.ReadFile(src)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(dst, data, perm))
+}
+
+func StartOrphanSession(t *testing.T, svc *core.Service, projectID string) int {
+	t.Helper()
+	sess, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: projectID, Command: []string{"/bin/sh", "-c", "(sleep 60 &); sleep 300"}})
+	require.NoError(t, err)
+	orphan := 0
+	Eventually(t, func() bool {
+		nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{SessionID: sess.ID})
+		if err != nil {
+			return false
+		}
+		for _, n := range nodes {
+			if n.Orphan && n.Process.Comm == "sleep" {
+				orphan = n.Process.PID
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second)
+	return orphan
 }
 
 func killLeftovers(svc *core.Service) {

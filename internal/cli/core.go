@@ -82,7 +82,7 @@ func (a *app) coreStartCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().DurationVar(&wait, "wait", 5*time.Second, "how long to wait for the core")
+	cmd.Flags().DurationVar(&wait, "wait", 15*time.Second, "how long to wait for the core")
 	return cmd
 }
 

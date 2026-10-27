@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 	"text/tabwriter"
 
@@ -11,9 +13,11 @@ import (
 	"clubmate/internal/project"
 )
 
+const appBundleID = "com.clubmate.app"
+
 func (a *app) projectCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "project", Short: "Manage projects"}
-	cmd.AddCommand(a.projectCreateCmd(), a.projectListCmd(), a.projectAddRepoCmd(), a.projectDeleteCmd())
+	cmd.AddCommand(a.projectCreateCmd(), a.projectListCmd(), a.projectAddRepoCmd(), a.projectDeleteCmd(), a.projectOpenCmd())
 	return cmd
 }
 
@@ -86,4 +90,34 @@ func (a *app) projectDeleteCmd() *cobra.Command {
 			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "deleted", args[0]) })
 		},
 	}
+}
+
+func (a *app) projectOpenCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "open <id>",
+		Short: "Open a project in the app",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var res struct {
+				Clients int `json:"clients"`
+			}
+			if err := a.call(cmd.Context(), "project.open", map[string]string{"id": args[0]}, &res); err != nil {
+				return err
+			}
+			if res.Clients == 0 {
+				if err := a.launch(cmd.Context(), args[0]); err != nil {
+					return err
+				}
+			}
+			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "opened", args[0]) })
+		},
+	}
+}
+
+func launchApp(ctx context.Context, projectID string) error {
+	out, err := exec.CommandContext(ctx, "open", "-b", appBundleID, "--args", "--open-project", projectID).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("launch app: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }

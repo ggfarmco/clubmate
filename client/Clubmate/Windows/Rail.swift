@@ -9,10 +9,6 @@ struct Rail: View {
 
     @Environment(\.theme) private var theme
 
-    static func symbol(_ icon: String) -> String {
-        icon == "terminal" ? "terminal" : "square.grid.2x2"
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             ForEach(sections, id: \.id) { section in
@@ -36,7 +32,7 @@ private struct RailButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: Rail.symbol(section.icon))
+            Image(systemName: SymbolName.resolve(section.icon, fallback: "square.grid.2x2"))
                 .font(.system(size: 14))
                 .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
                 .frame(width: 36, height: 36)

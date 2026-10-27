@@ -45,6 +45,19 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testProjectOpenRequests() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let requests = client.projectOpenRequests()
+        guard let paths = core?.paths else { throw TestFailure(description: "no core") }
+        let caller = try await CoreClient.connect(paths: paths)
+        _ = try await caller.call(method: "project.open", params: .object(["id": .string(project.id)]))
+        let id = await first(requests, within: .seconds(3))
+        XCTAssertEqual(id, project.id)
+        await caller.close()
+        await client.close()
+    }
+
     func testRefusesInsecureRuntime() async throws {
         let base = try TestCore.makeTempDir()
         defer { try? FileManager.default.removeItem(at: base) }
@@ -117,21 +130,5 @@ final class ClubmateKitTests: XCTestCase {
             throw TestFailure(description: "listen \(path): \(String(cString: strerror(errno)))")
         }
         return fd
-    }
-
-    private func first(_ stream: AsyncStream<RPCNotification>, within timeout: Duration) async -> RPCNotification? {
-        await withTaskGroup(of: RPCNotification?.self) { group in
-            group.addTask {
-                for await notification in stream { return notification }
-                return nil
-            }
-            group.addTask {
-                try? await Task.sleep(for: timeout)
-                return nil
-            }
-            let result = await group.next() ?? nil
-            group.cancelAll()
-            return result
-        }
     }
 }

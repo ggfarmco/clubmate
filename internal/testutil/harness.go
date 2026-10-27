@@ -68,7 +68,7 @@ func (h *PluginHarness) Start(t *testing.T, searchPath ...string) {
 	t.Helper()
 	manifests, errs := plugin.Discover(searchPath)
 	require.Empty(t, errs)
-	h.Srv.SetUI(h.Store, internalsdui.NewSections(plugin.SectionDefs(manifests)), plugin.NewRouter(h.Sup))
+	h.Srv.SetUI(h.Store, internalsdui.NewSections(plugin.SectionDefs(manifests), plugin.ViewDefs(manifests, slog.New(slog.DiscardHandler))...), plugin.NewRouter(h.Sup))
 	h.Sup.Start(context.Background(), manifests)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), harnessStopTimeout)

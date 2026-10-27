@@ -86,7 +86,14 @@ final class TestCore {
         try? FileManager.default.removeItem(at: base)
     }
 
-    private func launch() async throws {
+    func crash() throws {
+        guard let process, process.isRunning else { throw TestFailure(description: "core not running") }
+        kill(process.processIdentifier, SIGKILL)
+        process.waitUntilExit()
+        self.process = nil
+    }
+
+    func launch() async throws {
         try FileManager.default.createDirectory(at: paths.state, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let log = paths.state.appending(path: "core.log")
         FileManager.default.createFile(atPath: log.path(percentEncoded: false), contents: nil)
@@ -147,7 +154,7 @@ private func buildGoBinaries() throws -> URL {
     let bin = package.appending(path: ".build/clubmate-go/bin", directoryHint: .isDirectory)
     let env = URL(fileURLWithPath: "/usr/bin/env")
     try TestCore.run(env, ["go", "build", "-o", bin.path(percentEncoded: false), "./cmd/..."], cwd: root)
-    for (id, source) in [("terminals", "plugins/terminals"), ("echo", "internal/testutil/plugins/echo")] {
+    for (id, source) in [("terminals", "plugins/terminals"), ("projects", "plugins/projects"), ("echo", "internal/testutil/plugins/echo")] {
         let dir = bin.appending(path: "plugins/\(id)", directoryHint: .isDirectory)
         try TestCore.run(env, ["go", "build", "-o", dir.appending(path: id).path(percentEncoded: false), "./\(source)"], cwd: root)
         let manifest = dir.appending(path: "plugin.json")

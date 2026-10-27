@@ -13,8 +13,6 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-const mainSlot = "echo.main"
-
 type forkedPayload struct {
 	PID int `json:"pid"`
 }
@@ -47,7 +45,10 @@ func initialize(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	for _, p := range projects {
-		if _, err := h.Render(ctx, p.ID, mainSlot, sdui.Text("hello")); err != nil {
+		if !ownsSection(h) {
+			break
+		}
+		if _, err := h.Render(ctx, p.ID, mainSlot(h), sdui.Text("hello")); err != nil {
 			return err
 		}
 	}
@@ -64,16 +65,19 @@ func busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Eve
 		fmt.Fprintln(os.Stderr, "echo: bad project.created:", err)
 		return
 	}
-	if _, err := h.Render(ctx, created.Project.ID, mainSlot, sdui.Text("hello")); err != nil {
+	if !ownsSection(h) {
+		return
+	}
+	if _, err := h.Render(ctx, created.Project.ID, mainSlot(h), sdui.Text("hello")); err != nil {
 		fmt.Fprintln(os.Stderr, "echo: render:", err)
 	}
 }
 
-func uiEvent(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
+func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
 	if ev.Action != "say" {
 		return nil, fmt.Errorf("unknown action %q", ev.Action)
 	}
-	return map[string]json.RawMessage{"said": ev.Value}, nil
+	return map[string]any{"said": ev.Value, "plugin": h.PluginID()}, nil
 }
 
 func command(_ context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -104,4 +108,31 @@ func wedgeAfterInit(ctx context.Context, h *pluginsdk.Host) error {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGSTOP)
 	}()
 	return nil
+}
+
+func mainSlot(h *pluginsdk.Host) string {
+	return h.PluginID() + ".main"
+}
+
+func ownsSection(h *pluginsdk.Host) bool {
+	raw, err := os.ReadFile("plugin.json")
+	if err != nil {
+		return false
+	}
+	var m struct {
+		Contributes struct {
+			Sections []struct {
+				ID string `json:"id"`
+			} `json:"sections"`
+		} `json:"contributes"`
+	}
+	if json.Unmarshal(raw, &m) != nil {
+		return false
+	}
+	for _, s := range m.Contributes.Sections {
+		if s.ID == h.PluginID() {
+			return true
+		}
+	}
+	return false
 }

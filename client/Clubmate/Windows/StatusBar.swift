@@ -1,15 +1,17 @@
 import SwiftUI
 
-struct StatusBar: View {
-    enum Connection {
-        case connected
-        case reconnecting
-        case failed(String)
-    }
+enum ConnectionStatus {
+    case connected
+    case connecting
+    case reconnecting(attempt: Int)
+    case failed(String)
+}
 
-    let connection: Connection
+struct StatusBar<Trailing: View>: View {
+    let connection: ConnectionStatus
     let section: String
     let retry: () -> Void
+    @ViewBuilder let trailing: Trailing
 
     @Environment(\.theme) private var theme
 
@@ -23,6 +25,11 @@ struct StatusBar: View {
             }
             Text(section).foregroundStyle(theme.muted)
             Spacer(minLength: 0)
+            trailing
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(height: 20)
+                .clipped()
         }
         .font(theme.uiSmall)
         .lineLimit(1)
@@ -34,7 +41,8 @@ struct StatusBar: View {
     private var label: String {
         switch connection {
         case .connected: "● connected"
-        case .reconnecting: "○ reconnecting"
+        case .connecting: "○ connecting"
+        case .reconnecting(let attempt): "○ reconnecting (attempt \(attempt))"
         case .failed(let message): "○ \(message)"
         }
     }
@@ -42,7 +50,7 @@ struct StatusBar: View {
     private var tone: Color {
         switch connection {
         case .connected: theme.success
-        case .reconnecting: theme.warning
+        case .connecting, .reconnecting: theme.warning
         case .failed: theme.danger
         }
     }
