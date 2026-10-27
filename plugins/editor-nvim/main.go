@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -39,6 +40,7 @@ var (
 	errUnsaved        = errors.New("unsaved buffers")
 	errDeleted        = errors.New("project deleted")
 	errNotInRepo      = errors.New("not in a git repository")
+	errRelativePath   = errors.New("diff: path must be absolute")
 	errDiffSides      = errors.New("diff: base must be head or index, target index or worktree, and differ")
 )
 
@@ -276,11 +278,13 @@ func (a *app) drop(projectID string) {
 	if e == nil {
 		return
 	}
-	e.life.Lock()
-	defer e.life.Unlock()
-	if c := e.reset(); c != nil {
-		go c.close()
-	}
+	go func() {
+		e.life.Lock()
+		defer e.life.Unlock()
+		if c := e.reset(); c != nil {
+			c.close()
+		}
+	}()
 }
 
 func (a *app) isDeleted(projectID string) bool {
@@ -407,6 +411,10 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 	if args.Path == "" {
 		return errNoPath
 	}
+	if !filepath.IsAbs(args.Path) {
+		return fmt.Errorf("%w: %s", errRelativePath, args.Path)
+	}
+	args.Path = filepath.Clean(args.Path)
 	if !slices.Contains([]string{"head", "index"}, args.Base) || !slices.Contains([]string{"index", "worktree"}, args.Target) || args.Base == args.Target {
 		return errDiffSides
 	}
@@ -631,15 +639,31 @@ func gitBranch(ctx context.Context, dir string) string {
 }
 
 func gitShow(ctx context.Context, repo, side, rel string) (string, error) {
-	rev := ":" + rel
+	rev, exists := ":"+rel, inIndex
 	if side == "head" {
-		rev = "HEAD:" + rel
+		rev, exists = "HEAD:"+rel, inHead
+	}
+	if ok, err := exists(ctx, repo, rel); err != nil || !ok {
+		return "", err
 	}
 	out, err := gitrepo.Run(ctx, repo, "show", rev)
-	if _, ok := errors.AsType[*exec.ExitError](err); ok {
-		return "", nil
-	}
 	return string(out), err
+}
+
+func inHead(ctx context.Context, repo, rel string) (bool, error) {
+	if _, err := gitrepo.Run(ctx, repo, "rev-parse", "-q", "--verify", "HEAD^{commit}"); err != nil {
+		if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 {
+			return false, nil
+		}
+		return false, err
+	}
+	out, err := gitrepo.Run(ctx, repo, "--literal-pathspecs", "ls-tree", "-z", "HEAD", "--", rel)
+	return len(out) > 0, err
+}
+
+func inIndex(ctx context.Context, repo, rel string) (bool, error) {
+	out, err := gitrepo.Run(ctx, repo, "--literal-pathspecs", "ls-files", "-z", "--stage", "--", rel)
+	return bytes.Contains(out, []byte(" 0\t")), err
 }
 
 func repoRoot(dir string) (string, bool) {

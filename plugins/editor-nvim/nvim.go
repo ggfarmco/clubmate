@@ -35,18 +35,18 @@ local function edge(dir)
   local d = ({ left = "h", right = "l", up = "k", down = "j" })[dir] or dir
   pcall(vim.rpcnotify, chan, "clubmate", { event = "edge", dir = d })
 end
-package.loaded["clubmate"] = {
-  edge = edge,
-  navigate = function(dir)
-    local w = vim.fn.winnr()
-    vim.cmd.wincmd(dir)
-    if vim.fn.winnr() == w then edge(dir) end
-  end,
-}`
+local m = type(package.loaded["clubmate"]) == "table" and package.loaded["clubmate"] or {}
+package.loaded["clubmate"] = m
+m.edge = edge
+m.navigate = function(dir)
+  local w = vim.fn.winnr()
+  vim.cmd.wincmd(dir)
+  if vim.fn.winnr() == w then edge(dir) end
+end`
 
 const diffLua = `local path, rel, base, target, left, right = ...
 local ft = vim.filetype.match({ filename = path }) or ""
-local function scratch(name, text)
+local function scratch(name, text, dos)
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_get_name(b) == name then vim.api.nvim_buf_delete(b, { force = true }) end
   end
@@ -55,7 +55,11 @@ local function scratch(name, text)
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
   vim.api.nvim_buf_set_name(buf, name)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(text:gsub("\n$", ""), "\n", { plain = true }))
+  local lines = vim.split(text:gsub("\n$", ""), "\n", { plain = true })
+  if dos then
+    for i, l in ipairs(lines) do lines[i] = l:gsub("\r$", "") end
+  end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable = false
   vim.bo[buf].filetype = ft
 end
@@ -63,11 +67,12 @@ if target == "worktree" then
   vim.cmd.tabedit(vim.fn.fnameescape(path))
 else
   vim.cmd.tabnew()
-  scratch("clubmate://index/" .. rel, right)
+  scratch("clubmate://index/" .. rel, right, false)
 end
+local dos = vim.bo.fileformat == "dos"
 vim.cmd.diffthis()
 vim.cmd("leftabove vnew")
-scratch("clubmate://" .. base .. "/" .. rel, left)
+scratch("clubmate://" .. base .. "/" .. rel, left, dos)
 vim.cmd.diffthis()`
 
 const modifiedLua = `local names = {}

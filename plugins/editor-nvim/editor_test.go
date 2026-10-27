@@ -158,6 +158,7 @@ func TestEdgeFocusesSidebar(t *testing.T) {
 func TestEdgeAfterPluginRestart(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
+	require.NoError(t, v.Command("lua _G.cached = require('clubmate')"))
 	plugins := e.h.Sup.PIDs()
 	require.Len(t, plugins, 1)
 	require.NoError(t, unix.Kill(plugins[0], unix.SIGKILL))
@@ -168,7 +169,7 @@ func TestEdgeAfterPluginRestart(t *testing.T) {
 			return false
 		}
 		drain(c)
-		if v.Command("lua require('clubmate').navigate('h')") != nil {
+		if v.Command("lua _G.cached.navigate('h')") != nil {
 			return false
 		}
 		_, ok := nextFocus(c, 200*time.Millisecond)
@@ -193,19 +194,40 @@ func TestHookCreatesNoKeymaps(t *testing.T) {
 
 func TestDiffOpensSideBySide(t *testing.T) {
 	e := startEditor(t)
-	path := e.file(t, "a.go")
-	for _, args := range [][]string{{"init", "-q", "-b", "trunk"}, {"add", "a.go"}, {"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a"}} {
-		out, err := exec.Command("git", append([]string{"-C", e.repo}, args...)...).CombinedOutput()
+	a := e.file(t, "a.go")
+	c := filepath.Join(e.repo, "c.go")
+	require.NoError(t, os.WriteFile(c, []byte("x\r\ny\r\n"), 0o600))
+	git := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", e.repo, "-c", "core.autocrlf=false"}, args...)...).CombinedOutput()
 		require.NoError(t, err, string(out))
 	}
-	require.NoError(t, os.WriteFile(path, []byte("changed\n"), 0o600))
-	args := map[string]any{"path": path, "base": "index", "target": "worktree"}
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
+	git("init", "-q", "-b", "trunk")
+	git("add", "a.go", "c.go")
+	git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a")
+	require.NoError(t, os.WriteFile(a, []byte("changed\n"), 0o600))
+	require.NoError(t, os.WriteFile(c, []byte("x\r\nz\r\n"), 0o600))
+	b := filepath.Join(e.repo, "b.go")
+	require.NoError(t, os.WriteFile(b, []byte("new\n"), 0o600))
+	git("add", "b.go")
 	v := dial(t, e.sock)
-	assert.Equal(t, 2, eval[int](t, v, "winnr('$')"))
-	assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
-	assert.Equal(t, "clubmate://index/a.go", eval[string](t, v, "bufname(winbufnr(1))"))
-	assert.Equal(t, path, eval[string](t, v, "fnamemodify(bufname(winbufnr(2)), ':p')"))
+	for _, tc := range []struct {
+		name, path, base, target, left, right string
+		leftLines, rightLines                 []string
+	}{
+		{"worktree", a, "index", "worktree", "clubmate://index/a.go", a, slices.Repeat([]string{"line"}, 5), []string{"changed"}},
+		{"staged", b, "head", "index", "clubmate://head/b.go", "clubmate://index/b.go", []string{""}, []string{"new"}},
+		{"crlf", c, "index", "worktree", "clubmate://index/c.go", c, []string{"x", "y"}, []string{"x", "z"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := map[string]any{"path": tc.path, "base": tc.base, "target": tc.target}
+			require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
+			assert.Equal(t, 2, eval[int](t, v, "winnr('$')"))
+			assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
+			assert.Equal(t, []string{tc.left, tc.right}, eval[[]string](t, v, "[nvim_buf_get_name(winbufnr(1)), nvim_buf_get_name(winbufnr(2))]"))
+			assert.Equal(t, tc.leftLines, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
+			assert.Equal(t, tc.rightLines, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
+		})
+	}
 	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool {
 		return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.Props["text"] == "trunk" })
 	})
