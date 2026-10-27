@@ -3,7 +3,10 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -49,6 +52,7 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 		return watchParams{}, err
 	}
 	roots := make([]string, 0, len(proj.Repos))
+	var gitRoots []string
 	for _, repo := range proj.Repos {
 		root, err := filepath.EvalSymlinks(repo)
 		if err != nil {
@@ -56,12 +60,16 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 			continue
 		}
 		roots = append(roots, root)
+		linked := worktreeRoots(root)
+		roots = append(roots, linked...)
+		gitRoots = append(gitRoots, linked...)
 	}
+	roots = slices.Compact(slices.Sorted(slices.Values(roots)))
 	changes := make(chan fsChange)
 	quit := make(chan struct{})
 	stop := func() {}
 	if len(roots) > 0 {
-		stop, err = fswatch.Watch(roots, func(paths []string, overflow bool) {
+		stop, err = fswatch.Watch(roots, gitRoots, func(paths []string, overflow bool) {
 			select {
 			case changes <- fsChange{paths: paths, overflow: overflow}:
 			case <-quit:
@@ -76,6 +84,38 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 		stop()
 	}), forwardFS(ctx, connFrom(ctx), p.ProjectID, changes))
 	return watchParams{Watch: sid}, err
+}
+
+func worktreeRoots(repo string) []string {
+	data, err := os.ReadFile(filepath.Join(repo, ".git"))
+	if err != nil {
+		return nil
+	}
+	target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir:")
+	if !ok {
+		return nil
+	}
+	target = strings.TrimSpace(target)
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(repo, target)
+	}
+	gitdir, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return nil
+	}
+	common, err := os.ReadFile(filepath.Join(gitdir, "commondir"))
+	if err != nil {
+		return []string{gitdir}
+	}
+	commonDir := strings.TrimSpace(string(common))
+	if !filepath.IsAbs(commonDir) {
+		commonDir = filepath.Join(gitdir, commonDir)
+	}
+	resolved, err := filepath.EvalSymlinks(commonDir)
+	if err != nil {
+		return []string{gitdir}
+	}
+	return []string{resolved}
 }
 
 func (s *Server) fsUnwatch(ctx context.Context, p watchParams) (empty, error) {

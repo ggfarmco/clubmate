@@ -43,10 +43,24 @@ struct ScrollNodeView: View {
     let node: SDUINode
 
     var body: some View {
-        ScrollView {
-            SDUIChildren(node: node)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+        ScrollViewReader { proxy in
+            ScrollView {
+                SDUIChildren(node: node)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .environment(\.scrollProxy, proxy)
         }
+    }
+}
+
+private struct ScrollProxyKey: EnvironmentKey {
+    static var defaultValue: ScrollViewProxy? { nil }
+}
+
+extension EnvironmentValues {
+    var scrollProxy: ScrollViewProxy? {
+        get { self[ScrollProxyKey.self] }
+        set { self[ScrollProxyKey.self] = newValue }
     }
 }
 

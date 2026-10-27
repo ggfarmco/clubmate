@@ -12,6 +12,7 @@ struct ProjectWindow: View {
     @Environment(\.dismiss) private var dismiss
     @State private var session: ProjectSession?
     @State private var presence = ProjectPresence()
+    @State private var focus = FocusRouter()
 
     var body: some View {
         content
@@ -19,6 +20,7 @@ struct ProjectWindow: View {
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
             .environment(\.surfaceDeck, session?.deck)
+            .environment(\.focusRouter, focus)
             .eventBanner(session?.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
             .focusedSceneValue(\.projectSession, session)
@@ -28,6 +30,10 @@ struct ProjectWindow: View {
             .onAppear {
                 app.launch(openWindow)
                 if session == nil, let projectID { session = app.session(for: projectID) }
+            }
+            .onChange(of: session?.store?.focusRequest) { _, request in
+                guard let request, !request.slot.isEmpty else { return }
+                focus.request(request.slot)
             }
             .onChange(of: listed, initial: true) { _, present in
                 guard let present, presence.observe(present) else { return }
@@ -53,6 +59,7 @@ struct ProjectWindow: View {
                     theme.border.frame(width: 1)
                     SidebarPane(store: store, slot: "\(section).sidebar")
                     SlotPane(store: store, slot: "\(section).main")
+                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID))
                         .overlay(alignment: .top) {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
@@ -99,10 +106,46 @@ struct ProjectWindow: View {
 
     private func perform(_ action: PaletteAction) {
         switch action {
-        case .command(let id): session?.run(CommandInvocation(id: id))
+        case .command(let id): confirm(id)
         case .section(let id): session?.store?.selectedSection = id
         case .openProjects: openWindow(id: "projects")
         }
+    }
+
+    private func confirm(_ id: String) {
+        let message = app.commands.first { $0.id == id }?.confirm ?? ""
+        guard !message.isEmpty else { return run(id) }
+        Task {
+            if await Confirmation.ask(message, action: "Run") { run(id) }
+        }
+    }
+
+    private func run(_ id: String) {
+        session?.run(CommandInvocation(id: id))
+    }
+}
+
+private struct MainFocus: ViewModifier {
+    let slot: String
+    let surface: String?
+
+    @FocusState private var focused: Bool
+    @Environment(\.focusRouter) private var router
+    @Environment(\.surfaceDeck) private var deck
+
+    func body(content: Content) -> some View {
+        content
+            .focusable(surface == nil)
+            .focusEffectDisabled()
+            .focused($focused)
+            .onChange(of: router?.pending, initial: true) { claim() }
+            .onChange(of: slot) { claim() }
+            .onChange(of: surface) { claim() }
+    }
+
+    private func claim() {
+        guard router?.take(slot) == true else { return }
+        if let surface { deck?.focus(surface) } else { focused = true }
     }
 }
 

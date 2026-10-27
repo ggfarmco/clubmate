@@ -30,7 +30,73 @@ end
 for _, ev in ipairs({ "BufEnter", "BufWritePost", "ModeChanged", "LspAttach", "LspDetach", "DirChanged" }) do
   vim.api.nvim_create_autocmd(ev, { group = g, callback = function() vim.schedule(function() emit(ev) end) end })
 end
-emit("BufEnter")`
+emit("BufEnter")
+local function edge(dir)
+  local d = ({ left = "h", right = "l", up = "k", down = "j" })[dir] or dir
+  pcall(vim.rpcnotify, chan, "clubmate", { event = "edge", dir = d })
+end
+local m = type(package.loaded["clubmate"]) == "table" and package.loaded["clubmate"] or {}
+package.loaded["clubmate"] = m
+m.edge = edge
+m.navigate = function(dir)
+  local w = vim.fn.winnr()
+  vim.cmd.wincmd(dir)
+  if vim.fn.winnr() == w then edge(dir) end
+end`
+
+const diffLua = `local path, rel, base, target, left, right = ...
+local ft = vim.filetype.match({ filename = path }) or ""
+local function scratch(name, text, dos)
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(b) == name then vim.api.nvim_buf_delete(b, { force = true }) end
+  end
+  local buf = vim.api.nvim_get_current_buf()
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].swapfile = false
+  vim.api.nvim_buf_set_name(buf, name)
+  local lines = vim.split(text:gsub("\n$", ""), "\n", { plain = true })
+  if dos then
+    for i, l in ipairs(lines) do lines[i] = l:gsub("\r$", "") end
+  end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].filetype = ft
+end
+local function stale(tab)
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+    local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(w))
+    if name == "clubmate://head/" .. rel or name == "clubmate://index/" .. rel then return true end
+  end
+  return false
+end
+if target == "worktree" then
+  vim.cmd.tabedit(vim.fn.fnameescape(path))
+else
+  vim.cmd.tabnew()
+end
+local current = vim.api.nvim_get_current_tabpage()
+for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+  if tab ~= current and stale(tab) then
+    pcall(vim.cmd.tabclose, vim.api.nvim_tabpage_get_number(tab))
+  end
+end
+if target ~= "worktree" then
+  scratch("clubmate://index/" .. rel, right, false)
+end
+local dos = vim.bo.fileformat == "dos"
+vim.cmd.diffthis()
+vim.cmd("leftabove vnew")
+scratch("clubmate://" .. base .. "/" .. rel, left, dos)
+vim.cmd.diffthis()`
+
+const modifiedLua = `local names = {}
+for _, b in ipairs(vim.api.nvim_list_bufs()) do
+  if vim.bo[b].modified and vim.bo[b].buftype == "" and vim.bo[b].buflisted then
+    names[#names + 1] = vim.api.nvim_buf_get_name(b)
+  end
+end
+return names`
 
 const openLua = `local path, line = ...
 vim.cmd.edit(vim.fn.fnameescape(path))
@@ -53,6 +119,7 @@ type nvimEvent struct {
 	File  string   `msgpack:"file"`
 	Mode  string   `msgpack:"mode"`
 	LSP   []string `msgpack:"lsp"`
+	Dir   string   `msgpack:"dir"`
 }
 
 type client struct {
@@ -135,18 +202,14 @@ func (c *client) open(path string, line int) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(openLua, nil, path, line) })
 }
 
+func (c *client) diff(path, rel, base, target, left, right string) error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(diffLua, nil, path, rel, base, target, left, right) })
+}
+
 func (c *client) modified() ([]string, error) {
-	var bufs []struct {
-		Name string `msgpack:"name"`
-	}
-	if err := c.call(func(v *nvim.Nvim) error {
-		return v.Call("getbufinfo", &bufs, map[string]int{"bufmodified": 1})
-	}); err != nil {
+	var names []string
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(modifiedLua, &names) }); err != nil {
 		return nil, err
-	}
-	names := make([]string, 0, len(bufs))
-	for _, b := range bufs {
-		names = append(names, b.Name)
 	}
 	return names, nil
 }

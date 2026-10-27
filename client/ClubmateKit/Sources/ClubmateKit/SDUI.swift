@@ -51,6 +51,16 @@ public struct Command: Codable, Sendable, Equatable {
     public let title: String
     public let plugin: String
     public let hidden: Bool
+    public let confirm: String
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        plugin = try container.decode(String.self, forKey: .plugin)
+        hidden = try container.decode(Bool.self, forKey: .hidden)
+        confirm = try container.decodeIfPresent(String.self, forKey: .confirm) ?? ""
+    }
 }
 
 public struct UIEvent: Codable, Sendable, Equatable {

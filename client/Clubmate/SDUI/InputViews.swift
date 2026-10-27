@@ -33,7 +33,7 @@ struct ButtonNodeView: View {
     private func click() {
         guard let message = node.confirmation() else { return perform() }
         Task {
-            if await Confirmation.ask(message, action: node.string("label") ?? "OK") { perform() }
+            if await Confirmation.ask(message, action: node.confirmActionTitle()) { perform() }
         }
     }
 

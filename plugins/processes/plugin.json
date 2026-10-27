@@ -7,7 +7,7 @@
   "contributes": {
     "sections": [{"id": "processes", "title": "Processes", "icon": "cpu", "order": 30}],
     "commands": [
-      {"id": "processes.kill-orphans", "title": "Kill Orphan Processes"}
+      {"id": "processes.kill-orphans", "title": "Kill Orphan Processes", "confirm": "Kill orphan processes in this project?"}
     ]
   }
 }

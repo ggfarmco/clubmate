@@ -22,6 +22,8 @@ const (
 
 	notifyCoreStopping = "core.stopping"
 	notifyProjectOpen  = "project.open"
+
+	handleProjectOpen = "project.open"
 )
 
 var ownerPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
@@ -99,7 +101,8 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			}
 			return empty{}, s.deleteUIState(ctx, p.ID)
 		}),
-		"project.open": method(s.projectOpen),
+		"project.open":    method(s.projectOpen),
+		"client.register": method(s.clientRegister),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
 			if err := requireID(projectPrefix, p.ProjectID); err != nil {
 				return session.Session{}, err
@@ -183,7 +186,7 @@ func (s *Server) shutdownCore(ctx context.Context, _ empty) (empty, error) {
 	}
 	if fn := s.shutdown.Load(); fn != nil {
 		time.AfterFunc(shutdownReplyGrace, func() {
-			s.notifyClients(notifyCoreStopping, nil, nil)
+			s.notifyClients(notifyCoreStopping, nil, nil, "")
 			(*fn)()
 		})
 	}
@@ -194,5 +197,24 @@ func (s *Server) projectOpen(ctx context.Context, p idParams) (openResult, error
 	if err := s.requireProject(ctx, p.ID); err != nil {
 		return openResult{}, err
 	}
-	return openResult{Clients: s.notifyClients(notifyProjectOpen, p, connFrom(ctx))}, nil
+	return openResult{Clients: s.notifyClients(notifyProjectOpen, p, connFrom(ctx), handleProjectOpen)}, nil
+}
+
+type registerParams struct {
+	Handles []string `json:"handles"`
+}
+
+func (s *Server) clientRegister(ctx context.Context, p registerParams) (empty, error) {
+	if CallerFrom(ctx).IsPlugin() {
+		return empty{}, invalidParams("client.register is not available to plugins")
+	}
+	for _, h := range p.Handles {
+		if h != handleProjectOpen {
+			return empty{}, invalidParams(fmt.Sprintf("unknown handle: %q", h))
+		}
+	}
+	for _, h := range p.Handles {
+		s.registerClient(connFrom(ctx), h)
+	}
+	return empty{}, nil
 }

@@ -14,11 +14,14 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
-	refreshDelay = 300 * time.Millisecond
-	openCommand  = "editor-nvim.open"
+	refreshDelay  = 300 * time.Millisecond
+	openCommand   = "editor-nvim.open"
+	editorSection = "editor-nvim"
+	editorSlot    = "editor-nvim.main"
 )
 
 var (
@@ -57,9 +60,12 @@ type state struct {
 	dirty    bool
 	renderMu sync.Mutex
 	repos    []string
+	gitDirs  []string
+	hideIgn  bool
 	expanded map[string]bool
 	selected string
-	status   map[string]string
+	status   map[string]map[string]string
+	ignored  map[string]map[string]bool
 	watch    string
 }
 
@@ -132,7 +138,7 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 		return
 	}
 	s.mu.Lock()
-	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return containing(s.repos, p) != "" }))
+	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return containing(s.repos, p) != "" || containing(s.gitDirs, p) != "" }))
 	s.mu.Unlock()
 	if relevant {
 		a.schedule(h, ev.ProjectID, s, refreshDelay)
@@ -166,6 +172,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		}
 		a.schedule(h, cmd.ProjectID, s, 0)
 		return nil, nil
+	case "files.toggle-ignored":
+		return nil, a.toggleIgnored(ctx, h, cmd.ProjectID)
 	case "files.reveal":
 		var args pathArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -249,7 +257,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	if watch != "" {
 		logError("unwatch "+id, h.UnwatchFS(ctx, watch))
 	}
-	logError("drop "+id, errors.Join(h.StorageDelete(ctx, expandedKey(id)), h.StorageDelete(ctx, selectedKey(id))))
+	logError("drop "+id, errors.Join(h.StorageDelete(ctx, expandedKey(id)), h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, hideIgnoredKey(id))))
 }
 
 func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
@@ -289,14 +297,25 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	for _, r := range p.Repos {
 		repos = append(repos, resolve(r))
 	}
+	var gitDirs []string
+	for _, r := range repos {
+		gitDir, commonDir, err := gitrepo.Dirs(ctx, r)
+		if err != nil {
+			continue
+		}
+		gitDirs = append(gitDirs, gitDir, commonDir)
+	}
 	s.mu.Lock()
 	first := !s.synced
 	known := s.repos
 	s.mu.Unlock()
 	var stored []string
 	var found bool
-	var selected string
+	var selected, hide string
 	if first {
+		if _, err = h.StorageGet(ctx, hideIgnoredKey(id), &hide); err != nil {
+			return err
+		}
 		if found, err = h.StorageGet(ctx, expandedKey(id), &stored); err != nil {
 			return err
 		}
@@ -306,9 +325,9 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.repos = repos
+	s.repos, s.gitDirs = repos, gitDirs
 	if first {
-		s.synced, s.selected = true, selected
+		s.synced, s.selected, s.hideIgn = true, selected, hide == "true"
 		for _, e := range stored {
 			s.expanded[e] = true
 		}
@@ -365,10 +384,40 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
 	s.mu.Lock()
 	repos := slices.Clone(s.repos)
+	expanded := maps.Clone(s.expanded)
 	s.mu.Unlock()
-	status := gitStatusAll(ctx, repos)
+	status := map[string]map[string]string{}
+	ignored := map[string]map[string]bool{}
+	for _, repo := range repos {
+		_, entries, err := gitrepo.Status(ctx, repo)
+		if err != nil {
+			logError("status "+repo, err)
+		} else {
+			status[repo] = statusMap(entries)
+		}
+		found, err := collectIgnored(ctx, repo, expanded)
+		if err != nil {
+			logError("ignored "+repo, err)
+		} else {
+			ignored[repo] = found
+		}
+	}
 	s.mu.Lock()
-	s.status = status
+	for dir := range s.expanded {
+		if !expanded[dir] {
+			s.dirty = true
+			break
+		}
+	}
+	for _, repo := range repos {
+		if _, ok := status[repo]; !ok {
+			status[repo] = s.status[repo]
+		}
+		if _, ok := ignored[repo]; !ok {
+			ignored[repo] = s.ignored[repo]
+		}
+	}
+	s.status, s.ignored = status, ignored
 	s.mu.Unlock()
 	return a.render(ctx, h, id, s)
 }
@@ -385,9 +434,16 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	for i, r := range s.repos {
 		roots[i] = Root{Path: r}
 	}
-	expanded, status, selected := maps.Clone(s.expanded), s.status, s.selected
+	status := map[string]string{}
+	for _, repo := range s.repos {
+		maps.Copy(status, s.status[repo])
+		for p := range s.ignored[repo] {
+			status[p] = ignoredCode
+		}
+	}
+	expanded, selected, hide := maps.Clone(s.expanded), s.selected, s.hideIgn
 	s.mu.Unlock()
-	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status), selected))
+	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status, hide), selected))
 	return err
 }
 
@@ -421,7 +477,32 @@ func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	if err := a.render(ctx, h, id, s); err != nil {
 		return err
 	}
-	return h.RunCommand(ctx, openCommand, id, pathArgs{Path: item}, nil)
+	if err := h.RunCommand(ctx, openCommand, id, pathArgs{Path: item}, nil); err != nil {
+		return err
+	}
+	logError("focus "+id, h.Focus(ctx, id, editorSection, editorSlot))
+	return nil
+}
+
+func (a *app) toggleIgnored(ctx context.Context, h *pluginsdk.Host, id string) error {
+	s := a.get(id)
+	if err := a.ensure(ctx, h, id, s); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.hideIgn = !s.hideIgn
+	hide := s.hideIgn
+	s.mu.Unlock()
+	var err error
+	if hide {
+		err = h.StorageSet(ctx, hideIgnoredKey(id), "true")
+	} else {
+		err = h.StorageDelete(ctx, hideIgnoredKey(id))
+	}
+	if err != nil {
+		return err
+	}
+	return a.render(ctx, h, id, s)
 }
 
 func (a *app) setExpanded(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string, on bool) error {
@@ -436,7 +517,45 @@ func (a *app) setExpanded(ctx context.Context, h *pluginsdk.Host, id string, s *
 	if err := h.StorageSet(ctx, expandedKey(id), keys); err != nil {
 		return err
 	}
+	if on {
+		a.classify(ctx, s, item)
+	}
 	return a.render(ctx, h, id, s)
+}
+
+func (a *app) classify(ctx context.Context, s *state, dir string) {
+	s.mu.Lock()
+	repo := containing(s.repos, dir)
+	muted := repo == ""
+	for p := dir; !muted && len(p) >= len(repo); p = filepath.Dir(p) {
+		muted = s.ignored[repo][p]
+	}
+	s.mu.Unlock()
+	if muted || (dir != repo && nestedRepo(dir)) {
+		return
+	}
+	entries := readEntries(dir)
+	if len(entries) > maxEntries {
+		entries = entries[:maxEntries]
+	}
+	paths := make([]string, len(entries))
+	for i, e := range entries {
+		paths[i] = filepath.Join(dir, e.name)
+	}
+	found, err := gitrepo.Ignored(ctx, repo, paths)
+	if err != nil {
+		logError("ignored "+dir, err)
+		return
+	}
+	s.mu.Lock()
+	if s.ignored == nil {
+		s.ignored = map[string]map[string]bool{}
+	}
+	if s.ignored[repo] == nil {
+		s.ignored[repo] = map[string]bool{}
+	}
+	maps.Copy(s.ignored[repo], found)
+	s.mu.Unlock()
 }
 
 func (a *app) reveal(ctx context.Context, h *pluginsdk.Host, id, path string) error {
@@ -452,13 +571,20 @@ func (a *app) reveal(ctx context.Context, h *pluginsdk.Host, id, path string) er
 		return nil
 	}
 	s.selected = real
+	var opened []string
 	for dir := filepath.Dir(real); len(dir) >= len(repo); dir = filepath.Dir(dir) {
+		if !s.expanded[dir] {
+			opened = append(opened, dir)
+		}
 		s.expanded[dir] = true
 	}
 	keys := sortedKeys(s.expanded)
 	s.mu.Unlock()
 	if err := errors.Join(h.StorageSet(ctx, expandedKey(id), keys), h.StorageSet(ctx, selectedKey(id), real)); err != nil {
 		return err
+	}
+	for _, dir := range slices.Backward(opened) {
+		a.classify(ctx, s, dir)
 	}
 	return a.render(ctx, h, id, s)
 }
@@ -495,6 +621,10 @@ func sortedKeys(set map[string]bool) []string {
 
 func expandedKey(projectID string) string {
 	return "expanded/" + projectID
+}
+
+func hideIgnoredKey(projectID string) string {
+	return "hideIgnored/" + projectID
 }
 
 func selectedKey(projectID string) string {

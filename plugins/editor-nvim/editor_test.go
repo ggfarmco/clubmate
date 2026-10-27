@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
@@ -137,6 +139,115 @@ func TestRestartRefusesUnsavedBuffers(t *testing.T) {
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
 }
 
+func TestEdgeFocusesSidebar(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	drain(e.h.Client(t))
+	require.NoError(t, v.Command("lua require('clubmate').navigate('h')"))
+	n, ok := nextFocus(e.h.Client(t), 5*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	var focus struct {
+		Section string `json:"section"`
+		Slot    string `json:"slot"`
+	}
+	require.NoError(t, json.Unmarshal(n.Params, &focus))
+	assert.Equal(t, "editor-nvim", focus.Section)
+	assert.Equal(t, "editor-nvim.sidebar", focus.Slot)
+}
+
+func TestEdgeAfterPluginRestart(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	require.NoError(t, v.Command("lua _G.cached = require('clubmate')"))
+	plugins := e.h.Sup.PIDs()
+	require.Len(t, plugins, 1)
+	require.NoError(t, unix.Kill(plugins[0], unix.SIGKILL))
+	c := e.h.Client(t)
+	testutil.Eventually(t, func() bool {
+		restarted := e.h.Sup.PIDs()
+		if len(restarted) != 1 || restarted[0] == plugins[0] {
+			return false
+		}
+		drain(c)
+		if v.Command("lua _G.cached.navigate('h')") != nil {
+			return false
+		}
+		_, ok := nextFocus(c, 200*time.Millisecond)
+		return ok
+	}, restartWait)
+}
+
+func TestHookCreatesNoKeymaps(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	ref, err := nvim.NewChildProcess(nvim.ChildProcessArgs("--embed", "--headless"), nvim.ChildProcessLogf(func(string, ...any) {}))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ref.Close() })
+	for _, n := range []*nvim.Nvim{v, ref} {
+		testutil.Eventually(t, func() bool { return eval[int](t, n, "v:vim_did_enter") == 1 }, 5*time.Second)
+	}
+	const lhs = "map(nvim_get_keymap('n'), {_, m -> m.lhs})"
+	assert.Empty(t, eval[string](t, v, "maparg('<C-H>', 'n')"))
+	assert.Equal(t, eval[string](t, ref, "maparg('<C-L>', 'n')"), eval[string](t, v, "maparg('<C-L>', 'n')"))
+	assert.ElementsMatch(t, eval[[]string](t, ref, lhs), eval[[]string](t, v, lhs))
+}
+
+func TestDiffOpensSideBySide(t *testing.T) {
+	e := startEditor(t)
+	a := e.file(t, "a.go")
+	c := filepath.Join(e.repo, "c.go")
+	require.NoError(t, os.WriteFile(c, []byte("x\r\ny\r\n"), 0o600))
+	git := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", e.repo, "-c", "core.autocrlf=false"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	git("init", "-q", "-b", "trunk")
+	git("add", "a.go", "c.go")
+	git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a")
+	require.NoError(t, os.WriteFile(a, []byte("changed\n"), 0o600))
+	require.NoError(t, os.WriteFile(c, []byte("x\r\nz\r\n"), 0o600))
+	b := filepath.Join(e.repo, "b.go")
+	require.NoError(t, os.WriteFile(b, []byte("new\n"), 0o600))
+	git("add", "b.go")
+	v := dial(t, e.sock)
+	for _, tc := range []struct {
+		name, path, base, target, left, right string
+		leftLines, rightLines                 []string
+	}{
+		{"worktree", a, "index", "worktree", "clubmate://index/a.go", a, slices.Repeat([]string{"line"}, 5), []string{"changed"}},
+		{"staged", b, "head", "index", "clubmate://head/b.go", "clubmate://index/b.go", []string{""}, []string{"new"}},
+		{"crlf", c, "index", "worktree", "clubmate://index/c.go", c, []string{"x", "y"}, []string{"x", "z"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := map[string]any{"path": tc.path, "base": tc.base, "target": tc.target}
+			require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
+			assert.Equal(t, 2, eval[int](t, v, "winnr('$')"))
+			assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
+			assert.Equal(t, []string{tc.left, tc.right}, eval[[]string](t, v, "[nvim_buf_get_name(winbufnr(1)), nvim_buf_get_name(winbufnr(2))]"))
+			assert.Equal(t, tc.leftLines, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
+			assert.Equal(t, tc.rightLines, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
+		})
+	}
+	tabs := eval[int](t, v, "tabpagenr('$')")
+	args := map[string]any{"path": a, "base": "index", "target": "worktree"}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
+	assert.Equal(t, tabs, eval[int](t, v, "tabpagenr('$')"))
+	assert.Equal(t, 1, eval[int](t, v, "len(filter(range(1, tabpagenr('$')), {_, t -> index(tabpagebuflist(t), bufnr('"+a+"')) >= 0}))"))
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool {
+		return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.Props["text"] == "trunk" })
+	})
+}
+
+func TestRestartIgnoresScratchBuffers(t *testing.T) {
+	e := startEditor(t)
+	require.NoError(t, dial(t, e.sock).Command("setlocal buftype=nofile | normal! ix"))
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID}, nil)
+	require.NoError(t, err)
+	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+}
+
 func TestMissingFirstRepoStartsInNext(t *testing.T) {
 	e := startEditorIn(t, true)
 	assert.Equal(t, e.repo, e.h.GetSession(t, e.sessionID).Cwd)
@@ -239,6 +350,30 @@ func eval[T any](t *testing.T, v *nvim.Nvim, expr string) T {
 	var out T
 	require.NoError(t, v.Eval(expr, &out))
 	return out
+}
+
+func drain(c *rpc.Client) {
+	for {
+		select {
+		case <-c.Notifications():
+		default:
+			return
+		}
+	}
+}
+
+func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
+	deadline := time.After(wait)
+	for {
+		select {
+		case n := <-c.Notifications():
+			if n.Method == "ui.focus" {
+				return n, true
+			}
+		case <-deadline:
+			return rpc.Notification{}, false
+		}
+	}
 }
 
 func contains(n sdui.Node, typ string) bool {

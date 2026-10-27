@@ -96,6 +96,13 @@ func TestDropProjectRemovesSlotsAndNotifies(t *testing.T) {
 	assert.Len(t, s.Get("prj_other"), 1)
 }
 
+func TestRenderAfterDropRejected(t *testing.T) {
+	s := internalsdui.NewStore()
+	s.DropProject(prj)
+	_, err := s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
+	assert.ErrorIs(t, err, internalsdui.ErrUnknownProject)
+}
+
 func TestSlowSubscriberIsDropped(t *testing.T) {
 	s := internalsdui.NewStore()
 	sub, _ := s.Subscribe(prj)

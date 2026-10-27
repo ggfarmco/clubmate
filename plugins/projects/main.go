@@ -35,6 +35,8 @@ type app struct {
 	selected string
 	created  int
 	home     string
+	deleting string
+	failure  string
 }
 
 func main() {
@@ -61,6 +63,9 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 }
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
+	a.mu.Lock()
+	a.failure = ""
+	a.mu.Unlock()
 	var err error
 	switch ev.Action {
 	case selectAction:
@@ -106,17 +111,35 @@ func (a *app) selectProject(ev pluginsdk.UIEvent) error {
 }
 
 func (a *app) deleteSelected(ctx context.Context, h *pluginsdk.Host) error {
-	id := a.current()
-	if id == "" {
-		return nil
-	}
-	if err := h.DeleteProject(ctx, id); err != nil {
+	projects, err := h.ListProjects(ctx)
+	if err != nil {
 		return err
 	}
 	a.mu.Lock()
-	a.selected = ""
-	a.mu.Unlock()
+	defer a.mu.Unlock()
+	i := slices.IndexFunc(projects, func(p pluginsdk.Project) bool { return p.ID == a.selected })
+	if i < 0 || a.deleting != "" {
+		return nil
+	}
+	id, name := projects[i].ID, projects[i].Name
+	a.deleting = name
+	go a.runDelete(context.WithoutCancel(ctx), h, id)
 	return nil
+}
+
+func (a *app) runDelete(ctx context.Context, h *pluginsdk.Host, id string) {
+	err := h.DeleteProject(ctx, id)
+	a.mu.Lock()
+	a.deleting = ""
+	if err != nil {
+		a.failure = err.Error()
+	} else if a.selected == id {
+		a.selected = ""
+	}
+	a.mu.Unlock()
+	if err := a.render(ctx, h); err != nil {
+		fmt.Fprintln(os.Stderr, "projects: render after delete:", err)
+	}
 }
 
 func (a *app) createProject(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
@@ -151,6 +174,6 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host) error {
 	if !slices.ContainsFunc(projects, func(p pluginsdk.Project) bool { return p.ID == a.selected }) {
 		a.selected = ""
 	}
-	_, err = h.Render(ctx, "", mainSlot, mainView(projects, a.selected, a.home, fmt.Sprintf("create-%d", a.created)))
+	_, err = h.Render(ctx, "", mainSlot, mainView(projects, a.selected, a.home, fmt.Sprintf("create-%d", a.created), a.deleting, a.failure))
 	return err
 }

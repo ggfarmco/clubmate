@@ -58,6 +58,10 @@ public final class CoreClient {
         try await connection.call(method, params, timeout: timeout)
     }
 
+    public func register(handles: [String]) async throws {
+        let _: NoParams = try await connection.call("client.register", RegisterParams(handles: handles))
+    }
+
     public func ping() async throws -> PingResult {
         try await connection.call("core.ping", NoParams())
     }
@@ -135,6 +139,10 @@ public final class CoreClient {
 }
 
 private struct NoParams: Codable, Sendable {}
+
+private struct RegisterParams: Encodable, Sendable {
+    let handles: [String]
+}
 
 private struct ProjectParams: Encodable, Sendable {
     let projectId: String

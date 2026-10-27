@@ -89,7 +89,14 @@ public final class ConnectionSupervisor {
 
     private func attempt() async throws(ClubmateError) -> CoreClient? {
         do {
-            return try await connect()
+            let client = try await connect()
+            do {
+                try await client.register(handles: ["project.open"])
+            } catch {
+                await client.close()
+                throw error
+            }
+            return client
         } catch let error as ClubmateError where !error.isTransient {
             throw error
         } catch {

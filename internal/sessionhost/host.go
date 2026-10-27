@@ -17,6 +17,7 @@ import (
 	"github.com/creack/pty"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/proc"
 	"clubmate/internal/wire"
 )
 
@@ -67,6 +68,10 @@ func Run(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("start session: %w", err)
 	}
 	defer ptmx.Close()
+	hostStart, err := proc.StartTime(os.Getpid())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "clubmate-session: host start time unavailable:", err)
+	}
 	meta := Meta{
 		ID:        cfg.ID,
 		ProjectID: cfg.ProjectID,
@@ -77,6 +82,7 @@ func Run(ctx context.Context, cfg Config) error {
 		HostPID:   os.Getpid(),
 		ChildPID:  cmd.Process.Pid,
 		PGID:      cmd.Process.Pid,
+		HostStart: hostStart,
 		StartedAt: time.Now(),
 	}
 	if err := WriteMeta(cfg.MetaPath, meta); err != nil {

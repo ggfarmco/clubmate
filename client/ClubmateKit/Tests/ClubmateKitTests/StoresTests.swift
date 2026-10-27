@@ -60,6 +60,24 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testFocusRequestFromNotification() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let store = ProjectUIStore(client: client, projectID: project.id)
+        try await store.start()
+        store.selectedSection = "echo"
+        guard let paths = core?.paths else { throw TestFailure(description: "no core") }
+        let caller = try await CoreClient.connect(paths: paths)
+        _ = try await caller.call(method: "ui.focus", params: .object([
+            "projectId": .string(project.id), "section": .string("terminals"), "slot": .string("terminals.main"),
+        ]))
+        try await waitUntil { store.focusRequest?.slot == "terminals.main" }
+        XCTAssertEqual(store.selectedSection, "terminals")
+        await caller.close()
+        await store.stop()
+        await client.close()
+    }
+
     func testPluginCrashEmptiesThenRerenders() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")
@@ -175,6 +193,14 @@ final class StoresTests: XCTestCase {
             let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", projectID: "prj_1")
             XCTAssertEqual(event, UIEvent(projectId: "prj_1", slot: "x.main", nodeId: node.id ?? "", action: action, value: value), "\(node.type) \(trigger)")
         }
+    }
+
+    func testConfirmActionTitle() {
+        let labels: [String?] = ["Discard…", "Delete", nil]
+        let titles = labels.map { label in
+            SDUINode(type: "button", id: "b", props: label.map { ["label": .string($0)] } ?? [:]).confirmActionTitle()
+        }
+        XCTAssertEqual(titles, ["Discard", "Delete", "OK"])
     }
 
     func testFolderFieldInForm() {

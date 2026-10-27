@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"maps"
 	"net"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -45,7 +44,7 @@ type Server struct {
 	logger     *slog.Logger
 	shutdown   atomic.Pointer[func()]
 	clientsMu  sync.Mutex
-	clients    map[*jsonrpc2.Conn]struct{}
+	clients    map[*jsonrpc2.Conn]map[string]struct{}
 }
 
 type ServerOption func(*Server)
@@ -59,7 +58,7 @@ func WithLogger(l *slog.Logger) ServerOption {
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]struct{}{}, logger: slog.New(slog.DiscardHandler)}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]map[string]struct{}{}, logger: slog.New(slog.DiscardHandler)}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -137,7 +136,7 @@ func (s *Server) open(ctx context.Context, stream jsonrpc2.ObjectStream, caller 
 func (s *Server) trackClient(conn *jsonrpc2.Conn) {
 	s.clientsMu.Lock()
 	defer s.clientsMu.Unlock()
-	s.clients[conn] = struct{}{}
+	s.clients[conn] = map[string]struct{}{}
 }
 
 func (s *Server) untrackClient(conn *jsonrpc2.Conn) {
@@ -146,9 +145,22 @@ func (s *Server) untrackClient(conn *jsonrpc2.Conn) {
 	delete(s.clients, conn)
 }
 
-func (s *Server) notifyClients(method string, params any, except *jsonrpc2.Conn) int {
+func (s *Server) registerClient(conn *jsonrpc2.Conn, handle string) {
 	s.clientsMu.Lock()
-	conns := slices.Collect(maps.Keys(s.clients))
+	defer s.clientsMu.Unlock()
+	if handles, ok := s.clients[conn]; ok {
+		handles[handle] = struct{}{}
+	}
+}
+
+func (s *Server) notifyClients(method string, params any, except *jsonrpc2.Conn, handle string) int {
+	s.clientsMu.Lock()
+	var conns []*jsonrpc2.Conn
+	for conn, handles := range s.clients {
+		if _, ok := handles[handle]; ok || handle == "" {
+			conns = append(conns, conn)
+		}
+	}
 	s.clientsMu.Unlock()
 	var wg sync.WaitGroup
 	var sent atomic.Int32

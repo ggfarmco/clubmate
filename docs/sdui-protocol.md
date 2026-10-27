@@ -20,7 +20,7 @@ Interactive types (`tabs list tree button textField folderField toggle select fo
 `items` and `options` accept `null` as an empty list.
 
 - item (`tabs`, `list`): `{id*, label*, detail, icon, badge}`, all strings, ids unique and non-empty.
-- tree item (`tree`): item fields plus `hasChildren` (bool), `expanded` (bool), `children` (tree items).
+- tree item (`tree`): item fields plus `muted` (bool), `hasChildren` (bool), `expanded` (bool), `children` (tree items).
 - option (`select`): `{value*, label*}`.
 
 ## Node types
@@ -36,6 +36,7 @@ Interactive types (`tabs list tree button textField folderField toggle select fo
 | text | text* (string), style (`body`\|`muted`\|`title`\|`mono`) | none | no |
 | badge | text* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`) | none | no |
 | icon | name* (string) | none | no |
+| diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
 | button | label* (string), icon (string), confirm (string), action | none | yes |
 | textField | value (string), placeholder (string), action | none | yes |
@@ -100,8 +101,10 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.presence | none | `[projectId]`, projects that currently have UI subscribers |
 | fs.watch | `{projectId}` | `{watch}` |
 | fs.unwatch | `{watch}` | `{}` |
-| command.list | none | `[{id, title, plugin, hidden}]` |
+| command.list | none | `[{id, title, plugin, hidden, confirm}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
+| ui.focus | `{projectId, section, slot}` | `{delivered}` |
+| client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 
@@ -109,26 +112,39 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
 
+A command with a non-empty `"confirm"` string in its manifest entry is listed with that text (`""` when absent); the client asks for confirmation with it before running the command.
+
 `process.kill` with `orphansOnly` kills only orphaned processes and needs `sessionId` or `projectId` (otherwise invalid params). With `projectId`, only that project's orphans are killed; with `sessionId`, only that session's. Without `orphansOnly`, `pids` must be tracked processes. Each target is signalled only if its start time still matches the tracked one, so a reused pid is skipped.
 
-`project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connected non-plugin client except the caller and returns how many were notified. `clubmate project open <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
+`project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connection that registered `"project.open"` via `client.register`, except the caller, and returns how many were notified (`clients`). `clubmate project open <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
+
+`client.register` marks the calling connection for the listed handles; the only handle is `"project.open"` and anything else is invalid params. Registration lasts for the connection. Plugin callers get invalid params.
+
+`ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`.
+
+`ui.render` is invalid params for a project that has been deleted.
 
 `command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
 
-`editor-nvim.restart` takes optional args `{force}`. Without `force: true` it first asks the running nvim for modified buffers and fails with `unsaved buffers: <names>` (names relative to the project repos, `[No Name]` for unnamed buffers) if there are any; the session is left running. If nvim does not answer within the RPC deadline it is restarted anyway. editor-nvim starts nvim in the first project repo that exists, else in `$HOME`; if the session cannot be started its main slot shows the error and a Restart button.
+`editor-nvim.restart` takes optional args `{force}`. Without `force: true` it first asks the running nvim for modified listed file buffers (`buftype` empty, `buflisted`; scratch buffers do not count) and fails with `unsaved buffers: <names>` (names relative to the project repos, `[No Name]` for unnamed buffers) if there are any; the session is left running. If nvim does not answer within the RPC deadline it is restarted anyway. editor-nvim starts nvim in the first project repo that exists, else in `$HOME`; if the session cannot be started its main slot shows the error and a Restart button.
+
+`editor-nvim.diff` takes args `{path, base, target}`: `path` must be absolute (otherwise an error), `base` is `head` or `index`, `target` is `index` or `worktree`, and they differ. The repo is the nearest ancestor of `path` containing `.git`. editor-nvim reads `HEAD:<rel>` / `:<rel>` with `git show`; a path missing from `HEAD` (or an unborn `HEAD`) or from the index is empty content, any other git failure is an error. It opens a new nvim tab with a side-by-side diff: the left window is a read-only scratch buffer named `clubmate://<base>/<rel>`, the right window is the file itself for `worktree` or a scratch buffer `clubmate://index/<rel>` for `index`. When the worktree file has `fileformat=dos`, trailing `\r` is stripped from the scratch lines.
+
+When nvim reaches its left edge through the `clubmate` Lua module (see `docs/nvim-integration.md`), editor-nvim calls `ui.focus` with slot `editor-nvim.sidebar`.
 
 `ui.event` requires a non-empty `action`, a valid slot and a registered section. It is routed to the owning plugin.
 
 ## Notifications
 
 - `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the project are replayed first.
+- `ui.focus` `{subscription, section, slot}`: the client should show `section`, and `slot` when non-empty, for that subscription's project.
 - `ui.closed` `{subscription, error}`: the subscription ended with an error (for example it fell behind); resubscribe and replace local state.
 
 ## File watching
 
-`fs.watch` starts one FSEvents stream over the project's repos as they are at call time (repos added later are not covered; call `fs.watch` again). It ends on `fs.unwatch` or when the connection closes. Repos that cannot be resolved (missing or deleted) are skipped and the rest are watched; a project with no resolvable repos gets a watch that never emits. Roots are symlink-resolved, so paths are real paths (`/private/var/...`, not `/var/...`).
+`fs.watch` starts one FSEvents stream over the project's repos as they are at call time (repos added later are not covered; call `fs.watch` again). It ends on `fs.unwatch` or when the connection closes. Repos that cannot be resolved (missing or deleted) are skipped and the rest are watched; a project with no resolvable repos gets a watch that never emits. When a repo is a linked git worktree (`.git` is a file with `gitdir: <path>`), the watch also covers that worktree's gitdir and the main repository's common dir (from `<gitdir>/commondir`), so commits, checkouts and ref updates made in the worktree emit paths under `<main>/.git/` (only `HEAD`, `index`, `refs/heads/**` and `worktrees/<name>/{HEAD,index}` are reported from inside `.git`). Roots are symlink-resolved, so paths are real paths (`/private/var/...`, not `/var/...`).
 
-- `fs.changed` `{watch, projectId, paths, overflow}`: sent to the watching connection with a 200ms coalescing window. `paths` is deduplicated. Under any `.git/` only `HEAD`, `index` and `refs/heads/**` are reported. A window with more than 1000 paths, or one in which FSEvents reports dropped or coalesced events (MustScanSubDirs, KernelDropped, UserDropped), is sent as `overflow: true` with `paths: []`; the receiver rescans.
+- `fs.changed` `{watch, projectId, paths, overflow}`: sent to the watching connection with a 200ms coalescing window. `paths` is deduplicated. Under any `.git/`, and under a linked worktree's gitdir and the main repository's common dir, only `HEAD`, `index`, `refs/heads/**` and `worktrees/<name>/{HEAD,index}` are reported. A window with more than 1000 paths, or one in which FSEvents reports dropped or coalesced events (MustScanSubDirs, KernelDropped, UserDropped), is sent as `overflow: true` with `paths: []`; the receiver rescans.
 
 Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.UnwatchFS`.
 
@@ -141,7 +157,7 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 
 ## Core notifications
 
-- `project.open` `{id}`: sent to every connected client (not to plugins, not to the caller of `project.open`); the client shows that project.
+- `project.open` `{id}`: sent to every connection that registered `"project.open"` (not to plugins, not to the caller of `project.open`); the client shows that project.
 - `core.stopping` (no params): sent to every connected client (not to plugins) after `core.shutdown` has replied and right before the core stops. A client that sees the connection end after `core.stopping` treats the stop as intentional and does not restart the core; a connection that ends without it is an unexpected loss.
 
 ## Presence

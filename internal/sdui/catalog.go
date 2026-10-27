@@ -73,6 +73,7 @@ var (
 		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles)}, children: noChildren},
 		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones)}, children: noChildren},
 		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString}, children: noChildren},
+		"diff":     {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"button": {
 			required:    []string{"label"},
@@ -331,7 +332,7 @@ func treeItemCheck(c *validator, v any) error {
 	if c.depth > maxDepth {
 		return fmt.Errorf("depth exceeds %d", maxDepth)
 	}
-	fields := map[string]propCheck{"hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck)}
+	fields := map[string]propCheck{"muted": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck)}
 	for k, f := range itemFields {
 		fields[k] = f
 	}

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,6 +69,7 @@ func TestCreateAndDeleteProject(t *testing.T) {
 		return len(items) == 1 && items[0].ID == id && items[0].Label == "alpha" && formID(n) != formID(initial)
 	})
 
+	require.NoError(t, h.Client(t).Call(t.Context(), "client.register", map[string][]string{"handles": {"project.open"}}, nil))
 	h.Event(t, "", "projects.main", "projects", "select", id)
 	assert.Zero(t, opens(h.Client(t)))
 	h.Event(t, "", "projects.main", "open", "open", nil)
@@ -77,4 +79,18 @@ func TestCreateAndDeleteProject(t *testing.T) {
 	projects, err = h.Svc.ListProjects(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, projects)
+}
+
+func TestDeleteReturnsImmediately(t *testing.T) {
+	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/projects", "plugins/projects/plugin.json"))
+	p := h.CreateProject(t, "doomed")
+	h.WaitSlot(t, "", "projects.main", func(n sdui.Node) bool { return len(listItems(n)) == 1 })
+	h.Event(t, "", "projects.main", "projects", "select", p.ID)
+	start := time.Now()
+	h.Event(t, "", "projects.main", "delete", "delete", nil)
+	assert.Less(t, time.Since(start), time.Second)
+	testutil.Eventually(t, func() bool {
+		projects, err := h.Svc.ListProjects(t.Context())
+		return err == nil && len(projects) == 0
+	}, 10*time.Second)
 }

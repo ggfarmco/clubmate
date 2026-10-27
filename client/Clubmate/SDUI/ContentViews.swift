@@ -101,6 +101,34 @@ struct MarkdownNodeView: View {
     }
 }
 
+struct DiffNodeView: View {
+    let node: SDUINode
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(DiffLine.parse(node.diffText() ?? "").enumerated()), id: \.offset) { _, line in
+                Text(line.text.isEmpty ? " " : line.text)
+                    .foregroundStyle(color(line.kind))
+            }
+        }
+        .font(theme.ui.monospaced())
+        .textSelection(.enabled)
+        .padding(.horizontal, theme.gutter)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func color(_ kind: DiffLine.Kind) -> Color {
+        switch kind {
+        case .added: theme.success
+        case .removed: theme.danger
+        case .hunk: theme.accent
+        case .context: theme.foreground
+        }
+    }
+}
+
 struct EmptyNodeView: View {
     let text: String
 

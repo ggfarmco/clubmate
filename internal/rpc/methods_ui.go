@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/project"
 	"clubmate/internal/sdui"
 	pkgsdui "clubmate/pkg/sdui"
 )
@@ -16,6 +19,7 @@ import (
 const (
 	notifyUIUpdated = "ui.updated"
 	notifyUIClosed  = "ui.closed"
+	notifyUIFocus   = "ui.focus"
 )
 
 var (
@@ -31,10 +35,11 @@ type Router interface {
 }
 
 type Command struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Plugin string `json:"plugin"`
-	Hidden bool   `json:"hidden"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Plugin  string `json:"plugin"`
+	Hidden  bool   `json:"hidden"`
+	Confirm string `json:"confirm"`
 }
 
 type uiState struct {
@@ -51,6 +56,22 @@ type renderParams struct {
 	ProjectID string       `json:"projectId"`
 	Slot      string       `json:"slot"`
 	Tree      pkgsdui.Node `json:"tree"`
+}
+
+type focusParams struct {
+	ProjectID string `json:"projectId"`
+	Section   string `json:"section"`
+	Slot      string `json:"slot"`
+}
+
+type uiFocusParams struct {
+	Subscription string `json:"subscription"`
+	Section      string `json:"section"`
+	Slot         string `json:"slot"`
+}
+
+type deliveredResult struct {
+	Delivered int `json:"delivered"`
 }
 
 type revResult struct {
@@ -87,6 +108,7 @@ func (s *Server) uiMethods() map[string]handlerFunc {
 		"ui.subscribe":   method(s.uiSubscribe),
 		"ui.unsubscribe": method(s.uiUnsubscribe),
 		"ui.presence":    method(s.uiPresence),
+		"ui.focus":       method(s.uiFocus),
 		"ui.render":      method(s.uiRender),
 		"ui.event":       method(s.uiEvent),
 		"command.list":   method(s.commandList),
@@ -126,18 +148,60 @@ func (s *Server) uiSubscribe(ctx context.Context, p projectParams) (subscription
 		return subscriptionParams{}, err
 	}
 	leave := func() {}
+	target := &focusTarget{conn: connFrom(ctx)}
 	if p.ProjectID != "" {
-		leave = s.presence.join(s.bus, s.logger, p.ProjectID)
+		leaveCount := s.presence.join(s.bus, s.logger, p.ProjectID)
+		leave = func() {
+			s.presence.dropTarget(p.ProjectID, target)
+			leaveCount()
+		}
 	}
 	sid, err := subscriptionsFrom(ctx).add(kindUI, sync.OnceFunc(func() {
 		sub.Close()
 		leave()
 	}), forwardUI(ctx, connFrom(ctx), sub))
+	if err == nil && p.ProjectID != "" {
+		s.presence.addTarget(p.ProjectID, target, sid)
+	}
 	return subscriptionParams{Subscription: sid}, err
 }
 
 func (s *Server) uiPresence(context.Context, empty) ([]string, error) {
 	return nonNil(s.presence.projects()), nil
+}
+
+func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, error) {
+	u, err := s.uiState()
+	if err != nil {
+		return deliveredResult{}, err
+	}
+	if _, err := s.svc.GetProject(ctx, p.ProjectID); err != nil {
+		if errors.Is(err, project.ErrNotFound) {
+			return deliveredResult{}, invalidParams(fmt.Sprintf("unknown project: %q", p.ProjectID))
+		}
+		return deliveredResult{}, err
+	}
+	if _, ok := u.sections.Owner(p.Section); !ok {
+		return deliveredResult{}, invalidParams(fmt.Sprintf("unknown section: %q", p.Section))
+	}
+	if scope, _ := u.sections.SlotScope(p.Section + ".main"); scope == sdui.ScopeApp {
+		return deliveredResult{}, invalidParams(fmt.Sprintf("section %q is app-scope", p.Section))
+	}
+	if !slices.Contains([]string{"", p.Section + ".sidebar", p.Section + ".main"}, p.Slot) {
+		return deliveredResult{}, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
+	}
+	var wg sync.WaitGroup
+	var delivered atomic.Int32
+	for _, t := range s.presence.focusTargets(p.ProjectID) {
+		wg.Go(func() {
+			params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot}
+			if t.conn.Notify(ctx, notifyUIFocus, params) == nil {
+				delivered.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	return deliveredResult{Delivered: int(delivered.Load())}, nil
 }
 
 func (s *Server) uiUnsubscribe(ctx context.Context, p subscriptionParams) (empty, error) {

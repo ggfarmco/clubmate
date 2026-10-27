@@ -48,6 +48,7 @@ final class ClubmateKitTests: XCTestCase {
     func testProjectOpenRequests() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")
+        try await client.register(handles: ["project.open"])
         let requests = client.projectOpenRequests()
         guard let paths = core?.paths else { throw TestFailure(description: "no core") }
         let caller = try await CoreClient.connect(paths: paths)

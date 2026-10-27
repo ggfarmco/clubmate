@@ -27,6 +27,8 @@ var (
 	errUnknownAction  = errors.New("unknown action")
 	errUnknownCommand = errors.New("unknown command")
 	errNoProject      = errors.New("command needs a project")
+
+	errProjectDeleted = errors.New("project deleted")
 )
 
 type projectEvent struct {
@@ -57,10 +59,11 @@ type app struct {
 	mu       sync.Mutex
 	projects map[string]*projectState
 	present  map[string]bool
+	deleted  map[string]bool
 }
 
 func main() {
-	a := &app{projects: map[string]*projectState{}, present: map[string]bool{}}
+	a := &app{projects: map[string]*projectState{}, present: map[string]bool{}, deleted: map[string]bool{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
 }
 
@@ -313,6 +316,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	a.mu.Lock()
 	delete(a.projects, id)
 	delete(a.present, id)
+	a.deleted[id] = true
 	a.mu.Unlock()
 	logError("drop "+id, errors.Join(h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, autoKillKey(id))))
 }
@@ -320,7 +324,11 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*projectState, error) {
 	a.mu.Lock()
 	st, ok := a.projects[id]
+	gone := a.deleted[id]
 	a.mu.Unlock()
+	if gone {
+		return nil, errProjectDeleted
+	}
 	if ok {
 		return st, nil
 	}
@@ -333,6 +341,9 @@ func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*project
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.deleted[id] {
+		return nil, errProjectDeleted
+	}
 	if st, ok := a.projects[id]; ok {
 		return st, nil
 	}
@@ -344,6 +355,9 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
 	a.renderMu.Lock()
 	defer a.renderMu.Unlock()
 	st, err := a.state(ctx, h, id)
+	if errors.Is(err, errProjectDeleted) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

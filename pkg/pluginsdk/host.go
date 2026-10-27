@@ -101,6 +101,10 @@ func (h *Host) OpenProject(ctx context.Context, id string) error {
 	return h.Call(ctx, "project.open", idParams{ID: id}, nil)
 }
 
+func (h *Host) Focus(ctx context.Context, projectID, section, slot string) error {
+	return h.Call(ctx, "ui.focus", map[string]string{"projectId": projectID, "section": section, "slot": slot}, nil)
+}
+
 func (h *Host) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
 	var out Session
 	err := h.Call(ctx, "session.create", req, &out)

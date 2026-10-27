@@ -47,6 +47,11 @@ func TestValidate(t *testing.T) {
 		{"folderField", sdui.WithAction(sdui.FolderField("r", "Choose folders…", []string{"/a"}), "pick"), true},
 		{"folderField without label", sdui.Node{Type: "folderField", ID: "r"}, false},
 		{"folderField bad values", sdui.Node{Type: "folderField", ID: "r", Props: map[string]any{"label": "L", "values": []any{1}}}, false},
+		{"tree muted", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "A", Muted: true}}, ""), true},
+		{"tree muted not bool", sdui.Node{Type: "tree", ID: "t", Props: map[string]any{"items": []any{map[string]any{"id": "a", "label": "A", "muted": "yes"}}}}, false},
+		{"diff", sdui.Diff("+a"), true},
+		{"diff without text", sdui.Node{Type: "diff"}, false},
+		{"diff with children", sdui.Node{Type: "diff", Props: map[string]any{"text": "x"}, Children: []sdui.Node{sdui.Text("a")}}, false},
 		{"select", sdui.Select("s", []sdui.Option{{Value: "a", Label: "A"}}, "a"), true},
 	}
 	for _, tt := range tests {
