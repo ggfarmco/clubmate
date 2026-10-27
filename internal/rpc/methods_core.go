@@ -205,6 +205,9 @@ type registerParams struct {
 }
 
 func (s *Server) clientRegister(ctx context.Context, p registerParams) (empty, error) {
+	if CallerFrom(ctx).IsPlugin() {
+		return empty{}, invalidParams("client.register is not available to plugins")
+	}
 	for _, h := range p.Handles {
 		if h != handleProjectOpen {
 			return empty{}, invalidParams(fmt.Sprintf("unknown handle: %q", h))

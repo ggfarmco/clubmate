@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -188,14 +189,18 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 	if !slices.Contains([]string{"", p.Section + ".sidebar", p.Section + ".main"}, p.Slot) {
 		return deliveredResult{}, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
-	var delivered int
+	var wg sync.WaitGroup
+	var delivered atomic.Int32
 	for _, t := range s.presence.focusTargets(p.ProjectID) {
-		params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot}
-		if t.conn.Notify(ctx, notifyUIFocus, params) == nil {
-			delivered++
-		}
+		wg.Go(func() {
+			params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot}
+			if t.conn.Notify(ctx, notifyUIFocus, params) == nil {
+				delivered.Add(1)
+			}
+		})
 	}
-	return deliveredResult{Delivered: delivered}, nil
+	wg.Wait()
+	return deliveredResult{Delivered: int(delivered.Load())}, nil
 }
 
 func (s *Server) uiUnsubscribe(ctx context.Context, p subscriptionParams) (empty, error) {

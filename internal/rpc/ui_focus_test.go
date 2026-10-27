@@ -17,7 +17,7 @@ import (
 
 func TestUIFocusNotifiesProjectSubscribers(t *testing.T) {
 	h := testutil.NewHarness(t)
-	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo"}]}`)))
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo"},{"id":"echo.glob","title":"Glob","scope":"app"}]}`)))
 	p := h.CreateProject(t, "p")
 	q := h.CreateProject(t, "q")
 	pc := h.Client(t)
@@ -29,6 +29,10 @@ func TestUIFocusNotifiesProjectSubscribers(t *testing.T) {
 	}
 	require.NoError(t, pc.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &psub))
 	require.NoError(t, qc.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": q.ID}, &qsub))
+	ac, err := rpc.Dial(t.Context(), h.Dirs.CoreSocket())
+	require.NoError(t, err)
+	t.Cleanup(func() { ac.Close() })
+	require.NoError(t, ac.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": ""}, nil))
 	focus := func(projectID, slot string) (res struct {
 		Delivered int `json:"delivered"`
 	}, err error) {
@@ -48,8 +52,12 @@ func TestUIFocusNotifiesProjectSubscribers(t *testing.T) {
 	select {
 	case n := <-qc.Notifications():
 		t.Fatalf("unexpected notification %s", n.Method)
+	case n := <-ac.Notifications():
+		t.Fatalf("unexpected notification %s", n.Method)
 	case <-time.After(100 * time.Millisecond):
 	}
+	err = pc.Call(t.Context(), "ui.focus", map[string]string{"projectId": p.ID, "section": "echo.glob", "slot": ""}, nil)
+	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 	_, err = focus(p.ID, "echo.status")
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 	_, err = focus("prj_0123456789abcdef", "echo.main")
