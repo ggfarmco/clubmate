@@ -9,6 +9,22 @@ public enum ClubmateError: Error, Equatable {
     case rpc(code: Int, message: String)
     case protocolError(String)
     case coreStartFailed(String)
+
+    public var message: String {
+        switch self {
+        case .insecureRuntime(let detail): "insecure runtime: \(detail)"
+        case .untrustedPeer: "untrusted core peer"
+        case .notRunning: "core is not running"
+        case .timeout: "request timed out"
+        case .rpc(let code, let message): "\(message) (\(code))"
+        case .protocolError(let detail): "protocol error: \(detail)"
+        case .coreStartFailed(let detail): "core start failed: \(detail)"
+        }
+    }
+
+    var isTransient: Bool {
+        self == .notRunning || self == .timeout
+    }
 }
 
 public enum Security {

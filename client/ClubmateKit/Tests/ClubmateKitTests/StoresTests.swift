@@ -161,6 +161,8 @@ final class StoresTests: XCTestCase {
             (node("select", "s"), .change("v"), "select", .string("v")),
             (node("form", "f"), .submit(.object(["name": .string("x")])), "submit", .object(["name": .string("x")])),
             (node("form", "f", action: "create"), .submit(.object([:])), "create", .object([:])),
+            (node("folderField", "repos"), .pick(["/a"]), "pick", .array([.string("/a")])),
+            (node("folderField", "repos", action: "add"), .pick(["/a"]), "add", .array([.string("/a")])),
         ]
         for (node, trigger, action, value) in rows {
             let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", projectID: "prj_1")
@@ -168,11 +170,45 @@ final class StoresTests: XCTestCase {
         }
     }
 
+    func testFolderFieldInForm() {
+        let form = SDUINode(type: "form", id: "f", children: [
+            SDUINode(type: "textField", id: "name"),
+            SDUINode(type: "folderField", id: "repos", props: ["label": .string("Add")]),
+            SDUINode(type: "form", id: "inner", children: [SDUINode(type: "folderField", id: "nested")]),
+        ])
+        let values: [String: JSONValue] = [
+            "name": .string("demo"),
+            "repos": UIAction.Trigger.pick(["/a", "/b"]).value,
+            "nested": .array([]),
+            "gone": .string("x"),
+        ]
+        XCTAssertEqual(UIForm.collect(values, in: form), .object(["name": .string("demo"), "repos": .array([.string("/a"), .string("/b")])]))
+    }
+
+    func testPaletteRanking() {
+        let entries = ["New Terminal", "Open Terminal Here", "Restart Neovim", "Kill Orphan Processes"].map {
+            PaletteEntry(id: $0, title: $0, detail: "")
+        }
+        XCTAssertEqual(CommandPalette.rank(entries, query: "term").map(\.title), ["New Terminal", "Open Terminal Here"])
+        XCTAssertEqual(CommandPalette.rank(entries, query: "rn").first?.title, "Restart Neovim")
+        XCTAssertEqual(CommandPalette.rank(entries, query: ""), entries)
+    }
+
+    func testAppScopeStore() async throws {
+        let client = try await startCore()
+        let store = ProjectUIStore(client: client, projectID: "")
+        try await store.start()
+        XCTAssertEqual(store.sections.map(\.id), ["projects"])
+        try await waitUntil { store.slots["projects.main"] != nil }
+        await store.stop()
+        await client.close()
+    }
+
     func testSectionCommandInvocations() throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
-        [{"id":"terminals.new","title":"New","plugin":"terminals"},
-         {"id":"terminals.close","title":"Close","plugin":"terminals"},
-         {"id":"echo.say","title":"Say","plugin":"echo"}]
+        [{"id":"terminals.new","title":"New","plugin":"terminals","hidden":false},
+         {"id":"terminals.close","title":"Close","plugin":"terminals","hidden":false},
+         {"id":"echo.say","title":"Say","plugin":"echo","hidden":false}]
         """#.utf8))
         let main = SDUINode(type: "stack", children: [SDUINode(type: "surface", props: ["sessionId": .string("ses_1")])])
 
@@ -230,7 +266,7 @@ private func terminalsPID(_ client: CoreClient) async throws -> pid_t? {
     return nil
 }
 
-private extension SDUINode {
+extension SDUINode {
     func find(id: String) -> SDUINode? {
         if self.id == id { return self }
         for child in children {
@@ -252,5 +288,21 @@ func waitFor<T>(within timeout: Duration = .seconds(5), _ value: () async throws
         if let result = try await value() { return result }
         guard ContinuousClock.now < deadline else { throw TestFailure(description: "condition not met within \(timeout)") }
         try await Task.sleep(for: .milliseconds(20))
+    }
+}
+
+func first<Element: Sendable>(_ stream: AsyncStream<Element>, within timeout: Duration) async -> Element? {
+    await withTaskGroup(of: Element?.self) { group in
+        group.addTask {
+            for await element in stream { return element }
+            return nil
+        }
+        group.addTask {
+            try? await Task.sleep(for: timeout)
+            return nil
+        }
+        let result = await group.next() ?? nil
+        group.cancelAll()
+        return result
     }
 }

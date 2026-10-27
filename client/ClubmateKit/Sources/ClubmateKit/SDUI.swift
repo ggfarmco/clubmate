@@ -35,6 +35,7 @@ public struct SectionInfo: Codable, Sendable, Equatable {
     public let title: String
     public let icon: String
     public let order: Int
+    public let scope: String
     public let plugin: String
 }
 
@@ -49,6 +50,7 @@ public struct Command: Codable, Sendable, Equatable {
     public let id: String
     public let title: String
     public let plugin: String
+    public let hidden: Bool
 }
 
 public struct UIEvent: Codable, Sendable, Equatable {

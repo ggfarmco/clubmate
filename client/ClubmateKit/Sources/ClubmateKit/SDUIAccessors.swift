@@ -78,4 +78,12 @@ extension SDUINode {
     public func options() -> [SDUIOption] {
         props["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
     }
+
+    public func values() -> [String] {
+        props["values"]?.arrayValue?.compactMap(\.stringValue) ?? []
+    }
+
+    public func confirmation() -> String? {
+        string("confirm").flatMap { $0.isEmpty ? nil : $0 }
+    }
 }

@@ -9,35 +9,53 @@ public enum UIAction {
         case submit(JSONValue)
         case toggle(Bool)
         case change(String)
+        case pick([String])
+
+        public var value: JSONValue {
+            switch self {
+            case .click: .null
+            case .select(let id), .expand(let id), .collapse(let id): .string(id)
+            case .submit(let submitted): submitted
+            case .toggle(let on): .bool(on)
+            case .change(let option): .string(option)
+            case .pick(let paths): .array(paths.map(JSONValue.string))
+            }
+        }
     }
 
     public static func event(for node: SDUINode, trigger: Trigger, slot: String, projectID: String) -> UIEvent {
         let custom = node.string("action")
         let action: String
-        let value: JSONValue
         switch trigger {
-        case .click:
-            action = custom ?? node.id ?? ""
-            value = .null
-        case .select(let id):
-            action = custom ?? "select"
-            value = .string(id)
-        case .expand(let id):
-            action = "expand"
-            value = .string(id)
-        case .collapse(let id):
-            action = "collapse"
-            value = .string(id)
-        case .submit(let submitted):
-            action = custom ?? "submit"
-            value = submitted
-        case .toggle(let on):
-            action = custom ?? "toggle"
-            value = .bool(on)
-        case .change(let option):
-            action = custom ?? "select"
-            value = .string(option)
+        case .click: action = custom ?? node.id ?? ""
+        case .select, .change: action = custom ?? "select"
+        case .expand: action = "expand"
+        case .collapse: action = "collapse"
+        case .submit: action = custom ?? "submit"
+        case .toggle: action = custom ?? "toggle"
+        case .pick: action = custom ?? "pick"
         }
-        return UIEvent(projectId: projectID, slot: slot, nodeId: node.id ?? "", action: action, value: value)
+        return UIEvent(projectId: projectID, slot: slot, nodeId: node.id ?? "", action: action, value: trigger.value)
+    }
+}
+
+public enum UIForm {
+    public static let fieldTypes: Set<String> = ["textField", "folderField", "toggle", "select"]
+
+    public static func fieldIDs(in form: SDUINode) -> Set<String> {
+        var ids: Set<String> = []
+        func visit(_ children: [SDUINode]) {
+            for child in children where child.type != "form" {
+                if fieldTypes.contains(child.type), let id = child.id { ids.insert(id) }
+                visit(child.children)
+            }
+        }
+        visit(form.children)
+        return ids
+    }
+
+    public static func collect(_ values: [String: JSONValue], in form: SDUINode) -> JSONValue {
+        let ids = fieldIDs(in: form)
+        return .object(values.filter { ids.contains($0.key) })
     }
 }
