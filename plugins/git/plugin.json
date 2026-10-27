@@ -1,0 +1,15 @@
+{
+  "id": "git",
+  "name": "Git",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["git"],
+  "contributes": {
+    "sections": [{"id": "git", "title": "Git", "icon": "arrow.triangle.branch", "order": 15}],
+    "commands": [
+      {"id": "git.refresh", "title": "Refresh Git Status"},
+      {"id": "git.stage-all", "title": "Stage All Changes"},
+      {"id": "git.unstage-all", "title": "Unstage All"}
+    ]
+  }
+}
