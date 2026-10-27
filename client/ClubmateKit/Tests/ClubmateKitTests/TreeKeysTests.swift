@@ -22,6 +22,30 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertEqual(TreeCursor.move(nil, by: 1, in: rows), "a")
     }
 
+    func testTreeCursorResolve() {
+        let rows = [
+            TreeRow(id: "a", depth: 0, parent: nil, hasChildren: true, expanded: true),
+            TreeRow(id: "a1", depth: 1, parent: "a", hasChildren: true, expanded: false),
+            TreeRow(id: "b", depth: 0, parent: nil, hasChildren: false, expanded: false),
+        ]
+        let cases: [(TreeKeyAction, String?, TreeCommand?)] = [
+            (.move(1), "a", .cursor("a1")),
+            (.move(1), nil, .cursor("a")),
+            (.activate, "b", .select("b")),
+            (.activate, nil, nil),
+            (.expand, "a1", .expand("a1")),
+            (.expand, "a", .cursor("a1")),
+            (.expand, "b", nil),
+            (.collapse, "a", .collapse("a")),
+            (.collapse, "a1", .cursor("a")),
+            (.collapse, "b", nil),
+            (.focusMain, nil, .focusMain),
+        ]
+        for (action, cursor, command) in cases {
+            XCTAssertEqual(TreeCursor.resolve(action, cursor: cursor, in: rows), command, "\(action) at \(cursor ?? "nil")")
+        }
+    }
+
     func testTreeKeyActions() {
         let rows: [(UInt16, Bool, TreeKeyAction)] = [
             (38, false, .move(1)),

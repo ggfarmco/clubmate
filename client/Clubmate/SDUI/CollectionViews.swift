@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
@@ -65,6 +66,7 @@ struct ListNodeView: View {
     let node: SDUINode
 
     @State private var selected: String?
+    @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
 
     var body: some View {
@@ -72,10 +74,14 @@ struct ListNodeView: View {
             ForEach(node.items()) { item in
                 ItemRow(item: item, selected: item.id == selected) {
                     selected = item.id
+                    focused = true
                     dispatch(node, .select(item.id))
                 }
             }
         }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
         .onChange(of: node.string("selected"), initial: true) { _, value in
             selected = value
         }
@@ -86,7 +92,11 @@ struct TreeNodeView: View {
     let node: SDUINode
 
     @State private var selected: String?
+    @State private var cursor: String?
+    @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.scrollProxy) private var scroll
+    @Environment(\.focusRouter) private var router
 
     private struct Row: Identifiable {
         let item: SDUITreeItem
@@ -108,20 +118,98 @@ struct TreeNodeView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
-                ItemRow(item: row.item.item, selected: row.id == selected, indent: CGFloat(row.depth) * 12) {
-                    selected = row.id
-                    dispatch(node, .select(row.id))
+                ItemRow(item: row.item.item, selected: row.id == selected, cursor: focused && row.id == cursor, muted: row.item.muted, indent: CGFloat(row.depth) * 12) {
+                    cursor = row.id
+                    focused = true
+                    select(row.id)
                 } leading: {
                     Disclosure(item: row.item) { expanded in
                         dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
                     }
                 }
+                .id(row.id)
             }
         }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .background(KeyMonitor(active: focused, handle: handle))
         .onChange(of: node.string("selected"), initial: true) { _, value in
+            guard value != selected else { return }
             selected = value
+            if let value { scroll?.scrollTo(value, anchor: .center) }
+        }
+        .onChange(of: router?.pending, initial: true) {
+            guard dispatch.slot.hasSuffix(".sidebar"), router?.take(dispatch.slot) == true else { return }
+            cursor = selected ?? rows.first?.id
+            focused = true
+        }
+    }
+
+    private func select(_ id: String) {
+        selected = id
+        dispatch(node, .select(id))
+    }
+
+    private func handle(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags
+        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command)) else { return false }
+        switch TreeCursor.resolve(action, cursor: cursor, in: TreeCursor.rows(node.treeItems())) {
+        case .cursor(let id):
+            cursor = id
+            scroll?.scrollTo(id)
+        case .select(let id): select(id)
+        case .expand(let id): dispatch(node, .expand(id))
+        case .collapse(let id): dispatch(node, .collapse(id))
+        case .focusMain: router?.requestMain(from: dispatch.slot)
+        case nil: break
+        }
+        return true
+    }
+}
+
+private struct KeyMonitor: NSViewRepresentable {
+    let active: Bool
+    let handle: @MainActor (NSEvent) -> Bool
+
+    func makeNSView(context: Context) -> KeyMonitorView {
+        KeyMonitorView()
+    }
+
+    func updateNSView(_ view: KeyMonitorView, context: Context) {
+        view.handle = handle
+        view.active = active
+    }
+}
+
+final class KeyMonitorView: NSView {
+    var handle: (@MainActor (NSEvent) -> Bool)?
+    var active = false {
+        didSet { update() }
+    }
+
+    private var monitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        update()
+    }
+
+    private func update() {
+        let wanted = active && window != nil
+        if wanted, monitor == nil {
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                let consumed = MainActor.assumeIsolated {
+                    guard let self, let window = self.window, event.window === window else { return false }
+                    return self.handle?(event) == true
+                }
+                return consumed ? nil : event
+            }
+        } else if !wanted, let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
         }
     }
 }
@@ -151,6 +239,8 @@ private struct Disclosure: View {
 struct ItemRow<Leading: View>: View {
     let item: SDUIItem
     let selected: Bool
+    var cursor = false
+    var muted = false
     var indent: CGFloat = 0
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
@@ -167,7 +257,7 @@ struct ItemRow<Leading: View>: View {
                     .frame(width: 14)
             }
             Text(item.label)
-                .foregroundStyle(theme.foreground)
+                .foregroundStyle(muted ? theme.muted : theme.foreground)
                 .lineLimit(1)
             Spacer(minLength: theme.gutter)
             if let detail = item.detail {
@@ -185,6 +275,9 @@ struct ItemRow<Leading: View>: View {
         .padding(.trailing, theme.gutter)
         .frame(height: theme.rowHeight)
         .background(background, ignoresSafeAreaEdges: [])
+        .overlay {
+            if cursor { Rectangle().strokeBorder(theme.accent, lineWidth: 1) }
+        }
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .onHover { hovering = $0 }

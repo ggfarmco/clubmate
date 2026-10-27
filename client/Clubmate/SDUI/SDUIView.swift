@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 import ClubmateKit
@@ -32,6 +33,38 @@ extension EnvironmentValues {
     }
 }
 
+@MainActor
+@Observable
+final class FocusRouter {
+    private(set) var pending: String?
+
+    func request(_ slot: String) {
+        pending = slot
+    }
+
+    func requestMain(from slot: String) {
+        guard let dot = slot.lastIndex(of: ".") else { return }
+        request(String(slot[..<dot]) + ".main")
+    }
+
+    func take(_ slot: String) -> Bool {
+        guard pending == slot else { return false }
+        pending = nil
+        return true
+    }
+}
+
+private struct FocusRouterKey: EnvironmentKey {
+    static let defaultValue: FocusRouter? = nil
+}
+
+extension EnvironmentValues {
+    var focusRouter: FocusRouter? {
+        get { self[FocusRouterKey.self] }
+        set { self[FocusRouterKey.self] = newValue }
+    }
+}
+
 struct SDUIView: View {
     let node: SDUINode
     let slot: String
@@ -62,6 +95,7 @@ struct SDUINodeView: View {
         case "badge": BadgeNodeView(node: node)
         case "icon": IconNodeView(node: node)
         case "markdown": MarkdownNodeView(node: node)
+        case "diff": DiffNodeView(node: node)
         case "button": ButtonNodeView(node: node)
         case "textField": TextFieldNodeView(node: node)
         case "folderField": FolderFieldNodeView(node: node)

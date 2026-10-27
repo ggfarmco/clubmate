@@ -34,6 +34,11 @@ final class SurfaceDeck {
         apply()
     }
 
+    func focus(_ sessionID: String) {
+        guard selected == sessionID, container.window != nil else { return }
+        views[sessionID]?.focus()
+    }
+
     func surfaceClosed(_ sessionID: String) {
         guard let view = views.removeValue(forKey: sessionID) else { return }
         view.destroy()
