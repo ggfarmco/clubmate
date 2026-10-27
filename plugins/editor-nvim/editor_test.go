@@ -22,6 +22,7 @@ import (
 
 const (
 	mainSlot      = "editor-nvim.main"
+	statusSlot    = "editor-nvim.status"
 	restartWait   = 15 * time.Second
 	blockedBudget = 3 * time.Second
 )
@@ -36,7 +37,7 @@ type editor struct {
 
 func TestOpenFileAtLine(t *testing.T) {
 	e := startEditor(t)
-	path := e.file(t, filepath.Join("dir with space", "файл.go"))
+	path := e.file(t, filepath.Join("-dir with space", "файл.go"))
 	require.NoError(t, e.open(t, path, 3))
 	v := dial(t, e.sock)
 	assert.Equal(t, path, eval[string](t, v, "expand('%:p')"))
@@ -77,7 +78,7 @@ func TestBlockedNvimTimesOut(t *testing.T) {
 		return m.Blocking
 	}, 5*time.Second)
 	start := time.Now()
-	require.Error(t, e.open(t, path, 2))
+	require.ErrorContains(t, e.open(t, path, 2), "nvim rpc timed out")
 	assert.Less(t, time.Since(start), blockedBudget)
 	_, err = v.Input("<CR>")
 	require.NoError(t, err)
@@ -111,6 +112,7 @@ func TestExitedShowsRestart(t *testing.T) {
 	testutil.Eventually(t, func() bool { return e.h.GetSession(t, e.sessionID).State != session.StateRunning }, 5*time.Second)
 	require.NoError(t, e.h.Svc.CheckTransitions(t.Context()))
 	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool { return contains(n, "button") })
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return !contains(n, "badge") })
 	e.h.Event(t, e.projectID, mainSlot, "restart", "restart", nil)
 	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
@@ -138,7 +140,7 @@ func startEditor(t *testing.T) *editor {
 	}
 	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
 	main := h.WaitSlot(t, p.ID, mainSlot, func(n sdui.Node) bool { return n.Type == "surface" })
-	h.WaitSlot(t, p.ID, "editor-nvim.status", func(n sdui.Node) bool { return contains(n, "badge") })
+	h.WaitSlot(t, p.ID, statusSlot, func(n sdui.Node) bool { return contains(n, "badge") })
 	e.sessionID = main.Props["sessionId"].(string)
 	s := h.GetSession(t, e.sessionID)
 	assert.Equal(t, "nvim", s.Title)

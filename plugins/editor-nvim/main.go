@@ -270,6 +270,7 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor) error {
 	if c := e.reset(); c != nil {
 		c.close()
 	}
+	a.scheduleStatus(h, e)
 	sessions, err := h.ListSessions(ctx, e.id, true)
 	if err != nil {
 		return err
@@ -294,6 +295,7 @@ func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {
 	if c != nil {
 		go c.close()
 	}
+	a.scheduleStatus(h, e)
 	if err := renderMain(ctx, h, ev.ProjectID, exitedView(ev.ExitCode)); err != nil {
 		logError("render", err)
 	}
@@ -380,9 +382,7 @@ func (e *editor) setClient(c *client) {
 func (e *editor) reset() *client {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	c := e.client
-	e.client, e.session = nil, ""
-	return c
+	return e.detachLocked()
 }
 
 func (e *editor) exited(sessionID string) (*client, bool) {
@@ -391,9 +391,13 @@ func (e *editor) exited(sessionID string) (*client, bool) {
 	if e.session != sessionID {
 		return nil, false
 	}
+	return e.detachLocked(), true
+}
+
+func (e *editor) detachLocked() *client {
 	c := e.client
-	e.client, e.session = nil, ""
-	return c, true
+	e.client, e.session, e.status = nil, "", status{}
+	return c
 }
 
 func (e *editor) current() status {
