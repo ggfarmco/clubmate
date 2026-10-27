@@ -64,7 +64,8 @@ type state struct {
 	hideIgn  bool
 	expanded map[string]bool
 	selected string
-	status   map[string]string
+	status   map[string]map[string]string
+	ignored  map[string]map[string]bool
 	watch    string
 }
 
@@ -383,10 +384,34 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
 	s.mu.Lock()
 	repos := slices.Clone(s.repos)
+	expanded := maps.Clone(s.expanded)
 	s.mu.Unlock()
-	status := gitStatusAll(ctx, repos)
+	status := map[string]map[string]string{}
+	ignored := map[string]map[string]bool{}
+	for _, repo := range repos {
+		_, entries, err := gitrepo.Status(ctx, repo, false)
+		if err != nil {
+			logError("status "+repo, err)
+		} else {
+			status[repo] = statusMap(entries)
+		}
+		found, err := collectIgnored(ctx, repo, expanded)
+		if err != nil {
+			logError("ignored "+repo, err)
+		} else {
+			ignored[repo] = found
+		}
+	}
 	s.mu.Lock()
-	s.status = status
+	for _, repo := range repos {
+		if _, ok := status[repo]; !ok {
+			status[repo] = s.status[repo]
+		}
+		if _, ok := ignored[repo]; !ok {
+			ignored[repo] = s.ignored[repo]
+		}
+	}
+	s.status, s.ignored = status, ignored
 	s.mu.Unlock()
 	return a.render(ctx, h, id, s)
 }
@@ -403,7 +428,14 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	for i, r := range s.repos {
 		roots[i] = Root{Path: r}
 	}
-	expanded, status, selected, hide := maps.Clone(s.expanded), s.status, s.selected, s.hideIgn
+	status := map[string]string{}
+	for _, repo := range s.repos {
+		maps.Copy(status, s.status[repo])
+		for p := range s.ignored[repo] {
+			status[p] = ignoredCode
+		}
+	}
+	expanded, selected, hide := maps.Clone(s.expanded), s.selected, s.hideIgn
 	s.mu.Unlock()
 	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status, hide), selected))
 	return err
@@ -479,7 +511,45 @@ func (a *app) setExpanded(ctx context.Context, h *pluginsdk.Host, id string, s *
 	if err := h.StorageSet(ctx, expandedKey(id), keys); err != nil {
 		return err
 	}
+	if on {
+		a.classify(ctx, s, item)
+	}
 	return a.render(ctx, h, id, s)
+}
+
+func (a *app) classify(ctx context.Context, s *state, dir string) {
+	s.mu.Lock()
+	repo := containing(s.repos, dir)
+	muted := repo == ""
+	for p := dir; !muted && len(p) >= len(repo); p = filepath.Dir(p) {
+		muted = s.ignored[repo][p]
+	}
+	s.mu.Unlock()
+	if muted {
+		return
+	}
+	entries := readEntries(dir)
+	if len(entries) > maxEntries {
+		entries = entries[:maxEntries]
+	}
+	paths := make([]string, len(entries))
+	for i, e := range entries {
+		paths[i] = filepath.Join(dir, e.name)
+	}
+	found, err := gitrepo.Ignored(ctx, repo, paths)
+	if err != nil {
+		logError("ignored "+dir, err)
+		return
+	}
+	s.mu.Lock()
+	if s.ignored == nil {
+		s.ignored = map[string]map[string]bool{}
+	}
+	if s.ignored[repo] == nil {
+		s.ignored[repo] = map[string]bool{}
+	}
+	maps.Copy(s.ignored[repo], found)
+	s.mu.Unlock()
 }
 
 func (a *app) reveal(ctx context.Context, h *pluginsdk.Host, id, path string) error {
@@ -495,13 +565,20 @@ func (a *app) reveal(ctx context.Context, h *pluginsdk.Host, id, path string) er
 		return nil
 	}
 	s.selected = real
+	var opened []string
 	for dir := filepath.Dir(real); len(dir) >= len(repo); dir = filepath.Dir(dir) {
+		if !s.expanded[dir] {
+			opened = append(opened, dir)
+		}
 		s.expanded[dir] = true
 	}
 	keys := sortedKeys(s.expanded)
 	s.mu.Unlock()
 	if err := errors.Join(h.StorageSet(ctx, expandedKey(id), keys), h.StorageSet(ctx, selectedKey(id), real)); err != nil {
 		return err
+	}
+	for _, dir := range slices.Backward(opened) {
+		a.classify(ctx, s, dir)
 	}
 	return a.render(ctx, h, id, s)
 }

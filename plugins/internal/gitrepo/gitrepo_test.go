@@ -15,6 +15,7 @@ import (
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-C", dir}, args...)...)
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 }
@@ -76,7 +77,9 @@ func TestDirsWorktree(t *testing.T) {
 	write(t, filepath.Join(main, "a"), "a")
 	git(t, main, "add", ".")
 	git(t, main, "commit", "-q", "-m", "init")
-	wt := filepath.Join(newRepo(t), "wt")
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	wt := filepath.Join(base, "wt")
 	git(t, main, "worktree", "add", "-q", "-b", "feat", wt)
 
 	gitDir, commonDir, err := gitrepo.Dirs(t.Context(), wt)
@@ -99,4 +102,24 @@ func TestBranch(t *testing.T) {
 	b, err = gitrepo.Branch(t.Context(), repo)
 	require.NoError(t, err)
 	assert.Regexp(t, `^\(detached [0-9a-f]+\)$`, b)
+}
+
+func TestIgnoredPaths(t *testing.T) {
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, ".gitignore"), "bin/\n*.log\n")
+	write(t, filepath.Join(repo, "bin", "x"), "x")
+	write(t, filepath.Join(repo, "a.log"), "x")
+	write(t, filepath.Join(repo, "a.go"), "x")
+	paths := []string{"bin", "bin/x", "a.log", "a.go"}
+	for i, p := range paths {
+		paths[i] = filepath.Join(repo, p)
+	}
+
+	got, err := gitrepo.Ignored(t.Context(), repo, paths)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{paths[0]: true, paths[1]: true, paths[2]: true}, got)
+
+	got, err = gitrepo.Ignored(t.Context(), repo, paths[3:])
+	require.NoError(t, err)
+	assert.Empty(t, got)
 }

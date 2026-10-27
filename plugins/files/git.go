@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"maps"
+	"path/filepath"
 
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -21,8 +22,6 @@ func statusCode(x, y byte) string {
 	switch {
 	case x == '?' && y == '?':
 		return "U"
-	case x == '!':
-		return ignoredCode
 	case x == 'U' || y == 'U' || (x == 'A' && y == 'A') || (x == 'D' && y == 'D'):
 		return "U"
 	case x == 'A':
@@ -45,14 +44,35 @@ func statusCode(x, y byte) string {
 	return ""
 }
 
-func gitStatusAll(ctx context.Context, repos []string) map[string]string {
-	all := map[string]string{}
-	for _, repo := range repos {
-		_, entries, err := gitrepo.Status(ctx, repo, true)
-		if err != nil {
+func collectIgnored(ctx context.Context, repo string, expanded map[string]bool) (map[string]bool, error) {
+	ignored := map[string]bool{}
+	queue := []string{repo}
+	total := 0
+	for len(queue) > 0 && total < maxItems {
+		dir := queue[0]
+		queue = queue[1:]
+		if !expanded[dir] {
 			continue
 		}
-		maps.Copy(all, statusMap(entries))
+		entries := readEntries(dir)
+		if len(entries) > maxEntries {
+			entries = entries[:maxEntries]
+		}
+		paths := make([]string, len(entries))
+		for i, e := range entries {
+			paths[i] = filepath.Join(dir, e.name)
+		}
+		total += len(paths)
+		found, err := gitrepo.Ignored(ctx, repo, paths)
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(ignored, found)
+		for i, e := range entries {
+			if e.dir && !e.link && !found[paths[i]] {
+				queue = append(queue, paths[i])
+			}
+		}
 	}
-	return all
+	return ignored, nil
 }

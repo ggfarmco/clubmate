@@ -16,7 +16,6 @@ func TestStatusMap(t *testing.T) {
 		{Path: "/r/x", X: 'A', Y: ' '},
 		{Path: "/r/gone", X: ' ', Y: 'D'},
 		{Path: "/r/c", X: 'U', Y: 'U'},
-		{Path: "/r/bin", X: '!', Y: '!'},
 	}
 	assert.Equal(t, map[string]string{
 		"/r/a.go": "M",
@@ -25,6 +24,5 @@ func TestStatusMap(t *testing.T) {
 		"/r/x":    "A",
 		"/r/gone": "D",
 		"/r/c":    "U",
-		"/r/bin":  "!",
 	}, statusMap(entries))
 }
