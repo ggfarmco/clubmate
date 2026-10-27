@@ -28,7 +28,7 @@ const (
   l[#l + 1] = entry
   vim.g.dv_log = l
 end
-vim.api.nvim_create_user_command("DiffviewOpen", function(ctx) vim.cmd.tabnew(); log(ctx.args) end, { nargs = "*" })
+vim.api.nvim_create_user_command("DiffviewOpen", function(ctx) if not vim.g.dv_fail then vim.cmd.tabnew() end; log(ctx.args) end, { nargs = "*" })
 vim.api.nvim_create_user_command("DiffviewClose", function() vim.cmd.tabclose(); log("close") end, {})`
 	mainSlot      = "editor-nvim.main"
 	statusSlot    = "editor-nvim.status"
@@ -267,6 +267,16 @@ func TestReviewReplacesTab(t *testing.T) {
 	open := openLog(t, v, repo)
 	assert.Equal(t, []string{open, "close", open}, eval[[]string](t, v, "g:dv_log"))
 	assert.Equal(t, 2, eval[int](t, v, "tabpagenr('$')"))
+}
+
+func TestReviewFailedOpenRecordsNoTab(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: stubDiffview})
+	v := dial(t, e.sock)
+	require.NoError(t, v.SetVar("dv_fail", true))
+	assert.Equal(t, "builtin", e.review(t, e.repo, "feature/x"))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review-close", "projectId": e.projectID}, nil))
+	assert.Equal(t, []string{openLog(t, v, e.repo)}, eval[[]string](t, v, "g:dv_log"))
+	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
 }
 
 func TestReviewWithoutDiffview(t *testing.T) {

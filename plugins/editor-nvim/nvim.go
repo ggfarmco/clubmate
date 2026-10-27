@@ -100,8 +100,11 @@ m.review_tab = nil`
 const reviewLua = `local repo, base = ...
 if vim.fn.exists(":DiffviewOpen") ~= 2 then return "builtin" end
 ` + closeReviewLua + `
+local before = vim.api.nvim_get_current_tabpage()
 vim.cmd({ cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(repo), base .. "...HEAD" } })
-m.review_tab = vim.api.nvim_get_current_tabpage()
+local tab = vim.api.nvim_get_current_tabpage()
+if tab == before then return "builtin" end
+m.review_tab = tab
 return "diffview"`
 
 const modifiedLua = `local names = {}
