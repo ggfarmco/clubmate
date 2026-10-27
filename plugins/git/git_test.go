@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -246,7 +245,11 @@ func TestPlainDirIsNotARepo(t *testing.T) {
 
 func TestDiscard(t *testing.T) {
 	repo := newRepo(t, "b.go")
-	write(t, filepath.Join(repo, "c.go"), "cee\n")
+	for name, content := range map[string]string{"c.go": "cee\n", "a1": "a\n", "n": "n\n"} {
+		write(t, filepath.Join(repo, name), content)
+	}
+	require.NoError(t, os.Mkdir(filepath.Join(repo, "d"), 0o700))
+	write(t, filepath.Join(repo, "d", "x"), "x\n")
 	git(t, repo, "add", ".")
 	git(t, repo, "commit", "-qm", "init")
 	write(t, filepath.Join(repo, "b.go"), "two\n")
@@ -254,30 +257,60 @@ func TestDiscard(t *testing.T) {
 	git(t, repo, "add", "-N", "f.go")
 	require.NoError(t, os.Rename(filepath.Join(repo, "c.go"), filepath.Join(repo, "d.go")))
 	git(t, repo, "add", "-N", "d.go")
+	replace := func(name string) string {
+		path := filepath.Join(repo, name)
+		require.NoError(t, os.RemoveAll(path))
+		require.NoError(t, os.Mkdir(path, 0o700))
+		return path
+	}
+	write(t, filepath.Join(replace("a1"), "u"), "u\n")
+	require.NoError(t, os.RemoveAll(filepath.Join(repo, "d")))
+	write(t, filepath.Join(repo, "d"), "file\n")
+	nested := replace("n")
+	git(t, nested, "init", "-q")
+	write(t, filepath.Join(nested, "z"), "z\n")
+	git(t, nested, "add", "z")
+	git(t, nested, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "z")
 	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (3)"]) == 3 })
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (6)"]) == 6 })
 	discard := func(leaf string) error {
 		return h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": mainSlot, "nodeId": leaf, "action": "discard", "value": nil}, nil)
 	}
 
-	for name, content := range map[string]string{"f.go": "keep\n", "d.go": "cee\n"} {
+	kept := map[string]string{"f.go": "keep\n", "d.go": "cee\n", "a1/u": "u\n", "d": "file\n", "n/z": "z\n"}
+	for _, name := range []string{"f.go", "d.go", "a1", "d/x", "n"} {
 		leaf := repo + "\x00changes\x00" + filepath.Join(repo, name)
 		h.Event(t, id, sidebarSlot, "git", "select", leaf)
-		main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return strings.Contains(fmt.Sprint(n), name) })
+		main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return showing(n, name) })
 		_, ok := find(main, leaf)
 		assert.False(t, ok, name)
-		assert.ErrorContains(t, discard(leaf), "cannot be discarded", name)
+		assert.ErrorContains(t, discard(leaf), "cannot discard "+name+": ", name)
+	}
+	for name, content := range kept {
 		got, err := os.ReadFile(filepath.Join(repo, name))
 		require.NoError(t, err)
 		assert.Equal(t, content, string(got), name)
 	}
+	assert.DirExists(t, filepath.Join(nested, ".git"))
 
 	modified := repo + "\x00changes\x00" + filepath.Join(repo, "b.go")
 	h.Event(t, id, sidebarSlot, "git", "select", modified)
 	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, modified); return ok })
 	require.NoError(t, discard(modified))
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (2)"]) == 2 })
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (5)"]) == 5 })
 	content, err := os.ReadFile(filepath.Join(repo, "b.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "one\n", string(content))
+}
+
+func showing(n sdui.Node, rel string) bool {
+	if n.Type == "text" && n.Props["style"] == "mono" && n.Props["text"] == rel {
+		return true
+	}
+	for _, c := range n.Children {
+		if showing(c, rel) {
+			return true
+		}
+	}
+	return false
 }

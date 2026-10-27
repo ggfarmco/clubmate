@@ -44,19 +44,22 @@ var groupTitles = []struct{ id, title string }{
 }
 
 type repoView struct {
-	Path    string
-	Branch  string
-	Problem string
-	Entries []gitrepo.Entry
+	Path       string
+	Branch     string
+	Problem    string
+	Entries    []gitrepo.Entry
+	Restorable map[string]bool
 }
 
 type leaf struct {
-	Repo  string
-	Group string
-	Path  string
-	Orig  string
-	Code  string
-	Dir   bool
+	Repo       string
+	Group      string
+	Path       string
+	Orig       string
+	Code       string
+	Dir        bool
+	Unmerged   bool
+	Restorable bool
 }
 
 type mainModel struct {
@@ -73,7 +76,7 @@ func (l leaf) id() string {
 }
 
 func (l leaf) discardable() bool {
-	return l.Group == groupChanges && slices.Contains([]string{"M", "D", "T"}, l.Code)
+	return l.Group == groupChanges && l.Restorable
 }
 
 func (l leaf) rel() string {
@@ -91,10 +94,15 @@ func leaves(r repoView) []leaf {
 			out = append(out, leaf{Repo: r.Path, Group: groupStaged, Path: e.Path, Orig: e.Orig, Code: string(e.X)})
 		}
 		if e.Y != ' ' && e.Y != '?' {
-			out = append(out, leaf{Repo: r.Path, Group: groupChanges, Path: e.Path, Code: string(e.Y)})
+			out = append(out, leaf{Repo: r.Path, Group: groupChanges, Path: e.Path, Code: string(e.Y), Unmerged: unmerged(e), Restorable: r.Restorable[e.Path]})
 		}
 	}
 	return out
+}
+
+func unmerged(e gitrepo.Entry) bool {
+	pair := string([]byte{e.X, e.Y})
+	return e.X == 'U' || e.Y == 'U' || pair == "AA" || pair == "DD"
 }
 
 func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui.Node {

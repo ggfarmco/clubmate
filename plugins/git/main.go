@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
@@ -33,7 +34,6 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoSelection    = errors.New("no file selected")
 	errNotChanges     = errors.New("only unstaged changes can be discarded")
-	errIntentToAdd    = errors.New("intent-to-add files cannot be discarded")
 	errNoMessage      = errors.New("commit message is required")
 	errUnknownRepo    = errors.New("unknown repository")
 	errStaleTarget    = errors.New("the file is no longer selected")
@@ -391,7 +391,13 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		}
 		branch, err := gitrepo.Branch(ctx, repo)
 		logError("branch "+repo, err)
-		views[repo] = repoView{Path: repo, Branch: branch, Entries: entries}
+		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}}
+		for _, l := range leaves(rv) {
+			if l.Group == groupChanges && blocked(l) == "" {
+				rv.Restorable[l.Path] = true
+			}
+		}
+		views[repo] = rv
 	}
 	s.mu.Lock()
 	s.views = views
@@ -482,8 +488,8 @@ func (a *app) apply(ctx context.Context, s *state, action, target string) error 
 		if sel.Group != groupChanges {
 			return errNotChanges
 		}
-		if !sel.discardable() {
-			return errIntentToAdd
+		if reason := blocked(*sel); reason != "" {
+			return fmt.Errorf("cannot discard %s: %s", rel, reason)
 		}
 		_, err = run(ctx, sel.Repo, "restore", "--", rel)
 	}
@@ -645,6 +651,39 @@ func bodyFor(ctx context.Context, l leaf) (string, bool, error) {
 func capture(ctx context.Context, repo string, args ...string) (string, bool, error) {
 	out, truncated, err := gitrepo.RunLimited(ctx, repo, maxDiffBytes, append([]string{"--literal-pathspecs"}, args...)...)
 	return string(out), truncated, gitError(out, err)
+}
+
+func blocked(l leaf) string {
+	switch {
+	case l.Unmerged:
+		return "unmerged"
+	case l.Code == "M" || l.Code == "T":
+		info, err := os.Lstat(l.Path)
+		if err != nil {
+			return "missing from the worktree"
+		}
+		if !info.Mode().IsRegular() && info.Mode()&fs.ModeSymlink == 0 {
+			return "not a regular file or symlink in the worktree"
+		}
+		return ""
+	case l.Code == "D":
+		for dir := filepath.Dir(l.Path); strings.HasPrefix(dir, l.Repo+string(filepath.Separator)); dir = filepath.Dir(dir) {
+			info, err := os.Lstat(dir)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			if err != nil || !info.IsDir() {
+				return relPath(l.Repo, dir) + " is not a directory"
+			}
+		}
+		if _, err := os.Lstat(l.Path); !errors.Is(err, fs.ErrNotExist) {
+			return "the path exists in the worktree"
+		}
+		return ""
+	case l.Code == "A" || l.Code == "R" || l.Code == "C":
+		return "intent-to-add file"
+	}
+	return "unsupported status " + l.Code
 }
 
 func unstage(ctx context.Context, repo string, paths ...string) error {
