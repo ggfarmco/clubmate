@@ -1,0 +1,14 @@
+{
+  "id": "files",
+  "name": "Files",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["files"],
+  "contributes": {
+    "views": [{"slot": "editor-nvim.sidebar"}],
+    "commands": [
+      {"id": "files.refresh", "title": "Refresh File Tree"},
+      {"id": "files.reveal", "title": "Reveal File in Tree", "hidden": true}
+    ]
+  }
+}

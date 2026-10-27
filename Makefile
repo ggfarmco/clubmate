@@ -4,6 +4,8 @@ build:
 	cp plugins/terminals/plugin.json bin/plugins/terminals/
 	go build -o bin/plugins/editor-nvim/editor-nvim ./plugins/editor-nvim
 	cp plugins/editor-nvim/plugin.json bin/plugins/editor-nvim/
+	go build -o bin/plugins/files/files ./plugins/files
+	cp plugins/files/plugin.json bin/plugins/files/
 
 run-core: build
 	bin/clubmate-core
