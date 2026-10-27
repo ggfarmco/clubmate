@@ -29,6 +29,8 @@ const (
 	noName        = "[No Name]"
 	sidebarSlot   = "editor-nvim.sidebar"
 	edgeEvent     = "edge"
+	revPrefix     = "rev:"
+	shortSHA      = 7
 )
 
 var (
@@ -41,7 +43,8 @@ var (
 	errDeleted        = errors.New("project deleted")
 	errNotInRepo      = errors.New("not in a git repository")
 	errRelativePath   = errors.New("diff: path must be absolute")
-	errDiffSides      = errors.New("diff: base must be head or index, target index or worktree, and differ")
+	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index or worktree, and differ")
+	errReviewArgs     = errors.New("review: repo must be absolute and base a ref")
 )
 
 type projectEvent struct {
@@ -69,6 +72,16 @@ type diffArgs struct {
 	Path   string `json:"path"`
 	Base   string `json:"base"`
 	Target string `json:"target"`
+}
+
+type reviewArgs struct {
+	Repo      string `json:"repo"`
+	Base      string `json:"base"`
+	MergeBase string `json:"mergeBase"`
+}
+
+type reviewResult struct {
+	Mode string `json:"mode"`
 }
 
 type terminalArgs struct {
@@ -231,6 +244,17 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, fmt.Errorf("diff args: %w", err)
 		}
 		return nil, a.diff(ctx, h, e, args)
+	case "review":
+		var args reviewArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("review args: %w", err)
+		}
+		return a.review(ctx, h, e, args)
+	case "review-close":
+		if c := e.connected(); c != nil {
+			return nil, c.closeReview()
+		}
+		return nil, nil
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -415,7 +439,8 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 		return fmt.Errorf("%w: %s", errRelativePath, args.Path)
 	}
 	args.Path = filepath.Clean(args.Path)
-	if !slices.Contains([]string{"head", "index"}, args.Base) || !slices.Contains([]string{"index", "worktree"}, args.Target) || args.Base == args.Target {
+	label, ok := baseLabel(args.Base)
+	if !ok || !slices.Contains([]string{"index", "worktree"}, args.Target) || args.Base == args.Target {
 		return errDiffSides
 	}
 	repo, ok := repoRoot(filepath.Dir(args.Path))
@@ -441,7 +466,19 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 	if err != nil {
 		return err
 	}
-	return c.diff(args.Path, rel, args.Base, args.Target, left, right)
+	return c.diff(args.Path, rel, label, args.Target, left, right)
+}
+
+func (a *app) review(ctx context.Context, h *pluginsdk.Host, e *editor, args reviewArgs) (reviewResult, error) {
+	if !filepath.IsAbs(args.Repo) || args.Base == "" || strings.HasPrefix(args.Base, "-") {
+		return reviewResult{}, errReviewArgs
+	}
+	c, err := a.ensure(ctx, h, e)
+	if err != nil {
+		return reviewResult{}, err
+	}
+	mode, err := c.review(filepath.Clean(args.Repo), args.Base)
+	return reviewResult{Mode: mode}, err
 }
 
 func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {
@@ -638,12 +675,35 @@ func gitBranch(ctx context.Context, dir string) string {
 	return branch
 }
 
-func gitShow(ctx context.Context, repo, side, rel string) (string, error) {
-	rev, exists := ":"+rel, inIndex
-	if side == "head" {
-		rev, exists = "HEAD:"+rel, inHead
+func baseLabel(base string) (string, bool) {
+	sha, ok := strings.CutPrefix(base, revPrefix)
+	if !ok {
+		return base, base == "head" || base == "index"
 	}
-	if ok, err := exists(ctx, repo, rel); err != nil || !ok {
+	if sha == "" || strings.Trim(sha, "0123456789abcdef") != "" {
+		return "", false
+	}
+	return sha[:min(shortSHA, len(sha))], true
+}
+
+func gitShow(ctx context.Context, repo, side, rel string) (string, error) {
+	var (
+		rev    string
+		exists bool
+		err    error
+	)
+	switch sha, isRev := strings.CutPrefix(side, revPrefix); {
+	case isRev:
+		rev = sha + ":" + rel
+		exists, err = inTree(ctx, repo, sha, rel)
+	case side == "head":
+		rev = "HEAD:" + rel
+		exists, err = inHead(ctx, repo, rel)
+	default:
+		rev = ":" + rel
+		exists, err = inIndex(ctx, repo, rel)
+	}
+	if err != nil || !exists {
 		return "", err
 	}
 	out, err := gitrepo.Run(ctx, repo, "show", rev)
@@ -657,7 +717,11 @@ func inHead(ctx context.Context, repo, rel string) (bool, error) {
 		}
 		return false, err
 	}
-	out, err := gitrepo.Run(ctx, repo, "--literal-pathspecs", "ls-tree", "-z", "HEAD", "--", rel)
+	return inTree(ctx, repo, "HEAD", rel)
+}
+
+func inTree(ctx context.Context, repo, rev, rel string) (bool, error) {
+	out, err := gitrepo.Run(ctx, repo, "--literal-pathspecs", "ls-tree", "-z", rev, "--", rel)
 	return len(out) > 0, err
 }
 

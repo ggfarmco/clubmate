@@ -23,11 +23,23 @@ import (
 )
 
 const (
+	stubDiffview = `local function log(entry)
+  local l = vim.g.dv_log or {}
+  l[#l + 1] = entry
+  vim.g.dv_log = l
+end
+vim.api.nvim_create_user_command("DiffviewOpen", function(ctx) vim.cmd.tabnew(); log(ctx.args) end, { nargs = "*" })
+vim.api.nvim_create_user_command("DiffviewClose", function() vim.cmd.tabclose(); log("close") end, {})`
 	mainSlot      = "editor-nvim.main"
 	statusSlot    = "editor-nvim.status"
 	restartWait   = 15 * time.Second
 	blockedBudget = 3 * time.Second
 )
+
+type setup struct {
+	missingFirst bool
+	initLua      string
+}
 
 type editor struct {
 	h         *testutil.PluginHarness
@@ -238,6 +250,60 @@ func TestDiffOpensSideBySide(t *testing.T) {
 	})
 }
 
+func TestReviewOpensDiffview(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: stubDiffview})
+	repo := e.dir(t, "repo dir")
+	v := dial(t, e.sock)
+	assert.Equal(t, "diffview", e.review(t, repo, "feature/x"))
+	assert.Equal(t, []string{openLog(t, v, repo)}, eval[[]string](t, v, "g:dv_log"))
+}
+
+func TestReviewReplacesTab(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: stubDiffview})
+	repo := e.dir(t, "repo dir")
+	v := dial(t, e.sock)
+	e.review(t, repo, "feature/x")
+	e.review(t, repo, "feature/x")
+	open := openLog(t, v, repo)
+	assert.Equal(t, []string{open, "close", open}, eval[[]string](t, v, "g:dv_log"))
+	assert.Equal(t, 2, eval[int](t, v, "tabpagenr('$')"))
+}
+
+func TestReviewWithoutDiffview(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	assert.Equal(t, "builtin", e.review(t, e.repo, "main"))
+	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
+}
+
+func TestDiffRevBase(t *testing.T) {
+	e := startEditor(t)
+	a := filepath.Join(e.repo, "a.go")
+	require.NoError(t, os.WriteFile(a, []byte("one\n"), 0o600))
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", e.repo}, args...)...).Output()
+		require.NoError(t, err)
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q")
+	git("add", "a.go")
+	git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a")
+	sha := git("rev-parse", "HEAD")
+	require.NoError(t, os.WriteFile(a, []byte("two\n"), 0o600))
+	v := dial(t, e.sock)
+	diff := func() {
+		args := map[string]any{"path": a, "base": "rev:" + sha, "target": "worktree"}
+		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
+	}
+	diff()
+	tabs := eval[int](t, v, "tabpagenr('$')")
+	assert.Equal(t, []string{"clubmate://" + sha[:7] + "/a.go", a}, eval[[]string](t, v, "[nvim_buf_get_name(winbufnr(1)), nvim_buf_get_name(winbufnr(2))]"))
+	assert.Equal(t, []string{"one"}, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
+	assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
+	diff()
+	assert.Equal(t, tabs, eval[int](t, v, "tabpagenr('$')"))
+}
+
 func TestRestartIgnoresScratchBuffers(t *testing.T) {
 	e := startEditor(t)
 	require.NoError(t, dial(t, e.sock).Command("setlocal buftype=nofile | normal! ix"))
@@ -249,16 +315,16 @@ func TestRestartIgnoresScratchBuffers(t *testing.T) {
 }
 
 func TestMissingFirstRepoStartsInNext(t *testing.T) {
-	e := startEditorIn(t, true)
+	e := startEditorIn(t, setup{missingFirst: true})
 	assert.Equal(t, e.repo, e.h.GetSession(t, e.sessionID).Cwd)
 }
 
 func startEditor(t *testing.T) *editor {
 	t.Helper()
-	return startEditorIn(t, false)
+	return startEditorIn(t, setup{})
 }
 
-func startEditorIn(t *testing.T, missingFirst bool) *editor {
+func startEditorIn(t *testing.T, s setup) *editor {
 	t.Helper()
 	if _, err := exec.LookPath("nvim"); err != nil {
 		t.Skip("nvim not in PATH")
@@ -266,16 +332,21 @@ func startEditorIn(t *testing.T, missingFirst bool) *editor {
 	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"} {
 		t.Setenv(key, t.TempDir())
 	}
+	if s.initLua != "" {
+		dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "nvim")
+		require.NoError(t, os.MkdirAll(dir, 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "init.lua"), []byte(s.initLua), 0o600))
+	}
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"))
 	repo, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	repos := []string{repo}
-	if missingFirst {
+	if s.missingFirst {
 		repos = []string{t.TempDir(), repo}
 	}
 	p, err := h.Svc.CreateProject(t.Context(), "demo", repos)
 	require.NoError(t, err)
-	if missingFirst {
+	if s.missingFirst {
 		require.NoError(t, os.RemoveAll(repos[0]))
 	}
 	e := &editor{h: h, projectID: p.ID, repo: repo}
@@ -287,11 +358,15 @@ func startEditorIn(t *testing.T, missingFirst bool) *editor {
 	main := h.WaitSlot(t, p.ID, mainSlot, func(n sdui.Node) bool { return n.Type == "surface" })
 	h.WaitSlot(t, p.ID, statusSlot, func(n sdui.Node) bool { return contains(n, "badge") })
 	e.sessionID = main.Props["sessionId"].(string)
-	s := h.GetSession(t, e.sessionID)
-	assert.Equal(t, "nvim", s.Title)
-	assert.Equal(t, repo, s.Cwd)
-	require.Len(t, s.Command, 3)
-	e.sock = s.Command[2]
+	sess := h.GetSession(t, e.sessionID)
+	assert.Equal(t, "nvim", sess.Title)
+	assert.Equal(t, repo, sess.Cwd)
+	require.Len(t, sess.Command, 3)
+	e.sock = sess.Command[2]
+	if s.initLua != "" {
+		v := dial(t, e.sock)
+		testutil.Eventually(t, func() bool { return eval[int](t, v, "v:vim_did_enter") == 1 }, 5*time.Second)
+	}
 	return e
 }
 
@@ -301,6 +376,28 @@ func (e *editor) file(t *testing.T, rel string) string {
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("line\n", 5)), 0o600))
 	return path
+}
+
+func (e *editor) dir(t *testing.T, rel string) string {
+	t.Helper()
+	path := filepath.Join(e.repo, rel)
+	require.NoError(t, os.MkdirAll(path, 0o700))
+	return path
+}
+
+func (e *editor) review(t *testing.T, repo, base string) string {
+	t.Helper()
+	var res struct {
+		Mode string `json:"mode"`
+	}
+	args := map[string]any{"repo": repo, "base": base, "mergeBase": "0000000"}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review", "projectId": e.projectID, "args": args}, &res))
+	return res.Mode
+}
+
+func openLog(t *testing.T, v *nvim.Nvim, repo string) string {
+	t.Helper()
+	return eval[string](t, v, "'-C' . fnameescape('"+repo+"') . ' feature/x...HEAD'")
 }
 
 func (e *editor) open(t *testing.T, path string, line int) error {

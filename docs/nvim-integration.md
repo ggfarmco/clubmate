@@ -30,6 +30,10 @@ require("smart-splits").setup({
 })
 ```
 
+## Branch review
+
+When you review a branch, Clubmate uses your own [diffview.nvim](https://github.com/sindrets/diffview.nvim) if `:DiffviewOpen` exists: it runs `DiffviewOpen -C<repo> <base>...HEAD` in a new tab and closes the review tab it opened before, so there is only ever one. Clubmate never installs or configures diffview. Without it, the review is shown only in the Git section's Review group, whose per-file diffs open in nvim as a `clubmate://<sha>/<path>` scratch buffer against the worktree file.
+
 ## Back to nvim
 
 In the file tree, Ctrl+l and Esc return focus to nvim.

@@ -9,6 +9,8 @@
     "commands": [
       {"id": "editor-nvim.open", "title": "Open File", "hidden": true},
       {"id": "editor-nvim.diff", "title": "Show Diff", "hidden": true},
+      {"id": "editor-nvim.review", "title": "Review Branch", "hidden": true},
+      {"id": "editor-nvim.review-close", "title": "Close Branch Review", "hidden": true},
       {"id": "editor-nvim.reveal", "title": "Reveal File in Finder"},
       {"id": "editor-nvim.terminal", "title": "Open Terminal Here"},
       {"id": "editor-nvim.restart", "title": "Restart Neovim"}

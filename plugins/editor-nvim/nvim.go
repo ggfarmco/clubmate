@@ -66,7 +66,7 @@ end
 local function stale(tab)
   for _, w in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
     local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(w))
-    if name == "clubmate://head/" .. rel or name == "clubmate://index/" .. rel then return true end
+    if name:match("^clubmate://[^/]+/(.*)$") == rel then return true end
   end
   return false
 end
@@ -89,6 +89,20 @@ vim.cmd.diffthis()
 vim.cmd("leftabove vnew")
 scratch("clubmate://" .. base .. "/" .. rel, left, dos)
 vim.cmd.diffthis()`
+
+const closeReviewLua = `local m = package.loaded["clubmate"]
+if m.review_tab and vim.api.nvim_tabpage_is_valid(m.review_tab) then
+  vim.api.nvim_set_current_tabpage(m.review_tab)
+  vim.cmd("DiffviewClose")
+end
+m.review_tab = nil`
+
+const reviewLua = `local repo, base = ...
+if vim.fn.exists(":DiffviewOpen") ~= 2 then return "builtin" end
+` + closeReviewLua + `
+vim.cmd({ cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(repo), base .. "...HEAD" } })
+m.review_tab = vim.api.nvim_get_current_tabpage()
+return "diffview"`
 
 const modifiedLua = `local names = {}
 for _, b in ipairs(vim.api.nvim_list_bufs()) do
@@ -204,6 +218,18 @@ func (c *client) open(path string, line int) error {
 
 func (c *client) diff(path, rel, base, target, left, right string) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(diffLua, nil, path, rel, base, target, left, right) })
+}
+
+func (c *client) review(repo, base string) (string, error) {
+	var mode string
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, repo, base) }); err != nil {
+		return "", err
+	}
+	return mode, nil
+}
+
+func (c *client) closeReview() error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(closeReviewLua, nil) })
 }
 
 func (c *client) modified() ([]string, error) {
