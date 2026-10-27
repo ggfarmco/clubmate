@@ -9,6 +9,7 @@ public final class ProjectUIStore {
     public private(set) var slots: [String: SlotView] = [:]
     public private(set) var connected = false
     public private(set) var failure: String?
+    public private(set) var focusRequest: FocusRequest?
     public var selectedSection: String? {
         didSet {
             guard !restoring, selectedSection != oldValue, let selectedSection else { return }
@@ -31,6 +32,7 @@ public final class ProjectUIStore {
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var saving: Task<Void, Never>?
     @ObservationIgnored private var restoring = false
+    @ObservationIgnored private var focusSerial = 0
 
     public init(client: CoreClient, projectID: String) {
         self.client = client
@@ -142,12 +144,23 @@ public final class ProjectUIStore {
     }
 
     private func route(_ notification: RPCNotification) -> Bool {
+        if notification.method == "ui.focus" {
+            focus(notification)
+            return false
+        }
         guard notification.method == "ui.updated" || notification.method == "ui.closed",
               let params = try? notification.params.decode(UINotification.self),
               params.subscription == subscription
         else { return false }
         if let view = params.view { apply(view) }
         return notification.method == "ui.closed"
+    }
+
+    private func focus(_ notification: RPCNotification) {
+        guard let params = try? notification.params.decode(UIFocusNotification.self), params.subscription == subscription else { return }
+        if sections.contains(where: { $0.id == params.section }) { selectedSection = params.section }
+        focusSerial += 1
+        focusRequest = FocusRequest(slot: params.slot, serial: focusSerial)
     }
 
     private func recover() async {
@@ -226,6 +239,17 @@ public final class ProjectUIStore {
         state[key] = value
         try await client.uiStateSet(projectID: projectID, state: .object(state))
     }
+}
+
+public struct FocusRequest: Equatable, Sendable {
+    public let slot: String
+    public let serial: Int
+}
+
+private struct UIFocusNotification: Decodable {
+    let subscription: String
+    let section: String
+    let slot: String
 }
 
 private struct UINotification: Decodable {

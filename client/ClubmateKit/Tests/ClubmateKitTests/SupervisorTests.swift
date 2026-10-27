@@ -50,6 +50,19 @@ final class SupervisorTests: XCTestCase {
         XCTAssertEqual(connects.values.count, 1)
     }
 
+    func testProjectOpenRegistered() async throws {
+        let core = try await TestCore.start()
+        self.core = core
+        let supervisor = ConnectionSupervisor(connect: { try await CoreClient.connect(paths: core.paths) })
+        supervisor.start()
+        let client = try await waitFor { supervisor.phase == .ready ? supervisor.client : nil }
+        let project = try await client.createProject(name: "demo")
+        let caller = try await CoreClient.connect(paths: core.paths)
+        let result = try await caller.call(method: "project.open", params: .object(["id": .string(project.id)]))
+        XCTAssertEqual(result.objectValue?["clients"]?.numberValue, 1)
+        await caller.close()
+    }
+
     func testSupervisorRebindsStoresAfterCoreRestart() async throws {
         let core = try await TestCore.start()
         self.core = core

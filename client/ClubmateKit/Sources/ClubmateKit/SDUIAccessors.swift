@@ -19,6 +19,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
 
 public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let item: SDUIItem
+    public let muted: Bool
     public let hasChildren: Bool
     public let expanded: Bool
     public let children: [SDUITreeItem]
@@ -28,6 +29,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     init?(_ value: JSONValue) {
         guard let item = SDUIItem(value), let fields = value.objectValue else { return nil }
         self.item = item
+        muted = fields["muted"]?.boolValue ?? false
         hasChildren = fields["hasChildren"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false
         children = fields["children"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
@@ -81,6 +83,10 @@ extension SDUINode {
 
     public func values() -> [String] {
         props["values"]?.arrayValue?.compactMap(\.stringValue) ?? []
+    }
+
+    public func diffText() -> String? {
+        type == "diff" ? string("text") : nil
     }
 
     public func confirmation() -> String? {
