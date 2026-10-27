@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsevents v0.2.0
+	github.com/neovim/go-client v1.2.1
 	github.com/sourcegraph/jsonrpc2 v0.2.3
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1

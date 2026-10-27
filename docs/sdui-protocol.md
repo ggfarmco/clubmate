@@ -113,6 +113,8 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 ## Bus topics
 
 - `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`). Existing `fs.watch` streams do not follow; re-watch on this event.
+- `editor.buffer` `{projectId, path}`: published by `editor-nvim` when nvim enters a file buffer (BufEnter). `path` is absolute, as nvim names the buffer.
+- `editor.saved` `{projectId, path}`: published by `editor-nvim` after nvim writes a file buffer (BufWritePost).
 
 ## Core notifications
 
