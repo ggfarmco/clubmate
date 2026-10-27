@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -127,4 +128,17 @@ func TestIgnoredPaths(t *testing.T) {
 	got, err = gitrepo.Ignored(t.Context(), repo, paths[3:])
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+func TestMutateReturnsDespiteOrphanHoldingOutput(t *testing.T) {
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, ".git", "hooks", "post-commit"), "#!/bin/sh\nsleep 8 &\n")
+	require.NoError(t, os.Chmod(filepath.Join(repo, ".git", "hooks", "post-commit"), 0o700))
+	write(t, filepath.Join(repo, "a"), "a")
+	git(t, repo, "add", "a")
+
+	start := time.Now()
+	_, err := gitrepo.Mutate(t.Context(), repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "m")
+	assert.Less(t, time.Since(start), 5*time.Second)
+	assert.ErrorIs(t, err, exec.ErrWaitDelay)
 }

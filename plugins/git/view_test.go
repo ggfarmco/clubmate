@@ -11,12 +11,12 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-func button(n sdui.Node, id string) (sdui.Node, bool) {
-	if n.Type == "button" && n.ID == id {
+func button(n sdui.Node, action string) (sdui.Node, bool) {
+	if n.Type == "button" && n.Props["action"] == action {
 		return n, true
 	}
 	for _, c := range n.Children {
-		if got, ok := button(c, id); ok {
+		if got, ok := button(c, action); ok {
 			return got, true
 		}
 	}
@@ -40,11 +40,12 @@ func TestDiffViewTruncates(t *testing.T) {
 func TestDiscardConfirm(t *testing.T) {
 	repo := "/r"
 	changes := &leaf{Repo: repo, Group: groupChanges, Path: "/r/b.go"}
-	d, ok := button(mainView(changes, sdui.Diff(""), []string{repo}, "commit-0"), discardAction)
+	d, ok := button(mainView(mainModel{Sel: changes, Repos: []string{repo}, FormID: "commit-0"}), discardAction)
 	require.True(t, ok)
+	assert.Equal(t, changes.id(), d.ID)
 	assert.Equal(t, "Discard changes to b.go?", d.Props["confirm"])
 
 	staged := &leaf{Repo: repo, Group: groupStaged, Path: "/r/b.go"}
-	_, ok = button(mainView(staged, sdui.Diff(""), []string{repo}, "commit-0"), discardAction)
+	_, ok = button(mainView(mainModel{Sel: staged, Repos: []string{repo}, FormID: "commit-0"}), discardAction)
 	assert.False(t, ok)
 }

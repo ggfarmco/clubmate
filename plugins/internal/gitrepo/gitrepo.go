@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-const timeout = 10 * time.Second
+const (
+	timeout   = 10 * time.Second
+	waitDelay = 2 * time.Second
+)
 
 type Entry struct {
 	Path, Orig string
@@ -25,9 +28,14 @@ func Run(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	return run(ctx, repo, nil, args...)
 }
 
+func Mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	return run(ctx, repo, nil, args...)
+}
+
 func run(ctx context.Context, repo string, stdin []byte, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false", "-C", repo}, args...)...)
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_CEILING_DIRECTORIES="+filepath.Dir(repo))
+	cmd.WaitDelay = waitDelay
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}

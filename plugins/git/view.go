@@ -26,6 +26,7 @@ const (
 	messageField   = "message"
 	submitID       = "submit"
 	missingDetail  = "missing"
+	notGitDetail   = "not a git repository"
 	maxDiffLines   = 2000
 	noRepos        = "No repositories — add one with clubmate project add-repo"
 )
@@ -39,7 +40,7 @@ var groupTitles = []struct{ id, title string }{
 type repoView struct {
 	Path    string
 	Branch  string
-	Missing bool
+	Problem string
 	Entries []gitrepo.Entry
 }
 
@@ -49,6 +50,16 @@ type leaf struct {
 	Path  string
 	Orig  string
 	Code  string
+	Dir   bool
+}
+
+type mainModel struct {
+	Sel     *leaf
+	Body    sdui.Node
+	Repos   []string
+	FormID  string
+	Busy    string
+	Failure string
 }
 
 func (l leaf) id() string {
@@ -83,8 +94,8 @@ func sidebarView(repos []repoView, selected string) sdui.Node {
 	items := make([]sdui.TreeItem, 0, len(repos))
 	for _, r := range repos {
 		root := sdui.TreeItem{ID: r.Path, Label: filepath.Base(r.Path), Detail: r.Branch, Expanded: true}
-		if r.Missing {
-			root.Detail = missingDetail
+		if r.Problem != "" {
+			root.Detail = r.Problem
 			items = append(items, root)
 			continue
 		}
@@ -112,43 +123,59 @@ func sidebarView(repos []repoView, selected string) sdui.Node {
 	return sdui.Scroll(sdui.Tree(treeID, items, selected))
 }
 
-func mainView(sel *leaf, body sdui.Node, repos []string, formID string) sdui.Node {
+func mainView(m mainModel) sdui.Node {
 	var nodes []sdui.Node
-	if sel != nil {
+	if m.Failure != "" {
+		nodes = append(nodes, sdui.Badge(m.Failure, "danger"))
+	}
+	if m.Busy != "" {
+		nodes = append(nodes, sdui.MutedText(m.Busy))
+	}
+	if sel := m.Sel; sel != nil {
 		rel := sel.rel()
-		toolbar := []sdui.Node{{Type: "text", Props: map[string]any{"text": rel, "style": "mono"}}}
+		toolbar := []sdui.Node{mono(rel)}
 		if sel.Group == groupStaged {
 			toolbar = append(toolbar, sdui.Button(unstageAction, "Unstage", ""))
 		} else {
 			toolbar = append(toolbar, sdui.Button(stageAction, "Stage", ""))
 		}
 		if sel.Group == groupChanges {
-			toolbar = append(toolbar, sdui.WithConfirm(sdui.Button(discardAction, "Discard…", ""), "Discard changes to "+rel+"?"))
+			discard := sdui.WithAction(sdui.Button(sel.id(), "Discard…", ""), discardAction)
+			toolbar = append(toolbar, sdui.WithConfirm(discard, "Discard changes to "+rel+"?"))
 		}
-		toolbar = append(toolbar, sdui.Button(openDiffAction, "Open Diff in Neovim", ""))
-		nodes = append(nodes, sdui.HStack(toolbar...), sdui.Scroll(body))
+		if !sel.Dir {
+			toolbar = append(toolbar, sdui.Button(openDiffAction, "Open Diff in Neovim", ""))
+		}
+		nodes = append(nodes, sdui.HStack(toolbar...), sdui.Scroll(m.Body))
 	}
 	var fields []sdui.Node
-	if len(repos) > 1 {
-		options := make([]sdui.Option, len(repos))
-		for i, r := range repos {
+	if len(m.Repos) > 1 {
+		options := make([]sdui.Option, len(m.Repos))
+		for i, r := range m.Repos {
 			options[i] = sdui.Option{Value: r, Label: filepath.Base(r)}
 		}
-		value := repos[0]
-		if sel != nil {
-			value = sel.Repo
+		value := m.Repos[0]
+		if m.Sel != nil {
+			value = m.Sel.Repo
 		}
 		fields = append(fields, sdui.Select(repoField, options, value))
 	}
 	fields = append(fields, sdui.TextField(messageField, "", "Commit message"), sdui.Button(submitID, "Commit", ""))
-	return sdui.VStack(append(nodes, sdui.WithAction(sdui.Form(formID, fields...), commitAction))...)
+	return sdui.VStack(append(nodes, sdui.WithAction(sdui.Form(m.FormID, fields...), commitAction))...)
 }
 
-func diffNode(text string, err error) sdui.Node {
-	if err != nil {
+func bodyNode(text string, dir bool, err error) sdui.Node {
+	switch {
+	case err != nil:
 		return sdui.MutedText(err.Error())
+	case dir:
+		return mono(truncateDiff(text))
 	}
 	return sdui.Diff(truncateDiff(text))
+}
+
+func mono(text string) sdui.Node {
+	return sdui.Node{Type: "text", Props: map[string]any{"text": text, "style": "mono"}}
 }
 
 func truncateDiff(text string) string {

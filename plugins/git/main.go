@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
-	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -23,6 +22,9 @@ const (
 	diffCommand   = "editor-nvim.diff"
 	editorSection = "editor-nvim"
 	editorSlot    = "editor-nvim.main"
+	mutateTimeout = 10 * time.Minute
+	committing    = "Committing…"
+	staging       = "Staging…"
 )
 
 var (
@@ -32,6 +34,8 @@ var (
 	errNotChanges     = errors.New("only unstaged changes can be discarded")
 	errNoMessage      = errors.New("commit message is required")
 	errUnknownRepo    = errors.New("unknown repository")
+	errStaleTarget    = errors.New("the file is no longer selected")
+	errBusy           = errors.New("git is busy")
 )
 
 type projectEvent struct {
@@ -70,6 +74,8 @@ type state struct {
 	views    map[string]repoView
 	selected string
 	commits  int
+	busy     string
+	failure  string
 	watch    string
 }
 
@@ -148,6 +154,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if err := a.ensure(ctx, h, ev.ProjectID, s); err != nil {
 		return nil, err
 	}
+	if ev.Action != "expand" && ev.Action != "collapse" {
+		s.clearFailure()
+	}
 	switch ev.Action {
 	case "select":
 		var item string
@@ -158,7 +167,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case "expand", "collapse":
 		return nil, nil
 	case stageAction, unstageAction, discardAction:
-		if err := a.apply(ctx, s, ev.Action); err != nil {
+		if err := a.apply(ctx, s, ev.Action, ev.NodeID); err != nil {
 			return nil, err
 		}
 		a.schedule(h, ev.ProjectID, s, 0)
@@ -177,32 +186,30 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	s := a.get(cmd.ProjectID)
-	var args []string
+	if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
+		return nil, err
+	}
+	s.clearFailure()
 	switch cmd.ID {
 	case "git.refresh":
-		if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
-			return nil, err
-		}
 		a.schedule(h, cmd.ProjectID, s, 0)
 		return nil, nil
 	case "git.stage-all":
-		args = []string{"add", "-A"}
+		return nil, a.background(ctx, h, cmd.ProjectID, s, staging, s.live(), func(ctx context.Context, repo string) error {
+			_, err := mutate(ctx, repo, "add", "-A")
+			return err
+		})
 	case "git.unstage-all":
-		args = []string{"restore", "--staged", "--", "."}
-	default:
-		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
-	}
-	if err := a.ensure(ctx, h, cmd.ProjectID, s); err != nil {
-		return nil, err
-	}
-	var errs []error
-	for _, repo := range s.live() {
-		if _, err := run(ctx, repo, args...); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", filepath.Base(repo), err))
+		var errs []error
+		for _, repo := range s.live() {
+			if err := unstage(ctx, repo, "."); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", filepath.Base(repo), err))
+			}
 		}
+		a.schedule(h, cmd.ProjectID, s, 0)
+		return nil, errors.Join(errs...)
 	}
-	a.schedule(h, cmd.ProjectID, s, 0)
-	return nil, errors.Join(errs...)
+	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
 
 func (a *app) lookup(id string) *state {
@@ -372,7 +379,11 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		_, entries, err := gitrepo.Status(ctx, repo, false)
 		if err != nil {
 			logError("status "+repo, err)
-			views[repo] = repoView{Path: repo, Missing: true}
+			problem := notGitDetail
+			if _, statErr := os.Stat(repo); statErr != nil {
+				problem = missingDetail
+			}
+			views[repo] = repoView{Path: repo, Problem: problem}
 			continue
 		}
 		branch, err := gitrepo.Branch(ctx, repo)
@@ -400,35 +411,36 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	}
 	live := s.liveLocked()
 	sel := s.leaf(s.selected)
-	formID := fmt.Sprintf("commit-%d", s.commits)
+	m := mainModel{Sel: sel, Repos: live, FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
 	s.mu.Unlock()
 	selected := ""
-	var body sdui.Node
 	if sel != nil {
 		selected = sel.id()
-		body = diffNode(diffFor(ctx, *sel))
+		if info, err := os.Lstat(sel.Path); err == nil && sel.Group == groupUntracked {
+			sel.Dir = info.IsDir()
+		}
+		text, err := bodyFor(ctx, *sel)
+		m.Body = bodyNode(text, sel.Dir, err)
 	}
 	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(views, selected)); err != nil {
 		return err
 	}
-	_, err := h.Render(ctx, id, mainSlot, mainView(sel, body, live, formID))
+	_, err := h.Render(ctx, id, mainSlot, mainView(m))
 	return err
 }
 
 func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
 	s.mu.Lock()
-	found := s.leaf(item) != nil
-	if found {
+	if s.leaf(item) != nil {
 		s.selected = item
+	} else {
+		s.selected = ""
 	}
 	s.mu.Unlock()
-	if !found {
-		return nil
-	}
 	return a.render(ctx, h, id, s)
 }
 
-func (a *app) apply(ctx context.Context, s *state, action string) error {
+func (a *app) apply(ctx context.Context, s *state, action, target string) error {
 	s.mu.Lock()
 	sel := s.leaf(s.selected)
 	s.mu.Unlock()
@@ -441,12 +453,15 @@ func (a *app) apply(ctx context.Context, s *state, action string) error {
 	case stageAction:
 		_, err = run(ctx, sel.Repo, "add", "--", rel)
 	case unstageAction:
-		args := []string{"restore", "--staged", "--", rel}
+		paths := []string{rel}
 		if sel.Orig != "" {
-			args = append(args, relPath(sel.Repo, sel.Orig))
+			paths = append(paths, relPath(sel.Repo, sel.Orig))
 		}
-		_, err = run(ctx, sel.Repo, args...)
+		err = unstage(ctx, sel.Repo, paths...)
 	case discardAction:
+		if target != sel.id() {
+			return errStaleTarget
+		}
 		if sel.Group != groupChanges {
 			return errNotChanges
 		}
@@ -485,14 +500,51 @@ func (a *app) commit(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	if !slices.Contains(live, repo) {
 		return fmt.Errorf("%w: %q", errUnknownRepo, repo)
 	}
-	if _, err := run(ctx, repo, "commit", "-m", f.Message); err != nil {
-		return err
-	}
+	return a.background(ctx, h, id, s, committing, []string{repo}, func(ctx context.Context, repo string) error {
+		if _, err := mutate(ctx, repo, "commit", "-m", f.Message); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		s.commits++
+		s.mu.Unlock()
+		return nil
+	})
+}
+
+func (a *app) background(ctx context.Context, h *pluginsdk.Host, id string, s *state, busy string, repos []string, op func(context.Context, string) error) error {
 	s.mu.Lock()
-	s.commits++
+	if s.busy != "" {
+		s.mu.Unlock()
+		return errBusy
+	}
+	s.busy = busy
 	s.mu.Unlock()
-	a.schedule(h, id, s, 0)
+	logError("render "+id, a.render(ctx, h, id, s))
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutateTimeout)
+		defer cancel()
+		var errs []error
+		for _, repo := range repos {
+			if err := op(ctx, repo); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		s.mu.Lock()
+		s.busy = ""
+		if err := errors.Join(errs...); err != nil {
+			s.failure = err.Error()
+		}
+		s.mu.Unlock()
+		logError("render "+id, a.render(ctx, h, id, s))
+		a.schedule(h, id, s, 0)
+	}()
 	return nil
+}
+
+func (s *state) clearFailure() {
+	s.mu.Lock()
+	s.failure = ""
+	s.mu.Unlock()
 }
 
 func (s *state) view(repo string) repoView {
@@ -511,7 +563,7 @@ func (s *state) live() []string {
 func (s *state) liveLocked() []string {
 	var live []string
 	for _, r := range s.repos {
-		if !s.view(r).Missing {
+		if s.view(r).Problem == "" {
 			live = append(live, r)
 		}
 	}
@@ -548,25 +600,45 @@ func (s *state) follow(id string) string {
 	return ""
 }
 
-func diffFor(ctx context.Context, l leaf) (string, error) {
+func bodyFor(ctx context.Context, l leaf) (string, error) {
 	rel := l.rel()
-	switch l.Group {
-	case groupStaged:
+	switch {
+	case l.Group == groupStaged:
 		args := []string{"diff", "--no-color", "--no-ext-diff", "--cached", "--", rel}
 		if l.Orig != "" {
 			args = append(args, relPath(l.Repo, l.Orig))
 		}
 		out, err := run(ctx, l.Repo, args...)
 		return string(out), err
-	case groupChanges:
+	case l.Group == groupChanges:
 		out, err := run(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", "--", rel)
 		return string(out), err
+	case l.Dir:
+		out, err := run(ctx, l.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", rel+"/")
+		return strings.ReplaceAll(strings.TrimSuffix(string(out), "\x00"), "\x00", "\n"), err
 	}
 	out, err := gitrepo.Run(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", rel)
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 {
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 && len(ee.Stderr) == 0 {
 		return string(out), nil
 	}
 	return string(out), gitError(out, err)
+}
+
+func unstage(ctx context.Context, repo string, paths ...string) error {
+	args := append([]string{"restore", "--staged", "--"}, paths...)
+	if _, err := gitrepo.Run(ctx, repo, "rev-parse", "--verify", "-q", "HEAD"); err != nil {
+		args = append([]string{"rm", "--cached", "-r", "-f", "-q", "--ignore-unmatch", "--"}, paths...)
+	}
+	_, err := run(ctx, repo, args...)
+	return err
+}
+
+func mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	out, err := gitrepo.Mutate(ctx, repo, append([]string{"--literal-pathspecs"}, args...)...)
+	if errors.Is(err, exec.ErrWaitDelay) {
+		return out, nil
+	}
+	return out, gitError(out, err)
 }
 
 func run(ctx context.Context, repo string, args ...string) ([]byte, error) {

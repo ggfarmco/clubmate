@@ -100,6 +100,13 @@ func find(n sdui.Node, id string) (sdui.Node, bool) {
 	return sdui.Node{}, false
 }
 
+func committed(t *testing.T, h *testutil.PluginHarness, id, repo, form, message string) {
+	t.Helper()
+	h.Event(t, id, mainSlot, form, "commit", map[string]string{"message": message})
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != form })
+	assert.Equal(t, message, git(t, repo, "log", "-1", "--format=%s"))
+}
+
 func formOf(n sdui.Node) string {
 	for _, c := range n.Children {
 		if c.Type == "form" {
@@ -157,6 +164,8 @@ func TestStageUnstageCommit(t *testing.T) {
 	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "stage"); return ok })
 	assert.Contains(t, main.Children[1].Children[0].Props["text"], "+two")
 	form := formOf(main)
+	stale := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": mainSlot, "nodeId": repo + "\x00changes\x00" + filepath.Join(repo, "a.go"), "action": "discard", "value": nil}, nil)
+	assert.ErrorContains(t, stale, "the file is no longer selected")
 	h.Event(t, id, mainSlot, "stage", "stage", nil)
 	h.WaitSlot(t, id, sidebarSlot, under("Staged (1)"))
 	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "unstage"); return ok })
@@ -165,10 +174,8 @@ func TestStageUnstageCommit(t *testing.T) {
 	h.Event(t, id, mainSlot, "stage", "stage", nil)
 	h.WaitSlot(t, id, sidebarSlot, under("Staged (1)"))
 
-	h.Event(t, id, mainSlot, form, "commit", map[string]string{"message": "m"})
-	assert.Equal(t, "m", git(t, repo, "log", "-1", "--format=%s"))
+	committed(t, h, id, repo, form, "m")
 	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 && len(groups(t, n)) == 0 })
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != form })
 
 	err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": mainSlot, "nodeId": form, "action": "commit", "value": map[string]string{"message": ""}}, nil)
 	assert.ErrorContains(t, err, "commit message is required")
@@ -177,12 +184,35 @@ func TestStageUnstageCommit(t *testing.T) {
 func TestFreshRepoStageCommit(t *testing.T) {
 	repo := newRepo(t, "x")
 	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Untracked (1)"]) == 1 })
+	untracked := func(n sdui.Node) bool { return len(groups(t, n)["Untracked (1)"]) == 1 }
+	staged := func(n sdui.Node) bool { return len(groups(t, n)["Staged (1)"]) == 1 }
+	tree := h.WaitSlot(t, id, sidebarSlot, untracked)
+	assert.Equal(t, "main", roots(t, tree)[0].Detail)
 
 	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00untracked\x00"+filepath.Join(repo, "x"))
 	h.Event(t, id, mainSlot, "stage", "stage", nil)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Staged (1)"]) == 1 })
-	form := formOf(h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != "" }))
-	h.Event(t, id, mainSlot, form, "commit", map[string]string{"message": "first"})
-	assert.Equal(t, "first", git(t, repo, "log", "-1", "--format=%s"))
+	h.WaitSlot(t, id, sidebarSlot, staged)
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "unstage"); return ok })
+	h.Event(t, id, mainSlot, "unstage", "unstage", nil)
+	h.WaitSlot(t, id, sidebarSlot, untracked)
+	h.Event(t, id, mainSlot, "stage", "stage", nil)
+	h.WaitSlot(t, id, sidebarSlot, staged)
+	committed(t, h, id, repo, formOf(h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != "" })), "first")
+}
+
+func TestUntrackedDirListsFiles(t *testing.T) {
+	repo := newRepo(t)
+	require.NoError(t, os.Mkdir(filepath.Join(repo, "newpkg"), 0o700))
+	write(t, filepath.Join(repo, "newpkg", "a.go"), "a\n")
+	write(t, filepath.Join(repo, "newpkg", "b.go"), "b\n")
+	h, id := open(t, repo)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Untracked (1)"]) == 1 })
+
+	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00untracked\x00"+filepath.Join(repo, "newpkg"))
+	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "stage"); return ok })
+	body := main.Children[1].Children[0]
+	assert.Equal(t, "mono", body.Props["style"])
+	assert.Equal(t, "newpkg/a.go\nnewpkg/b.go", body.Props["text"])
+	_, ok := find(main, "open-diff")
+	assert.False(t, ok)
 }
