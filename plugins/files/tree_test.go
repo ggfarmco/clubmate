@@ -35,7 +35,7 @@ func TestBuildTree(t *testing.T) {
 	}
 	status := map[string]string{filepath.Join(root, "b", "f"): "M", filepath.Join(root, "A.txt"): "U"}
 
-	items := buildTree([]Root{{Path: root}}, map[string]bool{root: true, filepath.Join(root, "big"): true}, status)
+	items := buildTree([]Root{{Path: root}}, map[string]bool{root: true, filepath.Join(root, "big"): true}, status, false)
 
 	require.Len(t, items, 1)
 	top := items[0]
@@ -59,7 +59,7 @@ func TestBuildTree(t *testing.T) {
 
 func TestMissingRepoRoot(t *testing.T) {
 	gone := filepath.Join(t.TempDir(), "gone")
-	items := buildTree([]Root{{Path: gone}}, map[string]bool{gone: true}, nil)
+	items := buildTree([]Root{{Path: gone}}, map[string]bool{gone: true}, nil, false)
 	require.Len(t, items, 1)
 	assert.Equal(t, "missing", items[0].Detail)
 	assert.False(t, items[0].HasChildren)
@@ -86,8 +86,29 @@ func TestTreeCapPassesValidation(t *testing.T) {
 		require.NoError(t, os.Mkdir(dir, 0o700))
 		expanded[dir] = true
 	}
-	items := buildTree([]Root{{Path: root}}, expanded, nil)
+	items := buildTree([]Root{{Path: root}}, expanded, nil, false)
 	assert.LessOrEqual(t, countItems(items), 4950)
 	assert.GreaterOrEqual(t, countItems(items), 4800)
 	require.NoError(t, internalsdui.Validate(treeView(items, "")))
+}
+
+func TestIgnoredMuted(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin", "sub"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "keep.go"), nil, 0o600))
+	status := map[string]string{filepath.Join(root, "bin"): "!"}
+	expanded := map[string]bool{root: true, filepath.Join(root, "bin"): true}
+
+	top := buildTree([]Root{{Path: root}}, expanded, status, false)[0]
+	assert.Empty(t, top.Badge)
+	require.Equal(t, []string{"bin", "keep.go"}, labels(top.Children))
+	bin := top.Children[0]
+	assert.True(t, bin.Muted)
+	assert.Empty(t, bin.Badge)
+	require.Len(t, bin.Children, 1)
+	assert.True(t, bin.Children[0].Muted)
+	assert.False(t, top.Children[1].Muted)
+
+	top = buildTree([]Root{{Path: root}}, expanded, status, true)[0]
+	assert.Equal(t, []string{"keep.go"}, labels(top.Children))
 }

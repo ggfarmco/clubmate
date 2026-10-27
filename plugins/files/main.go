@@ -14,11 +14,14 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
-	refreshDelay = 300 * time.Millisecond
-	openCommand  = "editor-nvim.open"
+	refreshDelay  = 300 * time.Millisecond
+	openCommand   = "editor-nvim.open"
+	editorSection = "editor-nvim"
+	editorSlot    = "editor-nvim.main"
 )
 
 var (
@@ -57,6 +60,8 @@ type state struct {
 	dirty    bool
 	renderMu sync.Mutex
 	repos    []string
+	gitDirs  []string
+	hideIgn  bool
 	expanded map[string]bool
 	selected string
 	status   map[string]string
@@ -132,7 +137,7 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 		return
 	}
 	s.mu.Lock()
-	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return containing(s.repos, p) != "" }))
+	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return containing(s.repos, p) != "" || containing(s.gitDirs, p) != "" }))
 	s.mu.Unlock()
 	if relevant {
 		a.schedule(h, ev.ProjectID, s, refreshDelay)
@@ -166,6 +171,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		}
 		a.schedule(h, cmd.ProjectID, s, 0)
 		return nil, nil
+	case "files.toggle-ignored":
+		return nil, a.toggleIgnored(ctx, h, cmd.ProjectID)
 	case "files.reveal":
 		var args pathArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -249,7 +256,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	if watch != "" {
 		logError("unwatch "+id, h.UnwatchFS(ctx, watch))
 	}
-	logError("drop "+id, errors.Join(h.StorageDelete(ctx, expandedKey(id)), h.StorageDelete(ctx, selectedKey(id))))
+	logError("drop "+id, errors.Join(h.StorageDelete(ctx, expandedKey(id)), h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, hideIgnoredKey(id))))
 }
 
 func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
@@ -289,14 +296,25 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	for _, r := range p.Repos {
 		repos = append(repos, resolve(r))
 	}
+	var gitDirs []string
+	for _, r := range repos {
+		gitDir, commonDir, err := gitrepo.Dirs(ctx, r)
+		if err != nil {
+			continue
+		}
+		gitDirs = append(gitDirs, gitDir, commonDir)
+	}
 	s.mu.Lock()
 	first := !s.synced
 	known := s.repos
 	s.mu.Unlock()
 	var stored []string
 	var found bool
-	var selected string
+	var selected, hide string
 	if first {
+		if _, err = h.StorageGet(ctx, hideIgnoredKey(id), &hide); err != nil {
+			return err
+		}
 		if found, err = h.StorageGet(ctx, expandedKey(id), &stored); err != nil {
 			return err
 		}
@@ -306,9 +324,9 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.repos = repos
+	s.repos, s.gitDirs = repos, gitDirs
 	if first {
-		s.synced, s.selected = true, selected
+		s.synced, s.selected, s.hideIgn = true, selected, hide == "true"
 		for _, e := range stored {
 			s.expanded[e] = true
 		}
@@ -385,9 +403,9 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	for i, r := range s.repos {
 		roots[i] = Root{Path: r}
 	}
-	expanded, status, selected := maps.Clone(s.expanded), s.status, s.selected
+	expanded, status, selected, hide := maps.Clone(s.expanded), s.status, s.selected, s.hideIgn
 	s.mu.Unlock()
-	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status), selected))
+	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status, hide), selected))
 	return err
 }
 
@@ -421,7 +439,32 @@ func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	if err := a.render(ctx, h, id, s); err != nil {
 		return err
 	}
-	return h.RunCommand(ctx, openCommand, id, pathArgs{Path: item}, nil)
+	if err := h.RunCommand(ctx, openCommand, id, pathArgs{Path: item}, nil); err != nil {
+		return err
+	}
+	logError("focus "+id, h.Focus(ctx, id, editorSection, editorSlot))
+	return nil
+}
+
+func (a *app) toggleIgnored(ctx context.Context, h *pluginsdk.Host, id string) error {
+	s := a.get(id)
+	if err := a.ensure(ctx, h, id, s); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.hideIgn = !s.hideIgn
+	hide := s.hideIgn
+	s.mu.Unlock()
+	var err error
+	if hide {
+		err = h.StorageSet(ctx, hideIgnoredKey(id), "true")
+	} else {
+		err = h.StorageDelete(ctx, hideIgnoredKey(id))
+	}
+	if err != nil {
+		return err
+	}
+	return a.render(ctx, h, id, s)
 }
 
 func (a *app) setExpanded(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string, on bool) error {
@@ -495,6 +538,10 @@ func sortedKeys(set map[string]bool) []string {
 
 func expandedKey(projectID string) string {
 	return "expanded/" + projectID
+}
+
+func hideIgnoredKey(projectID string) string {
+	return "hideIgnored/" + projectID
 }
 
 func selectedKey(projectID string) string {

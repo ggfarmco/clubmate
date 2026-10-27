@@ -1,32 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"maps"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-	"time"
+
+	"clubmate/plugins/internal/gitrepo"
 )
 
-const gitTimeout = 10 * time.Second
-
-func parsePorcelain(top string, out []byte) map[string]string {
+func statusMap(entries []gitrepo.Entry) map[string]string {
 	status := map[string]string{}
-	fields := bytes.Split(out, []byte{0})
-	for i := 0; i < len(fields); i++ {
-		f := fields[i]
-		if len(f) < 4 {
-			continue
-		}
-		x, y := f[0], f[1]
-		if x == 'R' || x == 'C' || y == 'R' || y == 'C' {
-			i++
-		}
-		if code := statusCode(x, y); code != "" {
-			status[filepath.Join(top, strings.TrimSuffix(string(f[3:]), "/"))] = code
+	for _, e := range entries {
+		if code := statusCode(e.X, e.Y); code != "" {
+			status[e.Path] = code
 		}
 	}
 	return status
@@ -37,7 +22,7 @@ func statusCode(x, y byte) string {
 	case x == '?' && y == '?':
 		return "U"
 	case x == '!':
-		return ""
+		return ignoredCode
 	case x == 'U' || y == 'U' || (x == 'A' && y == 'A') || (x == 'D' && y == 'D'):
 		return "U"
 	case x == 'A':
@@ -60,30 +45,14 @@ func statusCode(x, y byte) string {
 	return ""
 }
 
-func gitStatus(ctx context.Context, repo string) map[string]string {
-	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
-	defer cancel()
-	top, err := git(ctx, repo, "rev-parse", "--show-toplevel")
-	if err != nil {
-		return nil
-	}
-	out, err := git(ctx, repo, "status", "--porcelain=v1", "-z", "--untracked-files=normal")
-	if err != nil {
-		return nil
-	}
-	return parsePorcelain(strings.TrimSuffix(string(top), "\n"), out)
-}
-
 func gitStatusAll(ctx context.Context, repos []string) map[string]string {
 	all := map[string]string{}
 	for _, repo := range repos {
-		maps.Copy(all, gitStatus(ctx, repo))
+		_, entries, err := gitrepo.Status(ctx, repo, true)
+		if err != nil {
+			continue
+		}
+		maps.Copy(all, statusMap(entries))
 	}
 	return all
-}
-
-func git(ctx context.Context, repo string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false", "-C", repo}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_CEILING_DIRECTORIES="+filepath.Dir(repo))
-	return cmd.Output()
 }
