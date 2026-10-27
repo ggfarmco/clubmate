@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,9 +24,12 @@ import (
 	"clubmate/internal/rpc"
 	"clubmate/internal/sdui"
 	"clubmate/internal/session"
+	"clubmate/internal/shellenv"
 )
 
 const (
+	shellEnvTimeout   = 10 * time.Second
+	defaultShell      = "/bin/zsh"
 	refreshEvery      = 2 * time.Second
 	pluginStopTimeout = 15 * time.Second
 )
@@ -55,6 +60,8 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer unlock()
+
+	applyShellEnv(logger)
 
 	exe, err := coreExecutable()
 	if err != nil {
@@ -121,6 +128,57 @@ func run(logger *slog.Logger) error {
 	<-loopDone
 	logger.Info("clubmate-core stopped")
 	return serveErr
+}
+
+func applyShellEnv(logger *slog.Logger) {
+	if os.Getenv("CLUBMATE_SHELL_ENV") == "0" {
+		return
+	}
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = defaultShell
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), shellEnvTimeout)
+	defer cancel()
+	base := os.Environ()
+	var env []string
+	resolved, err := shellenv.Resolve(ctx, shell)
+	if err != nil {
+		logger.Error("resolve login shell environment", "shell", shell, "err", err)
+		env = withHomebrewPath(base)
+	} else {
+		env = shellenv.Merge(base, resolved)
+	}
+	if err := shellenv.Apply(env); err != nil {
+		logger.Error("apply login shell environment", "err", err)
+	}
+}
+
+func withHomebrewPath(env []string) []string {
+	out := make([]string, 0, len(env)+1)
+	found := false
+	for _, entry := range env {
+		if value, ok := strings.CutPrefix(entry, "PATH="); ok {
+			found = true
+			entry = "PATH=" + prependMissing(value, "/opt/homebrew/bin", "/usr/local/bin")
+		}
+		out = append(out, entry)
+	}
+	if !found {
+		out = append(out, "PATH=/opt/homebrew/bin:/usr/local/bin")
+	}
+	return out
+}
+
+func prependMissing(path string, dirs ...string) string {
+	have := strings.Split(path, ":")
+	var add []string
+	for _, d := range dirs {
+		if !slices.Contains(have, d) {
+			add = append(add, d)
+		}
+	}
+	return strings.Join(append(add, have...), ":")
 }
 
 func listen(socket string) (net.Listener, error) {
