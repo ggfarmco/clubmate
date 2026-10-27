@@ -88,10 +88,13 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, plugin, hidden}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
+| process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
 
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
+
+`process.kill` with `orphansOnly` kills only orphaned processes and needs `sessionId` or `projectId` (otherwise invalid params). With `projectId`, only that project's orphans are killed; with `sessionId`, only that session's. Without `orphansOnly`, `pids` must be tracked processes. Each target is signalled only if its start time still matches the tracked one, so a reused pid is skipped.
 
 `command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
 
@@ -115,6 +118,7 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 - `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`). Existing `fs.watch` streams do not follow; re-watch on this event.
 - `editor.buffer` `{projectId, path}`: published by `editor-nvim` when nvim enters a file buffer (BufEnter). `path` is absolute, as nvim names the buffer.
 - `editor.saved` `{projectId, path}`: published by `editor-nvim` after nvim writes a file buffer (BufWritePost).
+- `processes.killed` `{projectId, pids}`: published by `processes` when auto-kill terminates orphans of a project; never published with empty `pids`.
 
 ## Core notifications
 
