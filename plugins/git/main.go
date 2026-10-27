@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +33,7 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoSelection    = errors.New("no file selected")
 	errNotChanges     = errors.New("only unstaged changes can be discarded")
+	errIntentToAdd    = errors.New("intent-to-add files cannot be discarded")
 	errNoMessage      = errors.New("commit message is required")
 	errUnknownRepo    = errors.New("unknown repository")
 	errStaleTarget    = errors.New("the file is no longer selected")
@@ -73,6 +75,7 @@ type state struct {
 	gitDirs  []string
 	views    map[string]repoView
 	selected string
+	folded   map[string]bool
 	commits  int
 	busy     string
 	failure  string
@@ -165,7 +168,11 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		}
 		return nil, a.selectItem(ctx, h, ev.ProjectID, s, item)
 	case "expand", "collapse":
-		return nil, nil
+		var item string
+		if err := json.Unmarshal(ev.Value, &item); err != nil {
+			return nil, fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		return nil, a.fold(ctx, h, ev.ProjectID, s, item, ev.Action == "collapse")
 	case stageAction, unstageAction, discardAction:
 		if err := a.apply(ctx, s, ev.Action, ev.NodeID); err != nil {
 			return nil, err
@@ -223,7 +230,7 @@ func (a *app) get(id string) *state {
 	defer a.mu.Unlock()
 	s, ok := a.projects[id]
 	if !ok {
-		s = &state{}
+		s = &state{folded: map[string]bool{}}
 		a.projects[id] = s
 	}
 	return s
@@ -376,7 +383,7 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	s.mu.Unlock()
 	views := make(map[string]repoView, len(repos))
 	for _, repo := range repos {
-		_, entries, err := gitrepo.Status(ctx, repo, false)
+		_, entries, err := gitrepo.Status(ctx, repo)
 		if err != nil {
 			logError("status "+repo, err)
 			views[repo] = repoView{Path: repo, Problem: problem(ctx, repo, err)}
@@ -406,6 +413,7 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 		views[i] = s.view(r)
 	}
 	live := s.liveLocked()
+	folded := maps.Clone(s.folded)
 	sel := s.leaf(s.selected)
 	m := mainModel{Sel: sel, Repos: live, FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
 	s.mu.Unlock()
@@ -415,22 +423,35 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 		if info, err := os.Lstat(sel.Path); err == nil && sel.Group == groupUntracked {
 			sel.Dir = info.IsDir()
 		}
-		text, err := bodyFor(ctx, *sel)
-		m.Body = bodyNode(text, sel.Dir, err)
+		text, truncated, err := bodyFor(ctx, *sel)
+		m.Body = bodyNode(text, truncated, sel.Dir, err)
 	}
-	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(views, selected)); err != nil {
-		return err
-	}
-	_, err := h.Render(ctx, id, mainSlot, mainView(m))
+	_, err := h.Render(ctx, id, sidebarSlot, sidebarView(views, selected, folded))
+	logError("sidebar "+id, err)
+	_, err = h.Render(ctx, id, mainSlot, mainView(m))
 	return err
 }
 
 func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
+	if strings.HasSuffix(item, idSep+moreID) {
+		return nil
+	}
 	s.mu.Lock()
 	if s.leaf(item) != nil {
 		s.selected = item
 	} else {
 		s.selected = ""
+	}
+	s.mu.Unlock()
+	return a.render(ctx, h, id, s)
+}
+
+func (a *app) fold(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string, on bool) error {
+	s.mu.Lock()
+	if on {
+		s.folded[item] = true
+	} else {
+		delete(s.folded, item)
 	}
 	s.mu.Unlock()
 	return a.render(ctx, h, id, s)
@@ -460,6 +481,9 @@ func (a *app) apply(ctx context.Context, s *state, action, target string) error 
 		}
 		if sel.Group != groupChanges {
 			return errNotChanges
+		}
+		if !sel.discardable() {
+			return errIntentToAdd
 		}
 		_, err = run(ctx, sel.Repo, "restore", "--", rel)
 	}
@@ -596,7 +620,7 @@ func (s *state) follow(id string) string {
 	return ""
 }
 
-func bodyFor(ctx context.Context, l leaf) (string, error) {
+func bodyFor(ctx context.Context, l leaf) (string, bool, error) {
 	rel := l.rel()
 	switch {
 	case l.Group == groupStaged:
@@ -604,20 +628,23 @@ func bodyFor(ctx context.Context, l leaf) (string, error) {
 		if l.Orig != "" {
 			args = append(args, relPath(l.Repo, l.Orig))
 		}
-		out, err := run(ctx, l.Repo, args...)
-		return string(out), err
+		return capture(ctx, l.Repo, args...)
 	case l.Group == groupChanges:
-		out, err := run(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", "--", rel)
-		return string(out), err
+		return capture(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", "--", rel)
 	case l.Dir:
-		out, err := run(ctx, l.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", rel+"/")
-		return strings.ReplaceAll(strings.TrimSuffix(string(out), "\x00"), "\x00", "\n"), err
+		out, truncated, err := capture(ctx, l.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", rel+"/")
+		return strings.ReplaceAll(strings.TrimSuffix(out, "\x00"), "\x00", "\n"), truncated, err
 	}
-	out, err := gitrepo.Run(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", rel)
+	out, truncated, err := gitrepo.RunLimited(ctx, l.Repo, maxDiffBytes, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", rel)
 	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 && len(ee.Stderr) == 0 {
-		return string(out), nil
+		return string(out), truncated, nil
 	}
-	return string(out), gitError(out, err)
+	return string(out), truncated, gitError(out, err)
+}
+
+func capture(ctx context.Context, repo string, args ...string) (string, bool, error) {
+	out, truncated, err := gitrepo.RunLimited(ctx, repo, maxDiffBytes, append([]string{"--literal-pathspecs"}, args...)...)
+	return string(out), truncated, gitError(out, err)
 }
 
 func unstage(ctx context.Context, repo string, paths ...string) error {

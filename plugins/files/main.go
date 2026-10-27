@@ -389,7 +389,7 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	status := map[string]map[string]string{}
 	ignored := map[string]map[string]bool{}
 	for _, repo := range repos {
-		_, entries, err := gitrepo.Status(ctx, repo, false)
+		_, entries, err := gitrepo.Status(ctx, repo)
 		if err != nil {
 			logError("status "+repo, err)
 		} else {

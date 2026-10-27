@@ -1,9 +1,11 @@
 package gitrepo_test
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,7 +57,7 @@ func TestStatusEntries(t *testing.T) {
 	git(t, repo, "mv", "d.go", "e.go")
 	write(t, filepath.Join(repo, "bin", "x"), "x")
 
-	top, entries, err := gitrepo.Status(t.Context(), repo, true)
+	top, entries, err := gitrepo.Status(t.Context(), repo)
 	require.NoError(t, err)
 	assert.Equal(t, repo, top)
 	byPath := map[string]gitrepo.Entry{}
@@ -69,13 +71,7 @@ func TestStatusEntries(t *testing.T) {
 	assert.Equal(t, "??", string([]byte{at("c.go").X, at("c.go").Y}))
 	assert.Equal(t, "R ", string([]byte{at("e.go").X, at("e.go").Y}))
 	assert.Equal(t, filepath.Join(repo, "d.go"), at("e.go").Orig)
-	assert.Equal(t, byte('!'), at("bin").X)
-
-	_, entries, err = gitrepo.Status(t.Context(), repo, false)
-	require.NoError(t, err)
-	for _, e := range entries {
-		assert.NotEqual(t, filepath.Join(repo, "bin"), e.Path)
-	}
+	assert.NotContains(t, byPath, filepath.Join(repo, "bin"))
 }
 
 func TestDirsWorktree(t *testing.T) {
@@ -141,4 +137,27 @@ func TestMutateReturnsDespiteOrphanHoldingOutput(t *testing.T) {
 	_, err := gitrepo.Mutate(t.Context(), repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "m")
 	assert.Less(t, time.Since(start), 5*time.Second)
 	assert.ErrorIs(t, err, exec.ErrWaitDelay)
+}
+
+func TestRunLimited(t *testing.T) {
+	repo := newRepo(t)
+	big := strings.Repeat("x", 1<<20)
+	write(t, filepath.Join(repo, "big"), big)
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-q", "-m", "init")
+
+	out, truncated, err := gitrepo.RunLimited(t.Context(), repo, 10, "show", "HEAD:big")
+	require.NoError(t, err)
+	assert.True(t, truncated)
+	assert.Equal(t, big[:10], string(out))
+
+	out, truncated, err = gitrepo.RunLimited(t.Context(), repo, len(big), "show", "HEAD:big")
+	require.NoError(t, err)
+	assert.False(t, truncated)
+	assert.Equal(t, big, string(out))
+
+	_, _, err = gitrepo.RunLimited(t.Context(), repo, 10, "show", "HEAD:missing")
+	ee, ok := errors.AsType[*exec.ExitError](err)
+	require.True(t, ok)
+	assert.Contains(t, string(ee.Stderr), "missing")
 }

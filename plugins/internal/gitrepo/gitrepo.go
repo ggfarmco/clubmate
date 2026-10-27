@@ -17,6 +17,8 @@ const (
 	waitDelay = 2 * time.Second
 )
 
+var errLimit = errors.New("output limit reached")
+
 type Entry struct {
 	Path, Orig string
 	X, Y       byte
@@ -32,14 +34,52 @@ func Mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	return run(ctx, repo, nil, args...)
 }
 
+func RunLimited(ctx context.Context, repo string, limit int, args ...string) ([]byte, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	out := &limitWriter{limit: limit}
+	var stderr bytes.Buffer
+	cmd := command(ctx, repo, args...)
+	cmd.Stdout, cmd.Stderr = out, &stderr
+	err := cmd.Run()
+	if out.full {
+		return out.buf, true, nil
+	}
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
+		ee.Stderr = stderr.Bytes()
+	}
+	return out.buf, false, err
+}
+
 func run(ctx context.Context, repo string, stdin []byte, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false", "-C", repo}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_CEILING_DIRECTORIES="+filepath.Dir(repo))
-	cmd.WaitDelay = waitDelay
+	cmd := command(ctx, repo, args...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
 	return cmd.Output()
+}
+
+func command(ctx context.Context, repo string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false", "-C", repo}, args...)...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0", "GIT_CEILING_DIRECTORIES="+filepath.Dir(repo))
+	cmd.WaitDelay = waitDelay
+	return cmd
+}
+
+type limitWriter struct {
+	buf   []byte
+	limit int
+	full  bool
+}
+
+func (w *limitWriter) Write(p []byte) (int, error) {
+	if room := w.limit - len(w.buf); len(p) > room {
+		w.buf = append(w.buf, p[:room]...)
+		w.full = true
+		return room, errLimit
+	}
+	w.buf = append(w.buf, p...)
+	return len(p), nil
 }
 
 func Ignored(ctx context.Context, repo string, paths []string) (map[string]bool, error) {
@@ -69,7 +109,7 @@ func Ignored(ctx context.Context, repo string, paths []string) (map[string]bool,
 	return ignored, nil
 }
 
-func Status(ctx context.Context, repo string, ignored bool) (string, []Entry, error) {
+func Status(ctx context.Context, repo string) (string, []Entry, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	out, err := run(ctx, repo, nil, "rev-parse", "--show-toplevel")
@@ -77,11 +117,7 @@ func Status(ctx context.Context, repo string, ignored bool) (string, []Entry, er
 		return "", nil, err
 	}
 	top := strings.TrimSuffix(string(out), "\n")
-	args := []string{"status", "--porcelain=v1", "-z", "--untracked-files=normal"}
-	if ignored {
-		args = append(args, "--ignored=traditional")
-	}
-	out, err = run(ctx, repo, nil, args...)
+	out, err = run(ctx, repo, nil, "status", "--porcelain=v1", "-z", "--untracked-files=normal")
 	if err != nil {
 		return "", nil, err
 	}
