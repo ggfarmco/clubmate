@@ -15,6 +15,7 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
@@ -25,6 +26,8 @@ const (
 	renderDelay   = 30 * time.Millisecond
 	branchTimeout = 2 * time.Second
 	noName        = "[No Name]"
+	sidebarSlot   = "editor-nvim.sidebar"
+	edgeEvent     = "edge"
 )
 
 var (
@@ -34,6 +37,9 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errUnknownAction  = errors.New("unknown action")
 	errUnsaved        = errors.New("unsaved buffers")
+	errDeleted        = errors.New("project deleted")
+	errNotInRepo      = errors.New("not in a git repository")
+	errDiffSides      = errors.New("diff: base must be head or index, target index or worktree, and differ")
 )
 
 type projectEvent struct {
@@ -57,6 +63,12 @@ type pathEvent struct {
 	Path      string `json:"path"`
 }
 
+type diffArgs struct {
+	Path   string `json:"path"`
+	Base   string `json:"base"`
+	Target string `json:"target"`
+}
+
 type terminalArgs struct {
 	Cwd string `json:"cwd"`
 }
@@ -77,6 +89,7 @@ type app struct {
 	nvimPath string
 	mu       sync.Mutex
 	editors  map[string]*editor
+	deleted  map[string]bool
 }
 
 type editor struct {
@@ -93,7 +106,7 @@ type editor struct {
 }
 
 func main() {
-	a := &app{editors: map[string]*editor{}}
+	a := &app{editors: map[string]*editor{}, deleted: map[string]bool{}}
 	a.nvimPath, _ = exec.LookPath("nvim")
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
 }
@@ -168,11 +181,18 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if ev.Action != "restart" {
 		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 	}
-	return nil, a.restart(ctx, h, a.editor(ev.ProjectID), false)
+	e := a.editor(ev.ProjectID)
+	if e == nil {
+		return nil, nil
+	}
+	return nil, a.restart(ctx, h, e, false)
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	e := a.editor(cmd.ProjectID)
+	if e == nil {
+		return nil, nil
+	}
 	switch strings.TrimPrefix(cmd.ID, h.PluginID()+".") {
 	case "open":
 		var args openArgs
@@ -203,6 +223,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			}
 		}
 		return nil, a.restart(ctx, h, e, args.Force)
+	case "diff":
+		var args diffArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("diff args: %w", err)
+		}
+		return nil, a.diff(ctx, h, e, args)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -210,6 +236,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 func (a *app) editor(projectID string) *editor {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.deleted[projectID] {
+		return nil
+	}
 	e, ok := a.editors[projectID]
 	if !ok {
 		e = &editor{id: projectID}
@@ -242,17 +271,30 @@ func (a *app) drop(projectID string) {
 	a.mu.Lock()
 	e := a.editors[projectID]
 	delete(a.editors, projectID)
+	a.deleted[projectID] = true
 	a.mu.Unlock()
 	if e == nil {
 		return
 	}
+	e.life.Lock()
+	defer e.life.Unlock()
 	if c := e.reset(); c != nil {
 		go c.close()
 	}
 }
 
+func (a *app) isDeleted(projectID string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.deleted[projectID]
+}
+
 func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, projectID string) {
-	if _, err := a.ensure(ctx, h, a.editor(projectID)); err != nil && !errors.Is(err, errNvimNotInPATH) {
+	e := a.editor(projectID)
+	if e == nil {
+		return
+	}
+	if _, err := a.ensure(ctx, h, e); err != nil && !errors.Is(err, errNvimNotInPATH) && !errors.Is(err, errDeleted) {
 		logError("start "+projectID, err)
 	}
 }
@@ -264,6 +306,9 @@ func (a *app) ensure(ctx context.Context, h *pluginsdk.Host, e *editor) (*client
 }
 
 func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*client, error) {
+	if a.isDeleted(e.id) {
+		return nil, errDeleted
+	}
 	if a.nvimPath == "" {
 		return nil, errors.Join(errNvimNotInPATH, renderMain(ctx, h, e.id, missingView()))
 	}
@@ -358,6 +403,39 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor, force b
 	return err
 }
 
+func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffArgs) error {
+	if args.Path == "" {
+		return errNoPath
+	}
+	if !slices.Contains([]string{"head", "index"}, args.Base) || !slices.Contains([]string{"index", "worktree"}, args.Target) || args.Base == args.Target {
+		return errDiffSides
+	}
+	repo, ok := repoRoot(filepath.Dir(args.Path))
+	if !ok {
+		return fmt.Errorf("%w: %s", errNotInRepo, args.Path)
+	}
+	rel, err := filepath.Rel(repo, args.Path)
+	if err != nil {
+		return err
+	}
+	rel = filepath.ToSlash(rel)
+	left, err := gitShow(ctx, repo, args.Base, rel)
+	if err != nil {
+		return err
+	}
+	right := ""
+	if args.Target == "index" {
+		if right, err = gitShow(ctx, repo, args.Target, rel); err != nil {
+			return err
+		}
+	}
+	c, err := a.ensure(ctx, h, e)
+	if err != nil {
+		return err
+	}
+	return c.diff(args.Path, rel, args.Base, args.Target, left, right)
+}
+
 func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {
 	e := a.lookup(ev.ProjectID)
 	if e == nil {
@@ -394,6 +472,14 @@ func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error 
 
 func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	ctx := context.Background()
+	if ev.Event == edgeEvent {
+		if ev.Dir == "h" {
+			if err := h.Focus(ctx, e.id, h.PluginID(), sidebarSlot); err != nil {
+				logError("focus", err)
+			}
+		}
+		return
+	}
 	branch, refresh := "", ev.Event == "BufEnter" || ev.Event == "DirChanged"
 	if refresh {
 		branch = gitBranch(ctx, branchDir(ev.File, e.projectRoot()))
@@ -531,13 +617,42 @@ func branchDir(file, root string) string {
 }
 
 func gitBranch(ctx context.Context, dir string) string {
+	repo, ok := repoRoot(dir)
+	if !ok {
+		return ""
+	}
 	ctx, cancel := context.WithTimeout(ctx, branchTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	branch, err := gitrepo.Branch(ctx, repo)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return branch
+}
+
+func gitShow(ctx context.Context, repo, side, rel string) (string, error) {
+	rev := ":" + rel
+	if side == "head" {
+		rev = "HEAD:" + rel
+	}
+	out, err := gitrepo.Run(ctx, repo, "show", rev)
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
+		return "", nil
+	}
+	return string(out), err
+}
+
+func repoRoot(dir string) (string, bool) {
+	for {
+		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
 }
 
 func fileTopic(event string) string {
