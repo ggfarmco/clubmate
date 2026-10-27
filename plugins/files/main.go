@@ -132,7 +132,7 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 		return
 	}
 	s.mu.Lock()
-	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return s.expanded[filepath.Dir(p)] }))
+	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return containing(s.repos, p) != "" }))
 	s.mu.Unlock()
 	if relevant {
 		a.schedule(h, ev.ProjectID, s, refreshDelay)
