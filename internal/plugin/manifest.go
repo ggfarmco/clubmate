@@ -53,9 +53,10 @@ type Section struct {
 }
 
 type CommandDef struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Hidden bool   `json:"hidden"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Hidden  bool   `json:"hidden"`
+	Confirm string `json:"confirm"`
 }
 
 func Load(dir string) (Manifest, error) {

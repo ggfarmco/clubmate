@@ -35,10 +35,11 @@ type Router interface {
 }
 
 type Command struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Plugin string `json:"plugin"`
-	Hidden bool   `json:"hidden"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Plugin  string `json:"plugin"`
+	Hidden  bool   `json:"hidden"`
+	Confirm string `json:"confirm"`
 }
 
 type uiState struct {

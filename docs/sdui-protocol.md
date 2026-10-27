@@ -20,7 +20,7 @@ Interactive types (`tabs list tree button textField folderField toggle select fo
 `items` and `options` accept `null` as an empty list.
 
 - item (`tabs`, `list`): `{id*, label*, detail, icon, badge}`, all strings, ids unique and non-empty.
-- tree item (`tree`): item fields plus `hasChildren` (bool), `expanded` (bool), `children` (tree items).
+- tree item (`tree`): item fields plus `muted` (bool), `hasChildren` (bool), `expanded` (bool), `children` (tree items).
 - option (`select`): `{value*, label*}`.
 
 ## Node types
@@ -36,6 +36,7 @@ Interactive types (`tabs list tree button textField folderField toggle select fo
 | text | text* (string), style (`body`\|`muted`\|`title`\|`mono`) | none | no |
 | badge | text* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`) | none | no |
 | icon | name* (string) | none | no |
+| diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
 | button | label* (string), icon (string), confirm (string), action | none | yes |
 | textField | value (string), placeholder (string), action | none | yes |
@@ -100,7 +101,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.presence | none | `[projectId]`, projects that currently have UI subscribers |
 | fs.watch | `{projectId}` | `{watch}` |
 | fs.unwatch | `{watch}` | `{}` |
-| command.list | none | `[{id, title, plugin, hidden}]` |
+| command.list | none | `[{id, title, plugin, hidden, confirm}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
 | ui.focus | `{projectId, section, slot}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
@@ -110,6 +111,8 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
 
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
+
+A command with a non-empty `"confirm"` string in its manifest entry is listed with that text (`""` when absent); the client asks for confirmation with it before running the command.
 
 `process.kill` with `orphansOnly` kills only orphaned processes and needs `sessionId` or `projectId` (otherwise invalid params). With `projectId`, only that project's orphans are killed; with `sessionId`, only that session's. Without `orphansOnly`, `pids` must be tracked processes. Each target is signalled only if its start time still matches the tracked one, so a reused pid is skipped.
 

@@ -98,6 +98,17 @@ func TestHiddenCommandListed(t *testing.T) {
 	}, cmds)
 }
 
+func TestCommandConfirmListed(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.drop","title":"Drop","confirm":"Sure?"},{"id":"alpha.open","title":"Open"}]}`)))
+	var cmds []rpc.Command
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.list", struct{}{}, &cmds))
+	assert.ElementsMatch(t, []rpc.Command{
+		{ID: "alpha.drop", Title: "Drop", Plugin: "alpha", Confirm: "Sure?"},
+		{ID: "alpha.open", Title: "Open", Plugin: "alpha"},
+	}, cmds)
+}
+
 func TestAppScopeSlots(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t,

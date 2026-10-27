@@ -21,6 +21,7 @@ type TreeItem struct {
 	Detail      string     `json:"detail,omitempty"`
 	Icon        string     `json:"icon,omitempty"`
 	Badge       string     `json:"badge,omitempty"`
+	Muted       bool       `json:"muted,omitempty"`
 	HasChildren bool       `json:"hasChildren,omitempty"`
 	Expanded    bool       `json:"expanded,omitempty"`
 	Children    []TreeItem `json:"children,omitempty"`
@@ -73,6 +74,10 @@ func Badge(text, tone string) Node {
 
 func Icon(name string) Node {
 	return Node{Type: "icon", Props: map[string]any{"name": name}}
+}
+
+func Diff(text string) Node {
+	return Node{Type: "diff", Props: map[string]any{"text": text}}
 }
 
 func Markdown(text string) Node {
