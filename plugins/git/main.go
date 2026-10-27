@@ -379,11 +379,7 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		_, entries, err := gitrepo.Status(ctx, repo, false)
 		if err != nil {
 			logError("status "+repo, err)
-			problem := notGitDetail
-			if _, statErr := os.Stat(repo); statErr != nil {
-				problem = missingDetail
-			}
-			views[repo] = repoView{Path: repo, Problem: problem}
+			views[repo] = repoView{Path: repo, Problem: problem(ctx, repo, err)}
 			continue
 		}
 		branch, err := gitrepo.Branch(ctx, repo)
@@ -626,11 +622,29 @@ func bodyFor(ctx context.Context, l leaf) (string, error) {
 
 func unstage(ctx context.Context, repo string, paths ...string) error {
 	args := append([]string{"restore", "--staged", "--"}, paths...)
-	if _, err := gitrepo.Run(ctx, repo, "rev-parse", "--verify", "-q", "HEAD"); err != nil {
+	out, err := gitrepo.Run(ctx, repo, "rev-parse", "--verify", "-q", "HEAD")
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 && len(ee.Stderr) == 0 {
 		args = append([]string{"rm", "--cached", "-r", "-f", "-q", "--ignore-unmatch", "--"}, paths...)
+	} else if err != nil {
+		return gitError(out, err)
 	}
-	_, err := run(ctx, repo, args...)
+	_, err = run(ctx, repo, args...)
 	return err
+}
+
+func problem(ctx context.Context, repo string, statusErr error) string {
+	if _, err := os.Stat(repo); err != nil {
+		return missingDetail
+	}
+	out, err := gitrepo.Run(ctx, repo, "rev-parse", "--is-inside-work-tree")
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok && strings.Contains(string(ee.Stderr), "not a git repository") {
+		return notGitDetail
+	}
+	if err == nil {
+		err = statusErr
+	}
+	first, _, _ := strings.Cut(gitError(out, err).Error(), "\n")
+	return "git error: " + first
 }
 
 func mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {

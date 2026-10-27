@@ -216,3 +216,16 @@ func TestUntrackedDirListsFiles(t *testing.T) {
 	_, ok := find(main, "open-diff")
 	assert.False(t, ok)
 }
+
+func TestPlainDirIsNotARepo(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not in PATH")
+	}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	h, id := open(t, dir)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool {
+		rs := roots(t, n)
+		return len(rs) == 1 && rs[0].Detail == "not a git repository" && len(rs[0].Children) == 0
+	})
+}
