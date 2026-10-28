@@ -87,7 +87,10 @@ final class AppModel {
               let store = session.store else { return }
         navigationPending = false
         Task {
-            if case .failure(let error) = await store.run(.navigation(enabled: enabled)) {
+            switch await store.run(.navigation(enabled: enabled, side: settings.sidebarSide)) {
+            case .success(let result):
+                if let message = CodeSection.skippedKeysMessage(result) { session.banner.show(message) }
+            case .failure(let error):
                 navigationPending = true
                 session.banner.show(error.message)
             }
@@ -103,7 +106,7 @@ final class AppModel {
     }
 
     private func trackNavigationKeys() {
-        withObservationTracking { _ = settings.navigationKeys } onChange: { [weak self] in
+        withObservationTracking { _ = (settings.navigationKeys, settings.sidebarSide) } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 self.navigationPending = true

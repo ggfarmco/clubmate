@@ -44,7 +44,7 @@ m.navigate = function(dir)
   if vim.fn.winnr() == w then edge(dir) end
 end`
 
-const navLua = `local enabled = ...
+const navLua = `local enabled, side = ...
 local m = package.loaded["clubmate"]
 local desc = "clubmate navigate"
 local keys = { h = "<C-h>", j = "<C-j>", k = "<C-k>", l = "<C-l>" }
@@ -52,6 +52,20 @@ local function global(lhs)
   for _, km in ipairs(vim.api.nvim_get_keymap("n")) do
     if vim.keycode(km.lhs) == vim.keycode(lhs) then return km end
   end
+end
+local function snapshot(lhs, km)
+  if not km then return nil end
+  local exact = vim.fn.maparg(lhs, "n", false, true)
+  return exact.buffer == 0 and exact or km
+end
+local function replaceable(km, dir)
+  if (km.desc or ""):match("^:help .+%-default$") then return true end
+  if type(km.rhs) ~= "string" or km.expr ~= 0 then return false end
+  local rhs = vim.keycode(km.rhs)
+  for _, move in ipairs({ "<C-w>" .. dir, "<C-w><C-" .. dir .. ">", "<Cmd>wincmd " .. dir .. "<CR>", ":wincmd " .. dir .. "<CR>" }) do
+    if rhs == vim.keycode(move) then return true end
+  end
+  return false
 end
 for _, lhs in pairs(keys) do
   local km = global(lhs)
@@ -74,8 +88,9 @@ if ss then
   if cfg then
     local target = type(cfg.move) == "table" and cfg.move or cfg
     local orig = target.at_edge
+    local toward = side == "right" and "right" or "left"
     local function wrapped(ctx)
-      require("clubmate").edge(ctx.direction)
+      if ctx.direction == toward then return require("clubmate").edge(ctx.direction) end
       if type(orig) == "function" then return orig(ctx) end
       if (orig == "wrap" or orig == "split") and type(ctx[orig]) == "function" then return ctx[orig]() end
     end
@@ -87,10 +102,10 @@ end
 local skipped = {}
 for dir, lhs in pairs(keys) do
   local km = global(lhs)
-  if km and not (km.desc or ""):match("^:help .+%-default$") then
+  if km and not replaceable(km, dir) then
     skipped[#skipped + 1] = lhs
   else
-    m.nav_saved[lhs] = km
+    m.nav_saved[lhs] = snapshot(lhs, km)
     vim.keymap.set("n", lhs, function() require("clubmate").navigate(dir) end, { desc = desc, silent = true })
   end
 end
@@ -268,9 +283,9 @@ func (c *client) hook() error {
 	return nil
 }
 
-func (c *client) navigation(enabled bool) ([]string, error) {
+func (c *client) navigation(nav navigationArgs) ([]string, error) {
 	var skipped []string
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(navLua, &skipped, enabled) }); err != nil {
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(navLua, &skipped, nav.Enabled, nav.Side) }); err != nil {
 		return nil, fmt.Errorf("nvim navigation: %w", err)
 	}
 	return skipped, nil

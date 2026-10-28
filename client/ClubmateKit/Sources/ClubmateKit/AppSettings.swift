@@ -9,6 +9,16 @@ public enum SidebarSide: String, Sendable, CaseIterable {
 public enum CodeSection {
     public static let id = "editor-nvim"
     public static let navigationCommand = "editor-nvim.navigation"
+
+    public static func skippedKeysMessage(_ result: JSONValue) -> String? {
+        guard case .object(let fields) = result, case .array(let keys)? = fields["skipped"] else { return nil }
+        let names = keys.compactMap { key -> String? in
+            guard case .string(let lhs) = key, lhs.hasPrefix("<C-"), lhs.hasSuffix(">") else { return nil }
+            return "Ctrl+" + lhs.dropFirst(3).dropLast().uppercased()
+        }
+        guard !names.isEmpty else { return nil }
+        return "\(names.joined(separator: ", ")) left alone: you already map \(names.count == 1 ? "it" : "them")"
+    }
 }
 
 @MainActor

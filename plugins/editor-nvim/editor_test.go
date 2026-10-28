@@ -243,9 +243,13 @@ func TestNavigationKeepsUserMappings(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
 	require.NoError(t, v.Command("nnoremap <C-j> <Cmd>let g:mine = 1<CR>"))
+	require.NoError(t, v.Command(`lua vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Move to left window" })`))
+	const move = "filter(maparg('<C-h>', 'n', 0, 1), {k -> index(['rhs', 'desc', 'noremap'], k) >= 0})"
+	before := eval[map[string]any](t, v, move)
 	assert.Equal(t, []string{"<C-j>"}, e.navigation(t, true))
-	assert.Equal(t, navDesc, eval[string](t, v, "get(maparg('<C-k>', 'n', 0, 1), 'desc', '')"))
+	assert.Equal(t, navDesc, eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')"))
 	e.navigation(t, false)
+	assert.Equal(t, before, eval[map[string]any](t, v, move))
 	assert.Equal(t, "<Cmd>let g:mine = 1<CR>", eval[string](t, v, "maparg('<C-j>', 'n')"))
 }
 
@@ -256,8 +260,11 @@ func TestNavigationRespectsSmartSplits(t *testing.T) {
 	e.navigation(t, true)
 	assert.Empty(t, eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')"))
 	drain(c)
-	require.NoError(t, v.Command(`lua package.loaded["smart-splits"].config.at_edge({ direction = "left" })`))
-	assert.Equal(t, 1, eval[int](t, v, "g:se"))
+	atEdge := func(dir string) {
+		require.NoError(t, v.Command(`lua package.loaded["smart-splits"].config.at_edge({ direction = "`+dir+`" })`))
+	}
+	atEdge("left")
+	assert.Equal(t, 0, eval[int](t, v, "get(g:, 'se', 0)"))
 	n, ok := nextFocus(c, 5*time.Second)
 	require.True(t, ok, "no ui.focus notification")
 	var focus struct {
@@ -265,6 +272,8 @@ func TestNavigationRespectsSmartSplits(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(n.Params, &focus))
 	assert.Equal(t, "h", focus.Edge)
+	atEdge("right")
+	assert.Equal(t, 1, eval[int](t, v, "get(g:, 'se', 0)"))
 	e.navigation(t, false)
 	assert.True(t, eval[bool](t, v, `luaeval('package.loaded["smart-splits"].config.at_edge == _G.orig')`))
 }
@@ -520,7 +529,7 @@ func (e *editor) navigation(t *testing.T, enabled bool) []string {
 	var res struct {
 		Skipped []string `json:"skipped"`
 	}
-	args := map[string]any{"enabled": enabled}
+	args := map[string]any{"enabled": enabled, "side": "left"}
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.navigation", "projectId": e.projectID, "args": args}, &res))
 	return res.Skipped
 }

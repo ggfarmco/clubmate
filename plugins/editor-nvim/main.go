@@ -47,6 +47,7 @@ var (
 	errRelativePath   = errors.New("diff: path must be absolute")
 	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
 	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
+	errNavigationSide = errors.New("navigation: side must be left or right")
 )
 
 type projectEvent struct {
@@ -92,7 +93,8 @@ type terminalArgs struct {
 }
 
 type navigationArgs struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool   `json:"enabled"`
+	Side    string `json:"side"`
 }
 
 type navigationResult struct {
@@ -222,7 +224,10 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("navigation args: %w", err)
 		}
-		return a.navigation(ctx, h, args.Enabled)
+		if args.Side != "left" && args.Side != "right" {
+			return nil, errNavigationSide
+		}
+		return a.navigation(ctx, h, args)
 	}
 	e := a.editor(cmd.ProjectID)
 	if e == nil {
@@ -393,10 +398,10 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	return c, nil
 }
 
-func (a *app) navigation(ctx context.Context, h *pluginsdk.Host, enabled bool) (navigationResult, error) {
+func (a *app) navigation(ctx context.Context, h *pluginsdk.Host, nav navigationArgs) (navigationResult, error) {
 	a.navMu.Lock()
 	defer a.navMu.Unlock()
-	if err := h.StorageSet(ctx, navigationKey, enabled); err != nil {
+	if err := h.StorageSet(ctx, navigationKey, nav); err != nil {
 		return navigationResult{}, err
 	}
 	a.mu.Lock()
@@ -409,7 +414,7 @@ func (a *app) navigation(ctx context.Context, h *pluginsdk.Host, enabled bool) (
 		if c == nil {
 			continue
 		}
-		skipped, err := c.navigation(enabled)
+		skipped, err := c.navigation(nav)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -424,10 +429,10 @@ func (a *app) navigation(ctx context.Context, h *pluginsdk.Host, enabled bool) (
 func (a *app) applyNavigation(ctx context.Context, h *pluginsdk.Host, c *client) {
 	a.navMu.Lock()
 	defer a.navMu.Unlock()
-	var enabled bool
-	found, err := h.StorageGet(ctx, navigationKey, &enabled)
+	var nav navigationArgs
+	found, err := h.StorageGet(ctx, navigationKey, &nav)
 	if err == nil && found {
-		_, err = c.navigation(enabled)
+		_, err = c.navigation(nav)
 	}
 	if err != nil {
 		logError(navigationKey, err)
