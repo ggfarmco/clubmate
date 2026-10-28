@@ -54,8 +54,9 @@ func TestOpenFileAtLine(t *testing.T) {
 	path := e.file(t, filepath.Join("-dir with space", "файл.go"))
 	require.NoError(t, e.open(t, path, 3))
 	v := dial(t, e.sock)
-	assert.Equal(t, path, eval[string](t, v, "expand('%:p')"))
-	assert.Equal(t, 3, eval[int](t, v, "line('.')"))
+	testutil.Eventually(t, func() bool {
+		return eval[string](t, v, "expand('%:p')") == path && eval[int](t, v, "line('.')") == 3
+	}, 5*time.Second)
 	testutil.Eventually(t, func() bool {
 		events, err := e.h.Bus.Read(t.Context(), "editor.buffer", 0, 100)
 		require.NoError(t, err)
@@ -70,6 +71,32 @@ func TestOpenFileAtLine(t *testing.T) {
 			}
 		}
 		return false
+	}, 5*time.Second)
+}
+
+func TestOpenLightFiles(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	require.NoError(t, v.ExecLua(`vim.notify = function(msg) vim.g.notified = (vim.g.notified or "") .. msg end`, nil))
+	require.ErrorContains(t, e.open(t, filepath.Join(e.repo, "a\nb.go"), 1), "line breaks")
+	big := e.file(t, filepath.Join("-dir with space", "big файл.go"))
+	require.NoError(t, os.WriteFile(big, []byte(strings.Repeat("line\n", 6*1024*1024/5)), 0o600))
+	blob := e.file(t, "blob.go")
+	require.NoError(t, os.WriteFile(blob, []byte("a\x00b\n"), 0o600))
+	for _, path := range []string{big, blob} {
+		require.NoError(t, e.open(t, path, 1))
+		testutil.Eventually(t, func() bool {
+			return eval[string](t, v, "expand('%:p')") == path
+		}, 10*time.Second)
+		assert.Empty(t, eval[string](t, v, "&filetype"))
+		assert.Equal(t, 0, eval[int](t, v, "&swapfile"))
+		assert.True(t, eval[bool](t, v, "b:clubmate_light"))
+		assert.Contains(t, eval[string](t, v, "g:notified"), "without highlighting")
+	}
+	small := e.file(t, "small.go")
+	require.NoError(t, e.open(t, small, 1))
+	testutil.Eventually(t, func() bool {
+		return eval[string](t, v, "expand('%:p')") == small && eval[string](t, v, "&filetype") == "go"
 	}, 5*time.Second)
 }
 

@@ -115,12 +115,21 @@ for _, b in ipairs(vim.api.nvim_list_bufs()) do
 end
 return names`
 
-const openLua = `local path, line = ...
-vim.cmd.edit(vim.fn.fnameescape(path))
-if line > 0 then
-  vim.api.nvim_win_set_cursor(0, { math.min(line, vim.api.nvim_buf_line_count(0)), 0 })
-  vim.cmd("normal! zz")
-end`
+const openLua = `local path, line, light = ...
+vim.schedule(function()
+  if light then
+    vim.cmd({ cmd = "edit", args = { vim.fn.fnameescape(path) }, mods = { noautocmd = true, noswapfile = true } })
+    vim.cmd("setlocal syntax=off")
+    vim.b.clubmate_light = true
+    vim.notify("clubmate: large or binary file opened without highlighting, LSP and swap", vim.log.levels.INFO)
+  else
+    vim.cmd.edit(vim.fn.fnameescape(path))
+  end
+  if line > 0 then
+    vim.api.nvim_win_set_cursor(0, { math.min(line, vim.api.nvim_buf_line_count(0)), 0 })
+    vim.cmd("normal! zz")
+  end
+end)`
 
 var (
 	errRPCTimeout    = errors.New("nvim rpc timed out")
@@ -215,8 +224,8 @@ func (c *client) hook() error {
 	return nil
 }
 
-func (c *client) open(path string, line int) error {
-	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(openLua, nil, path, line) })
+func (c *client) open(path string, line int, light bool) error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(openLua, nil, path, line, light) })
 }
 
 func (c *client) diff(path, rel, base, target, left, right string) error {

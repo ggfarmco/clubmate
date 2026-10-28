@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,11 +32,14 @@ const (
 	edgeEvent     = "edge"
 	revPrefix     = "rev:"
 	shortSHA      = 7
+	lightMaxSize  = 5 * 1024 * 1024
+	binarySniff   = 8000
 )
 
 var (
 	errNvimNotInPATH  = errors.New("nvim not found in PATH")
 	errNoCurrentFile  = errors.New("no file in the current buffer")
+	errBadPath        = errors.New("open: path must not contain line breaks")
 	errNoPath         = errors.New("open: path is required")
 	errUnknownCommand = errors.New("unknown command")
 	errUnknownAction  = errors.New("unknown action")
@@ -218,11 +222,14 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if args.Path == "" {
 			return nil, errNoPath
 		}
+		if strings.ContainsAny(args.Path, "\n\r") {
+			return nil, errBadPath
+		}
 		c, err := a.ensure(ctx, h, e)
 		if err != nil {
 			return nil, err
 		}
-		return nil, c.open(args.Path, args.Line)
+		return nil, c.open(args.Path, args.Line, lightFile(args.Path))
 	case "reveal":
 		file := e.current().File
 		if file == "" {
@@ -657,6 +664,24 @@ func projectRoot(p pluginsdk.Project) (string, error) {
 		}
 	}
 	return os.UserHomeDir()
+}
+
+func lightFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	if info.Size() > lightMaxSize {
+		return true
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, binarySniff)
+	n, _ := io.ReadFull(f, buf)
+	return bytes.IndexByte(buf[:n], 0) >= 0
 }
 
 func branchDir(file, root string) string {

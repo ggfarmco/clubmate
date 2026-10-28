@@ -34,6 +34,10 @@ require("smart-splits").setup({
 
 When you review a branch — the checked-out one or any other — Clubmate uses your own [diffview.nvim](https://github.com/sindrets/diffview.nvim) if `:DiffviewOpen` exists: it runs `DiffviewOpen -C<repo> <base>...<head>` (`<head>` is `HEAD` for the checked-out branch) in a new tab and closes the review tab it opened before, so there is only ever one. Clubmate never installs or configures diffview. Without it, the review is shown only in the Git section's Review group, whose per-file diffs open in nvim as a `clubmate://<short sha>/<path>` scratch buffer against the worktree file for the checked-out branch, or, for any other branch, against a second read-only `clubmate://<head short sha>/<path>` scratch buffer; nothing is checked out and the worktree is untouched.
 
+## Large and binary files
+
+Opening a file larger than 5 MiB, or one whose first 8000 bytes contain a NUL byte, uses light mode: `noautocmd noswapfile edit`, so no filetype detection, treesitter, LSP or swap file, plus `syntax=off` and `b:clubmate_light = true`. Other files open normally. Opening is asynchronous, so a slow open never times out the command.
+
 ## Back to nvim
 
 In the file tree, Ctrl+l and Esc return focus to nvim.
