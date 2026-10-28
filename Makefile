@@ -40,7 +40,7 @@ app-release: ghostty
 	cd client && xcodegen generate && xcodebuild -project Clubmate.xcodeproj -scheme Clubmate -configuration Release -derivedDataPath ../build/DerivedData MARKETING_VERSION=$(VERSION) CLUBMATE_COMMIT=$(COMMIT) CLUBMATE_FLAVOR=release build
 
 run-app:
-	open build/DerivedData/Build/Products/Debug/Clubmate.app
+	open "build/DerivedData/Build/Products/Debug/Clubmate Dev.app"
 
 kit-test:
 	cd client/ClubmateKit && swift test

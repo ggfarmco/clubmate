@@ -53,6 +53,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: Clubmate
+        PRODUCT_MODULE_NAME: Clubmate
         INFOPLIST_FILE: Clubmate/Info.plist
         MARKETING_VERSION: "0.0.0-dev"
         CURRENT_PROJECT_VERSION: "1"
@@ -66,6 +67,7 @@ targets:
       configs:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app.dev
+          PRODUCT_NAME: Clubmate Dev
           CLUBMATE_FLAVOR: dev
           CODE_SIGN_ENTITLEMENTS: Clubmate/Clubmate-dev.entitlements
         Release:
