@@ -142,13 +142,41 @@ func TestCompactChainSplits(t *testing.T) {
 	deep := filepath.Join(ab, "c")
 	require.NoError(t, os.MkdirAll(deep, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(ab, "y.go"), nil, 0o600))
-	expanded := map[string]bool{root: true, ab: true, deep: true}
+	expanded := map[string]bool{root: true, deep: true}
 
 	top := buildTree([]Root{{Path: root}}, expanded, nil, false)[0]
 	require.Len(t, top.Children, 1)
 	row := top.Children[0]
 	assert.Equal(t, "a / b", row.Label)
 	assert.Equal(t, ab, row.ID)
+	assert.True(t, row.Expanded)
 	require.Equal(t, []string{"c", "y.go"}, labels(row.Children))
 	assert.True(t, row.Children[0].Expanded)
+
+	require.NoError(t, os.Remove(filepath.Join(ab, "y.go")))
+	top = buildTree([]Root{{Path: root}}, map[string]bool{root: true, filepath.Join(root, "a"): true, ab: true}, nil, false)[0]
+	row = top.Children[0]
+	assert.Equal(t, "a / b / c", row.Label)
+	assert.True(t, row.Expanded)
+}
+
+func TestCompactChainBadge(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "a", "b"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a", "b", "x.go"), nil, 0o600))
+	status := map[string]string{filepath.Join(root, "a"): "U"}
+
+	top := buildTree([]Root{{Path: root}}, map[string]bool{root: true}, status, false)[0]
+	assert.Equal(t, "U", top.Children[0].Badge)
+}
+
+func TestCollapseForgetsChain(t *testing.T) {
+	root := t.TempDir()
+	a, ab, abc := filepath.Join(root, "a"), filepath.Join(root, "a", "b"), filepath.Join(root, "a", "b", "c")
+	require.NoError(t, os.MkdirAll(abc, 0o700))
+	s := &state{repos: []string{root}, expanded: map[string]bool{root: true, a: true, ab: true, abc: true}}
+
+	s.collapseLocked(abc)
+
+	assert.Equal(t, map[string]bool{root: true}, s.expanded)
 }

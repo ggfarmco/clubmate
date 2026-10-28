@@ -41,10 +41,12 @@ type builder struct {
 	dirty    map[string]bool
 	hide     bool
 	count    int
+	open     map[string]bool
+	reads    map[string][]entry
 }
 
 func buildTree(roots []Root, expanded map[string]bool, status map[string]string, hideIgnored bool) []sdui.TreeItem {
-	b := &builder{expanded: expanded, status: status, dirty: dirtyDirs(status), hide: hideIgnored}
+	b := &builder{expanded: expanded, status: status, dirty: dirtyDirs(status), hide: hideIgnored, open: openAncestors(expanded), reads: map[string][]entry{}}
 	items := make([]sdui.TreeItem, 0, len(roots))
 	for _, r := range roots {
 		items = append(items, b.root(r.Path))
@@ -61,12 +63,12 @@ func (b *builder) root(path string) sdui.TreeItem {
 	}
 	item.HasChildren = true
 	item.Badge = b.dirBadge(path)
-	b.expand(&item, 1, false)
+	b.expand(&item, 1, false, b.expanded[path])
 	return item
 }
 
-func (b *builder) expand(item *sdui.TreeItem, depth int, muted bool) {
-	if !b.expanded[item.ID] || b.count >= maxItems || depth > maxDepth {
+func (b *builder) expand(item *sdui.TreeItem, depth int, muted bool, open bool) {
+	if !open || b.count >= maxItems || depth > maxDepth {
 		return
 	}
 	item.Expanded = true
@@ -86,6 +88,8 @@ func (b *builder) children(dir string, depth int, muted bool) []sdui.TreeItem {
 		path := filepath.Join(dir, e.name)
 		label := e.name
 		itemMuted := muted || b.status[path] == ignoredCode
+		badge := b.status[path]
+		open := b.expanded[path]
 		if e.dir && !e.link {
 			for {
 				next, ok := b.onlyDir(path)
@@ -95,11 +99,16 @@ func (b *builder) children(dir string, depth int, muted bool) []sdui.TreeItem {
 				path = filepath.Join(path, next)
 				label += chainSeparator + next
 				itemMuted = itemMuted || b.status[path] == ignoredCode
+				if badge == "" {
+					badge = b.status[path]
+				}
+				open = open || b.expanded[path]
 			}
+			open = open || b.open[path]
 		}
 		item := sdui.TreeItem{ID: path, Label: label, Muted: itemMuted}
 		if !itemMuted {
-			item.Badge = b.status[path]
+			item.Badge = badge
 		}
 		switch {
 		case e.link:
@@ -109,7 +118,7 @@ func (b *builder) children(dir string, depth int, muted bool) []sdui.TreeItem {
 			if item.Badge == "" && !itemMuted {
 				item.Badge = b.dirBadge(path)
 			}
-			b.expand(&item, depth+1, itemMuted)
+			b.expand(&item, depth+1, itemMuted, open)
 		}
 		items = append(items, item)
 	}
@@ -121,19 +130,64 @@ func (b *builder) children(dir string, depth int, muted bool) []sdui.TreeItem {
 }
 
 func (b *builder) visibleEntries(dir string) []entry {
-	entries := readEntries(dir)
-	if b.hide {
-		entries = slices.DeleteFunc(entries, func(e entry) bool { return b.status[filepath.Join(dir, e.name)] == ignoredCode })
+	entries, ok := b.reads[dir]
+	if !ok {
+		entries = readEntries(dir)
+		b.reads[dir] = entries
 	}
-	return entries
+	if !b.hide {
+		return entries
+	}
+	return slices.DeleteFunc(slices.Clone(entries), func(e entry) bool { return b.status[filepath.Join(dir, e.name)] == ignoredCode })
 }
 
 func (b *builder) onlyDir(dir string) (string, bool) {
-	entries := b.visibleEntries(dir)
-	if len(entries) != 1 || !entries[0].dir || entries[0].link {
+	if _, ok := b.reads[dir]; ok {
+		entries := b.visibleEntries(dir)
+		if len(entries) != 1 || !entries[0].dir || entries[0].link {
+			return "", false
+		}
+		return entries[0].name, true
+	}
+	f, err := os.Open(dir)
+	if err != nil {
 		return "", false
 	}
-	return entries[0].name, true
+	defer f.Close()
+	var only os.DirEntry
+	for {
+		dirents, err := f.ReadDir(16)
+		for _, d := range dirents {
+			name := d.Name()
+			if name == ".git" || name == ".DS_Store" || (b.hide && b.status[filepath.Join(dir, name)] == ignoredCode) {
+				continue
+			}
+			if only != nil {
+				return "", false
+			}
+			only = d
+		}
+		if err != nil {
+			break
+		}
+	}
+	if only == nil || !only.IsDir() {
+		return "", false
+	}
+	return only.Name(), true
+}
+
+func openAncestors(expanded map[string]bool) map[string]bool {
+	open := map[string]bool{}
+	for path, on := range expanded {
+		if !on {
+			continue
+		}
+		for dir := filepath.Dir(path); dir != "/" && dir != "." && !open[dir]; dir = filepath.Dir(dir) {
+			open[dir] = true
+		}
+	}
+	return open
 }
 
 func (b *builder) dirBadge(path string) string {
