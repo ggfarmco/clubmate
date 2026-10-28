@@ -41,7 +41,7 @@ const (
 	maxGroupLeaves = 1000
 	maxTreeItems   = 4900
 	moreID         = "more"
-	noRepos        = "No repositories — add one with clubmate project add-repo"
+	noRepos        = "No repositories — add one with clubmate workspace add-folder"
 )
 
 var groupTitles = []struct{ id, title string }{

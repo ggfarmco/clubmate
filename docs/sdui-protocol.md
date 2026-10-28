@@ -121,8 +121,9 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
 | project.rename | `{id, name}` | project |
-| workspace.open | `{folders, window}` (`window` optional) | `{id, created}` |
-| workspace.home | none | `{id}` |
+| workspace.open | `{folders}` | `{id, created, clients}` |
+| workspace.home | none | `{id, clients}` |
+| workspace.touch | `{id}` | `{}` |
 | process.tree | `{projectId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 
@@ -138,9 +139,9 @@ A command with a non-empty `"confirm"` string in its manifest entry is listed wi
 
 `project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connection that registered `"project.open"` via `client.register`, except the caller, and returns how many were notified (`clients`). `clubmate workspace open --id <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
 
-Projects are shown to users as workspaces; `clubmate project …` is an alias of `clubmate workspace …`. A project is `{id, name, repos, createdAt, home, lastOpenedAt}`; `lastOpenedAt` is the zero time (`0001-01-01T00:00:00Z`) until the project is first opened. `project.list` orders by `lastOpenedAt` then `createdAt`, newest first.
+Projects are shown to users as workspaces; `clubmate project …` is an alias of `clubmate workspace …`. A project is `{id, name, repos, createdAt, home, lastOpenedAt}`; `lastOpenedAt` is `null` until the project is first opened. `project.list` orders by `lastOpenedAt` then `createdAt`, newest first.
 
-`workspace.open` cleans each folder path, drops duplicates and returns the project whose repos are exactly that set (order-insensitive) with `created: false`; otherwise it creates a project named after the base name of the first folder (`project.created`) with `created: true`. Folders must be absolute paths to existing directories (otherwise invalid params, as is an empty `folders`). `window` is accepted for clients and currently ignored by the core. `workspace.home` returns the single `home: true` project, named `~` and rooted at the user's home directory, creating it (`project.created`) on first use. Both then send the `project.open` notification exactly like `project.open` (not to the caller). `project.rename` fails with invalid params on a blank name and publishes `project.updated`.
+`workspace.open` resolves each folder path (symlinks resolved, cleaned), drops duplicates and returns the project whose repos are exactly that set (order-insensitive, stored repos resolved the same way) with `created: false`; otherwise it creates a project with the resolved folders, named after the base name of the first one (`project.created`), with `created: true`. Folders must be absolute paths to existing directories (otherwise invalid params, as is an empty `folders`). `workspace.home` returns the single `home: true` project, named `~` and rooted at the user's home directory, creating it (`project.created`) on first use. Both then send the `project.open` notification exactly like `project.open` (not to the caller) and return how many were notified (`clients`); `clubmate workspace open <dir>…` and `clubmate workspace home` run the app like `open --id` when `clients` is 0. `workspace.touch` sets `lastOpenedAt` to now (not found for an unknown project); clients call it when they activate a workspace. `project.rename` fails with invalid params on a blank name and publishes `project.updated`.
 
 `client.register` marks the calling connection for the listed handles; the only handle is `"project.open"` and anything else is invalid params. Registration lasts for the connection. Plugin callers get invalid params.
 

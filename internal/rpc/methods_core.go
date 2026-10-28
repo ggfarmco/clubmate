@@ -47,12 +47,17 @@ type renameParams struct {
 
 type workspaceOpenParams struct {
 	Folders []string `json:"folders"`
-	Window  bool     `json:"window"`
 }
 
 type workspaceOpenResult struct {
 	ID      string `json:"id"`
 	Created bool   `json:"created"`
+	Clients int    `json:"clients"`
+}
+
+type workspaceHomeResult struct {
+	ID      string `json:"id"`
+	Clients int    `json:"clients"`
 }
 
 type addRepoParams struct {
@@ -126,9 +131,15 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			}
 			return encodeProject(svc.RenameProject(ctx, p.ID, p.Name))
 		}),
-		"project.open":    method(s.projectOpen),
-		"workspace.open":  method(s.workspaceOpen),
-		"workspace.home":  method(s.workspaceHome),
+		"project.open":   method(s.projectOpen),
+		"workspace.open": method(s.workspaceOpen),
+		"workspace.home": method(s.workspaceHome),
+		"workspace.touch": method(func(ctx context.Context, p idParams) (empty, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return empty{}, err
+			}
+			return empty{}, svc.TouchProject(ctx, p.ID)
+		}),
 		"client.register": method(s.clientRegister),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
 			if err := requireID(projectPrefix, p.ProjectID); err != nil {
@@ -235,17 +246,17 @@ func (s *Server) workspaceOpen(ctx context.Context, p workspaceOpenParams) (work
 	if err != nil {
 		return workspaceOpenResult{}, err
 	}
-	s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
-	return workspaceOpenResult{ID: prj.ID, Created: created}, nil
+	clients := s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
+	return workspaceOpenResult{ID: prj.ID, Created: created, Clients: clients}, nil
 }
 
-func (s *Server) workspaceHome(ctx context.Context, _ empty) (idParams, error) {
+func (s *Server) workspaceHome(ctx context.Context, _ empty) (workspaceHomeResult, error) {
 	prj, err := s.svc.HomeWorkspace(ctx)
 	if err != nil {
-		return idParams{}, err
+		return workspaceHomeResult{}, err
 	}
-	s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
-	return idParams{ID: prj.ID}, nil
+	clients := s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
+	return workspaceHomeResult{ID: prj.ID, Clients: clients}, nil
 }
 
 func (s *Server) touchProject(ctx context.Context, id string) {

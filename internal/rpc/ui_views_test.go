@@ -75,14 +75,18 @@ func TestPresenceTouches(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)
 	older := h.CreateProject(t, "older")
-	h.CreateProject(t, "newer")
+	newer := h.CreateProject(t, "newer")
 	c := h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": older.ID}, nil))
 	var list []project.Project
 	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
 	require.Len(t, list, 2)
 	assert.Equal(t, older.ID, list[0].ID)
-	assert.False(t, list[0].LastOpenedAt.IsZero())
+	assert.NotNil(t, list[0].LastOpenedAt)
+	assert.Nil(t, list[1].LastOpenedAt)
+	require.NoError(t, c.Call(t.Context(), "workspace.touch", map[string]string{"id": newer.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
+	assert.Equal(t, newer.ID, list[0].ID)
 }
 
 func TestProjectDeleteDropsSlots(t *testing.T) {

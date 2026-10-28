@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ var (
 const (
 	homeName    = "~"
 	projectCols = "id, name, created_at, home, last_opened_at"
+	homeIndex   = `CREATE UNIQUE INDEX IF NOT EXISTS projects_home ON projects(home) WHERE home = 1`
 )
 
 const schema = `
@@ -50,12 +52,12 @@ var addedColumns = []struct{ name, def string }{
 }
 
 type Project struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Repos        []string  `json:"repos"`
-	CreatedAt    time.Time `json:"createdAt"`
-	Home         bool      `json:"home"`
-	LastOpenedAt time.Time `json:"lastOpenedAt"`
+	ID           string     `json:"id"`
+	Name         string     `json:"name"`
+	Repos        []string   `json:"repos"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	Home         bool       `json:"home"`
+	LastOpenedAt *time.Time `json:"lastOpenedAt"`
 }
 
 type Store struct {
@@ -82,6 +84,28 @@ func Open(path string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+func CanonicalPath(path string) string {
+	if !filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	return filepath.Clean(resolved)
+}
+
+func CanonicalPaths(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		p = CanonicalPath(p)
+		if !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func (s *Store) Close() error {
 	return s.db.Close()
 }
@@ -93,7 +117,7 @@ func (s *Store) Create(ctx context.Context, name string, repos []string) (Projec
 func (s *Store) Home(ctx context.Context, dir string) (Project, bool, error) {
 	p, err := scanProject(s.db.QueryRowContext(ctx, `SELECT `+projectCols+` FROM projects WHERE home = 1 ORDER BY created_at LIMIT 1`))
 	if errors.Is(err, sql.ErrNoRows) {
-		p, err = s.create(ctx, homeName, []string{filepath.Clean(dir)}, true)
+		p, err = s.create(ctx, homeName, []string{CanonicalPath(dir)}, true)
 		return p, err == nil, err
 	}
 	if err != nil {
@@ -106,7 +130,7 @@ func (s *Store) Home(ctx context.Context, dir string) (Project, bool, error) {
 }
 
 func (s *Store) FindByRepos(ctx context.Context, repos []string) (Project, bool, error) {
-	want := cleanSet(repos)
+	want := pathSet(repos)
 	if len(want) == 0 {
 		return Project{}, false, nil
 	}
@@ -133,7 +157,7 @@ func (s *Store) FindByRepos(ctx context.Context, repos []string) (Project, bool,
 		return Project{}, false, fmt.Errorf("find project by repos: %w", err)
 	}
 	for _, id := range order {
-		if !maps.Equal(cleanSet(byProject[id]), want) {
+		if !maps.Equal(pathSet(byProject[id]), want) {
 			continue
 		}
 		p, err := s.Get(ctx, id)
@@ -285,6 +309,9 @@ func migrate(db *sql.DB) error {
 			return fmt.Errorf("add column %s: %w", col.name, err)
 		}
 	}
+	if _, err := db.Exec(homeIndex); err != nil {
+		return fmt.Errorf("create home index: %w", err)
+	}
 	return nil
 }
 
@@ -332,15 +359,15 @@ func scanProject(r scanner) (Project, error) {
 	}
 	p.CreatedAt = time.Unix(0, created)
 	if opened != 0 {
-		p.LastOpenedAt = time.Unix(0, opened)
+		p.LastOpenedAt = new(time.Unix(0, opened))
 	}
 	return p, nil
 }
 
-func cleanSet(paths []string) map[string]bool {
+func pathSet(paths []string) map[string]bool {
 	out := make(map[string]bool, len(paths))
-	for _, p := range paths {
-		out[filepath.Clean(p)] = true
+	for _, p := range CanonicalPaths(paths) {
+		out[p] = true
 	}
 	return out
 }

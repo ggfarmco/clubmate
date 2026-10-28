@@ -118,7 +118,7 @@ func (s *Service) CreateProject(ctx context.Context, name string, repos []string
 }
 
 func (s *Service) OpenFolders(ctx context.Context, folders []string) (project.Project, bool, error) {
-	cleaned := cleanFolders(folders)
+	cleaned := project.CanonicalPaths(folders)
 	if len(cleaned) == 0 {
 		return project.Project{}, false, ErrNoFolders
 	}
@@ -474,17 +474,6 @@ func defaultCwd(p project.Project) (string, error) {
 		return "", fmt.Errorf("resolve home dir: %w", err)
 	}
 	return home, nil
-}
-
-func cleanFolders(folders []string) []string {
-	out := make([]string, 0, len(folders))
-	for _, f := range folders {
-		f = filepath.Clean(f)
-		if !slices.Contains(out, f) {
-			out = append(out, f)
-		}
-	}
-	return out
 }
 
 func nodeTargets(nodes []proc.Node) []proc.Target {

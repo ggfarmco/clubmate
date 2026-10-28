@@ -1,6 +1,8 @@
 package core_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +17,9 @@ func TestOpenFoldersDedupes(t *testing.T) {
 	p, created, err := svc.OpenFolders(t.Context(), []string{a, c})
 	require.NoError(t, err)
 	assert.True(t, created)
-	same, created, err := svc.OpenFolders(t.Context(), []string{c + "/", a})
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(a, link))
+	same, created, err := svc.OpenFolders(t.Context(), []string{c + "/", link})
 	require.NoError(t, err)
 	assert.False(t, created)
 	assert.Equal(t, p.ID, same.ID)
@@ -29,7 +33,8 @@ func TestOpenFoldersDedupes(t *testing.T) {
 }
 
 func TestHomeWorkspace(t *testing.T) {
-	home := t.TempDir()
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	t.Setenv("HOME", home)
 	svc := testutil.NewService(t)
 	p, err := svc.HomeWorkspace(t.Context())

@@ -399,14 +399,32 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 
 func TestWorkspaceCLI(t *testing.T) {
 	startCore(t)
+	dir := t.TempDir()
+	var launched []string
+	open := func(args ...string) (string, error) {
+		var stdout bytes.Buffer
+		root := cli.NewRootWithLauncher(&stdout, &bytes.Buffer{}, func(_ context.Context, id string) error {
+			launched = append(launched, id)
+			return nil
+		})
+		root.SetArgs(append([]string{"workspace", "open"}, args...))
+		err := root.Execute()
+		return strings.TrimSpace(stdout.String()), err
+	}
+	id, err := open(dir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{id}, launched)
+
 	dirs, err := paths.Resolve()
 	require.NoError(t, err)
 	client, err := rpc.Dial(t.Context(), dirs.CoreSocket())
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Close() })
 	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"project.open"}}, nil))
-	dir := t.TempDir()
-	id := strings.TrimSpace(string(run(t, "workspace", "open", dir)))
+	again, err := open(dir)
+	require.NoError(t, err)
+	assert.Equal(t, id, again)
+	assert.Len(t, launched, 1)
 	select {
 	case n := <-client.Notifications():
 		assert.Equal(t, "project.open", n.Method)
@@ -418,5 +436,7 @@ func TestWorkspaceCLI(t *testing.T) {
 	require.NoError(t, json.Unmarshal(run(t, "project", "list", "--json"), &list))
 	require.Len(t, list, 1)
 	assert.Equal(t, id, list[0].ID)
-	assert.Equal(t, []string{dir}, list[0].Repos)
+
+	_, err = open(id)
+	assert.ErrorContains(t, err, "--id")
 }

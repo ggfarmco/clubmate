@@ -106,7 +106,7 @@ func TestMigrationKeepsProjects(t *testing.T) {
 	require.Len(t, all, 1)
 	assert.Equal(t, "prj_old", all[0].ID)
 	assert.False(t, all[0].Home)
-	assert.True(t, all[0].LastOpenedAt.IsZero())
+	assert.Nil(t, all[0].LastOpenedAt)
 	require.NoError(t, s.Close())
 	s, err = project.Open(path)
 	require.NoError(t, err)

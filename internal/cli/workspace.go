@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 
 const (
 	appBundleID      = "com.clubmate.app"
+	idPrefix         = "prj_"
 	lastOpenedLayout = "2006-01-02 15:04"
 )
 
@@ -80,8 +82,12 @@ func (a *app) workspaceOpenCmd() *cobra.Command {
 			var res struct {
 				ID      string `json:"id"`
 				Created bool   `json:"created"`
+				Clients int    `json:"clients"`
 			}
 			if err := a.call(cmd.Context(), "workspace.open", map[string]any{"folders": folders}, &res); err != nil {
+				return err
+			}
+			if err := a.launchWithoutClients(cmd.Context(), res.Clients, res.ID); err != nil {
 				return err
 			}
 			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, res.ID) })
@@ -98,9 +104,13 @@ func (a *app) workspaceHomeCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var res struct {
-				ID string `json:"id"`
+				ID      string `json:"id"`
+				Clients int    `json:"clients"`
 			}
 			if err := a.call(cmd.Context(), "workspace.home", struct{}{}, &res); err != nil {
+				return err
+			}
+			if err := a.launchWithoutClients(cmd.Context(), res.Clients, res.ID); err != nil {
 				return err
 			}
 			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, res.ID) })
@@ -191,17 +201,25 @@ func (a *app) openByID(ctx context.Context, id string) error {
 	if err := a.call(ctx, "project.open", map[string]string{"id": id}, &res); err != nil {
 		return err
 	}
-	if res.Clients == 0 {
-		if err := a.launch(ctx, id); err != nil {
-			return err
-		}
+	if err := a.launchWithoutClients(ctx, res.Clients, id); err != nil {
+		return err
 	}
 	return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "opened", id) })
+}
+
+func (a *app) launchWithoutClients(ctx context.Context, clients int, id string) error {
+	if clients > 0 {
+		return nil
+	}
+	return a.launch(ctx, id)
 }
 
 func absPaths(paths []string) ([]string, error) {
 	out := make([]string, 0, len(paths))
 	for _, p := range paths {
+		if looksLikeID(p) {
+			return nil, fmt.Errorf("%s is not a folder; to open a workspace by id use --id %s", p, p)
+		}
 		abs, err := filepath.Abs(p)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", p, err)
@@ -211,8 +229,16 @@ func absPaths(paths []string) ([]string, error) {
 	return out, nil
 }
 
+func looksLikeID(arg string) bool {
+	if !strings.HasPrefix(arg, idPrefix) {
+		return false
+	}
+	info, err := os.Stat(arg)
+	return err != nil || !info.IsDir()
+}
+
 func lastOpened(p project.Project) string {
-	if p.LastOpenedAt.IsZero() {
+	if p.LastOpenedAt == nil {
 		return "-"
 	}
 	return p.LastOpenedAt.Format(lastOpenedLayout)
