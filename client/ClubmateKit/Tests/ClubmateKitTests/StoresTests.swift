@@ -65,6 +65,32 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testShownSectionWinsOverSaved() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        try await client.uiStateSet(projectID: project.id, state: .object(["section": .string("echo")]))
+        let store = ProjectUIStore(client: client, projectID: project.id)
+        store.show(section: "terminals")
+        try await store.start()
+        XCTAssertEqual(store.selectedSection, "terminals")
+        await store.stop()
+        await client.close()
+    }
+
+    func testRecentsSkipHomeAndOrderByLastOpened() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let projects = try decoder.decode([Project].self, from: Data(#"""
+        [{"id":"a","name":"never","repos":[],"createdAt":"2026-01-03T00:00:00Z"},
+         {"id":"b","name":"old","repos":[],"createdAt":"2026-01-01T00:00:00Z","home":false,"lastOpenedAt":"2026-02-01T00:00:00Z"},
+         {"id":"c","name":"~","repos":[],"createdAt":"2026-01-01T00:00:00Z","home":true,"lastOpenedAt":"2026-03-01T00:00:00Z"},
+         {"id":"d","name":"new","repos":[],"createdAt":"2026-01-02T00:00:00Z","home":false,"lastOpenedAt":"2026-02-02T00:00:00Z"}]
+        """#.utf8))
+
+        XCTAssertEqual(Project.recents(projects).map(\.id), ["d", "b", "a"])
+        XCTAssertEqual(Project.recents(projects, hiddenBefore: try Date("2026-02-01T12:00:00Z", strategy: .iso8601)).map(\.id), ["d"])
+    }
+
     func testSidebarHiddenPersists() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")
@@ -308,23 +334,25 @@ final class StoresTests: XCTestCase {
 
         let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true)
 
-        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Toggle Sidebar", "Toggle nvim Navigation Keys", "Open Projects"])
-        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘B", "", "⌘⇧O"])
+        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Toggle Sidebar", "Toggle nvim Navigation Keys", "Open Folder…", "New Home Terminal"])
+        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘B", "", "⌘O", "⇧⌘N"])
         XCTAssertEqual(
             entries.map { PaletteAction(entryID: $0.id) },
-            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .toggleNavigationKeys, .openProjects]
+            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .toggleNavigationKeys, .openFolder, .newHomeTerminal]
         )
         XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle Sidebar" })
     }
 
-    func testAppScopeStore() async throws {
-        let client = try await startCore()
-        let store = ProjectUIStore(client: client, projectID: "")
-        try await store.start()
-        XCTAssertEqual(store.sections.map(\.id), ["projects"])
-        try await waitUntil { store.slots["projects.main"] != nil }
-        await store.stop()
-        await client.close()
+    func testPaletteWorkspaceEntries() {
+        let workspaces = [PaletteWorkspace(id: "a", name: "api"), PaletteWorkspace(id: "b", name: "web")]
+
+        let titles = CommandPalette.entries(commands: [], sections: [], sidebar: true, workspaces: workspaces, active: "a").map(\.title)
+
+        XCTAssertTrue(titles.contains("Switch to web"))
+        XCTAssertFalse(titles.contains("Switch to api"))
+        XCTAssertTrue(titles.contains("Open Folder…"))
+        XCTAssertTrue(titles.contains("Remove Workspace…"))
+        XCTAssertFalse(titles.contains("Open Projects"))
     }
 
     func testSectionCommandInvocations() throws {

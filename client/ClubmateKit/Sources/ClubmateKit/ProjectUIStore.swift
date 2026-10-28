@@ -40,6 +40,7 @@ public final class ProjectUIStore {
     @ObservationIgnored private var saving: Task<Void, Never>?
     @ObservationIgnored private var restoring = false
     @ObservationIgnored private var focusSerial = 0
+    @ObservationIgnored private var requestedSection: String?
 
     public init(client: CoreClient, projectID: String) {
         self.client = client
@@ -81,7 +82,19 @@ public final class ProjectUIStore {
         }
         connected = true
         failure = nil
+        applyRequestedSection()
         openGate()
+    }
+
+    public func show(section: String) {
+        requestedSection = section
+        if connected { applyRequestedSection() }
+    }
+
+    private func applyRequestedSection() {
+        guard let requested = requestedSection else { return }
+        requestedSection = nil
+        if sections.contains(where: { $0.id == requested }) { selectedSection = requested }
     }
 
     public func reconnect(using client: CoreClient) async throws {

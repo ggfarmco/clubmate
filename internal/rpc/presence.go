@@ -66,18 +66,17 @@ func (p *presence) focusTargets(projectID string) []focusTarget {
 	return out
 }
 
-func (p *presence) join(b *bus.Bus, logger *slog.Logger, projectID string) (func(), bool) {
+func (p *presence) join(b *bus.Bus, logger *slog.Logger, projectID string) func() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.counts == nil {
 		p.counts = map[string]int{}
 	}
 	p.counts[projectID]++
-	opened := p.counts[projectID] == 1
-	if opened {
+	if p.counts[projectID] == 1 {
 		publishPresence(b, logger, topicUIOpened, projectID)
 	}
-	return func() { p.leave(b, logger, projectID) }, opened
+	return func() { p.leave(b, logger, projectID) }
 }
 
 func (p *presence) leave(b *bus.Bus, logger *slog.Logger, projectID string) {

@@ -23,12 +23,16 @@ struct WorkspaceWindow: View {
             })
             .onAppear {
                 app.launch(openWindow)
-                if windowID.flatMap(app.layout.window) == nil { windowID = app.layout.newWindow() }
+                if let windowID, app.window(windowID) != nil {
+                    app.windowShown(windowID)
+                } else {
+                    windowID = app.claimWindow()
+                }
             }
     }
 
     private var active: String? {
-        windowID.flatMap { app.layout.window($0)?.active }
+        windowID.flatMap { app.window($0)?.active }
     }
 
     private var title: String {
@@ -37,21 +41,21 @@ struct WorkspaceWindow: View {
     }
 
     @ViewBuilder private var content: some View {
-        if let active {
-            WorkspaceView(session: app.session(for: active))
-                .id(active)
+        if let windowID, let active, let session = app.existingSession(for: active) {
+            WorkspaceView(session: session, windowID: windowID)
+                .id(ObjectIdentifier(session))
         } else {
-            EmptyNodeView(text: "No open workspaces")
+            WelcomeView(windowID: windowID)
         }
     }
 }
 
 private struct WorkspaceView: View {
     let session: ProjectSession
+    let windowID: String
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
-    @Environment(\.openWindow) private var openWindow
     @State private var focus = FocusRouter()
 
     var body: some View {
@@ -188,7 +192,8 @@ private struct WorkspaceView: View {
     }
 
     private func paletteEntries() -> [PaletteEntry] {
-        CommandPalette.entries(commands: app.commands, sections: session.store?.sections ?? [], sidebar: true)
+        let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
+        return CommandPalette.entries(commands: app.commands, sections: session.store?.sections ?? [], sidebar: true, workspaces: workspaces, active: session.projectID)
     }
 
     private func perform(_ action: PaletteAction) {
@@ -197,7 +202,13 @@ private struct WorkspaceView: View {
         case .section(let id): session.store?.selectedSection = id
         case .toggleSidebar: session.store?.toggleSidebar(app.settings)
         case .toggleNavigationKeys: app.settings.navigationKeys = !(app.settings.navigationKeys ?? false)
-        case .openProjects: openWindow(id: "projects")
+        case .openFolder: app.openFolder(in: windowID)
+        case .newHomeTerminal: app.newHomeTerminal(in: windowID)
+        case .renameWorkspace: app.rename(session.projectID)
+        case .closeWorkspace: app.closeWorkspace(session.projectID, in: windowID)
+        case .removeWorkspace: app.remove(session.projectID)
+        case .moveWorkspaceToNewWindow: app.moveToNewWindow(session.projectID)
+        case .switchWorkspace(let id): app.activate(id, in: windowID)
         }
     }
 

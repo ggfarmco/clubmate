@@ -56,6 +56,28 @@ public struct Project: Codable, Sendable, Equatable {
     public let name: String
     public let repos: [String]
     public let createdAt: Date
+    public let home: Bool
+    public let lastOpenedAt: Date?
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        repos = try container.decode([String].self, forKey: .repos)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        home = try container.decodeIfPresent(Bool.self, forKey: .home) ?? false
+        lastOpenedAt = try container.decodeIfPresent(Date.self, forKey: .lastOpenedAt)
+    }
+
+    public static func recents(_ projects: [Project], hiddenBefore cutoff: Date? = nil) -> [Project] {
+        projects
+            .filter { project in
+                guard !project.home else { return false }
+                guard let cutoff else { return true }
+                return project.lastOpenedAt.map { $0 > cutoff } ?? false
+            }
+            .sorted { ($0.lastOpenedAt ?? .distantPast, $0.createdAt) > ($1.lastOpenedAt ?? .distantPast, $1.createdAt) }
+    }
 }
 
 public struct Command: Codable, Sendable, Equatable {

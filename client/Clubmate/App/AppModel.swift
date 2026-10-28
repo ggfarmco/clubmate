@@ -11,16 +11,16 @@ final class AppModel {
     let supervisor: ConnectionSupervisor
     let updates: Updates
     let settings = AppSettings()
-    let projectsSession = ProjectSession(projectID: "")
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
-    let layout = WindowLayout()
+    private let layout = WindowLayout()
 
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var openWindow: OpenWindowAction?
     private var launchProject = launchProjectID(CommandLine.arguments)
     @ObservationIgnored private var keyWindowID: String?
+    @ObservationIgnored private var shownWindows: Set<String> = []
     @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var restored = false
     @ObservationIgnored private var navigationPending = true
@@ -53,8 +53,6 @@ final class AppModel {
         return arguments[index + 1]
     }
 
-    var launchesProject: Bool { launchProject != nil }
-
     func launch(_ openWindow: OpenWindowAction) {
         self.openWindow = openWindow
         supervisor.start()
@@ -64,8 +62,26 @@ final class AppModel {
         supervisor.retry()
     }
 
-    func open(_ projectID: String) {
-        let window = layout.open(projectID, preferring: keyWindowID ?? layout.windows.last?.id)
+    func window(_ id: String) -> LayoutWindow? {
+        layout.window(id)
+    }
+
+    var openWorkspaces: Set<String> {
+        Set(layout.windows.flatMap(\.workspaces))
+    }
+
+    func claimWindow() -> String {
+        let id = layout.windows.first { !shownWindows.contains($0.id) }?.id ?? layout.newWindow()
+        shownWindows.insert(id)
+        return id
+    }
+
+    func windowShown(_ window: String) {
+        shownWindows.insert(window)
+    }
+
+    func open(_ projectID: String, in target: String? = nil) {
+        let window = layout.open(projectID, preferring: target ?? keyWindowID ?? layout.windows.last?.id)
         syncSessions()
         touch(projectID)
         openWindow?(value: window)
@@ -92,17 +108,28 @@ final class AppModel {
         syncSessions()
     }
 
+    func moveToNewWindow(_ projectID: String) {
+        let window = layout.move(projectID, toNewWindow: true)
+        syncSessions()
+        openWindow?(value: window)
+    }
+
     func windowBecameKey(_ window: String) {
         keyWindowID = window
     }
 
     func windowClosed(_ window: String) {
         if keyWindowID == window { keyWindowID = nil }
+        shownWindows.remove(window)
         layout.closeWindow(window)
         syncSessions()
     }
 
-    func session(for projectID: String) -> ProjectSession {
+    func existingSession(for projectID: String) -> ProjectSession? {
+        sessions[projectID]
+    }
+
+    private func session(for projectID: String) -> ProjectSession {
         if let existing = sessions[projectID] { return existing }
         let session = ProjectSession(projectID: projectID)
         session.deck.fontSize = settings.terminalFontSize
@@ -220,7 +247,7 @@ final class AppModel {
         restored = true
         layout.forget(missing: Set(layout.windows.flatMap(\.workspaces)).subtracting(listed.map(\.id)))
         syncSessions()
-        for window in layout.windows {
+        for window in layout.windows where !shownWindows.contains(window.id) {
             openWindow?(value: window.id)
         }
     }
@@ -242,7 +269,7 @@ final class AppModel {
         guard let client = withObservationTracking({ supervisor.client }, onChange: { [weak self] in
             Task { @MainActor in self?.trackClient() }
         }) else { return }
-        for session in [projectsSession] + sessions.values {
+        for session in sessions.values {
             session.adopt(client, supervisor)
         }
     }
@@ -255,6 +282,80 @@ final class AppModel {
                 self?.open(id)
             }
         }
+    }
+}
+
+extension AppModel {
+    static let removeMessage = "Stop its terminals, editors and agents and remove it from Clubmate?"
+
+    func openFolder(in window: String?) {
+        guard let folders = Self.chooseFolders(prompt: "Open") else { return }
+        perform { client in
+            let id = try await client.openFolders(folders)
+            self.open(id, in: window)
+        }
+    }
+
+    func newHomeTerminal(in window: String?) {
+        perform { client in
+            let id = try await client.homeWorkspace()
+            self.open(id, in: window)
+            self.existingSession(for: id)?.store?.show(section: TerminalsSection.id)
+        }
+    }
+
+    func addFolder(to projectID: String) {
+        guard let folders = Self.chooseFolders(prompt: "Add") else { return }
+        perform { client in
+            for folder in folders {
+                try await client.addRepo(projectID, path: folder)
+            }
+        }
+    }
+
+    func rename(_ projectID: String) {
+        Task {
+            guard let name = await TextPrompt.ask("Rename Workspace", text: project(projectID)?.name ?? "", action: "Rename"),
+                  !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+            perform { client in try await client.renameProject(projectID, name: name) }
+        }
+    }
+
+    func remove(_ projectID: String) {
+        Task {
+            guard await Confirmation.ask(Self.removeMessage, action: "Remove") else { return }
+            perform { client in try await client.deleteProject(projectID) }
+        }
+    }
+
+    private func perform(_ action: @escaping (CoreClient) async throws -> Void) {
+        guard let client = supervisor.client else {
+            return Self.alert("Clubmate is not connected to its core yet.")
+        }
+        Task {
+            do {
+                try await action(client)
+            } catch {
+                Self.alert((error as? ClubmateError)?.message ?? "\(error)")
+            }
+        }
+    }
+
+    private static func chooseFolders(prompt: String) -> [String]? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = prompt
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return nil }
+        return panel.urls.map { $0.path(percentEncoded: false) }
+    }
+
+    private static func alert(_ message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = message
+        alert.runModal()
     }
 }
 
@@ -277,8 +378,6 @@ final class ProjectSession {
     var paletteShown = false
     @ObservationIgnored var autoNewDone: String?
     private(set) var store: ProjectUIStore?
-
-    var isApp: Bool { projectID.isEmpty }
 
     init(projectID: String) {
         self.projectID = projectID

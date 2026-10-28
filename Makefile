@@ -7,6 +7,7 @@ GO_ENV = MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN) CGO_CFLAGS="-O2 -g -mmacosx-versi
 GO_BUILD = $(GO_ENV) go build -ldflags "$(LDFLAGS)"
 
 build:
+	rm -rf bin/plugins
 	$(GO_BUILD) -o bin/ ./cmd/...
 	$(GO_BUILD) -o bin/plugins/terminals/terminals ./plugins/terminals
 	cp plugins/terminals/plugin.json bin/plugins/terminals/
@@ -18,8 +19,6 @@ build:
 	cp plugins/git/plugin.json bin/plugins/git/
 	$(GO_BUILD) -o bin/plugins/processes/processes ./plugins/processes
 	cp plugins/processes/plugin.json bin/plugins/processes/
-	$(GO_BUILD) -o bin/plugins/projects/projects ./plugins/projects
-	cp plugins/projects/plugin.json bin/plugins/projects/
 
 run-core: build
 	bin/clubmate-core

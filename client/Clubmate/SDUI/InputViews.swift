@@ -55,6 +55,27 @@ enum Confirmation {
     }
 }
 
+@MainActor
+enum TextPrompt {
+    static func ask(_ message: String, text: String, action: String) async -> String? {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.addButton(withTitle: action)
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(string: text)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 22)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        let response: NSApplication.ModalResponse
+        if let window = NSApp.keyWindow {
+            response = await alert.beginSheetModal(for: window)
+        } else {
+            response = alert.runModal()
+        }
+        return response == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+}
+
 struct FolderFieldNodeView: View {
     let node: SDUINode
 

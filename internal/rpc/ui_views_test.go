@@ -71,22 +71,22 @@ func TestPresenceEvents(t *testing.T) {
 	assert.JSONEq(t, fmt.Sprintf(`{"projectId":%q}`, p.ID), string(events[0].Payload))
 }
 
-func TestPresenceTouches(t *testing.T) {
+func TestWorkspaceTouchOrdersList(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)
 	older := h.CreateProject(t, "older")
-	newer := h.CreateProject(t, "newer")
+	h.CreateProject(t, "newer")
 	c := h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": older.ID}, nil))
 	var list []project.Project
 	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
 	require.Len(t, list, 2)
+	assert.Nil(t, list[0].LastOpenedAt)
+	assert.Nil(t, list[1].LastOpenedAt)
+	require.NoError(t, c.Call(t.Context(), "workspace.touch", map[string]string{"id": older.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
 	assert.Equal(t, older.ID, list[0].ID)
 	assert.NotNil(t, list[0].LastOpenedAt)
-	assert.Nil(t, list[1].LastOpenedAt)
-	require.NoError(t, c.Call(t.Context(), "workspace.touch", map[string]string{"id": newer.ID}, nil))
-	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
-	assert.Equal(t, newer.ID, list[0].ID)
 }
 
 func TestProjectDeleteDropsSlots(t *testing.T) {

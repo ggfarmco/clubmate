@@ -172,7 +172,8 @@ private func buildGoBinaries() throws -> URL {
     let (package, root) = try goRoot()
     let bin = package.appending(path: ".build/clubmate-go/bin", directoryHint: .isDirectory)
     try TestCore.run(goEnv, ["go", "build", "-o", bin.path(percentEncoded: false), "./cmd/..."], cwd: root)
-    for (id, source) in [("terminals", "plugins/terminals"), ("projects", "plugins/projects"), ("echo", "internal/testutil/plugins/echo")] {
+    try? fm.removeItem(at: bin.appending(path: "plugins", directoryHint: .isDirectory))
+    for (id, source) in [("terminals", "plugins/terminals"), ("echo", "internal/testutil/plugins/echo")] {
         let dir = bin.appending(path: "plugins/\(id)", directoryHint: .isDirectory)
         try TestCore.run(goEnv, ["go", "build", "-o", dir.appending(path: id).path(percentEncoded: false), "./\(source)"], cwd: root)
         let manifest = dir.appending(path: "plugin.json")

@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -257,12 +256,6 @@ func (s *Server) workspaceHome(ctx context.Context, _ empty) (workspaceHomeResul
 	}
 	clients := s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
 	return workspaceHomeResult{ID: prj.ID, Clients: clients}, nil
-}
-
-func (s *Server) touchProject(ctx context.Context, id string) {
-	if err := s.svc.TouchProject(ctx, id); err != nil && !errors.Is(err, project.ErrNotFound) {
-		s.logger.Error("touch project", "id", id, "err", err)
-	}
 }
 
 type registerParams struct {
