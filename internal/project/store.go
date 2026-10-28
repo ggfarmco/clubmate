@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -23,11 +24,18 @@ var (
 	ErrEmptyName     = errors.New("project name is empty")
 )
 
+const (
+	homeName    = "~"
+	projectCols = "id, name, created_at, home, last_opened_at"
+)
+
 const schema = `
 CREATE TABLE IF NOT EXISTS projects(
 	id TEXT PRIMARY KEY,
 	name TEXT NOT NULL,
-	created_at INTEGER NOT NULL
+	created_at INTEGER NOT NULL,
+	home INTEGER NOT NULL DEFAULT 0,
+	last_opened_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS repos(
 	project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
@@ -36,11 +44,18 @@ CREATE TABLE IF NOT EXISTS repos(
 	PRIMARY KEY(project_id, path)
 );`
 
+var addedColumns = []struct{ name, def string }{
+	{name: "home", def: "INTEGER NOT NULL DEFAULT 0"},
+	{name: "last_opened_at", def: "INTEGER NOT NULL DEFAULT 0"},
+}
+
 type Project struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Repos     []string  `json:"repos"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Repos        []string  `json:"repos"`
+	CreatedAt    time.Time `json:"createdAt"`
+	Home         bool      `json:"home"`
+	LastOpenedAt time.Time `json:"lastOpenedAt"`
 }
 
 type Store struct {
@@ -60,7 +75,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open project db: %w", err)
 	}
-	if _, err := db.Exec(schema); err != nil {
+	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate project db: %w", err)
 	}
@@ -72,6 +87,77 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Create(ctx context.Context, name string, repos []string) (Project, error) {
+	return s.create(ctx, name, repos, false)
+}
+
+func (s *Store) Home(ctx context.Context, dir string) (Project, bool, error) {
+	p, err := scanProject(s.db.QueryRowContext(ctx, `SELECT `+projectCols+` FROM projects WHERE home = 1 ORDER BY created_at LIMIT 1`))
+	if errors.Is(err, sql.ErrNoRows) {
+		p, err = s.create(ctx, homeName, []string{filepath.Clean(dir)}, true)
+		return p, err == nil, err
+	}
+	if err != nil {
+		return Project{}, false, fmt.Errorf("get home project: %w", err)
+	}
+	if p.Repos, err = s.repos(ctx, p.ID); err != nil {
+		return Project{}, false, err
+	}
+	return p, false, nil
+}
+
+func (s *Store) FindByRepos(ctx context.Context, repos []string) (Project, bool, error) {
+	want := cleanSet(repos)
+	if len(want) == 0 {
+		return Project{}, false, nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT r.project_id, r.path FROM repos r JOIN projects p ON p.id = r.project_id
+		 ORDER BY p.last_opened_at DESC, p.created_at DESC, p.rowid DESC`)
+	if err != nil {
+		return Project{}, false, fmt.Errorf("find project by repos: %w", err)
+	}
+	defer rows.Close()
+	var order []string
+	byProject := map[string][]string{}
+	for rows.Next() {
+		var id, path string
+		if err := rows.Scan(&id, &path); err != nil {
+			return Project{}, false, fmt.Errorf("scan repo: %w", err)
+		}
+		if _, ok := byProject[id]; !ok {
+			order = append(order, id)
+		}
+		byProject[id] = append(byProject[id], path)
+	}
+	if err := rows.Err(); err != nil {
+		return Project{}, false, fmt.Errorf("find project by repos: %w", err)
+	}
+	for _, id := range order {
+		if !maps.Equal(cleanSet(byProject[id]), want) {
+			continue
+		}
+		p, err := s.Get(ctx, id)
+		if err != nil {
+			return Project{}, false, err
+		}
+		return p, true, nil
+	}
+	return Project{}, false, nil
+}
+
+func (s *Store) Rename(ctx context.Context, id, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrEmptyName
+	}
+	return s.exec(ctx, "rename project", `UPDATE projects SET name = ? WHERE id = ?`, name, id)
+}
+
+func (s *Store) Touch(ctx context.Context, id string, at time.Time) error {
+	return s.exec(ctx, "touch project", `UPDATE projects SET last_opened_at = ? WHERE id = ?`, at.UnixNano(), id)
+}
+
+func (s *Store) create(ctx context.Context, name string, repos []string, home bool) (Project, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Project{}, ErrEmptyName
@@ -86,13 +172,13 @@ func (s *Store) Create(ctx context.Context, name string, repos []string) (Projec
 		}
 		seen[repo] = true
 	}
-	p := Project{ID: id.New("prj"), Name: name, CreatedAt: time.Now()}
+	p := Project{ID: id.New("prj"), Name: name, CreatedAt: time.Now(), Home: home}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Project{}, fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO projects(id, name, created_at) VALUES(?, ?, ?)`, p.ID, p.Name, p.CreatedAt.UnixNano()); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO projects(id, name, created_at, home) VALUES(?, ?, ?, ?)`, p.ID, p.Name, p.CreatedAt.UnixNano(), p.Home); err != nil {
 		return Project{}, fmt.Errorf("insert project: %w", err)
 	}
 	for i, repo := range repos {
@@ -108,7 +194,7 @@ func (s *Store) Create(ctx context.Context, name string, repos []string) (Projec
 }
 
 func (s *Store) List(ctx context.Context) ([]Project, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, created_at FROM projects ORDER BY created_at, rowid`)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+projectCols+` FROM projects ORDER BY last_opened_at DESC, created_at DESC, rowid DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -133,7 +219,7 @@ func (s *Store) List(ctx context.Context) ([]Project, error) {
 }
 
 func (s *Store) Get(ctx context.Context, id string) (Project, error) {
-	p, err := scanProject(s.db.QueryRowContext(ctx, `SELECT id, name, created_at FROM projects WHERE id = ?`, id))
+	p, err := scanProject(s.db.QueryRowContext(ctx, `SELECT `+projectCols+` FROM projects WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, ErrNotFound
 	}
@@ -167,13 +253,49 @@ func (s *Store) AddRepo(ctx context.Context, id, path string) (Project, error) {
 }
 
 func (s *Store) Delete(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
+	return s.exec(ctx, "delete project", `DELETE FROM projects WHERE id = ?`, id)
+}
+
+func migrate(db *sql.DB) error {
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+	rows, err := db.Query(`SELECT name FROM pragma_table_info('projects')`)
 	if err != nil {
-		return fmt.Errorf("delete project: %w", err)
+		return err
+	}
+	existing := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[name] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, col := range addedColumns {
+		if existing[col.name] {
+			continue
+		}
+		if _, err := db.Exec(`ALTER TABLE projects ADD COLUMN ` + col.name + ` ` + col.def); err != nil {
+			return fmt.Errorf("add column %s: %w", col.name, err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) exec(ctx context.Context, op, query string, args ...any) error {
+	res, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("delete project: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	if n == 0 {
 		return ErrNotFound
@@ -204,12 +326,23 @@ type scanner interface {
 
 func scanProject(r scanner) (Project, error) {
 	var p Project
-	var created int64
-	if err := r.Scan(&p.ID, &p.Name, &created); err != nil {
+	var created, opened int64
+	if err := r.Scan(&p.ID, &p.Name, &created, &p.Home, &opened); err != nil {
 		return Project{}, err
 	}
 	p.CreatedAt = time.Unix(0, created)
+	if opened != 0 {
+		p.LastOpenedAt = time.Unix(0, opened)
+	}
 	return p, nil
+}
+
+func cleanSet(paths []string) map[string]bool {
+	out := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		out[filepath.Clean(p)] = true
+	}
+	return out
 }
 
 func validateRepo(path string) error {

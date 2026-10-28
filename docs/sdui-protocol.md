@@ -120,6 +120,9 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
+| project.rename | `{id, name}` | project |
+| workspace.open | `{folders, window}` (`window` optional) | `{id, created}` |
+| workspace.home | none | `{id}` |
 | process.tree | `{projectId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 
@@ -133,7 +136,11 @@ A command with a non-empty `"confirm"` string in its manifest entry is listed wi
 
 `process.kill` with `orphansOnly` kills only orphaned processes and needs `sessionId` or `projectId` (otherwise invalid params). With `projectId`, only that project's orphans are killed; with `sessionId`, only that session's. Without `orphansOnly`, `pids` must be tracked processes. Each target is signalled only if its start time still matches the tracked one, so a reused pid is skipped.
 
-`project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connection that registered `"project.open"` via `client.register`, except the caller, and returns how many were notified (`clients`). `clubmate project open <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
+`project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connection that registered `"project.open"` via `client.register`, except the caller, and returns how many were notified (`clients`). `clubmate workspace open --id <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
+
+Projects are shown to users as workspaces; `clubmate project …` is an alias of `clubmate workspace …`. A project is `{id, name, repos, createdAt, home, lastOpenedAt}`; `lastOpenedAt` is the zero time (`0001-01-01T00:00:00Z`) until the project is first opened. `project.list` orders by `lastOpenedAt` then `createdAt`, newest first.
+
+`workspace.open` cleans each folder path, drops duplicates and returns the project whose repos are exactly that set (order-insensitive) with `created: false`; otherwise it creates a project named after the base name of the first folder (`project.created`) with `created: true`. Folders must be absolute paths to existing directories (otherwise invalid params, as is an empty `folders`). `window` is accepted for clients and currently ignored by the core. `workspace.home` returns the single `home: true` project, named `~` and rooted at the user's home directory, creating it (`project.created`) on first use. Both then send the `project.open` notification exactly like `project.open` (not to the caller). `project.rename` fails with invalid params on a blank name and publishes `project.updated`.
 
 `client.register` marks the calling connection for the listed handles; the only handle is `"project.open"` and anything else is invalid params. Registration lasts for the connection. Plugin callers get invalid params.
 
@@ -175,19 +182,19 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 
 ## Bus topics
 
-- `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`). Existing `fs.watch` streams do not follow; re-watch on this event.
+- `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`) or it is renamed (`project.rename`). Existing `fs.watch` streams do not follow; re-watch on this event.
 - `editor.buffer` `{projectId, path}`: published by `editor-nvim` when nvim enters a file buffer (BufEnter). `path` is absolute, as nvim names the buffer.
 - `editor.saved` `{projectId, path}`: published by `editor-nvim` after nvim writes a file buffer (BufWritePost).
 - `processes.killed` `{projectId, pids}`: published by `processes` when auto-kill terminates orphans of a project; never published with empty `pids`.
 
 ## Core notifications
 
-- `project.open` `{id}`: sent to every connection that registered `"project.open"` (not to plugins, not to the caller of `project.open`); the client shows that project.
+- `project.open` `{id}`: sent to every connection that registered `"project.open"` (not to plugins, not to the caller of `project.open`, `workspace.open` or `workspace.home`); the client shows that project.
 - `core.stopping` (no params): sent to every connected client (not to plugins) after `core.shutdown` has replied and right before the core stops. A client that sees the connection end after `core.stopping` treats the stop as intentional and does not restart the core; a connection that ends without it is an unexpected loss.
 
 ## Presence
 
-The core publishes `ui.opened` `{projectId}` on the durable bus when a project's UI subscriber count goes from 0 to 1, and `ui.idle` `{projectId}` when it goes from 1 to 0.
+The core publishes `ui.opened` `{projectId}` on the durable bus when a project's UI subscriber count goes from 0 to 1, and `ui.idle` `{projectId}` when it goes from 1 to 0. On the 0 to 1 transition it also sets the project's `lastOpenedAt` to now.
 
 ## Visible section
 

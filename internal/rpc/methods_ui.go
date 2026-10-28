@@ -152,7 +152,10 @@ func (s *Server) uiSubscribe(ctx context.Context, p projectParams) (subscription
 	leave := func() {}
 	target := &focusTarget{conn: connFrom(ctx)}
 	if p.ProjectID != "" {
-		leaveCount := s.presence.join(s.bus, s.logger, p.ProjectID)
+		leaveCount, opened := s.presence.join(s.bus, s.logger, p.ProjectID)
+		if opened {
+			s.touchProject(ctx, p.ProjectID)
+		}
 		leave = func() {
 			s.presence.dropTarget(p.ProjectID, target)
 			leaveCount()

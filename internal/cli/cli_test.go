@@ -375,7 +375,7 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 			launched = append(launched, id)
 			return nil
 		})
-		root.SetArgs([]string{"project", "open", p.ID})
+		root.SetArgs([]string{"project", "open", "--id", p.ID})
 		require.NoError(t, root.Execute())
 	}
 	open()
@@ -395,4 +395,28 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no project.open notification")
 	}
+}
+
+func TestWorkspaceCLI(t *testing.T) {
+	startCore(t)
+	dirs, err := paths.Resolve()
+	require.NoError(t, err)
+	client, err := rpc.Dial(t.Context(), dirs.CoreSocket())
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"project.open"}}, nil))
+	dir := t.TempDir()
+	id := strings.TrimSpace(string(run(t, "workspace", "open", dir)))
+	select {
+	case n := <-client.Notifications():
+		assert.Equal(t, "project.open", n.Method)
+		assert.JSONEq(t, `{"id":"`+id+`"}`, string(n.Params))
+	case <-time.After(2 * time.Second):
+		t.Fatal("no project.open notification")
+	}
+	var list []project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "list", "--json"), &list))
+	require.Len(t, list, 1)
+	assert.Equal(t, id, list[0].ID)
+	assert.Equal(t, []string{dir}, list[0].Repos)
 }

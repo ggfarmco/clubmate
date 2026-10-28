@@ -105,6 +105,7 @@ func errorCode(err error) int64 {
 	case errors.Is(err, project.ErrInvalidRepo),
 		errors.Is(err, project.ErrDuplicateRepo),
 		errors.Is(err, project.ErrEmptyName),
+		errors.Is(err, core.ErrNoFolders),
 		errors.Is(err, core.ErrEmptyKillRequest),
 		errors.Is(err, core.ErrOrphansNeedSession),
 		errors.Is(err, proc.ErrUnsafePID),
