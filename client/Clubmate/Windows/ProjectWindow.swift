@@ -50,6 +50,10 @@ struct ProjectWindow: View {
                 if old.section != new.section { autoNewDone = nil }
                 autoNew()
             }
+            .onChange(of: sidebarKey) { old, new in
+                guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
+                focus.request("\(new.section).main")
+            }
             .onChange(of: app.settings.autoHideSidebar) { _, enabled in
                 if !enabled { session?.store?.sidebarAutoHidden = false }
             }
@@ -69,6 +73,16 @@ struct ProjectWindow: View {
     private struct AutoNewKey: Equatable {
         let section: String?
         let loaded: Bool
+    }
+
+    private struct SidebarKey: Equatable {
+        let section: String
+        let hidden: Bool
+    }
+
+    private var sidebarKey: SidebarKey? {
+        guard let store = session?.store, let section = store.selectedSection else { return nil }
+        return SidebarKey(section: section, hidden: app.settings.hidesSidebar(section, manual: store.sidebarHidden[section] == true, autoHidden: store.sidebarAutoHidden))
     }
 
     private var autoNewKey: AutoNewKey {
@@ -92,8 +106,7 @@ struct ProjectWindow: View {
     @ViewBuilder private var content: some View {
         if let session, let store = session.store, let section = store.selectedSection {
             let side = app.settings.sidebarSide
-            let hidden = app.settings.hidesSidebar(section, manual: store.sidebarHidden[section] == true, autoHidden: store.sidebarAutoHidden)
-            let sidebar = hidden ? nil : side
+            let sidebar = sidebarKey?.hidden == true ? nil : side
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Rail(sections: store.sections, selected: section) { store.selectedSection = $0 }

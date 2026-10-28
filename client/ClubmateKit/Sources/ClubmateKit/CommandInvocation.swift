@@ -33,26 +33,15 @@ public struct CommandInvocation: Sendable, Equatable {
     }
 }
 
-public struct TerminalClose: Sendable, Equatable {
-    public let invocation: CommandInvocation
-    public let running: Bool
-
-    public init(invocation: CommandInvocation, running: Bool) {
-        self.invocation = invocation
-        self.running = running
-    }
-}
-
 public enum TerminalsSection {
     public static let id = "terminals"
     public static let busyCommand = "terminals.busy"
     public static let closeCommand = "terminals.close"
 
-    public static func close(sidebar: SDUINode?, main: SDUINode?, commands: [Command]) -> TerminalClose? {
+    public static func close(sidebar: SDUINode?, commands: [Command]) -> CommandInvocation? {
         guard let selected = sidebar?.node(type: "list", id: id)?.string("selected"), !selected.isEmpty,
               commands.contains(where: { $0.id == closeCommand }) else { return nil }
-        let invocation = CommandInvocation(id: closeCommand, args: .object(["sessionId": .string(selected)]))
-        return TerminalClose(invocation: invocation, running: main?.surfaceSessionID == selected)
+        return CommandInvocation(id: closeCommand, args: .object(["sessionId": .string(selected)]))
     }
 
     public static func busyMessage(_ result: JSONValue) -> String? {

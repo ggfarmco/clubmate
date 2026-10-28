@@ -256,7 +256,7 @@ func (m viewModel) cells(n pluginsdk.ProcessNode) []sdui.Cell {
 	}
 	history := sdui.Cell{}
 	if recent := m.hist.cpu(processKey(n), recentLen); len(recent) > 0 {
-		history.Spark = &sdui.Spark{Values: recent, Max: cpuScale(recent)}
+		history.Spark = sdui.NewSpark(recent, cpuScale(recent))
 	}
 	commandCell := sdui.Cell{Text: command(n, cellRunes) + badges(n)}
 	if n.Orphan {

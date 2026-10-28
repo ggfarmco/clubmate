@@ -39,6 +39,7 @@ type Server struct {
 	pluginList atomic.Pointer[func() any]
 	ui         atomic.Pointer[uiState]
 	presence   presence
+	uiStateMu  sync.Mutex
 	logger     *slog.Logger
 	shutdown   atomic.Pointer[func()]
 	clientsMu  sync.Mutex

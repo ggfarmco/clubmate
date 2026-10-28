@@ -53,7 +53,8 @@ public final class ProjectUIStore {
         starting = true
         listener = Task { [weak self] in
             for await notification in stream {
-                await self?.receive(notification, generation)
+                let message = await UIMessage.decode(notification)
+                await self?.receive(message, generation)
             }
             guard !Task.isCancelled else { return }
             self?.connected = false
@@ -136,13 +137,13 @@ public final class ProjectUIStore {
         }
     }
 
-    private func receive(_ notification: RPCNotification, _ generation: Int) async {
+    private func receive(_ message: UIMessage, _ generation: Int) async {
         guard generation == self.generation, !Task.isCancelled else { return }
         if starting {
             await withCheckedContinuation { gate = $0 }
             guard generation == self.generation else { return }
         }
-        if route(notification) { await recover() }
+        if route(message) { await recover() }
     }
 
     private func openGate() {
@@ -164,21 +165,22 @@ public final class ProjectUIStore {
         try? await client.uiUnsubscribe(subscription)
     }
 
-    private func route(_ notification: RPCNotification) -> Bool {
-        if notification.method == "ui.focus" {
-            focus(notification)
+    private func route(_ message: UIMessage) -> Bool {
+        switch message {
+        case .focus(let params):
+            focus(params)
+            return false
+        case .view(let params, let closed):
+            guard params.subscription == subscription else { return false }
+            if let view = params.view { apply(view) }
+            return closed
+        case .ignored:
             return false
         }
-        guard notification.method == "ui.updated" || notification.method == "ui.closed",
-              let params = try? notification.params.decode(UINotification.self),
-              params.subscription == subscription
-        else { return false }
-        if let view = params.view { apply(view) }
-        return notification.method == "ui.closed"
     }
 
-    private func focus(_ notification: RPCNotification) {
-        guard let params = try? notification.params.decode(UIFocusNotification.self), params.subscription == subscription else { return }
+    private func focus(_ params: UIFocusNotification) {
+        guard params.subscription == subscription else { return }
         if sections.contains(where: { $0.id == params.section }) { selectedSection = params.section }
         focusSerial += 1
         focusRequest = FocusRequest(slot: params.slot, serial: focusSerial, edge: params.edge)
@@ -241,10 +243,11 @@ public final class ProjectUIStore {
     private func restore(from state: JSONValue?) {
         let saved = state?.objectValue ?? [:]
         restoring = true
-        defer { restoring = false }
         selectedSection = sections.first { $0.id == saved["section"]?.stringValue }?.id ?? sections.first?.id
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
+        restoring = false
+        if let selectedSection, saved["section"]?.stringValue != selectedSection { updateState("section", .string(selectedSection)) }
     }
 
     private func updateState(_ key: String, _ value: JSONValue) {
@@ -284,14 +287,31 @@ public struct FocusRequest: Equatable, Sendable {
     }
 }
 
-private struct UIFocusNotification: Decodable {
+private enum UIMessage: Sendable {
+    case view(UINotification, closed: Bool)
+    case focus(UIFocusNotification)
+    case ignored
+
+    @concurrent static func decode(_ notification: RPCNotification) async -> UIMessage {
+        switch notification.method {
+        case "ui.focus":
+            return (try? notification.params.decode(UIFocusNotification.self)).map { .focus($0) } ?? .ignored
+        case "ui.updated", "ui.closed":
+            return (try? notification.params.decode(UINotification.self)).map { .view($0, closed: notification.method == "ui.closed") } ?? .ignored
+        default:
+            return .ignored
+        }
+    }
+}
+
+private struct UIFocusNotification: Decodable, Sendable {
     let subscription: String
     let section: String
     let slot: String
     let edge: String?
 }
 
-private struct UINotification: Decodable {
+private struct UINotification: Decodable, Sendable {
     let subscription: String
     let view: SlotView?
 }

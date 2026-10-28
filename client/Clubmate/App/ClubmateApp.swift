@@ -86,8 +86,6 @@ private struct ProjectCommands: Commands {
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .disabled(store == nil)
-        }
-        CommandGroup(replacing: .saveItem) {
             Button(session?.isApp == false ? "Close Terminal" : "Close Window") { closeTerminal() }
                 .keyboardShortcut("w")
         }
@@ -121,7 +119,7 @@ private struct ProjectCommands: Commands {
             return
         }
         guard let store = session.store, store.selectedSection == TerminalsSection.id,
-              let close = TerminalsSection.close(sidebar: store.slots["\(TerminalsSection.id).sidebar"]?.tree, main: store.mainTree(TerminalsSection.id), commands: app.commands)
+              let close = TerminalsSection.close(sidebar: store.slots["\(TerminalsSection.id).sidebar"]?.tree, commands: app.commands)
         else { return }
         session.closeTerminal(close)
     }

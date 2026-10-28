@@ -42,6 +42,11 @@ final class StoresTests: XCTestCase {
     func testSelectedSectionPersists() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")
+        let fresh = ProjectUIStore(client: client, projectID: project.id)
+        try await fresh.start()
+        await fresh.stop()
+        let initial = try await client.uiStateGet(projectID: project.id)
+        XCTAssertEqual(initial, .object(["section": .string("terminals")]))
         let first = ProjectUIStore(client: client, projectID: project.id)
         try await first.start()
         XCTAssertEqual(first.selectedSection, "terminals")
@@ -360,12 +365,10 @@ final class StoresTests: XCTestCase {
         [{"id":"terminals.close","title":"Close","plugin":"terminals","hidden":false}]
         """#.utf8))
         let sidebar = SDUINode(type: "stack", children: [SDUINode(type: "list", id: "terminals", props: ["selected": .string("ses_1")])])
-        let surface = SDUINode(type: "surface", props: ["sessionId": .string("ses_1")])
         let close = CommandInvocation(id: "terminals.close", args: .object(["sessionId": .string("ses_1")]))
 
-        XCTAssertEqual(TerminalsSection.close(sidebar: sidebar, main: surface, commands: commands), TerminalClose(invocation: close, running: true))
-        XCTAssertEqual(TerminalsSection.close(sidebar: sidebar, main: exited, commands: commands), TerminalClose(invocation: close, running: false))
-        XCTAssertNil(TerminalsSection.close(sidebar: SDUINode(type: "list", id: "terminals"), main: SDUINode(type: "empty"), commands: commands))
+        XCTAssertEqual(TerminalsSection.close(sidebar: sidebar, commands: commands), close)
+        XCTAssertNil(TerminalsSection.close(sidebar: SDUINode(type: "list", id: "terminals"), commands: commands))
     }
 
     func testTerminalBusyMessage() {

@@ -47,7 +47,10 @@ end`
 const navLua = `local enabled, side = ...
 local m = package.loaded["clubmate"]
 local desc = "clubmate navigate"
-local keys = { h = "<C-h>", j = "<C-j>", k = "<C-k>", l = "<C-l>" }
+local keys = {
+  { "<C-h>", "h" }, { "<C-j>", "j" }, { "<C-k>", "k" }, { "<C-l>", "l" },
+  { "<C-р>", "h" }, { "<C-о>", "j" }, { "<C-л>", "k" }, { "<C-д>", "l" },
+}
 local function global(lhs)
   for _, km in ipairs(vim.api.nvim_get_keymap("n")) do
     if vim.keycode(km.lhs) == vim.keycode(lhs) then return km end
@@ -67,7 +70,8 @@ local function replaceable(km, dir)
   end
   return false
 end
-for _, lhs in pairs(keys) do
+for _, key in ipairs(keys) do
+  local lhs = key[1]
   local km = global(lhs)
   if km and km.desc == desc then vim.keymap.del("n", lhs) end
 end
@@ -100,7 +104,8 @@ if ss then
   return {}
 end
 local skipped = {}
-for dir, lhs in pairs(keys) do
+for _, key in ipairs(keys) do
+  local lhs, dir = key[1], key[2]
   local km = global(lhs)
   if km and not replaceable(km, dir) then
     skipped[#skipped + 1] = lhs

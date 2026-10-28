@@ -215,7 +215,7 @@ func TestHookCreatesNoKeymaps(t *testing.T) {
 func TestNavigationOverlayToggle(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
-	keys := []string{"<C-h>", "<C-j>", "<C-k>", "<C-l>"}
+	keys := []string{"<C-h>", "<C-j>", "<C-k>", "<C-l>", "<C-р>", "<C-о>", "<C-л>", "<C-д>"}
 	descs := func(v *nvim.Nvim) []string {
 		out := make([]string, 0, len(keys))
 		for _, k := range keys {

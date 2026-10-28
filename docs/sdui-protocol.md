@@ -25,7 +25,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 - column (`table`): `{id*, title*, align, width}`: `align` is `left` (default) or `right`, `width` is a fixed width in points (`0` or absent = flexible, sharing the remaining space). Ids unique and non-empty.
 - row (`table`): `{id*, depth, hasChildren, expanded, muted, cells*}`: `depth` is an integer 0-32 (indent 12pt per level, chevron when `hasChildren`), `muted` dims the row's text. Ids unique and non-empty. `cells` must have exactly one cell per column.
 - cell (`table`): `{text, bar, tone, spark}`: `bar` is a number 0…1 drawn as a filled capsule behind the text, `tone` is `""`\|`ok`\|`warn`\|`danger` (colours the bar and sparkline, or the text when there is no bar), `spark` is a spark.
-- spark (`table` cell): `{values*, max*}`: at most 900 numbers, `max` > 0. Values are clamped to 0…`max` and drawn as a 60×16pt line.
+- spark (`table` cell): `{values*, max*}`: at most 900 numbers, `max` > 0. Values are clamped to 0…`max` and drawn as a 60×16pt line. The Go helpers `sdui.Sparkline`, `sdui.SparklineSized` and `sdui.NewSpark` clamp them before sending.
 - sort (`table`): `{column*, desc}`: the active sort column (arrow in its header) and direction. `column` must be one of the table's column ids.
 
 ## Node types
@@ -112,6 +112,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.event | `{projectId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{projectId, slot, tree}` (plugin callers only) | `{rev}` |
 | ui.presence | none | `[projectId]`, projects that currently have UI subscribers |
+| ui.state.section | `{projectId}` | `{section}`, the section saved in the project's UI state (`""` when unset) |
 | fs.watch | `{projectId}` | `{watch}` |
 | fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, plugin, hidden, confirm}]` |
@@ -152,7 +153,7 @@ A command with a non-empty `"confirm"` string in its manifest entry is listed wi
 
 `editor-nvim.navigation` (hidden) takes args `{enabled, side}` and returns `{skipped}`. `side` is the Code sidebar's side, `left` or `right` (anything else is an error). It stores `{enabled, side}` in plugin storage under `navigation` (global, not per project; the `projectId` only routes the call) and applies it to every connected nvim; on every (re)connect editor-nvim applies the stored value right after registering the `clubmate` module, and does nothing when nothing is stored. Enabled: with `package.loaded["smart-splits"]` present it wraps smart-splits' `at_edge` (`config.move.at_edge` in v3, `config.at_edge` in v2) so that `ctx.direction` pointing at the sidebar (`left` for side `left`, `right` for side `right`) only calls `edge(ctx.direction)`, and every other direction runs the original `at_edge` (a function, or `wrap`/`split` through `ctx.wrap()`/`ctx.split()`); it maps no keys; otherwise it maps normal-mode `<C-h>`, `<C-j>`, `<C-k>`, `<C-l>` to `require("clubmate").navigate(dir)` with `desc = "clubmate navigate"`, taking over a global mapping that is nvim's built-in default (`desc` `:help …-default`) or a plain non-`expr` window move in the key's own direction (rhs keycodes equal to `<C-w>d`, `<C-w><C-d>`, `<Cmd>wincmd d<CR>` or `:wincmd d<CR>`), and skipping keys that have any other global mapping; `skipped` lists those keys (sorted, across all nvims). Disabled: removes the global mappings with that `desc`, restores the mappings it took over (exactly, from `maparg()`; unless the key was remapped meanwhile) and unwraps `at_edge` if it is still the wrapper. Applying is idempotent. The app stores the answer in `AppSettings.navigationKeys`, sends it with `AppSettings.sidebarSide` once per launch after the first project connects, and again whenever either changes; a non-empty `skipped` is shown as a banner (`Ctrl+J left alone: you already map it`).
 
-`terminals.busy` (hidden) takes args `{sessionId}` and returns `{busy, process}`. `busy` is true when the session's process tree (`process.tree`) has a live descendant of the shell (the session's `childPid`); `process` is the `comm` of the newest such descendant (latest start time), `""` when not busy. An unknown or exited session is not busy. The app's ⌘W "Close Terminal" closes the Terminals section's selected terminal (the `selected` of the `terminals` list in `terminals.sidebar`): for a running one (the main slot shows its surface) it runs `terminals.busy` first and, when busy, asks `“<process>” is running. Close the terminal?` before `terminals.close`; an exited one is closed directly. In a project window outside the Terminals section ⌘W does nothing and never closes the window (the red button does); in a window without a project (Projects, Settings) it is "Close Window" and closes it. ghostty's `super+w` is unbound inside clubmate, so ⌘W reaching a surface does nothing.
+`terminals.busy` (hidden) takes args `{sessionId}` and returns `{busy, process}`. `busy` is true when the session's process tree (`process.tree`) has a live descendant of the shell (the session's `childPid`); `process` is the `comm` of the newest such descendant (latest start time), `""` when not busy. An unknown or exited session is not busy. The app's ⌘W "Close Terminal" closes the Terminals section's selected terminal (the `selected` of the `terminals` list in `terminals.sidebar`): it always runs `terminals.busy` first and, when busy, asks `“<process>” is running. Close the terminal?` before `terminals.close`; an exited one is not busy, so it closes without asking. In a project window outside the Terminals section ⌘W does nothing and never closes the window (the red button does); in a window without a project (Projects, Settings) it is "Close Window" and closes it. ghostty's `super+w` is unbound inside clubmate, so ⌘W reaching a surface does nothing.
 
 When nvim reaches its left or right edge through the `clubmate` Lua module (see `docs/nvim-integration.md`), editor-nvim calls `ui.focus` with slot `editor-nvim.sidebar` and `edge` `h` or `l`.
 
@@ -187,6 +188,12 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 ## Presence
 
 The core publishes `ui.opened` `{projectId}` on the durable bus when a project's UI subscriber count goes from 0 to 1, and `ui.idle` `{projectId}` when it goes from 1 to 0.
+
+## Visible section
+
+Clients keep per-project UI state with `ui.state.get` / `ui.state.set` `{projectId, state}` (client callers only). Its `section` field is the section the project's window shows: the app has one window per project and writes `section` when it opens the project and on every switch. When a `ui.state.set` changes `section`, the core publishes `ui.section` `{projectId, section}` on the durable bus. Plugins read the current value with `ui.state.section` (`pluginsdk.Host.SelectedSection`).
+
+`processes` uses it to skip work nobody sees: its 1 Hz refresh keeps recording history for every present project but renders only projects whose section is `processes` or unknown (`""`). On `ui.section` to `processes` it renders at once.
 
 ## Plugin runtime dir
 

@@ -123,6 +123,14 @@ func (h *Host) Presence(ctx context.Context) ([]string, error) {
 	return out, err
 }
 
+func (h *Host) SelectedSection(ctx context.Context, projectID string) (string, error) {
+	var out struct {
+		Section string `json:"section"`
+	}
+	err := h.Call(ctx, "ui.state.section", map[string]string{"projectId": projectID}, &out)
+	return out.Section, err
+}
+
 func (h *Host) RunCommand(ctx context.Context, id, projectID string, args any, out any) error {
 	return h.Call(ctx, "command.run", runCommandParams{ID: id, ProjectID: projectID, Args: args}, out)
 }

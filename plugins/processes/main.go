@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	sectionID       = "processes"
 	sidebarSlot     = "processes.sidebar"
 	mainSlot        = "processes.main"
 	killedTopic     = "processes.killed"
@@ -42,6 +43,11 @@ type projectEvent struct {
 
 type projectCreated struct {
 	Project pluginsdk.Project `json:"project"`
+}
+
+type sectionEvent struct {
+	ProjectID string `json:"projectId"`
+	Section   string `json:"section"`
 }
 
 type projectDeleted struct {
@@ -69,11 +75,12 @@ type app struct {
 	mu       sync.Mutex
 	projects map[string]*projectState
 	present  map[string]bool
+	sections map[string]string
 	deleted  map[string]bool
 }
 
 func main() {
-	a := &app{hist: newHistory(), memKiB: memoryKiB(), projects: map[string]*projectState{}, present: map[string]bool{}, deleted: map[string]bool{}}
+	a := &app{hist: newHistory(), memKiB: memoryKiB(), projects: map[string]*projectState{}, present: map[string]bool{}, sections: map[string]string{}, deleted: map[string]bool{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
 }
 
@@ -100,6 +107,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		a.present[id] = true
 	}
 	a.mu.Unlock()
+	for _, id := range present {
+		a.loadSection(ctx, h, id)
+	}
 	for _, p := range projects {
 		logError("render "+p.ID, a.render(ctx, h, p.ID))
 	}
@@ -123,6 +133,16 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		}
 		a.mu.Unlock()
 		if ev.Topic == "ui.opened" {
+			a.loadSection(ctx, h, p.ProjectID)
+			logError("render "+p.ProjectID, a.render(ctx, h, p.ProjectID))
+		}
+	case "ui.section":
+		var p sectionEvent
+		if !decode(ev, &p) {
+			return
+		}
+		a.setSection(p.ProjectID, p.Section)
+		if p.Section == sectionID {
 			logError("render "+p.ProjectID, a.render(ctx, h, p.ProjectID))
 		}
 	case "project.created":
@@ -363,10 +383,37 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 		projectOf[s.ID] = s.ProjectID
 	}
 	for _, id := range ids {
+		if !a.visible(id) {
+			continue
+		}
 		own := slices.DeleteFunc(slices.Clone(sessions), func(s pluginsdk.Session) bool { return s.ProjectID != id })
 		mine := slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return projectOf[n.SessionID] != id })
 		logError("render "+id, a.show(ctx, h, id, own, mine))
 	}
+}
+
+func (a *app) loadSection(ctx context.Context, h *pluginsdk.Host, id string) {
+	section, err := h.SelectedSection(ctx, id)
+	if err != nil {
+		logError("section "+id, err)
+		return
+	}
+	a.setSection(id, section)
+}
+
+func (a *app) setSection(id, section string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.deleted[id] {
+		a.sections[id] = section
+	}
+}
+
+func (a *app) visible(id string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	section := a.sections[id]
+	return section == "" || section == sectionID
 }
 
 func (a *app) autoKillLoop(ctx context.Context, h *pluginsdk.Host) {
@@ -396,6 +443,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	a.mu.Lock()
 	delete(a.projects, id)
 	delete(a.present, id)
+	delete(a.sections, id)
 	a.deleted[id] = true
 	a.mu.Unlock()
 	logError("drop "+id, errors.Join(h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, autoKillKey(id)), h.StorageDelete(ctx, sortKey(id))))

@@ -102,7 +102,11 @@ func Table(id string, columns []Column, rows []TableRow, selected string, sort S
 }
 
 func Sparkline(id string, values []float64, maxValue float64) Node {
-	return Node{Type: "sparkline", ID: id, Props: map[string]any{"values": nonNil(values), "max": maxValue}}
+	return Node{Type: "sparkline", ID: id, Props: map[string]any{"values": clamp(values, maxValue), "max": maxValue}}
+}
+
+func NewSpark(values []float64, maxValue float64) *Spark {
+	return &Spark{Values: clamp(values, maxValue), Max: maxValue}
 }
 
 func SparklineSized(id string, values []float64, maxValue, height float64) Node {
@@ -186,6 +190,14 @@ func WithConfirm(n Node, text string) Node {
 	props["confirm"] = text
 	n.Props = props
 	return n
+}
+
+func clamp(values []float64, maxValue float64) []float64 {
+	out := make([]float64, len(values))
+	for i, v := range values {
+		out[i] = min(max(v, 0), maxValue)
+	}
+	return out
 }
 
 func withOptional(props map[string]any, key, value string) map[string]any {

@@ -283,7 +283,6 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 		if f.ProjectID != "" && projectOf[n.SessionID] != f.ProjectID {
 			continue
 		}
-		n.Process.Args = proc.ReadArgs(n.Process.PID)
 		out = append(out, n)
 	}
 	return out, nil
