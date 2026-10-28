@@ -217,6 +217,14 @@ func MergeBase(ctx context.Context, repo, base, head string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+func Commit(ctx context.Context, repo, ref string) (string, error) {
+	out, err := Run(ctx, repo, "rev-parse", "-q", "--verify", ref+"^{commit}")
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", ErrUnknownRef, ref)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func Branches(ctx context.Context, repo string) ([]string, error) {
 	out, err := Run(ctx, repo, "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes")
 	if err != nil {
@@ -232,7 +240,7 @@ func Branches(ctx context.Context, repo string) ([]string, error) {
 	return branches, nil
 }
 
-func ChangedSince(ctx context.Context, repo, rev string) ([]Entry, error) {
+func ChangedSince(ctx context.Context, repo, rev, head string) ([]Entry, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	out, err := run(ctx, repo, nil, "rev-parse", "--show-toplevel")
@@ -240,7 +248,7 @@ func ChangedSince(ctx context.Context, repo, rev string) ([]Entry, error) {
 		return nil, err
 	}
 	top := strings.TrimSuffix(string(out), "\n")
-	out, err = run(ctx, repo, nil, "diff", "--name-status", "-z", "--no-renames", rev, "HEAD", "--")
+	out, err = run(ctx, repo, nil, "diff", "--name-status", "-z", "--no-renames", rev, head, "--")
 	if err != nil {
 		return nil, err
 	}

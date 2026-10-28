@@ -464,7 +464,7 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	if reviewing {
 		var err error
 		if mergeBase, err = gitrepo.MergeBase(ctx, review.Repo, review.Base, "HEAD"); err == nil {
-			changed, err = gitrepo.ChangedSince(ctx, review.Repo, mergeBase)
+			changed, err = gitrepo.ChangedSince(ctx, review.Repo, mergeBase, "HEAD")
 		}
 		if err != nil {
 			failure = reviewError(review.Base, err)
