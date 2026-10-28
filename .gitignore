@@ -9,3 +9,5 @@ client/Clubmate.xcodeproj
 client/Clubmate/Resources/ghostty
 client/Clubmate/Resources/terminfo
 /dist/
+/docs/superpowers
+/docs/verification
