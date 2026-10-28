@@ -12,21 +12,23 @@ const (
 )
 
 type SectionDef struct {
-	ID     string
-	Title  string
-	Icon   string
-	Order  int
-	Scope  string
-	Plugin string
+	ID      string
+	Title   string
+	Icon    string
+	Order   int
+	Scope   string
+	AutoNew bool
+	Plugin  string
 }
 
 type Section struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Icon   string `json:"icon"`
-	Order  int    `json:"order"`
-	Scope  string `json:"scope"`
-	Plugin string `json:"plugin"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Icon    string `json:"icon"`
+	Order   int    `json:"order"`
+	Scope   string `json:"scope"`
+	AutoNew bool   `json:"autoNew"`
+	Plugin  string `json:"plugin"`
 }
 
 type ViewDef struct {

@@ -121,7 +121,7 @@ final class GhosttyApp {
         if FileManager.default.fileExists(atPath: overlay) {
             overlay.withCString { ghostty_config_load_file(config, $0) }
         }
-        if let error = Self.forceSSHFeaturesOff(config) { fail(error) }
+        if let error = Self.forceOverrides(config) { fail(error) }
         ghostty_config_finalize(config)
         for index in 0..<ghostty_config_diagnostics_count(config) {
             if let message = ghostty_config_get_diagnostic(config, index).message {
@@ -131,24 +131,33 @@ final class GhosttyApp {
         return config
     }
 
-    private static func forceSSHFeaturesOff(_ config: ghostty_config_t) -> String? {
+    private static func forceOverrides(_ config: ghostty_config_t) -> String? {
+        var lines = ["keybind = super+w=unbind"]
+        var failure: String?
+        if let features = sshFeaturesOff(config) {
+            lines.append(features)
+        } else {
+            failure = "cannot read shell-integration-features; ssh shell features left as configured"
+        }
+        let file = FileManager.default.temporaryDirectory.appending(path: "clubmate-ghostty-\(UUID().uuidString).conf")
+        do {
+            try lines.map { $0 + "\n" }.joined().write(to: file, atomically: true, encoding: .utf8)
+        } catch {
+            return "ghostty config override failed: \(error.localizedDescription)"
+        }
+        file.path(percentEncoded: false).withCString { ghostty_config_load_file(config, $0) }
+        try? FileManager.default.removeItem(at: file)
+        return failure
+    }
+
+    private static func sshFeaturesOff(_ config: ghostty_config_t) -> String? {
         let key = "shell-integration-features"
         var bits: UInt32 = 0
-        guard key.withCString({ ghostty_config_get(config, &bits, $0, UInt(key.utf8.count)) }) else {
-            return "cannot read \(key); ssh shell features left as configured"
-        }
+        guard key.withCString({ ghostty_config_get(config, &bits, $0, UInt(key.utf8.count)) }) else { return nil }
         let features = ["cursor", "sudo", "title", "ssh-env", "ssh-terminfo", "path"]
         let value = features.enumerated().map { index, name in
             bits & (1 << UInt32(index)) != 0 && !name.hasPrefix("ssh-") ? name : "no-" + name
         }.joined(separator: ",")
-        let file = FileManager.default.temporaryDirectory.appending(path: "clubmate-ghostty-\(UUID().uuidString).conf")
-        do {
-            try "\(key) = \(value)\n".write(to: file, atomically: true, encoding: .utf8)
-        } catch {
-            return "ssh shell features override failed: \(error.localizedDescription)"
-        }
-        file.path(percentEncoded: false).withCString { ghostty_config_load_file(config, $0) }
-        try? FileManager.default.removeItem(at: file)
-        return nil
+        return "\(key) = \(value)"
     }
 }

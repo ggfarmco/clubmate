@@ -42,6 +42,11 @@ type newArgs struct {
 	Cwd string `json:"cwd"`
 }
 
+type busyResult struct {
+	Busy    bool   `json:"busy"`
+	Process string `json:"process"`
+}
+
 type app struct {
 	mu    sync.Mutex
 	known map[string]string
@@ -91,6 +96,13 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+	if cmd.ID == "terminals.busy" {
+		var args closeArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("terminals.busy args: %w", err)
+		}
+		return busy(ctx, h, cmd.ProjectID, args.SessionID)
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	switch cmd.ID {
@@ -293,6 +305,47 @@ func (a *app) selected(ctx context.Context, h *pluginsdk.Host, projectID string)
 	var id string
 	_, err := h.StorageGet(ctx, selectedKey(projectID), &id)
 	return id, err
+}
+
+func busy(ctx context.Context, h *pluginsdk.Host, projectID, id string) (busyResult, error) {
+	sessions, err := h.ListSessions(ctx, projectID, true)
+	if err != nil {
+		return busyResult{}, err
+	}
+	idx := slices.IndexFunc(sessions, func(s pluginsdk.Session) bool { return s.ID == id })
+	if idx < 0 || sessions[idx].State != "running" || sessions[idx].ChildPID <= 0 {
+		return busyResult{}, nil
+	}
+	nodes, err := h.ProcessTree(ctx, projectID, id)
+	if err != nil {
+		return busyResult{}, err
+	}
+	newest, ok := newestDescendant(nodes, sessions[idx].ChildPID)
+	if !ok {
+		return busyResult{}, nil
+	}
+	return busyResult{Busy: true, Process: newest.Comm}, nil
+}
+
+func newestDescendant(nodes []pluginsdk.ProcessNode, root int) (pluginsdk.ProcessInfo, bool) {
+	children := make(map[int][]pluginsdk.ProcessInfo, len(nodes))
+	for _, n := range nodes {
+		children[n.Process.PPID] = append(children[n.Process.PPID], n.Process)
+	}
+	var newest pluginsdk.ProcessInfo
+	found := false
+	queue := []int{root}
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		for _, p := range children[pid] {
+			if !found || p.StartTime.After(newest.StartTime) || (p.StartTime.Equal(newest.StartTime) && p.PID > newest.PID) {
+				newest, found = p, true
+			}
+			queue = append(queue, p.PID)
+		}
+	}
+	return newest, found
 }
 
 func maxNumber(sessions []pluginsdk.Session) int {

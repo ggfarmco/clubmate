@@ -87,6 +87,11 @@ private struct ProjectCommands: Commands {
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .disabled(store == nil)
         }
+        CommandGroup(replacing: .saveItem) {
+            Button("Close Terminal") { if let closeTerminal { session?.closeTerminal(closeTerminal) } }
+                .keyboardShortcut("w")
+                .disabled(closeTerminal == nil)
+        }
         CommandGroup(before: .toolbar) {
             Button("Command Palette") { session?.paletteShown.toggle() }
                 .keyboardShortcut("k")
@@ -109,6 +114,11 @@ private struct ProjectCommands: Commands {
                     .disabled(section(index) == nil)
             }
         }
+    }
+
+    private var closeTerminal: CommandInvocation? {
+        guard let store, store.selectedSection == TerminalsSection.id else { return nil }
+        return .close(section: TerminalsSection.id, main: store.mainTree(TerminalsSection.id), commands: app.commands)
     }
 
     private func showAbout() {
@@ -135,7 +145,7 @@ private struct ProjectCommands: Commands {
     }
 }
 
-private extension ProjectUIStore {
+extension ProjectUIStore {
     func mainTree(_ section: String) -> SDUINode? {
         slots["\(section).main"]?.tree
     }

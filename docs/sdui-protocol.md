@@ -66,6 +66,10 @@ A manifest section has `scope`: `"project"` (default) or `"app"`; any other valu
 - `ui.subscribe` with `""` does not count toward presence and publishes no `ui.opened`/`ui.idle`.
 - App-scope slots of a stopped or crashed plugin are cleared like project slots (the `empty` view is delivered to live subscribers).
 
+### Auto new
+
+A manifest section may set `autoNew: true` (default `false`); `ui.sections` returns it. When the user selects such a section and its main slot, once rendered, has no `surface` node, the client runs the section's `<section>.new` command once for that selection (`CommandInvocation.shouldAutoNew`). Terminals sets it, so a terminal appears on entering the section.
+
 The `.status` slot is a compact status line for the section; clients show it in the status area while the section is active.
 
 ### Views
@@ -92,7 +96,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 
 | method | params | result |
 |---|---|---|
-| ui.sections | none | `[{id, title, icon, order, scope, plugin}]` |
+| ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin}]` |
 | ui.get | `{projectId}` (`""` for app scope) | `[SlotView]` sorted by slot |
 | ui.subscribe | `{projectId}` | `{subscription}` |
 | ui.unsubscribe | `{subscription}` | `{}` |
@@ -135,6 +139,8 @@ A command with a non-empty `"confirm"` string in its manifest entry is listed wi
 `editor-nvim.review` takes args `{repo, base, head, mergeBase}` and returns `{mode}`. `head` defaults to `HEAD` when empty. `repo` must be absolute and `base` and `head` non-empty refs not starting with `-` and without whitespace (otherwise an error); `mergeBase` is accepted but unused. It starts nvim if needed. If nvim has `:DiffviewOpen` (`exists(':DiffviewOpen') == 2`), it closes the review tab it opened last time if that tab is still valid (switches to it and runs `DiffviewClose`), runs `DiffviewOpen -C<fnameescape(repo)> <base>...<head>` and returns `mode: "diffview"`, or `mode: "builtin"` (recording no tab) when the command opened no new tab (diffview reports its own errors softly); without `:DiffviewOpen` it changes nothing and returns `mode: "builtin"`. `editor-nvim.review-close` takes no args and closes that review tab the same way; it is a no-op when nvim is not running or the tab is gone.
 
 `editor-nvim.navigation` (hidden) takes args `{enabled, side}` and returns `{skipped}`. `side` is the Code sidebar's side, `left` or `right` (anything else is an error). It stores `{enabled, side}` in plugin storage under `navigation` (global, not per project; the `projectId` only routes the call) and applies it to every connected nvim; on every (re)connect editor-nvim applies the stored value right after registering the `clubmate` module, and does nothing when nothing is stored. Enabled: with `package.loaded["smart-splits"]` present it wraps smart-splits' `at_edge` (`config.move.at_edge` in v3, `config.at_edge` in v2) so that `ctx.direction` pointing at the sidebar (`left` for side `left`, `right` for side `right`) only calls `edge(ctx.direction)`, and every other direction runs the original `at_edge` (a function, or `wrap`/`split` through `ctx.wrap()`/`ctx.split()`); it maps no keys; otherwise it maps normal-mode `<C-h>`, `<C-j>`, `<C-k>`, `<C-l>` to `require("clubmate").navigate(dir)` with `desc = "clubmate navigate"`, taking over a global mapping that is nvim's built-in default (`desc` `:help …-default`) or a plain non-`expr` window move in the key's own direction (rhs keycodes equal to `<C-w>d`, `<C-w><C-d>`, `<Cmd>wincmd d<CR>` or `:wincmd d<CR>`), and skipping keys that have any other global mapping; `skipped` lists those keys (sorted, across all nvims). Disabled: removes the global mappings with that `desc`, restores the mappings it took over (exactly, from `maparg()`; unless the key was remapped meanwhile) and unwraps `at_edge` if it is still the wrapper. Applying is idempotent. The app stores the answer in `AppSettings.navigationKeys`, sends it with `AppSettings.sidebarSide` once per launch after the first project connects, and again whenever either changes; a non-empty `skipped` is shown as a banner (`Ctrl+J left alone: you already map it`).
+
+`terminals.busy` (hidden) takes args `{sessionId}` and returns `{busy, process}`. `busy` is true when the session's process tree (`process.tree`) has a live descendant of the shell (the session's `childPid`); `process` is the `comm` of the newest such descendant (latest start time), `""` when not busy. An unknown or exited session is not busy. The app's ⌘W "Close Terminal" (enabled only in the Terminals section while a running terminal is shown) runs it first and, when busy, asks `“<process>” is running. Close the terminal?` before `terminals.close`; ⌘W never closes the window. The app unbinds ghostty's `super+w` so ⌘W never reaches a surface.
 
 When nvim reaches its left or right edge through the `clubmate` Lua module (see `docs/nvim-integration.md`), editor-nvim calls `ui.focus` with slot `editor-nvim.sidebar` and `edge` `h` or `l`.
 

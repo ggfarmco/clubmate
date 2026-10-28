@@ -5,10 +5,11 @@
   "protocol": 1,
   "command": ["terminals"],
   "contributes": {
-    "sections": [{"id": "terminals", "title": "Terminals", "icon": "terminal", "order": 20}],
+    "sections": [{"id": "terminals", "title": "Terminals", "icon": "terminal", "order": 20, "autoNew": true}],
     "commands": [
       {"id": "terminals.new", "title": "New Terminal"},
-      {"id": "terminals.close", "title": "Close Terminal"}
+      {"id": "terminals.close", "title": "Close Terminal"},
+      {"id": "terminals.busy", "title": "Terminal Busy", "hidden": true}
     ]
   }
 }

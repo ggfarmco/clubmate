@@ -241,6 +241,19 @@ final class ProjectSession {
         }
     }
 
+    func closeTerminal(_ close: CommandInvocation) {
+        guard let store else { return }
+        Task {
+            switch await store.run(CommandInvocation(id: TerminalsSection.busyCommand, args: close.args)) {
+            case .success(let result):
+                if let message = TerminalsSection.busyMessage(result), !(await Confirmation.ask(message, action: "Close")) { return }
+                run(close)
+            case .failure(let error):
+                banner.show(error.message)
+            }
+        }
+    }
+
     func close(_ supervisor: ConnectionSupervisor) async {
         deck.closeAll()
         guard let store else { return }

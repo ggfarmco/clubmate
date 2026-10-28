@@ -13,6 +13,7 @@ struct ProjectWindow: View {
     @State private var session: ProjectSession?
     @State private var presence = ProjectPresence()
     @State private var focus = FocusRouter()
+    @State private var autoNewDone: String?
 
     var body: some View {
         content
@@ -45,6 +46,10 @@ struct ProjectWindow: View {
             .onChange(of: session?.store?.selectedSection, initial: true) { _, section in
                 if section == CodeSection.id { app.askNavigationKeys() }
             }
+            .onChange(of: autoNewKey, initial: true) { old, new in
+                if old.section != new.section { autoNewDone = nil }
+                autoNew()
+            }
             .onChange(of: app.settings.autoHideSidebar) { _, enabled in
                 if !enabled { session?.store?.sidebarAutoHidden = false }
             }
@@ -59,6 +64,24 @@ struct ProjectWindow: View {
     private var listed: Bool? {
         guard let projectID, let projects = app.projects?.projects else { return nil }
         return projects.contains { $0.id == projectID }
+    }
+
+    private struct AutoNewKey: Equatable {
+        let section: String?
+        let loaded: Bool
+    }
+
+    private var autoNewKey: AutoNewKey {
+        let section = session?.store?.selectedSection
+        return AutoNewKey(section: section, loaded: section.flatMap { session?.store?.mainTree($0) } != nil)
+    }
+
+    private func autoNew() {
+        guard let session, let store = session.store, let section = store.selectedSection, autoNewDone != section,
+              let main = store.mainTree(section) else { return }
+        autoNewDone = section
+        guard CommandInvocation.shouldAutoNew(section: store.sections.first { $0.id == section }, main: main) else { return }
+        session.run(.new(section: section, commands: app.commands))
     }
 
     private var title: String {

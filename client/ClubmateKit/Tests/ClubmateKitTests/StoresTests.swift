@@ -295,6 +295,25 @@ final class StoresTests: XCTestCase {
         XCTAssertNil(CommandInvocation.close(section: "echo", main: main, commands: commands))
     }
 
+    func testShouldAutoNew() throws {
+        let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
+        [{"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","autoNew":true,"plugin":"terminals"},
+         {"id":"echo","title":"Echo","icon":"","order":30,"scope":"project","plugin":"echo"}]
+        """#.utf8))
+        let surface = SDUINode(type: "stack", children: [SDUINode(type: "surface", props: ["sessionId": .string("ses_1")])])
+        let empty = SDUINode(type: "empty")
+
+        XCTAssertTrue(CommandInvocation.shouldAutoNew(section: sections[0], main: empty))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: surface))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: nil))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[1], main: empty))
+    }
+
+    func testTerminalBusyMessage() {
+        XCTAssertEqual(TerminalsSection.busyMessage(.object(["busy": .bool(true), "process": .string("sleep")])), "“sleep” is running. Close the terminal?")
+        XCTAssertNil(TerminalsSection.busyMessage(.object(["busy": .bool(false), "process": .string("")])))
+    }
+
     private func startCore() async throws -> CoreClient {
         let core = try await TestCore.start()
         self.core = core
