@@ -128,7 +128,7 @@ func (s *Service) OpenFolders(ctx context.Context, folders []string) (project.Pr
 	if err != nil || found {
 		return p, false, err
 	}
-	p, err = s.CreateProject(ctx, filepath.Base(cleaned[0]), cleaned)
+	p, err = s.CreateProject(ctx, filepath.Base(filepath.Clean(folders[0])), cleaned)
 	return p, err == nil, err
 }
 

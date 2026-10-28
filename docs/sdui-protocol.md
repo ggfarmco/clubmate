@@ -195,7 +195,7 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 
 ## Presence
 
-The core publishes `ui.opened` `{projectId}` on the durable bus when a project's UI subscriber count goes from 0 to 1, and `ui.idle` `{projectId}` when it goes from 1 to 0. On the 0 to 1 transition it also sets the project's `lastOpenedAt` to now.
+The core publishes `ui.opened` `{projectId}` on the durable bus when a project's UI subscriber count goes from 0 to 1, and `ui.idle` `{projectId}` when it goes from 1 to 0.
 
 ## Visible section
 
