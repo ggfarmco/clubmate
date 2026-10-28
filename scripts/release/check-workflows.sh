@@ -23,6 +23,17 @@ actionlint -ignore 'label "xcode-27" is unknown' "$DIR"/*.yml
 [[ "$(yq -o=json -I=0 '.on.push.tags' "$RELEASE")" == '["v*"]' ]] || fail "release.yml must trigger on v* tags"
 [[ "$(yq '[.jobs[] | .environment | select(tag == "!!map") |= .name] | all_c(. == "release")' "$RELEASE")" == true ]] || fail "release.yml jobs must use environment release"
 
+step_index() {
+  yq "[.jobs[].steps[] | .run // \"\"] | to_entries | map(select(.value | contains(\"$1\"))) | .[0].key // -1" "$RELEASE"
+}
+BUILD_STEP="$(step_index scripts/release/build.sh)"
+IMPORT_STEP="$(step_index 'security import')"
+DMG_STEP="$(step_index scripts/release/dmg.sh)"
+DELETE_STEP="$(step_index delete-keychain)"
+((BUILD_STEP >= 0 && IMPORT_STEP > BUILD_STEP)) || fail "release.yml must import the signing certificate after build.sh"
+((DMG_STEP >= 0 && DELETE_STEP > DMG_STEP)) || fail "release.yml must delete the keychain after dmg.sh"
+[[ "$(yq '.jobs[].steps[] | select((.run // "") | contains("delete-keychain")) | .if' "$RELEASE")" == 'always()' ]] || fail "release.yml must delete the keychain with if: always()"
+
 for f in "$DIR"/*.yml; do
   triggers="$(yq '(.on | select(tag == "!!map") | keys | .[]), (.on | select(tag == "!!seq") | .[]), (.on | select(tag == "!!str"))' "$f")"
   grep -qx 'pull_request' <<<"$triggers" || continue

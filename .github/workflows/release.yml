@@ -92,6 +92,12 @@ jobs:
         if: steps.ghostty-cache.outputs.cache-hit != 'true'
         run: xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
 
+      - name: Build
+        env:
+          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release/build.sh "$VERSION"
+
       - name: Import Developer ID certificate
         id: identity
         env:
@@ -106,9 +112,11 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
           echo "f16cd3c54c7f83cea4bf1a3e6a0819c8aaa8e4a1528fd144715f350643d2df3a  $RUNNER_TEMP/DeveloperIDG2CA.cer" | shasum -a 256 -c -
           security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain"
-          printf '%s' "$DEVELOPER_ID_P12_BASE64" | base64 --decode >"$RUNNER_TEMP/developer-id.p12"
-          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          rm -f "$RUNNER_TEMP/developer-id.p12"
+          p12="$RUNNER_TEMP/developer-id.p12"
+          trap 'rm -f "$p12"' EXIT
+          printf '%s' "$DEVELOPER_ID_P12_BASE64" | base64 --decode >"$p12"
+          security import "$p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$p12"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
           security list-keychains -d user -s "$keychain" login.keychain-db
           identity="$(security find-identity -v -p codesigning "$keychain" | awk '/"Developer ID Application/ {print $2; exit}')"
@@ -117,12 +125,6 @@ jobs:
             exit 1
           fi
           echo "sha1=$identity" >>"$GITHUB_OUTPUT"
-
-      - name: Build
-        env:
-          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: scripts/release/build.sh "$VERSION"
 
       - name: Sign app
         env:
@@ -134,6 +136,14 @@ jobs:
           IDENTITY: ${{ steps.identity.outputs.sha1 }}
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/release/dmg.sh dist/Clubmate.app "$VERSION" "$IDENTITY"
+
+      - name: Delete keychain
+        if: always()
+        run: |
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          if [[ -f "$keychain" ]]; then
+            security delete-keychain "$keychain"
+          fi
 
       - name: Notarize
         env:
@@ -159,11 +169,3 @@ jobs:
           scripts/release/notes.sh "$GITHUB_REF_NAME" >"$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" "dist/Clubmate-$VERSION.dmg" dist/appcast.xml \
             --title "Clubmate $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
-
-      - name: Delete keychain
-        if: always()
-        run: |
-          keychain="$RUNNER_TEMP/release.keychain-db"
-          if [[ -f "$keychain" ]]; then
-            security delete-keychain "$keychain"
-          fi
