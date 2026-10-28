@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,7 @@ const (
 	mutateTimeout = 10 * time.Minute
 	committing    = "Committing…"
 	staging       = "Staging…"
+	currentHead   = "HEAD"
 )
 
 var (
@@ -66,16 +68,19 @@ type commitForm struct {
 type reviewForm struct {
 	Repo string `json:"review-repo"`
 	Base string `json:"base"`
+	Head string `json:"head"`
 }
 
 type storedReview struct {
 	Repo string `json:"repo"`
 	Base string `json:"base"`
+	Head string `json:"head,omitempty"`
 }
 
 type reviewArgs struct {
 	Repo      string `json:"repo"`
 	Base      string `json:"base"`
+	Head      string `json:"head"`
 	MergeBase string `json:"mergeBase"`
 }
 
@@ -393,7 +398,7 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.synced && stored.Base != "" {
-		s.review = reviewState{Repo: stored.Repo, Base: stored.Base}
+		s.review = restored(stored)
 	}
 	s.repos, s.gitDirs, s.synced = repos, gitDirs, true
 	return nil
@@ -459,12 +464,14 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	}
 	v, ok := views[review.Repo]
 	reviewing := review.active() && ok && v.Problem == ""
-	var mergeBase, failure string
+	var mergeBase, headSha, failure string
 	var changed []gitrepo.Entry
 	if reviewing {
 		var err error
-		if mergeBase, err = gitrepo.MergeBase(ctx, review.Repo, review.Base, "HEAD"); err == nil {
-			changed, err = gitrepo.ChangedSince(ctx, review.Repo, mergeBase, "HEAD")
+		if mergeBase, err = gitrepo.MergeBase(ctx, review.Repo, review.Base, review.Head); err == nil {
+			if headSha, err = gitrepo.Commit(ctx, review.Repo, review.Head); err == nil {
+				changed, err = gitrepo.ChangedSince(ctx, review.Repo, mergeBase, review.Head)
+			}
 		}
 		if err != nil {
 			failure = reviewError(review.Base, err)
@@ -472,10 +479,10 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	}
 	s.mu.Lock()
 	s.views = views
-	if reviewing && s.review.Repo == review.Repo && s.review.Base == review.Base {
+	if reviewing && s.review.same(review.Repo, review.Base, review.Head) {
 		s.review.Err = failure
 		if failure == "" {
-			s.review.MergeBase, s.review.Entries = mergeBase, changed
+			s.review.MergeBase, s.review.HeadSha, s.review.Entries = mergeBase, headSha, changed
 		}
 	}
 	s.selected = s.follow(s.selected)
@@ -589,6 +596,9 @@ func (a *app) openDiff(ctx context.Context, h *pluginsdk.Host, id string, s *sta
 		args.Base, args.Target = "head", "index"
 	case groupReview:
 		args.Base = "rev:" + sel.Rev
+		if sel.Head != "" {
+			args.Target = "rev:" + sel.Head
+		}
 	}
 	if err := h.RunCommand(ctx, diffCommand, id, args, nil); err != nil {
 		return err
@@ -636,7 +646,7 @@ func (a *app) reviewDefault(ctx context.Context, h *pluginsdk.Host, id string, s
 	if err != nil {
 		return a.reviewFailed(ctx, h, id, s, err.Error())
 	}
-	return a.startReview(ctx, h, id, s, repo, base)
+	return a.startReview(ctx, h, id, s, repo, base, currentHead)
 }
 
 func (a *app) submitReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, f reviewForm) error {
@@ -655,27 +665,35 @@ func (a *app) submitReview(ctx context.Context, h *pluginsdk.Host, id string, s 
 	if !slices.Contains(branches, f.Base) {
 		return a.reviewFailed(ctx, h, id, s, "unknown branch "+f.Base)
 	}
-	return a.startReview(ctx, h, id, s, repo, f.Base)
+	head := cmp.Or(f.Head, currentHead)
+	if head != currentHead && !slices.Contains(branches, head) {
+		return a.reviewFailed(ctx, h, id, s, "unknown branch "+head)
+	}
+	return a.startReview(ctx, h, id, s, repo, f.Base, head)
 }
 
-func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, repo, base string) error {
-	mergeBase, err := gitrepo.MergeBase(ctx, repo, base, "HEAD")
+func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, repo, base, head string) error {
+	mergeBase, err := gitrepo.MergeBase(ctx, repo, base, head)
 	if err != nil {
 		return a.reviewFailed(ctx, h, id, s, reviewError(base, err))
 	}
-	if err := h.StorageSet(ctx, reviewKey(id), storedReview{Repo: repo, Base: base}); err != nil {
+	stored := storedReview{Repo: repo, Base: base}
+	if head != currentHead {
+		stored.Head = head
+	}
+	if err := h.StorageSet(ctx, reviewKey(id), stored); err != nil {
 		return err
 	}
 	s.mu.Lock()
-	if s.review.Repo != repo || s.review.Base != base {
-		s.review = reviewState{Repo: repo, Base: base}
+	if !s.review.same(repo, base, head) {
+		s.review = reviewState{Repo: repo, Base: base, Head: head}
 	}
 	s.review.MergeBase, s.review.Err = mergeBase, ""
 	s.reviews++
 	s.mu.Unlock()
 	a.schedule(h, id, s, 0)
 	var out reviewResult
-	logError("review "+id, h.RunCommand(ctx, reviewCommand, id, reviewArgs{Repo: repo, Base: base, MergeBase: mergeBase}, &out))
+	logError("review "+id, h.RunCommand(ctx, reviewCommand, id, reviewArgs{Repo: repo, Base: base, Head: head, MergeBase: mergeBase}, &out))
 	if out.Mode == diffviewMode {
 		logError("focus "+id, h.Focus(ctx, id, editorSection, editorSlot))
 		return nil
@@ -765,9 +783,10 @@ func (s *state) controls(sel *leaf, live []string) reviewControls {
 	}
 	v := s.view(c.Repo)
 	c.Branches = v.Branches
+	c.Head = currentHead
 	switch {
 	case c.Active && s.review.Repo == c.Repo:
-		c.Base = s.review.Base
+		c.Base, c.Head = s.review.Base, s.review.Head
 	case v.DefaultBase != "":
 		c.Base = v.DefaultBase
 	case len(v.Branches) > 0:
@@ -825,6 +844,8 @@ func (s *state) follow(id string) string {
 func bodyFor(ctx context.Context, l leaf) (string, bool, error) {
 	rel := l.rel()
 	switch {
+	case l.Group == groupReview && l.Head != "":
+		return capture(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", l.Rev, l.Head, "--", rel)
 	case l.Group == groupReview:
 		return capture(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", l.Rev, "--", rel)
 	case l.Group == groupStaged:
@@ -855,6 +876,10 @@ func reviewError(base string, err error) string {
 	}
 	first, _, _ := strings.Cut(gitError(nil, err).Error(), "\n")
 	return first
+}
+
+func restored(r storedReview) reviewState {
+	return reviewState{Repo: r.Repo, Base: r.Base, Head: cmp.Or(r.Head, currentHead)}
 }
 
 func reviewKey(projectID string) string {

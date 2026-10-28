@@ -31,6 +31,7 @@ const (
 	submitID       = "submit"
 	reviewRepoID   = "review-repo"
 	reviewBaseID   = "base"
+	reviewHeadID   = "head"
 	reviewStartID  = "review-start"
 	missingDetail  = "missing"
 	notGitDetail   = "not a git repository"
@@ -63,7 +64,9 @@ type repoView struct {
 type reviewState struct {
 	Repo      string
 	Base      string
+	Head      string
 	MergeBase string
+	HeadSha   string
 	Entries   []gitrepo.Entry
 	Err       string
 }
@@ -73,6 +76,7 @@ type reviewControls struct {
 	Repo     string
 	Branches []string
 	Base     string
+	Head     string
 	Active   bool
 	Err      string
 }
@@ -87,6 +91,7 @@ type leaf struct {
 	Unmerged   bool
 	Restorable bool
 	Rev        string
+	Head       string
 }
 
 type mainModel struct {
@@ -115,11 +120,30 @@ func (r reviewState) active() bool {
 	return r.Base != ""
 }
 
+func (r reviewState) same(repo, base, head string) bool {
+	return r.Repo == repo && r.Base == base && r.Head == head
+}
+
+func (r reviewState) branchHead() bool {
+	return r.Head != currentHead
+}
+
+func (r reviewState) title() string {
+	if r.branchHead() {
+		return "Review: " + r.Base + "..." + r.Head
+	}
+	return "Review: " + r.Base
+}
+
 func leaves(r repoView) []leaf {
 	var out []leaf
 	if r.Review.active() {
+		head := ""
+		if r.Review.branchHead() {
+			head = r.Review.HeadSha
+		}
 		for _, e := range r.Review.Entries {
-			out = append(out, leaf{Repo: r.Path, Group: groupReview, Path: e.Path, Code: string(e.X), Rev: r.Review.MergeBase})
+			out = append(out, leaf{Repo: r.Path, Group: groupReview, Path: e.Path, Code: string(e.X), Rev: r.Review.MergeBase, Head: head})
 		}
 	}
 	for _, e := range r.Entries {
@@ -157,7 +181,7 @@ func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui
 		}
 		all := leaves(r)
 		if r.Review.active() {
-			root.Children = append(root.Children, groupItem(r.Path+idSep+groupReview, "Review: "+r.Review.Base, inGroup(all, groupReview), folded, &budget))
+			root.Children = append(root.Children, groupItem(r.Path+idSep+groupReview, r.Review.title(), inGroup(all, groupReview), folded, &budget))
 		}
 		for _, g := range groupTitles {
 			if group := inGroup(all, g.id); len(group) > 0 {
@@ -252,7 +276,8 @@ func reviewView(c reviewControls, repos []string) []sdui.Node {
 		for i, b := range c.Branches {
 			options[i] = sdui.Option{Value: b, Label: b}
 		}
-		fields = append(fields, sdui.Select(reviewBaseID, options, c.Base), sdui.Button(reviewStartID, "Review Branch", ""))
+		heads := append([]sdui.Option{{Value: currentHead, Label: "HEAD (current)"}}, options...)
+		fields = append(fields, sdui.Select(reviewBaseID, options, c.Base), sdui.Select(reviewHeadID, heads, c.Head), sdui.Button(reviewStartID, "Review Branch", ""))
 		nodes = append(nodes, sdui.WithAction(sdui.Form(c.FormID, fields...), reviewAction))
 	}
 	if c.Active {
