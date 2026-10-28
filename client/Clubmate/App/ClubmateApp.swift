@@ -50,6 +50,12 @@ private struct SettingsTheme: ViewModifier {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let closeKey = CloseKeyOwner()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        closeKey.start()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
@@ -60,6 +66,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor static var willQuit: (() -> Void)?
+}
+
+@MainActor
+private final class CloseKeyOwner {
+    static let terminalTitle = "Close Terminal"
+    static let windowTitle = "Close Window"
+
+    private var pending = false
+
+    func start() {
+        for name in [NSMenu.didAddItemNotification, NSMenu.didChangeItemNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.schedule() }
+            }
+        }
+        schedule()
+    }
+
+    private func schedule() {
+        guard !pending else { return }
+        pending = true
+        DispatchQueue.main.async { [weak self] in
+            self?.pending = false
+            self?.apply()
+        }
+    }
+
+    private func apply() {
+        for item in NSApp.mainMenu?.items.compactMap(\.submenu).flatMap(\.items) ?? [] where item.keyEquivalentModifierMask == .command {
+            if item.action == #selector(NSWindow.performClose(_:)), item.keyEquivalent == "w" {
+                item.keyEquivalent = ""
+            } else if [Self.terminalTitle, Self.windowTitle].contains(item.title), item.keyEquivalent != "w" {
+                item.keyEquivalent = "w"
+            }
+        }
+    }
 }
 
 private struct ProjectCommands: Commands {
@@ -86,7 +128,7 @@ private struct ProjectCommands: Commands {
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .disabled(store == nil)
-            Button(session?.isApp == false ? "Close Terminal" : "Close Window") { closeTerminal() }
+            Button(session?.isApp == false ? CloseKeyOwner.terminalTitle : CloseKeyOwner.windowTitle) { closeTerminal() }
                 .keyboardShortcut("w")
         }
         CommandGroup(before: .toolbar) {
