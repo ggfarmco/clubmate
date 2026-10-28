@@ -9,6 +9,10 @@ public struct CommandInvocation: Sendable, Equatable {
         self.args = args
     }
 
+    public static func navigation(enabled: Bool, side: SidebarSide) -> CommandInvocation {
+        CommandInvocation(id: CodeSection.navigationCommand, args: .object(["enabled": .bool(enabled), "side": .string(side.rawValue)]))
+    }
+
     public static func new(section: String?, commands: [Command]) -> CommandInvocation? {
         resolve("new", section: section, commands: commands).map { CommandInvocation(id: $0) }
     }
@@ -18,6 +22,10 @@ public struct CommandInvocation: Sendable, Equatable {
         return CommandInvocation(id: id, args: .object(["sessionId": .string(session)]))
     }
 
+    public static func shouldAutoNew(section: SectionInfo?, main: SDUINode?) -> Bool {
+        section?.autoNew == true && main?.type == "empty"
+    }
+
     private static func resolve(_ verb: String, section: String?, commands: [Command]) -> String? {
         guard let section else { return nil }
         let id = "\(section).\(verb)"
@@ -25,7 +33,29 @@ public struct CommandInvocation: Sendable, Equatable {
     }
 }
 
+public enum TerminalsSection {
+    public static let id = "terminals"
+    public static let busyCommand = "terminals.busy"
+    public static let closeCommand = "terminals.close"
+
+    public static func close(sidebar: SDUINode?, commands: [Command]) -> CommandInvocation? {
+        guard let selected = sidebar?.node(type: "list", id: id)?.string("selected"), !selected.isEmpty,
+              commands.contains(where: { $0.id == closeCommand }) else { return nil }
+        return CommandInvocation(id: closeCommand, args: .object(["sessionId": .string(selected)]))
+    }
+
+    public static func busyMessage(_ result: JSONValue) -> String? {
+        guard case .object(let fields) = result, fields["busy"] == .bool(true) else { return nil }
+        return "“\(fields["process"]?.stringValue ?? "")” is running. Close the terminal?"
+    }
+}
+
 extension SDUINode {
+    func node(type: String, id: String) -> SDUINode? {
+        if self.type == type, self.id == id { return self }
+        return children.lazy.compactMap { $0.node(type: type, id: id) }.first
+    }
+
     public var surfaceSessionID: String? {
         if type == "surface" { return string("sessionId") }
         return children.lazy.compactMap(\.surfaceSessionID).first

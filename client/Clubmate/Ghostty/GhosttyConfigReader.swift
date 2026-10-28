@@ -22,6 +22,13 @@ enum GhosttyConfigReader {
         )
     }
 
+    static func fontSize(_ config: ghostty_config_t) -> Double? {
+        var value: Float = 0
+        let key = "font-size"
+        guard key.withCString({ ghostty_config_get(config, &value, $0, UInt(key.utf8.count)) }), value > 0 else { return nil }
+        return Double(value)
+    }
+
     private static func color(_ config: ghostty_config_t, _ key: String) -> Color? {
         var value = ghostty_config_color_s()
         guard key.withCString({ ghostty_config_get(config, &value, $0, UInt(key.utf8.count)) }) else { return nil }

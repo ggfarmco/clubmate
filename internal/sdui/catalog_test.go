@@ -106,3 +106,55 @@ func TestValidateItemLimits(t *testing.T) {
 	}
 	assert.ErrorIs(t, internalsdui.Validate(sdui.Tree("t", []sdui.TreeItem{item}, "")), internalsdui.ErrInvalidTree)
 }
+
+func TestTableValidation(t *testing.T) {
+	columns := []sdui.Column{{ID: "name", Title: "Name"}, {ID: "cpu", Title: "CPU", Align: "right", Width: 60}, {ID: "hist", Title: "History"}}
+	half := 0.5
+	over := 1.5
+	row := func(id string, bar *float64, spark *sdui.Spark) sdui.TableRow {
+		return sdui.TableRow{ID: id, Depth: 1, HasChildren: true, Expanded: true, Muted: true, Cells: []sdui.Cell{{Text: id}, {Text: "50%", Bar: bar, Tone: "warn"}, {Spark: spark}}}
+	}
+	rows := func(n, sparks int) []sdui.TableRow {
+		out := make([]sdui.TableRow, n)
+		for i := range out {
+			var spark *sdui.Spark
+			if i < sparks {
+				spark = &sdui.Spark{Values: make([]float64, 900), Max: 100}
+			}
+			out[i] = row(strconv.Itoa(i), &half, spark)
+		}
+		return out
+	}
+	wide := make([]sdui.Column, 33)
+	for i := range wide {
+		wide[i] = sdui.Column{ID: strconv.Itoa(i), Title: "c"}
+	}
+	cpu := sdui.Sort{Column: "cpu", Desc: true}
+	tests := []struct {
+		name string
+		node sdui.Node
+		ok   bool
+	}{
+		{"valid", sdui.Table("t", columns, rows(1000, 3), "0", cpu), true},
+		{"mismatched cells", sdui.Table("t", columns, []sdui.TableRow{{ID: "a", Cells: []sdui.Cell{{Text: "a"}}}}, "", sdui.Sort{}), false},
+		{"bar over 1", sdui.Table("t", columns, []sdui.TableRow{row("a", &over, nil)}, "", sdui.Sort{}), false},
+		{"too many rows", sdui.Table("t", columns, rows(1001, 0), "", sdui.Sort{}), false},
+		{"too many columns", sdui.Table("t", wide, nil, "", sdui.Sort{}), false},
+		{"unknown sort column", sdui.Table("t", columns, nil, "", sdui.Sort{Column: "mem"}), false},
+		{"spark too long", sdui.Table("t", columns, []sdui.TableRow{row("a", nil, &sdui.Spark{Values: make([]float64, 901), Max: 1})}, "", sdui.Sort{}), false},
+		{"spark zero max", sdui.Table("t", columns, []sdui.TableRow{row("a", nil, &sdui.Spark{Values: []float64{1}})}, "", sdui.Sort{}), false},
+		{"too many spark values", sdui.Table("t", columns, rows(112, 112), "", sdui.Sort{}), false},
+		{"sparkline", sdui.Sparkline("", []float64{1, 2}, 4), true},
+		{"sparkline height out of range", sdui.SparklineSized("", []float64{1, 2}, 4, 201), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := internalsdui.Validate(tt.node)
+			if tt.ok {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, internalsdui.ErrInvalidTree)
+		})
+	}
+}

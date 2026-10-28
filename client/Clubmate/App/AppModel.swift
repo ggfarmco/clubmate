@@ -10,6 +10,7 @@ import ClubmateKit
 final class AppModel {
     let supervisor: ConnectionSupervisor
     let updates: Updates
+    let settings = AppSettings()
     let projectsSession = ProjectSession(projectID: "")
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
@@ -20,6 +21,8 @@ final class AppModel {
     private var launchProject = launchProjectID(CommandLine.arguments)
     @ObservationIgnored private let openProjects = OpenProjects()
     @ObservationIgnored private var restored = false
+    @ObservationIgnored private var navigationPending = true
+    @ObservationIgnored private var navigationAsked = false
 
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
 
@@ -29,6 +32,8 @@ final class AppModel {
         updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
+        trackNavigationKeys()
+        trackTerminalFontSize()
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
@@ -64,6 +69,7 @@ final class AppModel {
     func session(for projectID: String) -> ProjectSession {
         if let existing = sessions[projectID] { return existing }
         let session = ProjectSession(projectID: projectID)
+        session.deck.fontSize = settings.terminalFontSize
         sessions[projectID] = session
         openProjects.opened(projectID)
         if let client = supervisor.client { session.adopt(client, supervisor) }
@@ -75,6 +81,59 @@ final class AppModel {
         sessions[session.projectID] = nil
         openProjects.closed(session.projectID)
         Task { await session.close(supervisor) }
+    }
+
+    func syncNavigationKeys() {
+        guard navigationPending, let enabled = settings.navigationKeys,
+              let session = sessions.values.first(where: { $0.store?.connected == true }),
+              let store = session.store else { return }
+        navigationPending = false
+        Task {
+            switch await store.run(.navigation(enabled: enabled, side: settings.sidebarSide)) {
+            case .success(let result):
+                if let message = CodeSection.skippedKeysMessage(result) { session.banner.show(message) }
+            case .failure(let error):
+                navigationPending = true
+                session.banner.show(error.message)
+            }
+        }
+    }
+
+    func askNavigationKeys() {
+        guard settings.navigationKeys == nil, !navigationAsked else { return }
+        navigationAsked = true
+        Task {
+            settings.navigationKeys = await Confirmation.ask("Use Ctrl+H/J/K/L to move between nvim and the sidebar?", action: "Enable", cancel: "Not now")
+        }
+    }
+
+    private func trackNavigationKeys() {
+        withObservationTracking { _ = (settings.navigationKeys, settings.sidebarSide) } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.navigationPending = true
+                self.syncNavigationKeys()
+                self.trackNavigationKeys()
+            }
+        }
+    }
+
+    var terminalFontSize: Double {
+        settings.terminalFontSize ?? GhosttyApp.shared.configFontSize
+    }
+
+    func stepTerminalFont(_ delta: Double) {
+        settings.terminalFontSize = AppSettings.fontSteps(current: terminalFontSize, delta: delta, range: AppSettings.terminalFontRange)
+    }
+
+    private func trackTerminalFontSize() {
+        withObservationTracking { _ = settings.terminalFontSize } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                for session in self.sessions.values { session.deck.fontSize = self.settings.terminalFontSize }
+                self.trackTerminalFontSize()
+            }
+        }
     }
 
     func project(_ id: String) -> Project? {
@@ -177,6 +236,19 @@ final class ProjectSession {
         guard let invocation, let store else { return }
         Task {
             if case .failure(let error) = await store.run(invocation) {
+                banner.show(error.message)
+            }
+        }
+    }
+
+    func closeTerminal(_ close: CommandInvocation) {
+        guard let store else { return }
+        Task {
+            switch await store.run(CommandInvocation(id: TerminalsSection.busyCommand, args: close.args)) {
+            case .success(let result):
+                if let message = TerminalsSection.busyMessage(result), !(await Confirmation.ask(message, action: "Close")) { return }
+                run(close)
+            case .failure(let error):
                 banner.show(error.message)
             }
         }

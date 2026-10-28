@@ -21,22 +21,23 @@ func ReadEnv(pid int) ([]string, error) {
 	return env, err
 }
 
+func ReadArgs(pid int) []string {
+	raw, err := unix.SysctlRaw("kern.procargs2", pid)
+	if err != nil {
+		return []string{}
+	}
+	argv, _, err := splitArgv(raw)
+	if err != nil || argv == nil {
+		return []string{}
+	}
+	return argv
+}
+
 func ParseProcArgs(b []byte) (argv, env []string, err error) {
-	if len(b) < 4 {
-		return nil, nil, ErrProcArgsShort
+	argv, rest, err := splitArgv(b)
+	if err != nil {
+		return nil, nil, err
 	}
-	argc := int(int32(binary.LittleEndian.Uint32(b)))
-	rest := b[4:]
-
-	_, rest = cutString(rest)
-	rest = bytes.TrimLeft(rest, "\x00")
-
-	for i := 0; i < argc && len(rest) > 0; i++ {
-		var s string
-		s, rest = cutString(rest)
-		argv = append(argv, s)
-	}
-
 	for len(rest) > 0 {
 		var s string
 		s, rest = cutString(rest)
@@ -48,6 +49,25 @@ func ParseProcArgs(b []byte) (argv, env []string, err error) {
 		}
 	}
 	return argv, env, nil
+}
+
+func splitArgv(b []byte) ([]string, []byte, error) {
+	if len(b) < 4 {
+		return nil, nil, ErrProcArgsShort
+	}
+	argc := int(int32(binary.LittleEndian.Uint32(b)))
+	rest := b[4:]
+
+	_, rest = cutString(rest)
+	rest = bytes.TrimLeft(rest, "\x00")
+
+	var argv []string
+	for i := 0; i < argc && len(rest) > 0; i++ {
+		var s string
+		s, rest = cutString(rest)
+		argv = append(argv, s)
+	}
+	return argv, rest, nil
 }
 
 func cutString(b []byte) (string, []byte) {

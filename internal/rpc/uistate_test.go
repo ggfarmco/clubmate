@@ -41,8 +41,18 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 	assert.Nil(t, got.State)
 
 	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{"section": "terminals"}}, nil))
+	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{"section": "terminals", "sidebarWidth": 200}}, nil))
 	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, &got))
-	assert.Equal(t, map[string]any{"section": "terminals"}, got.State)
+	assert.Equal(t, map[string]any{"section": "terminals", "sidebarWidth": float64(200)}, got.State)
+	var section struct {
+		Section string `json:"section"`
+	}
+	require.NoError(t, plug.Call(t.Context(), "ui.state.section", map[string]any{"projectId": p.ID}, &section))
+	assert.Equal(t, "terminals", section.Section)
+	events, err := b.Read(t.Context(), "ui.section", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.JSONEq(t, `{"projectId":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
 
 	err = plug.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{}}, nil)
 	assert.EqualValues(t, -32602, rpcCode(t, err))

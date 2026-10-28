@@ -45,11 +45,11 @@ struct ButtonNodeView: View {
 
 @MainActor
 enum Confirmation {
-    static func ask(_ message: String, action: String) async -> Bool {
+    static func ask(_ message: String, action: String, cancel: String = "Cancel") async -> Bool {
         let alert = NSAlert()
         alert.messageText = message
         alert.addButton(withTitle: action)
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: cancel)
         guard let window = NSApp.keyWindow else { return alert.runModal() == .alertFirstButtonReturn }
         return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
     }

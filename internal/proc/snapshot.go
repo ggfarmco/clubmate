@@ -16,6 +16,7 @@ type Process struct {
 	PPID      int       `json:"ppid"`
 	PGID      int       `json:"pgid"`
 	Comm      string    `json:"comm"`
+	Args      []string  `json:"args"`
 	StartTime time.Time `json:"startTime"`
 	RSSKiB    int64     `json:"rssKiB"`
 	CPU       float64   `json:"cpu"`

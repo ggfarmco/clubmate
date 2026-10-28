@@ -49,6 +49,123 @@ public struct SDUIOption: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct SDUIColumn: Sendable, Equatable, Identifiable {
+    public enum Align: String, Sendable {
+        case left
+        case right
+    }
+
+    public let id: String
+    public let title: String
+    public let align: Align
+    public let width: Double?
+
+    public init(id: String, title: String, align: Align, width: Double?) {
+        self.id = id
+        self.title = title
+        self.align = align
+        self.width = width
+    }
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let title = fields["title"]?.stringValue else { return nil }
+        let width = fields["width"]?.numberValue ?? 0
+        self.init(id: id, title: title, align: fields["align"]?.stringValue.flatMap(Align.init) ?? .left, width: width > 0 ? width : nil)
+    }
+}
+
+public struct SDUISpark: Sendable, Equatable {
+    public let values: [Double]
+    public let max: Double
+
+    public init(values: [Double], max: Double) {
+        self.values = values
+        self.max = max
+    }
+
+    init?(values: JSONValue?, max: JSONValue?) {
+        guard let max = max?.numberValue, max > 0 else { return nil }
+        self.init(values: values?.arrayValue?.compactMap(\.numberValue) ?? [], max: max)
+    }
+}
+
+public struct SDUICell: Sendable, Equatable {
+    public let text: String
+    public let bar: Double?
+    public let tone: String?
+    public let spark: SDUISpark?
+
+    public init(text: String, bar: Double?, tone: String?, spark: SDUISpark?) {
+        self.text = text
+        self.bar = bar
+        self.tone = tone
+        self.spark = spark
+    }
+
+    init(_ value: JSONValue) {
+        let fields = value.objectValue ?? [:]
+        let spark = fields["spark"]?.objectValue
+        let tone = fields["tone"]?.stringValue
+        self.init(
+            text: fields["text"]?.stringValue ?? "",
+            bar: fields["bar"]?.numberValue.map { Swift.min(Swift.max($0, 0), 1) },
+            tone: tone?.isEmpty == false ? tone : nil,
+            spark: spark.flatMap { SDUISpark(values: $0["values"], max: $0["max"]) }
+        )
+    }
+}
+
+public struct SDUITableRow: Sendable, Equatable, Identifiable {
+    public let id: String
+    public let depth: Int
+    public let hasChildren: Bool
+    public let expanded: Bool
+    public let muted: Bool
+    public let cells: [SDUICell]
+
+    public init(id: String, depth: Int, hasChildren: Bool, expanded: Bool, muted: Bool, cells: [SDUICell]) {
+        self.id = id
+        self.depth = depth
+        self.hasChildren = hasChildren
+        self.expanded = expanded
+        self.muted = muted
+        self.cells = cells
+    }
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let id = fields["id"]?.stringValue else { return nil }
+        self.init(
+            id: id,
+            depth: fields["depth"]?.numberValue.map { Swift.max(Int($0), 0) } ?? 0,
+            hasChildren: fields["hasChildren"]?.boolValue ?? false,
+            expanded: fields["expanded"]?.boolValue ?? false,
+            muted: fields["muted"]?.boolValue ?? false,
+            cells: fields["cells"]?.arrayValue?.map(SDUICell.init) ?? []
+        )
+    }
+}
+
+public struct SDUISort: Sendable, Equatable {
+    public let column: String
+    public let desc: Bool
+
+    public init(column: String, desc: Bool) {
+        self.column = column
+        self.desc = desc
+    }
+
+    public var value: JSONValue {
+        .object(["column": .string(column), "desc": .bool(desc)])
+    }
+
+    public static func next(clicking column: SDUIColumn, current: SDUISort?) -> SDUISort {
+        if let current, current.column == column.id {
+            return SDUISort(column: column.id, desc: !current.desc)
+        }
+        return SDUISort(column: column.id, desc: column.align == .right)
+    }
+}
+
 public struct SDUIChild: Sendable, Equatable, Identifiable {
     public let id: String
     public let node: SDUINode
@@ -79,6 +196,27 @@ extension SDUINode {
 
     public func options() -> [SDUIOption] {
         props["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
+    }
+
+    public func columns() -> [SDUIColumn] {
+        props["columns"]?.arrayValue?.compactMap(SDUIColumn.init) ?? []
+    }
+
+    public func tableRows() -> [SDUITableRow] {
+        props["rows"]?.arrayValue?.compactMap(SDUITableRow.init) ?? []
+    }
+
+    public func tableSort() -> SDUISort? {
+        guard let fields = props["sort"]?.objectValue, let column = fields["column"]?.stringValue, !column.isEmpty else { return nil }
+        return SDUISort(column: column, desc: fields["desc"]?.boolValue ?? false)
+    }
+
+    public func spark() -> SDUISpark? {
+        SDUISpark(values: props["values"], max: props["max"])
+    }
+
+    public func sparklineHeight() -> Double? {
+        props["height"]?.numberValue.flatMap { $0 > 0 ? $0 : nil }
     }
 
     public func values() -> [String] {

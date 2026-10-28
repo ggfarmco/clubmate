@@ -30,6 +30,9 @@ const (
 end
 vim.api.nvim_create_user_command("DiffviewOpen", function(ctx) if not vim.g.dv_fail then vim.cmd.tabnew() end; log(ctx.args) end, { nargs = "*" })
 vim.api.nvim_create_user_command("DiffviewClose", function() vim.cmd.tabclose(); log("close") end, {})`
+	stubSmartSplits = `_G.orig = function() vim.g.se = 1 end
+package.loaded["smart-splits"] = { config = { at_edge = _G.orig } }`
+	navDesc       = "clubmate navigate"
 	mainSlot      = "editor-nvim.main"
 	statusSlot    = "editor-nvim.status"
 	restartWait   = 15 * time.Second
@@ -178,17 +181,22 @@ func TestRestartRefusesUnsavedBuffers(t *testing.T) {
 func TestEdgeFocusesSidebar(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
-	drain(e.h.Client(t))
-	require.NoError(t, v.Command("lua require('clubmate').navigate('h')"))
-	n, ok := nextFocus(e.h.Client(t), 5*time.Second)
-	require.True(t, ok, "no ui.focus notification")
-	var focus struct {
-		Section string `json:"section"`
-		Slot    string `json:"slot"`
+	c := e.h.Client(t)
+	for _, dir := range []string{"h", "l"} {
+		drain(c)
+		require.NoError(t, v.Command("lua require('clubmate').navigate('"+dir+"')"))
+		n, ok := nextFocus(c, 5*time.Second)
+		require.True(t, ok, "no ui.focus notification for %s", dir)
+		var focus struct {
+			Section string `json:"section"`
+			Slot    string `json:"slot"`
+			Edge    string `json:"edge"`
+		}
+		require.NoError(t, json.Unmarshal(n.Params, &focus))
+		assert.Equal(t, "editor-nvim", focus.Section)
+		assert.Equal(t, "editor-nvim.sidebar", focus.Slot)
+		assert.Equal(t, dir, focus.Edge)
 	}
-	require.NoError(t, json.Unmarshal(n.Params, &focus))
-	assert.Equal(t, "editor-nvim", focus.Section)
-	assert.Equal(t, "editor-nvim.sidebar", focus.Slot)
 }
 
 func TestEdgeAfterPluginRestart(t *testing.T) {
@@ -226,6 +234,72 @@ func TestHookCreatesNoKeymaps(t *testing.T) {
 	assert.Empty(t, eval[string](t, v, "maparg('<C-H>', 'n')"))
 	assert.Equal(t, eval[string](t, ref, "maparg('<C-L>', 'n')"), eval[string](t, v, "maparg('<C-L>', 'n')"))
 	assert.ElementsMatch(t, eval[[]string](t, ref, lhs), eval[[]string](t, v, lhs))
+}
+
+func TestNavigationOverlayToggle(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	keys := []string{"<C-h>", "<C-j>", "<C-k>", "<C-l>", "<C-р>", "<C-о>", "<C-л>", "<C-д>"}
+	descs := func(v *nvim.Nvim) []string {
+		out := make([]string, 0, len(keys))
+		for _, k := range keys {
+			out = append(out, eval[string](t, v, "get(maparg('"+k+"', 'n', 0, 1), 'desc', '')"))
+		}
+		return out
+	}
+	enabled := slices.Repeat([]string{navDesc}, len(keys))
+	e.navigation(t, true)
+	assert.Equal(t, enabled, descs(v))
+	e.navigation(t, false)
+	assert.NotContains(t, descs(v), navDesc)
+	assert.Equal(t, ":help CTRL-L-default", eval[string](t, v, "get(maparg('<C-l>', 'n', 0, 1), 'desc', '')"))
+	e.navigation(t, true)
+	assert.Equal(t, enabled, descs(v))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": map[string]any{"force": true}}, nil))
+	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	restarted := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return slices.Equal(enabled, descs(restarted)) }, 5*time.Second)
+}
+
+func TestNavigationKeepsUserMappings(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	require.NoError(t, v.Command("nnoremap <C-j> <Cmd>let g:mine = 1<CR>"))
+	require.NoError(t, v.Command(`lua vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Move to left window" })`))
+	const move = "filter(maparg('<C-h>', 'n', 0, 1), {k -> index(['rhs', 'desc', 'noremap'], k) >= 0})"
+	before := eval[map[string]any](t, v, move)
+	assert.Equal(t, []string{"<C-j>"}, e.navigation(t, true))
+	assert.Equal(t, navDesc, eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')"))
+	e.navigation(t, false)
+	assert.Equal(t, before, eval[map[string]any](t, v, move))
+	assert.Equal(t, "<Cmd>let g:mine = 1<CR>", eval[string](t, v, "maparg('<C-j>', 'n')"))
+}
+
+func TestNavigationRespectsSmartSplits(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: stubSmartSplits})
+	v := dial(t, e.sock)
+	c := e.h.Client(t)
+	e.navigation(t, true)
+	assert.Empty(t, eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')"))
+	drain(c)
+	atEdge := func(dir string) {
+		require.NoError(t, v.Command(`lua package.loaded["smart-splits"].config.at_edge({ direction = "`+dir+`" })`))
+	}
+	atEdge("left")
+	assert.Equal(t, 0, eval[int](t, v, "get(g:, 'se', 0)"))
+	n, ok := nextFocus(c, 5*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	var focus struct {
+		Edge string `json:"edge"`
+	}
+	require.NoError(t, json.Unmarshal(n.Params, &focus))
+	assert.Equal(t, "h", focus.Edge)
+	atEdge("right")
+	assert.Equal(t, 1, eval[int](t, v, "get(g:, 'se', 0)"))
+	e.navigation(t, false)
+	assert.True(t, eval[bool](t, v, `luaeval('package.loaded["smart-splits"].config.at_edge == _G.orig')`))
 }
 
 func TestDiffOpensSideBySide(t *testing.T) {
@@ -472,6 +546,16 @@ func (e *editor) open(t *testing.T, path string, line int) error {
 	t.Helper()
 	args := map[string]any{"path": path, "line": line}
 	return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.open", "projectId": e.projectID, "args": args}, nil)
+}
+
+func (e *editor) navigation(t *testing.T, enabled bool) []string {
+	t.Helper()
+	var res struct {
+		Skipped []string `json:"skipped"`
+	}
+	args := map[string]any{"enabled": enabled, "side": "left"}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.navigation", "projectId": e.projectID, "args": args}, &res))
+	return res.Skipped
 }
 
 func (e *editor) running(t *testing.T) []string {

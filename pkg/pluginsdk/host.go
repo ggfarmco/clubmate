@@ -33,11 +33,13 @@ type Session struct {
 }
 
 type ProcessInfo struct {
-	PID    int     `json:"pid"`
-	PPID   int     `json:"ppid"`
-	Comm   string  `json:"comm"`
-	RSSKiB int64   `json:"rssKiB"`
-	CPU    float64 `json:"cpu"`
+	PID       int       `json:"pid"`
+	PPID      int       `json:"ppid"`
+	Comm      string    `json:"comm"`
+	Args      []string  `json:"args"`
+	StartTime time.Time `json:"startTime"`
+	RSSKiB    int64     `json:"rssKiB"`
+	CPU       float64   `json:"cpu"`
 }
 
 type ProcessNode struct {
@@ -105,6 +107,10 @@ func (h *Host) Focus(ctx context.Context, projectID, section, slot string) error
 	return h.Call(ctx, "ui.focus", map[string]string{"projectId": projectID, "section": section, "slot": slot}, nil)
 }
 
+func (h *Host) FocusEdge(ctx context.Context, projectID, section, slot, edge string) error {
+	return h.Call(ctx, "ui.focus", map[string]string{"projectId": projectID, "section": section, "slot": slot, "edge": edge}, nil)
+}
+
 func (h *Host) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
 	var out Session
 	err := h.Call(ctx, "session.create", req, &out)
@@ -115,6 +121,14 @@ func (h *Host) Presence(ctx context.Context) ([]string, error) {
 	var out []string
 	err := h.Call(ctx, "ui.presence", struct{}{}, &out)
 	return out, err
+}
+
+func (h *Host) SelectedSection(ctx context.Context, projectID string) (string, error) {
+	var out struct {
+		Section string `json:"section"`
+	}
+	err := h.Call(ctx, "ui.state.section", map[string]string{"projectId": projectID}, &out)
+	return out.Section, err
 }
 
 func (h *Host) RunCommand(ctx context.Context, id, projectID string, args any, out any) error {

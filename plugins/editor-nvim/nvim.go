@@ -45,6 +45,79 @@ m.navigate = function(dir)
   if vim.fn.winnr() == w then edge(dir) end
 end`
 
+const navLua = `local enabled, side = ...
+local m = package.loaded["clubmate"]
+local desc = "clubmate navigate"
+local keys = {
+  { "<C-h>", "h" }, { "<C-j>", "j" }, { "<C-k>", "k" }, { "<C-l>", "l" },
+  { "<C-р>", "h" }, { "<C-о>", "j" }, { "<C-л>", "k" }, { "<C-д>", "l" },
+}
+local function global(lhs)
+  for _, km in ipairs(vim.api.nvim_get_keymap("n")) do
+    if vim.keycode(km.lhs) == vim.keycode(lhs) then return km end
+  end
+end
+local function snapshot(lhs, km)
+  if not km then return nil end
+  local exact = vim.fn.maparg(lhs, "n", false, true)
+  return exact.buffer == 0 and exact or km
+end
+local function replaceable(km, dir)
+  if (km.desc or ""):match("^:help .+%-default$") then return true end
+  if type(km.rhs) ~= "string" or km.expr ~= 0 then return false end
+  local rhs = vim.keycode(km.rhs)
+  for _, move in ipairs({ "<C-w>" .. dir, "<C-w><C-" .. dir .. ">", "<Cmd>wincmd " .. dir .. "<CR>", ":wincmd " .. dir .. "<CR>" }) do
+    if rhs == vim.keycode(move) then return true end
+  end
+  return false
+end
+for _, key in ipairs(keys) do
+  local lhs = key[1]
+  local km = global(lhs)
+  if km and km.desc == desc then vim.keymap.del("n", lhs) end
+end
+for lhs, saved in pairs(m.nav_saved or {}) do
+  if not global(lhs) then vim.fn.mapset(saved) end
+end
+m.nav_saved = {}
+if m.nav_target and m.nav_target.at_edge == m.nav_wrapped then m.nav_target.at_edge = m.nav_orig end
+m.nav_target, m.nav_wrapped, m.nav_orig = nil, nil, nil
+if not enabled then return {} end
+local ss = package.loaded["smart-splits"]
+if ss then
+  local cfg = type(ss) == "table" and type(ss.config) == "table" and ss.config or nil
+  if not cfg then
+    local ok, loaded = pcall(require, "smart-splits.config")
+    cfg = ok and type(loaded) == "table" and loaded or nil
+  end
+  if cfg then
+    local target = type(cfg.move) == "table" and cfg.move or cfg
+    local orig = target.at_edge
+    local toward = side == "right" and "right" or "left"
+    local function wrapped(ctx)
+      if ctx.direction == toward then return require("clubmate").edge(ctx.direction) end
+      if type(orig) == "function" then return orig(ctx) end
+      if (orig == "wrap" or orig == "split") and type(ctx[orig]) == "function" then return ctx[orig]() end
+    end
+    target.at_edge = wrapped
+    m.nav_target, m.nav_wrapped, m.nav_orig = target, wrapped, orig
+  end
+  return {}
+end
+local skipped = {}
+for _, key in ipairs(keys) do
+  local lhs, dir = key[1], key[2]
+  local km = global(lhs)
+  if km and not replaceable(km, dir) then
+    skipped[#skipped + 1] = lhs
+  else
+    m.nav_saved[lhs] = snapshot(lhs, km)
+    vim.keymap.set("n", lhs, function() require("clubmate").navigate(dir) end, { desc = desc, silent = true })
+  end
+end
+table.sort(skipped)
+return skipped`
+
 const diffLua = `local path, rel, base, target, left, right = ...
 local ft = vim.filetype.match({ filename = path }) or ""
 local function scratch(name, text, dos)
@@ -232,6 +305,14 @@ func (c *client) hook() error {
 		return fmt.Errorf("nvim hook: %w", err)
 	}
 	return nil
+}
+
+func (c *client) navigation(nav navigationArgs) ([]string, error) {
+	var skipped []string
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(navLua, &skipped, nav.Enabled, nav.Side) }); err != nil {
+		return nil, fmt.Errorf("nvim navigation: %w", err)
+	}
+	return skipped, nil
 }
 
 func (c *client) open(path string, line int, light bool) error {

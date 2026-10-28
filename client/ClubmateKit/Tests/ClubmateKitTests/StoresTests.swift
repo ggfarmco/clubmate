@@ -42,6 +42,11 @@ final class StoresTests: XCTestCase {
     func testSelectedSectionPersists() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")
+        let fresh = ProjectUIStore(client: client, projectID: project.id)
+        try await fresh.start()
+        await fresh.stop()
+        let initial = try await client.uiStateGet(projectID: project.id)
+        XCTAssertEqual(initial, .object(["section": .string("terminals")]))
         let first = ProjectUIStore(client: client, projectID: project.id)
         try await first.start()
         XCTAssertEqual(first.selectedSection, "terminals")
@@ -56,6 +61,24 @@ final class StoresTests: XCTestCase {
         try await second.start()
         XCTAssertEqual(second.selectedSection, "echo")
         XCTAssertEqual(second.sidebarWidth, 240)
+        await second.stop()
+        await client.close()
+    }
+
+    func testSidebarHiddenPersists() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let first = ProjectUIStore(client: client, projectID: project.id)
+        try await first.start()
+        XCTAssertEqual(first.sidebarHidden, [:])
+        first.sidebarHidden["editor-nvim"] = true
+        await first.stop()
+        let state = try await client.uiStateGet(projectID: project.id)
+        XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object(["editor-nvim": .bool(true)]))
+
+        let second = ProjectUIStore(client: client, projectID: project.id)
+        try await second.start()
+        XCTAssertEqual(second.sidebarHidden, ["editor-nvim": true])
         await second.stop()
         await client.close()
     }
@@ -188,6 +211,7 @@ final class StoresTests: XCTestCase {
             (node("form", "f", action: "create"), .submit(.object([:])), "create", .object([:])),
             (node("folderField", "repos"), .pick(["/a"]), "pick", .array([.string("/a")])),
             (node("folderField", "repos", action: "add"), .pick(["/a"]), "add", .array([.string("/a")])),
+            (node("table", "procs", action: "focus"), .sort(column: "cpu", desc: true), "sort", .object(["column": .string("cpu"), "desc": .bool(true)])),
         ]
         for (node, trigger, action, value) in rows {
             let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", projectID: "prj_1")
@@ -201,6 +225,50 @@ final class StoresTests: XCTestCase {
             SDUINode(type: "button", id: "b", props: label.map { ["label": .string($0)] } ?? [:]).confirmActionTitle()
         }
         XCTAssertEqual(titles, ["Discard", "Delete", "OK"])
+    }
+
+    func testTableDecodes() throws {
+        let json = """
+        {"type": "table", "id": "procs", "props": {
+          "columns": [{"id": "name", "title": "Name"}, {"id": "cpu", "title": "CPU", "align": "right", "width": 60}],
+          "rows": [{"id": "42", "depth": 1, "hasChildren": true, "expanded": true, "muted": true, "cells": [
+            {"text": "nvim", "spark": {"values": [1, 3], "max": 4}},
+            {"text": "35%", "bar": 0.35, "tone": "warn"}
+          ]}],
+          "sort": {"column": "cpu", "desc": true},
+          "selected": "42"
+        }}
+        """
+        let table = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
+
+        XCTAssertEqual(table.columns(), [
+            SDUIColumn(id: "name", title: "Name", align: .left, width: nil),
+            SDUIColumn(id: "cpu", title: "CPU", align: .right, width: 60),
+        ])
+        XCTAssertEqual(table.tableRows(), [
+            SDUITableRow(id: "42", depth: 1, hasChildren: true, expanded: true, muted: true, cells: [
+                SDUICell(text: "nvim", bar: nil, tone: nil, spark: SDUISpark(values: [1, 3], max: 4)),
+                SDUICell(text: "35%", bar: 0.35, tone: "warn", spark: nil),
+            ]),
+        ])
+        XCTAssertEqual(table.tableSort(), SDUISort(column: "cpu", desc: true))
+        XCTAssertEqual(table.string("selected"), "42")
+    }
+
+    func testSparklineHeightDecodes() throws {
+        let sized = try JSONDecoder().decode(SDUINode.self, from: Data(#"{"type": "sparkline", "props": {"values": [1, 3], "max": 4, "height": 64}}"#.utf8))
+        XCTAssertEqual(sized.spark(), SDUISpark(values: [1, 3], max: 4))
+        XCTAssertEqual(sized.sparklineHeight(), 64)
+        XCTAssertNil(SDUINode(type: "sparkline", props: ["values": .array([]), "max": .number(1)]).sparklineHeight())
+    }
+
+    func testTableSortToggle() {
+        let name = SDUIColumn(id: "name", title: "Name", align: .left, width: nil)
+        let cpu = SDUIColumn(id: "cpu", title: "CPU", align: .right, width: 60)
+
+        XCTAssertEqual(SDUISort.next(clicking: name, current: nil), SDUISort(column: "name", desc: false))
+        XCTAssertEqual(SDUISort.next(clicking: cpu, current: SDUISort(column: "name", desc: false)), SDUISort(column: "cpu", desc: true))
+        XCTAssertEqual(SDUISort.next(clicking: cpu, current: SDUISort(column: "cpu", desc: true)), SDUISort(column: "cpu", desc: false))
     }
 
     func testFolderFieldInForm() {
@@ -230,21 +298,23 @@ final class StoresTests: XCTestCase {
     func testPaletteEntries() throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
         [{"id":"editor-nvim.terminal","title":"Open Terminal Here","plugin":"editor-nvim","hidden":false},
-         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true}]
+         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true},
+         {"id":"editor-nvim.navigation","title":"nvim Navigation Keys","plugin":"editor-nvim","hidden":true}]
         """#.utf8))
         let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
         [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"project","plugin":"editor-nvim"},
          {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","plugin":"terminals"}]
         """#.utf8))
 
-        let entries = CommandPalette.entries(commands: commands, sections: sections)
+        let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true)
 
-        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Open Projects"])
-        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘⇧O"])
+        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Toggle Sidebar", "Toggle nvim Navigation Keys", "Open Projects"])
+        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘B", "", "⌘⇧O"])
         XCTAssertEqual(
             entries.map { PaletteAction(entryID: $0.id) },
-            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .openProjects]
+            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .toggleNavigationKeys, .openProjects]
         )
+        XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle Sidebar" })
     }
 
     func testAppScopeStore() async throws {
@@ -274,6 +344,39 @@ final class StoresTests: XCTestCase {
         XCTAssertNil(CommandInvocation.close(section: "terminals", main: SDUINode(type: "empty"), commands: commands))
         XCTAssertNil(CommandInvocation.close(section: "echo", main: main, commands: commands))
     }
+
+    func testShouldAutoNew() throws {
+        let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
+        [{"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","autoNew":true,"plugin":"terminals"},
+         {"id":"echo","title":"Echo","icon":"","order":30,"scope":"project","plugin":"echo"}]
+        """#.utf8))
+        let surface = SDUINode(type: "stack", children: [SDUINode(type: "surface", props: ["sessionId": .string("ses_1")])])
+        let empty = SDUINode(type: "empty")
+
+        XCTAssertTrue(CommandInvocation.shouldAutoNew(section: sections[0], main: empty))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: surface))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: nil))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[1], main: empty))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: exited))
+    }
+
+    func testTerminalClose() throws {
+        let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
+        [{"id":"terminals.close","title":"Close","plugin":"terminals","hidden":false}]
+        """#.utf8))
+        let sidebar = SDUINode(type: "stack", children: [SDUINode(type: "list", id: "terminals", props: ["selected": .string("ses_1")])])
+        let close = CommandInvocation(id: "terminals.close", args: .object(["sessionId": .string("ses_1")]))
+
+        XCTAssertEqual(TerminalsSection.close(sidebar: sidebar, commands: commands), close)
+        XCTAssertNil(TerminalsSection.close(sidebar: SDUINode(type: "list", id: "terminals"), commands: commands))
+    }
+
+    func testTerminalBusyMessage() {
+        XCTAssertEqual(TerminalsSection.busyMessage(.object(["busy": .bool(true), "process": .string("sleep")])), "“sleep” is running. Close the terminal?")
+        XCTAssertNil(TerminalsSection.busyMessage(.object(["busy": .bool(false), "process": .string("")])))
+    }
+
+    private let exited = SDUINode(type: "stack", children: [SDUINode(type: "text", props: ["text": .string("Terminal exited (code 0)")]), SDUINode(type: "button", id: "restart")])
 
     private func startCore() async throws -> CoreClient {
         let core = try await TestCore.start()

@@ -174,6 +174,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, nil
 	case "files.toggle-ignored":
 		return nil, a.toggleIgnored(ctx, h, cmd.ProjectID)
+	case "files.collapse-others":
+		return nil, a.collapseOthers(ctx, h, cmd.ProjectID)
 	case "files.reveal":
 		var args pathArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -434,6 +436,14 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	for i, r := range s.repos {
 		roots[i] = Root{Path: r}
 	}
+	status := s.mergedStatus()
+	expanded, selected, hide := maps.Clone(s.expanded), s.selected, s.hideIgn
+	s.mu.Unlock()
+	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status, hide), selected))
+	return err
+}
+
+func (s *state) mergedStatus() map[string]string {
 	status := map[string]string{}
 	for _, repo := range s.repos {
 		maps.Copy(status, s.status[repo])
@@ -441,10 +451,11 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 			status[p] = ignoredCode
 		}
 	}
-	expanded, selected, hide := maps.Clone(s.expanded), s.selected, s.hideIgn
-	s.mu.Unlock()
-	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status, hide), selected))
-	return err
+	return status
+}
+
+func (s *state) hasOpenBelow(item string) bool {
+	return s.expanded[item] || openAncestors(s.expanded)[item]
 }
 
 func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
@@ -453,7 +464,7 @@ func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	}
 	s.mu.Lock()
 	inside := containing(s.repos, item) != ""
-	expanded := s.expanded[item]
+	expanded := s.hasOpenBelow(item)
 	s.mu.Unlock()
 	if !inside {
 		return fmt.Errorf("%w: %q", errOutsideRepos, item)
@@ -510,7 +521,7 @@ func (a *app) setExpanded(ctx context.Context, h *pluginsdk.Host, id string, s *
 	if on {
 		s.expanded[item] = true
 	} else {
-		delete(s.expanded, item)
+		s.collapseLocked(item)
 	}
 	keys := sortedKeys(s.expanded)
 	s.mu.Unlock()
@@ -521,6 +532,46 @@ func (a *app) setExpanded(ctx context.Context, h *pluginsdk.Host, id string, s *
 		a.classify(ctx, s, item)
 	}
 	return a.render(ctx, h, id, s)
+}
+
+func (a *app) collapseOthers(ctx context.Context, h *pluginsdk.Host, id string) error {
+	s := a.get(id)
+	if err := a.ensure(ctx, h, id, s); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	keep := map[string]bool{}
+	for _, r := range s.repos {
+		keep[r] = true
+	}
+	if repo := containing(s.repos, s.selected); repo != "" {
+		for dir := filepath.Dir(s.selected); len(dir) >= len(repo); dir = filepath.Dir(dir) {
+			keep[dir] = true
+		}
+	}
+	s.expanded = keep
+	keys := sortedKeys(keep)
+	s.mu.Unlock()
+	if err := h.StorageSet(ctx, expandedKey(id), keys); err != nil {
+		return err
+	}
+	return a.render(ctx, h, id, s)
+}
+
+func (s *state) collapseLocked(item string) {
+	for p := range s.expanded {
+		if p == item || strings.HasPrefix(p, item+"/") {
+			delete(s.expanded, p)
+		}
+	}
+	repo := containing(s.repos, item)
+	b := &builder{status: s.mergedStatus(), hide: s.hideIgn, reads: map[string][]entry{}}
+	for child, dir := item, filepath.Dir(item); repo != "" && dir != repo && len(dir) > len(repo); child, dir = dir, filepath.Dir(dir) {
+		if name, ok := b.onlyDir(dir); !ok || name != filepath.Base(child) {
+			break
+		}
+		delete(s.expanded, dir)
+	}
 }
 
 func (a *app) classify(ctx context.Context, s *state, dir string) {

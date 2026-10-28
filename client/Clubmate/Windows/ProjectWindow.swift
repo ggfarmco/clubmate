@@ -13,6 +13,7 @@ struct ProjectWindow: View {
     @State private var session: ProjectSession?
     @State private var presence = ProjectPresence()
     @State private var focus = FocusRouter()
+    @State private var autoNewDone: String?
 
     var body: some View {
         content
@@ -21,6 +22,7 @@ struct ProjectWindow: View {
             .navigationTitle(title)
             .environment(\.surfaceDeck, session?.deck)
             .environment(\.focusRouter, focus)
+            .environment(\.sidebarSide, app.settings.sidebarSide)
             .eventBanner(session?.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
             .focusedSceneValue(\.projectSession, session)
@@ -32,8 +34,28 @@ struct ProjectWindow: View {
                 if session == nil, let projectID { session = app.session(for: projectID) }
             }
             .onChange(of: session?.store?.focusRequest) { _, request in
-                guard let request, !request.slot.isEmpty else { return }
+                guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }
+                if request.slot.hasSuffix(Self.sidebarSuffix) {
+                    session?.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
+                }
                 focus.request(request.slot)
+            }
+            .onChange(of: session?.store?.connected, initial: true) { _, connected in
+                if connected == true { app.syncNavigationKeys() }
+            }
+            .onChange(of: session?.store?.selectedSection, initial: true) { _, section in
+                if section == CodeSection.id { app.askNavigationKeys() }
+            }
+            .onChange(of: autoNewKey, initial: true) { old, new in
+                if old.section != new.section { autoNewDone = nil }
+                autoNew()
+            }
+            .onChange(of: sidebarKey) { old, new in
+                guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
+                focus.request("\(new.section).main")
+            }
+            .onChange(of: app.settings.autoHideSidebar) { _, enabled in
+                if !enabled { session?.store?.sidebarAutoHidden = false }
             }
             .onChange(of: listed, initial: true) { _, present in
                 guard let present, presence.observe(present) else { return }
@@ -41,9 +63,39 @@ struct ProjectWindow: View {
             }
     }
 
+    private static let sidebarSuffix = ".sidebar"
+
     private var listed: Bool? {
         guard let projectID, let projects = app.projects?.projects else { return nil }
         return projects.contains { $0.id == projectID }
+    }
+
+    private struct AutoNewKey: Equatable {
+        let section: String?
+        let loaded: Bool
+    }
+
+    private struct SidebarKey: Equatable {
+        let section: String
+        let hidden: Bool
+    }
+
+    private var sidebarKey: SidebarKey? {
+        guard let store = session?.store, let section = store.selectedSection else { return nil }
+        return SidebarKey(section: section, hidden: app.settings.hidesSidebar(section, manual: store.sidebarHidden[section] == true, autoHidden: store.sidebarAutoHidden))
+    }
+
+    private var autoNewKey: AutoNewKey {
+        let section = session?.store?.selectedSection
+        return AutoNewKey(section: section, loaded: section.flatMap { session?.store?.mainTree($0) } != nil)
+    }
+
+    private func autoNew() {
+        guard let session, let store = session.store, let section = store.selectedSection, autoNewDone != section,
+              let main = store.mainTree(section) else { return }
+        autoNewDone = section
+        guard CommandInvocation.shouldAutoNew(section: store.sections.first { $0.id == section }, main: main) else { return }
+        session.run(.new(section: section, commands: app.commands))
     }
 
     private var title: String {
@@ -53,16 +105,36 @@ struct ProjectWindow: View {
 
     @ViewBuilder private var content: some View {
         if let session, let store = session.store, let section = store.selectedSection {
+            let side = app.settings.sidebarSide
+            let sidebar = sidebarKey?.hidden == true ? nil : side
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Rail(sections: store.sections, selected: section) { store.selectedSection = $0 }
                     theme.border.frame(width: 1)
-                    SidebarPane(store: store, slot: "\(section).sidebar")
+                    if sidebar == .left {
+                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .left)
+                    }
                     SlotPane(store: store, slot: "\(section).main")
-                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID))
+                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID) {
+                            if app.settings.autoHides(section) { store.sidebarAutoHidden = true }
+                        })
                         .overlay(alignment: .top) {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
+                    if sidebar == .right {
+                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .right)
+                    }
+                }
+                .background {
+                    Group {
+                        Button("Toggle Sidebar") { store.toggleSidebar(app.settings) }
+                            .keyboardShortcut("s", modifiers: [.command, .control])
+                        Button("Increase Font Size") { app.stepTerminalFont(1) }
+                            .keyboardShortcut("+")
+                    }
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 }
                 .frame(maxHeight: .infinity)
                 .clipped()
@@ -101,13 +173,15 @@ struct ProjectWindow: View {
     }
 
     private func paletteEntries() -> [PaletteEntry] {
-        CommandPalette.entries(commands: app.commands, sections: session?.store?.sections ?? [])
+        CommandPalette.entries(commands: app.commands, sections: session?.store?.sections ?? [], sidebar: true)
     }
 
     private func perform(_ action: PaletteAction) {
         switch action {
         case .command(let id): confirm(id)
         case .section(let id): session?.store?.selectedSection = id
+        case .toggleSidebar: session?.store?.toggleSidebar(app.settings)
+        case .toggleNavigationKeys: app.settings.navigationKeys = !(app.settings.navigationKeys ?? false)
         case .openProjects: openWindow(id: "projects")
         }
     }
@@ -128,6 +202,7 @@ struct ProjectWindow: View {
 private struct MainFocus: ViewModifier {
     let slot: String
     let surface: String?
+    let claimed: () -> Void
 
     @FocusState private var focused: Bool
     @Environment(\.focusRouter) private var router
@@ -146,6 +221,7 @@ private struct MainFocus: ViewModifier {
     private func claim() {
         guard router?.take(slot) == true else { return }
         if let surface { deck?.focus(surface) } else { focused = true }
+        claimed()
     }
 }
 
@@ -155,8 +231,10 @@ struct SlotPane: View {
 
     var body: some View {
         if let view = store.slots[slot] {
-            SDUIView(node: view.tree, slot: slot, projectID: store.projectID) { [store] event in
+            SDUIView(node: view.tree, slot: slot, projectID: store.projectID, owner: view.owner) { [store] event in
                 await store.send(event)
+            } run: { [store] invocation in
+                await store.run(invocation)
             }
         } else {
             EmptyNodeView(text: "")
@@ -167,6 +245,7 @@ struct SlotPane: View {
 private struct SidebarPane: View {
     let store: ProjectUIStore
     let slot: String
+    let side: SidebarSide
 
     @Environment(\.theme) private var theme
     @State private var dragStart: CGFloat?
@@ -182,19 +261,24 @@ private struct SidebarPane: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            if side == .right { handle }
             SlotPane(store: store, slot: slot)
                 .frame(width: width)
-            theme.border
-                .frame(width: 1)
-                .overlay {
-                    Color.clear
-                        .frame(width: 7)
-                        .contentShape(Rectangle())
-                        .onHover(perform: hover)
-                        .gesture(resize)
-                }
-                .zIndex(1)
+            if side == .left { handle }
         }
+    }
+
+    private var handle: some View {
+        theme.border
+            .frame(width: 1)
+            .overlay {
+                Color.clear
+                    .frame(width: 7)
+                    .contentShape(Rectangle())
+                    .onHover(perform: hover)
+                    .gesture(resize)
+            }
+            .zIndex(1)
     }
 
     private var resize: some Gesture {
@@ -202,7 +286,8 @@ private struct SidebarPane: View {
             .onChanged { drag in
                 let start = dragStart ?? width
                 dragStart = start
-                dragWidth = min(max(start + drag.translation.width, Self.range.lowerBound), Self.range.upperBound)
+                let delta = side == .left ? drag.translation.width : -drag.translation.width
+                dragWidth = min(max(start + delta, Self.range.lowerBound), Self.range.upperBound)
             }
             .onEnded { _ in
                 if let dragWidth { store.sidebarWidth = Double(dragWidth) }

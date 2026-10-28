@@ -36,7 +36,19 @@ public struct SectionInfo: Codable, Sendable, Equatable {
     public let icon: String
     public let order: Int
     public let scope: String
+    public let autoNew: Bool
     public let plugin: String
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        icon = try container.decode(String.self, forKey: .icon)
+        order = try container.decode(Int.self, forKey: .order)
+        scope = try container.decode(String.self, forKey: .scope)
+        autoNew = try container.decodeIfPresent(Bool.self, forKey: .autoNew) ?? false
+        plugin = try container.decode(String.self, forKey: .plugin)
+    }
 }
 
 public struct Project: Codable, Sendable, Equatable {

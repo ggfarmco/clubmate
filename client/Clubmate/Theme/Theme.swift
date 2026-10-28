@@ -9,16 +9,24 @@ struct Theme: Sendable {
     var warning: Color
     var danger: Color
     var fontFamily: String?
+    var uiSize: CGFloat = 12
 
     var muted: Color { foreground.opacity(0.55) }
     var border: Color { foreground.opacity(0.10) }
 
-    var ui: Font { font(size: 12) }
-    var uiSmall: Font { font(size: 11) }
-    var title: Font { font(size: 13).weight(.semibold) }
+    var ui: Font { font(size: uiSize) }
+    var uiSmall: Font { font(size: uiSize - 1) }
+    var title: Font { font(size: uiSize + 1).weight(.semibold) }
 
-    let rowHeight: CGFloat = 22
+    var rowHeight: CGFloat { (uiSize * 5 / 3).rounded() }
     let gutter: CGFloat = 8
+    let indent: CGFloat = 12
+
+    func scaled(_ size: Double) -> Theme {
+        var theme = self
+        theme.uiSize = size
+        return theme
+    }
 
     private func font(size: CGFloat) -> Font {
         guard let fontFamily, !fontFamily.isEmpty else { return .system(size: size, design: .monospaced) }

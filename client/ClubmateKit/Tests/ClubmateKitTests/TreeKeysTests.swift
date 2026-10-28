@@ -54,7 +54,6 @@ final class TreeKeysTests: XCTestCase {
             (126, false, .move(-1)),
             (37, false, .expand),
             (124, false, .expand),
-            (37, true, .focusMain),
             (4, false, .collapse),
             (123, false, .collapse),
             (36, false, .activate),
@@ -62,9 +61,41 @@ final class TreeKeysTests: XCTestCase {
             (53, false, .focusMain),
         ]
         for (keyCode, control, action) in rows {
-            XCTAssertEqual(TreeKeys.action(keyCode: keyCode, control: control, command: false), action, "\(keyCode) control=\(control)")
+            for side in SidebarSide.allCases {
+                XCTAssertEqual(TreeKeys.action(keyCode: keyCode, control: control, command: false, side: side), action, "\(keyCode) control=\(control) \(side)")
+            }
         }
-        XCTAssertNil(TreeKeys.action(keyCode: 40, control: false, command: true))
+        XCTAssertNil(TreeKeys.action(keyCode: 40, control: false, command: true, side: .left))
+    }
+
+    func testTreeEdgeKeyFollowsSide() {
+        XCTAssertEqual(TreeKeys.action(keyCode: 37, control: true, command: false, side: .left), .focusMain)
+        XCTAssertNil(TreeKeys.action(keyCode: 4, control: true, command: false, side: .left))
+        XCTAssertEqual(TreeKeys.action(keyCode: 4, control: true, command: false, side: .right), .focusMain)
+        XCTAssertNil(TreeKeys.action(keyCode: 37, control: true, command: false, side: .right))
+    }
+
+    func testCollapseOthersKey() {
+        XCTAssertEqual(TreeKeys.action(keyCode: 27, control: false, command: false, side: .left), .collapseOthers)
+        XCTAssertEqual(TreeCursor.resolve(.collapseOthers, cursor: nil, in: []), .run("files.collapse-others"))
+    }
+
+    func testStickyHeaders() {
+        let rows = [
+            TreeRow(id: "a", depth: 0, parent: nil, hasChildren: true, expanded: true),
+            TreeRow(id: "a1", depth: 1, parent: "a", hasChildren: true, expanded: true),
+            TreeRow(id: "a1x", depth: 2, parent: "a1", hasChildren: false, expanded: false),
+            TreeRow(id: "a1y", depth: 2, parent: "a1", hasChildren: false, expanded: false),
+            TreeRow(id: "a2", depth: 1, parent: "a", hasChildren: false, expanded: false),
+            TreeRow(id: "b", depth: 0, parent: nil, hasChildren: false, expanded: false),
+        ]
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 0, limit: 4), [])
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 1, limit: 4), ["a", "a1"])
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 1, limit: 1), ["a"])
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 3, limit: 4), ["a"])
+        XCTAssertEqual(TreeCursor.stickyTarget("a1", in: rows, limit: 4), "a")
+        XCTAssertEqual(TreeCursor.scrollTarget("a1x", from: "a1y", in: rows, limit: 4), "a")
+        XCTAssertEqual(TreeCursor.scrollTarget("a1y", from: "a1x", in: rows, limit: 4), "a1y")
     }
 
     func testCommandConfirmDecoded() throws {

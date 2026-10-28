@@ -55,7 +55,7 @@ func NewPluginHarness(t *testing.T, pluginDirs ...string) *PluginHarness {
 func NewHarness(t *testing.T, opts ...plugin.SupervisorOption) *PluginHarness {
 	t.Helper()
 	h := &PluginHarness{Store: internalsdui.NewStore(), Dirs: ShortDirs(t)}
-	h.Svc, h.Bus = NewServiceWithBus(t, core.WithExcludePIDs(func() []int { return h.Sup.PIDs() }))
+	h.Svc, h.Bus = NewServiceWithBusIn(t, h.Dirs, core.WithExcludePIDs(func() []int { return h.Sup.PIDs() }))
 	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })

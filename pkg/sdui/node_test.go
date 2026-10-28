@@ -18,3 +18,10 @@ func TestNodeJSONShape(t *testing.T) {
 		{"type":"button","id":"new","props":{"label":"New"}},
 		{"type":"text","props":{"text":"hi","style":"muted"}}]}`, string(raw))
 }
+
+func TestSparkValuesClamped(t *testing.T) {
+	values := []float64{-5, 50, 101}
+	want := []float64{0, 50, 100}
+	assert.Equal(t, want, sdui.Sparkline("s", values, 100).Props["values"])
+	assert.Equal(t, want, sdui.NewSpark(values, 100).Values)
+}

@@ -1,7 +1,9 @@
 package main_test
 
 import (
+	"context"
 	"encoding/json"
+	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -11,6 +13,7 @@ import (
 
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/internal/wire"
 	"clubmate/pkg/sdui"
 )
 
@@ -82,6 +85,35 @@ func TestNewTerminalFocusesMainSlot(t *testing.T) {
 			t.Fatal("no ui.focus notification")
 		}
 	}
+}
+
+func TestTerminalBusy(t *testing.T) {
+	h := newHarness(t)
+	p := h.CreateProject(t, "demo")
+	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
+	c := h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
+	sid := h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" }).Props["sessionId"].(string)
+	t.Cleanup(func() {
+		_ = c.Call(context.Background(), "command.run", map[string]any{"id": "terminals.close", "projectId": p.ID, "args": map[string]string{"sessionId": sid}}, nil)
+		h.WaitSessionGone(t, sid)
+	})
+	busy := func(want bool, process string) func() bool {
+		return func() bool {
+			var got struct {
+				Busy    bool   `json:"busy"`
+				Process string `json:"process"`
+			}
+			err := c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.busy", "projectId": p.ID, "args": map[string]string{"sessionId": sid}}, &got)
+			return err == nil && got.Busy == want && got.Process == process
+		}
+	}
+	testutil.Eventually(t, busy(false, ""), 5*time.Second)
+	conn, err := net.Dial("unix", h.Dirs.SessionSocket(sid))
+	require.NoError(t, err)
+	defer conn.Close()
+	require.NoError(t, wire.WriteFrame(conn, wire.Frame{Type: wire.FrameData, Payload: []byte("sleep 100\n")}))
+	testutil.Eventually(t, busy(true, "sleep"), 5*time.Second)
 }
 
 func newHarness(t *testing.T) *testutil.PluginHarness {

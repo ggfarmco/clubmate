@@ -67,11 +67,10 @@ func TestBufferEventReveals(t *testing.T) {
 	require.NoError(t, err)
 
 	tree := h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return len(n.Children) == 1 && n.Children[0].Props["selected"] == file })
-	for _, dir := range []string{filepath.Join(repo, "x"), nested} {
-		it, ok := find(items(t, tree), dir)
-		require.True(t, ok, dir)
-		assert.True(t, it.Expanded, dir)
-	}
+	it, ok := find(items(t, tree), nested)
+	require.True(t, ok)
+	assert.True(t, it.Expanded)
+	assert.Equal(t, "x / y", it.Label)
 
 	created := filepath.Join(nested, "new.go")
 	require.NoError(t, os.WriteFile(created, nil, 0o600))
@@ -124,4 +123,48 @@ func TestGitBadgesFollowRepoChanges(t *testing.T) {
 	h.WaitSlot(t, p.ID, sidebarSlot, badge(dir, "•"))
 	git("commit", "-qam", "two")
 	h.WaitSlot(t, p.ID, sidebarSlot, badge(dir, ""))
+}
+
+func TestCollapseOthers(t *testing.T) {
+	h := testutil.NewPluginHarness(t,
+		testutil.BuildPluginDir(t, "clubmate/plugins/files", "plugins/files/plugin.json"),
+		testutil.EchoPluginDirAs(t, editorManifest),
+	)
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	deep := filepath.Join(repo, "a", "b", "c")
+	file := filepath.Join(deep, "x.go")
+	require.NoError(t, os.MkdirAll(deep, 0o700))
+	require.NoError(t, os.WriteFile(file, nil, 0o600))
+	for _, d := range []string{"d", "e"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(repo, d, "sub"), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(repo, d, "f.go"), nil, 0o600))
+	}
+	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	require.NoError(t, err)
+	var sub struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Type == "scroll" })
+	for _, d := range []string{deep, filepath.Join(repo, "d"), filepath.Join(repo, "e")} {
+		h.Event(t, p.ID, sidebarSlot, "files", "expand", d)
+	}
+	payload, err := json.Marshal(map[string]string{"projectId": p.ID, "path": file})
+	require.NoError(t, err)
+	_, err = h.Bus.Publish(t.Context(), "editor.buffer", "editor-nvim", payload)
+	require.NoError(t, err)
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return len(n.Children) == 1 && n.Children[0].Props["selected"] == file })
+
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "files.collapse-others", "projectId": p.ID}, nil))
+
+	tree := h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool {
+		it, ok := find(items(t, n), filepath.Join(repo, "d"))
+		return ok && !it.Expanded
+	})
+	for dir, want := range map[string]bool{repo: true, deep: true, filepath.Join(repo, "e"): false} {
+		it, ok := find(items(t, tree), dir)
+		require.True(t, ok, dir)
+		assert.Equal(t, want, it.Expanded, dir)
+	}
 }

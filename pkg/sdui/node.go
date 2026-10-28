@@ -32,6 +32,39 @@ type Option struct {
 	Label string `json:"label"`
 }
 
+type Column struct {
+	ID    string  `json:"id"`
+	Title string  `json:"title"`
+	Align string  `json:"align,omitempty"`
+	Width float64 `json:"width,omitempty"`
+}
+
+type TableRow struct {
+	ID          string `json:"id"`
+	Depth       int    `json:"depth,omitempty"`
+	HasChildren bool   `json:"hasChildren,omitempty"`
+	Expanded    bool   `json:"expanded,omitempty"`
+	Muted       bool   `json:"muted,omitempty"`
+	Cells       []Cell `json:"cells"`
+}
+
+type Cell struct {
+	Text  string   `json:"text,omitempty"`
+	Bar   *float64 `json:"bar,omitempty"`
+	Tone  string   `json:"tone,omitempty"`
+	Spark *Spark   `json:"spark,omitempty"`
+}
+
+type Spark struct {
+	Values []float64 `json:"values"`
+	Max    float64   `json:"max"`
+}
+
+type Sort struct {
+	Column string `json:"column"`
+	Desc   bool   `json:"desc,omitempty"`
+}
+
 func VStack(children ...Node) Node {
 	return Node{Type: "stack", Props: map[string]any{"direction": "vertical"}, Children: children}
 }
@@ -58,6 +91,28 @@ func List(id string, items []Item, selected string) Node {
 
 func Tree(id string, items []TreeItem, selected string) Node {
 	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
+}
+
+func Table(id string, columns []Column, rows []TableRow, selected string, sort Sort) Node {
+	props := withOptional(map[string]any{"columns": nonNil(columns), "rows": nonNil(rows)}, "selected", selected)
+	if sort.Column != "" {
+		props["sort"] = sort
+	}
+	return Node{Type: "table", ID: id, Props: props}
+}
+
+func Sparkline(id string, values []float64, maxValue float64) Node {
+	return Node{Type: "sparkline", ID: id, Props: map[string]any{"values": clamp(values, maxValue), "max": maxValue}}
+}
+
+func NewSpark(values []float64, maxValue float64) *Spark {
+	return &Spark{Values: clamp(values, maxValue), Max: maxValue}
+}
+
+func SparklineSized(id string, values []float64, maxValue, height float64) Node {
+	n := Sparkline(id, values, maxValue)
+	n.Props["height"] = height
+	return n
 }
 
 func Text(text string) Node {
@@ -135,6 +190,14 @@ func WithConfirm(n Node, text string) Node {
 	props["confirm"] = text
 	n.Props = props
 	return n
+}
+
+func clamp(values []float64, maxValue float64) []float64 {
+	out := make([]float64, len(values))
+	for i, v := range values {
+		out[i] = min(max(v, 0), maxValue)
+	}
+	return out
 }
 
 func withOptional(props map[string]any, key, value string) map[string]any {

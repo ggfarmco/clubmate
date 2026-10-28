@@ -15,7 +15,7 @@ struct ProjectsWindow: View {
             .frame(minWidth: 480, minHeight: 360)
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .eventBanner(session.banner)
-            .commandPalette(session, entries: { CommandPalette.entries(commands: [], sections: []) }) { _ in
+            .commandPalette(session, entries: { CommandPalette.entries(commands: [], sections: [], sidebar: false) }) { _ in
                 openWindow(id: "projects")
             }
             .focusedSceneValue(\.projectSession, session)
