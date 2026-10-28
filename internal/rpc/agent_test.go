@@ -38,11 +38,11 @@ func TestAgentCannotReachHidden(t *testing.T) {
 }
 
 func TestDestructiveNeedsApproval(t *testing.T) {
-	h, p := startAlpha(t, `{"id":"alpha.say","title":"Drop Everything","agent":true,"destructive":true}`)
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Drop Everything","agent":true,"destructive":true,"args":{"properties":{"n":{"type":"integer"}}}}`)
 	c := h.Client(t)
 	run := func() (map[string]any, error) {
 		var out map[string]any
-		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"n": 1}}, &out)
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"n": 1, "hidden": "x"}}, &out)
 		return out, err
 	}
 	_, err := run()

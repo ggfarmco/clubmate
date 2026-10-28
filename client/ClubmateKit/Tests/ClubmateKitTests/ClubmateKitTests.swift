@@ -71,6 +71,12 @@ final class ClubmateKitTests: XCTestCase {
         XCTAssertEqual(request.detail, "Workspace: demo\nCommand: terminals.close\nforce: true\nline: 3\nsessionId: ses_1")
     }
 
+    func testConfirmDetailEscapesAndCaps() {
+        let long = String(repeating: "x", count: 300)
+        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id\nCommand: fake": .string("ses_1\nApproved: yes"), "note": .string(long)]))
+        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nid\\nCommand: fake: ses_1\\nApproved: yes\nnote: \(String(repeating: "x", count: 200))…")
+    }
+
     func testAgentApprovalRoundTrip() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")

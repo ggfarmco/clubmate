@@ -52,8 +52,9 @@ func (s *Server) approve(ctx context.Context, c Command, projectID string, args 
 		}
 		workspace = p.Name
 	}
-	if len(args) == 0 || string(args) == "null" {
-		args = json.RawMessage("{}")
+	args, err := declaredArgs(c, args)
+	if err != nil {
+		return err
 	}
 	conn, release, err := s.approver(projectID)
 	if err != nil {
@@ -73,6 +74,24 @@ func (s *Server) approve(ctx context.Context, c Command, projectID string, args 
 		return errDeniedByUser
 	}
 	return nil
+}
+
+func declaredArgs(c Command, raw json.RawMessage) (json.RawMessage, error) {
+	fields := map[string]json.RawMessage{}
+	if len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams("args: want object")
+		}
+	}
+	shown := map[string]json.RawMessage{}
+	if c.Args != nil {
+		for name, v := range fields {
+			if _, ok := c.Args.Properties[name]; ok {
+				shown[name] = v
+			}
+		}
+	}
+	return json.Marshal(shown)
 }
 
 func (s *Server) approver(projectID string) (*jsonrpc2.Conn, func(), error) {

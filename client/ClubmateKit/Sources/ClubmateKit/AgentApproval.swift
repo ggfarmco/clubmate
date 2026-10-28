@@ -1,6 +1,9 @@
 import Foundation
 
 public struct ConfirmRequest: Decodable, Sendable, Equatable {
+    static let valueLimit = 200
+    static let fieldLimit = 10
+
     public let title: String
     public let workspace: String
     public let command: String
@@ -14,15 +17,39 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     }
 
     public var message: String {
-        "Allow agent to \(title.prefix(1).lowercased() + title.dropFirst())?"
+        let title = Self.clean(title)
+        return "Allow agent to \(title.prefix(1).lowercased() + title.dropFirst())?"
     }
 
     public var detail: String {
-        var lines = ["Workspace: \(workspace.isEmpty ? "none" : workspace)", "Command: \(command)"]
-        if let fields = args.objectValue {
-            lines += fields.keys.sorted().map { "\($0): \(fields[$0].map(Self.summary) ?? "")" }
+        var lines = ["Workspace: \(workspace.isEmpty ? "none" : Self.clean(workspace))", "Command: \(Self.clean(command))"]
+        switch args {
+        case .null:
+            break
+        case .object(let fields):
+            let keys = fields.keys.sorted()
+            lines += keys.prefix(Self.fieldLimit).map { "\(Self.clean($0)): \(fields[$0].map(Self.summary) ?? "")" }
+            if keys.count > Self.fieldLimit { lines.append("… and \(keys.count - Self.fieldLimit) more") }
+        default:
+            lines.append("Args (not an object): \(Self.summary(args))")
         }
         return lines.joined(separator: "\n")
+    }
+
+    static func clean(_ text: String) -> String {
+        var out = ""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            case "\t": out += "\\t"
+            case _ where CharacterSet.controlCharacters.contains(scalar):
+                out += "\\u{\(String(scalar.value, radix: 16))}"
+            default:
+                out.unicodeScalars.append(scalar)
+            }
+        }
+        return out.count > valueLimit ? String(out.prefix(valueLimit)) + "…" : out
     }
 
     private static func summary(_ value: JSONValue) -> String {
@@ -30,10 +57,10 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         case .null: return "null"
         case .bool(let value): return String(value)
         case .number(let value): return value == value.rounded() && abs(value) < 1e15 ? String(Int64(value)) : String(value)
-        case .string(let value): return value
+        case .string(let value): return clean(value)
         case .array, .object:
             guard let data = try? JSONEncoder().encode(value) else { return "" }
-            return String(decoding: data, as: UTF8.self)
+            return clean(String(decoding: data, as: UTF8.self))
         }
     }
 }
