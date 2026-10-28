@@ -470,7 +470,7 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 }
 
 func (a *app) review(ctx context.Context, h *pluginsdk.Host, e *editor, args reviewArgs) (reviewResult, error) {
-	if !filepath.IsAbs(args.Repo) || args.Base == "" || strings.HasPrefix(args.Base, "-") {
+	if !filepath.IsAbs(args.Repo) || args.Base == "" || strings.HasPrefix(args.Base, "-") || strings.ContainsAny(args.Base, " \t\n\r\v\f") {
 		return reviewResult{}, errReviewArgs
 	}
 	c, err := a.ensure(ctx, h, e)

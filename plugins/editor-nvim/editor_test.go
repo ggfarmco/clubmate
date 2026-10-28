@@ -250,21 +250,13 @@ func TestDiffOpensSideBySide(t *testing.T) {
 	})
 }
 
-func TestReviewOpensDiffview(t *testing.T) {
-	e := startEditorIn(t, setup{initLua: stubDiffview})
-	repo := e.dir(t, "repo dir")
-	v := dial(t, e.sock)
-	assert.Equal(t, "diffview", e.review(t, repo, "feature/x"))
-	assert.Equal(t, []string{openLog(t, v, repo)}, eval[[]string](t, v, "g:dv_log"))
-}
-
 func TestReviewReplacesTab(t *testing.T) {
 	e := startEditorIn(t, setup{initLua: stubDiffview})
 	repo := e.dir(t, "repo dir")
 	v := dial(t, e.sock)
+	assert.Equal(t, "diffview", e.review(t, repo, "feature/x"))
 	e.review(t, repo, "feature/x")
-	e.review(t, repo, "feature/x")
-	open := openLog(t, v, repo)
+	open := openLog(t, v, repo, "feature/x")
 	assert.Equal(t, []string{open, "close", open}, eval[[]string](t, v, "g:dv_log"))
 	assert.Equal(t, 2, eval[int](t, v, "tabpagenr('$')"))
 }
@@ -275,7 +267,7 @@ func TestReviewFailedOpenRecordsNoTab(t *testing.T) {
 	require.NoError(t, v.SetVar("dv_fail", true))
 	assert.Equal(t, "builtin", e.review(t, e.repo, "feature/x"))
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review-close", "projectId": e.projectID}, nil))
-	assert.Equal(t, []string{openLog(t, v, e.repo)}, eval[[]string](t, v, "g:dv_log"))
+	assert.Equal(t, []string{openLog(t, v, e.repo, "feature/x")}, eval[[]string](t, v, "g:dv_log"))
 	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
 }
 
@@ -405,9 +397,9 @@ func (e *editor) review(t *testing.T, repo, base string) string {
 	return res.Mode
 }
 
-func openLog(t *testing.T, v *nvim.Nvim, repo string) string {
+func openLog(t *testing.T, v *nvim.Nvim, repo, base string) string {
 	t.Helper()
-	return eval[string](t, v, "'-C' . fnameescape('"+repo+"') . ' feature/x...HEAD'")
+	return eval[string](t, v, "'-C' . fnameescape('"+repo+"') . ' "+base+"...HEAD'")
 }
 
 func (e *editor) open(t *testing.T, path string, line int) error {

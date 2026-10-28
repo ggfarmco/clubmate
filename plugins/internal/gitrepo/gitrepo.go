@@ -240,7 +240,7 @@ func ChangedSince(ctx context.Context, repo, rev string) ([]Entry, error) {
 		return nil, err
 	}
 	top := strings.TrimSuffix(string(out), "\n")
-	out, err = run(ctx, repo, nil, "diff", "--name-status", "-z", "--no-renames", rev, "HEAD")
+	out, err = run(ctx, repo, nil, "diff", "--name-status", "-z", "--no-renames", rev, "HEAD", "--")
 	if err != nil {
 		return nil, err
 	}

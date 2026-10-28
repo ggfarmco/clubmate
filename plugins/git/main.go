@@ -386,7 +386,8 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	var stored storedReview
 	if first {
 		if _, err := h.StorageGet(ctx, reviewKey(id), &stored); err != nil {
-			return err
+			logError("restore review "+id, err)
+			stored = storedReview{}
 		}
 	}
 	s.mu.Lock()

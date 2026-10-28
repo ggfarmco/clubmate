@@ -432,3 +432,21 @@ func TestReviewPersists(t *testing.T) {
 	}, restartWait)
 	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
 }
+
+func TestCorruptStoredReviewIgnored(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := open(t, repo)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+	require.NoError(t, h.KV.Set(t.Context(), "git", "review/"+id, json.RawMessage(`"corrupt"`)))
+
+	pids := h.Sup.PIDs()
+	require.Len(t, pids, 1)
+	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
+	testutil.Eventually(t, func() bool {
+		restarted := h.Sup.PIDs()
+		return len(restarted) == 1 && restarted[0] != pids[0]
+	}, restartWait)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+	reviewBranch(t, h, id)
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+}

@@ -204,6 +204,7 @@ func TestMergeBaseAndChanges(t *testing.T) {
 	repo := newRepo(t)
 	commitFile(t, repo, "a.go", "package x\n")
 	commitFile(t, repo, "d.go", "package x\n")
+	commitFile(t, repo, "HEAD", "x\n")
 	baseSHA := revParse(t, repo, "HEAD")
 	git(t, repo, "checkout", "-q", "-b", "feature/x")
 	commitFile(t, repo, "n.go", "package x\n")
