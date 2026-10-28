@@ -155,7 +155,10 @@ final class AppModel {
 
     private func touch(_ projectID: String) {
         guard let client = supervisor.client else { return }
-        Task { try? await client.touchWorkspace(projectID) }
+        Task {
+            try? await client.touchWorkspace(projectID)
+            try? await projects?.load()
+        }
     }
 
     func syncNavigationKeys() {
