@@ -71,7 +71,7 @@ final class AppModel {
             throw ClubmateError.coreStartFailed("bundled clubmate CLI not found")
         }
         let paths = ClubmatePaths.resolve()
-        try await CoreLauncher(cliPath: cli).ensureRunning(paths: paths)
+        try await CoreLauncher(cliPath: cli, bundledVersion: Bundle.main.clubmateVersion).ensureRunning(paths: paths)
         let client = try await CoreClient.connect(paths: paths)
         do {
             let commands = try await client.commandList()
@@ -158,5 +158,14 @@ final class ProjectSession {
         guard let store else { return }
         supervisor.unregister(store)
         await store.stop()
+    }
+}
+
+extension Bundle {
+    var clubmateVersion: String {
+        BuildInfo.display(
+            version: infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
+            commit: infoDictionary?["ClubmateCommit"] as? String ?? ""
+        )
     }
 }

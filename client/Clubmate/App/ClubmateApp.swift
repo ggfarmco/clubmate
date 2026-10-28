@@ -79,12 +79,7 @@ private struct ProjectCommands: Commands {
     }
 
     private func showAbout() {
-        let info = Bundle.main.infoDictionary ?? [:]
-        let version = BuildInfo.display(
-            version: info["CFBundleShortVersionString"] as? String ?? "",
-            commit: info["ClubmateCommit"] as? String ?? ""
-        )
-        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationVersion: version, .version: ""])
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationVersion: Bundle.main.clubmateVersion, .version: ""])
     }
 
     private func run(_ resolve: (ProjectUIStore, [Command]) -> CommandInvocation?) {

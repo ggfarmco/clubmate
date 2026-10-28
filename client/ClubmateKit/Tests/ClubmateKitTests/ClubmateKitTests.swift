@@ -102,6 +102,36 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testLauncherReplacesOutdatedCore() async throws {
+        let core = try await TestCore.start(bin: try TestCore.binaries(version: "old"))
+        self.core = core
+        let old = try await CoreClient.connect(paths: core.paths)
+        let oldPing = try await old.ping()
+        XCTAssertEqual(oldPing.version, BuildInfo.display(version: "old", commit: TestCore.commit))
+        let project = try await old.createProject(name: "demo")
+        let created = try await old.call(method: "session.create", params: .object([
+            "projectId": .string(project.id),
+            "command": .array([.string("sleep"), .string("60")]),
+        ]))
+        await old.close()
+        guard case .object(let session) = created, let id = session["id"], case .number(let hostPID)? = session["hostPid"] else {
+            throw TestFailure(description: "unexpected session: \(created)")
+        }
+        let bundled = BuildInfo.display(version: "new", commit: TestCore.commit)
+        let cli = try TestCore.binaries(version: "new").appending(path: "clubmate")
+        try await CoreLauncher(cliPath: cli, bundledVersion: bundled).ensureRunning(paths: core.paths)
+        let client = try await CoreClient.connect(paths: core.paths)
+        let ping = try await client.ping()
+        XCTAssertEqual(ping.version, bundled)
+        XCTAssertNotEqual(ping.pid, oldPing.pid)
+        guard case .array(let sessions) = try await client.call(method: "session.list") else {
+            throw TestFailure(description: "unexpected session list")
+        }
+        XCTAssertTrue(sessions.contains { if case .object(let s) = $0 { s["id"] == id } else { false } })
+        XCTAssertEqual(kill(pid_t(hostPID), 0), 0)
+        await client.close()
+    }
+
     func testRPCErrorMapping() async throws {
         let client = try await startCore()
         do {

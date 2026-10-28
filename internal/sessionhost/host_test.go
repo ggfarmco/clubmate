@@ -50,6 +50,14 @@ func TestSessionHostStreamsAndReplays(t *testing.T) {
 	assert.Equal(t, m.ChildPID, m.PGID)
 }
 
+func TestMetaHasProto(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", "exec cat")
+	startHost(t, cfg)
+	data, err := os.ReadFile(cfg.MetaPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"proto":1`)
+}
+
 func TestSessionHostReplacesInheritedMarkers(t *testing.T) {
 	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
 	cfg := testConfig(t, os.Args[0], "-test.run=^TestHelperSleep$")
