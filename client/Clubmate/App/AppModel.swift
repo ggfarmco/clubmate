@@ -241,13 +241,14 @@ final class ProjectSession {
         }
     }
 
-    func closeTerminal(_ close: CommandInvocation) {
+    func closeTerminal(_ close: TerminalClose) {
         guard let store else { return }
+        guard close.running else { return run(close.invocation) }
         Task {
-            switch await store.run(CommandInvocation(id: TerminalsSection.busyCommand, args: close.args)) {
+            switch await store.run(CommandInvocation(id: TerminalsSection.busyCommand, args: close.invocation.args)) {
             case .success(let result):
                 if let message = TerminalsSection.busyMessage(result), !(await Confirmation.ask(message, action: "Close")) { return }
-                run(close)
+                run(close.invocation)
             case .failure(let error):
                 banner.show(error.message)
             }

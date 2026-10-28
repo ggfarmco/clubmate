@@ -23,8 +23,7 @@ public struct CommandInvocation: Sendable, Equatable {
     }
 
     public static func shouldAutoNew(section: SectionInfo?, main: SDUINode?) -> Bool {
-        guard section?.autoNew == true, let main else { return false }
-        return main.surfaceSessionID == nil
+        section?.autoNew == true && main?.type == "empty"
     }
 
     private static func resolve(_ verb: String, section: String?, commands: [Command]) -> String? {
@@ -34,9 +33,27 @@ public struct CommandInvocation: Sendable, Equatable {
     }
 }
 
+public struct TerminalClose: Sendable, Equatable {
+    public let invocation: CommandInvocation
+    public let running: Bool
+
+    public init(invocation: CommandInvocation, running: Bool) {
+        self.invocation = invocation
+        self.running = running
+    }
+}
+
 public enum TerminalsSection {
     public static let id = "terminals"
     public static let busyCommand = "terminals.busy"
+    public static let closeCommand = "terminals.close"
+
+    public static func close(sidebar: SDUINode?, main: SDUINode?, commands: [Command]) -> TerminalClose? {
+        guard let selected = sidebar?.node(type: "list", id: id)?.string("selected"), !selected.isEmpty,
+              commands.contains(where: { $0.id == closeCommand }) else { return nil }
+        let invocation = CommandInvocation(id: closeCommand, args: .object(["sessionId": .string(selected)]))
+        return TerminalClose(invocation: invocation, running: main?.surfaceSessionID == selected)
+    }
 
     public static func busyMessage(_ result: JSONValue) -> String? {
         guard case .object(let fields) = result, fields["busy"] == .bool(true) else { return nil }
@@ -45,6 +62,11 @@ public enum TerminalsSection {
 }
 
 extension SDUINode {
+    func node(type: String, id: String) -> SDUINode? {
+        if self.type == type, self.id == id { return self }
+        return children.lazy.compactMap { $0.node(type: type, id: id) }.first
+    }
+
     public var surfaceSessionID: String? {
         if type == "surface" { return string("sessionId") }
         return children.lazy.compactMap(\.surfaceSessionID).first

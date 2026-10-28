@@ -88,9 +88,8 @@ private struct ProjectCommands: Commands {
             .disabled(store == nil)
         }
         CommandGroup(replacing: .saveItem) {
-            Button("Close Terminal") { if let closeTerminal { session?.closeTerminal(closeTerminal) } }
+            Button(session?.isApp == false ? "Close Terminal" : "Close Window") { closeTerminal() }
                 .keyboardShortcut("w")
-                .disabled(closeTerminal == nil)
         }
         CommandGroup(before: .toolbar) {
             Button("Command Palette") { session?.paletteShown.toggle() }
@@ -116,9 +115,15 @@ private struct ProjectCommands: Commands {
         }
     }
 
-    private var closeTerminal: CommandInvocation? {
-        guard let store, store.selectedSection == TerminalsSection.id else { return nil }
-        return .close(section: TerminalsSection.id, main: store.mainTree(TerminalsSection.id), commands: app.commands)
+    private func closeTerminal() {
+        guard let session, !session.isApp else {
+            NSApp.keyWindow?.performClose(nil)
+            return
+        }
+        guard let store = session.store, store.selectedSection == TerminalsSection.id,
+              let close = TerminalsSection.close(sidebar: store.slots["\(TerminalsSection.id).sidebar"]?.tree, main: store.mainTree(TerminalsSection.id), commands: app.commands)
+        else { return }
+        session.closeTerminal(close)
     }
 
     private func showAbout() {

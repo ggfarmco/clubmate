@@ -307,12 +307,28 @@ final class StoresTests: XCTestCase {
         XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: surface))
         XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: nil))
         XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[1], main: empty))
+        XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: exited))
+    }
+
+    func testTerminalClose() throws {
+        let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
+        [{"id":"terminals.close","title":"Close","plugin":"terminals","hidden":false}]
+        """#.utf8))
+        let sidebar = SDUINode(type: "stack", children: [SDUINode(type: "list", id: "terminals", props: ["selected": .string("ses_1")])])
+        let surface = SDUINode(type: "surface", props: ["sessionId": .string("ses_1")])
+        let close = CommandInvocation(id: "terminals.close", args: .object(["sessionId": .string("ses_1")]))
+
+        XCTAssertEqual(TerminalsSection.close(sidebar: sidebar, main: surface, commands: commands), TerminalClose(invocation: close, running: true))
+        XCTAssertEqual(TerminalsSection.close(sidebar: sidebar, main: exited, commands: commands), TerminalClose(invocation: close, running: false))
+        XCTAssertNil(TerminalsSection.close(sidebar: SDUINode(type: "list", id: "terminals"), main: SDUINode(type: "empty"), commands: commands))
     }
 
     func testTerminalBusyMessage() {
         XCTAssertEqual(TerminalsSection.busyMessage(.object(["busy": .bool(true), "process": .string("sleep")])), "“sleep” is running. Close the terminal?")
         XCTAssertNil(TerminalsSection.busyMessage(.object(["busy": .bool(false), "process": .string("")])))
     }
+
+    private let exited = SDUINode(type: "stack", children: [SDUINode(type: "text", props: ["text": .string("Terminal exited (code 0)")]), SDUINode(type: "button", id: "restart")])
 
     private func startCore() async throws -> CoreClient {
         let core = try await TestCore.start()
