@@ -17,6 +17,7 @@ rm -rf "$DEST"
 mkdir -p "$DEST"
 cp "$ROOT/bin/clubmate" "$ROOT/bin/clubmate-core" "$ROOT/bin/clubmate-session" "$DEST/"
 cp -R "$ROOT/bin/plugins" "$DEST/plugins"
+cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/"
 
 SIGN=(codesign --force --options runtime --sign -)
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"

@@ -30,6 +30,7 @@ import (
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
+	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
@@ -87,6 +88,21 @@ func TestVersionCommand(t *testing.T) {
 	buildinfo.Version, buildinfo.Commit = "1.2.3", "abcdef0123"
 	t.Cleanup(func() { buildinfo.Version, buildinfo.Commit = prevVersion, prevCommit })
 	assert.Equal(t, "1.2.3 (abcdef0)\n", string(run(t, "version")))
+}
+
+func TestVersionCommandJSON(t *testing.T) {
+	prevVersion, prevCommit := buildinfo.Version, buildinfo.Commit
+	buildinfo.Version, buildinfo.Commit = "1.2.3", "abcdef0123"
+	t.Cleanup(func() { buildinfo.Version, buildinfo.Commit = prevVersion, prevCommit })
+	var got struct {
+		Version         string `json:"version"`
+		Commit          string `json:"commit"`
+		SessionProtocol int    `json:"sessionProtocol"`
+	}
+	require.NoError(t, json.Unmarshal(run(t, "version", "--json"), &got))
+	assert.Equal(t, "1.2.3", got.Version)
+	assert.Equal(t, "abcdef0123", got.Commit)
+	assert.Equal(t, sessionhost.Protocol, got.SessionProtocol)
 }
 
 func TestProjectCreateAndListJSON(t *testing.T) {

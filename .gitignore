@@ -8,3 +8,4 @@ client/GhosttyKit.xcframework
 client/Clubmate.xcodeproj
 client/Clubmate/Resources/ghostty
 client/Clubmate/Resources/terminfo
+/dist/
