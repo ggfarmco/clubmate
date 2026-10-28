@@ -21,6 +21,8 @@ final class AppModel {
     private var launchProject = launchProjectID(CommandLine.arguments)
     @ObservationIgnored private let openProjects = OpenProjects()
     @ObservationIgnored private var restored = false
+    @ObservationIgnored private var navigationPending = true
+    @ObservationIgnored private var navigationAsked = false
 
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
 
@@ -30,6 +32,7 @@ final class AppModel {
         updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
+        trackNavigationKeys()
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
@@ -76,6 +79,38 @@ final class AppModel {
         sessions[session.projectID] = nil
         openProjects.closed(session.projectID)
         Task { await session.close(supervisor) }
+    }
+
+    func syncNavigationKeys() {
+        guard navigationPending, let enabled = settings.navigationKeys,
+              let session = sessions.values.first(where: { $0.store?.connected == true }),
+              let store = session.store else { return }
+        navigationPending = false
+        Task {
+            if case .failure(let error) = await store.run(.navigation(enabled: enabled)) {
+                navigationPending = true
+                session.banner.show(error.message)
+            }
+        }
+    }
+
+    func askNavigationKeys() {
+        guard settings.navigationKeys == nil, !navigationAsked else { return }
+        navigationAsked = true
+        Task {
+            settings.navigationKeys = await Confirmation.ask("Use Ctrl+H/J/K/L to move between nvim and the sidebar?", action: "Enable", cancel: "Not now")
+        }
+    }
+
+    private func trackNavigationKeys() {
+        withObservationTracking { _ = settings.navigationKeys } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.navigationPending = true
+                self.syncNavigationKeys()
+                self.trackNavigationKeys()
+            }
+        }
     }
 
     func project(_ id: String) -> Project? {

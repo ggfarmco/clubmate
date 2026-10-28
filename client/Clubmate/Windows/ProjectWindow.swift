@@ -39,6 +39,12 @@ struct ProjectWindow: View {
                 }
                 focus.request(request.slot)
             }
+            .onChange(of: session?.store?.connected, initial: true) { _, connected in
+                if connected == true { app.syncNavigationKeys() }
+            }
+            .onChange(of: session?.store?.selectedSection, initial: true) { _, section in
+                if section == CodeSection.id { app.askNavigationKeys() }
+            }
             .onChange(of: app.settings.autoHideSidebar) { _, enabled in
                 if !enabled { session?.store?.sidebarAutoHidden = false }
             }
@@ -135,6 +141,7 @@ struct ProjectWindow: View {
         case .command(let id): confirm(id)
         case .section(let id): session?.store?.selectedSection = id
         case .toggleSidebar: session?.store?.toggleSidebar(app.settings)
+        case .toggleNavigationKeys: app.settings.navigationKeys = !(app.settings.navigationKeys ?? false)
         case .openProjects: openWindow(id: "projects")
         }
     }

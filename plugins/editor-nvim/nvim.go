@@ -44,6 +44,59 @@ m.navigate = function(dir)
   if vim.fn.winnr() == w then edge(dir) end
 end`
 
+const navLua = `local enabled = ...
+local m = package.loaded["clubmate"]
+local desc = "clubmate navigate"
+local keys = { h = "<C-h>", j = "<C-j>", k = "<C-k>", l = "<C-l>" }
+local function global(lhs)
+  for _, km in ipairs(vim.api.nvim_get_keymap("n")) do
+    if vim.keycode(km.lhs) == vim.keycode(lhs) then return km end
+  end
+end
+for _, lhs in pairs(keys) do
+  local km = global(lhs)
+  if km and km.desc == desc then vim.keymap.del("n", lhs) end
+end
+for lhs, saved in pairs(m.nav_saved or {}) do
+  if not global(lhs) then vim.fn.mapset(saved) end
+end
+m.nav_saved = {}
+if m.nav_target and m.nav_target.at_edge == m.nav_wrapped then m.nav_target.at_edge = m.nav_orig end
+m.nav_target, m.nav_wrapped, m.nav_orig = nil, nil, nil
+if not enabled then return {} end
+local ss = package.loaded["smart-splits"]
+if ss then
+  local cfg = type(ss) == "table" and type(ss.config) == "table" and ss.config or nil
+  if not cfg then
+    local ok, loaded = pcall(require, "smart-splits.config")
+    cfg = ok and type(loaded) == "table" and loaded or nil
+  end
+  if cfg then
+    local target = type(cfg.move) == "table" and cfg.move or cfg
+    local orig = target.at_edge
+    local function wrapped(ctx)
+      require("clubmate").edge(ctx.direction)
+      if type(orig) == "function" then return orig(ctx) end
+      if (orig == "wrap" or orig == "split") and type(ctx[orig]) == "function" then return ctx[orig]() end
+    end
+    target.at_edge = wrapped
+    m.nav_target, m.nav_wrapped, m.nav_orig = target, wrapped, orig
+  end
+  return {}
+end
+local skipped = {}
+for dir, lhs in pairs(keys) do
+  local km = global(lhs)
+  if km and not (km.desc or ""):match("^:help .+%-default$") then
+    skipped[#skipped + 1] = lhs
+  else
+    m.nav_saved[lhs] = km
+    vim.keymap.set("n", lhs, function() require("clubmate").navigate(dir) end, { desc = desc, silent = true })
+  end
+end
+table.sort(skipped)
+return skipped`
+
 const diffLua = `local path, rel, base, target, left, right = ...
 local ft = vim.filetype.match({ filename = path }) or ""
 local function scratch(name, text, dos)
@@ -213,6 +266,14 @@ func (c *client) hook() error {
 		return fmt.Errorf("nvim hook: %w", err)
 	}
 	return nil
+}
+
+func (c *client) navigation(enabled bool) ([]string, error) {
+	var skipped []string
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(navLua, &skipped, enabled) }); err != nil {
+		return nil, fmt.Errorf("nvim navigation: %w", err)
+	}
+	return skipped, nil
 }
 
 func (c *client) open(path string, line int) error {

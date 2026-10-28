@@ -9,6 +9,10 @@ public struct CommandInvocation: Sendable, Equatable {
         self.args = args
     }
 
+    public static func navigation(enabled: Bool) -> CommandInvocation {
+        CommandInvocation(id: CodeSection.navigationCommand, args: .object(["enabled": .bool(enabled)]))
+    }
+
     public static func new(section: String?, commands: [Command]) -> CommandInvocation? {
         resolve("new", section: section, commands: commands).map { CommandInvocation(id: $0) }
     }

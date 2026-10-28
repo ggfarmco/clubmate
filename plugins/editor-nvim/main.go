@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,6 +32,7 @@ const (
 	edgeEvent     = "edge"
 	revPrefix     = "rev:"
 	shortSHA      = 7
+	navigationKey = "navigation"
 )
 
 var (
@@ -89,6 +91,14 @@ type terminalArgs struct {
 	Cwd string `json:"cwd"`
 }
 
+type navigationArgs struct {
+	Enabled bool `json:"enabled"`
+}
+
+type navigationResult struct {
+	Skipped []string `json:"skipped"`
+}
+
 type restartArgs struct {
 	Force bool `json:"force"`
 }
@@ -103,6 +113,7 @@ type deletedPayload struct {
 
 type app struct {
 	nvimPath string
+	navMu    sync.Mutex
 	mu       sync.Mutex
 	editors  map[string]*editor
 	deleted  map[string]bool
@@ -205,11 +216,19 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+	name := strings.TrimPrefix(cmd.ID, h.PluginID()+".")
+	if name == "navigation" {
+		var args navigationArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("navigation args: %w", err)
+		}
+		return a.navigation(ctx, h, args.Enabled)
+	}
 	e := a.editor(cmd.ProjectID)
 	if e == nil {
 		return nil, nil
 	}
-	switch strings.TrimPrefix(cmd.ID, h.PluginID()+".") {
+	switch name {
 	case "open":
 		var args openArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -370,7 +389,49 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 		return nil, err
 	}
 	e.setClient(c)
+	a.applyNavigation(ctx, h, c)
 	return c, nil
+}
+
+func (a *app) navigation(ctx context.Context, h *pluginsdk.Host, enabled bool) (navigationResult, error) {
+	a.navMu.Lock()
+	defer a.navMu.Unlock()
+	if err := h.StorageSet(ctx, navigationKey, enabled); err != nil {
+		return navigationResult{}, err
+	}
+	a.mu.Lock()
+	editors := slices.Collect(maps.Values(a.editors))
+	a.mu.Unlock()
+	res := navigationResult{Skipped: []string{}}
+	var errs []error
+	for _, e := range editors {
+		c := e.connected()
+		if c == nil {
+			continue
+		}
+		skipped, err := c.navigation(enabled)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		res.Skipped = append(res.Skipped, skipped...)
+	}
+	slices.Sort(res.Skipped)
+	res.Skipped = slices.Compact(res.Skipped)
+	return res, errors.Join(errs...)
+}
+
+func (a *app) applyNavigation(ctx context.Context, h *pluginsdk.Host, c *client) {
+	a.navMu.Lock()
+	defer a.navMu.Unlock()
+	var enabled bool
+	found, err := h.StorageGet(ctx, navigationKey, &enabled)
+	if err == nil && found {
+		_, err = c.navigation(enabled)
+	}
+	if err != nil {
+		logError(navigationKey, err)
+	}
 }
 
 func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, sock string) (string, error) {

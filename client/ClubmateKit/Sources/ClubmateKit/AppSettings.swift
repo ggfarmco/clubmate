@@ -8,6 +8,7 @@ public enum SidebarSide: String, Sendable, CaseIterable {
 
 public enum CodeSection {
     public static let id = "editor-nvim"
+    public static let navigationCommand = "editor-nvim.navigation"
 }
 
 @MainActor

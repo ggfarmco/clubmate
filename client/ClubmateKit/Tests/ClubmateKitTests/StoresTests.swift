@@ -248,7 +248,8 @@ final class StoresTests: XCTestCase {
     func testPaletteEntries() throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
         [{"id":"editor-nvim.terminal","title":"Open Terminal Here","plugin":"editor-nvim","hidden":false},
-         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true}]
+         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true},
+         {"id":"editor-nvim.navigation","title":"nvim Navigation Keys","plugin":"editor-nvim","hidden":true}]
         """#.utf8))
         let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
         [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"project","plugin":"editor-nvim"},
@@ -257,11 +258,11 @@ final class StoresTests: XCTestCase {
 
         let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true)
 
-        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Toggle Sidebar", "Open Projects"])
-        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘B", "⌘⇧O"])
+        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Toggle Sidebar", "Toggle nvim Navigation Keys", "Open Projects"])
+        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘B", "", "⌘⇧O"])
         XCTAssertEqual(
             entries.map { PaletteAction(entryID: $0.id) },
-            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .openProjects]
+            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .toggleNavigationKeys, .openProjects]
         )
         XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle Sidebar" })
     }

@@ -62,6 +62,7 @@ public enum PaletteAction: Hashable, Sendable {
     case command(String)
     case section(String)
     case toggleSidebar
+    case toggleNavigationKeys
     case openProjects
 
     public init?(entryID: String) {
@@ -71,6 +72,8 @@ public enum PaletteAction: Hashable, Sendable {
             self = .section(id)
         } else if entryID == "toggle-sidebar" {
             self = .toggleSidebar
+        } else if entryID == "toggle-navigation-keys" {
+            self = .toggleNavigationKeys
         } else if entryID == "projects" {
             self = .openProjects
         } else {
@@ -83,6 +86,7 @@ public enum PaletteAction: Hashable, Sendable {
         case .command(let id): "command:\(id)"
         case .section(let id): "section:\(id)"
         case .toggleSidebar: "toggle-sidebar"
+        case .toggleNavigationKeys: "toggle-navigation-keys"
         case .openProjects: "projects"
         }
     }
@@ -97,7 +101,10 @@ extension CommandPalette {
             PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
         let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle Sidebar", detail: "⌘B")] : []
-        return commandEntries + sectionEntries + sidebarEntries + [PaletteEntry(id: PaletteAction.openProjects.entryID, title: "Open Projects", detail: "⌘⇧O")]
+        let navigationEntries = sidebar && commands.contains { $0.id == CodeSection.navigationCommand }
+            ? [PaletteEntry(id: PaletteAction.toggleNavigationKeys.entryID, title: "Toggle nvim Navigation Keys", detail: "")]
+            : []
+        return commandEntries + sectionEntries + sidebarEntries + navigationEntries + [PaletteEntry(id: PaletteAction.openProjects.entryID, title: "Open Projects", detail: "⌘⇧O")]
     }
 }
 
