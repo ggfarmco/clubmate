@@ -35,10 +35,18 @@ struct ClubmateApp: App {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        AppDelegate.willQuit?()
+        return .terminateNow
+    }
+
+    @MainActor static var willQuit: (() -> Void)?
 }
 
 private struct ProjectCommands: Commands {
@@ -51,6 +59,11 @@ private struct ProjectCommands: Commands {
     }
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Clubmate") { showAbout() }
+            Button("Check for Updates…") { app.updates.check() }
+                .disabled(!app.updates.canCheck)
+        }
         CommandGroup(replacing: .newItem) {
             Button("New") { run { .new(section: $0.selectedSection, commands: $1) } }
                 .keyboardShortcut("n")
@@ -73,6 +86,10 @@ private struct ProjectCommands: Commands {
                     .disabled(section(index) == nil)
             }
         }
+    }
+
+    private func showAbout() {
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationVersion: Bundle.main.clubmateVersion, .version: ""])
     }
 
     private func run(_ resolve: (ProjectUIStore, [Command]) -> CommandInvocation?) {

@@ -26,5 +26,19 @@
 	<string>NSApplication</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
+	<key>ClubmateFlavor</key>
+	<string>$(CLUBMATE_FLAVOR)</string>
+	<key>ClubmateCommit</key>
+	<string>$(CLUBMATE_COMMIT)</string>
+	<key>SUFeedURL</key>
+	<string>https://github.com/ggfarmco/clubmate/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>$(SPARKLE_PUBLIC_KEY)</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
 </dict>
 </plist>

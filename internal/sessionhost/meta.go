@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const Protocol = 1
+
 type Config struct {
 	ID         string   `json:"id"`
 	ProjectID  string   `json:"projectId"`
@@ -34,6 +36,7 @@ type Meta struct {
 	StartedAt time.Time  `json:"startedAt"`
 	ExitCode  *int       `json:"exitCode"`
 	ExitedAt  *time.Time `json:"exitedAt"`
+	Proto     int        `json:"proto"`
 }
 
 func ReadMeta(path string) (Meta, error) {

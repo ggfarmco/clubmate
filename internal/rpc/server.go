@@ -21,8 +21,6 @@ import (
 )
 
 const (
-	Version = "0.1.0"
-
 	acceptBackoffMin = 5 * time.Millisecond
 	acceptBackoffMax = time.Second
 

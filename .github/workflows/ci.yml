@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_27.1.app
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: ClubmateKit tests
+        run: make kit-test
+
+      - name: Install zig and XcodeGen
+        run: brew install zig@0.16 xcodegen
+
+      - name: GhosttyKit cache key
+        id: ghostty
+        run: |
+          rev="$(sed -n 's/^GHOSTTY_REV="\(.*\)"$/\1/p' scripts/build-ghostty.sh)"
+          zig="$("$(brew --prefix zig@0.16)/bin/zig" version)"
+          echo "key=ghosttykit-$rev-zig$zig" >>"$GITHUB_OUTPUT"
+
+      - name: Restore GhosttyKit
+        id: ghostty-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: ${{ steps.ghostty.outputs.key }}
+          path: |
+            client/GhosttyKit.xcframework
+            client/Clubmate/Resources/ghostty
+            client/Clubmate/Resources/terminfo
+            .ghostty-build-stamp
+
+      - name: Install Metal toolchain
+        if: steps.ghostty-cache.outputs.cache-hit != 'true'
+        run: xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+
+      - name: Build GhosttyKit
+        run: make ghostty
+
+      - name: Save GhosttyKit
+        if: steps.ghostty-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: ${{ steps.ghostty.outputs.key }}
+          path: |
+            client/GhosttyKit.xcframework
+            client/Clubmate/Resources/ghostty
+            client/Clubmate/Resources/terminfo
+            .ghostty-build-stamp
+
+      - name: Build app
+        run: make app

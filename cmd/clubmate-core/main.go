@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/bus"
 	"clubmate/internal/core"
 	"clubmate/internal/kv"
@@ -121,7 +122,7 @@ func run(logger *slog.Logger) error {
 	}()
 
 	sup.Start(ctx, manifests)
-	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", rpc.Version, "plugins", len(manifests))
+	logger.Info("clubmate-core listening", "socket", dirs.CoreSocket(), "version", buildinfo.String(), "plugins", len(manifests))
 	serveErr := srv.Serve(ctx, listener)
 	stop()
 	stopPlugins(sup)

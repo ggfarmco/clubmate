@@ -2,30 +2,39 @@ import Foundation
 
 public struct CoreLauncher: Sendable {
     public let cliPath: URL
+    public let bundledVersion: String
 
-    public init(cliPath: URL) {
+    public init(cliPath: URL, bundledVersion: String = "") {
         self.cliPath = cliPath
+        self.bundledVersion = bundledVersion
     }
 
     public func ensureRunning(paths: ClubmatePaths, wait: Duration = .seconds(15)) async throws {
         do {
-            try await probe(paths)
-            return
-        } catch ClubmateError.notRunning {
-            try await start(paths: paths, wait: wait)
+            let running = try await version(paths)
+            if bundledVersion.isEmpty || running == bundledVersion { return }
+            try await cli(["core", "stop"], paths: paths)
+        } catch ClubmateError.notRunning {}
+        try await cli(["core", "start", "--wait", "\(wait.components.seconds * 1000 + wait.components.attoseconds / 1_000_000_000_000_000)ms"], paths: paths)
+        _ = try await version(paths)
+    }
+
+    private func version(_ paths: ClubmatePaths) async throws -> String {
+        let client = try await CoreClient.connect(paths: paths)
+        do {
+            let ping = try await client.ping()
+            await client.close()
+            return ping.version
+        } catch {
+            await client.close()
+            throw error
         }
-        try await probe(paths)
     }
 
-    private func probe(_ paths: ClubmatePaths) async throws {
-        let connection = try await RPCConnection.connect(paths: paths)
-        await connection.close()
-    }
-
-    private func start(paths: ClubmatePaths, wait: Duration) async throws {
+    private func cli(_ arguments: [String], paths: ClubmatePaths) async throws {
         let process = Process()
         process.executableURL = cliPath
-        process.arguments = ["core", "start", "--wait", "\(wait.components.seconds * 1000 + wait.components.attoseconds / 1_000_000_000_000_000)ms"]
+        process.arguments = arguments
         process.environment = ProcessInfo.processInfo.environment.merging([
             "CLUBMATE_STATE_DIR": paths.state.fileSystemPath,
             "CLUBMATE_RUNTIME_DIR": paths.runtime.fileSystemPath,

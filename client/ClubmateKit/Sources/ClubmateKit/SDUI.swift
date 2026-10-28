@@ -82,4 +82,5 @@ public struct UIEvent: Codable, Sendable, Equatable {
 public struct PingResult: Codable, Sendable, Equatable {
     public let version: String
     public let pid: Int
+    public let sessionProtocol: Int?
 }

@@ -14,10 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/bus"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
+	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
 )
 
@@ -81,10 +83,12 @@ func TestRPCSessionCreateUsesCamelCaseParams(t *testing.T) {
 func TestRPCPing(t *testing.T) {
 	c := startServer(t)
 	var out struct {
-		Version string `json:"version"`
+		Version         string `json:"version"`
+		SessionProtocol int    `json:"sessionProtocol"`
 	}
 	require.NoError(t, c.Call(t.Context(), "core.ping", struct{}{}, &out))
-	assert.Equal(t, rpc.Version, out.Version)
+	assert.Equal(t, buildinfo.String(), out.Version)
+	assert.Equal(t, sessionhost.Protocol, out.SessionProtocol)
 }
 
 func TestRPCNotFoundMapsToSentinel(t *testing.T) {

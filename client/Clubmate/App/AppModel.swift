@@ -9,6 +9,7 @@ import ClubmateKit
 @Observable
 final class AppModel {
     let supervisor: ConnectionSupervisor
+    let updates: Updates
     let projectsSession = ProjectSession(projectID: "")
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
@@ -17,14 +18,25 @@ final class AppModel {
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var openWindow: OpenWindowAction?
     private var launchProject = launchProjectID(CommandLine.arguments)
+    @ObservationIgnored private let openProjects = OpenProjects()
+    @ObservationIgnored private var restored = false
 
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
 
     init() {
         let link = ModelLink()
         supervisor = ConnectionSupervisor { try await link.connect() }
+        updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
+        AppDelegate.willQuit = { [weak self] in self?.terminating() }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.terminating() }
+        }
+    }
+
+    func terminating() {
+        openProjects.terminating()
     }
 
     static func launchProjectID(_ arguments: [String]) -> String? {
@@ -44,6 +56,7 @@ final class AppModel {
     }
 
     func open(_ projectID: String) {
+        openProjects.opened(projectID)
         openWindow?(value: projectID)
         NSApp.activate()
     }
@@ -52,6 +65,7 @@ final class AppModel {
         if let existing = sessions[projectID] { return existing }
         let session = ProjectSession(projectID: projectID)
         sessions[projectID] = session
+        openProjects.opened(projectID)
         if let client = supervisor.client { session.adopt(client, supervisor) }
         return session
     }
@@ -59,6 +73,7 @@ final class AppModel {
     func close(_ session: ProjectSession) {
         guard sessions[session.projectID] === session else { return }
         sessions[session.projectID] = nil
+        openProjects.closed(session.projectID)
         Task { await session.close(supervisor) }
     }
 
@@ -71,7 +86,7 @@ final class AppModel {
             throw ClubmateError.coreStartFailed("bundled clubmate CLI not found")
         }
         let paths = ClubmatePaths.resolve()
-        try await CoreLauncher(cliPath: cli).ensureRunning(paths: paths)
+        try await CoreLauncher(cliPath: cli, bundledVersion: Bundle.main.clubmateVersion).ensureRunning(paths: paths)
         let client = try await CoreClient.connect(paths: paths)
         do {
             let commands = try await client.commandList()
@@ -81,6 +96,7 @@ final class AppModel {
             self.projects = projects
             self.commands = commands
             listen(client)
+            restoreWindows(projects.projects)
             if let id = launchProject {
                 launchProject = nil
                 open(id)
@@ -89,6 +105,19 @@ final class AppModel {
         } catch {
             await client.close()
             throw error
+        }
+    }
+
+    private func restoreWindows(_ listed: [Project]) {
+        guard !restored else { return }
+        restored = true
+        let present = Set(listed.map(\.id))
+        for id in openProjects.ids {
+            if !present.contains(id) {
+                openProjects.forget(id)
+            } else if sessions[id] == nil, id != launchProject {
+                open(id)
+            }
         }
     }
 
@@ -158,5 +187,14 @@ final class ProjectSession {
         guard let store else { return }
         supervisor.unregister(store)
         await store.stop()
+    }
+}
+
+extension Bundle {
+    var clubmateVersion: String {
+        BuildInfo.display(
+            version: infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
+            commit: infoDictionary?["ClubmateCommit"] as? String ?? ""
+        )
     }
 }

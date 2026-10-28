@@ -28,12 +28,14 @@ final class TestCore {
         ]) { $1 }
     }
 
-    static func prepare() throws -> TestCore {
-        TestCore(base: try makeTempDir(), bin: try goBinaries.get())
+    nonisolated static let commit = "0123456789abcdef0123456789abcdef01234567"
+
+    static func prepare(bin: URL? = nil) throws -> TestCore {
+        TestCore(base: try makeTempDir(), bin: try bin ?? goBinaries.get())
     }
 
-    static func start() async throws -> TestCore {
-        let core = try prepare()
+    static func start(bin: URL? = nil) async throws -> TestCore {
+        let core = try prepare(bin: bin)
         try await core.launch()
         return core
     }
@@ -143,20 +145,36 @@ final class TestCore {
     }
 }
 
-private func buildGoBinaries() throws -> URL {
-    let fm = FileManager.default
+extension TestCore {
+    nonisolated static func binaries(version: String) throws -> URL {
+        let (package, root) = try goRoot()
+        let bin = package.appending(path: ".build/clubmate-go/\(version)/bin", directoryHint: .isDirectory)
+        let ldflags = "-X clubmate/internal/buildinfo.Version=\(version) -X clubmate/internal/buildinfo.Commit=\(commit)"
+        try run(goEnv, ["go", "build", "-ldflags", ldflags, "-o", bin.path(percentEncoded: false), "./cmd/..."], cwd: root)
+        return bin
+    }
+}
+
+private let goEnv = URL(fileURLWithPath: "/usr/bin/env")
+
+private func goRoot() throws -> (package: URL, root: URL) {
     let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     var root = package
-    while !fm.fileExists(atPath: root.appending(path: "go.mod").path(percentEncoded: false)) {
+    while !FileManager.default.fileExists(atPath: root.appending(path: "go.mod").path(percentEncoded: false)) {
         guard root.pathComponents.count > 1 else { throw TestFailure(description: "go.mod not found") }
         root = root.deletingLastPathComponent()
     }
+    return (package, root)
+}
+
+private func buildGoBinaries() throws -> URL {
+    let fm = FileManager.default
+    let (package, root) = try goRoot()
     let bin = package.appending(path: ".build/clubmate-go/bin", directoryHint: .isDirectory)
-    let env = URL(fileURLWithPath: "/usr/bin/env")
-    try TestCore.run(env, ["go", "build", "-o", bin.path(percentEncoded: false), "./cmd/..."], cwd: root)
+    try TestCore.run(goEnv, ["go", "build", "-o", bin.path(percentEncoded: false), "./cmd/..."], cwd: root)
     for (id, source) in [("terminals", "plugins/terminals"), ("projects", "plugins/projects"), ("echo", "internal/testutil/plugins/echo")] {
         let dir = bin.appending(path: "plugins/\(id)", directoryHint: .isDirectory)
-        try TestCore.run(env, ["go", "build", "-o", dir.appending(path: id).path(percentEncoded: false), "./\(source)"], cwd: root)
+        try TestCore.run(goEnv, ["go", "build", "-o", dir.appending(path: id).path(percentEncoded: false), "./\(source)"], cwd: root)
         let manifest = dir.appending(path: "plugin.json")
         try? fm.removeItem(at: manifest)
         try fm.copyItem(at: root.appending(path: "\(source)/plugin.json"), to: manifest)

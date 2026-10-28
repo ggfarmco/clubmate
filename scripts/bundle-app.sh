@@ -10,14 +10,23 @@ APP="$1"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/bin:/usr/local/go/bin:/usr/local/bin:$PATH"
 
-make -C "$ROOT" build
+make -C "$ROOT" build VERSION="${MARKETING_VERSION:-0.0.0-dev}" COMMIT="${CLUBMATE_COMMIT:-}" FLAVOR="${CLUBMATE_FLAVOR:-dev}"
 
 DEST="$APP/Contents/Resources/bin"
 rm -rf "$DEST"
 mkdir -p "$DEST"
 cp "$ROOT/bin/clubmate" "$ROOT/bin/clubmate-core" "$ROOT/bin/clubmate-session" "$DEST/"
 cp -R "$ROOT/bin/plugins" "$DEST/plugins"
+cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/"
 
-codesign --force --options runtime --sign - \
+SIGN=(codesign --force --options runtime --sign -)
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+
+"${SIGN[@]}" \
   "$DEST/clubmate" "$DEST/clubmate-core" "$DEST/clubmate-session" "$DEST/plugins/terminals/terminals" "$DEST/plugins/editor-nvim/editor-nvim" "$DEST/plugins/files/files" "$DEST/plugins/git/git" "$DEST/plugins/processes/processes" "$DEST/plugins/projects/projects"
-codesign --force --options runtime --sign - --deep "$APP"
+"${SIGN[@]}" "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
+"${SIGN[@]}" --preserve-metadata=entitlements "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
+"${SIGN[@]}" "$SPARKLE/Versions/B/Autoupdate"
+"${SIGN[@]}" "$SPARKLE/Versions/B/Updater.app"
+"${SIGN[@]}" "$SPARKLE"
+"${SIGN[@]}" "$APP"

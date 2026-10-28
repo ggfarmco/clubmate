@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"clubmate/internal/id"
+	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
@@ -50,6 +51,36 @@ func TestManagerHostDoesNotInheritMarkers(t *testing.T) {
 	assert.False(t, slices.ContainsFunc(env, func(kv string) bool {
 		return strings.HasPrefix(kv, "CLUBMATE_SESSION_ID=") || strings.HasPrefix(kv, "CLUBMATE_PROJECT_ID=")
 	}), env)
+}
+
+func TestManagerSessionEnvDropsDefaultDirs(t *testing.T) {
+	defaults, err := paths.Defaults()
+	require.NoError(t, err)
+	tests := map[string]struct {
+		state, runtime string
+		kept           bool
+	}{
+		"flavor defaults": {state: defaults.State, runtime: defaults.Runtime},
+		"overrides":       {state: "/x/state", runtime: "/tmp/cm-rt", kept: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("CLUBMATE_STATE_DIR", tt.state)
+			t.Setenv("CLUBMATE_RUNTIME_DIR", tt.runtime)
+			dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
+			out := filepath.Join(t.TempDir(), "env")
+			s := spawn(t, session.NewManager(dirs, bin), "sh", "-c", `env > "$0.tmp" && mv "$0.tmp" "$0"; exec cat`, out)
+			var env []string
+			testutil.Eventually(t, func() bool {
+				raw, err := os.ReadFile(out)
+				env = strings.Split(string(raw), "\n")
+				return err == nil
+			}, 3*time.Second)
+			require.Contains(t, env, "CLUBMATE_SESSION_ID="+s.ID)
+			assert.Equal(t, tt.kept, slices.Contains(env, "CLUBMATE_STATE_DIR="+tt.state), env)
+			assert.Equal(t, tt.kept, slices.Contains(env, "CLUBMATE_RUNTIME_DIR="+tt.runtime), env)
+		})
+	}
 }
 
 func TestManagerExitedAndLost(t *testing.T) {

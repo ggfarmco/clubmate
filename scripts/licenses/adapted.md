@@ -1,27 +1,25 @@
-# Third-party notices
-
 Clubmate builds on the following MIT-licensed projects.
 
-## Ghostty
+### Ghostty
 
 - Source: https://github.com/ghostty-org/ghostty
 - License: MIT, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
 - Use: libghostty (`GhosttyKit.xcframework`), shell-integration, themes and terminfo are built from a pinned upstream revision by `scripts/build-ghostty.sh` and bundled into `Clubmate.app`.
 
-## agterm
+### agterm
 
 - Source: https://github.com/umputun/agterm
 - License: MIT, Copyright (c) 2026 Umputun
 - Use: `scripts/build-ghostty.sh`, `client/project.yml` and the libghostty embedding approach are adapted from agterm's `scripts/setup.sh` and `project.yml`.
 - Use: `client/Clubmate/Ghostty/GhosttyApp.swift`, `GhosttyCallbacks.swift`, `TerminalSurfaceView.swift` and `SurfaceDeck.swift` adapt agterm's `agterm/Ghostty/GhosttyApp.swift`, `GhosttyCallbacks.swift`, `GhosttySurfaceView.swift` (+Input, +FirstResponder, +Visibility) and its eager terminal deck: config layering with ssh shell features forced off, coalesced wakeup tick, clipboard callbacks, surface creation at non-zero size with wake retry, keyboard/IME/mouse forwarding, mounted-once surfaces with occlusion for hidden ones.
 
-## macterm
+### macterm
 
 - Source: https://github.com/thdxg/macterm
 - License: MIT, Copyright (c) 2026 Macterm
 - Use: the approach to driving libghostty's C API from a Swift 6 strict-concurrency AppKit/SwiftUI app, via agterm's bridge, which was adapted from macterm.
 
-## MIT License
+### MIT License
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

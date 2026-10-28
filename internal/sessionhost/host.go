@@ -84,6 +84,7 @@ func Run(ctx context.Context, cfg Config) error {
 		PGID:      cmd.Process.Pid,
 		HostStart: hostStart,
 		StartedAt: time.Now(),
+		Proto:     Protocol,
 	}
 	if err := WriteMeta(cfg.MetaPath, meta); err != nil {
 		return abort(cmd, err)

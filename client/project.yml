@@ -2,7 +2,7 @@ name: Clubmate
 options:
   bundleIdPrefix: com.clubmate
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "27.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -10,7 +10,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SDKROOT: macosx
-    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MACOSX_DEPLOYMENT_TARGET: "27.0"
     ARCHS: arm64
     ONLY_ACTIVE_ARCH: NO
     SWIFT_STRICT_CONCURRENCY: complete
@@ -29,6 +29,9 @@ settings:
 packages:
   ClubmateKit:
     path: ClubmateKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: "2.10.1"
 
 targets:
   Clubmate:
@@ -38,6 +41,7 @@ targets:
       - path: Clubmate
         excludes:
           - "Info.plist"
+          - "Clubmate-dev.entitlements"
           - "Resources/ghostty"
           - "Resources/terminfo"
       - path: Clubmate/Resources/ghostty
@@ -48,16 +52,25 @@ targets:
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app
         PRODUCT_NAME: Clubmate
         INFOPLIST_FILE: Clubmate/Info.plist
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.0.0-dev"
         CURRENT_PROJECT_VERSION: "1"
+        CLUBMATE_COMMIT: ""
+        SPARKLE_PUBLIC_KEY: ""
         OTHER_LDFLAGS:
           - "-lc++"
         OTHER_SWIFT_FLAGS:
           - "-Xcc"
           - "-Wno-incomplete-umbrella"
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app.dev
+          CLUBMATE_FLAVOR: dev
+          CODE_SIGN_ENTITLEMENTS: Clubmate/Clubmate-dev.entitlements
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app
+          CLUBMATE_FLAVOR: release
     postBuildScripts:
       - name: Bundle Go binaries
         basedOnDependencyAnalysis: false
@@ -67,6 +80,7 @@ targets:
       - framework: GhosttyKit.xcframework
         embed: false
       - package: ClubmateKit
+      - package: Sparkle
       - sdk: Carbon.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework

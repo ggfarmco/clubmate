@@ -1,6 +1,7 @@
 package paths
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net"
@@ -11,6 +12,8 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/unix"
+
+	"clubmate/internal/buildinfo"
 )
 
 const maxSocketPath = 103
@@ -34,13 +37,32 @@ func Resolve() (Dirs, error) {
 		if err != nil {
 			return Dirs{}, fmt.Errorf("resolve home dir: %w", err)
 		}
-		state = filepath.Join(home, "Library", "Application Support", "clubmate")
+		state = defaultState(home)
 	}
-	runtime := os.Getenv("CLUBMATE_RUNTIME_DIR")
-	if runtime == "" {
-		runtime = "/tmp/clubmate-" + strconv.Itoa(os.Getuid())
+	return Dirs{State: state, Runtime: cmp.Or(os.Getenv("CLUBMATE_RUNTIME_DIR"), defaultRuntime())}, nil
+}
+
+func Defaults() (Dirs, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return Dirs{}, fmt.Errorf("resolve home dir: %w", err)
 	}
-	return Dirs{State: state, Runtime: runtime}, nil
+	return Dirs{State: defaultState(home), Runtime: defaultRuntime()}, nil
+}
+
+func defaultState(home string) string {
+	return filepath.Join(home, "Library", "Application Support", dirName())
+}
+
+func defaultRuntime() string {
+	return "/tmp/" + dirName() + "-" + strconv.Itoa(os.Getuid())
+}
+
+func dirName() string {
+	if buildinfo.Flavor == "release" {
+		return "clubmate"
+	}
+	return "clubmate-dev"
 }
 
 func (d Dirs) Ensure() error {
