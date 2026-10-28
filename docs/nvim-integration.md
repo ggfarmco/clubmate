@@ -7,7 +7,7 @@ Clubmate drives your own nvim with your own config. It never writes to `~/.confi
 The module exists only inside nvim started by Clubmate, so always load it with `pcall(require, "clubmate")`. Clubmate updates the same module table whenever it reconnects to nvim, so a cached `require("clubmate")` keeps working.
 
 - `navigate(dir)`: `wincmd dir` (`h`, `j`, `k` or `l`); if the cursor stays in the same window (the edge of the layout), it calls `edge(dir)`.
-- `edge(dir)`: tells Clubmate that nvim reached its edge in `dir`. `dir` is `h`, `j`, `k`, `l` or `left`, `down`, `up`, `right`. Today only `h` does something: it focuses the Code sidebar.
+- `edge(dir)`: tells Clubmate that nvim reached its edge in `dir`. `dir` is `h`, `j`, `k`, `l` or `left`, `down`, `up`, `right`. `h` and `l` focus the Code sidebar when it is on that side (Left for `h`, Right for `l`); `j` and `k` do nothing.
 
 ## Plain keymap
 

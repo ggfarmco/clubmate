@@ -10,6 +10,7 @@ import ClubmateKit
 final class AppModel {
     let supervisor: ConnectionSupervisor
     let updates: Updates
+    let settings = AppSettings()
     let projectsSession = ProjectSession(projectID: "")
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []

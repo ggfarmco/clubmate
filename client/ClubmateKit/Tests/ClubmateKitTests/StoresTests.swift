@@ -60,6 +60,24 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testSidebarHiddenPersists() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let first = ProjectUIStore(client: client, projectID: project.id)
+        try await first.start()
+        XCTAssertEqual(first.sidebarHidden, [:])
+        first.sidebarHidden["editor-nvim"] = true
+        await first.stop()
+        let state = try await client.uiStateGet(projectID: project.id)
+        XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object(["editor-nvim": .bool(true)]))
+
+        let second = ProjectUIStore(client: client, projectID: project.id)
+        try await second.start()
+        XCTAssertEqual(second.sidebarHidden, ["editor-nvim": true])
+        await second.stop()
+        await client.close()
+    }
+
     func testFocusRequestFromNotification() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")

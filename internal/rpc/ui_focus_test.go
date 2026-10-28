@@ -51,6 +51,8 @@ func TestUIFocusNotifiesProjectSubscribers(t *testing.T) {
 	assert.False(t, ok)
 	err = pc.Call(t.Context(), "ui.focus", map[string]string{"projectId": p.ID, "section": "echo.glob", "slot": ""}, nil)
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
+	err = pc.Call(t.Context(), "ui.focus", map[string]string{"projectId": p.ID, "section": "echo", "slot": "echo.sidebar", "edge": "x"}, nil)
+	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 	_, err = focus(p.ID, "echo.status")
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 	_, err = focus("prj_0123456789abcdef", "echo.main")

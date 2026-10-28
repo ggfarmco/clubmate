@@ -78,6 +78,9 @@ private struct ProjectCommands: Commands {
             Button("Command Palette") { session?.paletteShown.toggle() }
                 .keyboardShortcut("k")
                 .disabled(session == nil)
+            Button("Toggle Sidebar") { store?.toggleSidebar() }
+                .keyboardShortcut("b")
+                .disabled(store == nil)
         }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in

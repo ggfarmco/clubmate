@@ -523,8 +523,8 @@ func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error 
 func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	ctx := context.Background()
 	if ev.Event == edgeEvent {
-		if ev.Dir == "h" {
-			if err := h.Focus(ctx, e.id, h.PluginID(), sidebarSlot); err != nil {
+		if ev.Dir == "h" || ev.Dir == "l" {
+			if err := h.FocusEdge(ctx, e.id, h.PluginID(), sidebarSlot, ev.Dir); err != nil {
 				logError("focus", err)
 			}
 		}

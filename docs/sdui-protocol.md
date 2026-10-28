@@ -103,7 +103,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, plugin, hidden, confirm}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
-| ui.focus | `{projectId, section, slot}` | `{delivered}` |
+| ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
@@ -120,7 +120,7 @@ A command with a non-empty `"confirm"` string in its manifest entry is listed wi
 
 `client.register` marks the calling connection for the listed handles; the only handle is `"project.open"` and anything else is invalid params. Registration lasts for the connection. Plugin callers get invalid params.
 
-`ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`.
+`ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`, or `edge` is not absent, `""`, `h`, `j`, `k` or `l`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusEdge` to pass `edge`.
 
 `ui.render` is invalid params for a project that has been deleted.
 
@@ -134,14 +134,14 @@ A command with a non-empty `"confirm"` string in its manifest entry is listed wi
 
 `editor-nvim.review` takes args `{repo, base, head, mergeBase}` and returns `{mode}`. `head` defaults to `HEAD` when empty. `repo` must be absolute and `base` and `head` non-empty refs not starting with `-` and without whitespace (otherwise an error); `mergeBase` is accepted but unused. It starts nvim if needed. If nvim has `:DiffviewOpen` (`exists(':DiffviewOpen') == 2`), it closes the review tab it opened last time if that tab is still valid (switches to it and runs `DiffviewClose`), runs `DiffviewOpen -C<fnameescape(repo)> <base>...<head>` and returns `mode: "diffview"`, or `mode: "builtin"` (recording no tab) when the command opened no new tab (diffview reports its own errors softly); without `:DiffviewOpen` it changes nothing and returns `mode: "builtin"`. `editor-nvim.review-close` takes no args and closes that review tab the same way; it is a no-op when nvim is not running or the tab is gone.
 
-When nvim reaches its left edge through the `clubmate` Lua module (see `docs/nvim-integration.md`), editor-nvim calls `ui.focus` with slot `editor-nvim.sidebar`.
+When nvim reaches its left or right edge through the `clubmate` Lua module (see `docs/nvim-integration.md`), editor-nvim calls `ui.focus` with slot `editor-nvim.sidebar` and `edge` `h` or `l`.
 
 `ui.event` requires a non-empty `action`, a valid slot and a registered section. It is routed to the owning plugin.
 
 ## Notifications
 
 - `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the project are replayed first.
-- `ui.focus` `{subscription, section, slot}`: the client should show `section`, and `slot` when non-empty, for that subscription's project.
+- `ui.focus` `{subscription, section, slot, edge}`: the client should show `section`, and `slot` when non-empty, for that subscription's project. `edge` is present only when the caller passed a non-empty one: the direction nvim navigation left in. The client ignores a focus whose `edge` does not lead to its sidebar (`h` with the sidebar on the left, `l` with it on the right; `j` and `k` never do). A focus to a hidden sidebar shows it first.
 - `ui.closed` `{subscription, error}`: the subscription ended with an error (for example it fell behind); resubscribe and replace local state.
 
 ## File watching

@@ -154,17 +154,22 @@ func TestRestartRefusesUnsavedBuffers(t *testing.T) {
 func TestEdgeFocusesSidebar(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
-	drain(e.h.Client(t))
-	require.NoError(t, v.Command("lua require('clubmate').navigate('h')"))
-	n, ok := nextFocus(e.h.Client(t), 5*time.Second)
-	require.True(t, ok, "no ui.focus notification")
-	var focus struct {
-		Section string `json:"section"`
-		Slot    string `json:"slot"`
+	c := e.h.Client(t)
+	for _, dir := range []string{"h", "l"} {
+		drain(c)
+		require.NoError(t, v.Command("lua require('clubmate').navigate('"+dir+"')"))
+		n, ok := nextFocus(c, 5*time.Second)
+		require.True(t, ok, "no ui.focus notification for %s", dir)
+		var focus struct {
+			Section string `json:"section"`
+			Slot    string `json:"slot"`
+			Edge    string `json:"edge"`
+		}
+		require.NoError(t, json.Unmarshal(n.Params, &focus))
+		assert.Equal(t, "editor-nvim", focus.Section)
+		assert.Equal(t, "editor-nvim.sidebar", focus.Slot)
+		assert.Equal(t, dir, focus.Edge)
 	}
-	require.NoError(t, json.Unmarshal(n.Params, &focus))
-	assert.Equal(t, "editor-nvim", focus.Section)
-	assert.Equal(t, "editor-nvim.sidebar", focus.Slot)
 }
 
 func TestEdgeAfterPluginRestart(t *testing.T) {

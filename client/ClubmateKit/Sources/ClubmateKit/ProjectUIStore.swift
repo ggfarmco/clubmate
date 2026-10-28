@@ -22,6 +22,12 @@ public final class ProjectUIStore {
             updateState("sidebarWidth", .number(sidebarWidth))
         }
     }
+    public var sidebarHidden: [String: Bool] = [:] {
+        didSet {
+            guard !restoring, sidebarHidden != oldValue else { return }
+            updateState("sidebarHidden", .object(sidebarHidden.mapValues { .bool($0) }))
+        }
+    }
 
     @ObservationIgnored private var client: CoreClient
     @ObservationIgnored private var subscription: String?
@@ -97,6 +103,11 @@ public final class ProjectUIStore {
         await saving?.value
     }
 
+    public func toggleSidebar() {
+        guard let selectedSection else { return }
+        sidebarHidden[selectedSection] = !(sidebarHidden[selectedSection] ?? false)
+    }
+
     public func send(_ event: UIEvent) async -> Result<JSONValue, ClubmateError> {
         await result { try await self.client.uiEvent(event) }
     }
@@ -160,7 +171,7 @@ public final class ProjectUIStore {
         guard let params = try? notification.params.decode(UIFocusNotification.self), params.subscription == subscription else { return }
         if sections.contains(where: { $0.id == params.section }) { selectedSection = params.section }
         focusSerial += 1
-        focusRequest = FocusRequest(slot: params.slot, serial: focusSerial)
+        focusRequest = FocusRequest(slot: params.slot, serial: focusSerial, edge: params.edge)
     }
 
     private func recover() async {
@@ -223,6 +234,7 @@ public final class ProjectUIStore {
         defer { restoring = false }
         selectedSection = sections.first { $0.id == saved["section"]?.stringValue }?.id ?? sections.first?.id
         sidebarWidth = saved["sidebarWidth"]?.numberValue
+        sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
     }
 
     private func updateState(_ key: String, _ value: JSONValue) {
@@ -244,12 +256,29 @@ public final class ProjectUIStore {
 public struct FocusRequest: Equatable, Sendable {
     public let slot: String
     public let serial: Int
+    public let edge: String?
+
+    public init(slot: String, serial: Int, edge: String? = nil) {
+        self.slot = slot
+        self.serial = serial
+        self.edge = edge
+    }
+
+    public func accepts(side: SidebarSide) -> Bool {
+        switch edge {
+        case nil: true
+        case "h": side == .left
+        case "l": side == .right
+        default: false
+        }
+    }
 }
 
 private struct UIFocusNotification: Decodable {
     let subscription: String
     let section: String
     let slot: String
+    let edge: String?
 }
 
 private struct UINotification: Decodable {

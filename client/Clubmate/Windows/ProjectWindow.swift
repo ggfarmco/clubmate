@@ -32,7 +32,10 @@ struct ProjectWindow: View {
                 if session == nil, let projectID { session = app.session(for: projectID) }
             }
             .onChange(of: session?.store?.focusRequest) { _, request in
-                guard let request, !request.slot.isEmpty else { return }
+                guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }
+                if request.slot.hasSuffix(Self.sidebarSuffix) {
+                    session?.store?.sidebarHidden[String(request.slot.dropLast(Self.sidebarSuffix.count))] = false
+                }
                 focus.request(request.slot)
             }
             .onChange(of: listed, initial: true) { _, present in
@@ -40,6 +43,9 @@ struct ProjectWindow: View {
                 dismiss()
             }
     }
+
+    private static let sidebarSuffix = ".sidebar"
+    private static let autoHideSection = "editor-nvim"
 
     private var listed: Bool? {
         guard let projectID, let projects = app.projects?.projects else { return nil }
@@ -53,16 +59,32 @@ struct ProjectWindow: View {
 
     @ViewBuilder private var content: some View {
         if let session, let store = session.store, let section = store.selectedSection {
+            let side = app.settings.sidebarSide
+            let sidebar = store.sidebarHidden[section] == true ? nil : side
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Rail(sections: store.sections, selected: section) { store.selectedSection = $0 }
                     theme.border.frame(width: 1)
-                    SidebarPane(store: store, slot: "\(section).sidebar")
+                    if sidebar == .left {
+                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .left)
+                    }
                     SlotPane(store: store, slot: "\(section).main")
-                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID))
+                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID) {
+                            if app.settings.autoHideSidebar, section == Self.autoHideSection { store.sidebarHidden[section] = true }
+                        })
                         .overlay(alignment: .top) {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
+                    if sidebar == .right {
+                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .right)
+                    }
+                }
+                .background {
+                    Button("Toggle Sidebar") { store.toggleSidebar() }
+                        .keyboardShortcut("s", modifiers: [.command, .control])
+                        .opacity(0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
                 .frame(maxHeight: .infinity)
                 .clipped()
@@ -128,6 +150,7 @@ struct ProjectWindow: View {
 private struct MainFocus: ViewModifier {
     let slot: String
     let surface: String?
+    let claimed: () -> Void
 
     @FocusState private var focused: Bool
     @Environment(\.focusRouter) private var router
@@ -146,6 +169,7 @@ private struct MainFocus: ViewModifier {
     private func claim() {
         guard router?.take(slot) == true else { return }
         if let surface { deck?.focus(surface) } else { focused = true }
+        claimed()
     }
 }
 
@@ -169,6 +193,7 @@ struct SlotPane: View {
 private struct SidebarPane: View {
     let store: ProjectUIStore
     let slot: String
+    let side: SidebarSide
 
     @Environment(\.theme) private var theme
     @State private var dragStart: CGFloat?
@@ -184,19 +209,24 @@ private struct SidebarPane: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            if side == .right { handle }
             SlotPane(store: store, slot: slot)
                 .frame(width: width)
-            theme.border
-                .frame(width: 1)
-                .overlay {
-                    Color.clear
-                        .frame(width: 7)
-                        .contentShape(Rectangle())
-                        .onHover(perform: hover)
-                        .gesture(resize)
-                }
-                .zIndex(1)
+            if side == .left { handle }
         }
+    }
+
+    private var handle: some View {
+        theme.border
+            .frame(width: 1)
+            .overlay {
+                Color.clear
+                    .frame(width: 7)
+                    .contentShape(Rectangle())
+                    .onHover(perform: hover)
+                    .gesture(resize)
+            }
+            .zIndex(1)
     }
 
     private var resize: some Gesture {
@@ -204,7 +234,8 @@ private struct SidebarPane: View {
             .onChanged { drag in
                 let start = dragStart ?? width
                 dragStart = start
-                dragWidth = min(max(start + drag.translation.width, Self.range.lowerBound), Self.range.upperBound)
+                let delta = side == .left ? drag.translation.width : -drag.translation.width
+                dragWidth = min(max(start + delta, Self.range.lowerBound), Self.range.upperBound)
             }
             .onEnded { _ in
                 if let dragWidth { store.sidebarWidth = Double(dragWidth) }
