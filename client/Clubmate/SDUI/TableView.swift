@@ -8,6 +8,7 @@ struct TableNodeView: View {
     @State private var selected: String?
     @State private var sort: SDUISort?
     @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.scrollProxy) private var scroll
 
     var body: some View {
         let columns = node.columns()
@@ -22,6 +23,7 @@ struct TableNodeView: View {
                     } toggle: { expanded in
                         dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
                     }
+                    .id(row.id)
                 }
             } header: {
                 TableHeader(columns: columns, sort: sort) { column in
@@ -34,6 +36,11 @@ struct TableNodeView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .onChange(of: node.tableSort(), initial: true) { _, value in
             sort = value
+        }
+        .onChange(of: node.string("selected"), initial: true) { _, value in
+            guard value != selected else { return }
+            selected = value
+            if let value { scroll?.scrollTo(value, anchor: .center) }
         }
     }
 }

@@ -93,8 +93,8 @@ func Tree(id string, items []TreeItem, selected string) Node {
 	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
 }
 
-func Table(id string, columns []Column, rows []TableRow, sort Sort) Node {
-	props := map[string]any{"columns": nonNil(columns), "rows": nonNil(rows)}
+func Table(id string, columns []Column, rows []TableRow, selected string, sort Sort) Node {
+	props := withOptional(map[string]any{"columns": nonNil(columns), "rows": nonNil(rows)}, "selected", selected)
 	if sort.Column != "" {
 		props["sort"] = sort
 	}

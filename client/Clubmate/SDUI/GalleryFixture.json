@@ -135,7 +135,8 @@
                           ]},
                           {"id": "more", "muted": true, "cells": [{"text": "… 12 more"}, {}, {}, {}]}
                         ],
-                        "sort": {"column": "cpu", "desc": true}
+                        "sort": {"column": "cpu", "desc": true},
+                        "selected": "102"
                       }
                     },
                     {

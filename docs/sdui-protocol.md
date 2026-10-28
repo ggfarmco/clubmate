@@ -26,7 +26,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 - row (`table`): `{id*, depth, hasChildren, expanded, muted, cells*}`: `depth` is an integer 0-32 (indent 12pt per level, chevron when `hasChildren`), `muted` dims the row's text. Ids unique and non-empty. `cells` must have exactly one cell per column.
 - cell (`table`): `{text, bar, tone, spark}`: `bar` is a number 0…1 drawn as a filled capsule behind the text, `tone` is `""`\|`ok`\|`warn`\|`danger` (colours the bar and sparkline, or the text when there is no bar), `spark` is a spark.
 - spark (`table` cell): `{values*, max*}`: at most 900 numbers, `max` > 0. Values are clamped to 0…`max` and drawn as a 60×16pt line.
-- sort (`table`): `{column*, desc}`: the active sort column (arrow in its header) and direction.
+- sort (`table`): `{column*, desc}`: the active sort column (arrow in its header) and direction. `column` must be one of the table's column ids.
 
 ## Node types
 
@@ -38,7 +38,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | tabs | items* (item[]), selected* (string), action | none | yes |
 | list | items* (item[]), selected (string), action | none | yes |
 | tree | items* (tree item[]), selected (string), action | none | yes |
-| table | columns* (column[]), rows* (row[], at most 1000), sort (sort), action | none | yes |
+| table | columns* (column[], at most 32), rows* (row[], at most 1000), selected (string, row id), sort (sort), action | none | yes |
 | sparkline | values* (number[], at most 900), max* (number > 0) | none | no |
 | text | text* (string), style (`body`\|`muted`\|`title`\|`mono`) | none | no |
 | badge | text* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`) | none | no |
@@ -56,7 +56,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 
 A window shows at most one `surface` node at a time in v1. The client keeps every terminal it has shown mounted until the session's attach exits or the window closes, so switching between sessions is instant. A second `surface` visible in the same window at once renders a placeholder.
 
-`table` rows render lazily; wrap the table in a `scroll` to scroll them under a pinned header. Each row counts toward the 5000-node limit; cells and spark values do not. The client does not page or truncate: a plugin with more rows renders the first 1000 or fewer and adds a final muted `… N more` row itself. Row selection is client-side and kept while the node keeps its `id`. `sparkline` draws `values` as a 60×16pt line (e.g. in a header).
+`table` rows render lazily; wrap the table in a `scroll` to scroll them under a pinned header. Each row counts toward the 5000-node limit; cells are bounded by the row and column caps (at most 1000 × 32), and spark values (cell sparks and `sparkline` nodes) are capped at 100000 per tree. The client does not page or truncate: a plugin with more rows renders the first 1000 or fewer and adds a final muted `… N more` row itself. `selected` works like `tree`'s: a changed value from the plugin sets, moves or clears the highlight (and scrolls to it); clicking a row highlights it locally and sends `select`. `sparkline` draws `values` as a 60×16pt line (e.g. in a header).
 
 `button.confirm`: when set, the client asks the user to confirm with that text before sending the event.
 

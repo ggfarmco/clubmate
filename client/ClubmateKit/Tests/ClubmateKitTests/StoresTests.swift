@@ -230,7 +230,8 @@ final class StoresTests: XCTestCase {
             {"text": "nvim", "spark": {"values": [1, 3], "max": 4}},
             {"text": "35%", "bar": 0.35, "tone": "warn"}
           ]}],
-          "sort": {"column": "cpu", "desc": true}
+          "sort": {"column": "cpu", "desc": true},
+          "selected": "42"
         }}
         """
         let table = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
@@ -246,6 +247,7 @@ final class StoresTests: XCTestCase {
             ]),
         ])
         XCTAssertEqual(table.tableSort(), SDUISort(column: "cpu", desc: true))
+        XCTAssertEqual(table.string("selected"), "42")
     }
 
     func testTableSortToggle() {
