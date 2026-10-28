@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/bus"
 	"clubmate/internal/cli"
 	"clubmate/internal/paths"
@@ -79,6 +80,13 @@ func run(t *testing.T, args ...string) []byte {
 	root.SetArgs(args)
 	require.NoError(t, root.Execute(), stderr.String())
 	return stdout.Bytes()
+}
+
+func TestVersionCommand(t *testing.T) {
+	prevVersion, prevCommit := buildinfo.Version, buildinfo.Commit
+	buildinfo.Version, buildinfo.Commit = "1.2.3", "abcdef0123"
+	t.Cleanup(func() { buildinfo.Version, buildinfo.Commit = prevVersion, prevCommit })
+	assert.Equal(t, "1.2.3 (abcdef0)\n", string(run(t, "version")))
 }
 
 func TestProjectCreateAndListJSON(t *testing.T) {

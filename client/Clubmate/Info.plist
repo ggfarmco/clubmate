@@ -26,5 +26,9 @@
 	<string>NSApplication</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
+	<key>ClubmateFlavor</key>
+	<string>$(CLUBMATE_FLAVOR)</string>
+	<key>ClubmateCommit</key>
+	<string>$(CLUBMATE_COMMIT)</string>
 </dict>
 </plist>

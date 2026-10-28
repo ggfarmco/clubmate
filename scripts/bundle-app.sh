@@ -10,7 +10,7 @@ APP="$1"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/bin:/usr/local/go/bin:/usr/local/bin:$PATH"
 
-make -C "$ROOT" build
+make -C "$ROOT" build VERSION="${MARKETING_VERSION:-0.0.0-dev}" COMMIT="${CLUBMATE_COMMIT:-}" FLAVOR="${CLUBMATE_FLAVOR:-dev}"
 
 DEST="$APP/Contents/Resources/bin"
 rm -rf "$DEST"

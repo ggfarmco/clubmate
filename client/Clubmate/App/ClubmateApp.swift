@@ -51,6 +51,9 @@ private struct ProjectCommands: Commands {
     }
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Clubmate") { showAbout() }
+        }
         CommandGroup(replacing: .newItem) {
             Button("New") { run { .new(section: $0.selectedSection, commands: $1) } }
                 .keyboardShortcut("n")
@@ -73,6 +76,15 @@ private struct ProjectCommands: Commands {
                     .disabled(section(index) == nil)
             }
         }
+    }
+
+    private func showAbout() {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = BuildInfo.display(
+            version: info["CFBundleShortVersionString"] as? String ?? "",
+            commit: info["ClubmateCommit"] as? String ?? ""
+        )
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationVersion: version, .version: ""])
     }
 
     private func run(_ resolve: (ProjectUIStore, [Command]) -> CommandInvocation?) {

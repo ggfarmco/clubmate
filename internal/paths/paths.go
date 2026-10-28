@@ -11,6 +11,8 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/unix"
+
+	"clubmate/internal/buildinfo"
 )
 
 const maxSocketPath = 103
@@ -28,19 +30,27 @@ type Dirs struct {
 }
 
 func Resolve() (Dirs, error) {
+	name := dirName()
 	state := os.Getenv("CLUBMATE_STATE_DIR")
 	if state == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return Dirs{}, fmt.Errorf("resolve home dir: %w", err)
 		}
-		state = filepath.Join(home, "Library", "Application Support", "clubmate")
+		state = filepath.Join(home, "Library", "Application Support", name)
 	}
 	runtime := os.Getenv("CLUBMATE_RUNTIME_DIR")
 	if runtime == "" {
-		runtime = "/tmp/clubmate-" + strconv.Itoa(os.Getuid())
+		runtime = "/tmp/" + name + "-" + strconv.Itoa(os.Getuid())
 	}
 	return Dirs{State: state, Runtime: runtime}, nil
+}
+
+func dirName() string {
+	if buildinfo.Flavor == "release" {
+		return "clubmate"
+	}
+	return "clubmate-dev"
 }
 
 func (d Dirs) Ensure() error {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/core"
 	"clubmate/internal/id"
 	"clubmate/internal/proc"
@@ -64,7 +65,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 	svc := s.svc
 	return map[string]handlerFunc{
 		"core.ping": method(func(context.Context, empty) (pingResult, error) {
-			return pingResult{Version: Version, PID: os.Getpid()}, nil
+			return pingResult{Version: buildinfo.String(), PID: os.Getpid()}, nil
 		}),
 		"core.shutdown": method(s.shutdownCore),
 		"project.create": method(func(ctx context.Context, p createProjectParams) (project.Project, error) {

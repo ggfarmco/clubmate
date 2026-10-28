@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/bus"
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
@@ -84,7 +85,7 @@ func TestRPCPing(t *testing.T) {
 		Version string `json:"version"`
 	}
 	require.NoError(t, c.Call(t.Context(), "core.ping", struct{}{}, &out))
-	assert.Equal(t, rpc.Version, out.Version)
+	assert.Equal(t, buildinfo.String(), out.Version)
 }
 
 func TestRPCNotFoundMapsToSentinel(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/paths"
 	"clubmate/internal/rpc"
 	"clubmate/internal/sessionhost"
@@ -373,7 +374,7 @@ func initialize(ctx context.Context, m Manifest, conn *jsonrpc2.Conn) error {
 	ctx, cancel := context.WithTimeout(ctx, initializeTimeout)
 	defer cancel()
 	var res initializeResult
-	params := initializeParams{Protocol: ProtocolVersion, PluginID: m.ID, CoreVersion: rpc.Version}
+	params := initializeParams{Protocol: ProtocolVersion, PluginID: m.ID, CoreVersion: buildinfo.String()}
 	if err := conn.Call(ctx, "plugin.initialize", params, &res); err != nil {
 		return fmt.Errorf("initialize: %w", err)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/paths"
 	"clubmate/internal/testutil"
 )
@@ -26,14 +27,33 @@ func TestResolveUsesEnvOverrides(t *testing.T) {
 	assert.Equal(t, "/x/state/sessions/ses_1.json", d.SessionMeta("ses_1"))
 }
 
-func TestResolveDefaults(t *testing.T) {
-	t.Setenv("CLUBMATE_STATE_DIR", "")
-	t.Setenv("CLUBMATE_RUNTIME_DIR", "")
+func TestResolveFlavor(t *testing.T) {
 	home, _ := os.UserHomeDir()
-	d, err := paths.Resolve()
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(home, "Library/Application Support/clubmate"), d.State)
-	assert.Equal(t, "/tmp/clubmate-"+strconv.Itoa(os.Getuid()), d.Runtime)
+	uid := strconv.Itoa(os.Getuid())
+	tests := map[string]struct {
+		flavor      string
+		stateEnv    string
+		wantState   string
+		wantRuntime string
+	}{
+		"release":           {flavor: "release", wantState: filepath.Join(home, "Library/Application Support/clubmate"), wantRuntime: "/tmp/clubmate-" + uid},
+		"dev":               {flavor: "dev", wantState: filepath.Join(home, "Library/Application Support/clubmate-dev"), wantRuntime: "/tmp/clubmate-dev-" + uid},
+		"release state env": {flavor: "release", stateEnv: "/x/state", wantState: "/x/state", wantRuntime: "/tmp/clubmate-" + uid},
+		"dev state env":     {flavor: "dev", stateEnv: "/x/state", wantState: "/x/state", wantRuntime: "/tmp/clubmate-dev-" + uid},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			prev := buildinfo.Flavor
+			buildinfo.Flavor = tt.flavor
+			t.Cleanup(func() { buildinfo.Flavor = prev })
+			t.Setenv("CLUBMATE_STATE_DIR", tt.stateEnv)
+			t.Setenv("CLUBMATE_RUNTIME_DIR", "")
+			d, err := paths.Resolve()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantState, d.State)
+			assert.Equal(t, tt.wantRuntime, d.Runtime)
+		})
+	}
 }
 
 func TestEnsureRejectsLongRuntimeDir(t *testing.T) {

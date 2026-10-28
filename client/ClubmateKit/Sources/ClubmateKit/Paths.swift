@@ -10,10 +10,14 @@ public struct ClubmatePaths: Sendable, Equatable {
         self.runtime = runtime
     }
 
-    public static func resolve(env: [String: String] = ProcessInfo.processInfo.environment) -> ClubmatePaths {
+    public static func resolve(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        flavor: String = Bundle.main.object(forInfoDictionaryKey: "ClubmateFlavor") as? String ?? "dev"
+    ) -> ClubmatePaths {
+        let name = flavor == "release" ? "clubmate" : "clubmate-dev"
         let state = env["CLUBMATE_STATE_DIR"].flatMap(nonEmpty).map { URL(filePath: $0) }
-            ?? URL(filePath: env["HOME"].flatMap(nonEmpty) ?? NSHomeDirectory()).appending(path: "Library/Application Support/clubmate")
-        let runtime = URL(filePath: env["CLUBMATE_RUNTIME_DIR"].flatMap(nonEmpty) ?? "/tmp/clubmate-\(getuid())")
+            ?? URL(filePath: env["HOME"].flatMap(nonEmpty) ?? NSHomeDirectory()).appending(path: "Library/Application Support/\(name)")
+        let runtime = URL(filePath: env["CLUBMATE_RUNTIME_DIR"].flatMap(nonEmpty) ?? "/tmp/\(name)-\(getuid())")
         return ClubmatePaths(state: state, runtime: runtime)
     }
 

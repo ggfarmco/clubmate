@@ -48,16 +48,23 @@ targets:
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app
         PRODUCT_NAME: Clubmate
         INFOPLIST_FILE: Clubmate/Info.plist
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.0.0-dev"
         CURRENT_PROJECT_VERSION: "1"
+        CLUBMATE_COMMIT: ""
         OTHER_LDFLAGS:
           - "-lc++"
         OTHER_SWIFT_FLAGS:
           - "-Xcc"
           - "-Wno-incomplete-umbrella"
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app.dev
+          CLUBMATE_FLAVOR: dev
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app
+          CLUBMATE_FLAVOR: release
     postBuildScripts:
       - name: Bundle Go binaries
         basedOnDependencyAnalysis: false
