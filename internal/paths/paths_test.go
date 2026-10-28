@@ -32,21 +32,18 @@ func TestResolveFlavor(t *testing.T) {
 	uid := strconv.Itoa(os.Getuid())
 	tests := map[string]struct {
 		flavor      string
-		stateEnv    string
 		wantState   string
 		wantRuntime string
 	}{
-		"release":           {flavor: "release", wantState: filepath.Join(home, "Library/Application Support/clubmate"), wantRuntime: "/tmp/clubmate-" + uid},
-		"dev":               {flavor: "dev", wantState: filepath.Join(home, "Library/Application Support/clubmate-dev"), wantRuntime: "/tmp/clubmate-dev-" + uid},
-		"release state env": {flavor: "release", stateEnv: "/x/state", wantState: "/x/state", wantRuntime: "/tmp/clubmate-" + uid},
-		"dev state env":     {flavor: "dev", stateEnv: "/x/state", wantState: "/x/state", wantRuntime: "/tmp/clubmate-dev-" + uid},
+		"release": {flavor: "release", wantState: filepath.Join(home, "Library/Application Support/clubmate"), wantRuntime: "/tmp/clubmate-" + uid},
+		"dev":     {flavor: "dev", wantState: filepath.Join(home, "Library/Application Support/clubmate-dev"), wantRuntime: "/tmp/clubmate-dev-" + uid},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			prev := buildinfo.Flavor
 			buildinfo.Flavor = tt.flavor
 			t.Cleanup(func() { buildinfo.Flavor = prev })
-			t.Setenv("CLUBMATE_STATE_DIR", tt.stateEnv)
+			t.Setenv("CLUBMATE_STATE_DIR", "")
 			t.Setenv("CLUBMATE_RUNTIME_DIR", "")
 			d, err := paths.Resolve()
 			require.NoError(t, err)

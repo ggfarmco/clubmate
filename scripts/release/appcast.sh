@@ -31,6 +31,8 @@ if [[ -z "${SPARKLE_PRIVATE_KEY:-}" ]]; then
   echo "error: SPARKLE_PRIVATE_KEY is not set" >&2
   exit 1
 fi
+declare +x PRIVATE_KEY="$SPARKLE_PRIVATE_KEY"
+unset SPARKLE_PRIVATE_KEY
 
 sign_update() {
   local spm="$ROOT/build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
@@ -56,7 +58,7 @@ html_escape() {
 }
 
 SIGN_UPDATE="$(sign_update)"
-SIGNATURE="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | "$SIGN_UPDATE" --ed-key-file - -p "$DMG")"
+SIGNATURE="$(printf '%s' "$PRIVATE_KEY" | "$SIGN_UPDATE" --ed-key-file - -p "$DMG")"
 if [[ -z "$SIGNATURE" ]]; then
   echo "error: sign_update produced no signature" >&2
   exit 1

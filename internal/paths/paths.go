@@ -1,6 +1,7 @@
 package paths
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net"
@@ -30,20 +31,31 @@ type Dirs struct {
 }
 
 func Resolve() (Dirs, error) {
-	name := dirName()
 	state := os.Getenv("CLUBMATE_STATE_DIR")
 	if state == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return Dirs{}, fmt.Errorf("resolve home dir: %w", err)
 		}
-		state = filepath.Join(home, "Library", "Application Support", name)
+		state = defaultState(home)
 	}
-	runtime := os.Getenv("CLUBMATE_RUNTIME_DIR")
-	if runtime == "" {
-		runtime = "/tmp/" + name + "-" + strconv.Itoa(os.Getuid())
+	return Dirs{State: state, Runtime: cmp.Or(os.Getenv("CLUBMATE_RUNTIME_DIR"), defaultRuntime())}, nil
+}
+
+func Defaults() (Dirs, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return Dirs{}, fmt.Errorf("resolve home dir: %w", err)
 	}
-	return Dirs{State: state, Runtime: runtime}, nil
+	return Dirs{State: defaultState(home), Runtime: defaultRuntime()}, nil
+}
+
+func defaultState(home string) string {
+	return filepath.Join(home, "Library", "Application Support", dirName())
+}
+
+func defaultRuntime() string {
+	return "/tmp/" + dirName() + "-" + strconv.Itoa(os.Getuid())
 }
 
 func dirName() string {

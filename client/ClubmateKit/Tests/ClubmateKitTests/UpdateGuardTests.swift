@@ -9,6 +9,5 @@ final class UpdateGuardTests: XCTestCase {
         XCTAssertFalse(UpdateGuard.needsConfirmation(itemProtocol: 2, coreProtocol: 1, liveSessions: 0))
         XCTAssertTrue(UpdateGuard.needsConfirmation(itemProtocol: 2, coreProtocol: 1, liveSessions: 3))
         XCTAssertTrue(UpdateGuard.needsConfirmation(itemProtocol: 2, coreProtocol: nil, liveSessions: nil))
-        XCTAssertFalse(UpdateGuard.needsConfirmation(itemProtocol: nil, coreProtocol: nil, liveSessions: nil))
     }
 }

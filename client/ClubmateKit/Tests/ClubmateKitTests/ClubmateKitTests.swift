@@ -133,6 +133,9 @@ final class ClubmateKitTests: XCTestCase {
         }
         XCTAssertTrue(sessions.contains { if case .object(let s) = $0 { s["id"] == id } else { false } })
         XCTAssertEqual(kill(pid_t(hostPID), 0), 0)
+        try await CoreLauncher(cliPath: cli, bundledVersion: bundled).ensureRunning(paths: core.paths)
+        let again = try await client.ping()
+        XCTAssertEqual(again.pid, ping.pid)
         await client.close()
     }
 
