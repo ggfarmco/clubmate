@@ -35,10 +35,18 @@ struct ClubmateApp: App {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        AppDelegate.willQuit?()
+        return .terminateNow
+    }
+
+    @MainActor static var willQuit: (() -> Void)?
 }
 
 private struct ProjectCommands: Commands {
