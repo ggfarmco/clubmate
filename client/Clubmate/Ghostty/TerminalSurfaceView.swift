@@ -159,6 +159,8 @@ final class TerminalSurfaceView: NSView {
             return releaseCStrings()
         }
         ghostty_surface_set_color_scheme(surface, GhosttyApp.shared.colorScheme)
+        GhosttyApp.shared.register(self)
+        if let fontSize { performBinding("set_font_size:\(fontSize)") }
         updateDisplayID()
         updateSize()
         ghostty_surface_set_occlusion(surface, visible)

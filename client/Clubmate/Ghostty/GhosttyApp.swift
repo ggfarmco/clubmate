@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import os
 
 import GhosttyKit
@@ -8,20 +9,22 @@ import ClubmateKit
 let ghosttyLog = Logger(subsystem: "app.clubmate", category: "ghostty")
 
 @MainActor
+@Observable
 final class GhosttyApp {
     static let shared = GhosttyApp()
 
-    private(set) var app: ghostty_app_t?
+    @ObservationIgnored private(set) var app: ghostty_app_t?
     private(set) var theme = Theme.fallback
     private(set) var failure: String?
     private(set) var configFontSize: Double = 13
-    let colorScheme: ghostty_color_scheme_e
+    private(set) var colorScheme: ghostty_color_scheme_e
 
-    private var config: ghostty_config_t?
+    @ObservationIgnored private var config: ghostty_config_t?
+    @ObservationIgnored private let surfaces = NSHashTable<TerminalSurfaceView>.weakObjects()
+    @ObservationIgnored private var appearanceObservation: NSKeyValueObservation?
 
     private init() {
-        let dark = NSApp?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        colorScheme = dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT
+        colorScheme = Self.scheme(dark: Self.systemIsDark)
         if let resources = Bundle.main.resourceURL?.appending(path: "ghostty") {
             setenv("GHOSTTY_RESOURCES_DIR", resources.path(percentEncoded: false), 1)
         }
@@ -56,16 +59,49 @@ final class GhosttyApp {
         self.app = app
         self.config = config
         ghostty_app_set_color_scheme(app, colorScheme)
-        ghostty_app_update_config(app, config)
-        let derived = GhosttyCallbacks.takeDerivedConfig()
-        theme = GhosttyConfigReader.theme(from: derived ?? config, dark: dark, overlay: Self.overlayURL)
-        if let derived { ghostty_config_free(derived) }
-        configFontSize = GhosttyConfigReader.fontSize(config) ?? configFontSize
+        applyConfig(app, config)
+        appearanceObservation = NSApp?.observe(\.effectiveAppearance) { _, _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { GhosttyApp.shared.appearanceChanged() }
+            }
+        }
     }
 
     func tick() {
         guard let app else { return }
         ghostty_app_tick(app)
+    }
+
+    func register(_ view: TerminalSurfaceView) {
+        surfaces.add(view)
+    }
+
+    private func appearanceChanged() {
+        let scheme = Self.scheme(dark: Self.systemIsDark)
+        guard scheme != colorScheme, let app, let config else { return }
+        colorScheme = scheme
+        ghostty_app_set_color_scheme(app, scheme)
+        for surface in surfaces.allObjects.compactMap(\.surface) {
+            ghostty_surface_set_color_scheme(surface, scheme)
+        }
+        applyConfig(app, config)
+    }
+
+    private func applyConfig(_ app: ghostty_app_t, _ config: ghostty_config_t) {
+        ghostty_app_update_config(app, config)
+        let derived = GhosttyCallbacks.takeDerivedConfig()
+        let applied = derived ?? config
+        theme = GhosttyConfigReader.theme(from: applied, dark: colorScheme == GHOSTTY_COLOR_SCHEME_DARK, overlay: Self.overlayURL)
+        configFontSize = GhosttyConfigReader.fontSize(applied) ?? configFontSize
+        if let derived { ghostty_config_free(derived) }
+    }
+
+    private static var systemIsDark: Bool {
+        NSApp.map { ColorSchemeChoice.isDark(appearanceName: $0.effectiveAppearance.name.rawValue) } ?? false
+    }
+
+    private static func scheme(dark: Bool) -> ghostty_color_scheme_e {
+        dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT
     }
 
     private static var overlayURL: URL {
