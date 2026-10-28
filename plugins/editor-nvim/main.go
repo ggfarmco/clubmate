@@ -43,8 +43,8 @@ var (
 	errDeleted        = errors.New("project deleted")
 	errNotInRepo      = errors.New("not in a git repository")
 	errRelativePath   = errors.New("diff: path must be absolute")
-	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index or worktree, and differ")
-	errReviewArgs     = errors.New("review: repo must be absolute and base a ref")
+	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
+	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
 )
 
 type projectEvent struct {
@@ -77,6 +77,7 @@ type diffArgs struct {
 type reviewArgs struct {
 	Repo      string `json:"repo"`
 	Base      string `json:"base"`
+	Head      string `json:"head"`
 	MergeBase string `json:"mergeBase"`
 }
 
@@ -440,7 +441,8 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 	}
 	args.Path = filepath.Clean(args.Path)
 	label, ok := baseLabel(args.Base)
-	if !ok || !slices.Contains([]string{"index", "worktree"}, args.Target) || args.Base == args.Target {
+	target, targetOK := targetLabel(args.Target)
+	if !ok || !targetOK || label == target {
 		return errDiffSides
 	}
 	repo, ok := repoRoot(filepath.Dir(args.Path))
@@ -457,7 +459,7 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 		return err
 	}
 	right := ""
-	if args.Target == "index" {
+	if args.Target != "worktree" {
 		if right, err = gitShow(ctx, repo, args.Target, rel); err != nil {
 			return err
 		}
@@ -466,18 +468,21 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 	if err != nil {
 		return err
 	}
-	return c.diff(args.Path, rel, label, args.Target, left, right)
+	return c.diff(args.Path, rel, label, target, left, right)
 }
 
 func (a *app) review(ctx context.Context, h *pluginsdk.Host, e *editor, args reviewArgs) (reviewResult, error) {
-	if !filepath.IsAbs(args.Repo) || args.Base == "" || strings.HasPrefix(args.Base, "-") || strings.ContainsAny(args.Base, " \t\n\r\v\f") {
+	if args.Head == "" {
+		args.Head = "HEAD"
+	}
+	if !filepath.IsAbs(args.Repo) || !isRef(args.Base) || !isRef(args.Head) {
 		return reviewResult{}, errReviewArgs
 	}
 	c, err := a.ensure(ctx, h, e)
 	if err != nil {
 		return reviewResult{}, err
 	}
-	mode, err := c.review(filepath.Clean(args.Repo), args.Base)
+	mode, err := c.review(filepath.Clean(args.Repo), args.Base, args.Head)
 	return reviewResult{Mode: mode}, err
 }
 
@@ -684,6 +689,17 @@ func baseLabel(base string) (string, bool) {
 		return "", false
 	}
 	return sha[:min(shortSHA, len(sha))], true
+}
+
+func targetLabel(target string) (string, bool) {
+	if strings.HasPrefix(target, revPrefix) {
+		return baseLabel(target)
+	}
+	return target, target == "index" || target == "worktree"
+}
+
+func isRef(ref string) bool {
+	return ref != "" && !strings.HasPrefix(ref, "-") && !strings.ContainsAny(ref, " \t\n\r\v\f")
 }
 
 func gitShow(ctx context.Context, repo, side, rel string) (string, error) {

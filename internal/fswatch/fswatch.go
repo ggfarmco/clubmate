@@ -21,7 +21,8 @@ func Keep(path string) bool {
 }
 
 func keepGit(rest string) bool {
-	if rest == "HEAD" || rest == "index" || strings.HasPrefix(rest, "refs/heads/") {
+	if rest == "HEAD" || rest == "index" || rest == "packed-refs" ||
+		strings.HasPrefix(rest, "refs/heads/") || strings.HasPrefix(rest, "refs/remotes/") {
 		return true
 	}
 	linked, ok := strings.CutPrefix(rest, "worktrees/")

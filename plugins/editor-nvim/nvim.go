@@ -82,7 +82,7 @@ for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
   end
 end
 if target ~= "worktree" then
-  scratch("clubmate://index/" .. rel, right, false)
+  scratch("clubmate://" .. target .. "/" .. rel, right, false)
 end
 local dos = vim.bo.fileformat == "dos"
 vim.cmd.diffthis()
@@ -97,11 +97,11 @@ if m.review_tab and vim.api.nvim_tabpage_is_valid(m.review_tab) then
 end
 m.review_tab = nil`
 
-const reviewLua = `local repo, base = ...
+const reviewLua = `local repo, base, head = ...
 if vim.fn.exists(":DiffviewOpen") ~= 2 then return "builtin" end
 ` + closeReviewLua + `
 local before = vim.api.nvim_get_current_tabpage()
-vim.cmd({ cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(repo), base .. "...HEAD" } })
+vim.cmd({ cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(repo), base .. "..." .. head } })
 local tab = vim.api.nvim_get_current_tabpage()
 if tab == before then return "builtin" end
 m.review_tab = tab
@@ -223,9 +223,9 @@ func (c *client) diff(path, rel, base, target, left, right string) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(diffLua, nil, path, rel, base, target, left, right) })
 }
 
-func (c *client) review(repo, base string) (string, error) {
+func (c *client) review(repo, base, head string) (string, error) {
 	var mode string
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, repo, base) }); err != nil {
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, repo, base, head) }); err != nil {
 		return "", err
 	}
 	return mode, nil

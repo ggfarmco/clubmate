@@ -216,18 +216,34 @@ func TestMergeBaseAndChanges(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, baseSHA, mb)
 
-	entries, err := gitrepo.ChangedSince(t.Context(), repo, mb)
+	want := map[string]byte{
+		filepath.Join(repo, "n.go"): 'A',
+		filepath.Join(repo, "a.go"): 'M',
+		filepath.Join(repo, "d.go"): 'D',
+	}
+	entries, err := gitrepo.ChangedSince(t.Context(), repo, mb, "HEAD")
 	require.NoError(t, err)
 	got := map[string]byte{}
 	for _, e := range entries {
 		assert.Equal(t, byte(' '), e.Y)
 		got[e.Path] = e.X
 	}
-	assert.Equal(t, map[string]byte{
-		filepath.Join(repo, "n.go"): 'A',
-		filepath.Join(repo, "a.go"): 'M',
-		filepath.Join(repo, "d.go"): 'D',
-	}, got)
+	assert.Equal(t, want, got)
+
+	git(t, repo, "checkout", "-q", "main")
+	entries, err = gitrepo.ChangedSince(t.Context(), repo, mb, "feature/x")
+	require.NoError(t, err)
+	got = map[string]byte{}
+	for _, e := range entries {
+		got[e.Path] = e.X
+	}
+	assert.Equal(t, want, got)
+
+	sha, err := gitrepo.Commit(t.Context(), repo, "feature/x")
+	require.NoError(t, err)
+	assert.Equal(t, revParse(t, repo, "feature/x"), sha)
+	_, err = gitrepo.Commit(t.Context(), repo, "nope")
+	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)
 
 	_, err = gitrepo.MergeBase(t.Context(), repo, "nope", "HEAD")
 	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)

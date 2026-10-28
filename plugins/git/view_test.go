@@ -88,3 +88,8 @@ func TestReviewViewReadOnly(t *testing.T) {
 	assert.Equal(t, []string{"", openDiffAction}, ids)
 	assert.Equal(t, "Open Diff in Neovim", toolbar.Children[1].Props["label"])
 }
+
+func TestRestoredReviewDefaultsHead(t *testing.T) {
+	assert.Equal(t, "HEAD", restored(storedReview{Repo: "/r", Base: "main"}).Head)
+	assert.Equal(t, "feature/x", restored(storedReview{Repo: "/r", Base: "main", Head: "feature/x"}).Head)
+}

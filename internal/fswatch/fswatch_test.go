@@ -18,6 +18,10 @@ func TestKeep(t *testing.T) {
 		"repo/.git/HEAD":            true,
 		"repo/.git/refs/tags/v1":    false,
 
+		"repo/.git/refs/remotes/origin/main": true,
+		"repo/.git/packed-refs":              true,
+		"repo/.git/FETCH_HEAD":               false,
+
 		"repo/.git/worktrees/wt/HEAD":      true,
 		"repo/.git/worktrees/wt/logs/HEAD": false,
 	} {

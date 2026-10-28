@@ -358,6 +358,22 @@ func badgeText(n sdui.Node) string {
 	return ""
 }
 
+func reviewFormID(t *testing.T, h *testutil.PluginHarness, id string) string {
+	t.Helper()
+	form := ""
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool {
+		for _, c := range n.Children {
+			for _, f := range c.Children {
+				if f.Type == "form" {
+					form = f.ID
+				}
+			}
+		}
+		return form != ""
+	})
+	return form
+}
+
 func TestReviewGroup(t *testing.T) {
 	repo := branchRepo(t)
 	h, id := open(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
@@ -387,6 +403,39 @@ func TestReviewGroup(t *testing.T) {
 	assert.Less(t, time.Since(start), 2*time.Second)
 }
 
+func TestReviewHead(t *testing.T) {
+	repo := newRepo(t, "a.go", "b.go", "d.go")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	git(t, repo, "checkout", "-qb", "feature/x")
+	write(t, filepath.Join(repo, "a.go"), "two\n")
+	write(t, filepath.Join(repo, "n.go"), "n\n")
+	require.NoError(t, os.Remove(filepath.Join(repo, "d.go")))
+	git(t, repo, "add", "-A")
+	git(t, repo, "commit", "-qm", "feature")
+	git(t, repo, "checkout", "-q", "main")
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+
+	h.Event(t, id, mainSlot, reviewFormID(t, h, id), "review", map[string]string{"base": "main", "head": "feature/x"})
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (3)", 3))
+
+	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00review\x00"+filepath.Join(repo, "a.go"))
+	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return showing(n, "a.go") })
+	assert.Contains(t, main.Children[1].Children[0].Props["text"], "+two")
+	content, err := os.ReadFile(filepath.Join(repo, "a.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "one\n", string(content))
+
+	wt := filepath.Join(t.TempDir(), "wt")
+	git(t, repo, "worktree", "add", "-q", wt, "feature/x")
+	write(t, filepath.Join(wt, "b.go"), "two\n")
+	git(t, wt, "commit", "-qam", "b")
+	start := time.Now()
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (4)", 4))
+	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
 func TestReviewErrors(t *testing.T) {
 	repo := branchRepo(t)
 	h, id := open(t, repo)
@@ -394,19 +443,12 @@ func TestReviewErrors(t *testing.T) {
 	reviewBranch(t, h, id)
 	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
 
-	form := ""
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool {
-		for _, c := range n.Children {
-			for _, f := range c.Children {
-				if f.Type == "form" {
-					form = f.ID
-				}
-			}
-		}
-		return form != ""
-	})
-	h.Event(t, id, mainSlot, form, "review", map[string]string{"base": "nope"})
+	form := reviewFormID(t, h, id)
+	h.Event(t, id, mainSlot, form, "review", map[string]string{"base": "main", "head": "nope"})
 	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "unknown branch nope" })
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+	h.Event(t, id, mainSlot, form, "review", map[string]string{"base": "gone", "head": "HEAD"})
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "unknown branch gone" })
 	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
 
 	git(t, repo, "checkout", "-q", "--orphan", "o")
@@ -420,8 +462,8 @@ func TestReviewPersists(t *testing.T) {
 	repo := branchRepo(t)
 	h, id := open(t, repo)
 	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
-	reviewBranch(t, h, id)
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+	h.Event(t, id, mainSlot, reviewFormID(t, h, id), "review", map[string]string{"base": "main", "head": "feature/x"})
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (3)", 3))
 
 	pids := h.Sup.PIDs()
 	require.Len(t, pids, 1)
@@ -430,7 +472,7 @@ func TestReviewPersists(t *testing.T) {
 		restarted := h.Sup.PIDs()
 		return len(restarted) == 1 && restarted[0] != pids[0]
 	}, restartWait)
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (3)", 3))
 }
 
 func TestCorruptStoredReviewIgnored(t *testing.T) {
