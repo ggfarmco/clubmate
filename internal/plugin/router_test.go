@@ -3,8 +3,10 @@ package plugin_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -45,7 +47,7 @@ func TestUIRenderEventAndOwnership(t *testing.T) {
 	assert.Equal(t, "hi", res["said"])
 	var echoed map[string]any
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi", "n": 1}}, &echoed))
-	assert.Equal(t, map[string]any{"text": "hi", "n": 1.0}, echoed)
+	assert.Equal(t, map[string]any{"plugin": "echo", "args": map[string]any{"text": "hi", "n": 1.0}}, echoed)
 	err = h.PluginCall(t, "echo", "ui.render", map[string]any{"projectId": p.ID, "slot": "terminals.main", "tree": map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}})
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
@@ -117,6 +119,34 @@ func TestSubscriptionIDsAreScopedByKind(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
 	assert.ErrorIs(t, c.Call(t.Context(), "bus.unsubscribe", sub, nil), rpc.ErrNotFound)
 	assert.NoError(t, c.Call(t.Context(), "ui.unsubscribe", sub, nil))
+}
+
+func TestCapabilityRouting(t *testing.T) {
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	sayer := func(id string) string {
+		return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"%s.say","title":"Say","provides":["echo.say-cap"]}]}}`, id, id, id)
+	}
+	h.Start(t, testutil.EchoPluginDirAs(t, sayer("beta")), testutil.EchoPluginDirAs(t, sayer("alpha")))
+	testutil.Eventually(t, func() bool {
+		return !slices.ContainsFunc(h.Sup.Statuses(), func(st plugin.Status) bool { return st.State != plugin.StateRunning })
+	}, 5*time.Second)
+	c := h.Client(t)
+	run := func(id string) string {
+		var out struct {
+			Plugin string `json:"plugin"`
+		}
+		require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": p.ID}, &out))
+		return out.Plugin
+	}
+	assert.Equal(t, "beta", run("echo.say-cap"))
+	assert.Equal(t, "alpha", run("alpha.say"))
+	var caps struct {
+		Capabilities map[string]string `json:"capabilities"`
+	}
+	require.NoError(t, c.Call(t.Context(), "command.capabilities", struct{}{}, &caps))
+	assert.Equal(t, map[string]string{"echo.say-cap": "beta.say"}, caps.Capabilities)
 }
 
 type noopHandler struct{}

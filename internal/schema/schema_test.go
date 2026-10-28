@@ -55,10 +55,14 @@ func TestSchemaCheck(t *testing.T) {
 		schema string
 		err    string
 	}{
-		{name: "valid", schema: `{"properties":{"ids":{"type":"array","items":{"type":"integer"}}},"required":["ids"]}`},
+		{name: "valid", schema: `{"properties":{"ids":{"type":"array","items":{"type":"integer"},"default":[1]}},"required":["ids"]}`},
 		{name: "unknown type", schema: `{"properties":{"x":{"type":"object"}}}`, err: `x: unsupported type "object"`},
 		{name: "array without items", schema: `{"properties":{"x":{"type":"array"}}}`, err: `x: array needs scalar items`},
 		{name: "required not declared", schema: `{"properties":{},"required":["x"]}`, err: `required "x" is not a property`},
+		{name: "mistyped enum", schema: `{"properties":{"x":{"type":"integer","enum":[1,"two"]}}}`, err: `x: enum value "two" is not integer`},
+		{name: "mistyped default", schema: `{"properties":{"x":{"type":"boolean","default":"yes"}}}`, err: `x: default: want boolean`},
+		{name: "enum on array", schema: `{"properties":{"x":{"type":"array","items":{"type":"string"},"enum":["a"]}}}`, err: `x: enum on array`},
+		{name: "items on scalar", schema: `{"properties":{"x":{"type":"string","items":{"type":"string"}}}}`, err: `x: items on string`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -117,6 +117,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, description, plugin, hidden, confirm, args?, result?, agent, destructive, provides?}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
+| command.capabilities | none | `{capabilities: {name: commandId}}` |
 | ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
@@ -140,7 +141,7 @@ A manifest command entry may also declare, all optional and listed as declared:
 - `destructive` (default `false`): the command destroys state (closes, kills, discards);
 - `provides`: generic capability names the command implements.
 
-A schema is a small JSON Schema subset: an object `{properties: {name: prop}, required: [name]}` (object only at the top level), where a prop is `{type, items, enum, description, default}`, `type` is `string`, `integer`, `number`, `boolean` or `array`, and an `array` has scalar `items`. `enum` values must match the type and every `required` name must be a property; anything else fails manifest load.
+A schema is a small JSON Schema subset: an object `{properties: {name: prop}, required: [name]}` (object only at the top level), where a prop is `{type, items, enum, description, default}`, `type` is `string`, `integer`, `number`, `boolean` or `array`, and an `array` has scalar `items`. Only an `array` has `items` and only a scalar has `enum`; `enum` values and `default` must match the type (a `default` also the `enum`), and every `required` name must be a property; anything else fails manifest load. `default` is documentation only: the plugin applies it, the core never fills it in.
 
 `command.run` validates `args` against the command's `args` schema before routing, so the plugin is never called with bad args. Absent or `null` args count as `{}`; properties not in the schema are allowed; a `null` property counts as absent. Errors are invalid params naming the field: `args: want object`, `args.path: required`, `args.line: want integer`, `args.side: want one of ["left","right"]`, `args.paths[1]: want string`. `integer` rejects fractions and exponents. A command without an `args` schema accepts any args.
 
@@ -160,7 +161,9 @@ Projects are shown to users as workspaces; `clubmate project …` is an alias of
 
 `ui.render` is invalid params for a project that has been deleted.
 
-`command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
+`command.run` resolves `id` to a command: a listed command id wins; otherwise `id` is taken as a capability name (see below). It fails with unknown command when neither matches; it is routed to the plugin that registered the resolved command, which receives the resolved command id (not the capability name) in `id`.
+
+A capability is a generic name a command declares in `provides`, so callers need not know which plugin implements it. A capability resolves to the first provider in plugin load (discovery) order whose plugin is running, else to the first provider (then `command.run` fails with plugin unavailable). When several commands provide one capability the core logs `capability X provided by A and B; using A` (command ids) once per distinct outcome. `command.capabilities` returns that resolution for every declared capability. Bundled capabilities: `editor.open` (`editor-nvim.open`), `editor.reveal` (`editor-nvim.reveal`), `terminal.new` (`terminals.new`), `terminal.close` (`terminals.close`), `files.reveal` (`files.reveal`), `git.stage-all` (`git.stage-all`), `git.review` (`git.review-branch`).
 
 `files.collapse-others` ("Collapse Others") takes no args. It keeps expanded only the repo roots and the ancestors of the selected file (the file last opened in or revealed from the editor), persists the expanded set and re-renders the tree. In the files tree a directory whose only visible entry is one directory is merged with it into one row labelled `a / b / c` whose id is the deepest path; expand and collapse act on that path. File rows have no icon.
 

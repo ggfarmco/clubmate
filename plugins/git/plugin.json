@@ -15,6 +15,7 @@
       },
       {
         "id": "git.stage-all",
+        "provides": ["git.stage-all"],
         "title": "Stage All Changes",
         "agent": true,
         "description": "Stage all changes (git add -A) in every workspace repo."
@@ -27,6 +28,7 @@
       },
       {
         "id": "git.review-branch",
+        "provides": ["git.review"],
         "title": "Review Branch",
         "agent": true,
         "description": "Review the current branch of the selected (or first) workspace repo against its default base branch in the editor."

@@ -80,11 +80,11 @@ func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, e
 	return map[string]any{"said": ev.Value, "plugin": h.PluginID()}, nil
 }
 
-func command(_ context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
-	if cmd.ID != "echo.say" {
+func command(_ context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+	if cmd.ID != h.PluginID()+".say" {
 		return nil, fmt.Errorf("unknown command %q", cmd.ID)
 	}
-	return cmd.Args, nil
+	return map[string]any{"plugin": h.PluginID(), "args": cmd.Args}, nil
 }
 
 func forkSleepAndExit(ctx context.Context, h *pluginsdk.Host) error {

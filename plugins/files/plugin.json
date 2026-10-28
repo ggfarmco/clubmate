@@ -27,6 +27,7 @@
       },
       {
         "id": "files.reveal",
+        "provides": ["files.reveal"],
         "title": "Reveal File in Tree",
         "hidden": true,
         "agent": true,

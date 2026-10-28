@@ -77,6 +77,7 @@ type Supervisor struct {
 	mu      sync.Mutex
 	cancel  context.CancelFunc
 	plugins map[string]*instance
+	order   []string
 }
 
 type instance struct {
@@ -149,6 +150,7 @@ func (s *Supervisor) Start(ctx context.Context, manifests []Manifest) {
 	s.cancel = cancel
 	for _, m := range manifests {
 		s.plugins[m.ID] = &instance{status: Status{ID: m.ID, State: StateStarting, Manifest: m}}
+		s.order = append(s.order, m.ID)
 	}
 	s.mu.Unlock()
 	for _, m := range manifests {
@@ -198,6 +200,16 @@ func (s *Supervisor) Statuses() []Status {
 	}
 	s.mu.Unlock()
 	slices.SortFunc(out, func(a, b Status) int { return strings.Compare(a.ID, b.ID) })
+	return out
+}
+
+func (s *Supervisor) loaded() []Status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Status, 0, len(s.order))
+	for _, id := range s.order {
+		out = append(out, s.plugins[id].status)
+	}
 	return out
 }
 

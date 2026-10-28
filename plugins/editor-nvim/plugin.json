@@ -9,6 +9,7 @@
     "commands": [
       {
         "id": "editor-nvim.open",
+        "provides": ["editor.open"],
         "title": "Open File",
         "hidden": true,
         "agent": true,
@@ -81,6 +82,7 @@
       },
       {
         "id": "editor-nvim.reveal",
+        "provides": ["editor.reveal"],
         "title": "Reveal File in Finder",
         "agent": true,
         "description": "Reveal the file currently open in Neovim in Finder."

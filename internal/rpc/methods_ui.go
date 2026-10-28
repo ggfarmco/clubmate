@@ -33,6 +33,8 @@ type Router interface {
 	UIEvent(ctx context.Context, pluginID string, ev json.RawMessage) (json.RawMessage, error)
 	Command(ctx context.Context, pluginID string, run json.RawMessage) (json.RawMessage, error)
 	Commands() []Command
+	Resolve(id string) (Command, bool)
+	Capabilities() map[string]string
 }
 
 type Command struct {
@@ -95,6 +97,10 @@ type uiEventParams struct {
 	Value     json.RawMessage `json:"value"`
 }
 
+type capabilitiesResult struct {
+	Capabilities map[string]string `json:"capabilities"`
+}
+
 type commandRunParams struct {
 	ID        string          `json:"id"`
 	ProjectID string          `json:"projectId"`
@@ -112,16 +118,17 @@ func (s *Server) SetUI(store *sdui.Store, sections *sdui.Sections, router Router
 
 func (s *Server) uiMethods() map[string]handlerFunc {
 	return map[string]handlerFunc{
-		"ui.sections":    method(s.uiSections),
-		"ui.get":         method(s.uiGet),
-		"ui.subscribe":   method(s.uiSubscribe),
-		"ui.unsubscribe": method(s.uiUnsubscribe),
-		"ui.presence":    method(s.uiPresence),
-		"ui.focus":       method(s.uiFocus),
-		"ui.render":      method(s.uiRender),
-		"ui.event":       method(s.uiEvent),
-		"command.list":   method(s.commandList),
-		"command.run":    method(s.commandRun),
+		"ui.sections":          method(s.uiSections),
+		"ui.get":               method(s.uiGet),
+		"ui.subscribe":         method(s.uiSubscribe),
+		"ui.unsubscribe":       method(s.uiUnsubscribe),
+		"ui.presence":          method(s.uiPresence),
+		"ui.focus":             method(s.uiFocus),
+		"ui.render":            method(s.uiRender),
+		"ui.event":             method(s.uiEvent),
+		"command.list":         method(s.commandList),
+		"command.run":          method(s.commandRun),
+		"command.capabilities": method(s.commandCapabilities),
 	}
 }
 
@@ -284,20 +291,27 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if err := s.requireProject(ctx, p.ProjectID); err != nil {
 		return nil, err
 	}
-	for _, c := range u.router.Commands() {
-		if c.ID != p.ID {
-			continue
-		}
-		if err := schema.Validate(c.Args, p.Args); err != nil {
-			return nil, invalidParams(err.Error())
-		}
-		raw, err := json.Marshal(p)
-		if err != nil {
-			return nil, err
-		}
-		return u.router.Command(ctx, c.Plugin, raw)
+	c, ok := u.router.Resolve(p.ID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
 	}
-	return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
+	if err := schema.Validate(c.Args, p.Args); err != nil {
+		return nil, invalidParams(err.Error())
+	}
+	p.ID = c.ID
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+	return u.router.Command(ctx, c.Plugin, raw)
+}
+
+func (s *Server) commandCapabilities(context.Context, empty) (capabilitiesResult, error) {
+	u, err := s.uiState()
+	if err != nil {
+		return capabilitiesResult{}, err
+	}
+	return capabilitiesResult{Capabilities: u.router.Capabilities()}, nil
 }
 
 func (s *Server) uiState() (*uiState, error) {

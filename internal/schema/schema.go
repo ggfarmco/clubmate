@@ -29,14 +29,7 @@ func Check(o *Object) error {
 		return nil
 	}
 	for _, name := range slices.Sorted(maps.Keys(o.Properties)) {
-		p := o.Properties[name]
-		if p.Type == "array" {
-			if p.Items == nil || p.Items.Type == "array" {
-				return fmt.Errorf("%s: array needs scalar items", name)
-			}
-			p = *p.Items
-		}
-		if err := p.check(name); err != nil {
+		if err := o.Properties[name].check(name); err != nil {
 			return err
 		}
 	}
@@ -49,8 +42,21 @@ func Check(o *Object) error {
 }
 
 func (p Prop) check(name string) error {
-	if !slices.Contains(scalars, p.Type) {
+	switch {
+	case p.Type == "array":
+		if len(p.Enum) > 0 {
+			return fmt.Errorf("%s: enum on array", name)
+		}
+		if p.Items == nil || p.Items.Type == "array" {
+			return fmt.Errorf("%s: array needs scalar items", name)
+		}
+		if err := p.Items.check(name + "[]"); err != nil {
+			return err
+		}
+	case !slices.Contains(scalars, p.Type):
 		return fmt.Errorf("%s: unsupported type %q", name, p.Type)
+	case p.Items != nil:
+		return fmt.Errorf("%s: items on %s", name, p.Type)
 	}
 	for _, e := range p.Enum {
 		raw, err := json.Marshal(e)
@@ -60,6 +66,16 @@ func (p Prop) check(name string) error {
 		if _, ok := decode(p.Type, raw); !ok {
 			return fmt.Errorf("%s: enum value %s is not %s", name, raw, p.Type)
 		}
+	}
+	if p.Default == nil {
+		return nil
+	}
+	raw, err := json.Marshal(p.Default)
+	if err != nil {
+		return fmt.Errorf("%s: default: %w", name, err)
+	}
+	if err := p.validate("default", raw); err != nil {
+		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil
 }

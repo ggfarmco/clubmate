@@ -9,6 +9,7 @@
     "commands": [
       {
         "id": "terminals.new",
+        "provides": ["terminal.new"],
         "title": "New Terminal",
         "agent": true,
         "description": "Open a new login-shell terminal in the workspace and focus it.",
@@ -20,6 +21,7 @@
       },
       {
         "id": "terminals.close",
+        "provides": ["terminal.close"],
         "title": "Close Terminal",
         "agent": true,
         "destructive": true,
