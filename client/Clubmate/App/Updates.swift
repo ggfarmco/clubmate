@@ -14,7 +14,8 @@ final class Updates: NSObject {
     @ObservationIgnored private let supervisor: ConnectionSupervisor
     @ObservationIgnored private var controller: SPUStandardUpdaterController?
     @ObservationIgnored private var observation: NSKeyValueObservation?
-    @ObservationIgnored private var core: CoreState?
+    @ObservationIgnored private var coreProtocol: Int?
+    @ObservationIgnored private var liveSessions: Int?
 
     init(supervisor: ConnectionSupervisor) {
         self.supervisor = supervisor
@@ -32,11 +33,12 @@ final class Updates: NSObject {
     }
 
     private func refreshCore() {
-        core = nil
+        coreProtocol = nil
+        liveSessions = nil
         guard let client = supervisor.client else { return }
         Task {
-            guard let ping = try? await client.ping(), let live = try? await client.liveSessionCount() else { return }
-            core = CoreState(sessionProtocol: ping.sessionProtocol ?? 0, liveSessions: live)
+            coreProtocol = try? await client.ping().sessionProtocol
+            liveSessions = try? await client.liveSessionCount()
         }
     }
 
@@ -44,10 +46,13 @@ final class Updates: NSObject {
         (item.propertiesDictionary["clubmate:sessionProtocol"] as? String).flatMap { Int($0) }
     }
 
-    private static func confirmInstall() -> Bool {
+    private static func confirmInstall(sessionsKnown: Bool) -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "This update can't keep running terminals and editors. Install anyway?"
+        if !sessionsKnown {
+            alert.informativeText = "Running terminals and editors couldn't be checked."
+        }
         alert.addButton(withTitle: "Continue")
         alert.addButton(withTitle: "Cancel")
         NSApp.activate()
@@ -61,18 +66,13 @@ extension Updates: SPUUpdaterDelegate {
     }
 
     func updater(_ updater: SPUUpdater, shouldProceedWithUpdate item: SUAppcastItem, updateCheck: SPUUpdateCheck) throws {
-        guard let core, UpdateGuard.needsConfirmation(
+        guard UpdateGuard.needsConfirmation(
             itemProtocol: Self.sessionProtocol(of: item),
-            coreProtocol: core.sessionProtocol,
-            liveSessions: core.liveSessions
+            coreProtocol: coreProtocol,
+            liveSessions: liveSessions
         ) else { return }
-        guard Self.confirmInstall() else {
+        guard Self.confirmInstall(sessionsKnown: liveSessions != nil) else {
             throw NSError(domain: SUSparkleErrorDomain, code: Int(SUError.installationCanceledError.rawValue))
         }
     }
-}
-
-private struct CoreState {
-    let sessionProtocol: Int
-    let liveSessions: Int
 }
