@@ -63,6 +63,39 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testConfirmRequestDecodes() throws {
+        let fixture = Data(#"{"title":"Close Terminal","workspace":"demo","command":"terminals.close","args":{"sessionId":"ses_1","force":true,"line":3}}"#.utf8)
+        let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
+        XCTAssertEqual(request, ConfirmRequest(title: "Close Terminal", workspace: "demo", command: "terminals.close", args: .object(["sessionId": .string("ses_1"), "force": .bool(true), "line": .number(3)])))
+        XCTAssertEqual(request.message, "Allow agent to close Terminal?")
+        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: terminals.close\nforce: true\nline: 3\nsessionId: ses_1")
+    }
+
+    func testAgentApprovalRoundTrip() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        try core?.cli("session", "create", "--project", project.id, "--", "/bin/sleep", "60")
+        let sessions = try await client.call(method: "session.list")
+        guard let id = sessions.arrayValue?.first?.objectValue?["id"]?.stringValue else { throw TestFailure(description: "no session") }
+        try await client.register(handles: ["ui.confirm"])
+        let approvals = Approvals()
+        client.confirmHandler = { request in
+            approvals.asked.append(request)
+            return approvals.answer
+        }
+        let kill = JSONValue.object(["id": .string("session.kill"), "agent": .bool(true), "args": .object(["id": .string(id)])])
+        do {
+            _ = try await client.call(method: "command.run", params: kill)
+            XCTFail("kill ran without approval")
+        } catch {
+            XCTAssertEqual(error as? ClubmateError, .rpc(code: -32014, message: "denied by user"))
+        }
+        approvals.answer = true
+        _ = try await client.call(method: "command.run", params: kill)
+        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(id)])), count: 2))
+        await client.close()
+    }
+
     func testRefusesInsecureRuntime() async throws {
         let base = try TestCore.makeTempDir()
         defer { try? FileManager.default.removeItem(at: base) }
@@ -169,4 +202,10 @@ final class ClubmateKitTests: XCTestCase {
         }
         return fd
     }
+}
+
+@MainActor
+private final class Approvals {
+    var asked: [ConfirmRequest] = []
+    var answer = false
 }

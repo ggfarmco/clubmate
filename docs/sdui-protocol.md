@@ -116,7 +116,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | fs.watch | `{projectId}` | `{watch}` |
 | fs.unwatch | `{watch}` | `{}` |
 | command.list | none | `[{id, title, description, plugin, hidden, confirm, args?, result?, agent, destructive, provides?}]` |
-| command.run | `{id, projectId, args}` | plugin-defined JSON |
+| command.run | `{id, projectId, args, agent}` | plugin-defined JSON, or the primitive's result |
 | command.capabilities | none | `{capabilities: {name: commandId}}` |
 | ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
@@ -155,7 +155,7 @@ Projects are shown to users as workspaces; `clubmate project …` is an alias of
 
 `workspace.open` resolves each folder path (symlinks resolved, cleaned), drops duplicates and returns the project whose repos are exactly that set (order-insensitive, stored repos resolved the same way) with `created: false`; otherwise it creates a project with the resolved folders, named after the base name of the first one (`project.created`), with `created: true`. Folders must be absolute paths to existing directories (otherwise invalid params, as is an empty `folders`). `workspace.home` returns the single `home: true` project, named `~` and rooted at the user's home directory, creating it (`project.created`) on first use. Both then send the `project.open` notification exactly like `project.open` (not to the caller) and return how many were notified (`clients`); `clubmate workspace open <dir>…` and `clubmate workspace home` run the app like `open --id` when `clients` is 0. `workspace.touch` sets `lastOpenedAt` to now (not found for an unknown project); clients call it when they activate a workspace. `project.rename` fails with invalid params on a blank name and publishes `project.updated`.
 
-`client.register` marks the calling connection for the listed handles; the only handle is `"project.open"` and anything else is invalid params. Registration lasts for the connection. Plugin callers get invalid params.
+`client.register` marks the calling connection for the listed handles: `"project.open"` and `"ui.confirm"`; anything else is invalid params. The app registers both. Registration lasts for the connection. Plugin callers get invalid params.
 
 `ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`, or `edge` is not absent, `""`, `h`, `j`, `k` or `l`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusEdge` to pass `edge`.
 
@@ -164,6 +164,31 @@ Projects are shown to users as workspaces; `clubmate project …` is an alias of
 `command.run` resolves `id` to a command: a listed command id wins; otherwise `id` is taken as a capability name (see below). It fails with unknown command when neither matches; it is routed to the plugin that registered the resolved command, which receives the resolved command id (not the capability name) in `id`.
 
 A capability is a generic name a command declares in `provides`, so callers need not know which plugin implements it. A capability resolves to the first provider in plugin load (discovery) order whose plugin is running, else to the first provider (then `command.run` fails with plugin unavailable). When several commands provide one capability the core logs `capability X provided by A and B; using A` (command ids) once per distinct outcome. `command.capabilities` returns that resolution for every declared capability. Bundled capabilities: `editor.open` (`editor-nvim.open`), `editor.reveal` (`editor-nvim.reveal`), `terminal.new` (`terminals.new`), `terminal.close` (`terminals.close`), `files.reveal` (`files.reveal`), `git.stage-all` (`git.stage-all`), `git.review` (`git.review-branch`).
+
+`command.list` also lists the core primitives, with `plugin: "core"`, `agent: true` and `hidden: true` (so the palette leaves them out). `command.run` resolves a primitive id before plugin commands and capabilities, and runs it with the existing method's handler:
+
+| Primitive | Method | Args | `projectId` |
+|---|---|---|---|
+| `workspace.list` | `project.list` | none | ignored |
+| `workspace.open` | `workspace.open` | `{folders}` | ignored |
+| `workspace.home` | `workspace.home` | none | ignored |
+| `session.list` | `session.list` (all workspaces) | none | ignored |
+| `session.create` | `session.create` | `{cwd?, title?, command?}` | required, passed as the session's project |
+| `session.kill` (destructive) | `session.kill` | `{id}` | ignored; the approval names the session's own workspace |
+| `process.tree` | `process.tree` (all sessions) | none | ignored |
+| `ui.focus` | `ui.focus` | `{section}` | required |
+
+Plugin commands keep requiring a valid `projectId`.
+
+An agent call is `command.run` with `agent: true` (the CLI's `command run --agent`; the MCP server always sets it). It resolves only core primitives and commands with `agent: true` (judged on the resolved command, never on the capability name); anything else fails with not found, as if unknown. Args are validated first. Then a `destructive` command needs the user's approval: the core sends the request `ui.confirm` `{title, workspace, command, args}` (`title` is the command's title, `workspace` the affected workspace's name or `""`, `command` the resolved id, `args` the args or `{}`) to one connection that registered `"ui.confirm"`: one that has a `ui.subscribe` subscription for the affected workspace if any, else the earliest connected. It waits up to 60 s for `{approved}`. The call fails with `-32014` (denied) and one of these messages, and the command does not run:
+- `no app to approve`: no connection registered `"ui.confirm"`, or the request failed;
+- `denied by user`: the answer was `approved: false`;
+- `approval timed out`: no answer within 60 s (the app's alert may stay up; its late answer is ignored);
+- `approval busy`: that connection already has an approval pending (one per connection; the second is denied, not queued).
+
+Non-agent calls (the app, plugins, the CLI without `--agent`) are unchanged: any listed command runs without approval.
+
+The app answers `ui.confirm` with an alert "Allow agent to <title>?" whose text lists the workspace, the command and each argument, with Allow and Deny (Deny is the default; Esc denies). It is a sheet on the key workspace window (else the first workspace window, else a modal alert) and asks for attention (dock bounce).
 
 `files.collapse-others` ("Collapse Others") takes no args. It keeps expanded only the repo roots and the ancestors of the selected file (the file last opened in or revealed from the editor), persists the expanded set and re-renders the tree. In the files tree a directory whose only visible entry is one directory is merged with it into one row labelled `a / b / c` whose id is the deepest path; expand and collapse act on that path. File rows have no icon.
 

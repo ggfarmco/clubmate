@@ -105,6 +105,7 @@ type commandRunParams struct {
 	ID        string          `json:"id"`
 	ProjectID string          `json:"projectId"`
 	Args      json.RawMessage `json:"args"`
+	Agent     bool            `json:"agent,omitempty"`
 }
 
 type uiUpdatedParams struct {
@@ -280,7 +281,7 @@ func (s *Server) commandList(context.Context, empty) ([]Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nonNil(u.router.Commands()), nil
+	return append(primitiveCommands(), u.router.Commands()...), nil
 }
 
 func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMessage, error) {
@@ -288,15 +289,39 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireProject(ctx, p.ProjectID); err != nil {
-		return nil, err
+	prim, isPrimitive := primitives[p.ID]
+	c := prim.cmd
+	if !isPrimitive {
+		var ok bool
+		if c, ok = u.router.Resolve(p.ID); !ok {
+			return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
+		}
 	}
-	c, ok := u.router.Resolve(p.ID)
-	if !ok {
+	if p.Agent && !c.Agent {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
+	}
+	scope := ""
+	if !isPrimitive || prim.needsProject {
+		if err := s.requireProject(ctx, p.ProjectID); err != nil {
+			return nil, err
+		}
+		scope = p.ProjectID
 	}
 	if err := schema.Validate(c.Args, p.Args); err != nil {
 		return nil, invalidParams(err.Error())
+	}
+	if isPrimitive && prim.scope != nil {
+		if scope, err = prim.scope(ctx, s.svc, p.ProjectID, p.Args); err != nil {
+			return nil, err
+		}
+	}
+	if p.Agent && c.Destructive {
+		if err := s.approve(ctx, c, scope, p.Args); err != nil {
+			return nil, err
+		}
+	}
+	if isPrimitive {
+		return s.runPrimitive(ctx, prim, p.ProjectID, p.Args)
 	}
 	p.ID = c.ID
 	raw, err := json.Marshal(p)

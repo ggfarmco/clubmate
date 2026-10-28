@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"runtime"
-	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -122,15 +121,26 @@ func TestSubscriptionIDsAreScopedByKind(t *testing.T) {
 }
 
 func TestCapabilityRouting(t *testing.T) {
-	h := testutil.NewHarness(t)
+	t.Setenv("ECHO_CRASH_ID", "delta")
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
 	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
-	sayer := func(id string) string {
-		return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"%s.say","title":"Say","provides":["echo.say-cap"]}]}}`, id, id, id)
+	sayer := func(id string, provides ...string) string {
+		caps, err := json.Marshal(provides)
+		require.NoError(t, err)
+		return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"%s.say","title":"Say","provides":%s}]}}`, id, id, id, caps)
 	}
-	h.Start(t, testutil.EchoPluginDirAs(t, sayer("beta")), testutil.EchoPluginDirAs(t, sayer("alpha")))
+	h.Start(t,
+		testutil.EchoPluginDirAs(t, sayer("delta", "echo.down-cap")),
+		testutil.EchoPluginDirAs(t, sayer("beta", "echo.say-cap")),
+		testutil.EchoPluginDirAs(t, sayer("alpha", "echo.say-cap", "echo.down-cap", "beta.say")),
+	)
 	testutil.Eventually(t, func() bool {
-		return !slices.ContainsFunc(h.Sup.Statuses(), func(st plugin.Status) bool { return st.State != plugin.StateRunning })
+		states := map[string]string{}
+		for _, st := range h.Sup.Statuses() {
+			states[st.ID] = st.State
+		}
+		return states["delta"] == plugin.StateBackoff && states["beta"] == plugin.StateRunning && states["alpha"] == plugin.StateRunning
 	}, 5*time.Second)
 	c := h.Client(t)
 	run := func(id string) string {
@@ -142,11 +152,13 @@ func TestCapabilityRouting(t *testing.T) {
 	}
 	assert.Equal(t, "beta", run("echo.say-cap"))
 	assert.Equal(t, "alpha", run("alpha.say"))
+	assert.Equal(t, "alpha", run("echo.down-cap"))
+	assert.Equal(t, "beta", run("beta.say"))
 	var caps struct {
 		Capabilities map[string]string `json:"capabilities"`
 	}
 	require.NoError(t, c.Call(t.Context(), "command.capabilities", struct{}{}, &caps))
-	assert.Equal(t, map[string]string{"echo.say-cap": "beta.say"}, caps.Capabilities)
+	assert.Equal(t, map[string]string{"echo.say-cap": "beta.say", "echo.down-cap": "alpha.say", "beta.say": "beta.say"}, caps.Capabilities)
 }
 
 type noopHandler struct{}

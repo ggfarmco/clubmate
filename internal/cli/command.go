@@ -11,7 +11,7 @@ import (
 )
 
 func (a *app) commandCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "command", Short: "List and run plugin commands"}
+	cmd := &cobra.Command{Use: "command", Short: "List and run commands"}
 	cmd.AddCommand(a.commandListCmd(), a.commandRunCmd())
 	return cmd
 }
@@ -39,7 +39,10 @@ func (a *app) commandListCmd() *cobra.Command {
 }
 
 func (a *app) commandRunCmd() *cobra.Command {
-	var projectID, args string
+	var (
+		projectID, args string
+		agent           bool
+	)
 	cmd := &cobra.Command{
 		Use:   "run <id>",
 		Short: "Run a plugin command",
@@ -49,11 +52,15 @@ func (a *app) commandRunCmd() *cobra.Command {
 			if err := setJSONParam(params, "args", args); err != nil {
 				return err
 			}
+			if agent {
+				params["agent"] = true
+			}
 			return a.callAndPrint(cmd.Context(), "command.run", params)
 		},
 	}
 	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().StringVar(&args, "args", "", "command arguments as JSON")
+	cmd.Flags().BoolVar(&agent, "agent", false, "run as an agent call: agent commands only, destructive ones approved in the app")
 	_ = cmd.MarkFlagRequired("project")
 	return cmd
 }

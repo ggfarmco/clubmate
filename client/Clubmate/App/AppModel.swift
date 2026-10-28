@@ -267,6 +267,7 @@ final class AppModel {
         let paths = ClubmatePaths.resolve()
         try await CoreLauncher(cliPath: cli, bundledVersion: Bundle.main.clubmateVersion).ensureRunning(paths: paths)
         let client = try await CoreClient.connect(paths: paths)
+        client.confirmHandler = { [weak self] request in await self?.approve(request) ?? false }
         do {
             let commands = try await client.commandList()
             let projects = ProjectsStore(client: client)
@@ -285,6 +286,12 @@ final class AppModel {
             await client.close()
             throw error
         }
+    }
+
+    private func approve(_ request: ConfirmRequest) async -> Bool {
+        let window = keyWindowID.flatMap { hosts.object(forKey: $0 as NSString) } ?? layout.windows.lazy.compactMap { self.hosts.object(forKey: $0.id as NSString) }.first
+        NSApp.requestUserAttention(.criticalRequest)
+        return await Confirmation.ask(request.message, detail: request.detail, action: "Allow", cancel: "Deny", destructive: true, window: window)
     }
 
     private func restoreWindows(_ listed: [Project]) {

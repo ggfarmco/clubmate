@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -17,6 +18,13 @@ import (
 
 func manifestJSON(id, contributes string) string {
 	return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"],"contributes":%s}`, id, id, contributes)
+}
+
+func pluginCommands(t *testing.T, h *testutil.PluginHarness) []rpc.Command {
+	t.Helper()
+	var cmds []rpc.Command
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.list", struct{}{}, &cmds))
+	return slices.DeleteFunc(cmds, func(c rpc.Command) bool { return c.Plugin == "core" })
 }
 
 func TestViewOwnsForeignSlot(t *testing.T) {
@@ -109,23 +117,19 @@ func TestProjectDeleteDropsSlots(t *testing.T) {
 func TestHiddenCommandListed(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.secret","title":"Secret","hidden":true},{"id":"alpha.open","title":"Open"}]}`)))
-	var cmds []rpc.Command
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.list", struct{}{}, &cmds))
 	assert.ElementsMatch(t, []rpc.Command{
 		{ID: "alpha.secret", Title: "Secret", Plugin: "alpha", Hidden: true},
 		{ID: "alpha.open", Title: "Open", Plugin: "alpha"},
-	}, cmds)
+	}, pluginCommands(t, h))
 }
 
 func TestCommandConfirmListed(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.drop","title":"Drop","confirm":"Sure?"},{"id":"alpha.open","title":"Open"}]}`)))
-	var cmds []rpc.Command
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.list", struct{}{}, &cmds))
 	assert.ElementsMatch(t, []rpc.Command{
 		{ID: "alpha.drop", Title: "Drop", Plugin: "alpha", Confirm: "Sure?"},
 		{ID: "alpha.open", Title: "Open", Plugin: "alpha"},
-	}, cmds)
+	}, pluginCommands(t, h))
 }
 
 func TestArgsValidated(t *testing.T) {

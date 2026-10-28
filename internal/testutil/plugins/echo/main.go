@@ -36,6 +36,9 @@ func main() {
 }
 
 func initialize(ctx context.Context, h *pluginsdk.Host) error {
+	if os.Getenv("ECHO_CRASH_ID") == h.PluginID() {
+		os.Exit(3)
+	}
 	ready, err := h.Publish(ctx, "echo.ready", nil)
 	if err != nil {
 		return err

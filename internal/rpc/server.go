@@ -43,7 +43,14 @@ type Server struct {
 	logger     *slog.Logger
 	shutdown   atomic.Pointer[func()]
 	clientsMu  sync.Mutex
-	clients    map[*jsonrpc2.Conn]map[string]struct{}
+	clients    map[*jsonrpc2.Conn]*client
+	clientSeq  uint64
+}
+
+type client struct {
+	handles   map[string]struct{}
+	seq       uint64
+	approving bool
 }
 
 type ServerOption func(*Server)
@@ -57,7 +64,7 @@ func WithLogger(l *slog.Logger) ServerOption {
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]map[string]struct{}{}, logger: slog.New(slog.DiscardHandler)}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, logger: slog.New(slog.DiscardHandler)}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -135,7 +142,8 @@ func (s *Server) open(ctx context.Context, stream jsonrpc2.ObjectStream, caller 
 func (s *Server) trackClient(conn *jsonrpc2.Conn) {
 	s.clientsMu.Lock()
 	defer s.clientsMu.Unlock()
-	s.clients[conn] = map[string]struct{}{}
+	s.clientSeq++
+	s.clients[conn] = &client{handles: map[string]struct{}{}, seq: s.clientSeq}
 }
 
 func (s *Server) untrackClient(conn *jsonrpc2.Conn) {
@@ -147,16 +155,16 @@ func (s *Server) untrackClient(conn *jsonrpc2.Conn) {
 func (s *Server) registerClient(conn *jsonrpc2.Conn, handle string) {
 	s.clientsMu.Lock()
 	defer s.clientsMu.Unlock()
-	if handles, ok := s.clients[conn]; ok {
-		handles[handle] = struct{}{}
+	if c, ok := s.clients[conn]; ok {
+		c.handles[handle] = struct{}{}
 	}
 }
 
 func (s *Server) notifyClients(method string, params any, except *jsonrpc2.Conn, handle string) int {
 	s.clientsMu.Lock()
 	var conns []*jsonrpc2.Conn
-	for conn, handles := range s.clients {
-		if _, ok := handles[handle]; ok || handle == "" {
+	for conn, c := range s.clients {
+		if _, ok := c.handles[handle]; ok || handle == "" {
 			conns = append(conns, conn)
 		}
 	}

@@ -59,8 +59,10 @@ func (r *Router) Resolve(id string) (rpc.Command, bool) {
 
 func (r *Router) Capabilities() map[string]string {
 	out := map[string]string{}
-	for name, c := range r.capabilities() {
-		out[name] = c.ID
+	for name := range r.capabilities() {
+		if c, ok := r.Resolve(name); ok {
+			out[name] = c.ID
+		}
 	}
 	return out
 }

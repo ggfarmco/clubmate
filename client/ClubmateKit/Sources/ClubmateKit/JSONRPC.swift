@@ -44,11 +44,19 @@ public struct RPCNotification: Sendable, Equatable {
     public let params: JSONValue
 }
 
+public struct RPCRequest: Sendable, Equatable {
+    public let id: Int
+    public let method: String
+    public let params: JSONValue
+}
+
 public actor RPCConnection {
     public nonisolated let notifications: AsyncStream<RPCNotification>
+    public nonisolated let requests: AsyncStream<RPCRequest>
 
     private let fd: Int32
     private let notify: AsyncStream<RPCNotification>.Continuation
+    private let request: AsyncStream<RPCRequest>.Continuation
     private var nextID = 1
     private var pending: [Int: CheckedContinuation<Data, any Error>] = [:]
     private var timers: [Int: Task<Void, Never>] = [:]
@@ -57,6 +65,7 @@ public actor RPCConnection {
     private init(fd: Int32) {
         self.fd = fd
         (notifications, notify) = AsyncStream.makeStream(of: RPCNotification.self)
+        (requests, request) = AsyncStream.makeStream(of: RPCRequest.self)
     }
 
     public static func connect(paths: ClubmatePaths) async throws -> RPCConnection {
@@ -98,6 +107,20 @@ public actor RPCConnection {
         }
     }
 
+    public func reply<R: Encodable & Sendable>(id: Int, result: R) throws {
+        guard !closed else { throw ClubmateError.notRunning }
+        var line = try JSONEncoder().encode(Reply(id: id, result: result))
+        line.append(0x0A)
+        try write(line)
+    }
+
+    public func replyError(id: Int, code: Int, message: String) throws {
+        guard !closed else { throw ClubmateError.notRunning }
+        var line = try JSONEncoder().encode(ErrorReply(id: id, error: .init(code: code, message: message)))
+        line.append(0x0A)
+        try write(line)
+    }
+
     public func close() {
         guard !closed else { return }
         closed = true
@@ -120,8 +143,11 @@ public actor RPCConnection {
     private func receive(_ line: Data) {
         guard let header = try? JSONDecoder.clubmate.decode(Header.self, from: line) else { return }
         if let method = header.method {
-            guard header.id == nil else { return }
-            notify.yield(RPCNotification(method: method, params: header.params ?? .null))
+            if let id = header.id {
+                request.yield(RPCRequest(id: id, method: method, params: header.params ?? .null))
+            } else {
+                notify.yield(RPCNotification(method: method, params: header.params ?? .null))
+            }
             return
         }
         guard let id = header.id, let continuation = resolve(id) else { return }
@@ -151,6 +177,7 @@ public actor RPCConnection {
             continuation.resume(throwing: ClubmateError.notRunning)
         }
         notify.finish()
+        request.finish()
         Darwin.close(fd)
     }
 
@@ -220,6 +247,23 @@ private struct Request<P: Encodable>: Encodable {
     let id: Int
     let method: String
     let params: P
+}
+
+private struct Reply<R: Encodable>: Encodable {
+    let jsonrpc = "2.0"
+    let id: Int
+    let result: R
+}
+
+private struct ErrorReply: Encodable {
+    struct Body: Encodable {
+        let code: Int
+        let message: String
+    }
+
+    let jsonrpc = "2.0"
+    let id: Int
+    let error: Body
 }
 
 private struct Response<R: Decodable>: Decodable {

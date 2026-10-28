@@ -440,3 +440,14 @@ func TestWorkspaceCLI(t *testing.T) {
 	_, err = open(id)
 	assert.ErrorContains(t, err, "--id")
 }
+
+func TestCommandRunAgentNeedsApproval(t *testing.T) {
+	startCoreWithUI(t)
+	var p project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")))
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRoot(&stdout, &stderr)
+	root.SetArgs([]string{"command", "run", "session.kill", "--project", p.ID, "--agent", "--args", `{"id":"` + sid + `"}`})
+	assert.ErrorContains(t, root.Execute(), "no app to approve")
+}
