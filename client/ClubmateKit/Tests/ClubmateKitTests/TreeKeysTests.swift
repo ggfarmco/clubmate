@@ -67,6 +67,27 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertNil(TreeKeys.action(keyCode: 40, control: false, command: true))
     }
 
+    func testCollapseOthersKey() {
+        XCTAssertEqual(TreeKeys.action(keyCode: 27, control: false, command: false), .collapseOthers)
+        XCTAssertEqual(TreeCursor.resolve(.collapseOthers, cursor: nil, in: []), .run("files.collapse-others"))
+    }
+
+    func testStickyHeaders() {
+        let rows = [
+            TreeRow(id: "a", depth: 0, parent: nil, hasChildren: true, expanded: true),
+            TreeRow(id: "a1", depth: 1, parent: "a", hasChildren: true, expanded: true),
+            TreeRow(id: "a1x", depth: 2, parent: "a1", hasChildren: false, expanded: false),
+            TreeRow(id: "a1y", depth: 2, parent: "a1", hasChildren: false, expanded: false),
+            TreeRow(id: "a2", depth: 1, parent: "a", hasChildren: false, expanded: false),
+            TreeRow(id: "b", depth: 0, parent: nil, hasChildren: false, expanded: false),
+        ]
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 0, limit: 4), [])
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 1, limit: 4), ["a", "a1"])
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 1, limit: 1), ["a"])
+        XCTAssertEqual(TreeCursor.sticky(rows, top: 3, limit: 4), ["a"])
+        XCTAssertEqual(TreeCursor.stickyTarget("a1", in: rows, limit: 4), "a")
+    }
+
     func testCommandConfirmDecoded() throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
         [{"id":"git.discard","title":"Discard","plugin":"git","hidden":false,"confirm":"Discard changes?"},

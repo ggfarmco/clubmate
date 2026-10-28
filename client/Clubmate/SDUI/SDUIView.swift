@@ -4,11 +4,14 @@ import SwiftUI
 import ClubmateKit
 
 typealias UIEventSink = @Sendable (UIEvent) async -> Result<JSONValue, ClubmateError>
+typealias CommandSink = @Sendable (CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
 struct SDUIDispatch: Sendable {
     var slot = ""
     var projectID = ""
+    var owner = ""
     var sink: UIEventSink = { _ in .success(.null) }
+    var command: CommandSink = { _ in .success(.null) }
     var banner: EventBanner?
 
     @MainActor
@@ -16,6 +19,15 @@ struct SDUIDispatch: Sendable {
         let event = UIAction.event(for: node, trigger: trigger, slot: slot, projectID: projectID)
         Task { [sink, banner] in
             if case .failure(let error) = await sink(event) {
+                banner?.show(error.message)
+            }
+        }
+    }
+
+    @MainActor
+    func run(_ invocation: CommandInvocation) {
+        Task { [command, banner] in
+            if case .failure(let error) = await command(invocation) {
                 banner?.show(error.message)
             }
         }
@@ -76,14 +88,16 @@ struct SDUIView: View {
     let node: SDUINode
     let slot: String
     let projectID: String
+    var owner = ""
     let send: UIEventSink
+    var run: CommandSink = { _ in .success(.null) }
 
     @Environment(EventBanner.self) private var banner: EventBanner?
 
     var body: some View {
         SDUINodeView(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, sink: send, banner: banner))
+            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, owner: owner, sink: send, command: run, banner: banner))
     }
 }
 

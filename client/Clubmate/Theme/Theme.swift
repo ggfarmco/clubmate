@@ -17,8 +17,9 @@ struct Theme: Sendable {
     var uiSmall: Font { font(size: 11) }
     var title: Font { font(size: 13).weight(.semibold) }
 
-    let rowHeight: CGFloat = 22
+    let rowHeight: CGFloat = 20
     let gutter: CGFloat = 8
+    let indent: CGFloat = 12
 
     private func font(size: CGFloat) -> Font {
         guard let fontFamily, !fontFamily.isEmpty else { return .system(size: size, design: .monospaced) }

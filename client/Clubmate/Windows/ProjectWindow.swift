@@ -155,8 +155,10 @@ struct SlotPane: View {
 
     var body: some View {
         if let view = store.slots[slot] {
-            SDUIView(node: view.tree, slot: slot, projectID: store.projectID) { [store] event in
+            SDUIView(node: view.tree, slot: slot, projectID: store.projectID, owner: view.owner) { [store] event in
                 await store.send(event)
+            } run: { [store] invocation in
+                await store.run(invocation)
             }
         } else {
             EmptyNodeView(text: "")
