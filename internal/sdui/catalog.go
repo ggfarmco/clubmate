@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -16,6 +17,9 @@ const (
 	maxNodes     = 5000
 	maxDepth     = 32
 	maxActionLen = 64
+
+	maxTableRows   = 1000
+	maxSparkValues = 900
 )
 
 var actionPattern = regexp.MustCompile(`^[a-z][a-z0-9.-]*$`)
@@ -33,6 +37,7 @@ type spec struct {
 	props       map[string]propCheck
 	children    childRule
 	interactive bool
+	cross       func(props map[string]any) error
 }
 
 var (
@@ -47,6 +52,18 @@ var (
 		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString,
 	}
 	itemRequired = []string{"id", "label"}
+
+	columnAligns = []string{"left", "right"}
+	cellTones    = []string{"", "ok", "warn", "danger"}
+
+	anyNumber   = number(func(float64) bool { return true }, "a number")
+	unitNumber  = number(func(n float64) bool { return n >= 0 && n <= 1 }, "a number within 0…1")
+	nonNegative = number(func(n float64) bool { return n >= 0 }, "a non-negative number")
+	positive    = number(func(n float64) bool { return n > 0 }, "a positive number")
+	depthNumber = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
+
+	sparkValues = maxLen(maxSparkValues, arrayOf(anyNumber))
+	sparkFields = map[string]propCheck{"values": sparkValues, "max": positive}
 
 	catalog = map[string]spec{
 		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: anyChildren},
@@ -69,6 +86,18 @@ var (
 			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
+		},
+		"table": {
+			required:    []string{"columns", "rows"},
+			props:       map[string]propCheck{"columns": listOf(columnCheck), "rows": maxLen(maxTableRows, listOf(tableRowCheck)), "sort": sortCheck, "action": actionCheck},
+			children:    noChildren,
+			interactive: true,
+			cross:       cellsMatchColumns,
+		},
+		"sparkline": {
+			required: []string{"values", "max"},
+			props:    sparkFields,
+			children: noChildren,
 		},
 		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles)}, children: noChildren},
 		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones)}, children: noChildren},
@@ -188,6 +217,11 @@ func (v *validator) checkProps(n sdui.Node, sp spec, path string) error {
 			return invalid(path, "prop %s: %v", name, err)
 		}
 	}
+	if sp.cross != nil {
+		if err := sp.cross(props); err != nil {
+			return invalid(path, "%v", err)
+		}
+	}
 	return nil
 }
 
@@ -258,7 +292,26 @@ func sessionIDCheck(_ *validator, v any) error {
 	return nil
 }
 
+func number(valid func(float64) bool, rule string) propCheck {
+	return func(_ *validator, v any) error {
+		n, ok := v.(float64)
+		if !ok || !valid(n) {
+			return fmt.Errorf("must be %s", rule)
+		}
+		return nil
+	}
+}
+
 func listOf(item propCheck) propCheck {
+	return arrayOf(func(c *validator, v any) error {
+		if err := c.countNode(); err != nil {
+			return err
+		}
+		return item(c, v)
+	})
+}
+
+func arrayOf(item propCheck) propCheck {
 	return func(c *validator, v any) error {
 		if v == nil {
 			return nil
@@ -268,14 +321,20 @@ func listOf(item propCheck) propCheck {
 			return errors.New("must be an array")
 		}
 		for i, e := range list {
-			if err := c.countNode(); err != nil {
-				return err
-			}
 			if err := item(c, e); err != nil {
 				return fmt.Errorf("[%d]: %w", i, err)
 			}
 		}
 		return nil
+	}
+}
+
+func maxLen(limit int, check propCheck) propCheck {
+	return func(c *validator, v any) error {
+		if list, ok := v.([]any); ok && len(list) > limit {
+			return fmt.Errorf("more than %d entries", limit)
+		}
+		return check(c, v)
 	}
 }
 
@@ -337,4 +396,39 @@ func treeItemCheck(c *validator, v any) error {
 		fields[k] = f
 	}
 	return objectCheck(itemRequired, fields)(c, v)
+}
+
+func columnCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "title"}, map[string]propCheck{
+		"id": uniqueItemID, "title": isString, "align": oneOf(columnAligns), "width": nonNegative,
+	})(c, v)
+}
+
+func tableRowCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "cells"}, map[string]propCheck{
+		"id": uniqueItemID, "depth": depthNumber, "hasChildren": isBool, "expanded": isBool, "muted": isBool, "cells": arrayOf(cellCheck),
+	})(c, v)
+}
+
+func cellCheck(c *validator, v any) error {
+	return objectCheck(nil, map[string]propCheck{
+		"text": isString, "bar": unitNumber, "tone": oneOf(cellTones), "spark": objectCheck([]string{"values", "max"}, sparkFields),
+	})(c, v)
+}
+
+func sortCheck(c *validator, v any) error {
+	return objectCheck([]string{"column"}, map[string]propCheck{"column": isString, "desc": isBool})(c, v)
+}
+
+func cellsMatchColumns(props map[string]any) error {
+	columns, _ := props["columns"].([]any)
+	rows, _ := props["rows"].([]any)
+	for i, r := range rows {
+		row, _ := r.(map[string]any)
+		cells, _ := row["cells"].([]any)
+		if len(cells) != len(columns) {
+			return fmt.Errorf("rows[%d]: %d cells for %d columns", i, len(cells), len(columns))
+		}
+	}
+	return nil
 }

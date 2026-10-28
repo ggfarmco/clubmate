@@ -164,7 +164,7 @@ struct TreeNodeView: View {
 
     private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
         ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, depth: row.depth, action: action) {
-            Disclosure(item: row.item) { expanded in
+            Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
         }
@@ -221,16 +221,17 @@ private struct StickyHeaders<Header: View>: View {
     }
 }
 
-private struct Disclosure: View {
-    let item: SDUITreeItem
+struct Disclosure: View {
+    let hasChildren: Bool
+    let expanded: Bool
     let toggle: (Bool) -> Void
 
     @Environment(\.theme) private var theme
 
     var body: some View {
-        if item.hasChildren {
-            Button { toggle(item.expanded) } label: {
-                Image(systemName: item.expanded ? "chevron.down" : "chevron.right")
+        if hasChildren {
+            Button { toggle(expanded) } label: {
+                Image(systemName: expanded ? "chevron.down" : "chevron.right")
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(theme.muted)
                     .frame(width: theme.indent, height: theme.rowHeight)

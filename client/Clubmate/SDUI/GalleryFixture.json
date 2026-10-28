@@ -109,6 +109,39 @@
                       "type": "stack",
                       "props": {"direction": "horizontal"},
                       "children": [
+                        {"type": "text", "props": {"text": "CPU 37%", "style": "mono"}},
+                        {"type": "sparkline", "props": {"values": [12, 30, 22, 48, 37, 61, 40, 37], "max": 100}}
+                      ]
+                    },
+                    {
+                      "type": "table",
+                      "id": "procs",
+                      "props": {
+                        "columns": [
+                          {"id": "name", "title": "Process"},
+                          {"id": "cpu", "title": "CPU", "align": "right", "width": 70},
+                          {"id": "mem", "title": "MEM", "align": "right", "width": 70},
+                          {"id": "hist", "title": "History", "width": 70}
+                        ],
+                        "rows": [
+                          {"id": "101", "hasChildren": true, "expanded": true, "cells": [
+                            {"text": "zsh"}, {"text": "1.2%", "bar": 0.012}, {"text": "8 MB"}, {"spark": {"values": [1, 2, 1, 1, 2], "max": 100}}
+                          ]},
+                          {"id": "102", "depth": 1, "cells": [
+                            {"text": "make test"}, {"text": "88%", "bar": 0.88, "tone": "danger"}, {"text": "640 MB", "tone": "warn"}, {"spark": {"values": [40, 70, 88, 92, 88], "max": 100}, "tone": "danger"}
+                          ]},
+                          {"id": "103", "hasChildren": true, "cells": [
+                            {"text": "nvim"}, {"text": "4.0%", "bar": 0.04, "tone": "ok"}, {"text": "120 MB"}, {"spark": {"values": [3, 5, 4, 4, 4], "max": 100}}
+                          ]},
+                          {"id": "more", "muted": true, "cells": [{"text": "… 12 more"}, {}, {}, {}]}
+                        ],
+                        "sort": {"column": "cpu", "desc": true}
+                      }
+                    },
+                    {
+                      "type": "stack",
+                      "props": {"direction": "horizontal"},
+                      "children": [
                         {"type": "button", "id": "new", "props": {"label": "New session", "icon": "plus"}},
                         {"type": "button", "id": "refresh", "props": {"label": "Refresh", "action": "refresh"}},
                         {"type": "button", "id": "boom", "props": {"label": "Fail", "icon": "exclamationmark.triangle", "action": "fail"}}

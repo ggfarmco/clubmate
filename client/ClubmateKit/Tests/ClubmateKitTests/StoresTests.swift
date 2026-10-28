@@ -206,6 +206,7 @@ final class StoresTests: XCTestCase {
             (node("form", "f", action: "create"), .submit(.object([:])), "create", .object([:])),
             (node("folderField", "repos"), .pick(["/a"]), "pick", .array([.string("/a")])),
             (node("folderField", "repos", action: "add"), .pick(["/a"]), "add", .array([.string("/a")])),
+            (node("table", "procs", action: "focus"), .sort(column: "cpu", desc: true), "sort", .object(["column": .string("cpu"), "desc": .bool(true)])),
         ]
         for (node, trigger, action, value) in rows {
             let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", projectID: "prj_1")
@@ -219,6 +220,41 @@ final class StoresTests: XCTestCase {
             SDUINode(type: "button", id: "b", props: label.map { ["label": .string($0)] } ?? [:]).confirmActionTitle()
         }
         XCTAssertEqual(titles, ["Discard", "Delete", "OK"])
+    }
+
+    func testTableDecodes() throws {
+        let json = """
+        {"type": "table", "id": "procs", "props": {
+          "columns": [{"id": "name", "title": "Name"}, {"id": "cpu", "title": "CPU", "align": "right", "width": 60}],
+          "rows": [{"id": "42", "depth": 1, "hasChildren": true, "expanded": true, "muted": true, "cells": [
+            {"text": "nvim", "spark": {"values": [1, 3], "max": 4}},
+            {"text": "35%", "bar": 0.35, "tone": "warn"}
+          ]}],
+          "sort": {"column": "cpu", "desc": true}
+        }}
+        """
+        let table = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
+
+        XCTAssertEqual(table.columns(), [
+            SDUIColumn(id: "name", title: "Name", align: .left, width: nil),
+            SDUIColumn(id: "cpu", title: "CPU", align: .right, width: 60),
+        ])
+        XCTAssertEqual(table.tableRows(), [
+            SDUITableRow(id: "42", depth: 1, hasChildren: true, expanded: true, muted: true, cells: [
+                SDUICell(text: "nvim", bar: nil, tone: nil, spark: SDUISpark(values: [1, 3], max: 4)),
+                SDUICell(text: "35%", bar: 0.35, tone: "warn", spark: nil),
+            ]),
+        ])
+        XCTAssertEqual(table.tableSort(), SDUISort(column: "cpu", desc: true))
+    }
+
+    func testTableSortToggle() {
+        let name = SDUIColumn(id: "name", title: "Name", align: .left, width: nil)
+        let cpu = SDUIColumn(id: "cpu", title: "CPU", align: .right, width: 60)
+
+        XCTAssertEqual(SDUISort.next(clicking: name, current: nil), SDUISort(column: "name", desc: false))
+        XCTAssertEqual(SDUISort.next(clicking: cpu, current: SDUISort(column: "name", desc: false)), SDUISort(column: "cpu", desc: true))
+        XCTAssertEqual(SDUISort.next(clicking: cpu, current: SDUISort(column: "cpu", desc: true)), SDUISort(column: "cpu", desc: false))
     }
 
     func testFolderFieldInForm() {

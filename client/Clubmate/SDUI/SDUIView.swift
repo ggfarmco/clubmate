@@ -123,6 +123,8 @@ struct SDUINodeView: View {
         case "tabs": TabsNodeView(node: node)
         case "list": ListNodeView(node: node)
         case "tree": TreeNodeView(node: node)
+        case "table": TableNodeView(node: node)
+        case "sparkline": SparklineNodeView(node: node)
         case "text": TextNodeView(node: node)
         case "badge": BadgeNodeView(node: node)
         case "icon": IconNodeView(node: node)
