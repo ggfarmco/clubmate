@@ -9,6 +9,7 @@ import ClubmateKit
 @Observable
 final class AppModel {
     let supervisor: ConnectionSupervisor
+    let updates: Updates
     let projectsSession = ProjectSession(projectID: "")
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
@@ -25,6 +26,7 @@ final class AppModel {
     init() {
         let link = ModelLink()
         supervisor = ConnectionSupervisor { try await link.connect() }
+        updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
         AppDelegate.willQuit = { [weak self] in self?.terminating() }

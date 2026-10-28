@@ -61,6 +61,8 @@ private struct ProjectCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("About Clubmate") { showAbout() }
+            Button("Check for Updates…") { app.updates.check() }
+                .disabled(!app.updates.canCheck)
         }
         CommandGroup(replacing: .newItem) {
             Button("New") { run { .new(section: $0.selectedSection, commands: $1) } }

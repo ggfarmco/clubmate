@@ -29,6 +29,9 @@ settings:
 packages:
   ClubmateKit:
     path: ClubmateKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.4"
 
 targets:
   Clubmate:
@@ -38,6 +41,7 @@ targets:
       - path: Clubmate
         excludes:
           - "Info.plist"
+          - "Clubmate-dev.entitlements"
           - "Resources/ghostty"
           - "Resources/terminfo"
       - path: Clubmate/Resources/ghostty
@@ -53,6 +57,7 @@ targets:
         MARKETING_VERSION: "0.0.0-dev"
         CURRENT_PROJECT_VERSION: "1"
         CLUBMATE_COMMIT: ""
+        SPARKLE_PUBLIC_KEY: ""
         OTHER_LDFLAGS:
           - "-lc++"
         OTHER_SWIFT_FLAGS:
@@ -62,6 +67,7 @@ targets:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app.dev
           CLUBMATE_FLAVOR: dev
+          CODE_SIGN_ENTITLEMENTS: Clubmate/Clubmate-dev.entitlements
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.app
           CLUBMATE_FLAVOR: release
@@ -74,6 +80,7 @@ targets:
       - framework: GhosttyKit.xcframework
         embed: false
       - package: ClubmateKit
+      - package: Sparkle
       - sdk: Carbon.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework

@@ -17,9 +17,13 @@ final class ClubmateKitTests: XCTestCase {
         let client = try await startCore()
         let ping = try await client.ping()
         XCTAssertGreaterThan(ping.pid, 0)
-        _ = try await client.createProject(name: "demo", repos: [])
+        XCTAssertNotNil(ping.sessionProtocol)
+        let project = try await client.createProject(name: "demo", repos: [])
         let projects = try await client.listProjects()
         XCTAssertEqual(projects.map(\.name), ["demo"])
+        try core?.cli("session", "create", "--project", project.id, "--", "/bin/sleep", "60")
+        let live = try await client.liveSessionCount()
+        XCTAssertEqual(live, 1)
         await client.close()
     }
 

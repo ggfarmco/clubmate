@@ -18,6 +18,14 @@ mkdir -p "$DEST"
 cp "$ROOT/bin/clubmate" "$ROOT/bin/clubmate-core" "$ROOT/bin/clubmate-session" "$DEST/"
 cp -R "$ROOT/bin/plugins" "$DEST/plugins"
 
-codesign --force --options runtime --sign - \
+SIGN=(codesign --force --options runtime --sign -)
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+
+"${SIGN[@]}" \
   "$DEST/clubmate" "$DEST/clubmate-core" "$DEST/clubmate-session" "$DEST/plugins/terminals/terminals" "$DEST/plugins/editor-nvim/editor-nvim" "$DEST/plugins/files/files" "$DEST/plugins/git/git" "$DEST/plugins/processes/processes" "$DEST/plugins/projects/projects"
-codesign --force --options runtime --sign - --deep "$APP"
+"${SIGN[@]}" "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
+"${SIGN[@]}" --preserve-metadata=entitlements "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
+"${SIGN[@]}" "$SPARKLE/Versions/B/Autoupdate"
+"${SIGN[@]}" "$SPARKLE/Versions/B/Updater.app"
+"${SIGN[@]}" "$SPARKLE"
+"${SIGN[@]}" "$APP"

@@ -66,6 +66,11 @@ public final class CoreClient {
         try await connection.call("core.ping", NoParams())
     }
 
+    public func liveSessionCount() async throws -> Int {
+        let sessions: [SessionState] = try await connection.call("session.list", NoParams())
+        return sessions.filter { $0.state == "running" }.count
+    }
+
     public func listProjects() async throws -> [Project] {
         try await connection.call("project.list", NoParams())
     }
@@ -139,6 +144,10 @@ public final class CoreClient {
 }
 
 private struct NoParams: Codable, Sendable {}
+
+private struct SessionState: Decodable, Sendable {
+    let state: String
+}
 
 private struct RegisterParams: Encodable, Sendable {
     let handles: [String]
