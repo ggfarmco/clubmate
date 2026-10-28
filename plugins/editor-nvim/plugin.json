@@ -7,14 +7,102 @@
   "contributes": {
     "sections": [{"id": "editor-nvim", "title": "Code", "icon": "chevron.left.forwardslash.chevron.right", "order": 10}],
     "commands": [
-      {"id": "editor-nvim.open", "title": "Open File", "hidden": true},
-      {"id": "editor-nvim.diff", "title": "Show Diff", "hidden": true},
-      {"id": "editor-nvim.review", "title": "Review Branch", "hidden": true},
-      {"id": "editor-nvim.review-close", "title": "Close Branch Review", "hidden": true},
-      {"id": "editor-nvim.navigation", "title": "nvim Navigation Keys", "hidden": true},
-      {"id": "editor-nvim.reveal", "title": "Reveal File in Finder"},
-      {"id": "editor-nvim.terminal", "title": "Open Terminal Here"},
-      {"id": "editor-nvim.restart", "title": "Restart Neovim"}
+      {
+        "id": "editor-nvim.open",
+        "title": "Open File",
+        "hidden": true,
+        "agent": true,
+        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "File to open; absolute, or relative to Neovim's working directory (the first workspace folder that exists, else home)."},
+            "line": {"type": "integer", "description": "1-based line to put the cursor on; 0 or absent keeps the default position."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "editor-nvim.diff",
+        "title": "Show Diff",
+        "hidden": true,
+        "description": "Open a side-by-side diff of a file between two sides in a new Neovim tab.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute path of the file inside a git repo."},
+            "base": {"type": "string", "description": "Left side: head, index or rev:<sha> (lowercase hex)."},
+            "target": {"type": "string", "description": "Right side: index, worktree or rev:<sha> (lowercase hex); must differ from base."}
+          },
+          "required": ["path", "base", "target"]
+        }
+      },
+      {
+        "id": "editor-nvim.review",
+        "title": "Review Branch",
+        "hidden": true,
+        "description": "Open a branch review (base...head) in Neovim, with diffview when it is installed.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "Absolute path of the repo."},
+            "base": {"type": "string", "description": "Base ref."},
+            "head": {"type": "string", "description": "Head ref; HEAD when empty."},
+            "mergeBase": {"type": "string", "description": "Accepted but unused."}
+          },
+          "required": ["repo", "base"]
+        },
+        "result": {
+          "properties": {
+            "mode": {"type": "string", "enum": ["diffview", "builtin"], "description": "diffview when a review tab was opened, otherwise builtin."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.review-close",
+        "title": "Close Branch Review",
+        "hidden": true,
+        "description": "Close the review tab opened by editor-nvim.review; a no-op when it is gone."
+      },
+      {
+        "id": "editor-nvim.navigation",
+        "title": "nvim Navigation Keys",
+        "hidden": true,
+        "description": "Turn on or off the Ctrl+h/j/k/l navigation that moves focus from Neovim to the clubmate sidebar (stored globally, applied to every Neovim).",
+        "args": {
+          "properties": {
+            "enabled": {"type": "boolean", "description": "Whether navigation is on."},
+            "side": {"type": "string", "enum": ["left", "right"], "description": "Side the sidebar is on."}
+          },
+          "required": ["side"]
+        },
+        "result": {
+          "properties": {
+            "skipped": {"type": "array", "items": {"type": "string"}, "description": "Keys left alone because the user already maps them."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.reveal",
+        "title": "Reveal File in Finder",
+        "agent": true,
+        "description": "Reveal the file currently open in Neovim in Finder."
+      },
+      {
+        "id": "editor-nvim.terminal",
+        "title": "Open Terminal Here",
+        "agent": true,
+        "description": "Open a new terminal in the directory of the file open in Neovim, or in the first workspace folder."
+      },
+      {
+        "id": "editor-nvim.restart",
+        "title": "Restart Neovim",
+        "agent": true,
+        "destructive": true,
+        "description": "Restart the workspace's Neovim. Fails while file buffers have unsaved changes unless force is true.",
+        "args": {
+          "properties": {
+            "force": {"type": "boolean", "description": "Restart even with unsaved buffers, discarding their changes."}
+          }
+        }
+      }
     ]
   }
 }

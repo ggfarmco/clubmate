@@ -7,11 +7,36 @@
   "contributes": {
     "sections": [{"id": "git", "title": "Git", "icon": "arrow.triangle.branch", "order": 15}],
     "commands": [
-      {"id": "git.refresh", "title": "Refresh Git Status"},
-      {"id": "git.stage-all", "title": "Stage All Changes"},
-      {"id": "git.unstage-all", "title": "Unstage All"},
-      {"id": "git.review-branch", "title": "Review Branch"},
-      {"id": "git.end-review", "title": "End Review"}
+      {
+        "id": "git.refresh",
+        "title": "Refresh Git Status",
+        "agent": true,
+        "description": "Refresh the git status of the workspace repos."
+      },
+      {
+        "id": "git.stage-all",
+        "title": "Stage All Changes",
+        "agent": true,
+        "description": "Stage all changes (git add -A) in every workspace repo."
+      },
+      {
+        "id": "git.unstage-all",
+        "title": "Unstage All",
+        "agent": true,
+        "description": "Unstage all staged changes in every workspace repo."
+      },
+      {
+        "id": "git.review-branch",
+        "title": "Review Branch",
+        "agent": true,
+        "description": "Review the current branch of the selected (or first) workspace repo against its default base branch in the editor."
+      },
+      {
+        "id": "git.end-review",
+        "title": "End Review",
+        "agent": true,
+        "description": "End the branch review and close its editor tab."
+      }
     ]
   }
 }

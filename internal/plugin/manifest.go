@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
 )
 
@@ -54,10 +55,16 @@ type Section struct {
 }
 
 type CommandDef struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Hidden  bool   `json:"hidden"`
-	Confirm string `json:"confirm"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Hidden      bool           `json:"hidden"`
+	Confirm     string         `json:"confirm"`
+	Args        *schema.Object `json:"args"`
+	Result      *schema.Object `json:"result"`
+	Agent       bool           `json:"agent"`
+	Destructive bool           `json:"destructive"`
+	Provides    []string       `json:"provides"`
 }
 
 func Load(dir string) (Manifest, error) {
@@ -149,6 +156,14 @@ func (m Manifest) validate() error {
 	}
 	if err := m.validateIDs("command", commandIDs); err != nil {
 		return err
+	}
+	for _, c := range m.Contributes.Commands {
+		if err := schema.Check(c.Args); err != nil {
+			return invalid(m.Dir, "command %q args: %v", c.ID, err)
+		}
+		if err := schema.Check(c.Result); err != nil {
+			return invalid(m.Dir, "command %q result: %v", c.ID, err)
+		}
 	}
 	for _, v := range m.Contributes.Views {
 		if _, ok := sdui.SlotSection(v.Slot); !ok {

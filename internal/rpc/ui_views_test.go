@@ -128,6 +128,18 @@ func TestCommandConfirmListed(t *testing.T) {
 	}, cmds)
 }
 
+func TestArgsValidated(t *testing.T) {
+	t.Setenv("ECHO_CRASH", "1")
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t, testutil.EchoPluginDir(t))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
+	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{}}, nil)
+	require.ErrorIs(t, err, rpc.ErrInvalidParams)
+	assert.ErrorContains(t, err, "args.text: required")
+}
+
 func TestAppScopeSlots(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t,

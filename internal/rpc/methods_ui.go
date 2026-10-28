@@ -12,6 +12,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/project"
+	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
 	pkgsdui "clubmate/pkg/sdui"
 )
@@ -35,11 +36,17 @@ type Router interface {
 }
 
 type Command struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Plugin  string `json:"plugin"`
-	Hidden  bool   `json:"hidden"`
-	Confirm string `json:"confirm"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Plugin      string         `json:"plugin"`
+	Hidden      bool           `json:"hidden"`
+	Confirm     string         `json:"confirm"`
+	Args        *schema.Object `json:"args,omitempty"`
+	Result      *schema.Object `json:"result,omitempty"`
+	Agent       bool           `json:"agent"`
+	Destructive bool           `json:"destructive"`
+	Provides    []string       `json:"provides,omitempty"`
 }
 
 type uiState struct {
@@ -280,6 +287,9 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	for _, c := range u.router.Commands() {
 		if c.ID != p.ID {
 			continue
+		}
+		if err := schema.Validate(c.Args, p.Args); err != nil {
+			return nil, invalidParams(err.Error())
 		}
 		raw, err := json.Marshal(p)
 		if err != nil {

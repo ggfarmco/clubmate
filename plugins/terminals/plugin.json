@@ -7,9 +7,47 @@
   "contributes": {
     "sections": [{"id": "terminals", "title": "Terminals", "icon": "terminal", "order": 20, "autoNew": true}],
     "commands": [
-      {"id": "terminals.new", "title": "New Terminal"},
-      {"id": "terminals.close", "title": "Close Terminal"},
-      {"id": "terminals.busy", "title": "Terminal Busy", "hidden": true}
+      {
+        "id": "terminals.new",
+        "title": "New Terminal",
+        "agent": true,
+        "description": "Open a new login-shell terminal in the workspace and focus it.",
+        "args": {
+          "properties": {
+            "cwd": {"type": "string", "description": "Working directory; the first workspace folder (or home) when absent."}
+          }
+        }
+      },
+      {
+        "id": "terminals.close",
+        "title": "Close Terminal",
+        "agent": true,
+        "destructive": true,
+        "description": "Close a terminal session, killing whatever runs in it; a no-op when the session is absent or unknown.",
+        "args": {
+          "properties": {
+            "sessionId": {"type": "string", "description": "Session to close."}
+          }
+        }
+      },
+      {
+        "id": "terminals.busy",
+        "title": "Terminal Busy",
+        "hidden": true,
+        "agent": true,
+        "description": "Report whether a terminal session is running a process besides its shell.",
+        "args": {
+          "properties": {
+            "sessionId": {"type": "string", "description": "Session to check; an unknown or exited one is not busy."}
+          }
+        },
+        "result": {
+          "properties": {
+            "busy": {"type": "boolean", "description": "Whether a descendant of the shell is alive."},
+            "process": {"type": "string", "description": "Name of the newest such process; empty when not busy."}
+          }
+        }
+      }
     ]
   }
 }

@@ -44,8 +44,8 @@ func TestUIRenderEventAndOwnership(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "echo.main", "nodeId": "x", "action": "say", "value": "hi"}, &res))
 	assert.Equal(t, "hi", res["said"])
 	var echoed map[string]any
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"n": 1}}, &echoed))
-	assert.Equal(t, map[string]any{"n": 1.0}, echoed)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi", "n": 1}}, &echoed))
+	assert.Equal(t, map[string]any{"text": "hi", "n": 1.0}, echoed)
 	err = h.PluginCall(t, "echo", "ui.render", map[string]any{"projectId": p.ID, "slot": "terminals.main", "tree": map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}})
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
@@ -103,7 +103,7 @@ func TestRoutingToStoppedPluginIsUnavailable(t *testing.T) {
 	h.Start(t, testutil.EchoPluginDir(t))
 	c := h.Client(t)
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
-	err = c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID}, nil)
+	err = c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi"}}, nil)
 	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
 }
 

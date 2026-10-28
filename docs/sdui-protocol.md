@@ -115,7 +115,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.state.section | `{projectId}` | `{section}`, the section saved in the project's UI state (`""` when unset) |
 | fs.watch | `{projectId}` | `{watch}` |
 | fs.unwatch | `{watch}` | `{}` |
-| command.list | none | `[{id, title, plugin, hidden, confirm}]` |
+| command.list | none | `[{id, title, description, plugin, hidden, confirm, args?, result?, agent, destructive, provides?}]` |
 | command.run | `{id, projectId, args}` | plugin-defined JSON |
 | ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
@@ -132,6 +132,17 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
 
 A command with a non-empty `"confirm"` string in its manifest entry is listed with that text (`""` when absent); the client asks for confirmation with it before running the command.
+
+A manifest command entry may also declare, all optional and listed as declared:
+- `description` (`""` when absent): what the command does, for agents and `command describe`;
+- `args` and `result`: schemas for the command's args and its result (absent: any args, nothing declared);
+- `agent` (default `false`): the command is meant for agents;
+- `destructive` (default `false`): the command destroys state (closes, kills, discards);
+- `provides`: generic capability names the command implements.
+
+A schema is a small JSON Schema subset: an object `{properties: {name: prop}, required: [name]}` (object only at the top level), where a prop is `{type, items, enum, description, default}`, `type` is `string`, `integer`, `number`, `boolean` or `array`, and an `array` has scalar `items`. `enum` values must match the type and every `required` name must be a property; anything else fails manifest load.
+
+`command.run` validates `args` against the command's `args` schema before routing, so the plugin is never called with bad args. Absent or `null` args count as `{}`; properties not in the schema are allowed; a `null` property counts as absent. Errors are invalid params naming the field: `args: want object`, `args.path: required`, `args.line: want integer`, `args.side: want one of ["left","right"]`, `args.paths[1]: want string`. `integer` rejects fractions and exponents. A command without an `args` schema accepts any args.
 
 `process.tree`'s `args` is the full argv (`[]` when it can't be read, e.g. for another user's process) and `startTime` is RFC 3339.
 
