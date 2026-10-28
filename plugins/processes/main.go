@@ -12,20 +12,25 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 )
 
 const (
 	sidebarSlot     = "processes.sidebar"
 	mainSlot        = "processes.main"
 	killedTopic     = "processes.killed"
-	refreshInterval = 2 * time.Second
+	refreshInterval = time.Second
 	autoKillEvery   = 10 * time.Second
+	bytesPerKiB     = 1024
 )
 
 var (
 	errUnknownAction  = errors.New("unknown action")
 	errUnknownCommand = errors.New("unknown command")
+	errUnknownColumn  = errors.New("unknown sort column")
 	errNoProject      = errors.New("command needs a project")
 
 	errProjectDeleted = errors.New("project deleted")
@@ -49,13 +54,17 @@ type killedEvent struct {
 }
 
 type projectState struct {
-	session string
-	pid     int
-	auto    bool
+	session   string
+	pid       int
+	auto      bool
+	sort      sdui.Sort
+	collapsed map[int]bool
 }
 
 type app struct {
 	renderMu sync.Mutex
+	hist     *history
+	memKiB   int64
 	mu       sync.Mutex
 	projects map[string]*projectState
 	present  map[string]bool
@@ -63,7 +72,7 @@ type app struct {
 }
 
 func main() {
-	a := &app{projects: map[string]*projectState{}, present: map[string]bool{}, deleted: map[string]bool{}}
+	a := &app{hist: newHistory(), memKiB: memoryKiB(), projects: map[string]*projectState{}, present: map[string]bool{}, deleted: map[string]bool{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
 }
 
@@ -136,7 +145,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	snap := a.snapshot(st)
 	switch ev.Action {
 	case "expand", "collapse":
-		return nil, nil
+		err = a.toggleCollapsed(ev, st)
+	case "sort":
+		err = a.setSort(ctx, h, ev, st)
 	case killAction:
 		err = killSelected(ctx, h, ev.ProjectID, snap)
 	case orphanKill:
@@ -176,7 +187,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 func (a *app) snapshot(st *projectState) projectState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return *st
+	c := *st
+	c.collapsed = maps.Clone(st.collapsed)
+	return c
 }
 
 func (a *app) selectSession(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *projectState) error {
@@ -210,18 +223,58 @@ func (a *app) clearSession(ctx context.Context, h *pluginsdk.Host, projectID str
 }
 
 func (a *app) selectProcess(ev pluginsdk.UIEvent, st *projectState) error {
-	var raw string
-	if err := json.Unmarshal(ev.Value, &raw); err != nil {
-		return fmt.Errorf("%s value: %w", ev.Action, err)
-	}
-	pid, err := strconv.Atoi(raw)
-	if err != nil {
-		return fmt.Errorf("%s value: %w", ev.Action, err)
+	pid, err := rowPID(ev)
+	if err != nil || pid == 0 {
+		return err
 	}
 	a.mu.Lock()
 	st.pid = pid
 	a.mu.Unlock()
 	return nil
+}
+
+func (a *app) toggleCollapsed(ev pluginsdk.UIEvent, st *projectState) error {
+	pid, err := rowPID(ev)
+	if err != nil || pid == 0 {
+		return err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if ev.Action == "collapse" {
+		st.collapsed[pid] = true
+	} else {
+		delete(st.collapsed, pid)
+	}
+	return nil
+}
+
+func (a *app) setSort(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *projectState) error {
+	var s sdui.Sort
+	if err := json.Unmarshal(ev.Value, &s); err != nil {
+		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	if !validSort(s) {
+		return fmt.Errorf("%w: %q", errUnknownColumn, s.Column)
+	}
+	a.mu.Lock()
+	st.sort = s
+	a.mu.Unlock()
+	return h.StorageSet(ctx, sortKey(ev.ProjectID), s)
+}
+
+func rowPID(ev pluginsdk.UIEvent) (int, error) {
+	var raw string
+	if err := json.Unmarshal(ev.Value, &raw); err != nil {
+		return 0, fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	if raw == moreID {
+		return 0, nil
+	}
+	pid, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	return pid, nil
 }
 
 func killSelected(ctx context.Context, h *pluginsdk.Host, projectID string, st projectState) error {
@@ -280,12 +333,38 @@ func (a *app) refreshLoop(ctx context.Context, h *pluginsdk.Host) {
 			return
 		case <-tick.C:
 		}
-		a.mu.Lock()
-		ids := slices.Collect(maps.Keys(a.present))
-		a.mu.Unlock()
-		for _, id := range ids {
-			logError("render "+id, a.render(ctx, h, id))
-		}
+		a.tick(ctx, h)
+	}
+}
+
+func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
+	a.mu.Lock()
+	ids := slices.Collect(maps.Keys(a.present))
+	a.mu.Unlock()
+	if len(ids) == 0 {
+		return
+	}
+	sessions, err := h.ListSessions(ctx, "", false)
+	if err != nil {
+		logError("list sessions", err)
+		return
+	}
+	nodes, err := h.ProcessTree(ctx, "", "")
+	if err != nil {
+		logError("process tree", err)
+		return
+	}
+	a.renderMu.Lock()
+	a.hist.record(sessions, nodes, time.Now())
+	a.renderMu.Unlock()
+	projectOf := make(map[string]string, len(sessions))
+	for _, s := range sessions {
+		projectOf[s.ID] = s.ProjectID
+	}
+	for _, id := range ids {
+		own := slices.DeleteFunc(slices.Clone(sessions), func(s pluginsdk.Session) bool { return s.ProjectID != id })
+		mine := slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return projectOf[n.SessionID] != id })
+		logError("render "+id, a.show(ctx, h, id, own, mine))
 	}
 }
 
@@ -318,7 +397,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	delete(a.present, id)
 	a.deleted[id] = true
 	a.mu.Unlock()
-	logError("drop "+id, errors.Join(h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, autoKillKey(id))))
+	logError("drop "+id, errors.Join(h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, autoKillKey(id)), h.StorageDelete(ctx, sortKey(id))))
 }
 
 func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*projectState, error) {
@@ -332,12 +411,18 @@ func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*project
 	if ok {
 		return st, nil
 	}
-	loaded := &projectState{}
+	loaded := &projectState{collapsed: map[int]bool{}}
 	if _, err := h.StorageGet(ctx, selectedKey(id), &loaded.session); err != nil {
 		return nil, err
 	}
 	if _, err := h.StorageGet(ctx, autoKillKey(id), &loaded.auto); err != nil {
 		return nil, err
+	}
+	if _, err := h.StorageGet(ctx, sortKey(id), &loaded.sort); err != nil {
+		return nil, err
+	}
+	if !validSort(loaded.sort) {
+		loaded.sort = defaultSort
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -352,16 +437,29 @@ func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*project
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
+	if _, err := a.state(ctx, h, id); errors.Is(err, errProjectDeleted) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	sessions, err := h.ListSessions(ctx, id, false)
+	if err != nil {
+		return err
+	}
+	nodes, err := h.ProcessTree(ctx, id, "")
+	if err != nil {
+		return err
+	}
+	return a.show(ctx, h, id, sessions, nodes)
+}
+
+func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions []pluginsdk.Session, nodes []pluginsdk.ProcessNode) error {
 	a.renderMu.Lock()
 	defer a.renderMu.Unlock()
 	st, err := a.state(ctx, h, id)
 	if errors.Is(err, errProjectDeleted) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	sessions, err := h.ListSessions(ctx, id, false)
 	if err != nil {
 		return err
 	}
@@ -372,18 +470,13 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
 		}
 		snap = a.snapshot(st)
 	}
-	nodes, err := h.ProcessTree(ctx, id, snap.session)
-	if err != nil {
-		return err
+	scope, totalKey := "All", projectKey(id)
+	shown := nodes
+	if i := slices.IndexFunc(sessions, func(s pluginsdk.Session) bool { return s.ID == snap.session }); i >= 0 {
+		scope, totalKey = sessions[i].Title, sessionKey(snap.session)
+		shown = slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return n.SessionID != snap.session })
 	}
-	if snap.pid != 0 && !slices.ContainsFunc(nodes, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == snap.pid }) {
-		a.mu.Lock()
-		if st.pid == snap.pid {
-			st.pid = 0
-		}
-		a.mu.Unlock()
-		snap.pid = 0
-	}
+	a.forgetGone(st, &snap, nodes, shown)
 	rows := make([]sessionRow, 0, len(sessions))
 	for _, s := range sessions {
 		rows = append(rows, sessionRow{ID: s.ID, Title: s.Title, Owner: s.Owner})
@@ -391,8 +484,41 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
 	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(rows, snap.session)); err != nil {
 		return err
 	}
-	_, err = h.Render(ctx, id, mainSlot, mainView(nodes, snap.pid, snap.auto))
+	_, err = h.Render(ctx, id, mainSlot, mainView(viewModel{
+		nodes:     shown,
+		selected:  snap.pid,
+		auto:      snap.auto,
+		sort:      snap.sort,
+		collapsed: snap.collapsed,
+		scope:     scope,
+		totalKey:  totalKey,
+		hist:      a.hist,
+		memKiB:    a.memKiB,
+		now:       time.Now(),
+	}))
 	return err
+}
+
+func (a *app) forgetGone(st *projectState, snap *projectState, nodes, shown []pluginsdk.ProcessNode) {
+	alive := make(map[int]bool, len(nodes))
+	for _, n := range nodes {
+		alive[n.Process.PID] = true
+	}
+	selected := slices.ContainsFunc(shown, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == snap.pid })
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if snap.pid != 0 && !selected {
+		if st.pid == snap.pid {
+			st.pid = 0
+		}
+		snap.pid = 0
+	}
+	for pid := range st.collapsed {
+		if !alive[pid] {
+			delete(st.collapsed, pid)
+			delete(snap.collapsed, pid)
+		}
+	}
 }
 
 func subtree(nodes []pluginsdk.ProcessNode, root int) []int {
@@ -432,4 +558,17 @@ func selectedKey(projectID string) string {
 
 func autoKillKey(projectID string) string {
 	return "autokill/" + projectID
+}
+
+func sortKey(projectID string) string {
+	return "sort/" + projectID
+}
+
+func memoryKiB() int64 {
+	total, err := unix.SysctlUint64("hw.memsize")
+	if err != nil {
+		logError("hw.memsize", err)
+		return 0
+	}
+	return int64(total / bytesPerKiB)
 }

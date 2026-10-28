@@ -149,6 +149,9 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 				return nil, err
 			}
 			nodes, err := svc.ProcessTree(ctx, f)
+			for i := range nodes {
+				nodes[i].Process.Args = nonNil(nodes[i].Process.Args)
+			}
 			return nonNil(nodes), err
 		}),
 		"process.kill": method(func(ctx context.Context, p core.KillRequest) (killResult, error) {

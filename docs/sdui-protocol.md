@@ -119,6 +119,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
+| process.tree | `{projectId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
@@ -126,6 +127,8 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
 
 A command with a non-empty `"confirm"` string in its manifest entry is listed with that text (`""` when absent); the client asks for confirmation with it before running the command.
+
+`process.tree`'s `args` is the full argv (`[]` when it can't be read, e.g. for another user's process) and `startTime` is RFC 3339.
 
 `process.kill` with `orphansOnly` kills only orphaned processes and needs `sessionId` or `projectId` (otherwise invalid params). With `projectId`, only that project's orphans are killed; with `sessionId`, only that session's. Without `orphansOnly`, `pids` must be tracked processes. Each target is signalled only if its start time still matches the tracked one, so a reused pid is skipped.
 

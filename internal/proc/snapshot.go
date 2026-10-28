@@ -16,6 +16,7 @@ type Process struct {
 	PPID      int       `json:"ppid"`
 	PGID      int       `json:"pgid"`
 	Comm      string    `json:"comm"`
+	Args      []string  `json:"args"`
 	StartTime time.Time `json:"startTime"`
 	RSSKiB    int64     `json:"rssKiB"`
 	CPU       float64   `json:"cpu"`
@@ -50,6 +51,7 @@ func Snapshot() ([]Process, error) {
 			PPID:      int(k.Eproc.Ppid),
 			PGID:      int(k.Eproc.Pgid),
 			Comm:      commString(k.Proc.P_comm[:]),
+			Args:      readArgs(pid),
 			StartTime: startOf(k),
 			RSSKiB:    u.rssKiB,
 			CPU:       u.cpu,
@@ -84,6 +86,18 @@ func readUsage() (map[int]usage, error) {
 		usages[pid] = usage{rssKiB: rss, cpu: cpu}
 	}
 	return usages, nil
+}
+
+func readArgs(pid int) []string {
+	raw, err := unix.SysctlRaw("kern.procargs2", pid)
+	if err != nil {
+		return []string{}
+	}
+	argv, _, err := ParseProcArgs(raw)
+	if err != nil || argv == nil {
+		return []string{}
+	}
+	return argv
 }
 
 func commString(b []byte) string {

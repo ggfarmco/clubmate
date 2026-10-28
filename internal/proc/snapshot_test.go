@@ -30,6 +30,17 @@ func TestSnapshotAndReadEnvOfChild(t *testing.T) {
 	assert.Contains(t, env, "CLUBMATE_SESSION_ID=ses_probe")
 }
 
+func TestProcessArgs(t *testing.T) {
+	cmd := exec.Command("sleep", "30")
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	snap, err := proc.Snapshot()
+	require.NoError(t, err)
+	p, ok := findPID(snap, cmd.Process.Pid)
+	require.True(t, ok)
+	assert.Equal(t, []string{"sleep", "30"}, p.Args)
+}
+
 func TestHelperSleep(t *testing.T) {
 	if os.Getenv("CLUBMATE_HELPER_SLEEP") == "" {
 		t.Skip()

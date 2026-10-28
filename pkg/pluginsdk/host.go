@@ -36,6 +36,7 @@ type ProcessInfo struct {
 	PID       int       `json:"pid"`
 	PPID      int       `json:"ppid"`
 	Comm      string    `json:"comm"`
+	Args      []string  `json:"args"`
 	StartTime time.Time `json:"startTime"`
 	RSSKiB    int64     `json:"rssKiB"`
 	CPU       float64   `json:"cpu"`
