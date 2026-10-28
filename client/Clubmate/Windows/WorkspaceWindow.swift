@@ -102,8 +102,11 @@ private struct WorkspaceView: View {
                 if section == CodeSection.id { app.askNavigationKeys() }
             }
             .onChange(of: autoNewKey, initial: true) { old, new in
-                if old.section != new.section { session.autoNewDone = nil }
-                autoNew()
+                let store = session.store
+                let section = store?.sections.first { $0.id == new.section }
+                let main = new.section.flatMap { store?.mainTree($0) }
+                guard session.autoNew.fires(from: old, to: new, section: section, main: main) else { return }
+                session.run(.new(section: new.section, commands: app.commands))
             }
             .onChange(of: sidebarKey) { old, new in
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
@@ -116,11 +119,6 @@ private struct WorkspaceView: View {
 
     private static let sidebarSuffix = ".sidebar"
 
-    private struct AutoNewKey: Equatable {
-        let section: String?
-        let loaded: Bool
-    }
-
     private struct SidebarKey: Equatable {
         let section: String
         let hidden: Bool
@@ -131,17 +129,9 @@ private struct WorkspaceView: View {
         return SidebarKey(section: section, hidden: app.settings.hidesSidebar(section, manual: store.sidebarHidden[section] == true, autoHidden: store.sidebarAutoHidden))
     }
 
-    private var autoNewKey: AutoNewKey {
+    private var autoNewKey: AutoNewGate.Key {
         let section = session.store?.selectedSection
-        return AutoNewKey(section: section, loaded: section.flatMap { session.store?.mainTree($0) } != nil)
-    }
-
-    private func autoNew() {
-        guard let store = session.store, let section = store.selectedSection, session.autoNewDone != section,
-              let main = store.mainTree(section) else { return }
-        session.autoNewDone = section
-        guard CommandInvocation.shouldAutoNew(section: store.sections.first { $0.id == section }, main: main) else { return }
-        session.run(.new(section: section, commands: app.commands))
+        return AutoNewGate.Key(section: section, loaded: section.flatMap { session.store?.mainTree($0) } != nil, request: session.autoNewRequest)
     }
 
     @ViewBuilder private var content: some View {

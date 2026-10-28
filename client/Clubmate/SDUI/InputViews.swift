@@ -45,11 +45,23 @@ struct ButtonNodeView: View {
 
 @MainActor
 enum Confirmation {
-    static func ask(_ message: String, action: String, cancel: String = "Cancel") async -> Bool {
+    static func ask(_ message: String, detail: String = "", action: String, cancel: String = "Cancel", destructive: Bool = false) async -> Bool {
         let alert = NSAlert()
         alert.messageText = message
-        alert.addButton(withTitle: action)
-        alert.addButton(withTitle: cancel)
+        alert.informativeText = detail
+        let confirm = alert.addButton(withTitle: action)
+        let dismiss = alert.addButton(withTitle: cancel)
+        if destructive {
+            confirm.hasDestructiveAction = true
+            confirm.keyEquivalent = ""
+            dismiss.keyEquivalent = "\r"
+        }
+        let escape = destructive ? NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.window === alert.window, event.charactersIgnoringModifiers == "\u{1b}" else { return event }
+            dismiss.performClick(nil)
+            return nil
+        } : nil
+        defer { escape.map(NSEvent.removeMonitor) }
         guard let window = NSApp.keyWindow else { return alert.runModal() == .alertFirstButtonReturn }
         return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
     }

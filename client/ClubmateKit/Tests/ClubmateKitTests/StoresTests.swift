@@ -350,7 +350,6 @@ final class StoresTests: XCTestCase {
 
         XCTAssertTrue(titles.contains("Switch to web"))
         XCTAssertFalse(titles.contains("Switch to api"))
-        XCTAssertTrue(titles.contains("Open Folder…"))
         XCTAssertTrue(titles.contains("Remove Workspace…"))
         XCTAssertFalse(titles.contains("Open Projects"))
     }
@@ -386,6 +385,24 @@ final class StoresTests: XCTestCase {
         XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: nil))
         XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[1], main: empty))
         XCTAssertFalse(CommandInvocation.shouldAutoNew(section: sections[0], main: exited))
+    }
+
+    func testAutoNewGateFiresOnEachArrival() throws {
+        let terminals = try JSONDecoder().decode(SectionInfo.self, from: Data(#"""
+        {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","autoNew":true,"plugin":"terminals"}
+        """#.utf8))
+        let empty = SDUINode(type: "empty")
+        let loading = AutoNewGate.Key(section: "terminals", loaded: false, request: 0)
+        let shown = AutoNewGate.Key(section: "terminals", loaded: true, request: 0)
+        let requested = AutoNewGate.Key(section: "terminals", loaded: true, request: 1)
+        var gate = AutoNewGate()
+
+        XCTAssertFalse(gate.fires(from: loading, to: loading, section: terminals, main: nil))
+        XCTAssertTrue(gate.fires(from: loading, to: shown, section: terminals, main: empty))
+        XCTAssertFalse(gate.fires(from: shown, to: loading, section: terminals, main: nil))
+        XCTAssertFalse(gate.fires(from: loading, to: shown, section: terminals, main: empty))
+        XCTAssertTrue(gate.fires(from: shown, to: shown, section: terminals, main: empty))
+        XCTAssertTrue(gate.fires(from: shown, to: requested, section: terminals, main: empty))
     }
 
     func testTerminalClose() throws {

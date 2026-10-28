@@ -152,8 +152,7 @@ struct SwitcherGridView: View {
             app.hideSwitcher()
             return app.openFolder(in: windowID)
         }
-        app.activate(workspaces[index], in: windowID)
-        app.hideSwitcher()
+        app.activateFromSwitcher(workspaces[index], in: windowID)
     }
 }
 

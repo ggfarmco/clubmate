@@ -93,6 +93,12 @@ final class AppModel {
         NSApp.activate()
     }
 
+    func activateFromSwitcher(_ projectID: String, in window: String) {
+        hideSwitcher()
+        hosts.object(forKey: window as NSString)?.contentView?.layoutSubtreeIfNeeded()
+        activate(projectID, in: window)
+    }
+
     func activate(_ projectID: String, in window: String) {
         snapshot(window, leaving: projectID)
         layout.activate(projectID, in: window)
@@ -325,8 +331,6 @@ final class AppModel {
 }
 
 extension AppModel {
-    static let removeMessage = "Stop its terminals, editors and agents and remove it from Clubmate?"
-
     func openFolder(in window: String?) {
         guard let folders = Self.chooseFolders(prompt: "Open") else { return }
         perform { client in
@@ -339,7 +343,9 @@ extension AppModel {
         perform { client in
             let id = try await client.homeWorkspace()
             self.open(id, in: window)
-            self.existingSession(for: id)?.store?.show(section: TerminalsSection.id)
+            let session = self.existingSession(for: id)
+            session?.store?.show(section: TerminalsSection.id)
+            session?.autoNewRequest += 1
         }
     }
 
@@ -362,7 +368,12 @@ extension AppModel {
 
     func remove(_ projectID: String) {
         Task {
-            guard await Confirmation.ask(Self.removeMessage, action: "Remove") else { return }
+            guard await Confirmation.ask(
+                "Remove “\(project(projectID)?.name ?? "workspace")”?",
+                detail: "Its terminals, editors and agents will stop, and it will be removed from Clubmate.",
+                action: "Remove",
+                destructive: true
+            ) else { return }
             perform { client in try await client.deleteProject(projectID) }
         }
     }
@@ -416,7 +427,8 @@ final class ProjectSession {
     let banner = EventBanner()
     var paletteShown = false
     var thumbnail: NSImage?
-    @ObservationIgnored var autoNewDone: String?
+    var autoNewRequest = 0
+    @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: ProjectUIStore?
 
     init(projectID: String) {
