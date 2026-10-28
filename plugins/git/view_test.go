@@ -76,3 +76,15 @@ func TestSidebarCapsGroups(t *testing.T) {
 	}
 	assert.NoError(t, internalsdui.Validate(sidebarView([]repoView{{Path: repo, Entries: full}, {Path: "/s", Entries: full}}, "", nil)))
 }
+
+func TestReviewViewReadOnly(t *testing.T) {
+	sel := &leaf{Repo: "/r", Group: groupReview, Path: "/r/b.go", Code: "M", Rev: "abc"}
+	main := mainView(mainModel{Sel: sel, Repos: []string{"/r"}, FormID: "commit-0"})
+	toolbar := main.Children[0]
+	var ids []string
+	for _, c := range toolbar.Children {
+		ids = append(ids, c.ID)
+	}
+	assert.Equal(t, []string{"", openDiffAction}, ids)
+	assert.Equal(t, "Open Diff in Neovim", toolbar.Children[1].Props["label"])
+}

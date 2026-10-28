@@ -9,7 +9,9 @@
     "commands": [
       {"id": "git.refresh", "title": "Refresh Git Status"},
       {"id": "git.stage-all", "title": "Stage All Changes"},
-      {"id": "git.unstage-all", "title": "Unstage All"}
+      {"id": "git.unstage-all", "title": "Unstage All"},
+      {"id": "git.review-branch", "title": "Review Branch"},
+      {"id": "git.end-review", "title": "End Review"}
     ]
   }
 }

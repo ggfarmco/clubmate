@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,8 +18,10 @@ import (
 )
 
 const (
-	sidebarSlot = "git.sidebar"
-	mainSlot    = "git.main"
+	sidebarSlot    = "git.sidebar"
+	mainSlot       = "git.main"
+	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.review","title":"Review Branch","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true}]}}`
+	restartWait    = 15 * time.Second
 )
 
 func TestMain(m *testing.M) {
@@ -54,9 +58,9 @@ func write(t *testing.T, path, content string) {
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 }
 
-func open(t *testing.T, repo string) (*testutil.PluginHarness, string) {
+func open(t *testing.T, repo string, dirs ...string) (*testutil.PluginHarness, string) {
 	t.Helper()
-	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	h := testutil.NewPluginHarness(t, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json")}, dirs...)...)
 	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
 	require.NoError(t, err)
 	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
@@ -313,4 +317,118 @@ func showing(n sdui.Node, rel string) bool {
 		}
 	}
 	return false
+}
+
+func branchRepo(t *testing.T) string {
+	t.Helper()
+	repo := newRepo(t, "a.go")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	git(t, repo, "checkout", "-qb", "feature/x")
+	write(t, filepath.Join(repo, "a.go"), "two\n")
+	write(t, filepath.Join(repo, "c.go"), "c\n")
+	write(t, filepath.Join(repo, "d.go"), "d\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "feature")
+	return repo
+}
+
+func reviewBranch(t *testing.T, h *testutil.PluginHarness, id string) {
+	t.Helper()
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "git.review-branch", "projectId": id}, nil))
+}
+
+func reviewing(t *testing.T, label string, n int) func(sdui.Node) bool {
+	return func(tree sdui.Node) bool {
+		rs := roots(t, tree)
+		return len(rs) == 1 && len(rs[0].Children) > 0 && rs[0].Children[0].Label == label && rs[0].Children[0].Expanded && len(rs[0].Children[0].Children) == n
+	}
+}
+
+func badgeText(n sdui.Node) string {
+	if n.Type == "badge" {
+		text, _ := n.Props["text"].(string)
+		return text
+	}
+	for _, c := range n.Children {
+		if text := badgeText(c); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func TestReviewGroup(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+
+	reviewBranch(t, h, id)
+	tree := h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+	var leaves []string
+	for _, l := range roots(t, tree)[0].Children[0].Children {
+		leaves = append(leaves, l.ID+"|"+l.Label+"|"+l.Badge)
+	}
+	assert.Equal(t, []string{
+		repo + "\x00review\x00" + filepath.Join(repo, "a.go") + "|a.go|M",
+		repo + "\x00review\x00" + filepath.Join(repo, "c.go") + "|c.go|A",
+		repo + "\x00review\x00" + filepath.Join(repo, "d.go") + "|d.go|A",
+	}, leaves)
+
+	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00review\x00"+filepath.Join(repo, "a.go"))
+	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return showing(n, "a.go") })
+	assert.Contains(t, main.Children[1].Children[0].Props["text"], "+two")
+
+	write(t, filepath.Join(repo, "b.go"), "b\n")
+	git(t, repo, "add", "b.go")
+	git(t, repo, "commit", "-qm", "b")
+	start := time.Now()
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (4)", 4))
+	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
+func TestReviewErrors(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := open(t, repo)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+	reviewBranch(t, h, id)
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+
+	form := ""
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool {
+		for _, c := range n.Children {
+			for _, f := range c.Children {
+				if f.Type == "form" {
+					form = f.ID
+				}
+			}
+		}
+		return form != ""
+	})
+	h.Event(t, id, mainSlot, form, "review", map[string]string{"base": "nope"})
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "unknown branch nope" })
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+
+	git(t, repo, "checkout", "-q", "--orphan", "o")
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "unknown branch HEAD" })
+	git(t, repo, "commit", "-qm", "orphan")
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "no merge base with main" })
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+}
+
+func TestReviewPersists(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := open(t, repo)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+	reviewBranch(t, h, id)
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+
+	pids := h.Sup.PIDs()
+	require.Len(t, pids, 1)
+	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
+	testutil.Eventually(t, func() bool {
+		restarted := h.Sup.PIDs()
+		return len(restarted) == 1 && restarted[0] != pids[0]
+	}, restartWait)
+	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
 }
