@@ -18,14 +18,20 @@ const (
 	groupStaged    = "staged"
 	groupChanges   = "changes"
 	groupUntracked = "untracked"
+	groupReview    = "review"
 	stageAction    = "stage"
 	unstageAction  = "unstage"
 	discardAction  = "discard"
 	openDiffAction = "open-diff"
 	commitAction   = "commit"
+	reviewAction   = "review"
+	endReviewID    = "end-review"
 	repoField      = "repo"
 	messageField   = "message"
 	submitID       = "submit"
+	reviewRepoID   = "review-repo"
+	reviewBaseID   = "base"
+	reviewStartID  = "review-start"
 	missingDetail  = "missing"
 	notGitDetail   = "not a git repository"
 	maxDiffLines   = 2000
@@ -44,11 +50,31 @@ var groupTitles = []struct{ id, title string }{
 }
 
 type repoView struct {
-	Path       string
-	Branch     string
-	Problem    string
-	Entries    []gitrepo.Entry
-	Restorable map[string]bool
+	Path        string
+	Branch      string
+	Problem     string
+	Entries     []gitrepo.Entry
+	Restorable  map[string]bool
+	Branches    []string
+	DefaultBase string
+	Review      reviewState
+}
+
+type reviewState struct {
+	Repo      string
+	Base      string
+	MergeBase string
+	Entries   []gitrepo.Entry
+	Err       string
+}
+
+type reviewControls struct {
+	FormID   string
+	Repo     string
+	Branches []string
+	Base     string
+	Active   bool
+	Err      string
 }
 
 type leaf struct {
@@ -60,6 +86,7 @@ type leaf struct {
 	Dir        bool
 	Unmerged   bool
 	Restorable bool
+	Rev        string
 }
 
 type mainModel struct {
@@ -69,6 +96,7 @@ type mainModel struct {
 	FormID  string
 	Busy    string
 	Failure string
+	Review  reviewControls
 }
 
 func (l leaf) id() string {
@@ -83,8 +111,17 @@ func (l leaf) rel() string {
 	return relPath(l.Repo, l.Path)
 }
 
+func (r reviewState) active() bool {
+	return r.Base != ""
+}
+
 func leaves(r repoView) []leaf {
 	var out []leaf
+	if r.Review.active() {
+		for _, e := range r.Review.Entries {
+			out = append(out, leaf{Repo: r.Path, Group: groupReview, Path: e.Path, Code: string(e.X), Rev: r.Review.MergeBase})
+		}
+	}
 	for _, e := range r.Entries {
 		if e.X == '?' && e.Y == '?' {
 			out = append(out, leaf{Repo: r.Path, Group: groupUntracked, Path: e.Path, Code: "U"})
@@ -109,7 +146,7 @@ func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui
 	if len(repos) == 0 {
 		return sdui.Empty(noRepos)
 	}
-	budget := maxTreeItems - len(repos)*(1+2*len(groupTitles))
+	budget := maxTreeItems - len(repos)*(1+2*len(groupTitles)) - 2
 	items := make([]sdui.TreeItem, 0, len(repos))
 	for _, r := range repos {
 		root := sdui.TreeItem{ID: r.Path, Label: filepath.Base(r.Path), Detail: r.Branch, Expanded: !folded[r.Path]}
@@ -119,38 +156,47 @@ func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui
 			continue
 		}
 		all := leaves(r)
+		if r.Review.active() {
+			root.Children = append(root.Children, groupItem(r.Path+idSep+groupReview, "Review: "+r.Review.Base, inGroup(all, groupReview), folded, &budget))
+		}
 		for _, g := range groupTitles {
-			var group []leaf
-			for _, l := range all {
-				if l.Group == g.id {
-					group = append(group, l)
-				}
+			if group := inGroup(all, g.id); len(group) > 0 {
+				root.Children = append(root.Children, groupItem(r.Path+idSep+g.id, g.title, group, folded, &budget))
 			}
-			if len(group) == 0 {
-				continue
-			}
-			id := r.Path + idSep + g.id
-			shown := min(len(group), maxGroupLeaves, max(budget, 0))
-			budget -= shown
-			children := make([]sdui.TreeItem, 0, shown+1)
-			for _, l := range group[:shown] {
-				children = append(children, sdui.TreeItem{ID: l.id(), Label: l.rel(), Badge: l.Code})
-			}
-			if more := len(group) - shown; more > 0 {
-				children = append(children, sdui.TreeItem{ID: id + idSep + moreID, Label: fmt.Sprintf("… %d more", more)})
-			}
-			root.Children = append(root.Children, sdui.TreeItem{
-				ID:          id,
-				Label:       fmt.Sprintf("%s (%d)", g.title, len(group)),
-				HasChildren: true,
-				Expanded:    !folded[id],
-				Children:    children,
-			})
 		}
 		root.HasChildren = len(root.Children) > 0
 		items = append(items, root)
 	}
 	return sdui.Scroll(sdui.Tree(treeID, items, selected))
+}
+
+func inGroup(all []leaf, group string) []leaf {
+	var out []leaf
+	for _, l := range all {
+		if l.Group == group {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func groupItem(id, title string, group []leaf, folded map[string]bool, budget *int) sdui.TreeItem {
+	shown := min(len(group), maxGroupLeaves, max(*budget, 0))
+	*budget -= shown
+	children := make([]sdui.TreeItem, 0, shown+1)
+	for _, l := range group[:shown] {
+		children = append(children, sdui.TreeItem{ID: l.id(), Label: l.rel(), Badge: l.Code})
+	}
+	if more := len(group) - shown; more > 0 {
+		children = append(children, sdui.TreeItem{ID: id + idSep + moreID, Label: fmt.Sprintf("… %d more", more)})
+	}
+	return sdui.TreeItem{
+		ID:          id,
+		Label:       fmt.Sprintf("%s (%d)", title, len(group)),
+		HasChildren: len(children) > 0,
+		Expanded:    !folded[id],
+		Children:    children,
+	}
 }
 
 func mainView(m mainModel) sdui.Node {
@@ -164,9 +210,11 @@ func mainView(m mainModel) sdui.Node {
 	if sel := m.Sel; sel != nil {
 		rel := sel.rel()
 		toolbar := []sdui.Node{mono(rel)}
-		if sel.Group == groupStaged {
+		switch sel.Group {
+		case groupReview:
+		case groupStaged:
 			toolbar = append(toolbar, sdui.Button(unstageAction, "Unstage", ""))
-		} else {
+		default:
 			toolbar = append(toolbar, sdui.Button(stageAction, "Stage", ""))
 		}
 		if sel.discardable() {
@@ -178,20 +226,50 @@ func mainView(m mainModel) sdui.Node {
 		}
 		nodes = append(nodes, sdui.HStack(toolbar...), sdui.Scroll(m.Body))
 	}
+	if controls := reviewView(m.Review, m.Repos); len(controls) > 0 {
+		nodes = append(nodes, sdui.VStack(controls...))
+	}
 	var fields []sdui.Node
 	if len(m.Repos) > 1 {
-		options := make([]sdui.Option, len(m.Repos))
-		for i, r := range m.Repos {
-			options[i] = sdui.Option{Value: r, Label: filepath.Base(r)}
-		}
 		value := m.Repos[0]
 		if m.Sel != nil {
 			value = m.Sel.Repo
 		}
-		fields = append(fields, sdui.Select(repoField, options, value))
+		fields = append(fields, sdui.Select(repoField, repoOptions(m.Repos), value))
 	}
 	fields = append(fields, sdui.TextField(messageField, "", "Commit message"), sdui.Button(submitID, "Commit", ""))
 	return sdui.VStack(append(nodes, sdui.WithAction(sdui.Form(m.FormID, fields...), commitAction))...)
+}
+
+func reviewView(c reviewControls, repos []string) []sdui.Node {
+	var nodes []sdui.Node
+	if c.Repo != "" {
+		var fields []sdui.Node
+		if len(repos) > 1 {
+			fields = append(fields, sdui.Select(reviewRepoID, repoOptions(repos), c.Repo))
+		}
+		options := make([]sdui.Option, len(c.Branches))
+		for i, b := range c.Branches {
+			options[i] = sdui.Option{Value: b, Label: b}
+		}
+		fields = append(fields, sdui.Select(reviewBaseID, options, c.Base), sdui.Button(reviewStartID, "Review Branch", ""))
+		nodes = append(nodes, sdui.WithAction(sdui.Form(c.FormID, fields...), reviewAction))
+	}
+	if c.Active {
+		nodes = append(nodes, sdui.Button(endReviewID, "End Review", ""))
+	}
+	if c.Err != "" {
+		nodes = append(nodes, sdui.Badge(c.Err, "danger"))
+	}
+	return nodes
+}
+
+func repoOptions(repos []string) []sdui.Option {
+	options := make([]sdui.Option, len(repos))
+	for i, r := range repos {
+		options[i] = sdui.Option{Value: r, Label: filepath.Base(r)}
+	}
+	return options
 }
 
 func bodyNode(text string, truncated, dir bool, err error) sdui.Node {

@@ -37,6 +37,7 @@ type PluginHarness struct {
 	Srv    *rpc.Server
 	Sup    *plugin.Supervisor
 	Store  *internalsdui.Store
+	KV     *kv.Store
 	Dirs   paths.Dirs
 	client *rpc.Client
 }
@@ -58,6 +59,7 @@ func NewHarness(t *testing.T, opts ...plugin.SupervisorOption) *PluginHarness {
 	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
+	h.KV = store
 	h.Srv = rpc.NewServer(h.Svc, h.Bus, rpc.WithKV(store))
 	opts = append([]plugin.SupervisorOption{plugin.WithOnStop(h.Store.ClearOwner)}, opts...)
 	h.Sup = plugin.NewSupervisor(h.Srv, h.Dirs, slog.New(slog.DiscardHandler), opts...)
