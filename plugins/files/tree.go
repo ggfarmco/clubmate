@@ -43,10 +43,11 @@ type builder struct {
 	count    int
 	open     map[string]bool
 	reads    map[string][]entry
+	home     string
 }
 
 func buildTree(roots []Root, expanded map[string]bool, status map[string]string, hideIgnored bool) []sdui.TreeItem {
-	b := &builder{expanded: expanded, status: status, dirty: dirtyDirs(status), hide: hideIgnored, open: openAncestors(expanded), reads: map[string][]entry{}}
+	b := &builder{expanded: expanded, status: status, dirty: dirtyDirs(status), hide: hideIgnored, open: openAncestors(expanded), reads: map[string][]entry{}, home: userHome()}
 	items := make([]sdui.TreeItem, 0, len(roots))
 	for _, r := range roots {
 		items = append(items, b.root(r.Path))
@@ -141,7 +142,15 @@ func (b *builder) visibleEntries(dir string) []entry {
 	return slices.DeleteFunc(slices.Clone(entries), func(e entry) bool { return b.status[filepath.Join(dir, e.name)] == ignoredCode })
 }
 
+func userHome() string {
+	home, _ := os.UserHomeDir()
+	return home
+}
+
 func (b *builder) onlyDir(dir string) (string, bool) {
+	if filepath.Dir(dir) == b.home {
+		return "", false
+	}
 	if _, ok := b.reads[dir]; ok {
 		entries := b.visibleEntries(dir)
 		if len(entries) != 1 || !entries[0].dir || entries[0].link {

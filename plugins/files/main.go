@@ -565,7 +565,7 @@ func (s *state) collapseLocked(item string) {
 		}
 	}
 	repo := containing(s.repos, item)
-	b := &builder{status: s.mergedStatus(), hide: s.hideIgn, reads: map[string][]entry{}}
+	b := &builder{status: s.mergedStatus(), hide: s.hideIgn, reads: map[string][]entry{}, home: userHome()}
 	for child, dir := item, filepath.Dir(item); repo != "" && dir != repo && len(dir) > len(repo); child, dir = dir, filepath.Dir(dir) {
 		if name, ok := b.onlyDir(dir); !ok || name != filepath.Base(child) {
 			break
