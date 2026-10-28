@@ -27,6 +27,7 @@ struct WorkspaceWindow: View {
                             .monospacedDigit()
                     }
                     .help("Workspaces (⌃⌘W)")
+                    .accessibilityLabel("Workspaces, \(workspaceCount)")
                     .disabled(windowID == nil)
                 }
             }

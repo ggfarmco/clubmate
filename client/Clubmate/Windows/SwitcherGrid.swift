@@ -10,7 +10,7 @@ struct SwitcherGridView: View {
     @Environment(\.theme) private var theme
     @State private var highlight: Int?
 
-    private static let tile = CGSize(width: 240, height: 150)
+    static let tile = CGSize(width: 240, height: 150)
     private static let spacing: CGFloat = 16
     private static let padding: CGFloat = 24
 
@@ -42,6 +42,9 @@ struct SwitcherGridView: View {
                 .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
                 .padding(Self.padding)
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Workspace switcher")
+            .accessibilityAddTraits(.isModal)
             .background(SwitcherKeys { key in handle(key, columns: columns) })
         }
     }
@@ -89,6 +92,10 @@ struct SwitcherGridView: View {
         .frame(width: Self.tile.width, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { choose(index) }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(workspace.map { app.project($0)?.name ?? $0 } ?? "Open Folder…")
+        .accessibilityAddTraits(workspace != nil && workspace == app.window(windowID)?.active ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { choose(index) }
     }
 
     @ViewBuilder private func preview(_ workspace: String?) -> some View {
@@ -209,15 +216,16 @@ final class SwitcherKeyView: NSView {
 
 @MainActor
 enum WorkspaceThumbnail {
-    private static let width: CGFloat = 480
-
     static func capture(_ window: NSWindow) -> NSImage? {
         guard let root = window.contentView, root.bounds.width > 0, root.bounds.height > 0,
               let screen = root.bitmapImageRepForCachingDisplay(in: root.bounds) else { return nil }
         root.cacheDisplay(in: root.bounds, to: screen)
-        let size = NSSize(width: width, height: (root.bounds.height * width / root.bounds.width).rounded())
+        let tile = SwitcherGridView.tile
+        let scale = max(tile.width / root.bounds.width, tile.height / root.bounds.height)
+        let size = NSSize(width: (root.bounds.width * scale).rounded(), height: (root.bounds.height * scale).rounded())
+        let backing = window.backingScaleFactor
         guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
+            bitmapDataPlanes: nil, pixelsWide: Int(size.width * backing), pixelsHigh: Int(size.height * backing),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
         ) else { return nil }

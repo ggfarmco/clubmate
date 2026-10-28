@@ -22,6 +22,7 @@ final class AppModel {
     private var launchProject = launchProjectID(CommandLine.arguments)
     @ObservationIgnored private var keyWindowID: String?
     @ObservationIgnored private let hosts = NSMapTable<NSString, NSWindow>.strongToWeakObjects()
+    @ObservationIgnored private var captured: [String: ContinuousClock.Instant] = [:]
     @ObservationIgnored private var shownWindows: Set<String> = []
     @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var restored = false
@@ -84,7 +85,7 @@ final class AppModel {
 
     func open(_ projectID: String, in target: String? = nil) {
         let preferred = target ?? keyWindowID ?? layout.windows.last?.id
-        snapshot(layout.windows.first { $0.workspaces.contains(projectID) }?.id ?? preferred)
+        snapshot(layout.windows.first { $0.workspaces.contains(projectID) }?.id ?? preferred, leaving: projectID)
         let window = layout.open(projectID, preferring: preferred)
         syncSessions()
         touch(projectID)
@@ -93,18 +94,20 @@ final class AppModel {
     }
 
     func activate(_ projectID: String, in window: String) {
-        snapshot(window)
+        snapshot(window, leaving: projectID)
         layout.activate(projectID, in: window)
         touchActive(in: window)
     }
 
     func next(in window: String) {
+        guard (layout.window(window)?.workspaces.count ?? 0) > 1 else { return }
         snapshot(window)
         layout.next(in: window)
         touchActive(in: window)
     }
 
     func previous(in window: String) {
+        guard (layout.window(window)?.workspaces.count ?? 0) > 1 else { return }
         snapshot(window)
         layout.previous(in: window)
         touchActive(in: window)
@@ -131,7 +134,7 @@ final class AppModel {
 
     func toggleSwitcher(in window: String) {
         guard switcherWindow != window else { return hideSwitcher() }
-        snapshot(window)
+        snapshot(window, throttled: false)
         switcherWindow = window
     }
 
@@ -139,15 +142,20 @@ final class AppModel {
         switcherWindow = nil
     }
 
-    private func snapshot(_ window: String?) {
-        guard let window, switcherWindow != window, let active = layout.window(window)?.active,
-              let session = sessions[active], let host = hosts.object(forKey: window as NSString) else { return }
+    private func snapshot(_ window: String?, leaving target: String? = nil, throttled: Bool = true) {
+        guard let window, switcherWindow != window, let active = layout.window(window)?.active, active != target,
+              let session = sessions[active], !session.paletteShown,
+              let host = hosts.object(forKey: window as NSString), !PaletteTextField.isShown(in: host) else { return }
+        let now = ContinuousClock.now
+        if throttled, let last = captured[window], now - last < .milliseconds(200) { return }
+        captured[window] = now
         session.thumbnail = WorkspaceThumbnail.capture(host)
     }
 
     func windowClosed(_ window: String) {
         if keyWindowID == window { keyWindowID = nil }
         if switcherWindow == window { switcherWindow = nil }
+        captured[window] = nil
         shownWindows.remove(window)
         layout.closeWindow(window)
         syncSessions()
