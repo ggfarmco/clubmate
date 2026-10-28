@@ -16,4 +16,8 @@ func TestAltScreenFeed(t *testing.T) {
 	assert.True(t, a.on)
 	a.feed([]byte("[?1049l"))
 	assert.False(t, a.on)
+	a.feed([]byte("\x1b[?10\x1b[?1049h"))
+	assert.True(t, a.on)
+	a.feed([]byte("\x1bc"))
+	assert.False(t, a.on)
 }

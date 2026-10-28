@@ -29,7 +29,7 @@ const (
 	initialCols       = 80
 	initialRows       = 24
 	exitFlushTimeout  = 2 * time.Second
-	repaintDelay      = 100 * time.Millisecond
+	repaintTimeout    = 500 * time.Millisecond
 	defaultTerm       = "TERM=xterm-256color"
 	sessionMarker     = "CLUBMATE_SESSION_ID="
 	projectMarker     = "CLUBMATE_PROJECT_ID="
@@ -44,6 +44,7 @@ type host struct {
 	pgid       int
 	ring       *wire.Ring
 	alt        altScreen
+	output     chan struct{}
 	maxPending int
 	mu         sync.Mutex
 	clients    map[*client]struct{}
@@ -105,6 +106,7 @@ func Run(ctx context.Context, cfg Config) error {
 		ring:       wire.NewRing(cfg.Scrollback),
 		maxPending: max(maxPendingBytes, 2*cfg.Scrollback),
 		clients:    map[*client]struct{}{},
+		output:     make(chan struct{}, 1),
 	}
 	code := h.serve(ctx, cmd, ln)
 	exitedAt := time.Now()
@@ -144,7 +146,7 @@ func (h *host) acceptLoop(ln net.Listener) {
 func (h *host) add(conn net.Conn) {
 	c := &client{conn: conn, wake: make(chan struct{}, 1)}
 	h.mu.Lock()
-	if h.alt.on {
+	if h.alt.on && h.exit == nil {
 		c.pending = slices.Clone(altScreenReset)
 		c.repaint = true
 	} else {
@@ -179,6 +181,10 @@ func (h *host) broadcast(p []byte) {
 	defer h.mu.Unlock()
 	h.ring.Write(p)
 	h.alt.feed(p)
+	select {
+	case h.output <- struct{}{}:
+	default:
+	}
 	for c := range h.clients {
 		if len(c.pending)+len(p) > h.maxPending {
 			h.dropLocked(c)
@@ -252,13 +258,33 @@ func (h *host) resize(payload []byte, repaint bool) {
 	if err != nil || cols == 0 || rows == 0 {
 		return
 	}
-	if repaint && rows > 1 {
-		if !h.setSize(cols, rows-1) {
-			return
-		}
-		time.Sleep(repaintDelay)
+	if repaint && rows > 1 && h.sizeIs(cols, rows) {
+		h.repaint(cols, rows)
+		return
 	}
 	h.setSize(cols, rows)
+}
+
+func (h *host) repaint(cols, rows uint16) {
+	select {
+	case <-h.output:
+	default:
+	}
+	if !h.setSize(cols, rows-1) {
+		return
+	}
+	select {
+	case <-h.output:
+	case <-time.After(repaintTimeout):
+	}
+	if h.sizeIs(cols, rows-1) {
+		h.setSize(cols, rows)
+	}
+}
+
+func (h *host) sizeIs(cols, rows uint16) bool {
+	ws, err := pty.GetsizeFull(h.ptmx)
+	return err == nil && ws.Cols == cols && ws.Rows == rows
 }
 
 func (h *host) setSize(cols, rows uint16) bool {

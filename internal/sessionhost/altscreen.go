@@ -39,6 +39,10 @@ func (a *altScreen) parse(seq []byte) (int, bool) {
 	if len(seq) < 2 {
 		return 0, false
 	}
+	if seq[1] == 'c' {
+		a.on = false
+		return 2, true
+	}
 	if seq[1] != '[' {
 		return 1, true
 	}
@@ -54,6 +58,9 @@ func (a *altScreen) parse(seq []byte) (int, bool) {
 	}
 	if j == len(seq) {
 		return 0, false
+	}
+	if seq[j] == 0x1b {
+		return j, true
 	}
 	if final := seq[j]; final == 'h' || final == 'l' {
 		for param := range bytes.SplitSeq(seq[3:j], []byte{';'}) {
