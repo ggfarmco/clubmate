@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 VERSION="0.0.0-test"
+MACOS_MIN="27.0"
 BUILD="$(git rev-list --count HEAD)"
 APP="dist/Clubmate.app"
 DMG="dist/Clubmate-$VERSION.dmg"
@@ -61,9 +62,9 @@ func main() {
 GO
 PUBLIC_KEY="$(cd "$TMP/keygen" && GO111MODULE=off go run main.go "$TMP/sparkle.key")"
 
-SPARKLE_PUBLIC_KEY="$PUBLIC_KEY" scripts/release/build.sh "$VERSION"
+SPARKLE_PUBLIC_KEY="$PUBLIC_KEY" scripts/release/build.sh "$VERSION" 2>&1 | tee "$TMP/build.log"
 scripts/release/sign.sh "$APP" -
-scripts/release/dmg.sh "$APP" "$VERSION"
+scripts/release/dmg.sh "$APP" "$VERSION" -
 env -u ASC_KEY_ID scripts/release/notarize.sh "$DMG"
 SPARKLE_PRIVATE_KEY="$(<"$TMP/sparkle.key")" scripts/release/appcast.sh "$DMG" "$VERSION" "$BUILD"
 
@@ -74,9 +75,13 @@ check "no get-task-allow entitlement" test "${ENTITLEMENTS/get-task-allow/}" == 
 check "no disable-library-validation entitlement" test "${ENTITLEMENTS/disable-library-validation/}" == "$ENTITLEMENTS"
 expect "CFBundleShortVersionString" "$(plutil -extract CFBundleShortVersionString raw "$PLIST")" "$VERSION"
 expect "CFBundleVersion" "$(plutil -extract CFBundleVersion raw "$PLIST")" "$BUILD"
+expect "LSMinimumSystemVersion" "$(plutil -extract LSMinimumSystemVersion raw "$PLIST")" "$MACOS_MIN"
 expect "SUPublicEDKey" "$(plutil -extract SUPublicEDKey raw "$PLIST")" "$PUBLIC_KEY"
 
+check "no binary linked against objects newer than its deployment target" test -z "$(grep 'built for newer' "$TMP/build.log")"
+
 check "hdiutil verify $DMG" hdiutil verify "$DMG"
+check "codesign --verify $DMG" codesign --verify --strict "$DMG"
 mkdir -p "$MNT"
 hdiutil attach "$DMG" -readonly -nobrowse -noautoopen -mountpoint "$MNT" -quiet
 for f in LICENSE NOTICE THIRD_PARTY_LICENSES.md; do
@@ -89,6 +94,7 @@ hdiutil detach "$MNT" -quiet
 expect "enclosure url" "$(xpath "string(//item/enclosure/@url)")" "$URL"
 expect "sparkle:shortVersionString" "$(xpath "string(//item/*[local-name()='shortVersionString'])")" "$VERSION"
 expect "sparkle:version" "$(xpath "string(//item/*[local-name()='version'])")" "$BUILD"
+expect "sparkle:minimumSystemVersion" "$(xpath "string(//item/*[local-name()='minimumSystemVersion'])")" "$MACOS_MIN"
 expect "clubmate:sessionProtocol" "$(xpath "string(//item/*[local-name()='sessionProtocol' and namespace-uri()='https://github.com/ggfarmco/clubmate'])")" "$(go run ./cmd/clubmate version --json | plutil -extract sessionProtocol raw -)"
 check "clubmate: prefix" grep -q '<clubmate:sessionProtocol>' "$APPCAST"
 check "non-empty edSignature" test -n "$(xpath "string(//item/enclosure/@*[local-name()='edSignature'])")"

@@ -2,7 +2,9 @@ VERSION ?= 0.0.0-dev
 COMMIT ?= $(shell git rev-parse HEAD)
 FLAVOR ?= dev
 LDFLAGS = -X clubmate/internal/buildinfo.Version=$(VERSION) -X clubmate/internal/buildinfo.Commit=$(COMMIT) -X clubmate/internal/buildinfo.Flavor=$(FLAVOR)
-GO_BUILD = go build -ldflags "$(LDFLAGS)"
+MACOS_MIN = 27.0
+GO_ENV = MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN) CGO_CFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)" CGO_LDFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)"
+GO_BUILD = $(GO_ENV) go build -ldflags "$(LDFLAGS)"
 
 build:
 	$(GO_BUILD) -o bin/ ./cmd/...

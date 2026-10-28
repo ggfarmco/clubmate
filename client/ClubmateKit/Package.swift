@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ClubmateKit",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS("27.0")],
     products: [
         .library(name: "ClubmateKit", targets: ["ClubmateKit"])
     ],

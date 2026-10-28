@@ -8,6 +8,8 @@ GHOSTTY_REV="$(sed -n 's/^GHOSTTY_REV="\(.*\)"$/\1/p' scripts/build-ghostty.sh)"
 SPARKLE_SRC="build/DerivedData/SourcePackages/checkouts/Sparkle"
 SPARKLE_PIN="$(sed -n '/Sparkle:/,/exactVersion/s/^ *exactVersion: "\(.*\)"$/\1/p' client/project.yml)"
 ZIG_BUILD_ONLY=" aro translate_c pixels "
+FRAGMENTS="scripts/licenses"
+SIMDUTF_VERSION="9.0.0"
 
 fail() {
   echo "error: $*" >&2
@@ -16,6 +18,9 @@ fail() {
 
 [[ "$(git -C "$GHOSTTY_SRC" rev-parse HEAD 2>/dev/null || true)" == "$GHOSTTY_REV" && -d "$GHOSTTY_SRC/zig-pkg" ]] ||
   fail "$GHOSTTY_SRC is not a built ghostty $GHOSTTY_REV checkout (run make ghostty)"
+VENDORED_SIMDUTF="$(sed -n 's/^#define SIMDUTF_VERSION "\(.*\)"$/\1/p' "$GHOSTTY_SRC/pkg/simdutf/vendor/simdutf.h")"
+[[ "$VENDORED_SIMDUTF" == "$SIMDUTF_VERSION" ]] ||
+  fail "ghostty vendors simdutf $VENDORED_SIMDUTF, $FRAGMENTS/simdutf has $SIMDUTF_VERSION licences"
 [[ -f "$SPARKLE_SRC/LICENSE" ]] || fail "$SPARKLE_SRC missing (run make app to resolve Swift packages)"
 SPARKLE_VERSION="$(sed -n 's/^let version = "\(.*\)"$/\1/p' "$SPARKLE_SRC/Package.swift")"
 [[ "$SPARKLE_VERSION" == "$SPARKLE_PIN" ]] || fail "Sparkle checkout is $SPARKLE_VERSION, project.yml pins $SPARKLE_PIN"
@@ -79,6 +84,16 @@ ghostty_section() {
   done < <(jq -r 'to_entries[] | [.value.name, .key, .value.url] | @tsv' "$GHOSTTY_SRC/build.zig.zon.json" | LC_ALL=C sort)
 }
 
+vendored_section() {
+  printf '### simdutf %s\n\nSource: https://github.com/simdutf/simdutf (vendored in ghostty `pkg/simdutf`), dual-licensed Apache-2.0 OR MIT.\n\n' "$SIMDUTF_VERSION"
+  block LICENSE-APACHE "$FRAGMENTS/simdutf/LICENSE-APACHE"
+  block LICENSE-MIT "$FRAGMENTS/simdutf/LICENSE-MIT"
+  printf '### stb_image, stb_image_resize\n\nSource: https://github.com/nothings/stb (vendored in ghostty `src/stb`).\n\n'
+  sed -n '/^This software is available under 2 licenses/,$p' "$GHOSTTY_SRC/src/stb/stb_image.h" | sed -e '/^\*\/$/,$d' | sed '$d' >"$TMP/stb-license"
+  [[ -s "$TMP/stb-license" ]] || fail "stb licence text not found in src/stb/stb_image.h"
+  block LICENSE "$TMP/stb-license"
+}
+
 fonts_section() {
   local res="$GHOSTTY_SRC/src/font/res"
   printf '## Fonts bundled in libghostty\n\nghostty embeds fonts from `src/font/res`; JetBrains Mono and Symbols Nerd Font are listed with the GhosttyKit dependencies above.\n\n'
@@ -93,9 +108,12 @@ sparkle_section() {
 
 adapted_section() {
   printf '## Adapted source code\n\n'
-  sed -e '1,/^$/d' -e 's/^## /### /' THIRD_PARTY_NOTICES.md
+  cat "$FRAGMENTS/adapted.md"
   printf '\n'
 }
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 
 {
   printf '# Third-party licences\n\n'
@@ -103,6 +121,7 @@ adapted_section() {
   adapted_section
   go_section
   ghostty_section
+  vendored_section
   fonts_section
   sparkle_section
 } >"$OUT.tmp"
