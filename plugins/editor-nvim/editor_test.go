@@ -254,10 +254,10 @@ func TestReviewReplacesTab(t *testing.T) {
 	e := startEditorIn(t, setup{initLua: stubDiffview})
 	repo := e.dir(t, "repo dir")
 	v := dial(t, e.sock)
-	assert.Equal(t, "diffview", e.review(t, repo, "feature/x"))
-	e.review(t, repo, "feature/x")
-	open := openLog(t, v, repo, "feature/x")
-	assert.Equal(t, []string{open, "close", open}, eval[[]string](t, v, "g:dv_log"))
+	assert.Equal(t, "diffview", e.review(t, repo, "feature/x", ""))
+	e.review(t, repo, "feature/x", "feature/y")
+	want := []string{openLog(t, v, repo, "feature/x", "HEAD"), "close", openLog(t, v, repo, "feature/x", "feature/y")}
+	assert.Equal(t, want, eval[[]string](t, v, "g:dv_log"))
 	assert.Equal(t, 2, eval[int](t, v, "tabpagenr('$')"))
 }
 
@@ -265,16 +265,16 @@ func TestReviewFailedOpenRecordsNoTab(t *testing.T) {
 	e := startEditorIn(t, setup{initLua: stubDiffview})
 	v := dial(t, e.sock)
 	require.NoError(t, v.SetVar("dv_fail", true))
-	assert.Equal(t, "builtin", e.review(t, e.repo, "feature/x"))
+	assert.Equal(t, "builtin", e.review(t, e.repo, "feature/x", ""))
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review-close", "projectId": e.projectID}, nil))
-	assert.Equal(t, []string{openLog(t, v, e.repo, "feature/x")}, eval[[]string](t, v, "g:dv_log"))
+	assert.Equal(t, []string{openLog(t, v, e.repo, "feature/x", "HEAD")}, eval[[]string](t, v, "g:dv_log"))
 	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
 }
 
 func TestReviewWithoutDiffview(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
-	assert.Equal(t, "builtin", e.review(t, e.repo, "main"))
+	assert.Equal(t, "builtin", e.review(t, e.repo, "main", ""))
 	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
 }
 
@@ -304,6 +304,48 @@ func TestDiffRevBase(t *testing.T) {
 	assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
 	diff()
 	assert.Equal(t, tabs, eval[int](t, v, "tabpagenr('$')"))
+}
+
+func TestDiffRevTarget(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	e := startEditor(t)
+	a := filepath.Join(e.repo, "a.go")
+	n := filepath.Join(e.repo, "newdir", "n.go")
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", e.repo}, args...)...).Output()
+		require.NoError(t, err)
+		return strings.TrimSpace(string(out))
+	}
+	commit := func() string {
+		git("add", "-A")
+		git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c")
+		return git("rev-parse", "HEAD")
+	}
+	git("init", "-q")
+	require.NoError(t, os.WriteFile(a, []byte("one\n"), 0o600))
+	first := commit()
+	require.NoError(t, os.WriteFile(a, []byte("two\n"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Dir(n), 0o700))
+	require.NoError(t, os.WriteFile(n, []byte("new\n"), 0o600))
+	second := commit()
+	git("checkout", "-q", "--detach", first)
+	v := dial(t, e.sock)
+	diff := func(path string) {
+		args := map[string]any{"path": path, "base": "rev:" + first, "target": "rev:" + second}
+		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
+	}
+	diff(a)
+	assert.Equal(t, []string{"clubmate://" + first[:7] + "/a.go", "clubmate://" + second[:7] + "/a.go"}, eval[[]string](t, v, "[nvim_buf_get_name(winbufnr(1)), nvim_buf_get_name(winbufnr(2))]"))
+	assert.Equal(t, []string{"one"}, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
+	assert.Equal(t, []string{"two"}, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
+	assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
+	assert.False(t, eval[bool](t, v, "getbufvar(winbufnr(2), '&modifiable')"))
+	diff(n)
+	diff(n)
+	assert.Equal(t, []string{""}, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
+	assert.Equal(t, []string{"new"}, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
+	assert.Equal(t, 1, eval[int](t, v, "len(filter(range(1, tabpagenr('$')), {_, t -> len(filter(tabpagebuflist(t), {_, b -> bufname(b) =~# 'n\\.go$'})) > 0}))"))
 }
 
 func TestRestartIgnoresScratchBuffers(t *testing.T) {
@@ -387,19 +429,19 @@ func (e *editor) dir(t *testing.T, rel string) string {
 	return path
 }
 
-func (e *editor) review(t *testing.T, repo, base string) string {
+func (e *editor) review(t *testing.T, repo, base, head string) string {
 	t.Helper()
 	var res struct {
 		Mode string `json:"mode"`
 	}
-	args := map[string]any{"repo": repo, "base": base, "mergeBase": "0000000"}
+	args := map[string]any{"repo": repo, "base": base, "head": head, "mergeBase": "0000000"}
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review", "projectId": e.projectID, "args": args}, &res))
 	return res.Mode
 }
 
-func openLog(t *testing.T, v *nvim.Nvim, repo, base string) string {
+func openLog(t *testing.T, v *nvim.Nvim, repo, base, head string) string {
 	t.Helper()
-	return eval[string](t, v, "'-C' . fnameescape('"+repo+"') . ' "+base+"...HEAD'")
+	return eval[string](t, v, "'-C' . fnameescape('"+repo+"') . ' "+base+"..."+head+"'")
 }
 
 func (e *editor) open(t *testing.T, path string, line int) error {
