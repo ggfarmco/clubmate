@@ -66,6 +66,12 @@ public enum TreeCursor {
         return rows[max(0, index - min(rows[index].depth, limit))].id
     }
 
+    public static func scrollTarget(_ id: String, from previous: String?, in rows: [TreeRow], limit: Int) -> String? {
+        guard let index = rows.firstIndex(where: { $0.id == id }) else { return nil }
+        guard let from = rows.firstIndex(where: { $0.id == previous }), index < from else { return id }
+        return stickyTarget(id, in: rows, limit: limit)
+    }
+
     private static func ancestors(of index: Int, in rows: [TreeRow]) -> [Int] {
         var chain: [Int] = []
         var depth = rows[index].depth

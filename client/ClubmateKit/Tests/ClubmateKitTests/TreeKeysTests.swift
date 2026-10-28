@@ -86,6 +86,8 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertEqual(TreeCursor.sticky(rows, top: 1, limit: 1), ["a"])
         XCTAssertEqual(TreeCursor.sticky(rows, top: 3, limit: 4), ["a"])
         XCTAssertEqual(TreeCursor.stickyTarget("a1", in: rows, limit: 4), "a")
+        XCTAssertEqual(TreeCursor.scrollTarget("a1x", from: "a1y", in: rows, limit: 4), "a")
+        XCTAssertEqual(TreeCursor.scrollTarget("a1y", from: "a1x", in: rows, limit: 4), "a1y")
     }
 
     func testCommandConfirmDecoded() throws {

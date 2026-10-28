@@ -177,10 +177,11 @@ struct TreeNodeView: View {
     private func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
         guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command)) else { return false }
-        switch TreeCursor.resolve(action, cursor: cursor, in: TreeCursor.rows(node.treeItems())) {
+        let rows = TreeCursor.rows(node.treeItems())
+        switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
         case .cursor(let id):
+            if let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroll?.scrollTo(target) }
             cursor = id
-            scroll?.scrollTo(id)
         case .select(let id): select(id)
         case .expand(let id): dispatch(node, .expand(id))
         case .collapse(let id): dispatch(node, .collapse(id))
