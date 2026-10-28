@@ -20,7 +20,7 @@ struct ClubmateApp: App {
                 }
             }
             .environment(app)
-            .environment(\.theme, GhosttyApp.shared.theme)
+            .modifier(SettingsTheme(settings: app.settings))
         }
         .defaultSize(width: 560, height: 420)
         .keyboardShortcut("o", modifiers: [.command, .shift])
@@ -29,9 +29,22 @@ struct ClubmateApp: App {
         WindowGroup("Project", for: String.self) { $projectID in
             ProjectWindow(projectID: projectID)
                 .environment(app)
-                .environment(\.theme, GhosttyApp.shared.theme)
+                .modifier(SettingsTheme(settings: app.settings))
         }
         .defaultSize(width: 1100, height: 700)
+
+        Settings {
+            SettingsView(settings: app.settings)
+                .environment(app)
+        }
+    }
+}
+
+private struct SettingsTheme: ViewModifier {
+    let settings: AppSettings
+
+    func body(content: Content) -> some View {
+        content.environment(\.theme, GhosttyApp.shared.theme.scaled(settings.interfaceFontSize))
     }
 }
 
@@ -81,6 +94,13 @@ private struct ProjectCommands: Commands {
             Button("Toggle Sidebar") { store?.toggleSidebar(app.settings) }
                 .keyboardShortcut("b")
                 .disabled(store == nil)
+            Divider()
+            Button("Increase Font Size") { app.stepTerminalFont(1) }
+                .keyboardShortcut("=")
+            Button("Decrease Font Size") { app.stepTerminalFont(-1) }
+                .keyboardShortcut("-")
+            Button("Reset Font Size") { app.settings.terminalFontSize = nil }
+                .keyboardShortcut("0")
         }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in

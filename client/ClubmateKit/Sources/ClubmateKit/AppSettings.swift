@@ -51,6 +51,13 @@ public final class AppSettings {
         navigationKeys = defaults.object(forKey: Key.navigationKeys) as? Bool
     }
 
+    public static let interfaceFontRange: ClosedRange<Double> = 10...20
+    public static let terminalFontRange: ClosedRange<Double> = 8...32
+
+    public static func fontSteps(current: Double, delta: Double, range: ClosedRange<Double>) -> Double {
+        min(max(current + delta, range.lowerBound), range.upperBound)
+    }
+
     public func autoHides(_ section: String) -> Bool {
         autoHideSidebar && section == CodeSection.id
     }

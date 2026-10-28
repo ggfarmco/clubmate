@@ -14,6 +14,7 @@ final class GhosttyApp {
     private(set) var app: ghostty_app_t?
     private(set) var theme = Theme.fallback
     private(set) var failure: String?
+    private(set) var configFontSize: Double = 13
     let colorScheme: ghostty_color_scheme_e
 
     private var config: ghostty_config_t?
@@ -59,6 +60,7 @@ final class GhosttyApp {
         let derived = GhosttyCallbacks.takeDerivedConfig()
         theme = GhosttyConfigReader.theme(from: derived ?? config, dark: dark, overlay: Self.overlayURL)
         if let derived { ghostty_config_free(derived) }
+        configFontSize = GhosttyConfigReader.fontSize(config) ?? configFontSize
     }
 
     func tick() {

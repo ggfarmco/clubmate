@@ -60,6 +60,12 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertTrue(request(nil).accepts(side: .right))
     }
 
+    func testFontSteps() {
+        XCTAssertEqual(AppSettings.fontSteps(current: 12, delta: 1, range: 8...32), 13)
+        XCTAssertEqual(AppSettings.fontSteps(current: 32, delta: 1, range: 8...32), 32)
+        XCTAssertEqual(AppSettings.fontSteps(current: 8, delta: -1, range: 8...32), 8)
+    }
+
     func testSkippedKeysMessage() {
         let result = JSONValue.object(["skipped": .array([.string("<C-j>"), .string("<C-k>")])])
         XCTAssertEqual(CodeSection.skippedKeysMessage(result), "Ctrl+J, Ctrl+K left alone: you already map them")

@@ -16,9 +16,11 @@ final class TerminalSurfaceView: NSView {
     private var keyTextAccumulator: [String]?
     private var focusAttempts = 0
     private var focusHeld = 0
+    private var fontSize: Double?
 
-    init(sessionID: String) {
+    init(sessionID: String, fontSize: Double?) {
         self.sessionID = sessionID
+        self.fontSize = fontSize
         super.init(frame: .zero)
         wantsLayer = true
         observe()
@@ -63,6 +65,13 @@ final class TerminalSurfaceView: NSView {
         guard let surface else { return }
         ghostty_surface_set_occlusion(surface, visible)
         if visible { ghostty_surface_refresh(surface) }
+    }
+
+    func setFontSize(_ size: Double?) {
+        fontSize = size
+        let action = size.map { "set_font_size:\($0)" } ?? "reset_font_size"
+        guard surface != nil, !performBinding(action) else { return }
+        ghosttyLog.notice("\(action, privacy: .public) failed for \(self.sessionID, privacy: .public)")
     }
 
     func focus() {
@@ -138,6 +147,7 @@ final class TerminalSurfaceView: NSView {
         config.working_directory = retain(NSHomeDirectory())
         config.command = retain(command)
         config.wait_after_command = false
+        config.font_size = Float(fontSize ?? 0)
         var env = Self.environment.map { ghostty_env_var_s(key: retain($0.key), value: retain($0.value)) }
         surface = env.withUnsafeMutableBufferPointer { buffer in
             config.env_vars = buffer.baseAddress
@@ -365,9 +375,10 @@ extension TerminalSurfaceView {
         performBinding("select_all")
     }
 
-    private func performBinding(_ action: String) {
-        guard let surface else { return }
-        _ = ghostty_surface_binding_action(surface, action, UInt(action.utf8.count))
+    @discardableResult
+    private func performBinding(_ action: String) -> Bool {
+        guard let surface else { return false }
+        return ghostty_surface_binding_action(surface, action, UInt(action.utf8.count))
     }
 
     private func mouseButton(_ event: NSEvent, _ state: ghostty_input_mouse_state_e, _ button: ghostty_input_mouse_button_e) {

@@ -6,6 +6,9 @@ import SwiftUI
 @Observable
 final class SurfaceDeck {
     private(set) var owner: UUID?
+    @ObservationIgnored var fontSize: Double? {
+        didSet { views.values.forEach { $0.setFontSize(fontSize) } }
+    }
 
     @ObservationIgnored let container = SurfaceDeckView()
     @ObservationIgnored private var views: [String: TerminalSurfaceView] = [:]
@@ -54,7 +57,7 @@ final class SurfaceDeck {
     }
 
     private func mount(_ sessionID: String) {
-        let view = TerminalSurfaceView(sessionID: sessionID)
+        let view = TerminalSurfaceView(sessionID: sessionID, fontSize: fontSize)
         view.onClose = { [weak self] in self?.surfaceClosed(sessionID) }
         view.frame = container.bounds
         view.autoresizingMask = [.width, .height]

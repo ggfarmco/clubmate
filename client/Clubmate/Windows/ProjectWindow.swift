@@ -90,11 +90,15 @@ struct ProjectWindow: View {
                     }
                 }
                 .background {
-                    Button("Toggle Sidebar") { store.toggleSidebar(app.settings) }
-                        .keyboardShortcut("s", modifiers: [.command, .control])
-                        .opacity(0)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
+                    Group {
+                        Button("Toggle Sidebar") { store.toggleSidebar(app.settings) }
+                            .keyboardShortcut("s", modifiers: [.command, .control])
+                        Button("Increase Font Size") { app.stepTerminalFont(1) }
+                            .keyboardShortcut("+")
+                    }
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 }
                 .frame(maxHeight: .infinity)
                 .clipped()

@@ -33,6 +33,7 @@ final class AppModel {
         link.model = self
         trackClient()
         trackNavigationKeys()
+        trackTerminalFontSize()
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
@@ -68,6 +69,7 @@ final class AppModel {
     func session(for projectID: String) -> ProjectSession {
         if let existing = sessions[projectID] { return existing }
         let session = ProjectSession(projectID: projectID)
+        session.deck.fontSize = settings.terminalFontSize
         sessions[projectID] = session
         openProjects.opened(projectID)
         if let client = supervisor.client { session.adopt(client, supervisor) }
@@ -112,6 +114,24 @@ final class AppModel {
                 self.navigationPending = true
                 self.syncNavigationKeys()
                 self.trackNavigationKeys()
+            }
+        }
+    }
+
+    var terminalFontSize: Double {
+        settings.terminalFontSize ?? GhosttyApp.shared.configFontSize
+    }
+
+    func stepTerminalFont(_ delta: Double) {
+        settings.terminalFontSize = AppSettings.fontSteps(current: terminalFontSize, delta: delta, range: AppSettings.terminalFontRange)
+    }
+
+    private func trackTerminalFontSize() {
+        withObservationTracking { _ = settings.terminalFontSize } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                for session in self.sessions.values { session.deck.fontSize = self.settings.terminalFontSize }
+                self.trackTerminalFontSize()
             }
         }
     }
