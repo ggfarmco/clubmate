@@ -174,6 +174,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, nil
 	case "files.toggle-ignored":
 		return nil, a.toggleIgnored(ctx, h, cmd.ProjectID)
+	case "files.collapse-others":
+		return nil, a.collapseOthers(ctx, h, cmd.ProjectID)
 	case "files.reveal":
 		var args pathArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -519,6 +521,30 @@ func (a *app) setExpanded(ctx context.Context, h *pluginsdk.Host, id string, s *
 	}
 	if on {
 		a.classify(ctx, s, item)
+	}
+	return a.render(ctx, h, id, s)
+}
+
+func (a *app) collapseOthers(ctx context.Context, h *pluginsdk.Host, id string) error {
+	s := a.get(id)
+	if err := a.ensure(ctx, h, id, s); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	keep := map[string]bool{}
+	for _, r := range s.repos {
+		keep[r] = true
+	}
+	if repo := containing(s.repos, s.selected); repo != "" {
+		for dir := filepath.Dir(s.selected); len(dir) >= len(repo); dir = filepath.Dir(dir) {
+			keep[dir] = true
+		}
+	}
+	s.expanded = keep
+	keys := sortedKeys(keep)
+	s.mu.Unlock()
+	if err := h.StorageSet(ctx, expandedKey(id), keys); err != nil {
+		return err
 	}
 	return a.render(ctx, h, id, s)
 }

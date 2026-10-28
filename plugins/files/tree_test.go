@@ -96,6 +96,7 @@ func TestIgnoredMuted(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin", "sub"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "keep.go"), nil, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "bin", "out"), nil, 0o600))
 	status := map[string]string{filepath.Join(root, "bin"): "!"}
 	expanded := map[string]bool{root: true, filepath.Join(root, "bin"): true}
 
@@ -105,10 +106,49 @@ func TestIgnoredMuted(t *testing.T) {
 	bin := top.Children[0]
 	assert.True(t, bin.Muted)
 	assert.Empty(t, bin.Badge)
-	require.Len(t, bin.Children, 1)
+	require.Len(t, bin.Children, 2)
 	assert.True(t, bin.Children[0].Muted)
 	assert.False(t, top.Children[1].Muted)
 
 	top = buildTree([]Root{{Path: root}}, expanded, status, true)[0]
 	assert.Equal(t, []string{"keep.go"}, labels(top.Children))
+}
+
+func TestCompactChain(t *testing.T) {
+	root := t.TempDir()
+	deep := filepath.Join(root, "a", "b", "c")
+	require.NoError(t, os.MkdirAll(deep, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(deep, "x.go"), nil, 0o600))
+	status := map[string]string{filepath.Join(deep, "x.go"): "M"}
+
+	top := buildTree([]Root{{Path: root}}, map[string]bool{root: true}, status, false)[0]
+	require.Len(t, top.Children, 1)
+	row := top.Children[0]
+	assert.Equal(t, "a / b / c", row.Label)
+	assert.Equal(t, deep, row.ID)
+	assert.Equal(t, "•", row.Badge)
+	assert.Equal(t, "folder", row.Icon)
+
+	top = buildTree([]Root{{Path: root}}, map[string]bool{root: true, deep: true}, status, false)[0]
+	file := top.Children[0].Children
+	require.Len(t, file, 1)
+	assert.Equal(t, "x.go", file[0].Label)
+	assert.Empty(t, file[0].Icon)
+}
+
+func TestCompactChainSplits(t *testing.T) {
+	root := t.TempDir()
+	ab := filepath.Join(root, "a", "b")
+	deep := filepath.Join(ab, "c")
+	require.NoError(t, os.MkdirAll(deep, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(ab, "y.go"), nil, 0o600))
+	expanded := map[string]bool{root: true, ab: true, deep: true}
+
+	top := buildTree([]Root{{Path: root}}, expanded, nil, false)[0]
+	require.Len(t, top.Children, 1)
+	row := top.Children[0]
+	assert.Equal(t, "a / b", row.Label)
+	assert.Equal(t, ab, row.ID)
+	require.Equal(t, []string{"c", "y.go"}, labels(row.Children))
+	assert.True(t, row.Children[0].Expanded)
 }

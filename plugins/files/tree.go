@@ -16,8 +16,9 @@ const (
 	maxDepth   = 24
 	moreSuffix = "\x00more"
 
+	chainSeparator = " / "
+
 	iconFolder  = "folder"
-	iconFile    = "doc"
 	iconLink    = "link"
 	iconMissing = "exclamationmark.triangle"
 	dirtyBadge  = "•"
@@ -73,10 +74,7 @@ func (b *builder) expand(item *sdui.TreeItem, depth int, muted bool) {
 }
 
 func (b *builder) children(dir string, depth int, muted bool) []sdui.TreeItem {
-	entries := readEntries(dir)
-	if b.hide {
-		entries = slices.DeleteFunc(entries, func(e entry) bool { return b.status[filepath.Join(dir, e.name)] == ignoredCode })
-	}
+	entries := b.visibleEntries(dir)
 	items := make([]sdui.TreeItem, 0, min(len(entries), maxEntries)+1)
 	rest := 0
 	for i, e := range entries {
@@ -86,8 +84,20 @@ func (b *builder) children(dir string, depth int, muted bool) []sdui.TreeItem {
 		}
 		b.count++
 		path := filepath.Join(dir, e.name)
+		label := e.name
 		itemMuted := muted || b.status[path] == ignoredCode
-		item := sdui.TreeItem{ID: path, Label: e.name, Icon: iconFile, Muted: itemMuted}
+		if e.dir && !e.link {
+			for {
+				next, ok := b.onlyDir(path)
+				if !ok {
+					break
+				}
+				path = filepath.Join(path, next)
+				label += chainSeparator + next
+				itemMuted = itemMuted || b.status[path] == ignoredCode
+			}
+		}
+		item := sdui.TreeItem{ID: path, Label: label, Muted: itemMuted}
 		if !itemMuted {
 			item.Badge = b.status[path]
 		}
@@ -108,6 +118,22 @@ func (b *builder) children(dir string, depth int, muted bool) []sdui.TreeItem {
 		items = append(items, sdui.TreeItem{ID: dir + "/" + moreSuffix, Label: fmt.Sprintf("… %d more", rest)})
 	}
 	return items
+}
+
+func (b *builder) visibleEntries(dir string) []entry {
+	entries := readEntries(dir)
+	if b.hide {
+		entries = slices.DeleteFunc(entries, func(e entry) bool { return b.status[filepath.Join(dir, e.name)] == ignoredCode })
+	}
+	return entries
+}
+
+func (b *builder) onlyDir(dir string) (string, bool) {
+	entries := b.visibleEntries(dir)
+	if len(entries) != 1 || !entries[0].dir || entries[0].link {
+		return "", false
+	}
+	return entries[0].name, true
 }
 
 func (b *builder) dirBadge(path string) string {

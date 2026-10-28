@@ -9,6 +9,7 @@
     "commands": [
       {"id": "files.refresh", "title": "Refresh File Tree"},
       {"id": "files.toggle-ignored", "title": "Toggle Ignored Files"},
+      {"id": "files.collapse-others", "title": "Collapse Others"},
       {"id": "files.reveal", "title": "Reveal File in Tree", "hidden": true}
     ]
   }
