@@ -37,7 +37,8 @@ type confirmParams struct {
 }
 
 type confirmResult struct {
-	Approved bool `json:"approved"`
+	Approved bool   `json:"approved"`
+	Reason   string `json:"reason"`
 }
 
 func (e deniedError) Error() string {
@@ -74,6 +75,9 @@ func (s *Server) approve(ctx context.Context, c Command, projectID string, args 
 			return errApprovalTimeout
 		}
 		return errNoApprover
+	}
+	if !res.Approved && res.Reason != "" {
+		return deniedError(res.Reason)
 	}
 	if !res.Approved {
 		return errDeniedByUser

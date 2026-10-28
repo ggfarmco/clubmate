@@ -167,8 +167,9 @@ public final class CoreClient {
             try? await connection.replyError(id: request.id, code: -32602, message: "invalid ui.confirm params")
             return
         }
-        let approved = await confirmHandler?(confirm) ?? false
-        try? await connection.reply(id: request.id, result: ConfirmReply(approved: approved))
+        let handler = confirmHandler
+        let reply = await ConfirmRequest.answer(confirm) { await handler?($0) ?? false }
+        try? await connection.reply(id: request.id, result: reply)
     }
 
     private func broadcast(_ notification: RPCNotification) {

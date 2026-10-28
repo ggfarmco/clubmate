@@ -77,6 +77,17 @@ final class ClubmateKitTests: XCTestCase {
         XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nid\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
     }
 
+    func testConfirmTooLongIsDeniedUnasked() async {
+        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(String(repeating: "x", count: 201))]))
+        var asked = false
+        let reply = await ConfirmRequest.answer(request) { _ in
+            asked = true
+            return true
+        }
+        XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "args too long to display"))
+        XCTAssertFalse(asked)
+    }
+
     func testAgentApprovalRoundTrip() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")

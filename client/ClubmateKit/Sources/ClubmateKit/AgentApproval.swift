@@ -1,6 +1,10 @@
 import Foundation
 
 public struct ConfirmRequest: Decodable, Sendable, Equatable {
+    static let textLimit = 200
+    static let fieldLimit = 10
+    static let tooLong = "args too long to display"
+
     public let title: String
     public let workspace: String
     public let command: String
@@ -14,12 +18,12 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     }
 
     public var message: String {
-        let title = Self.clean(title)
+        let title = Self.capped(title)
         return "Allow agent to \(title.prefix(1).lowercased() + title.dropFirst())?"
     }
 
     public var detail: String {
-        var lines = ["Workspace: \(workspace.isEmpty ? "none" : Self.clean(workspace))", "Command: \(Self.clean(command))"]
+        var lines = ["Workspace: \(workspace.isEmpty ? "none" : Self.capped(workspace))", "Command: \(Self.capped(command))"]
         switch args {
         case .null:
             break
@@ -29,6 +33,21 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
             lines.append("Args (not an object): \(Self.summary(args))")
         }
         return lines.joined(separator: "\n")
+    }
+
+    public var fitsDisplay: Bool {
+        guard let fields = args.objectValue else { return true }
+        return fields.count <= Self.fieldLimit && fields.values.allSatisfy { Self.rendered($0).count <= Self.textLimit }
+    }
+
+    public static func answer(_ request: ConfirmRequest, ask: @MainActor (ConfirmRequest) async -> Bool) async -> ConfirmReply {
+        guard request.fitsDisplay else { return ConfirmReply(approved: false, reason: tooLong) }
+        return ConfirmReply(approved: await ask(request), reason: nil)
+    }
+
+    static func capped(_ text: String) -> String {
+        let out = clean(text)
+        return out.count > textLimit ? String(out.prefix(textLimit)) + "…" : out
     }
 
     static func clean(_ text: String) -> String {
@@ -48,18 +67,28 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     }
 
     private static func summary(_ value: JSONValue) -> String {
+        clean(rendered(value))
+    }
+
+    private static func rendered(_ value: JSONValue) -> String {
         switch value {
         case .null: return "null"
         case .bool(let value): return String(value)
         case .number(let value): return value == value.rounded() && abs(value) < 1e15 ? String(Int64(value)) : String(value)
-        case .string(let value): return clean(value)
+        case .string(let value): return value
         case .array, .object:
             guard let data = try? JSONEncoder().encode(value) else { return "" }
-            return clean(String(decoding: data, as: UTF8.self))
+            return String(decoding: data, as: UTF8.self)
         }
     }
 }
 
-struct ConfirmReply: Encodable, Sendable {
-    let approved: Bool
+public struct ConfirmReply: Encodable, Sendable, Equatable {
+    public let approved: Bool
+    public let reason: String?
+
+    public init(approved: Bool, reason: String?) {
+        self.approved = approved
+        self.reason = reason
+    }
 }
