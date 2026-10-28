@@ -33,6 +33,31 @@ public struct CommandInvocation: Sendable, Equatable {
     }
 }
 
+public struct AutoNewGate: Sendable {
+    public struct Key: Equatable, Sendable {
+        public let section: String?
+        public let loaded: Bool
+        public let request: Int
+
+        public init(section: String?, loaded: Bool, request: Int) {
+            self.section = section
+            self.loaded = loaded
+            self.request = request
+        }
+    }
+
+    private var done: String?
+
+    public init() {}
+
+    public mutating func fires(from old: Key, to new: Key, section: SectionInfo?, main: SDUINode?) -> Bool {
+        if old == new || old.section != new.section || old.request != new.request { done = nil }
+        guard let selected = new.section, main != nil, done != selected else { return false }
+        done = selected
+        return CommandInvocation.shouldAutoNew(section: section, main: main)
+    }
+}
+
 public enum TerminalsSection {
     public static let id = "terminals"
     public static let busyCommand = "terminals.busy"

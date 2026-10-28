@@ -79,6 +79,32 @@ public final class CoreClient {
         try await connection.call("project.create", CreateProjectParams(name: name, repos: repos))
     }
 
+    public func touchWorkspace(_ id: String) async throws {
+        let _: NoParams = try await connection.call("workspace.touch", IDParams(id: id))
+    }
+
+    public func openFolders(_ folders: [String]) async throws -> String {
+        let result: WorkspaceResult = try await connection.call("workspace.open", FoldersParams(folders: folders))
+        return result.id
+    }
+
+    public func homeWorkspace() async throws -> String {
+        let result: WorkspaceResult = try await connection.call("workspace.home", NoParams())
+        return result.id
+    }
+
+    public func renameProject(_ id: String, name: String) async throws {
+        let _: Project = try await connection.call("project.rename", RenameParams(id: id, name: name))
+    }
+
+    public func addRepo(_ id: String, path: String) async throws {
+        let _: Project = try await connection.call("project.addRepo", AddRepoParams(id: id, path: path))
+    }
+
+    public func deleteProject(_ id: String) async throws {
+        let _: NoParams = try await connection.call("project.delete", IDParams(id: id), timeout: .seconds(60))
+    }
+
     public func uiSections() async throws -> [SectionInfo] {
         try await connection.call("ui.sections", NoParams())
     }
@@ -151,6 +177,28 @@ private struct SessionState: Decodable, Sendable {
 
 private struct RegisterParams: Encodable, Sendable {
     let handles: [String]
+}
+
+private struct IDParams: Encodable, Sendable {
+    let id: String
+}
+
+private struct FoldersParams: Encodable, Sendable {
+    let folders: [String]
+}
+
+private struct WorkspaceResult: Decodable, Sendable {
+    let id: String
+}
+
+private struct RenameParams: Encodable, Sendable {
+    let id: String
+    let name: String
+}
+
+private struct AddRepoParams: Encodable, Sendable {
+    let id: String
+    let path: String
 }
 
 private struct ProjectParams: Encodable, Sendable {

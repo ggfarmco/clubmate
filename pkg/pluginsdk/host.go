@@ -11,10 +11,12 @@ import (
 )
 
 type Project struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Repos     []string  `json:"repos"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID           string     `json:"id"`
+	Name         string     `json:"name"`
+	Repos        []string   `json:"repos"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	Home         bool       `json:"home"`
+	LastOpenedAt *time.Time `json:"lastOpenedAt"`
 }
 
 type Session struct {

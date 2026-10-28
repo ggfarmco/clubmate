@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -29,6 +30,7 @@ var (
 	ErrNotTracked         = errors.New("process is not tracked by any session")
 	ErrEmptyKillRequest   = errors.New("kill request selects no processes")
 	ErrOrphansNeedSession = errors.New("orphansOnly requires a session or project id")
+	ErrNoFolders          = errors.New("no folders to open")
 )
 
 type TreeFilter struct {
@@ -58,6 +60,8 @@ type Service struct {
 	bus       *bus.Bus
 	logger    *slog.Logger
 	exclude   func() []int
+
+	workspaceMu sync.Mutex
 
 	transitionsMu sync.Mutex
 	baselined     bool
@@ -111,6 +115,54 @@ func (s *Service) CreateProject(ctx context.Context, name string, repos []string
 	}
 	s.publish(ctx, "project.created", map[string]any{"project": p})
 	return p, nil
+}
+
+func (s *Service) OpenFolders(ctx context.Context, folders []string) (project.Project, bool, error) {
+	cleaned := project.CanonicalPaths(folders)
+	if len(cleaned) == 0 {
+		return project.Project{}, false, ErrNoFolders
+	}
+	s.workspaceMu.Lock()
+	defer s.workspaceMu.Unlock()
+	p, found, err := s.projects.FindByRepos(ctx, cleaned)
+	if err != nil || found {
+		return p, false, err
+	}
+	p, err = s.CreateProject(ctx, filepath.Base(filepath.Clean(folders[0])), cleaned)
+	return p, err == nil, err
+}
+
+func (s *Service) HomeWorkspace(ctx context.Context) (project.Project, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return project.Project{}, fmt.Errorf("resolve home dir: %w", err)
+	}
+	s.workspaceMu.Lock()
+	defer s.workspaceMu.Unlock()
+	p, created, err := s.projects.Home(ctx, home)
+	if err != nil {
+		return project.Project{}, err
+	}
+	if created {
+		s.publish(ctx, "project.created", map[string]any{"project": p})
+	}
+	return p, nil
+}
+
+func (s *Service) RenameProject(ctx context.Context, id, name string) (project.Project, error) {
+	if err := s.projects.Rename(ctx, id, name); err != nil {
+		return project.Project{}, err
+	}
+	p, err := s.projects.Get(ctx, id)
+	if err != nil {
+		return project.Project{}, err
+	}
+	s.publish(ctx, "project.updated", map[string]any{"project": p})
+	return p, nil
+}
+
+func (s *Service) TouchProject(ctx context.Context, id string) error {
+	return s.projects.Touch(ctx, id, time.Now())
 }
 
 func (s *Service) ListProjects(ctx context.Context) ([]project.Project, error) {

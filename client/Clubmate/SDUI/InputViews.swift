@@ -45,13 +45,46 @@ struct ButtonNodeView: View {
 
 @MainActor
 enum Confirmation {
-    static func ask(_ message: String, action: String, cancel: String = "Cancel") async -> Bool {
+    static func ask(_ message: String, detail: String = "", action: String, cancel: String = "Cancel", destructive: Bool = false) async -> Bool {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = detail
+        let confirm = alert.addButton(withTitle: action)
+        let dismiss = alert.addButton(withTitle: cancel)
+        if destructive {
+            confirm.hasDestructiveAction = true
+            confirm.keyEquivalent = ""
+            dismiss.keyEquivalent = "\r"
+        }
+        let escape = destructive ? NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.window === alert.window, event.charactersIgnoringModifiers == "\u{1b}" else { return event }
+            dismiss.performClick(nil)
+            return nil
+        } : nil
+        defer { escape.map(NSEvent.removeMonitor) }
+        guard let window = NSApp.keyWindow else { return alert.runModal() == .alertFirstButtonReturn }
+        return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
+    }
+}
+
+@MainActor
+enum TextPrompt {
+    static func ask(_ message: String, text: String, action: String) async -> String? {
         let alert = NSAlert()
         alert.messageText = message
         alert.addButton(withTitle: action)
-        alert.addButton(withTitle: cancel)
-        guard let window = NSApp.keyWindow else { return alert.runModal() == .alertFirstButtonReturn }
-        return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(string: text)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 22)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        let response: NSApplication.ModalResponse
+        if let window = NSApp.keyWindow {
+            response = await alert.beginSheetModal(for: window)
+        } else {
+            response = alert.runModal()
+        }
+        return response == .alertFirstButtonReturn ? field.stringValue : nil
     }
 }
 

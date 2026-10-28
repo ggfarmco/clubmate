@@ -11,27 +11,20 @@ struct ClubmateApp: App {
     private let gallery = CommandLine.arguments.contains("--sdui-gallery")
 
     var body: some Scene {
-        Window("Projects", id: "projects") {
+        WindowGroup("Workspace", for: String.self) { $windowID in
             Group {
                 if gallery {
                     GalleryView().eventBanner()
                 } else {
-                    ProjectsWindow()
+                    WorkspaceWindow(windowID: $windowID)
                 }
             }
             .environment(app)
             .modifier(SettingsTheme(settings: app.settings))
         }
-        .defaultSize(width: 560, height: 420)
-        .keyboardShortcut("o", modifiers: [.command, .shift])
-        .commands { ProjectCommands(app: app) }
-
-        WindowGroup("Project", for: String.self) { $projectID in
-            ProjectWindow(projectID: projectID)
-                .environment(app)
-                .modifier(SettingsTheme(settings: app.settings))
-        }
         .defaultSize(width: 1100, height: 700)
+        .windowToolbarStyle(.unifiedCompact)
+        .commands { ProjectCommands(app: app) }
 
         Settings {
             SettingsView(settings: app.settings)
@@ -108,9 +101,22 @@ private struct ProjectCommands: Commands {
     let app: AppModel
 
     @FocusedValue(\.projectSession) private var session
+    @FocusedValue(\.workspaceWindowID) private var windowID
 
     private var store: ProjectUIStore? {
-        session?.isApp == false ? session?.store : nil
+        session?.store
+    }
+
+    private var active: String? {
+        windowID.flatMap(app.window)?.active
+    }
+
+    private var welcome: Bool {
+        windowID != nil && active == nil
+    }
+
+    private var recents: [Project] {
+        Array(Project.recents(app.projects?.projects ?? [], hiddenBefore: app.settings.recentsClearedAt).prefix(10))
     }
 
     var body: some Commands {
@@ -120,15 +126,37 @@ private struct ProjectCommands: Commands {
                 .disabled(!app.updates.canCheck)
         }
         CommandGroup(replacing: .newItem) {
-            Button("New") { run { .new(section: $0.selectedSection, commands: $1) } }
+            Button("New") { newItem() }
                 .keyboardShortcut("n")
-                .disabled(store == nil)
+                .disabled(store == nil && !welcome)
+            Button("New Home Terminal") { app.newHomeTerminal(in: windowID) }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            Button("Open Folder…") { app.openFolder(in: windowID) }
+                .keyboardShortcut("o")
+            Menu("Open Recent") {
+                ForEach(recents, id: \.id) { project in
+                    Button(project.name) { app.open(project.id, in: windowID) }
+                }
+                Divider()
+                Button("Clear Menu") { app.settings.recentsClearedAt = Date() }
+                    .disabled(recents.isEmpty)
+            }
+            Divider()
+            Button("Add Folder to Workspace…") { active.map(app.addFolder) }
+                .disabled(active == nil)
+            Button("Rename Workspace…") { active.map(app.rename) }
+                .disabled(active == nil)
+            Button("Close Workspace") { closeWorkspace() }
+                .disabled(active == nil)
+            Button("Remove Workspace…") { active.map(app.remove) }
+                .disabled(active == nil)
+            Divider()
             Button("Close Session") {
                 run { .close(section: $0.selectedSection, main: $0.selectedSection.flatMap($0.mainTree), commands: $1) }
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .disabled(store == nil)
-            Button(session?.isApp == false ? CloseKeyOwner.terminalTitle : CloseKeyOwner.windowTitle) { closeTerminal() }
+            Button(session != nil ? CloseKeyOwner.terminalTitle : CloseKeyOwner.windowTitle) { closeTerminal() }
                 .keyboardShortcut("w")
         }
         CommandGroup(before: .toolbar) {
@@ -146,6 +174,17 @@ private struct ProjectCommands: Commands {
             Button("Reset Font Size") { app.settings.terminalFontSize = nil }
                 .keyboardShortcut("0")
         }
+        CommandGroup(after: .windowArrangement) {
+            Button("Next Workspace") { windowID.map(app.next) }
+                .keyboardShortcut(.rightArrow, modifiers: [.control, .command])
+                .disabled(!canSwitchWorkspace)
+            Button("Previous Workspace") { windowID.map(app.previous) }
+                .keyboardShortcut(.leftArrow, modifiers: [.control, .command])
+                .disabled(!canSwitchWorkspace)
+            Button("Workspace Switcher") { windowID.map(app.toggleSwitcher) }
+                .keyboardShortcut("w", modifiers: [.control, .command])
+                .disabled(windowID == nil)
+        }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in
                 Button(sectionTitle(index)) { selectSection(index) }
@@ -155,8 +194,22 @@ private struct ProjectCommands: Commands {
         }
     }
 
+    private var canSwitchWorkspace: Bool {
+        (windowID.flatMap(app.window)?.workspaces.count ?? 0) > 1
+    }
+
+    private func newItem() {
+        guard store != nil else { return app.newHomeTerminal(in: windowID) }
+        run { .new(section: $0.selectedSection, commands: $1) }
+    }
+
+    private func closeWorkspace() {
+        guard let windowID, let active else { return }
+        app.closeWorkspace(active, in: windowID)
+    }
+
     private func closeTerminal() {
-        guard let session, !session.isApp else {
+        guard let session else {
             NSApp.keyWindow?.performClose(nil)
             return
         }

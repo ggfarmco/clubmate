@@ -143,6 +143,11 @@ private struct PaletteField: NSViewRepresentable {
 final class PaletteTextField: NSTextField {
     private weak var previous: NSView?
 
+    static func isShown(in window: NSWindow) -> Bool {
+        let responder = window.firstResponder
+        return responder is PaletteTextField || (responder as? NSTextView)?.delegate is PaletteTextField
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window else { return }

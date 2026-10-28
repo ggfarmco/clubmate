@@ -375,7 +375,7 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 			launched = append(launched, id)
 			return nil
 		})
-		root.SetArgs([]string{"project", "open", p.ID})
+		root.SetArgs([]string{"project", "open", "--id", p.ID})
 		require.NoError(t, root.Execute())
 	}
 	open()
@@ -395,4 +395,48 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no project.open notification")
 	}
+}
+
+func TestWorkspaceCLI(t *testing.T) {
+	startCore(t)
+	dir := t.TempDir()
+	var launched []string
+	open := func(args ...string) (string, error) {
+		var stdout bytes.Buffer
+		root := cli.NewRootWithLauncher(&stdout, &bytes.Buffer{}, func(_ context.Context, id string) error {
+			launched = append(launched, id)
+			return nil
+		})
+		root.SetArgs(append([]string{"workspace", "open"}, args...))
+		err := root.Execute()
+		return strings.TrimSpace(stdout.String()), err
+	}
+	id, err := open(dir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{id}, launched)
+
+	dirs, err := paths.Resolve()
+	require.NoError(t, err)
+	client, err := rpc.Dial(t.Context(), dirs.CoreSocket())
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"project.open"}}, nil))
+	again, err := open(dir)
+	require.NoError(t, err)
+	assert.Equal(t, id, again)
+	assert.Len(t, launched, 1)
+	select {
+	case n := <-client.Notifications():
+		assert.Equal(t, "project.open", n.Method)
+		assert.JSONEq(t, `{"id":"`+id+`"}`, string(n.Params))
+	case <-time.After(2 * time.Second):
+		t.Fatal("no project.open notification")
+	}
+	var list []project.Project
+	require.NoError(t, json.Unmarshal(run(t, "project", "list", "--json"), &list))
+	require.Len(t, list, 1)
+	assert.Equal(t, id, list[0].ID)
+
+	_, err = open(id)
+	assert.ErrorContains(t, err, "--id")
 }

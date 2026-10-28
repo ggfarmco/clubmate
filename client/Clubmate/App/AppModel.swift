@@ -11,15 +11,20 @@ final class AppModel {
     let supervisor: ConnectionSupervisor
     let updates: Updates
     let settings = AppSettings()
-    let projectsSession = ProjectSession(projectID: "")
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
+    private(set) var switcherWindow: String?
+    private let layout = WindowLayout()
 
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var openWindow: OpenWindowAction?
     private var launchProject = launchProjectID(CommandLine.arguments)
-    @ObservationIgnored private let openProjects = OpenProjects()
+    @ObservationIgnored private var keyWindowID: String?
+    @ObservationIgnored private let hosts = NSMapTable<NSString, NSWindow>.strongToWeakObjects()
+    @ObservationIgnored private var captured: [String: ContinuousClock.Instant] = [:]
+    @ObservationIgnored private var shownWindows: Set<String> = []
+    @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var restored = false
     @ObservationIgnored private var navigationPending = true
     @ObservationIgnored private var navigationAsked = false
@@ -32,6 +37,8 @@ final class AppModel {
         updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
+        trackProjects()
+        syncSessions()
         trackNavigationKeys()
         trackTerminalFontSize()
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
@@ -41,15 +48,13 @@ final class AppModel {
     }
 
     func terminating() {
-        openProjects.terminating()
+        layout.terminating()
     }
 
     static func launchProjectID(_ arguments: [String]) -> String? {
         guard let index = arguments.firstIndex(of: "--open-project"), arguments.indices.contains(index + 1) else { return nil }
         return arguments[index + 1]
     }
-
-    var launchesProject: Bool { launchProject != nil }
 
     func launch(_ openWindow: OpenWindowAction) {
         self.openWindow = openWindow
@@ -60,27 +65,142 @@ final class AppModel {
         supervisor.retry()
     }
 
-    func open(_ projectID: String) {
-        openProjects.opened(projectID)
-        openWindow?(value: projectID)
+    func window(_ id: String) -> LayoutWindow? {
+        layout.window(id)
+    }
+
+    var openWorkspaces: Set<String> {
+        Set(layout.windows.flatMap(\.workspaces))
+    }
+
+    func claimWindow() -> String {
+        let id = layout.windows.first { !shownWindows.contains($0.id) }?.id ?? layout.newWindow()
+        shownWindows.insert(id)
+        return id
+    }
+
+    func windowShown(_ window: String) {
+        shownWindows.insert(window)
+    }
+
+    func open(_ projectID: String, in target: String? = nil) {
+        let preferred = target ?? keyWindowID ?? layout.windows.last?.id
+        snapshot(layout.windows.first { $0.workspaces.contains(projectID) }?.id ?? preferred, leaving: projectID)
+        let window = layout.open(projectID, preferring: preferred)
+        syncSessions()
+        touch(projectID)
+        openWindow?(value: window)
         NSApp.activate()
     }
 
-    func session(for projectID: String) -> ProjectSession {
+    func activateFromSwitcher(_ projectID: String, in window: String) {
+        hideSwitcher()
+        hosts.object(forKey: window as NSString)?.contentView?.layoutSubtreeIfNeeded()
+        activate(projectID, in: window)
+    }
+
+    func activate(_ projectID: String, in window: String) {
+        snapshot(window, leaving: projectID)
+        layout.activate(projectID, in: window)
+        touchActive(in: window)
+    }
+
+    func next(in window: String) {
+        guard (layout.window(window)?.workspaces.count ?? 0) > 1 else { return }
+        snapshot(window)
+        layout.next(in: window)
+        touchActive(in: window)
+    }
+
+    func previous(in window: String) {
+        guard (layout.window(window)?.workspaces.count ?? 0) > 1 else { return }
+        snapshot(window)
+        layout.previous(in: window)
+        touchActive(in: window)
+    }
+
+    func closeWorkspace(_ projectID: String, in window: String) {
+        layout.close(projectID, in: window)
+        syncSessions()
+    }
+
+    func moveToNewWindow(_ projectID: String) {
+        let window = layout.move(projectID, toNewWindow: true)
+        syncSessions()
+        openWindow?(value: window)
+    }
+
+    func windowBecameKey(_ window: String) {
+        keyWindowID = window
+    }
+
+    func windowAttached(_ window: String, _ host: NSWindow) {
+        hosts.setObject(host, forKey: window as NSString)
+    }
+
+    func toggleSwitcher(in window: String) {
+        guard switcherWindow != window else { return hideSwitcher() }
+        snapshot(window, throttled: false)
+        switcherWindow = window
+    }
+
+    func hideSwitcher() {
+        switcherWindow = nil
+    }
+
+    private func snapshot(_ window: String?, leaving target: String? = nil, throttled: Bool = true) {
+        guard let window, switcherWindow != window, let active = layout.window(window)?.active, active != target,
+              let session = sessions[active], !session.paletteShown,
+              let host = hosts.object(forKey: window as NSString), !PaletteTextField.isShown(in: host) else { return }
+        let now = ContinuousClock.now
+        if throttled, let last = captured[window], now - last < .milliseconds(200) { return }
+        captured[window] = now
+        session.thumbnail = WorkspaceThumbnail.capture(host)
+    }
+
+    func windowClosed(_ window: String) {
+        if keyWindowID == window { keyWindowID = nil }
+        if switcherWindow == window { switcherWindow = nil }
+        captured[window] = nil
+        shownWindows.remove(window)
+        layout.closeWindow(window)
+        syncSessions()
+    }
+
+    func existingSession(for projectID: String) -> ProjectSession? {
+        sessions[projectID]
+    }
+
+    private func session(for projectID: String) -> ProjectSession {
         if let existing = sessions[projectID] { return existing }
         let session = ProjectSession(projectID: projectID)
         session.deck.fontSize = settings.terminalFontSize
         sessions[projectID] = session
-        openProjects.opened(projectID)
         if let client = supervisor.client { session.adopt(client, supervisor) }
         return session
     }
 
-    func close(_ session: ProjectSession) {
-        guard sessions[session.projectID] === session else { return }
-        sessions[session.projectID] = nil
-        openProjects.closed(session.projectID)
-        Task { await session.close(supervisor) }
+    private func syncSessions() {
+        for workspace in Set(layout.windows.flatMap(\.workspaces)) where sessions[workspace] == nil {
+            _ = session(for: workspace)
+        }
+        for (workspace, session) in sessions where SurfaceDeckPolicy.shouldCloseDeck(workspace: workspace, layout: layout) {
+            sessions[workspace] = nil
+            session.deck.closeAll()
+            Task { await session.close(supervisor) }
+        }
+    }
+
+    private func touchActive(in window: String) {
+        if let active = layout.window(window)?.active { touch(active) }
+    }
+
+    private func touch(_ projectID: String) {
+        guard let client = supervisor.client else { return }
+        Task {
+            try? await client.touchWorkspace(projectID)
+            try? await projects?.load()
+        }
     }
 
     func syncNavigationKeys() {
@@ -170,21 +290,31 @@ final class AppModel {
     private func restoreWindows(_ listed: [Project]) {
         guard !restored else { return }
         restored = true
-        let present = Set(listed.map(\.id))
-        for id in openProjects.ids {
-            if !present.contains(id) {
-                openProjects.forget(id)
-            } else if sessions[id] == nil, id != launchProject {
-                open(id)
-            }
+        layout.forget(missing: Set(layout.windows.flatMap(\.workspaces)).subtracting(listed.map(\.id)))
+        syncSessions()
+        for window in layout.windows where !shownWindows.contains(window.id) {
+            openWindow?(value: window.id)
         }
+    }
+
+    private func trackProjects() {
+        guard let listed = withObservationTracking({ projects?.projects }, onChange: { [weak self] in
+            Task { @MainActor in self?.trackProjects() }
+        }) else { return }
+        let present = Set(listed.map(\.id))
+        let workspaces = Set(layout.windows.flatMap(\.workspaces))
+        presence = presence.filter { workspaces.contains($0.key) }
+        let gone = workspaces.filter { presence[$0, default: ProjectPresence()].observe(present.contains($0)) }
+        guard !gone.isEmpty else { return }
+        layout.forget(missing: gone)
+        syncSessions()
     }
 
     private func trackClient() {
         guard let client = withObservationTracking({ supervisor.client }, onChange: { [weak self] in
             Task { @MainActor in self?.trackClient() }
         }) else { return }
-        for session in [projectsSession] + sessions.values {
+        for session in sessions.values {
             session.adopt(client, supervisor)
         }
     }
@@ -197,6 +327,85 @@ final class AppModel {
                 self?.open(id)
             }
         }
+    }
+}
+
+extension AppModel {
+    func openFolder(in window: String?) {
+        guard let folders = Self.chooseFolders(prompt: "Open") else { return }
+        perform { client in
+            let id = try await client.openFolders(folders)
+            self.open(id, in: window)
+        }
+    }
+
+    func newHomeTerminal(in window: String?) {
+        perform { client in
+            let id = try await client.homeWorkspace()
+            self.open(id, in: window)
+            let session = self.existingSession(for: id)
+            session?.store?.show(section: TerminalsSection.id)
+            session?.autoNewRequest += 1
+        }
+    }
+
+    func addFolder(to projectID: String) {
+        guard let folders = Self.chooseFolders(prompt: "Add") else { return }
+        perform { client in
+            for folder in folders {
+                try await client.addRepo(projectID, path: folder)
+            }
+        }
+    }
+
+    func rename(_ projectID: String) {
+        Task {
+            guard let name = await TextPrompt.ask("Rename Workspace", text: project(projectID)?.name ?? "", action: "Rename"),
+                  !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+            perform { client in try await client.renameProject(projectID, name: name) }
+        }
+    }
+
+    func remove(_ projectID: String) {
+        Task {
+            guard await Confirmation.ask(
+                "Remove “\(project(projectID)?.name ?? "workspace")”?",
+                detail: "Its terminals, editors and agents will stop, and it will be removed from Clubmate.",
+                action: "Remove",
+                destructive: true
+            ) else { return }
+            perform { client in try await client.deleteProject(projectID) }
+        }
+    }
+
+    private func perform(_ action: @escaping (CoreClient) async throws -> Void) {
+        guard let client = supervisor.client else {
+            return Self.alert("Clubmate is not connected to its core yet.")
+        }
+        Task {
+            do {
+                try await action(client)
+            } catch {
+                Self.alert((error as? ClubmateError)?.message ?? "\(error)")
+            }
+        }
+    }
+
+    private static func chooseFolders(prompt: String) -> [String]? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = prompt
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return nil }
+        return panel.urls.map { $0.path(percentEncoded: false) }
+    }
+
+    private static func alert(_ message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = message
+        alert.runModal()
     }
 }
 
@@ -217,9 +426,10 @@ final class ProjectSession {
     let deck = SurfaceDeck()
     let banner = EventBanner()
     var paletteShown = false
+    var thumbnail: NSImage?
+    var autoNewRequest = 0
+    @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: ProjectUIStore?
-
-    var isApp: Bool { projectID.isEmpty }
 
     init(projectID: String) {
         self.projectID = projectID

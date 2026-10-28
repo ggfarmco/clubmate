@@ -17,7 +17,6 @@ final class SurfaceDeck {
 
     init() {
         container.onWindowChange = { [weak self] in self?.apply() }
-        container.onWindowClose = { [weak self] in self?.closeAll() }
     }
 
     func claim(_ host: UUID) {
@@ -77,22 +76,10 @@ final class SurfaceDeck {
 
 final class SurfaceDeckView: NSView {
     var onWindowChange: (() -> Void)?
-    var onWindowClose: (() -> Void)?
-
-    private var closeObserver: NSObjectProtocol?
-    private weak var observedWindow: NSWindow?
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        defer { onWindowChange?() }
-        guard let window, window !== observedWindow else { return }
-        closeObserver.map(NotificationCenter.default.removeObserver)
-        observedWindow = window
-        closeObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification, object: window, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.onWindowClose?() }
-        }
+        onWindowChange?()
     }
 }
 

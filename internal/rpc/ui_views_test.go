@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/plugin"
+	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
@@ -68,6 +69,24 @@ func TestPresenceEvents(t *testing.T) {
 	assert.Equal(t, "ui.opened", events[0].Topic)
 	assert.Equal(t, "ui.idle", events[1].Topic)
 	assert.JSONEq(t, fmt.Sprintf(`{"projectId":%q}`, p.ID), string(events[0].Payload))
+}
+
+func TestWorkspaceTouchOrdersList(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t)
+	older := h.CreateProject(t, "older")
+	h.CreateProject(t, "newer")
+	c := h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": older.ID}, nil))
+	var list []project.Project
+	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
+	require.Len(t, list, 2)
+	assert.Nil(t, list[0].LastOpenedAt)
+	assert.Nil(t, list[1].LastOpenedAt)
+	require.NoError(t, c.Call(t.Context(), "workspace.touch", map[string]string{"id": older.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
+	assert.Equal(t, older.ID, list[0].ID)
+	assert.NotNil(t, list[0].LastOpenedAt)
 }
 
 func TestProjectDeleteDropsSlots(t *testing.T) {

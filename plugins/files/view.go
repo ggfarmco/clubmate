@@ -5,7 +5,7 @@ import "clubmate/pkg/sdui"
 const (
 	sidebarSlot = "editor-nvim.sidebar"
 	treeID      = "files"
-	noRepos     = "No repositories — add one with clubmate project add-repo"
+	noRepos     = "No repositories — add one with clubmate workspace add-folder"
 )
 
 func treeView(items []sdui.TreeItem, selected string) sdui.Node {

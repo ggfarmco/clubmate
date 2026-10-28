@@ -1,6 +1,7 @@
 package project_test
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,7 +33,7 @@ func TestCreateGetList(t *testing.T) {
 	require.NoError(t, err)
 	all, err := s.List(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"demo", "second"}, []string{all[0].Name, all[1].Name})
+	assert.Equal(t, []string{"second", "demo"}, []string{all[0].Name, all[1].Name})
 }
 
 func TestCreateRejectsInvalidRepo(t *testing.T) {
@@ -88,4 +89,36 @@ func TestOpenRelativePath(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.Close())
 	assert.FileExists(t, "rel.db")
+}
+
+func TestMigrationKeepsProjects(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db")
+	raw, err := sql.Open("sqlite", path)
+	require.NoError(t, err)
+	_, err = raw.Exec(`CREATE TABLE projects(id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL);
+		INSERT INTO projects(id, name, created_at) VALUES('prj_old', 'old', 1)`)
+	require.NoError(t, err)
+	require.NoError(t, raw.Close())
+	s, err := project.Open(path)
+	require.NoError(t, err)
+	all, err := s.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	assert.Equal(t, "prj_old", all[0].ID)
+	assert.False(t, all[0].Home)
+	assert.Nil(t, all[0].LastOpenedAt)
+	require.NoError(t, s.Close())
+	s, err = project.Open(path)
+	require.NoError(t, err)
+	require.NoError(t, s.Close())
+}
+
+func TestRename(t *testing.T) {
+	s := openStore(t)
+	p, _ := s.Create(t.Context(), "demo", nil)
+	require.NoError(t, s.Rename(t.Context(), p.ID, "renamed"))
+	got, err := s.Get(t.Context(), p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "renamed", got.Name)
+	assert.ErrorIs(t, s.Rename(t.Context(), p.ID, " "), project.ErrEmptyName)
 }

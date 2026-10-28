@@ -3,77 +3,121 @@ import SwiftUI
 
 import ClubmateKit
 
-struct ProjectWindow: View {
-    let projectID: String?
+struct WorkspaceWindow: View {
+    @Binding var windowID: String?
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismiss) private var dismiss
-    @State private var session: ProjectSession?
-    @State private var presence = ProjectPresence()
-    @State private var focus = FocusRouter()
-    @State private var autoNewDone: String?
 
     var body: some View {
         content
             .frame(minWidth: 800, minHeight: 500)
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
-            .environment(\.surfaceDeck, session?.deck)
-            .environment(\.focusRouter, focus)
-            .environment(\.sidebarSide, app.settings.sidebarSide)
-            .eventBanner(session?.banner)
-            .commandPalette(session, entries: paletteEntries, run: perform)
-            .focusedSceneValue(\.projectSession, session)
-            .background(WindowCloseObserver { [app] in
-                if let session { app.close(session) }
+            .overlay {
+                if let windowID, app.switcherWindow == windowID {
+                    SwitcherGridView(windowID: windowID)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { windowID.map(app.toggleSwitcher) } label: {
+                        Text("▦ \(workspaceCount)")
+                            .monospacedDigit()
+                    }
+                    .help("Workspaces (⌃⌘W)")
+                    .accessibilityLabel("Workspaces, \(workspaceCount)")
+                    .disabled(windowID == nil)
+                }
+            }
+            .focusedSceneValue(\.workspaceWindowID, windowID)
+            .background(WindowObserver { [app, windowID] in
+                if let windowID { app.windowBecameKey(windowID) }
+            } onAttach: { [app, windowID] window in
+                if let windowID { app.windowAttached(windowID, window) }
+            } onClose: { [app, windowID] in
+                if let windowID { app.windowClosed(windowID) }
             })
             .onAppear {
                 app.launch(openWindow)
-                if session == nil, let projectID { session = app.session(for: projectID) }
+                if let windowID, app.window(windowID) != nil {
+                    app.windowShown(windowID)
+                } else {
+                    windowID = app.claimWindow()
+                }
             }
-            .onChange(of: session?.store?.focusRequest) { _, request in
+    }
+
+    private var active: String? {
+        windowID.flatMap { app.window($0)?.active }
+    }
+
+    private var workspaceCount: Int {
+        windowID.flatMap { app.window($0)?.workspaces.count } ?? 0
+    }
+
+    private var title: String {
+        guard let active else { return "Clubmate" }
+        return app.project(active)?.name ?? active
+    }
+
+    @ViewBuilder private var content: some View {
+        if let windowID, let active, let session = app.existingSession(for: active) {
+            WorkspaceView(session: session, windowID: windowID)
+                .id(ObjectIdentifier(session))
+        } else {
+            WelcomeView(windowID: windowID)
+        }
+    }
+}
+
+private struct WorkspaceView: View {
+    let session: ProjectSession
+    let windowID: String
+
+    @Environment(AppModel.self) private var app
+    @Environment(\.theme) private var theme
+    @State private var focus = FocusRouter()
+
+    var body: some View {
+        content
+            .environment(\.surfaceDeck, session.deck)
+            .environment(\.focusRouter, focus)
+            .environment(\.sidebarSide, app.settings.sidebarSide)
+            .eventBanner(session.banner)
+            .commandPalette(session, entries: paletteEntries, run: perform)
+            .focusedSceneValue(\.projectSession, session)
+            .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }
                 if request.slot.hasSuffix(Self.sidebarSuffix) {
-                    session?.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
+                    session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
                 focus.request(request.slot)
             }
-            .onChange(of: session?.store?.connected, initial: true) { _, connected in
+            .onChange(of: session.store?.connected, initial: true) { _, connected in
                 if connected == true { app.syncNavigationKeys() }
             }
-            .onChange(of: session?.store?.selectedSection, initial: true) { _, section in
+            .onChange(of: session.store?.selectedSection, initial: true) { _, section in
                 if section == CodeSection.id { app.askNavigationKeys() }
             }
             .onChange(of: autoNewKey, initial: true) { old, new in
-                if old.section != new.section { autoNewDone = nil }
-                autoNew()
+                let store = session.store
+                let section = store?.sections.first { $0.id == new.section }
+                let main = new.section.flatMap { store?.mainTree($0) }
+                guard session.autoNew.fires(from: old, to: new, section: section, main: main) else { return }
+                session.run(.new(section: new.section, commands: app.commands))
             }
             .onChange(of: sidebarKey) { old, new in
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
             .onChange(of: app.settings.autoHideSidebar) { _, enabled in
-                if !enabled { session?.store?.sidebarAutoHidden = false }
-            }
-            .onChange(of: listed, initial: true) { _, present in
-                guard let present, presence.observe(present) else { return }
-                dismiss()
+                if !enabled { session.store?.sidebarAutoHidden = false }
             }
     }
 
     private static let sidebarSuffix = ".sidebar"
-
-    private var listed: Bool? {
-        guard let projectID, let projects = app.projects?.projects else { return nil }
-        return projects.contains { $0.id == projectID }
-    }
-
-    private struct AutoNewKey: Equatable {
-        let section: String?
-        let loaded: Bool
-    }
 
     private struct SidebarKey: Equatable {
         let section: String
@@ -81,30 +125,17 @@ struct ProjectWindow: View {
     }
 
     private var sidebarKey: SidebarKey? {
-        guard let store = session?.store, let section = store.selectedSection else { return nil }
+        guard let store = session.store, let section = store.selectedSection else { return nil }
         return SidebarKey(section: section, hidden: app.settings.hidesSidebar(section, manual: store.sidebarHidden[section] == true, autoHidden: store.sidebarAutoHidden))
     }
 
-    private var autoNewKey: AutoNewKey {
-        let section = session?.store?.selectedSection
-        return AutoNewKey(section: section, loaded: section.flatMap { session?.store?.mainTree($0) } != nil)
-    }
-
-    private func autoNew() {
-        guard let session, let store = session.store, let section = store.selectedSection, autoNewDone != section,
-              let main = store.mainTree(section) else { return }
-        autoNewDone = section
-        guard CommandInvocation.shouldAutoNew(section: store.sections.first { $0.id == section }, main: main) else { return }
-        session.run(.new(section: section, commands: app.commands))
-    }
-
-    private var title: String {
-        guard let projectID else { return "Project" }
-        return app.project(projectID)?.name ?? projectID
+    private var autoNewKey: AutoNewGate.Key {
+        let section = session.store?.selectedSection
+        return AutoNewGate.Key(section: section, loaded: section.flatMap { session.store?.mainTree($0) } != nil, request: session.autoNewRequest)
     }
 
     @ViewBuilder private var content: some View {
-        if let session, let store = session.store, let section = store.selectedSection {
+        if let store = session.store, let section = store.selectedSection {
             let side = app.settings.sidebarSide
             let sidebar = sidebarKey?.hidden == true ? nil : side
             VStack(spacing: 0) {
@@ -152,7 +183,7 @@ struct ProjectWindow: View {
     }
 
     private var placeholder: String {
-        if let store = session?.store {
+        if let store = session.store {
             if let failure = store.failure { return failure }
             if store.connected, store.sections.isEmpty { return "No plugins provide sections" }
         }
@@ -173,16 +204,23 @@ struct ProjectWindow: View {
     }
 
     private func paletteEntries() -> [PaletteEntry] {
-        CommandPalette.entries(commands: app.commands, sections: session?.store?.sections ?? [], sidebar: true)
+        let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
+        return CommandPalette.entries(commands: app.commands, sections: session.store?.sections ?? [], sidebar: true, workspaces: workspaces, active: session.projectID)
     }
 
     private func perform(_ action: PaletteAction) {
         switch action {
         case .command(let id): confirm(id)
-        case .section(let id): session?.store?.selectedSection = id
-        case .toggleSidebar: session?.store?.toggleSidebar(app.settings)
+        case .section(let id): session.store?.selectedSection = id
+        case .toggleSidebar: session.store?.toggleSidebar(app.settings)
         case .toggleNavigationKeys: app.settings.navigationKeys = !(app.settings.navigationKeys ?? false)
-        case .openProjects: openWindow(id: "projects")
+        case .openFolder: app.openFolder(in: windowID)
+        case .newHomeTerminal: app.newHomeTerminal(in: windowID)
+        case .renameWorkspace: app.rename(session.projectID)
+        case .closeWorkspace: app.closeWorkspace(session.projectID, in: windowID)
+        case .removeWorkspace: app.remove(session.projectID)
+        case .moveWorkspaceToNewWindow: app.moveToNewWindow(session.projectID)
+        case .switchWorkspace(let id): app.activate(id, in: windowID)
         }
     }
 
@@ -195,7 +233,7 @@ struct ProjectWindow: View {
     }
 
     private func run(_ id: String) {
-        session?.run(CommandInvocation(id: id))
+        session.run(CommandInvocation(id: id))
     }
 }
 
@@ -303,31 +341,51 @@ private struct SidebarPane: View {
     }
 }
 
-private struct WindowCloseObserver: NSViewRepresentable {
+private struct WindowObserver: NSViewRepresentable {
+    let onKey: @MainActor () -> Void
+    let onAttach: @MainActor (NSWindow) -> Void
     let onClose: @MainActor () -> Void
 
-    func makeNSView(context: Context) -> WindowCloseView {
-        let view = WindowCloseView()
-        view.onClose = onClose
+    func makeNSView(context: Context) -> WindowObserverView {
+        let view = WindowObserverView()
+        updateNSView(view, context: context)
         return view
     }
 
-    func updateNSView(_ view: WindowCloseView, context: Context) {
+    func updateNSView(_ view: WindowObserverView, context: Context) {
+        view.onKey = onKey
+        view.onAttach = onAttach
         view.onClose = onClose
+        if let window = view.window { onAttach(window) }
+        if view.window?.isKeyWindow == true { onKey() }
     }
 }
 
-final class WindowCloseView: NSView {
+final class WindowObserverView: NSView {
+    var onKey: (@MainActor () -> Void)?
+    var onAttach: (@MainActor (NSWindow) -> Void)?
     var onClose: (@MainActor () -> Void)?
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         super.viewWillMove(toWindow: newWindow)
         if let window {
+            NotificationCenter.default.removeObserver(self, name: NSWindow.didBecomeKeyNotification, object: window)
             NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: window)
         }
         if let newWindow {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidBecomeKey), name: NSWindow.didBecomeKeyNotification, object: newWindow)
             NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: newWindow)
         }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let window { onAttach?(window) }
+        if window?.isKeyWindow == true { onKey?() }
+    }
+
+    @objc private func windowDidBecomeKey(_ notification: Notification) {
+        onKey?()
     }
 
     @objc private func windowWillClose(_ notification: Notification) {
@@ -339,9 +397,18 @@ struct ProjectSessionKey: FocusedValueKey {
     typealias Value = ProjectSession
 }
 
+struct WorkspaceWindowIDKey: FocusedValueKey {
+    typealias Value = String
+}
+
 extension FocusedValues {
     var projectSession: ProjectSession? {
         get { self[ProjectSessionKey.self] }
         set { self[ProjectSessionKey.self] = newValue }
+    }
+
+    var workspaceWindowID: String? {
+        get { self[WorkspaceWindowIDKey.self] }
+        set { self[WorkspaceWindowIDKey.self] = newValue }
     }
 }

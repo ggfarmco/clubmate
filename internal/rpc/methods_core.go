@@ -39,6 +39,26 @@ type createProjectParams struct {
 	Repos []string `json:"repos"`
 }
 
+type renameParams struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type workspaceOpenParams struct {
+	Folders []string `json:"folders"`
+}
+
+type workspaceOpenResult struct {
+	ID      string `json:"id"`
+	Created bool   `json:"created"`
+	Clients int    `json:"clients"`
+}
+
+type workspaceHomeResult struct {
+	ID      string `json:"id"`
+	Clients int    `json:"clients"`
+}
+
 type addRepoParams struct {
 	ID   string `json:"id"`
 	Path string `json:"path"`
@@ -104,7 +124,21 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			}
 			return empty{}, s.deleteUIState(ctx, p.ID)
 		}),
-		"project.open":    method(s.projectOpen),
+		"project.rename": method(func(ctx context.Context, p renameParams) (project.Project, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return project.Project{}, err
+			}
+			return encodeProject(svc.RenameProject(ctx, p.ID, p.Name))
+		}),
+		"project.open":   method(s.projectOpen),
+		"workspace.open": method(s.workspaceOpen),
+		"workspace.home": method(s.workspaceHome),
+		"workspace.touch": method(func(ctx context.Context, p idParams) (empty, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return empty{}, err
+			}
+			return empty{}, svc.TouchProject(ctx, p.ID)
+		}),
 		"client.register": method(s.clientRegister),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
 			if err := requireID(projectPrefix, p.ProjectID); err != nil {
@@ -204,6 +238,24 @@ func (s *Server) projectOpen(ctx context.Context, p idParams) (openResult, error
 		return openResult{}, err
 	}
 	return openResult{Clients: s.notifyClients(notifyProjectOpen, p, connFrom(ctx), handleProjectOpen)}, nil
+}
+
+func (s *Server) workspaceOpen(ctx context.Context, p workspaceOpenParams) (workspaceOpenResult, error) {
+	prj, created, err := s.svc.OpenFolders(ctx, p.Folders)
+	if err != nil {
+		return workspaceOpenResult{}, err
+	}
+	clients := s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
+	return workspaceOpenResult{ID: prj.ID, Created: created, Clients: clients}, nil
+}
+
+func (s *Server) workspaceHome(ctx context.Context, _ empty) (workspaceHomeResult, error) {
+	prj, err := s.svc.HomeWorkspace(ctx)
+	if err != nil {
+		return workspaceHomeResult{}, err
+	}
+	clients := s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
+	return workspaceHomeResult{ID: prj.ID, Clients: clients}, nil
 }
 
 type registerParams struct {

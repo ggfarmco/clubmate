@@ -136,6 +136,16 @@ func TestCompactChain(t *testing.T) {
 	assert.Empty(t, file[0].Icon)
 }
 
+func TestHomeChildrenNotCompacted(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, "Documents", "inner"), 0o700))
+
+	top := buildTree([]Root{{Path: home}}, map[string]bool{home: true}, nil, false)[0]
+
+	assert.Equal(t, []string{"Documents"}, labels(top.Children))
+}
+
 func TestCompactChainSplits(t *testing.T) {
 	root := t.TempDir()
 	ab := filepath.Join(root, "a", "b")
