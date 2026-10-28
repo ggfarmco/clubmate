@@ -7,26 +7,30 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
 
 const (
-	allID      = "all"
-	sessionsID = "sessions"
-	tableID    = "processes"
-	moreID     = "more"
-	selectPID  = "select-pid"
-	killAction = "kill"
-	orphanKill = "kill-orphans"
-	autoKill   = "autokill"
-	kibPerMiB  = 1024
-	mibPerGiB  = 1024
-	maxRows    = 1000
-	maxDepth   = 32
-	pidWidth   = 64
-	indent     = 12
+	allID       = "all"
+	sessionsID  = "sessions"
+	tableID     = "processes"
+	moreID      = "more"
+	selectPID   = "select-pid"
+	killAction  = "kill"
+	orphanKill  = "kill-orphans"
+	autoKill    = "autokill"
+	kibPerMiB   = 1024
+	mibPerGiB   = 1024
+	maxRows     = 1000
+	maxDepth    = 32
+	pidWidth    = 64
+	indent      = 12
+	chartHeight = 64
+	cellRunes   = 512
+	titleRunes  = 2048
 
 	colPID     = "pid"
 	colCPU     = "cpu"
@@ -57,6 +61,7 @@ type viewModel struct {
 	totalKey  string
 	hist      *history
 	memKiB    int64
+	pidDepth  int
 	now       time.Time
 }
 
@@ -78,14 +83,15 @@ func sidebarView(sessions []sessionRow, selected string) sdui.Node {
 	return sdui.List(sessionsID, items, selected)
 }
 
-func mainView(m viewModel) sdui.Node {
+func mainView(m viewModel) (sdui.Node, int) {
 	rows, depth := processRows(m)
+	depth = max(depth, m.pidDepth)
 	selectedID := ""
 	if m.selected != 0 {
 		selectedID = strconv.Itoa(m.selected)
 	}
 	table := sdui.WithAction(sdui.Table(tableID, tableColumns(depth), rows, selectedID, m.sort), selectPID)
-	return withID(sdui.VStack(toolbarView(m), summaryView(m), withID(sdui.Scroll(table), "table-scroll"), detailView(m)), "main")
+	return withID(sdui.VStack(toolbarView(m), summaryView(m), withID(sdui.Scroll(table), "table-scroll"), detailView(m)), "main"), depth
 }
 
 func toolbarView(m viewModel) sdui.Node {
@@ -125,23 +131,17 @@ func summaryView(m viewModel) sdui.Node {
 func detailView(m viewModel) sdui.Node {
 	title, key := m.scope+" total", m.totalKey
 	if i := slices.IndexFunc(m.nodes, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == m.selected }); i >= 0 {
-		title, key = fmt.Sprintf("%s (%d)", command(m.nodes[i]), m.selected), processKey(m.nodes[i])
+		title, key = fmt.Sprintf("%s (%d)", command(m.nodes[i], titleRunes), m.selected), processKey(m.nodes[i])
 	}
 	cpu, mem := m.hist.cpu(key, historyLen), m.hist.mem(key, historyLen)
 	cpuPeak, cpuAvg := peakAvg(cpu)
 	memPeak, memAvg := peakAvg(mem)
 	return withID(sdui.VStack(
 		sdui.Text(title),
-		sdui.HStack(
-			sdui.MutedText("CPU"),
-			sdui.Sparkline("detail-cpu", cpu, cpuScale(cpu)),
-			sdui.MutedText(fmt.Sprintf("peak %.0f%% · avg %.1f%%", cpuPeak, cpuAvg)),
-		),
-		sdui.HStack(
-			sdui.MutedText("MEM"),
-			sdui.Sparkline("detail-mem", mem, max(memPeak, 1)),
-			sdui.MutedText(fmt.Sprintf("peak %s · avg %s", formatMB(memPeak), formatMB(memAvg))),
-		),
+		sdui.MutedText(fmt.Sprintf("CPU · peak %.0f%% · avg %.1f%%", cpuPeak, cpuAvg)),
+		sdui.SparklineSized("detail-cpu", cpu, cpuScale(cpu), chartHeight),
+		sdui.MutedText(fmt.Sprintf("MEM · peak %s · avg %s", formatMB(memPeak), formatMB(memAvg))),
+		sdui.SparklineSized("detail-mem", mem, max(memPeak, 1), chartHeight),
 	), "detail")
 }
 
@@ -151,7 +151,7 @@ func tableColumns(depth int) []sdui.Column {
 		{ID: colCPU, Title: "CPU%", Align: "right", Width: 64},
 		{ID: colMem, Title: "MEM", Align: "right", Width: 72},
 		{ID: colTime, Title: "TIME", Align: "right", Width: 72},
-		{ID: colHistory, Title: "HISTORY"},
+		{ID: colHistory, Title: "HISTORY", Width: 72},
 		{ID: colCommand, Title: "COMMAND"},
 	}
 }
@@ -226,7 +226,9 @@ func (m viewModel) comparator() func(a, b pluginsdk.ProcessNode) int {
 	case colHistory:
 		key = func(a, b pluginsdk.ProcessNode) int { return cmp.Compare(m.recentAvg(a), m.recentAvg(b)) }
 	case colCommand:
-		key = func(a, b pluginsdk.ProcessNode) int { return strings.Compare(command(a), command(b)) }
+		key = func(a, b pluginsdk.ProcessNode) int {
+			return strings.Compare(command(a, cellRunes), command(b, cellRunes))
+		}
 	default:
 		key = func(a, b pluginsdk.ProcessNode) int { return cmp.Compare(a.Process.CPU, b.Process.CPU) }
 	}
@@ -256,7 +258,7 @@ func (m viewModel) cells(n pluginsdk.ProcessNode) []sdui.Cell {
 	if recent := m.hist.cpu(processKey(n), recentLen); len(recent) > 0 {
 		history.Spark = &sdui.Spark{Values: recent, Max: cpuScale(recent)}
 	}
-	commandCell := sdui.Cell{Text: command(n)}
+	commandCell := sdui.Cell{Text: command(n, cellRunes) + badges(n)}
 	if n.Orphan {
 		commandCell.Tone = "warn"
 	}
@@ -285,11 +287,26 @@ func cpuScale(values []float64) float64 {
 	return max(peak, 100)
 }
 
-func command(n pluginsdk.ProcessNode) string {
-	if len(n.Process.Args) == 0 {
-		return n.Process.Comm
+func command(n pluginsdk.ProcessNode, limit int) string {
+	text := n.Process.Comm
+	if len(n.Process.Args) > 0 {
+		text = strings.Join(n.Process.Args, " ")
 	}
-	return strings.Join(n.Process.Args, " ")
+	if utf8.RuneCountInString(text) <= limit {
+		return text
+	}
+	return string([]rune(text)[:limit-1]) + "…"
+}
+
+func badges(n pluginsdk.ProcessNode) string {
+	var b strings.Builder
+	if n.Orphan {
+		b.WriteString(" · orphan")
+	}
+	if n.Duplicate {
+		b.WriteString(" · dup")
+	}
+	return b.String()
 }
 
 func elapsed(start, now time.Time) string {

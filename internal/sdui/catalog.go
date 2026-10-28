@@ -21,6 +21,8 @@ const (
 	maxTableRows      = 1000
 	maxTableColumns   = 32
 	maxSparkValues    = 900
+	minSparkHeight    = 8
+	maxSparkHeight    = 200
 	maxTreeSparkTotal = 100_000
 )
 
@@ -66,6 +68,7 @@ var (
 
 	sparkValues = maxLen(maxSparkValues, sparkBudget(arrayOf(anyNumber)))
 	sparkFields = map[string]propCheck{"values": sparkValues, "max": positive}
+	sparkHeight = number(func(n float64) bool { return n >= minSparkHeight && n <= maxSparkHeight }, fmt.Sprintf("a number within %d…%d", minSparkHeight, maxSparkHeight))
 
 	catalog = map[string]spec{
 		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: anyChildren},
@@ -104,7 +107,7 @@ var (
 		},
 		"sparkline": {
 			required: []string{"values", "max"},
-			props:    sparkFields,
+			props:    map[string]propCheck{"values": sparkValues, "max": positive, "height": sparkHeight},
 			children: noChildren,
 		},
 		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles)}, children: noChildren},

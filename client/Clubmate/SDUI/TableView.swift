@@ -169,7 +169,7 @@ struct SparklineNodeView: View {
 
     var body: some View {
         if let spark = node.spark() {
-            SparklineView(spark: spark)
+            SparklineView(spark: spark, height: node.sparklineHeight().map { CGFloat($0) })
                 .padding(.horizontal, theme.gutter)
         }
     }
@@ -178,13 +178,18 @@ struct SparklineNodeView: View {
 struct SparklineView: View {
     let spark: SDUISpark
     var color: Color?
+    var height: CGFloat?
 
     @Environment(\.theme) private var theme
 
     var body: some View {
-        SparkShape(values: spark.values, max: spark.max)
+        let line = SparkShape(values: spark.values, max: spark.max)
             .stroke(color ?? theme.accent, style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
-            .frame(width: 60, height: 16)
+        if let height {
+            line.frame(maxWidth: .infinity).frame(height: height)
+        } else {
+            line.frame(width: 60, height: 16)
+        }
     }
 }
 

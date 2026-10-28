@@ -59,6 +59,7 @@ type projectState struct {
 	auto      bool
 	sort      sdui.Sort
 	collapsed map[int]bool
+	pidDepth  int
 }
 
 type app struct {
@@ -484,7 +485,7 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(rows, snap.session)); err != nil {
 		return err
 	}
-	_, err = h.Render(ctx, id, mainSlot, mainView(viewModel{
+	view, depth := mainView(viewModel{
 		nodes:     shown,
 		selected:  snap.pid,
 		auto:      snap.auto,
@@ -494,8 +495,13 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 		totalKey:  totalKey,
 		hist:      a.hist,
 		memKiB:    a.memKiB,
+		pidDepth:  snap.pidDepth,
 		now:       time.Now(),
-	}))
+	})
+	a.mu.Lock()
+	st.pidDepth = max(st.pidDepth, depth)
+	a.mu.Unlock()
+	_, err = h.Render(ctx, id, mainSlot, view)
 	return err
 }
 

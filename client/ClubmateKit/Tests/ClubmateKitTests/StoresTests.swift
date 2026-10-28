@@ -250,6 +250,13 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(table.string("selected"), "42")
     }
 
+    func testSparklineHeightDecodes() throws {
+        let sized = try JSONDecoder().decode(SDUINode.self, from: Data(#"{"type": "sparkline", "props": {"values": [1, 3], "max": 4, "height": 64}}"#.utf8))
+        XCTAssertEqual(sized.spark(), SDUISpark(values: [1, 3], max: 4))
+        XCTAssertEqual(sized.sparklineHeight(), 64)
+        XCTAssertNil(SDUINode(type: "sparkline", props: ["values": .array([]), "max": .number(1)]).sparklineHeight())
+    }
+
     func testTableSortToggle() {
         let name = SDUIColumn(id: "name", title: "Name", align: .left, width: nil)
         let cpu = SDUIColumn(id: "cpu", title: "CPU", align: .right, width: 60)

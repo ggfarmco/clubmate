@@ -105,6 +105,12 @@ func Sparkline(id string, values []float64, maxValue float64) Node {
 	return Node{Type: "sparkline", ID: id, Props: map[string]any{"values": nonNil(values), "max": maxValue}}
 }
 
+func SparklineSized(id string, values []float64, maxValue, height float64) Node {
+	n := Sparkline(id, values, maxValue)
+	n.Props["height"] = height
+	return n
+}
+
 func Text(text string) Node {
 	return Node{Type: "text", Props: map[string]any{"text": text}}
 }

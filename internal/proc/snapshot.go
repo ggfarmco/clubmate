@@ -51,7 +51,6 @@ func Snapshot() ([]Process, error) {
 			PPID:      int(k.Eproc.Ppid),
 			PGID:      int(k.Eproc.Pgid),
 			Comm:      commString(k.Proc.P_comm[:]),
-			Args:      readArgs(pid),
 			StartTime: startOf(k),
 			RSSKiB:    u.rssKiB,
 			CPU:       u.cpu,
@@ -86,18 +85,6 @@ func readUsage() (map[int]usage, error) {
 		usages[pid] = usage{rssKiB: rss, cpu: cpu}
 	}
 	return usages, nil
-}
-
-func readArgs(pid int) []string {
-	raw, err := unix.SysctlRaw("kern.procargs2", pid)
-	if err != nil {
-		return []string{}
-	}
-	argv, _, err := ParseProcArgs(raw)
-	if err != nil || argv == nil {
-		return []string{}
-	}
-	return argv
 }
 
 func commString(b []byte) string {

@@ -145,6 +145,7 @@ func TestTableValidation(t *testing.T) {
 		{"spark zero max", sdui.Table("t", columns, []sdui.TableRow{row("a", nil, &sdui.Spark{Values: []float64{1}})}, "", sdui.Sort{}), false},
 		{"too many spark values", sdui.Table("t", columns, rows(112, 112), "", sdui.Sort{}), false},
 		{"sparkline", sdui.Sparkline("", []float64{1, 2}, 4), true},
+		{"sparkline height out of range", sdui.SparklineSized("", []float64{1, 2}, 4, 201), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -215,6 +215,10 @@ extension SDUINode {
         SDUISpark(values: props["values"], max: props["max"])
     }
 
+    public func sparklineHeight() -> Double? {
+        props["height"]?.numberValue.flatMap { $0 > 0 ? $0 : nil }
+    }
+
     public func values() -> [String] {
         props["values"]?.arrayValue?.compactMap(\.stringValue) ?? []
     }

@@ -39,7 +39,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | list | items* (item[]), selected (string), action | none | yes |
 | tree | items* (tree item[]), selected (string), action | none | yes |
 | table | columns* (column[], at most 32), rows* (row[], at most 1000), selected (string, row id), sort (sort), action | none | yes |
-| sparkline | values* (number[], at most 900), max* (number > 0) | none | no |
+| sparkline | values* (number[], at most 900), max* (number > 0), height (number 8…200) | none | no |
 | text | text* (string), style (`body`\|`muted`\|`title`\|`mono`) | none | no |
 | badge | text* (string), tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`) | none | no |
 | icon | name* (string) | none | no |
@@ -56,7 +56,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 
 A window shows at most one `surface` node at a time in v1. The client keeps every terminal it has shown mounted until the session's attach exits or the window closes, so switching between sessions is instant. A second `surface` visible in the same window at once renders a placeholder.
 
-`table` rows render lazily; wrap the table in a `scroll` to scroll them under a pinned header. Each row counts toward the 5000-node limit; cells are bounded by the row and column caps (at most 1000 × 32), and spark values (cell sparks and `sparkline` nodes) are capped at 100000 per tree. The client does not page or truncate: a plugin with more rows renders the first 1000 or fewer and adds a final muted `… N more` row itself. `selected` works like `tree`'s: a changed value from the plugin sets, moves or clears the highlight (and scrolls to it); clicking a row highlights it locally and sends `select`. `sparkline` draws `values` as a 60×16pt line (e.g. in a header).
+`table` rows render lazily; wrap the table in a `scroll` to scroll them under a pinned header. Each row counts toward the 5000-node limit; cells are bounded by the row and column caps (at most 1000 × 32), and spark values (cell sparks and `sparkline` nodes) are capped at 100000 per tree. The client does not page or truncate: a plugin with more rows renders the first 1000 or fewer and adds a final muted `… N more` row itself. `selected` works like `tree`'s: a changed value from the plugin sets, moves or clears the highlight (and scrolls to it); clicking a row highlights it locally and sends `select`. `sparkline` draws `values` as a 60×16pt line (e.g. in a header); with `height` it fills the available width at that height in points (e.g. a detail chart).
 
 `button.confirm`: when set, the client asks the user to confirm with that text before sending the event.
 

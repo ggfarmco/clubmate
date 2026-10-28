@@ -34,11 +34,8 @@ func TestProcessArgs(t *testing.T) {
 	cmd := exec.Command("sleep", "30")
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	snap, err := proc.Snapshot()
-	require.NoError(t, err)
-	p, ok := findPID(snap, cmd.Process.Pid)
-	require.True(t, ok)
-	assert.Equal(t, []string{"sleep", "30"}, p.Args)
+	assert.Equal(t, []string{"sleep", "30"}, proc.ReadArgs(cmd.Process.Pid))
+	assert.Equal(t, []string{}, proc.ReadArgs(1))
 }
 
 func TestHelperSleep(t *testing.T) {
