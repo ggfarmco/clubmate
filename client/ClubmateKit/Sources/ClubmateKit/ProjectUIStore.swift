@@ -28,6 +28,7 @@ public final class ProjectUIStore {
             updateState("sidebarHidden", .object(sidebarHidden.mapValues { .bool($0) }))
         }
     }
+    public var sidebarAutoHidden = false
 
     @ObservationIgnored private var client: CoreClient
     @ObservationIgnored private var subscription: String?
@@ -103,9 +104,18 @@ public final class ProjectUIStore {
         await saving?.value
     }
 
-    public func toggleSidebar() {
+    public func toggleSidebar(_ settings: AppSettings) {
         guard let selectedSection else { return }
-        sidebarHidden[selectedSection] = !(sidebarHidden[selectedSection] ?? false)
+        if settings.hidesSidebar(selectedSection, manual: sidebarHidden[selectedSection] == true, autoHidden: sidebarAutoHidden) {
+            revealSidebar(selectedSection)
+        } else {
+            sidebarHidden[selectedSection] = true
+        }
+    }
+
+    public func revealSidebar(_ section: String) {
+        sidebarHidden[section] = nil
+        sidebarAutoHidden = false
     }
 
     public func send(_ event: UIEvent) async -> Result<JSONValue, ClubmateError> {

@@ -97,6 +97,7 @@ struct TreeNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
     @Environment(\.focusRouter) private var router
+    @Environment(\.sidebarSide) private var side
 
     private static let stickyLimit = 4
 
@@ -176,7 +177,7 @@ struct TreeNodeView: View {
 
     private func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
-        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command)) else { return false }
+        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
         let rows = TreeCursor.rows(node.treeItems())
         switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
         case .cursor(let id):

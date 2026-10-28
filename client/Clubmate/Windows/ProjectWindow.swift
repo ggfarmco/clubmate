@@ -21,6 +21,7 @@ struct ProjectWindow: View {
             .navigationTitle(title)
             .environment(\.surfaceDeck, session?.deck)
             .environment(\.focusRouter, focus)
+            .environment(\.sidebarSide, app.settings.sidebarSide)
             .eventBanner(session?.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
             .focusedSceneValue(\.projectSession, session)
@@ -34,9 +35,12 @@ struct ProjectWindow: View {
             .onChange(of: session?.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }
                 if request.slot.hasSuffix(Self.sidebarSuffix) {
-                    session?.store?.sidebarHidden[String(request.slot.dropLast(Self.sidebarSuffix.count))] = false
+                    session?.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
                 focus.request(request.slot)
+            }
+            .onChange(of: app.settings.autoHideSidebar) { _, enabled in
+                if !enabled { session?.store?.sidebarAutoHidden = false }
             }
             .onChange(of: listed, initial: true) { _, present in
                 guard let present, presence.observe(present) else { return }
@@ -45,7 +49,6 @@ struct ProjectWindow: View {
     }
 
     private static let sidebarSuffix = ".sidebar"
-    private static let autoHideSection = "editor-nvim"
 
     private var listed: Bool? {
         guard let projectID, let projects = app.projects?.projects else { return nil }
@@ -60,7 +63,8 @@ struct ProjectWindow: View {
     @ViewBuilder private var content: some View {
         if let session, let store = session.store, let section = store.selectedSection {
             let side = app.settings.sidebarSide
-            let sidebar = store.sidebarHidden[section] == true ? nil : side
+            let hidden = app.settings.hidesSidebar(section, manual: store.sidebarHidden[section] == true, autoHidden: store.sidebarAutoHidden)
+            let sidebar = hidden ? nil : side
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Rail(sections: store.sections, selected: section) { store.selectedSection = $0 }
@@ -70,7 +74,7 @@ struct ProjectWindow: View {
                     }
                     SlotPane(store: store, slot: "\(section).main")
                         .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID) {
-                            if app.settings.autoHideSidebar, section == Self.autoHideSection { store.sidebarHidden[section] = true }
+                            if app.settings.autoHides(section) { store.sidebarAutoHidden = true }
                         })
                         .overlay(alignment: .top) {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
@@ -80,7 +84,7 @@ struct ProjectWindow: View {
                     }
                 }
                 .background {
-                    Button("Toggle Sidebar") { store.toggleSidebar() }
+                    Button("Toggle Sidebar") { store.toggleSidebar(app.settings) }
                         .keyboardShortcut("s", modifiers: [.command, .control])
                         .opacity(0)
                         .allowsHitTesting(false)
@@ -123,13 +127,14 @@ struct ProjectWindow: View {
     }
 
     private func paletteEntries() -> [PaletteEntry] {
-        CommandPalette.entries(commands: app.commands, sections: session?.store?.sections ?? [])
+        CommandPalette.entries(commands: app.commands, sections: session?.store?.sections ?? [], sidebar: true)
     }
 
     private func perform(_ action: PaletteAction) {
         switch action {
         case .command(let id): confirm(id)
         case .section(let id): session?.store?.selectedSection = id
+        case .toggleSidebar: session?.store?.toggleSidebar(app.settings)
         case .openProjects: openWindow(id: "projects")
         }
     }

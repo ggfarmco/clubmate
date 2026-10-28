@@ -6,6 +6,10 @@ public enum SidebarSide: String, Sendable, CaseIterable {
     case right
 }
 
+public enum CodeSection {
+    public static let id = "editor-nvim"
+}
+
 @MainActor
 @Observable
 public final class AppSettings {
@@ -34,6 +38,14 @@ public final class AppSettings {
         interfaceFontSize = defaults.object(forKey: Key.interfaceFontSize) as? Double ?? 12
         terminalFontSize = defaults.object(forKey: Key.terminalFontSize) as? Double
         navigationKeys = defaults.object(forKey: Key.navigationKeys) as? Bool
+    }
+
+    public func autoHides(_ section: String) -> Bool {
+        autoHideSidebar && section == CodeSection.id
+    }
+
+    public func hidesSidebar(_ section: String, manual: Bool, autoHidden: Bool) -> Bool {
+        manual || (autoHidden && autoHides(section))
     }
 
     private func save(_ value: Any?, _ key: String) {

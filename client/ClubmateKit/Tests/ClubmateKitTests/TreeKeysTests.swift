@@ -54,7 +54,6 @@ final class TreeKeysTests: XCTestCase {
             (126, false, .move(-1)),
             (37, false, .expand),
             (124, false, .expand),
-            (37, true, .focusMain),
             (4, false, .collapse),
             (123, false, .collapse),
             (36, false, .activate),
@@ -62,13 +61,22 @@ final class TreeKeysTests: XCTestCase {
             (53, false, .focusMain),
         ]
         for (keyCode, control, action) in rows {
-            XCTAssertEqual(TreeKeys.action(keyCode: keyCode, control: control, command: false), action, "\(keyCode) control=\(control)")
+            for side in SidebarSide.allCases {
+                XCTAssertEqual(TreeKeys.action(keyCode: keyCode, control: control, command: false, side: side), action, "\(keyCode) control=\(control) \(side)")
+            }
         }
-        XCTAssertNil(TreeKeys.action(keyCode: 40, control: false, command: true))
+        XCTAssertNil(TreeKeys.action(keyCode: 40, control: false, command: true, side: .left))
+    }
+
+    func testTreeEdgeKeyFollowsSide() {
+        XCTAssertEqual(TreeKeys.action(keyCode: 37, control: true, command: false, side: .left), .focusMain)
+        XCTAssertNil(TreeKeys.action(keyCode: 4, control: true, command: false, side: .left))
+        XCTAssertEqual(TreeKeys.action(keyCode: 4, control: true, command: false, side: .right), .focusMain)
+        XCTAssertNil(TreeKeys.action(keyCode: 37, control: true, command: false, side: .right))
     }
 
     func testCollapseOthersKey() {
-        XCTAssertEqual(TreeKeys.action(keyCode: 27, control: false, command: false), .collapseOthers)
+        XCTAssertEqual(TreeKeys.action(keyCode: 27, control: false, command: false, side: .left), .collapseOthers)
         XCTAssertEqual(TreeCursor.resolve(.collapseOthers, cursor: nil, in: []), .run("files.collapse-others"))
     }
 

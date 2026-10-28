@@ -61,6 +61,7 @@ public enum CommandPalette {
 public enum PaletteAction: Hashable, Sendable {
     case command(String)
     case section(String)
+    case toggleSidebar
     case openProjects
 
     public init?(entryID: String) {
@@ -68,6 +69,8 @@ public enum PaletteAction: Hashable, Sendable {
             self = .command(id)
         } else if let id = entryID.dropPrefix("section:") {
             self = .section(id)
+        } else if entryID == "toggle-sidebar" {
+            self = .toggleSidebar
         } else if entryID == "projects" {
             self = .openProjects
         } else {
@@ -79,20 +82,22 @@ public enum PaletteAction: Hashable, Sendable {
         switch self {
         case .command(let id): "command:\(id)"
         case .section(let id): "section:\(id)"
+        case .toggleSidebar: "toggle-sidebar"
         case .openProjects: "projects"
         }
     }
 }
 
 extension CommandPalette {
-    public static func entries(commands: [Command], sections: [SectionInfo]) -> [PaletteEntry] {
+    public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool) -> [PaletteEntry] {
         let commandEntries = commands.filter { !$0.hidden }.map {
             PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: $0.id)
         }
         let sectionEntries = sections.enumerated().map { index, section in
             PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
-        return commandEntries + sectionEntries + [PaletteEntry(id: PaletteAction.openProjects.entryID, title: "Open Projects", detail: "⌘⇧O")]
+        let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle Sidebar", detail: "⌘B")] : []
+        return commandEntries + sectionEntries + sidebarEntries + [PaletteEntry(id: PaletteAction.openProjects.entryID, title: "Open Projects", detail: "⌘⇧O")]
     }
 }
 

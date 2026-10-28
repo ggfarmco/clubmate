@@ -78,7 +78,7 @@ private struct ProjectCommands: Commands {
             Button("Command Palette") { session?.paletteShown.toggle() }
                 .keyboardShortcut("k")
                 .disabled(session == nil)
-            Button("Toggle Sidebar") { store?.toggleSidebar() }
+            Button("Toggle Sidebar") { store?.toggleSidebar(app.settings) }
                 .keyboardShortcut("b")
                 .disabled(store == nil)
         }

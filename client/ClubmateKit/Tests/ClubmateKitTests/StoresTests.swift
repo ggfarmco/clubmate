@@ -255,14 +255,15 @@ final class StoresTests: XCTestCase {
          {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","plugin":"terminals"}]
         """#.utf8))
 
-        let entries = CommandPalette.entries(commands: commands, sections: sections)
+        let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true)
 
-        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Open Projects"])
-        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘⇧O"])
+        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Toggle Sidebar", "Open Projects"])
+        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘B", "⌘⇧O"])
         XCTAssertEqual(
             entries.map { PaletteAction(entryID: $0.id) },
-            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .openProjects]
+            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .openProjects]
         )
+        XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle Sidebar" })
     }
 
     func testAppScopeStore() async throws {

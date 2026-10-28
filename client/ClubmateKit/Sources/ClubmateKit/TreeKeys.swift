@@ -118,14 +118,15 @@ public enum TreeCommand: Equatable, Sendable {
 }
 
 public enum TreeKeys {
-    public static func action(keyCode: UInt16, control: Bool, command: Bool) -> TreeKeyAction? {
+    public static func action(keyCode: UInt16, control: Bool, command: Bool, side: SidebarSide) -> TreeKeyAction? {
         guard !command else { return nil }
         switch keyCode {
         case 38, 125: return .move(1)
         case 40, 126: return .move(-1)
-        case 37: return control ? .focusMain : .expand
+        case 37: return control ? (side == .left ? .focusMain : nil) : .expand
+        case 4: return control ? (side == .right ? .focusMain : nil) : .collapse
         case 124: return .expand
-        case 4, 123: return .collapse
+        case 123: return .collapse
         case 36, 31: return .activate
         case 27: return .collapseOthers
         case 53: return .focusMain

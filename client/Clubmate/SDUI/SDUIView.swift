@@ -84,6 +84,17 @@ extension EnvironmentValues {
     }
 }
 
+private struct SidebarSideKey: EnvironmentKey {
+    static let defaultValue = SidebarSide.left
+}
+
+extension EnvironmentValues {
+    var sidebarSide: SidebarSide {
+        get { self[SidebarSideKey.self] }
+        set { self[SidebarSideKey.self] = newValue }
+    }
+}
+
 struct SDUIView: View {
     let node: SDUINode
     let slot: String

@@ -35,6 +35,19 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertNil(cleared.navigationKeys)
     }
 
+    func testAutoHideIsTransientAndCodeOnly() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        XCTAssertFalse(settings.hidesSidebar(CodeSection.id, manual: false, autoHidden: true))
+        XCTAssertTrue(settings.hidesSidebar(CodeSection.id, manual: true, autoHidden: false))
+        settings.autoHideSidebar = true
+        XCTAssertTrue(settings.hidesSidebar(CodeSection.id, manual: false, autoHidden: true))
+        XCTAssertFalse(settings.hidesSidebar("terminals", manual: false, autoHidden: true))
+        XCTAssertFalse(settings.autoHides("terminals"))
+    }
+
     func testSidebarEdgeMatchesSide() {
         func request(_ edge: String?) -> FocusRequest {
             FocusRequest(slot: "editor-nvim.sidebar", serial: 1, edge: edge)
