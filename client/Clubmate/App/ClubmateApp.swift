@@ -23,6 +23,7 @@ struct ClubmateApp: App {
             .modifier(SettingsTheme(settings: app.settings))
         }
         .defaultSize(width: 1100, height: 700)
+        .windowToolbarStyle(.unifiedCompact)
         .commands { ProjectCommands(app: app) }
 
         Settings {
@@ -180,6 +181,9 @@ private struct ProjectCommands: Commands {
             Button("Previous Workspace") { windowID.map(app.previous) }
                 .keyboardShortcut(.leftArrow, modifiers: [.control, .command])
                 .disabled(!canSwitchWorkspace)
+            Button("Workspace Switcher") { windowID.map(app.toggleSwitcher) }
+                .keyboardShortcut("w", modifiers: [.control, .command])
+                .disabled(windowID == nil)
         }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in

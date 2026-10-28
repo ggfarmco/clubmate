@@ -15,9 +15,26 @@ struct WorkspaceWindow: View {
             .frame(minWidth: 800, minHeight: 500)
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
+            .overlay {
+                if let windowID, app.switcherWindow == windowID {
+                    SwitcherGridView(windowID: windowID)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { windowID.map(app.toggleSwitcher) } label: {
+                        Text("▦ \(workspaceCount)")
+                            .monospacedDigit()
+                    }
+                    .help("Workspaces (⌃⌘W)")
+                    .disabled(windowID == nil)
+                }
+            }
             .focusedSceneValue(\.workspaceWindowID, windowID)
             .background(WindowObserver { [app, windowID] in
                 if let windowID { app.windowBecameKey(windowID) }
+            } onAttach: { [app, windowID] window in
+                if let windowID { app.windowAttached(windowID, window) }
             } onClose: { [app, windowID] in
                 if let windowID { app.windowClosed(windowID) }
             })
@@ -33,6 +50,10 @@ struct WorkspaceWindow: View {
 
     private var active: String? {
         windowID.flatMap { app.window($0)?.active }
+    }
+
+    private var workspaceCount: Int {
+        windowID.flatMap { app.window($0)?.workspaces.count } ?? 0
     }
 
     private var title: String {
@@ -331,6 +352,7 @@ private struct SidebarPane: View {
 
 private struct WindowObserver: NSViewRepresentable {
     let onKey: @MainActor () -> Void
+    let onAttach: @MainActor (NSWindow) -> Void
     let onClose: @MainActor () -> Void
 
     func makeNSView(context: Context) -> WindowObserverView {
@@ -341,13 +363,16 @@ private struct WindowObserver: NSViewRepresentable {
 
     func updateNSView(_ view: WindowObserverView, context: Context) {
         view.onKey = onKey
+        view.onAttach = onAttach
         view.onClose = onClose
+        if let window = view.window { onAttach(window) }
         if view.window?.isKeyWindow == true { onKey() }
     }
 }
 
 final class WindowObserverView: NSView {
     var onKey: (@MainActor () -> Void)?
+    var onAttach: (@MainActor (NSWindow) -> Void)?
     var onClose: (@MainActor () -> Void)?
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
@@ -364,6 +389,7 @@ final class WindowObserverView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if let window { onAttach?(window) }
         if window?.isKeyWindow == true { onKey?() }
     }
 

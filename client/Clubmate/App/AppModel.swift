@@ -13,6 +13,7 @@ final class AppModel {
     let settings = AppSettings()
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
+    private(set) var switcherWindow: String?
     private let layout = WindowLayout()
 
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
@@ -20,6 +21,7 @@ final class AppModel {
     @ObservationIgnored private var openWindow: OpenWindowAction?
     private var launchProject = launchProjectID(CommandLine.arguments)
     @ObservationIgnored private var keyWindowID: String?
+    @ObservationIgnored private let hosts = NSMapTable<NSString, NSWindow>.strongToWeakObjects()
     @ObservationIgnored private var shownWindows: Set<String> = []
     @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var restored = false
@@ -81,7 +83,9 @@ final class AppModel {
     }
 
     func open(_ projectID: String, in target: String? = nil) {
-        let window = layout.open(projectID, preferring: target ?? keyWindowID ?? layout.windows.last?.id)
+        let preferred = target ?? keyWindowID ?? layout.windows.last?.id
+        snapshot(layout.windows.first { $0.workspaces.contains(projectID) }?.id ?? preferred)
+        let window = layout.open(projectID, preferring: preferred)
         syncSessions()
         touch(projectID)
         openWindow?(value: window)
@@ -89,16 +93,19 @@ final class AppModel {
     }
 
     func activate(_ projectID: String, in window: String) {
+        snapshot(window)
         layout.activate(projectID, in: window)
         touchActive(in: window)
     }
 
     func next(in window: String) {
+        snapshot(window)
         layout.next(in: window)
         touchActive(in: window)
     }
 
     func previous(in window: String) {
+        snapshot(window)
         layout.previous(in: window)
         touchActive(in: window)
     }
@@ -118,8 +125,29 @@ final class AppModel {
         keyWindowID = window
     }
 
+    func windowAttached(_ window: String, _ host: NSWindow) {
+        hosts.setObject(host, forKey: window as NSString)
+    }
+
+    func toggleSwitcher(in window: String) {
+        guard switcherWindow != window else { return hideSwitcher() }
+        snapshot(window)
+        switcherWindow = window
+    }
+
+    func hideSwitcher() {
+        switcherWindow = nil
+    }
+
+    private func snapshot(_ window: String?) {
+        guard let window, switcherWindow != window, let active = layout.window(window)?.active,
+              let session = sessions[active], let host = hosts.object(forKey: window as NSString) else { return }
+        session.thumbnail = WorkspaceThumbnail.capture(host)
+    }
+
     func windowClosed(_ window: String) {
         if keyWindowID == window { keyWindowID = nil }
+        if switcherWindow == window { switcherWindow = nil }
         shownWindows.remove(window)
         layout.closeWindow(window)
         syncSessions()
@@ -379,6 +407,7 @@ final class ProjectSession {
     let deck = SurfaceDeck()
     let banner = EventBanner()
     var paletteShown = false
+    var thumbnail: NSImage?
     @ObservationIgnored var autoNewDone: String?
     private(set) var store: ProjectUIStore?
 
