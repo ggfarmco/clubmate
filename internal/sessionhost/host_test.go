@@ -3,8 +3,10 @@ package sessionhost_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"clubmate/internal/proc"
 	"clubmate/internal/sessionhost"
@@ -97,6 +100,36 @@ func TestSessionHostResizeAlwaysSignalsWinch(t *testing.T) {
 	for want := 1; want <= 2; want++ {
 		c.resize(t, 80, 24)
 		testutil.Eventually(t, func() bool { return strings.Count(c.output(), "winch") == want }, waitTimeout)
+	}
+}
+
+func TestReattachToAltScreenRedraws(t *testing.T) {
+	cfg := testConfig(t, os.Args[0], "-test.run=^TestHelperAltScreen$")
+	cfg.Env = []string{"CLUBMATE_HELPER_ALT=1"}
+	startHost(t, cfg)
+	dial(t, cfg.Socket).waitOutput(t, "\x1b[?1049h")
+	c := dial(t, cfg.Socket)
+	c.resize(t, 80, 24)
+	c.waitOutput(t, "WINCH 80x24")
+	out := c.output()
+	assert.NotContains(t, out, "OLDFRAME")
+	assert.Contains(t, out, "\x1b[?1049h")
+	assert.Contains(t, out, "WINCH 80x23\r\nWINCH 80x24")
+}
+
+func TestHelperAltScreen(t *testing.T) {
+	if os.Getenv("CLUBMATE_HELPER_ALT") == "" {
+		t.Skip()
+	}
+	winch := make(chan os.Signal, 1)
+	signal.Notify(winch, syscall.SIGWINCH)
+	fmt.Print("\x1b[?1049hOLDFRAME\n")
+	for range winch {
+		ws, err := unix.IoctlGetWinsize(0, unix.TIOCGWINSZ)
+		if err != nil {
+			return
+		}
+		fmt.Printf("WINCH %dx%d\n", ws.Col, ws.Row)
 	}
 }
 

@@ -29,6 +29,7 @@ const (
 	initialCols       = 80
 	initialRows       = 24
 	exitFlushTimeout  = 2 * time.Second
+	repaintDelay      = 100 * time.Millisecond
 	defaultTerm       = "TERM=xterm-256color"
 	sessionMarker     = "CLUBMATE_SESSION_ID="
 	projectMarker     = "CLUBMATE_PROJECT_ID="
@@ -36,10 +37,13 @@ const (
 
 var ErrEmptyCommand = errors.New("sessionhost: empty command")
 
+var altScreenReset = []byte("\x1b[?1049h\x1b[2J\x1b[H")
+
 type host struct {
 	ptmx       *os.File
 	pgid       int
 	ring       *wire.Ring
+	alt        altScreen
 	maxPending int
 	mu         sync.Mutex
 	clients    map[*client]struct{}
@@ -51,6 +55,7 @@ type client struct {
 	conn    net.Conn
 	wake    chan struct{}
 	pending []byte
+	repaint bool
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -139,7 +144,12 @@ func (h *host) acceptLoop(ln net.Listener) {
 func (h *host) add(conn net.Conn) {
 	c := &client{conn: conn, wake: make(chan struct{}, 1)}
 	h.mu.Lock()
-	c.pending = h.ring.Bytes()
+	if h.alt.on {
+		c.pending = slices.Clone(altScreenReset)
+		c.repaint = true
+	} else {
+		c.pending = h.ring.Bytes()
+	}
 	c.wake <- struct{}{}
 	if h.exit != nil {
 		h.finishLocked(c)
@@ -168,6 +178,7 @@ func (h *host) broadcast(p []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.ring.Write(p)
+	h.alt.feed(p)
 	for c := range h.clients {
 		if len(c.pending)+len(p) > h.maxPending {
 			h.dropLocked(c)
@@ -220,33 +231,42 @@ func (h *host) writeLoop(c *client) {
 
 func (h *host) readLoop(c *client) {
 	defer h.drop(c)
+	repaint := c.repaint
 	for {
 		f, err := wire.ReadFrame(c.conn)
 		if err != nil {
 			return
 		}
-		h.handle(f)
+		switch f.Type {
+		case wire.FrameData:
+			h.ptmx.Write(f.Payload)
+		case wire.FrameResize:
+			h.resize(f.Payload, repaint)
+			repaint = false
+		}
 	}
 }
 
-func (h *host) handle(f wire.Frame) {
-	switch f.Type {
-	case wire.FrameData:
-		h.ptmx.Write(f.Payload)
-	case wire.FrameResize:
-		h.resize(f.Payload)
-	}
-}
-
-func (h *host) resize(payload []byte) {
+func (h *host) resize(payload []byte, repaint bool) {
 	cols, rows, err := wire.ParseResize(payload)
 	if err != nil || cols == 0 || rows == 0 {
 		return
 	}
+	if repaint && rows > 1 {
+		if !h.setSize(cols, rows-1) {
+			return
+		}
+		time.Sleep(repaintDelay)
+	}
+	h.setSize(cols, rows)
+}
+
+func (h *host) setSize(cols, rows uint16) bool {
 	if err := pty.Setsize(h.ptmx, &pty.Winsize{Cols: cols, Rows: rows}); err != nil {
-		return
+		return false
 	}
 	unix.Kill(-h.foregroundPGID(), unix.SIGWINCH)
+	return true
 }
 
 func (h *host) foregroundPGID() int {
