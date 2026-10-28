@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func TestDestructiveNeedsApproval(t *testing.T) {
 	c := h.Client(t)
 	run := func() (map[string]any, error) {
 		var out map[string]any
-		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"n": 1, "hidden": "x"}}, &out)
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"n": 1}}, &out)
 		return out, err
 	}
 	_, err := run()
@@ -80,6 +81,29 @@ func TestDestructiveNeedsApproval(t *testing.T) {
 	assert.ErrorContains(t, err, "approval busy")
 	a.reply <- false
 	<-done
+}
+
+func TestDestructiveAgentArgsStrict(t *testing.T) {
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"destructive":true,"args":{"properties":{"s":{"type":"string"}}}}`)
+	a := newApprover(t, h)
+	c := h.Client(t)
+	tests := []struct {
+		name string
+		args any
+		err  string
+	}{
+		{name: "undeclared key", args: map[string]any{"s": "x", "extra": "y"}, err: "args.extra: not declared"},
+		{name: "overlong value", args: map[string]any{"s": strings.Repeat("é", 201)}, err: "args.s: longer than 200 characters"},
+		{name: "non-object args", args: []int{1}, err: "args: want object"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": tt.args}, nil)
+			require.ErrorIs(t, err, rpc.ErrInvalidParams)
+			assert.ErrorContains(t, err, tt.err)
+			assert.Empty(t, a.asked)
+		})
+	}
 }
 
 func TestApprovalPrefersWorkspaceClient(t *testing.T) {

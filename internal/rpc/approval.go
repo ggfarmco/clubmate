@@ -1,16 +1,21 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sourcegraph/jsonrpc2"
 )
 
 const (
-	approvalTimeout = 60 * time.Second
+	approvalTimeout   = 60 * time.Second
+	approvalMaxFields = 10
+	approvalMaxValue  = 200
 
 	callUIConfirm = "ui.confirm"
 )
@@ -52,7 +57,7 @@ func (s *Server) approve(ctx context.Context, c Command, projectID string, args 
 		}
 		workspace = p.Name
 	}
-	args, err := declaredArgs(c, args)
+	args, err := approvableArgs(c, args)
 	if err != nil {
 		return err
 	}
@@ -76,22 +81,40 @@ func (s *Server) approve(ctx context.Context, c Command, projectID string, args 
 	return nil
 }
 
-func declaredArgs(c Command, raw json.RawMessage) (json.RawMessage, error) {
+func approvableArgs(c Command, raw json.RawMessage) (json.RawMessage, error) {
 	fields := map[string]json.RawMessage{}
 	if len(raw) > 0 && string(raw) != "null" {
 		if err := json.Unmarshal(raw, &fields); err != nil {
 			return nil, invalidParams("args: want object")
 		}
 	}
-	shown := map[string]json.RawMessage{}
-	if c.Args != nil {
-		for name, v := range fields {
-			if _, ok := c.Args.Properties[name]; ok {
-				shown[name] = v
-			}
+	if c.Args == nil && len(fields) > 0 {
+		return nil, invalidParams(fmt.Sprintf("args: %s declares no args", c.ID))
+	}
+	if len(fields) > approvalMaxFields {
+		return nil, invalidParams(fmt.Sprintf("args: more than %d fields", approvalMaxFields))
+	}
+	for name, v := range fields {
+		if _, ok := c.Args.Properties[name]; !ok {
+			return nil, invalidParams(fmt.Sprintf("args.%s: not declared", name))
+		}
+		if renderedLen(v) > approvalMaxValue {
+			return nil, invalidParams(fmt.Sprintf("args.%s: longer than %d characters", name, approvalMaxValue))
 		}
 	}
-	return json.Marshal(shown)
+	return json.Marshal(fields)
+}
+
+func renderedLen(v json.RawMessage) int {
+	var s string
+	if json.Unmarshal(v, &s) == nil {
+		return utf8.RuneCountInString(s)
+	}
+	var buf bytes.Buffer
+	if json.Compact(&buf, v) != nil {
+		return utf8.RuneCount(v)
+	}
+	return utf8.RuneCount(buf.Bytes())
 }
 
 func (s *Server) approver(projectID string) (*jsonrpc2.Conn, func(), error) {

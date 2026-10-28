@@ -1,9 +1,6 @@
 import Foundation
 
 public struct ConfirmRequest: Decodable, Sendable, Equatable {
-    static let valueLimit = 200
-    static let fieldLimit = 10
-
     public let title: String
     public let workspace: String
     public let command: String
@@ -27,9 +24,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         case .null:
             break
         case .object(let fields):
-            let keys = fields.keys.sorted()
-            lines += keys.prefix(Self.fieldLimit).map { "\(Self.clean($0)): \(fields[$0].map(Self.summary) ?? "")" }
-            if keys.count > Self.fieldLimit { lines.append("… and \(keys.count - Self.fieldLimit) more") }
+            lines += fields.keys.sorted().map { "\(Self.clean($0)): \(fields[$0].map(Self.summary) ?? "")" }
         default:
             lines.append("Args (not an object): \(Self.summary(args))")
         }
@@ -43,13 +38,13 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
             case "\n": out += "\\n"
             case "\r": out += "\\r"
             case "\t": out += "\\t"
-            case _ where CharacterSet.controlCharacters.contains(scalar):
+            case _ where [.control, .format, .lineSeparator, .paragraphSeparator].contains(scalar.properties.generalCategory):
                 out += "\\u{\(String(scalar.value, radix: 16))}"
             default:
                 out.unicodeScalars.append(scalar)
             }
         }
-        return out.count > valueLimit ? String(out.prefix(valueLimit)) + "…" : out
+        return out
     }
 
     private static func summary(_ value: JSONValue) -> String {
