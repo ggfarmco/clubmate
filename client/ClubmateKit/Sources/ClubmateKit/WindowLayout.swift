@@ -26,8 +26,8 @@ public final class WindowLayout {
         self.key = key
         if let data = defaults.data(forKey: key), let saved = try? JSONDecoder().decode([LayoutWindow].self, from: data) {
             windows = saved
-        } else if let legacy = defaults.stringArray(forKey: "openProjects"), !legacy.isEmpty {
-            windows = [LayoutWindow(workspaces: legacy, active: legacy.last)]
+        } else if let legacy = defaults.stringArray(forKey: "openProjects") {
+            windows = legacy.isEmpty ? [] : [LayoutWindow(workspaces: legacy, active: legacy.last)]
             defaults.removeObject(forKey: "openProjects")
             save()
         } else {
@@ -144,5 +144,12 @@ public final class WindowLayout {
     private func save() {
         guard !isTerminating, let data = try? JSONEncoder().encode(windows) else { return }
         defaults.set(data, forKey: key)
+    }
+}
+
+@MainActor
+public enum SurfaceDeckPolicy {
+    public static func shouldCloseDeck(workspace: String, layout: WindowLayout) -> Bool {
+        !layout.windows.contains { $0.workspaces.contains(workspace) }
     }
 }

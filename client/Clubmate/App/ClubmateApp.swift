@@ -26,8 +26,8 @@ struct ClubmateApp: App {
         .keyboardShortcut("o", modifiers: [.command, .shift])
         .commands { ProjectCommands(app: app) }
 
-        WindowGroup("Project", for: String.self) { $projectID in
-            ProjectWindow(projectID: projectID)
+        WindowGroup("Workspace", for: String.self) { $windowID in
+            WorkspaceWindow(windowID: $windowID)
                 .environment(app)
                 .modifier(SettingsTheme(settings: app.settings))
         }
@@ -108,6 +108,7 @@ private struct ProjectCommands: Commands {
     let app: AppModel
 
     @FocusedValue(\.projectSession) private var session
+    @FocusedValue(\.workspaceWindowID) private var windowID
 
     private var store: ProjectUIStore? {
         session?.isApp == false ? session?.store : nil
@@ -146,6 +147,14 @@ private struct ProjectCommands: Commands {
             Button("Reset Font Size") { app.settings.terminalFontSize = nil }
                 .keyboardShortcut("0")
         }
+        CommandGroup(after: .windowArrangement) {
+            Button("Next Workspace") { windowID.map(app.next) }
+                .keyboardShortcut(.rightArrow, modifiers: [.control, .command])
+                .disabled(!canSwitchWorkspace)
+            Button("Previous Workspace") { windowID.map(app.previous) }
+                .keyboardShortcut(.leftArrow, modifiers: [.control, .command])
+                .disabled(!canSwitchWorkspace)
+        }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in
                 Button(sectionTitle(index)) { selectSection(index) }
@@ -153,6 +162,10 @@ private struct ProjectCommands: Commands {
                     .disabled(section(index) == nil)
             }
         }
+    }
+
+    private var canSwitchWorkspace: Bool {
+        (windowID.flatMap(app.layout.window)?.workspaces.count ?? 0) > 1
     }
 
     private func closeTerminal() {

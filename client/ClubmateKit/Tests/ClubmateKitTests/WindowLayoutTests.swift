@@ -68,4 +68,17 @@ final class WindowLayoutTests: XCTestCase {
         layout.closeWindow(w)
         XCTAssertEqual(WindowLayout(defaults: defaults).window(w)?.workspaces, ["a"])
     }
+
+    func testDeckSurvivesWorkspaceSwitch() throws {
+        let layout = WindowLayout(defaults: try makeDefaults())
+        let w = layout.newWindow()
+        layout.open("a", preferring: w)
+        layout.open("b", preferring: w)
+        layout.activate("b", in: w)
+        XCTAssertFalse(SurfaceDeckPolicy.shouldCloseDeck(workspace: "a", layout: layout))
+        layout.close("a", in: w)
+        XCTAssertTrue(SurfaceDeckPolicy.shouldCloseDeck(workspace: "a", layout: layout))
+        layout.closeWindow(w)
+        XCTAssertTrue(SurfaceDeckPolicy.shouldCloseDeck(workspace: "b", layout: layout))
+    }
 }

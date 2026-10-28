@@ -14,12 +14,14 @@ final class AppModel {
     let projectsSession = ProjectSession(projectID: "")
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
+    let layout = WindowLayout()
 
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var openWindow: OpenWindowAction?
     private var launchProject = launchProjectID(CommandLine.arguments)
-    @ObservationIgnored private let openProjects = OpenProjects()
+    @ObservationIgnored private var keyWindowID: String?
+    @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var restored = false
     @ObservationIgnored private var navigationPending = true
     @ObservationIgnored private var navigationAsked = false
@@ -32,6 +34,8 @@ final class AppModel {
         updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
+        trackProjects()
+        syncSessions()
         trackNavigationKeys()
         trackTerminalFontSize()
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
@@ -41,7 +45,7 @@ final class AppModel {
     }
 
     func terminating() {
-        openProjects.terminating()
+        layout.terminating()
     }
 
     static func launchProjectID(_ arguments: [String]) -> String? {
@@ -61,9 +65,41 @@ final class AppModel {
     }
 
     func open(_ projectID: String) {
-        openProjects.opened(projectID)
-        openWindow?(value: projectID)
+        let window = layout.open(projectID, preferring: keyWindowID ?? layout.windows.last?.id)
+        syncSessions()
+        touch(projectID)
+        openWindow?(value: window)
         NSApp.activate()
+    }
+
+    func activate(_ projectID: String, in window: String) {
+        layout.activate(projectID, in: window)
+        touchActive(in: window)
+    }
+
+    func next(in window: String) {
+        layout.next(in: window)
+        touchActive(in: window)
+    }
+
+    func previous(in window: String) {
+        layout.previous(in: window)
+        touchActive(in: window)
+    }
+
+    func closeWorkspace(_ projectID: String, in window: String) {
+        layout.close(projectID, in: window)
+        syncSessions()
+    }
+
+    func windowBecameKey(_ window: String) {
+        keyWindowID = window
+    }
+
+    func windowClosed(_ window: String) {
+        if keyWindowID == window { keyWindowID = nil }
+        layout.closeWindow(window)
+        syncSessions()
     }
 
     func session(for projectID: String) -> ProjectSession {
@@ -71,16 +107,28 @@ final class AppModel {
         let session = ProjectSession(projectID: projectID)
         session.deck.fontSize = settings.terminalFontSize
         sessions[projectID] = session
-        openProjects.opened(projectID)
         if let client = supervisor.client { session.adopt(client, supervisor) }
         return session
     }
 
-    func close(_ session: ProjectSession) {
-        guard sessions[session.projectID] === session else { return }
-        sessions[session.projectID] = nil
-        openProjects.closed(session.projectID)
-        Task { await session.close(supervisor) }
+    private func syncSessions() {
+        for workspace in Set(layout.windows.flatMap(\.workspaces)) where sessions[workspace] == nil {
+            _ = session(for: workspace)
+        }
+        for (workspace, session) in sessions where SurfaceDeckPolicy.shouldCloseDeck(workspace: workspace, layout: layout) {
+            sessions[workspace] = nil
+            session.deck.closeAll()
+            Task { await session.close(supervisor) }
+        }
+    }
+
+    private func touchActive(in window: String) {
+        if let active = layout.window(window)?.active { touch(active) }
+    }
+
+    private func touch(_ projectID: String) {
+        guard let client = supervisor.client else { return }
+        Task { try? await client.touchWorkspace(projectID) }
     }
 
     func syncNavigationKeys() {
@@ -170,14 +218,24 @@ final class AppModel {
     private func restoreWindows(_ listed: [Project]) {
         guard !restored else { return }
         restored = true
-        let present = Set(listed.map(\.id))
-        for id in openProjects.ids {
-            if !present.contains(id) {
-                openProjects.forget(id)
-            } else if sessions[id] == nil, id != launchProject {
-                open(id)
-            }
+        layout.forget(missing: Set(layout.windows.flatMap(\.workspaces)).subtracting(listed.map(\.id)))
+        syncSessions()
+        for window in layout.windows {
+            openWindow?(value: window.id)
         }
+    }
+
+    private func trackProjects() {
+        guard let listed = withObservationTracking({ projects?.projects }, onChange: { [weak self] in
+            Task { @MainActor in self?.trackProjects() }
+        }) else { return }
+        let present = Set(listed.map(\.id))
+        let workspaces = Set(layout.windows.flatMap(\.workspaces))
+        presence = presence.filter { workspaces.contains($0.key) }
+        let gone = workspaces.filter { presence[$0, default: ProjectPresence()].observe(present.contains($0)) }
+        guard !gone.isEmpty else { return }
+        layout.forget(missing: gone)
+        syncSessions()
     }
 
     private func trackClient() {
@@ -217,6 +275,7 @@ final class ProjectSession {
     let deck = SurfaceDeck()
     let banner = EventBanner()
     var paletteShown = false
+    @ObservationIgnored var autoNewDone: String?
     private(set) var store: ProjectUIStore?
 
     var isApp: Bool { projectID.isEmpty }

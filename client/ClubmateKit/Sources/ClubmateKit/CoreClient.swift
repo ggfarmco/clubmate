@@ -79,6 +79,10 @@ public final class CoreClient {
         try await connection.call("project.create", CreateProjectParams(name: name, repos: repos))
     }
 
+    public func touchWorkspace(_ id: String) async throws {
+        let _: NoParams = try await connection.call("workspace.touch", IDParams(id: id))
+    }
+
     public func uiSections() async throws -> [SectionInfo] {
         try await connection.call("ui.sections", NoParams())
     }
@@ -151,6 +155,10 @@ private struct SessionState: Decodable, Sendable {
 
 private struct RegisterParams: Encodable, Sendable {
     let handles: [String]
+}
+
+private struct IDParams: Encodable, Sendable {
+    let id: String
 }
 
 private struct ProjectParams: Encodable, Sendable {
