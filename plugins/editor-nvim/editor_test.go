@@ -57,27 +57,12 @@ func TestOpenFileAtLine(t *testing.T) {
 	testutil.Eventually(t, func() bool {
 		return eval[string](t, v, "expand('%:p')") == path && eval[int](t, v, "line('.')") == 3
 	}, 5*time.Second)
-	testutil.Eventually(t, func() bool {
-		events, err := e.h.Bus.Read(t.Context(), "editor.buffer", 0, 100)
-		require.NoError(t, err)
-		for _, ev := range events {
-			var p struct {
-				ProjectID string `json:"projectId"`
-				Path      string `json:"path"`
-			}
-			require.NoError(t, json.Unmarshal(ev.Payload, &p))
-			if p.ProjectID == e.projectID && p.Path == path {
-				return true
-			}
-		}
-		return false
-	}, 5*time.Second)
+	e.waitBuffer(t, path)
 }
 
 func TestOpenLightFiles(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
-	require.NoError(t, v.ExecLua(`vim.notify = function(msg) vim.g.notified = (vim.g.notified or "") .. msg end`, nil))
 	require.ErrorContains(t, e.open(t, filepath.Join(e.repo, "a\nb.go"), 1), "line breaks")
 	big := e.file(t, filepath.Join("-dir with space", "big файл.go"))
 	require.NoError(t, os.WriteFile(big, []byte(strings.Repeat("line\n", 6*1024*1024/5)), 0o600))
@@ -91,13 +76,25 @@ func TestOpenLightFiles(t *testing.T) {
 		assert.Empty(t, eval[string](t, v, "&filetype"))
 		assert.Equal(t, 0, eval[int](t, v, "&swapfile"))
 		assert.True(t, eval[bool](t, v, "b:clubmate_light"))
-		assert.Contains(t, eval[string](t, v, "g:notified"), "without highlighting")
+		e.waitBuffer(t, path)
 	}
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "light") })
 	small := e.file(t, "small.go")
 	require.NoError(t, e.open(t, small, 1))
 	testutil.Eventually(t, func() bool {
 		return eval[string](t, v, "expand('%:p')") == small && eval[string](t, v, "&filetype") == "go"
 	}, 5*time.Second)
+}
+
+func TestOpenFailureShowsInStatus(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: "vim.o.hidden = false"})
+	first := e.file(t, "a.go")
+	require.NoError(t, e.open(t, first, 1))
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == first }, 5*time.Second)
+	require.NoError(t, v.Command("normal! ix"))
+	require.NoError(t, e.open(t, e.file(t, "b.go"), 1))
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed") && hasBadge(n, "E37") })
 }
 
 func TestNvimInitsWithoutUI(t *testing.T) {
@@ -542,6 +539,32 @@ func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
 			return rpc.Notification{}, false
 		}
 	}
+}
+
+func (e *editor) waitBuffer(t *testing.T, path string) {
+	t.Helper()
+	testutil.Eventually(t, func() bool {
+		events, err := e.h.Bus.Read(t.Context(), "editor.buffer", 0, 100)
+		require.NoError(t, err)
+		for _, ev := range events {
+			var p struct {
+				ProjectID string `json:"projectId"`
+				Path      string `json:"path"`
+			}
+			require.NoError(t, json.Unmarshal(ev.Payload, &p))
+			if p.ProjectID == e.projectID && p.Path == path {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second)
+}
+
+func hasBadge(n sdui.Node, sub string) bool {
+	if text, _ := n.Props["text"].(string); n.Type == "badge" && strings.Contains(text, sub) {
+		return true
+	}
+	return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return hasBadge(c, sub) })
 }
 
 func contains(n sdui.Node, typ string) bool {

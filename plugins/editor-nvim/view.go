@@ -9,10 +9,12 @@ import (
 )
 
 type status struct {
-	Mode   string
-	File   string
-	LSP    []string
-	Branch string
+	Mode      string
+	File      string
+	LSP       []string
+	Branch    string
+	Light     bool
+	OpenError string
 }
 
 var modeNames = map[byte]string{
@@ -57,6 +59,12 @@ func statusView(st status, repos []string) sdui.Node {
 	}
 	if st.Mode != "" {
 		items = append(items, sdui.Badge(modeName(st.Mode), ""))
+	}
+	if st.Light {
+		items = append(items, sdui.Badge("light", ""))
+	}
+	if st.OpenError != "" {
+		items = append(items, sdui.Badge("open failed: "+st.OpenError, "danger"))
 	}
 	if len(st.LSP) > 0 {
 		items = append(items, sdui.MutedText(strings.Join(st.LSP, ", ")))

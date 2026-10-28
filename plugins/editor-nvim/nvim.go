@@ -25,7 +25,7 @@ local function emit(ev)
   local file = vim.bo[buf].buftype == "" and vim.api.nvim_buf_get_name(buf) or ""
   local lsp = {}
   for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do lsp[#lsp + 1] = c.name end
-  pcall(vim.rpcnotify, chan, "clubmate", { event = ev, file = file, mode = vim.api.nvim_get_mode().mode, lsp = lsp })
+  pcall(vim.rpcnotify, chan, "clubmate", { event = ev, file = file, mode = vim.api.nvim_get_mode().mode, lsp = lsp, light = vim.b[buf].clubmate_light == true })
 end
 for _, ev in ipairs({ "BufEnter", "BufWritePost", "ModeChanged", "LspAttach", "LspDetach", "DirChanged" }) do
   vim.api.nvim_create_autocmd(ev, { group = g, callback = function() vim.schedule(function() emit(ev) end) end })
@@ -38,6 +38,7 @@ end
 local m = type(package.loaded["clubmate"]) == "table" and package.loaded["clubmate"] or {}
 package.loaded["clubmate"] = m
 m.edge = edge
+m.chan = chan
 m.navigate = function(dir)
   local w = vim.fn.winnr()
   vim.cmd.wincmd(dir)
@@ -116,18 +117,25 @@ end
 return names`
 
 const openLua = `local path, line, light = ...
+local m = package.loaded["clubmate"]
 vim.schedule(function()
-  if light then
-    vim.cmd({ cmd = "edit", args = { vim.fn.fnameescape(path) }, mods = { noautocmd = true, noswapfile = true } })
-    vim.cmd("setlocal syntax=off")
-    vim.b.clubmate_light = true
-    vim.notify("clubmate: large or binary file opened without highlighting, LSP and swap", vim.log.levels.INFO)
-  else
-    vim.cmd.edit(vim.fn.fnameescape(path))
-  end
-  if line > 0 then
-    vim.api.nvim_win_set_cursor(0, { math.min(line, vim.api.nvim_buf_line_count(0)), 0 })
-    vim.cmd("normal! zz")
+  local ok, err = pcall(function()
+    if light then
+      vim.cmd({ cmd = "edit", args = { vim.fn.fnameescape(path) }, mods = { noautocmd = true, noswapfile = true } })
+      vim.cmd("setlocal syntax=off")
+      vim.b.clubmate_light = true
+      pcall(vim.api.nvim_exec_autocmds, "BufEnter", { group = "clubmate", buffer = 0 })
+    else
+      vim.cmd.edit(vim.fn.fnameescape(path))
+      vim.b.clubmate_light = nil
+    end
+    if line > 0 then
+      vim.api.nvim_win_set_cursor(0, { math.min(line, vim.api.nvim_buf_line_count(0)), 0 })
+      vim.cmd("normal! zz")
+    end
+  end)
+  if not ok and type(m) == "table" and m.chan then
+    pcall(vim.rpcnotify, m.chan, "clubmate", { event = "open_error", message = tostring(err) })
   end
 end)`
 
@@ -141,11 +149,13 @@ var (
 )
 
 type nvimEvent struct {
-	Event string   `msgpack:"event"`
-	File  string   `msgpack:"file"`
-	Mode  string   `msgpack:"mode"`
-	LSP   []string `msgpack:"lsp"`
-	Dir   string   `msgpack:"dir"`
+	Event   string   `msgpack:"event"`
+	File    string   `msgpack:"file"`
+	Mode    string   `msgpack:"mode"`
+	LSP     []string `msgpack:"lsp"`
+	Dir     string   `msgpack:"dir"`
+	Light   bool     `msgpack:"light"`
+	Message string   `msgpack:"message"`
 }
 
 type client struct {

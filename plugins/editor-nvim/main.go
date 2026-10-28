@@ -21,19 +21,21 @@ import (
 )
 
 const (
-	mainSlot      = "editor-nvim.main"
-	statusSlot    = "editor-nvim.status"
-	sessionTitle  = "nvim"
-	stateRunning  = "running"
-	renderDelay   = 30 * time.Millisecond
-	branchTimeout = 2 * time.Second
-	noName        = "[No Name]"
-	sidebarSlot   = "editor-nvim.sidebar"
-	edgeEvent     = "edge"
-	revPrefix     = "rev:"
-	shortSHA      = 7
-	lightMaxSize  = 5 * 1024 * 1024
-	binarySniff   = 8000
+	mainSlot       = "editor-nvim.main"
+	statusSlot     = "editor-nvim.status"
+	sessionTitle   = "nvim"
+	stateRunning   = "running"
+	renderDelay    = 30 * time.Millisecond
+	branchTimeout  = 2 * time.Second
+	noName         = "[No Name]"
+	sidebarSlot    = "editor-nvim.sidebar"
+	edgeEvent      = "edge"
+	openErrorEvent = "open_error"
+	openErrorMax   = 80
+	revPrefix      = "rev:"
+	shortSHA       = 7
+	lightMaxSize   = 5 * 1024 * 1024
+	binarySniff    = 8000
 )
 
 var (
@@ -537,6 +539,11 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 		}
 		return
 	}
+	if ev.Event == openErrorEvent {
+		e.setOpenError(shortError(ev.Message))
+		a.scheduleStatus(h, e)
+		return
+	}
 	branch, refresh := "", ev.Event == "BufEnter" || ev.Event == "DirChanged"
 	if refresh {
 		branch = gitBranch(ctx, branchDir(ev.File, e.projectRoot()))
@@ -643,10 +650,28 @@ func (e *editor) relativeNames(names []string) string {
 	return strings.Join(shown, ", ")
 }
 
+func (e *editor) setOpenError(msg string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.status.OpenError = msg
+}
+
+func shortError(msg string) string {
+	first, _, _ := strings.Cut(strings.TrimSpace(msg), "\n")
+	runes := []rune(first)
+	if len(runes) > openErrorMax {
+		return string(runes[:openErrorMax]) + "..."
+	}
+	return first
+}
+
 func (e *editor) update(ev nvimEvent, branch string, refresh bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.status.File, e.status.Mode, e.status.LSP = ev.File, ev.Mode, ev.LSP
+	e.status.File, e.status.Mode, e.status.LSP, e.status.Light = ev.File, ev.Mode, ev.LSP, ev.Light
+	if ev.Event == "BufEnter" {
+		e.status.OpenError = ""
+	}
 	if refresh {
 		e.status.Branch = branch
 	}
@@ -668,7 +693,7 @@ func projectRoot(p pluginsdk.Project) (string, error) {
 
 func lightFile(path string) bool {
 	info, err := os.Stat(path)
-	if err != nil {
+	if err != nil || !info.Mode().IsRegular() {
 		return false
 	}
 	if info.Size() > lightMaxSize {
