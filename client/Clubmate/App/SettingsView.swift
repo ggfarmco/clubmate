@@ -170,11 +170,18 @@ private struct NvimConfigSheetView: View {
             .fixedSize(horizontal: false, vertical: true)
         if let info = model.info {
             LabeledContent("Config (~/.config/nvim)", value: NvimConfigModel.size(info.sourceConfigBytes))
-            LabeledContent("Plugins and data (~/.local/share/nvim)", value: NvimConfigModel.size(info.sourceDataBytes))
-            Text("Copies to \(info.configDir) and \(info.dataDir).")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if info.dataExists {
+                Text("\(info.dataDir) already exists and is kept; only the config is copied, to \(info.configDir).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                LabeledContent("Plugins and data (~/.local/share/nvim)", value: NvimConfigModel.size(info.sourceDataBytes))
+                Text("Copies to \(info.configDir) and \(info.dataDir).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         HStack {
             Button("Cancel") { model.dismiss() }
@@ -198,6 +205,11 @@ private struct NvimConfigSheetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        if let notice = model.copyNotice {
+            Text(notice)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
         HStack {
             Spacer()
             Button("Cancel") { Task { await model.cancelCopy() } }
@@ -215,7 +227,7 @@ private struct NvimConfigSheetView: View {
                 .keyboardShortcut(.cancelAction)
             Spacer()
             if useExisting {
-                Button("Use Existing") { Task { await model.switchWithoutCopy() } }
+                Button("Use Existing Config") { Task { await model.switchWithoutCopy() } }
                     .keyboardShortcut(.defaultAction)
             }
         }

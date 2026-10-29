@@ -69,6 +69,9 @@ public final class NvimConfigModel {
     public static let statusCommand = "editor-nvim.config-copy-status"
     public static let cancelCommand = "editor-nvim.config-copy-cancel"
     public static let restartCommand = "editor-nvim.restart"
+    public static let noWorkspace = ClubmateError.rpc(code: 0, message: "Open a workspace to change this")
+    static let statusRetries = 3
+    static let unsavedMarker = "unsaved buffers: "
 
     public typealias Run = @MainActor (String?, CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
@@ -79,11 +82,14 @@ public final class NvimConfigModel {
     public private(set) var progress: NvimCopyProgress?
     public private(set) var error: String?
     public private(set) var needsRestart = false
+    public private(set) var copyNotice: String?
 
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let workspaces: @MainActor () async -> [NvimWorkspace]
     @ObservationIgnored private let confirm: @MainActor (String) async -> Bool
     @ObservationIgnored private var copyID: String?
+    @ObservationIgnored private var copying = false
+    @ObservationIgnored private var cancelRequested = false
 
     public init(
         run: @escaping Run,
@@ -123,14 +129,22 @@ public final class NvimConfigModel {
     }
 
     public func copy() async {
-        guard sheet != nil, copyID == nil else { return }
+        guard let info, sheet != nil, !copying else { return }
+        copying = true
+        cancelRequested = false
+        copyNotice = nil
         sheet = .copying
         progress = nil
+        defer {
+            copying = false
+            copyID = nil
+            if sheet == .copying { sheet = nil }
+        }
         let id: String
-        switch await run(nil, CommandInvocation(id: Self.copyCommand, args: .object(["data": .bool(true)]))) {
+        switch await run(nil, CommandInvocation(id: Self.copyCommand, args: .object(["data": .bool(!info.dataExists)]))) {
         case .success(let value):
             guard let started = value.objectValue?["id"]?.stringValue else {
-                sheet = .failed("unexpected reply from \(Self.copyCommand)", useExisting: false)
+                fail("unexpected reply from \(Self.copyCommand)")
                 return
             }
             id = started
@@ -139,10 +153,12 @@ public final class NvimConfigModel {
             return
         }
         copyID = id
-        defer { copyID = nil }
+        if cancelRequested { await sendCancel(id) }
+        var retries = 0
         while !Task.isCancelled {
             switch await run(nil, CommandInvocation(id: Self.statusCommand, args: .object(["id": .string(id)]))) {
             case .success(let value):
+                retries = 0
                 let fields = value.objectValue ?? [:]
                 progress = NvimCopyProgress(copied: Int64(fields["copied"]?.numberValue ?? 0), total: Int64(fields["total"]?.numberValue ?? 0))
                 guard fields["done"]?.boolValue == true else { continue }
@@ -153,6 +169,9 @@ public final class NvimConfigModel {
                 sheet = nil
                 await apply(.clubmate)
                 return
+            case .failure(let failure) where failure.isTransient && retries < Self.statusRetries:
+                retries += 1
+                try? await Task.sleep(for: .milliseconds(200 * retries))
             case .failure(let failure):
                 fail(Self.text(failure))
                 return
@@ -161,10 +180,12 @@ public final class NvimConfigModel {
     }
 
     public func cancelCopy() async {
-        guard let copyID else { return }
-        if case .failure(let failure) = await run(nil, CommandInvocation(id: Self.cancelCommand, args: .object(["id": .string(copyID)]))) {
-            error = Self.text(failure)
+        guard copying else { return }
+        guard let copyID else {
+            cancelRequested = true
+            return
         }
+        await sendCancel(copyID)
     }
 
     public func switchWithoutCopy() async {
@@ -173,7 +194,7 @@ public final class NvimConfigModel {
     }
 
     public func dismiss() {
-        guard copyID == nil else { return }
+        guard !copying else { return }
         sheet = nil
     }
 
@@ -207,11 +228,11 @@ public final class NvimConfigModel {
             return true
         case .failure(let failure):
             let message = Self.text(failure)
-            guard message.hasPrefix("unsaved buffers") else {
+            guard let marker = message.range(of: Self.unsavedMarker) else {
                 error = message
                 return false
             }
-            guard await confirm("Neovim in “\(workspace.name)” has \(message). Restart and discard the changes?") else { return false }
+            guard await confirm("Neovim in “\(workspace.name)” has \(message[marker.lowerBound...]). Restart and discard the changes?") else { return false }
             if case .failure(let forced) = await run(workspace.id, CommandInvocation(id: Self.restartCommand, args: .object(["force": .bool(true)]))) {
                 error = Self.text(forced)
                 return false
@@ -220,12 +241,22 @@ public final class NvimConfigModel {
         }
     }
 
-    private func fail(_ message: String) {
-        sheet = .failed(message, useExisting: message.hasSuffix("already exists"))
+    private func sendCancel(_ id: String) async {
+        if case .failure(let failure) = await run(nil, CommandInvocation(id: Self.cancelCommand, args: .object(["id": .string(id)]))) {
+            copyNotice = "Cancel failed: \(Self.text(failure))"
+        }
     }
 
-    private static func text(_ error: ClubmateError) -> String {
-        if case .rpc(_, let message) = error { return message }
-        return error.message
+    private func fail(_ message: String) {
+        let existing = info.map { message.contains("\($0.configDir) already exists") } ?? false
+        sheet = .failed(message, useExisting: existing)
+    }
+
+    static func text(_ error: ClubmateError) -> String {
+        guard case .rpc(_, let message) = error else { return error.message }
+        if message.hasPrefix("plugin "), let range = message.range(of: " command.run: ") {
+            return String(message[range.upperBound...])
+        }
+        return message
     }
 }

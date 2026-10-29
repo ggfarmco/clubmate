@@ -267,7 +267,7 @@ final class AppModel {
     private func runCommand(_ invocation: CommandInvocation, in workspace: String?) async -> Result<JSONValue, ClubmateError> {
         guard let client = supervisor.client else { return .failure(.notRunning) }
         let active = keyWindowID.flatMap { layout.window($0)?.active } ?? layout.windows.lazy.compactMap(\.active).first
-        guard let projectID = workspace ?? active ?? projects?.projects.first?.id else { return .failure(.notRunning) }
+        guard let projectID = workspace ?? active ?? projects?.projects.first?.id else { return .failure(NvimConfigModel.noWorkspace) }
         do {
             return .success(try await client.commandRun(id: invocation.id, projectID: projectID, args: invocation.args))
         } catch let error as ClubmateError {
