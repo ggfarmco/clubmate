@@ -26,7 +26,7 @@ const (
 	maxTreeSparkTotal = 100_000
 )
 
-var actionPattern = regexp.MustCompile(`^[a-z][a-z0-9.-]*$`)
+var actionPattern = regexp.MustCompile(`^[a-z][a-zA-Z0-9.-]*$`)
 
 var ErrInvalidTree = errors.New("invalid sdui tree")
 
@@ -53,9 +53,19 @@ var (
 	badgeTones = []string{"neutral", "accent", "success", "warning", "danger"}
 
 	itemFields = map[string]propCheck{
-		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString,
+		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString, "menu": listOf(menuEntryCheck),
 	}
 	itemRequired = []string{"id", "label"}
+
+	messageRoles     = []string{"user", "agent", "thought"}
+	planStatuses     = []string{"pending", "in_progress", "completed"}
+	toolKinds        = []string{"read", "edit", "delete", "move", "search", "execute", "think", "fetch", "switch_mode", "other"}
+	toolStatuses     = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
+	toolFormats      = []string{"diff", "text", "terminal"}
+	permissionKinds  = []string{"allow_once", "allow_always", "reject_once", "reject_always"}
+	attachmentKinds  = []string{"file", "selection"}
+	attachmentFields = map[string]propCheck{"id": isString, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
+	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
 	columnAligns = []string{"left", "right"}
 	cellTones    = []string{"", "ok", "warn", "danger"}
@@ -143,6 +153,37 @@ var (
 		"form":    {props: map[string]propCheck{"action": actionCheck}, children: anyChildren, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
 		"empty":   {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
+
+		"transcript": {children: anyChildren},
+		"message": {
+			required: []string{"role", "text"},
+			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck},
+			children: noChildren,
+		},
+		"plan": {required: []string{"entries"}, props: map[string]propCheck{"entries": listOf(planEntryCheck)}, children: noChildren},
+		"toolCard": {
+			required: []string{"kind", "title"},
+			props: map[string]propCheck{
+				"kind": oneOf(toolKinds), "title": isString, "status": oneOf(toolStatuses), "body": toolBodyCheck,
+				"truncated": isBool, "actions": listOf(cardActionCheck),
+			},
+			children:    noChildren,
+			interactive: true,
+		},
+		"permissionCard": {
+			required:    []string{"request", "text", "options"},
+			props:       map[string]propCheck{"request": isString, "text": isString, "options": listOf(permissionOptionCheck), "outcome": isString, "action": actionCheck},
+			children:    noChildren,
+			interactive: true,
+		},
+		"composer": {
+			props: map[string]propCheck{
+				"placeholder": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString,
+				"commands": listOf(commandCheck), "attach": arrayOf(oneOf(attachmentKinds)), "attachments": attachmentsCheck, "running": isBool,
+			},
+			children:    noChildren,
+			interactive: true,
+		},
 	}
 )
 
@@ -395,6 +436,53 @@ func itemCheck(c *validator, v any) error {
 
 func optionCheck(c *validator, v any) error {
 	return objectCheck([]string{"value", "label"}, map[string]propCheck{"value": isString, "label": isString})(c, v)
+}
+
+func menuEntryCheck(c *validator, v any) error {
+	return objectCheck([]string{"action", "label"}, map[string]propCheck{"action": actionCheck, "label": isString, "confirm": isString})(c, v)
+}
+
+func planEntryCheck(c *validator, v any) error {
+	return objectCheck([]string{"content", "status"}, map[string]propCheck{"content": isString, "status": oneOf(planStatuses)})(c, v)
+}
+
+func toolBodyCheck(c *validator, v any) error {
+	return objectCheck([]string{"format", "text"}, map[string]propCheck{"format": oneOf(toolFormats), "text": isString})(c, v)
+}
+
+func cardActionCheck(c *validator, v any) error {
+	return objectCheck([]string{"action", "label"}, map[string]propCheck{"action": actionCheck, "label": isString, "icon": isString, "value": payloadCheck})(c, v)
+}
+
+func permissionOptionCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds)})(c, v)
+}
+
+func commandCheck(c *validator, v any) error {
+	return objectCheck([]string{"name"}, map[string]propCheck{"name": isString, "description": isString, "hint": isString})(c, v)
+}
+
+func payloadCheck(_ *validator, v any) error {
+	if obj, ok := v.(map[string]any); ok {
+		for name, field := range obj {
+			if !isScalar(field) {
+				return fmt.Errorf("field %s must be a string, number or boolean", name)
+			}
+		}
+		return nil
+	}
+	if !isScalar(v) {
+		return errors.New("must be a string, number, boolean or an object of those")
+	}
+	return nil
+}
+
+func isScalar(v any) bool {
+	switch v.(type) {
+	case string, float64, bool:
+		return true
+	}
+	return false
 }
 
 func treeItemCheck(c *validator, v any) error {
