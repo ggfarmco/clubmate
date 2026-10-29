@@ -72,6 +72,10 @@ func RuntimeDir() string {
 	return os.Getenv("CLUBMATE_PLUGIN_RUNTIME_DIR")
 }
 
+func Flavor() string {
+	return os.Getenv("CLUBMATE_FLAVOR")
+}
+
 func Main(p Plugin) {
 	if Run(p) != nil {
 		os.Exit(1)

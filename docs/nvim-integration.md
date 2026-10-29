@@ -48,6 +48,17 @@ When you review a branch — the checked-out one or any other — Clubmate uses 
 
 Opening a file larger than 5 MiB, or one whose first 8000 bytes contain a NUL byte, uses light mode: `noautocmd noswapfile edit`, so no filetype detection, treesitter, LSP or swap file, plus `syntax=off` and `b:clubmate_light = true`. The status bar shows a "light" badge for such a buffer. Other files open normally. Opening is asynchronous, so a slow open never times out the command; if nvim then refuses the open (for example E37 with `nohidden` and a modified buffer), the status bar shows an "open failed" badge until the next buffer is entered.
 
+## Separate config
+
+The `nvimConfig` setting (Settings → Editor) picks which config nvim uses:
+
+- `shared` (the default): `~/.config/nvim`, as in a plain terminal. Clubmate removes any inherited `NVIM_APPNAME` before it starts nvim.
+- `clubmate`: nvim starts with `NVIM_APPNAME=clubmate` (`clubmate-dev` for dev builds), so it uses `$XDG_CONFIG_HOME/<app>`, `$XDG_DATA_HOME/<app>`, `$XDG_STATE_HOME/<app>` and `$XDG_CACHE_HOME/<app>` (by default `~/.config`, `~/.local/share`, `~/.local/state` and `~/.cache`).
+
+A running nvim keeps its config until it restarts. Paths hard-coded to `~/.config/nvim` in your config still point there.
+
+`editor-nvim.config` reads the mode and the dirs, or stores a new mode. `editor-nvim.config-copy {data}` starts a copy of `~/.config/nvim`, and with `data` of `~/.local/share/nvim`, into the `<app>` dirs; state and cache start empty. It never writes to the sources and refuses when a destination exists, naming it. It skips `.git` at the source root, copies symlinks as symlinks without following them, keeps file modes and skips sockets and FIFOs. Each part is copied into `<dest>.clubmate-tmp-<random>` and renamed into place only when all parts are complete, without replacing anything; a cancelled or failed copy removes its temp dirs. `editor-nvim.config-copy-status {id}` returns `{copied, total, done, error?}` in bytes, waiting up to 1 s for the copy to finish; `editor-nvim.config-copy-cancel {id}` stops it. These commands are hidden and not available to agents.
+
 ## Opening at a line and column
 
 `editor.open` takes an optional 1-based `line` and `col`. `col` is a byte column, as ripgrep reports it; it is clamped to the line length and ignored without `line`.

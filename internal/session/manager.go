@@ -65,6 +65,7 @@ type CreateRequest struct {
 	Command   []string `json:"command"`
 	Cwd       string   `json:"cwd"`
 	Env       []string `json:"env"`
+	UnsetEnv  []string `json:"unsetEnv"`
 }
 
 type ListFilter struct {
@@ -108,6 +109,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error
 		Command:   req.Command,
 		Cwd:       req.Cwd,
 		Env:       req.Env,
+		UnsetEnv:  req.UnsetEnv,
 		Socket:    m.dirs.SessionSocket(sid),
 		MetaPath:  m.dirs.SessionMeta(sid),
 	}

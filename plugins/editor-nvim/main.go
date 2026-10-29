@@ -148,6 +148,7 @@ type deletedPayload struct {
 
 type app struct {
 	nvimPath string
+	copies   *copies
 	navMu    sync.Mutex
 	mu       sync.Mutex
 	editors  map[string]*editor
@@ -168,7 +169,7 @@ type editor struct {
 }
 
 func main() {
-	a := &app{editors: map[string]*editor{}, deleted: map[string]bool{}}
+	a := &app{copies: newCopies(), editors: map[string]*editor{}, deleted: map[string]bool{}}
 	a.nvimPath, _ = exec.LookPath("nvim")
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
 }
@@ -252,7 +253,8 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	name := strings.TrimPrefix(cmd.ID, h.PluginID()+".")
-	if name == "navigation" {
+	switch name {
+	case "navigation":
 		var args navigationArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("navigation args: %w", err)
@@ -261,6 +263,34 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, errNavigationSide
 		}
 		return a.navigation(ctx, h, args)
+	case "config":
+		var args configArgs
+		if len(cmd.Args) > 0 {
+			if err := json.Unmarshal(cmd.Args, &args); err != nil {
+				return nil, fmt.Errorf("config args: %w", err)
+			}
+		}
+		return a.config(ctx, h, args)
+	case "config-copy":
+		var args copyArgs
+		if len(cmd.Args) > 0 {
+			if err := json.Unmarshal(cmd.Args, &args); err != nil {
+				return nil, fmt.Errorf("config-copy args: %w", err)
+			}
+		}
+		return a.configCopy(args)
+	case "config-copy-status":
+		var args copyIDArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("config-copy-status args: %w", err)
+		}
+		return a.copies.status(ctx, args.ID)
+	case "config-copy-cancel":
+		var args copyIDArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("config-copy-cancel args: %w", err)
+		}
+		return nil, a.copies.cancel(args.ID)
 	}
 	e := a.editor(cmd.ProjectID)
 	if e == nil {
@@ -506,11 +536,17 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, s
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("remove stale socket: %w", err)
 	}
+	env, unset, err := a.sessionEnv(ctx, h)
+	if err != nil {
+		return "", err
+	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
 		ProjectID: projectID,
 		Title:     sessionTitle,
 		Command:   []string{a.nvimPath, "--listen", sock},
 		Cwd:       root,
+		Env:       env,
+		UnsetEnv:  unset,
 	})
 	return s.ID, err
 }

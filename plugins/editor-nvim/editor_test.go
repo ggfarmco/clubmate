@@ -538,7 +538,7 @@ func startEditorIn(t *testing.T, s setup) *editor {
 	if _, err := exec.LookPath("nvim"); err != nil {
 		t.Skip("nvim not in PATH")
 	}
-	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"} {
+	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"} {
 		t.Setenv(key, t.TempDir())
 	}
 	if s.initLua != "" {
