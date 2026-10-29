@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -42,12 +43,9 @@ func newIndex() index {
 
 func (x index) Files(ctx context.Context, folders []string) ([]string, error) {
 	var out []string
-	for i, label := range labels(folders) {
-		root, err := filepath.EvalSymlinks(folders[i])
-		if err != nil {
-			logError("index "+folders[i], err)
-			continue
-		}
+	for _, r := range newRoots(folders) {
+		root, label := r.resolved, r.label
+		var err error
 		if x.isRepo(root) {
 			err = x.listRepo(ctx, root, label, &out)
 		} else {
@@ -187,13 +185,21 @@ func lsFiles(ctx context.Context, repo string, args ...string) ([]byte, error) {
 }
 
 func newRoots(folders []string) []root {
-	var out []root
+	var all []root
 	for i, label := range labels(folders) {
 		resolved, err := filepath.EvalSymlinks(folders[i])
 		if err != nil {
+			logError("resolve "+folders[i], err)
 			continue
 		}
-		out = append(out, root{folder: folders[i], resolved: resolved, label: label})
+		all = append(all, root{folder: folders[i], resolved: resolved, label: label})
+	}
+	out := make([]root, 0, len(all))
+	for _, r := range all {
+		inner := slices.ContainsFunc(all, func(o root) bool { return o.resolved != r.resolved && within(o.resolved, r.resolved) })
+		if !inner {
+			out = append(out, r)
+		}
 	}
 	return out
 }

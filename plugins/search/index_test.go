@@ -88,6 +88,37 @@ func TestSearchFilesLineSuffix(t *testing.T) {
 	assert.Equal(t, match{Path: "main.go", AbsPath: filepath.Join(dir, "main.go"), Positions: []int{0, 1, 2, 3, 4, 5, 6}, Line: 12}, got.Matches[0])
 }
 
+func TestRefusals(t *testing.T) {
+	base := tempDir(t)
+	dir, outside := filepath.Join(base, "ws"), filepath.Join(base, "out")
+	write(t, dir, "a.txt", "inside\n")
+	write(t, outside, "secret.txt", "secret\n")
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(dir, "link.txt")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "linkdir")))
+	h, id := start(t, dir)
+	home, err := h.Svc.HomeWorkspace(t.Context())
+	require.NoError(t, err)
+	run := func(projectID, cmd string, args map[string]any) error {
+		return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": cmd, "projectId": projectID, "args": args}, nil)
+	}
+
+	require.NoError(t, run(id, "search.preview", map[string]any{"path": filepath.Join(dir, "a.txt"), "line": 1}))
+	for _, path := range []string{
+		filepath.Join(dir, "link.txt"),
+		filepath.Join(dir, "linkdir", "secret.txt"),
+		filepath.Join(dir, "..", "out", "secret.txt"),
+	} {
+		assert.Error(t, run(id, "search.preview", map[string]any{"path": path, "line": 1}), path)
+	}
+	for cmd, args := range map[string]map[string]any{
+		"search.files":   {"query": "a"},
+		"search.start":   {"query": "a"},
+		"search.preview": {"path": filepath.Join(dir, "a.txt"), "line": 1},
+	} {
+		assert.ErrorContains(t, run(home.ID, cmd, args), "search unavailable in the home workspace", cmd)
+	}
+}
+
 func start(t *testing.T, folders ...string) (*testutil.PluginHarness, string) {
 	t.Helper()
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/search", "plugins/search/plugin.json"))

@@ -44,6 +44,7 @@ const (
 	quickfixText   = 512
 	quickfixFiles  = 1000
 	quickfixPath   = 4096
+	quickfixBytes  = 2 << 20
 )
 
 var (
@@ -66,6 +67,7 @@ var (
 	errQuickfixLine   = fmt.Errorf("quickfix: line must be 1 to %d", math.MaxInt32)
 	errQuickfixCol    = fmt.Errorf("quickfix: col must be 0 (none) or 1 to %d", math.MaxInt32)
 	errQuickfixText   = fmt.Errorf("quickfix: text must be at most %d chars without NUL", quickfixText)
+	errQuickfixSize   = fmt.Errorf("quickfix: items hold more than %d MiB of paths and text; send fewer", quickfixBytes>>20)
 )
 
 type projectEvent struct {
@@ -619,7 +621,12 @@ func validQuickfix(args quickfixArgs) error {
 	if utf8.RuneCountInString(args.Title) > quickfixText || strings.ContainsAny(args.Title, "\n\r\x00") {
 		return errQuickfixTitle
 	}
+	size := 0
 	for i, it := range args.Items {
+		size += len(it.Path) + len(it.Text)
+		if size > quickfixBytes {
+			return errQuickfixSize
+		}
 		var err error
 		switch {
 		case !filepath.IsAbs(it.Path) || len(it.Path) > quickfixPath || strings.ContainsAny(it.Path, "\n\r\x00"):

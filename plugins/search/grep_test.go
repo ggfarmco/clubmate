@@ -269,8 +269,8 @@ func (g *gated) run(ctx context.Context, opts grepOptions, emit serialEmit) erro
 	})
 }
 
-func prepared(eng engine) func(context.Context) (engine, error) {
-	return func(context.Context) (engine, error) { return eng, nil }
+func prepared(eng engine) func(context.Context, func()) (engine, error) {
+	return func(context.Context, func()) (engine, error) { return eng, nil }
 }
 
 func drain(t *testing.T, s *searches, eng engine, opts grepOptions) ([]grepMatch, pollResult) {

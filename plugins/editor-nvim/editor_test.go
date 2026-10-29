@@ -90,6 +90,9 @@ func TestQuickfix(t *testing.T) {
 	}
 	require.ErrorContains(t, quickfix(map[string]any{"path": "a.go", "line": 1}), "absolute")
 	drain(c)
+	long := map[string]any{"path": "/" + strings.Repeat("a", 4000), "line": 1}
+	require.ErrorContains(t, quickfix(slices.Repeat([]map[string]any{long}, 600)...), "MiB")
+	drain(c)
 	require.NoError(t, quickfix(map[string]any{"path": a, "line": 2, "col": 3, "text": "line"}, map[string]any{"path": b, "line": 4}))
 	testutil.Eventually(t, func() bool {
 		return eval[map[string]any](t, v, "getqflist({'title': 1, 'size': 1})")["size"] == int64(2)

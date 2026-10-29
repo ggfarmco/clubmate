@@ -2,15 +2,18 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unicode/utf8"
 )
@@ -27,6 +30,8 @@ const (
 	maxContext     = 100
 	defaultContext = 8
 )
+
+var errNotRegular = errors.New("not a regular file")
 
 type grepOptions struct {
 	Query string `json:"query"`
@@ -51,6 +56,7 @@ type pollResult struct {
 	Next      int         `json:"next"`
 	Done      bool        `json:"done"`
 	Truncated bool        `json:"truncated,omitempty"`
+	Indexing  bool        `json:"indexing,omitempty"`
 	Error     string      `json:"error,omitempty"`
 }
 
@@ -68,6 +74,7 @@ type engine interface {
 type search struct {
 	id        string
 	workspace string
+	indexing  bool
 	cancel    context.CancelFunc
 	mu        sync.Mutex
 	matches   []grepMatch
@@ -91,7 +98,7 @@ func newSearches() *searches {
 	return &searches{byID: map[string]*search{}, byWorkspace: map[string]*search{}}
 }
 
-func (ss *searches) start(workspace string, prepare func(context.Context) (engine, error), opts grepOptions) string {
+func (ss *searches) start(workspace string, prepare func(context.Context, func()) (engine, error), opts grepOptions) string {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &search{id: "grep-" + strconv.FormatInt(ss.seq.Add(1), 10), workspace: workspace, cancel: cancel, wake: make(chan struct{})}
 	ss.mu.Lock()
@@ -105,7 +112,8 @@ func (ss *searches) start(workspace string, prepare func(context.Context) (engin
 		old.stop()
 	}
 	go func() {
-		eng, err := prepare(ctx)
+		eng, err := prepare(ctx, s.markIndexing)
+		s.markReady()
 		if err == nil {
 			err = eng.run(ctx, opts, s.emit)
 		}
@@ -134,10 +142,12 @@ func (ss *searches) poll(ctx context.Context, workspace, id string, after int) p
 		select {
 		case <-wake:
 		case <-timer.C:
-			return pollResult{ID: id, Matches: []grepMatch{}, Next: after}
 		case <-ctx.Done():
-			return pollResult{ID: id, Matches: []grepMatch{}, Next: after}
 		}
+		s.mu.Lock()
+		res := s.page(min(max(after, 0), s.total))
+		s.mu.Unlock()
+		return res
 	}
 }
 
@@ -183,13 +193,16 @@ func collect(ctx context.Context, eng engine, opts grepOptions, limit int) ([]gr
 	defer cancel()
 	out := []grepMatch{}
 	truncated := false
+	size := 0
 	err := eng.run(inner, opts, func(batch []grepMatch) bool {
 		for _, m := range batch {
-			if len(out) >= limit {
+			raw, err := json.Marshal(m)
+			if err != nil || len(out) >= limit || size+len(raw) > pollBytes {
 				truncated = true
 				cancel()
 				return false
 			}
+			size += len(raw)
 			out = append(out, m)
 		}
 		return true
@@ -233,6 +246,19 @@ func (s *search) finish(ctx context.Context, err error) {
 	s.cancel()
 }
 
+func (s *search) markIndexing() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.indexing = true
+	s.signal()
+}
+
+func (s *search) markReady() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.indexing = false
+}
+
 func (s *search) stop() {
 	s.mu.Lock()
 	s.cancelled = true
@@ -251,6 +277,9 @@ func (s *search) page(after int) pollResult {
 	if s.cancelled {
 		res.Done = true
 		return res
+	}
+	if !s.done {
+		res.Indexing = s.indexing
 	}
 	if s.freed {
 		res.Next, res.Done, res.Truncated, res.Error = s.total, true, s.truncated, s.err
@@ -279,12 +308,30 @@ func (s *search) page(after int) pollResult {
 }
 
 func newMatch(display, abs string, line int, raw []byte, spans [][2]int) grepMatch {
+	spans = mergeSpans(spans)
 	col := 1
 	if len(spans) > 0 {
 		col = spans[0][0] + 1
 	}
 	text, ranges := snippet(raw, spans)
 	return grepMatch{Path: display, AbsPath: abs, Line: line, Col: col, Text: text, Ranges: ranges}
+}
+
+func mergeSpans(spans [][2]int) [][2]int {
+	if len(spans) < 2 {
+		return spans
+	}
+	sorted := slices.Clone(spans)
+	slices.SortFunc(sorted, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
+	out := sorted[:1]
+	for _, sp := range sorted[1:] {
+		if last := &out[len(out)-1]; sp[0] <= last[1] {
+			last[1] = max(last[1], sp[1])
+			continue
+		}
+		out = append(out, sp)
+	}
+	return out
 }
 
 func snippet(raw []byte, spans [][2]int) (string, [][2]int) {
@@ -331,13 +378,20 @@ func runesForward(raw []byte, at, n int) int {
 }
 
 func preview(path string, line, around int) ([]previewLine, error) {
-	f, err := os.Open(filepath.Clean(path))
+	f, err := os.OpenFile(filepath.Clean(path), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errNotRegular
+	}
 	first, last := max(line-around, 1), line+around
-	r := bufio.NewReader(f)
+	r := bufio.NewReader(io.LimitReader(f, maxFileBytes))
 	out := []previewLine{}
 	for n := 1; n <= last; n++ {
 		raw, err := readLine(r)

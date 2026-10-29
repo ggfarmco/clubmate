@@ -35,6 +35,7 @@ var (
 	errNoProject      = errors.New("command needs a project")
 	errEmptyQuery     = errors.New("query is empty")
 	errOutside        = errors.New("path is outside the workspace folders")
+	errIndexing       = errors.New("the workspace is still being indexed; retry shortly")
 	errHome           = &jsonrpc2.Error{Code: jsonrpc2.CodeInvalidParams, Message: "search unavailable in the home workspace"}
 )
 
@@ -237,7 +238,7 @@ func (a *app) startGrep(ctx context.Context, h *pluginsdk.Host, projectID string
 	if opts.Query == "" {
 		return startResult{}, errEmptyQuery
 	}
-	id := a.grep.start(p.ID, func(ctx context.Context) (engine, error) { return a.engine(ctx, h, p) }, opts)
+	id := a.grep.start(p.ID, func(ctx context.Context, indexing func()) (engine, error) { return a.engine(ctx, h, p, indexing) }, opts)
 	return startResult{ID: id}, nil
 }
 
@@ -255,8 +256,12 @@ func (a *app) grepNow(ctx context.Context, h *pluginsdk.Host, projectID string, 
 	if limit <= 0 {
 		limit = defaultGrepLimit
 	}
-	eng, err := a.engine(ctx, h, p)
+	indexing := false
+	eng, err := a.engine(ctx, h, p, func() { indexing = true })
 	if err != nil {
+		if ctx.Err() != nil && indexing {
+			return grepResult{}, errIndexing
+		}
 		if ctx.Err() != nil {
 			return grepResult{Matches: []grepMatch{}, Truncated: true}, nil
 		}
@@ -266,22 +271,45 @@ func (a *app) grepNow(ctx context.Context, h *pluginsdk.Host, projectID string, 
 	return grepResult{Matches: matches, Truncated: truncated}, err
 }
 
-func (a *app) engine(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) (engine, error) {
+func (a *app) engine(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project, indexing func()) (engine, error) {
 	roots := newRoots(p.Repos)
 	if bin, err := exec.LookPath("rg"); err == nil && !slices.ContainsFunc(roots, func(r root) bool { return a.idx.guarded(r.resolved) }) {
 		return rgEngine{bin: bin, roots: roots}, nil
 	}
-	list, err := a.listing(ctx, h, p, nil)
-	if err != nil {
-		return nil, err
+	ready := make(chan time.Time)
+	close(ready)
+	for {
+		list, err := a.listing(ctx, h, p, ready)
+		if err != nil {
+			return nil, err
+		}
+		if list != nil {
+			return builtinEngine{list: list}, nil
+		}
+		indexing()
+		if list, err = a.listing(ctx, h, p, nil); err != nil {
+			return nil, err
+		}
+		if list != nil {
+			return builtinEngine{list: list}, nil
+		}
+		if p, err = project(ctx, h, p.ID); err != nil {
+			return nil, err
+		}
 	}
-	return builtinEngine{list: list}, nil
 }
 
 func (a *app) preview(ctx context.Context, h *pluginsdk.Host, projectID string, args previewArgs) (previewResult, error) {
 	p, err := project(ctx, h, projectID)
 	if err != nil {
 		return previewResult{}, err
+	}
+	info, err := os.Lstat(args.Path)
+	if err != nil {
+		return previewResult{}, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return previewResult{}, errOutside
 	}
 	path, err := filepath.EvalSymlinks(args.Path)
 	if err != nil {

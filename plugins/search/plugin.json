@@ -66,6 +66,7 @@
             "next": {"type": "integer", "description": "Value of after for the next poll."},
             "done": {"type": "boolean", "description": "The search finished, was cancelled or is unknown, and every match has been returned."},
             "truncated": {"type": "boolean", "description": "The search stopped at the 10000-match cap."},
+            "indexing": {"type": "boolean", "description": "The search is waiting for the workspace's first file index; keep polling."},
             "error": {"type": "string", "description": "Why the search failed, such as an invalid regex; set only with done."}
           }
         }
@@ -115,7 +116,7 @@
         },
         "result": {
           "properties": {
-            "truncated": {"type": "boolean", "description": "More matches exist than limit, or the 4 s budget ran out."}
+            "truncated": {"type": "boolean", "description": "More matches exist than limit, the reply reached its 448 KiB budget, or the 4 s budget ran out."}
           }
         }
       }
