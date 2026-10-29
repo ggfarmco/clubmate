@@ -94,6 +94,27 @@ vendored_section() {
   block LICENSE "$TMP/stb-license"
 }
 
+bundled_tools_section() {
+  local name version pinned
+  for name in ripgrep neovim; do
+    version="$(cat "$FRAGMENTS/$name/VERSION")"
+    pinned="$(awk -v n="$name" '$1 == n { print $2 }' scripts/tools.lock)"
+    [[ "$version" == "$pinned" ]] || fail "$name licences are for $version, tools.lock pins $pinned"
+  done
+  printf '## Tools bundled in Clubmate.app\n\n'
+  version="$(cat "$FRAGMENTS/ripgrep/VERSION")"
+  printf '### ripgrep %s\n\nSource: https://github.com/BurntSushi/ripgrep, dual-licensed Unlicense OR MIT.\n\n' "$version"
+  block UNLICENSE "$FRAGMENTS/ripgrep/UNLICENSE"
+  block LICENSE-MIT "$FRAGMENTS/ripgrep/LICENSE-MIT"
+  cat "$FRAGMENTS/ripgrep/crates.md"
+  printf '\n'
+  version="$(cat "$FRAGMENTS/neovim/VERSION")"
+  printf '### Neovim %s\n\nSource: https://github.com/neovim/neovim\n\n' "$version"
+  block LICENSE.txt "$FRAGMENTS/neovim/LICENSE.txt"
+  cat "$FRAGMENTS/neovim/deps.md"
+  printf '\n'
+}
+
 fonts_section() {
   local res="$GHOSTTY_SRC/src/font/res"
   printf '## Fonts bundled in libghostty\n\nghostty embeds fonts from `src/font/res`; JetBrains Mono and Symbols Nerd Font are listed with the GhosttyKit dependencies above.\n\n'
@@ -122,6 +143,7 @@ trap 'rm -rf "$TMP"' EXIT
   go_section
   ghostty_section
   vendored_section
+  bundled_tools_section
   fonts_section
   sparkle_section
 } >"$OUT.tmp"
