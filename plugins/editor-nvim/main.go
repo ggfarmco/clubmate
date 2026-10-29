@@ -822,6 +822,7 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root s
 	}
 	e := a.lookup(projectID, root)
 	if e == nil && len(kill) == 0 {
+		a.setStopping(projectID, root, true)
 		return nil
 	}
 	if e == nil {
