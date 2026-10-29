@@ -167,6 +167,9 @@ private struct ProjectCommands: Commands {
             Button("Go to File…") { session?.toggle(.goToFile) }
                 .keyboardShortcut("p")
                 .disabled(session == nil)
+            Button("Find in Files…") { session?.toggle(.findInFiles) }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .disabled(session == nil)
             Button("Toggle Sidebar") { store?.toggleSidebar(app.settings) }
                 .keyboardShortcut("b")
                 .disabled(store == nil)

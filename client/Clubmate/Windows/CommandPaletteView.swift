@@ -91,6 +91,7 @@ struct PaletteField: NSViewRepresentable {
     let move: (Int) -> Void
     let submit: () -> Void
     let cancel: () -> Void
+    var alternateSubmit: (() -> Void)?
 
     @Environment(\.theme) private var theme
 
@@ -133,6 +134,9 @@ struct PaletteField: NSViewRepresentable {
             case #selector(NSResponder.moveUp(_:)): parent.move(-1)
             case #selector(NSResponder.moveDown(_:)): parent.move(1)
             case #selector(NSResponder.insertNewline(_:)): parent.submit()
+            case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
+                guard let alternate = parent.alternateSubmit else { return false }
+                alternate()
             case #selector(NSResponder.cancelOperation(_:)): parent.cancel()
             default: return false
             }

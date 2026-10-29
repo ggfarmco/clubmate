@@ -68,6 +68,38 @@ final class GoToFileTests: XCTestCase {
         XCTAssertEqual(stuck.calls.count, calls)
     }
 
+    func testGoToFileCancelDuringPendingChooseOpensNothing() async throws {
+        let search = FakeSearch(held: ["ab"], replies: ["a": [match("a.go")], "ab": [match("ab.go")]])
+        var dismissed = false
+        let model = GoToFileModel(debounce: .zero, retry: .zero, run: search.run, dismiss: { dismissed = true }, report: { _ in })
+
+        model.update("a")
+        try await waitUntil { !model.results.isEmpty }
+        model.update("ab")
+        try await waitUntil { search.waiting["ab"] != nil }
+        let choosing = Task { await model.choose() }
+        try await Task.sleep(for: .milliseconds(20))
+        model.cancel()
+        search.release("ab")
+        await choosing.value
+
+        XCTAssertFalse(dismissed)
+        XCTAssertFalse(search.calls.contains { $0.id == "editor.open" })
+    }
+
+    func testGoToFileChooseWhileIndexingOpensNothing() async throws {
+        let search = FakeSearch(indexing: 2, replies: ["": [match("main.go")]])
+        let model = GoToFileModel(debounce: .zero, retry: .milliseconds(30), run: search.run, dismiss: {}, report: { _ in })
+
+        model.update("")
+        try await waitUntil { model.status == .indexing }
+        await model.choose()
+        try await waitUntil { !model.results.isEmpty }
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertFalse(search.calls.contains { $0.id == "editor.open" })
+    }
+
     func testGoToFileHighlightsScalars() {
         let match = GoToFileMatch(path: "a/𝒳b.go", absPath: "/w/a/𝒳b.go", positions: [0, 2, 3])
 

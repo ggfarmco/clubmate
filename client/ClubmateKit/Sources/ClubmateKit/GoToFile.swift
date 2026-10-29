@@ -29,19 +29,8 @@ public struct GoToFileMatch: Equatable, Sendable {
     }
 
     public func runs(in range: Range<Int>) -> [HighlightRun] {
-        let scalars = Array(path.unicodeScalars)
-        let bounded = max(range.lowerBound, 0)..<min(range.upperBound, scalars.count)
         let matched = Set(positions)
-        var runs: [HighlightRun] = []
-        for index in bounded {
-            let hit = matched.contains(index)
-            if let last = runs.last, last.matched == hit {
-                runs[runs.count - 1] = HighlightRun(text: last.text + String(scalars[index]), matched: hit)
-            } else {
-                runs.append(HighlightRun(text: String(scalars[index]), matched: hit))
-            }
-        }
-        return runs
+        return HighlightRun.split(path, in: range) { matched.contains($0) }
     }
 }
 
@@ -52,6 +41,26 @@ public struct HighlightRun: Equatable, Sendable {
     public init(text: String, matched: Bool) {
         self.text = text
         self.matched = matched
+    }
+
+    public static func split(_ text: String, in range: Range<Int>? = nil, matched: (Int) -> Bool) -> [HighlightRun] {
+        let scalars = Array(text.unicodeScalars)
+        let wanted = range ?? 0..<scalars.count
+        let bounded = max(wanted.lowerBound, 0)..<max(min(wanted.upperBound, scalars.count), max(wanted.lowerBound, 0))
+        var runs: [HighlightRun] = []
+        var current = String.UnicodeScalarView()
+        var hit = false
+        for index in bounded {
+            let next = matched(index)
+            if next != hit, !current.isEmpty {
+                runs.append(HighlightRun(text: String(current), matched: hit))
+                current = String.UnicodeScalarView()
+            }
+            hit = next
+            current.append(scalars[index])
+        }
+        if !current.isEmpty { runs.append(HighlightRun(text: String(current), matched: hit)) }
+        return runs
     }
 }
 
@@ -88,6 +97,7 @@ public final class GoToFileModel {
     @ObservationIgnored private var pending: Task<Void, Never>?
     @ObservationIgnored private var serial = 0
     @ObservationIgnored private var choosing = false
+    @ObservationIgnored private var epoch = 0
 
     public init(
         debounce: Duration = .milliseconds(40),
@@ -128,11 +138,13 @@ public final class GoToFileModel {
     }
 
     public func choose() async {
-        guard !choosing else { return }
+        guard !choosing, status != .indexing else { return }
         choosing = true
         defer { choosing = false }
+        let epoch = epoch
         while let task = pending {
             await task.value
+            guard epoch == self.epoch, status != .indexing else { return }
             if pending == task { break }
         }
         guard results.indices.contains(selection) else { return }
@@ -148,38 +160,38 @@ public final class GoToFileModel {
     }
 
     public func cancel() {
+        epoch += 1
         serial += 1
         pending?.cancel()
         pending = nil
     }
 
     private func fetch(_ query: String, _ serial: Int) async {
-        while true {
-            let reply = await run(CommandInvocation(id: Self.searchCommand, args: .object(["query": .string(query)])))
-            guard serial == self.serial, !Task.isCancelled else { return }
-            switch reply {
-            case .success(let value):
-                let fields = value.objectValue ?? [:]
-                if fields["indexing"]?.boolValue == true {
-                    status = .indexing
-                    results = []
-                    do { try await Task.sleep(for: retry) } catch { return }
-                    guard serial == self.serial else { return }
-                    continue
-                }
-                results = fields["matches"]?.arrayValue?.compactMap(GoToFileMatch.init) ?? []
-                truncated = fields["truncated"]?.boolValue == true
-                capped = fields["capped"]?.boolValue == true
-                status = .ready
-            case .failure(let error):
+        let reply = await run(CommandInvocation(id: Self.searchCommand, args: .object(["query": .string(query)])))
+        guard serial == self.serial, !Task.isCancelled else { return }
+        switch reply {
+        case .success(let value):
+            let fields = value.objectValue ?? [:]
+            if fields["indexing"]?.boolValue == true {
+                status = .indexing
                 results = []
-                truncated = false
-                capped = false
-                status = Self.isHome(error) ? .unavailable : .failed(error.message)
+                pending = Task { [weak self, retry] in
+                    do { try await Task.sleep(for: retry) } catch { return }
+                    await self?.fetch(query, serial)
+                }
+                return
             }
-            selection = 0
-            return
+            results = fields["matches"]?.arrayValue?.compactMap(GoToFileMatch.init) ?? []
+            truncated = fields["truncated"]?.boolValue == true
+            capped = fields["capped"]?.boolValue == true
+            status = .ready
+        case .failure(let error):
+            results = []
+            truncated = false
+            capped = false
+            status = Self.isHome(error) ? .unavailable : .failed(error.message)
         }
+        selection = 0
     }
 
     private static func isHome(_ error: ClubmateError) -> Bool {
