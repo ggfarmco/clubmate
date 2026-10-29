@@ -37,13 +37,24 @@ func (a *app) openCmd() *cobra.Command {
 }
 
 func splitLine(arg string) (string, int) {
-	i := strings.LastIndexByte(arg, ':')
-	if i <= 0 {
+	file, line, ok := cutNumber(arg)
+	if !ok {
 		return arg, 0
 	}
-	line, err := strconv.Atoi(arg[i+1:])
-	if err != nil || line <= 0 || strings.ContainsAny(arg[i+1:], "+-") {
-		return arg, 0
+	if inner, first, ok := cutNumber(file); ok {
+		return inner, first
 	}
-	return arg[:i], line
+	return file, line
+}
+
+func cutNumber(s string) (string, int, bool) {
+	i := strings.LastIndexByte(s, ':')
+	if i <= 0 || i == len(s)-1 || strings.Trim(s[i+1:], "0123456789") != "" {
+		return s, 0, false
+	}
+	n, err := strconv.Atoi(s[i+1:])
+	if err != nil {
+		return s, 0, false
+	}
+	return s[:i], n, true
 }

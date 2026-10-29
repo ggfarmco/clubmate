@@ -223,19 +223,14 @@ func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
 	return a
 }
 
-func TestAgentSendToOwnSessionNeedsNoApproval(t *testing.T) {
+func TestAgentSendNeedsApproval(t *testing.T) {
 	h := testutil.NewHarness(t)
 	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t)
 	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Command: []string{"sh", "-c", "exec cat"}})
 	require.NoError(t, err)
-	c := h.Client(t)
-	send := func(from string) error {
-		return c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "fromSession": from, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
-	}
-	require.NoError(t, send(s.ID))
-	err = send("ses_0123456789abcdef")
+	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
 	require.ErrorIs(t, err, rpc.ErrDenied)
 	assert.ErrorContains(t, err, "no app to approve")
 }

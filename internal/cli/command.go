@@ -20,7 +20,6 @@ import (
 
 const (
 	projectEnv = "CLUBMATE_PROJECT_ID"
-	sessionEnv = "CLUBMATE_SESSION_ID"
 )
 
 func (a *app) commandCmd() *cobra.Command {
@@ -116,11 +115,7 @@ func commandParams(id, projectID string) map[string]any {
 	if projectID == "" {
 		projectID = os.Getenv(projectEnv)
 	}
-	params := map[string]any{"id": id, "projectId": projectID}
-	if from := os.Getenv(sessionEnv); from != "" {
-		params["fromSession"] = from
-	}
-	return params
+	return map[string]any{"id": id, "projectId": projectID}
 }
 
 func (a *app) resolveCommand(ctx context.Context, id string) (rpc.Command, error) {
@@ -158,6 +153,7 @@ func coerce(c rpc.Command, pairs []string) (map[string]any, error) {
 			return nil, fmt.Errorf("argument %q is not key=value", pair)
 		}
 		var prop schema.Prop
+		ok = false
 		if c.Args != nil {
 			prop, ok = c.Args.Properties[key]
 		}

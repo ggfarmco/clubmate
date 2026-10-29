@@ -39,13 +39,33 @@ func TestCLIOpenUsesCapability(t *testing.T) {
 	assert.Equal(t, echoed{Plugin: "alpha", Args: map[string]any{"path": "/tmp/x.go", "line": 3.0}}, out)
 }
 
+func TestSplitLine(t *testing.T) {
+	tests := map[string]struct {
+		file string
+		line int
+	}{
+		"a:b.go:3":   {"a:b.go", 3},
+		"x.go:0":     {"x.go", 0},
+		"x.go:12:5":  {"x.go", 12},
+		"src/x.go:7": {"src/x.go", 7},
+		"x.go":       {"x.go", 0},
+	}
+	for arg, want := range tests {
+		file, line := cli.SplitLine(arg)
+		assert.Equal(t, want.file, file, arg)
+		assert.Equal(t, want.line, line, arg)
+	}
+}
+
 func TestCommandRunCoercesKeyValues(t *testing.T) {
-	startEcho(t, `{"id":"alpha.say","title":"Say","args":{"properties":{"n":{"type":"integer"},"ok":{"type":"boolean"},"tags":{"type":"array","items":{"type":"string"}},"s":{"type":"string"}}}}`)
+	startEcho(t, `{"id":"alpha.say","title":"Say","args":{"properties":{"n":{"type":"integer"},"ok":{"type":"boolean"},"tags":{"type":"array","items":{"type":"string"}},"s":{"type":"string"}}}},{"id":"alpha.bare","title":"Bare"}`)
 	var out echoed
 	require.NoError(t, json.Unmarshal(run(t, "command", "run", "alpha.say", "n=3", "ok=true", "tags=a,b", "s=x=y"), &out))
 	assert.Equal(t, map[string]any{"n": 3.0, "ok": true, "tags": []any{"a", "b"}, "s": "x=y"}, out.Args)
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRoot(&stdout, &stderr)
-	root.SetArgs([]string{"command", "run", "alpha.say", "zz=1"})
-	assert.ErrorContains(t, root.Execute(), `unknown arg "zz"`)
+	for _, id := range []string{"alpha.say", "alpha.bare"} {
+		root := cli.NewRoot(&stdout, &stderr)
+		root.SetArgs([]string{"command", "run", id, "zz=1"})
+		assert.ErrorContains(t, root.Execute(), `unknown arg "zz" for `+id)
+	}
 }

@@ -102,11 +102,10 @@ type capabilitiesResult struct {
 }
 
 type commandRunParams struct {
-	ID          string          `json:"id"`
-	ProjectID   string          `json:"projectId"`
-	Args        json.RawMessage `json:"args"`
-	Agent       bool            `json:"agent,omitempty"`
-	FromSession string          `json:"fromSession,omitempty"`
+	ID        string          `json:"id"`
+	ProjectID string          `json:"projectId"`
+	Args      json.RawMessage `json:"args"`
+	Agent     bool            `json:"agent,omitempty"`
 }
 
 type uiUpdatedParams struct {
@@ -321,7 +320,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 			return nil, err
 		}
 	}
-	if p.Agent && c.Destructive && !prim.exempt(p.FromSession, p.Args) {
+	if p.Agent && c.Destructive {
 		if p.Args, err = s.approve(ctx, c, scope, p.Args); err != nil {
 			return nil, err
 		}

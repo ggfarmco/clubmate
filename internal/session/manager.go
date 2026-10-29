@@ -73,9 +73,10 @@ type ListFilter struct {
 }
 
 type Manager struct {
-	dirs    paths.Dirs
-	hostBin string
-	pathDir string
+	dirs            paths.Dirs
+	hostBin         string
+	pathDir         string
+	snapshotTimeout time.Duration
 }
 
 type Option func(*Manager)
@@ -90,7 +91,7 @@ func WithPathDir(dir string) Option {
 }
 
 func NewManager(dirs paths.Dirs, hostBin string, opts ...Option) *Manager {
-	m := &Manager{dirs: dirs, hostBin: hostBin}
+	m := &Manager{dirs: dirs, hostBin: hostBin, snapshotTimeout: snapshotTimeout}
 	for _, opt := range opts {
 		opt(m)
 	}

@@ -1,6 +1,8 @@
 package session_test
 
 import (
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/id"
 	"clubmate/internal/proc"
 	"clubmate/internal/session"
+	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
 )
 
@@ -44,8 +48,10 @@ func TestPlainText(t *testing.T) {
 		"osc st":    {"\x1b]8;;http://a\x1b\\link\x1b]8;;\x1b\\", "link"},
 		"esc seq":   {"\x1b(Bx\x1b=y", "xy"},
 		"crlf":      {"a\r\nb", "a\nb"},
-		"lone cr":   {"a\rb", "a\nb"},
-		"controls":  {"a\x07\x08b\tc", "ab\tc"},
+		"lone cr":   {"x\nab\rc", "x\nc"},
+		"backspace": {"x\nab\b\bé\bc\b\bd", "x\nd"},
+		"esc ctrl":  {"a\x1b\nb", "a\nb"},
+		"controls":  {"a\x07b\tc", "ab\tc"},
 		"split utf": {"\xa4b", "b"},
 	}
 	for name, tt := range tests {
@@ -53,6 +59,27 @@ func TestPlainText(t *testing.T) {
 			assert.Equal(t, tt.want, session.Plain([]byte(tt.in)))
 		})
 	}
+}
+
+func TestSessionReadOldHost(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	sid := id.New(session.IDPrefix)
+	require.NoError(t, sessionhost.WriteMeta(dirs.SessionMeta(sid), sessionhost.Meta{ID: sid, HostPID: os.Getpid()}))
+	ln, err := net.Listen("unix", dirs.SessionSocket(sid))
+	require.NoError(t, err)
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go io.Copy(io.Discard, conn)
+		}
+	}()
+	m := session.NewManager(dirs, "", session.WithSnapshotTimeout(100*time.Millisecond))
+	_, err = m.Read(t.Context(), sid, 0, false)
+	assert.ErrorIs(t, err, session.ErrNoSnapshot)
 }
 
 func TestSessionPathPrepended(t *testing.T) {

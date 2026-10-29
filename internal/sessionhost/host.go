@@ -267,6 +267,7 @@ func (h *host) snapshot(c *client) {
 		return
 	}
 	delete(h.clients, c)
+	c.pending = nil
 	payload := []byte{0}
 	if h.alt.on {
 		payload[0] = 1

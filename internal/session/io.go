@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"clubmate/internal/wire"
 )
@@ -60,7 +61,7 @@ func (m *Manager) Read(ctx context.Context, sid string, n int, raw bool) (Snapsh
 		return Snapshot{}, err
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(snapshotTimeout))
+	conn.SetDeadline(time.Now().Add(m.snapshotTimeout))
 	if err := wire.WriteFrame(conn, wire.Frame{Type: wire.FrameSnapshot}); err != nil {
 		return Snapshot{}, fmt.Errorf("session %s: %w", sid, err)
 	}
@@ -115,6 +116,7 @@ func writeInput(conn net.Conn, data []byte) error {
 
 func Plain(b []byte) string {
 	out := make([]byte, 0, len(b))
+	lineStart := 0
 	for i := 0; i < len(b); {
 		c := b[i]
 		switch {
@@ -123,8 +125,16 @@ func Plain(b []byte) string {
 			continue
 		case c == '\r' && i+1 < len(b) && b[i+1] == '\n':
 		case c == '\r':
-			out = append(out, '\n')
-		case c == '\n' || c == '\t' || c >= 0x20 && c != 0x7f:
+			out = out[:lineStart]
+		case c == '\b':
+			if len(out) > lineStart {
+				_, size := utf8.DecodeLastRune(out[lineStart:])
+				out = out[:len(out)-size]
+			}
+		case c == '\n':
+			out = append(out, c)
+			lineStart = len(out)
+		case c == '\t' || c >= 0x20 && c != 0x7f:
 			out = append(out, c)
 		}
 		i++
@@ -135,6 +145,9 @@ func Plain(b []byte) string {
 func skipEscape(b []byte, i int) int {
 	if i+1 >= len(b) {
 		return len(b)
+	}
+	if b[i+1] < 0x20 {
+		return i + 1
 	}
 	switch b[i+1] {
 	case '[':
