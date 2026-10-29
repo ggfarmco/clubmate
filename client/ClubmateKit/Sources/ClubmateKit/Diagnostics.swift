@@ -15,6 +15,7 @@ public enum Diagnostics {
     public static let excluded = "Terminal output, environment variables and plugin storage are not included."
     public static let settingsName = "settings.json"
     public static let windowName = "window.png"
+    public static let screenshotOption = "Include a screenshot of the window (may show terminal and editor contents)"
     public static let extraLimit = 10 << 20
     static let redacted = "<redacted>"
     static let secretMarkers = ["token", "secret", "password", "key"]
@@ -27,9 +28,14 @@ public enum Diagnostics {
         return "clubmate-diagnostics-\(formatter.string(from: date)).zip"
     }
 
-    public static func summary(_ files: [DiagnosticsFile]) -> String {
-        let lines = files.map { "\($0.name) — \(ByteCountFormatter.string(fromByteCount: $0.bytes, countStyle: .file))" }
-        return (lines + ["", excluded]).joined(separator: "\n")
+    public static func expectedFiles(screenshot: Bool) -> [String] {
+        ["info.json", "logs/core.log", "logs/plugins/<plugin>.log", "plugins.json", "workspaces.json", "sessions.json", "ui/<workspace>.json", settingsName]
+            + (screenshot ? [windowName] : [])
+            + ["README.txt"]
+    }
+
+    public static func summary(screenshot: Bool) -> String {
+        (expectedFiles(screenshot: screenshot) + ["", excluded]).joined(separator: "\n")
     }
 
     public static func redactedSettings(_ domain: [String: Any]) -> Data {

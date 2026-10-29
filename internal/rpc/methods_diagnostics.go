@@ -5,43 +5,24 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"time"
-
-	"golang.org/x/sys/unix"
 
 	"clubmate/internal/buildinfo"
 	"clubmate/internal/diagnostics"
 	"clubmate/internal/session"
-	"clubmate/internal/sessionhost"
 )
 
 const diagnosticsExtraMax = 10 << 20
 
 var (
 	errNoDiagnostics  = errors.New("diagnostics not configured")
-	diagnosticsExtras = map[string]bool{"settings.json": true, diagnostics.WindowName: true}
+	diagnosticsExtras = map[string]bool{diagnostics.SettingsName: true, diagnostics.WindowName: true}
 )
 
 type diagnosticsParams struct {
 	ProjectID  string            `json:"projectId"`
 	AppVersion string            `json:"appVersion"`
 	Extra      map[string][]byte `json:"extra"`
-}
-
-type diagnosticsInfo struct {
-	Version           string    `json:"version"`
-	Commit            string    `json:"commit"`
-	Flavor            string    `json:"flavor"`
-	CoreVersion       string    `json:"coreVersion"`
-	SessionProtocol   int       `json:"sessionProtocol"`
-	MacOS             string    `json:"macOS"`
-	Arch              string    `json:"arch"`
-	CoreUptimeSeconds int64     `json:"coreUptimeSeconds"`
-	CollectedAt       time.Time `json:"collectedAt"`
-	AppVersion        string    `json:"appVersion,omitempty"`
 }
 
 type diagnosticsWorkspace struct {
@@ -92,7 +73,7 @@ func (s *Server) collectDiagnostics(ctx context.Context, p diagnosticsParams) (d
 	if err != nil {
 		return diagnostics.Result{}, err
 	}
-	for _, name := range []string{"settings.json", diagnostics.WindowName} {
+	for _, name := range []string{diagnostics.SettingsName, diagnostics.WindowName} {
 		if data, ok := p.Extra[name]; ok {
 			entries = append(entries, diagnostics.Entry{Name: name, Data: data})
 		}
@@ -110,10 +91,14 @@ func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, no
 		entries = append(entries, diagnostics.Entry{Name: name, Data: append(data, '\n')})
 		return nil
 	}
-	if err := add("info.json", s.diagnosticsInfo(p.AppVersion, now)); err != nil {
+	info := diagnostics.NewInfo(now)
+	info.CoreVersion = buildinfo.String()
+	info.CoreUptimeSeconds = int64(now.Sub(s.started).Seconds())
+	info.AppVersion = p.AppVersion
+	if err := add(diagnostics.InfoName, info); err != nil {
 		return nil, err
 	}
-	logs, err := s.diagnosticsLogs()
+	logs, err := diagnostics.Logs(*s.dirs)
 	if err != nil {
 		return nil, err
 	}
@@ -145,46 +130,6 @@ func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, no
 		if err := add("ui/"+id+".json", nonNil(u.store.Get(id))); err != nil {
 			return nil, err
 		}
-	}
-	return entries, nil
-}
-
-func (s *Server) diagnosticsInfo(appVersion string, now time.Time) diagnosticsInfo {
-	macOS, _ := unix.Sysctl("kern.osproductversion")
-	return diagnosticsInfo{
-		Version:           buildinfo.Version,
-		Commit:            buildinfo.Commit,
-		Flavor:            buildinfo.Flavor,
-		CoreVersion:       buildinfo.String(),
-		SessionProtocol:   sessionhost.Protocol,
-		MacOS:             macOS,
-		Arch:              runtime.GOARCH,
-		CoreUptimeSeconds: int64(now.Sub(s.started).Seconds()),
-		CollectedAt:       now.UTC(),
-		AppVersion:        appVersion,
-	}
-}
-
-func (s *Server) diagnosticsLogs() ([]diagnostics.Entry, error) {
-	plugins, err := filepath.Glob(filepath.Join(s.dirs.PluginsDir(), "*.log"))
-	if err != nil {
-		return nil, err
-	}
-	sources := [][2]string{{"logs/core.log", s.dirs.CoreLog()}}
-	for _, path := range plugins {
-		sources = append(sources, [2]string{"logs/plugins/" + filepath.Base(path), path})
-	}
-	var entries []diagnostics.Entry
-	for _, src := range sources {
-		name := src[0]
-		data, err := diagnostics.LogTail(src[1], diagnostics.LogTailMax)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", name, err)
-		}
-		entries = append(entries, diagnostics.Entry{Name: name, Data: data})
 	}
 	return entries, nil
 }

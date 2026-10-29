@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,10 +54,18 @@ func TestDiagnosticsBundle(t *testing.T) {
 	var s session.Session
 	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"projectId": p.ID, "command": []string{"sh", "-c", "echo secret-output; exec cat"}}, &s))
 
+	require.Eventually(t, func() bool {
+		var snap session.Snapshot
+		return c.Call(t.Context(), "session.read", map[string]any{"id": s.ID}, &snap) == nil && strings.Contains(snap.Text, "secret-output")
+	}, 5*time.Second, 20*time.Millisecond)
+
 	var res diagnostics.Result
 	require.NoError(t, c.Call(t.Context(), "diagnostics.collect", map[string]any{"extra": map[string][]byte{"settings.json": []byte(`{"a":1}`)}}, &res))
 	assert.Equal(t, dirs.DiagnosticsDir(), filepath.Dir(res.Path))
 	files := readZip(t, res.Path)
+	for name, data := range files {
+		assert.NotContains(t, data, "secret-output", name)
+	}
 	names := make([]string, 0, len(res.Files))
 	for _, f := range res.Files {
 		names = append(names, f.Name)
@@ -89,6 +98,10 @@ func TestDiagnosticsBundle(t *testing.T) {
 	slices.Sort(keys)
 	assert.Equal(t, []string{"created", "cwd", "exitCode", "id", "owner", "state", "title", "workspace"}, keys)
 	assert.Equal(t, s.ID, sessions[0]["id"])
+
+	var again diagnostics.Result
+	require.NoError(t, c.Call(t.Context(), "diagnostics.collect", map[string]any{}, &again))
+	assert.NotEqual(t, res.Path, again.Path)
 
 	err = c.Call(t.Context(), "diagnostics.collect", map[string]any{"extra": map[string][]byte{"env.txt": []byte("x")}}, &res)
 	var remote *rpc.RemoteError

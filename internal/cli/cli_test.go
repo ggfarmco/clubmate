@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -486,4 +487,31 @@ func TestDiagnosticsWritesZip(t *testing.T) {
 		names = append(names, f.Name)
 	}
 	assert.Contains(t, names, "info.json")
+}
+
+func TestDiagnosticsWithoutCore(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
+	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
+	require.NoError(t, os.WriteFile(dirs.CoreLog(), []byte("core crashed\n"), 0o600))
+	out := filepath.Join(t.TempDir(), "offline.zip")
+	run(t, "diagnostics", "-o", out)
+	r, err := zip.OpenReader(out)
+	require.NoError(t, err)
+	defer r.Close()
+	files := map[string]string{}
+	for _, f := range r.File {
+		rc, err := f.Open()
+		require.NoError(t, err)
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		require.NoError(t, err)
+		files[f.Name] = string(data)
+	}
+	assert.Equal(t, "core crashed\n", files["logs/core.log"])
+	var info map[string]any
+	require.NoError(t, json.Unmarshal([]byte(files["info.json"]), &info))
+	assert.Equal(t, "unreachable", info["core"])
+	assert.NotEmpty(t, info["coreError"])
+	assert.Contains(t, files["README.txt"], "core unreachable")
 }

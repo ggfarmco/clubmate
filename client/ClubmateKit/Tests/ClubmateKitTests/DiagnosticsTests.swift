@@ -21,6 +21,13 @@ final class DiagnosticsTests: XCTestCase {
         }
     }
 
+    func testSummaryListsScreenshotOnlyWhenChosen() {
+        XCTAssertFalse(Diagnostics.summary(screenshot: false).contains("window.png"))
+        XCTAssertTrue(Diagnostics.summary(screenshot: true).contains("window.png"))
+        XCTAssertTrue(Diagnostics.summary(screenshot: false).hasSuffix(Diagnostics.excluded))
+        XCTAssertEqual(Diagnostics.expectedFiles(screenshot: true).count, Diagnostics.expectedFiles(screenshot: false).count + 1)
+    }
+
     func testArchiveName() throws {
         let date = Date(timeIntervalSince1970: 1_793_280_605)
         XCTAssertEqual(Diagnostics.archiveName(date, timeZone: try XCTUnwrap(TimeZone(identifier: "UTC"))), "clubmate-diagnostics-20261029-133005.zip")

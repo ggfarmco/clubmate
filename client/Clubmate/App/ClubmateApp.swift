@@ -193,7 +193,7 @@ private struct ProjectCommands: Commands {
                 .keyboardShortcut("w", modifiers: [.control, .command])
                 .disabled(windowID == nil)
         }
-        CommandGroup(replacing: .help) {
+        CommandGroup(after: .help) {
             Button("\(Diagnostics.title)…") { app.collectDiagnostics() }
         }
         CommandMenu("Section") {
