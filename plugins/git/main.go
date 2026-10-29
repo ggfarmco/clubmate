@@ -118,6 +118,7 @@ type state struct {
 type app struct {
 	mu       sync.Mutex
 	projects map[string]*state
+	ops      opTable
 }
 
 func main() {
@@ -237,6 +238,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
 		return nil, err
 	}
+	if strings.HasPrefix(cmd.ID, "git.worktree") {
+		return a.worktreeCommand(ctx, h, cmd, s)
+	}
 	s.clearFailure()
 	switch cmd.ID {
 	case "git.refresh":
@@ -260,8 +264,6 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.reviewDefault(ctx, h, cmd.ProjectID, s)
 	case "git.end-review":
 		return nil, a.endReview(ctx, h, cmd.ProjectID, s)
-	case "git.worktrees", "git.worktree-switch", "git.worktree-new", "git.worktree-sessions", "git.worktree-remove":
-		return worktreeCommand(ctx, h, cmd)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }

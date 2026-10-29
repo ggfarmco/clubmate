@@ -874,7 +874,7 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 	if !ok || !targetOK || label == target {
 		return errDiffSides
 	}
-	repo, ok := repoRoot(filepath.Dir(args.Path))
+	repo, ok := gitrepo.RepoRoot(filepath.Dir(args.Path))
 	if !ok {
 		return fmt.Errorf("%w: %s", errNotInRepo, args.Path)
 	}
@@ -1195,7 +1195,7 @@ func branchDir(file, root string) string {
 }
 
 func gitBranch(ctx context.Context, dir string) string {
-	repo, ok := repoRoot(dir)
+	repo, ok := gitrepo.RepoRoot(dir)
 	if !ok {
 		return ""
 	}
@@ -1272,19 +1272,6 @@ func inTree(ctx context.Context, repo, rev, rel string) (bool, error) {
 func inIndex(ctx context.Context, repo, rel string) (bool, error) {
 	out, err := gitrepo.Run(ctx, repo, "--literal-pathspecs", "ls-files", "-z", "--stage", "--", rel)
 	return bytes.Contains(out, []byte(" 0\t")), err
-}
-
-func repoRoot(dir string) (string, bool) {
-	for {
-		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
-			return dir, true
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", false
-		}
-		dir = parent
-	}
 }
 
 func fileTopic(event string) string {

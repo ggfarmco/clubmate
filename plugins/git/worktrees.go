@@ -10,41 +10,38 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
-	worktreesDir    = ".worktrees"
-	stopRootCommand = "editor-nvim.stop-root"
-	sessionRunning  = "running"
+	worktreesDir     = ".worktrees"
+	stopRootCommand  = "editor-nvim.stop-root"
+	editorOwner      = "editor-nvim"
+	sessionRunning   = "running"
+	creatingWorktree = "Creating worktree…"
+	removingWorktree = "Removing worktree…"
+	opPollWait       = time.Second
+	keptOps          = 64
 )
 
 var (
-	errNotGitFolder   = errors.New("not a git folder")
-	errNoGitFolder    = errors.New("no git folder in the workspace")
-	errMainCheckout   = errors.New("cannot remove the main checkout")
-	errFolderCheckout = errors.New("cannot remove the checkout of the workspace folder")
-	errDirtyWorktree  = errors.New("worktree has uncommitted changes")
-	errRelativePath   = errors.New("path must be absolute")
+	errNoGitFolder     = errors.New("no git folder in the workspace")
+	errMainCheckout    = errors.New("cannot remove the main checkout")
+	errFolderCheckout  = errors.New("cannot remove the checkout of the workspace folder")
+	errDirtyWorktree   = errors.New("worktree has uncommitted changes")
+	errRelativePath    = errors.New("path must be absolute")
+	errSymlinkedFolder = errors.New("worktrees folder must not be a symlink")
+	errOpBusy          = errors.New("another git operation is running")
+	errUnknownOp       = errors.New("unknown operation")
 )
 
-type worktree struct {
-	path   string
-	real   string
-	head   string
-	branch string
-	bare   bool
-}
-
 type folder struct {
-	repo     string
-	root     string
-	real     string
-	rel      string
-	trees    []worktree
-	checkout worktree
+	*gitrepo.Folder
+	root string
 }
 
 type worktreeInfo struct {
@@ -57,6 +54,7 @@ type worktreeInfo struct {
 }
 
 type worktreeArgs struct {
+	ID     string `json:"id"`
 	Repo   string `json:"repo"`
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
@@ -73,7 +71,34 @@ type sessionInfo struct {
 	Title string `json:"title"`
 }
 
-func worktreeCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+type opStarted struct {
+	ID string `json:"id"`
+}
+
+type opStatus struct {
+	Done  bool   `json:"done"`
+	Error string `json:"error,omitempty"`
+	Path  string `json:"path,omitempty"`
+}
+
+type operation struct {
+	id      string
+	project string
+	done    chan struct{}
+	path    string
+	err     error
+}
+
+type opTable struct {
+	mu    sync.Mutex
+	seq   int
+	byID  map[string]*operation
+	order []string
+}
+
+type opFunc func(context.Context) (string, error)
+
+func (a *app) worktreeCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun, s *state) (any, error) {
 	var args worktreeArgs
 	if len(cmd.Args) > 0 {
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -84,15 +109,104 @@ func worktreeCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comma
 	case "git.worktrees":
 		return listWorktrees(ctx, h, cmd.ProjectID)
 	case "git.worktree-switch":
-		return nil, switchWorktree(ctx, h, cmd.ProjectID, args)
+		return nil, switchWorktree(ctx, h, cmd.ProjectID, args.Repo, args.Path)
 	case "git.worktree-new":
-		return nil, newWorktree(ctx, h, cmd.ProjectID, args)
+		return a.startOp(ctx, h, cmd.ProjectID, s, creatingWorktree, func() (opFunc, error) {
+			return prepareNew(ctx, h, cmd.ProjectID, args)
+		})
+	case "git.worktree-remove":
+		return a.startOp(ctx, h, cmd.ProjectID, s, removingWorktree, func() (opFunc, error) {
+			return prepareRemove(ctx, h, cmd.ProjectID, args)
+		})
+	case "git.worktree-op-status":
+		return a.ops.status(ctx, cmd.ProjectID, args.ID)
 	case "git.worktree-sessions":
 		return worktreeSessions(ctx, h, cmd.ProjectID, args.Path)
-	case "git.worktree-remove":
-		return nil, removeWorktree(ctx, h, cmd.ProjectID, args)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
+}
+
+func (a *app) startOp(ctx context.Context, h *pluginsdk.Host, projectID string, s *state, busy string, prepare func() (opFunc, error)) (opStarted, error) {
+	s.mu.Lock()
+	if s.busy != "" {
+		s.mu.Unlock()
+		return opStarted{}, errOpBusy
+	}
+	s.busy = busy
+	s.mu.Unlock()
+	run, err := prepare()
+	if err != nil {
+		s.mu.Lock()
+		s.busy = ""
+		s.mu.Unlock()
+		return opStarted{}, err
+	}
+	o := a.ops.add(projectID)
+	logError("render "+projectID, a.render(ctx, h, projectID, s))
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutateTimeout)
+		defer cancel()
+		path, err := run(ctx)
+		s.mu.Lock()
+		s.busy = ""
+		s.mu.Unlock()
+		o.finish(path, err)
+		logError("render "+projectID, a.render(ctx, h, projectID, s))
+		a.schedule(h, projectID, s, 0)
+	}()
+	return opStarted{ID: o.id}, nil
+}
+
+func (t *opTable) add(projectID string) *operation {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.byID == nil {
+		t.byID = map[string]*operation{}
+	}
+	t.seq++
+	id := fmt.Sprintf("wt-%d", t.seq)
+	o := &operation{id: id, project: projectID, done: make(chan struct{})}
+	t.byID[id] = o
+	t.order = append(t.order, id)
+	for i := 0; len(t.order) > keptOps && i < len(t.order); {
+		old := t.byID[t.order[i]]
+		select {
+		case <-old.done:
+			delete(t.byID, t.order[i])
+			t.order = append(t.order[:i], t.order[i+1:]...)
+		default:
+			i++
+		}
+	}
+	return o
+}
+
+func (o *operation) finish(path string, err error) {
+	o.path, o.err = path, err
+	close(o.done)
+}
+
+func (t *opTable) status(ctx context.Context, projectID, id string) (opStatus, error) {
+	t.mu.Lock()
+	o := t.byID[id]
+	t.mu.Unlock()
+	if o == nil || o.project != projectID {
+		return opStatus{}, fmt.Errorf("%w: %q", errUnknownOp, id)
+	}
+	timer := time.NewTimer(opPollWait)
+	defer timer.Stop()
+	select {
+	case <-o.done:
+	case <-timer.C:
+		return opStatus{}, nil
+	case <-ctx.Done():
+		return opStatus{}, nil
+	}
+	out := opStatus{Done: true, Path: o.path}
+	if o.err != nil {
+		out.Error = o.err.Error()
+	}
+	return out, nil
 }
 
 func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]worktreeInfo, error) {
@@ -103,7 +217,7 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 	list := []worktreeInfo{}
 	for i := range p.Repos {
 		f, err := openFolder(ctx, p, i)
-		if errors.Is(err, errNotGitFolder) {
+		if errors.Is(err, gitrepo.ErrNotRepo) {
 			continue
 		}
 		if err != nil {
@@ -113,117 +227,156 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 		if err != nil {
 			return nil, err
 		}
-		for j, t := range f.trees {
-			if t.bare {
+		for j, t := range f.Trees {
+			if t.Bare {
 				continue
 			}
-			list = append(list, worktreeInfo{Repo: f.repo, Path: t.path, Branch: t.branch, Head: heads[t.head], Main: j == 0, Current: f.current(t)})
+			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head], Main: j == 0, Current: f.current(t)})
 		}
 	}
 	return list, nil
 }
 
-func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) error {
-	f, err := gitFolder(ctx, h, projectID, args.Repo)
+func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID, repo, path string) error {
+	f, err := gitFolder(ctx, h, projectID, repo)
 	if err != nil {
 		return err
 	}
-	t, err := f.member(args.Path)
+	t, err := f.member(path)
 	if err != nil {
 		return err
 	}
-	_, err = h.SetWorktree(ctx, projectID, f.repo, f.selection(t))
+	_, err = h.SetWorktree(ctx, projectID, f.Repo, f.Selection(t))
 	return err
 }
 
-func newWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) error {
+func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) (opFunc, error) {
 	f, err := gitFolder(ctx, h, projectID, args.Repo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	cur := f.currentTree()
-	out, err := run(ctx, cur.path, "check-ref-format", "--branch", args.Branch)
+	out, err := run(ctx, cur.Path, "check-ref-format", "--branch", args.Branch)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if strings.TrimSpace(string(out)) != args.Branch {
-		return fmt.Errorf("'%s' is not a valid branch name", args.Branch)
+		return nil, fmt.Errorf("'%s' is not a valid branch name", args.Branch)
 	}
-	primary := f.trees[0]
-	dir := filepath.Join(primary.path, worktreesDir, args.Branch)
-	if _, err := os.Lstat(dir); err == nil {
-		return fmt.Errorf("%s already exists", filepath.Join(worktreesDir, args.Branch))
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return err
+	primary := f.Trees[0]
+	dir, err := worktreeDir(primary.Path, args.Branch)
+	if err != nil {
+		return nil, err
 	}
 	add := []string{"worktree", "add", "-b", args.Branch, dir, currentHead}
-	if _, err := gitrepo.Run(ctx, cur.path, "rev-parse", "-q", "--verify", "refs/heads/"+args.Branch); err == nil {
+	if _, err := gitrepo.Run(ctx, cur.Path, "rev-parse", "-q", "--verify", "refs/heads/"+args.Branch); err == nil {
 		add = []string{"worktree", "add", dir, args.Branch}
 	}
-	if _, err := mutate(ctx, cur.path, add...); err != nil {
-		return err
+	return func(ctx context.Context) (string, error) {
+		if _, err := mutate(ctx, cur.Path, add...); err != nil {
+			return "", err
+		}
+		if err := excludeWorktrees(ctx, primary.Path); err != nil {
+			return "", err
+		}
+		g, err := gitFolder(ctx, h, projectID, f.Repo)
+		if err != nil {
+			return "", err
+		}
+		t, err := g.member(dir)
+		if err != nil {
+			return "", err
+		}
+		if _, err := h.SetWorktree(ctx, projectID, g.Repo, g.Selection(t)); err != nil {
+			return "", err
+		}
+		return t.Path, nil
+	}, nil
+}
+
+func worktreeDir(primary, branch string) (string, error) {
+	base := filepath.Join(primary, worktreesDir)
+	dir := filepath.Join(base, branch)
+	cur := base
+	for _, part := range append([]string{""}, strings.Split(branch, "/")...) {
+		cur = filepath.Join(cur, part)
+		info, err := os.Lstat(cur)
+		if errors.Is(err, fs.ErrNotExist) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		if info.Mode()&fs.ModeSymlink != 0 {
+			return "", errSymlinkedFolder
+		}
+		if cur == dir {
+			return "", fmt.Errorf("%s already exists", filepath.Join(worktreesDir, branch))
+		}
 	}
-	if err := excludeWorktrees(ctx, primary.path); err != nil {
-		return err
+	if !gitrepo.Within(gitrepo.Canonical(filepath.Dir(dir)), filepath.Join(gitrepo.Canonical(primary), worktreesDir)) {
+		return "", errSymlinkedFolder
 	}
-	return switchWorktree(ctx, h, projectID, worktreeArgs{Repo: f.repo, Path: dir})
+	return dir, nil
+}
+
+func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) (opFunc, error) {
+	f, err := gitFolder(ctx, h, projectID, args.Repo)
+	if err != nil {
+		return nil, err
+	}
+	t, err := f.member(args.Path)
+	if err != nil {
+		return nil, err
+	}
+	switch t.Real {
+	case f.Trees[0].Real:
+		return nil, errMainCheckout
+	case f.Checkout.Real:
+		return nil, errFolderCheckout
+	}
+	current := f.current(t)
+	root := filepath.Join(t.Path, f.Rel)
+	if current {
+		root = f.root
+	}
+	return func(ctx context.Context) (string, error) {
+		status, err := run(ctx, t.Path, "status", "--porcelain")
+		if err != nil {
+			return "", err
+		}
+		if len(strings.TrimSpace(string(status))) > 0 {
+			return "", errDirtyWorktree
+		}
+		if err := h.RunCommand(ctx, stopRootCommand, projectID, stopRootArgs{Root: root, Force: args.Force}, nil); err != nil {
+			return "", err
+		}
+		if _, err := mutate(ctx, f.Checkout.Path, "worktree", "remove", t.Path); err != nil {
+			return "", err
+		}
+		if current {
+			_, err = h.SetWorktree(ctx, projectID, f.Repo, "")
+		}
+		return "", err
+	}, nil
 }
 
 func worktreeSessions(ctx context.Context, h *pluginsdk.Host, projectID, path string) ([]sessionInfo, error) {
 	if !filepath.IsAbs(path) {
 		return nil, errRelativePath
 	}
-	dir := canonical(filepath.Clean(path))
+	dir := gitrepo.Canonical(filepath.Clean(path))
 	sessions, err := h.ListSessions(ctx, projectID, false)
 	if err != nil {
 		return nil, err
 	}
 	out := []sessionInfo{}
 	for _, s := range sessions {
-		if s.State == sessionRunning && filepath.IsAbs(s.Cwd) && within(canonical(s.Cwd), dir) {
+		if s.State == sessionRunning && s.Owner != editorOwner && filepath.IsAbs(s.Cwd) && gitrepo.Within(gitrepo.Canonical(s.Cwd), dir) {
 			out = append(out, sessionInfo{ID: s.ID, Title: s.Title})
 		}
 	}
 	return out, nil
-}
-
-func removeWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) error {
-	f, err := gitFolder(ctx, h, projectID, args.Repo)
-	if err != nil {
-		return err
-	}
-	t, err := f.member(args.Path)
-	if err != nil {
-		return err
-	}
-	switch t.real {
-	case f.trees[0].real:
-		return errMainCheckout
-	case f.checkout.real:
-		return errFolderCheckout
-	}
-	status, err := run(ctx, t.path, "status", "--porcelain")
-	if err != nil {
-		return err
-	}
-	if len(strings.TrimSpace(string(status))) > 0 {
-		return errDirtyWorktree
-	}
-	current := f.current(t)
-	root := filepath.Join(t.path, f.rel)
-	if current {
-		root = f.root
-	}
-	if err := h.RunCommand(ctx, stopRootCommand, projectID, stopRootArgs{Root: root, Force: args.Force}, nil); err != nil {
-		return err
-	}
-	if _, err := mutate(ctx, f.checkout.path, "worktree", "remove", t.path); err != nil {
-		return err
-	}
-	if current {
-		_, err = h.SetWorktree(ctx, projectID, f.repo, "")
-	}
-	return err
 }
 
 func gitFolder(ctx context.Context, h *pluginsdk.Host, projectID, repo string) (*folder, error) {
@@ -239,7 +392,7 @@ func gitFolder(ctx context.Context, h *pluginsdk.Host, projectID, repo string) (
 		if repo != "" || err == nil {
 			return f, err
 		}
-		if !errors.Is(err, errNotGitFolder) {
+		if !errors.Is(err, gitrepo.ErrNotRepo) {
 			return nil, err
 		}
 	}
@@ -250,101 +403,48 @@ func gitFolder(ctx context.Context, h *pluginsdk.Host, projectID, repo string) (
 }
 
 func openFolder(ctx context.Context, p pluginsdk.Project, i int) (*folder, error) {
-	repo := p.Repos[i]
-	top, ok := repoRoot(repo)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", errNotGitFolder, repo)
-	}
-	trees, err := worktrees(ctx, top)
+	f, err := gitrepo.OpenFolder(ctx, p.Repos[i])
 	if err != nil {
-		return nil, err
+		return nil, gitError(nil, err)
 	}
-	resolved := canonical(repo)
-	checkout := longest(trees, resolved)
-	if checkout == nil {
-		return nil, fmt.Errorf("%w: %s", errNotGitFolder, repo)
-	}
-	rel, err := filepath.Rel(checkout.real, resolved)
-	if err != nil {
-		return nil, err
-	}
-	root := repo
+	root := p.Repos[i]
 	if i < len(p.Roots) {
 		root = p.Roots[i]
 	}
-	return &folder{repo: repo, root: root, real: resolved, rel: rel, trees: trees, checkout: *checkout}, nil
+	return &folder{Folder: f, root: root}, nil
 }
 
-func (f *folder) member(path string) (worktree, error) {
-	if filepath.IsAbs(path) {
-		target := canonical(filepath.Clean(path))
-		for _, t := range f.trees {
-			if t.real == target && !t.bare {
-				return t, nil
-			}
-		}
+func (f *folder) member(path string) (gitrepo.Worktree, error) {
+	if t, ok := f.Member(path); ok {
+		return t, nil
 	}
-	return worktree{}, fmt.Errorf("not a worktree of %s", f.repo)
+	return gitrepo.Worktree{}, fmt.Errorf("not a worktree of %s", f.Repo)
 }
 
-func (f *folder) selection(t worktree) string {
-	if filepath.Join(t.real, f.rel) == f.real {
-		return ""
-	}
-	return filepath.Join(t.path, f.rel)
+func (f *folder) current(t gitrepo.Worktree) bool {
+	return gitrepo.Canonical(f.root) == f.Mapped(t)
 }
 
-func (f *folder) current(t worktree) bool {
-	return canonical(f.root) == filepath.Join(t.real, f.rel)
-}
-
-func (f *folder) currentTree() worktree {
-	if t := longest(f.trees, canonical(f.root)); t != nil {
+func (f *folder) currentTree() gitrepo.Worktree {
+	if t := gitrepo.Longest(f.Trees, gitrepo.Canonical(f.root)); t != nil {
 		return *t
 	}
-	return f.checkout
+	return f.Checkout
 }
 
 func (f *folder) shortHeads(ctx context.Context) (map[string]string, error) {
 	heads := map[string]string{}
-	for _, t := range f.trees {
-		if _, ok := heads[t.head]; ok || t.head == "" {
+	for _, t := range f.Trees {
+		if _, ok := heads[t.Head]; ok || t.Head == "" {
 			continue
 		}
-		out, err := run(ctx, f.checkout.path, "rev-parse", "--short", t.head)
+		out, err := run(ctx, f.Checkout.Path, "rev-parse", "--short", t.Head)
 		if err != nil {
 			return nil, err
 		}
-		heads[t.head] = strings.TrimSpace(string(out))
+		heads[t.Head] = strings.TrimSpace(string(out))
 	}
 	return heads, nil
-}
-
-func worktrees(ctx context.Context, top string) ([]worktree, error) {
-	out, err := gitrepo.Run(ctx, top, "worktree", "list", "--porcelain", "-z")
-	if err != nil {
-		return nil, gitError(out, err)
-	}
-	var trees []worktree
-	for field := range strings.SplitSeq(string(out), "\x00") {
-		if path, ok := strings.CutPrefix(field, "worktree "); ok {
-			trees = append(trees, worktree{path: path, real: canonical(path)})
-			continue
-		}
-		if len(trees) == 0 {
-			continue
-		}
-		t := &trees[len(trees)-1]
-		switch {
-		case strings.HasPrefix(field, "HEAD "):
-			t.head = strings.TrimPrefix(field, "HEAD ")
-		case strings.HasPrefix(field, "branch "):
-			t.branch = strings.TrimPrefix(strings.TrimPrefix(field, "branch "), "refs/heads/")
-		case field == "bare":
-			t.bare = true
-		}
-	}
-	return trees, nil
 }
 
 func excludeWorktrees(ctx context.Context, top string) error {
@@ -380,46 +480,4 @@ func excludeWorktrees(ctx context.Context, top string) error {
 	}
 	_, err = file.WriteString(line)
 	return errors.Join(err, file.Close())
-}
-
-func longest(trees []worktree, path string) *worktree {
-	var best *worktree
-	for i, t := range trees {
-		if within(path, t.real) && (best == nil || len(t.real) > len(best.real)) {
-			best = &trees[i]
-		}
-	}
-	return best
-}
-
-func within(path, dir string) bool {
-	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
-}
-
-func repoRoot(dir string) (string, bool) {
-	for {
-		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
-			return dir, true
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", false
-		}
-		dir = parent
-	}
-}
-
-func canonical(path string) string {
-	rest := ""
-	for dir := path; ; {
-		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
-			return filepath.Join(resolved, rest)
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return path
-		}
-		rest = filepath.Join(filepath.Base(dir), rest)
-		dir = parent
-	}
 }

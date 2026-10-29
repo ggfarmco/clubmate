@@ -11,7 +11,7 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 - Processes: the process tree of every session.
 - UI: show a section (`ui.focus`).
 - Plugin actions marked for agents. Some are generic capabilities, so an agent need not know which plugin provides them: `editor.open`, `editor.quickfix`, `editor.reveal`, `terminal.new`, `terminal.close`, `files.reveal`, `git.stage-all`, `git.review`.
-- Git worktrees: `git.worktrees` lists every git folder's worktrees, `git.worktree-switch` switches a folder to one of them, `git.worktree-new` creates `.worktrees/<branch>` and switches to it, and `git.worktree-remove` removes a linked worktree (never the main checkout or one with uncommitted changes).
+- Git worktrees: `git.worktrees` lists every git folder's worktrees, `git.worktree-switch` switches a folder to one of them, `git.worktree-new` creates `.worktrees/<branch>` and switches to it, and `git.worktree-remove` removes a linked worktree (never the main checkout or one with uncommitted changes). Create and remove return `{id}` at once; `git.worktree-op-status id=…` waits up to 1 s for the outcome.
 - Search (read-only, never in the home workspace): `search.files` fuzzy-finds workspace files by path (a trailing `:N` adds a line), and `search.grep` searches file contents (`regex`, `case`, `word`, `glob`, up to 500 matches) and returns within 4 seconds.
 
 Hidden helpers and commands not marked for agents stay out of reach.

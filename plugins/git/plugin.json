@@ -65,7 +65,7 @@
         "title": "New Worktree",
         "hidden": true,
         "agent": true,
-        "description": "Create the worktree <main checkout>/.worktrees/<branch> and switch to it. Checks out the branch when it exists, else creates it from HEAD of the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it.",
+        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it. Checks out the branch when it exists, else creates it from HEAD of the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Returns {id}; poll git.worktree-op-status for the outcome. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -75,11 +75,24 @@
         }
       },
       {
+        "id": "git.worktree-op-status",
+        "title": "Worktree Operation Status",
+        "hidden": true,
+        "agent": true,
+        "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove. Returns {done, error?, path?}; path is the new worktree after a successful create.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Operation id returned by git.worktree-new or git.worktree-remove."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
         "id": "git.worktree-sessions",
         "title": "Worktree Sessions",
         "hidden": true,
         "agent": false,
-        "description": "List the workspace's running sessions whose working directory is inside the given worktree. Returns [{id, title}].",
+        "description": "List the workspace's running sessions whose working directory is inside the given worktree, except the editor's own Neovim sessions. Returns [{id, title}].",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "Absolute worktree root."}
@@ -93,7 +106,7 @@
         "hidden": true,
         "agent": true,
         "destructive": true,
-        "description": "Remove a linked git worktree: stops its Neovim, runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch.",
+        "description": "Start removing a linked git worktree: stops its Neovim, runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},

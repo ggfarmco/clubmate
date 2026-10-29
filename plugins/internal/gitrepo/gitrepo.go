@@ -166,14 +166,7 @@ func Dirs(ctx context.Context, repo string) (string, string, error) {
 	if !filepath.IsAbs(commonDir) {
 		commonDir = filepath.Join(repo, commonDir)
 	}
-	return resolve(gitDir), resolve(commonDir), nil
-}
-
-func resolve(path string) string {
-	if real, err := filepath.EvalSymlinks(path); err == nil {
-		return real
-	}
-	return filepath.Clean(path)
+	return Canonical(gitDir), Canonical(commonDir), nil
 }
 
 func Branch(ctx context.Context, repo string) (string, error) {

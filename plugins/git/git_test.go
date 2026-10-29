@@ -521,6 +521,12 @@ type worktreeEntry struct {
 	Current bool   `json:"current"`
 }
 
+type opResult struct {
+	Done  bool   `json:"done"`
+	Error string `json:"error"`
+	Path  string `json:"path"`
+}
+
 type sessionEntry struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
@@ -560,6 +566,28 @@ func firstRoot(t *testing.T, h *testutil.PluginHarness, id string) string {
 	return p.Roots[0]
 }
 
+func startOp(t *testing.T, h *testutil.PluginHarness, id, command string, args any) (string, error) {
+	t.Helper()
+	var started struct {
+		ID string `json:"id"`
+	}
+	err := runCommand(t, h, id, command, args, &started)
+	return started.ID, err
+}
+
+func awaitOp(t *testing.T, h *testutil.PluginHarness, id, command string, args any) opResult {
+	t.Helper()
+	op, err := startOp(t, h, id, command, args)
+	require.NoError(t, err)
+	deadline := time.Now().Add(30 * time.Second)
+	var res opResult
+	for !res.Done {
+		require.True(t, time.Now().Before(deadline), "operation %s did not finish", op)
+		require.NoError(t, runCommand(t, h, id, "git.worktree-op-status", map[string]string{"id": op}, &res))
+	}
+	return res
+}
+
 func TestWorktreeList(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")
@@ -587,27 +615,46 @@ func TestNewWorktree(t *testing.T) {
 	write(t, filepath.Join(repo, "a.go"), "two\n")
 	git(t, repo, "commit", "-qam", "two")
 	h, id := openReady(t, repo)
-	create := func(branch string) error {
-		return runCommand(t, h, id, "git.worktree-new", map[string]string{"branch": branch}, nil)
+	create := func(branch string) opResult {
+		return awaitOp(t, h, id, "git.worktree-new", map[string]string{"branch": branch})
+	}
+	refused := func(branch string) error {
+		_, err := startOp(t, h, id, "git.worktree-new", map[string]string{"branch": branch})
+		return err
 	}
 
-	require.NoError(t, create("x/y"))
 	xy := filepath.Join(repo, ".worktrees", "x", "y")
+	assert.Equal(t, opResult{Done: true, Path: xy}, create("x/y"))
 	assert.Equal(t, "x/y", git(t, xy, "symbolic-ref", "--short", "HEAD"))
 	assert.Equal(t, xy, firstRoot(t, h, id))
-	assert.ErrorContains(t, create("x/y"), "already exists")
-	assert.ErrorContains(t, create("a..b"), "not a valid branch name")
+	assert.ErrorContains(t, refused("x/y"), "already exists")
+	assert.ErrorContains(t, refused("a..b"), "not a valid branch name")
 
 	write(t, filepath.Join(xy, "a.go"), "three\n")
 	git(t, xy, "commit", "-qam", "three")
-	require.NoError(t, create("z"))
+	assert.Empty(t, create("z").Error)
 	assert.Equal(t, git(t, xy, "rev-parse", "HEAD"), git(t, repo, "rev-parse", "z"))
 
-	require.NoError(t, create("old"))
+	assert.Empty(t, create("old").Error)
 	assert.Equal(t, old, git(t, filepath.Join(repo, ".worktrees", "old"), "rev-parse", "HEAD"))
 	exclude, err := os.ReadFile(filepath.Join(repo, ".git", "info", "exclude"))
 	require.NoError(t, err)
 	assert.Equal(t, 1, strings.Count(string(exclude), ".worktrees/\n"))
+}
+
+func TestNewWorktreeRefusesSymlink(t *testing.T) {
+	repo := committedRepo(t)
+	outside, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(outside, filepath.Join(repo, ".worktrees")))
+	h, id := openReady(t, repo)
+
+	_, err = startOp(t, h, id, "git.worktree-new", map[string]string{"branch": "evil"})
+	assert.ErrorContains(t, err, "worktrees folder must not be a symlink")
+	entries, err := os.ReadDir(outside)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+	assert.Equal(t, repo, firstRoot(t, h, id))
 }
 
 func TestSwitchMapsSubdir(t *testing.T) {
@@ -635,6 +682,38 @@ func TestSwitchMapsSubdir(t *testing.T) {
 	assert.Equal(t, folder, firstRoot(t, h, id))
 }
 
+func TestRemoveWorktreeRefusals(t *testing.T) {
+	repo := committedRepo(t)
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	dirty := filepath.Join(repo, ".worktrees", "dirty")
+	git(t, repo, "worktree", "add", "-q", "-b", "dirty", dirty)
+	write(t, filepath.Join(dirty, "new.go"), "n\n")
+	h, id := openReady(t, repo)
+	shell := func(owner string) sessionEntry {
+		s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: id, Title: owner, Owner: owner, Command: []string{"sh", "-c", "exec cat"}, Cwd: feat})
+		require.NoError(t, err)
+		return sessionEntry{ID: s.ID, Title: s.Title}
+	}
+	terminal, editor := shell("terminals"), shell("editor-nvim")
+
+	var users []sessionEntry
+	require.NoError(t, runCommand(t, h, id, "git.worktree-sessions", map[string]string{"path": feat}, &users))
+	assert.Contains(t, users, terminal)
+	assert.NotContains(t, users, editor)
+
+	_, err := startOp(t, h, id, "git.worktree-remove", map[string]string{"path": repo})
+	assert.ErrorContains(t, err, "cannot remove the main checkout")
+	assert.Equal(t, "worktree has uncommitted changes", awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": dirty}).Error)
+	assert.DirExists(t, dirty)
+
+	p, err := h.Svc.CreateProject(t.Context(), "feat", []string{feat})
+	require.NoError(t, err)
+	_, err = startOp(t, h, p.ID, "git.worktree-remove", map[string]string{"path": feat})
+	assert.ErrorContains(t, err, "cannot remove the checkout of the workspace folder")
+	assert.DirExists(t, feat)
+}
+
 func TestRemoveWorktree(t *testing.T) {
 	if _, err := exec.LookPath("nvim"); err != nil {
 		t.Skip("nvim not in PATH")
@@ -645,9 +724,6 @@ func TestRemoveWorktree(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
-	dirty := filepath.Join(repo, ".worktrees", "dirty")
-	git(t, repo, "worktree", "add", "-q", "-b", "dirty", dirty)
-	write(t, filepath.Join(dirty, "new.go"), "n\n")
 	h, id := openReady(t, repo, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"))
 	surface := func(not string) string {
 		n := h.WaitSlot(t, id, editorSlot, func(n sdui.Node) bool { return n.Type == "surface" && n.Props["sessionId"] != not })
@@ -656,19 +732,8 @@ func TestRemoveWorktree(t *testing.T) {
 	first := surface("")
 	require.NoError(t, runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil))
 	featNvim := surface(first)
-	shell, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: id, Title: "Build", Command: []string{"sh", "-c", "exec cat"}, Cwd: feat})
-	require.NoError(t, err)
-	var users []sessionEntry
-	require.NoError(t, runCommand(t, h, id, "git.worktree-sessions", map[string]string{"path": feat}, &users))
-	assert.Contains(t, users, sessionEntry{ID: shell.ID, Title: "Build"})
-	remove := func(path string) error {
-		return runCommand(t, h, id, "git.worktree-remove", map[string]string{"path": path}, nil)
-	}
 
-	assert.ErrorContains(t, remove(dirty), "worktree has uncommitted changes")
-	assert.DirExists(t, dirty)
-	assert.ErrorContains(t, remove(repo), "cannot remove the main checkout")
-	require.NoError(t, remove(feat))
+	assert.Equal(t, opResult{Done: true}, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat}))
 	assert.NoDirExists(t, feat)
 	assert.Equal(t, repo, firstRoot(t, h, id))
 	git(t, repo, "rev-parse", "--verify", "-q", "feat")
