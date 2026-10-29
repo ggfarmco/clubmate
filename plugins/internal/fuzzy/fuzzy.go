@@ -1,4 +1,4 @@
-package main
+package fuzzy
 
 import (
 	"container/heap"
@@ -24,13 +24,13 @@ const (
 	shardMin         = 4096
 )
 
-type match struct {
+type Match struct {
 	Path      string
 	Score     int
 	Positions []int
 }
 
-type corpus struct {
+type Corpus struct {
 	paths []string
 	lower []string
 	ascii []bool
@@ -59,12 +59,12 @@ type scorer struct {
 	from  []int
 }
 
-func rank(paths []string, query string, limit int) []match {
-	return newCorpus(paths).rank(query, limit)
+func Rank(paths []string, query string, limit int) []Match {
+	return NewCorpus(paths).Rank(query, limit)
 }
 
-func newCorpus(paths []string) corpus {
-	c := corpus{paths: paths, lower: make([]string, len(paths)), ascii: make([]bool, len(paths))}
+func NewCorpus(paths []string) Corpus {
+	c := Corpus{paths: paths, lower: make([]string, len(paths)), ascii: make([]bool, len(paths))}
 	for i, p := range paths {
 		c.ascii[i] = isASCII(p)
 		if c.ascii[i] {
@@ -76,7 +76,7 @@ func newCorpus(paths []string) corpus {
 	return c
 }
 
-func (c corpus) rank(query string, limit int) []match {
+func (c Corpus) Rank(query string, limit int) []Match {
 	q := []rune(strings.Map(unicode.ToLower, query))
 	if len(q) == 0 || limit <= 0 {
 		return c.shortest(limit)
@@ -109,23 +109,27 @@ func (c corpus) rank(query string, limit int) []match {
 	}
 	s := newScorer(q)
 	best := merged.sorted()
-	out := make([]match, 0, len(best))
+	out := make([]Match, 0, len(best))
 	for _, cand := range best {
 		s.align(c, cand.index)
-		out = append(out, match{Path: c.paths[cand.index], Score: cand.score, Positions: s.positions()})
+		out = append(out, Match{Path: c.paths[cand.index], Score: cand.score, Positions: s.positions()})
 	}
 	return out
 }
 
-func (c corpus) shortest(limit int) []match {
+func (c Corpus) Paths() []string {
+	return c.paths
+}
+
+func (c Corpus) shortest(limit int) []Match {
 	top := newTopK(c.paths, limit)
 	for i := range c.paths {
 		top.push(candidate{index: i})
 	}
 	best := top.sorted()
-	out := make([]match, 0, len(best))
+	out := make([]Match, 0, len(best))
 	for _, cand := range best {
-		out = append(out, match{Path: c.paths[cand.index], Positions: []int{}})
+		out = append(out, Match{Path: c.paths[cand.index], Positions: []int{}})
 	}
 	return out
 }
@@ -187,7 +191,7 @@ func newScorer(q []rune) *scorer {
 	return s
 }
 
-func (s *scorer) align(c corpus, i int) (int, bool) {
+func (s *scorer) align(c Corpus, i int) (int, bool) {
 	var base int
 	var ok bool
 	if c.ascii[i] {

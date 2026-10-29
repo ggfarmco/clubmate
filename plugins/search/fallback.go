@@ -49,7 +49,7 @@ func (e builtinEngine) run(ctx context.Context, opts grepOptions, emit serialEmi
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	paths := e.list.corpus.paths
+	paths := e.list.corpus.Paths()
 	next := make(chan int)
 	results := make(chan []grepMatch)
 	var wg sync.WaitGroup
