@@ -235,7 +235,15 @@ private struct WorkspaceView: View {
     }
 
     private func run(_ id: String) {
-        session.run(CommandInvocation(id: id))
+        guard id == NvimRestart.command, let store = session.store else { return session.run(CommandInvocation(id: id)) }
+        let name = app.project(session.projectID)?.name ?? session.projectID
+        let banner = session.banner
+        Task {
+            let outcome = await NvimRestart.run(workspace: name, run: { await store.run($0) }) { message in
+                await Confirmation.ask(message, action: "Restart", destructive: true)
+            }
+            if case .failed(let message) = outcome { banner.show(message) }
+        }
     }
 }
 

@@ -281,12 +281,14 @@ final class AppModel {
 
     private func nvimWorkspaces() async -> [NvimWorkspace] {
         guard let client = supervisor.client, let sessions = try? await client.call(method: "session.list").arrayValue else { return [] }
-        let ids = sessions.compactMap { session -> String? in
+        var running: [String: String] = [:]
+        for session in sessions {
             guard let fields = session.objectValue, fields["owner"]?.stringValue == CodeSection.id,
-                  fields["state"]?.stringValue == "running" else { return nil }
-            return fields["projectId"]?.stringValue
+                  fields["state"]?.stringValue == "running", let projectID = fields["projectId"]?.stringValue,
+                  let id = fields["id"]?.stringValue, running[projectID] == nil else { continue }
+            running[projectID] = id
         }
-        return Array(Set(ids)).sorted().map { NvimWorkspace(id: $0, name: project($0)?.name ?? $0) }
+        return running.keys.sorted().map { NvimWorkspace(id: $0, name: project($0)?.name ?? $0, session: running[$0] ?? "") }
     }
 
     func project(_ id: String) -> Project? {
@@ -343,6 +345,9 @@ final class AppModel {
             Task { @MainActor in self?.trackProjects() }
         }) else { return }
         let present = Set(listed.map(\.id))
+        for workspace in nvimConfig.pending where !present.contains(workspace.id) {
+            nvimConfig.forget(workspace.id)
+        }
         let workspaces = Set(layout.windows.flatMap(\.workspaces))
         presence = presence.filter { workspaces.contains($0.key) }
         let gone = workspaces.filter { presence[$0, default: ProjectPresence()].observe(present.contains($0)) }

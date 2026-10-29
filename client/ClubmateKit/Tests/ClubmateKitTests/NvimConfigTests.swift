@@ -67,18 +67,40 @@ final class NvimConfigTests: XCTestCase {
 
     func testHiddenWorkspaceRestartsOnActivation() async throws {
         let core = FakeNvimCore(statuses: [], configExists: true)
-        let two = NvimWorkspace(id: "w2", name: "two")
-        let model = NvimConfigModel(run: core.run, workspaces: { [NvimWorkspace(id: "w1", name: "one"), two] }, displayed: { ["w1"] }, confirm: { _ in false })
+        let two = NvimWorkspace(id: "w2", name: "two", session: "s2")
+        let three = NvimWorkspace(id: "w3", name: "three", session: "s3")
+        var running = [NvimWorkspace(id: "w1", name: "one", session: "s1"), two, three]
+        let model = NvimConfigModel(run: core.run, workspaces: { running }, displayed: { ["w1"] }, confirm: { _ in false })
         let restart = CommandInvocation(id: "editor-nvim.restart", args: .object([:]))
 
         await model.load()
         await model.choose(.clubmate)
         XCTAssertEqual(core.mutations.last, Call(workspace: "w1", restart))
-        XCTAssertEqual(model.pending, [two])
+        XCTAssertEqual(model.pending, [two, three])
 
         await model.activated("w2")
         XCTAssertEqual(core.mutations.last, Call(workspace: "w2", restart))
+        running[2] = NvimWorkspace(id: "w3", name: "three", session: "s3b")
+        await model.activated("w3")
+        XCTAssertEqual(core.mutations.last, Call(workspace: "w2", restart))
         XCTAssertEqual(model.pending, [])
+    }
+
+    func testPaletteRestartForcesAfterConfirm() async throws {
+        var calls: [CommandInvocation] = []
+        var asked: [String] = []
+
+        let outcome = await NvimRestart.run(workspace: "one", run: { invocation in
+            calls.append(invocation)
+            if invocation.args.objectValue?["force"] == nil {
+                return .failure(.rpc(code: -32013, message: "plugin editor-nvim command.run: unsaved buffers: unknown (nvim not responding)"))
+            }
+            return .success(.null)
+        }, confirm: { asked.append($0); return true })
+
+        XCTAssertEqual(outcome, .restarted)
+        XCTAssertEqual(asked, ["Neovim in “one” has unsaved buffers: unknown (nvim not responding). Restart and discard the changes?"])
+        XCTAssertEqual(calls.last, CommandInvocation(id: "editor-nvim.restart", args: .object(["force": .bool(true)])))
     }
 
     private func makeModel(_ core: FakeNvimCore, confirm: @escaping @MainActor (String) async -> Bool = { _ in false }) -> NvimConfigModel {

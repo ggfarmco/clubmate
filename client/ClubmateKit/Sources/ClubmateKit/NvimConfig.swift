@@ -48,10 +48,39 @@ public struct NvimCopyProgress: Equatable, Sendable {
 public struct NvimWorkspace: Equatable, Sendable {
     public let id: String
     public let name: String
+    public let session: String
 
-    public init(id: String, name: String) {
+    public init(id: String, name: String, session: String = "") {
         self.id = id
         self.name = name
+        self.session = session
+    }
+}
+
+public enum NvimRestart {
+    public static let command = "editor-nvim.restart"
+    static let unsavedMarker = "unsaved buffers: "
+
+    public enum Outcome: Equatable, Sendable {
+        case restarted
+        case declined
+        case failed(String)
+    }
+
+    @MainActor
+    public static func run(
+        workspace name: String,
+        run: @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>,
+        confirm: @MainActor (String) async -> Bool
+    ) async -> Outcome {
+        guard case .failure(let failure) = await run(CommandInvocation(id: command, args: .object([:]))) else { return .restarted }
+        let message = NvimConfigModel.text(failure)
+        guard let marker = message.range(of: unsavedMarker) else { return .failed(message) }
+        guard await confirm("Neovim in “\(name)” has \(message[marker.lowerBound...]). Restart and discard the changes?") else { return .declined }
+        if case .failure(let forced) = await run(CommandInvocation(id: command, args: .object(["force": .bool(true)]))) {
+            return .failed(NvimConfigModel.text(forced))
+        }
+        return .restarted
     }
 }
 
@@ -68,10 +97,8 @@ public final class NvimConfigModel {
     public static let copyCommand = "editor-nvim.config-copy"
     public static let statusCommand = "editor-nvim.config-copy-status"
     public static let cancelCommand = "editor-nvim.config-copy-cancel"
-    public static let restartCommand = "editor-nvim.restart"
     public static let noWorkspace = ClubmateError.rpc(code: 0, message: "Open a workspace to change this")
     static let statusRetries = 3
-    static let unsavedMarker = "unsaved buffers: "
 
     public typealias Run = @MainActor (String?, CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
@@ -82,6 +109,7 @@ public final class NvimConfigModel {
     public private(set) var progress: NvimCopyProgress?
     public private(set) var error: String?
     public private(set) var needsRestart = false
+    public private(set) var restartError: String?
     public private(set) var copyNotice: String?
     public private(set) var pending: [NvimWorkspace] = []
 
@@ -121,6 +149,7 @@ public final class NvimConfigModel {
                 return
             }
             info = parsed
+            error = nil
         case .failure(let failure):
             error = Self.text(failure)
         }
@@ -209,6 +238,7 @@ public final class NvimConfigModel {
         busy = true
         defer { busy = false }
         needsRestart = false
+        restartError = nil
         let shown = displayed()
         let running = await workspaces()
         pending = running.filter { !shown.contains($0.id) }
@@ -220,7 +250,12 @@ public final class NvimConfigModel {
     public func activated(_ id: String) async {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
         let workspace = pending.remove(at: index)
+        guard await workspaces().contains(workspace) else { return }
         if !(await restart(workspace)) { needsRestart = true }
+    }
+
+    public func forget(_ id: String) {
+        pending.removeAll { $0.id == id }
     }
 
     private func apply(_ mode: NvimConfigMode) async {
@@ -239,22 +274,9 @@ public final class NvimConfigModel {
     }
 
     private func restart(_ workspace: NvimWorkspace) async -> Bool {
-        switch await run(workspace.id, CommandInvocation(id: Self.restartCommand, args: .object([:]))) {
-        case .success:
-            return true
-        case .failure(let failure):
-            let message = Self.text(failure)
-            guard let marker = message.range(of: Self.unsavedMarker) else {
-                error = message
-                return false
-            }
-            guard await confirm("Neovim in “\(workspace.name)” has \(message[marker.lowerBound...]). Restart and discard the changes?") else { return false }
-            if case .failure(let forced) = await run(workspace.id, CommandInvocation(id: Self.restartCommand, args: .object(["force": .bool(true)]))) {
-                error = Self.text(forced)
-                return false
-            }
-            return true
-        }
+        let outcome = await NvimRestart.run(workspace: workspace.name, run: { await self.run(workspace.id, $0) }, confirm: confirm)
+        if case .failed(let message) = outcome { restartError = message }
+        return outcome == .restarted
     }
 
     private func sendCancel(_ id: String) async {

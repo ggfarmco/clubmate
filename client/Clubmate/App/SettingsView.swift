@@ -128,6 +128,12 @@ private struct NvimConfigSettings: View {
                     .disabled(model.busy)
             }
         }
+        if let error = model.restartError {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .textSelection(.enabled)
+        }
         if let error = model.error {
             Text(error)
                 .font(.caption)
