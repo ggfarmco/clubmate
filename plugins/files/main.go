@@ -411,9 +411,9 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 
 func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
 	s.mu.Lock()
-	focus := s.focus
+	focus, roots := s.focus, slices.Clone(s.repos)
 	s.mu.Unlock()
-	if focus != "" && !isDir(focus) {
+	if focus != "" && !validFocus(roots, focus) {
 		if err := a.dropFocus(ctx, h, id, s, focus); err != nil {
 			return err
 		}
@@ -554,35 +554,38 @@ func (a *app) focusSelected(ctx context.Context, h *pluginsdk.Host, id string, o
 }
 
 func (a *app) focusItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
+	if item == "" {
+		return a.setFocus(ctx, h, id, s, "")
+	}
 	if strings.HasSuffix(item, moreSuffix) {
 		return nil
 	}
+	dir := resolve(item)
+	info, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		dir = filepath.Dir(dir)
+	}
 	s.mu.Lock()
-	repo := containing(s.repos, item)
+	repo := containing(s.repos, dir)
 	s.mu.Unlock()
-	if item != "" && repo == "" {
+	if repo == "" {
 		return fmt.Errorf("%w: %q", errOutsideRepos, item)
 	}
-	if item != "" {
-		info, err := os.Lstat(item)
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			item = filepath.Dir(item)
-		}
+	if dir == repo {
+		dir = ""
 	}
-	if item == repo {
-		item = ""
-	}
-	return a.setFocus(ctx, h, id, s, item)
+	return a.setFocus(ctx, h, id, s, dir)
 }
 
 func (a *app) setFocus(ctx context.Context, h *pluginsdk.Host, id string, s *state, dir string) error {
 	s.mu.Lock()
 	s.focus = dir
 	var opened []string
-	if repo := containing(s.repos, dir); dir != "" {
+	if dir != "" {
+		repo := containing(s.repos, dir)
 		for p := dir; len(p) >= len(repo); p = filepath.Dir(p) {
 			if !s.expanded[p] {
 				opened = append(opened, p)
@@ -804,7 +807,7 @@ func containing(repos []string, path string) string {
 
 func validFocus(repos []string, focus string) bool {
 	repo := containing(repos, focus)
-	return repo != "" && repo != focus && isDir(focus)
+	return repo != "" && repo != focus && resolve(focus) == focus && isDir(focus)
 }
 
 func narrowFocus(repos []string, focus, path string) string {

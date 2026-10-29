@@ -50,7 +50,7 @@ func focused(t *testing.T, want ...string) func(sdui.Node) bool {
 	return func(n sdui.Node) bool { return n.Type == "scroll" && assert.ObjectsAreEqual(want, breadcrumb(t, n)) }
 }
 
-func startFocusTree(t *testing.T) (*testutil.PluginHarness, string, string) {
+func startTree(t *testing.T) (*testutil.PluginHarness, string, string) {
 	t.Helper()
 	h := testutil.NewPluginHarness(t,
 		testutil.BuildPluginDir(t, "clubmate/plugins/files", "plugins/files/plugin.json"),
@@ -66,8 +66,30 @@ func startFocusTree(t *testing.T) (*testutil.PluginHarness, string, string) {
 	require.NoError(t, err)
 	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
 	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Type == "scroll" })
-	h.Event(t, p.ID, sidebarSlot, "files", "focus", filepath.Join(repo, "a", "b"))
 	return h, p.ID, repo
+}
+
+func startFocusTree(t *testing.T) (*testutil.PluginHarness, string, string) {
+	t.Helper()
+	h, id, repo := startTree(t)
+	h.Event(t, id, sidebarSlot, "files", "focus", filepath.Join(repo, "a", "b"))
+	return h, id, repo
+}
+
+func restartFiles(t *testing.T, h *testutil.PluginHarness) {
+	t.Helper()
+	var pid int
+	for _, st := range h.Sup.Statuses() {
+		if st.ID == "files" {
+			pid = st.PID
+		}
+	}
+	require.NotZero(t, pid)
+	require.NoError(t, unix.Kill(pid, unix.SIGKILL))
+	testutil.Eventually(t, func() bool {
+		pids := h.Sup.PIDs()
+		return len(pids) > 0 && !slices.Contains(pids, pid)
+	}, 15*time.Second)
 }
 
 func TestFocusFolder(t *testing.T) {
@@ -81,18 +103,7 @@ func TestFocusFolder(t *testing.T) {
 	}
 	assert.Equal(t, []string{filepath.Join(dir, "c"), filepath.Join(dir, "y.go")}, ids)
 
-	var pid int
-	for _, st := range h.Sup.Statuses() {
-		if st.ID == "files" {
-			pid = st.PID
-		}
-	}
-	require.NotZero(t, pid)
-	require.NoError(t, unix.Kill(pid, unix.SIGKILL))
-	testutil.Eventually(t, func() bool {
-		pids := h.Sup.PIDs()
-		return len(pids) > 0 && !slices.Contains(pids, pid)
-	}, 15*time.Second)
+	restartFiles(t, h)
 	h.WaitSlot(t, id, sidebarSlot, focused(t, repo, filepath.Join(repo, "a"), dir))
 }
 
@@ -120,10 +131,39 @@ func TestRootsChangeClearsFocus(t *testing.T) {
 	require.NoError(t, err)
 
 	tree := h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool {
+		if n.Type != "scroll" {
+			return false
+		}
 		list := items(t, n)
 		return len(list) == 1 && list[0].ID == other
 	})
 	assert.Empty(t, breadcrumb(t, tree))
+}
+
+func TestFocusRefusesEscapes(t *testing.T) {
+	h, id, repo := startTree(t)
+	out, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.Mkdir(filepath.Join(out, "sub"), 0o700))
+	require.NoError(t, os.Symlink(out, filepath.Join(repo, "link")))
+	escaping := filepath.Join(repo, "link", "sub")
+	scroll := func(n sdui.Node) bool { return n.Type == "scroll" }
+
+	for _, path := range []string{repo + "/../" + filepath.Base(out), escaping} {
+		params := map[string]any{"projectId": id, "slot": sidebarSlot, "nodeId": "files", "action": "focus", "value": path}
+		assert.ErrorContains(t, h.Client(t).Call(t.Context(), "ui.event", params, nil), "outside the project", path)
+	}
+	assert.Empty(t, breadcrumb(t, h.WaitSlot(t, id, sidebarSlot, scroll)))
+
+	stored, err := json.Marshal(escaping)
+	require.NoError(t, err)
+	require.NoError(t, h.KV.Set(t.Context(), "files", "focus/"+id, stored))
+	restartFiles(t, h)
+
+	assert.Empty(t, breadcrumb(t, h.WaitSlot(t, id, sidebarSlot, scroll)))
+	_, found, err := h.KV.Get(t.Context(), "files", "focus/"+id)
+	require.NoError(t, err)
+	assert.False(t, found)
 }
 
 func find(list []sdui.TreeItem, id string) (sdui.TreeItem, bool) {
