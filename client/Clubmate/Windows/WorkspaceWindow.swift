@@ -286,13 +286,16 @@ private struct WorktreeTitleMenu: View {
             Button("New Worktree…") { session.newWorktree(chooseFolder: false) }
             Menu("Remove Worktree…") {
                 ForEach(model.linked) { tree in
-                    Button(model.label(tree)) { session.removeWorktree(tree.path) }
+                    Button(model.label(tree)) { session.removeWorktree(tree) }
                 }
             }
             .disabled(model.linked.isEmpty)
         } label: {
             Text(title)
                 .font(.headline)
+                .onHover { inside in
+                    if inside { session.worktreeMenuOpened() }
+                }
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -303,7 +306,7 @@ private struct WorktreeTitleMenu: View {
 
     private func trees(_ group: WorktreeGroup) -> some View {
         ForEach(group.trees) { tree in
-            Toggle(tree.name, isOn: Binding(get: { tree.current }, set: { _ in session.switchWorktree(tree.path) }))
+            Toggle(tree.name, isOn: Binding(get: { tree.current }, set: { _ in session.switchWorktree(tree) }))
         }
     }
 }

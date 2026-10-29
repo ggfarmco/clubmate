@@ -5,15 +5,29 @@ import ClubmateKit
 
 @MainActor
 final class WorktreesTests: XCTestCase {
-    func testSwitchCallsCommand() async throws {
+    func testSwitchCallsCommandForTheFolder() async throws {
         let core = FakeGitCore()
+        core.trees = ["/r/a", "/r/b"].flatMap { repo in
+            [FakeGitCore.tree(repo: repo, path: "/r", main: true, current: true), FakeGitCore.tree(repo: repo, path: "/r/.worktrees/feat")]
+        }
         let model = makeModel(core)
         await model.load()
 
-        await model.switchTo("/r/.worktrees/feat")
+        await model.switchTo(repo: "/r/b", path: "/r/.worktrees/feat")
 
         XCTAssertEqual(core.calls.map(\.id), ["git.worktrees", "git.worktree-switch", "git.worktrees"])
-        XCTAssertEqual(core.calls[1].args, .object(["repo": .string("/r"), "path": .string("/r/.worktrees/feat")]))
+        XCTAssertEqual(core.calls[1].args, .object(["repo": .string("/r/b"), "path": .string("/r/.worktrees/feat")]))
+    }
+
+    func testMenuOpenedReloadsList() async throws {
+        let core = FakeGitCore()
+        let model = makeModel(core)
+        await model.load()
+        core.trees.append(FakeGitCore.tree(repo: "/r", path: "/r/.worktrees/new"))
+
+        await model.menuOpened()
+
+        XCTAssertEqual(model.worktrees.map(\.path), ["/r", "/r/.worktrees/feat", "/r/.worktrees/new"])
     }
 
     func testRemoveConfirmsThenForcesOnUnsaved() async throws {
@@ -25,7 +39,7 @@ final class WorktreesTests: XCTestCase {
         }
         await model.load()
 
-        await model.remove("/r/.worktrees/feat")
+        await model.remove(repo: "/r", path: "/r/.worktrees/feat")
 
         XCTAssertEqual(asked, [
             "Remove worktree feat? Its branch is kept.|Terminals still in it: zsh, server",
@@ -39,14 +53,19 @@ final class WorktreesTests: XCTestCase {
         let declined = FakeGitCore()
         let cautious = makeModel(declined) { _, _ in false }
         await cautious.load()
-        await cautious.remove("/r/.worktrees/feat")
+        await cautious.remove(repo: "/r", path: "/r/.worktrees/feat")
         XCTAssertFalse(declined.calls.contains { $0.id == "git.worktree-remove" })
     }
 
-    func testMissingBannerOnce() async throws {
+    func testMissingBannerOnceBackToFolderCheckout() async throws {
         let core = FakeGitCore()
+        let folder = "/r/.worktrees/x"
+        core.trees = [
+            FakeGitCore.tree(repo: folder, path: "/r", main: true),
+            FakeGitCore.tree(repo: folder, path: folder, current: true),
+        ]
         var banners: [String] = []
-        let project = try decodeProject(missing: ["/r/.worktrees/gone"])
+        let project = try decodeProject(repo: folder, missing: ["/r/.worktrees/gone"])
         let model = WorktreeModel(run: core.run, project: { project }, confirm: { _, _ in false }, report: { banners.append($0) })
 
         await model.load()
@@ -54,7 +73,7 @@ final class WorktreesTests: XCTestCase {
 
         XCTAssertEqual(banners, ["Worktree gone no longer exists — back on main"])
         XCTAssertEqual(core.calls.filter { $0.id == "git.worktree-switch" }.map(\.args), [
-            .object(["repo": .string("/r"), "path": .string("/r")]),
+            .object(["repo": .string(folder), "path": .string(folder)]),
         ])
     }
 
@@ -62,17 +81,18 @@ final class WorktreesTests: XCTestCase {
         WorktreeModel(run: core.run, project: { nil }, confirm: confirm, report: { XCTFail("unexpected banner: \($0)") })
     }
 
-    private func decodeProject(missing: [String]) throws -> Project {
+    private func decodeProject(repo: String, missing: [String]) throws -> Project {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let paths = missing.map { "\"\($0)\"" }.joined(separator: ",")
-        return try decoder.decode(Project.self, from: Data(#"{"id":"p","name":"r","repos":["/r"],"missing":[\#(paths)],"createdAt":"2026-01-01T00:00:00Z"}"#.utf8))
+        return try decoder.decode(Project.self, from: Data(#"{"id":"p","name":"r","repos":["\#(repo)"],"missing":[\#(paths)],"createdAt":"2026-01-01T00:00:00Z"}"#.utf8))
     }
 }
 
 @MainActor
 private final class FakeGitCore {
     private(set) var calls: [CommandInvocation] = []
+    var trees = [tree(repo: "/r", path: "/r", main: true, current: true), tree(repo: "/r", path: "/r/.worktrees/feat")]
     private let unsaved: Bool
 
     init(unsaved: Bool = false) {
@@ -84,10 +104,7 @@ private final class FakeGitCore {
         let args = invocation.args.objectValue ?? [:]
         switch invocation.id {
         case "git.worktrees":
-            return .success(.array([
-                Self.tree(path: "/r", branch: "main", main: true, current: true),
-                Self.tree(path: "/r/.worktrees/feat", branch: "feat", main: false, current: false),
-            ]))
+            return .success(.array(trees))
         case "git.worktree-sessions":
             return .success(.array([
                 .object(["id": .string("s1"), "title": .string("zsh")]),
@@ -104,9 +121,9 @@ private final class FakeGitCore {
         }
     }
 
-    private static func tree(path: String, branch: String, main: Bool, current: Bool) -> JSONValue {
+    static func tree(repo: String, path: String, main: Bool = false, current: Bool = false) -> JSONValue {
         .object([
-            "repo": .string("/r"), "path": .string(path), "branch": .string(branch),
+            "repo": .string(repo), "path": .string(path), "branch": .string(main ? "main" : URL(fileURLWithPath: path).lastPathComponent),
             "head": .string("abc1234"), "main": .bool(main), "current": .bool(current),
         ])
     }

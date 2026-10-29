@@ -547,27 +547,33 @@ final class ProjectSession {
     }
 
     func chooseWorktree() {
-        let trees = worktrees.worktrees
         Task {
-            guard let index = await ChoicePrompt.ask("Switch Worktree", options: trees.map(worktrees.label), selected: trees.firstIndex { $0.current } ?? 0, action: "Switch") else { return }
-            await worktrees.switchTo(trees[index].path)
+            await worktrees.menuOpened()
+            let trees = worktrees.worktrees
+            guard !trees.isEmpty, let index = await ChoicePrompt.ask("Switch Worktree", options: trees.map(worktrees.label), selected: trees.firstIndex { $0.current } ?? 0, action: "Switch") else { return }
+            await worktrees.switchTo(repo: trees[index].repo, path: trees[index].path)
         }
     }
 
     func chooseWorktreeToRemove() {
-        let trees = worktrees.linked
         Task {
-            guard let index = await ChoicePrompt.ask("Remove Worktree", options: trees.map(worktrees.label), action: "Continue") else { return }
-            await worktrees.remove(trees[index].path)
+            await worktrees.menuOpened()
+            let trees = worktrees.linked
+            guard !trees.isEmpty, let index = await ChoicePrompt.ask("Remove Worktree", options: trees.map(worktrees.label), action: "Continue") else { return }
+            await worktrees.remove(repo: trees[index].repo, path: trees[index].path)
         }
     }
 
-    func removeWorktree(_ path: String) {
-        Task { await worktrees.remove(path) }
+    func removeWorktree(_ tree: Worktree) {
+        Task { await worktrees.remove(repo: tree.repo, path: tree.path) }
     }
 
-    func switchWorktree(_ path: String) {
-        Task { await worktrees.switchTo(path) }
+    func switchWorktree(_ tree: Worktree) {
+        Task { await worktrees.switchTo(repo: tree.repo, path: tree.path) }
+    }
+
+    func worktreeMenuOpened() {
+        Task { await worktrees.menuOpened() }
     }
 
     func toggle(_ overlay: WorkspaceOverlay) {

@@ -9,7 +9,7 @@ public struct Worktree: Equatable, Sendable, Identifiable {
     public let main: Bool
     public let current: Bool
 
-    public var id: String { path }
+    public var id: String { "\(repo)\u{0}\(path)" }
 
     public var name: String { branch.isEmpty ? head : branch }
 
@@ -100,16 +100,19 @@ public final class WorktreeModel {
             let owner = worktrees.filter { Self.within(path, $0.path) }.max { $0.path.count < $1.path.count }
             let lost = owner.flatMap { $0.main ? nil : $0 }
             report("Worktree \(lost?.name ?? Self.folderName(path)) no longer exists — back on main")
-            let repo = owner?.repo ?? soleRepo
-            guard let main = worktrees.first(where: { $0.main && $0.repo == repo }) else { continue }
-            await send(Self.switchCommand, ["repo": .string(main.repo), "path": .string(main.path)])
+            guard let repo = owner?.repo ?? soleRepo, let home = checkout(of: repo) else { continue }
+            await send(Self.switchCommand, ["repo": .string(home.repo), "path": .string(home.path)])
             switched = true
         }
         if switched { await fetch() }
     }
 
-    public func switchTo(_ path: String) async {
-        guard let tree = worktrees.first(where: { $0.path == path }), !tree.current else { return }
+    public func menuOpened() async {
+        await load()
+    }
+
+    public func switchTo(repo: String, path: String) async {
+        guard let tree = tree(repo: repo, path: path), !tree.current else { return }
         await send(Self.switchCommand, ["repo": .string(tree.repo), "path": .string(tree.path)])
         await load()
     }
@@ -123,10 +126,10 @@ public final class WorktreeModel {
         await load()
     }
 
-    public func remove(_ path: String) async {
-        guard let tree = worktrees.first(where: { $0.path == path }), !tree.main else { return }
+    public func remove(repo: String, path: String) async {
+        guard let tree = tree(repo: repo, path: path), !tree.main else { return }
         let titles: [String]
-        switch await run(CommandInvocation(id: Self.sessionsCommand, args: .object(["path": .string(path)]))) {
+        switch await run(CommandInvocation(id: Self.sessionsCommand, args: .object(["path": .string(tree.path)]))) {
         case .success(let value):
             titles = (value.arrayValue ?? []).compactMap { $0.objectValue?["title"]?.stringValue }
         case .failure(let failure):
@@ -143,6 +146,15 @@ public final class WorktreeModel {
         }
         if let failure { report(failure) }
         await load()
+    }
+
+    private func tree(repo: String, path: String) -> Worktree? {
+        worktrees.first { $0.repo == repo && $0.path == path }
+    }
+
+    private func checkout(of repo: String) -> Worktree? {
+        worktrees.filter { $0.repo == repo && Self.within(repo, $0.path) }.max { $0.path.count < $1.path.count }
+            ?? worktrees.first { $0.repo == repo && $0.current }
     }
 
     private var soleRepo: String? {
