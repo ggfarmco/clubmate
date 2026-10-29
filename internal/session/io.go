@@ -117,24 +117,33 @@ func writeInput(conn net.Conn, data []byte) error {
 func Plain(b []byte) string {
 	out := make([]byte, 0, len(b))
 	lineStart := 0
+	pendingCR := false
+	overwrite := func() {
+		if pendingCR {
+			out = out[:lineStart]
+			pendingCR = false
+		}
+	}
 	for i := 0; i < len(b); {
 		c := b[i]
 		switch {
 		case c == 0x1b:
 			i = skipEscape(b, i)
 			continue
-		case c == '\r' && i+1 < len(b) && b[i+1] == '\n':
 		case c == '\r':
-			out = out[:lineStart]
+			pendingCR = true
 		case c == '\b':
+			overwrite()
 			if len(out) > lineStart {
 				_, size := utf8.DecodeLastRune(out[lineStart:])
 				out = out[:len(out)-size]
 			}
 		case c == '\n':
+			pendingCR = false
 			out = append(out, c)
 			lineStart = len(out)
 		case c == '\t' || c >= 0x20 && c != 0x7f:
+			overwrite()
 			out = append(out, c)
 		}
 		i++

@@ -11,6 +11,7 @@ final class AppModel {
     let supervisor: ConnectionSupervisor
     let updates: Updates
     let settings = AppSettings()
+    let claude = ClaudeIntegration()
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
     private(set) var switcherWindow: String?

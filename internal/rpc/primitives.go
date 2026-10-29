@@ -118,6 +118,10 @@ func destructive(c Command) Command {
 	return c
 }
 
+func PrimitiveCommands() []Command {
+	return primitiveCommands()
+}
+
 func primitiveCommands() []Command {
 	out := make([]Command, 0, len(primitives))
 	for _, p := range primitives {

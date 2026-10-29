@@ -31,7 +31,32 @@ struct SettingsView: View {
             Section("nvim") {
                 Toggle("nvim navigation keys", isOn: navigationKeys)
             }
+            if app.claude.phase != .missing {
+                Section("Agents") {
+                    LabeledContent("Claude Code") {
+                        switch app.claude.phase {
+                        case .checking, .missing:
+                            ProgressView().controlSize(.small)
+                        case .disconnected:
+                            Button("Connect Claude Code") { Task { await app.claude.connect() } }
+                                .disabled(app.claude.busy)
+                        case .connected:
+                            HStack {
+                                Text("Connected")
+                                Button("Reconnect") { Task { await app.claude.connect() } }
+                                    .disabled(app.claude.busy)
+                            }
+                        }
+                    }
+                    if !app.claude.output.isEmpty {
+                        Text(app.claude.output)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                    }
+                }
+            }
         }
+        .task { await app.claude.refresh() }
         .formStyle(.grouped)
         .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)

@@ -43,16 +43,18 @@ func TestSessionReadAltScreen(t *testing.T) {
 
 func TestPlainText(t *testing.T) {
 	tests := map[string]struct{ in, want string }{
-		"csi":       {"a\x1b[1;31mred\x1b[0m b", "ared b"},
-		"osc bel":   {"\x1b]0;title\x07x", "x"},
-		"osc st":    {"\x1b]8;;http://a\x1b\\link\x1b]8;;\x1b\\", "link"},
-		"esc seq":   {"\x1b(Bx\x1b=y", "xy"},
-		"crlf":      {"a\r\nb", "a\nb"},
-		"lone cr":   {"x\nab\rc", "x\nc"},
-		"backspace": {"x\nab\b\bé\bc\b\bd", "x\nd"},
-		"esc ctrl":  {"a\x1b\nb", "a\nb"},
-		"controls":  {"a\x07b\tc", "ab\tc"},
-		"split utf": {"\xa4b", "b"},
+		"csi":        {"a\x1b[1;31mred\x1b[0m b", "ared b"},
+		"osc bel":    {"\x1b]0;title\x07x", "x"},
+		"osc st":     {"\x1b]8;;http://a\x1b\\link\x1b]8;;\x1b\\", "link"},
+		"esc seq":    {"\x1b(Bx\x1b=y", "xy"},
+		"crlf":       {"a\r\nb", "a\nb"},
+		"lone cr":    {"x\nab\rc", "x\nc"},
+		"pending cr": {"x\n50%\r", "x\n50%"},
+		"cr newline": {"ab\r\r\ncd", "ab\ncd"},
+		"backspace":  {"x\nab\b\bé\bc\b\bd", "x\nd"},
+		"esc ctrl":   {"a\x1b\nb", "a\nb"},
+		"controls":   {"a\x07b\tc", "ab\tc"},
+		"split utf":  {"\xa4b", "b"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
