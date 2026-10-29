@@ -193,6 +193,9 @@ private struct ProjectCommands: Commands {
                 .keyboardShortcut("w", modifiers: [.control, .command])
                 .disabled(windowID == nil)
         }
+        CommandGroup(replacing: .help) {
+            Button("\(Diagnostics.title)…") { app.collectDiagnostics() }
+        }
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in
                 Button(sectionTitle(index)) { selectSection(index) }

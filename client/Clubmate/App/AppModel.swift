@@ -143,6 +143,10 @@ final class AppModel {
         keyWindowID = window
     }
 
+    var keyWorkspace: (projectID: String?, window: NSWindow?) {
+        (keyWindowID.flatMap { layout.window($0)?.active }, keyWindowID.flatMap { hosts.object(forKey: $0 as NSString) })
+    }
+
     func windowAttached(_ window: String, _ host: NSWindow) {
         hosts.setObject(host, forKey: window as NSString)
     }
@@ -481,7 +485,7 @@ extension AppModel {
         return panel.urls.map { $0.path(percentEncoded: false) }
     }
 
-    private static func alert(_ message: String) {
+    static func alert(_ message: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = message

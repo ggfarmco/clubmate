@@ -140,6 +140,10 @@ public final class CoreClient {
         try await connection.call("command.run", CommandRunParams(id: id, projectId: projectID, args: args), timeout: .seconds(8))
     }
 
+    public func collectDiagnostics(projectID: String?, appVersion: String, extra: [String: Data]) async throws -> DiagnosticsResult {
+        try await connection.call("diagnostics.collect", DiagnosticsParams(projectId: projectID, appVersion: appVersion, extra: extra), timeout: .seconds(60))
+    }
+
     public func uiStateGet(projectID: String) async throws -> JSONValue? {
         let result: StateResult = try await connection.call("ui.state.get", ProjectParams(projectId: projectID))
         return result.state == .null ? nil : result.state
@@ -238,6 +242,12 @@ private struct CommandRunParams: Encodable, Sendable {
     let id: String
     let projectId: String
     let args: JSONValue
+}
+
+private struct DiagnosticsParams: Encodable, Sendable {
+    let projectId: String?
+    let appVersion: String
+    let extra: [String: Data]
 }
 
 private struct StateResult: Decodable, Sendable {
