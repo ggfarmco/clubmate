@@ -148,12 +148,11 @@ type deletedPayload struct {
 }
 
 type app struct {
-	nvimPath string
-	copies   *copies
-	navMu    sync.Mutex
-	mu       sync.Mutex
-	editors  map[string]*editor
-	deleted  map[string]bool
+	copies  *copies
+	navMu   sync.Mutex
+	mu      sync.Mutex
+	editors map[string]*editor
+	deleted map[string]bool
 }
 
 type editor struct {
@@ -171,7 +170,6 @@ type editor struct {
 
 func main() {
 	a := &app{copies: newCopies(), editors: map[string]*editor{}, deleted: map[string]bool{}}
-	a.nvimPath, _ = exec.LookPath("nvim")
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 }
 
@@ -438,9 +436,6 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	if a.isDeleted(e.id) {
 		return nil, errDeleted
 	}
-	if a.nvimPath == "" {
-		return nil, errors.Join(errNvimNotInPATH, renderMain(ctx, h, e.id, missingView()))
-	}
 	if c := e.connected(); c != nil {
 		return c, nil
 	}
@@ -458,6 +453,9 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	}
 	e.setProject(p.Repos, root)
 	s, err := a.session(ctx, h, e.id, root, sock)
+	if errors.Is(err, errNvimNotInPATH) {
+		return nil, errors.Join(err, renderMain(ctx, h, e.id, missingView(errors.Is(err, errSystemNvimMissing))))
+	}
 	if err != nil {
 		return nil, errors.Join(err, renderMain(ctx, h, e.id, failedView(err)))
 	}
@@ -525,6 +523,10 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, s
 			return s.ID, nil
 		}
 	}
+	path, env, unset, pathAppend, err := a.nvimCommand(ctx, h)
+	if err != nil {
+		return "", err
+	}
 	if err := renderMain(ctx, h, projectID, startingView()); err != nil {
 		return "", err
 	}
@@ -538,17 +540,14 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, s
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("remove stale socket: %w", err)
 	}
-	env, unset, err := a.sessionEnv(ctx, h)
-	if err != nil {
-		return "", err
-	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
-		ProjectID: projectID,
-		Title:     sessionTitle,
-		Command:   []string{a.nvimPath, "--listen", sock},
-		Cwd:       root,
-		Env:       env,
-		UnsetEnv:  unset,
+		ProjectID:  projectID,
+		Title:      sessionTitle,
+		Command:    []string{path, "--listen", sock},
+		Cwd:        root,
+		Env:        env,
+		UnsetEnv:   unset,
+		PathAppend: pathAppend,
 	})
 	return s.ID, err
 }

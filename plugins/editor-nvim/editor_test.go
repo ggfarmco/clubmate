@@ -45,6 +45,12 @@ type setup struct {
 	initLua      string
 }
 
+type binaryInfo struct {
+	Binary        string `json:"binary"`
+	SystemPath    string `json:"systemPath"`
+	SystemVersion string `json:"systemVersion"`
+}
+
 type editor struct {
 	h         *testutil.PluginHarness
 	projectID string
@@ -769,4 +775,61 @@ func TestNavigationOutlastsUserMappingsAfterRestart(t *testing.T) {
 	testutil.Eventually(t, func() bool {
 		return eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')") == navDesc
 	}, 5*time.Second)
+}
+
+func TestBundledNvimEnv(t *testing.T) {
+	system, err := exec.LookPath("nvim")
+	if err != nil {
+		t.Skip("nvim not in PATH")
+	}
+	res := t.TempDir()
+	bundled := filepath.Join(res, "nvim", "bin", "nvim")
+	tools := filepath.Join(res, "tools")
+	require.NoError(t, os.MkdirAll(filepath.Dir(bundled), 0o700))
+	require.NoError(t, os.Symlink(system, bundled))
+	require.NoError(t, os.Mkdir(tools, 0o700))
+	t.Setenv("CLUBMATE_RESOURCES", res)
+	t.Setenv("VIMRUNTIME", "/nonexistent")
+	e := startEditor(t)
+	assert.Equal(t, bundled, e.h.GetSession(t, e.sessionID).Command[0])
+	v := dial(t, e.sock)
+	assert.False(t, strings.HasPrefix(eval[string](t, v, "$VIMRUNTIME"), "/nonexistent"))
+	assert.True(t, strings.HasSuffix(eval[string](t, v, "$PATH"), ":"+tools))
+}
+
+func TestBundledFallsBackToPath(t *testing.T) {
+	t.Setenv("CLUBMATE_RESOURCES", t.TempDir())
+	e := startEditor(t)
+	want, err := exec.LookPath("nvim")
+	require.NoError(t, err)
+	assert.Equal(t, want, e.h.GetSession(t, e.sessionID).Command[0])
+}
+
+func TestSystemNvimMissingShowsHint(t *testing.T) {
+	c := startCopier(t, func(xdg) { t.Setenv("PATH", t.TempDir()) })
+	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{"binary": "system"}, nil))
+	var sub struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, c.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": c.projectID}, &sub))
+	c.h.WaitSlot(t, c.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Props["text"] == "nvim not found in PATH — switch to Built-in in Settings → Editor"
+	})
+}
+
+func TestConfigBinaryRoundTrip(t *testing.T) {
+	system, err := exec.LookPath("nvim")
+	if err != nil {
+		t.Skip("nvim not in PATH")
+	}
+	c := startCopier(t, nil)
+	var info binaryInfo
+	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{}, &info))
+	assert.Equal(t, "bundled", info.Binary)
+	assert.Equal(t, system, info.SystemPath)
+	assert.True(t, strings.HasPrefix(info.SystemVersion, "NVIM v"), info.SystemVersion)
+	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{"binary": "system"}, nil))
+	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{}, &info))
+	assert.Equal(t, "system", info.Binary)
+	require.ErrorContains(t, c.run(t, "editor-nvim.config", map[string]any{"binary": "x"}, nil), "binary must be bundled or system")
 }
