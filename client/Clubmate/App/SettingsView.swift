@@ -100,6 +100,15 @@ private struct NvimConfigSettings: View {
 
     var body: some View {
         if let info = model.info {
+            Picker("Neovim", selection: binary(info)) {
+                Text(info.bundledVersion.isEmpty ? "Built-in" : "Built-in (\(info.bundledVersion))").tag(NvimBinary.bundled)
+                Text("System").tag(NvimBinary.system)
+            }
+            .pickerStyle(.segmented)
+            .disabled(model.busy)
+            Text(info.systemPath.isEmpty ? "Not found in PATH" : "\(info.systemPath) — \(info.systemVersion)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Picker("Neovim config", selection: mode(info)) {
                 Text("Shared (~/.config/nvim)").tag(NvimConfigMode.shared)
                 Text("Clubmate only").tag(NvimConfigMode.clubmate)
@@ -144,6 +153,10 @@ private struct NvimConfigSettings: View {
 
     private func mode(_ info: NvimConfigInfo) -> Binding<NvimConfigMode> {
         Binding { info.mode } set: { mode in Task { await model.choose(mode) } }
+    }
+
+    private func binary(_ info: NvimConfigInfo) -> Binding<NvimBinary> {
+        Binding { info.binary } set: { binary in Task { await model.chooseBinary(binary) } }
     }
 
     private func reveal(_ path: String) {
