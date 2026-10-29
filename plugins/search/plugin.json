@@ -1,0 +1,25 @@
+{
+  "id": "search",
+  "name": "Search",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["search"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "search.files",
+        "title": "Go to File",
+        "hidden": true,
+        "agent": true,
+        "description": "Fuzzy-find files by path across the workspace folders, honoring .gitignore. Returns {matches:[{path, absPath, positions, line?}], truncated}; positions are rune indexes of the matched characters in path, and a query ending in :N matches without the suffix and puts line N on every match. Unavailable in the home workspace.",
+        "args": {
+          "properties": {
+            "query": {"type": "string", "description": "Fuzzy query matched against workspace-relative paths, case-insensitively; empty lists the shortest paths."},
+            "limit": {"type": "integer", "default": 50, "description": "Maximum number of matches, 1 to 200."}
+          },
+          "required": ["query"]
+        }
+      }
+    ]
+  }
+}
