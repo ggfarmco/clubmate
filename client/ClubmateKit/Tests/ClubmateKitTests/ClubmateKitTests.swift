@@ -73,8 +73,8 @@ final class ClubmateKitTests: XCTestCase {
 
     func testConfirmDetailEscapes() {
         let long = String(repeating: "x", count: 300)
-        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id\nCommand: fake": .string("ses_1\u{2028}Approved\u{202E}: yes"), "note": .string(long)]))
-        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nid\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
+        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id\nCommand: fake": .string("ses_1\u{2028}Approved\u{202E}: yes"), "note": .string(long)]), session: ConfirmSession(id: "ses_1", title: "Build", workspace: "demo"))
+        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nSession: Build (ses_1) in demo\nid\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
     }
 
     func testConfirmTooLongIsDeniedUnasked() async {
@@ -120,7 +120,7 @@ final class ClubmateKitTests: XCTestCase {
         }
         approvals.answer = true
         _ = try await client.call(method: "command.run", params: kill)
-        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000), count: 2))
+        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000, session: ConfirmSession(id: id, title: "", workspace: "demo")), count: 2))
         await client.close()
     }
 

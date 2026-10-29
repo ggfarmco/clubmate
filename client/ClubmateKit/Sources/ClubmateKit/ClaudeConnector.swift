@@ -31,15 +31,30 @@ public struct ClaudeLocation: Sendable, Equatable {
     }
 }
 
+public enum ClaudeRegistration: Sendable, Equatable {
+    case absent
+    case current
+    case other(String)
+}
+
 public struct ClaudeConnector: Sendable {
-    public static let serverName = "clubmate"
+    public let serverName: String
 
     private let runner: any ProcessRunning
     private let shell: String
 
-    public init(runner: any ProcessRunning = SystemProcessRunner(), shell: String = ClaudeConnector.loginShell()) {
+    public init(runner: any ProcessRunning = SystemProcessRunner(), shell: String = ClaudeConnector.loginShell(), serverName: String = ClaudeConnector.serverName(flavor: ClaudeConnector.bundleFlavor())) {
         self.runner = runner
         self.shell = shell
+        self.serverName = serverName
+    }
+
+    public static func serverName(flavor: String) -> String {
+        flavor == "release" ? "clubmate" : "clubmate-dev"
+    }
+
+    public static func bundleFlavor() -> String {
+        Bundle.main.object(forInfoDictionaryKey: "ClubmateFlavor") as? String ?? "dev"
     }
 
     public func locate() async -> ClaudeLocation? {
@@ -49,18 +64,24 @@ public struct ClaudeConnector: Sendable {
         return ClaudeLocation(claude: lines[lines.count - 2], path: lines[lines.count - 1])
     }
 
-    public func isConnected(_ location: ClaudeLocation) async -> Bool {
-        await claude(location, ["mcp", "get", Self.serverName]).status == 0
+    public func registration(_ location: ClaudeLocation, cli: String) async -> ClaudeRegistration {
+        let result = await claude(location, ["mcp", "get", serverName])
+        guard result.status == 0 else { return .absent }
+        let command = result.output.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.hasPrefix("Command:") }
+            .map { $0.dropFirst("Command:".count).trimmingCharacters(in: .whitespaces) } ?? ""
+        return command == cli ? .current : .other(command)
     }
 
     public func connect(_ location: ClaudeLocation, cli: String) async -> ProcessOutput {
         var log = ""
-        if await isConnected(location) {
-            let removed = await claude(location, ["mcp", "remove", "--scope", "user", Self.serverName])
+        if await registration(location, cli: cli) != .absent {
+            let removed = await claude(location, ["mcp", "remove", "--scope", "user", serverName])
             log += removed.output
             guard removed.status == 0 else { return ProcessOutput(status: removed.status, output: log) }
         }
-        let added = await claude(location, ["mcp", "add", "--scope", "user", Self.serverName, "--", cli, "mcp"])
+        let added = await claude(location, ["mcp", "add", "--scope", "user", serverName, "--", cli, "mcp"])
         return ProcessOutput(status: added.status, output: log + added.output)
     }
 

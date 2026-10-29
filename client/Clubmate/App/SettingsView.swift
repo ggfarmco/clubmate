@@ -40,6 +40,14 @@ struct SettingsView: View {
                         case .disconnected:
                             Button("Connect Claude Code") { Task { await app.claude.connect() } }
                                 .disabled(app.claude.busy)
+                        case .other(let command):
+                            HStack {
+                                Text("\(app.claude.serverName) runs \(command.isEmpty ? "another command" : command)")
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Button("Reconnect") { Task { await app.claude.connect() } }
+                                    .disabled(app.claude.busy)
+                            }
                         case .connected:
                             HStack {
                                 Text("Connected")

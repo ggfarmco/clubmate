@@ -9,7 +9,7 @@ final class ClaudeConnectorTests: XCTestCase {
             #"/bin/zsh -l -i -c command -v claude; printf '%s\n' "$PATH""#: ProcessOutput(status: 0, output: "welcome\n/tmp/motd\n\n/opt/bin/claude\n/opt/bin:/usr/bin\n"),
             "/opt/bin/claude mcp get clubmate": ProcessOutput(status: 0, output: "clubmate: …\n"),
         ])
-        let connector = ClaudeConnector(runner: runner, shell: "/bin/zsh")
+        let connector = ClaudeConnector(runner: runner, shell: "/bin/zsh", serverName: "clubmate")
         let location = await connector.locate()
         XCTAssertEqual(location, ClaudeLocation(claude: "/opt/bin/claude", path: "/opt/bin:/usr/bin"))
         guard let location else { return }
@@ -24,6 +24,19 @@ final class ClaudeConnectorTests: XCTestCase {
         ])
         XCTAssertNil(calls[0].environment)
         XCTAssertTrue(calls.dropFirst().allSatisfy { $0.environment?.contains("PATH=/opt/bin:/usr/bin") == true })
+    }
+
+    func testRegistrationMatchesThisBundle() async {
+        XCTAssertEqual(ClaudeConnector.serverName(flavor: "release"), "clubmate")
+        XCTAssertEqual(ClaudeConnector.serverName(flavor: "dev"), "clubmate-dev")
+        let location = ClaudeLocation(claude: "/opt/bin/claude", path: "/usr/bin")
+        let entry = "clubmate-dev:\n  Scope: User config\n  Command: /App/bin/clubmate\n  Args: mcp\n"
+        let runner = FakeRunner(results: ["/opt/bin/claude mcp get clubmate-dev": ProcessOutput(status: 0, output: entry)])
+        let connector = ClaudeConnector(runner: runner, shell: "/bin/zsh", serverName: "clubmate-dev")
+        let current = await connector.registration(location, cli: "/App/bin/clubmate")
+        let other = await connector.registration(location, cli: "/Other/bin/clubmate")
+        XCTAssertEqual(current, .current)
+        XCTAssertEqual(other, .other("/App/bin/clubmate"))
     }
 
     func testRunnerReturnsStatusAndOutput() async {

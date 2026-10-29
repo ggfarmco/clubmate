@@ -16,7 +16,7 @@ Hidden helpers and commands not marked for agents stay out of reach.
 
 ## Approvals
 
-Destructive actions (closing or killing sessions, typing into a session, restarting the editor, killing orphan processes) ask you first. Clubmate shows an alert naming the action, the workspace and every argument in full, with Allow and Deny. Deny is the default. If nobody answers within 60 seconds, or the app isn't open, the action is refused.
+Destructive actions (closing or killing sessions, typing into a session, restarting the editor, killing orphan processes) ask you first. Clubmate shows an alert naming the action, the workspace, the targeted session and every argument in full, with Allow and Deny. Deny is the default. If nobody answers within 60 seconds, or the app isn't open, the action is refused.
 
 Agent mode is a cooperative guard for well-behaved agents, not a security boundary: any program running as your user can reach Clubmate directly.
 
@@ -49,4 +49,4 @@ To connect Claude Code, use **Settings → Agents → Connect Claude Code**. It 
 claude mcp add --scope user clubmate -- "/Applications/Clubmate.app/Contents/Resources/bin/clubmate" mcp
 ```
 
-The button is shown only when `claude` is on your login shell's `PATH`; Clubmate looks once per launch, so restart Clubmate after installing `claude`. When the server is already configured it says "Connected" and offers "Reconnect" (remove, then add). Clubmate never edits Claude's config files itself.
+Development builds register the server as `clubmate-dev` instead, so both can be connected at once. The button is shown only when `claude` is on your login shell's `PATH`; Clubmate looks once per launch, so restart Clubmate after installing `claude`. It says "Connected" only when the registered server runs this copy of Clubmate; if it runs another one, it shows that command and offers "Reconnect" (remove, then add; if the remove fails, nothing is added). Clubmate never edits Claude's config files itself.

@@ -12,13 +12,15 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     public let command: String
     public let args: JSONValue
     public let timeoutMs: Int?
+    public let session: ConfirmSession?
 
-    public init(title: String, workspace: String, command: String, args: JSONValue, timeoutMs: Int? = nil) {
+    public init(title: String, workspace: String, command: String, args: JSONValue, timeoutMs: Int? = nil, session: ConfirmSession? = nil) {
         self.title = title
         self.workspace = workspace
         self.command = command
         self.args = args
         self.timeoutMs = timeoutMs
+        self.session = session
     }
 
     public var deadline: Duration? {
@@ -32,6 +34,11 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
 
     public var detail: String {
         var lines = ["Workspace: \(workspace.isEmpty ? "none" : Self.capped(workspace))", "Command: \(Self.capped(command))"]
+        if let session {
+            let title = session.title.isEmpty ? "untitled" : Self.capped(session.title)
+            let place = session.workspace.isEmpty ? "" : " in \(Self.capped(session.workspace))"
+            lines.append("Session: \(title) (\(Self.capped(session.id)))\(place)")
+        }
         switch args {
         case .null:
             break
@@ -120,6 +127,18 @@ public final class ConfirmExpiry {
         let pending = actions
         actions = []
         pending.forEach { $0() }
+    }
+}
+
+public struct ConfirmSession: Decodable, Sendable, Equatable {
+    public let id: String
+    public let title: String
+    public let workspace: String
+
+    public init(id: String, title: String, workspace: String) {
+        self.id = id
+        self.title = title
+        self.workspace = workspace
     }
 }
 

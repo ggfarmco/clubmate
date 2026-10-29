@@ -54,7 +54,9 @@ enum Confirmation {
         if destructive {
             confirm.hasDestructiveAction = true
             confirm.keyEquivalent = ""
+            confirm.refusesFirstResponder = true
             dismiss.keyEquivalent = "\r"
+            alert.window.initialFirstResponder = dismiss
         }
         let escape = destructive ? NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.window === alert.window, event.charactersIgnoringModifiers == "\u{1b}" else { return event }
