@@ -80,10 +80,14 @@ public enum PaletteAction: Hashable, Sendable {
     case removeWorkspace
     case moveWorkspaceToNewWindow
     case switchWorkspace(String)
+    case switchWorktree
+    case newWorktree
+    case removeWorktree
 
     private static let fixed: [PaletteAction] = [
         .toggleSidebar, .toggleNavigationKeys, .openFolder, .newHomeTerminal,
         .renameWorkspace, .closeWorkspace, .removeWorkspace, .moveWorkspaceToNewWindow,
+        .switchWorktree, .newWorktree, .removeWorktree,
     ]
 
     public init?(entryID: String) {
@@ -113,12 +117,15 @@ public enum PaletteAction: Hashable, Sendable {
         case .closeWorkspace: "close-workspace"
         case .removeWorkspace: "remove-workspace"
         case .moveWorkspaceToNewWindow: "move-workspace-to-new-window"
+        case .switchWorktree: "switch-worktree"
+        case .newWorktree: "new-worktree"
+        case .removeWorktree: "remove-worktree"
         }
     }
 }
 
 extension CommandPalette {
-    public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool, workspaces: [PaletteWorkspace] = [], active: String? = nil) -> [PaletteEntry] {
+    public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool, workspaces: [PaletteWorkspace] = [], active: String? = nil, worktrees: [Worktree] = []) -> [PaletteEntry] {
         let commandEntries = commands.filter { !$0.hidden }.map {
             PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: $0.id)
         }
@@ -129,7 +136,19 @@ extension CommandPalette {
         let navigationEntries = sidebar && commands.contains { $0.id == CodeSection.navigationCommand }
             ? [PaletteEntry(id: PaletteAction.toggleNavigationKeys.entryID, title: "Toggle nvim Navigation Keys", detail: "")]
             : []
-        return commandEntries + sectionEntries + sidebarEntries + navigationEntries + workspaceEntries(workspaces, active: active)
+        return commandEntries + sectionEntries + sidebarEntries + navigationEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
+    }
+
+    private static func worktreeEntries(_ worktrees: [Worktree]) -> [PaletteEntry] {
+        guard !worktrees.isEmpty else { return [] }
+        var entries = [
+            PaletteEntry(id: PaletteAction.switchWorktree.entryID, title: "Switch Worktree…", detail: ""),
+            PaletteEntry(id: PaletteAction.newWorktree.entryID, title: "New Worktree…", detail: ""),
+        ]
+        if worktrees.contains(where: { !$0.main }) {
+            entries.append(PaletteEntry(id: PaletteAction.removeWorktree.entryID, title: "Remove Worktree…", detail: ""))
+        }
+        return entries
     }
 
     private static func workspaceEntries(_ workspaces: [PaletteWorkspace], active: String?) -> [PaletteEntry] {

@@ -15,12 +15,18 @@ struct WorkspaceWindow: View {
             .frame(minWidth: 800, minHeight: 500)
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
+            .toolbar(removing: worktreeSession == nil ? nil : .title)
             .overlay {
                 if let windowID, app.switcherWindow == windowID {
                     SwitcherGridView(windowID: windowID)
                 }
             }
             .toolbar {
+                if let worktreeSession {
+                    ToolbarItem(placement: .navigation) {
+                        WorktreeTitleMenu(session: worktreeSession, title: title)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { windowID.map(app.toggleSwitcher) } label: {
                         Text("▦ \(workspaceCount)")
@@ -57,9 +63,15 @@ struct WorkspaceWindow: View {
         windowID.flatMap { app.window($0)?.workspaces.count } ?? 0
     }
 
+    private var worktreeSession: ProjectSession? {
+        guard let session = active.flatMap(app.existingSession), !session.worktrees.worktrees.isEmpty else { return nil }
+        return session
+    }
+
     private var title: String {
         guard let active else { return "Clubmate" }
-        return app.project(active)?.name ?? active
+        let name = app.project(active)?.name ?? active
+        return app.existingSession(for: active)?.worktrees.title(name) ?? name
     }
 
     @ViewBuilder private var content: some View {
@@ -98,7 +110,12 @@ private struct WorkspaceView: View {
                 focus.request(request.slot)
             }
             .onChange(of: session.store?.connected, initial: true) { _, connected in
-                if connected == true { app.syncNavigationKeys() }
+                guard connected == true else { return }
+                app.syncNavigationKeys()
+                Task { await session.worktrees.load() }
+            }
+            .onChange(of: app.project(session.projectID)) {
+                Task { await session.worktrees.load() }
             }
             .onChange(of: session.store?.selectedSection, initial: true) { _, section in
                 if section == CodeSection.id { app.askNavigationKeys() }
@@ -207,7 +224,7 @@ private struct WorkspaceView: View {
 
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
-        return CommandPalette.entries(commands: app.commands, sections: session.store?.sections ?? [], sidebar: true, workspaces: workspaces, active: session.projectID)
+        return CommandPalette.entries(commands: app.commands, sections: session.store?.sections ?? [], sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
     }
 
     private func perform(_ action: PaletteAction) {
@@ -223,6 +240,9 @@ private struct WorkspaceView: View {
         case .removeWorkspace: app.remove(session.projectID)
         case .moveWorkspaceToNewWindow: app.moveToNewWindow(session.projectID)
         case .switchWorkspace(let id): app.activate(id, in: windowID)
+        case .switchWorktree: session.chooseWorktree()
+        case .newWorktree: session.newWorktree(chooseFolder: true)
+        case .removeWorktree: session.chooseWorktreeToRemove()
         }
     }
 
@@ -243,6 +263,47 @@ private struct WorkspaceView: View {
                 await Confirmation.ask(message, action: "Restart", destructive: true)
             }
             if case .failed(let message) = outcome { banner.show(message) }
+        }
+    }
+}
+
+private struct WorktreeTitleMenu: View {
+    let session: ProjectSession
+    let title: String
+
+    var body: some View {
+        let model = session.worktrees
+        let groups = model.groups
+        Menu {
+            if groups.count > 1 {
+                ForEach(groups) { group in
+                    Section(group.name) { trees(group) }
+                }
+            } else {
+                ForEach(groups) { trees($0) }
+            }
+            Divider()
+            Button("New Worktree…") { session.newWorktree(chooseFolder: false) }
+            Menu("Remove Worktree…") {
+                ForEach(model.linked) { tree in
+                    Button(model.label(tree)) { session.removeWorktree(tree.path) }
+                }
+            }
+            .disabled(model.linked.isEmpty)
+        } label: {
+            Text(title)
+                .font(.headline)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Worktrees")
+    }
+
+    private func trees(_ group: WorktreeGroup) -> some View {
+        ForEach(group.trees) { tree in
+            Toggle(tree.name, isOn: Binding(get: { tree.current }, set: { _ in session.switchWorktree(tree.path) }))
         }
     }
 }
