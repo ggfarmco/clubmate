@@ -62,26 +62,27 @@ func TestSessionReadAltScreen(t *testing.T) {
 
 func TestPlainText(t *testing.T) {
 	tests := map[string]struct{ in, want string }{
-		"csi":          {"a\x1b[1;31mred\x1b[0m b", "ared b"},
-		"osc bel":      {"\x1b]0;title\x07x", "x"},
-		"osc st":       {"\x1b]8;;http://a\x1b\\link\x1b]8;;\x1b\\", "link"},
-		"esc seq":      {"\x1b(Bx\x1b=y", "xy"},
-		"crlf":         {"a\r\nb", "a\nb"},
-		"cr overwrite": {"x\n50%\r75%", "x\n75%"},
-		"pending cr":   {"x\n50%\r", "x\n50%"},
-		"cr newline":   {"ab\r\r\ncd", "ab\ncd"},
-		"backspace":    {"x\nab\b\bé\bc\b\bd", "x\ndb"},
-		"esc ctrl":     {"a\x1b\nb", "a\nb"},
-		"controls":     {"a\x07b\tc", "ab\tc"},
-		"split utf":    {"\xa4b", "b"},
-		"cha erase":    {"abcdef\x1b[3GX\x1b[K", "abX"},
-		"cub cuf":      {"abcd\x1b[3DX\x1b[1CY", "aXcY"},
-		"zsh redraw":   {"% gi\x1b[2D\x1b[1m\x1b[32mgit\x1b[0m status\b \b\bus\r\n", "% git status\n"},
-		"line cap":     {strings.Repeat("x", 5000) + "\x1b[9999Cy\nz", strings.Repeat("x", 4096) + "\nz"},
+		"csi":            {"a\x1b[1;31mred\x1b[0m b", "ared b"},
+		"osc bel":        {"\x1b]0;title\x07x", "x"},
+		"osc st":         {"\x1b]8;;http://a\x1b\\link\x1b]8;;\x1b\\", "link"},
+		"esc seq":        {"\x1b(Bx\x1b=y", "xy"},
+		"crlf":           {"a\r\nb", "a\nb"},
+		"cr overwrite":   {"x\n50%\r75%", "x\n75%"},
+		"pending cr":     {"x\n50%\r", "x\n50%"},
+		"cr newline":     {"ab\r\r\ncd", "ab\ncd"},
+		"backspace":      {"x\nab\b\bé\bc\b\bd", "x\ndb"},
+		"esc ctrl":       {"a\x1b\nb", "a\nb"},
+		"controls":       {"a\x07b\tc", "ab\tc"},
+		"split utf":      {"\xa4b", "b"},
+		"cha erase":      {"abcdef\x1b[3GX\x1b[K", "abX"},
+		"cub cuf":        {"abcd\x1b[3DX\x1b[1CY", "aXcY"},
+		"zsh redraw":     {"% gi\x1b[2D\x1b[1m\x1b[32mgit\x1b[0m status\b \b\bus\r\n", "% git status\n"},
+		"line cap":       {strings.Repeat("x", 5000) + "\x1b[9999Cy\nz", strings.Repeat("x", 4096) + "\nz"},
+		"param overflow": {"ab\x1b[99999999999999999999Dc", "cb"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tt.want, session.Plain([]byte(tt.in)))
+			assert.Equal(t, tt.want, session.Plain([]byte(tt.in), session.ReadMax))
 		})
 	}
 }
@@ -105,6 +106,12 @@ func TestSessionReadOldHost(t *testing.T) {
 	m := session.NewManager(dirs, "", session.WithSnapshotTimeout(100*time.Millisecond))
 	_, err = m.Read(t.Context(), sid, 0, false)
 	assert.ErrorIs(t, err, session.ErrNoSnapshot)
+}
+
+func TestPlainOutputIsBounded(t *testing.T) {
+	in := []byte(strings.Repeat("\x1b[4096Gx\n", session.ReadMax/9))
+	assert.LessOrEqual(t, len(session.Plain(in, session.ReadMax)), session.ReadMax)
+	assert.Equal(t, "cd", session.Plain([]byte("ab\ncd"), 2))
 }
 
 func TestSessionPathPrepended(t *testing.T) {

@@ -1,20 +1,30 @@
 package session
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
-const maxLineRunes = 4096
+const (
+	maxLineRunes = 4096
+	maxColumn    = 512
+)
 
 type screenLine struct {
 	runes  []rune
 	cursor int
 }
 
-func Plain(b []byte) string {
-	var out strings.Builder
+func Plain(b []byte, limit int) string {
+	out := make([]byte, 0, min(len(b), limit))
+	commit := func(text string) {
+		out = append(out, text...)
+		if len(out) > 2*limit {
+			out = append(out[:0], out[len(out)-limit:]...)
+		}
+	}
 	var line screenLine
 	for i := 0; i < len(b); {
 		c := b[i]
@@ -32,8 +42,7 @@ func Plain(b []byte) string {
 		case c == '\b':
 			line.move(-1)
 		case c == '\n':
-			out.WriteString(line.text())
-			out.WriteByte('\n')
+			commit(line.text() + "\n")
 			line = screenLine{}
 		case c == '\t':
 			line.put('\t')
@@ -48,8 +57,11 @@ func Plain(b []byte) string {
 		}
 		i++
 	}
-	out.WriteString(line.text())
-	return out.String()
+	commit(line.text())
+	if len(out) > limit {
+		out = out[len(out)-limit:]
+	}
+	return strings.ToValidUTF8(string(out), "")
 }
 
 func (l *screenLine) put(r rune) {
@@ -68,21 +80,29 @@ func (l *screenLine) put(r rune) {
 }
 
 func (l *screenLine) move(n int) {
-	l.cursor = min(max(l.cursor+n, 0), maxLineRunes)
+	target := max(l.cursor+n, 0)
+	if n > 0 {
+		target = min(target, max(l.cursor, maxColumn))
+	}
+	l.cursor = target
 }
 
 func (l *screenLine) control(final byte, params string) {
 	n, err := strconv.Atoi(params)
-	if err != nil || n < 1 {
+	switch {
+	case errors.Is(err, strconv.ErrRange):
+		n = maxColumn
+	case err != nil || n < 1:
 		n = 1
 	}
+	n = min(n, maxColumn)
 	switch final {
 	case 'D':
 		l.move(-n)
 	case 'C':
 		l.move(n)
 	case 'G':
-		l.cursor = min(n-1, maxLineRunes)
+		l.cursor = n - 1
 	case 'K':
 		switch params {
 		case "", "0":

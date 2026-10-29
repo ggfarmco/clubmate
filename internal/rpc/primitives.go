@@ -165,11 +165,11 @@ func sessionProject(ctx context.Context, svc *core.Service, _ string, args json.
 	return s.ProjectID, nil
 }
 
-func (p primitive) sessionArg() string {
-	if p.cmd.ID == "" {
-		return "sessionId"
+func sessionArg(isPrimitive bool) string {
+	if isPrimitive {
+		return "id"
 	}
-	return "id"
+	return "sessionId"
 }
 
 func exactArgs(c Command, args json.RawMessage) (json.RawMessage, error) {

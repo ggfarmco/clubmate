@@ -98,7 +98,7 @@ func (m *Manager) Read(ctx context.Context, sid string, n int, raw bool) (Snapsh
 		if raw {
 			return Snapshot{Text: string(data)}, nil
 		}
-		return Snapshot{Text: Plain(data)}, nil
+		return Snapshot{Text: Plain(data, n)}, nil
 	}
 }
 

@@ -321,7 +321,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		}
 	}
 	if p.Agent && c.Destructive {
-		if p.Args, err = s.approve(ctx, c, scope, prim.sessionArg(), p.Args); err != nil {
+		if p.Args, err = s.approve(ctx, c, scope, sessionArg(isPrimitive), p.Args); err != nil {
 			return nil, err
 		}
 	}
