@@ -75,6 +75,41 @@ func TestOpenFileAtLine(t *testing.T) {
 	e.waitBuffer(t, path)
 }
 
+func TestSelectionReturnsVisualRange(t *testing.T) {
+	e := startEditor(t)
+	path := e.file(t, "a.go")
+	require.NoError(t, os.WriteFile(path, []byte("alpha\nbeta\ngamma\n"), 0o600))
+	require.NoError(t, e.open(t, path, 1))
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.selection", "projectId": e.projectID}, nil)
+	assert.ErrorContains(t, err, "no selection")
+	require.NoError(t, v.Command("call setpos(\"'<\", [0, 1, 3, 0])"))
+	require.NoError(t, v.Command("call setpos(\"'>\", [0, 2, 2, 0])"))
+	var got struct {
+		Path      string `json:"path"`
+		StartLine int    `json:"startLine"`
+		EndLine   int    `json:"endLine"`
+		Text      string `json:"text"`
+	}
+	e.run(t, "selection", nil, &got)
+	assert.Equal(t, path, got.Path)
+	assert.Equal(t, 1, got.StartLine)
+	assert.Equal(t, 2, got.EndLine)
+	assert.Equal(t, "pha\nbe", got.Text)
+}
+
+func TestChecktimeReloadsBuffer(t *testing.T) {
+	e := startEditor(t)
+	path := e.file(t, "a.go")
+	require.NoError(t, e.open(t, path, 1))
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	require.NoError(t, os.WriteFile(path, []byte("changed\n"), 0o600))
+	e.run(t, "checktime", map[string]string{"root": e.repo}, nil)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "getline(1)") == "changed" }, 5*time.Second)
+}
+
 func TestOpenWithColumn(t *testing.T) {
 	e := startEditor(t)
 	path := e.file(t, "a.go")

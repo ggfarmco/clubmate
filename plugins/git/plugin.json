@@ -35,8 +35,9 @@
         "description": "Review a worktree's working state (uncommitted and untracked files included) against the merge-base of a base and that worktree, in the editor and the git.review list. Non-destructive.",
         "args": {
           "properties": {
-            "base": {"type": "string", "description": "Branch, remote branch or worktree root to compare against; defaults to the repo's default base (origin/HEAD, main or master). A worktree root means its branch."},
-            "head": {"type": "string", "description": "Worktree root, or a branch checked out in a worktree, to review; defaults to the current worktree of the first git folder. The folder switches to it."}
+            "base": {"type": "string", "description": "Branch, remote branch or worktree root to compare against; defaults to the repo's default base (origin/HEAD, main or master). A worktree root means its branch. `commit:<sha>` compares against that commit itself, without a merge-base; an unknown sha fails with invalid ref."},
+            "head": {"type": "string", "description": "Worktree root, or a branch checked out in a worktree, to review; defaults to the current worktree of the first git folder. The folder switches to it."},
+            "baseLabel": {"type": "string", "maxLength": 64, "description": "Label for the base side in the review header, e.g. `before turn 3`; used with `commit:<sha>`, defaults to the base."}
           }
         }
       },

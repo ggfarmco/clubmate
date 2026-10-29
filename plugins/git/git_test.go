@@ -388,6 +388,29 @@ func restartGit(t *testing.T, h *testutil.PluginHarness) {
 	}, restartWait)
 }
 
+func TestReviewLiteralBase(t *testing.T) {
+	repo := committedRepo(t)
+	write(t, filepath.Join(repo, "a.go"), "before\n")
+	write(t, filepath.Join(repo, "n.go"), "n\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "checkpoint")
+	sha := strings.TrimSpace(git(t, repo, "rev-parse", "HEAD"))
+	write(t, filepath.Join(repo, "b.go"), "b\n")
+	git(t, repo, "add", "b.go")
+	git(t, repo, "commit", "-qm", "after")
+	write(t, filepath.Join(repo, "n.go"), "n\nm\n")
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+
+	review(t, h, id, map[string]string{"base": "commit:" + sha, "baseLabel": "before turn 2"})
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "b.go", "n.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "before turn 2", header["base"])
+	assert.Equal(t, "commit:"+sha, header["baseRef"])
+
+	err := runCommand(t, h, id, "git.review", map[string]string{"base": "commit:" + strings.Repeat("0", 40)}, nil)
+	assert.ErrorContains(t, err, "invalid ref")
+}
+
 func TestReviewAgainstWorktreeUsesMergeBase(t *testing.T) {
 	repo := committedRepo(t)
 	a := filepath.Join(repo, ".worktrees", "a")
