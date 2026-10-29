@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,13 +20,18 @@ func TestGrepFindsWithOptions(t *testing.T) {
 	dir := tempDir(t)
 	write(t, dir, "a.go", "Foo bar\nfoobar\nfoo\n")
 	write(t, dir, "b.txt", "foo\n")
+	outside := tempDir(t)
+	write(t, outside, "secret.txt", "foo\n")
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(dir, "link.txt")))
+	write(t, outside, "rgconfig", "--smart-case\n--glob=*.none\n")
+	t.Setenv("RIPGREP_CONFIG_PATH", filepath.Join(outside, "rgconfig"))
 	tests := []struct {
 		name string
 		opts grepOptions
 		want []string
 	}{
 		{name: "insensitive", opts: grepOptions{Query: "foo"}, want: []string{"a.go:1", "a.go:2", "a.go:3", "b.txt:1"}},
-		{name: "case", opts: grepOptions{Query: "Foo", Case: true}, want: []string{"a.go:1"}},
+		{name: "case", opts: grepOptions{Query: "foo", Case: true}, want: []string{"a.go:2", "a.go:3", "b.txt:1"}},
 		{name: "word", opts: grepOptions{Query: "foo", Word: true}, want: []string{"a.go:1", "a.go:3", "b.txt:1"}},
 		{name: "regex", opts: grepOptions{Query: "fo+b", Regex: true}, want: []string{"a.go:2"}},
 		{name: "literal", opts: grepOptions{Query: "fo+b"}, want: nil},
@@ -84,11 +90,19 @@ func TestGrepCapsAndCancels(t *testing.T) {
 			assert.Len(t, got, maxMatches)
 			assert.True(t, last.Truncated)
 
+			g := &gated{engine: eng, first: make(chan struct{}), release: make(chan struct{}), finished: make(chan struct{})}
 			s := newSearches()
-			id := s.start("w", prepared(eng), grepOptions{Query: "hit"})
-			first := s.poll(t.Context(), id, 0)
-			s.cancel(id)
-			after := s.poll(t.Context(), id, first.Next)
+			id := s.start("w", prepared(g), grepOptions{Query: "hit"})
+			<-g.first
+			s.cancel("w", id)
+			close(g.release)
+			select {
+			case <-g.finished:
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "engine kept running after cancel")
+			}
+			assert.Equal(t, int32(1), g.calls.Load())
+			after := s.poll(t.Context(), "w", id, 0)
 			assert.True(t, after.Done)
 			assert.Empty(t, after.Matches)
 		})
@@ -105,12 +119,49 @@ func TestNewSearchCancelsOld(t *testing.T) {
 			s := newSearches()
 			a := s.start("w", prepared(eng), grepOptions{Query: "hit"})
 			b := s.start("w", prepared(eng), grepOptions{Query: "hit"})
-			old := s.poll(t.Context(), a, 0)
+			old := s.poll(t.Context(), "w", a, 0)
 			assert.True(t, old.Done)
 			assert.Empty(t, old.Matches)
-			cur := s.poll(t.Context(), b, 0)
+			cur := s.poll(t.Context(), "w", b, 0)
 			assert.Equal(t, b, cur.ID)
 			assert.NotEmpty(t, cur.Matches)
+			assert.True(t, s.poll(t.Context(), "other", b, 0).Done)
+		})
+	}
+}
+
+func TestSearchGrepLimit(t *testing.T) {
+	dir := tempDir(t)
+	for i := range 64 {
+		write(t, dir, fmt.Sprintf("f%02d.txt", i), "hit\n")
+	}
+	for name, eng := range engines(t, dir) {
+		t.Run(name, func(t *testing.T) {
+			all, truncated, err := collect(t.Context(), eng, grepOptions{Query: "hit"}, 100)
+			require.NoError(t, err)
+			assert.Len(t, all, 64)
+			assert.False(t, truncated)
+
+			some, truncated, err := collect(t.Context(), eng, grepOptions{Query: "hit"}, 10)
+			require.NoError(t, err)
+			assert.Len(t, some, 10)
+			assert.True(t, truncated)
+		})
+	}
+}
+
+func TestGrepUnreadableDirIsNoError(t *testing.T) {
+	dir := tempDir(t)
+	write(t, dir, "a.txt", "text\n")
+	write(t, dir, "locked/b.txt", "text\n")
+	locked := filepath.Join(dir, "locked")
+	require.NoError(t, os.Chmod(locked, 0))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+	for name, eng := range engines(t, dir) {
+		t.Run(name, func(t *testing.T) {
+			got, last := drain(t, newSearches(), eng, grepOptions{Query: "absent"})
+			assert.Empty(t, got)
+			assert.Empty(t, last.Error)
 		})
 	}
 }
@@ -150,6 +201,25 @@ func engines(t *testing.T, folders ...string) map[string]engine {
 	return out
 }
 
+type gated struct {
+	engine
+	first    chan struct{}
+	release  chan struct{}
+	finished chan struct{}
+	calls    atomic.Int32
+}
+
+func (g *gated) run(ctx context.Context, opts grepOptions, emit serialEmit) error {
+	defer close(g.finished)
+	return g.engine.run(ctx, opts, func(batch []grepMatch) bool {
+		if g.calls.Add(1) == 1 {
+			close(g.first)
+			<-g.release
+		}
+		return emit(batch)
+	})
+}
+
 func prepared(eng engine) func(context.Context) (engine, error) {
 	return func(context.Context) (engine, error) { return eng, nil }
 }
@@ -161,7 +231,7 @@ func drain(t *testing.T, s *searches, eng engine, opts grepOptions) ([]grepMatch
 	deadline := time.Now().Add(10 * time.Second)
 	for after := 0; ; {
 		require.True(t, time.Now().Before(deadline))
-		res := s.poll(t.Context(), id, after)
+		res := s.poll(t.Context(), "w", id, after)
 		require.Empty(t, res.Error)
 		assert.LessOrEqual(t, len(res.Matches), pollBatch)
 		all = append(all, res.Matches...)

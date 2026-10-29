@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 const (
@@ -33,7 +34,7 @@ type globPattern struct {
 	anchored bool
 }
 
-func (e builtinEngine) run(ctx context.Context, opts grepOptions, emit func([]grepMatch) bool) error {
+func (e builtinEngine) run(ctx context.Context, opts grepOptions, emit serialEmit) error {
 	if e.list == nil {
 		return nil
 	}
@@ -49,29 +50,45 @@ func (e builtinEngine) run(ctx context.Context, opts grepOptions, emit func([]gr
 	defer cancel()
 	paths := e.list.corpus.paths
 	next := make(chan int)
+	results := make(chan []grepMatch)
 	var wg sync.WaitGroup
+	wg.Go(func() {
+		defer close(next)
+		for i := range paths {
+			select {
+			case next <- i:
+			case <-ctx.Done():
+				return
+			}
+		}
+	})
 	for range min(maxWorkers, runtime.GOMAXPROCS(0)) {
 		wg.Go(func() {
 			for i := range next {
 				if !globs.match(e.list.rel(paths[i])) {
 					continue
 				}
-				if found := grepFile(paths[i], e.list.abs(paths[i]), re); len(found) > 0 && !emit(found) {
-					cancel()
+				found := grepFile(paths[i], e.list.abs(paths[i]), re)
+				if len(found) == 0 {
+					continue
+				}
+				select {
+				case results <- found:
+				case <-ctx.Done():
+					return
 				}
 			}
 		})
 	}
-feed:
-	for i := range paths {
-		select {
-		case next <- i:
-		case <-ctx.Done():
-			break feed
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	for found := range results {
+		if ctx.Err() == nil && !emit(found) {
+			cancel()
 		}
 	}
-	close(next)
-	wg.Wait()
 	return nil
 }
 
@@ -120,7 +137,7 @@ func grepFile(display, abs string, re *regexp.Regexp) []grepMatch {
 }
 
 func readText(path string) ([]byte, bool) {
-	f, err := os.Open(path)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, false
 	}

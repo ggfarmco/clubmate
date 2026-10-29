@@ -147,13 +147,13 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := decodeArgs(cmd, &args); err != nil {
 			return nil, err
 		}
-		return a.grep.poll(ctx, args.ID, args.After), nil
+		return a.grep.poll(ctx, cmd.ProjectID, args.ID, args.After), nil
 	case "search.cancel":
 		var args pollArgs
 		if err := decodeArgs(cmd, &args); err != nil {
 			return nil, err
 		}
-		a.grep.cancel(args.ID)
+		a.grep.cancel(cmd.ProjectID, args.ID)
 		return struct{}{}, nil
 	case "search.preview":
 		var args previewArgs

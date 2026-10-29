@@ -49,9 +49,13 @@ type cappedBuffer struct {
 	buf bytes.Buffer
 }
 
-func (e rgEngine) run(ctx context.Context, opts grepOptions, emit func([]grepMatch) bool) error {
+func (e rgEngine) run(ctx context.Context, opts grepOptions, emit serialEmit) error {
 	if len(e.roots) == 0 {
 		return nil
+	}
+	globs, err := compileGlobs(opts.Glob)
+	if err != nil {
+		return err
 	}
 	var stderr cappedBuffer
 	cmd := exec.Command(e.bin, e.args(opts)...)
@@ -66,19 +70,25 @@ func (e rgEngine) run(ctx context.Context, opts grepOptions, emit func([]grepMat
 		return fmt.Errorf("start rg: %w", err)
 	}
 	kill := func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
-	stop := context.AfterFunc(ctx, kill)
-	defer stop()
-	emitted, capped := e.read(stdout, emit)
+	killed := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		kill()
+		close(killed)
+	})
+	events, capped := e.read(stdout, globs, emit)
 	if capped {
 		kill()
 	}
 	_, _ = io.Copy(io.Discard, stdout)
+	if !stop() {
+		<-killed
+	}
 	err = cmd.Wait()
 	if capped || ctx.Err() != nil {
 		return nil
 	}
 	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
-		if ee.ExitCode() == 1 || emitted > 0 {
+		if ee.ExitCode() == 1 || events > 0 {
 			return nil
 		}
 		if msg := strings.TrimSpace(stderr.buf.String()); msg != "" {
@@ -89,18 +99,17 @@ func (e rgEngine) run(ctx context.Context, opts grepOptions, emit func([]grepMat
 }
 
 func (e rgEngine) args(opts grepOptions) []string {
-	args := []string{"--json", "--max-count", "1000"}
+	args := []string{"--json", "--no-config", "--hidden", "--glob", "!.git", "--max-count", "1000"}
 	if !opts.Regex {
 		args = append(args, "--fixed-strings")
 	}
-	if !opts.Case {
+	if opts.Case {
+		args = append(args, "--case-sensitive")
+	} else {
 		args = append(args, "--ignore-case")
 	}
 	if opts.Word {
 		args = append(args, "--word-regexp")
-	}
-	for _, g := range splitGlobs(opts.Glob) {
-		args = append(args, "--glob", g)
 	}
 	args = append(args, "--", opts.Query)
 	for _, r := range e.roots {
@@ -109,26 +118,24 @@ func (e rgEngine) args(opts grepOptions) []string {
 	return args
 }
 
-func (e rgEngine) read(stdout io.Reader, emit func([]grepMatch) bool) (int, bool) {
+func (e rgEngine) read(stdout io.Reader, globs globFilter, emit serialEmit) (int, bool) {
 	r := bufio.NewReaderSize(stdout, 64<<10)
-	emitted := 0
+	events := 0
 	for {
 		line, err := readEvent(r)
-		if len(line) > 0 {
-			if m, ok := e.match(line); ok {
-				if !emit([]grepMatch{m}) {
-					return emitted, true
-				}
-				emitted++
+		if len(line) > 0 && line[0] == '{' {
+			events++
+			if m, ok := e.match(line, globs); ok && !emit([]grepMatch{m}) {
+				return events, true
 			}
 		}
 		if err != nil {
-			return emitted, false
+			return events, false
 		}
 	}
 }
 
-func (e rgEngine) match(line []byte) (grepMatch, bool) {
+func (e rgEngine) match(line []byte, globs globFilter) (grepMatch, bool) {
 	if !bytes.HasPrefix(line, []byte(`{"type":"match"`)) {
 		return grepMatch{}, false
 	}
@@ -141,6 +148,9 @@ func (e rgEngine) match(line []byte) (grepMatch, bool) {
 		rel, ok := strings.CutPrefix(path, r.resolved+"/")
 		if !ok {
 			continue
+		}
+		if !globs.match(rel) {
+			return grepMatch{}, false
 		}
 		spans := make([][2]int, 0, len(ev.Data.Submatches))
 		for _, s := range ev.Data.Submatches {

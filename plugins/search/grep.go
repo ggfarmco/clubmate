@@ -59,18 +59,23 @@ type previewLine struct {
 	Text string `json:"text"`
 }
 
+type serialEmit func([]grepMatch) bool
+
 type engine interface {
-	run(ctx context.Context, opts grepOptions, emit func([]grepMatch) bool) error
+	run(ctx context.Context, opts grepOptions, emit serialEmit) error
 }
 
 type search struct {
 	id        string
+	workspace string
 	cancel    context.CancelFunc
 	mu        sync.Mutex
 	matches   []grepMatch
 	done      bool
 	cancelled bool
 	truncated bool
+	freed     bool
+	total     int
 	err       string
 	wake      chan struct{}
 }
@@ -88,7 +93,7 @@ func newSearches() *searches {
 
 func (ss *searches) start(workspace string, prepare func(context.Context) (engine, error), opts grepOptions) string {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &search{id: "grep-" + strconv.FormatInt(ss.seq.Add(1), 10), cancel: cancel, wake: make(chan struct{})}
+	s := &search{id: "grep-" + strconv.FormatInt(ss.seq.Add(1), 10), workspace: workspace, cancel: cancel, wake: make(chan struct{})}
 	ss.mu.Lock()
 	old := ss.byWorkspace[workspace]
 	if old != nil {
@@ -109,10 +114,8 @@ func (ss *searches) start(workspace string, prepare func(context.Context) (engin
 	return s.id
 }
 
-func (ss *searches) poll(ctx context.Context, id string, after int) pollResult {
-	ss.mu.Lock()
-	s := ss.byID[id]
-	ss.mu.Unlock()
+func (ss *searches) poll(ctx context.Context, workspace, id string, after int) pollResult {
+	s := ss.lookup(workspace, id)
 	if s == nil {
 		return pollResult{ID: id, Matches: []grepMatch{}, Next: after, Done: true}
 	}
@@ -120,8 +123,8 @@ func (ss *searches) poll(ctx context.Context, id string, after int) pollResult {
 	defer timer.Stop()
 	for {
 		s.mu.Lock()
-		after = min(max(after, 0), len(s.matches))
-		if s.cancelled || s.done || len(s.matches) > after {
+		after = min(max(after, 0), s.total)
+		if s.cancelled || s.done || s.total > after {
 			res := s.page(after)
 			s.mu.Unlock()
 			return res
@@ -138,21 +141,28 @@ func (ss *searches) poll(ctx context.Context, id string, after int) pollResult {
 	}
 }
 
-func (ss *searches) cancel(id string) {
+func (ss *searches) cancel(workspace, id string) {
 	ss.mu.Lock()
 	s := ss.byID[id]
-	if s != nil {
+	if s != nil && s.workspace == workspace {
 		delete(ss.byID, id)
-		for w, cur := range ss.byWorkspace {
-			if cur == s {
-				delete(ss.byWorkspace, w)
-			}
-		}
+		delete(ss.byWorkspace, workspace)
+	} else {
+		s = nil
 	}
 	ss.mu.Unlock()
 	if s != nil {
 		s.stop()
 	}
+}
+
+func (ss *searches) lookup(workspace, id string) *search {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if s := ss.byID[id]; s != nil && s.workspace == workspace {
+		return s
+	}
+	return nil
 }
 
 func (ss *searches) drop(workspace string) {
@@ -197,12 +207,13 @@ func (s *search) emit(batch []grepMatch) bool {
 		return false
 	}
 	for _, m := range batch {
-		if len(s.matches) >= maxMatches {
+		if s.total >= maxMatches {
 			s.truncated = true
 			s.signal()
 			return false
 		}
 		s.matches = append(s.matches, m)
+		s.total++
 	}
 	s.signal()
 	return true
@@ -238,6 +249,10 @@ func (s *search) page(after int) pollResult {
 		res.Done = true
 		return res
 	}
+	if s.freed {
+		res.Next, res.Done, res.Truncated, res.Error = s.total, true, s.truncated, s.err
+		return res
+	}
 	size := 0
 	for _, m := range s.matches[after:] {
 		if len(res.Matches) == pollBatch {
@@ -251,10 +266,11 @@ func (s *search) page(after int) pollResult {
 		res.Matches = append(res.Matches, m)
 	}
 	res.Next = after + len(res.Matches)
-	res.Done = s.done && res.Next == len(s.matches)
+	res.Done = s.done && res.Next == s.total
 	res.Truncated = s.truncated
 	if res.Done {
 		res.Error = s.err
+		s.matches, s.freed = nil, true
 	}
 	return res
 }
