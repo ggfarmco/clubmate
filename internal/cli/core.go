@@ -77,7 +77,7 @@ func (a *app) coreStartCmd() *cobra.Command {
 			}
 			info, ok := a.waitUp(cmd.Context(), wait)
 			if !ok {
-				return fmt.Errorf("core did not start; see %s", coreLogPath(dirs))
+				return fmt.Errorf("core did not start; see %s", dirs.CoreLog())
 			}
 			fmt.Fprintf(a.out, "started pid=%d\n", info.PID)
 			return nil
@@ -100,7 +100,7 @@ func (a *app) ensureCore(ctx context.Context) error {
 		return err
 	}
 	if _, ok := a.waitUp(ctx, coreStartWait); !ok {
-		return fmt.Errorf("core did not start; see %s", coreLogPath(dirs))
+		return fmt.Errorf("core did not start; see %s", dirs.CoreLog())
 	}
 	return nil
 }
@@ -187,7 +187,7 @@ func spawnCore(dirs paths.Dirs) error {
 	if err := os.MkdirAll(dirs.State, 0o700); err != nil {
 		return fmt.Errorf("create state dir: %w", err)
 	}
-	logFile, err := os.OpenFile(coreLogPath(dirs), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logFile, err := os.OpenFile(dirs.CoreLog(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("open core log: %w", err)
 	}
@@ -206,10 +206,6 @@ func spawnCore(dirs paths.Dirs) error {
 		return fmt.Errorf("start %s: %w", coreBinary, err)
 	}
 	return cmd.Process.Release()
-}
-
-func coreLogPath(dirs paths.Dirs) string {
-	return filepath.Join(dirs.State, "core.log")
 }
 
 func coreBinaryPath() (string, error) {

@@ -119,6 +119,14 @@ func (d Dirs) PluginsDB() string {
 	return filepath.Join(d.State, "plugins.db")
 }
 
+func (d Dirs) CoreLog() string {
+	return filepath.Join(d.State, "core.log")
+}
+
+func (d Dirs) DiagnosticsDir() string {
+	return filepath.Join(d.State, "diagnostics")
+}
+
 func (d Dirs) CoreSocket() string {
 	return filepath.Join(d.Runtime, "core.sock")
 }

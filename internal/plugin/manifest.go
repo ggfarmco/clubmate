@@ -25,7 +25,7 @@ var (
 
 	idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
 
-	reservedIDs = []string{"core", "session", "workspace", "process", "ui"}
+	reservedIDs = []string{"core", "session", "workspace", "process", "ui", "diagnostics"}
 )
 
 type Manifest struct {

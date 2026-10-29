@@ -53,6 +53,11 @@ var primitives = map[string]primitive{
 		method: "workspace.worktree.set",
 		params: passArgs,
 	},
+	"diagnostics.collect": {
+		cmd:    userOnly(coreCommand("diagnostics.collect", "Collect Diagnostics", "Pack versions, log tails, plugin, workspace, session and UI state into a zip in the core's state dir.", nil)),
+		method: "diagnostics.collect",
+		params: withProject,
+	},
 	"session.list": {
 		cmd:    coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of all workspaces.", nil),
 		method: "session.list",

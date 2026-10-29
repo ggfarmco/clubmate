@@ -1,12 +1,14 @@
 package cli_test
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -471,4 +473,45 @@ func TestCommandRunAgentNeedsApproval(t *testing.T) {
 	root := cli.NewRoot(&stdout, &stderr)
 	root.SetArgs([]string{"command", "run", "session.kill", "--project", p.ID, "--agent", "--args", `{"id":"` + sid + `"}`})
 	assert.ErrorContains(t, root.Execute(), "no app to approve")
+}
+
+func TestDiagnosticsWritesZip(t *testing.T) {
+	startCore(t)
+	out := filepath.Join(t.TempDir(), "report.zip")
+	assert.Equal(t, out+"\n", string(run(t, "diagnostics", "-o", out)))
+	r, err := zip.OpenReader(out)
+	require.NoError(t, err)
+	defer r.Close()
+	var names []string
+	for _, f := range r.File {
+		names = append(names, f.Name)
+	}
+	assert.Contains(t, names, "info.json")
+}
+
+func TestDiagnosticsWithoutCore(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
+	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
+	require.NoError(t, os.WriteFile(dirs.CoreLog(), []byte("core crashed\n"), 0o600))
+	out := filepath.Join(t.TempDir(), "offline.zip")
+	run(t, "diagnostics", "-o", out)
+	r, err := zip.OpenReader(out)
+	require.NoError(t, err)
+	defer r.Close()
+	files := map[string]string{}
+	for _, f := range r.File {
+		rc, err := f.Open()
+		require.NoError(t, err)
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		require.NoError(t, err)
+		files[f.Name] = string(data)
+	}
+	assert.Equal(t, "core crashed\n", files["logs/core.log"])
+	var info map[string]any
+	require.NoError(t, json.Unmarshal([]byte(files["info.json"]), &info))
+	assert.Equal(t, "unreachable", info["core"])
+	assert.NotEmpty(t, info["coreError"])
+	assert.Contains(t, files["README.txt"], "core unreachable")
 }
