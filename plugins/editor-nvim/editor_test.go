@@ -756,3 +756,17 @@ func contains(n sdui.Node, typ string) bool {
 	}
 	return false
 }
+
+func TestNavigationOutlastsUserMappingsAfterRestart(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: `vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Move to left window" })`})
+	e.navigation(t, true)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": map[string]any{"force": true}}, nil))
+	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[int](t, v, "v:vim_did_enter") == 1 }, 5*time.Second)
+	testutil.Eventually(t, func() bool {
+		return eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')") == navDesc
+	}, 5*time.Second)
+}
