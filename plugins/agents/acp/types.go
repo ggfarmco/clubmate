@@ -33,6 +33,9 @@ const (
 
 	OutcomeSelected  = "selected"
 	OutcomeCancelled = "cancelled"
+
+	CodeAuthRequired = -32000
+	AuthTerminal     = "terminal"
 )
 
 type Capability struct{}
@@ -53,6 +56,19 @@ type ClientCapabilities struct {
 	FS       FileSystemCapabilities    `json:"fs"`
 	Terminal bool                      `json:"terminal"`
 	Session  ClientSessionCapabilities `json:"session"`
+	Auth     *AuthCapabilities         `json:"auth,omitempty"`
+}
+
+type AuthCapabilities struct {
+	Terminal bool `json:"terminal"`
+}
+
+type AuthMethod struct {
+	ID   string            `json:"id"`
+	Name string            `json:"name"`
+	Type string            `json:"type,omitempty"`
+	Args []string          `json:"args,omitempty"`
+	Env  map[string]string `json:"env,omitempty"`
 }
 
 type FileSystemCapabilities struct {

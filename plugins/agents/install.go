@@ -88,11 +88,19 @@ func nodeMajor(version string) int {
 	return n
 }
 
+type nodeVersionError struct {
+	found string
+}
+
+func (e nodeVersionError) Error() string {
+	return fmt.Sprintf("Node %d+ is required to run Claude (found %s)", minNodeMajor, e.found)
+}
+
 func nodeError(found string) error {
 	if found == "" {
 		found = "none"
 	}
-	return fmt.Errorf("Node %d+ is required to run Claude (found %s)", minNodeMajor, found)
+	return nodeVersionError{found: found}
 }
 
 func installClaude(ctx context.Context, prefix string, env []string) (string, error) {

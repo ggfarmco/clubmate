@@ -112,6 +112,12 @@ type app struct {
 	loaded   chan struct{}
 	notes    *notifier
 
+	uiMu        sync.Mutex
+	ui          map[string]*projectUI
+	auth        map[string]authCommand
+	signIns     map[string]string
+	nodeProblem string
+
 	mu       sync.Mutex
 	sessions map[string]*session
 	procs    map[string]*procSlot
@@ -122,9 +128,12 @@ type app struct {
 }
 
 func main() {
-	a := &app{loaded: make(chan struct{}), sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]bool{}}
+	a := &app{
+		loaded: make(chan struct{}), sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]bool{},
+		ui: map[string]*projectUI{}, auth: map[string]authCommand{}, signIns: map[string]string{},
+	}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
-	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
+	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 	a.stopAll()
 	if err != nil {
 		os.Exit(1)
@@ -163,13 +172,20 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, "project.*", ready.Seq); err != nil {
 		return err
 	}
+	if _, err := h.Subscribe(ctx, "session.exited", ready.Seq); err != nil {
+		return err
+	}
 	close(a.loaded)
+	a.renderAll(ctx)
 	return nil
 }
 
 func (a *app) addSession(rec record, loaded bool) *session {
 	var s *session
-	s = newSession(rec, newEventLog(logPath(a.stateDir, rec.ID)), loaded, func(kind string, save bool) { a.notes.mark(s, kind, save) })
+	s = newSession(rec, newEventLog(logPath(a.stateDir, rec.ID)), loaded, func(kind string, save bool) {
+		a.notes.mark(s, kind, save)
+		a.kick(rec.Workspace)
+	})
 	a.mu.Lock()
 	a.sessions[rec.ID] = s
 	a.mu.Unlock()
@@ -188,7 +204,15 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := decode(cmd.Args, &args); err != nil {
 			return nil, err
 		}
-		return a.newSession(ctx, h, cmd.ProjectID, cmp.Or(args.Agent, agentClaude))
+		res, err := a.newSession(ctx, h, cmd.ProjectID, cmp.Or(args.Agent, agentClaude))
+		if err != nil {
+			return nil, err
+		}
+		if err := a.selectSession(ctx, cmd.ProjectID, res.Session); err != nil {
+			return nil, err
+		}
+		a.kick(cmd.ProjectID)
+		return res, nil
 	case "agents.prompt":
 		var args promptArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -275,6 +299,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, agen
 	now := time.Now().UTC()
 	s := a.addSession(record{ID: newSessionID(), Workspace: projectID, Worktree: root, Agent: agent, Status: statusIdle, CreatedAt: now, UpdatedAt: now}, true)
 	a.notes.mark(s, changeCreated, true)
+	a.kick(projectID)
 	go a.attachInBackground(s)
 	return newResult{Session: s.rec.ID}, nil
 }
@@ -351,6 +376,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 		return nil, errClosed
 	}
 	p, err := a.ensureProc(context.Background(), rec.Agent, rec.Worktree)
+	a.setNodeProblem(err)
 	if err != nil {
 		return nil, err
 	}
@@ -368,6 +394,11 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	var raw json.RawMessage
 	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp}, &raw); err != nil {
 		a.release(p)
+		if rpcErr, ok := errors.AsType[*acp.Error](err); ok && rpcErr.Code == acp.CodeAuthRequired {
+			if authErr := a.needsAuth(rec.ID, p); authErr != nil {
+				return nil, authErr
+			}
+		}
 		return nil, fmt.Errorf("session/new: %w", err)
 	}
 	var res acp.NewSessionResponse
@@ -693,6 +724,7 @@ func (a *app) deleteSession(ctx context.Context, s *session) error {
 	err := s.log.remove()
 	s.mu.Unlock()
 	a.notes.mark(s, changeDeleted, true)
+	a.kick(rec.Workspace)
 	refsCtx, cancel := context.WithTimeout(context.Background(), refsTimeout)
 	defer cancel()
 	return errors.Join(err, a.deleteRefs(refsCtx, rec))
@@ -715,6 +747,13 @@ func (a *app) deleteRefs(ctx context.Context, rec record) error {
 
 func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev pluginsdk.Event) {
 	switch ev.Topic {
+	case "session.exited":
+		a.signInExited(ctx, ev)
+	case "project.created":
+		var p projectPayload
+		if json.Unmarshal(ev.Payload, &p) == nil {
+			a.kick(p.Project.ID)
+		}
 	case "project.deleted":
 		var p deletedPayload
 		if json.Unmarshal(ev.Payload, &p) == nil {
@@ -723,6 +762,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	case "project.updated":
 		var p projectPayload
 		if json.Unmarshal(ev.Payload, &p) == nil {
+			a.kick(p.Project.ID)
 			go a.dropWorkspace(p.Project.ID, func(rec record) bool {
 				_, err := os.Stat(rec.Worktree)
 				return errors.Is(err, os.ErrNotExist)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -70,6 +71,8 @@ type agentProc struct {
 	conn   *acp.Conn
 	stderr ring
 	caps   acp.AgentCapabilities
+	auth   []acp.AuthMethod
+	launch launch
 	mcp    []acp.McpServer
 	onExit func(p *agentProc, reason string)
 
@@ -107,7 +110,7 @@ func startProc(l launch, agent, root string, onExit func(p *agentProc, reason st
 		return nil, fmt.Errorf("start %s: %w", l.argv[0], err)
 	}
 	closeAll(stdinR, stdoutW, stderrW)
-	p := &agentProc{agent: agent, root: root, cmd: cmd, pgid: cmd.Process.Pid, stdin: stdinW, mcp: l.mcp, onExit: onExit, sessions: map[string]*session{}, orphans: map[string][]json.RawMessage{}, exited: make(chan struct{})}
+	p := &agentProc{agent: agent, root: root, cmd: cmd, pgid: cmd.Process.Pid, stdin: stdinW, launch: l, mcp: l.mcp, onExit: onExit, sessions: map[string]*session{}, orphans: map[string][]json.RawMessage{}, exited: make(chan struct{})}
 	stderrDone := make(chan struct{})
 	go func() {
 		defer close(stderrDone)
@@ -156,7 +159,7 @@ func (p *agentProc) wait(stdout, stderr *os.File, stderrDone chan struct{}) {
 func (p *agentProc) initialize(ctx context.Context) error {
 	req := acp.InitializeRequest{
 		ProtocolVersion:    acp.ProtocolVersion,
-		ClientCapabilities: acp.ClientCapabilities{Session: acp.ClientSessionCapabilities{Notices: &acp.Capability{}}},
+		ClientCapabilities: acp.ClientCapabilities{Session: acp.ClientSessionCapabilities{Notices: &acp.Capability{}}, Auth: &acp.AuthCapabilities{Terminal: true}},
 		ClientInfo:         &acp.Implementation{Name: clientName, Version: clientVersion},
 	}
 	var res acp.InitializeResponse
@@ -167,7 +170,27 @@ func (p *agentProc) initialize(ctx context.Context) error {
 		return fmt.Errorf("initialize: unsupported ACP protocol version %d", res.ProtocolVersion)
 	}
 	p.caps = res.AgentCapabilities
+	for _, raw := range res.AuthMethods {
+		var m acp.AuthMethod
+		if json.Unmarshal(raw, &m) == nil && m.ID != "" {
+			p.auth = append(p.auth, m)
+		}
+	}
 	return nil
+}
+
+func (p *agentProc) terminalAuth() (authCommand, bool) {
+	for _, m := range p.auth {
+		if m.Type != acp.AuthTerminal {
+			continue
+		}
+		env := make([]string, 0, len(m.Env))
+		for k, v := range m.Env {
+			env = append(env, k+"="+v)
+		}
+		return authCommand{argv: append(slices.Clone(p.launch.argv), m.Args...), env: env, label: m.Name}, true
+	}
+	return authCommand{}, false
 }
 
 func (p *agentProc) Notify(method string, params json.RawMessage) {

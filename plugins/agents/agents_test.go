@@ -18,11 +18,13 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
 )
 
 const (
 	wait           = 10 * time.Second
 	restartWait    = 15 * time.Second
+	gitManifest    = `{"id":"git","name":"Git","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"git.review","title":"Review","hidden":true}]},"echoResults":{"git.review":{}}}`
 	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]},"echoResults":{"editor-nvim.checktime":{}}}`
 )
 
@@ -596,4 +598,73 @@ func TestStopRoot(t *testing.T) {
 	require.Len(t, starts, 1)
 	assert.ErrorIs(t, syscall.Kill(starts[0].PID, 0), syscall.ESRCH)
 	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
+}
+
+func cardsOf(n sdui.Node, typ string) []sdui.Node {
+	var out []sdui.Node
+	if n.Type == typ {
+		out = append(out, n)
+	}
+	for _, c := range n.Children {
+		out = append(out, cardsOf(c, typ)...)
+	}
+	return out
+}
+
+func echoed(t *testing.T, f *fixture, command string) json.RawMessage {
+	t.Helper()
+	var args json.RawMessage
+	testutil.Eventually(t, func() bool {
+		events, err := f.h.Bus.Read(t.Context(), "echo.command", 0, 100)
+		require.NoError(t, err)
+		for _, e := range events {
+			var p struct {
+				ID   string          `json:"id"`
+				Args json.RawMessage `json:"args"`
+			}
+			require.NoError(t, json.Unmarshal(e.Payload, &p))
+			if p.ID == command {
+				args = p.Args
+				return true
+			}
+		}
+		return false
+	}, wait)
+	return args
+}
+
+func TestPermissionCardAction(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "go")
+
+	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		cards := cardsOf(n, "permissionCard")
+		return len(cards) == 1 && cards[0].Props["outcome"] == nil
+	})
+	card := cardsOf(main, "permissionCard")[0]
+	assert.Equal(t, "Claude wants to run Run tests", card.Props["text"])
+	f.h.Event(t, project, "agents.main", card.ID, "permission", map[string]any{"request": card.Props["request"], "option": "allow"})
+
+	f.waitCall(t, "permission_response", func(c fakeCall) bool { return strings.Contains(string(c.Params), `"optionId":"allow"`) })
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		cards := cardsOf(n, "permissionCard")
+		return len(cards) == 1 && cards[0].Props["outcome"] == "allow"
+	})
+}
+
+func TestReviewActionUsesCheckpoint(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.EchoPluginDirAs(t, gitManifest))
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "change it")
+	f.waitStatus(t, project, session, "done")
+	sha := f.transcript(t, project, session).Turns[0].CheckpointSha
+	require.NotEmpty(t, sha)
+
+	f.h.Event(t, project, "agents.main", session+"/review", "review", nil)
+
+	assert.JSONEq(t, `{"base":"commit:`+sha+`","head":"`+repo+`","baseLabel":"before turn 1"}`, string(echoed(t, f, "git.review")))
 }
