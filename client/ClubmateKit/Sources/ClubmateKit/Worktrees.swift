@@ -86,10 +86,26 @@ public final class WorktreeModel {
         return "\(group.name) ▸ \(tree.name)"
     }
 
+    public var current: Worktree? {
+        guard let first = groups.first else { return nil }
+        return first.trees.first { $0.current } ?? first.trees.first { $0.main }
+    }
+
+    public var reviewBases: [Worktree] {
+        guard let current else { return [] }
+        return worktrees.filter { $0.repo == current.repo && $0 != current && !$0.main }
+    }
+
+    public var pickerItems: [PickerItem] {
+        worktrees.map { PickerItem(id: $0.id, label: label($0), detail: $0.current ? "current" : "") }
+    }
+
+    public func worktree(id: String) -> Worktree? {
+        worktrees.first { $0.id == id }
+    }
+
     public func title(_ workspace: String) -> String {
-        guard let first = groups.first else { return workspace }
-        let current = first.trees.first { $0.current } ?? first.trees.first { $0.main }
-        return current.map { "\(workspace) ▸ \($0.name) ▾" } ?? workspace
+        current.map { "\(workspace) ▸ \($0.name) ▾" } ?? workspace
     }
 
     public func load() async {

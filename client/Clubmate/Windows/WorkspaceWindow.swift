@@ -101,6 +101,7 @@ private struct WorkspaceView: View {
             .commandPalette(session, entries: paletteEntries, run: perform)
             .goToFile(session)
             .findInFiles(session)
+            .fuzzyPicker(session)
             .focusedSceneValue(\.projectSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }
@@ -162,7 +163,7 @@ private struct WorkspaceView: View {
                     Rail(sections: store.sections, selected: section) { store.selectedSection = $0 }
                     theme.border.frame(width: 1)
                     if sidebar == .left {
-                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .left)
+                        SidebarPane(session: session, store: store, section: section, side: .left)
                     }
                     SlotPane(store: store, slot: "\(section).main")
                         .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID) {
@@ -172,7 +173,7 @@ private struct WorkspaceView: View {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
                     if sidebar == .right {
-                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .right)
+                        SidebarPane(session: session, store: store, section: section, side: .right)
                     }
                 }
                 .background {
@@ -243,6 +244,7 @@ private struct WorkspaceView: View {
         case .switchWorktree: session.chooseWorktree()
         case .newWorktree: session.newWorktree(chooseFolder: true)
         case .removeWorktree: session.chooseWorktreeToRemove()
+        case .review: session.chooseReviewBase(head: session.worktrees.current?.path)
         }
     }
 
@@ -281,6 +283,19 @@ private struct WorktreeTitleMenu: View {
                 }
             } else {
                 ForEach(groups) { trees($0) }
+            }
+            Button("Find Worktree…") { session.chooseWorktree() }
+            Divider()
+            Menu("Review") {
+                Button("Against main") { session.review(base: nil) }
+                if !model.reviewBases.isEmpty {
+                    Divider()
+                    ForEach(model.reviewBases) { tree in
+                        Button("Against \(model.label(tree))") { session.review(base: tree.path) }
+                    }
+                }
+                Divider()
+                Button("Choose…") { session.chooseReviewBase(head: model.current?.path) }
             }
             Divider()
             Button("New Worktree…") { session.newWorktree(chooseFolder: false) }
@@ -355,8 +370,9 @@ struct SlotPane: View {
 }
 
 private struct SidebarPane: View {
+    let session: ProjectSession
     let store: ProjectUIStore
-    let slot: String
+    let section: String
     let side: SidebarSide
 
     @Environment(\.theme) private var theme
@@ -374,9 +390,18 @@ private struct SidebarPane: View {
     var body: some View {
         HStack(spacing: 0) {
             if side == .right { handle }
-            SlotPane(store: store, slot: slot)
+            content
                 .frame(width: width)
+                .environment(\.sidebarSlot, "\(section).sidebar")
             if side == .left { handle }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if section == CodeSection.id {
+            CodeSidebar(session: session, store: store)
+        } else {
+            SlotPane(store: store, slot: "\(section).sidebar")
         }
     }
 

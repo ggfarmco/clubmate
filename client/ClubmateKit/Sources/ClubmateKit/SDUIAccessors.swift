@@ -23,6 +23,10 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let hasChildren: Bool
     public let expanded: Bool
     public let children: [SDUITreeItem]
+    public let additions: Int?
+    public let deletions: Int?
+    public let comments: Int
+    public let reviewed: Bool
 
     public var id: String { item.id }
 
@@ -33,6 +37,10 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         hasChildren = fields["hasChildren"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false
         children = fields["children"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
+        additions = fields["additions"]?.numberValue.map(Int.init)
+        deletions = fields["deletions"]?.numberValue.map(Int.init)
+        comments = fields["comments"]?.numberValue.map(Int.init) ?? 0
+        reviewed = fields["reviewed"]?.boolValue ?? false
     }
 }
 

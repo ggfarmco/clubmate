@@ -12,16 +12,19 @@ public enum UIAction {
         case change(String)
         case pick([String])
         case sort(column: String, desc: Bool)
+        case reviewed(String)
+        case next(Int)
 
         public var value: JSONValue {
             switch self {
             case .click: .null
-            case .select(let id), .expand(let id), .collapse(let id), .focus(let id): .string(id)
+            case .select(let id), .expand(let id), .collapse(let id), .focus(let id), .reviewed(let id): .string(id)
             case .submit(let submitted): submitted
             case .toggle(let on): .bool(on)
             case .change(let option): .string(option)
             case .pick(let paths): .array(paths.map(JSONValue.string))
             case .sort(let column, let desc): SDUISort(column: column, desc: desc).value
+            case .next(let direction): .number(Double(direction))
             }
         }
     }
@@ -39,6 +42,8 @@ public enum UIAction {
         case .toggle: action = custom ?? "toggle"
         case .pick: action = custom ?? "pick"
         case .sort: action = "sort"
+        case .reviewed: action = "reviewed"
+        case .next: action = "next"
         }
         return UIEvent(projectId: projectID, slot: slot, nodeId: node.id ?? "", action: action, value: trigger.value)
     }
