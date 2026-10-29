@@ -197,6 +197,16 @@ final class SwitcherKeyView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if let arrow = ListKeys.gridArrow(
+            keyCode: event.keyCode,
+            control: flags.contains(.control),
+            command: flags.contains(.command),
+            option: flags.contains(.option)
+        ) {
+            handle?(.arrow(arrow))
+            return
+        }
         interpretKeyEvents([event])
     }
 

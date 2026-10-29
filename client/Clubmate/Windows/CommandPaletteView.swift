@@ -110,6 +110,14 @@ struct PaletteField: NSViewRepresentable {
         field.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         field.autofocus = autofocus
         field.delegate = context.coordinator
+        field.onListKey = { [weak coordinator = context.coordinator] action in
+            guard let parent = coordinator?.parent else { return false }
+            switch action {
+            case .move(let delta): parent.move(delta)
+            case .open: parent.submit()
+            }
+            return true
+        }
         return field
     }
 
@@ -170,6 +178,20 @@ final class PaletteTextField: NSTextField {
     }
 
     var autofocus = true
+    var onListKey: ((ListKeyAction) -> Bool)?
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard let window, Self.owner(of: window.firstResponder) === self,
+              let action = ListKeys.action(
+                keyCode: event.keyCode,
+                control: flags.contains(.control),
+                command: flags.contains(.command),
+                option: flags.contains(.option)
+              ),
+              onListKey?(action) == true else { return super.performKeyEquivalent(with: event) }
+        return true
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
