@@ -171,7 +171,7 @@ type editor struct {
 func main() {
 	a := &app{copies: newCopies(), editors: map[string]*editor{}, deleted: map[string]bool{}}
 	a.nvimPath, _ = exec.LookPath("nvim")
-	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
+	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {

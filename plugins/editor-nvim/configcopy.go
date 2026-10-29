@@ -1,12 +1,11 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,8 +13,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/sys/unix"
 
 	"clubmate/pkg/pluginsdk"
 )
@@ -27,7 +24,9 @@ const (
 	appNameEnv    = "NVIM_APPNAME"
 	sourceApp     = "nvim"
 	copyPollWait  = time.Second
-	tempInfix     = ".clubmate-tmp-"
+	sizeBudget    = 1500 * time.Millisecond
+	shutdownWait  = 1500 * time.Millisecond
+	unknownSize   = -1
 )
 
 var (
@@ -79,11 +78,6 @@ type nvimDirs struct {
 	data      string
 }
 
-type copyPair struct {
-	src string
-	dst string
-}
-
 type copyJob struct {
 	cancel context.CancelFunc
 	mu     sync.Mutex
@@ -95,17 +89,6 @@ type copies struct {
 	seq  atomic.Int64
 	mu   sync.Mutex
 	jobs map[string]*copyJob
-}
-
-type dirMode struct {
-	path string
-	mode fs.FileMode
-}
-
-type progressWriter struct {
-	ctx context.Context
-	w   io.Writer
-	add func(int64)
 }
 
 func appName() string {
@@ -120,8 +103,8 @@ func resolveDirs() (nvimDirs, error) {
 	if err != nil {
 		return nvimDirs{}, err
 	}
-	configHome := cmp.Or(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config"))
-	dataHome := cmp.Or(os.Getenv("XDG_DATA_HOME"), filepath.Join(home, ".local", "share"))
+	configHome := xdgHome("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	dataHome := xdgHome("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
 	app := appName()
 	return nvimDirs{
 		srcConfig: filepath.Join(configHome, sourceApp),
@@ -129,6 +112,13 @@ func resolveDirs() (nvimDirs, error) {
 		config:    filepath.Join(configHome, app),
 		data:      filepath.Join(dataHome, app),
 	}, nil
+}
+
+func xdgHome(env, fallback string) string {
+	if v := os.Getenv(env); filepath.IsAbs(v) {
+		return v
+	}
+	return fallback
 }
 
 func (a *app) nvimMode(ctx context.Context, h *pluginsdk.Host) (string, error) {
@@ -168,6 +158,8 @@ func (a *app) config(ctx context.Context, h *pluginsdk.Host, args configArgs) (a
 	if err != nil {
 		return nil, err
 	}
+	sizeCtx, cancel := context.WithTimeout(ctx, sizeBudget)
+	defer cancel()
 	return configInfo{
 		Mode:              mode,
 		App:               appName(),
@@ -175,8 +167,8 @@ func (a *app) config(ctx context.Context, h *pluginsdk.Host, args configArgs) (a
 		DataDir:           dirs.data,
 		ConfigExists:      exists(dirs.config),
 		DataExists:        exists(dirs.data),
-		SourceConfigBytes: sourceSize(ctx, dirs.srcConfig),
-		SourceDataBytes:   sourceSize(ctx, dirs.srcData),
+		SourceConfigBytes: sourceSize(sizeCtx, dirs.srcConfig),
+		SourceDataBytes:   sourceSize(sizeCtx, dirs.srcData),
 	}, nil
 }
 
@@ -197,15 +189,19 @@ func (a *app) configCopy(args copyArgs) (copyStarted, error) {
 			return copyStarted{}, fmt.Errorf("config-copy: %s %w", p.dst, errDestExists)
 		}
 	}
-	id, err := a.copies.start(pairs)
+	id, err := a.copies.start(pairs, []string{dirs.config, dirs.data})
 	return copyStarted{ID: id}, err
+}
+
+func (a *app) shutdown(context.Context, *pluginsdk.Host) {
+	a.copies.stop(shutdownWait)
 }
 
 func newCopies() *copies {
 	return &copies{jobs: map[string]*copyJob{}}
 }
 
-func (cs *copies) start(pairs []copyPair) (string, error) {
+func (cs *copies) start(pairs []copyPair, sweep []string) (string, error) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 	for id, j := range cs.jobs {
@@ -213,6 +209,9 @@ func (cs *copies) start(pairs []copyPair) (string, error) {
 			return "", errCopyRunning
 		}
 		delete(cs.jobs, id)
+	}
+	for _, dst := range sweep {
+		sweepTemps(dst)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	j := &copyJob{cancel: cancel, wake: make(chan struct{})}
@@ -259,6 +258,22 @@ func (cs *copies) cancel(id string) error {
 	return nil
 }
 
+func (cs *copies) stop(wait time.Duration) {
+	cs.mu.Lock()
+	jobs := slices.Collect(maps.Values(cs.jobs))
+	cs.mu.Unlock()
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	for _, j := range jobs {
+		j.cancel()
+		select {
+		case <-j.wake:
+		case <-timer.C:
+			return
+		}
+	}
+}
+
 func (j *copyJob) progress(copied, total int64) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -284,184 +299,19 @@ func (j *copyJob) snapshot() copyStatus {
 	return j.status
 }
 
-func copyAll(ctx context.Context, pairs []copyPair, progress func(copied, total int64)) error {
-	srcs := make([]string, len(pairs))
-	var total int64
-	for i, p := range pairs {
-		src, err := filepath.EvalSymlinks(p.src)
-		if err != nil {
-			return err
-		}
-		n, err := treeSize(ctx, src)
-		if err != nil {
-			return err
-		}
-		srcs[i], total = src, total+n
-	}
-	progress(0, total)
-	temps := make([]string, 0, len(pairs))
-	defer func() {
-		for _, tmp := range temps {
-			removeTemp(tmp)
-		}
-	}()
-	var copied int64
-	add := func(n int64) {
-		copied += n
-		progress(copied, total)
-	}
-	for i, p := range pairs {
-		if err := os.MkdirAll(filepath.Dir(p.dst), 0o755); err != nil {
-			return err
-		}
-		tmp, err := os.MkdirTemp(filepath.Dir(p.dst), filepath.Base(p.dst)+tempInfix)
-		if err != nil {
-			return err
-		}
-		temps = append(temps, tmp)
-		if err := copyTree(ctx, srcs[i], tmp, add); err != nil {
-			return err
-		}
-	}
-	for i, p := range pairs {
-		if err := unix.RenamexNp(temps[i], p.dst, unix.RENAME_EXCL); err != nil {
-			if errors.Is(err, unix.EEXIST) {
-				return fmt.Errorf("config-copy: %s %w", p.dst, errDestExists)
-			}
-			return &os.LinkError{Op: "rename", Old: temps[i], New: p.dst, Err: err}
-		}
-	}
-	return nil
-}
-
-func copyTree(ctx context.Context, src, dst string, add func(int64)) error {
-	var dirs []dirMode
-	err := walkSource(src, func(rel string, d fs.DirEntry) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		from, to := filepath.Join(src, rel), filepath.Join(dst, rel)
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		switch {
-		case d.IsDir():
-			if rel != "." {
-				if err := os.Mkdir(to, 0o700); err != nil {
-					return err
-				}
-			}
-			dirs = append(dirs, dirMode{path: to, mode: info.Mode().Perm()})
-		case d.Type()&fs.ModeSymlink != 0:
-			link, err := os.Readlink(from)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(link, to)
-		case d.Type().IsRegular():
-			return copyFile(ctx, from, to, info.Mode().Perm(), add)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	for _, d := range slices.Backward(dirs) {
-		if err := os.Chmod(d.path, d.mode); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func copyFile(ctx context.Context, src, dst string, perm fs.FileMode, add func(int64)) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(progressWriter{ctx: ctx, w: out, add: add}, in)
-	if closeErr := out.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		return err
-	}
-	return os.Chmod(dst, perm)
-}
-
-func (p progressWriter) Write(b []byte) (int, error) {
-	if err := p.ctx.Err(); err != nil {
-		return 0, err
-	}
-	n, err := p.w.Write(b)
-	p.add(int64(n))
-	return n, err
-}
-
-func walkSource(root string, fn func(rel string, d fs.DirEntry) error) error {
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		if rel == ".git" {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		return fn(rel, d)
-	})
-}
-
-func treeSize(ctx context.Context, root string) (int64, error) {
-	var total int64
-	err := walkSource(root, func(_ string, d fs.DirEntry) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !d.Type().IsRegular() {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		total += info.Size()
-		return nil
-	})
-	return total, err
-}
-
 func sourceSize(ctx context.Context, dir string) int64 {
 	root, err := filepath.EvalSymlinks(dir)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
 		return 0
 	}
-	n, _ := treeSize(ctx, root)
-	return n
-}
-
-func removeTemp(dir string) {
-	if os.RemoveAll(dir) == nil {
-		return
+	if err != nil {
+		return unknownSize
 	}
-	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err == nil && d.IsDir() {
-			_ = os.Chmod(path, 0o700)
-		}
-		return nil
-	})
-	_ = os.RemoveAll(dir)
+	n, err := treeSize(ctx, root)
+	if err != nil {
+		return unknownSize
+	}
+	return n
 }
 
 func exists(path string) bool {

@@ -54,8 +54,13 @@ func TestCopyKeepsSymlinks(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(src, "a.lua"), []byte("vim.g.a = 1"), 0o751))
 	require.NoError(t, os.Symlink("/", filepath.Join(src, "link")))
 	require.NoError(t, os.Symlink(".", filepath.Join(src, "loop")))
-	info := c.info(t)
+	require.NoError(t, os.Symlink(filepath.Join(src, "a.lua"), filepath.Join(src, "abs")))
 	dest := filepath.Join(c.xdg.config, "clubmate-dev")
+	stale := filepath.Join(c.xdg.config, "clubmate-dev.clubmate-tmp-stale")
+	require.NoError(t, os.MkdirAll(filepath.Join(stale, "x"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(stale, "x", "y"), nil, 0o600))
+	require.NoError(t, os.Chmod(filepath.Join(stale, "x"), 0o500))
+	info := c.info(t)
 	assert.Equal(t, configInfo{Mode: "shared", App: "clubmate-dev", ConfigDir: dest, DataDir: filepath.Join(c.xdg.data, "clubmate-dev"), SourceConfigBytes: 11}, info)
 	st := c.copyAndWait(t, true)
 	assert.Equal(t, copyStatus{Copied: 11, Total: 11, Done: true}, st)
@@ -65,16 +70,17 @@ func TestCopyKeepsSymlinks(t *testing.T) {
 	for _, e := range entries {
 		names = append(names, e.Name())
 	}
-	assert.Equal(t, []string{"a.lua", "link", "loop"}, names)
+	assert.Equal(t, []string{"a.lua", "abs", "link", "loop"}, names)
 	a, err := os.Stat(filepath.Join(dest, "a.lua"))
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o751), a.Mode().Perm())
-	for name, want := range map[string]string{"link": "/", "loop": "."} {
+	for name, want := range map[string]string{"link": "/", "loop": ".", "abs": filepath.Join(dest, "a.lua")} {
 		got, err := os.Readlink(filepath.Join(dest, name))
 		require.NoError(t, err)
 		assert.Equal(t, want, got)
 	}
 	assert.NoDirExists(t, filepath.Join(c.xdg.data, "clubmate-dev"))
+	assert.NoDirExists(t, stale)
 	assert.True(t, c.info(t).ConfigExists)
 }
 
@@ -85,7 +91,7 @@ func TestCopyCancelLeavesNothing(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	err := main.CopyAll(ctx, src, filepath.Join(parent, "clubmate-dev"), func(copied, total int64) {
+	err := main.CopyAll(ctx, [][2]string{{src, filepath.Join(parent, "clubmate-dev")}}, func(copied, total int64) {
 		if copied >= total/2 {
 			cancel()
 		}
@@ -94,6 +100,22 @@ func TestCopyCancelLeavesNothing(t *testing.T) {
 	entries, err := os.ReadDir(parent)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+func TestCopyRollsBackWhenRenameFails(t *testing.T) {
+	config, data, parent := t.TempDir(), t.TempDir(), t.TempDir()
+	for _, dir := range []string{config, data} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "a"), []byte("a"), 0o600))
+	}
+	configDest, dataDest := filepath.Join(parent, "config"), filepath.Join(parent, "data")
+	err := main.CopyAll(t.Context(), [][2]string{{config, configDest}, {data, dataDest}}, func(int64, int64) {
+		_ = os.Mkdir(dataDest, 0o700)
+	})
+	require.ErrorContains(t, err, dataDest+" already exists")
+	entries, err := os.ReadDir(parent)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "data", entries[0].Name())
 }
 
 func TestCopyRefusesExisting(t *testing.T) {

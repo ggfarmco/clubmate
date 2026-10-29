@@ -128,8 +128,8 @@
             "dataDir": {"type": "string", "description": "Data dir of the app name ($XDG_DATA_HOME/<app>)."},
             "configExists": {"type": "boolean", "description": "Whether configDir exists."},
             "dataExists": {"type": "boolean", "description": "Whether dataDir exists."},
-            "sourceConfigBytes": {"type": "integer", "description": "Bytes of regular files in $XDG_CONFIG_HOME/nvim, without its .git."},
-            "sourceDataBytes": {"type": "integer", "description": "Bytes of regular files in $XDG_DATA_HOME/nvim, without its .git."}
+            "sourceConfigBytes": {"type": "integer", "description": "Bytes of regular files in $XDG_CONFIG_HOME/nvim, without its .git; 0 when it is missing, -1 when unknown (unreadable, or not measured within about 1.5 s)."},
+            "sourceDataBytes": {"type": "integer", "description": "Bytes of regular files in $XDG_DATA_HOME/nvim, without its .git; 0 when it is missing, -1 when unknown (unreadable, or not measured within about 1.5 s)."}
           }
         }
       },
@@ -138,7 +138,7 @@
         "title": "Copy Neovim Config",
         "hidden": true,
         "agent": false,
-        "description": "Start copying $XDG_CONFIG_HOME/nvim, and with data $XDG_DATA_HOME/nvim when it exists, into the app name's dirs. Fails when a destination exists or another copy runs. Skips .git at the source root, copies symlinks as symlinks, keeps modes and skips sockets and FIFOs. Copies into <dest>.clubmate-tmp-* and renames into place only when every part is complete; a cancelled or failed copy leaves nothing behind.",
+        "description": "Start copying $XDG_CONFIG_HOME/nvim, and with data $XDG_DATA_HOME/nvim when it exists, into the app name's dirs. Fails when a destination exists or another copy runs. Skips .git at the source root, copies symlinks as symlinks, keeps modes and skips sockets and FIFOs. Rewrites an absolute symlink pointing inside a source to the same path inside its copy. An unreadable source file aborts the copy with an error naming it. Copies into <dest>.clubmate-tmp-* and renames into place, without replacing anything, only when every part is complete; if a later rename fails the earlier ones are undone. A cancelled or failed copy leaves nothing behind, and leftover temp dirs of an interrupted copy are removed when the next copy starts. Destinations on network filesystems that lack exclusive rename fail at the rename.",
         "args": {
           "properties": {
             "data": {"type": "boolean", "description": "Also copy the data dir (plugins, lazy, mason)."}
