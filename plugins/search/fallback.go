@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -64,11 +65,17 @@ func (e builtinEngine) run(ctx context.Context, opts grepOptions, emit serialEmi
 	})
 	for range min(maxWorkers, runtime.GOMAXPROCS(0)) {
 		wg.Go(func() {
+			dirs := map[string]string{}
 			for i := range next {
-				if !globs.match(e.list.rel(paths[i])) {
+				folder, rel := e.list.locate(paths[i])
+				if folder < 0 || !globs.match(rel) {
 					continue
 				}
-				found := grepFile(paths[i], e.list.abs(paths[i]), re)
+				real, ok := e.list.real(folder, rel, dirs)
+				if !ok {
+					continue
+				}
+				found := grepFile(paths[i], filepath.Join(e.list.folders[folder], rel), real, re)
 				if len(found) == 0 {
 					continue
 				}
@@ -110,8 +117,24 @@ func compileQuery(opts grepOptions) (*regexp.Regexp, error) {
 	return re, nil
 }
 
-func grepFile(display, abs string, re *regexp.Regexp) []grepMatch {
-	data, ok := readText(abs)
+func (l *listing) real(folder int, rel string, dirs map[string]string) (string, bool) {
+	root := l.resolved[folder]
+	dir := filepath.Dir(filepath.Join(root, rel))
+	resolved, ok := dirs[dir]
+	if !ok {
+		if real, err := filepath.EvalSymlinks(dir); err == nil && within(root, real) {
+			resolved = real
+		}
+		dirs[dir] = resolved
+	}
+	if resolved == "" {
+		return "", false
+	}
+	return filepath.Join(resolved, filepath.Base(rel)), true
+}
+
+func grepFile(display, abs, real string, re *regexp.Regexp) []grepMatch {
+	data, ok := readText(real)
 	if !ok {
 		return nil
 	}

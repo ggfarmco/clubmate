@@ -80,7 +80,7 @@ func (x index) listRepo(ctx context.Context, repo, prefix string, out *[]string)
 		}
 		prev = rel
 		if strings.HasPrefix(meta, gitlinkMode) {
-			err = x.nested(ctx, filepath.Join(repo, rel), join(prefix, rel), out)
+			err = x.nested(ctx, repo, rel, join(prefix, rel), out)
 		} else {
 			*out = append(*out, join(prefix, rel))
 		}
@@ -94,7 +94,7 @@ func (x index) listRepo(ctx context.Context, repo, prefix string, out *[]string)
 			continue
 		}
 		if dir, ok := strings.CutSuffix(rel, "/"); ok {
-			err = x.nested(ctx, filepath.Join(repo, dir), join(prefix, dir), out)
+			err = x.nested(ctx, repo, dir, join(prefix, dir), out)
 		} else {
 			*out = append(*out, join(prefix, rel))
 		}
@@ -105,11 +105,15 @@ func (x index) listRepo(ctx context.Context, repo, prefix string, out *[]string)
 	return nil
 }
 
-func (x index) nested(ctx context.Context, dir, prefix string, out *[]string) error {
+func (x index) nested(ctx context.Context, repo, rel, prefix string, out *[]string) error {
+	dir, err := filepath.EvalSymlinks(filepath.Join(repo, rel))
+	if err != nil || dir == repo || !within(repo, dir) {
+		return nil
+	}
 	if !x.isRepo(dir) {
 		return x.walk(ctx, dir, prefix, out)
 	}
-	err := x.listRepo(ctx, dir, prefix, out)
+	err = x.listRepo(ctx, dir, prefix, out)
 	if err == nil || ctx.Err() != nil {
 		return err
 	}
@@ -210,6 +214,10 @@ func labels(folders []string) []string {
 		out[i] = label
 	}
 	return out
+}
+
+func within(root, path string) bool {
+	return path == root || strings.HasPrefix(path, strings.TrimSuffix(root, "/")+"/")
 }
 
 func join(prefix, rel string) string {

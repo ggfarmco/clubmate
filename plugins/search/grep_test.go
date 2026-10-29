@@ -166,6 +166,55 @@ func TestGrepUnreadableDirIsNoError(t *testing.T) {
 	}
 }
 
+func TestGrepNarrowGlobIsBounded(t *testing.T) {
+	dir := tempDir(t)
+	write(t, dir, "keep.go", "hit\n")
+	for i := range 150 {
+		write(t, dir, fmt.Sprintf("a%03d.txt", i), strings.Repeat("hit\n", 1000))
+	}
+	for name, eng := range engines(t, dir) {
+		t.Run(name, func(t *testing.T) {
+			begin := time.Now()
+			got, last := drain(t, newSearches(), eng, grepOptions{Query: "hit", Glob: "*.go"})
+			assert.Less(t, time.Since(begin), 2*time.Second)
+			require.Len(t, got, 1)
+			assert.Equal(t, "keep.go", got[0].Path)
+			assert.False(t, last.Truncated)
+		})
+	}
+	for i := range 100 {
+		write(t, dir, fmt.Sprintf("b%03d.txt", i), strings.Repeat("hit\n", 1000))
+	}
+	if eng, ok := engines(t, dir)["rg"]; ok {
+		begin := time.Now()
+		_, last := drain(t, newSearches(), eng, grepOptions{Query: "hit", Glob: "*.go"})
+		assert.Less(t, time.Since(begin), 2*time.Second)
+		assert.True(t, last.Truncated)
+	}
+}
+
+func TestGrepSkipsSymlinkedDirs(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	dir, outside := tempDir(t), tempDir(t)
+	write(t, dir, "a/b.txt", "hit\n")
+	write(t, dir, "c.txt", "hit\n")
+	write(t, outside, "b.txt", "hit\n")
+	for _, args := range [][]string{{"init", "-q"}, {"add", "."}} {
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "a")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "a")))
+	for name, eng := range engines(t, dir) {
+		t.Run(name, func(t *testing.T) {
+			got, _ := drain(t, newSearches(), eng, grepOptions{Query: "hit"})
+			require.Len(t, got, 1)
+			assert.Equal(t, "c.txt", got[0].Path)
+		})
+	}
+}
+
 func TestPreview(t *testing.T) {
 	dir := tempDir(t)
 	var b strings.Builder

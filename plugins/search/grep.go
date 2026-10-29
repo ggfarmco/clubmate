@@ -194,7 +194,7 @@ func collect(ctx context.Context, eng engine, opts grepOptions, limit int) ([]gr
 		}
 		return true
 	})
-	if truncated || ctx.Err() != nil {
+	if truncated || ctx.Err() != nil || errors.Is(err, errTruncated) {
 		return out, true, nil
 	}
 	return out, false, err
@@ -223,7 +223,10 @@ func (s *search) finish(ctx context.Context, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.done = true
-	if err != nil && ctx.Err() == nil {
+	switch {
+	case errors.Is(err, errTruncated):
+		s.truncated = true
+	case err != nil && ctx.Err() == nil:
 		s.err = err.Error()
 	}
 	s.signal()

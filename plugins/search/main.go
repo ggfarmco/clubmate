@@ -91,10 +91,11 @@ type deletedPayload struct {
 }
 
 type listing struct {
-	folders []string
-	labels  []string
-	corpus  corpus
-	capped  bool
+	folders  []string
+	resolved []string
+	labels   []string
+	corpus   corpus
+	capped   bool
 }
 
 type workspace struct {
@@ -389,31 +390,33 @@ func (ws *workspace) watched(a *app) bool {
 }
 
 func newListing(folders, paths []string) *listing {
-	return &listing{folders: folders, labels: labels(folders), corpus: newCorpus(paths), capped: len(paths) >= maxFiles}
+	resolved := make([]string, len(folders))
+	for i, f := range folders {
+		resolved[i] = f
+		if real, err := filepath.EvalSymlinks(f); err == nil {
+			resolved[i] = real
+		}
+	}
+	return &listing{folders: folders, resolved: resolved, labels: labels(folders), corpus: newCorpus(paths), capped: len(paths) >= maxFiles}
 }
 
 func (l *listing) abs(path string) string {
-	for i, label := range l.labels {
-		if label == "" {
-			return filepath.Join(l.folders[i], path)
-		}
-		if rel, ok := strings.CutPrefix(path, label+"/"); ok {
-			return filepath.Join(l.folders[i], rel)
-		}
+	if i, rel := l.locate(path); i >= 0 {
+		return filepath.Join(l.folders[i], rel)
 	}
 	return ""
 }
 
-func (l *listing) rel(path string) string {
-	for _, label := range l.labels {
+func (l *listing) locate(path string) (int, string) {
+	for i, label := range l.labels {
 		if label == "" {
-			return path
+			return i, path
 		}
 		if rel, ok := strings.CutPrefix(path, label+"/"); ok {
-			return rel
+			return i, rel
 		}
 	}
-	return path
+	return -1, path
 }
 
 func project(ctx context.Context, h *pluginsdk.Host, id string) (pluginsdk.Project, error) {

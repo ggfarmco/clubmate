@@ -20,7 +20,10 @@ const (
 	rgEventLimit = 16 << 20
 	rgStderrMax  = 4 << 10
 	rgWaitDelay  = 2 * time.Second
+	maxDropped   = 200_000
 )
+
+var errTruncated = errors.New("search truncated")
 
 type rgEngine struct {
 	bin   string
@@ -38,6 +41,18 @@ type rgEvent struct {
 			End   int `json:"end"`
 		} `json:"submatches"`
 	} `json:"data"`
+}
+
+type rgFile struct {
+	root   root
+	rel    string
+	wanted bool
+}
+
+type rgOutcome struct {
+	events    int
+	dropped   int
+	truncated bool
 }
 
 type rgText struct {
@@ -75,7 +90,7 @@ func (e rgEngine) run(ctx context.Context, opts grepOptions, emit serialEmit) er
 		kill()
 		close(killed)
 	})
-	events, capped := e.read(stdout, globs, emit)
+	outcome, capped := e.read(stdout, globs, emit)
 	if capped {
 		kill()
 	}
@@ -84,11 +99,14 @@ func (e rgEngine) run(ctx context.Context, opts grepOptions, emit serialEmit) er
 		<-killed
 	}
 	err = cmd.Wait()
+	if outcome.truncated {
+		return errTruncated
+	}
 	if capped || ctx.Err() != nil {
 		return nil
 	}
 	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
-		if ee.ExitCode() == 1 || events > 0 {
+		if ee.ExitCode() == 1 || outcome.events > 0 {
 			return nil
 		}
 		if msg := strings.TrimSpace(stderr.buf.String()); msg != "" {
@@ -118,47 +136,58 @@ func (e rgEngine) args(opts grepOptions) []string {
 	return args
 }
 
-func (e rgEngine) read(stdout io.Reader, globs globFilter, emit serialEmit) (int, bool) {
+func (e rgEngine) read(stdout io.Reader, globs globFilter, emit serialEmit) (rgOutcome, bool) {
 	r := bufio.NewReaderSize(stdout, 64<<10)
-	events := 0
+	var out rgOutcome
+	current := rgFile{}
 	for {
 		line, err := readEvent(r)
 		if len(line) > 0 && line[0] == '{' {
-			events++
-			if m, ok := e.match(line, globs); ok && !emit([]grepMatch{m}) {
-				return events, true
+			out.events++
+			switch {
+			case bytes.HasPrefix(line, []byte(`{"type":"begin"`)):
+				current = e.file(line, globs)
+			case bytes.HasPrefix(line, []byte(`{"type":"match"`)) && !current.wanted:
+				if out.dropped++; out.dropped >= maxDropped {
+					out.truncated = true
+					return out, true
+				}
+			case bytes.HasPrefix(line, []byte(`{"type":"match"`)):
+				if m, ok := e.match(line, current); ok && !emit([]grepMatch{m}) {
+					return out, true
+				}
 			}
 		}
 		if err != nil {
-			return events, false
+			return out, false
 		}
 	}
 }
 
-func (e rgEngine) match(line []byte, globs globFilter) (grepMatch, bool) {
-	if !bytes.HasPrefix(line, []byte(`{"type":"match"`)) {
-		return grepMatch{}, false
+func (e rgEngine) file(line []byte, globs globFilter) rgFile {
+	var ev rgEvent
+	if err := json.Unmarshal(line, &ev); err != nil {
+		return rgFile{}
 	}
+	path := string(ev.Data.Path.value())
+	for _, r := range e.roots {
+		if rel, ok := strings.CutPrefix(path, r.resolved+"/"); ok {
+			return rgFile{root: r, rel: rel, wanted: globs.match(rel)}
+		}
+	}
+	return rgFile{}
+}
+
+func (e rgEngine) match(line []byte, f rgFile) (grepMatch, bool) {
 	var ev rgEvent
 	if err := json.Unmarshal(line, &ev); err != nil {
 		return grepMatch{}, false
 	}
-	path := string(ev.Data.Path.value())
-	for _, r := range e.roots {
-		rel, ok := strings.CutPrefix(path, r.resolved+"/")
-		if !ok {
-			continue
-		}
-		if !globs.match(rel) {
-			return grepMatch{}, false
-		}
-		spans := make([][2]int, 0, len(ev.Data.Submatches))
-		for _, s := range ev.Data.Submatches {
-			spans = append(spans, [2]int{s.Start, s.End})
-		}
-		return newMatch(join(r.label, rel), filepath.Join(r.folder, rel), ev.Data.LineNumber, ev.Data.Lines.value(), spans), true
+	spans := make([][2]int, 0, len(ev.Data.Submatches))
+	for _, sm := range ev.Data.Submatches {
+		spans = append(spans, [2]int{sm.Start, sm.End})
 	}
-	return grepMatch{}, false
+	return newMatch(join(f.root.label, f.rel), filepath.Join(f.root.folder, f.rel), ev.Data.LineNumber, ev.Data.Lines.value(), spans), true
 }
 
 func (t rgText) value() []byte {
