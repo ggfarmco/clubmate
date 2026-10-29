@@ -311,7 +311,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		return nil, invalidParams(err.Error())
 	}
 	if p.Agent && isPrimitive {
-		if err := prim.agentArgs(p.Args); err != nil {
+		if p.Args, err = prim.agentArgs(p.Args); err != nil {
 			return nil, err
 		}
 	}

@@ -56,7 +56,7 @@ func TestAgentSessionCreateTakesNoCommand(t *testing.T) {
 	require.NoError(t, err)
 	h.Start(t)
 	c := h.Client(t)
-	for _, field := range []string{"command", "env"} {
+	for _, field := range []string{"command", "env", "Command", "ENV"} {
 		err := c.Call(t.Context(), "command.run", map[string]any{"id": "session.create", "projectId": p.ID, "agent": true, "args": map[string]any{field: []string{"/bin/sh"}}}, nil)
 		require.ErrorIs(t, err, rpc.ErrInvalidParams)
 		assert.ErrorContains(t, err, "args."+field+": not allowed in agent calls")

@@ -18,7 +18,6 @@ type primitive struct {
 	cmd          Command
 	method       string
 	needsProject bool
-	agentDenies  []string
 	params       func(projectID string, args json.RawMessage) (json.RawMessage, error)
 	scope        func(ctx context.Context, svc *core.Service, projectID string, args json.RawMessage) (string, error)
 }
@@ -55,7 +54,6 @@ var primitives = map[string]primitive{
 		}),
 		method:       "session.create",
 		needsProject: true,
-		agentDenies:  []string{"command", "env"},
 		params:       withProject,
 	},
 	"session.kill": {
@@ -138,19 +136,22 @@ func sessionProject(ctx context.Context, svc *core.Service, _ string, args json.
 	return s.ProjectID, nil
 }
 
-func (p primitive) agentArgs(args json.RawMessage) error {
+func (p primitive) agentArgs(args json.RawMessage) (json.RawMessage, error) {
 	fields := map[string]json.RawMessage{}
 	if len(args) > 0 && string(args) != "null" {
 		if err := json.Unmarshal(args, &fields); err != nil {
-			return invalidParams("args: want object")
+			return nil, invalidParams("args: want object")
 		}
 	}
-	for _, name := range p.agentDenies {
-		if _, ok := fields[name]; ok {
-			return invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
+	for name := range fields {
+		if p.cmd.Args == nil {
+			return nil, invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
+		}
+		if _, ok := p.cmd.Args.Properties[name]; !ok {
+			return nil, invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
 		}
 	}
-	return nil
+	return json.Marshal(fields)
 }
 
 func (s *Server) runPrimitive(ctx context.Context, p primitive, projectID string, args json.RawMessage) (json.RawMessage, error) {
