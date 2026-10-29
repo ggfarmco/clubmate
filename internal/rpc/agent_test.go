@@ -48,13 +48,18 @@ func TestAgentCannotReachHidden(t *testing.T) {
 }
 
 func TestAgentArgsExactKeys(t *testing.T) {
-	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"args":{"properties":{"path":{"type":"string"}}}}`)
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"args":{"properties":{"path":{"type":"string"},"items":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string"}}}}}}}`)
 	c := h.Client(t)
 	var out map[string]any
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"path": "a"}}, &out))
-	err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"path": "a", "PATH": "b"}}, nil)
-	require.ErrorIs(t, err, rpc.ErrInvalidParams)
-	assert.ErrorContains(t, err, "args.PATH: not allowed in agent calls")
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"path": "a", "items": []any{map[string]any{"path": "a"}}}}, &out))
+	for want, args := range map[string]map[string]any{
+		"args.PATH":          {"path": "a", "PATH": "b"},
+		"args.items[1].PATH": {"items": []any{map[string]any{"path": "a"}, map[string]any{"path": "a", "PATH": "b"}}},
+	} {
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": args}, nil)
+		require.ErrorIs(t, err, rpc.ErrInvalidParams)
+		assert.ErrorContains(t, err, want+": not allowed in agent calls")
+	}
 }
 
 func TestCapabilityNamedLikePrimitive(t *testing.T) {

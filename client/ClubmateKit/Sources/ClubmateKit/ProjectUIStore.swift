@@ -192,6 +192,12 @@ public final class ProjectUIStore {
         }
     }
 
+    public func requestFocus(section: String, slot: String) {
+        if sections.contains(where: { $0.id == section }) { selectedSection = section }
+        focusSerial += 1
+        focusRequest = FocusRequest(slot: slot, serial: focusSerial)
+    }
+
     private func focus(_ params: UIFocusNotification) {
         guard params.subscription == subscription else { return }
         if sections.contains(where: { $0.id == params.section }) { selectedSection = params.section }

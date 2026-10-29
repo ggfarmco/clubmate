@@ -189,7 +189,7 @@ for _, b in ipairs(vim.api.nvim_list_bufs()) do
 end
 return names`
 
-const openLua = `local path, line, light = ...
+const openLua = `local path, line, col, light = ...
 local m = package.loaded["clubmate"]
 vim.schedule(function()
   local ok, err = pcall(function()
@@ -203,13 +203,68 @@ vim.schedule(function()
       vim.b.clubmate_light = nil
     end
     if line > 0 then
-      vim.api.nvim_win_set_cursor(0, { math.min(line, vim.api.nvim_buf_line_count(0)), 0 })
+      local row = math.min(line, vim.api.nvim_buf_line_count(0))
+      local byte = 0
+      if col > 0 then
+        local len = #vim.api.nvim_buf_get_lines(0, row - 1, row, false)[1]
+        byte = math.max(0, math.min(col, len) - 1)
+      end
+      vim.api.nvim_win_set_cursor(0, { row, byte })
       vim.cmd("normal! zz")
     end
   end)
   if not ok and type(m) == "table" and m.chan then
     pcall(vim.rpcnotify, m.chan, "clubmate", { event = "open_error", message = tostring(err) })
   end
+end)`
+
+const quickfixLua = `local title, items = ...
+local m = package.loaded["clubmate"]
+m.qf_gen = (m.qf_gen or 0) + 1
+local gen = m.qf_gen
+local budget, target = 40e6, 10e6
+local id, pos, size, opened
+local function incomplete()
+  if id then pcall(vim.fn.setqflist, {}, "a", { id = id, title = title .. " (incomplete)" }) end
+end
+local function fail(err)
+  incomplete()
+  if m.chan then
+    pcall(vim.rpcnotify, m.chan, "clubmate", { event = "open_error", message = "quickfix: " .. tostring(err) })
+  end
+end
+local function step()
+  if m.qf_gen ~= gen then return incomplete() end
+  local ok, err = pcall(function()
+    local start = vim.uv.hrtime()
+    while pos <= #items and vim.uv.hrtime() - start < budget do
+      local chunk = vim.list_slice(items, pos, pos + size - 1)
+      local t = vim.uv.hrtime()
+      if vim.fn.setqflist({}, "a", { id = id, items = chunk }) == -1 then
+        pos = #items + 1
+        return
+      end
+      pos = pos + #chunk
+      size = math.max(1, math.min(1000, math.floor(#chunk * target / math.max(vim.uv.hrtime() - t, 1))))
+      if not opened then
+        opened = true
+        vim.cmd.copen()
+        vim.cmd.wincmd("p")
+      end
+    end
+  end)
+  if not ok then return fail(err) end
+  if pos <= #items then vim.schedule(step) end
+end
+vim.schedule(function()
+  if m.qf_gen ~= gen then return end
+  local ok, err = pcall(function()
+    vim.fn.setqflist({}, " ", { title = title })
+    id = vim.fn.getqflist({ id = 0 }).id
+  end)
+  if not ok then return fail(err) end
+  pos, size, opened = 1, 50, false
+  step()
 end)`
 
 var (
@@ -315,8 +370,12 @@ func (c *client) navigation(nav navigationArgs) ([]string, error) {
 	return skipped, nil
 }
 
-func (c *client) open(path string, line int, light bool) error {
-	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(openLua, nil, path, line, light) })
+func (c *client) open(path string, line, col int, light bool) error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(openLua, nil, path, line, col, light) })
+}
+
+func (c *client) quickfix(title string, items []quickfixItem) error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(quickfixLua, nil, title, items) })
 }
 
 func (c *client) diff(path, rel, base, target, left, right string) error {

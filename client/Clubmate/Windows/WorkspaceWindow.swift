@@ -87,6 +87,8 @@ private struct WorkspaceView: View {
             .environment(\.sidebarSide, app.settings.sidebarSide)
             .eventBanner(session.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
+            .goToFile(session)
+            .findInFiles(session)
             .focusedSceneValue(\.projectSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }

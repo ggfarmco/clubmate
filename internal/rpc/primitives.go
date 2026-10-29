@@ -179,13 +179,8 @@ func exactArgs(c Command, args json.RawMessage) (json.RawMessage, error) {
 			return nil, invalidParams("args: want object")
 		}
 	}
-	for name := range fields {
-		if c.Args == nil {
-			return nil, invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
-		}
-		if _, ok := c.Args.Properties[name]; !ok {
-			return nil, invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
-		}
+	if path := schema.Undeclared(c.Args, fields); path != "" {
+		return nil, invalidParams(path + ": not allowed in agent calls")
 	}
 	return json.Marshal(fields)
 }

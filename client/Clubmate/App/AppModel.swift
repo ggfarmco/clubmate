@@ -151,7 +151,7 @@ final class AppModel {
 
     private func snapshot(_ window: String?, leaving target: String? = nil, throttled: Bool = true) {
         guard let window, switcherWindow != window, let active = layout.window(window)?.active, active != target,
-              let session = sessions[active], !session.paletteShown,
+              let session = sessions[active], session.overlay == nil,
               let host = hosts.object(forKey: window as NSString), !PaletteTextField.isShown(in: host) else { return }
         let now = ContinuousClock.now
         if throttled, let last = captured[window], now - last < .milliseconds(200) { return }
@@ -428,13 +428,20 @@ private final class ModelLink {
     }
 }
 
+enum WorkspaceOverlay: Equatable {
+    case palette
+    case goToFile
+    case findInFiles
+}
+
 @MainActor
 @Observable
 final class ProjectSession {
     let projectID: String
     let deck = SurfaceDeck()
     let banner = EventBanner()
-    var paletteShown = false
+    var overlay: WorkspaceOverlay?
+    private(set) var findInFiles: FindInFilesModel?
     var thumbnail: NSImage?
     var autoNewRequest = 0
     @ObservationIgnored var autoNew = AutoNewGate()
@@ -442,6 +449,27 @@ final class ProjectSession {
 
     init(projectID: String) {
         self.projectID = projectID
+    }
+
+    func toggle(_ overlay: WorkspaceOverlay) {
+        if overlay == .findInFiles, findInFiles == nil { findInFiles = makeFindInFiles() }
+        self.overlay = self.overlay == overlay ? nil : overlay
+    }
+
+    private func makeFindInFiles() -> FindInFilesModel {
+        FindInFilesModel(
+            run: { [weak self] invocation in
+                guard let store = self?.store else { return .failure(.notRunning) }
+                return await store.run(invocation)
+            },
+            dismiss: { [weak self] in self?.close(.findInFiles) },
+            report: { [weak self] message in self?.banner.show(message) },
+            opened: { [weak self] in self?.store?.requestFocus(section: CodeSection.id, slot: CodeSection.mainSlot) }
+        )
+    }
+
+    func close(_ overlay: WorkspaceOverlay) {
+        if self.overlay == overlay { self.overlay = nil }
     }
 
     func adopt(_ client: CoreClient, _ supervisor: ConnectionSupervisor) {
@@ -474,6 +502,7 @@ final class ProjectSession {
     }
 
     func close(_ supervisor: ConnectionSupervisor) async {
+        findInFiles?.stop()
         deck.closeAll()
         guard let store else { return }
         supervisor.unregister(store)

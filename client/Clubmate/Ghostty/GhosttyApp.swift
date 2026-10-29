@@ -132,7 +132,7 @@ final class GhosttyApp {
     }
 
     private static func forceOverrides(_ config: ghostty_config_t) -> String? {
-        var lines = ["keybind = super+w=unbind"]
+        var lines = ["keybind = super+w=unbind", "keybind = super+p=unbind", "keybind = super+shift+f=unbind"]
         var failure: String?
         if let features = sshFeaturesOff(config) {
             lines.append(features)

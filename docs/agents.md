@@ -10,7 +10,8 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 - Sessions: list, start a login shell, type into one (`session.send`), read its recent output (`session.read`), kill one.
 - Processes: the process tree of every session.
 - UI: show a section (`ui.focus`).
-- Plugin actions marked for agents. Some are generic capabilities, so an agent need not know which plugin provides them: `editor.open`, `editor.reveal`, `terminal.new`, `terminal.close`, `files.reveal`, `git.stage-all`, `git.review`.
+- Plugin actions marked for agents. Some are generic capabilities, so an agent need not know which plugin provides them: `editor.open`, `editor.quickfix`, `editor.reveal`, `terminal.new`, `terminal.close`, `files.reveal`, `git.stage-all`, `git.review`.
+- Search (read-only, never in the home workspace): `search.files` fuzzy-finds workspace files by path (a trailing `:N` adds a line), and `search.grep` searches file contents (`regex`, `case`, `word`, `glob`, up to 500 matches) and returns within 4 seconds.
 
 Hidden helpers and commands not marked for agents stay out of reach.
 
