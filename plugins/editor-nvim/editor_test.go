@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
@@ -486,9 +487,9 @@ func TestReviewModuleBridge(t *testing.T) {
 	a := e.file(t, "a.go")
 	test := e.file(t, "a_test.go")
 	e.file(t, "pkg/b.go")
-	e.git(t, "init", "-q")
-	e.git(t, "add", ".")
-	e.git(t, "commit", "-qm", "init")
+	gitIn(t, e.repo, "init", "-q")
+	gitIn(t, e.repo, "add", ".")
+	gitIn(t, e.repo, "commit", "-qm", "init")
 	require.NoError(t, os.WriteFile(a, []byte("changed\n"), 0o600))
 	require.NoError(t, os.WriteFile(test, []byte("changed\n"), 0o600))
 	e.file(t, "new.txt")
@@ -512,21 +513,23 @@ func TestReviewModuleBridge(t *testing.T) {
 	}
 	testutil.Eventually(t, func() bool { return len(entries()) == 2 }, 10*time.Second)
 	assert.Equal(t, []entry{{"a.go", "M", 1, 5, false, 0}, {"new.txt", "?", 5, 0, false, 0}}, entries())
-	testutil.Eventually(t, func() bool {
-		events, err := e.h.Bus.Read(t.Context(), "review.changed", 0, 100)
+	type change struct {
+		ProjectID string `json:"projectId"`
+		Root      string `json:"root"`
+		Kind      string `json:"kind"`
+		Path      string `json:"path"`
+	}
+	changed := func(want change) bool {
+		events, err := e.h.Bus.Read(t.Context(), "review.changed", 0, 1000)
 		require.NoError(t, err)
-		changes := 0
-		for _, ev := range events {
-			var p struct {
-				ProjectID string `json:"projectId"`
-				Root      string `json:"root"`
-			}
-			require.NoError(t, json.Unmarshal(ev.Payload, &p))
-			if p.ProjectID == e.projectID && p.Root == e.repo {
-				changes++
-			}
-		}
-		return changes >= 2
+		return slices.ContainsFunc(events, func(ev bus.Event) bool {
+			var c change
+			require.NoError(t, json.Unmarshal(ev.Payload, &c))
+			return c == want
+		})
+	}
+	testutil.Eventually(t, func() bool {
+		return changed(change{e.projectID, e.repo, "files_updated", ""}) && changed(change{e.projectID, e.repo, "file_open", "a.go"})
 	}, 5*time.Second)
 	var reviewed struct {
 		Reviewed bool `json:"reviewed"`
@@ -534,6 +537,7 @@ func TestReviewModuleBridge(t *testing.T) {
 	e.run(t, "review-reviewed", map[string]any{"path": "a.go"}, &reviewed)
 	assert.True(t, reviewed.Reviewed)
 	assert.True(t, entries()[0].Reviewed)
+	testutil.Eventually(t, func() bool { return changed(change{e.projectID, e.repo, "reviewed", "a.go"}) }, 5*time.Second)
 	var next struct {
 		Path string `json:"path"`
 	}
@@ -550,7 +554,7 @@ func TestReviewModuleBridge(t *testing.T) {
 
 func TestReviewFallbackWithoutModule(t *testing.T) {
 	e := startEditor(t)
-	e.git(t, "init", "-q")
+	gitIn(t, e.repo, "init", "-q")
 	var open struct {
 		Mode string `json:"mode"`
 	}
@@ -736,18 +740,13 @@ func startWorktreeEditor(t *testing.T, s setup) (*editor, string) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	e := startEditorIn(t, s)
-	git := func(args ...string) string {
-		out, err := exec.Command("git", append([]string{"-C", e.top, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
-		require.NoError(t, err, string(out))
-		return string(out)
-	}
 	e.file(t, "a.go")
-	git("init", "-q")
-	git("add", ".")
-	git("commit", "-qm", "init")
-	git("worktree", "add", "-q", filepath.Join(e.top, ".worktrees", "feat"), "-b", "feat")
+	gitIn(t, e.top, "init", "-q")
+	gitIn(t, e.top, "add", ".")
+	gitIn(t, e.top, "commit", "-qm", "init")
+	gitIn(t, e.top, "worktree", "add", "-q", filepath.Join(e.top, ".worktrees", "feat"), "-b", "feat")
 	var trees []string
-	for line := range strings.Lines(git("worktree", "list", "--porcelain")) {
+	for line := range strings.Lines(gitIn(t, e.top, "worktree", "list", "--porcelain")) {
 		if tree, ok := strings.CutPrefix(strings.TrimSpace(line), "worktree "); ok {
 			trees = append(trees, tree)
 		}
@@ -856,10 +855,11 @@ func (e *editor) run(t *testing.T, name string, args, res any) {
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim." + name, "projectId": e.projectID, "args": args}, res))
 }
 
-func (e *editor) git(t *testing.T, args ...string) {
+func gitIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	out, err := exec.Command("git", append([]string{"-C", e.repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+	out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
 	require.NoError(t, err, string(out))
+	return string(out)
 }
 
 func openLog(t *testing.T, v *nvim.Nvim, repo, base, head string) string {

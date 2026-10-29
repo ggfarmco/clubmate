@@ -69,7 +69,7 @@
         "id": "editor-nvim.review",
         "title": "Review Branch",
         "hidden": true,
-        "description": "Open a branch review (base...head) in Neovim, through the diffview fork's clubmate module when present, else with diffview when it is installed.",
+        "description": "Open a branch review (base...head) in Neovim, through the diffview fork's clubmate module (with its file panel shown) when present, else with diffview when it is installed.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Absolute path of the repo."},
@@ -96,7 +96,7 @@
         "title": "Open Review",
         "hidden": true,
         "agent": false,
-        "description": "Open a review of the git worktree containing cwd against base, replacing the previous review tab. Uses the diffview fork's clubmate module when Neovim has it (version 1 or newer), else plain diffview without excludes, else nothing. Module notifications are published as review.changed {projectId, root}.",
+        "description": "Open a review of the git worktree containing cwd against base, replacing the previous review tab. Uses the diffview fork's clubmate module when Neovim has it (version 1 or newer), else plain diffview without excludes, else nothing. Module notifications are published as review.changed {projectId, root, kind, path?}: kind is files_updated, file_open (with path), reviewed (with path when toggled through review-reviewed), reviewed_restored or comments.",
         "args": {
           "properties": {
             "cwd": {"type": "string", "description": "Absolute path inside the reviewed worktree; its toplevel is used."},
@@ -176,7 +176,8 @@
         "args": {
           "properties": {
             "excludes": {"type": "array", "items": {"type": "string"}, "description": "Globs of files to hide, as git :(exclude) pathspecs; empty to show all."}
-          }
+          },
+          "required": ["excludes"]
         }
       },
       {

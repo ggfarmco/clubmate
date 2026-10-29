@@ -168,6 +168,8 @@ type reviewEntry struct {
 type reviewChanged struct {
 	ProjectID string `json:"projectId"`
 	Root      string `json:"root"`
+	Kind      string `json:"kind"`
+	Path      string `json:"path,omitempty"`
 }
 
 type terminalArgs struct {
@@ -1017,7 +1019,7 @@ func (a *app) review(ctx context.Context, h *pluginsdk.Host, projectID string, a
 	if !filepath.IsAbs(args.Repo) || !isRef(args.Base) || !isRef(args.Head) {
 		return reviewResult{}, errReviewArgs
 	}
-	res, err := a.openReview(ctx, h, projectID, filepath.Clean(args.Repo), args.Base+"..."+args.Head, nil)
+	res, err := a.openReview(ctx, h, projectID, filepath.Clean(args.Repo), args.Base+"..."+args.Head, nil, true)
 	switch res.Mode {
 	case "module":
 		res.Mode = "diffview"
@@ -1038,10 +1040,10 @@ func (a *app) reviewOpen(ctx context.Context, h *pluginsdk.Host, projectID strin
 	if !ok {
 		return reviewResult{}, fmt.Errorf("%w: %s", errNotInRepo, args.Cwd)
 	}
-	return a.openReview(ctx, h, projectID, top, args.Base, args.Excludes)
+	return a.openReview(ctx, h, projectID, top, args.Base, args.Excludes, false)
 }
 
-func (a *app) openReview(ctx context.Context, h *pluginsdk.Host, projectID, cwd, rev string, excludes []string) (reviewResult, error) {
+func (a *app) openReview(ctx context.Context, h *pluginsdk.Host, projectID, cwd, rev string, excludes []string, panel bool) (reviewResult, error) {
 	e, err := a.target(ctx, h, projectID, cwd)
 	if e == nil || err != nil {
 		return reviewResult{}, err
@@ -1050,7 +1052,7 @@ func (a *app) openReview(ctx context.Context, h *pluginsdk.Host, projectID, cwd,
 	if err != nil {
 		return reviewResult{}, err
 	}
-	mode, err := c.review(cwd, rev, excludes)
+	mode, err := c.review(cwd, rev, excludes, panel)
 	return reviewResult{Mode: mode}, err
 }
 
@@ -1065,24 +1067,21 @@ func reviewCommand(c *client, name string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return append([]reviewEntry{}, entries...), nil
-	case "review-select", "review-reviewed":
-		var args reviewPathArgs
-		if err := json.Unmarshal(raw, &args); err != nil {
-			return nil, fmt.Errorf("%s args: %w", name, err)
+	case "review-select":
+		path, err := reviewPath(name, raw)
+		if err != nil || c == nil {
+			return nil, err
 		}
-		if args.Path == "" {
-			return nil, errReviewPath
-		}
-		if name == "review-select" {
-			if c == nil {
-				return nil, nil
-			}
-			return nil, c.reviewSelect(args.Path)
+		return nil, c.reviewSelect(path)
+	case "review-reviewed":
+		path, err := reviewPath(name, raw)
+		if err != nil {
+			return nil, err
 		}
 		if c == nil {
 			return reviewedResult{}, nil
 		}
-		reviewed, err := c.reviewToggle(args.Path)
+		reviewed, err := c.reviewToggle(path)
 		return reviewedResult{Reviewed: reviewed}, err
 	case "review-next":
 		var args reviewNextArgs
@@ -1097,19 +1096,28 @@ func reviewCommand(c *client, name string, raw json.RawMessage) (any, error) {
 		}
 		path, err := c.reviewNext(args.Dir)
 		return reviewNextResult{Path: path}, err
-	default:
+	case "review-excludes":
 		var args reviewExcludesArgs
 		if err := json.Unmarshal(raw, &args); err != nil {
 			return nil, fmt.Errorf("review-excludes args: %w", err)
 		}
-		if err := validExcludes(args.Excludes); err != nil {
+		if err := validExcludes(args.Excludes); err != nil || c == nil {
 			return nil, err
-		}
-		if c == nil {
-			return nil, nil
 		}
 		return nil, c.reviewExcludes(args.Excludes)
 	}
+	return nil, fmt.Errorf("%w: %q", errUnknownCommand, name)
+}
+
+func reviewPath(name string, raw json.RawMessage) (string, error) {
+	var args reviewPathArgs
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return "", fmt.Errorf("%s args: %w", name, err)
+	}
+	if args.Path == "" {
+		return "", errReviewPath
+	}
+	return args.Path, nil
 }
 
 func validExcludes(globs []string) error {
@@ -1220,7 +1228,7 @@ func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error 
 func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	ctx := context.Background()
 	if ev.Event == reviewEvent {
-		if _, err := h.Publish(ctx, reviewTopic, reviewChanged{ProjectID: e.id, Root: e.root}); err != nil {
+		if _, err := h.Publish(ctx, reviewTopic, reviewChanged{ProjectID: e.id, Root: e.root, Kind: ev.Kind, Path: ev.Path}); err != nil {
 			logError("publish "+reviewTopic, err)
 		}
 		return

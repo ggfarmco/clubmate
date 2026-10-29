@@ -195,12 +195,14 @@ end
 
 const closeReviewLua = reviewPrelude + `close_review()`
 
-const reviewLua = reviewPrelude + `local cwd, rev, excludes = ...
+const reviewLua = reviewPrelude + `local cwd, rev, excludes, panel = ...
 close_review()
 local dv = review_module()
 if dv then
   m.review_tab = dv.open({ cwd = cwd, base = rev, excludes = excludes })
-  return m.review_tab and "module" or "native"
+  if not m.review_tab then return "native" end
+  if panel then dv.set_panel(true, m.review_tab) end
+  return "module"
 end
 if vim.fn.exists(":DiffviewOpen") ~= 2 then return "native" end
 local before = vim.api.nvim_get_current_tabpage()
@@ -332,6 +334,8 @@ type nvimEvent struct {
 	Dir     string   `msgpack:"dir"`
 	Light   bool     `msgpack:"light"`
 	Message string   `msgpack:"message"`
+	Kind    string   `msgpack:"kind"`
+	Path    string   `msgpack:"path"`
 }
 
 type client struct {
@@ -435,9 +439,9 @@ func (c *client) diff(path, rel, base, target, left, right string) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(diffLua, nil, path, rel, base, target, left, right) })
 }
 
-func (c *client) review(cwd, rev string, excludes []string) (string, error) {
+func (c *client) review(cwd, rev string, excludes []string, panel bool) (string, error) {
 	var mode string
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, cwd, rev, excludes) }); err != nil {
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, cwd, rev, excludes, panel) }); err != nil {
 		return "", err
 	}
 	return mode, nil
