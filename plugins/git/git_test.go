@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -733,6 +734,13 @@ func TestRemoveWorktree(t *testing.T) {
 	require.NoError(t, runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil))
 	featNvim := surface(first)
 
+	git(t, repo, "worktree", "lock", feat)
+	assert.Contains(t, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat}).Error, "locked")
+	featNvim = surface(featNvim)
+	assert.Equal(t, feat, h.GetSession(t, featNvim).Cwd)
+	assert.Equal(t, feat, firstRoot(t, h, id))
+	git(t, repo, "worktree", "unlock", feat)
+
 	assert.Equal(t, opResult{Done: true}, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat}))
 	assert.NoDirExists(t, feat)
 	assert.Equal(t, repo, firstRoot(t, h, id))
@@ -741,4 +749,77 @@ func TestRemoveWorktree(t *testing.T) {
 		s, err := h.Svc.GetSession(t.Context(), featNvim)
 		return err != nil || s.State != "running"
 	}, 5*time.Second)
+}
+
+func TestRemovedWorktreeFallsBack(t *testing.T) {
+	repo := committedRepo(t)
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	h, id := openReady(t, repo)
+	require.NoError(t, runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil))
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { rs := roots(t, n); return len(rs) == 1 && rs[0].ID == feat })
+	sub, err := h.Bus.Subscribe("project.updated", math.MaxInt64)
+	require.NoError(t, err)
+	t.Cleanup(sub.Close)
+
+	git(t, repo, "worktree", "remove", feat)
+
+	select {
+	case ev := <-sub.C():
+		var payload struct {
+			Project struct {
+				Roots   []string `json:"roots"`
+				Missing []string `json:"missing"`
+			} `json:"project"`
+		}
+		require.NoError(t, json.Unmarshal(ev.Payload, &payload))
+		assert.Equal(t, []string{repo}, payload.Project.Roots)
+		assert.Equal(t, []string{feat}, payload.Project.Missing)
+	case <-time.After(5 * time.Second):
+		t.Fatal("no project.updated after the worktree was removed")
+	}
+	assert.Equal(t, repo, firstRoot(t, h, id))
+}
+
+func TestSwitchRefusedWhileBusy(t *testing.T) {
+	repo := committedRepo(t)
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	hook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	require.NoError(t, os.MkdirAll(filepath.Dir(hook), 0o700))
+	require.NoError(t, os.WriteFile(hook, []byte("#!/bin/sh\nsleep 2\n"), 0o700))
+	write(t, filepath.Join(repo, "a.go"), "two\n")
+	git(t, repo, "add", "a.go")
+	h, id := openReady(t, repo)
+	form := formOf(h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != "" }))
+
+	h.Event(t, id, mainSlot, form, "commit", map[string]string{"message": "slow"})
+	err := runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil)
+	assert.ErrorContains(t, err, "another git operation is running")
+	assert.Equal(t, repo, firstRoot(t, h, id))
+	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != form })
+}
+
+func TestHomeWorkspaceHasNoWorktrees(t *testing.T) {
+	for _, key := range []string{"GOPATH", "GOMODCACHE", "GOCACHE"} {
+		out, err := exec.Command("go", "env", key).Output()
+		require.NoError(t, err)
+		t.Setenv(key, strings.TrimSpace(string(out)))
+	}
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	t.Setenv("HOME", home)
+	git(t, home, "init", "-q")
+	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	p, err := h.Svc.HomeWorkspace(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+
+	assert.Empty(t, listWorktrees(t, h, p.ID))
+	assert.ErrorContains(t, runCommand(t, h, p.ID, "git.worktree-switch", map[string]string{"path": home}, nil), "worktrees unavailable in the home workspace")
+	_, err = startOp(t, h, p.ID, "git.worktree-new", map[string]string{"branch": "x"})
+	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
+	_, err = startOp(t, h, p.ID, "git.worktree-remove", map[string]string{"path": home})
+	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
 }

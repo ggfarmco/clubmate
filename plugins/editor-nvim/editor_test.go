@@ -626,6 +626,25 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
 }
 
+func TestStopRootBlocksStartUntilReleased(t *testing.T) {
+	e, wt := startWorktreeEditor(t, setup{})
+	feat := e.setWorktree(t, wt)
+	run := func(id string, args any) error {
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": e.projectID, "args": args}, nil)
+	}
+
+	require.NoError(t, run("editor-nvim.stop-root", map[string]any{"root": wt}))
+	testutil.Eventually(t, func() bool { return slices.Equal([]string{e.sessionID}, e.running(t)) }, 5*time.Second)
+	require.ErrorContains(t, e.open(t, filepath.Join(wt, "a.go"), 1), "the worktree is being removed")
+	assert.Equal(t, []string{e.sessionID}, e.running(t))
+
+	require.NoError(t, run("editor-nvim.release-root", map[string]any{"root": wt}))
+	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		id, _ := n.Props["sessionId"].(string)
+		return n.Type == "surface" && id != "" && id != feat.ID && e.h.GetSession(t, id).Cwd == wt
+	})
+}
+
 func startWorktreeEditor(t *testing.T, s setup) (*editor, string) {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)

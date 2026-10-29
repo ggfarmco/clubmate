@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -18,14 +19,15 @@ import (
 )
 
 const (
-	worktreesDir     = ".worktrees"
-	stopRootCommand  = "editor-nvim.stop-root"
-	editorOwner      = "editor-nvim"
-	sessionRunning   = "running"
-	creatingWorktree = "Creating worktree…"
-	removingWorktree = "Removing worktree…"
-	opPollWait       = time.Second
-	keptOps          = 64
+	worktreesDir       = ".worktrees"
+	stopRootCommand    = "editor-nvim.stop-root"
+	releaseRootCommand = "editor-nvim.release-root"
+	editorOwner        = "editor-nvim"
+	sessionRunning     = "running"
+	creatingWorktree   = "Creating worktree…"
+	removingWorktree   = "Removing worktree…"
+	opPollWait         = time.Second
+	keptOps            = 64
 )
 
 var (
@@ -37,6 +39,7 @@ var (
 	errSymlinkedFolder = errors.New("worktrees folder must not be a symlink")
 	errOpBusy          = errors.New("another git operation is running")
 	errUnknownOp       = errors.New("unknown operation")
+	errHomeWorktrees   = errors.New("worktrees unavailable in the home workspace")
 )
 
 type folder struct {
@@ -109,7 +112,7 @@ func (a *app) worktreeCommand(ctx context.Context, h *pluginsdk.Host, cmd plugin
 	case "git.worktrees":
 		return listWorktrees(ctx, h, cmd.ProjectID)
 	case "git.worktree-switch":
-		return nil, switchWorktree(ctx, h, cmd.ProjectID, args.Repo, args.Path)
+		return nil, switchWorktree(ctx, h, cmd.ProjectID, s, args.Repo, args.Path)
 	case "git.worktree-new":
 		return a.startOp(ctx, h, cmd.ProjectID, s, creatingWorktree, func() (opFunc, error) {
 			return prepareNew(ctx, h, cmd.ProjectID, args)
@@ -215,6 +218,9 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 		return nil, err
 	}
 	list := []worktreeInfo{}
+	if p.Home {
+		return list, nil
+	}
 	for i := range p.Repos {
 		f, err := openFolder(ctx, p, i)
 		if errors.Is(err, gitrepo.ErrNotRepo) {
@@ -237,7 +243,13 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 	return list, nil
 }
 
-func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID, repo, path string) error {
+func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, s *state, repo, path string) error {
+	s.mu.Lock()
+	busy := s.busy != ""
+	s.mu.Unlock()
+	if busy {
+		return errOpBusy
+	}
 	f, err := gitFolder(ctx, h, projectID, repo)
 	if err != nil {
 		return err
@@ -335,11 +347,6 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 	case f.Checkout.Real:
 		return nil, errFolderCheckout
 	}
-	current := f.current(t)
-	root := filepath.Join(t.Path, f.Rel)
-	if current {
-		root = f.root
-	}
 	return func(ctx context.Context) (string, error) {
 		status, err := run(ctx, t.Path, "status", "--porcelain")
 		if err != nil {
@@ -348,13 +355,28 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 		if len(strings.TrimSpace(string(status))) > 0 {
 			return "", errDirtyWorktree
 		}
+		g, err := gitFolder(ctx, h, projectID, f.Repo)
+		if err != nil {
+			return "", err
+		}
+		root := filepath.Join(t.Path, g.Rel)
+		if g.current(t) {
+			root = g.root
+		}
+		defer func() {
+			logError("release "+root, h.RunCommand(context.WithoutCancel(ctx), releaseRootCommand, projectID, stopRootArgs{Root: root}, nil))
+		}()
 		if err := h.RunCommand(ctx, stopRootCommand, projectID, stopRootArgs{Root: root, Force: args.Force}, nil); err != nil {
 			return "", err
 		}
 		if _, err := mutate(ctx, f.Checkout.Path, "worktree", "remove", t.Path); err != nil {
 			return "", err
 		}
-		if current {
+		p, err := h.GetProject(ctx, projectID)
+		if err != nil {
+			return "", err
+		}
+		if slices.ContainsFunc(p.Missing, func(m string) bool { return gitrepo.Canonical(m) == g.Mapped(t) }) {
 			_, err = h.SetWorktree(ctx, projectID, f.Repo, "")
 		}
 		return "", err
@@ -383,6 +405,9 @@ func gitFolder(ctx context.Context, h *pluginsdk.Host, projectID, repo string) (
 	p, err := h.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
+	}
+	if p.Home {
+		return nil, errHomeWorktrees
 	}
 	for i, r := range p.Repos {
 		if repo != "" && r != repo {

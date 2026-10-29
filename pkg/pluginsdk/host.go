@@ -105,6 +105,12 @@ func (h *Host) SetWorktree(ctx context.Context, projectID, repo, path string) (P
 	return out, err
 }
 
+func (h *Host) CheckWorktrees(ctx context.Context, projectID string) (Project, error) {
+	var out Project
+	err := h.Call(ctx, "workspace.worktree.check", idParams{ID: projectID}, &out)
+	return out, err
+}
+
 func (h *Host) DeleteProject(ctx context.Context, id string) error {
 	return h.Call(ctx, "project.delete", idParams{ID: id}, nil)
 }

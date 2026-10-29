@@ -191,6 +191,17 @@ func (s *Service) SetWorktree(ctx context.Context, id, repo, path string) (proje
 	return p, nil
 }
 
+func (s *Service) CheckWorktrees(ctx context.Context, id string) (project.Project, error) {
+	p, err := s.projects.Get(ctx, id)
+	if err != nil {
+		return project.Project{}, err
+	}
+	if len(p.Missing) > 0 {
+		s.publish(ctx, "project.updated", map[string]any{"project": p})
+	}
+	return p, nil
+}
+
 func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if _, err := s.projects.Get(ctx, id); err != nil {
 		return err

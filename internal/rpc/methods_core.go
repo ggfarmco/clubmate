@@ -165,6 +165,12 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			}
 			return encodeProject(svc.SetWorktree(ctx, p.ID, p.Repo, p.Path))
 		}),
+		"workspace.worktree.check": method(func(ctx context.Context, p idParams) (project.Project, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return project.Project{}, err
+			}
+			return encodeProject(svc.CheckWorktrees(ctx, p.ID))
+		}),
 		"client.register": method(s.clientRegister),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
 			if err := requireID(projectPrefix, p.ProjectID); err != nil {

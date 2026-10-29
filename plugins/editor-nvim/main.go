@@ -62,6 +62,7 @@ var (
 	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
 	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
 	errStopRoot       = errors.New("stop-root: root must be absolute")
+	errStopping       = errors.New("the worktree is being removed")
 	errNavigationSide = errors.New("navigation: side must be left or right")
 	errQuickfixCount  = fmt.Errorf("quickfix: items must hold 1 to %d entries", quickfixMax)
 	errQuickfixTitle  = fmt.Errorf("quickfix: title must be at most %d chars without line breaks or NUL", quickfixText)
@@ -159,14 +160,15 @@ type editorKey struct {
 }
 
 type app struct {
-	copies  *copies
-	navMu   sync.Mutex
-	slotMu  sync.Mutex
-	mu      sync.Mutex
-	editors map[editorKey]*editor
-	current map[string]string
-	folders map[string][]string
-	deleted map[string]bool
+	copies   *copies
+	navMu    sync.Mutex
+	slotMu   sync.Mutex
+	mu       sync.Mutex
+	editors  map[editorKey]*editor
+	current  map[string]string
+	folders  map[string][]string
+	deleted  map[string]bool
+	stopping map[editorKey]bool
 }
 
 type editor struct {
@@ -183,11 +185,12 @@ type editor struct {
 
 func main() {
 	a := &app{
-		copies:  newCopies(),
-		editors: map[editorKey]*editor{},
-		current: map[string]string{},
-		folders: map[string][]string{},
-		deleted: map[string]bool{},
+		copies:   newCopies(),
+		editors:  map[editorKey]*editor{},
+		current:  map[string]string{},
+		folders:  map[string][]string{},
+		deleted:  map[string]bool{},
+		stopping: map[editorKey]bool{},
 	}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 }
@@ -364,6 +367,15 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, errStopRoot
 		}
 		return nil, a.stopRoot(ctx, h, cmd.ProjectID, filepath.Clean(args.Root), args.Force)
+	case "release-root":
+		var args stopRootArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("release-root args: %w", err)
+		}
+		if !filepath.IsAbs(args.Root) {
+			return nil, errStopRoot
+		}
+		return nil, a.releaseRoot(ctx, h, cmd.ProjectID, filepath.Clean(args.Root))
 	}
 	e, err := a.active(ctx, h, cmd.ProjectID)
 	if e == nil || err != nil {
@@ -529,7 +541,7 @@ func (a *app) projectUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk
 	a.scheduleStatus(h, e)
 	if moved {
 		go func() {
-			if err := a.show(ctx, h, e); err != nil && !errors.Is(err, errNvimNotInPATH) && !errors.Is(err, errDeleted) {
+			if err := a.show(ctx, h, e); err != nil && !quiet(err) {
 				logError("switch "+p.ID, err)
 			}
 		}()
@@ -570,6 +582,11 @@ func (a *app) drop(projectID string) {
 	}
 	delete(a.current, projectID)
 	delete(a.folders, projectID)
+	for k := range a.stopping {
+		if k.project == projectID {
+			delete(a.stopping, k)
+		}
+	}
 	a.deleted[projectID] = true
 	a.mu.Unlock()
 	for _, e := range editors {
@@ -597,9 +614,13 @@ func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, projectID str
 	if e != nil && err == nil {
 		_, err = a.ensure(ctx, h, e)
 	}
-	if err != nil && !errors.Is(err, errNvimNotInPATH) && !errors.Is(err, errDeleted) {
+	if err != nil && !quiet(err) {
 		logError("start "+projectID, err)
 	}
+}
+
+func quiet(err error) bool {
+	return errors.Is(err, errNvimNotInPATH) || errors.Is(err, errDeleted) || errors.Is(err, errStopping)
 }
 
 func (a *app) ensure(ctx context.Context, h *pluginsdk.Host, e *editor) (*client, error) {
@@ -611,6 +632,9 @@ func (a *app) ensure(ctx context.Context, h *pluginsdk.Host, e *editor) (*client
 func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*client, error) {
 	if a.isDeleted(e.id) {
 		return nil, errDeleted
+	}
+	if a.isStopping(e.id, e.root) {
+		return nil, errStopping
 	}
 	if c := e.connected(); c != nil {
 		return c, nil
@@ -812,6 +836,7 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root s
 			return err
 		}
 	}
+	a.setStopping(projectID, root, true)
 	if c := e.reset(); c != nil {
 		c.close()
 	}
@@ -822,6 +847,32 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root s
 		}
 	}
 	return nil
+}
+
+func (a *app) releaseRoot(ctx context.Context, h *pluginsdk.Host, projectID, root string) error {
+	a.setStopping(projectID, root, false)
+	e, err := a.active(ctx, h, projectID)
+	if e == nil || err != nil || e.root != root {
+		return err
+	}
+	return a.show(ctx, h, e)
+}
+
+func (a *app) setStopping(projectID, root string, on bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	key := editorKey{project: projectID, root: root}
+	if on {
+		a.stopping[key] = true
+	} else {
+		delete(a.stopping, key)
+	}
+}
+
+func (a *app) isStopping(projectID, root string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.stopping[editorKey{project: projectID, root: root}]
 }
 
 func lockAll(editors []*editor) func() {

@@ -189,11 +189,24 @@
         "title": "Stop Worktree Neovim",
         "hidden": true,
         "agent": false,
-        "description": "Stop the workspace's Neovim whose root is the given path. Fails like restart while it has unsaved buffers, unless force is true. A no-op when no such Neovim exists.",
+        "description": "Stop the workspace's Neovim whose root is the given path and keep it from starting there again until editor-nvim.release-root. Fails like restart while it has unsaved buffers, unless force is true. A no-op when no such Neovim exists.",
         "args": {
           "properties": {
             "root": {"type": "string", "description": "Absolute root path of the Neovim, as listed in the workspace roots."},
             "force": {"type": "boolean", "description": "Stop even with unsaved buffers, discarding their changes."}
+          },
+          "required": ["root"]
+        }
+      },
+      {
+        "id": "editor-nvim.release-root",
+        "title": "Release Worktree Neovim",
+        "hidden": true,
+        "agent": false,
+        "description": "End a stop-root: Neovim may start in the given root again, and starts now when it is still the workspace's current root.",
+        "args": {
+          "properties": {
+            "root": {"type": "string", "description": "Absolute root path passed to stop-root."}
           },
           "required": ["root"]
         }
