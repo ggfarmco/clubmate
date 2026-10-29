@@ -44,6 +44,8 @@ package.loaded["smart-splits"] = { config = { at_edge = _G.orig } }`
 type setup struct {
 	missingFirst bool
 	initLua      string
+	link         bool
+	sub          string
 }
 
 type binaryInfo struct {
@@ -55,6 +57,7 @@ type binaryInfo struct {
 type editor struct {
 	h         *testutil.PluginHarness
 	projectID string
+	top       string
 	repo      string
 	sessionID string
 	sock      string
@@ -558,7 +561,7 @@ func TestMissingFirstRepoStartsInNext(t *testing.T) {
 }
 
 func TestSwitchKeepsNvimPerRoot(t *testing.T) {
-	e, wt := startWorktreeEditor(t)
+	e, wt := startWorktreeEditor(t, setup{})
 	pid := eval[int](t, dial(t, e.sock), "getpid()")
 	feat := e.setWorktree(t, wt)
 	assert.Equal(t, wt, eval[string](t, dial(t, feat.Command[2]), "getcwd()"))
@@ -568,22 +571,43 @@ func TestSwitchKeepsNvimPerRoot(t *testing.T) {
 }
 
 func TestOpenRoutesToOwningWorktree(t *testing.T) {
-	e, wt := startWorktreeEditor(t)
-	path := filepath.Join(wt, "a.go")
+	e, wt := startWorktreeEditor(t, setup{link: true, sub: "sub"})
+	path := filepath.Join(e.top, ".worktrees", "feat", "sub", "a.go")
 	require.NoError(t, e.open(t, path, 1))
 	p, err := e.h.Svc.GetProject(t.Context(), e.projectID)
 	require.NoError(t, err)
-	assert.Equal(t, wt, p.Roots[0])
+	assert.Equal(t, filepath.Join(wt, "sub"), p.Roots[0])
 	feat := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	v := dial(t, e.h.GetSession(t, feat.Props["sessionId"].(string)).Command[2])
-	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	real, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "resolve(expand('%:p'))") == real }, 5*time.Second)
 	assert.Equal(t, 0, eval[int](t, dial(t, e.sock), "bufexists('"+path+"')"))
 }
 
+func TestOpenIgnoresForeignWorktreeList(t *testing.T) {
+	e, _ := startWorktreeEditor(t, setup{})
+	foreign, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	out, err := exec.Command("git", "-C", foreign, "init", "-q").CombinedOutput()
+	require.NoError(t, err, string(out))
+	entry := filepath.Join(foreign, ".git", "worktrees", "x")
+	require.NoError(t, os.MkdirAll(entry, 0o700))
+	for name, content := range map[string]string{"gitdir": filepath.Join(e.repo, ".git") + "\n", "commondir": "../..\n", "HEAD": "ref: refs/heads/main\n"} {
+		require.NoError(t, os.WriteFile(filepath.Join(entry, name), []byte(content), 0o600))
+	}
+	path := filepath.Join(foreign, "x.go")
+	require.NoError(t, os.WriteFile(path, []byte("x\n"), 0o600))
+	require.NoError(t, e.open(t, path, 1))
+	p, err := e.h.Svc.GetProject(t.Context(), e.projectID)
+	require.NoError(t, err)
+	assert.Equal(t, e.repo, p.Roots[0])
+}
+
 func TestStopRootRefusesUnsaved(t *testing.T) {
-	e, wt := startWorktreeEditor(t)
+	e, wt := startWorktreeEditor(t, setup{})
 	pid := eval[int](t, dial(t, e.sock), "getpid()")
 	feat := e.setWorktree(t, wt)
 	path := filepath.Join(wt, "a.go")
@@ -602,22 +626,29 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
 }
 
-func startWorktreeEditor(t *testing.T) (*editor, string) {
+func startWorktreeEditor(t *testing.T, s setup) (*editor, string) {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	e := startEditor(t)
-	git := func(args ...string) {
-		out, err := exec.Command("git", append([]string{"-C", e.repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+	e := startEditorIn(t, s)
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", e.top, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
 		require.NoError(t, err, string(out))
+		return string(out)
 	}
 	e.file(t, "a.go")
 	git("init", "-q")
 	git("add", ".")
 	git("commit", "-qm", "init")
-	wt := filepath.Join(e.repo, ".worktrees", "feat")
-	git("worktree", "add", "-q", wt, "-b", "feat")
-	return e, wt
+	git("worktree", "add", "-q", filepath.Join(e.top, ".worktrees", "feat"), "-b", "feat")
+	var trees []string
+	for line := range strings.Lines(git("worktree", "list", "--porcelain")) {
+		if tree, ok := strings.CutPrefix(strings.TrimSpace(line), "worktree "); ok {
+			trees = append(trees, tree)
+		}
+	}
+	require.Len(t, trees, 2)
+	return e, trees[1]
 }
 
 func (e *editor) setWorktree(t *testing.T, path string) session.Session {
@@ -651,8 +682,15 @@ func startEditorIn(t *testing.T, s setup) *editor {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "init.lua"), []byte(s.initLua), 0o600))
 	}
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"))
-	repo, err := filepath.EvalSymlinks(t.TempDir())
+	top, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
+	if s.link {
+		link := filepath.Join(t.TempDir(), "link")
+		require.NoError(t, os.Symlink(top, link))
+		top = link
+	}
+	repo := filepath.Join(top, s.sub)
+	require.NoError(t, os.MkdirAll(repo, 0o700))
 	repos := []string{repo}
 	if s.missingFirst {
 		repos = []string{t.TempDir(), repo}
@@ -662,7 +700,7 @@ func startEditorIn(t *testing.T, s setup) *editor {
 	if s.missingFirst {
 		require.NoError(t, os.RemoveAll(repos[0]))
 	}
-	e := &editor{h: h, projectID: p.ID, repo: repo}
+	e := &editor{h: h, projectID: p.ID, top: top, repo: repo}
 	t.Cleanup(func() { e.killAll(t) })
 	var sub struct {
 		Subscription string `json:"subscription"`
