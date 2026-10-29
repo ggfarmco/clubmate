@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -22,6 +23,7 @@ import (
 const (
 	defaultLimit = 50
 	maxLimit     = 200
+	coldWait     = 3 * time.Second
 )
 
 var (
@@ -45,6 +47,8 @@ type fileMatch struct {
 type filesResult struct {
 	Matches   []fileMatch `json:"matches"`
 	Truncated bool        `json:"truncated"`
+	Capped    bool        `json:"capped"`
+	Indexing  bool        `json:"indexing,omitempty"`
 }
 
 type deletedPayload struct {
@@ -54,16 +58,19 @@ type deletedPayload struct {
 type listing struct {
 	folders []string
 	labels  []string
-	paths   []string
+	corpus  corpus
+	capped  bool
 }
 
 type workspace struct {
-	mu      sync.Mutex
-	list    listing
-	built   bool
-	builtAt int64
-	gen     atomic.Int64
-	watch   string
+	mu       sync.Mutex
+	folders  []string
+	list     *listing
+	builtAt  int64
+	building chan struct{}
+	err      error
+	gen      atomic.Int64
+	watch    string
 }
 
 type app struct {
@@ -136,21 +143,24 @@ func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, projectID stri
 	if err != nil {
 		return filesResult{}, err
 	}
+	if list == nil {
+		return filesResult{Matches: []fileMatch{}, Indexing: true}, nil
+	}
 	limit := args.Limit
 	if limit <= 0 {
 		limit = defaultLimit
 	}
 	limit = min(limit, maxLimit)
 	query, line := splitLine(args.Query)
-	ranked := rank(list.paths, query, limit+1)
-	res := filesResult{Truncated: len(ranked) > limit || len(list.paths) >= maxFiles, Matches: make([]fileMatch, 0, min(len(ranked), limit))}
+	ranked := list.corpus.rank(query, limit+1)
+	res := filesResult{Truncated: len(ranked) > limit, Capped: list.capped, Matches: make([]fileMatch, 0, min(len(ranked), limit))}
 	for _, m := range ranked[:min(len(ranked), limit)] {
 		res.Matches = append(res.Matches, fileMatch{Path: m.Path, AbsPath: list.abs(m.Path), Positions: m.Positions, Line: line})
 	}
 	return res, nil
 }
 
-func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) (listing, error) {
+func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) (*listing, error) {
 	a.mu.Lock()
 	ws, ok := a.workspaces[p.ID]
 	if !ok {
@@ -159,23 +169,64 @@ func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Projec
 	}
 	a.mu.Unlock()
 	ws.mu.Lock()
-	defer ws.mu.Unlock()
-	if !slices.Equal(ws.list.folders, p.Repos) || !ws.watched(a) {
+	if !slices.Equal(ws.folders, p.Repos) || !ws.watched(a) {
 		if err := a.rewatch(ctx, h, p.ID, ws); err != nil {
-			return listing{}, err
+			ws.mu.Unlock()
+			return nil, err
 		}
-		ws.list, ws.built = listing{folders: slices.Clone(p.Repos), labels: labels(p.Repos)}, false
+		ws.folders, ws.list = slices.Clone(p.Repos), nil
 	}
-	gen := ws.gen.Load()
-	if ws.built && ws.builtAt == gen {
+	list, done := ws.list, a.revalidate(ctx, ws)
+	ws.mu.Unlock()
+	if list != nil {
+		return list, nil
+	}
+	timer := time.NewTimer(coldWait)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		return nil, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	if ws.list != nil {
 		return ws.list, nil
 	}
-	paths, err := a.idx.Files(ctx, ws.list.folders)
-	if err != nil {
-		return listing{}, err
+	return nil, ws.err
+}
+
+func (a *app) revalidate(ctx context.Context, ws *workspace) <-chan struct{} {
+	gen := ws.gen.Load()
+	if ws.building != nil || ws.list != nil && ws.builtAt == gen {
+		return ws.building
 	}
-	ws.list.paths, ws.built, ws.builtAt = paths, true, gen
-	return ws.list, nil
+	done := make(chan struct{})
+	ws.building = done
+	go a.build(context.WithoutCancel(ctx), ws, ws.folders, gen, done)
+	return done
+}
+
+func (a *app) build(ctx context.Context, ws *workspace, folders []string, gen int64, done chan struct{}) {
+	defer close(done)
+	paths, err := a.idx.Files(ctx, folders)
+	logError("index", err)
+	var list *listing
+	if err == nil {
+		list = &listing{folders: folders, labels: labels(folders), corpus: newCorpus(paths), capped: len(paths) >= maxFiles}
+	}
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	ws.building = nil
+	if !slices.Equal(ws.folders, folders) {
+		return
+	}
+	ws.err = err
+	if list != nil {
+		ws.list, ws.builtAt = list, gen
+	}
 }
 
 func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, projectID string, ws *workspace) error {
@@ -202,7 +253,7 @@ func (ws *workspace) watched(a *app) bool {
 	return ws.watch != ""
 }
 
-func (l listing) abs(path string) string {
+func (l *listing) abs(path string) string {
 	for i, label := range l.labels {
 		if label == "" {
 			return filepath.Join(l.folders[i], path)
