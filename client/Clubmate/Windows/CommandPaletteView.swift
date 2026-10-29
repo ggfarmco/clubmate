@@ -19,7 +19,7 @@ struct CommandPaletteView: View {
     var body: some View {
         let rows = ranked
         VStack(spacing: 0) {
-            PaletteField(text: $query, move: move, submit: submit, cancel: dismiss)
+            PaletteField(text: $query, placeholder: "Type a command", move: move, submit: submit, cancel: dismiss)
                 .frame(height: 30)
                 .padding(.horizontal, theme.gutter)
             theme.border.frame(height: 1)
@@ -85,8 +85,9 @@ struct CommandPaletteView: View {
     }
 }
 
-private struct PaletteField: NSViewRepresentable {
+struct PaletteField: NSViewRepresentable {
     @Binding var text: String
+    let placeholder: String
     let move: (Int) -> Void
     let submit: () -> Void
     let cancel: () -> Void
@@ -102,7 +103,7 @@ private struct PaletteField: NSViewRepresentable {
         field.isBordered = false
         field.drawsBackground = false
         field.focusRingType = .none
-        field.placeholderString = "Type a command"
+        field.placeholderString = placeholder
         field.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         field.delegate = context.coordinator
         return field
@@ -144,19 +145,27 @@ final class PaletteTextField: NSTextField {
     private weak var previous: NSView?
 
     static func isShown(in window: NSWindow) -> Bool {
-        let responder = window.firstResponder
-        return responder is PaletteTextField || (responder as? NSTextView)?.delegate is PaletteTextField
+        owner(of: window.firstResponder) != nil
+    }
+
+    private static func owner(of responder: NSResponder?) -> PaletteTextField? {
+        responder as? PaletteTextField ?? (responder as? NSTextView)?.delegate as? PaletteTextField
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window else { return }
-        previous = window.firstResponder as? NSView
+        let responder = window.firstResponder
+        if let owner = Self.owner(of: responder) {
+            previous = owner.previous
+        } else {
+            previous = responder as? NSView
+        }
         window.makeFirstResponder(self)
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
-        if newWindow == nil, let window, let previous, previous.window === window {
+        if newWindow == nil, let window, Self.owner(of: window.firstResponder) === self, let previous, previous.window === window {
             window.makeFirstResponder(previous)
         }
         super.viewWillMove(toWindow: newWindow)
@@ -166,8 +175,8 @@ final class PaletteTextField: NSTextField {
 extension View {
     func commandPalette(_ session: ProjectSession?, entries: @escaping () -> [PaletteEntry], run: @escaping (PaletteAction) -> Void) -> some View {
         overlay(alignment: .top) {
-            if let session, session.paletteShown {
-                CommandPaletteView(entries: entries(), run: run) { session.paletteShown = false }
+            if let session, session.overlay == .palette {
+                CommandPaletteView(entries: entries(), run: run) { session.close(.palette) }
                     .padding(.top, 48)
             }
         }

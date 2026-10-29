@@ -160,8 +160,11 @@ private struct ProjectCommands: Commands {
                 .keyboardShortcut("w")
         }
         CommandGroup(before: .toolbar) {
-            Button("Command Palette") { session?.paletteShown.toggle() }
+            Button("Command Palette") { session?.toggle(.palette) }
                 .keyboardShortcut("k")
+                .disabled(session == nil)
+            Button("Go to File…") { session?.toggle(.goToFile) }
+                .keyboardShortcut("p")
                 .disabled(session == nil)
             Button("Toggle Sidebar") { store?.toggleSidebar(app.settings) }
                 .keyboardShortcut("b")
