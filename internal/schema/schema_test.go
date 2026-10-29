@@ -60,7 +60,7 @@ func TestSchemaCheck(t *testing.T) {
 		err    string
 	}{
 		{name: "valid", schema: `{"properties":{"ids":{"type":"array","items":{"type":"integer"},"default":[1]}},"required":["ids"]}`},
-		{name: "unknown type", schema: `{"properties":{"x":{"type":"object"}}}`, err: `x: unsupported type "object"`},
+		{name: "unknown type", schema: `{"properties":{"x":{"type":"object","properties":{"p":{"type":"string"}}}}}`, err: `x: unsupported type "object"`},
 		{name: "array without items", schema: `{"properties":{"x":{"type":"array"}}}`, err: `x: array needs scalar or object items`},
 		{name: "required not declared", schema: `{"properties":{},"required":["x"]}`, err: `required "x" is not a property`},
 		{name: "mistyped enum", schema: `{"properties":{"x":{"type":"integer","enum":[1,"two"]}}}`, err: `x: enum value "two" is not integer`},

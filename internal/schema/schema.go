@@ -58,7 +58,7 @@ func (p Prop) checkItem(name string) error {
 }
 
 func (p Prop) check(name string) error {
-	if len(p.Properties) > 0 || len(p.Required) > 0 {
+	if p.Type != "object" && (len(p.Properties) > 0 || len(p.Required) > 0) {
 		return fmt.Errorf("%s: properties on %s", name, p.Type)
 	}
 	switch {
