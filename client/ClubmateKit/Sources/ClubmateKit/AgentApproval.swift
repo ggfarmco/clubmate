@@ -4,17 +4,25 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     static let textLimit = 200
     static let fieldLimit = 10
     static let tooLong = "args too long to display"
+    static let timedOut = "approval timed out"
+    static let margin = 5000
 
     public let title: String
     public let workspace: String
     public let command: String
     public let args: JSONValue
+    public let timeoutMs: Int?
 
-    public init(title: String, workspace: String, command: String, args: JSONValue) {
+    public init(title: String, workspace: String, command: String, args: JSONValue, timeoutMs: Int? = nil) {
         self.title = title
         self.workspace = workspace
         self.command = command
         self.args = args
+        self.timeoutMs = timeoutMs
+    }
+
+    public var deadline: Duration? {
+        timeoutMs.map { .milliseconds(max($0 - Self.margin, 0)) }
     }
 
     public var message: String {
@@ -40,9 +48,20 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         return fields.count <= Self.fieldLimit && fields.values.allSatisfy { Self.rendered($0).count <= Self.textLimit }
     }
 
-    public static func answer(_ request: ConfirmRequest, ask: @MainActor (ConfirmRequest) async -> Bool) async -> ConfirmReply {
+    @MainActor
+    public static func answer(_ request: ConfirmRequest, ask: @MainActor (ConfirmRequest, ConfirmExpiry) async -> Bool) async -> ConfirmReply {
         guard request.fitsDisplay else { return ConfirmReply(approved: false, reason: tooLong) }
-        return ConfirmReply(approved: await ask(request), reason: nil)
+        let expiry = ConfirmExpiry()
+        let timer = request.deadline.map { deadline in
+            Task { @MainActor in
+                guard (try? await Task.sleep(for: deadline)) != nil else { return }
+                expiry.expire()
+            }
+        }
+        defer { timer?.cancel() }
+        let approved = await ask(request, expiry)
+        if expiry.expired { return ConfirmReply(approved: false, reason: timedOut) }
+        return ConfirmReply(approved: approved, reason: nil)
     }
 
     static func capped(_ text: String) -> String {
@@ -80,6 +99,27 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
             guard let data = try? JSONEncoder().encode(value) else { return "" }
             return String(decoding: data, as: UTF8.self)
         }
+    }
+}
+
+@MainActor
+public final class ConfirmExpiry {
+    public private(set) var expired = false
+    private var actions: [@MainActor () -> Void] = []
+
+    public init() {}
+
+    public func onExpire(_ action: @escaping @MainActor () -> Void) {
+        if expired { return action() }
+        actions.append(action)
+    }
+
+    func expire() {
+        guard !expired else { return }
+        expired = true
+        let pending = actions
+        actions = []
+        pending.forEach { $0() }
     }
 }
 

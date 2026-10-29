@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 	"unicode/utf8"
 
@@ -16,6 +17,7 @@ const (
 	approvalTimeout   = 60 * time.Second
 	approvalMaxFields = 10
 	approvalMaxValue  = 200
+	approvalMaxInt    = 1 << 53
 
 	callUIConfirm = "ui.confirm"
 )
@@ -34,6 +36,7 @@ type confirmParams struct {
 	Workspace string          `json:"workspace"`
 	Command   string          `json:"command"`
 	Args      json.RawMessage `json:"args"`
+	TimeoutMs int64           `json:"timeoutMs"`
 }
 
 type confirmResult struct {
@@ -49,40 +52,41 @@ func (deniedError) Is(target error) bool {
 	return target == ErrDenied
 }
 
-func (s *Server) approve(ctx context.Context, c Command, projectID string, args json.RawMessage) error {
+func (s *Server) approve(ctx context.Context, c Command, projectID string, raw json.RawMessage) (json.RawMessage, error) {
 	workspace := ""
 	if projectID != "" {
 		p, err := s.svc.GetProject(ctx, projectID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		workspace = p.Name
 	}
-	args, err := approvableArgs(c, args)
+	args, err := approvableArgs(c, raw)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	conn, release, err := s.approver(projectID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer release()
 	ctx, cancel := context.WithTimeout(ctx, approvalTimeout)
 	defer cancel()
+	params := confirmParams{Title: c.Title, Workspace: workspace, Command: c.ID, Args: args, TimeoutMs: approvalTimeout.Milliseconds()}
 	var res confirmResult
-	if err := conn.Call(ctx, callUIConfirm, confirmParams{Title: c.Title, Workspace: workspace, Command: c.ID, Args: args}, &res); err != nil {
+	if err := conn.Call(ctx, callUIConfirm, params, &res); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return errApprovalTimeout
+			return nil, errApprovalTimeout
 		}
-		return errNoApprover
+		return nil, errNoApprover
 	}
 	if !res.Approved && res.Reason != "" {
-		return deniedError(res.Reason)
+		return nil, deniedError(res.Reason)
 	}
 	if !res.Approved {
-		return errDeniedByUser
+		return nil, errDeniedByUser
 	}
-	return nil
+	return args, nil
 }
 
 func approvableArgs(c Command, raw json.RawMessage) (json.RawMessage, error) {
@@ -105,6 +109,9 @@ func approvableArgs(c Command, raw json.RawMessage) (json.RawMessage, error) {
 		if renderedLen(v) > approvalMaxValue {
 			return nil, invalidParams(fmt.Sprintf("args.%s: longer than %d characters", name, approvalMaxValue))
 		}
+		if !exactNumbers(v) {
+			return nil, invalidParams(fmt.Sprintf("args.%s: number outside ±2^53", name))
+		}
 	}
 	return json.Marshal(fields)
 }
@@ -119,6 +126,37 @@ func renderedLen(v json.RawMessage) int {
 		return utf8.RuneCount(v)
 	}
 	return utf8.RuneCount(buf.Bytes())
+}
+
+func exactNumbers(v json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(v))
+	dec.UseNumber()
+	var decoded any
+	if dec.Decode(&decoded) != nil {
+		return false
+	}
+	return exact(decoded)
+}
+
+func exact(v any) bool {
+	switch v := v.(type) {
+	case json.Number:
+		n, ok := new(big.Float).SetString(v.String())
+		return ok && n.Abs(n).Cmp(big.NewFloat(approvalMaxInt)) <= 0
+	case []any:
+		for _, item := range v {
+			if !exact(item) {
+				return false
+			}
+		}
+	case map[string]any:
+		for _, item := range v {
+			if !exact(item) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (s *Server) approver(projectID string) (*jsonrpc2.Conn, func(), error) {

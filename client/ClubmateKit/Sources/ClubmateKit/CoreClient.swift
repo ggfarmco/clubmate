@@ -6,7 +6,7 @@ public final class CoreClient {
     private var subscribers: [UUID: AsyncStream<RPCNotification>.Continuation] = [:]
     private var pumpFinished = false
     public private(set) var stoppedIntentionally = false
-    public var confirmHandler: (@MainActor (ConfirmRequest) async -> Bool)?
+    public var confirmHandler: (@MainActor (ConfirmRequest, ConfirmExpiry) async -> Bool)?
 
     var isAlive: Bool { !pumpFinished }
 
@@ -168,7 +168,7 @@ public final class CoreClient {
             return
         }
         let handler = confirmHandler
-        let reply = await ConfirmRequest.answer(confirm) { await handler?($0) ?? false }
+        let reply = await ConfirmRequest.answer(confirm) { await handler?($0, $1) ?? false }
         try? await connection.reply(id: request.id, result: reply)
     }
 

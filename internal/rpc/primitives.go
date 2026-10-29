@@ -18,6 +18,7 @@ type primitive struct {
 	cmd          Command
 	method       string
 	needsProject bool
+	agentDenies  []string
 	params       func(projectID string, args json.RawMessage) (json.RawMessage, error)
 	scope        func(ctx context.Context, svc *core.Service, projectID string, args json.RawMessage) (string, error)
 }
@@ -46,15 +47,15 @@ var primitives = map[string]primitive{
 		method: "session.list",
 	},
 	"session.create": {
-		cmd: coreCommand("session.create", "Create Session", "Start a session in the workspace running a command (a login shell when absent).", &schema.Object{
+		cmd: coreCommand("session.create", "Create Session", "Start a login-shell session in the workspace.", &schema.Object{
 			Properties: map[string]schema.Prop{
-				"cwd":     {Type: "string", Description: "Working directory; the first workspace folder (or home) when absent."},
-				"title":   {Type: "string", Description: "Session title."},
-				"command": {Type: "array", Items: &schema.Prop{Type: "string"}, Description: "Command and arguments."},
+				"cwd":   {Type: "string", Description: "Working directory; the first workspace folder (or home) when absent."},
+				"title": {Type: "string", Description: "Session title."},
 			},
 		}),
 		method:       "session.create",
 		needsProject: true,
+		agentDenies:  []string{"command", "env"},
 		params:       withProject,
 	},
 	"session.kill": {
@@ -135,6 +136,21 @@ func sessionProject(ctx context.Context, svc *core.Service, _ string, args json.
 		return "", err
 	}
 	return s.ProjectID, nil
+}
+
+func (p primitive) agentArgs(args json.RawMessage) error {
+	fields := map[string]json.RawMessage{}
+	if len(args) > 0 && string(args) != "null" {
+		if err := json.Unmarshal(args, &fields); err != nil {
+			return invalidParams("args: want object")
+		}
+	}
+	for _, name := range p.agentDenies {
+		if _, ok := fields[name]; ok {
+			return invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
+		}
+	}
+	return nil
 }
 
 func (s *Server) runPrimitive(ctx context.Context, p primitive, projectID string, args json.RawMessage) (json.RawMessage, error) {

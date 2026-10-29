@@ -80,12 +80,23 @@ final class ClubmateKitTests: XCTestCase {
     func testConfirmTooLongIsDeniedUnasked() async {
         let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(String(repeating: "x", count: 201))]))
         var asked = false
-        let reply = await ConfirmRequest.answer(request) { _ in
+        let reply = await ConfirmRequest.answer(request) { _, _ in
             asked = true
             return true
         }
         XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "args too long to display"))
         XCTAssertFalse(asked)
+    }
+
+    func testConfirmExpiresBeforeCoreTimeout() async {
+        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .null, timeoutMs: 5001)
+        XCTAssertEqual(request.deadline, .milliseconds(1))
+        let reply = await ConfirmRequest.answer(request) { _, expiry in
+            await withCheckedContinuation { continuation in
+                expiry.onExpire { continuation.resume(returning: true) }
+            }
+        }
+        XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "approval timed out"))
     }
 
     func testAgentApprovalRoundTrip() async throws {
@@ -96,7 +107,7 @@ final class ClubmateKitTests: XCTestCase {
         guard let id = sessions.arrayValue?.first?.objectValue?["id"]?.stringValue else { throw TestFailure(description: "no session") }
         try await client.register(handles: ["ui.confirm"])
         let approvals = Approvals()
-        client.confirmHandler = { request in
+        client.confirmHandler = { request, _ in
             approvals.asked.append(request)
             return approvals.answer
         }
@@ -109,7 +120,7 @@ final class ClubmateKitTests: XCTestCase {
         }
         approvals.answer = true
         _ = try await client.call(method: "command.run", params: kill)
-        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(id)])), count: 2))
+        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000), count: 2))
         await client.close()
     }
 

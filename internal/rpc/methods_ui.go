@@ -310,13 +310,18 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if err := schema.Validate(c.Args, p.Args); err != nil {
 		return nil, invalidParams(err.Error())
 	}
+	if p.Agent && isPrimitive {
+		if err := prim.agentArgs(p.Args); err != nil {
+			return nil, err
+		}
+	}
 	if isPrimitive && prim.scope != nil {
 		if scope, err = prim.scope(ctx, s.svc, p.ProjectID, p.Args); err != nil {
 			return nil, err
 		}
 	}
 	if p.Agent && c.Destructive {
-		if err := s.approve(ctx, c, scope, p.Args); err != nil {
+		if p.Args, err = s.approve(ctx, c, scope, p.Args); err != nil {
 			return nil, err
 		}
 	}
@@ -336,7 +341,13 @@ func (s *Server) commandCapabilities(context.Context, empty) (capabilitiesResult
 	if err != nil {
 		return capabilitiesResult{}, err
 	}
-	return capabilitiesResult{Capabilities: u.router.Capabilities()}, nil
+	caps := u.router.Capabilities()
+	for name := range caps {
+		if _, ok := primitives[name]; ok {
+			caps[name] = name
+		}
+	}
+	return capabilitiesResult{Capabilities: caps}, nil
 }
 
 func (s *Server) uiState() (*uiState, error) {

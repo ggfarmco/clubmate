@@ -45,7 +45,7 @@ struct ButtonNodeView: View {
 
 @MainActor
 enum Confirmation {
-    static func ask(_ message: String, detail: String = "", action: String, cancel: String = "Cancel", destructive: Bool = false, window: NSWindow? = nil) async -> Bool {
+    static func ask(_ message: String, detail: String = "", action: String, cancel: String = "Cancel", destructive: Bool = false, window: NSWindow? = nil, expiry: ConfirmExpiry? = nil) async -> Bool {
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail
@@ -62,7 +62,11 @@ enum Confirmation {
             return nil
         } : nil
         defer { escape.map(NSEvent.removeMonitor) }
-        guard let window = window ?? NSApp.keyWindow else { return alert.runModal() == .alertFirstButtonReturn }
+        guard let window = window ?? NSApp.keyWindow else {
+            expiry?.onExpire { NSApp.abortModal() }
+            return alert.runModal() == .alertFirstButtonReturn
+        }
+        expiry?.onExpire { [weak window] in window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn) }
         return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
     }
 }

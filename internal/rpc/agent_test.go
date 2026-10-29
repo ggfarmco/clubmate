@@ -22,6 +22,7 @@ type confirmRequest struct {
 	Workspace string          `json:"workspace"`
 	Command   string          `json:"command"`
 	Args      json.RawMessage `json:"args"`
+	TimeoutMs int64           `json:"timeoutMs"`
 }
 
 type approver struct {
@@ -31,11 +32,51 @@ type approver struct {
 }
 
 func TestAgentCannotReachHidden(t *testing.T) {
-	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","hidden":true}`)
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","hidden":true,"provides":["echo.cap"]}`)
 	c := h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID}, nil))
-	err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true}, nil)
-	assert.ErrorIs(t, err, rpc.ErrNotFound)
+	for _, id := range []string{"alpha.say", "echo.cap"} {
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": p.ID, "agent": true}, nil)
+		assert.ErrorIs(t, err, rpc.ErrNotFound, id)
+	}
+}
+
+func TestCapabilityNamedLikePrimitive(t *testing.T) {
+	h, _ := startAlpha(t, `{"id":"alpha.say","title":"Say","provides":["workspace.list"]}`)
+	var caps struct {
+		Capabilities map[string]string `json:"capabilities"`
+	}
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.capabilities", struct{}{}, &caps))
+	assert.Equal(t, map[string]string{"workspace.list": "workspace.list"}, caps.Capabilities)
+}
+
+func TestAgentSessionCreateTakesNoCommand(t *testing.T) {
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t)
+	c := h.Client(t)
+	for _, field := range []string{"command", "env"} {
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": "session.create", "projectId": p.ID, "agent": true, "args": map[string]any{field: []string{"/bin/sh"}}}, nil)
+		require.ErrorIs(t, err, rpc.ErrInvalidParams)
+		assert.ErrorContains(t, err, "args."+field+": not allowed in agent calls")
+	}
+}
+
+func TestApproverDisconnectDenies(t *testing.T) {
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"destructive":true}`)
+	a := newApprover(t, h)
+	c := h.Client(t)
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true}, nil)
+	}()
+	<-a.asked
+	require.NoError(t, a.conn.Close())
+	err := <-done
+	require.ErrorIs(t, err, rpc.ErrDenied)
+	assert.ErrorContains(t, err, "no app to approve")
+	close(a.reply)
 }
 
 func TestDestructiveNeedsApproval(t *testing.T) {
@@ -58,7 +99,7 @@ func TestDestructiveNeedsApproval(t *testing.T) {
 			defer close(done)
 			out, err = run()
 		}()
-		assert.Equal(t, confirmRequest{Title: "Drop Everything", Workspace: "demo", Command: "alpha.say", Args: json.RawMessage(`{"n":1}`)}, <-a.asked)
+		assert.Equal(t, confirmRequest{Title: "Drop Everything", Workspace: "demo", Command: "alpha.say", Args: json.RawMessage(`{"n":1}`), TimeoutMs: 60000}, <-a.asked)
 		a.reply <- approved
 		<-done
 		if approved {
@@ -84,7 +125,7 @@ func TestDestructiveNeedsApproval(t *testing.T) {
 }
 
 func TestDestructiveAgentArgsStrict(t *testing.T) {
-	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"destructive":true,"args":{"properties":{"s":{"type":"string"}}}}`)
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"destructive":true,"args":{"properties":{"s":{"type":"string"},"n":{"type":"integer"}}}}`)
 	a := newApprover(t, h)
 	c := h.Client(t)
 	tests := []struct {
@@ -95,6 +136,7 @@ func TestDestructiveAgentArgsStrict(t *testing.T) {
 		{name: "undeclared key", args: map[string]any{"s": "x", "extra": "y"}, err: "args.extra: not declared"},
 		{name: "overlong value", args: map[string]any{"s": strings.Repeat("é", 201)}, err: "args.s: longer than 200 characters"},
 		{name: "non-object args", args: []int{1}, err: "args: want object"},
+		{name: "integer beyond 2^53", args: map[string]any{"n": int64(1)<<53 + 1}, err: "args.n: number outside ±2^53"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"clubmate/internal/schema"
@@ -23,6 +24,8 @@ var (
 	ErrInvalidManifest = errors.New("invalid plugin manifest")
 
 	idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
+
+	reservedIDs = []string{"core", "session", "workspace", "process", "ui"}
 )
 
 type Manifest struct {
@@ -131,6 +134,9 @@ func (m Manifest) Executable() string {
 func (m Manifest) validate() error {
 	if !idPattern.MatchString(m.ID) {
 		return invalid(m.Dir, "id %q does not match %s", m.ID, idPattern)
+	}
+	if slices.Contains(reservedIDs, m.ID) {
+		return invalid(m.Dir, "id %q is reserved", m.ID)
 	}
 	if m.Protocol != ProtocolVersion {
 		return invalid(m.Dir, "protocol %d, want %d", m.Protocol, ProtocolVersion)
