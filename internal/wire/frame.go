@@ -13,11 +13,14 @@ const (
 	FrameData FrameType = iota + 1
 	FrameResize
 	FrameExit
+	FrameSnapshot
 )
 
 const (
 	headerSize    = 5
 	maxPayloadLen = 1 << 20
+
+	MaxPayload = maxPayloadLen
 )
 
 var (

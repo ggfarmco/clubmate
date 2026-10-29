@@ -70,6 +70,18 @@ type listSessionsParams struct {
 	Owner     string `json:"owner"`
 }
 
+type sessionSendParams struct {
+	ID    string `json:"id"`
+	Text  string `json:"text"`
+	Enter bool   `json:"enter"`
+}
+
+type sessionReadParams struct {
+	ID    string `json:"id"`
+	Bytes int    `json:"bytes"`
+	Raw   bool   `json:"raw"`
+}
+
 type pingResult struct {
 	Version         string `json:"version"`
 	PID             int    `json:"pid"`
@@ -169,6 +181,21 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 				return empty{}, err
 			}
 			return empty{}, svc.KillSession(ctx, p.ID)
+		}),
+		"session.send": method(func(ctx context.Context, p sessionSendParams) (empty, error) {
+			if err := requireID(session.IDPrefix, p.ID); err != nil {
+				return empty{}, err
+			}
+			return empty{}, svc.SendSession(ctx, p.ID, p.Text, p.Enter)
+		}),
+		"session.read": method(func(ctx context.Context, p sessionReadParams) (session.Snapshot, error) {
+			if err := requireID(session.IDPrefix, p.ID); err != nil {
+				return session.Snapshot{}, err
+			}
+			if p.Bytes < 0 || p.Bytes > session.ReadMax {
+				return session.Snapshot{}, invalidParams(fmt.Sprintf("bytes must be 0..%d", session.ReadMax))
+			}
+			return svc.ReadSession(ctx, p.ID, p.Bytes, p.Raw)
 		}),
 		"session.remove": method(func(ctx context.Context, p idParams) (empty, error) {
 			if err := requireID(session.IDPrefix, p.ID); err != nil {

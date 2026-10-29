@@ -14,6 +14,7 @@ import (
 
 	"clubmate/internal/project"
 	"clubmate/internal/rpc"
+	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 )
 
@@ -220,4 +221,21 @@ func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
 	})
 	require.NoError(t, a.conn.Call(t.Context(), "client.register", map[string]any{"handles": []string{"ui.confirm"}}, nil))
 	return a
+}
+
+func TestAgentSendToOwnSessionNeedsNoApproval(t *testing.T) {
+	h := testutil.NewHarness(t)
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	h.Start(t)
+	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Command: []string{"sh", "-c", "exec cat"}})
+	require.NoError(t, err)
+	c := h.Client(t)
+	send := func(from string) error {
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "fromSession": from, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
+	}
+	require.NoError(t, send(s.ID))
+	err = send("ses_0123456789abcdef")
+	require.ErrorIs(t, err, rpc.ErrDenied)
+	assert.ErrorContains(t, err, "no app to approve")
 }

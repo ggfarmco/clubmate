@@ -94,6 +94,8 @@ func errorCode(err error) int64 {
 	switch {
 	case errors.Is(err, project.ErrNotFound),
 		errors.Is(err, session.ErrNotFound),
+		errors.Is(err, session.ErrNotRunning),
+		errors.Is(err, session.ErrNoSnapshot),
 		errors.Is(err, errUnknownSubscription),
 		errors.Is(err, errUnknownSection),
 		errors.Is(err, errUnknownCommand):

@@ -18,6 +18,7 @@ type primitive struct {
 	cmd          Command
 	method       string
 	needsProject bool
+	ownSession   bool
 	params       func(projectID string, args json.RawMessage) (json.RawMessage, error)
 	scope        func(ctx context.Context, svc *core.Service, projectID string, args json.RawMessage) (string, error)
 }
@@ -66,6 +67,32 @@ var primitives = map[string]primitive{
 		method: "session.kill",
 		params: passArgs,
 		scope:  sessionProject,
+	},
+	"session.send": {
+		cmd: destructive(coreCommand("session.send", "Send to Session", "Type text into a session, optionally pressing Enter. Needs the user's approval unless the session is the caller's own; send long input in chunks.", &schema.Object{
+			Properties: map[string]schema.Prop{
+				"id":    {Type: "string", Description: "Session id."},
+				"text":  {Type: "string", Description: "Text to type."},
+				"enter": {Type: "boolean", Description: "Press Enter after the text."},
+			},
+			Required: []string{"id", "text"},
+		})),
+		method:     "session.send",
+		ownSession: true,
+		params:     passArgs,
+		scope:      sessionProject,
+	},
+	"session.read": {
+		cmd: coreCommand("session.read", "Read Session", "Read the tail of a session's output, without ANSI escapes unless raw. A full-screen app gives altScreen true and no text.", &schema.Object{
+			Properties: map[string]schema.Prop{
+				"id":    {Type: "string", Description: "Session id."},
+				"bytes": {Type: "integer", Description: "Bytes of output to read from the end (default 16384, max 262144)."},
+				"raw":   {Type: "boolean", Description: "Keep ANSI escapes."},
+			},
+			Required: []string{"id"},
+		}),
+		method: "session.read",
+		params: passArgs,
 	},
 	"process.tree": {
 		cmd:    coreCommand("process.tree", "Process Tree", "List the processes of every session, flagging orphans and duplicates.", nil),
@@ -152,6 +179,14 @@ func (p primitive) agentArgs(args json.RawMessage) (json.RawMessage, error) {
 		}
 	}
 	return json.Marshal(fields)
+}
+
+func (p primitive) exempt(fromSession string, args json.RawMessage) bool {
+	if !p.ownSession || fromSession == "" {
+		return false
+	}
+	var target idParams
+	return json.Unmarshal(args, &target) == nil && target.ID == fromSession
 }
 
 func (s *Server) runPrimitive(ctx context.Context, p primitive, projectID string, args json.RawMessage) (json.RawMessage, error) {

@@ -103,7 +103,7 @@ func run(logger *slog.Logger) error {
 
 	var sup *plugin.Supervisor
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
-	svc := core.NewService(store, session.NewManager(dirs, hostBin), tracker, proc.Snapshot,
+	svc := core.NewService(store, session.NewManager(dirs, hostBin, session.WithPathDir(filepath.Dir(exe))), tracker, proc.Snapshot,
 		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }))
 	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV), rpc.WithLogger(logger))
 	uiStore := sdui.NewStore()

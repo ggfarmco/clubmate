@@ -53,10 +53,11 @@ type host struct {
 }
 
 type client struct {
-	conn    net.Conn
-	wake    chan struct{}
-	pending []byte
-	repaint bool
+	conn     net.Conn
+	wake     chan struct{}
+	pending  []byte
+	repaint  bool
+	snapshot *wire.Frame
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -218,11 +219,15 @@ func (h *host) writeLoop(c *client) {
 	for {
 		_, open := <-c.wake
 		h.mu.Lock()
-		data, exit := c.pending, h.exit
+		data, exit, snapshot := c.pending, h.exit, c.snapshot
 		c.pending = nil
 		h.mu.Unlock()
 		if err := writeData(c.conn, data); err != nil {
 			h.drop(c)
+			return
+		}
+		if snapshot != nil {
+			wire.WriteFrame(c.conn, *snapshot)
 			return
 		}
 		if open {
@@ -249,7 +254,30 @@ func (h *host) readLoop(c *client) {
 		case wire.FrameResize:
 			h.resize(f.Payload, repaint)
 			repaint = false
+		case wire.FrameSnapshot:
+			h.snapshot(c)
 		}
+	}
+}
+
+func (h *host) snapshot(c *client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, ok := h.clients[c]; !ok {
+		return
+	}
+	delete(h.clients, c)
+	payload := []byte{0}
+	if h.alt.on {
+		payload[0] = 1
+	} else {
+		ring := h.ring.Bytes()
+		payload = append(payload, ring[max(0, len(ring)-(wire.MaxPayload-1)):]...)
+	}
+	c.snapshot = &wire.Frame{Type: wire.FrameSnapshot, Payload: payload}
+	select {
+	case c.wake <- struct{}{}:
+	default:
 	}
 }
 
