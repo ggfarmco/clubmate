@@ -116,10 +116,10 @@ private struct WorkspaceView: View {
             .onChange(of: session.store?.connected, initial: true) { _, connected in
                 guard connected == true else { return }
                 app.syncNavigationKeys()
-                Task { await session.worktrees.load() }
+                Task { await session.worktrees.load(retrying: true) }
             }
             .onChange(of: app.project(session.projectID)) {
-                Task { await session.worktrees.load() }
+                Task { await session.worktrees.load(retrying: true) }
             }
             .onChange(of: session.store?.selectedSection, initial: true) { _, section in
                 if section == CodeSection.id { app.askNavigationKeys() }

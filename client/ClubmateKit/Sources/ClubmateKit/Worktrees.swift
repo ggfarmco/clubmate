@@ -45,6 +45,7 @@ public final class WorktreeModel {
     public static let statusCommand = "git.worktree-op-status"
     public static let sessionsCommand = "git.worktree-sessions"
     static let statusRetries = 3
+    public static let defaultRetryDelays: [Duration] = [.milliseconds(250), .milliseconds(500), .seconds(1), .seconds(2), .seconds(4)]
 
     public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
@@ -54,18 +55,22 @@ public final class WorktreeModel {
     @ObservationIgnored private let project: @MainActor () -> Project?
     @ObservationIgnored private let confirm: @MainActor (String, String) async -> Bool
     @ObservationIgnored private let report: @MainActor (String) -> Void
+    @ObservationIgnored private let retryDelays: [Duration]
     @ObservationIgnored private var announced: Set<String> = []
+    @ObservationIgnored private var generation = 0
 
     public init(
         run: @escaping Run,
         project: @escaping @MainActor () -> Project?,
         confirm: @escaping @MainActor (String, String) async -> Bool,
-        report: @escaping @MainActor (String) -> Void
+        report: @escaping @MainActor (String) -> Void,
+        retryDelays: [Duration] = WorktreeModel.defaultRetryDelays
     ) {
         self.run = run
         self.project = project
         self.confirm = confirm
         self.report = report
+        self.retryDelays = retryDelays
     }
 
     public var groups: [WorktreeGroup] {
@@ -110,8 +115,16 @@ public final class WorktreeModel {
         current.map { "\(workspace) ▸ \($0.name) ▾" } ?? workspace
     }
 
-    public func load() async {
-        guard await fetch(), let project = project() else { return }
+    public func load(retrying: Bool = false) async {
+        generation += 1
+        let mine = generation
+        var delays = (retrying ? retryDelays : [])[...]
+        while !(await fetch()) {
+            guard let delay = delays.popFirst() else { return }
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, mine == generation else { return }
+        }
+        guard mine == generation, let project = project() else { return }
         var switched = false
         for path in project.missing where !announced.contains(path) {
             announced.insert(path)

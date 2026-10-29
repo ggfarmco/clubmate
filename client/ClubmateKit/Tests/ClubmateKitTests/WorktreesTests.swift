@@ -19,6 +19,17 @@ final class WorktreesTests: XCTestCase {
         XCTAssertEqual(core.calls[1].args, .object(["repo": .string("/r/b"), "path": .string("/r/.worktrees/feat")]))
     }
 
+    func testLoadRetriesUntilTheGitPluginIsUp() async throws {
+        let core = FakeGitCore()
+        core.failures = 1
+        let model = WorktreeModel(run: core.run, project: { nil }, confirm: { _, _ in false }, report: { XCTFail("unexpected banner: \($0)") }, retryDelays: [.milliseconds(1)])
+
+        await model.load(retrying: true)
+
+        XCTAssertEqual(core.calls.map(\.id), ["git.worktrees", "git.worktrees"])
+        XCTAssertFalse(model.worktrees.isEmpty)
+    }
+
     func testReviewLabelNamesTheDefaultBase() async throws {
         let core = FakeGitCore()
         let model = makeModel(core)
@@ -102,6 +113,7 @@ final class WorktreesTests: XCTestCase {
 private final class FakeGitCore {
     private(set) var calls: [CommandInvocation] = []
     var trees = [tree(repo: "/r", path: "/r", main: true, current: true), tree(repo: "/r", path: "/r/.worktrees/feat")]
+    var failures = 0
     private let unsaved: Bool
 
     init(unsaved: Bool = false) {
@@ -113,6 +125,10 @@ private final class FakeGitCore {
         let args = invocation.args.objectValue ?? [:]
         switch invocation.id {
         case "git.worktrees":
+            if failures > 0 {
+                failures -= 1
+                return .failure(.rpc(code: -32000, message: "plugin not running"))
+            }
             return .success(.array(trees))
         case "git.worktree-sessions":
             return .success(.array([
