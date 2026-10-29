@@ -225,7 +225,7 @@ func (s *Store) create(ctx context.Context, name string, repos []string, home bo
 		return Project{}, fmt.Errorf("commit: %w", err)
 	}
 	p.Repos = repos
-	p.Roots = repos
+	p.Roots = slices.Clone(repos)
 	return p, nil
 }
 

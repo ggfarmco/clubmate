@@ -35,8 +35,11 @@ func TestWorktreeSelection(t *testing.T) {
 		return s.Cwd
 	}
 
+	args := map[string]string{"id": p.ID, "repo": b, "path": b2}
+	err = c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.worktree.set", "agent": true, "args": args}, nil)
+	require.ErrorIs(t, err, rpc.ErrNotFound)
 	var got project.Project
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.worktree.set", "agent": true, "args": map[string]string{"id": p.ID, "repo": b, "path": b2}}, &got))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.worktree.set", "args": args}, &got))
 	assert.Equal(t, []string{a, b2}, got.Roots)
 	assert.Equal(t, []string{a, b}, got.Repos)
 	evs, err := h.Bus.Read(t.Context(), "project.updated", 0, 0)

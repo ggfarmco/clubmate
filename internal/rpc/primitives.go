@@ -42,14 +42,14 @@ var primitives = map[string]primitive{
 		method: "workspace.home",
 	},
 	"workspace.worktree.set": {
-		cmd: coreCommand("workspace.worktree.set", "Set Folder Worktree", "Point a workspace folder at a git worktree directory; an empty path, or the folder itself, goes back to the folder.", &schema.Object{
+		cmd: userOnly(coreCommand("workspace.worktree.set", "Set Folder Worktree", "Point a workspace folder at a git worktree directory; an empty path, or the folder itself, goes back to the folder.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"id":   {Type: "string", Description: "Workspace id."},
 				"repo": {Type: "string", Description: "The workspace folder, exactly as listed in its repos."},
 				"path": {Type: "string", Description: "Absolute path of an existing directory, usually a git worktree of the folder; empty to clear."},
 			},
-			Required: []string{"id", "repo"},
-		}),
+			Required: []string{"id", "repo", "path"},
+		})),
 		method: "workspace.worktree.set",
 		params: passArgs,
 	},
@@ -127,6 +127,11 @@ func coreCommand(id, title, description string, args *schema.Object) Command {
 
 func destructive(c Command) Command {
 	c.Destructive = true
+	return c
+}
+
+func userOnly(c Command) Command {
+	c.Agent = false
 	return c
 }
 

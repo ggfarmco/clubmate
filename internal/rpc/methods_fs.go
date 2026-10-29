@@ -51,7 +51,7 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 	if err != nil {
 		return watchParams{}, err
 	}
-	folders := slices.Concat(proj.Repos, proj.Roots)
+	folders := slices.Compact(slices.Sorted(slices.Values(slices.Concat(proj.Repos, proj.Roots))))
 	roots := make([]string, 0, len(folders))
 	var gitRoots []string
 	for _, repo := range folders {
