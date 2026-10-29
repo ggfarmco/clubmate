@@ -29,7 +29,7 @@ Re-check anything marked volatile there before relying on it; ACP and the adapte
 - **Others:** the ACP registry (`registry.json`) lists launch commands and checksums for ~40 more.
 
 ## Decisions to start from
-1. **The ACP client lives in the Go core.** It already owns processes and JSON-RPC. SwiftUI and the future phone app never speak ACP; they consume the core's normalized events.
+1. **The ACP client lives in an `agents` plugin** (user decision 2026-10-29: "это тоже отдельный плагин"), like every other feature. It spawns agents, writes the event log to the bus and renders the Agents section. SwiftUI and the future phone app never speak ACP; they consume the plugin's normalized events and slots.
 2. **Treat every agent as "writes to disk".**
    - After file changes, run `:checktime` in nvim.
    - Review comes from the git diff of the turn (Clubmate's review UI), not from `fs/write_text_file`.
