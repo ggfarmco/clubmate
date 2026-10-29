@@ -241,6 +241,7 @@ final class StoresTests: XCTestCase {
             (node("tree", "t", action: "open"), .select("i1"), "open", .string("i1")),
             (node("tree", "t", action: "open"), .expand("i1"), "expand", .string("i1")),
             (node("tree", "t", action: "open"), .collapse("i1"), "collapse", .string("i1")),
+            (node("tree", "t", action: "open"), .focus("/r/a"), "focus", .string("/r/a")),
             (node("tabs", "tabs"), .select("t2"), "select", .string("t2")),
             (node("textField", "q"), .submit(.string("hi")), "submit", .string("hi")),
             (node("textField", "q", action: "search"), .submit(.string("hi")), "search", .string("hi")),

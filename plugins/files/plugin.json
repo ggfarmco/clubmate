@@ -26,6 +26,16 @@
         "description": "Collapse every directory in the file tree except the workspace folders and the ancestors of the selected file."
       },
       {
+        "id": "files.focus",
+        "title": "Focus Folder",
+        "description": "Show only the folder of the selected file in the file tree."
+      },
+      {
+        "id": "files.unfocus",
+        "title": "Clear Folder Focus",
+        "description": "Show the whole workspace in the file tree again."
+      },
+      {
         "id": "files.reveal",
         "provides": ["files.reveal"],
         "title": "Reveal File in Tree",

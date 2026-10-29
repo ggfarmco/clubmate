@@ -56,8 +56,10 @@ final class TreeKeysTests: XCTestCase {
             (124, false, .expand),
             (4, false, .collapse),
             (123, false, .collapse),
-            (36, false, .activate),
+            (36, false, .open),
             (31, false, .activate),
+            (47, false, .focus),
+            (51, false, .focusUp),
             (53, false, .focusMain),
         ]
         for (keyCode, control, action) in rows {
@@ -73,6 +75,29 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertNil(TreeKeys.action(keyCode: 4, control: true, command: false, side: .left))
         XCTAssertEqual(TreeKeys.action(keyCode: 4, control: true, command: false, side: .right), .focusMain)
         XCTAssertNil(TreeKeys.action(keyCode: 37, control: true, command: false, side: .right))
+    }
+
+    func testOpenAndFocusResolve() {
+        let rows = [
+            TreeRow(id: "/r/a", depth: 0, parent: nil, hasChildren: true, expanded: true),
+            TreeRow(id: "/r/a/x.go", depth: 1, parent: "/r/a", hasChildren: false, expanded: false),
+            TreeRow(id: "/r/b", depth: 0, parent: nil, hasChildren: true, expanded: false),
+            TreeRow(id: "/r/y.go", depth: 0, parent: nil, hasChildren: false, expanded: false),
+        ]
+        let crumbs = ["/r", "/r/p"]
+        let cases: [(TreeKeyAction, String?, [String], TreeCommand?)] = [
+            (.open, "/r/a", [], .collapse("/r/a")),
+            (.open, "/r/b", [], .expand("/r/b")),
+            (.open, "/r/y.go", [], .select("/r/y.go")),
+            (.focus, "/r/b", [], .focus("/r/b")),
+            (.focus, "/r/a/x.go", [], .focus("/r/a")),
+            (.focus, "/r/y.go", [], nil),
+            (.focusUp, nil, crumbs, .focus("/r")),
+            (.focusUp, nil, [], nil),
+        ]
+        for (action, cursor, breadcrumb, command) in cases {
+            XCTAssertEqual(TreeCursor.resolve(action, cursor: cursor, in: rows, breadcrumb: breadcrumb), command, "\(action) at \(cursor ?? "nil")")
+        }
     }
 
     func testCollapseOthersKey() {

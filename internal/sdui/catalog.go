@@ -88,7 +88,7 @@ var (
 		},
 		"tree": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck},
+			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "breadcrumb": listOf(itemCheck), "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
