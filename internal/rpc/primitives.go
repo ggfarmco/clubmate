@@ -41,6 +41,18 @@ var primitives = map[string]primitive{
 		cmd:    coreCommand("workspace.home", "Open Home Workspace", "Open the home workspace (rooted at the user's home directory) in the app.", nil),
 		method: "workspace.home",
 	},
+	"workspace.worktree.set": {
+		cmd: coreCommand("workspace.worktree.set", "Set Folder Worktree", "Point a workspace folder at a git worktree directory; an empty path, or the folder itself, goes back to the folder.", &schema.Object{
+			Properties: map[string]schema.Prop{
+				"id":   {Type: "string", Description: "Workspace id."},
+				"repo": {Type: "string", Description: "The workspace folder, exactly as listed in its repos."},
+				"path": {Type: "string", Description: "Absolute path of an existing directory, usually a git worktree of the folder; empty to clear."},
+			},
+			Required: []string{"id", "repo"},
+		}),
+		method: "workspace.worktree.set",
+		params: passArgs,
+	},
 	"session.list": {
 		cmd:    coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of all workspaces.", nil),
 		method: "session.list",

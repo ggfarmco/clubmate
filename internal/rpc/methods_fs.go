@@ -51,9 +51,10 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 	if err != nil {
 		return watchParams{}, err
 	}
-	roots := make([]string, 0, len(proj.Repos))
+	folders := slices.Concat(proj.Repos, proj.Roots)
+	roots := make([]string, 0, len(folders))
 	var gitRoots []string
-	for _, repo := range proj.Repos {
+	for _, repo := range folders {
 		root, err := filepath.EvalSymlinks(repo)
 		if err != nil {
 			s.logger.Warn("fs.watch skips unresolvable repo", "repo", repo, "err", err)
@@ -65,6 +66,7 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 		gitRoots = append(gitRoots, linked...)
 	}
 	roots = slices.Compact(slices.Sorted(slices.Values(roots)))
+	gitRoots = slices.Compact(slices.Sorted(slices.Values(gitRoots)))
 	changes := make(chan fsChange)
 	quit := make(chan struct{})
 	stop := func() {}

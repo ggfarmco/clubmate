@@ -122,3 +122,17 @@ func TestRename(t *testing.T) {
 	assert.Equal(t, "renamed", got.Name)
 	assert.ErrorIs(t, s.Rename(t.Context(), p.ID, " "), project.ErrEmptyName)
 }
+
+func TestMissingSelectionFallsBack(t *testing.T) {
+	s := openStore(t)
+	a, b, b2 := t.TempDir(), t.TempDir(), t.TempDir()
+	p, err := s.Create(t.Context(), "demo", []string{a, b})
+	require.NoError(t, err)
+	_, err = s.SetWorktree(t.Context(), p.ID, b, b2)
+	require.NoError(t, err)
+	require.NoError(t, os.RemoveAll(b2))
+	got, err := s.Get(t.Context(), p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{a, b}, got.Roots)
+	assert.Equal(t, []string{b2}, got.Missing)
+}

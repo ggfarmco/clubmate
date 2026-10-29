@@ -55,6 +55,8 @@ public struct Project: Codable, Sendable, Equatable {
     public let id: String
     public let name: String
     public let repos: [String]
+    public let roots: [String]
+    public let missing: [String]
     public let createdAt: Date
     public let home: Bool
     public let lastOpenedAt: Date?
@@ -64,6 +66,8 @@ public struct Project: Codable, Sendable, Equatable {
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         repos = try container.decode([String].self, forKey: .repos)
+        roots = try container.decodeIfPresent([String].self, forKey: .roots) ?? repos
+        missing = try container.decodeIfPresent([String].self, forKey: .missing) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         home = try container.decodeIfPresent(Bool.self, forKey: .home) ?? false
         lastOpenedAt = try container.decodeIfPresent(Date.self, forKey: .lastOpenedAt)

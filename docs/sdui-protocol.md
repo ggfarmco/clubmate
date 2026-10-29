@@ -125,6 +125,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | workspace.open | `{folders}` | `{id, created, clients}` |
 | workspace.home | none | `{id, clients}` |
 | workspace.touch | `{id}` | `{}` |
+| workspace.worktree.set | `{id, repo, path}` | project |
 | process.tree | `{projectId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 | session.send | `{id, text, enter}` | `{}` |
@@ -164,9 +165,11 @@ CLI over the registry:
 
 `project.open` fails with not found for an unknown project; otherwise it sends the `project.open` notification to every connection that registered `"project.open"` via `client.register`, except the caller, and returns how many were notified (`clients`). `clubmate workspace open --id <id>` calls it and, when `clients` is 0, runs `open -b com.clubmate.app --args --open-project <id>`.
 
-Projects are shown to users as workspaces; `clubmate project …` is an alias of `clubmate workspace …`. A project is `{id, name, repos, createdAt, home, lastOpenedAt}`; `lastOpenedAt` is `null` until the first `workspace.touch`; subscribing to a project's UI does not set it. `project.list` orders by `lastOpenedAt` then `createdAt`, newest first.
+Projects are shown to users as workspaces; `clubmate project …` is an alias of `clubmate workspace …`. A project is `{id, name, repos, roots, missing?, createdAt, home, lastOpenedAt}`; `lastOpenedAt` is `null` until the first `workspace.touch`; subscribing to a project's UI does not set it. `repos` are the workspace's folders. `roots` lists, in the same order, each folder's effective path: the directory selected for it with `workspace.worktree.set` (usually a git worktree of the folder), else the folder itself. A selection whose directory no longer exists falls back to the folder and is listed in `missing` (omitted when empty); it stays stored. Sessions created without `cwd` start in `roots[0]`. Clients that predate `roots` treat a missing one as `repos`. `project.list` orders by `lastOpenedAt` then `createdAt`, newest first.
 
 `workspace.open` resolves each folder path (symlinks resolved, cleaned), drops duplicates and returns the project whose repos are exactly that set (order-insensitive, stored repos resolved the same way) with `created: false`; otherwise it creates a project with the resolved folders, named after the base name of the first one (`project.created`), with `created: true`. Folders must be absolute paths to existing directories (otherwise invalid params, as is an empty `folders`). `workspace.home` returns the single `home: true` project, named `~` and rooted at the user's home directory, creating it (`project.created`) on first use. Both then send the `project.open` notification exactly like `project.open` (not to the caller) and return how many were notified (`clients`); `clubmate workspace open <dir>…` and `clubmate workspace home` run the app like `open --id` when `clients` is 0. `workspace.touch` sets `lastOpenedAt` to now (not found for an unknown project); clients call it when they activate a workspace. `project.rename` fails with invalid params on a blank name and publishes `project.updated`.
+
+`workspace.worktree.set` `{id, repo, path}` selects the directory a workspace folder points at. `repo` must equal an entry of `repos` exactly (otherwise invalid params `repo is not a folder of this workspace`). An empty `path`, or one equal to `repo`, clears the selection; any other `path` must be an absolute path to an existing directory (otherwise invalid params `path is not a directory`). It stores the selection, publishes `project.updated` with the full project and returns the project. Selections are deleted with the workspace and with the folder. Plugins call it as `pluginsdk.Host.SetWorktree`.
 
 `client.register` marks the calling connection for the listed handles: `"project.open"` and `"ui.confirm"`; anything else is invalid params. The app registers both. Registration lasts for the connection. Plugin callers get invalid params.
 
@@ -185,6 +188,7 @@ A capability is a generic name a command declares in `provides`, so callers need
 | `workspace.list` | `project.list` | none | ignored |
 | `workspace.open` | `workspace.open` | `{folders}` | ignored |
 | `workspace.home` | `workspace.home` | none | ignored |
+| `workspace.worktree.set` | `workspace.worktree.set` | `{id, repo, path?}` | ignored |
 | `session.list` | `session.list` (all workspaces) | none | ignored |
 | `session.create` | `session.create` (a login shell) | `{cwd?, title?}` | required, passed as the session's project |
 | `session.kill` (destructive) | `session.kill` | `{id}` | ignored; the approval names the session's own workspace |
@@ -233,7 +237,7 @@ When nvim reaches its left or right edge through the `clubmate` Lua module (see 
 
 ## File watching
 
-`fs.watch` starts one FSEvents stream over the project's repos as they are at call time (repos added later are not covered; call `fs.watch` again). It ends on `fs.unwatch` or when the connection closes. Repos that cannot be resolved (missing or deleted) are skipped and the rest are watched; a project with no resolvable repos gets a watch that never emits. When a repo is a linked git worktree (`.git` is a file with `gitdir: <path>`), the watch also covers that worktree's gitdir and the main repository's common dir (from `<gitdir>/commondir`), so commits, checkouts and ref updates made in the worktree emit paths under `<main>/.git/` (only `HEAD`, `index`, `refs/heads/**` and `worktrees/<name>/{HEAD,index}` are reported from inside `.git`). Roots are symlink-resolved, so paths are real paths (`/private/var/...`, not `/var/...`).
+`fs.watch` starts one FSEvents stream over the project's repos and roots (the union, deduplicated) as they are at call time (repos added or worktrees selected later are not covered; call `fs.watch` again). It ends on `fs.unwatch` or when the connection closes. Repos that cannot be resolved (missing or deleted) are skipped and the rest are watched; a project with no resolvable repos gets a watch that never emits. When a repo is a linked git worktree (`.git` is a file with `gitdir: <path>`), the watch also covers that worktree's gitdir and the main repository's common dir (from `<gitdir>/commondir`), so commits, checkouts and ref updates made in the worktree emit paths under `<main>/.git/` (only `HEAD`, `index`, `refs/heads/**` and `worktrees/<name>/{HEAD,index}` are reported from inside `.git`). Roots are symlink-resolved, so paths are real paths (`/private/var/...`, not `/var/...`).
 
 - `fs.changed` `{watch, projectId, paths, overflow}`: sent to the watching connection with a 200ms coalescing window. `paths` is deduplicated. Under any `.git/`, and under a linked worktree's gitdir and the main repository's common dir, only `HEAD`, `index`, `refs/heads/**` and `worktrees/<name>/{HEAD,index}` are reported. A window with more than 1000 paths, or one in which FSEvents reports dropped or coalesced events (MustScanSubDirs, KernelDropped, UserDropped), is sent as `overflow: true` with `paths: []`; the receiver rescans.
 
@@ -241,7 +245,7 @@ Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.Unwatch
 
 ## Bus topics
 
-- `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`) or it is renamed (`project.rename`). Existing `fs.watch` streams do not follow; re-watch on this event.
+- `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`), it is renamed (`project.rename`) or a folder's worktree selection changes (`workspace.worktree.set`). Existing `fs.watch` streams do not follow; re-watch on this event.
 - `editor.buffer` `{projectId, path}`: published by `editor-nvim` when nvim enters a file buffer (BufEnter). `path` is absolute, as nvim names the buffer.
 - `editor.saved` `{projectId, path}`: published by `editor-nvim` after nvim writes a file buffer (BufWritePost).
 - `processes.killed` `{projectId, pids}`: published by `processes` when auto-kill terminates orphans of a project; never published with empty `pids`.

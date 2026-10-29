@@ -182,6 +182,15 @@ func (s *Service) AddRepo(ctx context.Context, id, path string) (project.Project
 	return p, nil
 }
 
+func (s *Service) SetWorktree(ctx context.Context, id, repo, path string) (project.Project, error) {
+	p, err := s.projects.SetWorktree(ctx, id, repo, path)
+	if err != nil {
+		return project.Project{}, err
+	}
+	s.publish(ctx, "project.updated", map[string]any{"project": p})
+	return p, nil
+}
+
 func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if _, err := s.projects.Get(ctx, id); err != nil {
 		return err
@@ -474,8 +483,8 @@ func startedAfter(p proc.Process, startedAt time.Time) bool {
 }
 
 func defaultCwd(p project.Project) (string, error) {
-	if len(p.Repos) > 0 {
-		return p.Repos[0], nil
+	if len(p.Roots) > 0 {
+		return p.Roots[0], nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
