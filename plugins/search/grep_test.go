@@ -215,6 +215,43 @@ func TestGrepSkipsSymlinkedDirs(t *testing.T) {
 	}
 }
 
+func TestNestedFoldersListedOnce(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	repo := tempDir(t)
+	write(t, repo, ".gitignore", ".worktrees/\n")
+	write(t, repo, "a.txt", "hit\n")
+	worktree := filepath.Join(repo, ".worktrees", "x")
+	write(t, worktree, "b.txt", "hit\n")
+	plain := tempDir(t)
+	write(t, plain, "c.txt", "hit\n")
+	write(t, plain, "sub/d.txt", "hit\n")
+	for _, dir := range []string{repo, worktree} {
+		out, err := exec.Command("git", "-C", dir, "init", "-q").CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	tests := []struct {
+		name    string
+		folders []string
+		want    []string
+	}{
+		{name: "ignored worktree", folders: []string{repo, worktree}, want: []string{filepath.Join(repo, "a.txt"), filepath.Join(worktree, "b.txt")}},
+		{name: "plain nested", folders: []string{plain, filepath.Join(plain, "sub")}, want: []string{filepath.Join(plain, "c.txt"), filepath.Join(plain, "sub", "d.txt")}},
+	}
+	for _, tt := range tests {
+		for name, eng := range engines(t, tt.folders...) {
+			t.Run(tt.name+"/"+name, func(t *testing.T) {
+				got, _ := drain(t, newSearches(), eng, grepOptions{Query: "hit"})
+				var files []string
+				for _, m := range got {
+					files = append(files, m.AbsPath)
+				}
+				assert.ElementsMatch(t, tt.want, files)
+			})
+		}
+	}
+}
+
 func TestPreview(t *testing.T) {
 	dir := tempDir(t)
 	var b strings.Builder

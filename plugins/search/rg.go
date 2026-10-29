@@ -140,13 +140,14 @@ func (e rgEngine) read(stdout io.Reader, globs globFilter, emit serialEmit) (rgO
 	r := bufio.NewReaderSize(stdout, 64<<10)
 	var out rgOutcome
 	current := rgFile{}
+	seen := map[string]bool{}
 	for {
 		line, err := readEvent(r)
 		if len(line) > 0 && line[0] == '{' {
 			out.events++
 			switch {
 			case bytes.HasPrefix(line, []byte(`{"type":"begin"`)):
-				current = e.file(line, globs)
+				current = e.file(line, globs, seen)
 			case bytes.HasPrefix(line, []byte(`{"type":"match"`)) && !current.wanted:
 				if out.dropped++; out.dropped >= maxDropped {
 					out.truncated = true
@@ -164,12 +165,16 @@ func (e rgEngine) read(stdout io.Reader, globs globFilter, emit serialEmit) (rgO
 	}
 }
 
-func (e rgEngine) file(line []byte, globs globFilter) rgFile {
+func (e rgEngine) file(line []byte, globs globFilter, seen map[string]bool) rgFile {
 	var ev rgEvent
 	if err := json.Unmarshal(line, &ev); err != nil {
 		return rgFile{}
 	}
 	path := string(ev.Data.Path.value())
+	if seen[path] {
+		return rgFile{}
+	}
+	seen[path] = true
 	for _, r := range e.roots {
 		if rel, ok := strings.CutPrefix(path, r.resolved+"/"); ok {
 			return rgFile{root: r, rel: rel, wanted: globs.match(rel)}

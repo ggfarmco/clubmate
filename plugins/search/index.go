@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -43,19 +42,28 @@ func newIndex() index {
 
 func (x index) Files(ctx context.Context, folders []string) ([]string, error) {
 	var out []string
+	seen := map[string]bool{}
 	for _, r := range newRoots(folders) {
-		root, label := r.resolved, r.label
+		var listed []string
 		var err error
-		if x.isRepo(root) {
-			err = x.listRepo(ctx, root, label, &out)
+		if x.isRepo(r.resolved) {
+			err = x.listRepo(ctx, r.resolved, r.label, &listed)
 		} else {
-			err = x.walk(ctx, root, label, &out)
+			err = x.walk(ctx, r.resolved, r.label, &listed)
 		}
 		if err != nil {
 			return nil, err
 		}
-		if len(out) >= maxFiles {
-			return out[:maxFiles], nil
+		for _, path := range listed {
+			file := r.resolved + "/" + strings.TrimPrefix(path, join(r.label, ""))
+			if seen[file] {
+				continue
+			}
+			seen[file] = true
+			out = append(out, path)
+			if len(out) >= maxFiles {
+				return out, nil
+			}
 		}
 	}
 	return out, nil
@@ -185,21 +193,14 @@ func lsFiles(ctx context.Context, repo string, args ...string) ([]byte, error) {
 }
 
 func newRoots(folders []string) []root {
-	var all []root
+	var out []root
 	for i, label := range labels(folders) {
 		resolved, err := filepath.EvalSymlinks(folders[i])
 		if err != nil {
 			logError("resolve "+folders[i], err)
 			continue
 		}
-		all = append(all, root{folder: folders[i], resolved: resolved, label: label})
-	}
-	out := make([]root, 0, len(all))
-	for _, r := range all {
-		inner := slices.ContainsFunc(all, func(o root) bool { return o.resolved != r.resolved && within(o.resolved, r.resolved) })
-		if !inner {
-			out = append(out, r)
-		}
+		out = append(out, root{folder: folders[i], resolved: resolved, label: label})
 	}
 	return out
 }
