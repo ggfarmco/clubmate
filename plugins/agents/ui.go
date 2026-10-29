@@ -35,6 +35,7 @@ var (
 	errNoCheckpoint  = errors.New("no checkpoint to review yet")
 	errNoSignIn      = errors.New("the agent did not ask to sign in")
 	errSignIn        = errors.New("sign in to continue")
+	errNoSelection   = errors.New("no selection in the editor")
 )
 
 type authCommand struct {
@@ -348,6 +349,10 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		if ev.Action == actDelete {
+			p := a.projectState(ev.ProjectID)
+			a.uiMu.Lock()
+			delete(p.sessions, id)
+			a.uiMu.Unlock()
 			return a.deleteSession(ctx, s)
 		}
 		a.closeSession(ctx, s, false)
@@ -397,6 +402,9 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		var sel selection
 		if err := a.host.RunCommand(ctx, selectionCmd, ev.ProjectID, nil, &sel); err != nil {
 			return err
+		}
+		if sel.Path == "" {
+			return errNoSelection
 		}
 		a.addAttachment(st, attachment{Kind: "selection", Path: sel.Path, StartLine: sel.StartLine, EndLine: sel.EndLine, Text: sel.Text})
 		return nil

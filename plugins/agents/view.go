@@ -410,8 +410,10 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 
 func toolCard(id string, en *entry, expanded, reviewable bool) sdui.Node {
 	var f toolFields
-	if raw, err := json.Marshal(en.Tool); err == nil {
-		_ = json.Unmarshal(raw, &f)
+	for name, dst := range map[string]any{"title": &f.Title, "kind": &f.Kind, "status": &f.Status, "content": &f.Content, "locations": &f.Locations, "rawInput": &f.RawInput} {
+		if raw, ok := en.Tool[name]; ok {
+			_ = json.Unmarshal(raw, dst)
+		}
 	}
 	kind := f.Kind
 	if !slices.Contains(cardKinds, kind) {
