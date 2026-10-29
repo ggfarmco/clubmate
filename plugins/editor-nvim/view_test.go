@@ -15,3 +15,9 @@ func TestStatusView(t *testing.T) {
 	assert.Equal(t, "horizontal", n.Props["direction"])
 	assert.Equal(t, []string{"a/b.go", "INSERT", "gopls", "main"}, texts)
 }
+
+func TestReviewExcludesRejectShellSyntax(t *testing.T) {
+	assert.NoError(t, validExcludes([]string{"*_test.go", "**/go.sum"}))
+	assert.ErrorIs(t, validExcludes([]string{"*.go", "$HOME"}), errReviewExcludes)
+	assert.ErrorIs(t, validExcludes([]string{"`touch x`"}), errReviewExcludes)
+}

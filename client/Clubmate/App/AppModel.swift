@@ -507,6 +507,12 @@ enum WorkspaceOverlay: Equatable {
     case palette
     case goToFile
     case findInFiles
+    case picker
+}
+
+struct PickerRequest {
+    let model: FuzzyPickerModel
+    let choose: @MainActor (PickerItem) -> Void
 }
 
 @MainActor
@@ -517,16 +523,14 @@ final class ProjectSession {
     let banner = EventBanner()
     var overlay: WorkspaceOverlay?
     private(set) var findInFiles: FindInFilesModel?
+    private(set) var picker: PickerRequest?
     var thumbnail: NSImage?
     var autoNewRequest = 0
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: ProjectUIStore?
     @ObservationIgnored private let lookup: @MainActor () -> Project?
     @ObservationIgnored private(set) lazy var worktrees = WorktreeModel(
-        run: { [weak self] invocation in
-            guard let store = self?.store else { return .failure(.notRunning) }
-            return await store.run(invocation)
-        },
+        run: storeRun,
         project: { [weak self] in self?.lookup() },
         confirm: { message, detail in await Confirmation.ask(message, detail: detail, action: "Remove", destructive: true) },
         report: { [weak self] message in self?.banner.show(message) }
@@ -550,12 +554,50 @@ final class ProjectSession {
         }
     }
 
+    private var storeRun: FuzzyPickerModel.Run {
+        { [weak self] invocation in
+            guard let store = self?.store else { return .failure(.notRunning) }
+            return await store.run(invocation)
+        }
+    }
+
+    func openPicker(_ placeholder: String, source: @escaping FuzzyPickerModel.Source, choose: @escaping @MainActor (PickerItem) -> Void) {
+        picker?.model.cancel()
+        picker = PickerRequest(model: FuzzyPickerModel(placeholder: placeholder, source: source), choose: choose)
+        overlay = .picker
+    }
+
     func chooseWorktree() {
-        Task {
+        Task { [weak self] in
+            guard let worktrees = self?.worktrees else { return }
             await worktrees.menuOpened()
-            let trees = worktrees.worktrees
-            guard !trees.isEmpty, let index = await ChoicePrompt.ask("Switch Worktree", options: trees.map(worktrees.label), selected: trees.firstIndex { $0.current } ?? 0, action: "Switch") else { return }
-            await worktrees.switchTo(repo: trees[index].repo, path: trees[index].path)
+            self?.openPicker("Switch to worktree", source: FuzzyPickerModel.local { worktrees.pickerItems }) { [weak self] item in
+                guard let tree = worktrees.worktree(id: item.id) else { return }
+                self?.switchWorktree(tree)
+            }
+        }
+    }
+
+    func review(base: String?) {
+        run(ReviewCommand.start(base: base, head: worktrees.current?.path))
+    }
+
+    func chooseReviewBase(head: String?) {
+        openPicker("Review against branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
+            self?.run(ReviewCommand.start(base: item.id, head: head))
+        }
+    }
+
+    func chooseReviewHead(base: String) {
+        openPicker("Review worktree", source: FuzzyPickerModel.refs(run: storeRun, kinds: ["worktree"])) { [weak self] item in
+            self?.run(ReviewCommand.start(base: base, head: item.id))
+        }
+    }
+
+    func askReviewGlob() {
+        Task {
+            guard let glob = await TextPrompt.ask("Hide review files matching", text: "", action: "Hide"), !glob.isEmpty else { return }
+            run(ReviewCommand.glob(glob))
         }
     }
 
@@ -598,7 +640,12 @@ final class ProjectSession {
     }
 
     func close(_ overlay: WorkspaceOverlay) {
-        if self.overlay == overlay { self.overlay = nil }
+        guard self.overlay == overlay else { return }
+        self.overlay = nil
+        if overlay == .picker {
+            picker?.model.cancel()
+            picker = nil
+        }
     }
 
     func adopt(_ client: CoreClient, _ supervisor: ConnectionSupervisor) {

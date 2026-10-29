@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -83,8 +84,18 @@ func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, e
 	return map[string]any{"said": ev.Value, "plugin": h.PluginID()}, nil
 }
 
-func command(_ context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	if cmd.ID != h.PluginID()+".say" {
+		if _, err := h.Publish(ctx, "echo.command", map[string]any{"plugin": h.PluginID(), "id": cmd.ID, "args": cmd.Args}); err != nil {
+			return nil, err
+		}
+		canned := canned()
+		if msg, ok := canned.EchoErrors[cmd.ID]; ok {
+			return nil, errors.New(msg)
+		}
+		if result, ok := canned.EchoResults[cmd.ID]; ok {
+			return result, nil
+		}
 		return nil, fmt.Errorf("unknown command %q", cmd.ID)
 	}
 	return map[string]any{"plugin": h.PluginID(), "args": cmd.Args}, nil
@@ -139,4 +150,18 @@ func ownsSection(h *pluginsdk.Host) bool {
 		}
 	}
 	return false
+}
+
+type cannedReplies struct {
+	EchoResults map[string]json.RawMessage `json:"echoResults"`
+	EchoErrors  map[string]string          `json:"echoErrors"`
+}
+
+func canned() cannedReplies {
+	var m cannedReplies
+	raw, err := os.ReadFile("plugin.json")
+	if err != nil || json.Unmarshal(raw, &m) != nil {
+		return cannedReplies{}
+	}
+	return m
 }

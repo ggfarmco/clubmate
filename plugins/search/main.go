@@ -19,6 +19,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/fuzzy"
 )
 
 const (
@@ -95,7 +96,7 @@ type listing struct {
 	folders  []string
 	resolved []string
 	labels   []string
-	corpus   corpus
+	corpus   fuzzy.Corpus
 	capped   bool
 }
 
@@ -222,7 +223,7 @@ func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, projectID stri
 	}
 	limit = min(limit, maxLimit)
 	query, line := splitLine(args.Query)
-	ranked := list.corpus.rank(query, limit+1)
+	ranked := list.corpus.Rank(query, limit+1)
 	res := filesResult{Truncated: len(ranked) > limit, Capped: list.capped, Matches: make([]fileMatch, 0, min(len(ranked), limit))}
 	for _, m := range ranked[:min(len(ranked), limit)] {
 		res.Matches = append(res.Matches, fileMatch{Path: m.Path, AbsPath: list.abs(m.Path), Positions: m.Positions, Line: line})
@@ -436,7 +437,7 @@ func newListing(folders, paths []string) *listing {
 			resolved[i] = real
 		}
 	}
-	return &listing{folders: folders, resolved: resolved, labels: labels(folders), corpus: newCorpus(paths), capped: len(paths) >= maxFiles}
+	return &listing{folders: folders, resolved: resolved, labels: labels(folders), corpus: fuzzy.NewCorpus(paths), capped: len(paths) >= maxFiles}
 }
 
 func (l *listing) abs(path string) string {

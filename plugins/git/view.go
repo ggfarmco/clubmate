@@ -1,7 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,21 +20,14 @@ const (
 	groupStaged    = "staged"
 	groupChanges   = "changes"
 	groupUntracked = "untracked"
-	groupReview    = "review"
 	stageAction    = "stage"
 	unstageAction  = "unstage"
 	discardAction  = "discard"
 	openDiffAction = "open-diff"
 	commitAction   = "commit"
-	reviewAction   = "review"
-	endReviewID    = "end-review"
 	repoField      = "repo"
 	messageField   = "message"
 	submitID       = "submit"
-	reviewRepoID   = "review-repo"
-	reviewBaseID   = "base"
-	reviewHeadID   = "head"
-	reviewStartID  = "review-start"
 	missingDetail  = "missing"
 	notGitDetail   = "not a git repository"
 	maxDiffLines   = 2000
@@ -51,34 +46,11 @@ var groupTitles = []struct{ id, title string }{
 }
 
 type repoView struct {
-	Path        string
-	Branch      string
-	Problem     string
-	Entries     []gitrepo.Entry
-	Restorable  map[string]bool
-	Branches    []string
-	DefaultBase string
-	Review      reviewState
-}
-
-type reviewState struct {
-	Repo      string
-	Base      string
-	Head      string
-	MergeBase string
-	HeadSha   string
-	Entries   []gitrepo.Entry
-	Err       string
-}
-
-type reviewControls struct {
-	FormID   string
-	Repo     string
-	Branches []string
-	Base     string
-	Head     string
-	Active   bool
-	Err      string
+	Path       string
+	Branch     string
+	Problem    string
+	Entries    []gitrepo.Entry
+	Restorable map[string]bool
 }
 
 type leaf struct {
@@ -90,8 +62,6 @@ type leaf struct {
 	Dir        bool
 	Unmerged   bool
 	Restorable bool
-	Rev        string
-	Head       string
 }
 
 type mainModel struct {
@@ -101,7 +71,6 @@ type mainModel struct {
 	FormID  string
 	Busy    string
 	Failure string
-	Review  reviewControls
 }
 
 func (l leaf) id() string {
@@ -116,36 +85,8 @@ func (l leaf) rel() string {
 	return relPath(l.Repo, l.Path)
 }
 
-func (r reviewState) active() bool {
-	return r.Base != ""
-}
-
-func (r reviewState) same(repo, base, head string) bool {
-	return r.Repo == repo && r.Base == base && r.Head == head
-}
-
-func (r reviewState) branchHead() bool {
-	return r.Head != currentHead
-}
-
-func (r reviewState) title() string {
-	if r.branchHead() {
-		return "Review: " + r.Base + "..." + r.Head
-	}
-	return "Review: " + r.Base
-}
-
 func leaves(r repoView) []leaf {
 	var out []leaf
-	if r.Review.active() {
-		head := ""
-		if r.Review.branchHead() {
-			head = r.Review.HeadSha
-		}
-		for _, e := range r.Review.Entries {
-			out = append(out, leaf{Repo: r.Path, Group: groupReview, Path: e.Path, Code: string(e.X), Rev: r.Review.MergeBase, Head: head})
-		}
-	}
 	for _, e := range r.Entries {
 		if e.X == '?' && e.Y == '?' {
 			out = append(out, leaf{Repo: r.Path, Group: groupUntracked, Path: e.Path, Code: "U"})
@@ -180,9 +121,6 @@ func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui
 			continue
 		}
 		all := leaves(r)
-		if r.Review.active() {
-			root.Children = append(root.Children, groupItem(r.Path+idSep+groupReview, r.Review.title(), inGroup(all, groupReview), folded, &budget))
-		}
 		for _, g := range groupTitles {
 			if group := inGroup(all, g.id); len(group) > 0 {
 				root.Children = append(root.Children, groupItem(r.Path+idSep+g.id, g.title, group, folded, &budget))
@@ -235,7 +173,6 @@ func mainView(m mainModel) sdui.Node {
 		rel := sel.rel()
 		toolbar := []sdui.Node{mono(rel)}
 		switch sel.Group {
-		case groupReview:
 		case groupStaged:
 			toolbar = append(toolbar, sdui.Button(unstageAction, "Unstage", ""))
 		default:
@@ -250,9 +187,6 @@ func mainView(m mainModel) sdui.Node {
 		}
 		nodes = append(nodes, sdui.HStack(toolbar...), sdui.Scroll(m.Body))
 	}
-	if controls := reviewView(m.Review, m.Repos); len(controls) > 0 {
-		nodes = append(nodes, sdui.VStack(controls...))
-	}
 	var fields []sdui.Node
 	if len(m.Repos) > 1 {
 		value := m.Repos[0]
@@ -263,30 +197,6 @@ func mainView(m mainModel) sdui.Node {
 	}
 	fields = append(fields, sdui.TextField(messageField, "", "Commit message"), sdui.Button(submitID, "Commit", ""))
 	return sdui.VStack(append(nodes, sdui.WithAction(sdui.Form(m.FormID, fields...), commitAction))...)
-}
-
-func reviewView(c reviewControls, repos []string) []sdui.Node {
-	var nodes []sdui.Node
-	if c.Repo != "" {
-		var fields []sdui.Node
-		if len(repos) > 1 {
-			fields = append(fields, sdui.Select(reviewRepoID, repoOptions(repos), c.Repo))
-		}
-		options := make([]sdui.Option, len(c.Branches))
-		for i, b := range c.Branches {
-			options[i] = sdui.Option{Value: b, Label: b}
-		}
-		heads := append([]sdui.Option{{Value: currentHead, Label: "HEAD (current)"}}, options...)
-		fields = append(fields, sdui.Select(reviewBaseID, options, c.Base), sdui.Select(reviewHeadID, heads, c.Head), sdui.Button(reviewStartID, "Review Branch", ""))
-		nodes = append(nodes, sdui.WithAction(sdui.Form(c.FormID, fields...), reviewAction))
-	}
-	if c.Active {
-		nodes = append(nodes, sdui.Button(endReviewID, "End Review", ""))
-	}
-	if c.Err != "" {
-		nodes = append(nodes, sdui.Badge(c.Err, "danger"))
-	}
-	return nodes
 }
 
 func repoOptions(repos []string) []sdui.Option {
@@ -346,4 +256,185 @@ func relPath(repo, path string) string {
 		return rel
 	}
 	return path
+}
+
+type reviewHeader struct {
+	Base     string       `json:"base"`
+	Head     string       `json:"head"`
+	BaseRef  string       `json:"baseRef"`
+	HeadPath string       `json:"headPath"`
+	Mode     string       `json:"mode"`
+	Progress string       `json:"progress"`
+	Warning  string       `json:"warning,omitempty"`
+	Error    string       `json:"error,omitempty"`
+	Chips    []reviewChip `json:"chips"`
+}
+
+type reviewChip struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	On    bool   `json:"on"`
+}
+
+type dirNode struct {
+	path  string
+	dirs  map[string]*dirNode
+	files []reviewRow
+}
+
+func reviewView(r *review) sdui.Node {
+	if r == nil {
+		return sdui.Empty("")
+	}
+	rows, hidden := r.rows()
+	module := r.mode == moduleMode
+	header := reviewHeader{
+		Base:     cmp.Or(r.baseLabel, r.base),
+		Head:     cmp.Or(r.headLabel, filepath.Base(r.head)),
+		BaseRef:  r.base,
+		HeadPath: r.head,
+		Mode:     cmp.Or(r.mode, nativeMode),
+		Progress: progress(rows, hidden, module),
+		Warning:  r.warning,
+		Error:    r.err,
+		Chips:    r.filters.chips(),
+	}
+	root := buildDirs(rows)
+	node := root
+	var crumbs []sdui.Item
+	if r.focus != "" {
+		if n := root.find(r.focus); n != nil {
+			node = n
+			crumbs = breadcrumb(header.Head, r.focus)
+		}
+	}
+	budget := maxReviewItems - len(crumbs) - len(header.Chips)
+	items, more := node.items(r.folded, module, &budget)
+	if more > 0 {
+		items = append(items, sdui.TreeItem{ID: moreRowID, Label: fmt.Sprintf("… %d more", more), Muted: true})
+	}
+	tree := sdui.BreadcrumbTree(reviewTreeID, items, r.selected, crumbs)
+	tree.Props["review"] = header
+	return sdui.Scroll(tree)
+}
+
+func breadcrumb(head, focus string) []sdui.Item {
+	crumbs := []sdui.Item{{ID: rootCrumb, Label: head}}
+	parts := strings.Split(focus, "/")
+	for i := range parts {
+		crumbs = append(crumbs, sdui.Item{ID: strings.Join(parts[:i+1], "/"), Label: parts[i]})
+	}
+	return crumbs
+}
+
+func progress(rows []reviewRow, hidden int, module bool) string {
+	parts := []string{fmt.Sprintf("%d files", len(rows))}
+	if len(rows) == 1 {
+		parts[0] = "1 file"
+	}
+	if hidden > 0 {
+		parts = append(parts, fmt.Sprintf("%d hidden", hidden))
+	}
+	if module {
+		done := 0
+		for _, row := range rows {
+			if row.Reviewed {
+				done++
+			}
+		}
+		parts = append(parts, fmt.Sprintf("%d/%d reviewed", done, len(rows)))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func buildDirs(rows []reviewRow) *dirNode {
+	root := &dirNode{path: rootCrumb, dirs: map[string]*dirNode{}}
+	for _, row := range rows {
+		n := root
+		parts := strings.Split(row.Path, "/")
+		for i, part := range parts[:len(parts)-1] {
+			child := n.dirs[part]
+			if child == nil {
+				child = &dirNode{path: strings.Join(parts[:i+1], "/"), dirs: map[string]*dirNode{}}
+				n.dirs[part] = child
+			}
+			n = child
+		}
+		n.files = append(n.files, row)
+	}
+	return root
+}
+
+func (n *dirNode) find(path string) *dirNode {
+	for part := range strings.SplitSeq(path, "/") {
+		if n = n.dirs[part]; n == nil {
+			return nil
+		}
+	}
+	return n
+}
+
+func (n *dirNode) items(folded map[string]bool, module bool, budget *int) ([]sdui.TreeItem, int) {
+	var items []sdui.TreeItem
+	skipped := 0
+	for _, name := range slices.Sorted(maps.Keys(n.dirs)) {
+		child, label := n.dirs[name], name
+		for len(child.files) == 0 && len(child.dirs) == 1 {
+			for only, next := range child.dirs {
+				child, label = next, label+chainSeparator+only
+			}
+		}
+		if *budget <= 0 {
+			skipped += child.size()
+			continue
+		}
+		*budget--
+		children, more := child.items(folded, module, budget)
+		skipped += more
+		items = append(items, sdui.TreeItem{ID: child.path, Label: label, HasChildren: true, Expanded: !folded[child.path], Children: children})
+	}
+	for _, f := range n.sortedFiles() {
+		if *budget <= 0 {
+			skipped++
+			continue
+		}
+		*budget--
+		item := sdui.TreeItem{ID: f.Path, Label: filepath.Base(f.Path), Badge: f.Status, Additions: f.Additions, Deletions: f.Deletions}
+		if module {
+			item.Reviewed, item.Comments = f.Reviewed, f.Comments
+		}
+		items = append(items, item)
+	}
+	return items, skipped
+}
+
+func (n *dirNode) size() int {
+	total := len(n.files)
+	for _, d := range n.dirs {
+		total += d.size()
+	}
+	return total
+}
+
+func (n *dirNode) order() []string {
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(n.dirs)) {
+		out = append(out, n.dirs[name].order()...)
+	}
+	for _, f := range n.sortedFiles() {
+		out = append(out, f.Path)
+	}
+	return out
+}
+
+func (n *dirNode) sortedFiles() []reviewRow {
+	return slices.SortedFunc(slices.Values(n.files), func(a, b reviewRow) int { return strings.Compare(a.Path, b.Path) })
+}
+
+func (f filters) chips() []reviewChip {
+	chips := []reviewChip{{ID: "tests", Label: "Tests", On: f.Tests}, {ID: "generated", Label: "Generated", On: f.Generated}}
+	if f.Glob != "" {
+		chips = append(chips, reviewChip{ID: "glob", Label: f.Glob, On: true})
+	}
+	return chips
 }

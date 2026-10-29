@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
@@ -196,7 +197,7 @@ func TestBlockedNvimTimesOut(t *testing.T) {
 		return m.Blocking
 	}, 5*time.Second)
 	start := time.Now()
-	require.ErrorContains(t, e.open(t, path, 2), "nvim rpc timed out")
+	require.ErrorContains(t, e.open(t, path, 2), "Neovim is waiting for input")
 	assert.Less(t, time.Since(start), blockedBudget)
 	_, err = v.Input("<CR>")
 	require.NoError(t, err)
@@ -220,6 +221,7 @@ func TestPluginRestartReconnects(t *testing.T) {
 	assert.Equal(t, second, eval[string](t, v, "expand('%:p')"))
 	assert.Equal(t, pid, eval[int](t, v, "getpid()"))
 	assert.Equal(t, []string{e.sessionID}, e.running(t))
+	assert.Equal(t, []string{e.projectID + " " + e.repo}, e.started(t))
 }
 
 func TestExitedShowsRestart(t *testing.T) {
@@ -236,6 +238,7 @@ func TestExitedShowsRestart(t *testing.T) {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
+	testutil.Eventually(t, func() bool { return len(e.started(t)) == 2 }, 5*time.Second)
 }
 
 func TestRestartRefusesUnsavedBuffers(t *testing.T) {
@@ -475,6 +478,111 @@ func TestReviewWithoutDiffview(t *testing.T) {
 	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
 }
 
+func TestReviewModuleBridge(t *testing.T) {
+	fork := cmp.Or(os.Getenv("CLUBMATE_DIFFVIEW_FORK"), filepath.Join(os.Getenv("HOME"), "develop/norimori/ggfarmco/diffview.nvim/.worktrees/clubmate-api"))
+	if _, err := os.Stat(filepath.Join(fork, "lua", "diffview", "clubmate.lua")); err != nil {
+		t.Skip("diffview fork worktree not found")
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	e := startEditorIn(t, setup{initLua: "vim.opt.rtp:prepend(" + strconv.Quote(fork) + ")\nrequire(\"diffview\").setup({ use_icons = false })"})
+	a := e.file(t, "a.go")
+	test := e.file(t, "a_test.go")
+	e.file(t, "pkg/b.go")
+	gitIn(t, e.repo, "init", "-q")
+	gitIn(t, e.repo, "add", ".")
+	gitIn(t, e.repo, "commit", "-qm", "init")
+	require.NoError(t, os.WriteFile(a, []byte("changed\n"), 0o600))
+	require.NoError(t, os.WriteFile(test, []byte("changed\n"), 0o600))
+	e.file(t, "new.txt")
+	var open struct {
+		Mode string `json:"mode"`
+	}
+	e.run(t, "review-open", map[string]any{"cwd": filepath.Join(e.repo, "pkg"), "base": "HEAD", "excludes": []string{"*_test.go"}}, &open)
+	assert.Equal(t, "module", open.Mode)
+	type entry struct {
+		Path      string `json:"path"`
+		Status    string `json:"status"`
+		Additions int    `json:"additions"`
+		Deletions int    `json:"deletions"`
+		Reviewed  bool   `json:"reviewed"`
+		Comments  int    `json:"comments"`
+	}
+	entries := func() []entry {
+		var out []entry
+		e.run(t, "review-entries", nil, &out)
+		return out
+	}
+	testutil.Eventually(t, func() bool { return len(entries()) == 2 }, 10*time.Second)
+	assert.Equal(t, []entry{{"a.go", "M", 1, 5, false, 0}, {"new.txt", "?", 5, 0, false, 0}}, entries())
+	type change struct {
+		ProjectID string `json:"projectId"`
+		Root      string `json:"root"`
+		Kind      string `json:"kind"`
+		Path      string `json:"path"`
+	}
+	changed := func(want change) bool {
+		events, err := e.h.Bus.Read(t.Context(), "review.changed", 0, 1000)
+		require.NoError(t, err)
+		return slices.ContainsFunc(events, func(ev bus.Event) bool {
+			var c change
+			require.NoError(t, json.Unmarshal(ev.Payload, &c))
+			return c == want
+		})
+	}
+	testutil.Eventually(t, func() bool {
+		return changed(change{e.projectID, e.repo, "files_updated", ""}) && changed(change{e.projectID, e.repo, "file_open", "a.go"})
+	}, 5*time.Second)
+	var reviewed struct {
+		Reviewed bool `json:"reviewed"`
+	}
+	e.run(t, "review-reviewed", map[string]any{"path": "a.go"}, &reviewed)
+	assert.True(t, reviewed.Reviewed)
+	e.run(t, "review-reviewed", map[string]any{"path": "a.go", "reviewed": true}, &reviewed)
+	assert.True(t, reviewed.Reviewed)
+	assert.True(t, entries()[0].Reviewed)
+	testutil.Eventually(t, func() bool { return changed(change{e.projectID, e.repo, "reviewed", "a.go"}) }, 5*time.Second)
+	var next struct {
+		Path string `json:"path"`
+	}
+	e.run(t, "review-next", map[string]any{"dir": 1}, &next)
+	assert.Equal(t, "new.txt", next.Path)
+	e.run(t, "review-excludes", map[string]any{"excludes": []string{}}, nil)
+	testutil.Eventually(t, func() bool {
+		return slices.ContainsFunc(entries(), func(en entry) bool { return en.Path == "a_test.go" })
+	}, 10*time.Second)
+	e.run(t, "review-select", map[string]any{"path": "a_test.go"}, nil)
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "bufname()") == test }, 5*time.Second)
+
+	closed := change{e.projectID, e.repo, "closed", ""}
+	e.run(t, "review-open", map[string]any{"cwd": e.repo, "base": "HEAD"}, &open)
+	testutil.Eventually(t, func() bool { return len(entries()) == 3 }, 10*time.Second)
+	assert.False(t, changed(closed), "replacing the review is not a user close")
+	require.NoError(t, v.Command("DiffviewClose"))
+	testutil.Eventually(t, func() bool { return changed(closed) }, 5*time.Second)
+}
+
+func TestReviewModuleOpenFailureIsAnError(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: `package.loaded["diffview.clubmate"] = { version = 1, subscribe = function() end, close = function() end, open = function() return nil end }`})
+	gitIn(t, e.repo, "init", "-q")
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review-open", "projectId": e.projectID, "args": map[string]any{"cwd": e.repo, "base": "HEAD"}}, nil)
+	require.ErrorContains(t, err, "diffview opened no review")
+}
+
+func TestReviewFallbackWithoutModule(t *testing.T) {
+	e := startEditor(t)
+	gitIn(t, e.repo, "init", "-q")
+	var open struct {
+		Mode string `json:"mode"`
+	}
+	e.run(t, "review-open", map[string]any{"cwd": e.repo, "base": "HEAD", "excludes": []string{"*_test.go"}}, &open)
+	assert.Equal(t, "native", open.Mode)
+	var entries json.RawMessage
+	e.run(t, "review-entries", nil, &entries)
+	assert.JSONEq(t, "[]", string(entries))
+}
+
 func TestDiffRevBase(t *testing.T) {
 	e := startEditor(t)
 	a := filepath.Join(e.repo, "a.go")
@@ -650,18 +758,13 @@ func startWorktreeEditor(t *testing.T, s setup) (*editor, string) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	e := startEditorIn(t, s)
-	git := func(args ...string) string {
-		out, err := exec.Command("git", append([]string{"-C", e.top, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
-		require.NoError(t, err, string(out))
-		return string(out)
-	}
 	e.file(t, "a.go")
-	git("init", "-q")
-	git("add", ".")
-	git("commit", "-qm", "init")
-	git("worktree", "add", "-q", filepath.Join(e.top, ".worktrees", "feat"), "-b", "feat")
+	gitIn(t, e.top, "init", "-q")
+	gitIn(t, e.top, "add", ".")
+	gitIn(t, e.top, "commit", "-qm", "init")
+	gitIn(t, e.top, "worktree", "add", "-q", filepath.Join(e.top, ".worktrees", "feat"), "-b", "feat")
 	var trees []string
-	for line := range strings.Lines(git("worktree", "list", "--porcelain")) {
+	for line := range strings.Lines(gitIn(t, e.top, "worktree", "list", "--porcelain")) {
 		if tree, ok := strings.CutPrefix(strings.TrimSpace(line), "worktree "); ok {
 			trees = append(trees, tree)
 		}
@@ -765,6 +868,18 @@ func (e *editor) review(t *testing.T, repo, base, head string) string {
 	return res.Mode
 }
 
+func (e *editor) run(t *testing.T, name string, args, res any) {
+	t.Helper()
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim." + name, "projectId": e.projectID, "args": args}, res))
+}
+
+func gitIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+	require.NoError(t, err, string(out))
+	return string(out)
+}
+
 func openLog(t *testing.T, v *nvim.Nvim, repo, base, head string) string {
 	t.Helper()
 	return eval[string](t, v, "'-C' . fnameescape('"+repo+"') . ' "+base+"..."+head+"'")
@@ -856,6 +971,22 @@ func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
 			return rpc.Notification{}, false
 		}
 	}
+}
+
+func (e *editor) started(t *testing.T) []string {
+	t.Helper()
+	events, err := e.h.Bus.Read(t.Context(), "editor.started", 0, 100)
+	require.NoError(t, err)
+	var out []string
+	for _, ev := range events {
+		var p struct {
+			ProjectID string `json:"projectId"`
+			Root      string `json:"root"`
+		}
+		require.NoError(t, json.Unmarshal(ev.Payload, &p))
+		out = append(out, p.ProjectID+" "+p.Root)
+	}
+	return out
 }
 
 func (e *editor) waitBuffer(t *testing.T, path string) {

@@ -5,16 +5,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
 const (
-	timeout   = 10 * time.Second
-	waitDelay = 2 * time.Second
+	timeout       = 10 * time.Second
+	waitDelay     = 2 * time.Second
+	maxCountBytes = 1 << 20
 )
 
 var (
@@ -27,6 +33,13 @@ var (
 type Entry struct {
 	Path, Orig string
 	X, Y       byte
+}
+
+type Change struct {
+	Path      string
+	Status    string
+	Additions int
+	Deletions int
 }
 
 func Run(ctx context.Context, repo string, args ...string) ([]byte, error) {
@@ -210,30 +223,23 @@ func MergeBase(ctx context.Context, repo, base, head string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func Commit(ctx context.Context, repo, ref string) (string, error) {
-	out, err := Run(ctx, repo, "rev-parse", "-q", "--verify", ref+"^{commit}")
+func Branches(ctx context.Context, repo string) ([]string, []string, error) {
+	out, err := Run(ctx, repo, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes")
 	if err != nil {
-		return "", fmt.Errorf("%w: %s", ErrUnknownRef, ref)
+		return nil, nil, err
 	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-func Branches(ctx context.Context, repo string) ([]string, error) {
-	out, err := Run(ctx, repo, "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes")
-	if err != nil {
-		return nil, err
-	}
-	branches := []string{}
-	for _, name := range strings.Split(string(out), "\n") {
-		if name == "" || name == "origin/HEAD" || name == "origin" {
-			continue
+	var local, remote []string
+	for name := range strings.SplitSeq(string(out), "\n") {
+		if short, ok := strings.CutPrefix(name, "refs/heads/"); ok {
+			local = append(local, short)
+		} else if short, ok := strings.CutPrefix(name, "refs/remotes/"); ok && !strings.HasSuffix(short, "/HEAD") {
+			remote = append(remote, short)
 		}
-		branches = append(branches, name)
 	}
-	return branches, nil
+	return local, remote, nil
 }
 
-func ChangedSince(ctx context.Context, repo, rev, head string) ([]Entry, error) {
+func WorkingChanges(ctx context.Context, repo, rev string) ([]Change, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	out, err := run(ctx, repo, nil, "rev-parse", "--show-toplevel")
@@ -241,17 +247,74 @@ func ChangedSince(ctx context.Context, repo, rev, head string) ([]Entry, error) 
 		return nil, err
 	}
 	top := strings.TrimSuffix(string(out), "\n")
-	out, err = run(ctx, repo, nil, "diff", "--name-status", "-z", "--no-renames", rev, head, "--")
+	status, err := run(ctx, top, nil, "diff", "--name-status", "-z", "--no-renames", rev, "--")
 	if err != nil {
 		return nil, err
 	}
-	entries := []Entry{}
-	fields := bytes.Split(out, []byte{0})
+	stats, err := run(ctx, top, nil, "diff", "--numstat", "-z", "--no-renames", rev, "--")
+	if err != nil {
+		return nil, err
+	}
+	untracked, err := run(ctx, top, nil, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return nil, err
+	}
+	byPath := map[string]*Change{}
+	var changes []Change
+	fields := bytes.Split(status, []byte{0})
 	for i := 0; i+1 < len(fields); i += 2 {
 		if len(fields[i]) == 0 {
 			break
 		}
-		entries = append(entries, Entry{X: fields[i][0], Y: ' ', Path: abs(top, string(fields[i+1]))})
+		changes = append(changes, Change{Path: string(fields[i+1]), Status: string(fields[i][:1])})
 	}
-	return entries, nil
+	for i := range changes {
+		byPath[changes[i].Path] = &changes[i]
+	}
+	for line := range bytes.SplitSeq(stats, []byte{0}) {
+		parts := strings.SplitN(string(line), "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		if c := byPath[parts[2]]; c != nil {
+			c.Additions, _ = strconv.Atoi(parts[0])
+			c.Deletions, _ = strconv.Atoi(parts[1])
+		}
+	}
+	for p := range bytes.SplitSeq(untracked, []byte{0}) {
+		if len(p) > 0 {
+			changes = append(changes, Change{Path: string(p), Status: "?", Additions: countLines(filepath.Join(top, string(p)))})
+		}
+	}
+	slices.SortFunc(changes, func(a, b Change) int { return strings.Compare(a.Path, b.Path) })
+	return changes, nil
+}
+
+func countLines(path string) int {
+	info, err := os.Lstat(path)
+	switch {
+	case err != nil:
+		return 0
+	case info.Mode()&fs.ModeSymlink != 0:
+		return 1
+	case !info.Mode().IsRegular():
+		return 0
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+		return 0
+	}
+	data, _ := io.ReadAll(io.LimitReader(f, maxCountBytes))
+	if len(data) == 0 || bytes.IndexByte(data, 0) >= 0 {
+		return 0
+	}
+	n := bytes.Count(data, []byte{'\n'})
+	if data[len(data)-1] != '\n' {
+		n++
+	}
+	return n
 }

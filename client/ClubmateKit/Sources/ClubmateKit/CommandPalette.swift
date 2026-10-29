@@ -14,47 +14,7 @@ public struct PaletteEntry: Hashable, Sendable {
 
 public enum CommandPalette {
     public static func rank(_ entries: [PaletteEntry], query: String) -> [PaletteEntry] {
-        guard !query.isEmpty else { return entries }
-        let needle = query.map { String($0).lowercased() }
-        return entries.enumerated()
-            .compactMap { index, entry in score(entry.title, needle).map { (rank: $0, index: index, entry: entry) } }
-            .sorted { ($0.rank, $0.index) < ($1.rank, $1.index) }
-            .map(\.entry)
-    }
-
-    private static func score(_ title: String, _ needle: [String]) -> Int? {
-        let characters = Array(title)
-        let haystack = characters.map { String($0).lowercased() }
-        guard isSubsequence(needle, of: haystack) else { return nil }
-        if haystack.starts(with: needle) { return 0 }
-        let starts = characters.indices.map { $0 == 0 || !isWordCharacter(characters[$0 - 1]) }
-        return matchesWordStarts(needle, haystack, starts) ? 1 : 2
-    }
-
-    private static func isSubsequence(_ needle: [String], of haystack: [String]) -> Bool {
-        var remaining = needle[...]
-        for character in haystack where character == remaining.first {
-            remaining = remaining.dropFirst()
-            if remaining.isEmpty { return true }
-        }
-        return remaining.isEmpty
-    }
-
-    private static func matchesWordStarts(_ needle: [String], _ haystack: [String], _ starts: [Bool]) -> Bool {
-        var memo: [[Bool?]] = Array(repeating: Array(repeating: nil, count: haystack.count + 1), count: needle.count)
-        func match(_ next: Int, _ index: Int) -> Bool {
-            guard next < needle.count else { return true }
-            if let known = memo[next][index] { return known }
-            let found = (index < haystack.count && haystack[index] == needle[next] && match(next + 1, index + 1))
-                || (index..<haystack.count).contains { starts[$0] && haystack[$0] == needle[next] && match(next + 1, $0 + 1) }
-            memo[next][index] = found
-            return found
-        }
-        return match(0, 0)
-    }
-
-    private static func isWordCharacter(_ character: Character) -> Bool {
-        character.isLetter || character.isNumber
+        FuzzyRank.rank(entries, query: query, text: \.title)
     }
 }
 
@@ -83,11 +43,12 @@ public enum PaletteAction: Hashable, Sendable {
     case switchWorktree
     case newWorktree
     case removeWorktree
+    case review
 
     private static let fixed: [PaletteAction] = [
         .toggleSidebar, .toggleNavigationKeys, .openFolder, .newHomeTerminal,
         .renameWorkspace, .closeWorkspace, .removeWorkspace, .moveWorkspaceToNewWindow,
-        .switchWorktree, .newWorktree, .removeWorktree,
+        .switchWorktree, .newWorktree, .removeWorktree, .review,
     ]
 
     public init?(entryID: String) {
@@ -120,6 +81,7 @@ public enum PaletteAction: Hashable, Sendable {
         case .switchWorktree: "switch-worktree"
         case .newWorktree: "new-worktree"
         case .removeWorktree: "remove-worktree"
+        case .review: "review"
         }
     }
 }
@@ -144,6 +106,7 @@ extension CommandPalette {
         var entries = [
             PaletteEntry(id: PaletteAction.switchWorktree.entryID, title: "Switch Worktree…", detail: ""),
             PaletteEntry(id: PaletteAction.newWorktree.entryID, title: "New Worktree…", detail: ""),
+            PaletteEntry(id: PaletteAction.review.entryID, title: "Review…", detail: ""),
         ]
         if worktrees.contains(where: { !$0.main }) {
             entries.append(PaletteEntry(id: PaletteAction.removeWorktree.entryID, title: "Remove Worktree…", detail: ""))

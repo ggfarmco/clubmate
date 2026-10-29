@@ -5,7 +5,7 @@
   "protocol": 1,
   "command": ["git"],
   "contributes": {
-    "sections": [{"id": "git", "title": "Git", "icon": "arrow.triangle.branch", "order": 15}],
+    "sections": [{"id": "git", "title": "Git", "icon": "arrow.triangle.branch", "order": 15, "slots": ["review"]}],
     "commands": [
       {
         "id": "git.refresh",
@@ -27,24 +27,76 @@
         "description": "Unstage all staged changes in every workspace repo."
       },
       {
-        "id": "git.review-branch",
+        "id": "git.review",
         "provides": ["git.review"],
         "title": "Review Branch",
+        "hidden": true,
         "agent": true,
-        "description": "Review the current branch of the selected (or first) workspace repo against its default base branch in the editor."
+        "description": "Review a worktree's working state (uncommitted and untracked files included) against the merge-base of a base and that worktree, in the editor and the git.review list. Non-destructive.",
+        "args": {
+          "properties": {
+            "base": {"type": "string", "description": "Branch, remote branch or worktree root to compare against; defaults to the repo's default base (origin/HEAD, main or master). A worktree root means its branch."},
+            "head": {"type": "string", "description": "Worktree root, or a branch checked out in a worktree, to review; defaults to the current worktree of the first git folder. The folder switches to it."}
+          }
+        }
+      },
+      {
+        "id": "git.review-branch",
+        "title": "Review Branch (alias)",
+        "hidden": true,
+        "agent": false,
+        "description": "Alias of git.review.",
+        "args": {
+          "properties": {
+            "base": {"type": "string", "description": "As for git.review."},
+            "head": {"type": "string", "description": "As for git.review."}
+          }
+        }
+      },
+      {
+        "id": "git.review-swap",
+        "title": "Swap Review Sides",
+        "agent": true,
+        "description": "Swap base and head of the current review: the base's worktree becomes the reviewed head and the old head becomes the base. Fails when the base is not checked out in a worktree."
+      },
+      {
+        "id": "git.review-filter",
+        "title": "Filter Review Files",
+        "hidden": true,
+        "agent": true,
+        "description": "Hide or show files in the current review (and the workspace's default for new reviews). Omitted fields keep their value.",
+        "args": {
+          "properties": {
+            "tests": {"type": "boolean", "description": "Hide test files (*_test.go, **/testdata/**, *.spec.*, *.test.*)."},
+            "generated": {"type": "boolean", "description": "Hide generated files (go.sum, go.mod, *-lock.json, *-lock.yaml, *.lock, *.pb.go)."},
+            "glob": {"type": "string", "description": "One custom glob to hide; empty clears it."}
+          }
+        }
+      },
+      {
+        "id": "git.review-refs",
+        "title": "Review Refs",
+        "hidden": true,
+        "agent": false,
+        "description": "Fuzzy-ranked refs for the review pickers: [{ref, kind, label}], worktrees first, then local branches, then remote branches. The head worktree and its branch are left out.",
+        "args": {
+          "properties": {
+            "query": {"type": "string", "description": "Fuzzy query; empty lists everything in order."}
+          }
+        }
       },
       {
         "id": "git.end-review",
         "title": "End Review",
         "agent": true,
-        "description": "End the branch review and close its editor tab."
+        "description": "End the current review and close its editor tab."
       },
       {
         "id": "git.worktrees",
         "title": "List Worktrees",
         "hidden": true,
         "agent": true,
-        "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, main, current}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, and current marks the worktree the folder is switched to."
+        "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, main, current, defaultBase}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, current marks the worktree the folder is switched to, and defaultBase is the base git.review uses without one (origin/HEAD, main or master; omitted when none)."
       },
       {
         "id": "git.worktree-switch",

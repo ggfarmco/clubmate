@@ -52,6 +52,25 @@ func TestViewOwnsForeignSlot(t *testing.T) {
 	assert.Equal(t, "beta", res["plugin"])
 }
 
+func TestDeclaredExtraSlot(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha","slots":["review"]}]}`)))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()
+		return len(st) == 1 && st[0].State == plugin.StateRunning
+	}, 5*time.Second)
+	p := h.CreateProject(t, "demo")
+	tree := map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}
+	render := func(slot string) error {
+		return h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": slot, "tree": tree})
+	}
+	require.NoError(t, render("alpha.review"))
+	assert.ErrorIs(t, render("alpha.other"), rpc.ErrInvalidParams)
+	var res map[string]any
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.review", "nodeId": "x", "action": "say", "value": "hi"}, &res))
+	assert.Equal(t, "alpha", res["plugin"])
+}
+
 func TestPresenceEvents(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)

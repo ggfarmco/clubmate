@@ -34,6 +34,9 @@ const (
 	sidebarSlot    = "editor-nvim.sidebar"
 	edgeEvent      = "edge"
 	openErrorEvent = "open_error"
+	reviewEvent    = "review"
+	reviewTopic    = "review.changed"
+	startedTopic   = "editor.started"
 	openErrorMax   = 80
 	revPrefix      = "rev:"
 	shortSHA       = 7
@@ -61,6 +64,10 @@ var (
 	errRelativePath   = errors.New("diff: path must be absolute")
 	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
 	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
+	errReviewOpen     = errors.New("review-open: cwd must be absolute and base a ref")
+	errReviewExcludes = errors.New("review: excludes must be non-empty globs of letters, digits and * ? [ ] { } , . _ - / !")
+	errReviewPath     = errors.New("review: path is required")
+	errReviewDir      = errors.New("review-next: dir must be 1 or -1")
 	errStopRoot       = errors.New("stop-root: root must be absolute")
 	errStopping       = errors.New("the worktree is being removed")
 	errNavigationSide = errors.New("navigation: side must be left or right")
@@ -102,6 +109,11 @@ type quickfixItem struct {
 	Text string `json:"text" msgpack:"text"`
 }
 
+type rootEvent struct {
+	ProjectID string `json:"projectId"`
+	Root      string `json:"root"`
+}
+
 type pathEvent struct {
 	ProjectID string `json:"projectId"`
 	Path      string `json:"path"`
@@ -122,6 +134,53 @@ type reviewArgs struct {
 
 type reviewResult struct {
 	Mode string `json:"mode"`
+}
+
+type reviewOpenArgs struct {
+	Cwd      string   `json:"cwd"`
+	Base     string   `json:"base"`
+	Excludes []string `json:"excludes"`
+}
+
+type reviewPathArgs struct {
+	Path string `json:"path"`
+}
+
+type reviewReviewedArgs struct {
+	Path     string `json:"path"`
+	Reviewed *bool  `json:"reviewed"`
+}
+
+type reviewNextArgs struct {
+	Dir int `json:"dir"`
+}
+
+type reviewExcludesArgs struct {
+	Excludes []string `json:"excludes"`
+}
+
+type reviewedResult struct {
+	Reviewed bool `json:"reviewed"`
+}
+
+type reviewNextResult struct {
+	Path string `json:"path"`
+}
+
+type reviewEntry struct {
+	Path      string `json:"path" msgpack:"path"`
+	Status    string `json:"status" msgpack:"status"`
+	Additions int    `json:"additions" msgpack:"additions"`
+	Deletions int    `json:"deletions" msgpack:"deletions"`
+	Reviewed  bool   `json:"reviewed" msgpack:"reviewed"`
+	Comments  int    `json:"comments" msgpack:"comments"`
+}
+
+type reviewChanged struct {
+	ProjectID string `json:"projectId"`
+	Root      string `json:"root"`
+	Kind      string `json:"kind"`
+	Path      string `json:"path,omitempty"`
 }
 
 type terminalArgs struct {
@@ -358,6 +417,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, fmt.Errorf("review args: %w", err)
 		}
 		return a.review(ctx, h, cmd.ProjectID, args)
+	case "review-open":
+		var args reviewOpenArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("review-open args: %w", err)
+		}
+		return a.reviewOpen(ctx, h, cmd.ProjectID, args)
 	case "stop-root":
 		var args stopRootArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -403,6 +468,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, c.closeReview()
 		}
 		return nil, nil
+	case "review-entries", "review-select", "review-reviewed", "review-next", "review-excludes":
+		return reviewCommand(e.connected(), name, cmd.Args)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -639,7 +706,7 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	if c := e.connected(); c != nil {
 		return c, nil
 	}
-	s, sock, err := a.session(ctx, h, e)
+	s, sock, created, err := a.session(ctx, h, e)
 	if errors.Is(err, errNvimNotInPATH) {
 		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, missingView(errors.Is(err, errSystemNvimMissing))))
 	}
@@ -656,6 +723,10 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	}
 	e.setClient(c)
 	a.applyNavigation(ctx, h, c)
+	if created {
+		_, err := h.Publish(ctx, startedTopic, rootEvent{ProjectID: e.id, Root: e.root})
+		logError(startedTopic, err)
+	}
 	return c, nil
 }
 
@@ -700,36 +771,36 @@ func (a *app) applyNavigation(ctx context.Context, h *pluginsdk.Host, c *client)
 	}
 }
 
-func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string, string, error) {
+func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string, string, bool, error) {
 	sessions, err := h.ListSessions(ctx, e.id, true)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	for _, s := range sessions {
 		if sock, ok := ownedSocket(s, e.id, e.root); ok {
-			return s.ID, sock, nil
+			return s.ID, sock, false, nil
 		}
 	}
 	sock, err := socketPath(pluginsdk.RuntimeDir(), e.id, e.root)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	path, env, unset, pathAppend, err := a.nvimCommand(ctx, h)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	if err := a.render(ctx, h, e, mainSlot, startingView()); err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	for _, s := range sessions {
 		if s.State != stateRunning {
 			if err := h.RemoveSession(ctx, s.ID); err != nil {
-				return "", "", err
+				return "", "", false, err
 			}
 		}
 	}
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", "", fmt.Errorf("remove stale socket: %w", err)
+		return "", "", false, fmt.Errorf("remove stale socket: %w", err)
 	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
 		ProjectID:  e.id,
@@ -740,7 +811,7 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string
 		UnsetEnv:   unset,
 		PathAppend: pathAppend,
 	})
-	return s.ID, sock, err
+	return s.ID, sock, err == nil, err
 }
 
 func ownedSocket(s pluginsdk.Session, projectID, root string) (string, bool) {
@@ -963,8 +1034,32 @@ func (a *app) review(ctx context.Context, h *pluginsdk.Host, projectID string, a
 	if !filepath.IsAbs(args.Repo) || !isRef(args.Base) || !isRef(args.Head) {
 		return reviewResult{}, errReviewArgs
 	}
-	repo := filepath.Clean(args.Repo)
-	e, err := a.target(ctx, h, projectID, repo)
+	res, err := a.openReview(ctx, h, projectID, filepath.Clean(args.Repo), args.Base+"..."+args.Head, nil, true)
+	switch res.Mode {
+	case "module":
+		res.Mode = "diffview"
+	case "native":
+		res.Mode = "builtin"
+	}
+	return res, err
+}
+
+func (a *app) reviewOpen(ctx context.Context, h *pluginsdk.Host, projectID string, args reviewOpenArgs) (reviewResult, error) {
+	if !filepath.IsAbs(args.Cwd) || !isRef(args.Base) {
+		return reviewResult{}, errReviewOpen
+	}
+	if err := validExcludes(args.Excludes); err != nil {
+		return reviewResult{}, err
+	}
+	top, ok := gitrepo.RepoRoot(filepath.Clean(args.Cwd))
+	if !ok {
+		return reviewResult{}, fmt.Errorf("%w: %s", errNotInRepo, args.Cwd)
+	}
+	return a.openReview(ctx, h, projectID, top, args.Base, args.Excludes, false)
+}
+
+func (a *app) openReview(ctx context.Context, h *pluginsdk.Host, projectID, cwd, rev string, excludes []string, panel bool) (reviewResult, error) {
+	e, err := a.target(ctx, h, projectID, cwd)
 	if e == nil || err != nil {
 		return reviewResult{}, err
 	}
@@ -972,8 +1067,84 @@ func (a *app) review(ctx context.Context, h *pluginsdk.Host, projectID string, a
 	if err != nil {
 		return reviewResult{}, err
 	}
-	mode, err := c.review(repo, args.Base, args.Head)
+	mode, err := c.review(cwd, rev, excludes, panel)
 	return reviewResult{Mode: mode}, err
+}
+
+func reviewCommand(c *client, name string, raw json.RawMessage) (any, error) {
+	switch name {
+	case "review-entries":
+		if c == nil {
+			return []reviewEntry{}, nil
+		}
+		entries, err := c.reviewEntries()
+		if err != nil {
+			return nil, err
+		}
+		return append([]reviewEntry{}, entries...), nil
+	case "review-select":
+		path, err := reviewPath(name, raw)
+		if err != nil || c == nil {
+			return nil, err
+		}
+		return nil, c.reviewSelect(path)
+	case "review-reviewed":
+		var args reviewReviewedArgs
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, fmt.Errorf("%s args: %w", name, err)
+		}
+		if args.Path == "" {
+			return nil, errReviewPath
+		}
+		if c == nil {
+			return reviewedResult{}, nil
+		}
+		reviewed, err := c.reviewSetReviewed(args.Path, args.Reviewed)
+		return reviewedResult{Reviewed: reviewed}, err
+	case "review-next":
+		var args reviewNextArgs
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, fmt.Errorf("review-next args: %w", err)
+		}
+		if args.Dir != 1 && args.Dir != -1 {
+			return nil, errReviewDir
+		}
+		if c == nil {
+			return reviewNextResult{}, nil
+		}
+		path, err := c.reviewNext(args.Dir)
+		return reviewNextResult{Path: path}, err
+	case "review-excludes":
+		var args reviewExcludesArgs
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, fmt.Errorf("review-excludes args: %w", err)
+		}
+		if err := validExcludes(args.Excludes); err != nil || c == nil {
+			return nil, err
+		}
+		return nil, c.reviewExcludes(args.Excludes)
+	}
+	return nil, fmt.Errorf("%w: %q", errUnknownCommand, name)
+}
+
+func reviewPath(name string, raw json.RawMessage) (string, error) {
+	var args reviewPathArgs
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return "", fmt.Errorf("%s args: %w", name, err)
+	}
+	if args.Path == "" {
+		return "", errReviewPath
+	}
+	return args.Path, nil
+}
+
+func validExcludes(globs []string) error {
+	for _, g := range globs {
+		if !gitrepo.ValidGlob(g) {
+			return errReviewExcludes
+		}
+	}
+	return nil
 }
 
 func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, projectID string, args quickfixArgs) error {
@@ -1074,6 +1245,12 @@ func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error 
 
 func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	ctx := context.Background()
+	if ev.Event == reviewEvent {
+		if _, err := h.Publish(ctx, reviewTopic, reviewChanged{ProjectID: e.id, Root: e.root, Kind: ev.Kind, Path: ev.Path}); err != nil {
+			logError("publish "+reviewTopic, err)
+		}
+		return
+	}
 	if ev.Event == edgeEvent {
 		if ev.Dir == "h" || ev.Dir == "l" {
 			if err := h.FocusEdge(ctx, e.id, h.PluginID(), sidebarSlot, ev.Dir); err != nil {

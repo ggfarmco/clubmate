@@ -19,6 +19,15 @@ final class WorktreesTests: XCTestCase {
         XCTAssertEqual(core.calls[1].args, .object(["repo": .string("/r/b"), "path": .string("/r/.worktrees/feat")]))
     }
 
+    func testReviewLabelNamesTheDefaultBase() async throws {
+        let core = FakeGitCore()
+        let model = makeModel(core)
+        await model.load()
+
+        XCTAssertEqual(model.reviewLabel, "Review against origin/main")
+        XCTAssertEqual(model.pickerItems.map(\.checked), [true, false])
+    }
+
     func testMenuOpenedReloadsList() async throws {
         let core = FakeGitCore()
         let model = makeModel(core)
@@ -124,7 +133,7 @@ private final class FakeGitCore {
     static func tree(repo: String, path: String, main: Bool = false, current: Bool = false) -> JSONValue {
         .object([
             "repo": .string(repo), "path": .string(path), "branch": .string(main ? "main" : URL(fileURLWithPath: path).lastPathComponent),
-            "head": .string("abc1234"), "main": .bool(main), "current": .bool(current),
+            "head": .string("abc1234"), "main": .bool(main), "current": .bool(current), "defaultBase": .string("origin/main"),
         ])
     }
 }

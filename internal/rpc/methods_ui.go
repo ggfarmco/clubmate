@@ -237,7 +237,7 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if err != nil {
 		return revResult{}, err
 	}
-	if _, ok := sdui.SlotSection(p.Slot); !ok {
+	if _, ok := u.sections.SlotSection(p.Slot); !ok {
 		return revResult{}, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
 	if owner, _ := u.sections.SlotOwner(p.Slot); owner != caller.PluginID {
@@ -258,7 +258,7 @@ func (s *Server) uiEvent(ctx context.Context, p uiEventParams) (json.RawMessage,
 	if p.Action == "" {
 		return nil, invalidParams("action is required")
 	}
-	section, ok := sdui.SlotSection(p.Slot)
+	section, ok := u.sections.SlotSection(p.Slot)
 	if !ok {
 		return nil, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}

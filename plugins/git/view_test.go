@@ -77,19 +77,67 @@ func TestSidebarCapsGroups(t *testing.T) {
 	assert.NoError(t, internalsdui.Validate(sidebarView([]repoView{{Path: repo, Entries: full}, {Path: "/s", Entries: full}}, "", nil)))
 }
 
-func TestReviewViewReadOnly(t *testing.T) {
-	sel := &leaf{Repo: "/r", Group: groupReview, Path: "/r/b.go", Code: "M", Rev: "abc"}
-	main := mainView(mainModel{Sel: sel, Repos: []string{"/r"}, FormID: "commit-0"})
-	toolbar := main.Children[0]
-	var ids []string
-	for _, c := range toolbar.Children {
-		ids = append(ids, c.ID)
-	}
-	assert.Equal(t, []string{"", openDiffAction}, ids)
-	assert.Equal(t, "Open Diff in Neovim", toolbar.Children[1].Props["label"])
+func rows(r *review) []reviewRow {
+	out, _ := r.rows()
+	return out
 }
 
-func TestRestoredReviewDefaultsHead(t *testing.T) {
-	assert.Equal(t, "HEAD", restored(storedReview{Repo: "/r", Base: "main"}).Head)
-	assert.Equal(t, "feature/x", restored(storedReview{Repo: "/r", Base: "main", Head: "feature/x"}).Head)
+func TestReviewTreeCompactsAndFocuses(t *testing.T) {
+	r := &review{head: "/w", base: "main", mode: moduleMode, folded: map[string]bool{}, entries: []reviewEntry{
+		{Path: "a/b/x.go", Status: "M", Additions: 2, Deletions: 1, Reviewed: true, Comments: 3},
+		{Path: "a/b/y.go", Status: "A", Additions: 1},
+		{Path: "z.go", Status: "D", Deletions: 4},
+	}}
+	tree := reviewView(r)
+	require.NoError(t, internalsdui.Validate(tree))
+	items := tree.Children[0].Props["items"].([]sdui.TreeItem)
+	require.Len(t, items, 2)
+	assert.Equal(t, "a / b", items[0].Label)
+	assert.Equal(t, "a/b", items[0].ID)
+	assert.Equal(t, sdui.TreeItem{ID: "a/b/x.go", Label: "x.go", Badge: "M", Additions: 2, Deletions: 1, Reviewed: true, Comments: 3}, items[0].Children[0])
+	assert.Equal(t, "3 files · 1/3 reviewed", tree.Children[0].Props["review"].(reviewHeader).Progress)
+
+	require.NoError(t, r.setFocus("a/b/y.go", rows(r)))
+	tree = reviewView(r)
+	items = tree.Children[0].Props["items"].([]sdui.TreeItem)
+	assert.Equal(t, []string{"a/b/x.go", "a/b/y.go"}, []string{items[0].ID, items[1].ID})
+	assert.Equal(t, []sdui.Item{{ID: ".", Label: "w"}, {ID: "a", Label: "a"}, {ID: "a/b", Label: "b"}}, tree.Children[0].Props["breadcrumb"])
+}
+
+func TestReviewCollapseOthersKeepsTheFilesAncestors(t *testing.T) {
+	r := &review{head: "/w", base: "main", folded: map[string]bool{}}
+	for _, p := range []string{"a/b/x.go", "a/c/y.go", "d/z.go", "top.go"} {
+		r.changes = append(r.changes, gitrepo.Change{Path: p, Status: "M"})
+	}
+	r.selected = "d/z.go"
+
+	r.collapseOthers("a/b/x.go", rows(r))
+	assert.Equal(t, map[string]bool{"a/c": true, "d": true}, r.folded)
+
+	r.folded = map[string]bool{}
+	r.collapseOthers("", rows(r))
+	assert.Equal(t, map[string]bool{"a": true, "a/b": true, "a/c": true}, r.folded)
+}
+
+func TestReviewTreeStaysWithinNodeLimit(t *testing.T) {
+	r := &review{head: "/w", base: "main", folded: map[string]bool{}}
+	for i := range 6000 {
+		r.changes = append(r.changes, gitrepo.Change{Path: fmt.Sprintf("d%04d/f.go", i), Status: "M"})
+	}
+	tree := reviewView(r)
+	require.NoError(t, internalsdui.Validate(tree))
+	items := tree.Children[0].Props["items"].([]sdui.TreeItem)
+	assert.Equal(t, sdui.TreeItem{ID: moreRowID, Label: "… 3551 more", Muted: true}, items[len(items)-1])
+}
+
+func TestGeneratedFilterHidesRootAndNestedFiles(t *testing.T) {
+	r := &review{head: "/w", base: "main", filters: filters{Generated: true}, folded: map[string]bool{}}
+	for _, p := range []string{"go.sum", "tools/go.mod", "web/package-lock.json", "main.go", "go.summary"} {
+		r.changes = append(r.changes, gitrepo.Change{Path: p, Status: "M"})
+	}
+	var paths []string
+	for _, row := range rows(r) {
+		paths = append(paths, row.Path)
+	}
+	assert.Equal(t, []string{"main.go", "go.summary"}, paths)
 }

@@ -13,6 +13,7 @@ import (
 
 const (
 	rpcTimeout    = 2 * time.Second
+	modeTimeout   = 500 * time.Millisecond
 	socketPoll    = 50 * time.Millisecond
 	socketWait    = 5 * time.Second
 	maxSocketPath = 103
@@ -41,6 +42,8 @@ local m = type(package.loaded["clubmate"]) == "table" and package.loaded["clubma
 package.loaded["clubmate"] = m
 m.edge = edge
 m.chan = chan
+local dv = package.loaded["diffview.clubmate"]
+if type(dv) == "table" and type(dv.subscribe) == "function" then pcall(dv.subscribe, chan) end
 m.navigate = function(dir)
   local w = vim.fn.winnr()
   vim.cmd.wincmd(dir)
@@ -175,22 +178,65 @@ vim.cmd("leftabove vnew")
 scratch("clubmate://" .. base .. "/" .. rel, left, dos)
 vim.cmd.diffthis()`
 
-const closeReviewLua = `local m = package.loaded["clubmate"]
-if m.review_tab and vim.api.nvim_tabpage_is_valid(m.review_tab) then
-  vim.api.nvim_set_current_tabpage(m.review_tab)
-  vim.cmd("DiffviewClose")
+const reviewPrelude = `local m = package.loaded["clubmate"]
+local function review_module()
+  local ok, dv = pcall(require, "diffview.clubmate")
+  if not ok or type(dv) ~= "table" or type(dv.version) ~= "number" or dv.version < 1 then return nil end
+  if m.chan then dv.subscribe(m.chan) end
+  return dv
 end
-m.review_tab = nil`
+local function close_review()
+  local dv = m.review_tab and review_module()
+  if dv then dv.close(m.review_tab) end
+  if m.review_tab and vim.api.nvim_tabpage_is_valid(m.review_tab) then
+    vim.api.nvim_set_current_tabpage(m.review_tab)
+    vim.cmd("DiffviewClose")
+  end
+  m.review_tab = nil
+end
+`
 
-const reviewLua = `local repo, base, head = ...
-if vim.fn.exists(":DiffviewOpen") ~= 2 then return "builtin" end
-` + closeReviewLua + `
+const closeReviewLua = reviewPrelude + `close_review()`
+
+const reviewLua = reviewPrelude + `local cwd, rev, excludes, panel = ...
+if type(excludes) ~= "table" then excludes = {} end
+close_review()
+local dv = review_module()
+if dv then
+  local tab, err = dv.open({ cwd = cwd, base = rev, excludes = excludes })
+  if not tab then error(err or "diffview opened no review", 0) end
+  m.review_tab = tab
+  if panel then dv.set_panel(true, m.review_tab) end
+  return "module"
+end
+if vim.fn.exists(":DiffviewOpen") ~= 2 then return "native" end
 local before = vim.api.nvim_get_current_tabpage()
-vim.cmd({ cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(repo), base .. "..." .. head } })
+vim.cmd({ cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(cwd), rev } })
 local tab = vim.api.nvim_get_current_tabpage()
-if tab == before then return "builtin" end
+if tab == before then return "native" end
 m.review_tab = tab
 return "diffview"`
+
+const reviewEntriesLua = reviewPrelude + `local dv = review_module()
+return dv and dv.entries(m.review_tab) or {}`
+
+const reviewSelectLua = reviewPrelude + `local path = ...
+local dv = review_module()
+if dv then dv.select(path, m.review_tab) end`
+
+const reviewReviewedLua = reviewPrelude + `local path, want = ...
+local dv = review_module()
+if not dv then return false end
+if want == nil or want == vim.NIL or not dv.set_reviewed then return dv.toggle_reviewed(path, m.review_tab) == true end
+return dv.set_reviewed(path, want, m.review_tab) == true`
+
+const reviewNextLua = reviewPrelude + `local dir = ...
+local dv = review_module()
+return dv and dv.next_unreviewed(dir, m.review_tab) or ""`
+
+const reviewExcludesLua = reviewPrelude + `local excludes = ...
+local dv = review_module()
+if dv then dv.set_excludes(excludes, m.review_tab) end`
 
 const modifiedLua = `local names = {}
 for _, b in ipairs(vim.api.nvim_list_bufs()) do
@@ -280,6 +326,7 @@ end)`
 
 var (
 	errRPCTimeout    = errors.New("nvim rpc timed out")
+	errNvimBlocked   = errors.New("Neovim is waiting for input — press Enter in the editor")
 	errDisconnected  = errors.New("nvim disconnected")
 	errSocketTimeout = errors.New("nvim socket did not appear")
 	errSocketTooLong = errors.New("nvim socket path too long")
@@ -295,6 +342,8 @@ type nvimEvent struct {
 	Dir     string   `msgpack:"dir"`
 	Light   bool     `msgpack:"light"`
 	Message string   `msgpack:"message"`
+	Kind    string   `msgpack:"kind"`
+	Path    string   `msgpack:"path"`
 }
 
 type client struct {
@@ -398,12 +447,44 @@ func (c *client) diff(path, rel, base, target, left, right string) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(diffLua, nil, path, rel, base, target, left, right) })
 }
 
-func (c *client) review(repo, base, head string) (string, error) {
+func (c *client) review(cwd, rev string, excludes []string, panel bool) (string, error) {
 	var mode string
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, repo, base, head) }); err != nil {
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, cwd, rev, excludes, panel) }); err != nil {
 		return "", err
 	}
 	return mode, nil
+}
+
+func (c *client) reviewEntries() ([]reviewEntry, error) {
+	var entries []reviewEntry
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewEntriesLua, &entries) }); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+func (c *client) reviewSelect(path string) error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewSelectLua, nil, path) })
+}
+
+func (c *client) reviewSetReviewed(path string, want *bool) (bool, error) {
+	var reviewed bool
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewReviewedLua, &reviewed, path, want) }); err != nil {
+		return false, err
+	}
+	return reviewed, nil
+}
+
+func (c *client) reviewNext(dir int) (string, error) {
+	var path string
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewNextLua, &path, dir) }); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func (c *client) reviewExcludes(excludes []string) error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewExcludesLua, nil, excludes) })
 }
 
 func (c *client) closeReview() error {
@@ -429,8 +510,26 @@ func (c *client) call(fn func(*nvim.Nvim) error) error {
 	case <-c.done:
 		return errDisconnected
 	case <-timer.C:
+		if c.blocked() {
+			return errNvimBlocked
+		}
 		return errRPCTimeout
 	}
+}
+
+func (c *client) blocked() bool {
+	modec := make(chan bool, 1)
+	go func() {
+		m, err := c.v.Mode()
+		modec <- err == nil && m.Blocking
+	}()
+	select {
+	case blocking := <-modec:
+		return blocking
+	case <-c.done:
+	case <-time.After(modeTimeout):
+	}
+	return false
 }
 
 func (c *client) alive() bool {

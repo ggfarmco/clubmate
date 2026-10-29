@@ -13,7 +13,7 @@ struct TabsNodeView: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(node.items()) { item in
-                TabButton(item: item, selected: item.id == selected) {
+                TabButton(label: item.label, icon: item.icon, badge: item.badge, selected: item.id == selected) {
                     selected = item.id
                     dispatch(node, .select(item.id))
                 }
@@ -28,8 +28,10 @@ struct TabsNodeView: View {
     }
 }
 
-private struct TabButton: View {
-    let item: SDUIItem
+struct TabButton: View {
+    let label: String
+    var icon: String?
+    var badge: String?
     let selected: Bool
     let action: () -> Void
 
@@ -39,11 +41,11 @@ private struct TabButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon = item.icon {
+                if let icon {
                     Image(systemName: SymbolName.resolve(icon))
                 }
-                Text(item.label)
-                if let badge = item.badge {
+                Text(label)
+                if let badge {
                     BadgeLabel(text: badge, tone: theme.muted)
                 }
             }
@@ -98,8 +100,13 @@ struct TreeNodeView: View {
     @Environment(\.scrollProxy) private var scroll
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSide) private var side
+    @Environment(\.sidebarSlot) private var sidebarSlot
 
     private static let stickyLimit = 4
+
+    private var review: ReviewHeader? { node.reviewHeader() }
+
+    private var module: Bool? { review?.module }
 
     private struct Row: Identifiable {
         let item: SDUITreeItem
@@ -122,9 +129,10 @@ struct TreeNodeView: View {
 
     var body: some View {
         let rows = rows
+        let module = module
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
-                itemRow(row, selected: row.id == selected, cursor: focused && row.id == cursor) {
+                itemRow(row, module: module, selected: row.id == selected, cursor: focused && row.id == cursor) {
                     cursor = row.id
                     focused = true
                     select(row.id)
@@ -137,7 +145,7 @@ struct TreeNodeView: View {
                 let tree = TreeCursor.rows(node.treeItems())
                 StickyHeaders(rows: tree, limit: Self.stickyLimit) { id in
                     if let row = rows.first(where: { $0.id == id }) {
-                        itemRow(row, selected: false, cursor: false) {
+                        itemRow(row, module: module, selected: false, cursor: false) {
                             if let target = TreeCursor.stickyTarget(id, in: tree, limit: Self.stickyLimit) {
                                 scroll?.scrollTo(target, anchor: .top)
                             }
@@ -153,17 +161,19 @@ struct TreeNodeView: View {
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
+            if review != nil, let value { cursor = value }
             if let value { scroll?.scrollTo(value, anchor: .center) }
         }
         .onChange(of: router?.pending, initial: true) {
-            guard dispatch.slot.hasSuffix(".sidebar"), router?.take(dispatch.slot) == true else { return }
+            guard let sidebarSlot, router?.take(sidebarSlot) == true else { return }
             cursor = selected ?? rows.first?.id
             focused = true
         }
     }
 
-    private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, depth: row.depth, action: action) {
+    private func itemRow(_ row: Row, module: Bool?, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
+        let marks = module.map { ReviewMarks(item: row.item, module: $0) }
+        return ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, depth: row.depth, marks: marks, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -177,8 +187,24 @@ struct TreeNodeView: View {
 
     private func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
-        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
         let rows = TreeCursor.rows(node.treeItems())
+        if review != nil, let trigger = ReviewKeys.trigger(
+            keyCode: event.keyCode,
+            shift: flags.contains(.shift),
+            control: flags.contains(.control),
+            command: flags.contains(.command),
+            option: flags.contains(.option),
+            cursor: cursor,
+            rows: rows
+        ) {
+            dispatch(node, trigger)
+            return true
+        }
+        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
+        if review != nil, action == .collapseOthers {
+            dispatch(node, .collapseOthers(cursor ?? ""))
+            return true
+        }
         switch TreeCursor.resolve(action, cursor: cursor, in: rows, breadcrumb: node.breadcrumb().map(\.id)) {
         case .cursor(let id):
             if let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroll?.scrollTo(target) }
@@ -190,7 +216,7 @@ struct TreeNodeView: View {
         case .run(let id):
             guard id.hasPrefix(dispatch.owner + ".") else { return false }
             dispatch.run(CommandInvocation(id: id))
-        case .focusMain: router?.requestMain(from: dispatch.slot)
+        case .focusMain: router?.requestMain(from: sidebarSlot ?? dispatch.slot)
         case nil: break
         }
         return true
@@ -282,12 +308,27 @@ struct Disclosure: View {
     }
 }
 
+struct ReviewMarks {
+    let reviewed: Bool?
+    let comments: Int
+    let additions: Int?
+    let deletions: Int?
+
+    init(item: SDUITreeItem, module: Bool) {
+        reviewed = module ? item.reviewed : nil
+        comments = item.comments
+        additions = item.additions
+        deletions = item.deletions
+    }
+}
+
 struct ItemRow<Leading: View>: View {
     let item: SDUIItem
     let selected: Bool
     var cursor = false
     var muted = false
     var depth = 0
+    var marks: ReviewMarks?
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
 
@@ -297,6 +338,19 @@ struct ItemRow<Leading: View>: View {
     var body: some View {
         HStack(spacing: 6) {
             leading()
+            if let marks {
+                if let reviewed = marks.reviewed {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(theme.success)
+                        .opacity(reviewed ? 1 : 0)
+                        .frame(width: 10)
+                }
+                Text(item.badge ?? "")
+                    .font(theme.uiSmall)
+                    .foregroundStyle(statusTone(item.badge))
+                    .frame(width: 10)
+            }
             if let icon = item.icon, !icon.isEmpty {
                 Image(systemName: SymbolName.resolve(icon))
                     .foregroundStyle(theme.muted)
@@ -314,7 +368,23 @@ struct ItemRow<Leading: View>: View {
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
             }
-            if let badge = item.badge {
+            if let marks {
+                if marks.comments > 0 {
+                    Text("💬\(marks.comments)")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.muted)
+                }
+                if let additions = marks.additions {
+                    Text("+\(additions)")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.success)
+                }
+                if let deletions = marks.deletions {
+                    Text("−\(deletions)")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.danger)
+                }
+            } else if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accent)
             }
         }
@@ -337,6 +407,15 @@ struct ItemRow<Leading: View>: View {
             theme.border
                 .frame(width: 1)
                 .offset(x: theme.gutter + CGFloat(level) * theme.indent + theme.indent / 2)
+        }
+    }
+
+    private func statusTone(_ status: String?) -> Color {
+        switch status {
+        case "A", "?": theme.success
+        case "D": theme.danger
+        case "M", "R", "C": theme.warning
+        default: theme.muted
         }
     }
 

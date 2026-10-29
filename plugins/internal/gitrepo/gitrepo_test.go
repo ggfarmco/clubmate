@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -216,34 +217,20 @@ func TestMergeBaseAndChanges(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, baseSHA, mb)
 
-	want := map[string]byte{
-		filepath.Join(repo, "n.go"): 'A',
-		filepath.Join(repo, "a.go"): 'M',
-		filepath.Join(repo, "d.go"): 'D',
-	}
-	entries, err := gitrepo.ChangedSince(t.Context(), repo, mb, "HEAD")
+	write(t, filepath.Join(repo, "n.go"), "package x\n\nvar n\n")
+	write(t, filepath.Join(repo, "u.go"), "u\nu")
+	fifo := filepath.Join(t.TempDir(), "fifo")
+	require.NoError(t, syscall.Mkfifo(fifo, 0o600))
+	require.NoError(t, os.Symlink(fifo, filepath.Join(repo, "link")))
+	changes, err := gitrepo.WorkingChanges(t.Context(), repo, mb)
 	require.NoError(t, err)
-	got := map[string]byte{}
-	for _, e := range entries {
-		assert.Equal(t, byte(' '), e.Y)
-		got[e.Path] = e.X
-	}
-	assert.Equal(t, want, got)
-
-	git(t, repo, "checkout", "-q", "main")
-	entries, err = gitrepo.ChangedSince(t.Context(), repo, mb, "feature/x")
-	require.NoError(t, err)
-	got = map[string]byte{}
-	for _, e := range entries {
-		got[e.Path] = e.X
-	}
-	assert.Equal(t, want, got)
-
-	sha, err := gitrepo.Commit(t.Context(), repo, "feature/x")
-	require.NoError(t, err)
-	assert.Equal(t, revParse(t, repo, "feature/x"), sha)
-	_, err = gitrepo.Commit(t.Context(), repo, "nope")
-	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)
+	assert.Equal(t, []gitrepo.Change{
+		{Path: "a.go", Status: "M", Additions: 1, Deletions: 1},
+		{Path: "d.go", Status: "D", Deletions: 1},
+		{Path: "link", Status: "?", Additions: 1},
+		{Path: "n.go", Status: "A", Additions: 3},
+		{Path: "u.go", Status: "?", Additions: 2},
+	}, changes)
 
 	_, err = gitrepo.MergeBase(t.Context(), repo, "nope", "HEAD")
 	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)
@@ -268,9 +255,17 @@ func TestBranches(t *testing.T) {
 	clone := filepath.Join(t.TempDir(), "clone")
 	git(t, filepath.Dir(clone), "clone", "-q", origin, clone)
 
-	branches, err := gitrepo.Branches(t.Context(), clone)
+	local, remote, err := gitrepo.Branches(t.Context(), clone)
 	require.NoError(t, err)
-	assert.Contains(t, branches, "main")
-	assert.Contains(t, branches, "origin/main")
-	assert.NotContains(t, branches, "origin/HEAD")
+	assert.Equal(t, []string{"main"}, local)
+	assert.Equal(t, []string{"origin/main"}, remote)
+}
+
+func TestValidGlobAllowsOnlyGlobCharacters(t *testing.T) {
+	for _, g := range []string{"*_test.go", "**/testdata/**", "{a,b}.go", "[!a]?.ts", "pkg/файл-1.go"} {
+		assert.True(t, gitrepo.ValidGlob(g), g)
+	}
+	for _, g := range []string{"", "`touch x`", "$HOME", "a b", "a\nb", "%", "#", "~/x", "a;b"} {
+		assert.False(t, gitrepo.ValidGlob(g), g)
+	}
 }

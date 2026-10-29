@@ -22,7 +22,9 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, ⌘P and ⇧⌘F, which are unbound so the app gets them (`GhosttyApp.swift`).
 
-## Lists: palette, Go to File, Find in Files, switcher
+## Lists: palette, Go to File, Find in Files, pickers, switcher
+
+Pickers are the fuzzy lists for worktrees and review refs: the worktree switcher in the window title (its list, and its Review…), Switch Worktree… and Review… in the palette, and the review header's base and head fields. Esc closes the title switcher too.
 
 | Keys | Action |
 |---|---|
@@ -49,6 +51,18 @@ Inside terminals, Ghostty's own bindings apply, except ⌘W, ⌘P and ⇧⌘F, w
 | ⌫ | Move the focus up one level (from the top level: show the whole workspace) | neo-tree `navigate_up` |
 
 Defined in `ClubmateKit/TreeKeys.swift`.
+
+## Review list (Code sidebar, Review tab focused)
+
+The files tree keys above apply; `-` collapses every folder except the ancestors of the file under the cursor (else of the open file). In addition:
+
+| Keys | Action |
+|---|---|
+| ↩ | Open the file's diff |
+| r | Toggle reviewed on the file under the cursor |
+| n / N | Open the next / previous unreviewed file (any file without the fork module) |
+
+Defined in `ClubmateKit/Review.swift` (`ReviewKeys`).
 
 ## nvim navigation overlay (opt-in in Settings)
 

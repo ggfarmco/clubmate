@@ -8,6 +8,7 @@ public struct Worktree: Equatable, Sendable, Identifiable {
     public let head: String
     public let main: Bool
     public let current: Bool
+    public let defaultBase: String
 
     public var id: String { "\(repo)\u{0}\(path)" }
 
@@ -21,6 +22,7 @@ public struct Worktree: Equatable, Sendable, Identifiable {
         head = fields["head"]?.stringValue ?? ""
         main = fields["main"]?.boolValue ?? false
         current = fields["current"]?.boolValue ?? false
+        defaultBase = fields["defaultBase"]?.stringValue ?? ""
     }
 }
 
@@ -86,10 +88,26 @@ public final class WorktreeModel {
         return "\(group.name) ▸ \(tree.name)"
     }
 
+    public var current: Worktree? {
+        guard let first = groups.first else { return nil }
+        return first.trees.first { $0.current } ?? first.trees.first { $0.main }
+    }
+
+    public var reviewLabel: String {
+        guard let base = current?.defaultBase, !base.isEmpty else { return "Review against default base" }
+        return "Review against \(base)"
+    }
+
+    public var pickerItems: [PickerItem] {
+        worktrees.map { PickerItem(id: $0.id, label: label($0), checked: $0.current) }
+    }
+
+    public func worktree(id: String) -> Worktree? {
+        worktrees.first { $0.id == id }
+    }
+
     public func title(_ workspace: String) -> String {
-        guard let first = groups.first else { return workspace }
-        let current = first.trees.first { $0.current } ?? first.trees.first { $0.main }
-        return current.map { "\(workspace) ▸ \($0.name) ▾" } ?? workspace
+        current.map { "\(workspace) ▸ \($0.name) ▾" } ?? workspace
     }
 
     public func load() async {

@@ -27,15 +27,18 @@ struct WorkspaceWindow: View {
                         WorktreeTitleMenu(session: worktreeSession, title: title)
                     }
                 }
+                ToolbarSpacer(.flexible)
                 ToolbarItem(placement: .primaryAction) {
                     Button { windowID.map(app.toggleSwitcher) } label: {
                         Text("▦ \(workspaceCount)")
                             .monospacedDigit()
+                            .padding(theme.spacing.capsule)
                     }
                     .help("Workspaces (⌃⌘W)")
                     .accessibilityLabel("Workspaces, \(workspaceCount)")
                     .disabled(windowID == nil)
                 }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
             }
             .focusedSceneValue(\.workspaceWindowID, windowID)
             .background(WindowObserver { [app, windowID] in
@@ -101,6 +104,7 @@ private struct WorkspaceView: View {
             .commandPalette(session, entries: paletteEntries, run: perform)
             .goToFile(session)
             .findInFiles(session)
+            .fuzzyPicker(session)
             .focusedSceneValue(\.projectSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }
@@ -162,7 +166,7 @@ private struct WorkspaceView: View {
                     Rail(sections: store.sections, selected: section) { store.selectedSection = $0 }
                     theme.border.frame(width: 1)
                     if sidebar == .left {
-                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .left)
+                        SidebarPane(session: session, store: store, section: section, side: .left)
                     }
                     SlotPane(store: store, slot: "\(section).main")
                         .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID) {
@@ -172,7 +176,7 @@ private struct WorkspaceView: View {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
                     if sidebar == .right {
-                        SidebarPane(store: store, slot: "\(section)\(Self.sidebarSuffix)", side: .right)
+                        SidebarPane(session: session, store: store, section: section, side: .right)
                     }
                 }
                 .background {
@@ -243,6 +247,7 @@ private struct WorkspaceView: View {
         case .switchWorktree: session.chooseWorktree()
         case .newWorktree: session.newWorktree(chooseFolder: true)
         case .removeWorktree: session.chooseWorktreeToRemove()
+        case .review: session.chooseReviewBase(head: session.worktrees.current?.path)
         }
     }
 
@@ -271,43 +276,98 @@ private struct WorktreeTitleMenu: View {
     let session: ProjectSession
     let title: String
 
+    @State private var shown = false
+    @Environment(\.theme) private var theme
+
     var body: some View {
-        let model = session.worktrees
-        let groups = model.groups
-        Menu {
-            if groups.count > 1 {
-                ForEach(groups) { group in
-                    Section(group.name) { trees(group) }
-                }
-            } else {
-                ForEach(groups) { trees($0) }
-            }
-            Divider()
-            Button("New Worktree…") { session.newWorktree(chooseFolder: false) }
-            Menu("Remove Worktree…") {
-                ForEach(model.linked) { tree in
-                    Button(model.label(tree)) { session.removeWorktree(tree) }
-                }
-            }
-            .disabled(model.linked.isEmpty)
-        } label: {
+        Button { shown.toggle() } label: {
             Text(title)
                 .font(.headline)
+                .padding(theme.spacing.capsule)
                 .onHover { inside in
                     if inside { session.worktreeMenuOpened() }
                 }
         }
-        .menuStyle(.button)
         .buttonStyle(.plain)
-        .menuIndicator(.hidden)
         .fixedSize()
         .help("Worktrees")
+        .popover(isPresented: $shown, arrowEdge: .bottom) {
+            WorktreeSwitcher(session: session) { shown = false }
+        }
+    }
+}
+
+private struct WorktreeSwitcher: View {
+    let session: ProjectSession
+    let close: () -> Void
+
+    @State private var model: FuzzyPickerModel
+    @Environment(\.theme) private var theme
+
+    init(session: ProjectSession, close: @escaping () -> Void) {
+        self.session = session
+        self.close = close
+        let worktrees = session.worktrees
+        _model = State(initialValue: FuzzyPickerModel(placeholder: "Switch to worktree", source: FuzzyPickerModel.local { worktrees.pickerItems }))
     }
 
-    private func trees(_ group: WorktreeGroup) -> some View {
-        ForEach(group.trees) { tree in
-            Toggle(tree.name, isOn: Binding(get: { tree.current }, set: { _ in session.switchWorktree(tree) }))
+    var body: some View {
+        let worktrees = session.worktrees
+        VStack(spacing: 0) {
+            FuzzyPickerList(model: model, choose: switchTo, dismiss: close)
+            theme.border.frame(height: 1)
+            VStack(spacing: 0) {
+                action(worktrees.reviewLabel) { session.review(base: nil) }
+                action("Review…") { session.chooseReviewBase(head: worktrees.current?.path) }
+                action("New Worktree…") { session.newWorktree(chooseFolder: false) }
+                if !worktrees.linked.isEmpty {
+                    action("Remove Worktree…") { session.chooseWorktreeToRemove() }
+                }
+            }
+            .padding(.vertical, theme.spacing.s)
         }
+        .frame(width: 360)
+        .background(theme.background)
+        .task {
+            await worktrees.menuOpened()
+            model.update(model.query)
+        }
+    }
+
+    private func switchTo(_ item: PickerItem) {
+        guard let tree = session.worktrees.worktree(id: item.id) else { return }
+        session.switchWorktree(tree)
+    }
+
+    private func action(_ title: String, perform: @escaping () -> Void) -> some View {
+        SwitcherAction(title: title) {
+            close()
+            perform()
+        }
+    }
+}
+
+private struct SwitcherAction: View {
+    let title: String
+    let action: () -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(theme.ui)
+                .foregroundStyle(theme.foreground)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, theme.gutter * 1.5)
+                .frame(height: theme.rowHeight + 2)
+                .background(hovering ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -355,8 +415,9 @@ struct SlotPane: View {
 }
 
 private struct SidebarPane: View {
+    let session: ProjectSession
     let store: ProjectUIStore
-    let slot: String
+    let section: String
     let side: SidebarSide
 
     @Environment(\.theme) private var theme
@@ -374,9 +435,18 @@ private struct SidebarPane: View {
     var body: some View {
         HStack(spacing: 0) {
             if side == .right { handle }
-            SlotPane(store: store, slot: slot)
+            content
                 .frame(width: width)
+                .environment(\.sidebarSlot, "\(section).sidebar")
             if side == .left { handle }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if section == CodeSection.id {
+            CodeSidebar(session: session, store: store)
+        } else {
+            SlotPane(store: store, slot: "\(section).sidebar")
         }
     }
 
