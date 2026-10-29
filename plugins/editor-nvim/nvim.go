@@ -223,14 +223,18 @@ local m = package.loaded["clubmate"]
 m.qf_gen = (m.qf_gen or 0) + 1
 local gen = m.qf_gen
 local budget, target = 40e6, 10e6
+local id, pos, size, opened
+local function incomplete()
+  if id then pcall(vim.fn.setqflist, {}, "a", { id = id, title = title .. " (incomplete)" }) end
+end
 local function fail(err)
+  incomplete()
   if m.chan then
     pcall(vim.rpcnotify, m.chan, "clubmate", { event = "open_error", message = "quickfix: " .. tostring(err) })
   end
 end
-local id, pos, size, opened
 local function step()
-  if m.qf_gen ~= gen then return end
+  if m.qf_gen ~= gen then return incomplete() end
   local ok, err = pcall(function()
     local start = vim.uv.hrtime()
     while pos <= #items and vim.uv.hrtime() - start < budget do
