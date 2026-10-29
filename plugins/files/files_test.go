@@ -205,4 +205,17 @@ func TestTreeFollowsWorktree(t *testing.T) {
 	_, err = h.Svc.SetWorktree(t.Context(), p.ID, repo, wt)
 	require.NoError(t, err)
 	h.WaitSlot(t, p.ID, sidebarSlot, rootIs(wt))
+
+	file := filepath.Join(wt, "a.txt")
+	payload, err := json.Marshal(map[string]string{"projectId": p.ID, "path": file})
+	require.NoError(t, err)
+	_, err = h.Bus.Publish(t.Context(), "editor.buffer", "editor-nvim", payload)
+	require.NoError(t, err)
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Children[0].Props["selected"] == file })
+
+	_, err = h.Svc.SetWorktree(t.Context(), p.ID, repo, "")
+	require.NoError(t, err)
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool {
+		return rootIs(repo)(n) && n.Children[0].Props["selected"] != file
+	})
 }
