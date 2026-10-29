@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,9 +22,7 @@ import (
 const (
 	refreshDelay  = 300 * time.Millisecond
 	diffCommand   = "editor-nvim.diff"
-	reviewCommand = "editor-nvim.review"
 	closeCommand  = "editor-nvim.review-close"
-	diffviewMode  = "diffview"
 	gitSection    = "git"
 	editorSection = "editor-nvim"
 	editorSlot    = "editor-nvim.main"
@@ -44,7 +41,6 @@ var (
 	errUnknownRepo    = errors.New("unknown repository")
 	errStaleTarget    = errors.New("the file is no longer selected")
 	errBusy           = errors.New("git is busy")
-	errReadOnly       = errors.New("review files are read-only")
 	errNoRepo         = errors.New("no repository to review")
 )
 
@@ -63,29 +59,6 @@ type deletedPayload struct {
 type commitForm struct {
 	Repo    string `json:"repo"`
 	Message string `json:"message"`
-}
-
-type reviewForm struct {
-	Repo string `json:"review-repo"`
-	Base string `json:"base"`
-	Head string `json:"head"`
-}
-
-type storedReview struct {
-	Repo string `json:"repo"`
-	Base string `json:"base"`
-	Head string `json:"head,omitempty"`
-}
-
-type reviewArgs struct {
-	Repo      string `json:"repo"`
-	Base      string `json:"base"`
-	Head      string `json:"head"`
-	MergeBase string `json:"mergeBase"`
-}
-
-type reviewResult struct {
-	Mode string `json:"mode"`
 }
 
 type diffArgs struct {
@@ -108,8 +81,9 @@ type state struct {
 	selected string
 	folded   map[string]bool
 	commits  int
-	reviews  int
-	review   reviewState
+	reviews  map[string]*review
+	active   string
+	filters  filters
 	busy     string
 	failure  string
 	watch    string
@@ -136,7 +110,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.*", "project.*"} {
+	for _, pattern := range []string{"ui.*", "project.*", "review.*"} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -171,6 +145,12 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			return
 		}
 		a.drop(ctx, h, p.ID)
+	case reviewTopic:
+		var p reviewChanged
+		if !decodeEvent(ev, &p) {
+			return
+		}
+		a.reviewChanged(ctx, h, p)
 	}
 }
 
@@ -191,6 +171,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	s := a.get(ev.ProjectID)
 	if err := a.ensure(ctx, h, ev.ProjectID, s); err != nil {
 		return nil, err
+	}
+	if ev.Slot == reviewSlot {
+		return nil, a.reviewEvent(ctx, h, ev, s)
 	}
 	if ev.Action != "expand" && ev.Action != "collapse" {
 		s.clearFailure()
@@ -222,14 +205,6 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 			return nil, fmt.Errorf("commit value: %w", err)
 		}
 		return nil, a.commit(ctx, h, ev.ProjectID, s, f)
-	case reviewAction:
-		var f reviewForm
-		if err := json.Unmarshal(ev.Value, &f); err != nil {
-			return nil, fmt.Errorf("review value: %w", err)
-		}
-		return nil, a.submitReview(ctx, h, ev.ProjectID, s, f)
-	case endReviewID:
-		return nil, a.endReview(ctx, h, ev.ProjectID, s)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
@@ -241,6 +216,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	}
 	if strings.HasPrefix(cmd.ID, "git.worktree") {
 		return a.worktreeCommand(ctx, h, cmd, s)
+	}
+	if cmd.ID == "git.end-review" || strings.HasPrefix(cmd.ID, "git.review") {
+		return a.reviewCommand(ctx, h, cmd, s)
 	}
 	s.clearFailure()
 	switch cmd.ID {
@@ -261,10 +239,6 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		}
 		a.schedule(h, cmd.ProjectID, s, 0)
 		return nil, errors.Join(errs...)
-	case "git.review-branch":
-		return nil, a.reviewDefault(ctx, h, cmd.ProjectID, s)
-	case "git.end-review":
-		return nil, a.endReview(ctx, h, cmd.ProjectID, s)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -280,7 +254,7 @@ func (a *app) get(id string) *state {
 	defer a.mu.Unlock()
 	s, ok := a.projects[id]
 	if !ok {
-		s = &state{folded: map[string]bool{}}
+		s = &state{folded: map[string]bool{}, reviews: map[string]*review{}}
 		a.projects[id] = s
 	}
 	return s
@@ -393,17 +367,17 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	s.mu.Lock()
 	first := !s.synced
 	s.mu.Unlock()
-	var stored storedReview
+	var stored storedReviews
 	if first {
 		if _, err := h.StorageGet(ctx, reviewKey(id), &stored); err != nil {
 			logError("restore review "+id, err)
-			stored = storedReview{}
+			stored = storedReviews{}
 		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.synced && stored.Base != "" {
-		s.review = restored(stored)
+	if !s.synced {
+		s.restore(stored)
 	}
 	s.repos, s.gitDirs, s.synced = repos, gitDirs, true
 	return nil
@@ -445,7 +419,6 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	a.checkMissing(ctx, h, id, s)
 	s.mu.Lock()
 	repos := slices.Clone(s.repos)
-	review := s.review
 	s.mu.Unlock()
 	views := make(map[string]repoView, len(repos))
 	for _, repo := range repos {
@@ -457,10 +430,7 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		}
 		branch, err := gitrepo.Branch(ctx, repo)
 		logError("branch "+repo, err)
-		branches, err := gitrepo.Branches(ctx, repo)
-		logError("branches "+repo, err)
-		base, _ := gitrepo.DefaultBase(ctx, repo)
-		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}, Branches: branches, DefaultBase: base}
+		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}}
 		for _, l := range leaves(rv) {
 			if l.Group == groupChanges && blocked(l) == "" {
 				rv.Restorable[l.Path] = true
@@ -468,31 +438,11 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		}
 		views[repo] = rv
 	}
-	v, ok := views[review.Repo]
-	reviewing := review.active() && ok && v.Problem == ""
-	var mergeBase, headSha, failure string
-	var changed []gitrepo.Entry
-	if reviewing {
-		var err error
-		if mergeBase, err = gitrepo.MergeBase(ctx, review.Repo, review.Base, review.Head); err == nil {
-			if headSha, err = gitrepo.Commit(ctx, review.Repo, review.Head); err == nil {
-				changed, err = gitrepo.ChangedSince(ctx, review.Repo, mergeBase, review.Head)
-			}
-		}
-		if err != nil {
-			failure = reviewError(review.Base, err)
-		}
-	}
 	s.mu.Lock()
 	s.views = views
-	if reviewing && s.review.same(review.Repo, review.Base, review.Head) {
-		s.review.Err = failure
-		if failure == "" {
-			s.review.MergeBase, s.review.HeadSha, s.review.Entries = mergeBase, headSha, changed
-		}
-	}
 	s.selected = s.follow(s.selected)
 	s.mu.Unlock()
+	a.refreshReview(ctx, h, id, s)
 	return a.render(ctx, h, id, s)
 }
 
@@ -529,7 +479,8 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	live := s.liveLocked()
 	folded := maps.Clone(s.folded)
 	sel := s.leaf(s.selected)
-	m := mainModel{Sel: sel, Repos: live, FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure, Review: s.controls(sel, live)}
+	m := mainModel{Sel: sel, Repos: live, FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
+	review := s.reviewModel()
 	s.mu.Unlock()
 	selected := ""
 	if sel != nil {
@@ -542,6 +493,8 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	}
 	_, err := h.Render(ctx, id, sidebarSlot, sidebarView(views, selected, folded))
 	logError("sidebar "+id, err)
+	_, err = h.Render(ctx, id, reviewSlot, reviewView(review))
+	logError("review "+id, err)
 	_, err = h.Render(ctx, id, mainSlot, mainView(m))
 	return err
 }
@@ -577,9 +530,6 @@ func (a *app) apply(ctx context.Context, s *state, action, target string) error 
 	s.mu.Unlock()
 	if sel == nil {
 		return errNoSelection
-	}
-	if sel.Group == groupReview {
-		return errReadOnly
 	}
 	rel := sel.rel()
 	var err error
@@ -618,11 +568,6 @@ func (a *app) openDiff(ctx context.Context, h *pluginsdk.Host, id string, s *sta
 	switch sel.Group {
 	case groupStaged:
 		args.Base, args.Target = "head", "index"
-	case groupReview:
-		args.Base = "rev:" + sel.Rev
-		if sel.Head != "" {
-			args.Target = "rev:" + sel.Head
-		}
 	}
 	if err := h.RunCommand(ctx, diffCommand, id, args, nil); err != nil {
 		return err
@@ -652,98 +597,6 @@ func (a *app) commit(ctx context.Context, h *pluginsdk.Host, id string, s *state
 		s.mu.Unlock()
 		return nil
 	})
-}
-
-func (a *app) reviewDefault(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	s.mu.Lock()
-	live := s.liveLocked()
-	sel := s.leaf(s.selected)
-	s.mu.Unlock()
-	if len(live) == 0 {
-		return errNoRepo
-	}
-	repo := live[0]
-	if sel != nil && slices.Contains(live, sel.Repo) {
-		repo = sel.Repo
-	}
-	base, err := gitrepo.DefaultBase(ctx, repo)
-	if err != nil {
-		return a.reviewFailed(ctx, h, id, s, err.Error())
-	}
-	return a.startReview(ctx, h, id, s, repo, base, currentHead)
-}
-
-func (a *app) submitReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, f reviewForm) error {
-	live := s.live()
-	repo := f.Repo
-	if repo == "" && len(live) == 1 {
-		repo = live[0]
-	}
-	if !slices.Contains(live, repo) {
-		return fmt.Errorf("%w: %q", errUnknownRepo, repo)
-	}
-	branches, err := gitrepo.Branches(ctx, repo)
-	if err != nil {
-		return err
-	}
-	if !slices.Contains(branches, f.Base) {
-		return a.reviewFailed(ctx, h, id, s, "unknown branch "+f.Base)
-	}
-	head := cmp.Or(f.Head, currentHead)
-	if head != currentHead && !slices.Contains(branches, head) {
-		return a.reviewFailed(ctx, h, id, s, "unknown branch "+head)
-	}
-	return a.startReview(ctx, h, id, s, repo, f.Base, head)
-}
-
-func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, repo, base, head string) error {
-	mergeBase, err := gitrepo.MergeBase(ctx, repo, base, head)
-	if err != nil {
-		return a.reviewFailed(ctx, h, id, s, reviewError(base, err))
-	}
-	stored := storedReview{Repo: repo, Base: base}
-	if head != currentHead {
-		stored.Head = head
-	}
-	if err := h.StorageSet(ctx, reviewKey(id), stored); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	if !s.review.same(repo, base, head) {
-		s.review = reviewState{Repo: repo, Base: base, Head: head}
-	}
-	s.review.MergeBase, s.review.Err = mergeBase, ""
-	s.reviews++
-	s.mu.Unlock()
-	a.schedule(h, id, s, 0)
-	var out reviewResult
-	logError("review "+id, h.RunCommand(ctx, reviewCommand, id, reviewArgs{Repo: repo, Base: base, Head: head, MergeBase: mergeBase}, &out))
-	if out.Mode == diffviewMode {
-		logError("focus "+id, h.Focus(ctx, id, editorSection, editorSlot))
-		return nil
-	}
-	logError("focus "+id, h.Focus(ctx, id, gitSection, sidebarSlot))
-	return nil
-}
-
-func (a *app) reviewFailed(ctx context.Context, h *pluginsdk.Host, id string, s *state, msg string) error {
-	s.mu.Lock()
-	s.review.Err = msg
-	s.mu.Unlock()
-	return a.render(ctx, h, id, s)
-}
-
-func (a *app) endReview(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	if err := h.StorageDelete(ctx, reviewKey(id)); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	s.review = reviewState{}
-	s.reviews++
-	s.selected = s.follow(s.selected)
-	s.mu.Unlock()
-	logError("review-close "+id, h.RunCommand(ctx, closeCommand, id, nil, nil))
-	return a.render(ctx, h, id, s)
 }
 
 func (a *app) background(ctx context.Context, h *pluginsdk.Host, id string, s *state, busy string, repos []string, op func(context.Context, string) error) error {
@@ -787,36 +640,7 @@ func (s *state) view(repo string) repoView {
 	if !ok {
 		v = repoView{Path: repo}
 	}
-	if s.review.active() && s.review.Repo == repo {
-		v.Review = s.review
-	}
 	return v
-}
-
-func (s *state) controls(sel *leaf, live []string) reviewControls {
-	c := reviewControls{FormID: fmt.Sprintf("review-%d", s.reviews), Active: s.review.active(), Err: s.review.Err}
-	switch {
-	case c.Active && slices.Contains(live, s.review.Repo):
-		c.Repo = s.review.Repo
-	case sel != nil && slices.Contains(live, sel.Repo):
-		c.Repo = sel.Repo
-	case len(live) > 0:
-		c.Repo = live[0]
-	default:
-		return c
-	}
-	v := s.view(c.Repo)
-	c.Branches = v.Branches
-	c.Head = currentHead
-	switch {
-	case c.Active && s.review.Repo == c.Repo:
-		c.Base, c.Head = s.review.Base, s.review.Head
-	case v.DefaultBase != "":
-		c.Base = v.DefaultBase
-	case len(v.Branches) > 0:
-		c.Base = v.Branches[0]
-	}
-	return c
 }
 
 func (s *state) live() []string {
@@ -854,7 +678,7 @@ func (s *state) follow(id string) string {
 		return id
 	}
 	parts := strings.SplitN(id, idSep, 3)
-	if len(parts) != 3 || parts[1] == groupReview {
+	if len(parts) != 3 {
 		return ""
 	}
 	for _, g := range groupTitles {
@@ -868,10 +692,6 @@ func (s *state) follow(id string) string {
 func bodyFor(ctx context.Context, l leaf) (string, bool, error) {
 	rel := l.rel()
 	switch {
-	case l.Group == groupReview && l.Head != "":
-		return capture(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", l.Rev, l.Head, "--", rel)
-	case l.Group == groupReview:
-		return capture(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", l.Rev, "--", rel)
 	case l.Group == groupStaged:
 		args := []string{"diff", "--no-color", "--no-ext-diff", "--cached", "--", rel}
 		if l.Orig != "" {
@@ -900,10 +720,6 @@ func reviewError(base string, err error) string {
 	}
 	first, _, _ := strings.Cut(gitError(nil, err).Error(), "\n")
 	return first
-}
-
-func restored(r storedReview) reviewState {
-	return reviewState{Repo: r.Repo, Base: r.Base, Head: cmp.Or(r.Head, currentHead)}
 }
 
 func reviewKey(projectID string) string {

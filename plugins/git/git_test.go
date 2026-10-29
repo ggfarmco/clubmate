@@ -2,10 +2,12 @@ package main_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -23,7 +25,8 @@ const (
 	sidebarSlot    = "git.sidebar"
 	editorSlot     = "editor-nvim.main"
 	mainSlot       = "git.main"
-	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.review","title":"Review Branch","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true}]}}`
+	reviewSlot     = "git.review"
+	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true}]}}`
 	restartWait    = 15 * time.Second
 )
 
@@ -336,164 +339,182 @@ func branchRepo(t *testing.T) string {
 	return repo
 }
 
-func reviewBranch(t *testing.T, h *testutil.PluginHarness, id string) {
+func reviewView(t *testing.T, n sdui.Node) ([]string, map[string]any) {
 	t.Helper()
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "git.review-branch", "projectId": id}, nil))
-}
-
-func reviewing(t *testing.T, label string, n int) func(sdui.Node) bool {
-	return func(tree sdui.Node) bool {
-		rs := roots(t, tree)
-		return len(rs) == 1 && len(rs[0].Children) > 0 && rs[0].Children[0].Label == label && rs[0].Children[0].Expanded && len(rs[0].Children[0].Children) == n
+	if n.Type != "scroll" || len(n.Children) != 1 {
+		return nil, nil
 	}
-}
-
-func badgeText(n sdui.Node) string {
-	if n.Type == "badge" {
-		text, _ := n.Props["text"].(string)
-		return text
-	}
-	for _, c := range n.Children {
-		if text := badgeText(c); text != "" {
-			return text
-		}
-	}
-	return ""
-}
-
-func reviewFormID(t *testing.T, h *testutil.PluginHarness, id string) string {
-	t.Helper()
-	form := ""
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool {
-		for _, c := range n.Children {
-			for _, f := range c.Children {
-				if f.Type == "form" {
-					form = f.ID
-				}
+	header, _ := n.Children[0].Props["review"].(map[string]any)
+	var files []string
+	var walk func([]sdui.TreeItem)
+	walk = func(items []sdui.TreeItem) {
+		for _, it := range items {
+			if it.HasChildren {
+				walk(it.Children)
+			} else {
+				files = append(files, it.ID)
 			}
 		}
-		return form != ""
-	})
-	return form
-}
-
-func TestReviewGroup(t *testing.T) {
-	repo := branchRepo(t)
-	h, id := open(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
-
-	reviewBranch(t, h, id)
-	tree := h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
-	var leaves []string
-	for _, l := range roots(t, tree)[0].Children[0].Children {
-		leaves = append(leaves, l.ID+"|"+l.Label+"|"+l.Badge)
 	}
-	assert.Equal(t, []string{
-		repo + "\x00review\x00" + filepath.Join(repo, "a.go") + "|a.go|M",
-		repo + "\x00review\x00" + filepath.Join(repo, "c.go") + "|c.go|A",
-		repo + "\x00review\x00" + filepath.Join(repo, "d.go") + "|d.go|A",
-	}, leaves)
-
-	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00review\x00"+filepath.Join(repo, "a.go"))
-	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return showing(n, "a.go") })
-	assert.Contains(t, main.Children[1].Children[0].Props["text"], "+two")
-
-	write(t, filepath.Join(repo, "b.go"), "b\n")
-	git(t, repo, "add", "b.go")
-	git(t, repo, "commit", "-qm", "b")
-	start := time.Now()
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (4)", 4))
-	assert.Less(t, time.Since(start), 2*time.Second)
+	walk(roots(t, n))
+	return files, header
 }
 
-func TestReviewHead(t *testing.T) {
-	repo := newRepo(t, "a.go", "b.go", "d.go")
-	git(t, repo, "add", ".")
-	git(t, repo, "commit", "-qm", "init")
-	git(t, repo, "checkout", "-qb", "feature/x")
-	write(t, filepath.Join(repo, "a.go"), "two\n")
-	write(t, filepath.Join(repo, "n.go"), "n\n")
-	require.NoError(t, os.Remove(filepath.Join(repo, "d.go")))
-	git(t, repo, "add", "-A")
-	git(t, repo, "commit", "-qm", "feature")
-	git(t, repo, "checkout", "-q", "main")
-	h, id := open(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+func reviewing(t *testing.T, files ...string) func(sdui.Node) bool {
+	return func(n sdui.Node) bool {
+		got, header := reviewView(t, n)
+		return header != nil && slices.Equal(got, files)
+	}
+}
 
-	h.Event(t, id, mainSlot, reviewFormID(t, h, id), "review", map[string]string{"base": "main", "head": "feature/x"})
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (3)", 3))
+func review(t *testing.T, h *testutil.PluginHarness, id string, args any) {
+	t.Helper()
+	require.NoError(t, runCommand(t, h, id, "git.review", args, nil))
+}
 
-	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00review\x00"+filepath.Join(repo, "a.go"))
-	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return showing(n, "a.go") })
-	assert.Contains(t, main.Children[1].Children[0].Props["text"], "+two")
-	content, err := os.ReadFile(filepath.Join(repo, "a.go"))
+func restartGit(t *testing.T, h *testutil.PluginHarness) {
+	t.Helper()
+	var pid int
+	for _, st := range h.Sup.Statuses() {
+		if st.ID == "git" {
+			pid = st.PID
+		}
+	}
+	require.NotZero(t, pid)
+	require.NoError(t, syscall.Kill(pid, syscall.SIGKILL))
+	testutil.Eventually(t, func() bool {
+		pids := h.Sup.PIDs()
+		return len(pids) > 0 && !slices.Contains(pids, pid)
+	}, restartWait)
+}
+
+func TestReviewAgainstWorktreeUsesMergeBase(t *testing.T) {
+	repo := committedRepo(t)
+	a := filepath.Join(repo, ".worktrees", "a")
+	git(t, repo, "worktree", "add", "-q", "-b", "a", a)
+	b := filepath.Join(repo, ".worktrees", "b")
+	git(t, repo, "worktree", "add", "-q", "-b", "b", b, "a")
+	write(t, filepath.Join(a, "a2.go"), "a2\n")
+	git(t, a, "add", ".")
+	git(t, a, "commit", "-qm", "a2")
+	write(t, filepath.Join(a, "dirty.go"), "x\n")
+	write(t, filepath.Join(b, "b.go"), "b\n")
+	git(t, b, "add", ".")
+	git(t, b, "commit", "-qm", "b")
+	write(t, filepath.Join(b, "a.go"), "two\n")
+	write(t, filepath.Join(b, "n.go"), "n\nn\n")
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+
+	review(t, h, id, map[string]string{"head": b, "base": a})
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "b.go", "n.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "a", header["base"])
+	assert.Equal(t, "b", header["head"])
+	assert.Equal(t, "a has uncommitted changes that are not in the base", header["warning"])
+	assert.Equal(t, "3 files", header["progress"])
+	var badges []string
+	for _, it := range roots(t, n) {
+		badges = append(badges, fmt.Sprintf("%s %s +%d -%d", it.ID, it.Badge, it.Additions, it.Deletions))
+	}
+	assert.Equal(t, []string{"a.go M +1 -1", "b.go A +1 -0", "n.go ? +2 -0"}, badges)
+	assert.Equal(t, b, firstRoot(t, h, id))
+}
+
+func TestReviewPausesPerWorktree(t *testing.T) {
+	repo := committedRepo(t)
+	b := filepath.Join(repo, ".worktrees", "b")
+	git(t, repo, "worktree", "add", "-q", "-b", "b", b)
+	write(t, filepath.Join(b, "b.go"), "b\n")
+	write(t, filepath.Join(b, "b_test.go"), "b\n")
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+
+	review(t, h, id, map[string]string{"head": b})
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "b.go", "b_test.go"))
+	require.NoError(t, runCommand(t, h, id, "git.review-filter", map[string]bool{"tests": true}, nil))
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "b.go"))
+
+	_, err := h.Svc.SetWorktree(t.Context(), id, repo, "")
 	require.NoError(t, err)
-	assert.Equal(t, "one\n", string(content))
+	h.WaitSlot(t, id, reviewSlot, func(n sdui.Node) bool { return n.Type == "empty" })
+	restartGit(t, h)
+	_, err = h.Svc.SetWorktree(t.Context(), id, repo, b)
+	require.NoError(t, err)
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "b.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "main", header["base"])
+	assert.Equal(t, "1 file · 1 hidden", header["progress"])
+}
 
-	wt := filepath.Join(t.TempDir(), "wt")
-	git(t, repo, "worktree", "add", "-q", wt, "feature/x")
-	write(t, filepath.Join(wt, "b.go"), "two\n")
-	git(t, wt, "commit", "-qam", "b")
-	start := time.Now()
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (4)", 4))
-	assert.Less(t, time.Since(start), 2*time.Second)
+func TestReviewFiltersHideTests(t *testing.T) {
+	repo := branchRepo(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, "pkg", "testdata"), 0o700))
+	write(t, filepath.Join(repo, "pkg", "x_test.go"), "x\n")
+	write(t, filepath.Join(repo, "pkg", "testdata", "in.txt"), "x\n")
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+
+	review(t, h, id, nil)
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "pkg/testdata/in.txt", "pkg/x_test.go", "a.go", "c.go", "d.go"))
+	require.NoError(t, runCommand(t, h, id, "git.review-filter", map[string]bool{"tests": true}, nil))
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "3 files · 2 hidden", header["progress"])
+
+	testutil.Eventually(t, func() bool {
+		events, err := h.Bus.Read(t.Context(), "echo.command", 0, 100)
+		require.NoError(t, err)
+		for _, ev := range events {
+			var call struct {
+				ID   string `json:"id"`
+				Args struct {
+					Excludes []string `json:"excludes"`
+				} `json:"args"`
+			}
+			require.NoError(t, json.Unmarshal(ev.Payload, &call))
+			if call.ID == "editor-nvim.review-excludes" && slices.Contains(call.Args.Excludes, "*_test.go") {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second)
+}
+
+func TestReviewRefsFuzzy(t *testing.T) {
+	repo := committedRepo(t)
+	git(t, repo, "branch", "develop")
+	git(t, repo, "branch", "feature/device")
+	tools := filepath.Join(repo, ".worktrees", "devtools")
+	git(t, repo, "worktree", "add", "-q", "-b", "devtools", tools)
+	h, id := openReady(t, repo)
+
+	var refs []struct {
+		Ref   string `json:"ref"`
+		Kind  string `json:"kind"`
+		Label string `json:"label"`
+	}
+	require.NoError(t, runCommand(t, h, id, "git.review-refs", map[string]string{"query": "dev"}, &refs))
+	var got []string
+	for _, r := range refs {
+		got = append(got, r.Kind+" "+r.Label+" "+r.Ref)
+	}
+	assert.Equal(t, []string{"worktree devtools " + tools, "branch develop develop", "branch devtools devtools", "branch feature/device feature/device"}, got)
 }
 
 func TestReviewErrors(t *testing.T) {
 	repo := branchRepo(t)
-	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
-	reviewBranch(t, h, id)
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
-
-	form := reviewFormID(t, h, id)
-	h.Event(t, id, mainSlot, form, "review", map[string]string{"base": "main", "head": "nope"})
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "unknown branch nope" })
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
-	h.Event(t, id, mainSlot, form, "review", map[string]string{"base": "gone", "head": "HEAD"})
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "unknown branch gone" })
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
-
-	git(t, repo, "checkout", "-q", "--orphan", "o")
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "unknown branch HEAD" })
-	git(t, repo, "commit", "-qm", "orphan")
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return badgeText(n) == "no merge base with main" })
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
-}
-
-func TestReviewPersists(t *testing.T) {
-	repo := branchRepo(t)
-	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
-	h.Event(t, id, mainSlot, reviewFormID(t, h, id), "review", map[string]string{"base": "main", "head": "feature/x"})
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (3)", 3))
-
-	pids := h.Sup.PIDs()
-	require.Len(t, pids, 1)
-	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
-	testutil.Eventually(t, func() bool {
-		restarted := h.Sup.PIDs()
-		return len(restarted) == 1 && restarted[0] != pids[0]
-	}, restartWait)
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main...feature/x (3)", 3))
+	h, id := openReady(t, repo)
+	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "gone"}, nil), "unknown branch gone")
+	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"head": "nope"}, nil), "nope is not checked out in a worktree")
+	assert.ErrorContains(t, runCommand(t, h, id, "git.review-swap", nil, nil), "no review in progress")
 }
 
 func TestCorruptStoredReviewIgnored(t *testing.T) {
 	repo := branchRepo(t)
-	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+	h, id := openReady(t, repo)
 	require.NoError(t, h.KV.Set(t.Context(), "git", "review/"+id, json.RawMessage(`"corrupt"`)))
-
-	pids := h.Sup.PIDs()
-	require.Len(t, pids, 1)
-	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
-	testutil.Eventually(t, func() bool {
-		restarted := h.Sup.PIDs()
-		return len(restarted) == 1 && restarted[0] != pids[0]
-	}, restartWait)
+	restartGit(t, h)
 	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
-	reviewBranch(t, h, id)
-	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
+	review(t, h, id, nil)
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go"))
 }
 
 func TestGitSectionFollowsWorktree(t *testing.T) {

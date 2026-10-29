@@ -18,21 +18,14 @@ const (
 	groupStaged    = "staged"
 	groupChanges   = "changes"
 	groupUntracked = "untracked"
-	groupReview    = "review"
 	stageAction    = "stage"
 	unstageAction  = "unstage"
 	discardAction  = "discard"
 	openDiffAction = "open-diff"
 	commitAction   = "commit"
-	reviewAction   = "review"
-	endReviewID    = "end-review"
 	repoField      = "repo"
 	messageField   = "message"
 	submitID       = "submit"
-	reviewRepoID   = "review-repo"
-	reviewBaseID   = "base"
-	reviewHeadID   = "head"
-	reviewStartID  = "review-start"
 	missingDetail  = "missing"
 	notGitDetail   = "not a git repository"
 	maxDiffLines   = 2000
@@ -51,34 +44,11 @@ var groupTitles = []struct{ id, title string }{
 }
 
 type repoView struct {
-	Path        string
-	Branch      string
-	Problem     string
-	Entries     []gitrepo.Entry
-	Restorable  map[string]bool
-	Branches    []string
-	DefaultBase string
-	Review      reviewState
-}
-
-type reviewState struct {
-	Repo      string
-	Base      string
-	Head      string
-	MergeBase string
-	HeadSha   string
-	Entries   []gitrepo.Entry
-	Err       string
-}
-
-type reviewControls struct {
-	FormID   string
-	Repo     string
-	Branches []string
-	Base     string
-	Head     string
-	Active   bool
-	Err      string
+	Path       string
+	Branch     string
+	Problem    string
+	Entries    []gitrepo.Entry
+	Restorable map[string]bool
 }
 
 type leaf struct {
@@ -90,8 +60,6 @@ type leaf struct {
 	Dir        bool
 	Unmerged   bool
 	Restorable bool
-	Rev        string
-	Head       string
 }
 
 type mainModel struct {
@@ -101,7 +69,6 @@ type mainModel struct {
 	FormID  string
 	Busy    string
 	Failure string
-	Review  reviewControls
 }
 
 func (l leaf) id() string {
@@ -116,36 +83,8 @@ func (l leaf) rel() string {
 	return relPath(l.Repo, l.Path)
 }
 
-func (r reviewState) active() bool {
-	return r.Base != ""
-}
-
-func (r reviewState) same(repo, base, head string) bool {
-	return r.Repo == repo && r.Base == base && r.Head == head
-}
-
-func (r reviewState) branchHead() bool {
-	return r.Head != currentHead
-}
-
-func (r reviewState) title() string {
-	if r.branchHead() {
-		return "Review: " + r.Base + "..." + r.Head
-	}
-	return "Review: " + r.Base
-}
-
 func leaves(r repoView) []leaf {
 	var out []leaf
-	if r.Review.active() {
-		head := ""
-		if r.Review.branchHead() {
-			head = r.Review.HeadSha
-		}
-		for _, e := range r.Review.Entries {
-			out = append(out, leaf{Repo: r.Path, Group: groupReview, Path: e.Path, Code: string(e.X), Rev: r.Review.MergeBase, Head: head})
-		}
-	}
 	for _, e := range r.Entries {
 		if e.X == '?' && e.Y == '?' {
 			out = append(out, leaf{Repo: r.Path, Group: groupUntracked, Path: e.Path, Code: "U"})
@@ -180,9 +119,6 @@ func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui
 			continue
 		}
 		all := leaves(r)
-		if r.Review.active() {
-			root.Children = append(root.Children, groupItem(r.Path+idSep+groupReview, r.Review.title(), inGroup(all, groupReview), folded, &budget))
-		}
 		for _, g := range groupTitles {
 			if group := inGroup(all, g.id); len(group) > 0 {
 				root.Children = append(root.Children, groupItem(r.Path+idSep+g.id, g.title, group, folded, &budget))
@@ -235,7 +171,6 @@ func mainView(m mainModel) sdui.Node {
 		rel := sel.rel()
 		toolbar := []sdui.Node{mono(rel)}
 		switch sel.Group {
-		case groupReview:
 		case groupStaged:
 			toolbar = append(toolbar, sdui.Button(unstageAction, "Unstage", ""))
 		default:
@@ -250,9 +185,6 @@ func mainView(m mainModel) sdui.Node {
 		}
 		nodes = append(nodes, sdui.HStack(toolbar...), sdui.Scroll(m.Body))
 	}
-	if controls := reviewView(m.Review, m.Repos); len(controls) > 0 {
-		nodes = append(nodes, sdui.VStack(controls...))
-	}
 	var fields []sdui.Node
 	if len(m.Repos) > 1 {
 		value := m.Repos[0]
@@ -263,30 +195,6 @@ func mainView(m mainModel) sdui.Node {
 	}
 	fields = append(fields, sdui.TextField(messageField, "", "Commit message"), sdui.Button(submitID, "Commit", ""))
 	return sdui.VStack(append(nodes, sdui.WithAction(sdui.Form(m.FormID, fields...), commitAction))...)
-}
-
-func reviewView(c reviewControls, repos []string) []sdui.Node {
-	var nodes []sdui.Node
-	if c.Repo != "" {
-		var fields []sdui.Node
-		if len(repos) > 1 {
-			fields = append(fields, sdui.Select(reviewRepoID, repoOptions(repos), c.Repo))
-		}
-		options := make([]sdui.Option, len(c.Branches))
-		for i, b := range c.Branches {
-			options[i] = sdui.Option{Value: b, Label: b}
-		}
-		heads := append([]sdui.Option{{Value: currentHead, Label: "HEAD (current)"}}, options...)
-		fields = append(fields, sdui.Select(reviewBaseID, options, c.Base), sdui.Select(reviewHeadID, heads, c.Head), sdui.Button(reviewStartID, "Review Branch", ""))
-		nodes = append(nodes, sdui.WithAction(sdui.Form(c.FormID, fields...), reviewAction))
-	}
-	if c.Active {
-		nodes = append(nodes, sdui.Button(endReviewID, "End Review", ""))
-	}
-	if c.Err != "" {
-		nodes = append(nodes, sdui.Badge(c.Err, "danger"))
-	}
-	return nodes
 }
 
 func repoOptions(repos []string) []sdui.Option {

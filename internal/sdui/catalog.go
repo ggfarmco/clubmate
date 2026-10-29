@@ -64,6 +64,7 @@ var (
 	unitNumber  = number(func(n float64) bool { return n >= 0 && n <= 1 }, "a number within 0…1")
 	nonNegative = number(func(n float64) bool { return n >= 0 }, "a non-negative number")
 	positive    = number(func(n float64) bool { return n > 0 }, "a positive number")
+	countNumber = number(func(n float64) bool { return n >= 0 && n == math.Trunc(n) }, "a non-negative integer")
 	depthNumber = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
 
 	sparkValues = maxLen(maxSparkValues, sparkBudget(arrayOf(anyNumber)))
@@ -88,7 +89,7 @@ var (
 		},
 		"tree": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "breadcrumb": listOf(itemCheck), "action": actionCheck},
+			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "breadcrumb": listOf(itemCheck), "review": reviewCheck, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -402,11 +403,25 @@ func treeItemCheck(c *validator, v any) error {
 	if c.depth > maxDepth {
 		return fmt.Errorf("depth exceeds %d", maxDepth)
 	}
-	fields := map[string]propCheck{"muted": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck)}
+	fields := map[string]propCheck{
+		"muted": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
+		"additions": countNumber, "deletions": countNumber, "reviewed": isBool, "comments": countNumber,
+	}
 	for k, f := range itemFields {
 		fields[k] = f
 	}
 	return objectCheck(itemRequired, fields)(c, v)
+}
+
+func reviewCheck(c *validator, v any) error {
+	return objectCheck([]string{"base", "head"}, map[string]propCheck{
+		"base": isString, "head": isString, "baseRef": isString, "headPath": isString, "mode": isString,
+		"progress": isString, "warning": isString, "error": isString, "chips": listOf(chipCheck),
+	})(c, v)
+}
+
+func chipCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString, "on": isBool})(c, v)
 }
 
 func columnCheck(c *validator, v any) error {

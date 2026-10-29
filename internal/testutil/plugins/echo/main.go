@@ -83,8 +83,11 @@ func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, e
 	return map[string]any{"said": ev.Value, "plugin": h.PluginID()}, nil
 }
 
-func command(_ context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	if cmd.ID != h.PluginID()+".say" {
+		if _, err := h.Publish(ctx, "echo.command", map[string]any{"plugin": h.PluginID(), "id": cmd.ID, "args": cmd.Args}); err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("unknown command %q", cmd.ID)
 	}
 	return map[string]any{"plugin": h.PluginID(), "args": cmd.Args}, nil

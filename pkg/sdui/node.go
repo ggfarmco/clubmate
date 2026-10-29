@@ -24,6 +24,10 @@ type TreeItem struct {
 	Muted       bool       `json:"muted,omitempty"`
 	HasChildren bool       `json:"hasChildren,omitempty"`
 	Expanded    bool       `json:"expanded,omitempty"`
+	Additions   int        `json:"additions,omitempty"`
+	Deletions   int        `json:"deletions,omitempty"`
+	Reviewed    bool       `json:"reviewed,omitempty"`
+	Comments    int        `json:"comments,omitempty"`
 	Children    []TreeItem `json:"children,omitempty"`
 }
 

@@ -42,7 +42,7 @@ require("smart-splits").setup({
 
 ## Branch review
 
-When you review a branch — the checked-out one or any other — Clubmate uses your own [diffview.nvim](https://github.com/sindrets/diffview.nvim) if `:DiffviewOpen` exists: it runs `DiffviewOpen -C<repo> <base>...<head>` (`<head>` is `HEAD` for the checked-out branch) in a new tab and closes the review tab it opened before, so there is only ever one. Clubmate never installs or configures diffview. Without it, the review is shown only in the Git section's Review group, whose per-file diffs open in nvim as a `clubmate://<short sha>/<path>` scratch buffer against the worktree file for the checked-out branch, or, for any other branch, against a second read-only `clubmate://<head short sha>/<path>` scratch buffer; nothing is checked out and the worktree is untouched.
+A review compares a worktree's working state, uncommitted and untracked files included, with its merge-base with a base branch or another worktree's branch. Clubmate opens it in your own [diffview.nvim](https://github.com/sindrets/diffview.nvim) as `-C<worktree> <merge-base>`, so the right side is the editable worktree file, and closes the review tab it opened before, so there is only ever one. With the diffview fork's `diffview.clubmate` module, Clubmate hides diffview's file panel and shows the list itself (status, `+/−`, reviewed marks and nrev comment counts), and the review's filters become `:(exclude)` pathspecs. With plain diffview, its own panel stays and the filters only apply to Clubmate's list. Without diffview, the list's diffs open in nvim as a `clubmate://<short sha>/<path>` scratch buffer against the worktree file. Clubmate never installs or configures diffview.
 
 ## Large and binary files
 
