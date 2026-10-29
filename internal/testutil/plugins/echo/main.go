@@ -125,7 +125,8 @@ func ownsSection(h *pluginsdk.Host) bool {
 	var m struct {
 		Contributes struct {
 			Sections []struct {
-				ID string `json:"id"`
+				ID    string `json:"id"`
+				Scope string `json:"scope"`
 			} `json:"sections"`
 		} `json:"contributes"`
 	}
@@ -133,7 +134,7 @@ func ownsSection(h *pluginsdk.Host) bool {
 		return false
 	}
 	for _, s := range m.Contributes.Sections {
-		if s.ID == h.PluginID() {
+		if s.ID == h.PluginID() && s.Scope != "app" {
 			return true
 		}
 	}
