@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"slices"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"clubmate/internal/wire"
 )
@@ -18,6 +17,7 @@ const (
 	ReadMax     = 256 << 10
 
 	enterDelay      = 50 * time.Millisecond
+	drainTimeout    = 2 * time.Second
 	snapshotTimeout = 2 * time.Second
 )
 
@@ -40,15 +40,28 @@ func (m *Manager) Send(ctx context.Context, sid, text string, enter bool) error 
 	if err := writeInput(conn, []byte(text)); err != nil {
 		return err
 	}
-	if !enter {
-		return nil
+	if enter {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(enterDelay):
+		}
+		if err := writeInput(conn, []byte("\r")); err != nil {
+			return err
+		}
 	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(enterDelay):
+	return finishInput(conn)
+}
+
+func finishInput(conn net.Conn) error {
+	if uc, ok := conn.(*net.UnixConn); ok {
+		if err := uc.CloseWrite(); err != nil {
+			return fmt.Errorf("send input: %w", err)
+		}
 	}
-	return writeInput(conn, []byte("\r"))
+	conn.SetReadDeadline(time.Now().Add(drainTimeout))
+	_, err := io.Copy(io.Discard, conn)
+	return err
 }
 
 func (m *Manager) Read(ctx context.Context, sid string, n int, raw bool) (Snapshot, error) {
@@ -112,73 +125,4 @@ func writeInput(conn net.Conn, data []byte) error {
 		}
 	}
 	return nil
-}
-
-func Plain(b []byte) string {
-	out := make([]byte, 0, len(b))
-	lineStart := 0
-	pendingCR := false
-	overwrite := func() {
-		if pendingCR {
-			out = out[:lineStart]
-			pendingCR = false
-		}
-	}
-	for i := 0; i < len(b); {
-		c := b[i]
-		switch {
-		case c == 0x1b:
-			i = skipEscape(b, i)
-			continue
-		case c == '\r':
-			pendingCR = true
-		case c == '\b':
-			overwrite()
-			if len(out) > lineStart {
-				_, size := utf8.DecodeLastRune(out[lineStart:])
-				out = out[:len(out)-size]
-			}
-		case c == '\n':
-			pendingCR = false
-			out = append(out, c)
-			lineStart = len(out)
-		case c == '\t' || c >= 0x20 && c != 0x7f:
-			overwrite()
-			out = append(out, c)
-		}
-		i++
-	}
-	return strings.ToValidUTF8(string(out), "")
-}
-
-func skipEscape(b []byte, i int) int {
-	if i+1 >= len(b) {
-		return len(b)
-	}
-	if b[i+1] < 0x20 {
-		return i + 1
-	}
-	switch b[i+1] {
-	case '[':
-		j := i + 2
-		for j < len(b) && (b[j] < 0x40 || b[j] > 0x7e) {
-			j++
-		}
-		return min(j+1, len(b))
-	case ']', 'P', 'X', '^', '_':
-		for j := i + 2; j < len(b); j++ {
-			if b[j] == 0x07 {
-				return j + 1
-			}
-			if b[j] == 0x1b && j+1 < len(b) && b[j+1] == '\\' {
-				return j + 2
-			}
-		}
-		return len(b)
-	}
-	j := i + 1
-	for j < len(b) && b[j] >= 0x20 && b[j] <= 0x2f {
-		j++
-	}
-	return min(j+1, len(b))
 }

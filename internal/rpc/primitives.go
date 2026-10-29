@@ -165,7 +165,14 @@ func sessionProject(ctx context.Context, svc *core.Service, _ string, args json.
 	return s.ProjectID, nil
 }
 
-func (p primitive) agentArgs(args json.RawMessage) (json.RawMessage, error) {
+func (p primitive) sessionArg() string {
+	if p.cmd.ID == "" {
+		return "sessionId"
+	}
+	return "id"
+}
+
+func exactArgs(c Command, args json.RawMessage) (json.RawMessage, error) {
 	fields := map[string]json.RawMessage{}
 	if len(args) > 0 && string(args) != "null" {
 		if err := json.Unmarshal(args, &fields); err != nil {
@@ -173,10 +180,10 @@ func (p primitive) agentArgs(args json.RawMessage) (json.RawMessage, error) {
 		}
 	}
 	for name := range fields {
-		if p.cmd.Args == nil {
+		if c.Args == nil {
 			return nil, invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
 		}
-		if _, ok := p.cmd.Args.Properties[name]; !ok {
+		if _, ok := c.Args.Properties[name]; !ok {
 			return nil, invalidParams(fmt.Sprintf("args.%s: not allowed in agent calls", name))
 		}
 	}

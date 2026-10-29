@@ -37,6 +37,13 @@ type confirmParams struct {
 	Command   string          `json:"command"`
 	Args      json.RawMessage `json:"args"`
 	TimeoutMs int64           `json:"timeoutMs"`
+	Session   *confirmSession `json:"session,omitempty"`
+}
+
+type confirmSession struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Workspace string `json:"workspace"`
 }
 
 type confirmResult struct {
@@ -52,7 +59,7 @@ func (deniedError) Is(target error) bool {
 	return target == ErrDenied
 }
 
-func (s *Server) approve(ctx context.Context, c Command, projectID string, raw json.RawMessage) (json.RawMessage, error) {
+func (s *Server) approve(ctx context.Context, c Command, projectID, sessionKey string, raw json.RawMessage) (json.RawMessage, error) {
 	workspace := ""
 	if projectID != "" {
 		p, err := s.svc.GetProject(ctx, projectID)
@@ -72,7 +79,7 @@ func (s *Server) approve(ctx context.Context, c Command, projectID string, raw j
 	defer release()
 	ctx, cancel := context.WithTimeout(ctx, approvalTimeout)
 	defer cancel()
-	params := confirmParams{Title: c.Title, Workspace: workspace, Command: c.ID, Args: args, TimeoutMs: approvalTimeout.Milliseconds()}
+	params := confirmParams{Title: c.Title, Workspace: workspace, Command: c.ID, Args: args, TimeoutMs: approvalTimeout.Milliseconds(), Session: s.targetSession(ctx, sessionKey, args)}
 	var res confirmResult
 	if err := conn.Call(ctx, callUIConfirm, params, &res); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -87,6 +94,23 @@ func (s *Server) approve(ctx context.Context, c Command, projectID string, raw j
 		return nil, errDeniedByUser
 	}
 	return args, nil
+}
+
+func (s *Server) targetSession(ctx context.Context, key string, args json.RawMessage) *confirmSession {
+	var fields map[string]json.RawMessage
+	var id string
+	if json.Unmarshal(args, &fields) != nil || json.Unmarshal(fields[key], &id) != nil {
+		return nil
+	}
+	sess, err := s.svc.GetSession(ctx, id)
+	if err != nil {
+		return nil
+	}
+	out := &confirmSession{ID: sess.ID, Title: sess.Title}
+	if p, err := s.svc.GetProject(ctx, sess.ProjectID); err == nil {
+		out.Workspace = p.Name
+	}
+	return out
 }
 
 func approvableArgs(c Command, raw json.RawMessage) (json.RawMessage, error) {

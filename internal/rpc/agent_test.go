@@ -24,6 +24,11 @@ type confirmRequest struct {
 	Command   string          `json:"command"`
 	Args      json.RawMessage `json:"args"`
 	TimeoutMs int64           `json:"timeoutMs"`
+	Session   *struct {
+		ID        string `json:"id"`
+		Title     string `json:"title"`
+		Workspace string `json:"workspace"`
+	} `json:"session"`
 }
 
 type approver struct {
@@ -40,6 +45,16 @@ func TestAgentCannotReachHidden(t *testing.T) {
 		err := c.Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": p.ID, "agent": true}, nil)
 		assert.ErrorIs(t, err, rpc.ErrNotFound, id)
 	}
+}
+
+func TestAgentArgsExactKeys(t *testing.T) {
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"args":{"properties":{"path":{"type":"string"}}}}`)
+	c := h.Client(t)
+	var out map[string]any
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"path": "a"}}, &out))
+	err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"path": "a", "PATH": "b"}}, nil)
+	require.ErrorIs(t, err, rpc.ErrInvalidParams)
+	assert.ErrorContains(t, err, "args.PATH: not allowed in agent calls")
 }
 
 func TestCapabilityNamedLikePrimitive(t *testing.T) {
@@ -134,7 +149,7 @@ func TestDestructiveAgentArgsStrict(t *testing.T) {
 		args any
 		err  string
 	}{
-		{name: "undeclared key", args: map[string]any{"s": "x", "extra": "y"}, err: "args.extra: not declared"},
+		{name: "undeclared key", args: map[string]any{"s": "x", "extra": "y"}, err: "args.extra: not allowed in agent calls"},
 		{name: "overlong value", args: map[string]any{"s": strings.Repeat("é", 201)}, err: "args.s: longer than 200 characters"},
 		{name: "non-object args", args: []int{1}, err: "args: want object"},
 		{name: "integer beyond 2^53", args: map[string]any{"n": int64(1)<<53 + 1}, err: "args.n: number outside ±2^53"},
@@ -228,9 +243,21 @@ func TestAgentSendNeedsApproval(t *testing.T) {
 	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t)
-	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Command: []string{"sh", "-c", "exec cat"}})
+	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Title: "Build", Command: []string{"sh", "-c", "exec cat"}})
 	require.NoError(t, err)
-	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
+	c := h.Client(t)
+	send := func() error {
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "session.send", "agent": true, "args": map[string]any{"id": s.ID, "text": "hi"}}, nil)
+	}
+	err = send()
 	require.ErrorIs(t, err, rpc.ErrDenied)
 	assert.ErrorContains(t, err, "no app to approve")
+	a := newApprover(t, h)
+	done := make(chan error, 1)
+	go func() { done <- send() }()
+	asked := <-a.asked
+	require.NotNil(t, asked.Session)
+	assert.Equal(t, [3]string{s.ID, "Build", "demo"}, [3]string{asked.Session.ID, asked.Session.Title, asked.Session.Workspace})
+	a.reply <- false
+	require.ErrorIs(t, <-done, rpc.ErrDenied)
 }
