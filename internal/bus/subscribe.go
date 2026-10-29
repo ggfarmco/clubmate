@@ -1,8 +1,14 @@
 package bus
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-const subscriptionBuffer = 256
+const (
+	subscriptionBuffer = 256
+	drainPoll          = 5 * time.Millisecond
+)
 
 type Subscription struct {
 	bus     *Bus
@@ -83,6 +89,15 @@ func (s *Subscription) backfill(ctx context.Context, after int64) {
 		if !ok {
 			return
 		}
+		if upto <= after {
+			select {
+			case <-time.After(drainPoll):
+				continue
+			case <-ctx.Done():
+				close(s.out)
+				return
+			}
+		}
 		events, err := s.bus.readRange(ctx, s.pattern, after, upto, subscriptionBuffer)
 		if err != nil {
 			s.fail(err)
@@ -111,6 +126,9 @@ func (s *Subscription) nextBackfill(after int64) (int64, bool) {
 		return 0, false
 	}
 	if after >= s.head {
+		if len(s.out) > subscriptionBuffer/2 {
+			return s.head, true
+		}
 		s.live = true
 		return 0, false
 	}

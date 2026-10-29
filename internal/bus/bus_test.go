@@ -73,6 +73,25 @@ func TestSubscribeLargeBackfillDuringPublishHasNoGapsOrDuplicates(t *testing.T) 
 	<-done
 }
 
+func TestFullBackfillBufferDoesNotDropOnGoingLive(t *testing.T) {
+	b := openBus(t)
+	for range 200 {
+		_, err := b.Publish(t.Context(), "t.x", "x", nil)
+		require.NoError(t, err)
+	}
+	sub, err := b.Subscribe("*", 0)
+	require.NoError(t, err)
+	t.Cleanup(sub.Close)
+	time.Sleep(100 * time.Millisecond)
+	for range 100 {
+		_, err := b.Publish(t.Context(), "t.x", "x", nil)
+		require.NoError(t, err)
+	}
+	for want := int64(1); want <= 300; want++ {
+		require.Equal(t, want, recv(t, sub).Seq)
+	}
+}
+
 func TestCloseStopsBlockedBackfill(t *testing.T) {
 	b := openBus(t)
 	for range 300 {
