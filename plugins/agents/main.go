@@ -1,0 +1,701 @@
+package main
+
+import (
+	"cmp"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/url"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/internal/gitrepo"
+)
+
+const (
+	changedTopic    = "agents.changed"
+	sessionKey      = "session/"
+	modeKey         = "mode/"
+	checktimeCmd    = "editor-nvim.checktime"
+	attachTimeout   = 2 * time.Minute
+	callTimeout     = 10 * time.Second
+	refsTimeout     = 30 * time.Second
+	checkpointLimit = 2 * time.Minute
+	embedLimit      = 1 << 20
+)
+
+var (
+	errHome        = errors.New("Agents aren't available in the home workspace")
+	errNoFolder    = errors.New("the workspace has no folders")
+	errNoSession   = errors.New("unknown agent session")
+	errClosed      = errors.New("the session is closed")
+	errBusy        = errors.New("a turn is already running")
+	errNotLive     = errors.New("the session's agent is not running")
+	errNoResume    = errors.New("the agent cannot resume this session")
+	errUnknownMode = errors.New("unknown mode")
+	errUnknownCmd  = errors.New("unknown command")
+	errNoStateDir  = errors.New("no plugin state dir")
+	errShutdown    = errors.New("the agents plugin is shutting down")
+)
+
+type sessionArgs struct {
+	Session string `json:"session"`
+}
+
+type newArgs struct {
+	Agent string `json:"agent"`
+}
+
+type attachment struct {
+	Kind      string `json:"kind"`
+	Path      string `json:"path"`
+	StartLine int    `json:"startLine"`
+	EndLine   int    `json:"endLine"`
+	Text      string `json:"text"`
+}
+
+type promptArgs struct {
+	Session     string       `json:"session"`
+	Text        string       `json:"text"`
+	Attachments []attachment `json:"attachments"`
+}
+
+type permissionArgs struct {
+	Session string `json:"session"`
+	Request string `json:"request"`
+	Option  string `json:"option"`
+}
+
+type modeArgs struct {
+	Session string `json:"session"`
+	Mode    string `json:"mode"`
+}
+
+type transcriptArgs struct {
+	Session  string `json:"session"`
+	FromTurn int    `json:"fromTurn"`
+}
+
+type newResult struct {
+	Session string `json:"session"`
+}
+
+type projectPayload struct {
+	Project pluginsdk.Project `json:"project"`
+}
+
+type deletedPayload struct {
+	ID string `json:"id"`
+}
+
+type app struct {
+	host     *pluginsdk.Host
+	stateDir string
+	loaded   chan struct{}
+	notes    *notifier
+
+	mu       sync.Mutex
+	sessions map[string]*session
+	procs    map[string]*procSlot
+	live     map[*agentProc]bool
+	dropped  map[string]bool
+	closing  bool
+	stopOnce sync.Once
+}
+
+func main() {
+	a := &app{loaded: make(chan struct{}), sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]bool{}}
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
+	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
+	a.stopAll()
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
+	a.host = h
+	a.stateDir = pluginsdk.StateDir()
+	if a.stateDir == "" {
+		return errNoStateDir
+	}
+	a.notes = newNotifier(h)
+	keys, err := h.StorageList(ctx, sessionKey)
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		var rec record
+		if found, err := h.StorageGet(ctx, k, &rec); err != nil || !found || !sessionIDPattern.MatchString(rec.ID) {
+			continue
+		}
+		stale := rec.Status == statusRunning || rec.Status == statusWaiting
+		if stale {
+			rec.Status = statusIdle
+		}
+		s := a.addSession(rec, false)
+		if stale {
+			a.notes.mark(s, changeStatus, true)
+		}
+	}
+	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
+	if err != nil {
+		return err
+	}
+	if _, err := h.Subscribe(ctx, "project.*", ready.Seq); err != nil {
+		return err
+	}
+	close(a.loaded)
+	return nil
+}
+
+func (a *app) addSession(rec record, loaded bool) *session {
+	var s *session
+	s = newSession(rec, newEventLog(logPath(a.stateDir, rec.ID)), loaded, func(kind string, save bool) { a.notes.mark(s, kind, save) })
+	a.mu.Lock()
+	a.sessions[rec.ID] = s
+	a.mu.Unlock()
+	return s
+}
+
+func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
+	select {
+	case <-a.loaded:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	switch cmd.ID {
+	case "agents.new":
+		var args newArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return a.newSession(ctx, h, cmd.ProjectID, cmp.Or(args.Agent, agentClaude))
+	case "agents.prompt":
+		var args promptArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return nil, a.prompt(cmd.ProjectID, args)
+	case "agents.permission":
+		var args permissionArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		s, err := a.lookup(cmd.ProjectID, args.Session)
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.answer(args.Request, args.Option)
+	case "agents.mode":
+		var args modeArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return nil, a.setMode(ctx, cmd.ProjectID, args)
+	case "agents.sessions":
+		return a.list(cmd.ProjectID), nil
+	case "agents.transcript":
+		var args transcriptArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		s, err := a.lookup(cmd.ProjectID, args.Session)
+		if err != nil {
+			return nil, err
+		}
+		return s.view(args.FromTurn), nil
+	}
+	var args sessionArgs
+	if err := decode(cmd.Args, &args); err != nil {
+		return nil, err
+	}
+	s, err := a.lookup(cmd.ProjectID, args.Session)
+	if err != nil {
+		return nil, err
+	}
+	switch cmd.ID {
+	case "agents.cancel":
+		a.cancel(s)
+		return nil, nil
+	case "agents.close":
+		a.closeSession(ctx, s, false)
+		return nil, nil
+	case "agents.delete":
+		return nil, a.deleteSession(ctx, s)
+	case "agents.resume":
+		a.resume(s)
+		return nil, nil
+	}
+	return nil, fmt.Errorf("%w: %s", errUnknownCmd, cmd.ID)
+}
+
+func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, agent string) (newResult, error) {
+	if agent != agentClaude {
+		return newResult{}, fmt.Errorf("%w: %s", errUnknownAgent, agent)
+	}
+	p, err := h.GetProject(ctx, projectID)
+	if err != nil {
+		return newResult{}, err
+	}
+	if p.Home {
+		return newResult{}, errHome
+	}
+	root, _, err := workRoot(p)
+	if err != nil {
+		return newResult{}, err
+	}
+	now := time.Now().UTC()
+	s := a.addSession(record{ID: newSessionID(), Workspace: projectID, Worktree: root, Agent: agent, Status: statusIdle, CreatedAt: now, UpdatedAt: now}, true)
+	a.notes.mark(s, changeCreated, true)
+	go a.attachInBackground(s)
+	return newResult{Session: s.rec.ID}, nil
+}
+
+func workRoot(p pluginsdk.Project) (string, []string, error) {
+	if len(p.Roots) == 0 {
+		return "", nil, errNoFolder
+	}
+	i := slices.IndexFunc(p.Roots, func(r string) bool {
+		_, ok := gitrepo.RepoRoot(r)
+		return ok
+	})
+	i = max(i, 0)
+	return p.Roots[i], slices.Delete(slices.Clone(p.Roots), i, i+1), nil
+}
+
+func (a *app) lookup(projectID, id string) (*session, error) {
+	a.mu.Lock()
+	s, ok := a.sessions[id]
+	a.mu.Unlock()
+	if !ok || s.snapshot().Workspace != projectID {
+		return nil, fmt.Errorf("%w: %s", errNoSession, id)
+	}
+	return s, nil
+}
+
+func (a *app) list(projectID string) []record {
+	a.mu.Lock()
+	all := make([]*session, 0, len(a.sessions))
+	for _, s := range a.sessions {
+		all = append(all, s)
+	}
+	a.mu.Unlock()
+	out := []record{}
+	for _, s := range all {
+		if rec := s.snapshot(); rec.Workspace == projectID {
+			out = append(out, rec)
+		}
+	}
+	slices.SortFunc(out, func(x, y record) int { return x.CreatedAt.Compare(y.CreatedAt) })
+	return out
+}
+
+func (a *app) attachInBackground(s *session) {
+	if _, err := a.attach(s); err != nil {
+		a.fail(s, err.Error())
+	}
+}
+
+func (a *app) fail(s *session, text string) {
+	s.mu.Lock()
+	if s.rec.Closed {
+		s.mu.Unlock()
+		return
+	}
+	s.running = false
+	s.recordLocked(actorClubmate, kindError, turnEndPayload{Error: text})
+	s.setStatusLocked(statusError, text)
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+}
+
+func (a *app) attach(s *session) (*agentProc, error) {
+	s.attachMu.Lock()
+	defer s.attachMu.Unlock()
+	s.mu.Lock()
+	s.loadLocked()
+	p, rec := s.proc, s.rec
+	s.mu.Unlock()
+	if p != nil && p.alive() {
+		return p, nil
+	}
+	if rec.Closed {
+		return nil, errClosed
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), attachTimeout)
+	defer cancel()
+	p, err := a.ensureProc(ctx, rec.Agent, rec.Worktree)
+	if err != nil {
+		return nil, err
+	}
+	var extra []string
+	if p.caps.SessionCapabilities.AdditionalDirectories != nil {
+		if project, err := a.host.GetProject(ctx, rec.Workspace); err == nil {
+			_, extra, _ = workRoot(project)
+		}
+	}
+	if rec.AgentSessionID != "" {
+		return p, a.resumeOn(ctx, s, p, rec, extra)
+	}
+	var raw json.RawMessage
+	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp}, &raw); err != nil {
+		a.release(p)
+		return nil, fmt.Errorf("session/new: %w", err)
+	}
+	var res acp.NewSessionResponse
+	if err := json.Unmarshal(raw, &res); err != nil || res.SessionID == "" {
+		a.release(p)
+		return nil, fmt.Errorf("session/new: bad response %s", raw)
+	}
+	s.mu.Lock()
+	s.rec.AgentSessionID = res.SessionID
+	s.mu.Unlock()
+	a.notes.persist(ctx, s)
+	p.register(res.SessionID, s)
+	s.mu.Lock()
+	s.recordLocked(s.actor(), kindNew, raw)
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	a.applyRememberedMode(ctx, s, res.Modes)
+	return p, nil
+}
+
+func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record, extra []string) error {
+	if p.caps.SessionCapabilities.Resume == nil {
+		a.release(p)
+		return errNoResume
+	}
+	var raw json.RawMessage
+	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp}, &raw); err != nil {
+		a.release(p)
+		return fmt.Errorf("session/resume: %w", err)
+	}
+	p.register(rec.AgentSessionID, s)
+	s.mu.Lock()
+	s.recordLocked(s.actor(), kindResume, raw)
+	if s.rec.Status == statusError {
+		s.setStatusLocked(statusIdle, "")
+	}
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	return nil
+}
+
+func (a *app) applyRememberedMode(ctx context.Context, s *session, modes *acp.SessionModeState) {
+	if modes == nil {
+		return
+	}
+	var mode string
+	if found, err := a.host.StorageGet(ctx, modeStorageKey(s.snapshot().Worktree), &mode); err != nil || !found || mode == modes.CurrentModeID {
+		return
+	}
+	if !slices.ContainsFunc(modes.AvailableModes, func(m acp.SessionMode) bool { return m.ID == mode }) {
+		return
+	}
+	if err := a.sendMode(ctx, s, mode); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: restore mode:", err)
+	}
+}
+
+func (a *app) prompt(projectID string, args promptArgs) error {
+	s, err := a.lookup(projectID, args.Session)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.loadLocked()
+	switch {
+	case s.rec.Closed:
+		s.mu.Unlock()
+		return errClosed
+	case s.running:
+		s.mu.Unlock()
+		return errBusy
+	}
+	s.running = true
+	s.turn++
+	turn := s.turn
+	s.settleLocked()
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	go a.runTurn(s, turn, args)
+	return nil
+}
+
+func (a *app) runTurn(s *session, turn int, args promptArgs) {
+	p, err := a.attach(s)
+	if err != nil {
+		a.fail(s, err.Error())
+		return
+	}
+	rec := s.snapshot()
+	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
+	sha, err := checkpoint(ctx, rec.Worktree, rec.ID, turn)
+	cancel()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "agents: checkpoint:", err)
+	}
+	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)}
+	s.mu.Lock()
+	s.recordLocked(actorClubmate, kindCheckpoint, checkpointPayload{Turn: turn, Sha: sha})
+	s.recordLocked(actorUser, kindPrompt, req)
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+	var res acp.PromptResponse
+	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
+	if errors.Is(err, acp.ErrClosed) {
+		go p.stop()
+		return
+	}
+	s.mu.Lock()
+	s.log.flush()
+	s.running = false
+	edited := s.edited
+	switch {
+	case s.rec.Closed:
+		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
+	case err != nil:
+		s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{Error: err.Error()})
+		s.setStatusLocked(statusError, err.Error())
+	default:
+		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
+		if s.rec.Status == statusWaiting {
+			s.prior = statusDone
+		} else {
+			s.setStatusLocked(statusDone, "")
+		}
+	}
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	if edited {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		if err := a.host.RunCommand(ctx, checktimeCmd, rec.Workspace, map[string]string{"root": rec.Worktree}, nil); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: checktime:", err)
+		}
+	}
+}
+
+func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBlock {
+	blocks := []acp.ContentBlock{{Type: "text", Text: args.Text}}
+	for _, att := range args.Attachments {
+		path := att.Path
+		if path != "" && !filepath.IsAbs(path) {
+			path = filepath.Join(root, path)
+		}
+		uri := (&url.URL{Scheme: "file", Path: path}).String()
+		switch att.Kind {
+		case "file":
+			if data, err := os.ReadFile(path); embedded && err == nil && len(data) <= embedLimit {
+				blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri, Text: strings.ToValidUTF8(string(data), "")}})
+				continue
+			}
+			blocks = append(blocks, acp.ContentBlock{Type: "resource_link", URI: uri, Name: filepath.Base(path)})
+		case "selection":
+			lines := strconv.Itoa(att.StartLine) + "-" + strconv.Itoa(att.EndLine)
+			if embedded {
+				blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri + "#L" + lines, Text: att.Text}})
+				continue
+			}
+			blocks = append(blocks, acp.ContentBlock{Type: "text", Text: path + ":" + lines + "\n```\n" + att.Text + "\n```"})
+		}
+	}
+	return blocks
+}
+
+func (a *app) cancel(s *session) {
+	s.mu.Lock()
+	p, running, agentID := s.proc, s.running, s.rec.AgentSessionID
+	if running {
+		s.recordLocked(actorUser, kindCancel, acp.SessionRequest{SessionID: agentID})
+	}
+	s.mu.Unlock()
+	if p != nil && running {
+		if err := p.conn.Notify(acp.MethodSessionCancel, acp.SessionRequest{SessionID: agentID}); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: cancel:", err)
+		}
+	}
+	s.mu.Lock()
+	s.cancelPermissionsLocked()
+	s.mu.Unlock()
+	s.changed(changeUpdate, false)
+}
+
+func (a *app) setMode(ctx context.Context, projectID string, args modeArgs) error {
+	s, err := a.lookup(projectID, args.Session)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	known := slices.ContainsFunc(s.modes, func(m acp.SessionMode) bool { return m.ID == args.Mode })
+	worktree := s.rec.Worktree
+	s.mu.Unlock()
+	if !known {
+		return fmt.Errorf("%w: %s", errUnknownMode, args.Mode)
+	}
+	if err := a.sendMode(ctx, s, args.Mode); err != nil {
+		return err
+	}
+	return a.host.StorageSet(ctx, modeStorageKey(worktree), args.Mode)
+}
+
+func (a *app) sendMode(ctx context.Context, s *session, mode string) error {
+	s.mu.Lock()
+	p, agentID := s.proc, s.rec.AgentSessionID
+	s.mu.Unlock()
+	if p == nil {
+		return errNotLive
+	}
+	req := acp.SetSessionModeRequest{SessionID: agentID, ModeID: mode}
+	if err := p.conn.Call(ctx, acp.MethodSessionSetMode, req, nil); err != nil {
+		return fmt.Errorf("session/set_mode: %w", err)
+	}
+	s.mu.Lock()
+	s.recordLocked(actorUser, kindSetMode, req)
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	return nil
+}
+
+func modeStorageKey(worktree string) string {
+	sum := sha256.Sum256([]byte(worktree))
+	return modeKey + hex.EncodeToString(sum[:])
+}
+
+func (a *app) resume(s *session) {
+	s.mu.Lock()
+	if s.rec.Closed {
+		s.rec.Closed = false
+		s.setStatusLocked(statusIdle, "")
+	}
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	go a.attachInBackground(s)
+}
+
+func (a *app) closeSession(ctx context.Context, s *session, remove bool) {
+	s.mu.Lock()
+	p, agentID, running := s.proc, s.rec.AgentSessionID, s.running
+	s.proc = nil
+	s.running = false
+	s.cancelPermissionsLocked()
+	if !s.rec.Closed {
+		s.recordLocked(actorUser, kindClose, acp.SessionRequest{SessionID: agentID})
+		s.rec.Closed = true
+		s.setStatusLocked(statusClosed, "")
+	}
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	if p == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	req := acp.SessionRequest{SessionID: agentID}
+	if running {
+		_ = p.conn.Notify(acp.MethodSessionCancel, req)
+	}
+	if p.caps.SessionCapabilities.Close != nil {
+		_ = p.conn.Call(ctx, acp.MethodSessionClose, req, nil)
+	}
+	if remove && p.caps.SessionCapabilities.Delete != nil {
+		_ = p.conn.Call(ctx, acp.MethodSessionDelete, req, nil)
+	}
+	p.unregister(agentID)
+	a.release(p)
+}
+
+func (a *app) deleteSession(ctx context.Context, s *session) error {
+	a.closeSession(ctx, s, true)
+	a.mu.Lock()
+	delete(a.sessions, s.rec.ID)
+	a.mu.Unlock()
+	s.mu.Lock()
+	s.deleted = true
+	rec := s.rec
+	err := s.log.remove()
+	s.mu.Unlock()
+	a.notes.mark(s, changeDeleted, true)
+	refsCtx, cancel := context.WithTimeout(context.Background(), refsTimeout)
+	defer cancel()
+	return errors.Join(err, a.deleteRefs(refsCtx, rec))
+}
+
+func (a *app) deleteRefs(ctx context.Context, rec record) error {
+	if _, err := os.Stat(rec.Worktree); err == nil {
+		return deleteCheckpoints(ctx, rec.Worktree, rec.ID)
+	}
+	p, err := a.host.GetProject(ctx, rec.Workspace)
+	if err != nil {
+		return nil
+	}
+	var errs []error
+	for _, repo := range p.Repos {
+		errs = append(errs, deleteCheckpoints(ctx, repo, rec.ID))
+	}
+	return errors.Join(errs...)
+}
+
+func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev pluginsdk.Event) {
+	switch ev.Topic {
+	case "project.deleted":
+		var p deletedPayload
+		if json.Unmarshal(ev.Payload, &p) == nil {
+			go a.dropWorkspace(p.ID, nil)
+		}
+	case "project.updated":
+		var p projectPayload
+		if json.Unmarshal(ev.Payload, &p) == nil {
+			go a.dropWorkspace(p.Project.ID, func(rec record) bool {
+				_, err := os.Stat(rec.Worktree)
+				return errors.Is(err, os.ErrNotExist)
+			})
+		}
+	}
+}
+
+func (a *app) dropWorkspace(projectID string, match func(record) bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), refsTimeout)
+	defer cancel()
+	a.mu.Lock()
+	var hit []*session
+	for id, s := range a.sessions {
+		if !a.dropped[id] {
+			hit = append(hit, s)
+		}
+	}
+	a.mu.Unlock()
+	for _, s := range hit {
+		rec := s.snapshot()
+		if rec.Workspace != projectID || (match != nil && !match(rec)) {
+			continue
+		}
+		a.mu.Lock()
+		a.dropped[rec.ID] = true
+		a.mu.Unlock()
+		a.closeSession(ctx, s, false)
+		if err := a.deleteRefs(ctx, rec); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: delete checkpoints:", err)
+		}
+	}
+}
+
+func decode(raw json.RawMessage, v any) error {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	return json.Unmarshal(raw, v)
+}

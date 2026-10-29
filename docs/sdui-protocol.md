@@ -276,12 +276,24 @@ The app's Help ▸ Collect Diagnostics… first shows a sheet listing the files 
 
 Plugins receive it as `Plugin.FSChanged`, and use `Host.WatchFS` / `Host.UnwatchFS`.
 
+The `agents` plugin hosts ACP v1 agents (Claude through `@agentclientprotocol/claude-agent-acp`), one process per (agent, worktree root) in the effective root of the workspace's first git folder (the first folder when none is git; the other folders go as `additionalDirectories` when the agent supports them). Unavailable in the home workspace (`Agents aren't available in the home workspace`). Its commands are hidden; `agents.sessions` and `agents.transcript` are the only agent-visible ones (non-destructive):
+- `agents.new {agent?: "claude"}` → `{session}` at once; the agent starts in the background (status `error` with the reason when it cannot, e.g. `Node 22+ is required to run Claude (found <v>)`).
+- `agents.prompt {session, text, attachments?: [{kind: "file", path} | {kind: "selection", path, startLine, endLine, text}]}` checkpoints the worktree (`refs/clubmate/cp/<session>/<turn>`, a commit whose parent is `HEAD` and whose tree is the worktree with untracked files, built through a temporary index) and sends `session/prompt`; it returns once the turn started and fails with `a turn is already running` or `the session is closed`. Files go as embedded resources when the agent supports them, else as resource links; selections as resources or a fenced text block. When a turn had an edit, delete or move tool call it ends with `editor-nvim.checktime {root}`.
+- `agents.cancel {session}` sends `session/cancel` and answers every pending permission with `cancelled`; `agents.permission {session, request, option}` answers one (`request` is the permission entry's id, `option` one of its `optionId`s).
+- `agents.mode {session, mode}` sends `session/set_mode` (only advertised modes) and remembers the mode for new sessions in that worktree.
+- `agents.close {session}` closes the session (`session/close` when supported); the process stops when no open session remains on it. `agents.delete {session}` (destructive, confirm) also calls `session/delete` when supported and removes the log and the checkpoint refs. `agents.resume {session}` reattaches through `session/resume` (fails with `the agent cannot resume this session` otherwise).
+- `agents.sessions` → `[{id, workspace, worktree, agent, agentSessionId, title, status, mode, createdAt, updatedAt, closed, error?}]` (stored in plugin storage under `session/<id>`); `status` is `running`, `waiting` (a permission is pending), `done`, `idle`, `error` (with `error`, e.g. the agent's stderr tail) or `closed`.
+- `agents.transcript {session, fromTurn?}` → `{session, modes, commands, turns: [{turn, checkpointSha, stopReason?}], entries: [{kind, id, turn, ...}]}` with entries upserted by `(kind, id)`: `user` (`text`, `content` blocks), `agent` / `thought` (`text`), `tool` (the merged ACP tool call fields under `tool`; unfinished calls of a cancelled turn get status `cancelled`), `plan` (one per turn), `permission` (`toolCall`, `options`, `outcome` once answered) and `notice`.
+
+Every event is appended to `<state>/plugins/agents/sessions/<id>.jsonl` as `{workspace, worktree, session, parentSession, role, turn, seq, actor, ts, kind, payload}` with ACP payloads verbatim; text chunks are coalesced per message (flushed at turn end, after 2 s or at 64 KiB). Removing a workspace, or a worktree with sessions, closes them and deletes their checkpoint refs.
+
 ## Bus topics
 
 - `project.updated` `{project}`: published when a repo is added to a project (`project.addRepo`), it is renamed (`project.rename`) or a folder's worktree selection changes (`workspace.worktree.set`). Existing `fs.watch` streams do not follow; re-watch on this event.
 - `editor.buffer` `{projectId, path}`: published by `editor-nvim` when nvim enters a file buffer (BufEnter). `path` is absolute, as nvim names the buffer.
 - `editor.started` `{projectId, root}`: published by `editor-nvim` after it starts a new nvim for `root` (the first start and every restart) and connects to it; reconnecting to an nvim that is already running (e.g. after a plugin restart) publishes nothing.
 - `editor.saved` `{projectId, path}`: published by `editor-nvim` after nvim writes a file buffer (BufWritePost).
+- `agents.changed` `{workspace, session, kind}`: published by `agents` on every session change, coalesced per session and kind (`created`, `status`, `update`, `deleted`).
 - `processes.killed` `{projectId, pids}`: published by `processes` when auto-kill terminates orphans of a project; never published with empty `pids`.
 
 ## Core notifications
@@ -301,7 +313,7 @@ Clients keep per-project UI state with `ui.state.get` / `ui.state.set` `{project
 
 ## Plugin runtime dir
 
-The core creates `<runtime>/p/<pluginId>` (mode 0700) and passes its path to the plugin in `CLUBMATE_PLUGIN_RUNTIME_DIR` (`pluginsdk.RuntimeDir()`). It also passes the build flavour in `CLUBMATE_FLAVOR` (`pluginsdk.Flavor()`): `release` for release builds, `dev` otherwise.
+The core creates `<runtime>/p/<pluginId>` (mode 0700) and passes its path to the plugin in `CLUBMATE_PLUGIN_RUNTIME_DIR` (`pluginsdk.RuntimeDir()`). It passes `<state>/plugins/<pluginId>` in `CLUBMATE_PLUGIN_STATE_DIR` (`pluginsdk.StateDir()`) for data that must survive restarts; the plugin creates it when needed. It also passes the build flavour in `CLUBMATE_FLAVOR` (`pluginsdk.Flavor()`): `release` for release builds, `dev` otherwise.
 
 The core also passes the app's resources directory in `CLUBMATE_RESOURCES` (`pluginsdk.ResourcesDir()`), `Clubmate.app/Contents/Resources` when run from the app; bundled tools live under `tools/` and `nvim/` there.
 
