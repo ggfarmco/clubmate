@@ -78,7 +78,7 @@ final class GoToFileTests: XCTestCase {
         model.update("ab")
         try await waitUntil { search.waiting["ab"] != nil }
         let choosing = Task { await model.choose() }
-        try await Task.sleep(for: .milliseconds(20))
+        try await waitUntil { model.choosing }
         model.cancel()
         search.release("ab")
         await choosing.value

@@ -21,10 +21,10 @@ struct FindInFilesView: View {
             header
             theme.border.frame(height: 1)
             HStack(spacing: 0) {
-                results
+                FindResultsList(model: model)
                     .frame(maxWidth: .infinity)
                 theme.border.frame(width: 1)
-                preview
+                FindPreviewPane(model: model)
                     .frame(maxWidth: .infinity)
             }
             theme.border.frame(height: 1)
@@ -50,15 +50,21 @@ struct FindInFilesView: View {
             toggle("Aa", help: "Match Case", isOn: model.options.caseSensitive) { $0.caseSensitive.toggle() }
             toggle("ab|", help: "Match Whole Word", isOn: model.options.word) { $0.word.toggle() }
             toggle(".*", help: "Use Regular Expression", isOn: model.options.regex) { $0.regex.toggle() }
-            TextField("files to include, e.g. *.go", text: Binding(get: { model.options.glob }, set: { glob in
-                var options = model.options
-                options.glob = glob
-                model.update(options: options)
-            }))
-            .textFieldStyle(.plain)
-            .font(theme.uiSmall)
-            .frame(width: 200)
-            .onExitCommand(perform: dismiss)
+            PaletteField(
+                text: Binding(get: { model.options.glob }, set: { glob in
+                    var options = model.options
+                    options.glob = glob
+                    model.update(options: options)
+                }),
+                placeholder: "files to include, e.g. *.go",
+                move: model.move,
+                submit: open,
+                cancel: dismiss,
+                alternateSubmit: quickfix,
+                autofocus: false,
+                fontSize: 12
+            )
+            .frame(width: 200, height: 30)
         }
         .padding(.horizontal, theme.gutter)
     }
@@ -79,7 +85,48 @@ struct FindInFilesView: View {
         .help(help)
     }
 
-    @ViewBuilder private var results: some View {
+    private var footer: some View {
+        HStack(spacing: theme.gutter) {
+            Text(status)
+                .foregroundStyle(theme.muted)
+            Spacer(minLength: theme.gutter)
+            Button("Quickfix ⌥↩", action: quickfix)
+                .buttonStyle(.plain)
+                .foregroundStyle(model.flat.isEmpty ? theme.muted : theme.accent)
+                .disabled(model.flat.isEmpty)
+        }
+        .font(theme.uiSmall)
+        .padding(.horizontal, theme.gutter * 1.5)
+        .frame(height: theme.rowHeight + 4)
+    }
+
+    private var status: String {
+        let count = "\(model.flat.count) results in \(model.groups.count) files"
+        switch model.state {
+        case .idle: return ""
+        case .searching: return "\(count) — searching…"
+        case .done: return count
+        case .truncated: return "\(count) — stopped at 10 000"
+        case .unavailable: return GoToFileModel.homeMessage
+        case .error(let message): return message
+        }
+    }
+
+    private func open() {
+        Task { await model.open() }
+    }
+
+    private func quickfix() {
+        Task { await model.quickfix() }
+    }
+}
+
+private struct FindResultsList: View {
+    let model: FindInFilesModel
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
         if let message = emptyMessage {
             Text(message)
                 .font(theme.ui)
@@ -87,19 +134,20 @@ struct FindInFilesView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             let offsets = groupOffsets
+            let selected = model.selected?.id
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(model.groups.enumerated()), id: \.element.id) { groupIndex, group in
                             groupHeader(group)
                             ForEach(Array(group.matches.enumerated()), id: \.element.id) { index, match in
-                                matchRow(match, index: offsets[groupIndex] + index)
+                                matchRow(match, index: offsets[groupIndex] + index, selected: match.id == selected)
                             }
                         }
                     }
                     .padding(.vertical, 4)
                 }
-                .onChange(of: model.selected?.id) { _, id in
+                .onChange(of: selected) { _, id in
                     if let id { proxy.scrollTo(id) }
                 }
             }
@@ -143,9 +191,8 @@ struct FindInFilesView: View {
         .frame(height: theme.rowHeight + 2)
     }
 
-    private func matchRow(_ match: FindMatch, index: Int) -> some View {
-        let selected = model.selected?.id == match.id
-        return HStack(spacing: theme.gutter) {
+    private func matchRow(_ match: FindMatch, index: Int, selected: Bool) -> some View {
+        HStack(spacing: theme.gutter) {
             Text("\(match.line)")
                 .monospacedDigit()
                 .foregroundStyle(theme.muted)
@@ -164,13 +211,28 @@ struct FindInFilesView: View {
         .id(match.id)
         .onTapGesture(count: 2) {
             model.select(index)
-            open()
+            Task { await model.open() }
         }
         .onTapGesture { model.select(index) }
     }
 
-    @ViewBuilder private var preview: some View {
-        if let preview = model.preview {
+    private func highlighted(_ runs: [HighlightRun]) -> AttributedString {
+        runs.reduce(into: AttributedString()) { text, run in
+            var part = AttributedString(run.text)
+            part.foregroundColor = run.matched ? theme.accent : theme.foreground
+            if run.matched { part.backgroundColor = theme.accent.opacity(0.15) }
+            text += part
+        }
+    }
+}
+
+private struct FindPreviewPane: View {
+    let model: FindInFilesModel
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if let preview = model.preview, let selected = model.selected, preview.matchID == selected.id {
             ScrollViewReader { proxy in
                 ScrollView([.vertical, .horizontal]) {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -196,53 +258,14 @@ struct FindInFilesView: View {
                     proxy.scrollTo(preview.line, anchor: .center)
                 }
             }
+        } else if model.selected != nil {
+            Text("Loading preview…")
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             Color.clear
         }
-    }
-
-    private var footer: some View {
-        HStack(spacing: theme.gutter) {
-            Text(status)
-                .foregroundStyle(theme.muted)
-            Spacer(minLength: theme.gutter)
-            Button("Quickfix ⌥↩", action: quickfix)
-                .buttonStyle(.plain)
-                .foregroundStyle(model.flat.isEmpty ? theme.muted : theme.accent)
-                .disabled(model.flat.isEmpty)
-        }
-        .font(theme.uiSmall)
-        .padding(.horizontal, theme.gutter * 1.5)
-        .frame(height: theme.rowHeight + 4)
-    }
-
-    private var status: String {
-        let count = "\(model.flat.count) results in \(model.groups.count) files"
-        switch model.state {
-        case .idle: return ""
-        case .searching: return "\(count) — searching…"
-        case .done: return count
-        case .truncated: return "\(count) — stopped at 10 000"
-        case .unavailable: return GoToFileModel.homeMessage
-        case .error(let message): return message
-        }
-    }
-
-    private func highlighted(_ runs: [HighlightRun]) -> AttributedString {
-        runs.reduce(into: AttributedString()) { text, run in
-            var part = AttributedString(run.text)
-            part.foregroundColor = run.matched ? theme.accent : theme.foreground
-            if run.matched { part.backgroundColor = theme.accent.opacity(0.15) }
-            text += part
-        }
-    }
-
-    private func open() {
-        Task { await model.open() }
-    }
-
-    private func quickfix() {
-        Task { await model.quickfix() }
     }
 }
 

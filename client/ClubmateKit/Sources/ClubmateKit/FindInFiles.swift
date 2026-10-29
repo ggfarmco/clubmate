@@ -23,7 +23,17 @@ public struct FindMatch: Equatable, Sendable, Identifiable {
     public let text: String
     public let ranges: [Range<Int>]
 
-    public var id: String { "\(absPath):\(line)" }
+    public let id: String
+
+    public init(path: String, absPath: String, line: Int, col: Int, text: String, ranges: [Range<Int>]) {
+        self.path = path
+        self.absPath = absPath
+        self.line = line
+        self.col = col
+        self.text = text
+        self.ranges = ranges
+        id = "\(absPath):\(line)"
+    }
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let path = fields["path"]?.stringValue,
@@ -31,6 +41,7 @@ public struct FindMatch: Equatable, Sendable, Identifiable {
         self.path = path
         self.absPath = absPath
         self.line = Int(line)
+        id = "\(absPath):\(Int(line))"
         col = fields["col"]?.numberValue.map(Int.init) ?? 1
         text = fields["text"]?.stringValue ?? ""
         ranges = (fields["ranges"]?.arrayValue ?? []).compactMap { pair in
@@ -76,6 +87,10 @@ public struct FindPreview: Equatable, Sendable {
 @Observable
 public final class FindInFilesModel {
     public static let maxQuickfixItems = 10_000
+    public static let maxQuickfixFiles = 1000
+    public static let maxQuickfixPathBytes = 4096
+    public static let quickfixBudget = 2 << 20
+    public static let quickfixItemOverhead = 64
     public static let quickfixTitleLimit = 512
 
     public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
@@ -167,19 +182,49 @@ public final class FindInFilesModel {
 
     public func quickfix() async {
         guard !flat.isEmpty else { return }
-        let items: [JSONValue] = flat.prefix(Self.maxQuickfixItems).map { match in
-            .object([
+        let payload = Self.quickfixPayload(query: query, matches: flat)
+        dismiss()
+        if case .failure(let error) = await run(CommandInvocation(id: "editor.quickfix", args: payload)) {
+            report(error.message)
+        }
+    }
+
+    public static func quickfixPayload(query: String, matches: [FindMatch]) -> JSONValue {
+        var files = Set<String>()
+        var items: [JSONValue] = []
+        var bytes = 0
+        var dropped = false
+        for match in matches {
+            guard validQuickfixPath(match.absPath) else {
+                dropped = true
+                continue
+            }
+            let text = match.text.replacingOccurrences(of: "\u{0}", with: "")
+            let size = match.absPath.utf8.count + text.utf8.count + quickfixItemOverhead
+            guard items.count < maxQuickfixItems, bytes + size <= quickfixBudget,
+                  files.contains(match.absPath) || files.count < maxQuickfixFiles else {
+                dropped = true
+                continue
+            }
+            files.insert(match.absPath)
+            bytes += size
+            items.append(.object([
                 "path": .string(match.absPath),
                 "line": .number(Double(match.line)),
                 "col": .number(Double(match.col)),
-                "text": .string(match.text.replacingOccurrences(of: "\u{0}", with: "")),
-            ])
+                "text": .string(text),
+            ]))
         }
-        let title = String("Search: \(query)".map { $0.isNewline ? " " : $0 }.prefix(Self.quickfixTitleLimit))
-        dismiss()
-        if case .failure(let error) = await run(CommandInvocation(id: "editor.quickfix", args: .object(["title": .string(title), "items": .array(items)]))) {
-            report(error.message)
-        }
+        let suffix = dropped ? " (first \(items.count))" : ""
+        let base = "Search: " + query.map { $0.isNewline ? " " : $0 }.filter { $0 != "\u{0}" }
+        let room = max(quickfixTitleLimit - suffix.unicodeScalars.count, 0)
+        var scalars = String.UnicodeScalarView()
+        scalars.append(contentsOf: base.unicodeScalars.prefix(room))
+        return .object(["title": .string(String(scalars) + suffix), "items": .array(items)])
+    }
+
+    private static func validQuickfixPath(_ path: String) -> Bool {
+        !path.isEmpty && path.utf8.count <= maxQuickfixPathBytes && !path.unicodeScalars.contains { $0 == "\n" || $0 == "\r" || $0 == "\u{0}" }
     }
 
     public func stop() {
@@ -237,6 +282,7 @@ public final class FindInFilesModel {
             case .failure(let error):
                 state = .error(error.message)
                 currentID = nil
+                _ = await run(Self.cancelInvocation(id))
                 return
             case .success(let value):
                 let fields = value.objectValue ?? [:]
@@ -293,6 +339,7 @@ public final class FindInFilesModel {
     }
 
     private func fetchPreview(_ match: FindMatch) async {
+        guard !Task.isCancelled, selected?.id == match.id else { return }
         let args: JSONValue = .object(["path": .string(match.absPath), "line": .number(Double(match.line)), "context": .number(8)])
         guard case .success(let value) = await run(CommandInvocation(id: "search.preview", args: args)),
               !Task.isCancelled, selected?.id == match.id else { return }

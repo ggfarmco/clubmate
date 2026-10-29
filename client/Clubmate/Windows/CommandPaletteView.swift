@@ -92,6 +92,8 @@ struct PaletteField: NSViewRepresentable {
     let submit: () -> Void
     let cancel: () -> Void
     var alternateSubmit: (() -> Void)?
+    var autofocus = true
+    var fontSize: CGFloat = 13
 
     @Environment(\.theme) private var theme
 
@@ -105,7 +107,8 @@ struct PaletteField: NSViewRepresentable {
         field.drawsBackground = false
         field.focusRingType = .none
         field.placeholderString = placeholder
-        field.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        field.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        field.autofocus = autofocus
         field.delegate = context.coordinator
         return field
     }
@@ -156,16 +159,28 @@ final class PaletteTextField: NSTextField {
         responder as? PaletteTextField ?? (responder as? NSTextView)?.delegate as? PaletteTextField
     }
 
+    var autofocus = true
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard let window else { return }
-        let responder = window.firstResponder
+        guard autofocus, let window else { return }
+        remember(window.firstResponder)
+        window.makeFirstResponder(self)
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        if !autofocus, let responder = window?.firstResponder, Self.owner(of: responder) !== self {
+            remember(responder)
+        }
+        return super.becomeFirstResponder()
+    }
+
+    private func remember(_ responder: NSResponder?) {
         if let owner = Self.owner(of: responder) {
             previous = owner.previous
         } else {
             previous = responder as? NSView
         }
-        window.makeFirstResponder(self)
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {

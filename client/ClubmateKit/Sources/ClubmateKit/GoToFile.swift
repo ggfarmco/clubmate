@@ -96,7 +96,7 @@ public final class GoToFileModel {
     @ObservationIgnored private let retry: Duration
     @ObservationIgnored private var pending: Task<Void, Never>?
     @ObservationIgnored private var serial = 0
-    @ObservationIgnored private var choosing = false
+    @ObservationIgnored public private(set) var choosing = false
     @ObservationIgnored private var epoch = 0
 
     public init(
@@ -167,6 +167,7 @@ public final class GoToFileModel {
     }
 
     private func fetch(_ query: String, _ serial: Int) async {
+        guard serial == self.serial, !Task.isCancelled else { return }
         let reply = await run(CommandInvocation(id: Self.searchCommand, args: .object(["query": .string(query)])))
         guard serial == self.serial, !Task.isCancelled else { return }
         switch reply {

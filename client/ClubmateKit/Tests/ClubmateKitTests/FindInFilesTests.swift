@@ -65,6 +65,20 @@ final class FindInFilesTests: XCTestCase {
         XCTAssertEqual(call.args.objectValue?["items"]?.arrayValue?.count, 3)
     }
 
+    func testQuickfixPayloadSkipsBadPathsAndCapsFiles() {
+        let bad = FindMatch(path: "bad", absPath: "/w/bad\npath", line: 1, col: 1, text: "t", ranges: [])
+        let good = (0...FindInFilesModel.maxQuickfixFiles).map { FindMatch(path: "f\($0)", absPath: "/w/f\($0)", line: 1, col: 1, text: "t", ranges: []) }
+
+        let payload = FindInFilesModel.quickfixPayload(query: String(repeating: "𝒳", count: 600), matches: [bad] + good)
+
+        let items = payload.objectValue?["items"]?.arrayValue ?? []
+        XCTAssertEqual(items.count, FindInFilesModel.maxQuickfixFiles)
+        XCTAssertEqual(items.first?.objectValue?["path"], .string("/w/f0"))
+        let title = payload.objectValue?["title"]?.stringValue ?? ""
+        XCTAssertEqual(title.unicodeScalars.count, FindInFilesModel.quickfixTitleLimit)
+        XCTAssertTrue(title.hasSuffix(" (first 1000)"))
+    }
+
     private func makeModel(_ find: FakeFind, opened: @escaping @MainActor () -> Void = {}) -> FindInFilesModel {
         FindInFilesModel(debounce: .zero, previewDebounce: .zero, run: find.run, dismiss: {}, report: { _ in }, opened: opened)
     }
