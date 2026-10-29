@@ -66,6 +66,7 @@ public struct FileGroup: Equatable, Sendable, Identifiable {
 public enum FindState: Equatable, Sendable {
     case idle
     case searching
+    case indexing
     case done
     case truncated
     case unavailable
@@ -288,6 +289,7 @@ public final class FindInFilesModel {
                 let fields = value.objectValue ?? [:]
                 guard fields["id"]?.stringValue == currentID else { return }
                 append(fields["matches"]?.arrayValue?.compactMap(FindMatch.init) ?? [])
+                state = fields["indexing"]?.boolValue == true ? .indexing : .searching
                 after = fields["next"]?.numberValue.map(Int.init) ?? after
                 guard fields["done"]?.boolValue == true else { continue }
                 currentID = nil

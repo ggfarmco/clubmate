@@ -161,13 +161,13 @@ private struct ProjectCommands: Commands {
         }
         CommandGroup(replacing: .printItem) {}
         CommandGroup(before: .toolbar) {
-            Button("Command Palette") { session?.toggle(.palette) }
+            Button("Command Palette") { shortcut(.palette) }
                 .keyboardShortcut("k")
                 .disabled(session == nil)
-            Button("Go to File…") { session?.toggle(.goToFile) }
+            Button("Go to File…") { shortcut(.goToFile) }
                 .keyboardShortcut("p")
                 .disabled(session == nil)
-            Button("Find in Files…") { session?.toggle(.findInFiles) }
+            Button("Find in Files…") { shortcut(.findInFiles) }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
                 .disabled(session == nil)
             Button("Toggle Sidebar") { store?.toggleSidebar(app.settings) }
@@ -199,6 +199,12 @@ private struct ProjectCommands: Commands {
                     .disabled(section(index) == nil)
             }
         }
+    }
+
+    private func shortcut(_ overlay: WorkspaceOverlay) {
+        guard let session else { return }
+        if session.overlay == overlay, let window = NSApp.keyWindow, PaletteTextField.focusIfUnfocused(in: window) { return }
+        session.toggle(overlay)
     }
 
     private var canSwitchWorkspace: Bool {

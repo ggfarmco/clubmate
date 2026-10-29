@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-public struct GoToFileMatch: Equatable, Sendable {
+public struct GoToFileMatch: Equatable, Sendable, Identifiable {
     public let path: String
     public let absPath: String
     public let positions: [Int]
@@ -22,6 +22,8 @@ public struct GoToFileMatch: Equatable, Sendable {
         positions = fields["positions"]?.arrayValue?.compactMap { $0.numberValue.map(Int.init) } ?? []
         line = fields["line"]?.numberValue.map(Int.init)
     }
+
+    public var id: String { absPath }
 
     public var nameStart: Int {
         let scalars = Array(path.unicodeScalars)

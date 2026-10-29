@@ -68,9 +68,9 @@ struct GoToFileView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(model.results.enumerated()), id: \.element.absPath) { index, match in
+                        ForEach(Array(model.results.enumerated()), id: \.element.id) { index, match in
                             row(match, selected: index == model.selection)
-                                .id(index)
+                                .id(match.id)
                                 .onTapGesture {
                                     model.select(index)
                                     choose()
@@ -79,7 +79,9 @@ struct GoToFileView: View {
                     }
                 }
                 .frame(height: (theme.rowHeight + 2) * CGFloat(min(model.results.count, Self.visibleRows)))
-                .onChange(of: model.selection) { _, selection in proxy.scrollTo(selection) }
+                .onChange(of: model.selection) { _, selection in
+                    if model.results.indices.contains(selection) { proxy.scrollTo(model.results[selection].id) }
+                }
             }
         }
     }

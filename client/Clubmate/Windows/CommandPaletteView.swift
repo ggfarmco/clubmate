@@ -155,6 +155,16 @@ final class PaletteTextField: NSTextField {
         owner(of: window.firstResponder) != nil
     }
 
+    static func focusIfUnfocused(in window: NSWindow) -> Bool {
+        guard !isShown(in: window), let field = window.contentView.flatMap(firstAutofocus) else { return false }
+        return window.makeFirstResponder(field)
+    }
+
+    private static func firstAutofocus(in view: NSView) -> PaletteTextField? {
+        if let field = view as? PaletteTextField, field.autofocus { return field }
+        return view.subviews.lazy.compactMap(firstAutofocus).first
+    }
+
     private static func owner(of responder: NSResponder?) -> PaletteTextField? {
         responder as? PaletteTextField ?? (responder as? NSTextView)?.delegate as? PaletteTextField
     }

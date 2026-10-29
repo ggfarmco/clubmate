@@ -105,6 +105,7 @@ struct FindInFilesView: View {
         switch model.state {
         case .idle: return ""
         case .searching: return "\(count) — searching…"
+        case .indexing: return "Indexing…"
         case .done: return count
         case .truncated: return "\(count) — stopped at 10 000"
         case .unavailable: return GoToFileModel.homeMessage
@@ -171,6 +172,7 @@ private struct FindResultsList: View {
         case .error(let message): return message
         case .idle: return "Type to search"
         case .searching: return "Searching…"
+        case .indexing: return "Indexing…"
         case .done, .truncated: return "No results"
         }
     }
