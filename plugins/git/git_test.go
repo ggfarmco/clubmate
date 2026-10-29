@@ -563,10 +563,11 @@ func TestReviewMarksTheStateTheUserSaw(t *testing.T) {
 	assert.JSONEq(t, `{"path":"a.go","reviewed":true}`, string(args[0]))
 }
 
-func TestReviewClosedByTheUserReopensOnTheNextAction(t *testing.T) {
+func TestReviewClosedByTheUserReopensOnlyOnAListAction(t *testing.T) {
 	repo := branchRepo(t)
 	h, id := openReady(t, repo, moduleEditor(t, ""))
 	review(t, h, id, nil)
+	require.NoError(t, runCommand(t, h, id, "git.review-filter", map[string]bool{"tests": true}, nil))
 	h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go"))
 	require.Equal(t, 1, opens(t, h))
 
@@ -574,10 +575,16 @@ func TestReviewClosedByTheUserReopensOnTheNextAction(t *testing.T) {
 	require.NoError(t, err)
 	_, err = h.Bus.Publish(t.Context(), "review.changed", "editor-nvim", payload)
 	require.NoError(t, err)
-	testutil.Eventually(t, func() bool {
-		require.NoError(t, reviewAction(t, h, id, "select", "a.go"))
-		return opens(t, h) == 2
-	}, 5*time.Second)
+	write(t, filepath.Join(repo, "x_test.go"), "x\n")
+	require.NoError(t, runCommand(t, h, id, "git.refresh", nil, nil))
+	h.WaitSlot(t, id, reviewSlot, func(n sdui.Node) bool {
+		files, header := reviewView(t, n)
+		return slices.Equal(files, []string{"a.go", "c.go"}) && header["progress"] == "2 files · 1 hidden · 0/2 reviewed"
+	})
+	assert.Equal(t, 1, opens(t, h), "a refresh after the user closed the review does not reopen it")
+
+	require.NoError(t, reviewAction(t, h, id, "select", "a.go"))
+	assert.Equal(t, 2, opens(t, h))
 }
 
 func TestReviewShowsBlockedEditor(t *testing.T) {

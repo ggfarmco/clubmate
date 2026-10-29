@@ -93,6 +93,7 @@ type review struct {
 	changes   []gitrepo.Change
 	entries   []reviewEntry
 	opened    string
+	closed    bool
 	selected  string
 	focus     string
 	folded    map[string]bool
@@ -413,7 +414,7 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	cur := currents[at]
 	s.active = cur.t.Real
 	r := s.reviews[s.active]
-	base, opened, mode, excludes := r.base, r.opened, r.mode, r.filters.excludes()
+	base, opened, mode, excludes, closed := r.base, r.opened, r.mode, r.filters.excludes(), r.closed
 	s.mu.Unlock()
 	headLabel, err := gitrepo.Branch(ctx, cur.t.Real)
 	logError("branch "+cur.t.Real, err)
@@ -434,7 +435,7 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	}
 	reopened := false
 	var editorErr error
-	if opened != mergeBase {
+	if opened != mergeBase && !closed {
 		var out openResult
 		if editorErr = h.RunCommand(ctx, openCommand, id, openArgs{Cwd: cur.t.Real, Base: mergeBase, Excludes: excludes}, &out); editorErr != nil {
 			logError("review-open "+id, editorErr)
@@ -443,7 +444,7 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 		}
 	}
 	var entries []reviewEntry
-	if mode == moduleMode && editorErr == nil {
+	if mode == moduleMode && editorErr == nil && !closed {
 		if editorErr = h.RunCommand(ctx, entriesCommand, id, nil, &entries); editorErr != nil {
 			logError("review-entries "+id, editorErr)
 		}
@@ -458,7 +459,7 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	if reopened {
 		r.opened = mergeBase
 	}
-	if mode != moduleMode || editorErr == nil {
+	if mode != moduleMode || editorErr == nil && !closed {
 		r.entries = entries
 	}
 }
@@ -502,7 +503,7 @@ func (a *app) reviewChanged(ctx context.Context, h *pluginsdk.Host, p reviewChan
 	case p.Kind == fileOpenKind:
 		r.selected = p.Path
 	case p.Kind == closedKind:
-		r.opened = ""
+		r.opened, r.closed = "", true
 	}
 	s.mu.Unlock()
 	switch {
@@ -579,7 +580,10 @@ func (a *app) openReviewFile(ctx context.Context, h *pluginsdk.Host, id, head, m
 func (a *app) reopenClosed(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
 	s.mu.Lock()
 	r := s.reviews[s.active]
-	closed := r != nil && r.mode == moduleMode && r.opened == ""
+	closed := r != nil && r.closed
+	if closed {
+		r.closed = false
+	}
 	s.mu.Unlock()
 	if closed {
 		a.refreshReview(ctx, h, id, s)
