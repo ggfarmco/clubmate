@@ -172,6 +172,7 @@ final class StoresTests: XCTestCase {
         try await starting.value
         XCTAssertFalse(store.connected)
 
+        _ = try await waitFor { try await terminalsPID(client) }
         let stream = client.subscribeNotifications()
         _ = try await client.commandRun(id: "terminals.new", projectID: project.id)
         let update = await firstUIUpdate(stream, within: .milliseconds(500))
