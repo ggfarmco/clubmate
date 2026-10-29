@@ -29,6 +29,14 @@ final class AppModel {
     @ObservationIgnored private var restored = false
     @ObservationIgnored private var navigationPending = true
     @ObservationIgnored private var navigationAsked = false
+    @ObservationIgnored private(set) lazy var nvimConfig = NvimConfigModel(
+        run: { [weak self] workspace, invocation in
+            await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
+        },
+        workspaces: { [weak self] in await self?.nvimWorkspaces() ?? [] },
+        displayed: { [weak self] in Set(self?.layout.windows.compactMap(\.active) ?? []) },
+        confirm: { message in await Confirmation.ask(message, action: "Restart", destructive: true) }
+    )
 
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
 
@@ -197,6 +205,7 @@ final class AppModel {
     }
 
     private func touch(_ projectID: String) {
+        Task { await nvimConfig.activated(projectID) }
         guard let client = supervisor.client else { return }
         Task {
             try? await client.touchWorkspace(projectID)
@@ -257,6 +266,31 @@ final class AppModel {
         }
     }
 
+    private func runCommand(_ invocation: CommandInvocation, in workspace: String?) async -> Result<JSONValue, ClubmateError> {
+        guard let client = supervisor.client else { return .failure(.notRunning) }
+        let active = keyWindowID.flatMap { layout.window($0)?.active } ?? layout.windows.lazy.compactMap(\.active).first
+        guard let projectID = workspace ?? active ?? projects?.projects.first?.id else { return .failure(NvimConfigModel.noWorkspace) }
+        do {
+            return .success(try await client.commandRun(id: invocation.id, projectID: projectID, args: invocation.args))
+        } catch let error as ClubmateError {
+            return .failure(error)
+        } catch {
+            return .failure(.protocolError("\(error)"))
+        }
+    }
+
+    private func nvimWorkspaces() async -> [NvimWorkspace] {
+        guard let client = supervisor.client, let sessions = try? await client.call(method: "session.list").arrayValue else { return [] }
+        var running: [String: String] = [:]
+        for session in sessions {
+            guard let fields = session.objectValue, fields["owner"]?.stringValue == CodeSection.id,
+                  fields["state"]?.stringValue == "running", let projectID = fields["projectId"]?.stringValue,
+                  let id = fields["id"]?.stringValue, running[projectID] == nil else { continue }
+            running[projectID] = id
+        }
+        return running.keys.sorted().map { NvimWorkspace(id: $0, name: project($0)?.name ?? $0, session: running[$0] ?? "") }
+    }
+
     func project(_ id: String) -> Project? {
         projects?.projects.first { $0.id == id }
     }
@@ -311,6 +345,9 @@ final class AppModel {
             Task { @MainActor in self?.trackProjects() }
         }) else { return }
         let present = Set(listed.map(\.id))
+        for workspace in nvimConfig.pending where !present.contains(workspace.id) {
+            nvimConfig.forget(workspace.id)
+        }
         let workspaces = Set(layout.windows.flatMap(\.workspaces))
         presence = presence.filter { workspaces.contains($0.key) }
         let gone = workspaces.filter { presence[$0, default: ProjectPresence()].observe(present.contains($0)) }

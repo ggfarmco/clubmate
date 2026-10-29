@@ -357,7 +357,11 @@ func writeData(w io.Writer, data []byte) error {
 }
 
 func childEnv(cfg Config) []string {
-	env := StripMarkers(append(os.Environ(), cfg.Env...))
+	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		key, _, _ := strings.Cut(kv, "=")
+		return slices.Contains(cfg.UnsetEnv, key)
+	})
+	env = StripMarkers(append(env, cfg.Env...))
 	env = append(env, sessionMarker+cfg.ID, projectMarker+cfg.ProjectID)
 	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "TERM=") }) {
 		env = append(env, defaultTerm)

@@ -55,6 +55,7 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errUnknownAction  = errors.New("unknown action")
 	errUnsaved        = errors.New("unsaved buffers")
+	errUnsavedUnknown = fmt.Errorf("%w: unknown (nvim not responding)", errUnsaved)
 	errDeleted        = errors.New("project deleted")
 	errNotInRepo      = errors.New("not in a git repository")
 	errRelativePath   = errors.New("diff: path must be absolute")
@@ -148,6 +149,7 @@ type deletedPayload struct {
 
 type app struct {
 	nvimPath string
+	copies   *copies
 	navMu    sync.Mutex
 	mu       sync.Mutex
 	editors  map[string]*editor
@@ -168,12 +170,13 @@ type editor struct {
 }
 
 func main() {
-	a := &app{editors: map[string]*editor{}, deleted: map[string]bool{}}
+	a := &app{copies: newCopies(), editors: map[string]*editor{}, deleted: map[string]bool{}}
 	a.nvimPath, _ = exec.LookPath("nvim")
-	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
+	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
+	go a.sweepTemps()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err
@@ -252,7 +255,8 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	name := strings.TrimPrefix(cmd.ID, h.PluginID()+".")
-	if name == "navigation" {
+	switch name {
+	case "navigation":
 		var args navigationArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("navigation args: %w", err)
@@ -261,6 +265,34 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, errNavigationSide
 		}
 		return a.navigation(ctx, h, args)
+	case "config":
+		var args configArgs
+		if len(cmd.Args) > 0 {
+			if err := json.Unmarshal(cmd.Args, &args); err != nil {
+				return nil, fmt.Errorf("config args: %w", err)
+			}
+		}
+		return a.config(ctx, h, args)
+	case "config-copy":
+		var args copyArgs
+		if len(cmd.Args) > 0 {
+			if err := json.Unmarshal(cmd.Args, &args); err != nil {
+				return nil, fmt.Errorf("config-copy args: %w", err)
+			}
+		}
+		return a.configCopy(args)
+	case "config-copy-status":
+		var args copyIDArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("config-copy-status args: %w", err)
+		}
+		return a.copies.status(ctx, args.ID)
+	case "config-copy-cancel":
+		var args copyIDArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("config-copy-cancel args: %w", err)
+		}
+		return nil, a.copies.cancel(args.ID)
 	}
 	e := a.editor(cmd.ProjectID)
 	if e == nil {
@@ -506,11 +538,17 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, s
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("remove stale socket: %w", err)
 	}
+	env, unset, err := a.sessionEnv(ctx, h)
+	if err != nil {
+		return "", err
+	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
 		ProjectID: projectID,
 		Title:     sessionTitle,
 		Command:   []string{a.nvimPath, "--listen", sock},
 		Cwd:       root,
+		Env:       env,
+		UnsetEnv:  unset,
 	})
 	return s.ID, err
 }
@@ -518,9 +556,9 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, s
 func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor, force bool) error {
 	e.life.Lock()
 	defer e.life.Unlock()
-	if c := e.connected(); c != nil && !force {
-		if names, err := c.modified(); err == nil && len(names) > 0 {
-			return fmt.Errorf("%w: %s", errUnsaved, e.relativeNames(names))
+	if !force {
+		if err := a.checkUnsaved(ctx, h, e); err != nil {
+			return err
 		}
 	}
 	if c := e.reset(); c != nil {
@@ -540,6 +578,30 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor, force b
 	}
 	_, err = a.ensureLocked(ctx, h, e)
 	return err
+}
+
+func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, e *editor) error {
+	c := e.connected()
+	if c == nil {
+		sessions, err := h.ListSessions(ctx, e.id, true)
+		if err != nil {
+			return err
+		}
+		if !slices.ContainsFunc(sessions, func(s pluginsdk.Session) bool { return s.State == stateRunning }) {
+			return nil
+		}
+		if c, err = a.ensureLocked(ctx, h, e); err != nil {
+			return errUnsavedUnknown
+		}
+	}
+	names, err := c.modified()
+	if err != nil {
+		return errUnsavedUnknown
+	}
+	if len(names) > 0 {
+		return fmt.Errorf("%w: %s", errUnsaved, e.relativeNames(names))
+	}
+	return nil
 }
 
 func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffArgs) error {

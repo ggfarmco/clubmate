@@ -110,6 +110,81 @@
         }
       },
       {
+        "id": "editor-nvim.config",
+        "title": "Neovim Config",
+        "hidden": true,
+        "agent": false,
+        "description": "Get the Neovim config mode and its directories, or set the mode with mode. shared runs nvim with the default config (~/.config/nvim); clubmate runs it with NVIM_APPNAME set to the app name. Running nvim instances keep their mode until restarted.",
+        "args": {
+          "properties": {
+            "mode": {"type": "string", "enum": ["shared", "clubmate"], "description": "Mode to store; absent to read the current state."}
+          }
+        },
+        "result": {
+          "properties": {
+            "mode": {"type": "string", "enum": ["shared", "clubmate"], "description": "Stored mode; shared when unset."},
+            "app": {"type": "string", "description": "NVIM_APPNAME used in clubmate mode: clubmate, or clubmate-dev for dev builds."},
+            "configDir": {"type": "string", "description": "Config dir of the app name ($XDG_CONFIG_HOME/<app>)."},
+            "dataDir": {"type": "string", "description": "Data dir of the app name ($XDG_DATA_HOME/<app>)."},
+            "configExists": {"type": "boolean", "description": "Whether configDir exists."},
+            "dataExists": {"type": "boolean", "description": "Whether dataDir exists."},
+            "sourceConfigBytes": {"type": "integer", "description": "Bytes of regular files in $XDG_CONFIG_HOME/nvim, without its .git; 0 when it is missing, -1 when unknown (unreadable, or not measured within about 1.5 s)."},
+            "sourceDataBytes": {"type": "integer", "description": "Bytes of regular files in $XDG_DATA_HOME/nvim, without its .git; 0 when it is missing, -1 when unknown (unreadable, or not measured within about 1.5 s)."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.config-copy",
+        "title": "Copy Neovim Config",
+        "hidden": true,
+        "agent": false,
+        "description": "Start copying $XDG_CONFIG_HOME/nvim, and with data $XDG_DATA_HOME/nvim when it exists, into the app name's dirs. Fails when a destination exists or another copy runs. Skips .git at the source root, copies symlinks as symlinks, keeps modes and skips sockets and FIFOs. Rewrites an absolute symlink pointing inside a source to the same path inside its copy. An unreadable source file aborts the copy with an error naming it; a source file that disappears meanwhile is skipped. Copies into <dest>.clubmate-tmp-* and renames into place, without replacing anything, only when every part is complete; the data dir is renamed before the config dir, and if a later rename fails the earlier ones are undone. A cancelled or failed copy leaves nothing behind, and leftover temp dirs of an interrupted copy are removed when the plugin starts. Destinations on network filesystems that lack exclusive rename fail at the rename.",
+        "args": {
+          "properties": {
+            "data": {"type": "boolean", "description": "Also copy the data dir (plugins, lazy, mason)."}
+          }
+        },
+        "result": {
+          "properties": {
+            "id": {"type": "string", "description": "Copy id for config-copy-status and config-copy-cancel."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.config-copy-status",
+        "title": "Neovim Config Copy Status",
+        "hidden": true,
+        "agent": false,
+        "description": "Progress of a config copy. Waits up to 1 s for the copy to finish before replying. Fails for an unknown id; the last copy stays known until the next one starts.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Copy id."}
+          },
+          "required": ["id"]
+        },
+        "result": {
+          "properties": {
+            "copied": {"type": "integer", "description": "Bytes copied so far."},
+            "total": {"type": "integer", "description": "Bytes to copy; 0 until the sources are measured."},
+            "done": {"type": "boolean", "description": "Whether the copy has ended and its temp dirs are gone."},
+            "error": {"type": "string", "description": "Why it failed, or cancelled; absent on success."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.config-copy-cancel",
+        "title": "Cancel Neovim Config Copy",
+        "hidden": true,
+        "agent": false,
+        "description": "Cancel a config copy; config-copy-status then reports done with error cancelled once its temp dirs are removed. A no-op for a finished copy.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Copy id."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
         "id": "editor-nvim.reveal",
         "provides": ["editor.reveal"],
         "title": "Reveal File in Finder",
@@ -127,7 +202,7 @@
         "title": "Restart Neovim",
         "agent": true,
         "destructive": true,
-        "description": "Restart the workspace's Neovim. Fails while file buffers have unsaved changes unless force is true.",
+        "description": "Restart the workspace's Neovim. Fails while file buffers have unsaved changes, or while a running Neovim does not answer (unsaved buffers: unknown), unless force is true.",
         "args": {
           "properties": {
             "force": {"type": "boolean", "description": "Restart even with unsaved buffers, discarding their changes."}

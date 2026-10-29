@@ -263,7 +263,9 @@ Clients keep per-project UI state with `ui.state.get` / `ui.state.set` `{project
 
 ## Plugin runtime dir
 
-The core creates `<runtime>/p/<pluginId>` (mode 0700) and passes its path to the plugin in `CLUBMATE_PLUGIN_RUNTIME_DIR` (`pluginsdk.RuntimeDir()`).
+The core creates `<runtime>/p/<pluginId>` (mode 0700) and passes its path to the plugin in `CLUBMATE_PLUGIN_RUNTIME_DIR` (`pluginsdk.RuntimeDir()`). It also passes the build flavour in `CLUBMATE_FLAVOR` (`pluginsdk.Flavor()`): `release` for release builds, `dev` otherwise.
+
+A plugin's `session.create` (`pluginsdk.Host.CreateSession`) also takes `env`, entries added to the environment the session inherits, and `unsetEnv`, names of variables removed from it first.
 
 ## ui.event contract
 

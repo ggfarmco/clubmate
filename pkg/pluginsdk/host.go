@@ -244,6 +244,7 @@ type SessionRequest struct {
 	Command   []string `json:"command"`
 	Cwd       string   `json:"cwd"`
 	Env       []string `json:"env"`
+	UnsetEnv  []string `json:"unsetEnv"`
 }
 
 type runCommandParams struct {

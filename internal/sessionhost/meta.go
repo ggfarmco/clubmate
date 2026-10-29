@@ -17,6 +17,7 @@ type Config struct {
 	Command    []string `json:"command"`
 	Cwd        string   `json:"cwd"`
 	Env        []string `json:"env"`
+	UnsetEnv   []string `json:"unsetEnv"`
 	Socket     string   `json:"socket"`
 	MetaPath   string   `json:"metaPath"`
 	Scrollback int      `json:"scrollback"`

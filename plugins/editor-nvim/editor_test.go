@@ -245,6 +245,28 @@ func TestRestartRefusesUnsavedBuffers(t *testing.T) {
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
 }
 
+func TestRestartFailsClosedWhenNvimBlocks(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	_, err := v.Input(`:echo "a\nb"<CR>`)
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool {
+		m, err := v.Mode()
+		require.NoError(t, err)
+		return m.Blocking
+	}, 5*time.Second)
+	restart := func(args any) error {
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": args}, nil)
+	}
+	require.ErrorContains(t, restart(nil), "unsaved buffers: unknown (nvim not responding)")
+	assert.Equal(t, []string{e.sessionID}, e.running(t))
+	require.NoError(t, restart(map[string]any{"force": true}))
+	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
+}
+
 func TestEdgeFocusesSidebar(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
@@ -538,7 +560,7 @@ func startEditorIn(t *testing.T, s setup) *editor {
 	if _, err := exec.LookPath("nvim"); err != nil {
 		t.Skip("nvim not in PATH")
 	}
-	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"} {
+	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"} {
 		t.Setenv(key, t.TempDir())
 	}
 	if s.initLua != "" {
