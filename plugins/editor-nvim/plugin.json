@@ -13,13 +13,42 @@
         "title": "Open File",
         "hidden": true,
         "agent": true,
-        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line.",
+        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "File to open; absolute, or relative to Neovim's working directory (the first workspace folder that exists, else home)."},
-            "line": {"type": "integer", "description": "1-based line to put the cursor on; 0 or absent keeps the default position."}
+            "line": {"type": "integer", "description": "1-based line to put the cursor on; 0 or absent keeps the default position."},
+            "col": {"type": "integer", "description": "1-based byte column on that line, clamped to the line length; 0 or absent puts the cursor at the line start. Ignored without line."}
           },
           "required": ["path"]
+        }
+      },
+      {
+        "id": "editor-nvim.quickfix",
+        "provides": ["editor.quickfix"],
+        "title": "Show in Quickfix",
+        "hidden": true,
+        "agent": true,
+        "description": "Replace the workspace Neovim's quickfix list with the given locations, open the quickfix window and show the Code section. Takes 1 to 10000 items; unknown fields are rejected.",
+        "args": {
+          "properties": {
+            "title": {"type": "string", "description": "Quickfix list title, at most 512 chars without line breaks."},
+            "items": {
+              "type": "array",
+              "description": "Locations, 1 to 10000.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string", "description": "Absolute file path without line breaks."},
+                  "line": {"type": "integer", "description": "1-based line, at least 1."},
+                  "col": {"type": "integer", "description": "1-based byte column; 0 or absent for none."},
+                  "text": {"type": "string", "description": "Entry text, at most 512 chars."}
+                },
+                "required": ["path", "line"]
+              }
+            }
+          },
+          "required": ["title", "items"]
         }
       },
       {

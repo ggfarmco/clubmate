@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -38,6 +39,8 @@ const (
 	lightMaxSize   = 5 * 1024 * 1024
 	binarySniff    = 8000
 	navigationKey  = "navigation"
+	quickfixMax    = 10000
+	quickfixText   = 512
 )
 
 var (
@@ -54,6 +57,12 @@ var (
 	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
 	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
 	errNavigationSide = errors.New("navigation: side must be left or right")
+	errQuickfixCount  = fmt.Errorf("quickfix: items must hold 1 to %d entries", quickfixMax)
+	errQuickfixTitle  = fmt.Errorf("quickfix: title must be at most %d chars without line breaks", quickfixText)
+	errQuickfixPath   = errors.New("quickfix: path must be absolute without line breaks")
+	errQuickfixLine   = errors.New("quickfix: line must be at least 1")
+	errQuickfixCol    = errors.New("quickfix: col must be at least 1 when set")
+	errQuickfixText   = fmt.Errorf("quickfix: text must be at most %d chars", quickfixText)
 )
 
 type projectEvent struct {
@@ -70,6 +79,19 @@ type sessionExited struct {
 type openArgs struct {
 	Path string `json:"path"`
 	Line int    `json:"line"`
+	Col  int    `json:"col"`
+}
+
+type quickfixArgs struct {
+	Title string         `json:"title"`
+	Items []quickfixItem `json:"items"`
+}
+
+type quickfixItem struct {
+	Path string `json:"path" msgpack:"filename"`
+	Line int    `json:"line" msgpack:"lnum"`
+	Col  int    `json:"col" msgpack:"col"`
+	Text string `json:"text" msgpack:"text"`
 }
 
 type pathEvent struct {
@@ -255,7 +277,15 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err != nil {
 			return nil, err
 		}
-		return nil, c.open(args.Path, args.Line, lightFile(args.Path))
+		return nil, c.open(args.Path, args.Line, args.Col, lightFile(args.Path))
+	case "quickfix":
+		var args quickfixArgs
+		dec := json.NewDecoder(bytes.NewReader(cmd.Args))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&args); err != nil {
+			return nil, fmt.Errorf("quickfix args: %w", err)
+		}
+		return nil, a.quickfix(ctx, h, e, args)
 	case "reveal":
 		file := e.current().File
 		if file == "" {
@@ -559,6 +589,49 @@ func (a *app) review(ctx context.Context, h *pluginsdk.Host, e *editor, args rev
 	}
 	mode, err := c.review(filepath.Clean(args.Repo), args.Base, args.Head)
 	return reviewResult{Mode: mode}, err
+}
+
+func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, e *editor, args quickfixArgs) error {
+	if err := validQuickfix(args); err != nil {
+		return err
+	}
+	c, err := a.ensure(ctx, h, e)
+	if err != nil {
+		return err
+	}
+	if err := c.quickfix(args.Title, args.Items); err != nil {
+		return err
+	}
+	if err := h.Focus(ctx, e.id, h.PluginID(), mainSlot); err != nil {
+		logError("focus", err)
+	}
+	return nil
+}
+
+func validQuickfix(args quickfixArgs) error {
+	if len(args.Items) == 0 || len(args.Items) > quickfixMax {
+		return errQuickfixCount
+	}
+	if utf8.RuneCountInString(args.Title) > quickfixText || strings.ContainsAny(args.Title, "\n\r") {
+		return errQuickfixTitle
+	}
+	for i, it := range args.Items {
+		var err error
+		switch {
+		case !filepath.IsAbs(it.Path) || strings.ContainsAny(it.Path, "\n\r"):
+			err = errQuickfixPath
+		case it.Line < 1:
+			err = errQuickfixLine
+		case it.Col < 0:
+			err = errQuickfixCol
+		case utf8.RuneCountInString(it.Text) > quickfixText:
+			err = errQuickfixText
+		}
+		if err != nil {
+			return fmt.Errorf("%w: items[%d]", err, i)
+		}
+	}
+	return nil
 }
 
 func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {

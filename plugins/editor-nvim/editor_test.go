@@ -63,6 +63,51 @@ func TestOpenFileAtLine(t *testing.T) {
 	e.waitBuffer(t, path)
 }
 
+func TestOpenWithColumn(t *testing.T) {
+	e := startEditor(t)
+	path := e.file(t, "a.go")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("0123456789\n", 5)), 0o600))
+	v := dial(t, e.sock)
+	for _, tc := range []struct{ col, want int }{{5, 4}, {99, 9}} {
+		require.NoError(t, e.openAt(t, path, 3, tc.col))
+		testutil.Eventually(t, func() bool {
+			var pos [2]int
+			require.NoError(t, v.Call("nvim_win_get_cursor", &pos, 0))
+			return pos == [2]int{3, tc.want}
+		}, 5*time.Second)
+	}
+}
+
+func TestQuickfix(t *testing.T) {
+	e := startEditor(t)
+	a, b := e.file(t, "a.go"), e.file(t, "b.go")
+	v := dial(t, e.sock)
+	c := e.h.Client(t)
+	quickfix := func(items ...map[string]any) error {
+		args := map[string]any{"title": "Search: foo", "items": items}
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.quickfix", "projectId": e.projectID, "agent": true, "args": args}, nil)
+	}
+	require.ErrorContains(t, quickfix(map[string]any{"path": "a.go", "line": 1}), "absolute")
+	drain(c)
+	require.NoError(t, quickfix(map[string]any{"path": a, "line": 2, "col": 3, "text": "line"}, map[string]any{"path": b, "line": 4}))
+	testutil.Eventually(t, func() bool {
+		return eval[map[string]any](t, v, "getqflist({'title': 1, 'size': 1})")["size"] == int64(2)
+	}, 5*time.Second)
+	assert.Equal(t, "Search: foo", eval[string](t, v, "getqflist({'title': 1}).title"))
+	const entries = "map(getqflist(), {_, e -> [fnamemodify(bufname(e.bufnr), ':p'), e.lnum, e.col, e.text]})"
+	assert.Equal(t, [][]any{{a, int64(2), int64(3), "line"}, {b, int64(4), int64(0), ""}}, eval[[][]any](t, v, entries))
+	assert.Equal(t, []any{int64(1), ""}, eval[[]any](t, v, "[getqflist({'winid': 1}).winid > 0, &buftype]"))
+	n, ok := nextFocus(c, 5*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	var focus struct {
+		Section string `json:"section"`
+		Slot    string `json:"slot"`
+	}
+	require.NoError(t, json.Unmarshal(n.Params, &focus))
+	assert.Equal(t, "editor-nvim", focus.Section)
+	assert.Equal(t, mainSlot, focus.Slot)
+}
+
 func TestOpenLightFiles(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
@@ -544,7 +589,12 @@ func openLog(t *testing.T, v *nvim.Nvim, repo, base, head string) string {
 
 func (e *editor) open(t *testing.T, path string, line int) error {
 	t.Helper()
-	args := map[string]any{"path": path, "line": line}
+	return e.openAt(t, path, line, 0)
+}
+
+func (e *editor) openAt(t *testing.T, path string, line, col int) error {
+	t.Helper()
+	args := map[string]any{"path": path, "line": line, "col": col}
 	return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.open", "projectId": e.projectID, "args": args}, nil)
 }
 
