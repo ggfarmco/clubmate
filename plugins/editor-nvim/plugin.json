@@ -69,7 +69,7 @@
         "id": "editor-nvim.review",
         "title": "Review Branch",
         "hidden": true,
-        "description": "Open a branch review (base...head) in Neovim, with diffview when it is installed.",
+        "description": "Open a branch review (base...head) in Neovim, through the diffview fork's clubmate module when present, else with diffview when it is installed.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Absolute path of the repo."},
@@ -90,6 +90,94 @@
         "title": "Close Branch Review",
         "hidden": true,
         "description": "Close the review tab opened by editor-nvim.review; a no-op when it is gone."
+      },
+      {
+        "id": "editor-nvim.review-open",
+        "title": "Open Review",
+        "hidden": true,
+        "agent": false,
+        "description": "Open a review of the git worktree containing cwd against base, replacing the previous review tab. Uses the diffview fork's clubmate module when Neovim has it (version 1 or newer), else plain diffview without excludes, else nothing. Module notifications are published as review.changed {projectId, root}.",
+        "args": {
+          "properties": {
+            "cwd": {"type": "string", "description": "Absolute path inside the reviewed worktree; its toplevel is used."},
+            "base": {"type": "string", "description": "Base ref or commit; the working tree, including untracked files, is compared against it."},
+            "excludes": {"type": "array", "items": {"type": "string"}, "description": "Globs of files to hide, as git :(exclude) pathspecs."}
+          },
+          "required": ["cwd", "base"]
+        },
+        "result": {
+          "properties": {
+            "mode": {"type": "string", "enum": ["module", "diffview", "native"], "description": "module when the fork module opened the review, diffview when plain diffview did, otherwise native."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.review-entries",
+        "title": "Review Entries",
+        "hidden": true,
+        "agent": false,
+        "description": "List the open review's files as [{path, status, additions, deletions, reviewed, comments}] in diffview's order; path is relative to the worktree toplevel and comments counts open nrev comments. Empty without a module review."
+      },
+      {
+        "id": "editor-nvim.review-select",
+        "title": "Select Review File",
+        "hidden": true,
+        "agent": false,
+        "description": "Open a file of the module review in its diffview tab; a no-op without one.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Entry path as listed by review-entries."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "editor-nvim.review-reviewed",
+        "title": "Toggle Reviewed",
+        "hidden": true,
+        "agent": false,
+        "description": "Toggle the reviewed mark of a file in the module review.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Entry path as listed by review-entries."}
+          },
+          "required": ["path"]
+        },
+        "result": {
+          "properties": {
+            "reviewed": {"type": "boolean", "description": "The new mark; false when there is no such file or no module review."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.review-next",
+        "title": "Next Unreviewed File",
+        "hidden": true,
+        "agent": false,
+        "description": "Open the next (dir 1) or previous (dir -1) unreviewed file of the module review, wrapping around.",
+        "args": {
+          "properties": {
+            "dir": {"type": "integer", "description": "1 for next, -1 for previous."}
+          },
+          "required": ["dir"]
+        },
+        "result": {
+          "properties": {
+            "path": {"type": "string", "description": "The opened file; empty when every file is reviewed or there is no module review."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.review-excludes",
+        "title": "Set Review Excludes",
+        "hidden": true,
+        "agent": false,
+        "description": "Replace the module review's excluded globs; reviewed marks of files that come back are kept.",
+        "args": {
+          "properties": {
+            "excludes": {"type": "array", "items": {"type": "string"}, "description": "Globs of files to hide, as git :(exclude) pathspecs; empty to show all."}
+          }
+        }
       },
       {
         "id": "editor-nvim.navigation",

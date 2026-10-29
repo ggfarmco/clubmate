@@ -475,6 +475,92 @@ func TestReviewWithoutDiffview(t *testing.T) {
 	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
 }
 
+func TestReviewModuleBridge(t *testing.T) {
+	fork := cmp.Or(os.Getenv("CLUBMATE_DIFFVIEW_FORK"), filepath.Join(os.Getenv("HOME"), "develop/norimori/ggfarmco/diffview.nvim/.worktrees/clubmate-api"))
+	if _, err := os.Stat(filepath.Join(fork, "lua", "diffview", "clubmate.lua")); err != nil {
+		t.Skip("diffview fork worktree not found")
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	e := startEditorIn(t, setup{initLua: "vim.opt.rtp:prepend(" + strconv.Quote(fork) + ")\nrequire(\"diffview\").setup({ use_icons = false })"})
+	a := e.file(t, "a.go")
+	test := e.file(t, "a_test.go")
+	e.file(t, "pkg/b.go")
+	e.git(t, "init", "-q")
+	e.git(t, "add", ".")
+	e.git(t, "commit", "-qm", "init")
+	require.NoError(t, os.WriteFile(a, []byte("changed\n"), 0o600))
+	require.NoError(t, os.WriteFile(test, []byte("changed\n"), 0o600))
+	e.file(t, "new.txt")
+	var open struct {
+		Mode string `json:"mode"`
+	}
+	e.run(t, "review-open", map[string]any{"cwd": filepath.Join(e.repo, "pkg"), "base": "HEAD", "excludes": []string{"*_test.go"}}, &open)
+	assert.Equal(t, "module", open.Mode)
+	type entry struct {
+		Path      string `json:"path"`
+		Status    string `json:"status"`
+		Additions int    `json:"additions"`
+		Deletions int    `json:"deletions"`
+		Reviewed  bool   `json:"reviewed"`
+		Comments  int    `json:"comments"`
+	}
+	entries := func() []entry {
+		var out []entry
+		e.run(t, "review-entries", nil, &out)
+		return out
+	}
+	testutil.Eventually(t, func() bool { return len(entries()) == 2 }, 10*time.Second)
+	assert.Equal(t, []entry{{"a.go", "M", 1, 5, false, 0}, {"new.txt", "?", 5, 0, false, 0}}, entries())
+	testutil.Eventually(t, func() bool {
+		events, err := e.h.Bus.Read(t.Context(), "review.changed", 0, 100)
+		require.NoError(t, err)
+		changes := 0
+		for _, ev := range events {
+			var p struct {
+				ProjectID string `json:"projectId"`
+				Root      string `json:"root"`
+			}
+			require.NoError(t, json.Unmarshal(ev.Payload, &p))
+			if p.ProjectID == e.projectID && p.Root == e.repo {
+				changes++
+			}
+		}
+		return changes >= 2
+	}, 5*time.Second)
+	var reviewed struct {
+		Reviewed bool `json:"reviewed"`
+	}
+	e.run(t, "review-reviewed", map[string]any{"path": "a.go"}, &reviewed)
+	assert.True(t, reviewed.Reviewed)
+	assert.True(t, entries()[0].Reviewed)
+	var next struct {
+		Path string `json:"path"`
+	}
+	e.run(t, "review-next", map[string]any{"dir": 1}, &next)
+	assert.Equal(t, "new.txt", next.Path)
+	e.run(t, "review-excludes", map[string]any{"excludes": []string{}}, nil)
+	testutil.Eventually(t, func() bool {
+		return slices.ContainsFunc(entries(), func(en entry) bool { return en.Path == "a_test.go" })
+	}, 10*time.Second)
+	e.run(t, "review-select", map[string]any{"path": "a_test.go"}, nil)
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "bufname()") == test }, 5*time.Second)
+}
+
+func TestReviewFallbackWithoutModule(t *testing.T) {
+	e := startEditor(t)
+	e.git(t, "init", "-q")
+	var open struct {
+		Mode string `json:"mode"`
+	}
+	e.run(t, "review-open", map[string]any{"cwd": e.repo, "base": "HEAD", "excludes": []string{"*_test.go"}}, &open)
+	assert.Equal(t, "native", open.Mode)
+	var entries json.RawMessage
+	e.run(t, "review-entries", nil, &entries)
+	assert.JSONEq(t, "[]", string(entries))
+}
+
 func TestDiffRevBase(t *testing.T) {
 	e := startEditor(t)
 	a := filepath.Join(e.repo, "a.go")
@@ -763,6 +849,17 @@ func (e *editor) review(t *testing.T, repo, base, head string) string {
 	args := map[string]any{"repo": repo, "base": base, "head": head, "mergeBase": "0000000"}
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review", "projectId": e.projectID, "args": args}, &res))
 	return res.Mode
+}
+
+func (e *editor) run(t *testing.T, name string, args, res any) {
+	t.Helper()
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim." + name, "projectId": e.projectID, "args": args}, res))
+}
+
+func (e *editor) git(t *testing.T, args ...string) {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", e.repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+	require.NoError(t, err, string(out))
 }
 
 func openLog(t *testing.T, v *nvim.Nvim, repo, base, head string) string {
