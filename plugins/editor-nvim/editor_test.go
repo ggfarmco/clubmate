@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -106,6 +107,24 @@ func TestQuickfix(t *testing.T) {
 	require.NoError(t, json.Unmarshal(n.Params, &focus))
 	assert.Equal(t, "editor-nvim", focus.Section)
 	assert.Equal(t, mainSlot, focus.Slot)
+}
+
+func TestQuickfixCapsFiles(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	items := make([]map[string]any, 0, 1003)
+	for i := range 1001 {
+		items = append(items, map[string]any{"path": filepath.Join(e.repo, "d", strconv.Itoa(i)+".go"), "line": 1})
+	}
+	items = append(items, map[string]any{"path": filepath.Join(e.repo, "d", "0.go"), "line": 2})
+	args := map[string]any{"title": "Search: foo", "items": items}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.quickfix", "projectId": e.projectID, "args": args}, nil))
+	start := time.Now()
+	eval[int](t, v, "1")
+	assert.Less(t, time.Since(start), blockedBudget)
+	testutil.Eventually(t, func() bool { return eval[int](t, v, "getqflist({'size': 1}).size") == 1001 }, 20*time.Second)
+	assert.Equal(t, "Search: foo (first 1000 files)", eval[string](t, v, "getqflist({'title': 1}).title"))
+	assert.Equal(t, []any{"0.go", int64(2)}, eval[[]any](t, v, "[fnamemodify(bufname(getqflist()[-1].bufnr), ':t'), getqflist()[-1].lnum]"))
 }
 
 func TestOpenLightFiles(t *testing.T) {

@@ -220,15 +220,47 @@ end)`
 
 const quickfixLua = `local title, items = ...
 local m = package.loaded["clubmate"]
-vim.schedule(function()
-  local ok, err = pcall(function()
-    vim.fn.setqflist({}, " ", { title = title, items = items })
-    vim.cmd.copen()
-    vim.cmd.wincmd("p")
-  end)
-  if not ok and type(m) == "table" and m.chan then
+m.qf_gen = (m.qf_gen or 0) + 1
+local gen = m.qf_gen
+local budget, target = 40e6, 10e6
+local function fail(err)
+  if m.chan then
     pcall(vim.rpcnotify, m.chan, "clubmate", { event = "open_error", message = "quickfix: " .. tostring(err) })
   end
+end
+local id, pos, size, opened
+local function step()
+  if m.qf_gen ~= gen then return end
+  local ok, err = pcall(function()
+    local start = vim.uv.hrtime()
+    while pos <= #items and vim.uv.hrtime() - start < budget do
+      local chunk = vim.list_slice(items, pos, pos + size - 1)
+      local t = vim.uv.hrtime()
+      if vim.fn.setqflist({}, "a", { id = id, items = chunk }) == -1 then
+        pos = #items + 1
+        return
+      end
+      pos = pos + #chunk
+      size = math.max(1, math.min(1000, math.floor(#chunk * target / math.max(vim.uv.hrtime() - t, 1))))
+      if not opened then
+        opened = true
+        vim.cmd.copen()
+        vim.cmd.wincmd("p")
+      end
+    end
+  end)
+  if not ok then return fail(err) end
+  if pos <= #items then vim.schedule(step) end
+end
+vim.schedule(function()
+  if m.qf_gen ~= gen then return end
+  local ok, err = pcall(function()
+    vim.fn.setqflist({}, " ", { title = title })
+    id = vim.fn.getqflist({ id = 0 }).id
+  end)
+  if not ok then return fail(err) end
+  pos, size, opened = 1, 50, false
+  step()
 end)`
 
 var (

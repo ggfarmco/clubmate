@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,6 +42,8 @@ const (
 	navigationKey  = "navigation"
 	quickfixMax    = 10000
 	quickfixText   = 512
+	quickfixFiles  = 1000
+	quickfixPath   = 4096
 )
 
 var (
@@ -58,11 +61,11 @@ var (
 	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
 	errNavigationSide = errors.New("navigation: side must be left or right")
 	errQuickfixCount  = fmt.Errorf("quickfix: items must hold 1 to %d entries", quickfixMax)
-	errQuickfixTitle  = fmt.Errorf("quickfix: title must be at most %d chars without line breaks", quickfixText)
-	errQuickfixPath   = errors.New("quickfix: path must be absolute without line breaks")
-	errQuickfixLine   = errors.New("quickfix: line must be at least 1")
-	errQuickfixCol    = errors.New("quickfix: col must be at least 1 when set")
-	errQuickfixText   = fmt.Errorf("quickfix: text must be at most %d chars", quickfixText)
+	errQuickfixTitle  = fmt.Errorf("quickfix: title must be at most %d chars without line breaks or NUL", quickfixText)
+	errQuickfixPath   = fmt.Errorf("quickfix: path must be absolute, at most %d bytes, without line breaks or NUL", quickfixPath)
+	errQuickfixLine   = fmt.Errorf("quickfix: line must be 1 to %d", math.MaxInt32)
+	errQuickfixCol    = fmt.Errorf("quickfix: col must be 0 (none) or 1 to %d", math.MaxInt32)
+	errQuickfixText   = fmt.Errorf("quickfix: text must be at most %d chars without NUL", quickfixText)
 )
 
 type projectEvent struct {
@@ -599,7 +602,8 @@ func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, e *editor, args q
 	if err != nil {
 		return err
 	}
-	if err := c.quickfix(args.Title, args.Items); err != nil {
+	title, items := capFiles(args)
+	if err := c.quickfix(title, items); err != nil {
 		return err
 	}
 	if err := h.Focus(ctx, e.id, h.PluginID(), mainSlot); err != nil {
@@ -612,19 +616,19 @@ func validQuickfix(args quickfixArgs) error {
 	if len(args.Items) == 0 || len(args.Items) > quickfixMax {
 		return errQuickfixCount
 	}
-	if utf8.RuneCountInString(args.Title) > quickfixText || strings.ContainsAny(args.Title, "\n\r") {
+	if utf8.RuneCountInString(args.Title) > quickfixText || strings.ContainsAny(args.Title, "\n\r\x00") {
 		return errQuickfixTitle
 	}
 	for i, it := range args.Items {
 		var err error
 		switch {
-		case !filepath.IsAbs(it.Path) || strings.ContainsAny(it.Path, "\n\r"):
+		case !filepath.IsAbs(it.Path) || len(it.Path) > quickfixPath || strings.ContainsAny(it.Path, "\n\r\x00"):
 			err = errQuickfixPath
-		case it.Line < 1:
+		case it.Line < 1 || it.Line > math.MaxInt32:
 			err = errQuickfixLine
-		case it.Col < 0:
+		case it.Col < 0 || it.Col > math.MaxInt32:
 			err = errQuickfixCol
-		case utf8.RuneCountInString(it.Text) > quickfixText:
+		case utf8.RuneCountInString(it.Text) > quickfixText || strings.ContainsRune(it.Text, 0):
 			err = errQuickfixText
 		}
 		if err != nil {
@@ -632,6 +636,24 @@ func validQuickfix(args quickfixArgs) error {
 		}
 	}
 	return nil
+}
+
+func capFiles(args quickfixArgs) (string, []quickfixItem) {
+	files := map[string]bool{}
+	items := make([]quickfixItem, 0, len(args.Items))
+	for _, it := range args.Items {
+		if !files[it.Path] {
+			if len(files) == quickfixFiles {
+				continue
+			}
+			files[it.Path] = true
+		}
+		items = append(items, it)
+	}
+	if len(items) < len(args.Items) {
+		return fmt.Sprintf("%s (first %d files)", args.Title, quickfixFiles), items
+	}
+	return args.Title, items
 }
 
 func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {
