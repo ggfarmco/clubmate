@@ -442,6 +442,7 @@ extension AppModel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = true
+        panel.showsHiddenFiles = true
         panel.prompt = prompt
         guard panel.runModal() == .OK, !panel.urls.isEmpty else { return nil }
         return panel.urls.map { $0.path(percentEncoded: false) }

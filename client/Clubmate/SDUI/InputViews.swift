@@ -142,6 +142,7 @@ struct FolderFieldNodeView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = true
+        panel.showsHiddenFiles = true
         panel.prompt = "Choose"
         guard panel.runModal() == .OK else { return }
         paths = panel.urls.map(\.path)
