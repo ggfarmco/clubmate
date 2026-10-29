@@ -61,6 +61,7 @@ var (
 	errRelativePath   = errors.New("diff: path must be absolute")
 	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
 	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
+	errStopRoot       = errors.New("stop-root: root must be absolute")
 	errNavigationSide = errors.New("navigation: side must be left or right")
 	errQuickfixCount  = fmt.Errorf("quickfix: items must hold 1 to %d entries", quickfixMax)
 	errQuickfixTitle  = fmt.Errorf("quickfix: title must be at most %d chars without line breaks or NUL", quickfixText)
@@ -139,6 +140,11 @@ type restartArgs struct {
 	Force bool `json:"force"`
 }
 
+type stopRootArgs struct {
+	Root  string `json:"root"`
+	Force bool   `json:"force"`
+}
+
 type projectPayload struct {
 	Project pluginsdk.Project `json:"project"`
 }
@@ -147,21 +153,28 @@ type deletedPayload struct {
 	ID string `json:"id"`
 }
 
+type editorKey struct {
+	project string
+	root    string
+}
+
 type app struct {
 	copies  *copies
 	navMu   sync.Mutex
+	slotMu  sync.Mutex
 	mu      sync.Mutex
-	editors map[string]*editor
+	editors map[editorKey]*editor
+	current map[string]string
+	folders map[string][]string
 	deleted map[string]bool
 }
 
 type editor struct {
 	id       string
+	root     string
 	life     sync.Mutex
 	renderMu sync.Mutex
 	mu       sync.Mutex
-	repos    []string
-	root     string
 	session  string
 	client   *client
 	status   status
@@ -169,7 +182,13 @@ type editor struct {
 }
 
 func main() {
-	a := &app{copies: newCopies(), editors: map[string]*editor{}, deleted: map[string]bool{}}
+	a := &app{
+		copies:  newCopies(),
+		editors: map[editorKey]*editor{},
+		current: map[string]string{},
+		folders: map[string][]string{},
+		deleted: map[string]bool{},
+	}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 }
 
@@ -229,7 +248,7 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			logError("project.updated", err)
 			return
 		}
-		a.projectUpdated(h, p.Project)
+		a.projectUpdated(ctx, h, p.Project)
 	case "project.deleted":
 		var p deletedPayload
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
@@ -244,11 +263,11 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if ev.Action != "restart" {
 		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 	}
-	e := a.editor(ev.ProjectID)
-	if e == nil {
-		return nil, nil
+	e, err := a.active(ctx, h, ev.ProjectID)
+	if e == nil || err != nil {
+		return nil, err
 	}
-	return nil, a.restart(ctx, h, e, false)
+	return nil, a.restart(ctx, h, e, false, false)
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -292,8 +311,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		}
 		return nil, a.copies.cancel(args.ID)
 	}
-	e := a.editor(cmd.ProjectID)
-	if e == nil {
+	if a.isDeleted(cmd.ProjectID) {
 		return nil, nil
 	}
 	switch name {
@@ -308,6 +326,10 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if strings.ContainsAny(args.Path, "\n\r") {
 			return nil, errBadPath
 		}
+		e, err := a.target(ctx, h, cmd.ProjectID, args.Path)
+		if e == nil || err != nil {
+			return nil, err
+		}
 		c, err := a.ensure(ctx, h, e)
 		if err != nil {
 			return nil, err
@@ -320,7 +342,34 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := dec.Decode(&args); err != nil {
 			return nil, fmt.Errorf("quickfix args: %w", err)
 		}
-		return nil, a.quickfix(ctx, h, e, args)
+		return nil, a.quickfix(ctx, h, cmd.ProjectID, args)
+	case "diff":
+		var args diffArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("diff args: %w", err)
+		}
+		return nil, a.diff(ctx, h, cmd.ProjectID, args)
+	case "review":
+		var args reviewArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("review args: %w", err)
+		}
+		return a.review(ctx, h, cmd.ProjectID, args)
+	case "stop-root":
+		var args stopRootArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("stop-root args: %w", err)
+		}
+		if !filepath.IsAbs(args.Root) {
+			return nil, errStopRoot
+		}
+		return nil, a.stopRoot(ctx, h, cmd.ProjectID, filepath.Clean(args.Root), args.Force)
+	}
+	e, err := a.active(ctx, h, cmd.ProjectID)
+	if e == nil || err != nil {
+		return nil, err
+	}
+	switch name {
 	case "reveal":
 		file := e.current().File
 		if file == "" {
@@ -336,19 +385,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 				return nil, fmt.Errorf("restart args: %w", err)
 			}
 		}
-		return nil, a.restart(ctx, h, e, args.Force)
-	case "diff":
-		var args diffArgs
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("diff args: %w", err)
-		}
-		return nil, a.diff(ctx, h, e, args)
-	case "review":
-		var args reviewArgs
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("review args: %w", err)
-		}
-		return a.review(ctx, h, e, args)
+		return nil, a.restart(ctx, h, e, true, args.Force)
 	case "review-close":
 		if c := e.connected(); c != nil {
 			return nil, c.closeReview()
@@ -358,56 +395,192 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
 
-func (a *app) editor(projectID string) *editor {
+func (a *app) active(ctx context.Context, h *pluginsdk.Host, projectID string) (*editor, error) {
+	p, err := h.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	e, moved, err := a.selectRoot(p)
+	if e == nil || err != nil || !moved {
+		return e, err
+	}
+	return e, a.show(ctx, h, e)
+}
+
+func (a *app) target(ctx context.Context, h *pluginsdk.Host, projectID, path string) (*editor, error) {
+	p, err := h.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	repo, root, switched := owner(ctx, p, path)
+	if switched {
+		if p, err = h.SetWorktree(ctx, projectID, repo, root); err != nil {
+			return nil, err
+		}
+	}
+	e, moved, err := a.selectRoot(p)
+	if e == nil || err != nil || !moved && !switched {
+		return e, err
+	}
+	if err := a.show(ctx, h, e); err != nil {
+		return nil, err
+	}
+	if switched {
+		if err := h.Focus(ctx, projectID, h.PluginID(), mainSlot); err != nil {
+			logError("focus", err)
+		}
+	}
+	return e, nil
+}
+
+func (a *app) selectRoot(p pluginsdk.Project) (*editor, bool, error) {
+	root, err := projectRoot(p)
+	if err != nil {
+		return nil, false, err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.deleted[p.ID] {
+		return nil, false, nil
+	}
+	prev, known := a.current[p.ID]
+	a.current[p.ID] = root
+	a.folders[p.ID] = slices.Concat(p.Repos, p.Roots)
+	return a.editorLocked(p.ID, root), known && prev != root, nil
+}
+
+func (a *app) editorAt(projectID, root string) *editor {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.deleted[projectID] {
 		return nil
 	}
-	e, ok := a.editors[projectID]
+	return a.editorLocked(projectID, root)
+}
+
+func (a *app) editorLocked(projectID, root string) *editor {
+	key := editorKey{project: projectID, root: root}
+	e, ok := a.editors[key]
 	if !ok {
-		e = &editor{id: projectID}
-		a.editors[projectID] = e
+		e = &editor{id: projectID, root: root}
+		a.editors[key] = e
 	}
 	return e
 }
 
-func (a *app) lookup(projectID string) *editor {
+func (a *app) lookup(projectID, root string) *editor {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.editors[projectID]
+	return a.editors[editorKey{project: projectID, root: root}]
 }
 
-func (a *app) projectUpdated(h *pluginsdk.Host, p pluginsdk.Project) {
-	e := a.lookup(p.ID)
-	if e == nil {
+func (a *app) forget(e *editor) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	key := editorKey{project: e.id, root: e.root}
+	if a.editors[key] == e {
+		delete(a.editors, key)
+	}
+}
+
+func (a *app) projectEditors(projectID string) []*editor {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var out []*editor
+	for k, e := range a.editors {
+		if k.project == projectID {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func (a *app) isCurrent(e *editor) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return !a.deleted[e.id] && a.current[e.id] == e.root && a.editors[editorKey{project: e.id, root: e.root}] == e
+}
+
+func (a *app) projectFolders(projectID string) []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.folders[projectID]
+}
+
+func (a *app) tracked(projectID string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, ok := a.current[projectID]
+	return ok
+}
+
+func (a *app) projectUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) {
+	if !a.tracked(p.ID) {
 		return
 	}
-	root, err := projectRoot(p)
+	e, moved, err := a.selectRoot(p)
 	if err != nil {
 		logError("project.updated", err)
 		return
 	}
-	e.setProject(p.Repos, root)
+	if e == nil {
+		return
+	}
 	a.scheduleStatus(h, e)
+	if moved {
+		go func() {
+			if err := a.show(ctx, h, e); err != nil && !errors.Is(err, errNvimNotInPATH) && !errors.Is(err, errDeleted) {
+				logError("switch "+p.ID, err)
+			}
+		}()
+	}
+}
+
+func (a *app) show(ctx context.Context, h *pluginsdk.Host, e *editor) error {
+	e.life.Lock()
+	defer e.life.Unlock()
+	if !a.isCurrent(e) {
+		return nil
+	}
+	if _, err := a.ensureLocked(ctx, h, e); err != nil {
+		return err
+	}
+	a.scheduleStatus(h, e)
+	return a.render(ctx, h, e, mainSlot, runningView(e.sessionID()))
+}
+
+func (a *app) render(ctx context.Context, h *pluginsdk.Host, e *editor, slot string, n sdui.Node) error {
+	a.slotMu.Lock()
+	defer a.slotMu.Unlock()
+	if !a.isCurrent(e) {
+		return nil
+	}
+	_, err := h.Render(ctx, e.id, slot, n)
+	return err
 }
 
 func (a *app) drop(projectID string) {
 	a.mu.Lock()
-	e := a.editors[projectID]
-	delete(a.editors, projectID)
+	var editors []*editor
+	for k, e := range a.editors {
+		if k.project == projectID {
+			editors = append(editors, e)
+			delete(a.editors, k)
+		}
+	}
+	delete(a.current, projectID)
+	delete(a.folders, projectID)
 	a.deleted[projectID] = true
 	a.mu.Unlock()
-	if e == nil {
-		return
+	for _, e := range editors {
+		go func() {
+			e.life.Lock()
+			defer e.life.Unlock()
+			if c := e.reset(); c != nil {
+				c.close()
+			}
+		}()
 	}
-	go func() {
-		e.life.Lock()
-		defer e.life.Unlock()
-		if c := e.reset(); c != nil {
-			c.close()
-		}
-	}()
 }
 
 func (a *app) isDeleted(projectID string) bool {
@@ -417,11 +590,14 @@ func (a *app) isDeleted(projectID string) bool {
 }
 
 func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, projectID string) {
-	e := a.editor(projectID)
-	if e == nil {
+	if a.isDeleted(projectID) {
 		return
 	}
-	if _, err := a.ensure(ctx, h, e); err != nil && !errors.Is(err, errNvimNotInPATH) && !errors.Is(err, errDeleted) {
+	e, err := a.active(ctx, h, projectID)
+	if e != nil && err == nil {
+		_, err = a.ensure(ctx, h, e)
+	}
+	if err != nil && !errors.Is(err, errNvimNotInPATH) && !errors.Is(err, errDeleted) {
 		logError("start "+projectID, err)
 	}
 }
@@ -439,28 +615,15 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	if c := e.connected(); c != nil {
 		return c, nil
 	}
-	p, err := h.GetProject(ctx, e.id)
-	if err != nil {
-		return nil, err
-	}
-	root, err := projectRoot(p)
-	if err != nil {
-		return nil, err
-	}
-	sock, err := socketPath(pluginsdk.RuntimeDir(), e.id)
-	if err != nil {
-		return nil, err
-	}
-	e.setProject(p.Repos, root)
-	s, err := a.session(ctx, h, e.id, root, sock)
+	s, sock, err := a.session(ctx, h, e)
 	if errors.Is(err, errNvimNotInPATH) {
-		return nil, errors.Join(err, renderMain(ctx, h, e.id, missingView(errors.Is(err, errSystemNvimMissing))))
+		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, missingView(errors.Is(err, errSystemNvimMissing))))
 	}
 	if err != nil {
-		return nil, errors.Join(err, renderMain(ctx, h, e.id, failedView(err)))
+		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, failedView(err)))
 	}
 	e.setSession(s)
-	if err := renderMain(ctx, h, e.id, runningView(s)); err != nil {
+	if err := a.render(ctx, h, e, mainSlot, runningView(s)); err != nil {
 		return nil, err
 	}
 	c, err := connect(ctx, sock, func(ev nvimEvent) { a.nvimEvent(h, e, ev) })
@@ -513,97 +676,192 @@ func (a *app) applyNavigation(ctx context.Context, h *pluginsdk.Host, c *client)
 	}
 }
 
-func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, sock string) (string, error) {
-	sessions, err := h.ListSessions(ctx, projectID, true)
+func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string, string, error) {
+	sessions, err := h.ListSessions(ctx, e.id, true)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	for _, s := range sessions {
-		if s.State == stateRunning && s.Title == sessionTitle {
-			return s.ID, nil
+		if sock, ok := ownedSocket(s, e.id, e.root); ok {
+			return s.ID, sock, nil
 		}
+	}
+	sock, err := socketPath(pluginsdk.RuntimeDir(), e.id, e.root)
+	if err != nil {
+		return "", "", err
 	}
 	path, env, unset, pathAppend, err := a.nvimCommand(ctx, h)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	if err := renderMain(ctx, h, projectID, startingView()); err != nil {
-		return "", err
+	if err := a.render(ctx, h, e, mainSlot, startingView()); err != nil {
+		return "", "", err
 	}
 	for _, s := range sessions {
 		if s.State != stateRunning {
 			if err := h.RemoveSession(ctx, s.ID); err != nil {
-				return "", err
+				return "", "", err
 			}
 		}
 	}
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("remove stale socket: %w", err)
+		return "", "", fmt.Errorf("remove stale socket: %w", err)
 	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
-		ProjectID:  projectID,
+		ProjectID:  e.id,
 		Title:      sessionTitle,
 		Command:    []string{path, "--listen", sock},
-		Cwd:        root,
+		Cwd:        e.root,
 		Env:        env,
 		UnsetEnv:   unset,
 		PathAppend: pathAppend,
 	})
-	return s.ID, err
+	return s.ID, sock, err
 }
 
-func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor, force bool) error {
+func ownedSocket(s pluginsdk.Session, projectID, root string) (string, bool) {
+	if s.State != stateRunning || s.Cwd != root || len(s.Command) != 3 || s.Command[1] != "--listen" {
+		return "", false
+	}
+	sock := s.Command[2]
+	rt := pluginsdk.RuntimeDir()
+	want, err := socketPath(rt, projectID, root)
+	return sock, err == nil && sock == want || sock == legacySocketPath(rt, projectID)
+}
+
+func (a *app) restart(ctx context.Context, h *pluginsdk.Host, cur *editor, all, force bool) error {
+	sessions, err := h.ListSessions(ctx, cur.id, true)
+	if err != nil {
+		return err
+	}
+	running := map[*editor]bool{}
+	var kill []string
+	for _, s := range sessions {
+		if s.State != stateRunning {
+			continue
+		}
+		_, owned := ownedSocket(s, cur.id, s.Cwd)
+		if !all && (!owned || s.Cwd != cur.root) {
+			continue
+		}
+		kill = append(kill, s.ID)
+		if !owned {
+			continue
+		}
+		e := a.editorAt(cur.id, s.Cwd)
+		if e == nil {
+			return errDeleted
+		}
+		running[e] = true
+	}
+	editors := slices.Collect(maps.Keys(running))
+	if !running[cur] {
+		editors = append(editors, cur)
+	}
+	defer lockAll(editors)()
+	if !force {
+		if err := a.checkUnsaved(ctx, h, editors, running); err != nil {
+			return err
+		}
+	}
+	for _, e := range editors {
+		if c := e.reset(); c != nil {
+			c.close()
+		}
+	}
+	a.scheduleStatus(h, cur)
+	for _, id := range kill {
+		if err := h.KillSession(ctx, id); err != nil {
+			return err
+		}
+	}
+	var errs []error
+	for _, e := range editors {
+		if e == cur || running[e] {
+			_, err := a.ensureLocked(ctx, h, e)
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root string, force bool) error {
+	sessions, err := h.ListSessions(ctx, projectID, true)
+	if err != nil {
+		return err
+	}
+	var kill []string
+	for _, s := range sessions {
+		if _, ok := ownedSocket(s, projectID, root); ok {
+			kill = append(kill, s.ID)
+		}
+	}
+	e := a.lookup(projectID, root)
+	if e == nil && len(kill) == 0 {
+		return nil
+	}
+	if e == nil {
+		if e = a.editorAt(projectID, root); e == nil {
+			return nil
+		}
+	}
 	e.life.Lock()
 	defer e.life.Unlock()
 	if !force {
-		if err := a.checkUnsaved(ctx, h, e); err != nil {
+		if err := a.checkUnsaved(ctx, h, []*editor{e}, map[*editor]bool{e: len(kill) > 0}); err != nil {
 			return err
 		}
 	}
 	if c := e.reset(); c != nil {
 		c.close()
 	}
-	a.scheduleStatus(h, e)
-	sessions, err := h.ListSessions(ctx, e.id, true)
-	if err != nil {
-		return err
-	}
-	for _, s := range sessions {
-		if s.State == stateRunning {
-			if err := h.KillSession(ctx, s.ID); err != nil {
-				return err
-			}
-		}
-	}
-	_, err = a.ensureLocked(ctx, h, e)
-	return err
-}
-
-func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, e *editor) error {
-	c := e.connected()
-	if c == nil {
-		sessions, err := h.ListSessions(ctx, e.id, true)
-		if err != nil {
+	a.forget(e)
+	for _, id := range kill {
+		if err := h.KillSession(ctx, id); err != nil {
 			return err
 		}
-		if !slices.ContainsFunc(sessions, func(s pluginsdk.Session) bool { return s.State == stateRunning }) {
-			return nil
-		}
-		if c, err = a.ensureLocked(ctx, h, e); err != nil {
-			return errUnsavedUnknown
-		}
-	}
-	names, err := c.modified()
-	if err != nil {
-		return errUnsavedUnknown
-	}
-	if len(names) > 0 {
-		return fmt.Errorf("%w: %s", errUnsaved, e.relativeNames(names))
 	}
 	return nil
 }
 
-func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffArgs) error {
+func lockAll(editors []*editor) func() {
+	slices.SortFunc(editors, func(x, y *editor) int { return strings.Compare(x.root, y.root) })
+	for _, e := range editors {
+		e.life.Lock()
+	}
+	return func() {
+		for _, e := range editors {
+			e.life.Unlock()
+		}
+	}
+}
+
+func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, editors []*editor, running map[*editor]bool) error {
+	var names []string
+	for _, e := range editors {
+		c := e.connected()
+		if c == nil {
+			if !running[e] {
+				continue
+			}
+			var err error
+			if c, err = a.ensureLocked(ctx, h, e); err != nil {
+				return errUnsavedUnknown
+			}
+		}
+		modified, err := c.modified()
+		if err != nil {
+			return errUnsavedUnknown
+		}
+		names = append(names, relativeNames(modified, a.projectFolders(e.id))...)
+	}
+	if len(names) > 0 {
+		return fmt.Errorf("%w: %s", errUnsaved, strings.Join(names, ", "))
+	}
+	return nil
+}
+
+func (a *app) diff(ctx context.Context, h *pluginsdk.Host, projectID string, args diffArgs) error {
 	if args.Path == "" {
 		return errNoPath
 	}
@@ -635,6 +893,10 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 			return err
 		}
 	}
+	e, err := a.target(ctx, h, projectID, args.Path)
+	if e == nil || err != nil {
+		return err
+	}
 	c, err := a.ensure(ctx, h, e)
 	if err != nil {
 		return err
@@ -642,23 +904,32 @@ func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffA
 	return c.diff(args.Path, rel, label, target, left, right)
 }
 
-func (a *app) review(ctx context.Context, h *pluginsdk.Host, e *editor, args reviewArgs) (reviewResult, error) {
+func (a *app) review(ctx context.Context, h *pluginsdk.Host, projectID string, args reviewArgs) (reviewResult, error) {
 	if args.Head == "" {
 		args.Head = "HEAD"
 	}
 	if !filepath.IsAbs(args.Repo) || !isRef(args.Base) || !isRef(args.Head) {
 		return reviewResult{}, errReviewArgs
 	}
+	repo := filepath.Clean(args.Repo)
+	e, err := a.target(ctx, h, projectID, repo)
+	if e == nil || err != nil {
+		return reviewResult{}, err
+	}
 	c, err := a.ensure(ctx, h, e)
 	if err != nil {
 		return reviewResult{}, err
 	}
-	mode, err := c.review(filepath.Clean(args.Repo), args.Base, args.Head)
+	mode, err := c.review(repo, args.Base, args.Head)
 	return reviewResult{Mode: mode}, err
 }
 
-func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, e *editor, args quickfixArgs) error {
+func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, projectID string, args quickfixArgs) error {
 	if err := validQuickfix(args); err != nil {
+		return err
+	}
+	e, err := a.target(ctx, h, projectID, args.Items[0].Path)
+	if e == nil || err != nil {
 		return err
 	}
 	c, err := a.ensure(ctx, h, e)
@@ -725,35 +996,26 @@ func capFiles(args quickfixArgs) (string, []quickfixItem) {
 }
 
 func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {
-	e := a.lookup(ev.ProjectID)
-	if e == nil {
+	for _, e := range a.projectEditors(ev.ProjectID) {
+		c, ok := e.exited(ev.ID)
+		if !ok {
+			continue
+		}
+		if c != nil {
+			go c.close()
+		}
+		a.scheduleStatus(h, e)
+		if err := a.render(ctx, h, e, mainSlot, exitedView(ev.ExitCode)); err != nil {
+			logError("render", err)
+		}
 		return
-	}
-	c, ok := e.exited(ev.ID)
-	if !ok {
-		return
-	}
-	if c != nil {
-		go c.close()
-	}
-	a.scheduleStatus(h, e)
-	if err := renderMain(ctx, h, ev.ProjectID, exitedView(ev.ExitCode)); err != nil {
-		logError("render", err)
 	}
 }
 
 func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error {
-	cwd := ""
+	cwd := e.root
 	if file := e.current().File; file != "" {
 		cwd = filepath.Dir(file)
-	} else {
-		p, err := h.GetProject(ctx, e.id)
-		if err != nil {
-			return err
-		}
-		if cwd, err = projectRoot(p); err != nil {
-			return err
-		}
 	}
 	return h.RunCommand(ctx, "terminals.new", e.id, terminalArgs{Cwd: cwd}, nil)
 }
@@ -775,7 +1037,7 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	}
 	branch, refresh := "", ev.Event == "BufEnter" || ev.Event == "DirChanged"
 	if refresh {
-		branch = gitBranch(ctx, branchDir(ev.File, e.projectRoot()))
+		branch = gitBranch(ctx, branchDir(ev.File, e.root))
 	}
 	e.update(ev, branch, refresh)
 	if topic := fileTopic(ev.Event); topic != "" && ev.File != "" {
@@ -798,9 +1060,9 @@ func (a *app) scheduleStatus(h *pluginsdk.Host, e *editor) {
 		defer e.renderMu.Unlock()
 		e.mu.Lock()
 		e.pending = false
-		view := statusView(e.status, e.repos)
+		st := e.status
 		e.mu.Unlock()
-		if _, err := h.Render(context.Background(), e.id, statusSlot, view); err != nil {
+		if err := a.render(context.Background(), h, e, statusSlot, statusView(st, a.projectFolders(e.id))); err != nil {
 			logError("render status", err)
 		}
 	})
@@ -815,16 +1077,16 @@ func (e *editor) connected() *client {
 	return nil
 }
 
-func (e *editor) setProject(repos []string, root string) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.repos, e.root = repos, root
-}
-
 func (e *editor) setSession(id string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.session = id
+}
+
+func (e *editor) sessionID() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.session
 }
 
 func (e *editor) setClient(c *client) {
@@ -860,23 +1122,15 @@ func (e *editor) current() status {
 	return e.status
 }
 
-func (e *editor) projectRoot() string {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.root
-}
-
-func (e *editor) relativeNames(names []string) string {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+func relativeNames(names, folders []string) []string {
 	shown := make([]string, 0, len(names))
 	for _, n := range names {
 		if n == "" {
 			n = noName
 		}
-		shown = append(shown, relative(n, e.repos))
+		shown = append(shown, relative(n, folders))
 	}
-	return strings.Join(shown, ", ")
+	return shown
 }
 
 func (e *editor) setOpenError(msg string) {
@@ -906,13 +1160,8 @@ func (e *editor) update(ev nvimEvent, branch string, refresh bool) {
 	}
 }
 
-func renderMain(ctx context.Context, h *pluginsdk.Host, projectID string, n sdui.Node) error {
-	_, err := h.Render(ctx, projectID, mainSlot, n)
-	return err
-}
-
 func projectRoot(p pluginsdk.Project) (string, error) {
-	for _, r := range p.Repos {
+	for _, r := range p.Roots {
 		if info, err := os.Stat(r); err == nil && info.IsDir() {
 			return r, nil
 		}

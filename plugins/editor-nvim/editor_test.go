@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"os"
@@ -554,6 +555,81 @@ func TestRestartIgnoresScratchBuffers(t *testing.T) {
 func TestMissingFirstRepoStartsInNext(t *testing.T) {
 	e := startEditorIn(t, setup{missingFirst: true})
 	assert.Equal(t, e.repo, e.h.GetSession(t, e.sessionID).Cwd)
+}
+
+func TestSwitchKeepsNvimPerRoot(t *testing.T) {
+	e, wt := startWorktreeEditor(t)
+	pid := eval[int](t, dial(t, e.sock), "getpid()")
+	feat := e.setWorktree(t, wt)
+	assert.Equal(t, wt, eval[string](t, dial(t, feat.Command[2]), "getcwd()"))
+	e.setWorktree(t, "")
+	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
+	assert.ElementsMatch(t, []string{e.sessionID, feat.ID}, e.running(t))
+}
+
+func TestOpenRoutesToOwningWorktree(t *testing.T) {
+	e, wt := startWorktreeEditor(t)
+	path := filepath.Join(wt, "a.go")
+	require.NoError(t, e.open(t, path, 1))
+	p, err := e.h.Svc.GetProject(t.Context(), e.projectID)
+	require.NoError(t, err)
+	assert.Equal(t, wt, p.Roots[0])
+	feat := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	v := dial(t, e.h.GetSession(t, feat.Props["sessionId"].(string)).Command[2])
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	assert.Equal(t, 0, eval[int](t, dial(t, e.sock), "bufexists('"+path+"')"))
+}
+
+func TestStopRootRefusesUnsaved(t *testing.T) {
+	e, wt := startWorktreeEditor(t)
+	pid := eval[int](t, dial(t, e.sock), "getpid()")
+	feat := e.setWorktree(t, wt)
+	path := filepath.Join(wt, "a.go")
+	require.NoError(t, e.open(t, path, 1))
+	v := dial(t, feat.Command[2])
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	require.NoError(t, v.Command("normal! ix"))
+	e.setWorktree(t, "")
+	run := func(id string, args any) error {
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": e.projectID, "args": args}, nil)
+	}
+	require.ErrorContains(t, run("editor-nvim.restart", nil), "unsaved buffers: .worktrees/feat/a.go")
+	require.ErrorContains(t, run("editor-nvim.stop-root", map[string]any{"root": wt}), "unsaved buffers:")
+	require.NoError(t, run("editor-nvim.stop-root", map[string]any{"root": wt, "force": true}))
+	testutil.Eventually(t, func() bool { return slices.Equal([]string{e.sessionID}, e.running(t)) }, 5*time.Second)
+	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
+}
+
+func startWorktreeEditor(t *testing.T) (*editor, string) {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	e := startEditor(t)
+	git := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", e.repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	e.file(t, "a.go")
+	git("init", "-q")
+	git("add", ".")
+	git("commit", "-qm", "init")
+	wt := filepath.Join(e.repo, ".worktrees", "feat")
+	git("worktree", "add", "-q", wt, "-b", "feat")
+	return e, wt
+}
+
+func (e *editor) setWorktree(t *testing.T, path string) session.Session {
+	t.Helper()
+	_, err := e.h.Svc.SetWorktree(t.Context(), e.projectID, e.repo, path)
+	require.NoError(t, err)
+	want := cmp.Or(path, e.repo)
+	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		id, _ := n.Props["sessionId"].(string)
+		return n.Type == "surface" && id != "" && e.h.GetSession(t, id).Cwd == want
+	})
+	return e.h.GetSession(t, main.Props["sessionId"].(string))
 }
 
 func startEditor(t *testing.T) *editor {

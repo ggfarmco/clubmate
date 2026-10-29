@@ -13,10 +13,10 @@
         "title": "Open File",
         "hidden": true,
         "agent": true,
-        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column.",
+        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column. An absolute path inside another git worktree of a workspace folder switches that folder to the worktree first and opens the file in its Neovim.",
         "args": {
           "properties": {
-            "path": {"type": "string", "description": "File to open; absolute, or relative to Neovim's working directory (the first workspace folder that exists, else home)."},
+            "path": {"type": "string", "description": "File to open; absolute, or relative to Neovim's working directory (the selected worktree of the first workspace folder that exists, else home)."},
             "line": {"type": "integer", "description": "1-based line to put the cursor on; 0 or absent keeps the default position."},
             "col": {"type": "integer", "description": "1-based byte column on that line, clamped to the line length; 0 or absent puts the cursor at the line start. Ignored without line."}
           },
@@ -185,6 +185,20 @@
         }
       },
       {
+        "id": "editor-nvim.stop-root",
+        "title": "Stop Worktree Neovim",
+        "hidden": true,
+        "agent": false,
+        "description": "Stop the workspace's Neovim whose root is the given path. Fails like restart while it has unsaved buffers, unless force is true. A no-op when no such Neovim exists.",
+        "args": {
+          "properties": {
+            "root": {"type": "string", "description": "Absolute root path of the Neovim, as listed in the workspace roots."},
+            "force": {"type": "boolean", "description": "Stop even with unsaved buffers, discarding their changes."}
+          },
+          "required": ["root"]
+        }
+      },
+      {
         "id": "editor-nvim.reveal",
         "provides": ["editor.reveal"],
         "title": "Reveal File in Finder",
@@ -202,7 +216,7 @@
         "title": "Restart Neovim",
         "agent": true,
         "destructive": true,
-        "description": "Restart the workspace's Neovim. Fails while file buffers have unsaved changes, or while a running Neovim does not answer (unsaved buffers: unknown), unless force is true.",
+        "description": "Restart every running Neovim of the workspace (one per worktree). Fails while file buffers in any of them have unsaved changes, or while a running Neovim does not answer (unsaved buffers: unknown), unless force is true.",
         "args": {
           "properties": {
             "force": {"type": "boolean", "description": "Restart even with unsaved buffers, discarding their changes."}
