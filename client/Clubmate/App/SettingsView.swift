@@ -101,12 +101,12 @@ private struct NvimConfigSettings: View {
     var body: some View {
         if let info = model.info {
             Picker("Neovim", selection: binary(info)) {
-                Text(info.bundledVersion.isEmpty ? "Built-in" : "Built-in (\(info.bundledVersion))").tag(NvimBinary.bundled)
+                Text(info.bundledLabel).tag(NvimBinary.bundled)
                 Text("System").tag(NvimBinary.system)
             }
             .pickerStyle(.segmented)
             .disabled(model.busy)
-            Text(info.systemPath.isEmpty ? "Not found in PATH" : "\(info.systemPath) — \(info.systemVersion)")
+            Text(info.systemCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Picker("Neovim config", selection: mode(info)) {

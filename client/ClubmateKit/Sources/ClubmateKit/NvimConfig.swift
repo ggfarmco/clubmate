@@ -42,6 +42,21 @@ public struct NvimConfigInfo: Equatable, Sendable {
         sourceConfigBytes = Int64(fields["sourceConfigBytes"]?.numberValue ?? -1)
         sourceDataBytes = Int64(fields["sourceDataBytes"]?.numberValue ?? -1)
     }
+
+    public var bundledLabel: String {
+        let version = Self.displayVersion(bundledVersion)
+        return version.isEmpty ? "Built-in" : "Built-in (\(version))"
+    }
+
+    public var systemCaption: String {
+        if systemPath.isEmpty { return "System: not found in PATH" }
+        let version = Self.displayVersion(systemVersion)
+        return version.isEmpty ? "System: \(systemPath)" : "System: \(systemPath) — \(version)"
+    }
+
+    private static func displayVersion(_ raw: String) -> String {
+        raw.hasPrefix("NVIM v") ? String(raw.dropFirst("NVIM v".count)) : raw
+    }
 }
 
 public struct NvimCopyProgress: Equatable, Sendable {

@@ -22,11 +22,11 @@ fetch() {
   local name="$1" version="$2" sha="$3" url="$4"
   local archive="$CACHE/$name-$version.tar.gz"
   if [[ -f "$archive" ]] && ! verify "$archive" "$sha"; then
-    echo "error: $name $version checksum mismatch" >&2
+    echo "error: $name $version checksum mismatch (delete ${archive#"$ROOT/"})" >&2
     exit 1
   fi
   if [[ ! -f "$archive" ]]; then
-    /usr/bin/curl -fsSL -o "$archive.part" "$url"
+    /usr/bin/curl -fsSL --retry 3 -o "$archive.part" "$url"
     if ! verify "$archive.part" "$sha"; then
       rm -f "$archive.part"
       echo "error: $name $version checksum mismatch" >&2
@@ -44,7 +44,16 @@ while read -r name version sha url; do
 done < "$ROOT/scripts/tools.lock"
 
 RG="$(find "$TMP/ripgrep" -type f -name rg | head -n 1)"
-NVIM="$(dirname "$(dirname "$(find "$TMP/neovim" -type f -path '*/bin/nvim' | head -n 1)")")"
+NVIM_BIN="$(find "$TMP/neovim" -type f -path '*/bin/nvim' | head -n 1)"
+if [[ -z "$RG" ]]; then
+  echo "error: rg not found in the ripgrep archive" >&2
+  exit 1
+fi
+if [[ -z "$NVIM_BIN" ]]; then
+  echo "error: nvim/bin/nvim not found in the neovim archive" >&2
+  exit 1
+fi
+NVIM="$(dirname "$(dirname "$NVIM_BIN")")"
 
 rm -rf "$RES/tools" "$RES/nvim"
 mkdir -p "$RES/tools" "$RES/nvim"

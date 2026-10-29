@@ -806,6 +806,15 @@ func TestBundledFallsBackToPath(t *testing.T) {
 }
 
 func TestSystemNvimMissingShowsHint(t *testing.T) {
+	system, err := exec.LookPath("nvim")
+	if err != nil {
+		t.Skip("nvim not in PATH")
+	}
+	res := t.TempDir()
+	bundled := filepath.Join(res, "nvim", "bin", "nvim")
+	require.NoError(t, os.MkdirAll(filepath.Dir(bundled), 0o700))
+	require.NoError(t, os.Symlink(system, bundled))
+	t.Setenv("CLUBMATE_RESOURCES", res)
 	c := startCopier(t, func(xdg) { t.Setenv("PATH", t.TempDir()) })
 	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{"binary": "system"}, nil))
 	var sub struct {
