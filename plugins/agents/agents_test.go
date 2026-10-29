@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -688,4 +689,69 @@ func TestSignInReattaches(t *testing.T) {
 	}, wait)
 	assert.NotEmpty(t, f.session(t, project, session).AgentSessionID)
 	assert.FileExists(t, authFile)
+}
+
+func (f *fixture) rev(t *testing.T, project, slot string) int64 {
+	t.Helper()
+	var views []struct {
+		Slot string `json:"slot"`
+		Rev  int64  `json:"rev"`
+	}
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"projectId": project}, &views))
+	for _, v := range views {
+		if v.Slot == slot {
+			return v.Rev
+		}
+	}
+	return 0
+}
+
+func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
+	steps := []map[string]any{}
+	for i := range 30 {
+		steps = append(steps, map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": strconv.Itoa(i)}}}, map[string]any{"sleep": 10})
+	}
+	f := start(t, map[string]any{"prompt": steps})
+	project := f.project(t, newRepo(t))
+	background := f.newSession(t, project)
+	open := f.newSession(t, project)
+	f.waitStatus(t, project, background, "idle")
+	f.waitStatus(t, project, open, "idle")
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		return len(cardsOf(n, "composer")) == 1 && strings.HasPrefix(cardsOf(n, "composer")[0].ID, open+"/")
+	})
+	time.Sleep(300 * time.Millisecond)
+	main, sidebar := f.rev(t, project, "agents.main"), f.rev(t, project, "agents.sidebar")
+
+	f.prompt(t, project, background, "go")
+	f.waitStatus(t, project, background, "done")
+	time.Sleep(300 * time.Millisecond)
+
+	assert.Equal(t, main, f.rev(t, project, "agents.main"))
+	assert.Greater(t, f.rev(t, project, "agents.sidebar"), sidebar)
+}
+
+func TestContinueInNewSession(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{})
+	project := f.project(t, repo)
+	old := f.newSession(t, project)
+	f.waitStatus(t, project, old, "idle")
+	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": old}, nil))
+
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == old+"/continue" })
+	})
+	f.h.Event(t, project, "agents.main", old+"/continue", "continue", nil)
+
+	var list []record
+	require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+	require.Len(t, list, 2)
+	fresh := list[1]
+	assert.NotEqual(t, old, fresh.ID)
+	assert.Equal(t, repo, fresh.Worktree)
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		return len(cardsOf(n, "transcript")) == 1 && cardsOf(n, "transcript")[0].ID == fresh.ID+"/transcript"
+	})
+	assert.True(t, f.session(t, project, old).Closed)
 }

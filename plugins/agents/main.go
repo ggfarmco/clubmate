@@ -112,11 +112,14 @@ type app struct {
 	loaded   chan struct{}
 	notes    *notifier
 
-	uiMu        sync.Mutex
-	ui          map[string]*projectUI
-	auth        map[string]authCommand
-	signIns     map[string]string
-	nodeProblem string
+	uiMu         sync.Mutex
+	ui           map[string]*projectUI
+	auth         map[string]authCommand
+	signIns      map[string]string
+	nodeProblem  string
+	goneProjects map[string]bool
+	resumable    map[string]bool
+	noResume     map[string]bool
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -131,6 +134,7 @@ func main() {
 	a := &app{
 		loaded: make(chan struct{}), sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]bool{},
 		ui: map[string]*projectUI{}, auth: map[string]authCommand{}, signIns: map[string]string{},
+		goneProjects: map[string]bool{}, resumable: map[string]bool{}, noResume: map[string]bool{},
 	}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
 	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
@@ -296,12 +300,16 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, agen
 	if err != nil {
 		return newResult{}, err
 	}
+	return a.createSession(projectID, agent, root), nil
+}
+
+func (a *app) createSession(projectID, agent, root string) newResult {
 	now := time.Now().UTC()
 	s := a.addSession(record{ID: newSessionID(), Workspace: projectID, Worktree: root, Agent: agent, Status: statusIdle, CreatedAt: now, UpdatedAt: now}, true)
 	a.notes.mark(s, changeCreated, true)
 	a.kick(projectID)
 	go a.attachInBackground(s)
-	return newResult{Session: s.rec.ID}, nil
+	return newResult{Session: s.rec.ID}
 }
 
 func workRoot(p pluginsdk.Project) (string, []string, error) {
@@ -394,10 +402,8 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	var raw json.RawMessage
 	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp}, &raw); err != nil {
 		a.release(p)
-		if rpcErr, ok := errors.AsType[*acp.Error](err); ok && rpcErr.Code == acp.CodeAuthRequired {
-			if authErr := a.needsAuth(rec.ID, p); authErr != nil {
-				return nil, authErr
-			}
+		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
+			return nil, authErr
 		}
 		return nil, fmt.Errorf("session/new: %w", err)
 	}
@@ -425,13 +431,19 @@ func (a *app) attach(s *session) (*agentProc, error) {
 func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record, extra []string) error {
 	if p.caps.SessionCapabilities.Resume == nil {
 		a.release(p)
+		a.setNoResume(rec.ID, true)
 		return errNoResume
 	}
 	var raw json.RawMessage
 	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp}, &raw); err != nil {
 		a.release(p)
+		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
+			return authErr
+		}
+		a.setNoResume(rec.ID, true)
 		return fmt.Errorf("session/resume: %w", err)
 	}
+	a.setNoResume(rec.ID, false)
 	p.register(rec.AgentSessionID, s)
 	s.mu.Lock()
 	s.recordLocked(s.actor(), kindResume, raw)
@@ -727,6 +739,7 @@ func (a *app) deleteSession(ctx context.Context, s *session) error {
 	err := s.log.remove()
 	s.mu.Unlock()
 	a.notes.mark(s, changeDeleted, true)
+	a.forgetSession(ctx, rec.Workspace, rec.ID)
 	a.kick(rec.Workspace)
 	refsCtx, cancel := context.WithTimeout(context.Background(), refsTimeout)
 	defer cancel()
@@ -760,6 +773,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	case "project.deleted":
 		var p deletedPayload
 		if json.Unmarshal(ev.Payload, &p) == nil {
+			a.forgetProject(p.ID)
 			go a.dropWorkspace(p.ID, nil)
 		}
 	case "project.updated":

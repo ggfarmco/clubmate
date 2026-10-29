@@ -186,7 +186,9 @@ func (p *agentProc) terminalAuth() (authCommand, bool) {
 		}
 		env := make([]string, 0, len(m.Env))
 		for k, v := range m.Env {
-			env = append(env, k+"="+v)
+			if k != apiKeyEnv {
+				env = append(env, k+"="+v)
+			}
 		}
 		return authCommand{argv: append(slices.Clone(p.launch.argv), m.Args...), env: env, label: m.Name}, true
 	}
@@ -398,6 +400,9 @@ func (a *app) startProc(ctx context.Context, agent, root string) (*agentProc, er
 		}
 		return nil, err
 	}
+	a.uiMu.Lock()
+	a.resumable[agent] = p.caps.SessionCapabilities.Resume != nil
+	a.uiMu.Unlock()
 	return p, nil
 }
 

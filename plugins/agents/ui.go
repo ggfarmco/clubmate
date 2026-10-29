@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/acp"
 )
 
 const (
@@ -55,6 +57,7 @@ type sessionUI struct {
 
 type projectUI struct {
 	render    sync.Mutex
+	sent      map[string][sha256.Size]byte
 	throttle  *throttle
 	selected  string
 	restored  bool
@@ -62,12 +65,21 @@ type projectUI struct {
 	sessions  map[string]*sessionUI
 }
 
+type clock interface {
+	Now() time.Time
+	AfterFunc(d time.Duration, f func()) func() bool
+}
+
+type realClock struct{}
+
 type throttle struct {
-	mu    sync.Mutex
-	every time.Duration
-	last  time.Time
-	timer *time.Timer
-	fn    func()
+	mu      sync.Mutex
+	clock   clock
+	every   time.Duration
+	last    time.Time
+	pending func() bool
+	stopped bool
+	fn      func()
 }
 
 type textValue struct {
@@ -114,25 +126,46 @@ type ptyEvent struct {
 	Owner string `json:"owner"`
 }
 
-func newThrottle(every time.Duration, fn func()) *throttle {
-	return &throttle{every: every, fn: fn}
+func (realClock) Now() time.Time {
+	return time.Now()
+}
+
+func (realClock) AfterFunc(d time.Duration, f func()) func() bool {
+	return time.AfterFunc(d, f).Stop
+}
+
+func newThrottle(c clock, every time.Duration, fn func()) *throttle {
+	return &throttle{clock: c, every: every, fn: fn}
 }
 
 func (t *throttle) kick() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.timer != nil {
+	if t.pending != nil || t.stopped {
 		return
 	}
-	t.timer = time.AfterFunc(max(t.every-time.Since(t.last), 0), t.fire)
+	t.pending = t.clock.AfterFunc(max(t.every-t.clock.Now().Sub(t.last), 0), t.fire)
 }
 
 func (t *throttle) fire() {
 	t.mu.Lock()
-	t.timer = nil
-	t.last = time.Now()
+	t.pending = nil
+	t.last = t.clock.Now()
+	stopped := t.stopped
 	t.mu.Unlock()
-	t.fn()
+	if !stopped {
+		t.fn()
+	}
+}
+
+func (t *throttle) stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.stopped = true
+	if t.pending != nil {
+		t.pending()
+		t.pending = nil
+	}
 }
 
 func (v *sessionUI) showEarlier() {
@@ -144,8 +177,8 @@ func (a *app) projectState(projectID string) *projectUI {
 	defer a.uiMu.Unlock()
 	p, ok := a.ui[projectID]
 	if !ok {
-		p = &projectUI{collapsed: map[string]bool{}, sessions: map[string]*sessionUI{}}
-		p.throttle = newThrottle(renderEvery, func() { a.renderLogged(projectID) })
+		p = &projectUI{sent: map[string][sha256.Size]byte{}, collapsed: map[string]bool{}, sessions: map[string]*sessionUI{}}
+		p.throttle = newThrottle(realClock{}, renderEvery, func() { a.renderLogged(projectID) })
 		a.ui[projectID] = p
 	}
 	return p
@@ -164,7 +197,67 @@ func (a *app) sessionState(projectID, sid string) *sessionUI {
 }
 
 func (a *app) kick(projectID string) {
-	a.projectState(projectID).throttle.kick()
+	a.uiMu.Lock()
+	gone := a.goneProjects[projectID]
+	a.uiMu.Unlock()
+	if !gone {
+		a.projectState(projectID).throttle.kick()
+	}
+}
+
+func (a *app) forgetProject(projectID string) {
+	a.uiMu.Lock()
+	a.goneProjects[projectID] = true
+	p := a.ui[projectID]
+	delete(a.ui, projectID)
+	a.uiMu.Unlock()
+	if p != nil {
+		p.throttle.stop()
+	}
+}
+
+func (a *app) forgetSession(ctx context.Context, projectID, sid string) {
+	a.uiMu.Lock()
+	var pty string
+	if p := a.ui[projectID]; p != nil {
+		if st := p.sessions[sid]; st != nil {
+			pty = st.signIn
+		}
+		delete(p.sessions, sid)
+	}
+	delete(a.auth, sid)
+	delete(a.noResume, sid)
+	if pty != "" {
+		delete(a.signIns, pty)
+	}
+	a.uiMu.Unlock()
+	if pty != "" {
+		a.removeTerminal(ctx, pty, true)
+	}
+}
+
+func (a *app) removeTerminal(ctx context.Context, id string, running bool) {
+	if running {
+		if err := a.host.KillSession(ctx, id); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: kill sign-in terminal:", err)
+		}
+	}
+	if err := a.host.RemoveSession(ctx, id); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: remove sign-in terminal:", err)
+	}
+}
+
+func (a *app) removeLeftoverTerminals(ctx context.Context, projects []pluginsdk.Project) {
+	for _, p := range projects {
+		sessions, err := a.host.ListSessions(ctx, p.ID, true)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "agents: list sign-in terminals:", err)
+			continue
+		}
+		for _, s := range sessions {
+			a.removeTerminal(ctx, s.ID, s.State == "running")
+		}
+	}
 }
 
 func (a *app) renderLogged(projectID string) {
@@ -181,6 +274,7 @@ func (a *app) renderAll(ctx context.Context) {
 		fmt.Fprintln(os.Stderr, "agents: list projects:", err)
 		return
 	}
+	a.removeLeftoverTerminals(ctx, projects)
 	for _, p := range projects {
 		if err := a.render(ctx, p.ID); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: render:", err)
@@ -197,11 +291,10 @@ func (a *app) render(ctx context.Context, projectID string) error {
 		return err
 	}
 	if project.Home {
-		if _, err := a.host.Render(ctx, projectID, sidebarSlot, sdui.Empty(errHome.Error())); err != nil {
+		if err := a.push(ctx, p, projectID, sidebarSlot, sdui.Empty(errHome.Error())); err != nil {
 			return err
 		}
-		_, err := a.host.Render(ctx, projectID, mainSlot, sdui.Empty(errHome.Error()))
-		return err
+		return a.push(ctx, p, projectID, mainSlot, sdui.Empty(errHome.Error()))
 	}
 	recs := a.list(projectID)
 	slices.Reverse(recs)
@@ -221,15 +314,30 @@ func (a *app) render(ctx context.Context, projectID string) error {
 	a.uiMu.Lock()
 	collapsed := maps.Clone(p.collapsed)
 	a.uiMu.Unlock()
-	if _, err := a.host.Render(ctx, projectID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now())); err != nil {
+	if err := a.push(ctx, p, projectID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now())); err != nil {
 		return err
 	}
 	main := sdui.Empty(pickSession)
 	if s := a.session(selected); s != nil {
 		main = mainView(a.screen(projectID, s))
 	}
-	_, err = a.host.Render(ctx, projectID, mainSlot, main)
-	return err
+	return a.push(ctx, p, projectID, mainSlot, main)
+}
+
+func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n sdui.Node) error {
+	raw, err := json.Marshal(n)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(raw)
+	if p.sent[slot] == sum {
+		return nil
+	}
+	if _, err := a.host.Render(ctx, projectID, slot, n); err != nil {
+		return err
+	}
+	p.sent[slot] = sum
+	return nil
 }
 
 func (a *app) screen(projectID string, s *session) screen {
@@ -240,6 +348,8 @@ func (a *app) screen(projectID string, s *session) screen {
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	_, needsAuth := a.auth[sid]
+	resumable, known := a.resumable[v.Session.Agent]
+	cannotResume := v.Session.AgentSessionID != "" && (a.noResume[sid] || known && !resumable)
 	return screen{
 		View:        v,
 		Pending:     pending,
@@ -248,6 +358,7 @@ func (a *app) screen(projectID string, s *session) screen {
 		Attachments: slices.Clone(st.attachments),
 		Composer:    sid + "/composer/" + strconv.Itoa(st.gen),
 		NeedsAuth:   needsAuth,
+		Continue:    cannotResume,
 		SignIn:      st.signIn,
 		NodeProblem: a.nodeProblem,
 	}
@@ -349,10 +460,6 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		if ev.Action == actDelete {
-			p := a.projectState(ev.ProjectID)
-			a.uiMu.Lock()
-			delete(p.sessions, id)
-			a.uiMu.Unlock()
 			return a.deleteSession(ctx, s)
 		}
 		a.closeSession(ctx, s, false)
@@ -446,6 +553,10 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 	case actRetry:
 		a.resume(s)
 		return nil
+	case actContinue:
+		rec := s.snapshot()
+		res := a.createSession(ev.ProjectID, rec.Agent, rec.Worktree)
+		return a.selectSession(ctx, ev.ProjectID, res.Session)
 	case actSignIn:
 		return a.signIn(ctx, ev.ProjectID, s, st)
 	}
@@ -543,12 +654,27 @@ func (a *app) signInExited(ctx context.Context, ev pluginsdk.Event) {
 	if !ok {
 		return
 	}
-	if err := a.host.RemoveSession(ctx, p.ID); err != nil {
-		fmt.Fprintln(os.Stderr, "agents: remove sign-in terminal:", err)
-	}
+	a.removeTerminal(ctx, p.ID, false)
 	if s := a.session(sid); s != nil {
 		a.resume(s)
 	}
+}
+
+func (a *app) authRequired(sid string, p *agentProc, err error) error {
+	if rpcErr, ok := errors.AsType[*acp.Error](err); !ok || rpcErr.Code != acp.CodeAuthRequired {
+		return nil
+	}
+	return a.needsAuth(sid, p)
+}
+
+func (a *app) setNoResume(sid string, on bool) {
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	if on {
+		a.noResume[sid] = true
+		return
+	}
+	delete(a.noResume, sid)
 }
 
 func (a *app) needsAuth(sid string, p *agentProc) error {

@@ -101,14 +101,15 @@ func TestValidateAgentNodes(t *testing.T) {
 		})
 	}
 	invalid := map[string]sdui.Node{
-		"bad role":            sdui.Message("system", "x", nil),
-		"bad plan status":     sdui.Plan([]sdui.PlanEntry{{Content: "x", Status: "done"}}),
-		"card without id":     sdui.ToolCard("", sdui.ToolCardProps{Kind: "read", Title: "x"}),
-		"bad body format":     sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Body: &sdui.ToolBody{Format: "html", Text: "x"}}),
-		"nested action value": sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Actions: []sdui.CardAction{{Action: "go", Label: "Go", Value: map[string]any{"a": []int{1}}}}}),
-		"duplicate option":    sdui.PermissionCard("p", "r", "x", []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}, ""),
-		"bad attach kind":     sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
-		"menu bad action":     sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),
+		"bad role":             sdui.Message("system", "x", nil),
+		"bad plan status":      sdui.Plan([]sdui.PlanEntry{{Content: "x", Status: "done"}}),
+		"card without id":      sdui.ToolCard("", sdui.ToolCardProps{Kind: "read", Title: "x"}),
+		"bad body format":      sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Body: &sdui.ToolBody{Format: "html", Text: "x"}}),
+		"nested action value":  sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Actions: []sdui.CardAction{{Action: "go", Label: "Go", Value: map[string]any{"a": []int{1}}}}}),
+		"duplicate option":     sdui.PermissionCard("p", "r", "x", []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}, ""),
+		"bad attach kind":      sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
+		"duplicate attachment": sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),
+		"menu bad action":      sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),
 	}
 	for name, n := range invalid {
 		t.Run(name, func(t *testing.T) {

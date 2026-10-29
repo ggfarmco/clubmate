@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -127,23 +127,75 @@ func TestHugeToolOutputRendersTruncated(t *testing.T) {
 	assert.LessOrEqual(t, len(full), expandedBytes)
 }
 
-func TestRenderThrottle(t *testing.T) {
-	var renders, after atomic.Int64
-	var done atomic.Bool
-	th := newThrottle(renderEvery, func() {
-		renders.Add(1)
-		if done.Load() {
-			after.Add(1)
-		}
-	})
-	start := time.Now()
-	for i := range 200 {
-		th.kick()
-		time.Sleep(time.Until(start.Add(time.Duration(i+1) * 5 * time.Millisecond)))
+type fakeClock struct {
+	mu     sync.Mutex
+	now    time.Time
+	timers []*fakeTimer
+}
+
+type fakeTimer struct {
+	at   time.Time
+	f    func()
+	dead bool
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) AfterFunc(d time.Duration, f func()) func() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	tm := &fakeTimer{at: c.now.Add(d), f: f}
+	c.timers = append(c.timers, tm)
+	return func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		live := !tm.dead
+		tm.dead = true
+		return live
 	}
-	done.Store(true)
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	c.now = c.now.Add(d)
+	var due []*fakeTimer
+	rest := c.timers[:0]
+	for _, tm := range c.timers {
+		switch {
+		case tm.dead:
+		case !tm.at.After(c.now):
+			tm.dead = true
+			due = append(due, tm)
+		default:
+			rest = append(rest, tm)
+		}
+	}
+	c.timers = rest
+	c.mu.Unlock()
+	for _, tm := range due {
+		tm.f()
+	}
+}
+
+func TestRenderThrottle(t *testing.T) {
+	clock := &fakeClock{now: time.Unix(0, 0)}
+	var renders, lastRender int
+	th := newThrottle(clock, renderEvery, func() {
+		renders++
+		lastRender = renders
+	})
+	for range 200 {
+		th.kick()
+		clock.advance(5 * time.Millisecond)
+	}
+	assert.LessOrEqual(t, renders, 12)
+
+	before := renders
 	th.kick()
-	time.Sleep(2 * renderEvery)
-	assert.LessOrEqual(t, renders.Load(), int64(12))
-	assert.GreaterOrEqual(t, after.Load(), int64(1))
+	clock.advance(renderEvery)
+	assert.Equal(t, before+1, lastRender)
 }

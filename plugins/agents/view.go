@@ -48,6 +48,7 @@ const (
 	actDelete          = "delete"
 	actRetry           = "retry"
 	actSignIn          = "signIn"
+	actContinue        = "continue"
 
 	groupPrefix   = "wt:"
 	deleteConfirm = "Delete this agent session, its transcript and its checkpoints?"
@@ -99,6 +100,7 @@ type screen struct {
 	Attachments []pendingAttachment
 	Composer    string
 	NeedsAuth   bool
+	Continue    bool
 	SignIn      string
 	NodeProblem string
 }
@@ -230,10 +232,11 @@ func mainView(sc screen) sdui.Node {
 	}
 	children = append(children, transcript(sc))
 	if rec.Closed {
-		children = append(children, sdui.HStack(
-			sdui.MutedText("The session is closed; its transcript stays readable."),
-			sdui.WithAction(sdui.Button(sid+"/reopen", "Reopen", "arrow.clockwise"), actRetry),
-		))
+		reopen := sdui.WithAction(sdui.Button(sid+"/reopen", "Reopen", "arrow.clockwise"), actRetry)
+		if sc.Continue {
+			reopen = continueButton(sid)
+		}
+		children = append(children, sdui.HStack(sdui.MutedText("The session is closed; its transcript stays readable."), reopen))
 		return sdui.VStack(children...)
 	}
 	return sdui.VStack(append(children, composer(sc))...)
@@ -261,12 +264,19 @@ func header(sc screen) sdui.Node {
 		return sdui.VStack(children...)
 	}
 	problem := []sdui.Node{sdui.MutedText(cmp.Or(firstLine(rec.Error), "The agent failed"))}
-	if sc.NeedsAuth {
+	switch {
+	case sc.NeedsAuth:
 		problem = append(problem, sdui.WithAction(sdui.Button(sid+"/signin", "Sign in", "person.badge.key"), actSignIn))
-	} else {
+	case sc.Continue:
+		problem = append(problem, continueButton(sid))
+	default:
 		problem = append(problem, sdui.WithAction(sdui.Button(sid+"/retry", "Retry", "arrow.clockwise"), actRetry))
 	}
 	return sdui.VStack(append(children, sdui.HStack(problem...))...)
+}
+
+func continueButton(sid string) sdui.Node {
+	return sdui.WithAction(sdui.Button(sid+"/continue", "Continue in a new session", "arrow.turn.down.right"), actContinue)
 }
 
 func transcript(sc screen) sdui.Node {

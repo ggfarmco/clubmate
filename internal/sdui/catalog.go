@@ -64,7 +64,7 @@ var (
 	toolFormats      = []string{"diff", "text", "terminal"}
 	permissionKinds  = []string{"allow_once", "allow_always", "reject_once", "reject_always"}
 	attachmentKinds  = []string{"file", "selection"}
-	attachmentFields = map[string]propCheck{"id": isString, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
+	attachmentFields = map[string]propCheck{"id": uniqueItemID, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
 	columnAligns = []string{"left", "right"}
@@ -179,7 +179,7 @@ var (
 		"composer": {
 			props: map[string]propCheck{
 				"placeholder": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString,
-				"commands": listOf(commandCheck), "attach": arrayOf(oneOf(attachmentKinds)), "attachments": attachmentsCheck, "running": isBool,
+				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachmentKinds)), "attachments": attachmentsCheck, "running": isBool,
 			},
 			children:    noChildren,
 			interactive: true,
