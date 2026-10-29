@@ -254,7 +254,16 @@ if kind == "" then kind = "v" end
 local text = table.concat(vim.fn.getregion(a, b, { type = kind }), "\n")
 return { path = vim.api.nvim_buf_get_name(buf), startLine = a[2], endLine = b[2], text = text }`
 
-const checktimeLua = `vim.schedule(function() pcall(vim.cmd, "silent! checktime") end)`
+const checktimeLua = `vim.schedule(function()
+  local ar = vim.o.autoread
+  vim.o.autoread = true
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buftype == "" and not vim.bo[b].modified then
+      pcall(vim.cmd, "silent! checktime " .. b)
+    end
+  end
+  vim.o.autoread = ar
+end)`
 
 const modifiedLua = `local names = {}
 for _, b in ipairs(vim.api.nvim_list_bufs()) do

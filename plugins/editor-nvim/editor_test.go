@@ -110,6 +110,19 @@ func TestChecktimeReloadsBuffer(t *testing.T) {
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "getline(1)") == "changed" }, 5*time.Second)
 }
 
+func TestChecktimeKeepsModifiedBuffer(t *testing.T) {
+	e := startEditor(t)
+	path := e.file(t, "a.go")
+	require.NoError(t, e.open(t, path, 1))
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	require.NoError(t, v.Command("normal! Iunsaved "))
+	require.NoError(t, os.WriteFile(path, []byte("changed\n"), 0o600))
+	e.run(t, "checktime", map[string]string{"root": e.repo}, nil)
+	assert.False(t, eval[bool](t, v, "nvim_get_mode().blocking"))
+	assert.Equal(t, "unsaved line", eval[string](t, v, "getline(1)"))
+}
+
 func TestOpenWithColumn(t *testing.T) {
 	e := startEditor(t)
 	path := e.file(t, "a.go")

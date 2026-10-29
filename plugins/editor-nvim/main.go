@@ -209,6 +209,10 @@ type selectionResult struct {
 	Text      string `json:"text" msgpack:"text"`
 }
 
+type rootArgs struct {
+	Root string `json:"root"`
+}
+
 type stopRootArgs struct {
 	Root  string `json:"root"`
 	Force bool   `json:"force"`
@@ -433,7 +437,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		}
 		return a.reviewOpen(ctx, h, cmd.ProjectID, args)
 	case "checktime":
-		var args stopRootArgs
+		var args rootArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("checktime args: %w", err)
 		}
