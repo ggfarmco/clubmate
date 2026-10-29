@@ -408,6 +408,9 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	}
 	s.mu.Lock()
 	s.rec.AgentSessionID = res.SessionID
+	if s.rec.Status == statusError {
+		s.setStatusLocked(statusIdle, "")
+	}
 	s.mu.Unlock()
 	a.notes.persist(ctx, s)
 	p.register(res.SessionID, s)

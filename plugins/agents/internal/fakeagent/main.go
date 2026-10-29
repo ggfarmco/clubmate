@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -15,6 +16,7 @@ import (
 )
 
 type script struct {
+	AuthFile string                 `json:"authFile"`
 	Resume   bool                   `json:"resume"`
 	Embedded bool                   `json:"embedded"`
 	Modes    *acp.SessionModeState  `json:"modes"`
@@ -32,6 +34,16 @@ type step struct {
 	Exit       *int            `json:"exit"`
 	Sleep      int             `json:"sleep"`
 	Echo       bool            `json:"echo"`
+}
+
+const loginArg = "--fake-login"
+
+func login(path string) int {
+	if err := os.WriteFile(path, []byte("ok"), 0o600); err != nil {
+		fmt.Fprintln(os.Stderr, "fakeagent:", err)
+		return 1
+	}
+	return 0
 }
 
 type record struct {
@@ -70,6 +82,9 @@ func main() {
 		}
 		a.log = f
 	}
+	if slices.Contains(os.Args[1:], loginArg) {
+		os.Exit(login(a.script.AuthFile))
+	}
 	a.record("start", nil)
 	fmt.Fprintln(os.Stdout, "fakeagent: not a JSON line")
 	a.conn = acp.NewConn(os.Stdin, os.Stdout, a, nil)
@@ -105,8 +120,17 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		if a.script.Resume {
 			caps.SessionCapabilities.Resume = &acp.Capability{}
 		}
-		return acp.InitializeResponse{ProtocolVersion: acp.ProtocolVersion, AgentCapabilities: caps, AgentInfo: &acp.Implementation{Name: "fakeagent", Version: "0"}}, nil
+		res := acp.InitializeResponse{ProtocolVersion: acp.ProtocolVersion, AgentCapabilities: caps, AgentInfo: &acp.Implementation{Name: "fakeagent", Version: "0"}}
+		if a.script.AuthFile != "" {
+			res.AuthMethods = []json.RawMessage{json.RawMessage(`{"id":"login","name":"Fake login","type":"terminal","args":["` + loginArg + `"]}`)}
+		}
+		return res, nil
 	case acp.MethodSessionNew:
+		if a.script.AuthFile != "" {
+			if _, err := os.Stat(a.script.AuthFile); err != nil {
+				return nil, &acp.Error{Code: acp.CodeAuthRequired, Message: "Authentication required"}
+			}
+		}
 		id := "fake-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(a.sessions.Add(1), 10)
 		go a.announce(id)
 		return acp.NewSessionResponse{SessionID: id, Modes: a.script.Modes}, nil

@@ -668,3 +668,24 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 
 	assert.JSONEq(t, `{"base":"commit:`+sha+`","head":"`+repo+`","baseLabel":"before turn 1"}`, string(echoed(t, f, "git.review")))
 }
+
+func TestSignInReattaches(t *testing.T) {
+	authFile := filepath.Join(t.TempDir(), "authed")
+	f := start(t, map[string]any{"authFile": authFile})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.waitStatus(t, project, session, "error")
+	require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
+
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.Props["action"] == "signIn" })
+	})
+	f.h.Event(t, project, "agents.main", session+"/signin", "signIn", nil)
+
+	testutil.Eventually(t, func() bool {
+		require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
+		return f.session(t, project, session).Status == "idle"
+	}, wait)
+	assert.NotEmpty(t, f.session(t, project, session).AgentSessionID)
+	assert.FileExists(t, authFile)
+}

@@ -13,13 +13,14 @@ Plugins render trees of nodes into slots; clients draw them and send events back
 - `props`: only the listed props are accepted; unknown props are rejected. `*` marks required props.
 - `children`: count limited per type.
 
-Interactive types (`tabs list tree table button textField folderField toggle select form`) accept an optional `action` prop: a string of 1-64 chars matching `^[a-z][a-z0-9.-]*$`. It overrides the default action name sent in `ui.event`.
+Interactive types (`tabs list tree table button textField folderField toggle select form toolCard permissionCard composer`) require an `id`. All but `toolCard` and `composer` accept an optional `action` prop: a string of 1-64 chars matching `^[a-z][a-zA-Z0-9.-]*$` (camelCase allowed, e.g. `showEarlier`). It overrides the default action name sent in `ui.event`. Action names inside props (`menu`, card `actions`) follow the same rule.
 
 ## Item shapes
 
 `items` and `options` accept `null` as an empty list.
 
-- item (`tabs`, `list`): `{id*, label*, detail, icon, badge}`, all strings, ids unique and non-empty.
+- item (`tabs`, `list`): `{id*, label*, detail, icon, badge, menu}`, strings except `menu`, ids unique and non-empty. `menu` is a list of menu entries (`list` and `tree` show them as the row's context menu).
+- menu entry (item `menu`): `{action*, label*, confirm}`: choosing it sends `action` with the item id as value; with `confirm` the client asks first.
 - tree item (`tree`): item fields plus `muted` (bool), `hasChildren` (bool), `expanded` (bool), `children` (tree items), and the review columns `additions`, `deletions`, `comments` (non-negative integers) and `reviewed` (bool).
 - review header (`tree` `review` prop): `{base*, head*, baseRef, headPath, mode, progress, warning, error, chips}`, all strings except `chips`, a list of `{id*, label*, on}` (`on` bool).
 - option (`select`): `{value*, label*}`.
@@ -27,6 +28,12 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 - row (`table`): `{id*, depth, hasChildren, expanded, muted, cells*}`: `depth` is an integer 0-32 (indent 12pt per level, chevron when `hasChildren`), `muted` dims the row's text. Ids unique and non-empty. `cells` must have exactly one cell per column.
 - cell (`table`): `{text, bar, tone, spark}`: `bar` is a number 0…1 drawn as a filled capsule behind the text, `tone` is `""`\|`ok`\|`warn`\|`danger` (colours the bar and sparkline, or the text when there is no bar), `spark` is a spark.
 - spark (`table` cell): `{values*, max*}`: at most 900 numbers, `max` > 0. Values are clamped to 0…`max` and drawn as a 60×16pt line. The Go helpers `sdui.Sparkline`, `sdui.SparklineSized` and `sdui.NewSpark` clamp them before sending.
+- attachment (`message`, `composer`): `{id, kind*, path*, startLine, endLine}`: `kind` is `file` or `selection` (with the 1-based line range); `path` is shown as given (relative to the worktree when inside it); `id` names a composer attachment for `detach`.
+- plan entry (`plan`): `{content*, status*}`, `status` `pending`\|`in_progress`\|`completed`.
+- tool body (`toolCard` `body`): `{format*, text*}`: `format` `diff` (unified diff, drawn like `diff`), `text` (plain) or `terminal` (monospaced command and output).
+- card action (`toolCard` `actions`): `{action*, label*, icon, value}`: `value` is a string, number, bool or an object of those.
+- permission option (`permissionCard`): `{id*, label*, kind}`, ids unique, `kind` `allow_once`\|`allow_always`\|`reject_once`\|`reject_always` (tints the button; absent = neutral).
+- command (`composer` `commands`): `{name*, description, hint}`: the agent's slash commands; `hint` describes the expected input.
 - sort (`table`): `{column*, desc}`: the active sort column (arrow in its header) and direction. `column` must be one of the table's column ids.
 
 ## Node types
@@ -54,10 +61,25 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | form | action | any | yes |
 | surface | sessionId* (`ses_` id) | none | no |
 | empty | text* (string) | none | no |
+| transcript | none | any | no |
+| message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]) | none | no |
+| plan | entries* (plan entry[]) | none | no |
+| toolCard | kind* (`read`\|`edit`\|`delete`\|`move`\|`search`\|`execute`\|`think`\|`fetch`\|`switch_mode`\|`other`), title* (string), status (`pending`\|`in_progress`\|`completed`\|`failed`\|`cancelled`), body (tool body), truncated (bool), actions (card action[]) | none | yes |
+| permissionCard | request* (string), text* (string), options* (permission option[]), outcome (string), action | none | yes |
+| composer | placeholder, agent, mode (strings), modes (option[]), commands (command[]), attach (`file`\|`selection`[]), attachments (attachment[]), running (bool) | none | yes |
 
 A window shows at most one `surface` node at a time in v1. The client keeps every terminal it has shown mounted until the session's attach exits or the window closes, so switching between sessions is instant. A second `surface` visible in the same window at once renders a placeholder.
 
 `table` rows render lazily; wrap the table in a `scroll` to scroll them under a pinned header. Each row counts toward the 5000-node limit; cells are bounded by the row and column caps (at most 1000 × 32), and spark values (cell sparks and `sparkline` nodes) are capped at 100000 per tree. The client does not page or truncate: a plugin with more rows renders the first 1000 or fewer and adds a final muted `… N more` row itself. `selected` works like `tree`'s: a changed value from the plugin sets, moves or clears the highlight (and scrolls to it); clicking a row highlights it locally and sends `select`. `sparkline` draws `values` as a 60×16pt line (e.g. in a header); with `height` it fills the available width at that height in points (e.g. a detail chart).
+
+Agent chat nodes (the `agents` section):
+
+- `transcript` is the chat column: a vertically scrolling list of its children (messages, plans, cards, `text`, a "Show earlier" `button`), anchored to the bottom while the user is at the bottom. Its `id` identifies the session, so the client keeps a scroll position per id.
+- `message` renders `text` as markdown (headings, lists, code blocks with copy, inline code, links). `user` messages are right-aligned bubbles with their `attachments` as chips (`@ path`, `path · lines 12–40`); `agent` messages are plain; `thought` is collapsed behind "Thinking" and expands on click.
+- `plan` is a checklist: `completed` checked, `in_progress` highlighted, `pending` empty.
+- `toolCard` shows an icon for `kind`, the `title` and `status` (spinner while `pending`/`in_progress`, red for `failed`, muted for `cancelled`). `read` and `search` cards are one line. A `body` is shown under the title (`diff` and `terminal` in a monospaced box). `truncated` adds a muted "Output truncated" note; the plugin then also offers a `showAll` action. Each `actions` entry is a small button.
+- `permissionCard` shows `text` and one button per option. With `outcome` set the card is answered: the chosen option (`outcome` = its id) is shown as chosen, `cancelled` as "Cancelled", and the buttons are disabled.
+- `composer` is the prompt editor: a multi-line field (`placeholder`), the `attachments` as removable chips, an attach menu with the kinds in `attach`, the `agent` label, a mode picker over `modes` (current `mode`), and Send (Stop while `running`). ⌘↩ sends, Esc stops while `running`, `@` opens the client's fuzzy file picker (⌘P) in attach mode, and `/` at the start lists `commands` filtered by the typed prefix; choosing one inserts `/name `. The field is uncontrolled; the plugin clears it after a send by rendering the composer with a new `id`.
 
 `button.confirm`: when set, the client asks the user to confirm with that text before sending the event.
 
@@ -285,6 +307,15 @@ The `agents` plugin hosts ACP v1 agents (Claude through `@agentclientprotocol/cl
 - `agents.sessions` → `[{id, workspace, worktree, agent, agentSessionId, title, status, mode, createdAt, updatedAt, closed, error?}]` (stored in plugin storage under `session/<id>`); `status` is `running`, `waiting` (a permission is pending), `done`, `idle`, `error` (with `error`, e.g. the agent's stderr tail) or `closed`.
 - `agents.transcript {session, fromTurn?}` → `{session, modes, commands, turns: [{turn, checkpointSha, stopReason?}], entries: [{kind, id, turn, ...}]}` with entries upserted by `(kind, id)`: `user` (`text`, `content` blocks), `agent` / `thought` (`text`), `tool` (the merged ACP tool call fields under `tool`; unfinished calls of a cancelled turn get status `cancelled`), `plan` (one per turn), `permission` (`toolCall`, `options`, `outcome` once answered) and `notice`.
 
+The section `agents` ("Agents", icon `sparkles`, order 25, after Terminals) renders two slots per workspace. Both are `empty` with `Agents aren't available in the home workspace` in the home workspace.
+- `agents.sidebar`: a `new` button (action `new`) and a `tree` `sessions`: one expanded row per worktree (id `wt:<root>`, label its folder name) with the worktree's sessions, newest first. A session row has the title, `<agent> · <activity>` as detail (`Running · <last tool>`, `Waiting for permission · <tool>`, `Done · 12 min ago`, `Idle · …`, `Error · <first error line>`, `Closed · …`) and a status icon. Its menu has Close Session (`close`, open sessions only) and Delete Session (`delete`, with the confirm text). `select` with a session id opens it; `expand`/`collapse` on a worktree row folds it.
+- `agents.main`: for the selected session (the newest when none is chosen; `empty` without sessions), a header (title; agent, worktree and mode; `review` "Review changes" once a turn has a checkpoint; `stop` while running; on `error` the first error line with `retry`, or `signIn` when the agent needs a login), then the `transcript` and the `composer`. A closed session shows "Reopen" (`retry`) instead of the composer. When the agent cannot start because Node is missing or too old, the main slot shows `empty` with `Node 22+ is required to run Claude (found <v>)` under the header.
+- Node ids in `agents.main` start with `<session>/` (`<session>/tool/<toolCallId>`, `<session>/permission/<id>`, `<session>/composer/<n>`), and events are applied to that session, not to the current selection.
+- The transcript shows the last 20 turns; the `showEarlier` button adds 20 more. A render is capped below the node limit: when the shown turns would exceed it, the oldest entries are dropped and the button stays. The open session renders at most 10 times a second while the agent streams; other sessions are not rendered.
+- Tool cards: edits (`edit`, `delete`, `move`) show the ACP diff as a unified diff with `openLocation {path, line}` ("Open in nvim", → `editor.open`) and `review {turn}` ("Diff"); `execute` shows `$ command` and the output as `terminal`; `read` and `search` are one line with `openLocation` when the agent sent a location. Bodies over 200 lines or 64 KiB are cut to that with `truncated` and a `showAll` action; after `showAll` (node id names the card) the full body is sent, up to 1 MiB.
+- Other actions: `send {text}` prompts with the pending composer attachments, `permission {request, option}` answers, `mode {mode}` switches, `attachFile {path}` adds a file chip, `attachSelection` adds the editor selection (`editor-nvim.selection`), `detach {id}` removes a chip, `review {turn?}` runs `git.review {base: "commit:<checkpoint sha>", head: <worktree>, baseLabel: "before turn N"}` (default: the first turn with a checkpoint), `retry` reattaches (`agents.resume`), `close`/`delete` as the commands.
+- Sign in: the client advertises `auth.terminal`. When `session/new` fails with `-32000` (auth required) and the agent offers a `terminal` auth method, the session errors with `sign in to continue` and the header offers `signIn`. It runs the agent's launch command plus the method's `args` (and `env`) in a terminal session owned by `agents` in the worktree, shown as a `surface` in `agents.main`; when it exits the terminal is removed and the session reattaches.
+
 Every event is appended to `<state>/plugin-data/agents/sessions/<id>.jsonl` as `{workspace, worktree, session, parentSession, role, turn, seq, actor, ts, kind, payload}` with ACP payloads verbatim; text chunks are coalesced per message (flushed at turn end, after 2 s or at 64 KiB). Removing a workspace, or a worktree with sessions, closes them and deletes their checkpoint refs.
 
 ## Bus topics
@@ -336,6 +367,15 @@ A plugin's `session.create` (`pluginsdk.Host.CreateSession`) also takes `env`, e
 | select | change | `props.action ?? "select"` | option value |
 | folderField | pick folders | `props.action ?? "pick"` | string[] of absolute paths |
 | form | submit | `props.action ?? "submit"` | object `{fieldNodeId: value}` |
+| list / tree | choose a menu entry | entry `action` | item id |
+| toolCard | click an action | entry `action` | entry `value` (`null` when absent) |
+| permissionCard | click an option | `props.action ?? "permission"` | object `{request, option}`: `request` from props, `option` the option id |
+| composer | send (⌘↩ or Send) | `"send"` | object `{text}` |
+| composer | stop (Esc or Stop while `running`) | `"stop"` | `null` |
+| composer | pick a mode | `"mode"` | object `{mode}` |
+| composer | attach a file (picker or `@`) | `"attachFile"` | object `{path}`: absolute path |
+| composer | attach the editor selection | `"attachSelection"` | `null` |
+| composer | remove an attachment chip | `"detach"` | object `{id}` |
 
 `nodeId` is the `id` of the node that fired the event.
 

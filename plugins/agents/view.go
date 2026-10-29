@@ -327,9 +327,11 @@ func transcript(sc screen) sdui.Node {
 }
 
 func turnNumbers(v transcriptView) []int {
+	seen := map[int]bool{}
 	var turns []int
 	for _, en := range v.Entries {
-		if !slices.Contains(turns, en.Turn) {
+		if !seen[en.Turn] {
+			seen[en.Turn] = true
 			turns = append(turns, en.Turn)
 		}
 	}

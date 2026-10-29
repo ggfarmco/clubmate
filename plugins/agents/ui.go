@@ -20,6 +20,7 @@ import (
 
 const (
 	renderEvery     = 100 * time.Millisecond
+	maxSidebarRows  = 1000
 	renderTimeout   = 10 * time.Second
 	selectedKey     = "selected/"
 	selectionCmd    = "editor-nvim.selection"
@@ -203,6 +204,7 @@ func (a *app) render(ctx context.Context, projectID string) error {
 	}
 	recs := a.list(projectID)
 	slices.Reverse(recs)
+	recs = recs[:min(len(recs), maxSidebarRows)]
 	selected, err := a.resolveSelected(ctx, projectID, recs)
 	if err != nil {
 		return err
@@ -231,6 +233,7 @@ func (a *app) render(ctx context.Context, projectID string) error {
 
 func (a *app) screen(projectID string, s *session) screen {
 	v := s.view(0)
+	pending := s.pendingIDs()
 	sid := v.Session.ID
 	st := a.sessionState(projectID, sid)
 	a.uiMu.Lock()
@@ -238,7 +241,7 @@ func (a *app) screen(projectID string, s *session) screen {
 	_, needsAuth := a.auth[sid]
 	return screen{
 		View:        v,
-		Pending:     s.pendingIDs(),
+		Pending:     pending,
 		Window:      st.window,
 		Expanded:    maps.Clone(st.expanded),
 		Attachments: slices.Clone(st.attachments),
