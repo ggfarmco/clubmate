@@ -65,7 +65,7 @@ var (
 	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
 	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
 	errReviewOpen     = errors.New("review-open: cwd must be absolute and base a ref")
-	errReviewExcludes = errors.New("review: excludes must be non-empty globs without line breaks or NUL")
+	errReviewExcludes = errors.New("review: excludes must be non-empty globs of letters, digits and * ? [ ] { } , . _ - / !")
 	errReviewPath     = errors.New("review: path is required")
 	errReviewDir      = errors.New("review-next: dir must be 1 or -1")
 	errStopRoot       = errors.New("stop-root: root must be absolute")
@@ -144,6 +144,11 @@ type reviewOpenArgs struct {
 
 type reviewPathArgs struct {
 	Path string `json:"path"`
+}
+
+type reviewReviewedArgs struct {
+	Path     string `json:"path"`
+	Reviewed *bool  `json:"reviewed"`
 }
 
 type reviewNextArgs struct {
@@ -1084,14 +1089,17 @@ func reviewCommand(c *client, name string, raw json.RawMessage) (any, error) {
 		}
 		return nil, c.reviewSelect(path)
 	case "review-reviewed":
-		path, err := reviewPath(name, raw)
-		if err != nil {
-			return nil, err
+		var args reviewReviewedArgs
+		if err := json.Unmarshal(raw, &args); err != nil {
+			return nil, fmt.Errorf("%s args: %w", name, err)
+		}
+		if args.Path == "" {
+			return nil, errReviewPath
 		}
 		if c == nil {
 			return reviewedResult{}, nil
 		}
-		reviewed, err := c.reviewToggle(path)
+		reviewed, err := c.reviewSetReviewed(args.Path, args.Reviewed)
 		return reviewedResult{Reviewed: reviewed}, err
 	case "review-next":
 		var args reviewNextArgs
@@ -1132,7 +1140,7 @@ func reviewPath(name string, raw json.RawMessage) (string, error) {
 
 func validExcludes(globs []string) error {
 	for _, g := range globs {
-		if g == "" || strings.ContainsAny(g, "\n\r\x00") {
+		if !gitrepo.ValidGlob(g) {
 			return errReviewExcludes
 		}
 	}

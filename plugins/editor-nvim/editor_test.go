@@ -197,7 +197,7 @@ func TestBlockedNvimTimesOut(t *testing.T) {
 		return m.Blocking
 	}, 5*time.Second)
 	start := time.Now()
-	require.ErrorContains(t, e.open(t, path, 2), "nvim rpc timed out")
+	require.ErrorContains(t, e.open(t, path, 2), "Neovim is waiting for input")
 	assert.Less(t, time.Since(start), blockedBudget)
 	_, err = v.Input("<CR>")
 	require.NoError(t, err)
@@ -538,6 +538,8 @@ func TestReviewModuleBridge(t *testing.T) {
 	}
 	e.run(t, "review-reviewed", map[string]any{"path": "a.go"}, &reviewed)
 	assert.True(t, reviewed.Reviewed)
+	e.run(t, "review-reviewed", map[string]any{"path": "a.go", "reviewed": true}, &reviewed)
+	assert.True(t, reviewed.Reviewed)
 	assert.True(t, entries()[0].Reviewed)
 	testutil.Eventually(t, func() bool { return changed(change{e.projectID, e.repo, "reviewed", "a.go"}) }, 5*time.Second)
 	var next struct {
@@ -552,6 +554,20 @@ func TestReviewModuleBridge(t *testing.T) {
 	e.run(t, "review-select", map[string]any{"path": "a_test.go"}, nil)
 	v := dial(t, e.sock)
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "bufname()") == test }, 5*time.Second)
+
+	closed := change{e.projectID, e.repo, "closed", ""}
+	e.run(t, "review-open", map[string]any{"cwd": e.repo, "base": "HEAD"}, &open)
+	testutil.Eventually(t, func() bool { return len(entries()) == 3 }, 10*time.Second)
+	assert.False(t, changed(closed), "replacing the review is not a user close")
+	require.NoError(t, v.Command("DiffviewClose"))
+	testutil.Eventually(t, func() bool { return changed(closed) }, 5*time.Second)
+}
+
+func TestReviewModuleOpenFailureIsAnError(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: `package.loaded["diffview.clubmate"] = { version = 1, subscribe = function() end, close = function() end, open = function() return nil end }`})
+	gitIn(t, e.repo, "init", "-q")
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review-open", "projectId": e.projectID, "args": map[string]any{"cwd": e.repo, "base": "HEAD"}}, nil)
+	require.ErrorContains(t, err, "diffview opened no review")
 }
 
 func TestReviewFallbackWithoutModule(t *testing.T) {

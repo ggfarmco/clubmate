@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/sourcegraph/jsonrpc2"
+
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/fuzzy"
 	"clubmate/plugins/internal/gitrepo"
@@ -33,6 +35,7 @@ const (
 	moduleMode      = "module"
 	nativeMode      = "native"
 	fileOpenKind    = "file_open"
+	closedKind      = "closed"
 	reviewedAction  = "reviewed"
 	nextAction      = "next"
 	focusAction     = "focus"
@@ -49,11 +52,11 @@ const (
 
 var (
 	testGlobs      = []string{"*_test.go", "**/testdata/**", "*.spec.*", "*.test.*"}
-	generatedGlobs = []string{"go.sum", "go.mod", "*-lock.json", "*-lock.yaml", "*.lock", "*.pb.go"}
+	generatedGlobs = []string{"go.sum", "**/go.sum", "go.mod", "**/go.mod", "*-lock.json", "*-lock.yaml", "*.lock", "*.pb.go"}
 
 	errNotCheckedOut = errors.New("is not checked out in a worktree")
 	errNoReview      = errors.New("no review in progress")
-	errBadGlob       = errors.New("glob must not contain line breaks or NUL")
+	errBadGlob       = errors.New("glob may only contain letters, digits and * ? [ ] { } , . _ - / !")
 	errReviewDir     = errors.New("dir must be 1 or -1")
 	errUnknownFolder = errors.New("not a folder of the review")
 	errBadRef        = errors.New("invalid ref")
@@ -137,6 +140,11 @@ type openResult struct {
 
 type pathArgs struct {
 	Path string `json:"path"`
+}
+
+type reviewedArgs struct {
+	Path     string `json:"path"`
+	Reviewed bool   `json:"reviewed"`
 }
 
 type dirArgs struct {
@@ -267,8 +275,10 @@ func (a *app) swapReview(ctx context.Context, h *pluginsdk.Host, id string, s *s
 }
 
 func (a *app) filterReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, args filterArgs) error {
-	if args.Glob != nil && strings.ContainsAny(*args.Glob, "\n\r\x00") {
-		return errBadGlob
+	if args.Glob != nil {
+		if g := strings.TrimSpace(*args.Glob); g != "" && !gitrepo.ValidGlob(g) {
+			return errBadGlob
+		}
 	}
 	s.mu.Lock()
 	r := s.reviews[s.active]
@@ -422,25 +432,46 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 		s.mu.Unlock()
 		return
 	}
+	reopened := false
+	var editorErr error
 	if opened != mergeBase {
 		var out openResult
-		if err := h.RunCommand(ctx, openCommand, id, openArgs{Cwd: cur.t.Real, Base: mergeBase, Excludes: excludes}, &out); err != nil {
-			logError("review-open "+id, err)
+		if editorErr = h.RunCommand(ctx, openCommand, id, openArgs{Cwd: cur.t.Real, Base: mergeBase, Excludes: excludes}, &out); editorErr != nil {
+			logError("review-open "+id, editorErr)
 		} else {
-			mode, opened = cmp.Or(out.Mode, nativeMode), mergeBase
+			mode, reopened = cmp.Or(out.Mode, nativeMode), true
 		}
 	}
 	var entries []reviewEntry
-	if mode == moduleMode {
-		logError("review-entries "+id, h.RunCommand(ctx, entriesCommand, id, nil, &entries))
+	if mode == moduleMode && editorErr == nil {
+		if editorErr = h.RunCommand(ctx, entriesCommand, id, nil, &entries); editorErr != nil {
+			logError("review-entries "+id, editorErr)
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.reviews[cur.t.Real] != r {
 		return
 	}
-	r.err, r.headLabel, r.baseLabel, r.warning = "", headLabel, baseLabel, warning
-	r.mergeBase, r.changes, r.entries, r.mode, r.opened = mergeBase, changes, entries, mode, opened
+	r.err, r.headLabel, r.baseLabel, r.warning = editorError(editorErr), headLabel, baseLabel, warning
+	r.mergeBase, r.changes, r.mode = mergeBase, changes, mode
+	if reopened {
+		r.opened = mergeBase
+	}
+	if mode != moduleMode || editorErr == nil {
+		r.entries = entries
+	}
+}
+
+func editorError(err error) string {
+	var rpcErr *jsonrpc2.Error
+	switch {
+	case err == nil:
+		return ""
+	case errors.As(err, &rpcErr):
+		return strings.TrimPrefix(rpcErr.Message, "plugin "+editorOwner+" command.run: ")
+	}
+	return err.Error()
 }
 
 func (a *app) editorStarted(h *pluginsdk.Host, p rootEvent) {
@@ -448,13 +479,10 @@ func (a *app) editorStarted(h *pluginsdk.Host, p rootEvent) {
 	if s == nil {
 		return
 	}
-	root := gitrepo.Canonical(p.Root)
 	reopen := false
 	s.mu.Lock()
-	for head, r := range s.reviews {
-		if gitrepo.Within(root, head) {
-			r.opened, reopen = "", true
-		}
+	for _, r := range s.reviews {
+		r.opened, reopen = "", true
 	}
 	s.mu.Unlock()
 	if reopen {
@@ -469,13 +497,16 @@ func (a *app) reviewChanged(ctx context.Context, h *pluginsdk.Host, p reviewChan
 	}
 	s.mu.Lock()
 	r := s.reviews[s.active]
-	match := r != nil && gitrepo.Within(gitrepo.Canonical(p.Root), s.active)
-	if match && p.Kind == fileOpenKind {
+	switch {
+	case r == nil:
+	case p.Kind == fileOpenKind:
 		r.selected = p.Path
+	case p.Kind == closedKind:
+		r.opened = ""
 	}
 	s.mu.Unlock()
 	switch {
-	case !match:
+	case r == nil, p.Kind == closedKind:
 	case p.Kind == fileOpenKind:
 		logError("render "+p.ProjectID, a.render(ctx, h, p.ProjectID, s))
 	default:
@@ -495,6 +526,9 @@ func (a *app) reviewEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.U
 	if err := json.Unmarshal(ev.Value, &item); err != nil {
 		return fmt.Errorf("%s value: %w", ev.Action, err)
 	}
+	if ev.Action == "select" || ev.Action == reviewedAction {
+		a.reopenClosed(ctx, h, ev.ProjectID, s)
+	}
 	s.mu.Lock()
 	r := s.reviews[s.active]
 	if r == nil {
@@ -502,7 +536,8 @@ func (a *app) reviewEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.U
 		return errNoReview
 	}
 	rows, _ := r.rows()
-	isFile := slices.ContainsFunc(rows, func(row reviewRow) bool { return row.Path == item })
+	at := slices.IndexFunc(rows, func(row reviewRow) bool { return row.Path == item })
+	isFile := at >= 0
 	head, mergeBase, mode := r.head, r.mergeBase, r.mode
 	var err error
 	switch ev.Action {
@@ -526,7 +561,7 @@ func (a *app) reviewEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.U
 	case ev.Action == "select" && isFile:
 		err = a.openReviewFile(ctx, h, ev.ProjectID, head, mergeBase, mode, item)
 	case ev.Action == reviewedAction && isFile && mode == moduleMode:
-		err = a.toggleReviewed(ctx, h, ev.ProjectID, s, item)
+		err = a.setReviewed(ctx, h, ev.ProjectID, s, item, !rows[at].Reviewed)
 	}
 	if err != nil {
 		return err
@@ -541,9 +576,19 @@ func (a *app) openReviewFile(ctx context.Context, h *pluginsdk.Host, id, head, m
 	return h.RunCommand(ctx, diffCommand, id, diffArgs{Path: filepath.Join(head, rel), Base: "rev:" + mergeBase, Target: "worktree"}, nil)
 }
 
-func (a *app) toggleReviewed(ctx context.Context, h *pluginsdk.Host, id string, s *state, rel string) error {
+func (a *app) reopenClosed(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
+	s.mu.Lock()
+	r := s.reviews[s.active]
+	closed := r != nil && r.mode == moduleMode && r.opened == ""
+	s.mu.Unlock()
+	if closed {
+		a.refreshReview(ctx, h, id, s)
+	}
+}
+
+func (a *app) setReviewed(ctx context.Context, h *pluginsdk.Host, id string, s *state, rel string, want bool) error {
 	var out reviewedResult
-	if err := h.RunCommand(ctx, reviewedCommand, id, pathArgs{Path: rel}, &out); err != nil {
+	if err := h.RunCommand(ctx, reviewedCommand, id, reviewedArgs{Path: rel, Reviewed: want}, &out); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -563,6 +608,7 @@ func (a *app) reviewNext(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	if dir != 1 && dir != -1 {
 		return errReviewDir
 	}
+	a.reopenClosed(ctx, h, id, s)
 	s.mu.Lock()
 	r := s.reviews[s.active]
 	if r == nil {
@@ -612,12 +658,19 @@ func (a *app) saveReviews(ctx context.Context, h *pluginsdk.Host, id string, s *
 }
 
 func (s *state) restore(st storedReviews) {
-	s.filters = st.Filters
+	s.filters = st.Filters.valid()
 	for head, r := range st.Reviews {
 		if r.Base != "" && filepath.IsAbs(head) {
-			s.reviews[head] = &review{head: head, base: r.Base, filters: r.Filters, folded: map[string]bool{}}
+			s.reviews[head] = &review{head: head, base: r.Base, filters: r.Filters.valid(), folded: map[string]bool{}}
 		}
 	}
+}
+
+func (f filters) valid() filters {
+	if f.Glob != "" && !gitrepo.ValidGlob(f.Glob) {
+		f.Glob = ""
+	}
+	return f
 }
 
 func (s *state) reviewModel() *review {

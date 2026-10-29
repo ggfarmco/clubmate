@@ -129,3 +129,15 @@ func TestReviewTreeStaysWithinNodeLimit(t *testing.T) {
 	items := tree.Children[0].Props["items"].([]sdui.TreeItem)
 	assert.Equal(t, sdui.TreeItem{ID: moreRowID, Label: "… 3551 more", Muted: true}, items[len(items)-1])
 }
+
+func TestGeneratedFilterHidesRootAndNestedFiles(t *testing.T) {
+	r := &review{head: "/w", base: "main", filters: filters{Generated: true}, folded: map[string]bool{}}
+	for _, p := range []string{"go.sum", "tools/go.mod", "web/package-lock.json", "main.go", "go.summary"} {
+		r.changes = append(r.changes, gitrepo.Change{Path: p, Status: "M"})
+	}
+	var paths []string
+	for _, row := range rows(r) {
+		paths = append(paths, row.Path)
+	}
+	assert.Equal(t, []string{"main.go", "go.summary"}, paths)
+}

@@ -260,3 +260,12 @@ func TestBranches(t *testing.T) {
 	assert.Equal(t, []string{"main"}, local)
 	assert.Equal(t, []string{"origin/main"}, remote)
 }
+
+func TestValidGlobAllowsOnlyGlobCharacters(t *testing.T) {
+	for _, g := range []string{"*_test.go", "**/testdata/**", "{a,b}.go", "[!a]?.ts", "pkg/файл-1.go"} {
+		assert.True(t, gitrepo.ValidGlob(g), g)
+	}
+	for _, g := range []string{"", "`touch x`", "$HOME", "a b", "a\nb", "%", "#", "~/x", "a;b"} {
+		assert.False(t, gitrepo.ValidGlob(g), g)
+	}
+}

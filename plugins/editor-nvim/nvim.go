@@ -13,6 +13,7 @@ import (
 
 const (
 	rpcTimeout    = 2 * time.Second
+	modeTimeout   = 500 * time.Millisecond
 	socketPoll    = 50 * time.Millisecond
 	socketWait    = 5 * time.Second
 	maxSocketPath = 103
@@ -185,6 +186,8 @@ local function review_module()
   return dv
 end
 local function close_review()
+  local dv = m.review_tab and review_module()
+  if dv then dv.close(m.review_tab) end
   if m.review_tab and vim.api.nvim_tabpage_is_valid(m.review_tab) then
     vim.api.nvim_set_current_tabpage(m.review_tab)
     vim.cmd("DiffviewClose")
@@ -196,11 +199,13 @@ end
 const closeReviewLua = reviewPrelude + `close_review()`
 
 const reviewLua = reviewPrelude + `local cwd, rev, excludes, panel = ...
+if type(excludes) ~= "table" then excludes = {} end
 close_review()
 local dv = review_module()
 if dv then
-  m.review_tab = dv.open({ cwd = cwd, base = rev, excludes = excludes })
-  if not m.review_tab then return "native" end
+  local tab, err = dv.open({ cwd = cwd, base = rev, excludes = excludes })
+  if not tab then error(err or "diffview opened no review", 0) end
+  m.review_tab = tab
   if panel then dv.set_panel(true, m.review_tab) end
   return "module"
 end
@@ -219,9 +224,11 @@ const reviewSelectLua = reviewPrelude + `local path = ...
 local dv = review_module()
 if dv then dv.select(path, m.review_tab) end`
 
-const reviewReviewedLua = reviewPrelude + `local path = ...
+const reviewReviewedLua = reviewPrelude + `local path, want = ...
 local dv = review_module()
-return dv ~= nil and dv.toggle_reviewed(path, m.review_tab) == true`
+if not dv then return false end
+if want == nil or want == vim.NIL or not dv.set_reviewed then return dv.toggle_reviewed(path, m.review_tab) == true end
+return dv.set_reviewed(path, want, m.review_tab) == true`
 
 const reviewNextLua = reviewPrelude + `local dir = ...
 local dv = review_module()
@@ -319,6 +326,7 @@ end)`
 
 var (
 	errRPCTimeout    = errors.New("nvim rpc timed out")
+	errNvimBlocked   = errors.New("Neovim is waiting for input — press Enter in the editor")
 	errDisconnected  = errors.New("nvim disconnected")
 	errSocketTimeout = errors.New("nvim socket did not appear")
 	errSocketTooLong = errors.New("nvim socket path too long")
@@ -459,9 +467,9 @@ func (c *client) reviewSelect(path string) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewSelectLua, nil, path) })
 }
 
-func (c *client) reviewToggle(path string) (bool, error) {
+func (c *client) reviewSetReviewed(path string, want *bool) (bool, error) {
 	var reviewed bool
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewReviewedLua, &reviewed, path) }); err != nil {
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewReviewedLua, &reviewed, path, want) }); err != nil {
 		return false, err
 	}
 	return reviewed, nil
@@ -502,8 +510,26 @@ func (c *client) call(fn func(*nvim.Nvim) error) error {
 	case <-c.done:
 		return errDisconnected
 	case <-timer.C:
+		if c.blocked() {
+			return errNvimBlocked
+		}
 		return errRPCTimeout
 	}
+}
+
+func (c *client) blocked() bool {
+	modec := make(chan bool, 1)
+	go func() {
+		m, err := c.v.Mode()
+		modec <- err == nil && m.Blocking
+	}()
+	select {
+	case blocking := <-modec:
+		return blocking
+	case <-c.done:
+	case <-time.After(modeTimeout):
+	}
+	return false
 }
 
 func (c *client) alive() bool {

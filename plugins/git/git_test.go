@@ -516,11 +516,97 @@ func TestReviewReopensWhenEditorStarts(t *testing.T) {
 	h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go", "e.go"))
 	assert.Equal(t, 1, opens(t, h))
 
-	payload, err := json.Marshal(map[string]string{"projectId": id, "root": repo})
+	payload, err := json.Marshal(map[string]string{"projectId": id, "root": t.TempDir()})
 	require.NoError(t, err)
 	_, err = h.Bus.Publish(t.Context(), "editor.started", "editor-nvim", payload)
 	require.NoError(t, err)
 	testutil.Eventually(t, func() bool { return opens(t, h) == 2 }, 5*time.Second)
+}
+
+func moduleEditor(t *testing.T, extra string) string {
+	t.Helper()
+	results := `"echoResults":{"editor-nvim.review-open":{"mode":"module"},"editor-nvim.review-entries":[{"path":"a.go","status":"M","additions":1,"deletions":1,"reviewed":false,"comments":0},{"path":"c.go","status":"A","additions":1,"deletions":0,"reviewed":false,"comments":0}],"editor-nvim.review-select":null,"editor-nvim.review-reviewed":{"reviewed":true}}`
+	return testutil.EchoPluginDirAs(t, strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim",`+results+extra+`,`, 1))
+}
+
+func commandArgs(t *testing.T, h *testutil.PluginHarness, command string) []json.RawMessage {
+	t.Helper()
+	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 1000)
+	require.NoError(t, err)
+	var out []json.RawMessage
+	for _, ev := range events {
+		var call struct {
+			ID   string          `json:"id"`
+			Args json.RawMessage `json:"args"`
+		}
+		require.NoError(t, json.Unmarshal(ev.Payload, &call))
+		if call.ID == command {
+			out = append(out, call.Args)
+		}
+	}
+	return out
+}
+
+func reviewAction(t *testing.T, h *testutil.PluginHarness, id, action string, value any) error {
+	t.Helper()
+	return h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": "git.review", "nodeId": "review", "action": action, "value": value}, nil)
+}
+
+func TestReviewMarksTheStateTheUserSaw(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := openReady(t, repo, moduleEditor(t, ""))
+	review(t, h, id, nil)
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go"))
+	require.NoError(t, reviewAction(t, h, id, "reviewed", "a.go"))
+	args := commandArgs(t, h, "editor-nvim.review-reviewed")
+	require.Len(t, args, 1)
+	assert.JSONEq(t, `{"path":"a.go","reviewed":true}`, string(args[0]))
+}
+
+func TestReviewClosedByTheUserReopensOnTheNextAction(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := openReady(t, repo, moduleEditor(t, ""))
+	review(t, h, id, nil)
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go"))
+	require.Equal(t, 1, opens(t, h))
+
+	payload, err := json.Marshal(map[string]string{"projectId": id, "root": t.TempDir(), "kind": "closed"})
+	require.NoError(t, err)
+	_, err = h.Bus.Publish(t.Context(), "review.changed", "editor-nvim", payload)
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool {
+		require.NoError(t, reviewAction(t, h, id, "select", "a.go"))
+		return opens(t, h) == 2
+	}, 5*time.Second)
+}
+
+func TestReviewShowsBlockedEditor(t *testing.T) {
+	repo := branchRepo(t)
+	const blocked = "Neovim is waiting for input — press Enter in the editor"
+	h, id := openReady(t, repo, moduleEditor(t, `,"echoErrors":{"editor-nvim.review-entries":"`+blocked+`"}`))
+	review(t, h, id, nil)
+	h.WaitSlot(t, id, reviewSlot, func(n sdui.Node) bool {
+		_, header := reviewView(t, n)
+		return header != nil && header["error"] == blocked
+	})
+}
+
+func TestReviewDropsStoredShellGlobs(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+	stored := map[string]any{"reviews": map[string]any{repo: map[string]any{"base": "main", "filters": map[string]any{"tests": true, "glob": "$(touch x)"}}}, "filters": map[string]any{"glob": "`touch x`"}}
+	raw, err := json.Marshal(stored)
+	require.NoError(t, err)
+	require.NoError(t, h.KV.Set(t.Context(), "git", "review/"+id, raw))
+	restartGit(t, h)
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go"))
+	_, header := reviewView(t, n)
+	chips, _ := header["chips"].([]any)
+	var ids []string
+	for _, c := range chips {
+		ids = append(ids, fmt.Sprint(c.(map[string]any)["id"]))
+	}
+	assert.Equal(t, []string{"tests", "generated"}, ids)
 }
 
 func TestReviewRefsFuzzy(t *testing.T) {
@@ -554,6 +640,7 @@ func TestReviewErrors(t *testing.T) {
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"head": "nope"}, nil), "nope is not checked out in a worktree")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-swap", nil, nil), "no review in progress")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "--output=x"}, nil), "invalid ref")
+	assert.ErrorContains(t, runCommand(t, h, id, "git.review-filter", map[string]string{"glob": "`touch x`"}, nil), "glob may only contain")
 }
 
 func TestCorruptStoredReviewIgnored(t *testing.T) {
