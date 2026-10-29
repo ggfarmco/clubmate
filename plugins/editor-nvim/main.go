@@ -55,6 +55,7 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errUnknownAction  = errors.New("unknown action")
 	errUnsaved        = errors.New("unsaved buffers")
+	errUnsavedUnknown = fmt.Errorf("%w: unknown (nvim not responding)", errUnsaved)
 	errDeleted        = errors.New("project deleted")
 	errNotInRepo      = errors.New("not in a git repository")
 	errRelativePath   = errors.New("diff: path must be absolute")
@@ -175,6 +176,7 @@ func main() {
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
+	go a.sweepTemps()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err
@@ -554,9 +556,9 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, projectID, root, s
 func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor, force bool) error {
 	e.life.Lock()
 	defer e.life.Unlock()
-	if c := e.connected(); c != nil && !force {
-		if names, err := c.modified(); err == nil && len(names) > 0 {
-			return fmt.Errorf("%w: %s", errUnsaved, e.relativeNames(names))
+	if !force {
+		if err := a.checkUnsaved(ctx, h, e); err != nil {
+			return err
 		}
 	}
 	if c := e.reset(); c != nil {
@@ -576,6 +578,30 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, e *editor, force b
 	}
 	_, err = a.ensureLocked(ctx, h, e)
 	return err
+}
+
+func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, e *editor) error {
+	c := e.connected()
+	if c == nil {
+		sessions, err := h.ListSessions(ctx, e.id, true)
+		if err != nil {
+			return err
+		}
+		if !slices.ContainsFunc(sessions, func(s pluginsdk.Session) bool { return s.State == stateRunning }) {
+			return nil
+		}
+		if c, err = a.ensureLocked(ctx, h, e); err != nil {
+			return errUnsavedUnknown
+		}
+	}
+	names, err := c.modified()
+	if err != nil {
+		return errUnsavedUnknown
+	}
+	if len(names) > 0 {
+		return fmt.Errorf("%w: %s", errUnsaved, e.relativeNames(names))
+	}
+	return nil
 }
 
 func (a *app) diff(ctx context.Context, h *pluginsdk.Host, e *editor, args diffArgs) error {

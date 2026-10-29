@@ -65,8 +65,24 @@ final class NvimConfigTests: XCTestCase {
         XCTAssertFalse(model.needsRestart)
     }
 
+    func testHiddenWorkspaceRestartsOnActivation() async throws {
+        let core = FakeNvimCore(statuses: [], configExists: true)
+        let two = NvimWorkspace(id: "w2", name: "two")
+        let model = NvimConfigModel(run: core.run, workspaces: { [NvimWorkspace(id: "w1", name: "one"), two] }, displayed: { ["w1"] }, confirm: { _ in false })
+        let restart = CommandInvocation(id: "editor-nvim.restart", args: .object([:]))
+
+        await model.load()
+        await model.choose(.clubmate)
+        XCTAssertEqual(core.mutations.last, Call(workspace: "w1", restart))
+        XCTAssertEqual(model.pending, [two])
+
+        await model.activated("w2")
+        XCTAssertEqual(core.mutations.last, Call(workspace: "w2", restart))
+        XCTAssertEqual(model.pending, [])
+    }
+
     private func makeModel(_ core: FakeNvimCore, confirm: @escaping @MainActor (String) async -> Bool = { _ in false }) -> NvimConfigModel {
-        NvimConfigModel(run: core.run, workspaces: { [NvimWorkspace(id: "w1", name: "one")] }, confirm: confirm)
+        NvimConfigModel(run: core.run, workspaces: { [NvimWorkspace(id: "w1", name: "one")] }, displayed: { ["w1"] }, confirm: confirm)
     }
 }
 

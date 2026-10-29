@@ -47,7 +47,16 @@ type configInfo struct {
 }
 
 func TestCopyKeepsSymlinks(t *testing.T) {
-	c := startCopier(t)
+	var stale []string
+	c := startCopier(t, func(x xdg) {
+		for _, parent := range []string{x.config, x.data} {
+			dir := filepath.Join(parent, "clubmate-dev.clubmate-tmp-stale")
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, "x"), 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "x", "y"), nil, 0o600))
+			require.NoError(t, os.Chmod(filepath.Join(dir, "x"), 0o500))
+			stale = append(stale, dir)
+		}
+	})
 	src := filepath.Join(c.xdg.config, "nvim")
 	require.NoError(t, os.MkdirAll(filepath.Join(src, ".git"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(src, ".git", "x"), []byte("x"), 0o600))
@@ -56,10 +65,6 @@ func TestCopyKeepsSymlinks(t *testing.T) {
 	require.NoError(t, os.Symlink(".", filepath.Join(src, "loop")))
 	require.NoError(t, os.Symlink(filepath.Join(src, "a.lua"), filepath.Join(src, "abs")))
 	dest := filepath.Join(c.xdg.config, "clubmate-dev")
-	stale := filepath.Join(c.xdg.config, "clubmate-dev.clubmate-tmp-stale")
-	require.NoError(t, os.MkdirAll(filepath.Join(stale, "x"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(stale, "x", "y"), nil, 0o600))
-	require.NoError(t, os.Chmod(filepath.Join(stale, "x"), 0o500))
 	info := c.info(t)
 	assert.Equal(t, configInfo{Mode: "shared", App: "clubmate-dev", ConfigDir: dest, DataDir: filepath.Join(c.xdg.data, "clubmate-dev"), SourceConfigBytes: 11}, info)
 	st := c.copyAndWait(t, true)
@@ -80,7 +85,9 @@ func TestCopyKeepsSymlinks(t *testing.T) {
 		assert.Equal(t, want, got)
 	}
 	assert.NoDirExists(t, filepath.Join(c.xdg.data, "clubmate-dev"))
-	assert.NoDirExists(t, stale)
+	for _, dir := range stale {
+		assert.NoDirExists(t, dir)
+	}
 	assert.True(t, c.info(t).ConfigExists)
 }
 
@@ -118,8 +125,24 @@ func TestCopyRollsBackWhenRenameFails(t *testing.T) {
 	assert.Equal(t, "data", entries[0].Name())
 }
 
+func TestCopyCommitsConfigLast(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	for _, dir := range []string{filepath.Join(home, "config", "nvim"), filepath.Join(home, "data", "nvim")} {
+		require.NoError(t, os.MkdirAll(dir, 0o700))
+	}
+	pairs, err := main.ConfigPairs(true)
+	require.NoError(t, err)
+	var order []string
+	t.Cleanup(main.OnCommitted(func(dst string) { order = append(order, dst) }))
+	require.NoError(t, main.CopyAll(t.Context(), pairs, func(int64, int64) {}))
+	assert.Equal(t, []string{filepath.Join(home, "data", "clubmate-dev"), filepath.Join(home, "config", "clubmate-dev")}, order)
+}
+
 func TestCopyRefusesExisting(t *testing.T) {
-	c := startCopier(t)
+	c := startCopier(t, nil)
 	for _, dir := range []string{filepath.Join(c.xdg.config, "nvim"), filepath.Join(c.xdg.data, "nvim")} {
 		require.NoError(t, os.MkdirAll(dir, 0o700))
 	}
@@ -146,7 +169,7 @@ func TestAppNameEnv(t *testing.T) {
 	assert.Equal(t, []any{"clubmate-dev", filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "clubmate-dev")}, eval[[]any](t, v, "[$NVIM_APPNAME, stdpath('config')]"))
 }
 
-func startCopier(t *testing.T) *copier {
+func startCopier(t *testing.T, prepare func(xdg)) *copier {
 	t.Helper()
 	h := testutil.NewHarness(t)
 	dir := testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json")
@@ -157,6 +180,9 @@ func startCopier(t *testing.T) *copier {
 	t.Setenv("XDG_DATA_HOME", c.xdg.data)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	if prepare != nil {
+		prepare(c.xdg)
+	}
 	h.Start(t, dir)
 	c.projectID = h.CreateProject(t, "demo").ID
 	testutil.Eventually(t, func() bool {

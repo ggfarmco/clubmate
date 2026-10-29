@@ -83,9 +83,11 @@ public final class NvimConfigModel {
     public private(set) var error: String?
     public private(set) var needsRestart = false
     public private(set) var copyNotice: String?
+    public private(set) var pending: [NvimWorkspace] = []
 
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let workspaces: @MainActor () async -> [NvimWorkspace]
+    @ObservationIgnored private let displayed: @MainActor () -> Set<String>
     @ObservationIgnored private let confirm: @MainActor (String) async -> Bool
     @ObservationIgnored private var copyID: String?
     @ObservationIgnored private var copying = false
@@ -94,10 +96,12 @@ public final class NvimConfigModel {
     public init(
         run: @escaping Run,
         workspaces: @escaping @MainActor () async -> [NvimWorkspace],
+        displayed: @escaping @MainActor () -> Set<String>,
         confirm: @escaping @MainActor (String) async -> Bool
     ) {
         self.run = run
         self.workspaces = workspaces
+        self.displayed = displayed
         self.confirm = confirm
     }
 
@@ -112,8 +116,11 @@ public final class NvimConfigModel {
         defer { loading = false }
         switch await run(nil, CommandInvocation(id: Self.configCommand, args: .object([:]))) {
         case .success(let value):
-            info = NvimConfigInfo(value)
-            error = info == nil ? "unexpected reply from \(Self.configCommand)" : nil
+            guard let parsed = NvimConfigInfo(value) else {
+                error = "unexpected reply from \(Self.configCommand)"
+                return
+            }
+            info = parsed
         case .failure(let failure):
             error = Self.text(failure)
         }
@@ -144,12 +151,12 @@ public final class NvimConfigModel {
         switch await run(nil, CommandInvocation(id: Self.copyCommand, args: .object(["data": .bool(!info.dataExists)]))) {
         case .success(let value):
             guard let started = value.objectValue?["id"]?.stringValue else {
-                fail("unexpected reply from \(Self.copyCommand)")
+                await fail("unexpected reply from \(Self.copyCommand)")
                 return
             }
             id = started
         case .failure(let failure):
-            fail(Self.text(failure))
+            await fail(Self.text(failure))
             return
         }
         copyID = id
@@ -163,7 +170,7 @@ public final class NvimConfigModel {
                 progress = NvimCopyProgress(copied: Int64(fields["copied"]?.numberValue ?? 0), total: Int64(fields["total"]?.numberValue ?? 0))
                 guard fields["done"]?.boolValue == true else { continue }
                 if let message = fields["error"]?.stringValue {
-                    if message == "cancelled" { sheet = nil } else { fail(message) }
+                    if message == "cancelled" { sheet = nil } else { await fail(message) }
                     return
                 }
                 sheet = nil
@@ -173,7 +180,7 @@ public final class NvimConfigModel {
                 retries += 1
                 try? await Task.sleep(for: .milliseconds(200 * retries))
             case .failure(let failure):
-                fail(Self.text(failure))
+                await fail(Self.text(failure))
                 return
             }
         }
@@ -202,9 +209,18 @@ public final class NvimConfigModel {
         busy = true
         defer { busy = false }
         needsRestart = false
-        for workspace in await workspaces() {
+        let shown = displayed()
+        let running = await workspaces()
+        pending = running.filter { !shown.contains($0.id) }
+        for workspace in running where shown.contains(workspace.id) {
             if !(await restart(workspace)) { needsRestart = true }
         }
+    }
+
+    public func activated(_ id: String) async {
+        guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
+        let workspace = pending.remove(at: index)
+        if !(await restart(workspace)) { needsRestart = true }
     }
 
     private func apply(_ mode: NvimConfigMode) async {
@@ -247,9 +263,9 @@ public final class NvimConfigModel {
         }
     }
 
-    private func fail(_ message: String) {
-        let existing = info.map { message.contains("\($0.configDir) already exists") } ?? false
-        sheet = .failed(message, useExisting: existing)
+    private func fail(_ message: String) async {
+        await load()
+        sheet = .failed(message, useExisting: info?.configExists ?? false)
     }
 
     static func text(_ error: ClubmateError) -> String {

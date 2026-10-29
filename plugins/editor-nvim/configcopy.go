@@ -86,9 +86,10 @@ type copyJob struct {
 }
 
 type copies struct {
-	seq  atomic.Int64
-	mu   sync.Mutex
-	jobs map[string]*copyJob
+	seq   atomic.Int64
+	mu    sync.Mutex
+	jobs  map[string]*copyJob
+	swept chan struct{}
 }
 
 func appName() string {
@@ -180,17 +181,33 @@ func (a *app) configCopy(args copyArgs) (copyStarted, error) {
 	if !exists(dirs.srcConfig) {
 		return copyStarted{}, fmt.Errorf("%w %s", errNoSource, dirs.srcConfig)
 	}
-	pairs := []copyPair{{src: dirs.srcConfig, dst: dirs.config}}
-	if args.Data && exists(dirs.srcData) {
-		pairs = append(pairs, copyPair{src: dirs.srcData, dst: dirs.data})
-	}
+	pairs := copyPairs(dirs, args.Data)
 	for _, p := range pairs {
 		if exists(p.dst) {
 			return copyStarted{}, fmt.Errorf("config-copy: %s %w", p.dst, errDestExists)
 		}
 	}
-	id, err := a.copies.start(pairs, []string{dirs.config, dirs.data})
+	id, err := a.copies.start(pairs)
 	return copyStarted{ID: id}, err
+}
+
+func copyPairs(dirs nvimDirs, data bool) []copyPair {
+	config := copyPair{src: dirs.srcConfig, dst: dirs.config}
+	if data && exists(dirs.srcData) {
+		return []copyPair{{src: dirs.srcData, dst: dirs.data}, config}
+	}
+	return []copyPair{config}
+}
+
+func (a *app) sweepTemps() {
+	defer close(a.copies.swept)
+	dirs, err := resolveDirs()
+	if err != nil {
+		logError("sweep config-copy temps", err)
+		return
+	}
+	sweepTemps(dirs.config)
+	sweepTemps(dirs.data)
 }
 
 func (a *app) shutdown(context.Context, *pluginsdk.Host) {
@@ -198,10 +215,10 @@ func (a *app) shutdown(context.Context, *pluginsdk.Host) {
 }
 
 func newCopies() *copies {
-	return &copies{jobs: map[string]*copyJob{}}
+	return &copies{jobs: map[string]*copyJob{}, swept: make(chan struct{})}
 }
 
-func (cs *copies) start(pairs []copyPair, sweep []string) (string, error) {
+func (cs *copies) start(pairs []copyPair) (string, error) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 	for id, j := range cs.jobs {
@@ -210,16 +227,18 @@ func (cs *copies) start(pairs []copyPair, sweep []string) (string, error) {
 		}
 		delete(cs.jobs, id)
 	}
-	for _, dst := range sweep {
-		sweepTemps(dst)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	j := &copyJob{cancel: cancel, wake: make(chan struct{})}
 	id := "copy-" + strconv.FormatInt(cs.seq.Add(1), 10)
 	cs.jobs[id] = j
 	go func() {
 		defer cancel()
-		j.finish(copyAll(ctx, pairs, j.progress))
+		select {
+		case <-cs.swept:
+			j.finish(copyAll(ctx, pairs, j.progress))
+		case <-ctx.Done():
+			j.finish(ctx.Err())
+		}
 	}()
 	return id, nil
 }

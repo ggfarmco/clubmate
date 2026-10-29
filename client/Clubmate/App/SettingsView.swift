@@ -117,6 +117,11 @@ private struct NvimConfigSettings: View {
                 if model.loading { ProgressView().controlSize(.small) }
             }
         }
+        if !model.pending.isEmpty {
+            Text("Restarts when you switch to \(model.pending.map(\.name).formatted(.list(type: .and))).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
         if model.needsRestart {
             LabeledContent("Restart Neovim to apply") {
                 Button("Restart Now") { Task { await model.restartAll() } }
@@ -148,10 +153,12 @@ private struct NvimConfigSettings: View {
 private struct NvimConfigSheetView: View {
     let model: NvimConfigModel
 
+    @State private var shown = NvimConfigSheet.offer
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            switch model.sheet {
-            case .offer, nil:
+            switch model.sheet ?? shown {
+            case .offer:
                 offer
             case .copying:
                 copying
@@ -162,6 +169,9 @@ private struct NvimConfigSheetView: View {
         .padding(20)
         .frame(width: 420)
         .interactiveDismissDisabled(model.sheet == .copying)
+        .onChange(of: model.sheet, initial: true) { _, sheet in
+            if let sheet { shown = sheet }
+        }
     }
 
     @ViewBuilder private var offer: some View {
@@ -226,10 +236,8 @@ private struct NvimConfigSheetView: View {
             Button("Cancel") { model.dismiss() }
                 .keyboardShortcut(.cancelAction)
             Spacer()
-            if useExisting {
-                Button("Use Existing Config") { Task { await model.switchWithoutCopy() } }
-                    .keyboardShortcut(.defaultAction)
-            }
+            Button(useExisting ? "Use Existing Config" : "Start Empty") { Task { await model.switchWithoutCopy() } }
+                .keyboardShortcut(.defaultAction)
         }
     }
 }

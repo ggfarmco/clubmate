@@ -34,6 +34,7 @@ final class AppModel {
             await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
         },
         workspaces: { [weak self] in await self?.nvimWorkspaces() ?? [] },
+        displayed: { [weak self] in Set(self?.layout.windows.compactMap(\.active) ?? []) },
         confirm: { message in await Confirmation.ask(message, action: "Restart", destructive: true) }
     )
 
@@ -204,6 +205,7 @@ final class AppModel {
     }
 
     private func touch(_ projectID: String) {
+        Task { await nvimConfig.activated(projectID) }
         guard let client = supervisor.client else { return }
         Task {
             try? await client.touchWorkspace(projectID)

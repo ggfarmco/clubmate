@@ -30,6 +30,8 @@ type dirMode struct {
 	mode fs.FileMode
 }
 
+var committed = func(string) {}
+
 type progressWriter struct {
 	ctx context.Context
 	w   io.Writer
@@ -89,6 +91,7 @@ func commit(roots []copyRoot, temps []string) error {
 			}
 			return err
 		}
+		committed(r.dst)
 	}
 	return nil
 }
@@ -119,6 +122,9 @@ func copyTree(ctx context.Context, src, dst string, relink func(string) string, 
 		}
 		from, to := filepath.Join(src, rel), filepath.Join(dst, rel)
 		info, err := d.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -132,6 +138,9 @@ func copyTree(ctx context.Context, src, dst string, relink func(string) string, 
 			dirs = append(dirs, dirMode{path: to, mode: info.Mode().Perm()})
 		case d.Type()&fs.ModeSymlink != 0:
 			link, err := os.Readlink(from)
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
@@ -154,6 +163,9 @@ func copyTree(ctx context.Context, src, dst string, relink func(string) string, 
 
 func copyFile(ctx context.Context, src, dst string, perm fs.FileMode, add func(int64)) error {
 	in, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -183,6 +195,9 @@ func (p progressWriter) Write(b []byte) (int, error) {
 
 func walkSource(root string, fn func(rel string, d fs.DirEntry) error) error {
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && path != root {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
