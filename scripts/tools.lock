@@ -1,0 +1,2 @@
+ripgrep 15.2.0 3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4 https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-apple-darwin.tar.gz
+neovim 0.12.6 1dbd148222b051ba6c307c4d17a318ed083df018a4f6a5a0ce46955ffc9ab87b https://github.com/neovim/neovim/releases/download/v0.12.6/nvim-macos-arm64.tar.gz
