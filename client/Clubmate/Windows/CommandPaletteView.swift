@@ -125,6 +125,7 @@ struct PaletteField: NSViewRepresentable {
         context.coordinator.parent = self
         field.textColor = NSColor(theme.foreground)
         if field.stringValue != text { field.stringValue = text }
+        context.coordinator.syncPlaceholder(field)
     }
 
     @MainActor
@@ -138,6 +139,12 @@ struct PaletteField: NSViewRepresentable {
         func controlTextDidChange(_ notification: Notification) {
             guard let field = notification.object as? NSTextField else { return }
             parent.text = field.stringValue
+            syncPlaceholder(field)
+        }
+
+        func syncPlaceholder(_ field: NSTextField) {
+            let placeholder = field.stringValue.isEmpty ? parent.placeholder : nil
+            if field.placeholderString != placeholder { field.placeholderString = placeholder }
         }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

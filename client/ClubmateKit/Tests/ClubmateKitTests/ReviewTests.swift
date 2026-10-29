@@ -55,4 +55,11 @@ final class ReviewTests: XCTestCase {
         XCTAssertEqual([collapse.action], ["collapse-others"])
         XCTAssertEqual(collapse.value, .string("a/x.go"))
     }
+
+    func testFlowRowsWrapOnlyWhenTheNextChipDoesNotFit() {
+        let sizes = [CGSize(width: 60, height: 16), CGSize(width: 80, height: 16), CGSize(width: 70, height: 18), CGSize(width: 250, height: 16)]
+        let origins = FlowRows.origins(sizes: sizes, width: 200, spacing: 4)
+        XCTAssertEqual(origins, [CGPoint(x: 0, y: 0), CGPoint(x: 64, y: 0), CGPoint(x: 0, y: 20), CGPoint(x: 0, y: 42)])
+        XCTAssertEqual(FlowRows.size(sizes: sizes, width: 200, spacing: 4), CGSize(width: 250, height: 58))
+    }
 }

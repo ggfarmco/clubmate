@@ -49,45 +49,47 @@ private struct ReviewHeaderView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 6) {
-                VStack(spacing: 3) {
-                    CompareField(caption: "base", value: header.base) {
-                        session.chooseReviewBase(head: header.headPath)
-                    }
-                    CompareField(caption: "head", value: header.headLabel) {
-                        session.chooseReviewHead(base: header.baseRef)
-                    }
+        VStack(alignment: .leading, spacing: theme.spacing.m) {
+            VStack(spacing: theme.spacing.s) {
+                CompareField(caption: "base", title: header.title) {
+                    Text(header.base)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } action: {
+                    session.chooseReviewBase(head: header.headPath)
                 }
-                VStack(spacing: 3) {
-                    HeaderButton(label: "✕", help: "End Review") { session.run(ReviewCommand.end) }
-                    HeaderButton(label: "⇄ swap", help: "Swap base and head") { session.run(ReviewCommand.swap) }
+                CompareField(caption: "head", title: header.title) {
+                    ViewThatFits(in: .horizontal) {
+                        headLabel(suffix: ReviewHeader.workingTree)
+                        headLabel(suffix: ReviewHeader.workingTreeShort)
+                    }
+                } action: {
+                    session.chooseReviewHead(base: header.baseRef)
                 }
             }
-            .help(header.title)
+            HStack(spacing: theme.spacing.l) {
+                HeaderButton(label: "⇄ swap", help: "Swap base and head") { session.run(ReviewCommand.swap) }
+                Spacer(minLength: 0)
+                HeaderButton(label: "✕ end", help: "End Review") { session.run(ReviewCommand.end) }
+            }
             if !header.warning.isEmpty {
                 note(header.warning, tone: theme.warning)
             }
             if !header.error.isEmpty {
                 note(header.error, tone: theme.danger)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(header.chips) { chip in
-                        ChipButton(label: chip.label, hidden: chip.on, help: help(chip)) {
-                            session.run(ReviewCommand.filter(chip))
-                        }
+            FlowLayout(spacing: theme.spacing.s) {
+                ForEach(header.chips) { chip in
+                    ChipButton(label: chip.label, hidden: chip.on, help: help(chip)) {
+                        session.run(ReviewCommand.filter(chip))
                     }
-                    if !header.chips.contains(where: { $0.id == ReviewChip.glob }) {
-                        ChipButton(label: "+ Glob…", hidden: false, help: "Hide files matching a glob") { session.askReviewGlob() }
-                    }
+                }
+                if !header.chips.contains(where: { $0.id == ReviewChip.glob }) {
+                    ChipButton(label: "+ Glob…", hidden: false, help: "Hide files matching a glob") { session.askReviewGlob() }
                 }
             }
             if !header.progress.isEmpty {
-                Text(header.progress)
-                    .font(theme.uiSmall)
-                    .foregroundStyle(theme.muted)
-                    .lineLimit(1)
+                note(header.progress, tone: theme.muted)
             }
             if let fraction = header.fraction {
                 Capsule()
@@ -104,6 +106,17 @@ private struct ReviewHeaderView: View {
         .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
     }
 
+    private func headLabel(suffix: String) -> some View {
+        HStack(spacing: theme.spacing.s) {
+            Text(header.head)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(suffix)
+                .foregroundStyle(theme.muted)
+                .fixedSize()
+        }
+    }
+
     private func help(_ chip: ReviewChip) -> String {
         if chip.id == ReviewChip.glob { return "Clear glob" }
         return chip.on ? "Show \(chip.label)" : "Hide \(chip.label)"
@@ -117,9 +130,31 @@ private struct ReviewHeaderView: View {
     }
 }
 
-private struct CompareField: View {
+private struct FlowLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        let size = FlowRows.size(sizes: sizes(subviews), width: width, spacing: spacing)
+        return CGSize(width: proposal.width ?? size.width, height: size.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let origins = FlowRows.origins(sizes: sizes(subviews), width: bounds.width, spacing: spacing)
+        for (subview, origin) in zip(subviews, origins) {
+            subview.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+        }
+    }
+
+    private func sizes(_ subviews: Subviews) -> [CGSize] {
+        subviews.map { $0.sizeThatFits(.unspecified) }
+    }
+}
+
+private struct CompareField<Label: View>: View {
     let caption: String
-    let value: String
+    let title: String
+    @ViewBuilder let label: Label
     let action: () -> Void
 
     @State private var hovering = false
@@ -127,22 +162,22 @@ private struct CompareField: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: theme.spacing.m) {
                 Text(caption)
                     .font(theme.uiSmall)
                     .foregroundStyle(theme.muted)
                     .frame(width: 30, alignment: .leading)
-                Text(value)
+                label
                     .font(theme.ui)
                     .foregroundStyle(theme.foreground)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .help(title)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(theme.muted)
             }
-            .padding(.horizontal, 6)
+            .padding(theme.spacing.field)
+            .frame(maxWidth: .infinity)
             .frame(height: theme.rowHeight + 2)
             .background(RoundedRectangle(cornerRadius: 4).fill(theme.foreground.opacity(hovering ? 0.08 : 0.04)))
             .contentShape(Rectangle())
@@ -167,7 +202,6 @@ private struct HeaderButton: View {
                 .font(theme.uiSmall)
                 .foregroundStyle(hovering ? theme.foreground : theme.muted)
                 .lineLimit(1)
-                .frame(height: theme.rowHeight + 2)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -187,7 +221,7 @@ private struct ChipButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 3) {
+            HStack(spacing: theme.spacing.xs) {
                 if hidden {
                     Image(systemName: "eye.slash")
                         .font(.system(size: 8, weight: .semibold))
@@ -199,8 +233,7 @@ private struct ChipButton: View {
             }
             .font(theme.uiSmall)
             .foregroundStyle(hidden ? theme.accent : theme.muted)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
+            .padding(theme.spacing.chip)
             .background(Capsule().fill(hidden ? theme.accent.opacity(0.18) : theme.foreground.opacity(0.05)))
             .overlay(Capsule().stroke(theme.border, lineWidth: 1))
             .contentShape(Capsule())

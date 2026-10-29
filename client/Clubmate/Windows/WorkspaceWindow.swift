@@ -27,15 +27,18 @@ struct WorkspaceWindow: View {
                         WorktreeTitleMenu(session: worktreeSession, title: title)
                     }
                 }
+                ToolbarSpacer(.flexible)
                 ToolbarItem(placement: .primaryAction) {
                     Button { windowID.map(app.toggleSwitcher) } label: {
                         Text("▦ \(workspaceCount)")
                             .monospacedDigit()
+                            .padding(theme.spacing.capsule)
                     }
                     .help("Workspaces (⌃⌘W)")
                     .accessibilityLabel("Workspaces, \(workspaceCount)")
                     .disabled(windowID == nil)
                 }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
             }
             .focusedSceneValue(\.workspaceWindowID, windowID)
             .background(WindowObserver { [app, windowID] in
@@ -274,11 +277,13 @@ private struct WorktreeTitleMenu: View {
     let title: String
 
     @State private var shown = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         Button { shown.toggle() } label: {
             Text(title)
                 .font(.headline)
+                .padding(theme.spacing.capsule)
                 .onHover { inside in
                     if inside { session.worktreeMenuOpened() }
                 }
@@ -319,7 +324,7 @@ private struct WorktreeSwitcher: View {
                     action("Remove Worktree…") { session.chooseWorktreeToRemove() }
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, theme.spacing.s)
         }
         .frame(width: 360)
         .background(theme.background)

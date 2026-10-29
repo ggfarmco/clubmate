@@ -21,6 +21,17 @@ struct Theme: Sendable {
     var rowHeight: CGFloat { (uiSize * 5 / 3).rounded() }
     let gutter: CGFloat = 8
     let indent: CGFloat = 12
+    let spacing = Spacing()
+
+    struct Spacing: Sendable {
+        let xs: CGFloat = 2
+        let s: CGFloat = 4
+        let m: CGFloat = 6
+        let l: CGFloat = 8
+        let capsule = EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 10)
+        let chip = EdgeInsets(top: 2, leading: 7, bottom: 2, trailing: 7)
+        let field = EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 6)
+    }
 
     func scaled(_ size: Double) -> Theme {
         var theme = self
