@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ const (
 	socketPoll    = 50 * time.Millisecond
 	socketWait    = 5 * time.Second
 	maxSocketPath = 103
+	rootHashBytes = 4
 	notifyMethod  = "clubmate"
 )
 
@@ -300,15 +302,20 @@ type client struct {
 	done chan struct{}
 }
 
-func socketPath(runtimeDir, projectID string) (string, error) {
+func socketPath(runtimeDir, projectID, root string) (string, error) {
 	if runtimeDir == "" {
 		return "", errNoRuntimeDir
 	}
-	sock := runtimeDir + "/" + projectID + ".sock"
+	sum := sha256.Sum256([]byte(root))
+	sock := fmt.Sprintf("%s/%s-%x.sock", runtimeDir, projectID, sum[:rootHashBytes])
 	if len(sock) > maxSocketPath {
 		return "", fmt.Errorf("%w: %s is %d bytes, max %d", errSocketTooLong, sock, len(sock), maxSocketPath)
 	}
 	return sock, nil
+}
+
+func legacySocketPath(runtimeDir, projectID string) string {
+	return runtimeDir + "/" + projectID + ".sock"
 }
 
 func connect(ctx context.Context, sock string, onEvent func(nvimEvent)) (*client, error) {

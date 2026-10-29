@@ -23,6 +23,8 @@ var (
 	ErrInvalidRepo   = errors.New("repo must be an absolute path to an existing directory")
 	ErrDuplicateRepo = errors.New("repo already in project")
 	ErrEmptyName     = errors.New("project name is empty")
+	ErrNotFolder     = errors.New("repo is not a folder of this workspace")
+	ErrNotDirectory  = errors.New("path is not a directory")
 )
 
 const (
@@ -44,6 +46,13 @@ CREATE TABLE IF NOT EXISTS repos(
 	position INTEGER,
 	path TEXT,
 	PRIMARY KEY(project_id, path)
+);
+CREATE TABLE IF NOT EXISTS worktrees(
+	project_id TEXT,
+	repo TEXT,
+	path TEXT NOT NULL,
+	PRIMARY KEY(project_id, repo),
+	FOREIGN KEY(project_id, repo) REFERENCES repos(project_id, path) ON DELETE CASCADE
 );`
 
 var addedColumns = []struct{ name, def string }{
@@ -55,6 +64,8 @@ type Project struct {
 	ID           string     `json:"id"`
 	Name         string     `json:"name"`
 	Repos        []string   `json:"repos"`
+	Roots        []string   `json:"roots"`
+	Missing      []string   `json:"missing,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	Home         bool       `json:"home"`
 	LastOpenedAt *time.Time `json:"lastOpenedAt"`
@@ -123,7 +134,7 @@ func (s *Store) Home(ctx context.Context, dir string) (Project, bool, error) {
 	if err != nil {
 		return Project{}, false, fmt.Errorf("get home project: %w", err)
 	}
-	if p.Repos, err = s.repos(ctx, p.ID); err != nil {
+	if err := s.loadFolders(ctx, &p); err != nil {
 		return Project{}, false, err
 	}
 	return p, false, nil
@@ -214,6 +225,7 @@ func (s *Store) create(ctx context.Context, name string, repos []string, home bo
 		return Project{}, fmt.Errorf("commit: %w", err)
 	}
 	p.Repos = repos
+	p.Roots = slices.Clone(repos)
 	return p, nil
 }
 
@@ -235,7 +247,7 @@ func (s *Store) List(ctx context.Context) ([]Project, error) {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
 	for i := range out {
-		if out[i].Repos, err = s.repos(ctx, out[i].ID); err != nil {
+		if err := s.loadFolders(ctx, &out[i]); err != nil {
 			return nil, err
 		}
 	}
@@ -250,7 +262,7 @@ func (s *Store) Get(ctx context.Context, id string) (Project, error) {
 	if err != nil {
 		return Project{}, err
 	}
-	if p.Repos, err = s.repos(ctx, id); err != nil {
+	if err := s.loadFolders(ctx, &p); err != nil {
 		return Project{}, err
 	}
 	return p, nil
@@ -272,6 +284,31 @@ func (s *Store) AddRepo(ctx context.Context, id, path string) (Project, error) {
 			return Project{}, fmt.Errorf("%w: %s", ErrDuplicateRepo, path)
 		}
 		return Project{}, fmt.Errorf("insert repo: %w", err)
+	}
+	return s.Get(ctx, id)
+}
+
+func (s *Store) SetWorktree(ctx context.Context, id, repo, path string) (Project, error) {
+	p, err := s.Get(ctx, id)
+	if err != nil {
+		return Project{}, err
+	}
+	if !slices.Contains(p.Repos, repo) {
+		return Project{}, ErrNotFolder
+	}
+	if path == "" || filepath.Clean(path) == repo {
+		_, err = s.db.ExecContext(ctx, `DELETE FROM worktrees WHERE project_id = ? AND repo = ?`, id, repo)
+	} else {
+		if !isDir(path) {
+			return Project{}, ErrNotDirectory
+		}
+		_, err = s.db.ExecContext(ctx,
+			`INSERT INTO worktrees(project_id, repo, path) VALUES(?, ?, ?)
+			 ON CONFLICT(project_id, repo) DO UPDATE SET path = excluded.path`,
+			id, repo, filepath.Clean(path))
+	}
+	if err != nil {
+		return Project{}, fmt.Errorf("set worktree: %w", err)
 	}
 	return s.Get(ctx, id)
 }
@@ -347,6 +384,50 @@ func (s *Store) repos(ctx context.Context, id string) ([]string, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) loadFolders(ctx context.Context, p *Project) error {
+	repos, err := s.repos(ctx, p.ID)
+	if err != nil {
+		return err
+	}
+	selected, err := s.worktrees(ctx, p.ID)
+	if err != nil {
+		return err
+	}
+	p.Repos = repos
+	p.Roots = make([]string, 0, len(repos))
+	p.Missing = nil
+	for _, repo := range repos {
+		path, ok := selected[repo]
+		switch {
+		case !ok:
+			p.Roots = append(p.Roots, repo)
+		case isDir(path):
+			p.Roots = append(p.Roots, path)
+		default:
+			p.Roots = append(p.Roots, repo)
+			p.Missing = append(p.Missing, path)
+		}
+	}
+	return nil
+}
+
+func (s *Store) worktrees(ctx context.Context, id string) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT repo, path FROM worktrees WHERE project_id = ?`, id)
+	if err != nil {
+		return nil, fmt.Errorf("list worktrees: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var repo, path string
+		if err := rows.Scan(&repo, &path); err != nil {
+			return nil, fmt.Errorf("scan worktree: %w", err)
+		}
+		out[repo] = path
+	}
+	return out, rows.Err()
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }
@@ -373,12 +454,16 @@ func pathSet(paths []string) map[string]bool {
 }
 
 func validateRepo(path string) error {
-	if !filepath.IsAbs(path) {
-		return fmt.Errorf("%w: %s", ErrInvalidRepo, path)
-	}
-	info, err := os.Stat(path)
-	if err != nil || !info.IsDir() {
+	if !isDir(path) {
 		return fmt.Errorf("%w: %s", ErrInvalidRepo, path)
 	}
 	return nil
+}
+
+func isDir(path string) bool {
+	if !filepath.IsAbs(path) {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }

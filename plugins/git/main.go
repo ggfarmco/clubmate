@@ -113,11 +113,13 @@ type state struct {
 	busy     string
 	failure  string
 	watch    string
+	missing  []string
 }
 
 type app struct {
 	mu       sync.Mutex
 	projects map[string]*state
+	ops      opTable
 }
 
 func main() {
@@ -236,6 +238,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	s := a.get(cmd.ProjectID)
 	if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
 		return nil, err
+	}
+	if strings.HasPrefix(cmd.ID, "git.worktree") {
+		return a.worktreeCommand(ctx, h, cmd, s)
 	}
 	s.clearFailure()
 	switch cmd.ID {
@@ -373,8 +378,8 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	if err != nil {
 		return err
 	}
-	repos := make([]string, 0, len(p.Repos))
-	for _, r := range p.Repos {
+	repos := make([]string, 0, len(p.Roots))
+	for _, r := range p.Roots {
 		repos = append(repos, resolve(r))
 	}
 	var gitDirs []string
@@ -437,6 +442,7 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 }
 
 func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
+	a.checkMissing(ctx, h, id, s)
 	s.mu.Lock()
 	repos := slices.Clone(s.repos)
 	review := s.review
@@ -488,6 +494,24 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	s.selected = s.follow(s.selected)
 	s.mu.Unlock()
 	return a.render(ctx, h, id, s)
+}
+
+func (a *app) checkMissing(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
+	p, err := h.GetProject(ctx, id)
+	if err != nil {
+		logError("project "+id, err)
+		return
+	}
+	s.mu.Lock()
+	skip := s.busy != "" || slices.Equal(s.missing, p.Missing)
+	if !skip {
+		s.missing = p.Missing
+	}
+	s.mu.Unlock()
+	if !skip && len(p.Missing) > 0 {
+		_, err = h.CheckWorktrees(ctx, id)
+		logError("check worktrees "+id, err)
+	}
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {

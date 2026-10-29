@@ -14,6 +14,8 @@ type Project struct {
 	ID           string     `json:"id"`
 	Name         string     `json:"name"`
 	Repos        []string   `json:"repos"`
+	Roots        []string   `json:"roots"`
+	Missing      []string   `json:"missing,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	Home         bool       `json:"home"`
 	LastOpenedAt *time.Time `json:"lastOpenedAt"`
@@ -94,6 +96,18 @@ func (h *Host) GetProject(ctx context.Context, id string) (Project, error) {
 func (h *Host) CreateProject(ctx context.Context, name string, repos []string) (Project, error) {
 	var out Project
 	err := h.Call(ctx, "project.create", createProjectParams{Name: name, Repos: repos}, &out)
+	return out, err
+}
+
+func (h *Host) SetWorktree(ctx context.Context, projectID, repo, path string) (Project, error) {
+	var out Project
+	err := h.Call(ctx, "workspace.worktree.set", worktreeSetParams{ID: projectID, Repo: repo, Path: path}, &out)
+	return out, err
+}
+
+func (h *Host) CheckWorktrees(ctx context.Context, projectID string) (Project, error) {
+	var out Project
+	err := h.Call(ctx, "workspace.worktree.check", idParams{ID: projectID}, &out)
 	return out, err
 }
 
@@ -236,6 +250,12 @@ type createProjectParams struct {
 
 type idParams struct {
 	ID string `json:"id"`
+}
+
+type worktreeSetParams struct {
+	ID   string `json:"id"`
+	Repo string `json:"repo"`
+	Path string `json:"path"`
 }
 
 type SessionRequest struct {

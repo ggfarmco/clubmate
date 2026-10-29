@@ -65,6 +65,12 @@ type addRepoParams struct {
 	Path string `json:"path"`
 }
 
+type worktreeSetParams struct {
+	ID   string `json:"id"`
+	Repo string `json:"repo"`
+	Path string `json:"path"`
+}
+
 type listSessionsParams struct {
 	ProjectID string `json:"projectId"`
 	Owner     string `json:"owner"`
@@ -110,6 +116,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			list, err := svc.ListProjects(ctx)
 			for i := range list {
 				list[i].Repos = nonNil(list[i].Repos)
+				list[i].Roots = nonNil(list[i].Roots)
 			}
 			return nonNil(list), err
 		}),
@@ -151,6 +158,18 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 				return empty{}, err
 			}
 			return empty{}, svc.TouchProject(ctx, p.ID)
+		}),
+		"workspace.worktree.set": method(func(ctx context.Context, p worktreeSetParams) (project.Project, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return project.Project{}, err
+			}
+			return encodeProject(svc.SetWorktree(ctx, p.ID, p.Repo, p.Path))
+		}),
+		"workspace.worktree.check": method(func(ctx context.Context, p idParams) (project.Project, error) {
+			if err := requireID(projectPrefix, p.ID); err != nil {
+				return project.Project{}, err
+			}
+			return encodeProject(svc.CheckWorktrees(ctx, p.ID))
 		}),
 		"client.register": method(s.clientRegister),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
@@ -245,6 +264,7 @@ func optionalID(prefix, s string) error {
 
 func encodeProject(p project.Project, err error) (project.Project, error) {
 	p.Repos = nonNil(p.Repos)
+	p.Roots = nonNil(p.Roots)
 	return p, err
 }
 

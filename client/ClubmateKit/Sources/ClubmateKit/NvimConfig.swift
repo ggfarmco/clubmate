@@ -336,6 +336,10 @@ public final class NvimConfigModel {
 
     static func text(_ error: ClubmateError) -> String {
         guard case .rpc(_, let message) = error else { return error.message }
+        return text(message)
+    }
+
+    static func text(_ message: String) -> String {
         if message.hasPrefix("plugin "), let range = message.range(of: " command.run: ") {
             return String(message[range.upperBound...])
         }

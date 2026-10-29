@@ -91,6 +91,18 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(Project.recents(projects, hiddenBefore: try Date("2026-02-01T12:00:00Z", strategy: .iso8601)).map(\.id), ["d"])
     }
 
+    func testProjectRootsDefaultToRepos() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let projects = try decoder.decode([Project].self, from: Data(#"""
+        [{"id":"a","name":"old","repos":["/a"],"createdAt":"2026-01-01T00:00:00Z"},
+         {"id":"b","name":"new","repos":["/a"],"roots":["/a2"],"missing":["/gone"],"createdAt":"2026-01-01T00:00:00Z"}]
+        """#.utf8))
+
+        XCTAssertEqual(projects.map(\.roots), [["/a"], ["/a2"]])
+        XCTAssertEqual(projects.map(\.missing), [[], ["/gone"]])
+    }
+
     func testSidebarHiddenPersists() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")

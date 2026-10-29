@@ -94,6 +94,30 @@ enum TextPrompt {
     }
 }
 
+@MainActor
+enum ChoicePrompt {
+    static func ask(_ message: String, options: [String], selected: Int = 0, action: String) async -> Int? {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.addButton(withTitle: action)
+        alert.addButton(withTitle: "Cancel")
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 260, height: 26), pullsDown: false)
+        for option in options {
+            popup.menu?.addItem(NSMenuItem(title: option, action: nil, keyEquivalent: ""))
+        }
+        if options.indices.contains(selected) { popup.selectItem(at: selected) }
+        alert.accessoryView = popup
+        alert.window.initialFirstResponder = popup
+        let response: NSApplication.ModalResponse
+        if let window = NSApp.keyWindow {
+            response = await alert.beginSheetModal(for: window)
+        } else {
+            response = alert.runModal()
+        }
+        return response == .alertFirstButtonReturn ? popup.indexOfSelectedItem : nil
+    }
+}
+
 struct FolderFieldNodeView: View {
     let node: SDUINode
 

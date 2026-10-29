@@ -182,7 +182,7 @@ final class AppModel {
 
     private func session(for projectID: String) -> ProjectSession {
         if let existing = sessions[projectID] { return existing }
-        let session = ProjectSession(projectID: projectID)
+        let session = ProjectSession(projectID: projectID) { [weak self] in self?.project(projectID) }
         session.deck.fontSize = settings.terminalFontSize
         sessions[projectID] = session
         if let client = supervisor.client { session.adopt(client, supervisor) }
@@ -517,9 +517,63 @@ final class ProjectSession {
     var autoNewRequest = 0
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: ProjectUIStore?
+    @ObservationIgnored private let lookup: @MainActor () -> Project?
+    @ObservationIgnored private(set) lazy var worktrees = WorktreeModel(
+        run: { [weak self] invocation in
+            guard let store = self?.store else { return .failure(.notRunning) }
+            return await store.run(invocation)
+        },
+        project: { [weak self] in self?.lookup() },
+        confirm: { message, detail in await Confirmation.ask(message, detail: detail, action: "Remove", destructive: true) },
+        report: { [weak self] message in self?.banner.show(message) }
+    )
 
-    init(projectID: String) {
+    init(projectID: String, project: @escaping @MainActor () -> Project?) {
         self.projectID = projectID
+        lookup = project
+    }
+
+    func newWorktree(chooseFolder: Bool) {
+        let groups = worktrees.groups
+        Task {
+            var repo: String?
+            if chooseFolder, groups.count > 1 {
+                guard let index = await ChoicePrompt.ask("New Worktree in", options: groups.map(\.name), action: "Continue") else { return }
+                repo = groups[index].repo
+            }
+            guard let branch = await TextPrompt.ask("New Worktree", text: "", action: "Create") else { return }
+            await worktrees.create(branch, repo: repo)
+        }
+    }
+
+    func chooseWorktree() {
+        Task {
+            await worktrees.menuOpened()
+            let trees = worktrees.worktrees
+            guard !trees.isEmpty, let index = await ChoicePrompt.ask("Switch Worktree", options: trees.map(worktrees.label), selected: trees.firstIndex { $0.current } ?? 0, action: "Switch") else { return }
+            await worktrees.switchTo(repo: trees[index].repo, path: trees[index].path)
+        }
+    }
+
+    func chooseWorktreeToRemove() {
+        Task {
+            await worktrees.menuOpened()
+            let trees = worktrees.linked
+            guard !trees.isEmpty, let index = await ChoicePrompt.ask("Remove Worktree", options: trees.map(worktrees.label), action: "Continue") else { return }
+            await worktrees.remove(repo: trees[index].repo, path: trees[index].path)
+        }
+    }
+
+    func removeWorktree(_ tree: Worktree) {
+        Task { await worktrees.remove(repo: tree.repo, path: tree.path) }
+    }
+
+    func switchWorktree(_ tree: Worktree) {
+        Task { await worktrees.switchTo(repo: tree.repo, path: tree.path) }
+    }
+
+    func worktreeMenuOpened() {
+        Task { await worktrees.menuOpened() }
     }
 
     func toggle(_ overlay: WorkspaceOverlay) {

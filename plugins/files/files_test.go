@@ -168,3 +168,54 @@ func TestCollapseOthers(t *testing.T) {
 		assert.Equal(t, want, it.Expanded, dir)
 	}
 }
+
+func TestTreeFollowsWorktree(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not in PATH")
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	h := testutil.NewPluginHarness(t,
+		testutil.BuildPluginDir(t, "clubmate/plugins/files", "plugins/files/plugin.json"),
+		testutil.EchoPluginDirAs(t, editorManifest),
+	)
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	git := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.txt"), []byte("one\n"), 0o600))
+	git("init", "-q")
+	git("add", ".")
+	git("commit", "-qm", "init")
+	wt := filepath.Join(repo, ".worktrees", "feat")
+	git("worktree", "add", "-q", wt, "-b", "feat")
+	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	require.NoError(t, err)
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
+	rootIs := func(want string) func(sdui.Node) bool {
+		return func(n sdui.Node) bool {
+			list := items(t, n)
+			return len(list) == 1 && list[0].ID == want
+		}
+	}
+	h.WaitSlot(t, p.ID, sidebarSlot, rootIs(repo))
+
+	_, err = h.Svc.SetWorktree(t.Context(), p.ID, repo, wt)
+	require.NoError(t, err)
+	h.WaitSlot(t, p.ID, sidebarSlot, rootIs(wt))
+
+	file := filepath.Join(wt, "a.txt")
+	payload, err := json.Marshal(map[string]string{"projectId": p.ID, "path": file})
+	require.NoError(t, err)
+	_, err = h.Bus.Publish(t.Context(), "editor.buffer", "editor-nvim", payload)
+	require.NoError(t, err)
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Children[0].Props["selected"] == file })
+
+	_, err = h.Svc.SetWorktree(t.Context(), p.ID, repo, "")
+	require.NoError(t, err)
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool {
+		return rootIs(repo)(n) && n.Children[0].Props["selected"] != file
+	})
+}

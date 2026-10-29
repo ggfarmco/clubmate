@@ -295,8 +295,8 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	if err != nil {
 		return err
 	}
-	repos := make([]string, 0, len(p.Repos))
-	for _, r := range p.Repos {
+	repos := make([]string, 0, len(p.Roots))
+	for _, r := range p.Roots {
 		repos = append(repos, resolve(r))
 	}
 	var gitDirs []string
@@ -310,6 +310,7 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	s.mu.Lock()
 	first := !s.synced
 	known := s.repos
+	current := s.selected
 	s.mu.Unlock()
 	var stored []string
 	var found bool
@@ -324,7 +325,9 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 		if _, err = h.StorageGet(ctx, selectedKey(id), &selected); err != nil {
 			return err
 		}
+		current = selected
 	}
+	stale := current != "" && outside(ctx, repos, current)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.repos, s.gitDirs = repos, gitDirs
@@ -336,6 +339,12 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 		known = nil
 		if found {
 			known = repos
+		}
+	}
+	if stale && s.selected == current {
+		s.selected = ""
+		if err := h.StorageDelete(ctx, selectedKey(id)); err != nil {
+			return err
 		}
 	}
 	changed := false
@@ -659,6 +668,19 @@ func containing(repos []string, path string) string {
 		}
 	}
 	return best
+}
+
+func outside(ctx context.Context, repos []string, path string) bool {
+	repo := containing(repos, path)
+	if repo == "" {
+		return true
+	}
+	f, err := gitrepo.OpenFolder(ctx, repo)
+	if err != nil {
+		return false
+	}
+	owning := gitrepo.Longest(f.Trees, gitrepo.Canonical(path))
+	return owning != nil && owning.Real != f.Checkout.Real
 }
 
 func sortedKeys(set map[string]bool) []string {

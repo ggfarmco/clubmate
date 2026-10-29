@@ -126,6 +126,24 @@ func TestFSWatchWorktree(t *testing.T) {
 	})
 }
 
+func TestFSWatchCoversRoots(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t)
+	repo, selected := t.TempDir(), t.TempDir()
+	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	require.NoError(t, err)
+	_, err = h.Svc.SetWorktree(t.Context(), p.ID, repo, selected)
+	require.NoError(t, err)
+	c := h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"projectId": p.ID}, nil))
+
+	real, err := filepath.EvalSymlinks(selected)
+	require.NoError(t, err)
+	f := filepath.Join(real, "a.txt")
+	require.NoError(t, os.WriteFile(f, []byte("a"), 0o644))
+	awaitFS(t, c, func(ev fsChanged) bool { return slices.Contains(ev.Paths, f) })
+}
+
 func TestFSWatchBareWorktreeFiltersGitInternals(t *testing.T) {
 	git := func(dir string, args ...string) {
 		t.Helper()
