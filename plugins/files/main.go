@@ -295,8 +295,8 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	if err != nil {
 		return err
 	}
-	repos := make([]string, 0, len(p.Repos))
-	for _, r := range p.Repos {
+	repos := make([]string, 0, len(p.Roots))
+	for _, r := range p.Roots {
 		repos = append(repos, resolve(r))
 	}
 	var gitDirs []string

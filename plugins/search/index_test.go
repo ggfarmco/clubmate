@@ -168,3 +168,34 @@ func git(t *testing.T, dir string, args ...string) {
 	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
 	require.NoError(t, err, string(out))
 }
+
+func TestSearchFollowsWorktree(t *testing.T) {
+	repo := tempDir(t)
+	write(t, repo, "a.txt", "alpha-main\n")
+	git(t, repo, "init", "-q", "-b", "main")
+	git(t, repo, "-c", "user.name=t", "-c", "user.email=t@t", "add", ".")
+	git(t, repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
+	wt := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", wt, "-b", "feat")
+	write(t, wt, "a.txt", "alpha-wt\n")
+	h, id := start(t, repo)
+	grep := func(query string) []string {
+		var out struct {
+			Matches []struct {
+				AbsPath string `json:"absPath"`
+			} `json:"matches"`
+		}
+		require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.grep", "projectId": id, "args": map[string]any{"query": query}}, &out))
+		var got []string
+		for _, m := range out.Matches {
+			got = append(got, m.AbsPath)
+		}
+		return got
+	}
+	require.Equal(t, []string{filepath.Join(repo, "a.txt")}, grep("alpha-main"))
+
+	_, err := h.Svc.SetWorktree(t.Context(), id, repo, wt)
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join(wt, "a.txt")}, grep("alpha-wt"))
+	assert.Empty(t, grep("alpha-main"))
+}

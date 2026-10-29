@@ -283,7 +283,7 @@ func rgBinary() (string, bool) {
 }
 
 func (a *app) engine(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project, indexing func()) (engine, error) {
-	roots := newRoots(p.Repos)
+	roots := newRoots(p.Roots)
 	if bin, ok := rgBinary(); ok && !slices.ContainsFunc(roots, func(r root) bool { return a.idx.guarded(r.resolved) }) {
 		return rgEngine{bin: bin, roots: roots}, nil
 	}
@@ -326,7 +326,7 @@ func (a *app) preview(ctx context.Context, h *pluginsdk.Host, projectID string, 
 	if err != nil {
 		return previewResult{}, err
 	}
-	if !slices.ContainsFunc(newRoots(p.Repos), func(r root) bool { return strings.HasPrefix(path, r.resolved+"/") }) {
+	if !slices.ContainsFunc(newRoots(p.Roots), func(r root) bool { return strings.HasPrefix(path, r.resolved+"/") }) {
 		return previewResult{}, errOutside
 	}
 	around := defaultContext
@@ -346,12 +346,12 @@ func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Projec
 	}
 	a.mu.Unlock()
 	ws.mu.Lock()
-	if !slices.Equal(ws.folders, p.Repos) || !ws.watched(a) {
+	if !slices.Equal(ws.folders, p.Roots) || !ws.watched(a) {
 		if err := a.rewatch(ctx, h, p.ID, ws); err != nil {
 			ws.mu.Unlock()
 			return nil, err
 		}
-		ws.folders, ws.list = slices.Clone(p.Repos), nil
+		ws.folders, ws.list = slices.Clone(p.Roots), nil
 	}
 	list, done := ws.list, a.revalidate(ctx, ws)
 	ws.mu.Unlock()

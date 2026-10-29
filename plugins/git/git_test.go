@@ -492,3 +492,20 @@ func TestCorruptStoredReviewIgnored(t *testing.T) {
 	reviewBranch(t, h, id)
 	h.WaitSlot(t, id, sidebarSlot, reviewing(t, "Review: main (3)", 3))
 }
+
+func TestGitSectionFollowsWorktree(t *testing.T) {
+	repo := newRepo(t, "a.go")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	wt := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", wt, "-b", "feat")
+	write(t, filepath.Join(wt, "a.go"), "two\n")
+	h, id := open(t, repo)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+
+	_, err := h.Svc.SetWorktree(t.Context(), id, repo, wt)
+	require.NoError(t, err)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool {
+		return len(groups(t, n)["Changes (1)"]) == 1
+	})
+}

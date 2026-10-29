@@ -284,13 +284,13 @@ func TestSearchUsesBundledRg(t *testing.T) {
 	require.NoError(t, os.Chmod(filepath.Join(res, "tools", "rg"), 0o700))
 	dir := tempDir(t)
 	write(t, dir, "a.txt", "foo\n")
-	project := pluginsdk.Project{Repos: []string{dir}}
+	project := pluginsdk.Project{Roots: []string{dir}}
 	a := &app{}
 
 	t.Setenv("CLUBMATE_RESOURCES", res)
 	eng, err := a.engine(t.Context(), nil, project, func() {})
 	require.NoError(t, err)
-	require.Equal(t, rgEngine{bin: filepath.Join(res, "tools", "rg"), roots: newRoots(project.Repos)}, eng)
+	require.Equal(t, rgEngine{bin: filepath.Join(res, "tools", "rg"), roots: newRoots(project.Roots)}, eng)
 	require.NoError(t, eng.run(t.Context(), grepOptions{Query: "foo"}, func([]grepMatch) bool { return true }))
 	assert.FileExists(t, filepath.Join(res, "tools", "rg.ran"))
 
