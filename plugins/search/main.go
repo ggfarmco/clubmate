@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -21,14 +22,19 @@ import (
 )
 
 const (
-	defaultLimit = 50
-	maxLimit     = 200
-	coldWait     = 3 * time.Second
+	defaultLimit     = 50
+	maxLimit         = 200
+	coldWait         = 3 * time.Second
+	defaultGrepLimit = 100
+	maxGrepLimit     = 500
+	grepTimeout      = 4 * time.Second
 )
 
 var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoProject      = errors.New("command needs a project")
+	errEmptyQuery     = errors.New("query is empty")
+	errOutside        = errors.New("path is outside the workspace folders")
 	errHome           = &jsonrpc2.Error{Code: jsonrpc2.CodeInvalidParams, Message: "search unavailable in the home workspace"}
 )
 
@@ -49,6 +55,35 @@ type filesResult struct {
 	Truncated bool        `json:"truncated"`
 	Capped    bool        `json:"capped"`
 	Indexing  bool        `json:"indexing,omitempty"`
+}
+
+type startResult struct {
+	ID string `json:"id"`
+}
+
+type pollArgs struct {
+	ID    string `json:"id"`
+	After int    `json:"after"`
+}
+
+type grepArgs struct {
+	grepOptions
+	Limit int `json:"limit"`
+}
+
+type grepResult struct {
+	Matches   []grepMatch `json:"matches"`
+	Truncated bool        `json:"truncated"`
+}
+
+type previewArgs struct {
+	Path    string `json:"path"`
+	Line    int    `json:"line"`
+	Context *int   `json:"context"`
+}
+
+type previewResult struct {
+	Lines []previewLine `json:"lines"`
 }
 
 type deletedPayload struct {
@@ -75,12 +110,13 @@ type workspace struct {
 
 type app struct {
 	idx        index
+	grep       *searches
 	mu         sync.Mutex
 	workspaces map[string]*workspace
 }
 
 func main() {
-	a := &app{idx: newIndex(), workspaces: map[string]*workspace{}}
+	a := &app{idx: newIndex(), grep: newSearches(), workspaces: map[string]*workspace{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
 
@@ -90,17 +126,49 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
-	if cmd.ID != "search.files" {
-		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
-	}
 	if cmd.ProjectID == "" {
 		return nil, errNoProject
 	}
-	var args filesArgs
-	if err := json.Unmarshal(cmd.Args, &args); err != nil {
-		return nil, fmt.Errorf("files args: %w", err)
+	switch cmd.ID {
+	case "search.files":
+		var args filesArgs
+		if err := decodeArgs(cmd, &args); err != nil {
+			return nil, err
+		}
+		return a.searchFiles(ctx, h, cmd.ProjectID, args)
+	case "search.start":
+		var args grepOptions
+		if err := decodeArgs(cmd, &args); err != nil {
+			return nil, err
+		}
+		return a.startGrep(ctx, h, cmd.ProjectID, args)
+	case "search.poll":
+		var args pollArgs
+		if err := decodeArgs(cmd, &args); err != nil {
+			return nil, err
+		}
+		return a.grep.poll(ctx, args.ID, args.After), nil
+	case "search.cancel":
+		var args pollArgs
+		if err := decodeArgs(cmd, &args); err != nil {
+			return nil, err
+		}
+		a.grep.cancel(args.ID)
+		return struct{}{}, nil
+	case "search.preview":
+		var args previewArgs
+		if err := decodeArgs(cmd, &args); err != nil {
+			return nil, err
+		}
+		return a.preview(ctx, h, cmd.ProjectID, args)
+	case "search.grep":
+		var args grepArgs
+		if err := decodeArgs(cmd, &args); err != nil {
+			return nil, err
+		}
+		return a.grepNow(ctx, h, cmd.ProjectID, args)
 	}
-	return a.searchFiles(ctx, h, cmd.ProjectID, args)
+	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
 
 func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
@@ -117,6 +185,7 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		watch, ws.watch = ws.watch, ""
 	}
 	a.mu.Unlock()
+	a.grep.drop(p.ID)
 	if watch != "" {
 		logError("unwatch "+p.ID, h.UnwatchFS(ctx, watch))
 	}
@@ -132,14 +201,13 @@ func (a *app) fsChanged(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.FSCha
 }
 
 func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, projectID string, args filesArgs) (filesResult, error) {
-	p, err := h.GetProject(ctx, projectID)
+	p, err := project(ctx, h, projectID)
 	if err != nil {
 		return filesResult{}, err
 	}
-	if p.Home {
-		return filesResult{}, errHome
-	}
-	list, err := a.listing(ctx, h, p)
+	timer := time.NewTimer(coldWait)
+	defer timer.Stop()
+	list, err := a.listing(ctx, h, p, timer.C)
 	if err != nil {
 		return filesResult{}, err
 	}
@@ -160,7 +228,76 @@ func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, projectID stri
 	return res, nil
 }
 
-func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) (*listing, error) {
+func (a *app) startGrep(ctx context.Context, h *pluginsdk.Host, projectID string, opts grepOptions) (startResult, error) {
+	p, err := project(ctx, h, projectID)
+	if err != nil {
+		return startResult{}, err
+	}
+	if opts.Query == "" {
+		return startResult{}, errEmptyQuery
+	}
+	id := a.grep.start(p.ID, func(ctx context.Context) (engine, error) { return a.engine(ctx, h, p) }, opts)
+	return startResult{ID: id}, nil
+}
+
+func (a *app) grepNow(ctx context.Context, h *pluginsdk.Host, projectID string, args grepArgs) (grepResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, grepTimeout)
+	defer cancel()
+	p, err := project(ctx, h, projectID)
+	if err != nil {
+		return grepResult{}, err
+	}
+	if args.Query == "" {
+		return grepResult{}, errEmptyQuery
+	}
+	limit := args.Limit
+	if limit <= 0 {
+		limit = defaultGrepLimit
+	}
+	eng, err := a.engine(ctx, h, p)
+	if err != nil {
+		if ctx.Err() != nil {
+			return grepResult{Matches: []grepMatch{}, Truncated: true}, nil
+		}
+		return grepResult{}, err
+	}
+	matches, truncated, err := collect(ctx, eng, args.grepOptions, min(limit, maxGrepLimit))
+	return grepResult{Matches: matches, Truncated: truncated}, err
+}
+
+func (a *app) engine(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) (engine, error) {
+	roots := newRoots(p.Repos)
+	if bin, err := exec.LookPath("rg"); err == nil && !slices.ContainsFunc(roots, func(r root) bool { return a.idx.guarded(r.resolved) }) {
+		return rgEngine{bin: bin, roots: roots}, nil
+	}
+	list, err := a.listing(ctx, h, p, nil)
+	if err != nil {
+		return nil, err
+	}
+	return builtinEngine{list: list}, nil
+}
+
+func (a *app) preview(ctx context.Context, h *pluginsdk.Host, projectID string, args previewArgs) (previewResult, error) {
+	p, err := project(ctx, h, projectID)
+	if err != nil {
+		return previewResult{}, err
+	}
+	path, err := filepath.EvalSymlinks(args.Path)
+	if err != nil {
+		return previewResult{}, err
+	}
+	if !slices.ContainsFunc(newRoots(p.Repos), func(r root) bool { return strings.HasPrefix(path, r.resolved+"/") }) {
+		return previewResult{}, errOutside
+	}
+	around := defaultContext
+	if args.Context != nil {
+		around = min(max(*args.Context, 0), maxContext)
+	}
+	lines, err := preview(path, max(args.Line, 1), around)
+	return previewResult{Lines: lines}, err
+}
+
+func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project, cold <-chan time.Time) (*listing, error) {
 	a.mu.Lock()
 	ws, ok := a.workspaces[p.ID]
 	if !ok {
@@ -181,11 +318,9 @@ func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Projec
 	if list != nil {
 		return list, nil
 	}
-	timer := time.NewTimer(coldWait)
-	defer timer.Stop()
 	select {
 	case <-done:
-	case <-timer.C:
+	case <-cold:
 		return nil, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -215,7 +350,7 @@ func (a *app) build(ctx context.Context, ws *workspace, folders []string, gen in
 	logError("index", err)
 	var list *listing
 	if err == nil {
-		list = &listing{folders: folders, labels: labels(folders), corpus: newCorpus(paths), capped: len(paths) >= maxFiles}
+		list = newListing(folders, paths)
 	}
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
@@ -253,6 +388,10 @@ func (ws *workspace) watched(a *app) bool {
 	return ws.watch != ""
 }
 
+func newListing(folders, paths []string) *listing {
+	return &listing{folders: folders, labels: labels(folders), corpus: newCorpus(paths), capped: len(paths) >= maxFiles}
+}
+
 func (l *listing) abs(path string) string {
 	for i, label := range l.labels {
 		if label == "" {
@@ -263,6 +402,39 @@ func (l *listing) abs(path string) string {
 		}
 	}
 	return ""
+}
+
+func (l *listing) rel(path string) string {
+	for _, label := range l.labels {
+		if label == "" {
+			return path
+		}
+		if rel, ok := strings.CutPrefix(path, label+"/"); ok {
+			return rel
+		}
+	}
+	return path
+}
+
+func project(ctx context.Context, h *pluginsdk.Host, id string) (pluginsdk.Project, error) {
+	p, err := h.GetProject(ctx, id)
+	if err != nil {
+		return pluginsdk.Project{}, err
+	}
+	if p.Home {
+		return pluginsdk.Project{}, errHome
+	}
+	return p, nil
+}
+
+func decodeArgs(cmd pluginsdk.CommandRun, v any) error {
+	if len(cmd.Args) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(cmd.Args, v); err != nil {
+		return fmt.Errorf("%s args: %w", cmd.ID, err)
+	}
+	return nil
 }
 
 func splitLine(query string) (string, int) {

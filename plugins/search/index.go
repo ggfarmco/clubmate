@@ -23,6 +23,12 @@ type index struct {
 	home string
 }
 
+type root struct {
+	folder   string
+	resolved string
+	label    string
+}
+
 func newIndex() index {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -174,6 +180,18 @@ func lsFiles(ctx context.Context, repo string, args ...string) ([]byte, error) {
 		data = data[:bytes.LastIndexByte(data, 0)+1]
 	}
 	return data, nil
+}
+
+func newRoots(folders []string) []root {
+	var out []root
+	for i, label := range labels(folders) {
+		resolved, err := filepath.EvalSymlinks(folders[i])
+		if err != nil {
+			continue
+		}
+		out = append(out, root{folder: folders[i], resolved: resolved, label: label})
+	}
+	return out
 }
 
 func labels(folders []string) []string {
