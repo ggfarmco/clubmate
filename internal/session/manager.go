@@ -59,13 +59,14 @@ type Session struct {
 }
 
 type CreateRequest struct {
-	ProjectID string   `json:"projectId"`
-	Title     string   `json:"title"`
-	Owner     string   `json:"-"`
-	Command   []string `json:"command"`
-	Cwd       string   `json:"cwd"`
-	Env       []string `json:"env"`
-	UnsetEnv  []string `json:"unsetEnv"`
+	ProjectID  string   `json:"projectId"`
+	Title      string   `json:"title"`
+	Owner      string   `json:"-"`
+	Command    []string `json:"command"`
+	Cwd        string   `json:"cwd"`
+	Env        []string `json:"env"`
+	UnsetEnv   []string `json:"unsetEnv"`
+	PathAppend []string `json:"pathAppend"`
 }
 
 type ListFilter struct {
@@ -102,16 +103,17 @@ func NewManager(dirs paths.Dirs, hostBin string, opts ...Option) *Manager {
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error) {
 	sid := id.New(IDPrefix)
 	cfg := sessionhost.Config{
-		ID:        sid,
-		ProjectID: req.ProjectID,
-		Title:     req.Title,
-		Owner:     req.Owner,
-		Command:   req.Command,
-		Cwd:       req.Cwd,
-		Env:       req.Env,
-		UnsetEnv:  req.UnsetEnv,
-		Socket:    m.dirs.SessionSocket(sid),
-		MetaPath:  m.dirs.SessionMeta(sid),
+		ID:         sid,
+		ProjectID:  req.ProjectID,
+		Title:      req.Title,
+		Owner:      req.Owner,
+		Command:    req.Command,
+		Cwd:        req.Cwd,
+		Env:        req.Env,
+		UnsetEnv:   req.UnsetEnv,
+		PathAppend: req.PathAppend,
+		Socket:     m.dirs.SessionSocket(sid),
+		MetaPath:   m.dirs.SessionMeta(sid),
 	}
 	payload, err := json.Marshal(cfg)
 	if err != nil {

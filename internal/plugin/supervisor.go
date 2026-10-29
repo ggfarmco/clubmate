@@ -43,6 +43,7 @@ const (
 	pluginIDEnv   = "CLUBMATE_PLUGIN_ID"
 	runtimeDirEnv = "CLUBMATE_PLUGIN_RUNTIME_DIR"
 	flavorEnv     = "CLUBMATE_FLAVOR"
+	resourcesEnv  = "CLUBMATE_RESOURCES"
 )
 
 var (
@@ -70,6 +71,7 @@ type Supervisor struct {
 	crashLimit  int
 	crashWindow time.Duration
 	onStop      func(id string)
+	resourceDir string
 
 	hurryCtx context.Context
 	hurry    context.CancelFunc
@@ -120,6 +122,10 @@ func WithCrashLimit(n int, window time.Duration) SupervisorOption {
 
 func WithOnStop(fn func(id string)) SupervisorOption {
 	return func(s *Supervisor) { s.onStop = fn }
+}
+
+func WithResourcesDir(dir string) SupervisorOption {
+	return func(s *Supervisor) { s.resourceDir = dir }
 }
 
 func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts ...SupervisorOption) *Supervisor {
@@ -280,6 +286,9 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 	cmd := exec.Command(m.Executable(), m.Command[1:]...)
 	cmd.Dir = m.Dir
 	cmd.Env = append(sessionhost.StripMarkers(os.Environ()), pluginIDEnv+"="+m.ID, runtimeDirEnv+"="+runtimeDir, flavorEnv+"="+buildinfo.Flavor)
+	if s.resourceDir != "" {
+		cmd.Env = append(cmd.Env, resourcesEnv+"="+s.resourceDir)
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdinR, stdoutW, logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {

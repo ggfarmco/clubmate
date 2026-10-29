@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/pkg/pluginsdk"
 )
 
 func TestGrepFindsWithOptions(t *testing.T) {
@@ -274,6 +276,32 @@ func TestPreview(t *testing.T) {
 		{N: 51, Text: "line 51"},
 		{N: 52, Text: "line 52"},
 	}, got)
+}
+
+func TestSearchUsesBundledRg(t *testing.T) {
+	res := tempDir(t)
+	write(t, res, "tools/rg", "#!/bin/sh\ntouch \"$0.ran\"\n")
+	require.NoError(t, os.Chmod(filepath.Join(res, "tools", "rg"), 0o700))
+	dir := tempDir(t)
+	write(t, dir, "a.txt", "foo\n")
+	project := pluginsdk.Project{Repos: []string{dir}}
+	a := &app{}
+
+	t.Setenv("CLUBMATE_RESOURCES", res)
+	eng, err := a.engine(t.Context(), nil, project, func() {})
+	require.NoError(t, err)
+	require.Equal(t, rgEngine{bin: filepath.Join(res, "tools", "rg"), roots: newRoots(project.Repos)}, eng)
+	require.NoError(t, eng.run(t.Context(), grepOptions{Query: "foo"}, func([]grepMatch) bool { return true }))
+	assert.FileExists(t, filepath.Join(res, "tools", "rg.ran"))
+
+	t.Setenv("CLUBMATE_RESOURCES", tempDir(t))
+	want, lookErr := exec.LookPath("rg")
+	if lookErr != nil {
+		t.Skip("rg not on PATH")
+	}
+	eng, err = a.engine(t.Context(), nil, project, func() {})
+	require.NoError(t, err)
+	assert.Equal(t, want, eng.(rgEngine).bin)
 }
 
 func engines(t *testing.T, folders ...string) map[string]engine {

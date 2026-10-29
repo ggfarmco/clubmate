@@ -76,6 +76,19 @@ func TestSessionHostReplacesInheritedMarkers(t *testing.T) {
 	assert.Equal(t, []string{"CLUBMATE_SESSION_ID=ses_test", "CLUBMATE_PROJECT_ID=prj_test"}, markers)
 }
 
+func TestPathAppendGoesLast(t *testing.T) {
+	t.Setenv("PATH", "/a:/b")
+	cfg := testConfig(t, os.Args[0], "-test.run=^TestHelperSleep$")
+	cfg.Env = []string{"CLUBMATE_HELPER_SLEEP=1"}
+	cfg.PathAppend = []string{"/t", "/a"}
+	startHost(t, cfg)
+	m, err := sessionhost.ReadMeta(cfg.MetaPath)
+	require.NoError(t, err)
+	env, err := proc.ReadEnv(m.ChildPID)
+	require.NoError(t, err)
+	assert.Contains(t, env, "PATH=/a:/b:/t")
+}
+
 func TestHelperSleep(t *testing.T) {
 	if os.Getenv("CLUBMATE_HELPER_SLEEP") == "" {
 		t.Skip()
