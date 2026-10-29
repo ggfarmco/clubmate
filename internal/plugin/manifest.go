@@ -23,7 +23,9 @@ const (
 var (
 	ErrInvalidManifest = errors.New("invalid plugin manifest")
 
-	idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
+	idPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
+	slotPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+	fixedSlots  = []string{"sidebar", "main", "status"}
 
 	reservedIDs = []string{"core", "session", "workspace", "process", "ui", "diagnostics"}
 )
@@ -49,12 +51,13 @@ type View struct {
 }
 
 type Section struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Icon    string `json:"icon"`
-	Order   int    `json:"order"`
-	Scope   string `json:"scope"`
-	AutoNew bool   `json:"autoNew"`
+	ID      string   `json:"id"`
+	Title   string   `json:"title"`
+	Icon    string   `json:"icon"`
+	Order   int      `json:"order"`
+	Scope   string   `json:"scope"`
+	AutoNew bool     `json:"autoNew"`
+	Slots   []string `json:"slots"`
 }
 
 type CommandDef struct {
@@ -94,7 +97,7 @@ func SectionDefs(manifests []Manifest) []sdui.SectionDef {
 	var defs []sdui.SectionDef
 	for _, m := range manifests {
 		for _, s := range m.Contributes.Sections {
-			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Scope: s.Scope, AutoNew: s.AutoNew, Plugin: m.ID})
+			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Scope: s.Scope, AutoNew: s.AutoNew, Plugin: m.ID, Slots: s.Slots})
 		}
 	}
 	return defs
@@ -154,6 +157,11 @@ func (m Manifest) validate() error {
 	for _, s := range m.Contributes.Sections {
 		if s.Scope != "" && s.Scope != sdui.ScopeProject && s.Scope != sdui.ScopeApp {
 			return invalid(m.Dir, "section %q has invalid scope %q", s.ID, s.Scope)
+		}
+		for i, name := range s.Slots {
+			if !slotPattern.MatchString(name) || slices.Contains(fixedSlots, name) || slices.Contains(s.Slots[:i], name) {
+				return invalid(m.Dir, "section %q has invalid slot %q", s.ID, name)
+			}
 		}
 	}
 	commandIDs := make([]string, 0, len(m.Contributes.Commands))

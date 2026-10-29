@@ -19,16 +19,18 @@ type SectionDef struct {
 	Scope   string
 	AutoNew bool
 	Plugin  string
+	Slots   []string
 }
 
 type Section struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Icon    string `json:"icon"`
-	Order   int    `json:"order"`
-	Scope   string `json:"scope"`
-	AutoNew bool   `json:"autoNew"`
-	Plugin  string `json:"plugin"`
+	ID      string   `json:"id"`
+	Title   string   `json:"title"`
+	Icon    string   `json:"icon"`
+	Order   int      `json:"order"`
+	Scope   string   `json:"scope"`
+	AutoNew bool     `json:"autoNew"`
+	Plugin  string   `json:"plugin"`
+	Slots   []string `json:"slots,omitempty"`
 }
 
 type ViewDef struct {
@@ -41,10 +43,11 @@ type Sections struct {
 	owners map[string]string
 	scopes map[string]string
 	views  map[string]string
+	extra  map[string]string
 }
 
 func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
-	s := &Sections{list: []Section{}, owners: map[string]string{}, scopes: map[string]string{}, views: map[string]string{}}
+	s := &Sections{list: []Section{}, owners: map[string]string{}, scopes: map[string]string{}, views: map[string]string{}, extra: map[string]string{}}
 	for _, v := range views {
 		s.views[v.Slot] = v.Plugin
 	}
@@ -55,6 +58,9 @@ func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
 		s.owners[d.ID] = d.Plugin
 		d.Scope = cmp.Or(d.Scope, ScopeProject)
 		s.scopes[d.ID] = d.Scope
+		for _, name := range d.Slots {
+			s.extra[d.ID+"."+name] = d.ID
+		}
 		s.list = append(s.list, Section(d))
 	}
 	slices.SortFunc(s.list, func(a, b Section) int {
@@ -76,7 +82,7 @@ func (s *Sections) SlotOwner(slot string) (string, bool) {
 	if plugin, ok := s.views[slot]; ok {
 		return plugin, true
 	}
-	section, ok := SlotSection(slot)
+	section, ok := s.SlotSection(slot)
 	if !ok {
 		return "", false
 	}
@@ -84,12 +90,19 @@ func (s *Sections) SlotOwner(slot string) (string, bool) {
 }
 
 func (s *Sections) SlotScope(slot string) (string, bool) {
-	section, ok := SlotSection(slot)
+	section, ok := s.SlotSection(slot)
 	if !ok {
 		return "", false
 	}
 	scope, ok := s.scopes[section]
 	return scope, ok
+}
+
+func (s *Sections) SlotSection(slot string) (string, bool) {
+	if section, ok := s.extra[slot]; ok {
+		return section, true
+	}
+	return SlotSection(slot)
 }
 
 func SlotSection(slot string) (string, bool) {
