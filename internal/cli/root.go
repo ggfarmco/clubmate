@@ -38,9 +38,25 @@ func NewRoot(stdout, stderr io.Writer) *cobra.Command {
 func newRoot(stdout, stderr io.Writer, launch func(ctx context.Context, projectID string) error) *cobra.Command {
 	a := &app{out: stdout, launch: launch}
 	root := &cobra.Command{
-		Use:           "clubmate",
+		Use:           "clubmate [folder...]",
+		Short:         "Open folders in Clubmate, or manage its core, workspaces and sessions",
+		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			for _, arg := range args {
+				if info, err := os.Stat(arg); err != nil || !info.IsDir() {
+					return fmt.Errorf("unknown command or folder %q", arg)
+				}
+			}
+			if err := a.ensureCore(cmd.Context()); err != nil {
+				return err
+			}
+			return a.openFolders(cmd.Context(), args)
+		},
 	}
 	root.SetOut(stdout)
 	root.SetErr(stderr)

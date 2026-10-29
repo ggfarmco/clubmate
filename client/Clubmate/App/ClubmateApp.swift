@@ -124,6 +124,7 @@ private struct ProjectCommands: Commands {
             Button("About Clubmate") { showAbout() }
             Button("Check for Updates…") { app.updates.check() }
                 .disabled(!app.updates.canCheck)
+            Button("Install “\(CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor()))” Command…") { app.installCommandLineTool() }
         }
         CommandGroup(replacing: .newItem) {
             Button("New") { newItem() }

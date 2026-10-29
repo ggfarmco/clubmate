@@ -397,6 +397,27 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 	}
 }
 
+func TestFolderShorthand(t *testing.T) {
+	startCore(t)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	var launched []string
+	root := cli.NewRootWithLauncher(&bytes.Buffer{}, &bytes.Buffer{}, func(_ context.Context, id string) error {
+		launched = append(launched, id)
+		return nil
+	})
+	root.SetArgs([]string{dir})
+	require.NoError(t, root.Execute())
+	var list []project.Project
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "list", "--json"), &list))
+	require.Len(t, list, 1)
+	assert.Equal(t, []string{dir}, list[0].Repos)
+	assert.Equal(t, []string{list[0].ID}, launched)
+
+	root.SetArgs([]string{"sesion"})
+	assert.EqualError(t, root.Execute(), `unknown command or folder "sesion"`)
+}
+
 func TestWorkspaceCLI(t *testing.T) {
 	startCore(t)
 	dir := t.TempDir()

@@ -437,6 +437,39 @@ extension AppModel {
         }
     }
 
+    func installCommandLineTool() {
+        guard let resources = Bundle.main.resourceURL else { return }
+        let tool = CommandLineTool(flavor: ClaudeConnector.bundleFlavor(), resources: resources)
+        Task {
+            switch tool.state() {
+            case .installed:
+                return Self.inform("“\(tool.name)” is already installed", detail: "Run “\(tool.name) .” in a terminal to open a folder in Clubmate.")
+            case .other(let existing):
+                guard await Confirmation.ask("Replace \(tool.link)?", detail: "It currently points to \(existing).", action: "Replace", destructive: true) else { return }
+            case .missing:
+                break
+            }
+            var error: NSDictionary?
+            NSAppleScript(source: tool.installScript)?.executeAndReturnError(&error)
+            if let error {
+                if error[NSAppleScript.errorNumber] as? Int != Self.userCanceled {
+                    Self.alert(error[NSAppleScript.errorMessage] as? String ?? "Could not install \(tool.name).")
+                }
+                return
+            }
+            Self.inform("Installed “\(tool.name)”", detail: "Run “\(tool.name) .” in a terminal to open a folder in Clubmate.")
+        }
+    }
+
+    private static let userCanceled = -128
+
+    private static func inform(_ message: String, detail: String) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = detail
+        alert.runModal()
+    }
+
     private static func chooseFolders(prompt: String) -> [String]? {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true

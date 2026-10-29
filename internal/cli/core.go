@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	coreBinary   = "clubmate-core"
-	exitNotUp    = 3
-	pollInterval = 50 * time.Millisecond
-	pingTimeout  = time.Second
+	coreBinary    = "clubmate-core"
+	exitNotUp     = 3
+	pollInterval  = 50 * time.Millisecond
+	pingTimeout   = time.Second
+	coreStartWait = 15 * time.Second
 )
 
 var errCoreNotRunning = errors.New("clubmate-core is not running")
@@ -82,8 +83,26 @@ func (a *app) coreStartCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().DurationVar(&wait, "wait", 15*time.Second, "how long to wait for the core")
+	cmd.Flags().DurationVar(&wait, "wait", coreStartWait, "how long to wait for the core")
 	return cmd
+}
+
+func (a *app) ensureCore(ctx context.Context) error {
+	_, err := a.ping(ctx)
+	if !errors.Is(err, errCoreNotRunning) {
+		return err
+	}
+	dirs, err := paths.Resolve()
+	if err != nil {
+		return err
+	}
+	if err := spawnCore(dirs); err != nil {
+		return err
+	}
+	if _, ok := a.waitUp(ctx, coreStartWait); !ok {
+		return fmt.Errorf("core did not start; see %s", coreLogPath(dirs))
+	}
+	return nil
 }
 
 func (a *app) coreStopCmd() *cobra.Command {

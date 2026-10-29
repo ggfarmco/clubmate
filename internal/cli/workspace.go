@@ -13,11 +13,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"clubmate/internal/buildinfo"
 	"clubmate/internal/project"
 )
 
 const (
-	appBundleID      = "com.clubmate.app"
 	idPrefix         = "prj_"
 	lastOpenedLayout = "2006-01-02 15:04"
 )
@@ -75,22 +75,7 @@ func (a *app) workspaceOpenCmd() *cobra.Command {
 			if len(args) == 0 {
 				return errors.New("pass at least one folder or --id")
 			}
-			folders, err := absPaths(args)
-			if err != nil {
-				return err
-			}
-			var res struct {
-				ID      string `json:"id"`
-				Created bool   `json:"created"`
-				Clients int    `json:"clients"`
-			}
-			if err := a.call(cmd.Context(), "workspace.open", map[string]any{"folders": folders}, &res); err != nil {
-				return err
-			}
-			if err := a.launchWithoutClients(cmd.Context(), res.Clients, res.ID); err != nil {
-				return err
-			}
-			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, res.ID) })
+			return a.openFolders(cmd.Context(), args)
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "workspace id")
@@ -207,6 +192,25 @@ func (a *app) openByID(ctx context.Context, id string) error {
 	return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "opened", id) })
 }
 
+func (a *app) openFolders(ctx context.Context, args []string) error {
+	folders, err := absPaths(args)
+	if err != nil {
+		return err
+	}
+	var res struct {
+		ID      string `json:"id"`
+		Created bool   `json:"created"`
+		Clients int    `json:"clients"`
+	}
+	if err := a.call(ctx, "workspace.open", map[string]any{"folders": folders}, &res); err != nil {
+		return err
+	}
+	if err := a.launchWithoutClients(ctx, res.Clients, res.ID); err != nil {
+		return err
+	}
+	return a.render(res, func(w io.Writer) { fmt.Fprintln(w, res.ID) })
+}
+
 func (a *app) launchWithoutClients(ctx context.Context, clients int, id string) error {
 	if clients > 0 {
 		return nil
@@ -244,8 +248,15 @@ func lastOpened(p project.Project) string {
 	return p.LastOpenedAt.Format(lastOpenedLayout)
 }
 
+func appBundleID() string {
+	if buildinfo.Flavor == "release" {
+		return "com.clubmate.app"
+	}
+	return "com.clubmate.app.dev"
+}
+
 func launchApp(ctx context.Context, projectID string) error {
-	out, err := exec.CommandContext(ctx, "open", "-b", appBundleID, "--args", "--open-project", projectID).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "open", "-b", appBundleID(), "--args", "--open-project", projectID).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("launch app: %w: %s", err, strings.TrimSpace(string(out)))
 	}
