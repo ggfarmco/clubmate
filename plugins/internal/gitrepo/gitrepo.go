@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -289,11 +291,23 @@ func WorkingChanges(ctx context.Context, repo, rev string) ([]Change, error) {
 }
 
 func countLines(path string) int {
-	f, err := os.Open(path)
+	info, err := os.Lstat(path)
+	switch {
+	case err != nil:
+		return 0
+	case info.Mode()&fs.ModeSymlink != 0:
+		return 1
+	case !info.Mode().IsRegular():
+		return 0
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return 0
 	}
 	defer f.Close()
+	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+		return 0
+	}
 	data, _ := io.ReadAll(io.LimitReader(f, maxCountBytes))
 	if len(data) == 0 || bytes.IndexByte(data, 0) >= 0 {
 		return 0

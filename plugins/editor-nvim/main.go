@@ -36,6 +36,7 @@ const (
 	openErrorEvent = "open_error"
 	reviewEvent    = "review"
 	reviewTopic    = "review.changed"
+	startedTopic   = "editor.started"
 	openErrorMax   = 80
 	revPrefix      = "rev:"
 	shortSHA       = 7
@@ -106,6 +107,11 @@ type quickfixItem struct {
 	Line int    `json:"line" msgpack:"lnum"`
 	Col  int    `json:"col" msgpack:"col"`
 	Text string `json:"text" msgpack:"text"`
+}
+
+type rootEvent struct {
+	ProjectID string `json:"projectId"`
+	Root      string `json:"root"`
 }
 
 type pathEvent struct {
@@ -695,7 +701,7 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	if c := e.connected(); c != nil {
 		return c, nil
 	}
-	s, sock, err := a.session(ctx, h, e)
+	s, sock, created, err := a.session(ctx, h, e)
 	if errors.Is(err, errNvimNotInPATH) {
 		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, missingView(errors.Is(err, errSystemNvimMissing))))
 	}
@@ -712,6 +718,10 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	}
 	e.setClient(c)
 	a.applyNavigation(ctx, h, c)
+	if created {
+		_, err := h.Publish(ctx, startedTopic, rootEvent{ProjectID: e.id, Root: e.root})
+		logError(startedTopic, err)
+	}
 	return c, nil
 }
 
@@ -756,36 +766,36 @@ func (a *app) applyNavigation(ctx context.Context, h *pluginsdk.Host, c *client)
 	}
 }
 
-func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string, string, error) {
+func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string, string, bool, error) {
 	sessions, err := h.ListSessions(ctx, e.id, true)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	for _, s := range sessions {
 		if sock, ok := ownedSocket(s, e.id, e.root); ok {
-			return s.ID, sock, nil
+			return s.ID, sock, false, nil
 		}
 	}
 	sock, err := socketPath(pluginsdk.RuntimeDir(), e.id, e.root)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	path, env, unset, pathAppend, err := a.nvimCommand(ctx, h)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	if err := a.render(ctx, h, e, mainSlot, startingView()); err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	for _, s := range sessions {
 		if s.State != stateRunning {
 			if err := h.RemoveSession(ctx, s.ID); err != nil {
-				return "", "", err
+				return "", "", false, err
 			}
 		}
 	}
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", "", fmt.Errorf("remove stale socket: %w", err)
+		return "", "", false, fmt.Errorf("remove stale socket: %w", err)
 	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
 		ProjectID:  e.id,
@@ -796,7 +806,7 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string
 		UnsetEnv:   unset,
 		PathAppend: pathAppend,
 	})
-	return s.ID, sock, err
+	return s.ID, sock, err == nil, err
 }
 
 func ownedSocket(s pluginsdk.Session, projectID, root string) (string, bool) {

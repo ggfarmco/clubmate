@@ -478,6 +478,51 @@ func TestReviewFiltersHideTests(t *testing.T) {
 	}, 5*time.Second)
 }
 
+func opens(t *testing.T, h *testutil.PluginHarness) int {
+	t.Helper()
+	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 1000)
+	require.NoError(t, err)
+	n := 0
+	for _, ev := range events {
+		var call struct {
+			ID string `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal(ev.Payload, &call))
+		if call.ID == "editor-nvim.review-open" {
+			n++
+		}
+	}
+	return n
+}
+
+func TestReviewRetriesFailedOpen(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+	review(t, h, id, nil)
+	testutil.Eventually(t, func() bool { return opens(t, h) > 0 }, 5*time.Second)
+	before := opens(t, h)
+	require.NoError(t, runCommand(t, h, id, "git.refresh", nil, nil))
+	testutil.Eventually(t, func() bool { return opens(t, h) > before }, 5*time.Second)
+}
+
+func TestReviewReopensWhenEditorStarts(t *testing.T) {
+	repo := branchRepo(t)
+	manifest := strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.review-open":{"mode":"native"}},`, 1)
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, manifest))
+	review(t, h, id, nil)
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go"))
+	write(t, filepath.Join(repo, "e.go"), "e\n")
+	require.NoError(t, runCommand(t, h, id, "git.refresh", nil, nil))
+	h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go", "e.go"))
+	assert.Equal(t, 1, opens(t, h))
+
+	payload, err := json.Marshal(map[string]string{"projectId": id, "root": repo})
+	require.NoError(t, err)
+	_, err = h.Bus.Publish(t.Context(), "editor.started", "editor-nvim", payload)
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool { return opens(t, h) == 2 }, 5*time.Second)
+}
+
 func TestReviewRefsFuzzy(t *testing.T) {
 	repo := committedRepo(t)
 	git(t, repo, "branch", "develop")
@@ -505,6 +550,7 @@ func TestReviewErrors(t *testing.T) {
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "gone"}, nil), "unknown branch gone")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"head": "nope"}, nil), "nope is not checked out in a worktree")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-swap", nil, nil), "no review in progress")
+	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "--output=x"}, nil), "invalid ref")
 }
 
 func TestCorruptStoredReviewIgnored(t *testing.T) {

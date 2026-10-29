@@ -43,7 +43,7 @@
         "id": "git.review-branch",
         "title": "Review Branch (alias)",
         "hidden": true,
-        "agent": true,
+        "agent": false,
         "description": "Alias of git.review.",
         "args": {
           "properties": {

@@ -23,6 +23,7 @@ const (
 	reviewSlot      = "git.review"
 	reviewTreeID    = "review"
 	reviewTopic     = "review.changed"
+	startedTopic    = "editor.started"
 	openCommand     = "editor-nvim.review-open"
 	entriesCommand  = "editor-nvim.review-entries"
 	selectCommand   = "editor-nvim.review-select"
@@ -54,6 +55,7 @@ var (
 	errBadGlob       = errors.New("glob must not contain line breaks or NUL")
 	errReviewDir     = errors.New("dir must be 1 or -1")
 	errUnknownFolder = errors.New("not a folder of the review")
+	errBadRef        = errors.New("invalid ref")
 
 	globCache sync.Map
 )
@@ -148,6 +150,11 @@ type reviewedResult struct {
 	Reviewed bool `json:"reviewed"`
 }
 
+type rootEvent struct {
+	ProjectID string `json:"projectId"`
+	Root      string `json:"root"`
+}
+
 type reviewChanged struct {
 	ProjectID string `json:"projectId"`
 	Root      string `json:"root"`
@@ -198,6 +205,11 @@ func (a *app) reviewCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsd
 }
 
 func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, base, head string) error {
+	for _, ref := range []string{base, head} {
+		if strings.HasPrefix(ref, "-") {
+			return fmt.Errorf("%w: %q", errBadRef, ref)
+		}
+	}
 	f, t, err := headTarget(ctx, h, id, head)
 	if err != nil {
 		return err
@@ -352,6 +364,15 @@ func rankRefs(refs []refInfo, query string) []refInfo {
 }
 
 func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
+	s.mu.Lock()
+	none := len(s.reviews) == 0
+	if none {
+		s.active = ""
+	}
+	s.mu.Unlock()
+	if none {
+		return
+	}
 	p, err := h.GetProject(ctx, id)
 	if err != nil {
 		logError("project "+id, err)
@@ -400,8 +421,11 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	}
 	if opened != mergeBase {
 		var out openResult
-		logError("review-open "+id, h.RunCommand(ctx, openCommand, id, openArgs{Cwd: cur.t.Real, Base: mergeBase, Excludes: excludes}, &out))
-		mode, opened = cmp.Or(out.Mode, nativeMode), mergeBase
+		if err := h.RunCommand(ctx, openCommand, id, openArgs{Cwd: cur.t.Real, Base: mergeBase, Excludes: excludes}, &out); err != nil {
+			logError("review-open "+id, err)
+		} else {
+			mode, opened = cmp.Or(out.Mode, nativeMode), mergeBase
+		}
 	}
 	var entries []reviewEntry
 	if mode == moduleMode {
@@ -414,6 +438,25 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	}
 	r.err, r.headLabel, r.baseLabel, r.warning = "", headLabel, baseLabel, warning
 	r.mergeBase, r.changes, r.entries, r.mode, r.opened = mergeBase, changes, entries, mode, opened
+}
+
+func (a *app) editorStarted(h *pluginsdk.Host, p rootEvent) {
+	s := a.lookup(p.ProjectID)
+	if s == nil {
+		return
+	}
+	root := gitrepo.Canonical(p.Root)
+	reopen := false
+	s.mu.Lock()
+	for head, r := range s.reviews {
+		if gitrepo.Within(root, head) {
+			r.opened, reopen = "", true
+		}
+	}
+	s.mu.Unlock()
+	if reopen {
+		a.schedule(h, p.ProjectID, s, 0)
+	}
 }
 
 func (a *app) reviewChanged(ctx context.Context, h *pluginsdk.Host, p reviewChanged) {

@@ -221,6 +221,7 @@ func TestPluginRestartReconnects(t *testing.T) {
 	assert.Equal(t, second, eval[string](t, v, "expand('%:p')"))
 	assert.Equal(t, pid, eval[int](t, v, "getpid()"))
 	assert.Equal(t, []string{e.sessionID}, e.running(t))
+	assert.Equal(t, []string{e.projectID + " " + e.repo}, e.started(t))
 }
 
 func TestExitedShowsRestart(t *testing.T) {
@@ -237,6 +238,7 @@ func TestExitedShowsRestart(t *testing.T) {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
+	testutil.Eventually(t, func() bool { return len(e.started(t)) == 2 }, 5*time.Second)
 }
 
 func TestRestartRefusesUnsavedBuffers(t *testing.T) {
@@ -953,6 +955,22 @@ func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
 			return rpc.Notification{}, false
 		}
 	}
+}
+
+func (e *editor) started(t *testing.T) []string {
+	t.Helper()
+	events, err := e.h.Bus.Read(t.Context(), "editor.started", 0, 100)
+	require.NoError(t, err)
+	var out []string
+	for _, ev := range events {
+		var p struct {
+			ProjectID string `json:"projectId"`
+			Root      string `json:"root"`
+		}
+		require.NoError(t, json.Unmarshal(ev.Payload, &p))
+		out = append(out, p.ProjectID+" "+p.Root)
+	}
+	return out
 }
 
 func (e *editor) waitBuffer(t *testing.T, path string) {

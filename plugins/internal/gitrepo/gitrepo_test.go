@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -218,11 +219,15 @@ func TestMergeBaseAndChanges(t *testing.T) {
 
 	write(t, filepath.Join(repo, "n.go"), "package x\n\nvar n\n")
 	write(t, filepath.Join(repo, "u.go"), "u\nu")
+	fifo := filepath.Join(t.TempDir(), "fifo")
+	require.NoError(t, syscall.Mkfifo(fifo, 0o600))
+	require.NoError(t, os.Symlink(fifo, filepath.Join(repo, "link")))
 	changes, err := gitrepo.WorkingChanges(t.Context(), repo, mb)
 	require.NoError(t, err)
 	assert.Equal(t, []gitrepo.Change{
 		{Path: "a.go", Status: "M", Additions: 1, Deletions: 1},
 		{Path: "d.go", Status: "D", Deletions: 1},
+		{Path: "link", Status: "?", Additions: 1},
 		{Path: "n.go", Status: "A", Additions: 3},
 		{Path: "u.go", Status: "?", Additions: 2},
 	}, changes)

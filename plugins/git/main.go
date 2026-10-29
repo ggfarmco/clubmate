@@ -110,7 +110,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.*", "project.*", "review.*"} {
+	for _, pattern := range []string{"ui.*", "project.*", "review.*", startedTopic} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -151,6 +151,12 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			return
 		}
 		a.reviewChanged(ctx, h, p)
+	case startedTopic:
+		var p rootEvent
+		if !decodeEvent(ev, &p) {
+			return
+		}
+		a.editorStarted(h, p)
 	}
 }
 

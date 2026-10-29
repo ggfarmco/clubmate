@@ -88,6 +88,9 @@ func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (
 		if _, err := h.Publish(ctx, "echo.command", map[string]any{"plugin": h.PluginID(), "id": cmd.ID, "args": cmd.Args}); err != nil {
 			return nil, err
 		}
+		if result, ok := cannedResults()[cmd.ID]; ok {
+			return result, nil
+		}
 		return nil, fmt.Errorf("unknown command %q", cmd.ID)
 	}
 	return map[string]any{"plugin": h.PluginID(), "args": cmd.Args}, nil
@@ -142,4 +145,18 @@ func ownsSection(h *pluginsdk.Host) bool {
 		}
 	}
 	return false
+}
+
+func cannedResults() map[string]json.RawMessage {
+	raw, err := os.ReadFile("plugin.json")
+	if err != nil {
+		return nil
+	}
+	var m struct {
+		EchoResults map[string]json.RawMessage `json:"echoResults"`
+	}
+	if json.Unmarshal(raw, &m) != nil {
+		return nil
+	}
+	return m.EchoResults
 }
