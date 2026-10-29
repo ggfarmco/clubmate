@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"context"
@@ -471,4 +472,18 @@ func TestCommandRunAgentNeedsApproval(t *testing.T) {
 	root := cli.NewRoot(&stdout, &stderr)
 	root.SetArgs([]string{"command", "run", "session.kill", "--project", p.ID, "--agent", "--args", `{"id":"` + sid + `"}`})
 	assert.ErrorContains(t, root.Execute(), "no app to approve")
+}
+
+func TestDiagnosticsWritesZip(t *testing.T) {
+	startCore(t)
+	out := filepath.Join(t.TempDir(), "report.zip")
+	assert.Equal(t, out+"\n", string(run(t, "diagnostics", "-o", out)))
+	r, err := zip.OpenReader(out)
+	require.NoError(t, err)
+	defer r.Close()
+	var names []string
+	for _, f := range r.File {
+		names = append(names, f.Name)
+	}
+	assert.Contains(t, names, "info.json")
 }

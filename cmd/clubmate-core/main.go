@@ -105,7 +105,7 @@ func run(logger *slog.Logger) error {
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
 	svc := core.NewService(store, session.NewManager(dirs, hostBin, session.WithPathDir(filepath.Dir(exe))), tracker, proc.Snapshot,
 		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }))
-	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV), rpc.WithLogger(logger))
+	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV), rpc.WithLogger(logger), rpc.WithDirs(dirs))
 	uiStore := sdui.NewStore()
 	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))))
 	srv.SetPluginList(func() any { return sup.Statuses() })

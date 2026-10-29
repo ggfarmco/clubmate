@@ -127,6 +127,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | workspace.touch | `{id}` | `{}` |
 | workspace.worktree.set | `{id, repo, path}` | project |
 | workspace.worktree.check | `{id}` | project |
+| diagnostics.collect | `{projectId?, appVersion?, extra?}` (not for plugin callers) | `{path, files: [{name, bytes}]}` |
 | process.tree | `{projectId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 | session.send | `{id, text, enter}` | `{}` |
@@ -184,7 +185,7 @@ Projects are shown to users as workspaces; `clubmate project …` is an alias of
 
 A capability is a generic name a command declares in `provides`, so callers need not know which plugin implements it. A capability resolves to the first provider in plugin load (discovery) order whose plugin is running, else to the first provider (then `command.run` fails with plugin unavailable). When several commands provide one capability the core logs `capability X provided by A and B; using A` (command ids) once per distinct outcome. `command.capabilities` returns that resolution for every declared capability. Bundled capabilities: `editor.open` (`editor-nvim.open`), `editor.quickfix` (`editor-nvim.quickfix`), `editor.reveal` (`editor-nvim.reveal`), `terminal.new` (`terminals.new`), `terminal.close` (`terminals.close`), `files.reveal` (`files.reveal`), `git.stage-all` (`git.stage-all`), `git.review` (`git.review-branch`).
 
-`command.list` also lists the core primitives, with `plugin: "core"`, `agent: true` (except `workspace.worktree.set`, which is `agent: false`) and `hidden: true` (so the palette leaves them out). `command.run` resolves a primitive id before plugin commands and capabilities, and runs it with the existing method's handler. Plugin ids `core`, `session`, `workspace`, `process` and `ui` are reserved (manifest load fails), and `command.capabilities` maps a capability named like a primitive to that primitive, as `command.run` does:
+`command.list` also lists the core primitives, with `plugin: "core"`, `agent: true` (except `workspace.worktree.set` and `diagnostics.collect`, which are `agent: false`) and `hidden: true` (so the palette leaves them out). `command.run` resolves a primitive id before plugin commands and capabilities, and runs it with the existing method's handler. Plugin ids `core`, `session`, `workspace`, `process`, `ui` and `diagnostics` are reserved (manifest load fails), and `command.capabilities` maps a capability named like a primitive to that primitive, as `command.run` does:
 
 | Primitive | Method | Args | `projectId` |
 |---|---|---|---|
@@ -192,6 +193,7 @@ A capability is a generic name a command declares in `provides`, so callers need
 | `workspace.open` | `workspace.open` | `{folders}` | ignored |
 | `workspace.home` | `workspace.home` | none | ignored |
 | `workspace.worktree.set` (not for agents) | `workspace.worktree.set` | `{id, repo, path}` | ignored |
+| `diagnostics.collect` (not for agents) | `diagnostics.collect` | `{appVersion?, extra?}` | optional, the workspace whose UI is dumped |
 | `session.list` | `session.list` (all workspaces) | none | ignored |
 | `session.create` | `session.create` (a login shell) | `{cwd?, title?}` | required, passed as the session's project |
 | `session.kill` (destructive) | `session.kill` | `{id}` | ignored; the approval names the session's own workspace |
@@ -237,6 +239,8 @@ The app binds them as menu items, so they work with a terminal or nvim focused: 
 When nvim reaches its left or right edge through the `clubmate` Lua module (see `docs/nvim-integration.md`), editor-nvim calls `ui.focus` with slot `editor-nvim.sidebar` and `edge` `h` or `l`.
 
 `ui.event` requires a non-empty `action`, a valid slot and a registered section. It is routed to the owning plugin.
+
+`diagnostics.collect` `{projectId?, appVersion?, extra?}` writes `clubmate-diagnostics-<YYYYMMDD-HHMMSS>.zip` (local time) into `<state>/diagnostics/`, keeps only the newest 3 archives there, and returns `{path, files: [{name, bytes}]}` (`bytes` uncompressed). The zip holds `info.json` (`version`, `commit`, `flavor`, `coreVersion`, `sessionProtocol`, `macOS`, `arch`, `coreUptimeSeconds`, `collectedAt` in UTC, `appVersion` when given), `logs/core.log` and `logs/plugins/<id>.log` (the last 2 MiB of each, starting after the first newline when cut; missing logs are skipped), `plugins.json` (`plugin.list`), `workspaces.json` (`[{id, name, repos, roots, missing}]`), `sessions.json` (`[{id, workspace, title, owner, cwd, state, exitCode, created}]`, never output), `ui/<projectId>.json` (the `ui.get` views of `projectId`, or of every workspace in `ui.presence` when absent; none without UI) and `README.txt` listing them. `extra` maps file names to base64 contents added as they are; only `settings.json` and `window.png` are accepted, each at most 10 MiB (otherwise invalid params). It never includes terminal output, environment variables, plugin storage or the databases. Plugin callers get invalid params. `clubmate diagnostics [-o file.zip]` calls it without `extra` and copies the archive to `-o` (default `./<archive name>`), printing the path. The app's Help ▸ Collect Diagnostics… captures the key window and its own settings (keys containing `token`, `secret`, `password` or `key`, case-insensitive, read `<redacted>`), passes the key window's workspace and its version, shows the file list, and moves the archive where the user saves it.
 
 ## Notifications
 

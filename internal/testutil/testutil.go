@@ -73,7 +73,7 @@ func NewRPCServer(t *testing.T) (*rpc.Server, *bus.Bus) {
 func NewRPCServerIn(t *testing.T, dirs paths.Dirs) (*rpc.Server, *bus.Bus) {
 	t.Helper()
 	svc, b := NewServiceWithBusIn(t, dirs)
-	return rpc.NewServer(svc, b), b
+	return rpc.NewServer(svc, b, rpc.WithDirs(dirs)), b
 }
 
 func newService(t *testing.T, opts ...core.Option) *core.Service {
