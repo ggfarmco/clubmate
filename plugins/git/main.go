@@ -260,6 +260,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.reviewDefault(ctx, h, cmd.ProjectID, s)
 	case "git.end-review":
 		return nil, a.endReview(ctx, h, cmd.ProjectID, s)
+	case "git.worktrees", "git.worktree-switch", "git.worktree-new", "git.worktree-sessions", "git.worktree-remove":
+		return worktreeCommand(ctx, h, cmd)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }

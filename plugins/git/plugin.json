@@ -38,6 +38,70 @@
         "title": "End Review",
         "agent": true,
         "description": "End the branch review and close its editor tab."
+      },
+      {
+        "id": "git.worktrees",
+        "title": "List Worktrees",
+        "hidden": true,
+        "agent": true,
+        "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, main, current}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, and current marks the worktree the folder is switched to."
+      },
+      {
+        "id": "git.worktree-switch",
+        "title": "Switch Worktree",
+        "hidden": true,
+        "agent": true,
+        "description": "Switch a workspace folder to one of its git worktrees: the files tree, git, search, the editor and new terminals follow it. A folder that is a repo subdirectory maps to the same subdirectory of the worktree.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
+            "path": {"type": "string", "description": "Worktree root, as listed by git.worktrees."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "git.worktree-new",
+        "title": "New Worktree",
+        "hidden": true,
+        "agent": true,
+        "description": "Create the worktree <main checkout>/.worktrees/<branch> and switch to it. Checks out the branch when it exists, else creates it from HEAD of the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
+            "branch": {"type": "string", "description": "Branch name, also the folder name under .worktrees/."}
+          },
+          "required": ["branch"]
+        }
+      },
+      {
+        "id": "git.worktree-sessions",
+        "title": "Worktree Sessions",
+        "hidden": true,
+        "agent": false,
+        "description": "List the workspace's running sessions whose working directory is inside the given worktree. Returns [{id, title}].",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute worktree root."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "git.worktree-remove",
+        "title": "Remove Worktree",
+        "hidden": true,
+        "agent": true,
+        "destructive": true,
+        "description": "Remove a linked git worktree: stops its Neovim, runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
+            "path": {"type": "string", "description": "Worktree root, as listed by git.worktrees."},
+            "force": {"type": "boolean", "description": "Stop the worktree's Neovim even with unsaved buffers, discarding their changes."}
+          },
+          "required": ["path"]
+        }
       }
     ]
   }

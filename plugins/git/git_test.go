@@ -13,12 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
 
 const (
 	sidebarSlot    = "git.sidebar"
+	editorSlot     = "editor-nvim.main"
 	mainSlot       = "git.main"
 	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.review","title":"Review Branch","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true}]}}`
 	restartWait    = 15 * time.Second
@@ -508,4 +510,170 @@ func TestGitSectionFollowsWorktree(t *testing.T) {
 	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool {
 		return len(groups(t, n)["Changes (1)"]) == 1
 	})
+}
+
+type worktreeEntry struct {
+	Repo    string `json:"repo"`
+	Path    string `json:"path"`
+	Branch  string `json:"branch"`
+	Head    string `json:"head"`
+	Main    bool   `json:"main"`
+	Current bool   `json:"current"`
+}
+
+type sessionEntry struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+func committedRepo(t *testing.T) string {
+	t.Helper()
+	repo := newRepo(t, "a.go")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	return repo
+}
+
+func openReady(t *testing.T, repo string, dirs ...string) (*testutil.PluginHarness, string) {
+	t.Helper()
+	h, id := open(t, repo, dirs...)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 })
+	return h, id
+}
+
+func runCommand(t *testing.T, h *testutil.PluginHarness, id, command string, args, out any) error {
+	t.Helper()
+	return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "projectId": id, "args": args}, out)
+}
+
+func listWorktrees(t *testing.T, h *testutil.PluginHarness, id string) []worktreeEntry {
+	t.Helper()
+	var list []worktreeEntry
+	require.NoError(t, runCommand(t, h, id, "git.worktrees", nil, &list))
+	return list
+}
+
+func firstRoot(t *testing.T, h *testutil.PluginHarness, id string) string {
+	t.Helper()
+	p, err := h.Svc.GetProject(t.Context(), id)
+	require.NoError(t, err)
+	return p.Roots[0]
+}
+
+func TestWorktreeList(t *testing.T) {
+	repo := committedRepo(t)
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	detached := filepath.Join(repo, ".worktrees", "detached")
+	git(t, repo, "worktree", "add", "-q", "--detach", detached)
+	h, id := openReady(t, repo)
+
+	head := git(t, repo, "rev-parse", "--short", "HEAD")
+	list := listWorktrees(t, h, id)
+	require.NotEmpty(t, list)
+	main := worktreeEntry{Repo: repo, Path: repo, Branch: "main", Head: head, Main: true, Current: true}
+	assert.Equal(t, main, list[0])
+	assert.ElementsMatch(t, []worktreeEntry{
+		main,
+		{Repo: repo, Path: feat, Branch: "feat", Head: head},
+		{Repo: repo, Path: detached, Head: head},
+	}, list)
+}
+
+func TestNewWorktree(t *testing.T) {
+	repo := committedRepo(t)
+	git(t, repo, "branch", "old")
+	old := git(t, repo, "rev-parse", "old")
+	write(t, filepath.Join(repo, "a.go"), "two\n")
+	git(t, repo, "commit", "-qam", "two")
+	h, id := openReady(t, repo)
+	create := func(branch string) error {
+		return runCommand(t, h, id, "git.worktree-new", map[string]string{"branch": branch}, nil)
+	}
+
+	require.NoError(t, create("x/y"))
+	xy := filepath.Join(repo, ".worktrees", "x", "y")
+	assert.Equal(t, "x/y", git(t, xy, "symbolic-ref", "--short", "HEAD"))
+	assert.Equal(t, xy, firstRoot(t, h, id))
+	assert.ErrorContains(t, create("x/y"), "already exists")
+	assert.ErrorContains(t, create("a..b"), "not a valid branch name")
+
+	write(t, filepath.Join(xy, "a.go"), "three\n")
+	git(t, xy, "commit", "-qam", "three")
+	require.NoError(t, create("z"))
+	assert.Equal(t, git(t, xy, "rev-parse", "HEAD"), git(t, repo, "rev-parse", "z"))
+
+	require.NoError(t, create("old"))
+	assert.Equal(t, old, git(t, filepath.Join(repo, ".worktrees", "old"), "rev-parse", "HEAD"))
+	exclude, err := os.ReadFile(filepath.Join(repo, ".git", "info", "exclude"))
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(string(exclude), ".worktrees/\n"))
+}
+
+func TestSwitchMapsSubdir(t *testing.T) {
+	repo := newRepo(t)
+	require.NoError(t, os.Mkdir(filepath.Join(repo, "sub"), 0o700))
+	write(t, filepath.Join(repo, "sub", "b.go"), "b\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	wt := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", wt)
+	folder := filepath.Join(repo, "sub")
+	h, id := openReady(t, folder)
+	switchTo := func(path string) error {
+		return runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": path}, nil)
+	}
+
+	require.NoError(t, switchTo(wt))
+	assert.Equal(t, filepath.Join(wt, "sub"), firstRoot(t, h, id))
+	list := listWorktrees(t, h, id)
+	require.Len(t, list, 2)
+	assert.False(t, list[0].Current)
+	assert.True(t, list[1].Current)
+	assert.ErrorContains(t, switchTo(filepath.Join(wt, "sub")), "not a worktree of "+folder)
+	require.NoError(t, switchTo(repo))
+	assert.Equal(t, folder, firstRoot(t, h, id))
+}
+
+func TestRemoveWorktree(t *testing.T) {
+	if _, err := exec.LookPath("nvim"); err != nil {
+		t.Skip("nvim not in PATH")
+	}
+	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"} {
+		t.Setenv(key, t.TempDir())
+	}
+	repo := committedRepo(t)
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	dirty := filepath.Join(repo, ".worktrees", "dirty")
+	git(t, repo, "worktree", "add", "-q", "-b", "dirty", dirty)
+	write(t, filepath.Join(dirty, "new.go"), "n\n")
+	h, id := openReady(t, repo, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"))
+	surface := func(not string) string {
+		n := h.WaitSlot(t, id, editorSlot, func(n sdui.Node) bool { return n.Type == "surface" && n.Props["sessionId"] != not })
+		return n.Props["sessionId"].(string)
+	}
+	first := surface("")
+	require.NoError(t, runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil))
+	featNvim := surface(first)
+	shell, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: id, Title: "Build", Command: []string{"sh", "-c", "exec cat"}, Cwd: feat})
+	require.NoError(t, err)
+	var users []sessionEntry
+	require.NoError(t, runCommand(t, h, id, "git.worktree-sessions", map[string]string{"path": feat}, &users))
+	assert.Contains(t, users, sessionEntry{ID: shell.ID, Title: "Build"})
+	remove := func(path string) error {
+		return runCommand(t, h, id, "git.worktree-remove", map[string]string{"path": path}, nil)
+	}
+
+	assert.ErrorContains(t, remove(dirty), "worktree has uncommitted changes")
+	assert.DirExists(t, dirty)
+	assert.ErrorContains(t, remove(repo), "cannot remove the main checkout")
+	require.NoError(t, remove(feat))
+	assert.NoDirExists(t, feat)
+	assert.Equal(t, repo, firstRoot(t, h, id))
+	git(t, repo, "rev-parse", "--verify", "-q", "feat")
+	testutil.Eventually(t, func() bool {
+		s, err := h.Svc.GetSession(t.Context(), featNvim)
+		return err != nil || s.State != "running"
+	}, 5*time.Second)
 }
