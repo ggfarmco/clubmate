@@ -55,6 +55,27 @@ func buildTree(roots []Root, expanded map[string]bool, status map[string]string,
 	return items
 }
 
+func buildFocused(repo, focus string, expanded map[string]bool, status map[string]string, hideIgnored bool) []sdui.TreeItem {
+	b := &builder{expanded: expanded, status: status, dirty: dirtyDirs(status), hide: hideIgnored, open: openAncestors(expanded), reads: map[string][]entry{}, home: userHome()}
+	muted := false
+	for p := focus; len(p) > len(repo); p = filepath.Dir(p) {
+		muted = muted || status[p] == ignoredCode
+	}
+	return b.children(focus, 1, muted)
+}
+
+func breadcrumb(repo, focus string) []sdui.Item {
+	var crumbs []sdui.Item
+	for p := focus; ; p = filepath.Dir(p) {
+		crumbs = append(crumbs, sdui.Item{ID: p, Label: filepath.Base(p)})
+		if p == repo || p == filepath.Dir(p) {
+			break
+		}
+	}
+	slices.Reverse(crumbs)
+	return crumbs
+}
+
 func (b *builder) root(path string) sdui.TreeItem {
 	b.count++
 	item := sdui.TreeItem{ID: path, Label: filepath.Base(path), Icon: iconFolder}

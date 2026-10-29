@@ -93,6 +93,14 @@ func Tree(id string, items []TreeItem, selected string) Node {
 	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
 }
 
+func BreadcrumbTree(id string, items []TreeItem, selected string, breadcrumb []Item) Node {
+	n := Tree(id, items, selected)
+	if len(breadcrumb) > 0 {
+		n.Props["breadcrumb"] = breadcrumb
+	}
+	return n
+}
+
 func Table(id string, columns []Column, rows []TableRow, selected string, sort Sort) Node {
 	props := withOptional(map[string]any{"columns": nonNil(columns), "rows": nonNil(rows)}, "selected", selected)
 	if sort.Column != "" {

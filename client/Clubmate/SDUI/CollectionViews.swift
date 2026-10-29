@@ -179,13 +179,14 @@ struct TreeNodeView: View {
         let flags = event.modifierFlags
         guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
         let rows = TreeCursor.rows(node.treeItems())
-        switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
+        switch TreeCursor.resolve(action, cursor: cursor, in: rows, breadcrumb: node.breadcrumb().map(\.id)) {
         case .cursor(let id):
             if let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroll?.scrollTo(target) }
             cursor = id
         case .select(let id): select(id)
         case .expand(let id): dispatch(node, .expand(id))
         case .collapse(let id): dispatch(node, .collapse(id))
+        case .focus(let id): dispatch(node, .focus(id))
         case .run(let id):
             guard id.hasPrefix(dispatch.owner + ".") else { return false }
             dispatch.run(CommandInvocation(id: id))
@@ -193,6 +194,43 @@ struct TreeNodeView: View {
         case nil: break
         }
         return true
+    }
+}
+
+struct TreeBreadcrumb: View {
+    let node: SDUINode
+
+    @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let crumbs = node.breadcrumb()
+        HStack(spacing: 4) {
+            ForEach(crumbs.indices, id: \.self) { index in
+                if index > 0 {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(theme.muted)
+                }
+                let last = index == crumbs.count - 1
+                Button { dispatch(node, .focus(crumbs[index].id)) } label: {
+                    Text(crumbs[index].label)
+                        .foregroundStyle(last ? theme.foreground : theme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(crumbs[index].id)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .layoutPriority(last ? 1 : 0)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(theme.ui)
+        .padding(.horizontal, theme.gutter)
+        .frame(height: theme.rowHeight)
+        .background(theme.background, ignoresSafeAreaEdges: [])
+        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
     }
 }
 

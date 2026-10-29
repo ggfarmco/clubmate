@@ -6,6 +6,7 @@ public enum UIAction {
         case select(String)
         case expand(String)
         case collapse(String)
+        case focus(String)
         case submit(JSONValue)
         case toggle(Bool)
         case change(String)
@@ -15,7 +16,7 @@ public enum UIAction {
         public var value: JSONValue {
             switch self {
             case .click: .null
-            case .select(let id), .expand(let id), .collapse(let id): .string(id)
+            case .select(let id), .expand(let id), .collapse(let id), .focus(let id): .string(id)
             case .submit(let submitted): submitted
             case .toggle(let on): .bool(on)
             case .change(let option): .string(option)
@@ -33,6 +34,7 @@ public enum UIAction {
         case .select, .change: action = custom ?? "select"
         case .expand: action = "expand"
         case .collapse: action = "collapse"
+        case .focus: action = "focus"
         case .submit: action = custom ?? "submit"
         case .toggle: action = custom ?? "toggle"
         case .pick: action = custom ?? "pick"

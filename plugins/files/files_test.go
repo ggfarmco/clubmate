@@ -5,10 +5,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
@@ -28,6 +31,99 @@ func items(t *testing.T, n sdui.Node) []sdui.TreeItem {
 	var out []sdui.TreeItem
 	require.NoError(t, json.Unmarshal(raw, &out))
 	return out
+}
+
+func breadcrumb(t *testing.T, n sdui.Node) []string {
+	t.Helper()
+	raw, err := json.Marshal(n.Children[0].Props["breadcrumb"])
+	require.NoError(t, err)
+	var crumbs []sdui.Item
+	require.NoError(t, json.Unmarshal(raw, &crumbs))
+	ids := make([]string, len(crumbs))
+	for i, c := range crumbs {
+		ids[i] = c.ID
+	}
+	return ids
+}
+
+func focused(t *testing.T, want ...string) func(sdui.Node) bool {
+	return func(n sdui.Node) bool { return n.Type == "scroll" && assert.ObjectsAreEqual(want, breadcrumb(t, n)) }
+}
+
+func startFocusTree(t *testing.T) (*testutil.PluginHarness, string, string) {
+	t.Helper()
+	h := testutil.NewPluginHarness(t,
+		testutil.BuildPluginDir(t, "clubmate/plugins/files", "plugins/files/plugin.json"),
+		testutil.EchoPluginDirAs(t, editorManifest),
+	)
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, "a", "b", "c"), 0o700))
+	for _, f := range []string{"a/q.go", "a/b/y.go", "a/b/c/x.go", "z.go"} {
+		require.NoError(t, os.WriteFile(filepath.Join(repo, f), nil, 0o600))
+	}
+	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	require.NoError(t, err)
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
+	h.WaitSlot(t, p.ID, sidebarSlot, func(n sdui.Node) bool { return n.Type == "scroll" })
+	h.Event(t, p.ID, sidebarSlot, "files", "focus", filepath.Join(repo, "a", "b"))
+	return h, p.ID, repo
+}
+
+func TestFocusFolder(t *testing.T) {
+	h, id, repo := startFocusTree(t)
+	dir := filepath.Join(repo, "a", "b")
+
+	tree := h.WaitSlot(t, id, sidebarSlot, focused(t, repo, filepath.Join(repo, "a"), dir))
+	ids := make([]string, 0, 2)
+	for _, it := range items(t, tree) {
+		ids = append(ids, it.ID)
+	}
+	assert.Equal(t, []string{filepath.Join(dir, "c"), filepath.Join(dir, "y.go")}, ids)
+
+	var pid int
+	for _, st := range h.Sup.Statuses() {
+		if st.ID == "files" {
+			pid = st.PID
+		}
+	}
+	require.NotZero(t, pid)
+	require.NoError(t, unix.Kill(pid, unix.SIGKILL))
+	testutil.Eventually(t, func() bool {
+		pids := h.Sup.PIDs()
+		return len(pids) > 0 && !slices.Contains(pids, pid)
+	}, 15*time.Second)
+	h.WaitSlot(t, id, sidebarSlot, focused(t, repo, filepath.Join(repo, "a"), dir))
+}
+
+func TestRevealOutsideFocusMovesItUp(t *testing.T) {
+	h, id, repo := startFocusTree(t)
+	h.WaitSlot(t, id, sidebarSlot, focused(t, repo, filepath.Join(repo, "a"), filepath.Join(repo, "a", "b")))
+	file := filepath.Join(repo, "a", "q.go")
+
+	payload, err := json.Marshal(map[string]string{"projectId": id, "path": file})
+	require.NoError(t, err)
+	_, err = h.Bus.Publish(t.Context(), "editor.buffer", "editor-nvim", payload)
+	require.NoError(t, err)
+
+	tree := h.WaitSlot(t, id, sidebarSlot, focused(t, repo, filepath.Join(repo, "a")))
+	assert.Equal(t, file, tree.Children[0].Props["selected"])
+}
+
+func TestRootsChangeClearsFocus(t *testing.T) {
+	h, id, repo := startFocusTree(t)
+	h.WaitSlot(t, id, sidebarSlot, focused(t, repo, filepath.Join(repo, "a"), filepath.Join(repo, "a", "b")))
+	other, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	_, err = h.Svc.SetWorktree(t.Context(), id, repo, other)
+	require.NoError(t, err)
+
+	tree := h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool {
+		list := items(t, n)
+		return len(list) == 1 && list[0].ID == other
+	})
+	assert.Empty(t, breadcrumb(t, tree))
 }
 
 func find(list []sdui.TreeItem, id string) (sdui.TreeItem, bool) {

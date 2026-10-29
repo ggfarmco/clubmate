@@ -25,7 +25,7 @@ public enum TreeCursor {
         return rows[min(max(index + delta, 0), rows.count - 1)].id
     }
 
-    public static func resolve(_ action: TreeKeyAction, cursor: String?, in rows: [TreeRow]) -> TreeCommand? {
+    public static func resolve(_ action: TreeKeyAction, cursor: String?, in rows: [TreeRow], breadcrumb: [String] = []) -> TreeCommand? {
         let index = rows.firstIndex { $0.id == cursor }
         switch action {
         case .move(let delta):
@@ -34,6 +34,17 @@ public enum TreeCursor {
             return .focusMain
         case .activate:
             return index.map { .select(rows[$0].id) }
+        case .open:
+            guard let index else { return nil }
+            let row = rows[index]
+            guard row.hasChildren else { return .select(row.id) }
+            return row.expanded ? .collapse(row.id) : .expand(row.id)
+        case .focus:
+            guard let index else { return nil }
+            let row = rows[index]
+            return row.hasChildren ? .focus(row.id) : row.parent.map(TreeCommand.focus)
+        case .focusUp:
+            return breadcrumb.count >= 2 ? .focus(breadcrumb[breadcrumb.count - 2]) : nil
         case .expand:
             guard let index, rows[index].hasChildren else { return nil }
             let row = rows[index]
@@ -102,6 +113,9 @@ public enum TreeCursor {
 public enum TreeKeyAction: Equatable, Sendable {
     case move(Int)
     case activate
+    case open
+    case focus
+    case focusUp
     case expand
     case collapse
     case collapseOthers
@@ -113,6 +127,7 @@ public enum TreeCommand: Equatable, Sendable {
     case select(String)
     case expand(String)
     case collapse(String)
+    case focus(String)
     case run(String)
     case focusMain
 }
@@ -127,7 +142,10 @@ public enum TreeKeys {
         case 4: return control ? (side == .right ? .focusMain : nil) : .collapse
         case 124: return .expand
         case 123: return .collapse
-        case 36, 31: return .activate
+        case 36: return .open
+        case 31: return .activate
+        case 47: return .focus
+        case 51: return .focusUp
         case 27: return .collapseOthers
         case 53: return .focusMain
         default: return nil

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -64,6 +65,7 @@ type state struct {
 	hideIgn  bool
 	expanded map[string]bool
 	selected string
+	focus    string
 	status   map[string]map[string]string
 	ignored  map[string]map[string]bool
 	watch    string
@@ -159,6 +161,8 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, a.selectItem(ctx, h, ev.ProjectID, s, item)
 	case "expand", "collapse":
 		return nil, a.setExpanded(ctx, h, ev.ProjectID, s, item, ev.Action == "expand")
+	case "focus":
+		return nil, a.focusItem(ctx, h, ev.ProjectID, s, item)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
@@ -176,6 +180,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.toggleIgnored(ctx, h, cmd.ProjectID)
 	case "files.collapse-others":
 		return nil, a.collapseOthers(ctx, h, cmd.ProjectID)
+	case "files.focus", "files.unfocus":
+		return nil, a.focusSelected(ctx, h, cmd.ProjectID, cmd.ID == "files.focus")
 	case "files.reveal":
 		var args pathArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -259,7 +265,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	if watch != "" {
 		logError("unwatch "+id, h.UnwatchFS(ctx, watch))
 	}
-	logError("drop "+id, errors.Join(h.StorageDelete(ctx, expandedKey(id)), h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, hideIgnoredKey(id))))
+	logError("drop "+id, errors.Join(h.StorageDelete(ctx, expandedKey(id)), h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, hideIgnoredKey(id)), h.StorageDelete(ctx, focusKey(id))))
 }
 
 func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
@@ -311,10 +317,11 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	first := !s.synced
 	known := s.repos
 	current := s.selected
+	focus := s.focus
 	s.mu.Unlock()
 	var stored []string
 	var found bool
-	var selected, hide string
+	var selected, hide, storedFocus string
 	if first {
 		if _, err = h.StorageGet(ctx, hideIgnoredKey(id), &hide); err != nil {
 			return err
@@ -325,14 +332,18 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 		if _, err = h.StorageGet(ctx, selectedKey(id), &selected); err != nil {
 			return err
 		}
-		current = selected
+		if _, err = h.StorageGet(ctx, focusKey(id), &storedFocus); err != nil {
+			return err
+		}
+		current, focus = selected, storedFocus
 	}
 	stale := current != "" && outside(ctx, repos, current)
+	staleFocus := focus != "" && !validFocus(repos, focus)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.repos, s.gitDirs = repos, gitDirs
 	if first {
-		s.synced, s.selected, s.hideIgn = true, selected, hide == "true"
+		s.synced, s.selected, s.focus, s.hideIgn = true, selected, storedFocus, hide == "true"
 		for _, e := range stored {
 			s.expanded[e] = true
 		}
@@ -344,6 +355,12 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	if stale && s.selected == current {
 		s.selected = ""
 		if err := h.StorageDelete(ctx, selectedKey(id)); err != nil {
+			return err
+		}
+	}
+	if staleFocus && s.focus == focus {
+		s.focus = ""
+		if err := h.StorageDelete(ctx, focusKey(id)); err != nil {
 			return err
 		}
 	}
@@ -393,6 +410,14 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 }
 
 func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
+	s.mu.Lock()
+	focus := s.focus
+	s.mu.Unlock()
+	if focus != "" && !isDir(focus) {
+		if err := a.dropFocus(ctx, h, id, s, focus); err != nil {
+			return err
+		}
+	}
 	s.mu.Lock()
 	repos := slices.Clone(s.repos)
 	expanded := maps.Clone(s.expanded)
@@ -447,8 +472,15 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	}
 	status := s.mergedStatus()
 	expanded, selected, hide := maps.Clone(s.expanded), s.selected, s.hideIgn
+	repo, focus := containing(s.repos, s.focus), s.focus
 	s.mu.Unlock()
-	_, err := h.Render(ctx, id, sidebarSlot, treeView(buildTree(roots, expanded, status, hide), selected))
+	var view sdui.Node
+	if repo != "" && focus != repo {
+		view = treeView(buildFocused(repo, focus, expanded, status, hide), selected, breadcrumb(repo, focus))
+	} else {
+		view = treeView(buildTree(roots, expanded, status, hide), selected, nil)
+	}
+	_, err := h.Render(ctx, id, sidebarSlot, view)
 	return err
 }
 
@@ -502,6 +534,94 @@ func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	}
 	logError("focus "+id, h.Focus(ctx, id, editorSection, editorSlot))
 	return nil
+}
+
+func (a *app) focusSelected(ctx context.Context, h *pluginsdk.Host, id string, on bool) error {
+	s := a.get(id)
+	if err := a.ensure(ctx, h, id, s); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	selected := s.selected
+	s.mu.Unlock()
+	if !on {
+		return a.focusItem(ctx, h, id, s, "")
+	}
+	if selected == "" {
+		return nil
+	}
+	return a.focusItem(ctx, h, id, s, selected)
+}
+
+func (a *app) focusItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
+	if strings.HasSuffix(item, moreSuffix) {
+		return nil
+	}
+	s.mu.Lock()
+	repo := containing(s.repos, item)
+	s.mu.Unlock()
+	if item != "" && repo == "" {
+		return fmt.Errorf("%w: %q", errOutsideRepos, item)
+	}
+	if item != "" {
+		info, err := os.Lstat(item)
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			item = filepath.Dir(item)
+		}
+	}
+	if item == repo {
+		item = ""
+	}
+	return a.setFocus(ctx, h, id, s, item)
+}
+
+func (a *app) setFocus(ctx context.Context, h *pluginsdk.Host, id string, s *state, dir string) error {
+	s.mu.Lock()
+	s.focus = dir
+	var opened []string
+	if repo := containing(s.repos, dir); dir != "" {
+		for p := dir; len(p) >= len(repo); p = filepath.Dir(p) {
+			if !s.expanded[p] {
+				opened = append(opened, p)
+			}
+			s.expanded[p] = true
+			if p == repo {
+				break
+			}
+		}
+	}
+	keys := sortedKeys(s.expanded)
+	s.mu.Unlock()
+	var err error
+	if dir == "" {
+		err = h.StorageDelete(ctx, focusKey(id))
+	} else {
+		err = h.StorageSet(ctx, focusKey(id), dir)
+	}
+	if len(opened) > 0 {
+		err = errors.Join(err, h.StorageSet(ctx, expandedKey(id), keys))
+	}
+	if err != nil {
+		return err
+	}
+	for _, p := range slices.Backward(opened) {
+		a.classify(ctx, s, p)
+	}
+	return a.render(ctx, h, id, s)
+}
+
+func (a *app) dropFocus(ctx context.Context, h *pluginsdk.Host, id string, s *state, focus string) error {
+	s.mu.Lock()
+	if s.focus != focus {
+		s.mu.Unlock()
+		return nil
+	}
+	s.focus = ""
+	s.mu.Unlock()
+	return h.StorageDelete(ctx, focusKey(id))
 }
 
 func (a *app) toggleIgnored(ctx context.Context, h *pluginsdk.Host, id string) error {
@@ -631,6 +751,12 @@ func (a *app) reveal(ctx context.Context, h *pluginsdk.Host, id, path string) er
 		return nil
 	}
 	s.selected = real
+	focus := s.focus
+	if focus != "" {
+		s.focus = narrowFocus(s.repos, focus, real)
+	}
+	moved := s.focus != focus
+	focus = s.focus
 	var opened []string
 	for dir := filepath.Dir(real); len(dir) >= len(repo); dir = filepath.Dir(dir) {
 		if !s.expanded[dir] {
@@ -640,7 +766,13 @@ func (a *app) reveal(ctx context.Context, h *pluginsdk.Host, id, path string) er
 	}
 	keys := sortedKeys(s.expanded)
 	s.mu.Unlock()
-	if err := errors.Join(h.StorageSet(ctx, expandedKey(id), keys), h.StorageSet(ctx, selectedKey(id), real)); err != nil {
+	err := errors.Join(h.StorageSet(ctx, expandedKey(id), keys), h.StorageSet(ctx, selectedKey(id), real))
+	if moved && focus == "" {
+		err = errors.Join(err, h.StorageDelete(ctx, focusKey(id)))
+	} else if moved {
+		err = errors.Join(err, h.StorageSet(ctx, focusKey(id), focus))
+	}
+	if err != nil {
 		return err
 	}
 	for _, dir := range slices.Backward(opened) {
@@ -668,6 +800,29 @@ func containing(repos []string, path string) string {
 		}
 	}
 	return best
+}
+
+func validFocus(repos []string, focus string) bool {
+	repo := containing(repos, focus)
+	return repo != "" && repo != focus && isDir(focus)
+}
+
+func narrowFocus(repos []string, focus, path string) string {
+	repo := containing(repos, focus)
+	if containing(repos, path) != repo {
+		return ""
+	}
+	for p := focus; len(p) > len(repo); p = filepath.Dir(p) {
+		if strings.HasPrefix(path, p+"/") {
+			return p
+		}
+	}
+	return ""
+}
+
+func isDir(path string) bool {
+	info, err := os.Lstat(path)
+	return err == nil && info.IsDir()
 }
 
 func outside(ctx context.Context, repos []string, path string) bool {
@@ -702,6 +857,10 @@ func hideIgnoredKey(projectID string) string {
 
 func selectedKey(projectID string) string {
 	return "selected/" + projectID
+}
+
+func focusKey(projectID string) string {
+	return "focus/" + projectID
 }
 
 func decodeEvent(ev pluginsdk.Event, v any) bool {

@@ -194,6 +194,10 @@ extension SDUINode {
         props["items"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
     }
 
+    public func breadcrumb() -> [SDUIItem] {
+        props["breadcrumb"]?.arrayValue?.compactMap(SDUIItem.init) ?? []
+    }
+
     public func options() -> [SDUIOption] {
         props["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
     }

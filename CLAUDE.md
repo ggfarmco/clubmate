@@ -1,0 +1,1 @@
+- Every change that adds, removes or rebinds a keyboard shortcut also updates `docs/shortcuts.md` in the same commit.

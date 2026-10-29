@@ -89,7 +89,7 @@ func TestTreeCapPassesValidation(t *testing.T) {
 	items := buildTree([]Root{{Path: root}}, expanded, nil, false)
 	assert.LessOrEqual(t, countItems(items), 4950)
 	assert.GreaterOrEqual(t, countItems(items), 4800)
-	require.NoError(t, internalsdui.Validate(treeView(items, "")))
+	require.NoError(t, internalsdui.Validate(treeView(items, "", nil)))
 }
 
 func TestIgnoredMuted(t *testing.T) {
