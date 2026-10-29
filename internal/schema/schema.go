@@ -54,12 +54,48 @@ func (p Prop) checkItem(name string) error {
 	if len(p.Enum) > 0 || p.Default != nil || p.Items != nil {
 		return fmt.Errorf("%s: object items take only properties and required", name)
 	}
+	if len(p.Properties) == 0 {
+		return fmt.Errorf("%s: object items need properties", name)
+	}
+	for _, key := range slices.Sorted(maps.Keys(p.Properties)) {
+		if items := p.Properties[key].Items; items != nil && items.Type == "object" {
+			return fmt.Errorf("%s.%s: object items nest one level only", name, key)
+		}
+	}
 	return checkObject(name+".", p.Properties, p.Required)
+}
+
+func Undeclared(o *Object, fields map[string]json.RawMessage) string {
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		var p Prop
+		ok := false
+		if o != nil {
+			p, ok = o.Properties[name]
+		}
+		if !ok {
+			return "args." + name
+		}
+		if p.Items == nil || p.Items.Type != "object" || isNull(fields[name]) {
+			continue
+		}
+		var items []map[string]json.RawMessage
+		if json.Unmarshal(fields[name], &items) != nil {
+			return "args." + name
+		}
+		for i, item := range items {
+			for _, key := range slices.Sorted(maps.Keys(item)) {
+				if _, ok := p.Items.Properties[key]; !ok {
+					return fmt.Sprintf("args.%s[%d].%s", name, i, key)
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (p Prop) check(name string) error {
 	if p.Type != "object" && (len(p.Properties) > 0 || len(p.Required) > 0) {
-		return fmt.Errorf("%s: properties on %s", name, p.Type)
+		return fmt.Errorf("%s: properties are allowed only on object items, not on %s", name, p.Type)
 	}
 	switch {
 	case p.Type == "array":

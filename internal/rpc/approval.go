@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/sourcegraph/jsonrpc2"
+
+	"clubmate/internal/schema"
 )
 
 const (
@@ -126,10 +128,10 @@ func approvableArgs(c Command, raw json.RawMessage) (json.RawMessage, error) {
 	if len(fields) > approvalMaxFields {
 		return nil, invalidParams(fmt.Sprintf("args: more than %d fields", approvalMaxFields))
 	}
+	if path := schema.Undeclared(c.Args, fields); path != "" {
+		return nil, invalidParams(path + ": not declared")
+	}
 	for name, v := range fields {
-		if _, ok := c.Args.Properties[name]; !ok {
-			return nil, invalidParams(fmt.Sprintf("args.%s: not declared", name))
-		}
 		if renderedLen(v) > approvalMaxValue {
 			return nil, invalidParams(fmt.Sprintf("args.%s: longer than %d characters", name, approvalMaxValue))
 		}

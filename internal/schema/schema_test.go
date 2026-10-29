@@ -69,7 +69,9 @@ func TestSchemaCheck(t *testing.T) {
 		{name: "object items", schema: `{"properties":{"x":{"type":"array","items":{"type":"object","properties":{"p":{"type":"string"}},"required":["p"]}}}}`},
 		{name: "object item properties checked", schema: `{"properties":{"x":{"type":"array","items":{"type":"object","properties":{"p":{"type":"date"}}}}}}`, err: `x[].p: unsupported type "date"`},
 		{name: "array of arrays", schema: `{"properties":{"x":{"type":"array","items":{"type":"array","items":{"type":"string"}}}}}`, err: `x: array needs scalar or object items`},
-		{name: "properties on scalar", schema: `{"properties":{"x":{"type":"string","properties":{"p":{"type":"string"}}}}}`, err: `x: properties on string`},
+		{name: "properties on scalar", schema: `{"properties":{"x":{"type":"string","properties":{"p":{"type":"string"}}}}}`, err: `x: properties are allowed only on object items, not on string`},
+		{name: "object items without properties", schema: `{"properties":{"x":{"type":"array","items":{"type":"object"}}}}`, err: `x[]: object items need properties`},
+		{name: "object items nested", schema: `{"properties":{"x":{"type":"array","items":{"type":"object","properties":{"y":{"type":"array","items":{"type":"object","properties":{"p":{"type":"string"}}}}}}}}}`, err: `x[].y: object items nest one level only`},
 		{name: "items on scalar", schema: `{"properties":{"x":{"type":"string","items":{"type":"string"}}}}`, err: `x: items on string`},
 	}
 	for _, tt := range tests {
