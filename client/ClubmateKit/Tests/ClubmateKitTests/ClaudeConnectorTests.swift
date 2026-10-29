@@ -22,6 +22,14 @@ final class ClaudeConnectorTests: XCTestCase {
             "/opt/bin/claude mcp add --scope user clubmate -- /App/bin/clubmate mcp",
         ])
     }
+
+    func testRunnerKillsAProcessIgnoringTerm() async {
+        let started = ContinuousClock.now
+        let result = await SystemProcessRunner(timeout: .milliseconds(300)).run("/bin/sh", ["-c", "trap '' TERM; echo started; sleep 3"])
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(2))
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertEqual(result.output, "started\n")
+    }
 }
 
 private actor FakeRunner: ProcessRunning {

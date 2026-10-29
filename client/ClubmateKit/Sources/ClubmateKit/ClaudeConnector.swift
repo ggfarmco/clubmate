@@ -55,9 +55,11 @@ public struct ClaudeConnector: Sendable {
 
 public struct SystemProcessRunner: ProcessRunning {
     private let timeout: Duration
+    private let drain: Duration
 
-    public init(timeout: Duration = .seconds(15)) {
+    public init(timeout: Duration = .seconds(15), drain: Duration = .milliseconds(100)) {
         self.timeout = timeout
+        self.drain = drain
     }
 
     public func run(_ executable: String, _ arguments: [String]) async -> ProcessOutput {
@@ -68,21 +70,47 @@ public struct SystemProcessRunner: ProcessRunning {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
-        let done = AsyncStream.makeStream(of: Void.self)
-        process.terminationHandler = { _ in done.continuation.finish() }
+        let output = OutputBuffer()
+        let reader = pipe.fileHandleForReading
+        reader.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+            } else {
+                output.append(data)
+            }
+        }
+        let exited = AsyncStream.makeStream(of: Void.self)
+        process.terminationHandler = { _ in exited.continuation.finish() }
         do {
             try process.run()
         } catch {
+            reader.readabilityHandler = nil
             return ProcessOutput(status: -1, output: "\(error.localizedDescription)\n")
         }
-        let reader = Task.detached { pipe.fileHandleForReading.readDataToEndOfFile() }
+        let pid = process.processIdentifier
         let deadline = Task {
             guard (try? await Task.sleep(for: timeout)) != nil else { return }
-            process.terminate()
+            kill(pid, SIGKILL)
         }
-        for await _ in done.stream {}
+        for await _ in exited.stream {}
         deadline.cancel()
-        let data = await reader.value
-        return ProcessOutput(status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))
+        try? await Task.sleep(for: drain)
+        reader.readabilityHandler = nil
+        try? reader.close()
+        return ProcessOutput(status: process.terminationStatus, output: output.text)
+    }
+}
+
+private final class OutputBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func append(_ chunk: Data) {
+        lock.withLock { data.append(chunk) }
+    }
+
+    var text: String {
+        lock.withLock { String(decoding: data, as: UTF8.self) }
     }
 }

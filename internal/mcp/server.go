@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ const (
 	codeInvalidRequest = -32600
 	codeMethodNotFound = -32601
 	codeInvalidParams  = -32602
+	codeInternal       = -32603
 
 	workspaceArg = "workspace"
 )
@@ -34,6 +36,7 @@ var (
 	supportedVersions = []string{ProtocolVersion, "2025-03-26", "2024-11-05"}
 	readOnly          = []string{"workspace.list", "session.list", "session.read", "process.tree", "terminals.busy"}
 	toolName          = strings.NewReplacer(".", "_", "-", "_")
+	validName         = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 )
 
 type Core interface {
@@ -59,6 +62,8 @@ type request struct {
 	ID     json.RawMessage `json:"id"`
 	Method string          `json:"method"`
 	Params json.RawMessage `json:"params"`
+	Result json.RawMessage `json:"result"`
+	Error  json.RawMessage `json:"error"`
 }
 
 type response struct {
@@ -152,6 +157,9 @@ func (s *Server) handle(ctx context.Context, line []byte) {
 	if !isRequest {
 		return
 	}
+	if req.Method == "" && (req.Result != nil || req.Error != nil) {
+		return
+	}
 	if req.Method == "" {
 		s.reply(req.ID, nil, &protocolError{Code: codeInvalidRequest, Message: "missing method"})
 		return
@@ -163,7 +171,7 @@ func (s *Server) handle(ctx context.Context, line []byte) {
 		return
 	}
 	if err != nil {
-		s.reply(req.ID, nil, &protocolError{Code: codeInvalidParams, Message: err.Error()})
+		s.reply(req.ID, nil, &protocolError{Code: codeInternal, Message: err.Error()})
 		return
 	}
 	s.reply(req.ID, result, nil)
@@ -320,6 +328,16 @@ func build(cmds []rpc.Command, caps map[string]string, logf func(string, ...any)
 	seen := map[string]string{}
 	add := func(target string, c rpc.Command) {
 		t := newTool(target, c)
+		if !validName.MatchString(t.Name) {
+			logf("tool %s skipped: invalid MCP tool name %q", target, t.Name)
+			return
+		}
+		if c.Args != nil {
+			if _, ok := c.Args.Properties[workspaceArg]; ok {
+				logf("tool %s skipped: it declares an arg named %q, which MCP calls reserve", target, workspaceArg)
+				return
+			}
+		}
 		if first, ok := seen[t.Name]; ok {
 			logf("tool %s: %s and %s map to the same name; using %s", t.Name, first, target, first)
 			return

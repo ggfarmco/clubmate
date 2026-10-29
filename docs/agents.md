@@ -49,4 +49,4 @@ To connect Claude Code, use **Settings → Agents → Connect Claude Code**. It 
 claude mcp add --scope user clubmate -- "/Applications/Clubmate.app/Contents/Resources/bin/clubmate" mcp
 ```
 
-The button is shown only when `claude` is on your login shell's `PATH`. When the server is already configured it says "Connected" and offers "Reconnect" (remove, then add). Clubmate never edits Claude's config files itself.
+The button is shown only when `claude` is on your login shell's `PATH`; Clubmate looks once per launch, so restart Clubmate after installing `claude`. When the server is already configured it says "Connected" and offers "Reconnect" (remove, then add). Clubmate never edits Claude's config files itself.

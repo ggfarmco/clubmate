@@ -19,13 +19,14 @@ final class ClaudeIntegration {
 
     @ObservationIgnored private let connector = ClaudeConnector()
     @ObservationIgnored private var path: String?
-    @ObservationIgnored private var located = false
+    @ObservationIgnored private var locating: Task<String?, Never>?
 
     func refresh() async {
-        if !located {
-            path = await connector.locate()
-            located = true
+        if locating == nil {
+            let connector = connector
+            locating = Task { await connector.locate() }
         }
+        path = await locating?.value
         guard let path else {
             phase = .missing
             return
