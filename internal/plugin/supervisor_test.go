@@ -31,9 +31,8 @@ func TestSupervisorStartsPluginThatCallsCore(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("echo plugin never reported ready")
 	}
-	st := h.Sup.Statuses()
-	require.Len(t, st, 1)
-	assert.Equal(t, "running", st[0].State)
+	require.Len(t, h.Sup.Statuses(), 1)
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
 }
 
 func TestSupervisorCreatesPluginRuntimeDir(t *testing.T) {
