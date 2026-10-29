@@ -159,6 +159,7 @@ private struct ProjectCommands: Commands {
             Button(session != nil ? CloseKeyOwner.terminalTitle : CloseKeyOwner.windowTitle) { closeTerminal() }
                 .keyboardShortcut("w")
         }
+        CommandGroup(replacing: .printItem) {}
         CommandGroup(before: .toolbar) {
             Button("Command Palette") { session?.toggle(.palette) }
                 .keyboardShortcut("k")

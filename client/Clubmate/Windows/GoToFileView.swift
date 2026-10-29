@@ -18,7 +18,8 @@ struct GoToFileView: View {
                 return await store.run(invocation)
             },
             dismiss: { [weak session] in session?.close(.goToFile) },
-            report: { [weak session] message in session?.banner.show(message) }
+            report: { [weak session] message in session?.banner.show(message) },
+            opened: { [weak session] in session?.store?.requestFocus(section: CodeSection.id, slot: CodeSection.mainSlot) }
         ))
     }
 
@@ -36,6 +37,15 @@ struct GoToFileView: View {
             theme.border.frame(height: 1)
             results
                 .padding(.vertical, 4)
+            if let footer {
+                theme.border.frame(height: 1)
+                Text(footer)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, theme.gutter * 1.5)
+                    .frame(height: theme.rowHeight)
+            }
         }
         .frame(width: 560)
         .background(theme.background)
@@ -72,6 +82,12 @@ struct GoToFileView: View {
                 .onChange(of: model.selection) { _, selection in proxy.scrollTo(selection) }
             }
         }
+    }
+
+    private var footer: String? {
+        guard model.status == .ready else { return nil }
+        if model.capped { return "Index capped at 200 000 files" }
+        return model.truncated ? "More results — keep typing" : nil
     }
 
     private var message: String? {

@@ -77,27 +77,32 @@ public final class GoToFileModel {
     public private(set) var selection = 0
     public private(set) var status = GoToFileStatus.ready
     public private(set) var truncated = false
+    public private(set) var capped = false
 
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let dismiss: @MainActor () -> Void
     @ObservationIgnored private let report: @MainActor (String) -> Void
+    @ObservationIgnored private let opened: @MainActor () -> Void
     @ObservationIgnored private let debounce: Duration
     @ObservationIgnored private let retry: Duration
     @ObservationIgnored private var pending: Task<Void, Never>?
     @ObservationIgnored private var serial = 0
+    @ObservationIgnored private var choosing = false
 
     public init(
         debounce: Duration = .milliseconds(40),
         retry: Duration = .milliseconds(500),
         run: @escaping Run,
         dismiss: @escaping @MainActor () -> Void,
-        report: @escaping @MainActor (String) -> Void
+        report: @escaping @MainActor (String) -> Void,
+        opened: @escaping @MainActor () -> Void = {}
     ) {
         self.debounce = debounce
         self.retry = retry
         self.run = run
         self.dismiss = dismiss
         self.report = report
+        self.opened = opened
     }
 
     public func update(_ query: String) {
@@ -123,14 +128,22 @@ public final class GoToFileModel {
     }
 
     public func choose() async {
+        guard !choosing else { return }
+        choosing = true
+        defer { choosing = false }
+        while let task = pending {
+            await task.value
+            if pending == task { break }
+        }
         guard results.indices.contains(selection) else { return }
         let match = results[selection]
         cancel()
         dismiss()
         var args: [String: JSONValue] = ["path": .string(match.absPath)]
         if let line = match.line { args["line"] = .number(Double(line)) }
-        if case .failure(let error) = await run(CommandInvocation(id: Self.openCommand, args: .object(args))) {
-            report(error.message)
+        switch await run(CommandInvocation(id: Self.openCommand, args: .object(args))) {
+        case .success: opened()
+        case .failure(let error): report(error.message)
         }
     }
 
@@ -156,10 +169,12 @@ public final class GoToFileModel {
                 }
                 results = fields["matches"]?.arrayValue?.compactMap(GoToFileMatch.init) ?? []
                 truncated = fields["truncated"]?.boolValue == true
+                capped = fields["capped"]?.boolValue == true
                 status = .ready
             case .failure(let error):
                 results = []
                 truncated = false
+                capped = false
                 status = Self.isHome(error) ? .unavailable : .failed(error.message)
             }
             selection = 0
