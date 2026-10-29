@@ -103,3 +103,14 @@ func TestReviewTreeCompactsAndFocuses(t *testing.T) {
 	assert.Equal(t, []string{"a/b/x.go", "a/b/y.go"}, []string{items[0].ID, items[1].ID})
 	assert.Equal(t, []sdui.Item{{ID: ".", Label: "w"}, {ID: "a", Label: "a"}, {ID: "a/b", Label: "b"}}, tree.Children[0].Props["breadcrumb"])
 }
+
+func TestReviewTreeStaysWithinNodeLimit(t *testing.T) {
+	r := &review{head: "/w", base: "main", folded: map[string]bool{}}
+	for i := range 6000 {
+		r.changes = append(r.changes, gitrepo.Change{Path: fmt.Sprintf("d%04d/f.go", i), Status: "M"})
+	}
+	tree := reviewView(r)
+	require.NoError(t, internalsdui.Validate(tree))
+	items := tree.Children[0].Props["items"].([]sdui.TreeItem)
+	assert.Equal(t, sdui.TreeItem{ID: moreRowID, Label: "… 3551 more", Muted: true}, items[len(items)-1])
+}

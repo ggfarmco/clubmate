@@ -15,7 +15,6 @@ import (
 	"sync"
 
 	"clubmate/pkg/pluginsdk"
-	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/fuzzy"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -39,7 +38,7 @@ const (
 	rootCrumb       = "."
 	chainSeparator  = " / "
 	moreRowID       = "\x00more"
-	maxReviewFiles  = 4000
+	maxReviewItems  = 4900
 	maxRefs         = 200
 	kindWorktree    = "worktree"
 	kindBranch      = "branch"
@@ -156,24 +155,6 @@ type reviewChanged struct {
 	Path      string `json:"path"`
 }
 
-type reviewHeader struct {
-	Base     string       `json:"base"`
-	Head     string       `json:"head"`
-	BaseRef  string       `json:"baseRef"`
-	HeadPath string       `json:"headPath"`
-	Mode     string       `json:"mode"`
-	Progress string       `json:"progress"`
-	Warning  string       `json:"warning,omitempty"`
-	Error    string       `json:"error,omitempty"`
-	Chips    []reviewChip `json:"chips"`
-}
-
-type reviewChip struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	On    bool   `json:"on"`
-}
-
 type reviewRow struct {
 	Path      string
 	Status    string
@@ -181,12 +162,6 @@ type reviewRow struct {
 	Deletions int
 	Reviewed  bool
 	Comments  int
-}
-
-type dirNode struct {
-	path  string
-	dirs  map[string]*dirNode
-	files []reviewRow
 }
 
 type current struct {
@@ -384,7 +359,10 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	}
 	var currents []current
 	for i := range p.Repos {
-		if f, err := openFolder(ctx, p, i); err == nil && !p.Home {
+		if p.Home {
+			break
+		}
+		if f, err := openFolder(ctx, p, i); err == nil {
 			currents = append(currents, current{f: f, t: f.currentTree()})
 		}
 	}
@@ -647,134 +625,6 @@ func (r *review) rows() ([]reviewRow, int) {
 	return rows, hidden
 }
 
-func reviewView(r *review) sdui.Node {
-	if r == nil {
-		return sdui.Empty("")
-	}
-	rows, hidden := r.rows()
-	module := r.mode == moduleMode
-	header := reviewHeader{
-		Base:     cmp.Or(r.baseLabel, r.base),
-		Head:     cmp.Or(r.headLabel, filepath.Base(r.head)),
-		BaseRef:  r.base,
-		HeadPath: r.head,
-		Mode:     cmp.Or(r.mode, nativeMode),
-		Progress: progress(rows, hidden, module),
-		Warning:  r.warning,
-		Error:    r.err,
-		Chips:    r.filters.chips(),
-	}
-	shown := rows[:min(len(rows), maxReviewFiles)]
-	root := buildDirs(shown)
-	node := root
-	var crumbs []sdui.Item
-	if r.focus != "" {
-		if n := root.find(r.focus); n != nil {
-			node = n
-			crumbs = breadcrumb(header.Head, r.focus)
-		}
-	}
-	items := node.items(r.folded, module)
-	if more := len(rows) - len(shown); more > 0 {
-		items = append(items, sdui.TreeItem{ID: moreRowID, Label: fmt.Sprintf("… %d more", more), Muted: true})
-	}
-	tree := sdui.BreadcrumbTree(reviewTreeID, items, r.selected, crumbs)
-	tree.Props["review"] = header
-	return sdui.Scroll(tree)
-}
-
-func breadcrumb(head, focus string) []sdui.Item {
-	crumbs := []sdui.Item{{ID: rootCrumb, Label: head}}
-	parts := strings.Split(focus, "/")
-	for i := range parts {
-		crumbs = append(crumbs, sdui.Item{ID: strings.Join(parts[:i+1], "/"), Label: parts[i]})
-	}
-	return crumbs
-}
-
-func progress(rows []reviewRow, hidden int, module bool) string {
-	parts := []string{fmt.Sprintf("%d files", len(rows))}
-	if len(rows) == 1 {
-		parts[0] = "1 file"
-	}
-	if hidden > 0 {
-		parts = append(parts, fmt.Sprintf("%d hidden", hidden))
-	}
-	if module {
-		done := 0
-		for _, row := range rows {
-			if row.Reviewed {
-				done++
-			}
-		}
-		parts = append(parts, fmt.Sprintf("%d/%d reviewed", done, len(rows)))
-	}
-	return strings.Join(parts, " · ")
-}
-
-func buildDirs(rows []reviewRow) *dirNode {
-	root := &dirNode{path: rootCrumb, dirs: map[string]*dirNode{}}
-	for _, row := range rows {
-		n := root
-		parts := strings.Split(row.Path, "/")
-		for i, part := range parts[:len(parts)-1] {
-			child := n.dirs[part]
-			if child == nil {
-				child = &dirNode{path: strings.Join(parts[:i+1], "/"), dirs: map[string]*dirNode{}}
-				n.dirs[part] = child
-			}
-			n = child
-		}
-		n.files = append(n.files, row)
-	}
-	return root
-}
-
-func (n *dirNode) find(path string) *dirNode {
-	for part := range strings.SplitSeq(path, "/") {
-		if n = n.dirs[part]; n == nil {
-			return nil
-		}
-	}
-	return n
-}
-
-func (n *dirNode) items(folded map[string]bool, module bool) []sdui.TreeItem {
-	var items []sdui.TreeItem
-	for _, name := range slices.Sorted(maps.Keys(n.dirs)) {
-		child, label := n.dirs[name], name
-		for len(child.files) == 0 && len(child.dirs) == 1 {
-			for only, next := range child.dirs {
-				child, label = next, label+chainSeparator+only
-			}
-		}
-		items = append(items, sdui.TreeItem{ID: child.path, Label: label, HasChildren: true, Expanded: !folded[child.path], Children: child.items(folded, module)})
-	}
-	for _, f := range n.sortedFiles() {
-		item := sdui.TreeItem{ID: f.Path, Label: filepath.Base(f.Path), Badge: f.Status, Additions: f.Additions, Deletions: f.Deletions}
-		if module {
-			item.Reviewed, item.Comments = f.Reviewed, f.Comments
-		}
-		items = append(items, item)
-	}
-	return items
-}
-
-func (n *dirNode) order() []string {
-	var out []string
-	for _, name := range slices.Sorted(maps.Keys(n.dirs)) {
-		out = append(out, n.dirs[name].order()...)
-	}
-	for _, f := range n.sortedFiles() {
-		out = append(out, f.Path)
-	}
-	return out
-}
-
-func (n *dirNode) sortedFiles() []reviewRow {
-	return slices.SortedFunc(slices.Values(n.files), func(a, b reviewRow) int { return strings.Compare(a.Path, b.Path) })
-}
-
 func (f filters) excludes() []string {
 	out := []string{}
 	if f.Tests {
@@ -787,14 +637,6 @@ func (f filters) excludes() []string {
 		out = append(out, f.Glob)
 	}
 	return out
-}
-
-func (f filters) chips() []reviewChip {
-	chips := []reviewChip{{ID: "tests", Label: "Tests", On: f.Tests}, {ID: "generated", Label: "Generated", On: f.Generated}}
-	if f.Glob != "" {
-		chips = append(chips, reviewChip{ID: "glob", Label: f.Glob, On: true})
-	}
-	return chips
 }
 
 func excluded(rel string, globs []string) bool {
