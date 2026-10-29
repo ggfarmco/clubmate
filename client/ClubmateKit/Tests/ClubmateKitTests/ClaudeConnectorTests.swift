@@ -23,12 +23,26 @@ final class ClaudeConnectorTests: XCTestCase {
         ])
     }
 
-    func testRunnerKillsAProcessIgnoringTerm() async {
+    func testRunnerReturnsStatusAndOutput() async {
+        let result = await SystemProcessRunner().run("/bin/sh", ["-c", "echo out; echo err >&2; exit 3"])
+        XCTAssertEqual(result, ProcessOutput(status: 3, output: "out\nerr\n"))
+    }
+
+    func testRunnerKillsAProcessIgnoringTerm() async throws {
+        let dir = try await TestCore.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let pidFile = dir.appending(path: "pid").path(percentEncoded: false)
         let started = ContinuousClock.now
-        let result = await SystemProcessRunner(timeout: .milliseconds(300)).run("/bin/sh", ["-c", "trap '' TERM; echo started; sleep 3"])
+        let result = await SystemProcessRunner(timeout: .milliseconds(300)).run("/bin/sh", ["-c", "trap '' TERM; sleep 30 & echo $! > '\(pidFile)'; echo started; wait"])
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(2))
         XCTAssertNotEqual(result.status, 0)
         XCTAssertEqual(result.output, "started\n")
+        let pid = try XCTUnwrap(Int32(String(contentsOfFile: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
+        let gone = ContinuousClock.now + .seconds(2)
+        while kill(pid, 0) == 0, ContinuousClock.now < gone {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertNotEqual(kill(pid, 0), 0)
     }
 }
 
