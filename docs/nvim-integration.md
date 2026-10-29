@@ -53,7 +53,7 @@ Opening a file larger than 5 MiB, or one whose first 8000 bytes contain a NUL by
 The `nvimConfig` setting (Settings → Editor) picks which config nvim uses:
 
 - `shared` (the default): `~/.config/nvim`, as in a plain terminal. Clubmate removes any inherited `NVIM_APPNAME` before it starts nvim.
-- `clubmate`: nvim starts with `NVIM_APPNAME=clubmate` (`clubmate-dev` for dev builds), so it uses `$XDG_CONFIG_HOME/<app>`, `$XDG_DATA_HOME/<app>`, `$XDG_STATE_HOME/<app>` and `$XDG_CACHE_HOME/<app>` (by default `~/.config`, `~/.local/share`, `~/.local/state` and `~/.cache`; per the XDG spec an empty or relative `XDG_*` value is ignored and the default is used).
+- `clubmate`: nvim starts with `NVIM_APPNAME=clubmate` (`clubmate-dev` for dev builds), so it uses `$XDG_CONFIG_HOME/<app>`, `$XDG_DATA_HOME/<app>`, `$XDG_STATE_HOME/<app>` and `$XDG_CACHE_HOME/<app>` (by default `~/.config`, `~/.local/share`, `~/.local/state` and `~/.cache`). Clubmate's copy and the dirs it reports follow the XDG spec and ignore an empty or relative `XDG_*` value, using the default; nvim itself does not, so keep `XDG_*` absolute.
 
 A running nvim keeps its config until it restarts. Paths hard-coded to `~/.config/nvim` in your config still point there.
 

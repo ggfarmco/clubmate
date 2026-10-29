@@ -29,6 +29,13 @@ final class AppModel {
     @ObservationIgnored private var restored = false
     @ObservationIgnored private var navigationPending = true
     @ObservationIgnored private var navigationAsked = false
+    @ObservationIgnored private(set) lazy var nvimConfig = NvimConfigModel(
+        run: { [weak self] workspace, invocation in
+            await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
+        },
+        workspaces: { [weak self] in await self?.nvimWorkspaces() ?? [] },
+        confirm: { message in await Confirmation.ask(message, action: "Restart", destructive: true) }
+    )
 
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
 
@@ -255,6 +262,29 @@ final class AppModel {
                 self.trackTerminalFontSize()
             }
         }
+    }
+
+    private func runCommand(_ invocation: CommandInvocation, in workspace: String?) async -> Result<JSONValue, ClubmateError> {
+        guard let client = supervisor.client else { return .failure(.notRunning) }
+        let active = keyWindowID.flatMap { layout.window($0)?.active } ?? layout.windows.lazy.compactMap(\.active).first
+        guard let projectID = workspace ?? active ?? projects?.projects.first?.id else { return .failure(.notRunning) }
+        do {
+            return .success(try await client.commandRun(id: invocation.id, projectID: projectID, args: invocation.args))
+        } catch let error as ClubmateError {
+            return .failure(error)
+        } catch {
+            return .failure(.protocolError("\(error)"))
+        }
+    }
+
+    private func nvimWorkspaces() async -> [NvimWorkspace] {
+        guard let client = supervisor.client, let sessions = try? await client.call(method: "session.list").arrayValue else { return [] }
+        let ids = sessions.compactMap { session -> String? in
+            guard let fields = session.objectValue, fields["owner"]?.stringValue == CodeSection.id,
+                  fields["state"]?.stringValue == "running" else { return nil }
+            return fields["projectId"]?.stringValue
+        }
+        return Array(Set(ids)).sorted().map { NvimWorkspace(id: $0, name: project($0)?.name ?? $0) }
     }
 
     func project(_ id: String) -> Project? {
