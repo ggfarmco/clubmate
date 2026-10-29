@@ -6,8 +6,17 @@ public enum NvimConfigMode: String, Sendable, CaseIterable {
     case clubmate
 }
 
+public enum NvimBinary: String, Sendable, CaseIterable {
+    case bundled
+    case system
+}
+
 public struct NvimConfigInfo: Equatable, Sendable {
     public var mode: NvimConfigMode
+    public var binary: NvimBinary
+    public let bundledVersion: String
+    public let systemPath: String
+    public let systemVersion: String
     public let app: String
     public let configDir: String
     public let dataDir: String
@@ -21,6 +30,10 @@ public struct NvimConfigInfo: Equatable, Sendable {
               let app = fields["app"]?.stringValue, let configDir = fields["configDir"]?.stringValue,
               let dataDir = fields["dataDir"]?.stringValue else { return nil }
         self.mode = mode
+        binary = fields["binary"]?.stringValue.flatMap(NvimBinary.init(rawValue:)) ?? .bundled
+        bundledVersion = fields["bundledVersion"]?.stringValue ?? ""
+        systemPath = fields["systemPath"]?.stringValue ?? ""
+        systemVersion = fields["systemVersion"]?.stringValue ?? ""
         self.app = app
         self.configDir = configDir
         self.dataDir = dataDir
@@ -28,6 +41,21 @@ public struct NvimConfigInfo: Equatable, Sendable {
         dataExists = fields["dataExists"]?.boolValue ?? false
         sourceConfigBytes = Int64(fields["sourceConfigBytes"]?.numberValue ?? -1)
         sourceDataBytes = Int64(fields["sourceDataBytes"]?.numberValue ?? -1)
+    }
+
+    public var bundledLabel: String {
+        let version = Self.displayVersion(bundledVersion)
+        return version.isEmpty ? "Built-in" : "Built-in (\(version))"
+    }
+
+    public var systemCaption: String {
+        if systemPath.isEmpty { return "System: not found in PATH" }
+        let version = Self.displayVersion(systemVersion)
+        return version.isEmpty ? "System: \(systemPath)" : "System: \(systemPath) — \(version)"
+    }
+
+    private static func displayVersion(_ raw: String) -> String {
+        raw.hasPrefix("NVIM v") ? String(raw.dropFirst("NVIM v".count)) : raw
     }
 }
 
@@ -162,6 +190,22 @@ public final class NvimConfigModel {
             return
         }
         await apply(mode)
+    }
+
+    public func chooseBinary(_ binary: NvimBinary) async {
+        guard let info, !busy, sheet == nil, binary != info.binary else { return }
+        busy = true
+        switch await run(nil, CommandInvocation(id: Self.configCommand, args: .object(["binary": .string(binary.rawValue)]))) {
+        case .success:
+            self.info?.binary = binary
+            error = nil
+            busy = false
+            await restartAll()
+            await load()
+        case .failure(let failure):
+            error = Self.text(failure)
+            busy = false
+        }
     }
 
     public func copy() async {

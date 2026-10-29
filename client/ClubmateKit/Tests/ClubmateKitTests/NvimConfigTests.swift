@@ -28,6 +28,30 @@ final class NvimConfigTests: XCTestCase {
         XCTAssertFalse(model.needsRestart)
     }
 
+    func testChooseBinaryRestarts() async throws {
+        let core = FakeNvimCore(statuses: [])
+        let model = makeModel(core)
+
+        await model.load()
+        await model.chooseBinary(.system)
+
+        XCTAssertEqual(core.mutations, [
+            Call(workspace: nil, CommandInvocation(id: "editor-nvim.config", args: .object(["binary": .string("system")]))),
+            Call(workspace: "w1", CommandInvocation(id: "editor-nvim.restart", args: .object([:]))),
+        ])
+        XCTAssertEqual(model.info?.binary, .system)
+    }
+
+    func testBinaryLabelsStripNvimPrefix() async throws {
+        let core = FakeNvimCore(statuses: [])
+        let model = makeModel(core)
+
+        await model.load()
+
+        XCTAssertEqual(model.info?.bundledLabel, "Built-in (0.12.6)")
+        XCTAssertEqual(model.info?.systemCaption, "System: /opt/homebrew/bin/nvim — 0.12.4")
+    }
+
     func testCancelKeepsShared() async throws {
         let core = FakeNvimCore(statuses: [])
         let model = makeModel(core)
@@ -124,6 +148,7 @@ private final class FakeNvimCore {
     private(set) var mutations: [Call] = []
     private(set) var polls = 0
     private var mode = "shared"
+    private var binary = "bundled"
     private let configExists: Bool
     private let dataExists: Bool
     private let unsaved: Bool
@@ -137,9 +162,11 @@ private final class FakeNvimCore {
 
     func run(_ workspace: String?, _ invocation: CommandInvocation) async -> Result<JSONValue, ClubmateError> {
         switch invocation.id {
-        case "editor-nvim.config" where invocation.args.objectValue?["mode"] == nil:
+        case "editor-nvim.config" where invocation.args.objectValue?["mode"] == nil && invocation.args.objectValue?["binary"] == nil:
             return .success(.object([
-                "mode": .string(mode), "app": .string("clubmate-dev"),
+                "mode": .string(mode), "binary": .string(binary),
+                "bundledVersion": .string("NVIM v0.12.6"), "systemPath": .string("/opt/homebrew/bin/nvim"),
+                "systemVersion": .string("NVIM v0.12.4"), "app": .string("clubmate-dev"),
                 "configDir": .string("/h/.config/clubmate-dev"), "dataDir": .string("/h/.local/share/clubmate-dev"),
                 "configExists": .bool(configExists), "dataExists": .bool(dataExists),
                 "sourceConfigBytes": .number(10), "sourceDataBytes": .number(-1),
@@ -155,6 +182,7 @@ private final class FakeNvimCore {
         default:
             mutations.append(Call(workspace: workspace, invocation))
             if let stored = invocation.args.objectValue?["mode"]?.stringValue { mode = stored }
+            if let stored = invocation.args.objectValue?["binary"]?.stringValue { binary = stored }
             return .success(.null)
         }
     }

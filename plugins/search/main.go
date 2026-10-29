@@ -271,9 +271,20 @@ func (a *app) grepNow(ctx context.Context, h *pluginsdk.Host, projectID string, 
 	return grepResult{Matches: matches, Truncated: truncated}, err
 }
 
+func rgBinary() (string, bool) {
+	if dir := pluginsdk.ResourcesDir(); dir != "" {
+		bundled := filepath.Join(dir, "tools", "rg")
+		if info, err := os.Stat(bundled); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+			return bundled, true
+		}
+	}
+	bin, err := exec.LookPath("rg")
+	return bin, err == nil
+}
+
 func (a *app) engine(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project, indexing func()) (engine, error) {
 	roots := newRoots(p.Repos)
-	if bin, err := exec.LookPath("rg"); err == nil && !slices.ContainsFunc(roots, func(r root) bool { return a.idx.guarded(r.resolved) }) {
+	if bin, ok := rgBinary(); ok && !slices.ContainsFunc(roots, func(r root) bool { return a.idx.guarded(r.resolved) }) {
 		return rgEngine{bin: bin, roots: roots}, nil
 	}
 	ready := make(chan time.Time)

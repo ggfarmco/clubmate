@@ -18,6 +18,7 @@ type Config struct {
 	Cwd        string   `json:"cwd"`
 	Env        []string `json:"env"`
 	UnsetEnv   []string `json:"unsetEnv"`
+	PathAppend []string `json:"pathAppend"`
 	Socket     string   `json:"socket"`
 	MetaPath   string   `json:"metaPath"`
 	Scrollback int      `json:"scrollback"`

@@ -38,7 +38,8 @@ var (
 )
 
 type configArgs struct {
-	Mode string `json:"mode"`
+	Mode   string `json:"mode"`
+	Binary string `json:"binary"`
 }
 
 type configInfo struct {
@@ -50,6 +51,11 @@ type configInfo struct {
 	DataExists        bool   `json:"dataExists"`
 	SourceConfigBytes int64  `json:"sourceConfigBytes"`
 	SourceDataBytes   int64  `json:"sourceDataBytes"`
+	Binary            string `json:"binary"`
+	BundledVersion    string `json:"bundledVersion"`
+	BundledPath       string `json:"bundledPath"`
+	SystemPath        string `json:"systemPath"`
+	SystemVersion     string `json:"systemVersion"`
 }
 
 type copyArgs struct {
@@ -145,13 +151,14 @@ func (a *app) sessionEnv(ctx context.Context, h *pluginsdk.Host) (env, unset []s
 }
 
 func (a *app) config(ctx context.Context, h *pluginsdk.Host, args configArgs) (any, error) {
-	if args.Mode != "" {
-		if args.Mode != modeShared && args.Mode != modeClubmate {
-			return nil, errConfigMode
-		}
-		return nil, h.StorageSet(ctx, nvimConfigKey, args.Mode)
+	if args.Mode != "" || args.Binary != "" {
+		return nil, a.setConfig(ctx, h, args)
 	}
 	mode, err := a.nvimMode(ctx, h)
+	if err != nil {
+		return nil, err
+	}
+	binary, err := a.nvimBinary(ctx, h)
 	if err != nil {
 		return nil, err
 	}
@@ -159,18 +166,44 @@ func (a *app) config(ctx context.Context, h *pluginsdk.Host, args configArgs) (a
 	if err != nil {
 		return nil, err
 	}
+	info := configInfo{
+		Mode:         mode,
+		App:          appName(),
+		ConfigDir:    dirs.config,
+		DataDir:      dirs.data,
+		ConfigExists: exists(dirs.config),
+		DataExists:   exists(dirs.data),
+		Binary:       binary,
+		BundledPath:  bundledNvim(),
+		SystemPath:   systemNvim(),
+	}
+	var wg sync.WaitGroup
+	wg.Go(func() { info.BundledVersion = nvimVersion(ctx, info.BundledPath) })
+	wg.Go(func() { info.SystemVersion = nvimVersion(ctx, info.SystemPath) })
 	sizeCtx, cancel := context.WithTimeout(ctx, sizeBudget)
 	defer cancel()
-	return configInfo{
-		Mode:              mode,
-		App:               appName(),
-		ConfigDir:         dirs.config,
-		DataDir:           dirs.data,
-		ConfigExists:      exists(dirs.config),
-		DataExists:        exists(dirs.data),
-		SourceConfigBytes: sourceSize(sizeCtx, dirs.srcConfig),
-		SourceDataBytes:   sourceSize(sizeCtx, dirs.srcData),
-	}, nil
+	info.SourceConfigBytes = sourceSize(sizeCtx, dirs.srcConfig)
+	info.SourceDataBytes = sourceSize(sizeCtx, dirs.srcData)
+	wg.Wait()
+	return info, nil
+}
+
+func (a *app) setConfig(ctx context.Context, h *pluginsdk.Host, args configArgs) error {
+	if args.Mode != "" && args.Mode != modeShared && args.Mode != modeClubmate {
+		return errConfigMode
+	}
+	if args.Binary != "" && args.Binary != binaryBundled && args.Binary != binarySystem {
+		return errBinaryMode
+	}
+	if args.Mode != "" {
+		if err := h.StorageSet(ctx, nvimConfigKey, args.Mode); err != nil {
+			return err
+		}
+	}
+	if args.Binary != "" {
+		return h.StorageSet(ctx, nvimBinaryKey, args.Binary)
+	}
+	return nil
 }
 
 func (a *app) configCopy(args copyArgs) (copyStarted, error) {

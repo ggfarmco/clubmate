@@ -239,12 +239,13 @@ type idParams struct {
 }
 
 type SessionRequest struct {
-	ProjectID string   `json:"projectId"`
-	Title     string   `json:"title"`
-	Command   []string `json:"command"`
-	Cwd       string   `json:"cwd"`
-	Env       []string `json:"env"`
-	UnsetEnv  []string `json:"unsetEnv"`
+	ProjectID  string   `json:"projectId"`
+	Title      string   `json:"title"`
+	Command    []string `json:"command"`
+	Cwd        string   `json:"cwd"`
+	Env        []string `json:"env"`
+	UnsetEnv   []string `json:"unsetEnv"`
+	PathAppend []string `json:"pathAppend"`
 }
 
 type runCommandParams struct {

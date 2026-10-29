@@ -68,6 +68,15 @@ func TestPluginsDoNotInheritMarkersAndAreNotInProcessTree(t *testing.T) {
 	}
 }
 
+func TestPluginsGetResourcesDir(t *testing.T) {
+	h := testutil.NewHarness(t, plugin.WithResourcesDir("/x/Resources"))
+	h.Start(t, testutil.EchoPluginDir(t))
+	testutil.Eventually(t, func() bool { return len(h.Sup.PIDs()) == 1 }, 5*time.Second)
+	env, err := proc.ReadEnv(h.Sup.PIDs()[0])
+	require.NoError(t, err)
+	assert.Contains(t, env, "CLUBMATE_RESOURCES=/x/Resources")
+}
+
 func TestSupervisorKillsLeftoverProcessGroupWhenPluginExits(t *testing.T) {
 	t.Setenv("ECHO_FORK_SLEEP", "1")
 	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))

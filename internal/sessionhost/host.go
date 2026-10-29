@@ -366,6 +366,30 @@ func childEnv(cfg Config) []string {
 	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "TERM=") }) {
 		env = append(env, defaultTerm)
 	}
+	return appendPath(env, cfg.PathAppend)
+}
+
+func appendPath(env, extra []string) []string {
+	if len(extra) == 0 {
+		return env
+	}
+	i := slices.IndexFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "PATH=") })
+	var parts []string
+	if i >= 0 {
+		if v := strings.TrimPrefix(env[i], "PATH="); v != "" {
+			parts = strings.Split(v, ":")
+		}
+	}
+	for _, e := range extra {
+		if !slices.Contains(parts, e) {
+			parts = append(parts, e)
+		}
+	}
+	joined := "PATH=" + strings.Join(parts, ":")
+	if i < 0 {
+		return append(env, joined)
+	}
+	env[i] = joined
 	return env
 }
 
