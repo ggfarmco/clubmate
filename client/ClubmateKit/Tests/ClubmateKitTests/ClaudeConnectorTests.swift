@@ -4,23 +4,26 @@ import XCTest
 import ClubmateKit
 
 final class ClaudeConnectorTests: XCTestCase {
-    func testConnectReplacesExistingServer() async {
+    func testLocateTakesClaudeAndLoginPath() async {
         let runner = FakeRunner(results: [
-            "/bin/zsh -l -i -c command -v claude": ProcessOutput(status: 0, output: "welcome\n/opt/bin/claude\n"),
+            #"/bin/zsh -l -i -c command -v claude; printf '%s\n' "$PATH""#: ProcessOutput(status: 0, output: "welcome\n/tmp/motd\n\n/opt/bin/claude\n/opt/bin:/usr/bin\n"),
             "/opt/bin/claude mcp get clubmate": ProcessOutput(status: 0, output: "clubmate: …\n"),
         ])
         let connector = ClaudeConnector(runner: runner, shell: "/bin/zsh")
-        let claude = await connector.locate()
-        XCTAssertEqual(claude, "/opt/bin/claude")
-        let result = await connector.connect(claude: "/opt/bin/claude", cli: "/App/bin/clubmate")
+        let location = await connector.locate()
+        XCTAssertEqual(location, ClaudeLocation(claude: "/opt/bin/claude", path: "/opt/bin:/usr/bin"))
+        guard let location else { return }
+        let result = await connector.connect(location, cli: "/App/bin/clubmate")
         XCTAssertEqual(result.status, 0)
         let calls = await runner.calls
-        XCTAssertEqual(calls, [
-            "/bin/zsh -l -i -c command -v claude",
+        XCTAssertEqual(calls.map(\.command), [
+            #"/bin/zsh -l -i -c command -v claude; printf '%s\n' "$PATH""#,
             "/opt/bin/claude mcp get clubmate",
             "/opt/bin/claude mcp remove --scope user clubmate",
             "/opt/bin/claude mcp add --scope user clubmate -- /App/bin/clubmate mcp",
         ])
+        XCTAssertNil(calls[0].environment)
+        XCTAssertTrue(calls.dropFirst().allSatisfy { $0.environment?.contains("PATH=/opt/bin:/usr/bin") == true })
     }
 
     func testRunnerReturnsStatusAndOutput() async {
@@ -46,20 +49,25 @@ final class ClaudeConnectorTests: XCTestCase {
     }
 }
 
+private struct Call: Sendable {
+    let command: String
+    let environment: [String]?
+}
+
 private actor FakeRunner: ProcessRunning {
     private let results: [String: ProcessOutput]
-    private(set) var calls: [String] = []
+    private(set) var calls: [Call] = []
 
     init(results: [String: ProcessOutput]) {
         self.results = results
     }
 
-    nonisolated func run(_ executable: String, _ arguments: [String]) async -> ProcessOutput {
-        await record(([executable] + arguments).joined(separator: " "))
+    nonisolated func run(_ executable: String, _ arguments: [String], environment: [String]?) async -> ProcessOutput {
+        await record(Call(command: ([executable] + arguments).joined(separator: " "), environment: environment))
     }
 
-    private func record(_ call: String) -> ProcessOutput {
+    private func record(_ call: Call) -> ProcessOutput {
         calls.append(call)
-        return results[call] ?? ProcessOutput(status: 0, output: "")
+        return results[call.command] ?? ProcessOutput(status: 0, output: "")
     }
 }

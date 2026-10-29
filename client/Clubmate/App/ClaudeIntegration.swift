@@ -18,28 +18,28 @@ final class ClaudeIntegration {
     private(set) var busy = false
 
     @ObservationIgnored private let connector = ClaudeConnector()
-    @ObservationIgnored private var path: String?
-    @ObservationIgnored private var locating: Task<String?, Never>?
+    @ObservationIgnored private var location: ClaudeLocation?
+    @ObservationIgnored private var locating: Task<ClaudeLocation?, Never>?
 
     func refresh() async {
         if locating == nil {
             let connector = connector
             locating = Task { await connector.locate() }
         }
-        path = await locating?.value
-        guard let path else {
+        location = await locating?.value
+        guard let location else {
             phase = .missing
             return
         }
-        phase = await connector.isConnected(claude: path) ? .connected : .disconnected
+        phase = await connector.isConnected(location) ? .connected : .disconnected
     }
 
     func connect() async {
-        guard !busy, let path, let cli = Bundle.main.resourceURL?.appending(path: "bin/clubmate").path(percentEncoded: false) else { return }
+        guard !busy, let location, let cli = Bundle.main.resourceURL?.appending(path: "bin/clubmate").path(percentEncoded: false) else { return }
         busy = true
         defer { busy = false }
-        let result = await connector.connect(claude: path, cli: cli)
+        let result = await connector.connect(location, cli: cli)
         output = result.output.isEmpty ? "exit \(result.status)" : result.output
-        phase = await connector.isConnected(claude: path) ? .connected : .disconnected
+        phase = await connector.isConnected(location) ? .connected : .disconnected
     }
 }

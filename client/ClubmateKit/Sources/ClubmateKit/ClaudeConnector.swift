@@ -12,7 +12,23 @@ public struct ProcessOutput: Sendable, Equatable {
 }
 
 public protocol ProcessRunning: Sendable {
-    func run(_ executable: String, _ arguments: [String]) async -> ProcessOutput
+    func run(_ executable: String, _ arguments: [String], environment: [String]?) async -> ProcessOutput
+}
+
+public struct ClaudeLocation: Sendable, Equatable {
+    public let claude: String
+    public let path: String
+
+    public init(claude: String, path: String) {
+        self.claude = claude
+        self.path = path
+    }
+
+    var environment: [String] {
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = path
+        return env.map { "\($0.key)=\($0.value)" }.sorted()
+    }
 }
 
 public struct ClaudeConnector: Sendable {
@@ -26,25 +42,30 @@ public struct ClaudeConnector: Sendable {
         self.shell = shell
     }
 
-    public func locate() async -> String? {
-        let result = await runner.run(shell, ["-l", "-i", "-c", "command -v claude"])
-        guard result.status == 0 else { return nil }
-        return result.output.split(whereSeparator: \.isNewline).map(String.init).last { $0.hasPrefix("/") }
+    public func locate() async -> ClaudeLocation? {
+        let result = await runner.run(shell, ["-l", "-i", "-c", #"command -v claude; printf '%s\n' "$PATH""#], environment: nil)
+        let lines = result.output.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard result.status == 0, lines.count >= 2, lines[lines.count - 2].hasPrefix("/") else { return nil }
+        return ClaudeLocation(claude: lines[lines.count - 2], path: lines[lines.count - 1])
     }
 
-    public func isConnected(claude: String) async -> Bool {
-        await runner.run(claude, ["mcp", "get", Self.serverName]).status == 0
+    public func isConnected(_ location: ClaudeLocation) async -> Bool {
+        await claude(location, ["mcp", "get", Self.serverName]).status == 0
     }
 
-    public func connect(claude: String, cli: String) async -> ProcessOutput {
+    public func connect(_ location: ClaudeLocation, cli: String) async -> ProcessOutput {
         var log = ""
-        if await isConnected(claude: claude) {
-            let removed = await runner.run(claude, ["mcp", "remove", "--scope", "user", Self.serverName])
+        if await isConnected(location) {
+            let removed = await claude(location, ["mcp", "remove", "--scope", "user", Self.serverName])
             log += removed.output
             guard removed.status == 0 else { return ProcessOutput(status: removed.status, output: log) }
         }
-        let added = await runner.run(claude, ["mcp", "add", "--scope", "user", Self.serverName, "--", cli, "mcp"])
+        let added = await claude(location, ["mcp", "add", "--scope", "user", Self.serverName, "--", cli, "mcp"])
         return ProcessOutput(status: added.status, output: log + added.output)
+    }
+
+    private func claude(_ location: ClaudeLocation, _ arguments: [String]) async -> ProcessOutput {
+        await runner.run(location.claude, arguments, environment: location.environment)
     }
 
     public static func loginShell() -> String {
@@ -63,12 +84,12 @@ public struct SystemProcessRunner: ProcessRunning {
         self.drain = drain
     }
 
-    public func run(_ executable: String, _ arguments: [String]) async -> ProcessOutput {
+    public func run(_ executable: String, _ arguments: [String], environment: [String]? = nil) async -> ProcessOutput {
         var fds: [Int32] = [-1, -1]
         guard pipe(&fds) == 0 else { return Self.failure("pipe") }
         let child: SpawnedChild
         do {
-            child = try SpawnedChild(executable, arguments, output: fds[1])
+            child = try SpawnedChild(executable, arguments, environment: environment, output: fds[1])
         } catch {
             close(fds[0])
             close(fds[1])
@@ -113,7 +134,7 @@ private final class SpawnedChild: @unchecked Sendable {
     private let lock = NSLock()
     private var reaped = false
 
-    init(_ executable: String, _ arguments: [String], output: Int32) throws {
+    init(_ executable: String, _ arguments: [String], environment: [String]?, output: Int32) throws {
         var actions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&actions)
         defer { posix_spawn_file_actions_destroy(&actions) }
@@ -127,8 +148,14 @@ private final class SpawnedChild: @unchecked Sendable {
         posix_spawnattr_setpgroup(&attr, 0)
         let argv = ([executable] + arguments).map { strdup($0) } + [nil]
         defer { argv.forEach { free($0) } }
+        let envp = environment.map { $0.map { strdup($0) } + [nil] }
+        defer { envp?.forEach { free($0) } }
         var pid: pid_t = 0
-        let rc = posix_spawn(&pid, executable, &actions, &attr, argv, environ)
+        let rc = if let envp {
+            posix_spawn(&pid, executable, &actions, &attr, argv, envp)
+        } else {
+            posix_spawn(&pid, executable, &actions, &attr, argv, environ)
+        }
         guard rc == 0 else { throw SpawnError(code: rc) }
         self.pid = pid
     }
@@ -147,7 +174,10 @@ private final class SpawnedChild: @unchecked Sendable {
 
     func killGroup() {
         lock.withLock {
-            if !reaped { kill(-pid, SIGKILL) }
+            if !reaped {
+                kill(-pid, SIGKILL)
+                kill(pid, SIGKILL)
+            }
         }
     }
 }
