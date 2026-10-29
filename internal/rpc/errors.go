@@ -23,6 +23,7 @@ const (
 	codeSessionRunning    = -32011
 	codePluginUnavailable = -32012
 	codePluginError       = -32013
+	codeDenied            = -32014
 )
 
 var (
@@ -33,6 +34,7 @@ var (
 	ErrMethodNotFound    = errors.New("method not found")
 	ErrPluginUnavailable = errors.New("plugin unavailable")
 	ErrPluginError       = errors.New("plugin error")
+	ErrDenied            = errors.New("denied")
 )
 
 type RemoteError struct {
@@ -66,6 +68,8 @@ func (e *RemoteError) Is(target error) bool {
 		return e.Code == codePluginUnavailable
 	case ErrPluginError:
 		return e.Code == codePluginError
+	case ErrDenied:
+		return e.Code == codeDenied
 	}
 	return false
 }
@@ -90,6 +94,8 @@ func errorCode(err error) int64 {
 	switch {
 	case errors.Is(err, project.ErrNotFound),
 		errors.Is(err, session.ErrNotFound),
+		errors.Is(err, session.ErrNotRunning),
+		errors.Is(err, session.ErrNoSnapshot),
 		errors.Is(err, errUnknownSubscription),
 		errors.Is(err, errUnknownSection),
 		errors.Is(err, errUnknownCommand):
@@ -98,6 +104,8 @@ func errorCode(err error) int64 {
 		return codePluginUnavailable
 	case errors.Is(err, ErrPluginError):
 		return codePluginError
+	case errors.Is(err, ErrDenied):
+		return codeDenied
 	case errors.Is(err, core.ErrNotTracked):
 		return codeNotTracked
 	case errors.Is(err, session.ErrRunning):

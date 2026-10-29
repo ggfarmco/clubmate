@@ -26,6 +26,7 @@ const (
 	notifyProjectOpen  = "project.open"
 
 	handleProjectOpen = "project.open"
+	handleUIConfirm   = "ui.confirm"
 )
 
 var ownerPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
@@ -67,6 +68,18 @@ type addRepoParams struct {
 type listSessionsParams struct {
 	ProjectID string `json:"projectId"`
 	Owner     string `json:"owner"`
+}
+
+type sessionSendParams struct {
+	ID    string `json:"id"`
+	Text  string `json:"text"`
+	Enter bool   `json:"enter"`
+}
+
+type sessionReadParams struct {
+	ID    string `json:"id"`
+	Bytes int    `json:"bytes"`
+	Raw   bool   `json:"raw"`
 }
 
 type pingResult struct {
@@ -169,6 +182,21 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			}
 			return empty{}, svc.KillSession(ctx, p.ID)
 		}),
+		"session.send": method(func(ctx context.Context, p sessionSendParams) (empty, error) {
+			if err := requireID(session.IDPrefix, p.ID); err != nil {
+				return empty{}, err
+			}
+			return empty{}, svc.SendSession(ctx, p.ID, p.Text, p.Enter)
+		}),
+		"session.read": method(func(ctx context.Context, p sessionReadParams) (session.Snapshot, error) {
+			if err := requireID(session.IDPrefix, p.ID); err != nil {
+				return session.Snapshot{}, err
+			}
+			if p.Bytes < 0 || p.Bytes > session.ReadMax {
+				return session.Snapshot{}, invalidParams(fmt.Sprintf("bytes must be 0..%d", session.ReadMax))
+			}
+			return svc.ReadSession(ctx, p.ID, p.Bytes, p.Raw)
+		}),
 		"session.remove": method(func(ctx context.Context, p idParams) (empty, error) {
 			if err := requireID(session.IDPrefix, p.ID); err != nil {
 				return empty{}, err
@@ -267,7 +295,7 @@ func (s *Server) clientRegister(ctx context.Context, p registerParams) (empty, e
 		return empty{}, invalidParams("client.register is not available to plugins")
 	}
 	for _, h := range p.Handles {
-		if h != handleProjectOpen {
+		if h != handleProjectOpen && h != handleUIConfirm {
 			return empty{}, invalidParams(fmt.Sprintf("unknown handle: %q", h))
 		}
 	}

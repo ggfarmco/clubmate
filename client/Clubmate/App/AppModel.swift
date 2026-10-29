@@ -11,6 +11,7 @@ final class AppModel {
     let supervisor: ConnectionSupervisor
     let updates: Updates
     let settings = AppSettings()
+    let claude = ClaudeIntegration()
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
     private(set) var switcherWindow: String?
@@ -267,6 +268,7 @@ final class AppModel {
         let paths = ClubmatePaths.resolve()
         try await CoreLauncher(cliPath: cli, bundledVersion: Bundle.main.clubmateVersion).ensureRunning(paths: paths)
         let client = try await CoreClient.connect(paths: paths)
+        client.confirmHandler = { [weak self] request, expiry in await self?.approve(request, expiry) ?? false }
         do {
             let commands = try await client.commandList()
             let projects = ProjectsStore(client: client)
@@ -285,6 +287,13 @@ final class AppModel {
             await client.close()
             throw error
         }
+    }
+
+    private func approve(_ request: ConfirmRequest, _ expiry: ConfirmExpiry) async -> Bool {
+        let window = keyWindowID.flatMap { hosts.object(forKey: $0 as NSString) } ?? layout.windows.lazy.compactMap { self.hosts.object(forKey: $0.id as NSString) }.first
+        let attention = NSApp.requestUserAttention(.criticalRequest)
+        defer { NSApp.cancelUserAttentionRequest(attention) }
+        return await Confirmation.ask(request.message, detail: request.detail, action: "Allow", cancel: "Deny", destructive: true, window: window, expiry: expiry)
     }
 
     private func restoreWindows(_ listed: [Project]) {

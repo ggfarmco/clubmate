@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
+	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
 )
 
@@ -22,6 +24,8 @@ var (
 	ErrInvalidManifest = errors.New("invalid plugin manifest")
 
 	idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
+
+	reservedIDs = []string{"core", "session", "workspace", "process", "ui"}
 )
 
 type Manifest struct {
@@ -54,10 +58,16 @@ type Section struct {
 }
 
 type CommandDef struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Hidden  bool   `json:"hidden"`
-	Confirm string `json:"confirm"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Hidden      bool           `json:"hidden"`
+	Confirm     string         `json:"confirm"`
+	Args        *schema.Object `json:"args"`
+	Result      *schema.Object `json:"result"`
+	Agent       bool           `json:"agent"`
+	Destructive bool           `json:"destructive"`
+	Provides    []string       `json:"provides"`
 }
 
 func Load(dir string) (Manifest, error) {
@@ -125,6 +135,9 @@ func (m Manifest) validate() error {
 	if !idPattern.MatchString(m.ID) {
 		return invalid(m.Dir, "id %q does not match %s", m.ID, idPattern)
 	}
+	if slices.Contains(reservedIDs, m.ID) {
+		return invalid(m.Dir, "id %q is reserved", m.ID)
+	}
 	if m.Protocol != ProtocolVersion {
 		return invalid(m.Dir, "protocol %d, want %d", m.Protocol, ProtocolVersion)
 	}
@@ -149,6 +162,14 @@ func (m Manifest) validate() error {
 	}
 	if err := m.validateIDs("command", commandIDs); err != nil {
 		return err
+	}
+	for _, c := range m.Contributes.Commands {
+		if err := schema.Check(c.Args); err != nil {
+			return invalid(m.Dir, "command %q args: %v", c.ID, err)
+		}
+		if err := schema.Check(c.Result); err != nil {
+			return invalid(m.Dir, "command %q result: %v", c.ID, err)
+		}
 	}
 	for _, v := range m.Contributes.Views {
 		if _, ok := sdui.SlotSection(v.Slot); !ok {

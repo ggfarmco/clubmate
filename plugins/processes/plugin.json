@@ -7,7 +7,14 @@
   "contributes": {
     "sections": [{"id": "processes", "title": "Processes", "icon": "cpu", "order": 30}],
     "commands": [
-      {"id": "processes.kill-orphans", "title": "Kill Orphan Processes", "confirm": "Kill orphan processes in this project?"}
+      {
+        "id": "processes.kill-orphans",
+        "title": "Kill Orphan Processes",
+        "confirm": "Kill orphan processes in this project?",
+        "agent": true,
+        "destructive": true,
+        "description": "Kill the orphaned processes left behind by this workspace's sessions (only the session selected in the Processes view, when one is)."
+      }
     ]
   }
 }

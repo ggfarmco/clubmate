@@ -115,8 +115,9 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.state.section | `{projectId}` | `{section}`, the section saved in the project's UI state (`""` when unset) |
 | fs.watch | `{projectId}` | `{watch}` |
 | fs.unwatch | `{watch}` | `{}` |
-| command.list | none | `[{id, title, plugin, hidden, confirm}]` |
-| command.run | `{id, projectId, args}` | plugin-defined JSON |
+| command.list | none | `[{id, title, description, plugin, hidden, confirm, args?, result?, agent, destructive, provides?}]` |
+| command.run | `{id, projectId, args, agent}` | plugin-defined JSON, or the primitive's result |
+| command.capabilities | none | `{capabilities: {name: commandId}}` |
 | ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
@@ -126,12 +127,36 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | workspace.touch | `{id}` | `{}` |
 | process.tree | `{projectId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
+| session.send | `{id, text, enter}` | `{}` |
+| session.read | `{id, bytes, raw}` | `{text, altScreen}` |
 
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
 
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
 
 A command with a non-empty `"confirm"` string in its manifest entry is listed with that text (`""` when absent); the client asks for confirmation with it before running the command.
+
+A manifest command entry may also declare, all optional and listed as declared:
+- `description` (`""` when absent): what the command does, for agents and `command describe`;
+- `args` and `result`: schemas for the command's args and its result (absent: any args, nothing declared);
+- `agent` (default `false`): the command is meant for agents;
+- `destructive` (default `false`): the command destroys state (closes, kills, discards);
+- `provides`: generic capability names the command implements.
+
+A schema is a small JSON Schema subset: an object `{properties: {name: prop}, required: [name]}` (object only at the top level), where a prop is `{type, items, enum, description, default}`, `type` is `string`, `integer`, `number`, `boolean` or `array`, and an `array` has scalar `items`. Only an `array` has `items` and only a scalar has `enum`; `enum` values and `default` must match the type (a `default` also the `enum`), and every `required` name must be a property; anything else fails manifest load. `default` is documentation only: the plugin applies it, the core never fills it in.
+
+`command.run` validates `args` against the command's `args` schema before routing, so the plugin is never called with bad args. Absent or `null` args count as `{}`; properties not in the schema are allowed; a `null` property counts as absent. Errors are invalid params naming the field: `args: want object`, `args.path: required`, `args.line: want integer`, `args.side: want one of ["left","right"]`, `args.paths[1]: want string`. `integer` rejects fractions and exponents. A command without an `args` schema accepts any args.
+
+`session.send` types `text` into a running session (a data frame on the session host's socket, chunked under the frame limit); with `enter: true` it sends `\r` as a separate frame 50 ms later, so a TUI sees a keypress rather than a paste. It then half-closes its connection and drains what the host sends until the host closes (2 s at most), so every input frame is consumed even when the host is still replaying a large ring to the new connection. `session.read` returns the last `bytes` (default 16384, 0 means default, more than 262144 is invalid params) of the session's output ring, cut from the raw bytes before processing. Without `raw` it renders the text the way a terminal shows each line: it drops OSC, DCS, SOS, PM and APC strings (up to BEL or `ESC \\`) and other escape sequences, but keeps a cursor on the current line: `\r` returns to column 0, `\b` and `CSI n D` move left, `CSI n C` moves right, `CSI n G` sets the column, `CSI K` (0, 1, 2) erases, and printable characters overwrite at the cursor (so a redraw by a line editor or zsh-syntax-highlighting reads back as the final line, and output ending in `50%\r` reads `50%`). Cursor moves stop at column 512 (an overflowing parameter counts as the maximum), lines are capped at 4096 characters, the rendered text is cut to its last `bytes` bytes, trailing spaces are trimmed, a control character right after `ESC` is kept, other control characters except tab and newline are dropped, and invalid UTF-8 is dropped (e.g. a character split by the cut); `raw: true` returns the tail as is. When the session's app is on the alternate screen it returns `altScreen: true` and no text. Both fail with not found (`-32004`) for a session that is not running. The core reads the ring with a new host frame: the client sends an empty `snapshot` frame (type 4), the host stops streaming to it and answers with one `snapshot` frame whose payload is `[1]` on the alternate screen, else `[0]` followed by the ring; data frames already queued may arrive first. The session protocol version is unchanged: hosts started by an older core ignore the frame, and `session.read` fails after 2 s with not found (`-32004`) `session host cannot be read; restart the session`.
+
+Sessions get `PATH` with the core's own directory first (`Contents/Resources/bin` in the app, `bin/` in dev), so `clubmate` works in clubmate terminals. The core prepends it only when that directory has an executable `clubmate`, and not when it is already first. A login shell may reorder `PATH`: macOS `/etc/zprofile` runs `path_helper`, which puts the system directories first, so a `clubmate` installed in a system directory (e.g. a release symlink in `/usr/local/bin`) wins over the bundled one.
+
+CLI over the registry:
+- `clubmate command list [--agent]` (`--agent`: only agent commands), `clubmate command describe <id|capability>` (description, flags, `provides`, args and result schemas).
+- `clubmate command run <id|capability> [key=value …] [--args JSON] [--project ID] [--agent]`: `--project` defaults to `$CLUBMATE_PROJECT_ID`; `key=value` pairs are coerced by the resolved command's schema (integer, number, boolean, string, array as comma-separated values) and an unknown key (or any key, for a command without an args schema) fails before calling the core, naming the key; pairs and `--args` are exclusive. The CLI never turns on `--agent` by itself, not even inside a clubmate session.
+- `clubmate open <file>[:line]` runs `editor.open` with `{path (absolute, from the CLI's cwd), line}`; a trailing `:line` or `:line:column` is parsed (the column is dropped; line 0 means no line), and anything else stays part of the path (`a:b.go:3` is `a:b.go` line 3).
+- `clubmate session send <id> <text> [--enter]` and `clubmate session read <id> [--bytes N] [--raw]` run `session.send` / `session.read` through `command.run` (not as agent calls).
+- `clubmate mcp` is a stdio MCP server (newline-delimited JSON-RPC 2.0, protocol `2025-06-18`; `initialize`, `ping`, `tools/list`, `tools/call`; other requests get `-32601`, notifications get no reply; stdout carries only protocol messages). Tools are the agent commands (core primitives included), named by id with `.` and `-` turned into `_`; a command that provides a capability is listed under the capability name instead. `inputSchema` is `{type: "object"}` with the command's args plus an optional `workspace`; annotations carry `destructiveHint` (the command's flag) and `readOnlyHint` (`workspace.list`, `session.list`, `session.read`, `process.tree`, `terminals.busy`). `tools/call` runs `command.run` with `agent: true` and `projectId` = `workspace`, else `$CLUBMATE_PROJECT_ID`, else the most recently opened workspace; the result is one text item with the JSON result, and failures (including approval refusals) are `isError: true` with the message. It never starts the core: without one, `tools/list` lists the core primitives and every call fails with `Clubmate isn't running`. There are no plugin-change events (manifests are read once per core start), so it re-checks the tool list every 5 s and sends `notifications/tools/list_changed` when it differs from the last list it served. See `docs/agents.md`.
 
 `process.tree`'s `args` is the full argv (`[]` when it can't be read, e.g. for another user's process) and `startTime` is RFC 3339.
 
@@ -143,13 +168,42 @@ Projects are shown to users as workspaces; `clubmate project …` is an alias of
 
 `workspace.open` resolves each folder path (symlinks resolved, cleaned), drops duplicates and returns the project whose repos are exactly that set (order-insensitive, stored repos resolved the same way) with `created: false`; otherwise it creates a project with the resolved folders, named after the base name of the first one (`project.created`), with `created: true`. Folders must be absolute paths to existing directories (otherwise invalid params, as is an empty `folders`). `workspace.home` returns the single `home: true` project, named `~` and rooted at the user's home directory, creating it (`project.created`) on first use. Both then send the `project.open` notification exactly like `project.open` (not to the caller) and return how many were notified (`clients`); `clubmate workspace open <dir>…` and `clubmate workspace home` run the app like `open --id` when `clients` is 0. `workspace.touch` sets `lastOpenedAt` to now (not found for an unknown project); clients call it when they activate a workspace. `project.rename` fails with invalid params on a blank name and publishes `project.updated`.
 
-`client.register` marks the calling connection for the listed handles; the only handle is `"project.open"` and anything else is invalid params. Registration lasts for the connection. Plugin callers get invalid params.
+`client.register` marks the calling connection for the listed handles: `"project.open"` and `"ui.confirm"`; anything else is invalid params. The app registers both. Registration lasts for the connection. Plugin callers get invalid params.
 
 `ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`, or `edge` is not absent, `""`, `h`, `j`, `k` or `l`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusEdge` to pass `edge`.
 
 `ui.render` is invalid params for a project that has been deleted.
 
-`command.run` fails with unknown command when `id` is not listed; it is routed to the plugin that registered the command.
+`command.run` resolves `id` to a command: a listed command id wins; otherwise `id` is taken as a capability name (see below). It fails with unknown command when neither matches; it is routed to the plugin that registered the resolved command, which receives the resolved command id (not the capability name) in `id`.
+
+A capability is a generic name a command declares in `provides`, so callers need not know which plugin implements it. A capability resolves to the first provider in plugin load (discovery) order whose plugin is running, else to the first provider (then `command.run` fails with plugin unavailable). When several commands provide one capability the core logs `capability X provided by A and B; using A` (command ids) once per distinct outcome. `command.capabilities` returns that resolution for every declared capability. Bundled capabilities: `editor.open` (`editor-nvim.open`), `editor.reveal` (`editor-nvim.reveal`), `terminal.new` (`terminals.new`), `terminal.close` (`terminals.close`), `files.reveal` (`files.reveal`), `git.stage-all` (`git.stage-all`), `git.review` (`git.review-branch`).
+
+`command.list` also lists the core primitives, with `plugin: "core"`, `agent: true` and `hidden: true` (so the palette leaves them out). `command.run` resolves a primitive id before plugin commands and capabilities, and runs it with the existing method's handler. Plugin ids `core`, `session`, `workspace`, `process` and `ui` are reserved (manifest load fails), and `command.capabilities` maps a capability named like a primitive to that primitive, as `command.run` does:
+
+| Primitive | Method | Args | `projectId` |
+|---|---|---|---|
+| `workspace.list` | `project.list` | none | ignored |
+| `workspace.open` | `workspace.open` | `{folders}` | ignored |
+| `workspace.home` | `workspace.home` | none | ignored |
+| `session.list` | `session.list` (all workspaces) | none | ignored |
+| `session.create` | `session.create` (a login shell) | `{cwd?, title?}` | required, passed as the session's project |
+| `session.kill` (destructive) | `session.kill` | `{id}` | ignored; the approval names the session's own workspace |
+| `session.send` (destructive) | `session.send` | `{id, text, enter?}` | ignored; the approval names the session's own workspace |
+| `session.read` | `session.read` | `{id, bytes?, raw?}` | ignored |
+| `process.tree` | `process.tree` (all sessions) | none | ignored |
+| `ui.focus` | `ui.focus` | `{section}` | required |
+
+Plugin commands keep requiring a valid `projectId`. An agent `session.send` always needs approval, also into the agent's own session. Approval shows the full `text`, so the 200-character limit applies: agents send long input in chunks. An agent call accepts only the keys the resolved command's args schema declares, matched exactly (primitives and plugin commands alike; a plugin command without a schema accepts any args unless it is destructive) (so `command`, `env` or a case variant like `Command` is invalid params: `args.Command: not allowed in agent calls`); the core rebuilds the args from those keys and dispatches that object.
+
+An agent call is `command.run` with `agent: true` (the CLI's `command run --agent`; the MCP server always sets it). It resolves only core primitives and commands with `agent: true` (judged on the resolved command, never on the capability name); anything else fails with not found, as if unknown. Args are validated first. Then a `destructive` command needs the user's approval, and what the user approves is exactly what runs, so its args must be approvable or the call fails with invalid params before anyone is asked: an object (absent or `null` counts as `{}`); no args at all when the command declares no `args` schema; only keys its schema declares (`args.<key>: not declared`); at most 10 fields; each value at most 200 characters (a string's characters, otherwise its compact JSON); no number beyond ±2^53, anywhere in a value (`args.<key>: number outside ±2^53`), so the app shows it exactly. These limits live in the core (`approvalMaxFields`, `approvalMaxValue`, `approvalMaxInt`); the app checks the field and length limits itself and never truncates args. The core then sends the request `ui.confirm` `{title, workspace, command, args, timeoutMs, session?}` (`title` is the command's title, `workspace` the affected workspace's name or `""`, `command` the resolved id, `args` the args exactly as they will run, or `{}`; once approved, exactly these bytes are dispatched; `timeoutMs` is 60000; `session` is `{id, title, workspace}` of the targeted session, when the args name one: `id` for `session.send`/`session.kill`, `sessionId` for plugin commands such as `terminals.close`) to one connection that registered `"ui.confirm"`: one that has a `ui.subscribe` subscription for the affected workspace if any, else the earliest connected. It waits up to 60 s for `{approved}`. The call fails with `-32014` (denied) and one of these messages, and the command does not run:
+- `no app to approve`: no connection registered `"ui.confirm"`, or the request failed;
+- `denied by user`: the answer was `approved: false` (when the answer carries a `reason`, that is the message instead);
+- `approval timed out`: no answer within 60 s, or the app's own answer that it timed out;
+- `approval busy`: that connection already has an approval pending (one per connection; the second is denied, not queued).
+
+An approval outlives a dropped caller: if the caller disconnects while the alert is up, the request stays pending until it is answered or times out, and an approved command still runs. Non-agent calls (the app, plugins, the CLI without `--agent`) are unchanged: any listed command runs without approval. Agent mode is a cooperative guard, not a security boundary: any same-uid process can reach the core socket directly (and call without `agent`, or register `ui.confirm` itself).
+
+The app answers `ui.confirm` with an alert "Allow agent to <title>?" whose text lists the workspace, the command, the targeted session (title, id and workspace) and each argument (shown in full; scalars of general category control, format, line separator or paragraph separator escaped as `\n`, `\r`, `\t` or `\u{…}`, so a value cannot fake extra lines or reorder text; the title, workspace and command are escaped the same way and cut at 200 characters with `…`). The alert has Allow and Deny (Deny is the default and holds focus; Allow never takes keyboard focus, so a space typed into the terminal as the alert appears can't approve; Esc denies). If the args exceed the app's own limits (more than 10 fields, or a value over 200 characters) it shows no alert and answers `{approved: false, reason: "args too long to display"}`, so the alert never shows less than what runs. The alert closes itself 5 s before `timeoutMs` and the app answers `{approved: false, reason: "approval timed out"}`. It is a sheet on the key workspace window (else the first workspace window, else a modal alert) and asks for attention (dock bounce) until it closes.
 
 `files.collapse-others` ("Collapse Others") takes no args. It keeps expanded only the repo roots and the ancestors of the selected file (the file last opened in or revealed from the editor), persists the expanded set and re-renders the tree. In the files tree a directory whose only visible entry is one directory is merged with it into one row labelled `a / b / c` whose id is the deepest path; expand and collapse act on that path. File rows have no icon.
 

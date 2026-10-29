@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -72,12 +73,29 @@ type ListFilter struct {
 }
 
 type Manager struct {
-	dirs    paths.Dirs
-	hostBin string
+	dirs            paths.Dirs
+	hostBin         string
+	pathDir         string
+	snapshotTimeout time.Duration
 }
 
-func NewManager(dirs paths.Dirs, hostBin string) *Manager {
-	return &Manager{dirs: dirs, hostBin: hostBin}
+type Option func(*Manager)
+
+func WithPathDir(dir string) Option {
+	return func(m *Manager) {
+		info, err := os.Stat(filepath.Join(dir, "clubmate"))
+		if err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+			m.pathDir = dir
+		}
+	}
+}
+
+func NewManager(dirs paths.Dirs, hostBin string, opts ...Option) *Manager {
+	m := &Manager{dirs: dirs, hostBin: hostBin, snapshotTimeout: snapshotTimeout}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
 }
 
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error) {
@@ -167,7 +185,7 @@ func (m *Manager) spawn(sid string, payload []byte) (int, error) {
 	}
 	defer logFile.Close()
 	cmd := exec.Command(m.hostBin)
-	cmd.Env = hostEnv()
+	cmd.Env = prependPath(hostEnv(), m.pathDir)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Stdout = logFile
@@ -190,6 +208,26 @@ func hostEnv() []string {
 	return slices.DeleteFunc(env, func(kv string) bool {
 		return kv == "CLUBMATE_STATE_DIR="+defaults.State || kv == "CLUBMATE_RUNTIME_DIR="+defaults.Runtime
 	})
+}
+
+func prependPath(env []string, dir string) []string {
+	if dir == "" {
+		return env
+	}
+	i := slices.IndexFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "PATH=") })
+	if i < 0 {
+		return append(env, "PATH="+dir)
+	}
+	current := strings.TrimPrefix(env[i], "PATH=")
+	if first, _, _ := strings.Cut(current, ":"); first == dir {
+		return env
+	}
+	if current == "" {
+		env[i] = "PATH=" + dir
+	} else {
+		env[i] = "PATH=" + dir + ":" + current
+	}
+	return env
 }
 
 func (m *Manager) awaitReady(ctx context.Context, sid string, pid int) error {

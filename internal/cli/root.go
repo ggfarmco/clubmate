@@ -45,7 +45,7 @@ func newRoot(stdout, stderr io.Writer, launch func(ctx context.Context, projectI
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	root.PersistentFlags().BoolVar(&a.asJSON, "json", false, "print raw result as JSON")
-	root.AddCommand(a.workspaceCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd(), a.coreCmd(), a.versionCmd())
+	root.AddCommand(a.workspaceCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd(), a.openCmd(), a.mcpCmd(), a.coreCmd(), a.versionCmd())
 	return root
 }
 

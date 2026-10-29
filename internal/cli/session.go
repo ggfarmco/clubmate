@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -16,7 +17,7 @@ const fallbackShell = "/bin/zsh"
 
 func (a *app) sessionCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "session", Short: "Manage sessions"}
-	cmd.AddCommand(a.sessionCreateCmd(), a.sessionListCmd(), a.sessionKillCmd(), a.sessionRemoveCmd())
+	cmd.AddCommand(a.sessionCreateCmd(), a.sessionListCmd(), a.sessionKillCmd(), a.sessionRemoveCmd(), a.sessionSendCmd(), a.sessionReadCmd())
 	return cmd
 }
 
@@ -100,6 +101,56 @@ func (a *app) sessionRemoveCmd() *cobra.Command {
 			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "removed", args[0]) })
 		},
 	}
+}
+
+func (a *app) sessionSendCmd() *cobra.Command {
+	var enter bool
+	cmd := &cobra.Command{
+		Use:   "send <id> <text>",
+		Short: "Type text into a session",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			params := commandParams("session.send", "")
+			params["args"] = map[string]any{"id": args[0], "text": args[1], "enter": enter}
+			var res json.RawMessage
+			if err := a.call(cmd.Context(), "command.run", params, &res); err != nil {
+				return err
+			}
+			return a.render(res, func(io.Writer) {})
+		},
+	}
+	cmd.Flags().BoolVar(&enter, "enter", false, "press Enter after the text")
+	return cmd
+}
+
+func (a *app) sessionReadCmd() *cobra.Command {
+	var (
+		bytes int
+		raw   bool
+	)
+	cmd := &cobra.Command{
+		Use:   "read <id>",
+		Short: "Print the tail of a session's output",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			params := commandParams("session.read", "")
+			params["args"] = map[string]any{"id": args[0], "bytes": bytes, "raw": raw}
+			var snap session.Snapshot
+			if err := a.call(cmd.Context(), "command.run", params, &snap); err != nil {
+				return err
+			}
+			return a.render(snap, func(w io.Writer) {
+				if snap.AltScreen {
+					fmt.Fprintln(cmd.ErrOrStderr(), "a full-screen app is running; no text to read")
+					return
+				}
+				fmt.Fprint(w, snap.Text)
+			})
+		},
+	}
+	cmd.Flags().IntVar(&bytes, "bytes", session.ReadDefault, fmt.Sprintf("bytes to read from the end (max %d)", session.ReadMax))
+	cmd.Flags().BoolVar(&raw, "raw", false, "keep ANSI escapes")
+	return cmd
 }
 
 func defaultCommand() []string {

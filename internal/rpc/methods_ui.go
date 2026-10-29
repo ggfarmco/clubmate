@@ -12,6 +12,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/project"
+	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
 	pkgsdui "clubmate/pkg/sdui"
 )
@@ -32,14 +33,22 @@ type Router interface {
 	UIEvent(ctx context.Context, pluginID string, ev json.RawMessage) (json.RawMessage, error)
 	Command(ctx context.Context, pluginID string, run json.RawMessage) (json.RawMessage, error)
 	Commands() []Command
+	Resolve(id string) (Command, bool)
+	Capabilities() map[string]string
 }
 
 type Command struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Plugin  string `json:"plugin"`
-	Hidden  bool   `json:"hidden"`
-	Confirm string `json:"confirm"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Plugin      string         `json:"plugin"`
+	Hidden      bool           `json:"hidden"`
+	Confirm     string         `json:"confirm"`
+	Args        *schema.Object `json:"args,omitempty"`
+	Result      *schema.Object `json:"result,omitempty"`
+	Agent       bool           `json:"agent"`
+	Destructive bool           `json:"destructive"`
+	Provides    []string       `json:"provides,omitempty"`
 }
 
 type uiState struct {
@@ -88,10 +97,15 @@ type uiEventParams struct {
 	Value     json.RawMessage `json:"value"`
 }
 
+type capabilitiesResult struct {
+	Capabilities map[string]string `json:"capabilities"`
+}
+
 type commandRunParams struct {
 	ID        string          `json:"id"`
 	ProjectID string          `json:"projectId"`
 	Args      json.RawMessage `json:"args"`
+	Agent     bool            `json:"agent,omitempty"`
 }
 
 type uiUpdatedParams struct {
@@ -105,16 +119,17 @@ func (s *Server) SetUI(store *sdui.Store, sections *sdui.Sections, router Router
 
 func (s *Server) uiMethods() map[string]handlerFunc {
 	return map[string]handlerFunc{
-		"ui.sections":    method(s.uiSections),
-		"ui.get":         method(s.uiGet),
-		"ui.subscribe":   method(s.uiSubscribe),
-		"ui.unsubscribe": method(s.uiUnsubscribe),
-		"ui.presence":    method(s.uiPresence),
-		"ui.focus":       method(s.uiFocus),
-		"ui.render":      method(s.uiRender),
-		"ui.event":       method(s.uiEvent),
-		"command.list":   method(s.commandList),
-		"command.run":    method(s.commandRun),
+		"ui.sections":          method(s.uiSections),
+		"ui.get":               method(s.uiGet),
+		"ui.subscribe":         method(s.uiSubscribe),
+		"ui.unsubscribe":       method(s.uiUnsubscribe),
+		"ui.presence":          method(s.uiPresence),
+		"ui.focus":             method(s.uiFocus),
+		"ui.render":            method(s.uiRender),
+		"ui.event":             method(s.uiEvent),
+		"command.list":         method(s.commandList),
+		"command.run":          method(s.commandRun),
+		"command.capabilities": method(s.commandCapabilities),
 	}
 }
 
@@ -266,7 +281,7 @@ func (s *Server) commandList(context.Context, empty) ([]Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nonNil(u.router.Commands()), nil
+	return append(primitiveCommands(), u.router.Commands()...), nil
 }
 
 func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMessage, error) {
@@ -274,20 +289,65 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireProject(ctx, p.ProjectID); err != nil {
-		return nil, err
-	}
-	for _, c := range u.router.Commands() {
-		if c.ID != p.ID {
-			continue
+	prim, isPrimitive := primitives[p.ID]
+	c := prim.cmd
+	if !isPrimitive {
+		var ok bool
+		if c, ok = u.router.Resolve(p.ID); !ok {
+			return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
 		}
-		raw, err := json.Marshal(p)
-		if err != nil {
+	}
+	if p.Agent && !c.Agent {
+		return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
+	}
+	scope := ""
+	if !isPrimitive || prim.needsProject {
+		if err := s.requireProject(ctx, p.ProjectID); err != nil {
 			return nil, err
 		}
-		return u.router.Command(ctx, c.Plugin, raw)
+		scope = p.ProjectID
 	}
-	return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
+	if err := schema.Validate(c.Args, p.Args); err != nil {
+		return nil, invalidParams(err.Error())
+	}
+	if p.Agent && (isPrimitive || c.Args != nil) {
+		if p.Args, err = exactArgs(c, p.Args); err != nil {
+			return nil, err
+		}
+	}
+	if isPrimitive && prim.scope != nil {
+		if scope, err = prim.scope(ctx, s.svc, p.ProjectID, p.Args); err != nil {
+			return nil, err
+		}
+	}
+	if p.Agent && c.Destructive {
+		if p.Args, err = s.approve(ctx, c, scope, sessionArg(isPrimitive), p.Args); err != nil {
+			return nil, err
+		}
+	}
+	if isPrimitive {
+		return s.runPrimitive(ctx, prim, p.ProjectID, p.Args)
+	}
+	p.ID = c.ID
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+	return u.router.Command(ctx, c.Plugin, raw)
+}
+
+func (s *Server) commandCapabilities(context.Context, empty) (capabilitiesResult, error) {
+	u, err := s.uiState()
+	if err != nil {
+		return capabilitiesResult{}, err
+	}
+	caps := u.router.Capabilities()
+	for name := range caps {
+		if _, ok := primitives[name]; ok {
+			caps[name] = name
+		}
+	}
+	return capabilitiesResult{Capabilities: caps}, nil
 }
 
 func (s *Server) uiState() (*uiState, error) {

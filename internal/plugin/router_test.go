@@ -3,6 +3,7 @@ package plugin_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"runtime"
 	"strings"
@@ -44,8 +45,8 @@ func TestUIRenderEventAndOwnership(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "echo.main", "nodeId": "x", "action": "say", "value": "hi"}, &res))
 	assert.Equal(t, "hi", res["said"])
 	var echoed map[string]any
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"n": 1}}, &echoed))
-	assert.Equal(t, map[string]any{"n": 1.0}, echoed)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi", "n": 1}}, &echoed))
+	assert.Equal(t, map[string]any{"plugin": "echo", "args": map[string]any{"text": "hi", "n": 1.0}}, echoed)
 	err = h.PluginCall(t, "echo", "ui.render", map[string]any{"projectId": p.ID, "slot": "terminals.main", "tree": map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}})
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
@@ -103,7 +104,7 @@ func TestRoutingToStoppedPluginIsUnavailable(t *testing.T) {
 	h.Start(t, testutil.EchoPluginDir(t))
 	c := h.Client(t)
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
-	err = c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID}, nil)
+	err = c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi"}}, nil)
 	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
 }
 
@@ -117,6 +118,47 @@ func TestSubscriptionIDsAreScopedByKind(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
 	assert.ErrorIs(t, c.Call(t.Context(), "bus.unsubscribe", sub, nil), rpc.ErrNotFound)
 	assert.NoError(t, c.Call(t.Context(), "ui.unsubscribe", sub, nil))
+}
+
+func TestCapabilityRouting(t *testing.T) {
+	t.Setenv("ECHO_CRASH_ID", "delta")
+	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	sayer := func(id string, provides ...string) string {
+		caps, err := json.Marshal(provides)
+		require.NoError(t, err)
+		return fmt.Sprintf(`{"id":%q,"name":%q,"version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"%s.say","title":"Say","provides":%s}]}}`, id, id, id, caps)
+	}
+	h.Start(t,
+		testutil.EchoPluginDirAs(t, sayer("delta", "echo.down-cap")),
+		testutil.EchoPluginDirAs(t, sayer("beta", "echo.say-cap")),
+		testutil.EchoPluginDirAs(t, sayer("alpha", "echo.say-cap", "echo.down-cap", "beta.say")),
+	)
+	testutil.Eventually(t, func() bool {
+		states := map[string]string{}
+		for _, st := range h.Sup.Statuses() {
+			states[st.ID] = st.State
+		}
+		return states["delta"] == plugin.StateBackoff && states["beta"] == plugin.StateRunning && states["alpha"] == plugin.StateRunning
+	}, 5*time.Second)
+	c := h.Client(t)
+	run := func(id string) string {
+		var out struct {
+			Plugin string `json:"plugin"`
+		}
+		require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": p.ID}, &out))
+		return out.Plugin
+	}
+	assert.Equal(t, "beta", run("echo.say-cap"))
+	assert.Equal(t, "alpha", run("alpha.say"))
+	assert.Equal(t, "alpha", run("echo.down-cap"))
+	assert.Equal(t, "beta", run("beta.say"))
+	var caps struct {
+		Capabilities map[string]string `json:"capabilities"`
+	}
+	require.NoError(t, c.Call(t.Context(), "command.capabilities", struct{}{}, &caps))
+	assert.Equal(t, map[string]string{"echo.say-cap": "beta.say", "echo.down-cap": "alpha.say", "beta.say": "beta.say"}, caps.Capabilities)
 }
 
 type noopHandler struct{}

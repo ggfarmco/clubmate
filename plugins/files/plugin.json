@@ -7,10 +7,38 @@
   "contributes": {
     "views": [{"slot": "editor-nvim.sidebar"}],
     "commands": [
-      {"id": "files.refresh", "title": "Refresh File Tree"},
-      {"id": "files.toggle-ignored", "title": "Toggle Ignored Files"},
-      {"id": "files.collapse-others", "title": "Collapse Others"},
-      {"id": "files.reveal", "title": "Reveal File in Tree", "hidden": true}
+      {
+        "id": "files.refresh",
+        "title": "Refresh File Tree",
+        "agent": true,
+        "description": "Re-read the workspace file tree from disk."
+      },
+      {
+        "id": "files.toggle-ignored",
+        "title": "Toggle Ignored Files",
+        "agent": true,
+        "description": "Show or hide git-ignored files in the file tree."
+      },
+      {
+        "id": "files.collapse-others",
+        "title": "Collapse Others",
+        "agent": true,
+        "description": "Collapse every directory in the file tree except the workspace folders and the ancestors of the selected file."
+      },
+      {
+        "id": "files.reveal",
+        "provides": ["files.reveal"],
+        "title": "Reveal File in Tree",
+        "hidden": true,
+        "agent": true,
+        "description": "Select a file in the file tree, expanding its parent directories; a no-op for a path outside the workspace folders.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute path of the file to select."}
+          },
+          "required": ["path"]
+        }
+      }
     ]
   }
 }

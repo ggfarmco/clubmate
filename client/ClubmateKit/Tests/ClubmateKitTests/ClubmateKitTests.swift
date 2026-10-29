@@ -63,6 +63,67 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testConfirmRequestDecodes() throws {
+        let fixture = Data(#"{"title":"Close Terminal","workspace":"demo","command":"terminals.close","args":{"sessionId":"ses_1","force":true,"line":3}}"#.utf8)
+        let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
+        XCTAssertEqual(request, ConfirmRequest(title: "Close Terminal", workspace: "demo", command: "terminals.close", args: .object(["sessionId": .string("ses_1"), "force": .bool(true), "line": .number(3)])))
+        XCTAssertEqual(request.message, "Allow agent to close Terminal?")
+        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: terminals.close\nforce: true\nline: 3\nsessionId: ses_1")
+    }
+
+    func testConfirmDetailEscapes() {
+        let long = String(repeating: "x", count: 300)
+        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id\nCommand: fake": .string("ses_1\u{2028}Approved\u{202E}: yes"), "note": .string(long)]), session: ConfirmSession(id: "ses_1", title: "Build", workspace: "demo"))
+        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nSession: Build (ses_1) in demo\nid\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
+    }
+
+    func testConfirmTooLongIsDeniedUnasked() async {
+        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(String(repeating: "x", count: 201))]))
+        var asked = false
+        let reply = await ConfirmRequest.answer(request) { _, _ in
+            asked = true
+            return true
+        }
+        XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "args too long to display"))
+        XCTAssertFalse(asked)
+    }
+
+    func testConfirmExpiresBeforeCoreTimeout() async {
+        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .null, timeoutMs: 5001)
+        XCTAssertEqual(request.deadline, .milliseconds(1))
+        let reply = await ConfirmRequest.answer(request) { _, expiry in
+            await withCheckedContinuation { continuation in
+                expiry.onExpire { continuation.resume(returning: true) }
+            }
+        }
+        XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "approval timed out"))
+    }
+
+    func testAgentApprovalRoundTrip() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        try core?.cli("session", "create", "--project", project.id, "--", "/bin/sleep", "60")
+        let sessions = try await client.call(method: "session.list")
+        guard let id = sessions.arrayValue?.first?.objectValue?["id"]?.stringValue else { throw TestFailure(description: "no session") }
+        try await client.register(handles: ["ui.confirm"])
+        let approvals = Approvals()
+        client.confirmHandler = { request, _ in
+            approvals.asked.append(request)
+            return approvals.answer
+        }
+        let kill = JSONValue.object(["id": .string("session.kill"), "agent": .bool(true), "args": .object(["id": .string(id)])])
+        do {
+            _ = try await client.call(method: "command.run", params: kill)
+            XCTFail("kill ran without approval")
+        } catch {
+            XCTAssertEqual(error as? ClubmateError, .rpc(code: -32014, message: "denied by user"))
+        }
+        approvals.answer = true
+        _ = try await client.call(method: "command.run", params: kill)
+        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000, session: ConfirmSession(id: id, title: "", workspace: "demo")), count: 2))
+        await client.close()
+    }
+
     func testRefusesInsecureRuntime() async throws {
         let base = try TestCore.makeTempDir()
         defer { try? FileManager.default.removeItem(at: base) }
@@ -169,4 +230,10 @@ final class ClubmateKitTests: XCTestCase {
         }
         return fd
     }
+}
+
+@MainActor
+private final class Approvals {
+    var asked: [ConfirmRequest] = []
+    var answer = false
 }

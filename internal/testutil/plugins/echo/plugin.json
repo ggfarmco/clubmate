@@ -6,6 +6,6 @@
   "command": ["echo"],
   "contributes": {
     "sections": [{"id": "echo", "title": "Echo", "order": 99}],
-    "commands": [{"id": "echo.say", "title": "Say"}]
+    "commands": [{"id": "echo.say", "title": "Say", "args": {"properties": {"text": {"type": "string"}}, "required": ["text"]}}]
   }
 }

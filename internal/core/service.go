@@ -238,6 +238,14 @@ func (s *Service) GetSession(ctx context.Context, id string) (session.Session, e
 	return s.sessions.Get(ctx, id)
 }
 
+func (s *Service) SendSession(ctx context.Context, id, text string, enter bool) error {
+	return s.sessions.Send(ctx, id, text, enter)
+}
+
+func (s *Service) ReadSession(ctx context.Context, id string, n int, raw bool) (session.Snapshot, error) {
+	return s.sessions.Read(ctx, id, n, raw)
+}
+
 func (s *Service) RemoveSession(ctx context.Context, id string) error {
 	if err := s.sessions.Remove(ctx, id); err != nil {
 		return err
