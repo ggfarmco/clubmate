@@ -14,11 +14,12 @@ public enum UIAction {
         case sort(column: String, desc: Bool)
         case reviewed(String)
         case next(Int)
+        case collapseOthers(String)
 
         public var value: JSONValue {
             switch self {
             case .click: .null
-            case .select(let id), .expand(let id), .collapse(let id), .focus(let id), .reviewed(let id): .string(id)
+            case .select(let id), .expand(let id), .collapse(let id), .focus(let id), .reviewed(let id), .collapseOthers(let id): .string(id)
             case .submit(let submitted): submitted
             case .toggle(let on): .bool(on)
             case .change(let option): .string(option)
@@ -44,6 +45,7 @@ public enum UIAction {
         case .sort: action = "sort"
         case .reviewed: action = "reviewed"
         case .next: action = "next"
+        case .collapseOthers: action = "collapse-others"
         }
         return UIEvent(projectId: projectID, slot: slot, nodeId: node.id ?? "", action: action, value: trigger.value)
     }

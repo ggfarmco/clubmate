@@ -24,7 +24,7 @@ Inside terminals, Ghostty's own bindings apply, except ⌘W, ⌘P and ⇧⌘F, w
 
 ## Lists: palette, Go to File, Find in Files, pickers, switcher
 
-Pickers are the fuzzy lists for worktrees and review refs: Switch Worktree… and Review… in the palette, Find Worktree… and Review ▸ Choose… in the title switcher, and the review header's base and head fields.
+Pickers are the fuzzy lists for worktrees and review refs: the worktree switcher in the window title (its list, and its Review…), Switch Worktree… and Review… in the palette, and the review header's base and head fields. Esc closes the title switcher too.
 
 | Keys | Action |
 |---|---|
@@ -54,7 +54,7 @@ Defined in `ClubmateKit/TreeKeys.swift`.
 
 ## Review list (Code sidebar, Review tab focused)
 
-The files tree keys above apply (`-` collapses the folders outside the cursor's path). In addition:
+The files tree keys above apply; `-` collapses every folder except the ancestors of the file under the cursor (else of the open file). In addition:
 
 | Keys | Action |
 |---|---|

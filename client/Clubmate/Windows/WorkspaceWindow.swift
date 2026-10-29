@@ -273,56 +273,96 @@ private struct WorktreeTitleMenu: View {
     let session: ProjectSession
     let title: String
 
+    @State private var shown = false
+
     var body: some View {
-        let model = session.worktrees
-        let groups = model.groups
-        Menu {
-            if groups.count > 1 {
-                ForEach(groups) { group in
-                    Section(group.name) { trees(group) }
-                }
-            } else {
-                ForEach(groups) { trees($0) }
-            }
-            Button("Find Worktree…") { session.chooseWorktree() }
-            Divider()
-            Menu("Review") {
-                Button("Against main") { session.review(base: nil) }
-                if !model.reviewBases.isEmpty {
-                    Divider()
-                    ForEach(model.reviewBases) { tree in
-                        Button("Against \(model.label(tree))") { session.review(base: tree.path) }
-                    }
-                }
-                Divider()
-                Button("Choose…") { session.chooseReviewBase(head: model.current?.path) }
-            }
-            Divider()
-            Button("New Worktree…") { session.newWorktree(chooseFolder: false) }
-            Menu("Remove Worktree…") {
-                ForEach(model.linked) { tree in
-                    Button(model.label(tree)) { session.removeWorktree(tree) }
-                }
-            }
-            .disabled(model.linked.isEmpty)
-        } label: {
+        Button { shown.toggle() } label: {
             Text(title)
                 .font(.headline)
                 .onHover { inside in
                     if inside { session.worktreeMenuOpened() }
                 }
         }
-        .menuStyle(.button)
         .buttonStyle(.plain)
-        .menuIndicator(.hidden)
         .fixedSize()
         .help("Worktrees")
+        .popover(isPresented: $shown, arrowEdge: .bottom) {
+            WorktreeSwitcher(session: session) { shown = false }
+        }
+    }
+}
+
+private struct WorktreeSwitcher: View {
+    let session: ProjectSession
+    let close: () -> Void
+
+    @State private var model: FuzzyPickerModel
+    @Environment(\.theme) private var theme
+
+    init(session: ProjectSession, close: @escaping () -> Void) {
+        self.session = session
+        self.close = close
+        let worktrees = session.worktrees
+        _model = State(initialValue: FuzzyPickerModel(placeholder: "Switch to worktree", source: FuzzyPickerModel.local { worktrees.pickerItems }))
     }
 
-    private func trees(_ group: WorktreeGroup) -> some View {
-        ForEach(group.trees) { tree in
-            Toggle(tree.name, isOn: Binding(get: { tree.current }, set: { _ in session.switchWorktree(tree) }))
+    var body: some View {
+        let worktrees = session.worktrees
+        VStack(spacing: 0) {
+            FuzzyPickerList(model: model, choose: switchTo, dismiss: close)
+            theme.border.frame(height: 1)
+            VStack(spacing: 0) {
+                action(worktrees.reviewLabel) { session.review(base: nil) }
+                action("Review…") { session.chooseReviewBase(head: worktrees.current?.path) }
+                action("New Worktree…") { session.newWorktree(chooseFolder: false) }
+                if !worktrees.linked.isEmpty {
+                    action("Remove Worktree…") { session.chooseWorktreeToRemove() }
+                }
+            }
+            .padding(.vertical, 4)
         }
+        .frame(width: 360)
+        .background(theme.background)
+        .task {
+            await worktrees.menuOpened()
+            model.update(model.query)
+        }
+    }
+
+    private func switchTo(_ item: PickerItem) {
+        guard let tree = session.worktrees.worktree(id: item.id) else { return }
+        session.switchWorktree(tree)
+    }
+
+    private func action(_ title: String, perform: @escaping () -> Void) -> some View {
+        SwitcherAction(title: title) {
+            close()
+            perform()
+        }
+    }
+}
+
+private struct SwitcherAction: View {
+    let title: String
+    let action: () -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(theme.ui)
+                .foregroundStyle(theme.foreground)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, theme.gutter * 1.5)
+                .frame(height: theme.rowHeight + 2)
+                .background(hovering ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 

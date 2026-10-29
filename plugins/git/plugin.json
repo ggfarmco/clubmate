@@ -30,6 +30,7 @@
         "id": "git.review",
         "provides": ["git.review"],
         "title": "Review Branch",
+        "hidden": true,
         "agent": true,
         "description": "Review a worktree's working state (uncommitted and untracked files included) against the merge-base of a base and that worktree, in the editor and the git.review list. Non-destructive.",
         "args": {
@@ -77,7 +78,7 @@
         "title": "Review Refs",
         "hidden": true,
         "agent": false,
-        "description": "Fuzzy-ranked refs for the review pickers: [{ref, kind, label}], worktrees first, then local branches, then remote branches.",
+        "description": "Fuzzy-ranked refs for the review pickers: [{ref, kind, label}], worktrees first, then local branches, then remote branches. The head worktree and its branch are left out.",
         "args": {
           "properties": {
             "query": {"type": "string", "description": "Fuzzy query; empty lists everything in order."}
@@ -95,7 +96,7 @@
         "title": "List Worktrees",
         "hidden": true,
         "agent": true,
-        "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, main, current}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, and current marks the worktree the folder is switched to."
+        "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, main, current, defaultBase}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, current marks the worktree the folder is switched to, and defaultBase is the base git.review uses without one (origin/HEAD, main or master; omitted when none)."
       },
       {
         "id": "git.worktree-switch",

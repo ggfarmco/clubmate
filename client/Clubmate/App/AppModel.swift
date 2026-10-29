@@ -571,7 +571,7 @@ final class ProjectSession {
         Task { [weak self] in
             guard let worktrees = self?.worktrees else { return }
             await worktrees.menuOpened()
-            self?.openPicker("Switch to worktree", source: FuzzyPickerModel.local(worktrees.pickerItems)) { [weak self] item in
+            self?.openPicker("Switch to worktree", source: FuzzyPickerModel.local { worktrees.pickerItems }) { [weak self] item in
                 guard let tree = worktrees.worktree(id: item.id) else { return }
                 self?.switchWorktree(tree)
             }
@@ -583,10 +583,7 @@ final class ProjectSession {
     }
 
     func chooseReviewBase(head: String?) {
-        let refs = FuzzyPickerModel.refs(run: storeRun)
-        openPicker("Review against branch or worktree") { query in
-            await refs(query).map { items in items.filter { $0.id != head } }
-        } choose: { [weak self] item in
+        openPicker("Review against branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
             self?.run(ReviewCommand.start(base: item.id, head: head))
         }
     }

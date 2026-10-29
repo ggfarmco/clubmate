@@ -106,14 +106,4 @@ public enum ReviewKeys {
             return nil
         }
     }
-
-    public static func collapseOthers(cursor: String?, in rows: [TreeRow]) -> [String] {
-        var keep: Set<String> = []
-        var next = cursor
-        while let id = next, let row = rows.first(where: { $0.id == id }) {
-            keep.insert(id)
-            next = row.parent
-        }
-        return rows.filter { $0.hasChildren && $0.expanded && !keep.contains($0.id) && ($0.parent.map(keep.contains) ?? true) }.map(\.id)
-    }
 }

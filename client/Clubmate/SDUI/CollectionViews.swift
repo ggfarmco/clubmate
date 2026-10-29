@@ -202,7 +202,7 @@ struct TreeNodeView: View {
         }
         guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
         if review != nil, action == .collapseOthers {
-            for id in ReviewKeys.collapseOthers(cursor: cursor, in: rows) { dispatch(node, .collapse(id)) }
+            dispatch(node, .collapseOthers(cursor ?? ""))
             return true
         }
         switch TreeCursor.resolve(action, cursor: cursor, in: rows, breadcrumb: node.breadcrumb().map(\.id)) {

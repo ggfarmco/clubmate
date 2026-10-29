@@ -36,6 +36,7 @@ const (
 	reviewedAction  = "reviewed"
 	nextAction      = "next"
 	focusAction     = "focus"
+	collapseAction  = "collapse-others"
 	rootCrumb       = "."
 	chainSeparator  = " / "
 	moreRowID       = "\x00more"
@@ -318,13 +319,13 @@ func (a *app) reviewRefs(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	s.mu.Lock()
 	head := s.active
 	s.mu.Unlock()
-	f, _, err := headTarget(ctx, h, id, head)
+	f, current, err := headTarget(ctx, h, id, head)
 	if err != nil {
 		return nil, err
 	}
 	var worktrees, branches, remotes []refInfo
 	for _, t := range f.Trees {
-		if !t.Bare {
+		if !t.Bare && t.Real != current.Real {
 			worktrees = append(worktrees, refInfo{Ref: t.Path, Kind: kindWorktree, Label: cmp.Or(t.Branch, filepath.Base(t.Path))})
 		}
 	}
@@ -333,7 +334,9 @@ func (a *app) reviewRefs(ctx context.Context, h *pluginsdk.Host, id string, s *s
 		return nil, err
 	}
 	for _, b := range local {
-		branches = append(branches, refInfo{Ref: b, Kind: kindBranch, Label: b})
+		if b != current.Branch {
+			branches = append(branches, refInfo{Ref: b, Kind: kindBranch, Label: b})
+		}
 	}
 	for _, b := range remote {
 		remotes = append(remotes, refInfo{Ref: b, Kind: kindRemote, Label: b})
@@ -509,6 +512,8 @@ func (a *app) reviewEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.U
 		r.folded[item] = ev.Action == "collapse"
 	case focusAction:
 		err = r.setFocus(item, rows)
+	case collapseAction:
+		r.collapseOthers(item, rows)
 	case reviewedAction:
 	default:
 		err = fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
@@ -641,6 +646,20 @@ func (r *review) setFocus(item string, rows []reviewRow) error {
 		delete(r.folded, dir)
 	}
 	return nil
+}
+
+func (r *review) collapseOthers(item string, rows []reviewRow) {
+	keep := map[string]bool{}
+	for dir := filepath.Dir(cmp.Or(item, r.selected)); dir != rootCrumb; dir = filepath.Dir(dir) {
+		keep[dir] = true
+	}
+	for _, row := range rows {
+		for dir := filepath.Dir(row.Path); dir != rootCrumb; dir = filepath.Dir(dir) {
+			if !keep[dir] {
+				r.folded[dir] = true
+			}
+		}
+	}
 }
 
 func (r *review) rows() ([]reviewRow, int) {

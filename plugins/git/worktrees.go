@@ -48,12 +48,13 @@ type folder struct {
 }
 
 type worktreeInfo struct {
-	Repo    string `json:"repo"`
-	Path    string `json:"path"`
-	Branch  string `json:"branch"`
-	Head    string `json:"head"`
-	Main    bool   `json:"main"`
-	Current bool   `json:"current"`
+	Repo        string `json:"repo"`
+	Path        string `json:"path"`
+	Branch      string `json:"branch"`
+	Head        string `json:"head"`
+	Main        bool   `json:"main"`
+	Current     bool   `json:"current"`
+	DefaultBase string `json:"defaultBase,omitempty"`
 }
 
 type worktreeArgs struct {
@@ -233,11 +234,12 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 		if err != nil {
 			return nil, err
 		}
+		base, _ := gitrepo.DefaultBase(ctx, f.Checkout.Path)
 		for j, t := range f.Trees {
 			if t.Bare {
 				continue
 			}
-			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head], Main: j == 0, Current: f.current(t)})
+			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head], Main: j == 0, Current: f.current(t), DefaultBase: base})
 		}
 	}
 	return list, nil

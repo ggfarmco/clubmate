@@ -2,11 +2,12 @@ import SwiftUI
 
 import ClubmateKit
 
-struct FuzzyPickerView: View {
+struct FuzzyPickerList: View {
     let model: FuzzyPickerModel
     let choose: (PickerItem) -> Void
     let dismiss: () -> Void
 
+    @State private var submitting = false
     @Environment(\.theme) private var theme
 
     private static let visibleRows = 12
@@ -26,11 +27,6 @@ struct FuzzyPickerView: View {
             results
                 .padding(.vertical, 4)
         }
-        .frame(width: 480)
-        .background(theme.background)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.foreground.opacity(0.18), lineWidth: 1))
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
         .onAppear { model.update("") }
         .onDisappear { model.cancel() }
     }
@@ -73,6 +69,11 @@ struct FuzzyPickerView: View {
 
     private func row(_ item: PickerItem, selected: Bool) -> some View {
         HStack(spacing: theme.gutter) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(theme.accent)
+                .opacity(item.checked ? 1 : 0)
+                .frame(width: 10)
             Text(item.label)
                 .foregroundStyle(theme.foreground)
                 .truncationMode(.middle)
@@ -93,7 +94,10 @@ struct FuzzyPickerView: View {
     }
 
     private func submit() {
+        guard !submitting else { return }
+        submitting = true
         Task {
+            defer { submitting = false }
             guard let item = await model.choose() else { return }
             dismiss()
             choose(item)
@@ -105,10 +109,24 @@ extension View {
     func fuzzyPicker(_ session: ProjectSession?) -> some View {
         overlay(alignment: .top) {
             if let session, session.overlay == .picker, let request = session.picker {
-                FuzzyPickerView(model: request.model, choose: request.choose) { session.close(.picker) }
+                FuzzyPickerList(model: request.model, choose: request.choose) { session.close(.picker) }
+                    .frame(width: 480)
+                    .modifier(PickerChrome())
                     .id(ObjectIdentifier(request.model))
                     .padding(.top, 48)
             }
         }
+    }
+}
+
+private struct PickerChrome: ViewModifier {
+    @Environment(\.theme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .background(theme.background)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.foreground.opacity(0.18), lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
     }
 }

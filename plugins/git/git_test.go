@@ -542,6 +542,9 @@ func TestReviewRefsFuzzy(t *testing.T) {
 		got = append(got, r.Kind+" "+r.Label+" "+r.Ref)
 	}
 	assert.Equal(t, []string{"worktree devtools " + tools, "branch develop develop", "branch devtools devtools", "branch feature/device feature/device"}, got)
+
+	require.NoError(t, runCommand(t, h, id, "git.review-refs", map[string]string{"query": "main"}, &refs))
+	assert.Empty(t, refs, "the head worktree and its branch are not base candidates")
 }
 
 func TestReviewErrors(t *testing.T) {
@@ -581,12 +584,13 @@ func TestGitSectionFollowsWorktree(t *testing.T) {
 }
 
 type worktreeEntry struct {
-	Repo    string `json:"repo"`
-	Path    string `json:"path"`
-	Branch  string `json:"branch"`
-	Head    string `json:"head"`
-	Main    bool   `json:"main"`
-	Current bool   `json:"current"`
+	Repo        string `json:"repo"`
+	Path        string `json:"path"`
+	Branch      string `json:"branch"`
+	Head        string `json:"head"`
+	Main        bool   `json:"main"`
+	Current     bool   `json:"current"`
+	DefaultBase string `json:"defaultBase"`
 }
 
 type opResult struct {
@@ -667,12 +671,12 @@ func TestWorktreeList(t *testing.T) {
 	head := git(t, repo, "rev-parse", "--short", "HEAD")
 	list := listWorktrees(t, h, id)
 	require.NotEmpty(t, list)
-	main := worktreeEntry{Repo: repo, Path: repo, Branch: "main", Head: head, Main: true, Current: true}
+	main := worktreeEntry{Repo: repo, Path: repo, Branch: "main", Head: head, Main: true, Current: true, DefaultBase: "main"}
 	assert.Equal(t, main, list[0])
 	assert.ElementsMatch(t, []worktreeEntry{
 		main,
-		{Repo: repo, Path: feat, Branch: "feat", Head: head},
-		{Repo: repo, Path: detached, Head: head},
+		{Repo: repo, Path: feat, Branch: "feat", Head: head, DefaultBase: "main"},
+		{Repo: repo, Path: detached, Head: head, DefaultBase: "main"},
 	}, list)
 }
 

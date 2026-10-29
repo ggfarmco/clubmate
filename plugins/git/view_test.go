@@ -104,6 +104,21 @@ func TestReviewTreeCompactsAndFocuses(t *testing.T) {
 	assert.Equal(t, []sdui.Item{{ID: ".", Label: "w"}, {ID: "a", Label: "a"}, {ID: "a/b", Label: "b"}}, tree.Children[0].Props["breadcrumb"])
 }
 
+func TestReviewCollapseOthersKeepsTheFilesAncestors(t *testing.T) {
+	r := &review{head: "/w", base: "main", folded: map[string]bool{}}
+	for _, p := range []string{"a/b/x.go", "a/c/y.go", "d/z.go", "top.go"} {
+		r.changes = append(r.changes, gitrepo.Change{Path: p, Status: "M"})
+	}
+	r.selected = "d/z.go"
+
+	r.collapseOthers("a/b/x.go", rows(r))
+	assert.Equal(t, map[string]bool{"a/c": true, "d": true}, r.folded)
+
+	r.folded = map[string]bool{}
+	r.collapseOthers("", rows(r))
+	assert.Equal(t, map[string]bool{"a": true, "a/b": true, "a/c": true}, r.folded)
+}
+
 func TestReviewTreeStaysWithinNodeLimit(t *testing.T) {
 	r := &review{head: "/w", base: "main", folded: map[string]bool{}}
 	for i := range 6000 {

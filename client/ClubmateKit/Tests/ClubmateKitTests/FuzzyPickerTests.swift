@@ -6,7 +6,7 @@ import ClubmateKit
 final class FuzzyPickerTests: XCTestCase {
     func testLocalPickerFiltersOrdersAndMoves() async throws {
         let items = ["main", "DUE-970-cards", "feature/device", "develop"].map { PickerItem(id: $0, label: $0) }
-        let model = FuzzyPickerModel(placeholder: "", debounce: .zero, source: FuzzyPickerModel.local(items))
+        let model = FuzzyPickerModel(placeholder: "", debounce: .zero, source: FuzzyPickerModel.local { items })
 
         model.update("dev")
         let first = await model.choose()

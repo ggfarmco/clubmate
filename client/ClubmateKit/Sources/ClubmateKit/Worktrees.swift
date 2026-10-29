@@ -8,6 +8,7 @@ public struct Worktree: Equatable, Sendable, Identifiable {
     public let head: String
     public let main: Bool
     public let current: Bool
+    public let defaultBase: String
 
     public var id: String { "\(repo)\u{0}\(path)" }
 
@@ -21,6 +22,7 @@ public struct Worktree: Equatable, Sendable, Identifiable {
         head = fields["head"]?.stringValue ?? ""
         main = fields["main"]?.boolValue ?? false
         current = fields["current"]?.boolValue ?? false
+        defaultBase = fields["defaultBase"]?.stringValue ?? ""
     }
 }
 
@@ -91,13 +93,13 @@ public final class WorktreeModel {
         return first.trees.first { $0.current } ?? first.trees.first { $0.main }
     }
 
-    public var reviewBases: [Worktree] {
-        guard let current else { return [] }
-        return worktrees.filter { $0.repo == current.repo && $0 != current && !$0.main }
+    public var reviewLabel: String {
+        guard let base = current?.defaultBase, !base.isEmpty else { return "Review against default base" }
+        return "Review against \(base)"
     }
 
     public var pickerItems: [PickerItem] {
-        worktrees.map { PickerItem(id: $0.id, label: label($0), detail: $0.current ? "current" : "") }
+        worktrees.map { PickerItem(id: $0.id, label: label($0), checked: $0.current) }
     }
 
     public func worktree(id: String) -> Worktree? {

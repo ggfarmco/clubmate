@@ -74,7 +74,7 @@ private struct ReviewHeaderView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(header.chips) { chip in
-                        ChipButton(label: chip.label, hidden: chip.on, help: chip.on ? "Show \(chip.label)" : "Hide \(chip.label)") {
+                        ChipButton(label: chip.label, hidden: chip.on, help: help(chip)) {
                             session.run(ReviewCommand.filter(chip))
                         }
                     }
@@ -102,6 +102,11 @@ private struct ReviewHeaderView: View {
         }
         .padding(theme.gutter)
         .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+    }
+
+    private func help(_ chip: ReviewChip) -> String {
+        if chip.id == ReviewChip.glob { return "Clear glob" }
+        return chip.on ? "Show \(chip.label)" : "Hide \(chip.label)"
     }
 
     private func note(_ text: String, tone: Color) -> some View {

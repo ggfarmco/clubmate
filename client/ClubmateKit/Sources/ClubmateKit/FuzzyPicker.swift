@@ -5,11 +5,13 @@ public struct PickerItem: Equatable, Sendable, Identifiable {
     public let id: String
     public let label: String
     public let detail: String
+    public let checked: Bool
 
-    public init(id: String, label: String, detail: String = "") {
+    public init(id: String, label: String, detail: String = "", checked: Bool = false) {
         self.id = id
         self.label = label
         self.detail = detail
+        self.checked = checked
     }
 }
 
@@ -141,8 +143,8 @@ public final class FuzzyPickerModel {
         loaded = true
     }
 
-    public static func local(_ items: [PickerItem]) -> Source {
-        { query in .success(FuzzyRank.rank(items, query: query, text: \.label)) }
+    public static func local(_ items: @escaping @MainActor () -> [PickerItem]) -> Source {
+        { query in .success(FuzzyRank.rank(items(), query: query, text: \.label)) }
     }
 
     public static func refs(run: @escaping Run, kinds: Set<String>? = nil) -> Source {

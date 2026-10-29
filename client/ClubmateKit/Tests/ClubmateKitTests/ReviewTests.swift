@@ -46,10 +46,13 @@ final class ReviewTests: XCTestCase {
             XCTAssertEqual(ReviewKeys.trigger(keyCode: keyCode, shift: shift, control: false, command: false, option: false, cursor: cursor, rows: rows), trigger, "\(keyCode) \(shift) \(cursor ?? "-")")
         }
         XCTAssertNil(ReviewKeys.trigger(keyCode: 45, shift: false, control: true, command: false, option: false, cursor: nil, rows: rows))
-        XCTAssertEqual(ReviewKeys.collapseOthers(cursor: "a/x.go", in: rows), ["b"])
 
-        let event = UIAction.event(for: SDUINode(type: "tree", id: "review"), trigger: .next(-1), slot: "git.review", projectID: "p")
+        let tree = SDUINode(type: "tree", id: "review")
+        let event = UIAction.event(for: tree, trigger: .next(-1), slot: "git.review", projectID: "p")
         XCTAssertEqual([event.action, event.nodeId], ["next", "review"])
         XCTAssertEqual(event.value, .number(-1))
+        let collapse = UIAction.event(for: tree, trigger: .collapseOthers("a/x.go"), slot: "git.review", projectID: "p")
+        XCTAssertEqual([collapse.action], ["collapse-others"])
+        XCTAssertEqual(collapse.value, .string("a/x.go"))
     }
 }
