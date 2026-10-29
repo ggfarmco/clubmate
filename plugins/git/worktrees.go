@@ -22,6 +22,7 @@ const (
 	worktreesDir       = ".worktrees"
 	stopRootCommand    = "editor-nvim.stop-root"
 	releaseRootCommand = "editor-nvim.release-root"
+	agentsStopCommand  = "agents.stop-root"
 	editorOwner        = "editor-nvim"
 	sessionRunning     = "running"
 	creatingWorktree   = "Creating worktree…"
@@ -371,6 +372,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 		if err := h.RunCommand(ctx, stopRootCommand, projectID, stopRootArgs{Root: root, Force: args.Force}, nil); err != nil {
 			return "", err
 		}
+		logError("stop agents in "+t.Path, h.RunCommand(ctx, agentsStopCommand, projectID, stopRootArgs{Root: t.Path}, nil))
 		if _, err := mutate(ctx, f.Checkout.Path, "worktree", "remove", t.Path); err != nil {
 			return "", err
 		}

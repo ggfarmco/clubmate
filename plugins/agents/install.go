@@ -45,7 +45,9 @@ func launcherFor(ctx context.Context, stateDir, agent, root string) (launch, err
 	if err != nil {
 		return launch{}, err
 	}
-	script, err := installClaude(ctx, filepath.Join(stateDir, claudeDir), env)
+	ictx, cancel := context.WithTimeout(ctx, installTimeout)
+	defer cancel()
+	script, err := installClaude(ictx, filepath.Join(stateDir, claudeDir), env)
 	if err != nil {
 		return launch{}, err
 	}

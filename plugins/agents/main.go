@@ -34,20 +34,22 @@ const (
 	refsTimeout     = 30 * time.Second
 	checkpointLimit = 2 * time.Minute
 	embedLimit      = 1 << 20
+	stopRootWait    = 4 * time.Second
 )
 
 var (
-	errHome        = errors.New("Agents aren't available in the home workspace")
-	errNoFolder    = errors.New("the workspace has no folders")
-	errNoSession   = errors.New("unknown agent session")
-	errClosed      = errors.New("the session is closed")
-	errBusy        = errors.New("a turn is already running")
-	errNotLive     = errors.New("the session's agent is not running")
-	errNoResume    = errors.New("the agent cannot resume this session")
-	errUnknownMode = errors.New("unknown mode")
-	errUnknownCmd  = errors.New("unknown command")
-	errNoStateDir  = errors.New("no plugin state dir")
-	errShutdown    = errors.New("the agents plugin is shutting down")
+	errHome         = errors.New("Agents aren't available in the home workspace")
+	errNoFolder     = errors.New("the workspace has no folders")
+	errNoSession    = errors.New("unknown agent session")
+	errClosed       = errors.New("the session is closed")
+	errBusy         = errors.New("a turn is already running")
+	errNotLive      = errors.New("the session's agent is not running")
+	errNoResume     = errors.New("the agent cannot resume this session")
+	errUnknownMode  = errors.New("unknown mode")
+	errUnknownCmd   = errors.New("unknown command")
+	errNoStateDir   = errors.New("no plugin state dir")
+	errShutdown     = errors.New("the agents plugin is shutting down")
+	errRelativeRoot = errors.New("stop-root: root must be absolute")
 )
 
 type sessionArgs struct {
@@ -81,6 +83,10 @@ type permissionArgs struct {
 type modeArgs struct {
 	Session string `json:"session"`
 	Mode    string `json:"mode"`
+}
+
+type rootArgs struct {
+	Root string `json:"root"`
 }
 
 type transcriptArgs struct {
@@ -207,6 +213,15 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.setMode(ctx, cmd.ProjectID, args)
 	case "agents.sessions":
 		return a.list(cmd.ProjectID), nil
+	case "agents.stop-root":
+		var args rootArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if !filepath.IsAbs(args.Root) {
+			return nil, errRelativeRoot
+		}
+		return nil, a.stopRoot(ctx, filepath.Clean(args.Root))
 	case "agents.transcript":
 		var args transcriptArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -335,12 +350,12 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	if rec.Closed {
 		return nil, errClosed
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), attachTimeout)
-	defer cancel()
-	p, err := a.ensureProc(ctx, rec.Agent, rec.Worktree)
+	p, err := a.ensureProc(context.Background(), rec.Agent, rec.Worktree)
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), attachTimeout)
+	defer cancel()
 	var extra []string
 	if p.caps.SessionCapabilities.AdditionalDirectories != nil {
 		if project, err := a.host.GetProject(ctx, rec.Workspace); err == nil {
@@ -426,6 +441,7 @@ func (a *app) prompt(projectID string, args promptArgs) error {
 		return errBusy
 	}
 	s.running = true
+	s.cancelRequested = false
 	s.turn++
 	turn := s.turn
 	s.settleLocked()
@@ -441,6 +457,9 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		a.fail(s, err.Error())
 		return
 	}
+	if a.abandon(s) {
+		return
+	}
 	rec := s.snapshot()
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
 	sha, err := checkpoint(ctx, rec.Worktree, rec.ID, turn)
@@ -448,9 +467,25 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agents: checkpoint:", err)
 	}
+	s.mu.Lock()
+	deleted := s.deleted
+	if !deleted {
+		s.recordLocked(actorClubmate, kindCheckpoint, checkpointPayload{Turn: turn, Sha: sha})
+	}
+	s.mu.Unlock()
+	if deleted {
+		ctx, cancel := context.WithTimeout(context.Background(), refsTimeout)
+		defer cancel()
+		if err := deleteCheckpoints(ctx, rec.Worktree, rec.ID); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: delete checkpoints:", err)
+		}
+		return
+	}
+	if a.abandon(s) {
+		return
+	}
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)}
 	s.mu.Lock()
-	s.recordLocked(actorClubmate, kindCheckpoint, checkpointPayload{Turn: turn, Sha: sha})
 	s.recordLocked(actorUser, kindPrompt, req)
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
@@ -489,6 +524,29 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	}
 }
 
+func (a *app) abandon(s *session) bool {
+	s.mu.Lock()
+	switch {
+	case s.deleted || s.rec.Closed:
+		s.running = false
+		s.mu.Unlock()
+		return true
+	case s.cancelRequested:
+		s.running = false
+		s.recordLocked(actorUser, kindTurnEnd, turnEndPayload{StopReason: acp.StopCancelled})
+		if s.rec.Status == statusWaiting {
+			s.prior = statusDone
+		} else {
+			s.setStatusLocked(statusDone, "")
+		}
+		s.mu.Unlock()
+		s.changed(changeStatus, true)
+		return true
+	}
+	s.mu.Unlock()
+	return false
+}
+
 func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBlock {
 	blocks := []acp.ContentBlock{{Type: "text", Text: args.Text}}
 	for _, att := range args.Attachments {
@@ -499,9 +557,13 @@ func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBloc
 		uri := (&url.URL{Scheme: "file", Path: path}).String()
 		switch att.Kind {
 		case "file":
-			if data, err := os.ReadFile(path); embedded && err == nil && len(data) <= embedLimit {
-				blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri, Text: strings.ToValidUTF8(string(data), "")}})
-				continue
+			if embedded {
+				if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Size() <= embedLimit {
+					if data, err := os.ReadFile(path); err == nil {
+						blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri, Text: strings.ToValidUTF8(string(data), "")}})
+						continue
+					}
+				}
 			}
 			blocks = append(blocks, acp.ContentBlock{Type: "resource_link", URI: uri, Name: filepath.Base(path)})
 		case "selection":
@@ -520,6 +582,7 @@ func (a *app) cancel(s *session) {
 	s.mu.Lock()
 	p, running, agentID := s.proc, s.running, s.rec.AgentSessionID
 	if running {
+		s.cancelRequested = true
 		s.recordLocked(actorUser, kindCancel, acp.SessionRequest{SessionID: agentID})
 	}
 	s.mu.Unlock()
@@ -586,7 +649,7 @@ func (a *app) resume(s *session) {
 	go a.attachInBackground(s)
 }
 
-func (a *app) closeSession(ctx context.Context, s *session, remove bool) {
+func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentProc {
 	s.mu.Lock()
 	p, agentID, running := s.proc, s.rec.AgentSessionID, s.running
 	s.proc = nil
@@ -600,7 +663,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) {
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	if p == nil {
-		return
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
@@ -616,6 +679,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) {
 	}
 	p.unregister(agentID)
 	a.release(p)
+	return p
 }
 
 func (a *app) deleteSession(ctx context.Context, s *session) error {
@@ -665,6 +729,53 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 			})
 		}
 	}
+}
+
+func (a *app) stopRoot(ctx context.Context, root string) error {
+	ctx, cancel := context.WithTimeout(ctx, stopRootWait)
+	defer cancel()
+	root = gitrepo.Canonical(root)
+	inside := func(dir string) bool { return gitrepo.Within(gitrepo.Canonical(dir), root) }
+	a.mu.Lock()
+	var hit []*session
+	for id, s := range a.sessions {
+		if inside(s.snapshot().Worktree) {
+			a.dropped[id] = true
+			hit = append(hit, s)
+		}
+	}
+	a.mu.Unlock()
+	for _, s := range hit {
+		a.closeSession(ctx, s, false)
+	}
+	a.mu.Lock()
+	var procs []*agentProc
+	for p := range a.live {
+		if inside(p.root) {
+			procs = append(procs, p)
+		}
+	}
+	for k, slot := range a.procs {
+		if slot.proc != nil && inside(slot.proc.root) {
+			delete(a.procs, k)
+		}
+	}
+	a.mu.Unlock()
+	for _, p := range procs {
+		go p.shutdown()
+	}
+	for _, p := range procs {
+		select {
+		case <-p.exited:
+		case <-ctx.Done():
+		}
+	}
+	var errs []error
+	for _, s := range hit {
+		rec := s.snapshot()
+		errs = append(errs, deleteCheckpoints(context.WithoutCancel(ctx), rec.Worktree, rec.ID))
+	}
+	return errors.Join(errs...)
 }
 
 func (a *app) dropWorkspace(projectID string, match func(record) bool) {

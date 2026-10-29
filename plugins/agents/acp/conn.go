@@ -244,6 +244,10 @@ func MethodNotFound(method string) error {
 	return &Error{Code: codeMethodNotFound, Message: "method not found: " + method}
 }
 
+func RequestKey(raw json.RawMessage) string {
+	return idKey(raw)
+}
+
 func idKey(raw json.RawMessage) string {
 	var s string
 	if json.Unmarshal(raw, &s) == nil {

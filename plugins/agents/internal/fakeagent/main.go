@@ -119,10 +119,12 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		_ = json.Unmarshal(params, &prompt)
 		a.run(ctx, prompt, a.script.Prompt)
 		go a.run(context.Background(), prompt, a.script.After)
+		res := acp.PromptResponse{StopReason: acp.StopEndTurn}
 		if a.cancelled.Load() {
-			return acp.PromptResponse{StopReason: acp.StopCancelled}, nil
+			res.StopReason = acp.StopCancelled
 		}
-		return acp.PromptResponse{StopReason: acp.StopEndTurn}, nil
+		a.record("prompt_end", res)
+		return res, nil
 	case acp.MethodSessionSetMode:
 		var set acp.SetSessionModeRequest
 		_ = json.Unmarshal(params, &set)

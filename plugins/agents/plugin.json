@@ -128,6 +128,19 @@
         }
       },
       {
+        "id": "agents.stop-root",
+        "title": "Stop Worktree Agents",
+        "hidden": true,
+        "agent": false,
+        "description": "Close every agent session whose worktree is inside the given root, stop their agent processes and delete their checkpoint refs; called before a worktree is removed.",
+        "args": {
+          "properties": {
+            "root": {"type": "string", "description": "Absolute worktree root."}
+          },
+          "required": ["root"]
+        }
+      },
+      {
         "id": "agents.sessions",
         "title": "List Agent Sessions",
         "hidden": true,

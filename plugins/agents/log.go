@@ -66,6 +66,7 @@ type eventLog struct {
 	seq     int64
 	pending *pendingChunk
 	timer   *time.Timer
+	removed bool
 }
 
 func logPath(stateDir, session string) string {
@@ -86,6 +87,9 @@ func (l *eventLog) write(e envelope) {
 func (l *eventLog) chunk(e envelope, update, messageID, text string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.removed {
+		return
+	}
 	if p := l.pending; p != nil && (p.update != update || p.messageID != messageID || p.env.Turn != e.Turn) {
 		l.flushLocked()
 	}
@@ -126,6 +130,9 @@ func (l *eventLog) flushLocked() {
 }
 
 func (l *eventLog) appendLocked(e envelope) {
+	if l.removed {
+		return
+	}
 	l.seq++
 	e.Seq = l.seq
 	if e.TS.IsZero() {
@@ -164,7 +171,14 @@ func (l *eventLog) close() {
 }
 
 func (l *eventLog) remove() error {
-	l.close()
+	l.mu.Lock()
+	l.flushLocked()
+	l.removed = true
+	if l.file != nil {
+		l.file.Close()
+		l.file = nil
+	}
+	l.mu.Unlock()
 	if err := os.Remove(l.path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

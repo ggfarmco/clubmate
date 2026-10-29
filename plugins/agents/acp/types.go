@@ -15,6 +15,7 @@ const (
 	MethodSessionSetMode    = "session/set_mode"
 	MethodSessionUpdate     = "session/update"
 	MethodRequestPermission = "session/request_permission"
+	MethodCancelRequest     = "$/cancel_request"
 
 	UpdateUserMessageChunk  = "user_message_chunk"
 	UpdateAgentMessageChunk = "agent_message_chunk"
@@ -220,6 +221,10 @@ type RequestPermissionRequest struct {
 type PermissionOutcome struct {
 	Outcome  string `json:"outcome"`
 	OptionID string `json:"optionId,omitempty"`
+}
+
+type CancelRequestNotification struct {
+	RequestID json.RawMessage `json:"requestId"`
 }
 
 type RequestPermissionResponse struct {

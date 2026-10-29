@@ -96,8 +96,9 @@ type transcriptView struct {
 }
 
 type permissionPayload struct {
-	ID     string          `json:"id"`
-	Params json.RawMessage `json:"params"`
+	ID        string          `json:"id"`
+	RequestID string          `json:"requestId"`
+	Params    json.RawMessage `json:"params"`
 }
 
 type answerPayload struct {
@@ -116,8 +117,8 @@ type turnEndPayload struct {
 }
 
 type pendingPermission struct {
-	id    string
-	reply chan acp.PermissionOutcome
+	request string
+	reply   chan acp.PermissionOutcome
 }
 
 type session struct {
@@ -138,10 +139,11 @@ type session struct {
 	nextID   int
 	edited   bool
 
-	proc    *agentProc
-	running bool
-	prior   string
-	perms   map[string]*pendingPermission
+	proc            *agentProc
+	running         bool
+	cancelRequested bool
+	prior           string
+	perms           map[string]*pendingPermission
 }
 
 func newSessionID() string {
@@ -245,6 +247,7 @@ func (s *session) apply(e envelope) {
 	case kindCancel:
 		s.cancelTools(e.Turn)
 	case kindPermission:
+		s.nextID++
 		var p permissionPayload
 		var req acp.RequestPermissionRequest
 		if json.Unmarshal(e.Payload, &p) == nil && json.Unmarshal(p.Params, &req) == nil {
@@ -388,11 +391,13 @@ func (s *session) turnInfo(n int) *turnInfo {
 	return &s.turns[len(s.turns)-1]
 }
 
-func (s *session) requestPermission(ctx context.Context, id string, params json.RawMessage) acp.PermissionOutcome {
-	perm := &pendingPermission{id: id, reply: make(chan acp.PermissionOutcome, 1)}
+func (s *session) requestPermission(ctx context.Context, request string, params json.RawMessage) acp.PermissionOutcome {
+	perm := &pendingPermission{request: request, reply: make(chan acp.PermissionOutcome, 1)}
 	s.mu.Lock()
+	s.loadLocked()
+	id := entryPermission + "-" + strconv.Itoa(s.nextID+1)
 	s.perms[id] = perm
-	s.recordLocked(s.actor(), kindPermission, permissionPayload{ID: id, Params: params})
+	s.recordLocked(s.actor(), kindPermission, permissionPayload{ID: id, RequestID: request, Params: params})
 	s.settleLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
@@ -425,6 +430,19 @@ func (s *session) answer(id, option string) error {
 	delete(s.perms, id)
 	perm.reply <- acp.PermissionOutcome{Outcome: acp.OutcomeSelected, OptionID: option}
 	return nil
+}
+
+func (s *session) cancelRequest(request string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, perm := range s.perms {
+		if perm.request == request {
+			delete(s.perms, id)
+			perm.reply <- acp.PermissionOutcome{Outcome: acp.OutcomeCancelled}
+			return true
+		}
+	}
+	return false
 }
 
 func (s *session) cancelPermissionsLocked() {

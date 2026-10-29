@@ -159,7 +159,7 @@
         "hidden": true,
         "agent": true,
         "destructive": true,
-        "description": "Start removing a linked git worktree: stops its Neovim, runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
+        "description": "Start removing a linked git worktree: stops its Neovim and agent sessions, runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},

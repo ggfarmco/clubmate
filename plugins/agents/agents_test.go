@@ -39,11 +39,12 @@ type record struct {
 }
 
 type entry struct {
-	Kind string                     `json:"kind"`
-	ID   string                     `json:"id"`
-	Turn int                        `json:"turn"`
-	Text string                     `json:"text"`
-	Tool map[string]json.RawMessage `json:"tool"`
+	Kind    string                     `json:"kind"`
+	ID      string                     `json:"id"`
+	Turn    int                        `json:"turn"`
+	Text    string                     `json:"text"`
+	Tool    map[string]json.RawMessage `json:"tool"`
+	Outcome json.RawMessage            `json:"outcome"`
 }
 
 type transcript struct {
@@ -496,6 +497,9 @@ func TestResume(t *testing.T) {
 		now := f.h.Sup.PIDs()
 		return len(now) == 1 && now[0] != pids[0] && f.run(t, project, "agents.sessions", map[string]any{}, nil) == nil
 	}, restartWait)
+	first := f.calls(t, "start")
+	require.Len(t, first, 1)
+	testutil.Eventually(t, func() bool { return errors.Is(syscall.Kill(first[0].PID, 0), syscall.ESRCH) }, wait)
 	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": session}, nil))
 
 	got := f.waitCall(t, "session/resume", func(fakeCall) bool { return true })
@@ -528,4 +532,68 @@ func TestModeAndCommands(t *testing.T) {
 	got := f.waitCall(t, "session/set_mode", func(fakeCall) bool { return true })
 	assert.Contains(t, string(got.Params), `"modeId":"plan"`)
 	testutil.Eventually(t, func() bool { return f.transcript(t, project, session).Session.Mode == "plan" }, wait)
+}
+
+func TestDeleteDuringTurn(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})
+	project := f.project(t, repo)
+	session, keeper := f.newSession(t, project), f.newSession(t, project)
+	testutil.Eventually(t, func() bool { return f.session(t, project, keeper).AgentSessionID != "" }, wait)
+
+	f.prompt(t, project, session, "slow")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	require.NoError(t, f.run(t, project, "agents.delete", map[string]any{"session": session}, nil))
+	f.waitCall(t, "prompt_end", func(fakeCall) bool { return true })
+
+	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
+	require.Never(t, func() bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}, 500*time.Millisecond, 20*time.Millisecond)
+	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
+}
+
+func TestPermissionAfterAgentRestart(t *testing.T) {
+	f := start(t, map[string]any{"resume": true, "prompt": []map[string]any{{"permission": permissionScript()}}})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "one")
+	f.waitStatus(t, project, session, "waiting")
+	first := ofKind(f.transcript(t, project, session).Entries, "permission")
+	require.Len(t, first, 1)
+	require.NoError(t, f.run(t, project, "agents.permission", map[string]any{"session": session, "request": first[0].ID, "option": "allow"}, nil))
+	f.waitStatus(t, project, session, "done")
+	starts := f.calls(t, "start")
+	require.Len(t, starts, 1)
+	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
+	f.waitStatus(t, project, session, "error")
+
+	f.prompt(t, project, session, "two")
+	f.waitStatus(t, project, session, "waiting")
+
+	perms := ofKind(f.transcript(t, project, session).Entries, "permission")
+	require.Len(t, perms, 2)
+	assert.NotEqual(t, perms[0].ID, perms[1].ID)
+	assert.Equal(t, 2, perms[1].Turn)
+	assert.Empty(t, perms[1].Outcome)
+	assert.Len(t, f.calls(t, "session/resume"), 1)
+}
+
+func TestStopRoot(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{})
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "go")
+	f.waitStatus(t, project, session, "done")
+	require.NotEmpty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
+
+	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"root": repo}, nil))
+
+	assert.True(t, f.session(t, project, session).Closed)
+	starts := f.calls(t, "start")
+	require.Len(t, starts, 1)
+	assert.ErrorIs(t, syscall.Kill(starts[0].PID, 0), syscall.ESRCH)
+	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 }

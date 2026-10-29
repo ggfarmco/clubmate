@@ -25,6 +25,7 @@ const (
 	stderrTailCap = 4 << 10
 	clientName    = "clubmate"
 	clientVersion = "0.1.0"
+	maxOrphans    = 1000
 )
 
 var errAgentExited = errors.New("agent exited")
@@ -170,6 +171,18 @@ func (p *agentProc) initialize(ctx context.Context) error {
 }
 
 func (p *agentProc) Notify(method string, params json.RawMessage) {
+	if method == acp.MethodCancelRequest {
+		var n acp.CancelRequestNotification
+		if json.Unmarshal(params, &n) == nil {
+			request := acp.RequestKey(n.RequestID)
+			for _, s := range p.attached() {
+				if s.cancelRequest(request) {
+					return
+				}
+			}
+		}
+		return
+	}
 	if method != acp.MethodSessionUpdate {
 		return
 	}
@@ -180,7 +193,12 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 	p.mu.Lock()
 	s, ok := p.sessions[n.SessionID]
 	if !ok {
-		p.orphans[n.SessionID] = append(p.orphans[n.SessionID], params)
+		queue := p.orphans[n.SessionID]
+		if len(queue) >= maxOrphans {
+			fmt.Fprintf(os.Stderr, "agents: %s: dropped an update for unknown session %.64s\n", p.agent, n.SessionID)
+			queue = queue[1:]
+		}
+		p.orphans[n.SessionID] = append(queue, params)
 	}
 	p.mu.Unlock()
 	if ok {
@@ -299,14 +317,15 @@ func (a *app) ensureProc(ctx context.Context, agent, root string) (*agentProc, e
 			slot = &procSlot{ready: make(chan struct{})}
 			a.procs[k] = slot
 			a.mu.Unlock()
-			slot.proc, slot.err = a.startProc(ctx, agent, root)
-			if slot.err != nil {
-				a.mu.Lock()
+			p, err := a.startProc(ctx, agent, root)
+			a.mu.Lock()
+			slot.proc, slot.err = p, err
+			if err != nil {
 				delete(a.procs, k)
-				a.mu.Unlock()
 			}
+			a.mu.Unlock()
 			close(slot.ready)
-			return slot.proc, slot.err
+			return p, err
 		}
 		a.mu.Unlock()
 		select {
@@ -329,7 +348,7 @@ func (a *app) ensureProc(ctx context.Context, agent, root string) (*agentProc, e
 }
 
 func (a *app) startProc(ctx context.Context, agent, root string) (*agentProc, error) {
-	l, err := launcherFor(ctx, a.stateDir, agent, root)
+	l, err := launcherFor(context.WithoutCancel(ctx), a.stateDir, agent, root)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +366,9 @@ func (a *app) startProc(ctx context.Context, agent, root string) (*agentProc, er
 		p.shutdown()
 		return nil, errShutdown
 	}
-	if err := p.initialize(ctx); err != nil {
+	ictx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachTimeout)
+	defer cancel()
+	if err := p.initialize(ictx); err != nil {
 		p.shutdown()
 		if tail := p.stderr.tail(); tail != "" {
 			err = fmt.Errorf("%w\n%s", err, tail)
