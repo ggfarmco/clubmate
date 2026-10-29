@@ -27,7 +27,9 @@ Inside terminals, Ghostty's own bindings apply, except ⌘W, ⌘P and ⇧⌘F, w
 | Keys | Action |
 |---|---|
 | ↑ ↓ (arrows in the switcher grid) | Move the selection |
-| ↩ | Run, open, or choose |
+| ⌃J ⌃N / ⌃K ⌃P | Move the selection down / up (text fields) |
+| h j k l | Move left / down / up / right (switcher grid) |
+| ↩, ⌃L | Run, open, or choose |
 | ⌥↩ | Find in Files: send all results to nvim's quickfix list |
 | Esc | Close |
 
