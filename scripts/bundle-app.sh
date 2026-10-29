@@ -36,4 +36,9 @@ done
 "${SIGN[@]}" "$SPARKLE/Versions/B/Autoupdate"
 "${SIGN[@]}" "$SPARKLE/Versions/B/Updater.app"
 "${SIGN[@]}" "$SPARKLE"
-"${SIGN[@]}" "$APP"
+ENTITLEMENTS="${TARGET_TEMP_DIR:-}/${FULL_PRODUCT_NAME:-}.xcent"
+if [[ -n "${TARGET_TEMP_DIR:-}" && -f "$ENTITLEMENTS" ]]; then
+  "${SIGN[@]}" --entitlements "$ENTITLEMENTS" "$APP"
+else
+  "${SIGN[@]}" --preserve-metadata=entitlements "$APP"
+fi
