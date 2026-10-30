@@ -262,7 +262,8 @@ type reviewHeader struct {
 	Base     string       `json:"base"`
 	Head     string       `json:"head"`
 	BaseRef  string       `json:"baseRef"`
-	HeadPath string       `json:"headPath"`
+	HeadRef  string       `json:"headRef"`
+	ReadOnly bool         `json:"readOnly,omitempty"`
 	Mode     string       `json:"mode"`
 	Progress string       `json:"progress"`
 	Warning  string       `json:"warning,omitempty"`
@@ -292,7 +293,8 @@ func reviewView(r *review) sdui.Node {
 		Base:     cmp.Or(r.baseLabel, r.base),
 		Head:     cmp.Or(r.headLabel, filepath.Base(r.head)),
 		BaseRef:  r.base,
-		HeadPath: r.head,
+		HeadRef:  cmp.Or(r.branch, r.head),
+		ReadOnly: r.branch != "",
 		Mode:     cmp.Or(r.mode, nativeMode),
 		Progress: progress(rows, hidden, module),
 		Warning:  r.warning,

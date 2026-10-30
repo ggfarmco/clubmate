@@ -36,7 +36,30 @@ final class WorktreesTests: XCTestCase {
         await model.load()
 
         XCTAssertEqual(model.reviewLabel, "Review against origin/main")
-        XCTAssertEqual(model.pickerItems.map(\.checked), [true, false])
+    }
+
+    func testSwitcherGroupsBranchesAfterWorktreesAndPickDispatches() async throws {
+        let core = FakeGitCore()
+        var banners: [String] = []
+        let model = WorktreeModel(run: core.run, project: { nil }, confirm: { _, _ in false }, report: { banners.append($0) })
+        await model.menuOpened()
+
+        let picker = FuzzyPickerModel(placeholder: "", debounce: .zero, source: model.switcherSource)
+        picker.update("fe")
+        _ = await picker.choose()
+        XCTAssertEqual(picker.items.map(\.label), ["feat", "feature/x", "origin/fetch"])
+        XCTAssertEqual((0..<3).map { picker.header(at: $0) }, ["Worktrees", "Branches", nil])
+
+        await model.pick(picker.items[2])
+        await model.pick(picker.items[0])
+
+        XCTAssertEqual(core.calls.filter { $0.id == "git.branch-switch" }.map(\.args), [
+            .object(["repo": .string("/r"), "branch": .string("origin/fetch")]),
+        ])
+        XCTAssertEqual(core.calls.filter { $0.id == "git.worktree-switch" }.map(\.args), [
+            .object(["repo": .string("/r"), "path": .string("/r/.worktrees/feat")]),
+        ])
+        XCTAssertEqual(banners, ["Warning: you are leaving 1 commit behind"])
     }
 
     func testMenuOpenedReloadsList() async throws {
@@ -135,10 +158,20 @@ private final class FakeGitCore {
                 .object(["id": .string("s1"), "title": .string("zsh")]),
                 .object(["id": .string("s2"), "title": .string("server")]),
             ]))
+        case "git.branches":
+            return .success(.array([
+                .object(["repo": .string("/r"), "name": .string("feature/x")]),
+                .object(["repo": .string("/r"), "name": .string("origin/fetch"), "remote": .bool(true)]),
+                .object(["repo": .string("/r"), "name": .string("old")]),
+            ]))
+        case "git.branch-switch":
+            return .success(.object(["id": .string("op-3")]))
         case "git.worktree-remove":
             return .success(.object(["id": .string(args["force"] == nil ? "op-1" : "op-2")]))
         case "git.worktree-op-status" where unsaved && args["id"] == .string("op-1"):
             return .success(.object(["done": .bool(true), "error": .string("plugin editor-nvim command.run: unsaved buffers: a.go")]))
+        case "git.worktree-op-status" where args["id"] == .string("op-3"):
+            return .success(.object(["done": .bool(true), "notice": .string("Warning: you are leaving 1 commit behind")]))
         case "git.worktree-op-status":
             return .success(.object(["done": .bool(true)]))
         default:

@@ -606,11 +606,13 @@ final class ProjectSession {
     func chooseWorktree() {
         Task { [weak self] in
             guard let worktrees = self?.worktrees else { return }
-            await worktrees.menuOpened()
-            self?.openPicker("Switch to worktree", source: FuzzyPickerModel.local { worktrees.pickerItems }) { [weak self] item in
-                guard let tree = worktrees.worktree(id: item.id) else { return }
-                self?.switchWorktree(tree)
+            await worktrees.load()
+            self?.openPicker("Switch to worktree or branch", source: worktrees.switcherSource) { [weak self] item in
+                self?.pickWorktree(item)
             }
+            guard let model = self?.picker?.model else { return }
+            await worktrees.loadBranches()
+            model.update(model.query)
         }
     }
 
@@ -625,7 +627,7 @@ final class ProjectSession {
     }
 
     func chooseReviewHead(base: String) {
-        openPicker("Review worktree", source: FuzzyPickerModel.refs(run: storeRun, kinds: ["worktree"])) { [weak self] item in
+        openPicker("Review branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
             self?.run(ReviewCommand.start(base: base, head: item.id))
         }
     }
@@ -650,8 +652,8 @@ final class ProjectSession {
         Task { await worktrees.remove(repo: tree.repo, path: tree.path) }
     }
 
-    func switchWorktree(_ tree: Worktree) {
-        Task { await worktrees.switchTo(repo: tree.repo, path: tree.path) }
+    func pickWorktree(_ item: PickerItem) {
+        Task { await worktrees.pick(item) }
     }
 
     func worktreeMenuOpened() {

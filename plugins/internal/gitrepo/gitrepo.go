@@ -52,6 +52,17 @@ func Mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	return run(ctx, repo, nil, args...)
 }
 
+func MutateNotice(ctx context.Context, repo string, args ...string) ([]byte, string, error) {
+	var stderr bytes.Buffer
+	cmd := command(ctx, repo, args...)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
+		ee.Stderr = stderr.Bytes()
+	}
+	return out, stderr.String(), err
+}
+
 func RunEnv(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
 	cmd := command(ctx, repo, args...)
 	cmd.Env = append(cmd.Env, env...)
@@ -230,7 +241,46 @@ func MergeBase(ctx context.Context, repo, base, head string) (string, error) {
 }
 
 func Branches(ctx context.Context, repo string) ([]string, []string, error) {
-	out, err := Run(ctx, repo, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes")
+	return branches(ctx, repo)
+}
+
+func Remotes(ctx context.Context, repo string) ([]string, error) {
+	out, err := Run(ctx, repo, "remote")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(out)), nil
+}
+
+func ValidBranchName(name string) bool {
+	if name == "" || name == "@" || strings.HasPrefix(name, "-") || strings.HasSuffix(name, ".") || strings.ContainsAny(name, " ~^:?*[\\\x7f") {
+		return false
+	}
+	for _, bad := range []string{"..", "@{"} {
+		if strings.Contains(name, bad) {
+			return false
+		}
+	}
+	for _, r := range name {
+		if r < 0x20 {
+			return false
+		}
+	}
+	for part := range strings.SplitSeq(name, "/") {
+		if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+			return false
+		}
+	}
+	return true
+}
+
+func RecentBranches(ctx context.Context, repo string) ([]string, []string, error) {
+	return branches(ctx, repo, "--sort=-committerdate")
+}
+
+func branches(ctx context.Context, repo string, opts ...string) ([]string, []string, error) {
+	args := append([]string{"for-each-ref", "--format=%(refname)"}, opts...)
+	out, err := Run(ctx, repo, append(args, "refs/heads", "refs/remotes")...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -246,6 +296,14 @@ func Branches(ctx context.Context, repo string) ([]string, []string, error) {
 }
 
 func WorkingChanges(ctx context.Context, repo, rev string) ([]Change, error) {
+	return changes(ctx, repo, true, rev)
+}
+
+func CommitChanges(ctx context.Context, repo, from, to string) ([]Change, error) {
+	return changes(ctx, repo, false, from, to)
+}
+
+func changes(ctx context.Context, repo string, working bool, revs ...string) ([]Change, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	out, err := run(ctx, repo, nil, "rev-parse", "--show-toplevel")
@@ -253,17 +311,19 @@ func WorkingChanges(ctx context.Context, repo, rev string) ([]Change, error) {
 		return nil, err
 	}
 	top := strings.TrimSuffix(string(out), "\n")
-	status, err := run(ctx, top, nil, "diff", "--name-status", "-z", "--no-renames", rev, "--")
+	status, err := run(ctx, top, nil, slices.Concat([]string{"diff", "--name-status", "-z", "--no-renames"}, revs, []string{"--"})...)
 	if err != nil {
 		return nil, err
 	}
-	stats, err := run(ctx, top, nil, "diff", "--numstat", "-z", "--no-renames", rev, "--")
+	stats, err := run(ctx, top, nil, slices.Concat([]string{"diff", "--numstat", "-z", "--no-renames"}, revs, []string{"--"})...)
 	if err != nil {
 		return nil, err
 	}
-	untracked, err := run(ctx, top, nil, "ls-files", "--others", "--exclude-standard", "-z")
-	if err != nil {
-		return nil, err
+	var untracked []byte
+	if working {
+		if untracked, err = run(ctx, top, nil, "ls-files", "--others", "--exclude-standard", "-z"); err != nil {
+			return nil, err
+		}
 	}
 	byPath := map[string]*Change{}
 	var changes []Change

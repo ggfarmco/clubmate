@@ -308,6 +308,19 @@
         }
       },
       {
+        "id": "editor-nvim.unsaved",
+        "title": "Unsaved Buffers",
+        "hidden": true,
+        "agent": false,
+        "description": "List the modified buffers of the Neovim running in the given root whose files are inside it, as workspace-relative names; [] when none runs there. Never stops or starts Neovim; fails with unsaved buffers: unknown when it does not respond.",
+        "args": {
+          "properties": {
+            "root": {"type": "string", "description": "Absolute root path of the Neovim, as listed in the workspace roots."}
+          },
+          "required": ["root"]
+        }
+      },
+      {
         "id": "editor-nvim.release-root",
         "title": "Release Worktree Neovim",
         "hidden": true,

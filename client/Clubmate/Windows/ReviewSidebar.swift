@@ -56,12 +56,12 @@ private struct ReviewHeaderView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 } action: {
-                    session.chooseReviewBase(head: header.headPath)
+                    session.chooseReviewBase(head: header.headRef)
                 }
                 CompareField(caption: "head", title: header.title) {
                     ViewThatFits(in: .horizontal) {
-                        headLabel(suffix: ReviewHeader.workingTree)
-                        headLabel(suffix: ReviewHeader.workingTreeShort)
+                        headLabel(suffix: header.headSuffix)
+                        headLabel(suffix: header.headSuffixShort)
                     }
                 } action: {
                     session.chooseReviewHead(base: header.baseRef)

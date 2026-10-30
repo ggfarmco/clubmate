@@ -220,7 +220,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(cmd.ID, "git.worktree") {
+	if strings.HasPrefix(cmd.ID, "git.worktree") || strings.HasPrefix(cmd.ID, "git.branch") {
 		return a.worktreeCommand(ctx, h, cmd, s)
 	}
 	if cmd.ID == "git.end-review" || strings.HasPrefix(cmd.ID, "git.review") {

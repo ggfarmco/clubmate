@@ -8,7 +8,7 @@ final class ReviewTests: XCTestCase {
         let tree = try JSONDecoder().decode(SDUINode.self, from: Data(#"""
         {"type":"tree","props":{
           "items":[{"id":"a.go","label":"a.go","badge":"M","additions":12,"deletions":3,"reviewed":true,"comments":2}],
-          "review":{"base":"main","head":"DUE-970-cards","baseRef":"main","headPath":"/r/.worktrees/due","mode":"module",
+          "review":{"base":"main","head":"DUE-970-cards","baseRef":"main","headRef":"/r/.worktrees/due","mode":"module",
             "progress":"16 files · 6 hidden · 7/16 reviewed","warning":"","error":"",
             "chips":[{"id":"tests","label":"Tests","on":true},{"id":"generated","label":"Generated","on":false}]}}}
         """#.utf8))
@@ -24,6 +24,12 @@ final class ReviewTests: XCTestCase {
         XCTAssertTrue(item.reviewed)
         XCTAssertTrue(ReviewSlot.isActive(tree))
         XCTAssertFalse(ReviewSlot.isActive(SDUINode(type: "empty")))
+    }
+
+    func testBranchHeadIsReadOnly() throws {
+        let node = try JSONDecoder().decode(SDUINode.self, from: Data(#"{"type":"tree","props":{"review":{"base":"main","head":"feature/x","headRef":"feature/x","readOnly":true}}}"#.utf8))
+
+        XCTAssertEqual(try XCTUnwrap(node.reviewHeader()).title, "main ◂ feature/x (read-only)")
     }
 
     func testReviewKeys() {

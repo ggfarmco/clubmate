@@ -794,6 +794,23 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
 }
 
+func TestUnsavedListsModifiedBuffersWithoutStopping(t *testing.T) {
+	e := startEditor(t)
+	path := e.file(t, "a.go")
+	require.NoError(t, e.open(t, path, 1))
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	unsaved := func() []string {
+		var names []string
+		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.unsaved", "projectId": e.projectID, "args": map[string]string{"root": e.repo}}, &names))
+		return names
+	}
+	assert.Empty(t, unsaved())
+	require.NoError(t, v.Command("normal! ix"))
+	assert.Equal(t, []string{"a.go"}, unsaved())
+	assert.Equal(t, []string{e.sessionID}, e.running(t))
+}
+
 func TestStopRootBlocksStartUntilReleased(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{})
 	feat := e.setWorktree(t, wt)

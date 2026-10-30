@@ -70,6 +70,7 @@ var (
 	errReviewDir      = errors.New("review-next: dir must be 1 or -1")
 	errStopRoot       = errors.New("stop-root: root must be absolute")
 	errChecktimeRoot  = errors.New("checktime: root must be absolute")
+	errUnsavedRoot    = errors.New("unsaved: root must be absolute")
 	errNoSelection    = errors.New("no selection")
 	errStopping       = errors.New("the worktree is being removed")
 	errNavigationSide = errors.New("navigation: side must be left or right")
@@ -459,6 +460,15 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, errStopRoot
 		}
 		return nil, a.stopRoot(ctx, h, cmd.ProjectID, filepath.Clean(args.Root), args.Force)
+	case "unsaved":
+		var args stopRootArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("unsaved args: %w", err)
+		}
+		if !filepath.IsAbs(args.Root) {
+			return nil, errUnsavedRoot
+		}
+		return a.unsaved(cmd.ProjectID, filepath.Clean(args.Root))
 	case "release-root":
 		var args stopRootArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -952,6 +962,30 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root s
 		}
 	}
 	return nil
+}
+
+func (a *app) unsaved(projectID, root string) ([]string, error) {
+	names := []string{}
+	e := a.lookup(projectID, root)
+	if e == nil {
+		return names, nil
+	}
+	c := e.connected()
+	if c == nil {
+		return names, nil
+	}
+	modified, err := c.modified()
+	if err != nil {
+		return nil, errUnsavedUnknown
+	}
+	dir := gitrepo.Canonical(root)
+	var inside []string
+	for _, name := range modified {
+		if name != "" && gitrepo.Within(gitrepo.Canonical(name), dir) {
+			inside = append(inside, name)
+		}
+	}
+	return append(names, relativeNames(inside, a.projectFolders(projectID))...), nil
 }
 
 func (a *app) releaseRoot(ctx context.Context, h *pluginsdk.Host, projectID, root string) error {

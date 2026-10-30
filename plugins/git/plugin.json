@@ -36,7 +36,7 @@
         "args": {
           "properties": {
             "base": {"type": "string", "description": "Branch, remote branch or worktree root to compare against; defaults to the repo's default base (origin/HEAD, main or master). A worktree root means its branch. `commit:<sha>` compares against that commit itself, without a merge-base; an unknown sha fails with invalid ref."},
-            "head": {"type": "string", "description": "Worktree root, or a branch checked out in a worktree, to review; defaults to the current worktree of the first git folder. The folder switches to it."},
+            "head": {"type": "string", "description": "Worktree root or branch to review; defaults to the current worktree of the first git folder. A worktree, or a branch checked out in one, switches the folder to it; any other local or remote branch is reviewed read-only from its commits (merge-base, or the `commit:<sha>` base, to branch tip) without a checkout."},
             "baseLabel": {"type": "string", "maxLength": 64, "description": "Label for the base side in the review header, e.g. `before turn 3`; used with `commit:<sha>`, defaults to the base."}
           }
         }
@@ -58,7 +58,7 @@
         "id": "git.review-swap",
         "title": "Swap Review Sides",
         "agent": true,
-        "description": "Swap base and head of the current review: the base's worktree becomes the reviewed head and the old head becomes the base. Fails when the base is not checked out in a worktree."
+        "description": "Swap base and head of the current review: the base (its worktree, else the branch read-only) becomes the reviewed head and the old head becomes the base."
       },
       {
         "id": "git.review-filter",
@@ -114,6 +114,28 @@
         }
       },
       {
+        "id": "git.branches",
+        "title": "List Branches",
+        "hidden": true,
+        "agent": false,
+        "description": "List the branches of every git folder that no worktree has checked out: local branches, then remote-tracking ones without a local branch of the same name, each newest commit first, at most 1500 local and 500 remote-tracking per folder. Returns [{repo, name, remote?}]."
+      },
+      {
+        "id": "git.branch-switch",
+        "title": "Switch Branch",
+        "hidden": true,
+        "agent": false,
+        "destructive": true,
+        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Refuses at once while the folder's Neovim has unsaved buffers. Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome, whose notice carries git's warning about commits left behind a detached HEAD.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
+            "branch": {"type": "string", "description": "Local branch, or remote-tracking branch such as origin/x, as listed by git.branches."}
+          },
+          "required": ["branch"]
+        }
+      },
+      {
         "id": "git.worktree-new",
         "title": "New Worktree",
         "hidden": true,
@@ -132,7 +154,7 @@
         "title": "Worktree Operation Status",
         "hidden": true,
         "agent": true,
-        "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove. Returns {done, error?, path?}; path is the new worktree after a successful create.",
+        "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove. Returns {done, error?, path?, notice?}; path is the new worktree after a successful create, notice a warning worth showing after success.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Operation id returned by git.worktree-new or git.worktree-remove."}

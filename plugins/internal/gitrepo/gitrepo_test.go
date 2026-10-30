@@ -269,3 +269,12 @@ func TestValidGlobAllowsOnlyGlobCharacters(t *testing.T) {
 		assert.False(t, gitrepo.ValidGlob(g), g)
 	}
 }
+
+func TestValidBranchName(t *testing.T) {
+	for _, name := range []string{"main", "feature/x", "origin/team/DUE-970", "v1.2"} {
+		assert.True(t, gitrepo.ValidBranchName(name), name)
+	}
+	for _, name := range []string{"", "-x", "a..b", "a b", "x@{1}", "a/", "/a", "a//b", ".a", "a/.b", "a.lock", "a.", "a:b", "a\\b"} {
+		assert.False(t, gitrepo.ValidBranchName(name), name)
+	}
+}

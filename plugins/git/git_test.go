@@ -27,7 +27,7 @@ const (
 	editorSlot     = "editor-nvim.main"
 	mainSlot       = "git.main"
 	reviewSlot     = "git.review"
-	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true}]}}`
+	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true},{"id":"editor-nvim.checktime","title":"Checktime","hidden":true},{"id":"editor-nvim.unsaved","title":"Unsaved","hidden":true}]}}`
 	restartWait    = 15 * time.Second
 	agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.stop-root","title":"Stop Worktree Agents","hidden":true}]},"echoResults":{"agents.stop-root":{}}}`
 )
@@ -665,11 +665,74 @@ func TestReviewRefsFuzzy(t *testing.T) {
 	assert.Empty(t, refs, "the head worktree and its branch are not base candidates")
 }
 
+func TestReviewBranchHeadWithoutCheckout(t *testing.T) {
+	repo := branchRepo(t)
+	git(t, repo, "checkout", "-q", "main")
+	write(t, filepath.Join(repo, "u.go"), "u\n")
+	sha := git(t, repo, "rev-parse", "feature/x")
+	mergeBase := git(t, repo, "merge-base", "main", "feature/x")
+	manifest := strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.review-open":{"mode":"native"},"editor-nvim.diff":null},`, 1)
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, manifest))
+
+	review(t, h, id, map[string]string{"base": "main", "head": "feature/x"})
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "feature/x", header["head"])
+	assert.Equal(t, "feature/x", header["headRef"])
+	assert.Equal(t, true, header["readOnly"])
+	assert.JSONEq(t, fmt.Sprintf(`{"cwd":%q,"base":%q,"excludes":[]}`, repo, mergeBase+".."+sha), string(commandArgs(t, h, "editor-nvim.review-open")[0]))
+	require.NoError(t, reviewAction(t, h, id, "select", "a.go"))
+	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":%q,"target":%q}`, filepath.Join(repo, "a.go"), "rev:"+mergeBase, "rev:"+sha), string(commandArgs(t, h, "editor-nvim.diff")[0]))
+	assert.Equal(t, "main", git(t, repo, "branch", "--show-current"))
+	assert.Equal(t, repo, firstRoot(t, h, id))
+
+	var refs []struct {
+		Ref string `json:"ref"`
+	}
+	require.NoError(t, runCommand(t, h, id, "git.review-refs", map[string]string{"query": ""}, &refs))
+	var got []string
+	for _, r := range refs {
+		got = append(got, r.Ref)
+	}
+	assert.Equal(t, []string{repo, "main"}, got)
+
+	git(t, repo, "switch", "-q", "feature/x")
+	require.NoError(t, runCommand(t, h, id, "git.refresh", nil, nil))
+	n = h.WaitSlot(t, id, reviewSlot, func(n sdui.Node) bool {
+		_, header := reviewView(t, n)
+		return header != nil && header["readOnly"] == nil
+	})
+	_, header = reviewView(t, n)
+	assert.Equal(t, repo, header["headRef"])
+	require.NoError(t, reviewAction(t, h, id, "select", "c.go"))
+	diffs := commandArgs(t, h, "editor-nvim.diff")
+	assert.Contains(t, string(diffs[len(diffs)-1]), `"target":"worktree"`)
+}
+
+func TestReviewLiteralBaseWithBranchHead(t *testing.T) {
+	repo := branchRepo(t)
+	tip := git(t, repo, "rev-parse", "HEAD")
+	git(t, repo, "checkout", "-q", "main")
+	write(t, filepath.Join(repo, "m.go"), "m\n")
+	git(t, repo, "add", "m.go")
+	git(t, repo, "commit", "-qm", "main moved")
+	sha := git(t, repo, "rev-parse", "HEAD")
+	manifest := strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.review-open":{"mode":"native"}},`, 1)
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, manifest))
+
+	review(t, h, id, map[string]string{"base": "commit:" + sha, "head": "feature/x", "baseLabel": "before turn 2"})
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go", "m.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "before turn 2", header["base"])
+	assert.Equal(t, true, header["readOnly"])
+	assert.JSONEq(t, fmt.Sprintf(`{"cwd":%q,"base":%q,"excludes":[]}`, repo, sha+".."+tip), string(commandArgs(t, h, "editor-nvim.review-open")[0]))
+}
+
 func TestReviewErrors(t *testing.T) {
 	repo := branchRepo(t)
 	h, id := openReady(t, repo)
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "gone"}, nil), "unknown branch gone")
-	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"head": "nope"}, nil), "nope is not checked out in a worktree")
+	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"head": "nope"}, nil), "unknown branch nope")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-swap", nil, nil), "no review in progress")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "--output=x"}, nil), "invalid ref")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-filter", map[string]string{"glob": "`touch x`"}, nil), "glob may only contain")
@@ -713,9 +776,10 @@ type worktreeEntry struct {
 }
 
 type opResult struct {
-	Done  bool   `json:"done"`
-	Error string `json:"error"`
-	Path  string `json:"path"`
+	Done   bool   `json:"done"`
+	Error  string `json:"error"`
+	Path   string `json:"path"`
+	Notice string `json:"notice"`
 }
 
 type sessionEntry struct {
@@ -1017,4 +1081,99 @@ func TestHomeWorkspaceHasNoWorktrees(t *testing.T) {
 	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
 	_, err = startOp(t, h, p.ID, "git.worktree-remove", map[string]string{"path": home})
 	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
+}
+
+type branchEntry struct {
+	Repo   string `json:"repo"`
+	Name   string `json:"name"`
+	Remote bool   `json:"remote"`
+}
+
+func commitAt(t *testing.T, repo, file, date string) {
+	t.Helper()
+	t.Setenv("GIT_COMMITTER_DATE", date)
+	write(t, filepath.Join(repo, file), date+"\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", file, "--date", date)
+}
+
+func clonedRepo(t *testing.T) string {
+	t.Helper()
+	origin := committedRepo(t)
+	git(t, origin, "checkout", "-qb", "remote-only")
+	commitAt(t, origin, "r.go", "2022-01-01T00:00:00Z")
+	git(t, origin, "checkout", "-q", "main")
+	clone, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	git(t, clone, "clone", "-q", origin, ".")
+	git(t, clone, "config", "user.name", "t")
+	git(t, clone, "config", "user.email", "t@t")
+	return clone
+}
+
+func TestBranchListSkipsWorktreesLocalFirstNewestFirst(t *testing.T) {
+	repo := clonedRepo(t)
+	for _, b := range []struct{ name, date string }{{"old", "2020-01-01T00:00:00Z"}, {"new", "2024-01-01T00:00:00Z"}} {
+		git(t, repo, "checkout", "-qb", b.name, "main")
+		commitAt(t, repo, b.name+".go", b.date)
+	}
+	git(t, repo, "checkout", "-q", "main")
+	git(t, repo, "worktree", "add", "-q", "-b", "wt", filepath.Join(repo, ".worktrees", "wt"))
+	h, id := openReady(t, repo)
+
+	var list []branchEntry
+	require.NoError(t, runCommand(t, h, id, "git.branches", nil, &list))
+	assert.Equal(t, []branchEntry{{Repo: repo, Name: "new"}, {Repo: repo, Name: "old"}, {Repo: repo, Name: "origin/remote-only", Remote: true}}, list)
+}
+
+func TestBranchSwitch(t *testing.T) {
+	repo := clonedRepo(t)
+	git(t, repo, "checkout", "-qb", "feat")
+	write(t, filepath.Join(repo, "a.go"), "two\n")
+	git(t, repo, "commit", "-qam", "feat")
+	git(t, repo, "checkout", "-q", "main")
+	wt := filepath.Join(repo, ".worktrees", "wt")
+	git(t, repo, "worktree", "add", "-q", "-b", "wt", wt)
+	h, id := openReady(t, repo, switchEditor(t, `[]`))
+
+	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "feat"}).Error)
+	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
+	assert.JSONEq(t, fmt.Sprintf(`{"root":%q}`, repo), string(commandArgs(t, h, "editor-nvim.checktime")[0]))
+
+	write(t, filepath.Join(repo, "a.go"), "dirty\n")
+	assert.Contains(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "main"}).Error, "would be overwritten by checkout")
+	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
+	git(t, repo, "checkout", "--", "a.go")
+
+	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"}).Error)
+	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
+	assert.Equal(t, "origin/remote-only", git(t, repo, "rev-parse", "--abbrev-ref", "@{upstream}"))
+
+	git(t, repo, "checkout", "-q", "--detach")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "lost")
+	res := awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
+	require.Empty(t, res.Error)
+	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
+	assert.Contains(t, res.Notice, "you are leaving 1 commit behind")
+
+	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "wt"}).Error)
+	assert.Equal(t, wt, firstRoot(t, h, id))
+	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
+
+	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "-x"})
+	assert.ErrorContains(t, err, "not a valid branch name")
+}
+
+func switchEditor(t *testing.T, unsaved string) string {
+	t.Helper()
+	return testutil.EchoPluginDirAs(t, strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.unsaved":`+unsaved+`,"editor-nvim.checktime":null},`, 1))
+}
+
+func TestBranchSwitchRefusesUnsavedBuffers(t *testing.T) {
+	repo := clonedRepo(t)
+	h, id := openReady(t, repo, switchEditor(t, `["a.go"]`))
+
+	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
+	assert.ErrorContains(t, err, "Save or discard unsaved changes first: a.go")
+	assert.Equal(t, "main", git(t, repo, "branch", "--show-current"))
 }
