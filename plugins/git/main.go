@@ -35,11 +35,10 @@ const (
 var (
 	errUnknownAction  = errors.New("unknown action")
 	errUnknownCommand = errors.New("unknown command")
-	errNoSelection    = errors.New("no file selected")
 	errNotChanges     = errors.New("only unstaged changes can be discarded")
 	errNoMessage      = errors.New("commit message is required")
 	errUnknownRepo    = errors.New("unknown repository")
-	errStaleTarget    = errors.New("the file is no longer selected")
+	errStaleTarget    = errors.New("the file is no longer listed")
 	errBusy           = errors.New("git is busy")
 	errNoRepo         = errors.New("no repository to review")
 )
@@ -83,6 +82,7 @@ type state struct {
 	commits  int
 	reviews  map[string]*review
 	active   string
+	starts   int
 	filters  filters
 	busy     string
 	failure  string
@@ -198,13 +198,11 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		}
 		return nil, a.fold(ctx, h, ev.ProjectID, s, item, ev.Action == "collapse")
 	case stageAction, unstageAction, discardAction:
-		if err := a.apply(ctx, s, ev.Action, ev.NodeID); err != nil {
+		if err := a.apply(ctx, s, ev.Action, ev.Value); err != nil {
 			return nil, err
 		}
 		a.schedule(h, ev.ProjectID, s, 0)
 		return nil, nil
-	case openDiffAction:
-		return nil, a.openDiff(ctx, h, ev.ProjectID, s)
 	case commitAction:
 		var f commitForm
 		if err := json.Unmarshal(ev.Value, &f); err != nil {
@@ -482,26 +480,15 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	for i, r := range s.repos {
 		views[i] = s.view(r)
 	}
-	live := s.liveLocked()
-	folded := maps.Clone(s.folded)
-	sel := s.leaf(s.selected)
-	m := mainModel{Sel: sel, Repos: live, FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
+	m := sidebarModel{Repos: views, Folded: maps.Clone(s.folded), Live: s.liveLocked(), FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
+	if sel := s.leaf(s.selected); sel != nil {
+		m.Selected = sel.id()
+	}
 	review := s.reviewModel()
 	s.mu.Unlock()
-	selected := ""
-	if sel != nil {
-		selected = sel.id()
-		if info, err := os.Lstat(sel.Path); err == nil && sel.Group == groupUntracked {
-			sel.Dir = info.IsDir()
-		}
-		text, truncated, err := bodyFor(ctx, *sel)
-		m.Body = bodyNode(text, truncated, sel.Dir, err)
-	}
-	_, err := h.Render(ctx, id, sidebarSlot, sidebarView(views, selected, folded))
-	logError("sidebar "+id, err)
-	_, err = h.Render(ctx, id, reviewSlot, reviewView(review))
+	_, err := h.Render(ctx, id, reviewSlot, reviewView(review))
 	logError("review "+id, err)
-	_, err = h.Render(ctx, id, mainSlot, mainView(m))
+	_, err = h.Render(ctx, id, sidebarSlot, sidebarView(m))
 	return err
 }
 
@@ -510,13 +497,16 @@ func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *s
 		return nil
 	}
 	s.mu.Lock()
-	if s.leaf(item) != nil {
+	sel := s.leaf(item)
+	s.selected = ""
+	if sel != nil {
 		s.selected = item
-	} else {
-		s.selected = ""
 	}
 	s.mu.Unlock()
-	return a.render(ctx, h, id, s)
+	if err := a.render(ctx, h, id, s); err != nil || sel == nil {
+		return err
+	}
+	return openDiff(ctx, h, id, *sel)
 }
 
 func (a *app) fold(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string, on bool) error {
@@ -530,12 +520,16 @@ func (a *app) fold(ctx context.Context, h *pluginsdk.Host, id string, s *state, 
 	return a.render(ctx, h, id, s)
 }
 
-func (a *app) apply(ctx context.Context, s *state, action, target string) error {
+func (a *app) apply(ctx context.Context, s *state, action string, value json.RawMessage) error {
+	var item string
+	if err := json.Unmarshal(value, &item); err != nil {
+		return fmt.Errorf("%s value: %w", action, err)
+	}
 	s.mu.Lock()
-	sel := s.leaf(s.selected)
+	sel := s.leaf(item)
 	s.mu.Unlock()
 	if sel == nil {
-		return errNoSelection
+		return errStaleTarget
 	}
 	rel := sel.rel()
 	var err error
@@ -549,9 +543,6 @@ func (a *app) apply(ctx context.Context, s *state, action, target string) error 
 		}
 		err = unstage(ctx, sel.Repo, paths...)
 	case discardAction:
-		if target != sel.id() {
-			return errStaleTarget
-		}
 		if sel.Group != groupChanges {
 			return errNotChanges
 		}
@@ -563,23 +554,15 @@ func (a *app) apply(ctx context.Context, s *state, action, target string) error 
 	return err
 }
 
-func (a *app) openDiff(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	s.mu.Lock()
-	sel := s.leaf(s.selected)
-	s.mu.Unlock()
-	if sel == nil {
-		return errNoSelection
+func openDiff(ctx context.Context, h *pluginsdk.Host, id string, l leaf) error {
+	if info, err := os.Lstat(l.Path); err == nil && info.IsDir() {
+		return nil
 	}
-	args := diffArgs{Path: sel.Path, Base: "index", Target: "worktree"}
-	switch sel.Group {
-	case groupStaged:
+	args := diffArgs{Path: l.Path, Base: "index", Target: "worktree"}
+	if l.Group == groupStaged {
 		args.Base, args.Target = "head", "index"
 	}
-	if err := h.RunCommand(ctx, diffCommand, id, args, nil); err != nil {
-		return err
-	}
-	logError("focus "+id, h.Focus(ctx, id, editorSection, editorSlot))
-	return nil
+	return h.RunCommand(ctx, diffCommand, id, args, nil)
 }
 
 func (a *app) commit(ctx context.Context, h *pluginsdk.Host, id string, s *state, f commitForm) error {
@@ -695,28 +678,6 @@ func (s *state) follow(id string) string {
 	return ""
 }
 
-func bodyFor(ctx context.Context, l leaf) (string, bool, error) {
-	rel := l.rel()
-	switch {
-	case l.Group == groupStaged:
-		args := []string{"diff", "--no-color", "--no-ext-diff", "--cached", "--", rel}
-		if l.Orig != "" {
-			args = append(args, relPath(l.Repo, l.Orig))
-		}
-		return capture(ctx, l.Repo, args...)
-	case l.Group == groupChanges:
-		return capture(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", "--", rel)
-	case l.Dir:
-		out, truncated, err := capture(ctx, l.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", rel+"/")
-		return strings.ReplaceAll(strings.TrimSuffix(out, "\x00"), "\x00", "\n"), truncated, err
-	}
-	out, truncated, err := gitrepo.RunLimited(ctx, l.Repo, maxDiffBytes, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", rel)
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 && len(ee.Stderr) == 0 {
-		return string(out), truncated, nil
-	}
-	return string(out), truncated, gitError(out, err)
-}
-
 func reviewError(base string, err error) string {
 	switch {
 	case errors.Is(err, gitrepo.ErrUnknownRef):
@@ -730,11 +691,6 @@ func reviewError(base string, err error) string {
 
 func reviewKey(projectID string) string {
 	return "review/" + projectID
-}
-
-func capture(ctx context.Context, repo string, args ...string) (string, bool, error) {
-	out, truncated, err := gitrepo.RunLimited(ctx, repo, maxDiffBytes, append([]string{"--literal-pathspecs"}, args...)...)
-	return string(out), truncated, gitError(out, err)
 }
 
 func blocked(l leaf) string {

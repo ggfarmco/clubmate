@@ -180,12 +180,19 @@ private struct WorkspaceView: View {
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
+            .onChange(of: reviewState) { old, new in
+                session.store?.sidebarTabs.reviewChanged(from: old, to: new)
+            }
             .onChange(of: app.settings.autoHideSidebar) { _, enabled in
                 if !enabled { session.store?.sidebarAutoHidden = false }
             }
     }
 
     private static let sidebarSuffix = ".sidebar"
+
+    private var reviewState: Int? {
+        session.store?.slots[ReviewSlot.slot].map { ReviewSlot.header($0.tree)?.started ?? 0 }
+    }
 
     private struct SidebarKey: Equatable {
         let section: String
@@ -273,13 +280,13 @@ private struct WorkspaceView: View {
 
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
-        return CommandPalette.entries(commands: app.commands, sections: session.store?.sections ?? [], sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
+        return CommandPalette.entries(commands: app.commands, sections: session.store?.allSections ?? [], sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
     }
 
     private func perform(_ action: PaletteAction) {
         switch action {
         case .command(let id): confirm(id)
-        case .section(let id): session.store?.selectedSection = id
+        case .section(let id): session.store?.select(id)
         case .toggleSidebar: session.store?.toggleSidebar(app.settings)
         case .toggleNavigationKeys: app.settings.navigationKeys = !(app.settings.navigationKeys ?? false)
         case .openFolder: app.openFolder(in: windowID)
@@ -487,12 +494,8 @@ private struct SidebarPane: View {
         }
     }
 
-    @ViewBuilder private var content: some View {
-        if section == CodeSection.id {
-            CodeSidebar(session: session, store: store)
-        } else {
-            SlotPane(store: store, slot: "\(section).sidebar")
-        }
+    private var content: some View {
+        SectionSidebar(session: session, store: store, section: section)
     }
 
     private var handle: some View {

@@ -6,6 +6,8 @@ import Observation
 public final class ProjectUIStore {
     public let projectID: String
     public private(set) var sections: [SectionInfo] = []
+    public private(set) var hostedSections: [SectionInfo] = []
+    public var sidebarTabs = SidebarTabs()
     public private(set) var slots: [String: SlotView] = [:]
     public private(set) var connected = false
     public private(set) var failure: String?
@@ -63,7 +65,9 @@ public final class ProjectUIStore {
         do {
             let sections = try await client.uiSections()
             guard generation == self.generation else { return }
-            self.sections = sections.filter { $0.scope == scope }
+            let scoped = sections.filter { $0.scope == scope }
+            self.sections = SectionHosting.rail(scoped)
+            hostedSections = SectionHosting.hosted(scoped)
             let views = try await client.uiGet(projectID: projectID)
             guard generation == self.generation else { return }
             replace(with: views)
@@ -94,7 +98,22 @@ public final class ProjectUIStore {
     private func applyRequestedSection() {
         guard let requested = requestedSection else { return }
         requestedSection = nil
-        if sections.contains(where: { $0.id == requested }) { selectedSection = requested }
+        select(requested)
+    }
+
+    public var allSections: [SectionInfo] {
+        sections + hostedSections
+    }
+
+    @discardableResult
+    public func select(_ section: String, slot: String = "") -> String {
+        guard let target = SectionHosting.resolve(section, slot: slot, in: allSections) else { return slot }
+        if let tab = target.tab {
+            sidebarTabs.choose(tab, in: target.section)
+            revealSidebar(target.section)
+        }
+        selectedSection = target.section
+        return target.slot
     }
 
     public func reconnect(using client: CoreClient) async throws {
@@ -193,16 +212,16 @@ public final class ProjectUIStore {
     }
 
     public func requestFocus(section: String, slot: String) {
-        if sections.contains(where: { $0.id == section }) { selectedSection = section }
+        let slot = select(section, slot: slot)
         focusSerial += 1
         focusRequest = FocusRequest(slot: slot, serial: focusSerial)
     }
 
     private func focus(_ params: UIFocusNotification) {
         guard params.subscription == subscription else { return }
-        if sections.contains(where: { $0.id == params.section }) { selectedSection = params.section }
+        let slot = select(params.section, slot: params.slot)
         focusSerial += 1
-        focusRequest = FocusRequest(slot: params.slot, serial: focusSerial, edge: params.edge)
+        focusRequest = FocusRequest(slot: slot, serial: focusSerial, edge: params.edge)
     }
 
     private func recover() async {
@@ -262,7 +281,8 @@ public final class ProjectUIStore {
     private func restore(from state: JSONValue?) {
         let saved = state?.objectValue ?? [:]
         restoring = true
-        selectedSection = sections.first { $0.id == saved["section"]?.stringValue }?.id ?? sections.first?.id
+        selectedSection = sections.first?.id
+        if let section = saved["section"]?.stringValue { select(section) }
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
         restoring = false

@@ -16,7 +16,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⇧⌘F | Find in Files… | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar | `ClubmateApp.swift`, `WorkspaceWindow.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Terminal font size up, down, reset | `ClubmateApp.swift`, `WorkspaceWindow.swift` |
-| ⌘1…⌘9 | Switch section (Code, Git, Terminals, Processes, …) | `ClubmateApp.swift` |
+| ⌘1…⌘9 | Switch section in rail order (Code, Terminals, Agents, Processes, …); a section hosted as a sidebar tab (Git) has no number, reach it with "Go to Git" in ⌘K | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |

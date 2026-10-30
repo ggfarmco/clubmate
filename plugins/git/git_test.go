@@ -25,7 +25,6 @@ import (
 const (
 	sidebarSlot    = "git.sidebar"
 	editorSlot     = "editor-nvim.main"
-	mainSlot       = "git.main"
 	reviewSlot     = "git.review"
 	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true},{"id":"editor-nvim.checktime","title":"Checktime","hidden":true},{"id":"editor-nvim.unsaved","title":"Unsaved","hidden":true}]}}`
 	restartWait    = 15 * time.Second
@@ -77,10 +76,11 @@ func open(t *testing.T, repo string, dirs ...string) (*testutil.PluginHarness, s
 
 func roots(t *testing.T, n sdui.Node) []sdui.TreeItem {
 	t.Helper()
-	if n.Type != "scroll" || len(n.Children) != 1 {
+	tree, ok := treeOf(n)
+	if !ok {
 		return nil
 	}
-	raw, err := json.Marshal(n.Children[0].Props["items"])
+	raw, err := json.Marshal(tree.Props["items"])
 	require.NoError(t, err)
 	var out []sdui.TreeItem
 	require.NoError(t, json.Unmarshal(raw, &out))
@@ -100,12 +100,12 @@ func groups(t *testing.T, n sdui.Node) map[string][]string {
 	return out
 }
 
-func find(n sdui.Node, id string) (sdui.Node, bool) {
-	if n.ID == id {
+func treeOf(n sdui.Node) (sdui.Node, bool) {
+	if n.Type == "tree" {
 		return n, true
 	}
 	for _, c := range n.Children {
-		if got, ok := find(c, id); ok {
+		if got, ok := treeOf(c); ok {
 			return got, true
 		}
 	}
@@ -114,8 +114,8 @@ func find(n sdui.Node, id string) (sdui.Node, bool) {
 
 func committed(t *testing.T, h *testutil.PluginHarness, id, repo, form, message string) {
 	t.Helper()
-	h.Event(t, id, mainSlot, form, "commit", map[string]string{"message": message})
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != form })
+	h.Event(t, id, sidebarSlot, form, "commit", map[string]string{"message": message})
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return formOf(n) != form })
 	assert.Equal(t, message, git(t, repo, "log", "-1", "--format=%s"))
 }
 
@@ -185,24 +185,22 @@ func TestStageUnstageCommit(t *testing.T) {
 	}
 	h.WaitSlot(t, id, sidebarSlot, under("Changes (1)"))
 
-	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00changes\x00"+filepath.Join(repo, "b.go"))
-	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "stage"); return ok })
-	assert.Contains(t, main.Children[1].Children[0].Props["text"], "+two")
-	form := formOf(main)
-	stale := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": mainSlot, "nodeId": repo + "\x00changes\x00" + filepath.Join(repo, "a.go"), "action": "discard", "value": nil}, nil)
-	assert.ErrorContains(t, stale, "the file is no longer selected")
-	h.Event(t, id, mainSlot, "stage", "stage", nil)
+	changes := repo + "\x00changes\x00" + filepath.Join(repo, "b.go")
+	staged := repo + "\x00staged\x00" + filepath.Join(repo, "b.go")
+	form := formOf(h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return formOf(n) != "" }))
+	stale := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": sidebarSlot, "nodeId": "git", "action": "discard", "value": repo + "\x00changes\x00" + filepath.Join(repo, "a.go")}, nil)
+	assert.ErrorContains(t, stale, "the file is no longer listed")
+	h.Event(t, id, sidebarSlot, "git", "stage", changes)
 	h.WaitSlot(t, id, sidebarSlot, under("Staged (1)"))
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "unstage"); return ok })
-	h.Event(t, id, mainSlot, "unstage", "unstage", nil)
+	h.Event(t, id, sidebarSlot, "git", "unstage", staged)
 	h.WaitSlot(t, id, sidebarSlot, under("Changes (1)"))
-	h.Event(t, id, mainSlot, "stage", "stage", nil)
+	h.Event(t, id, sidebarSlot, "git", "stage", changes)
 	h.WaitSlot(t, id, sidebarSlot, under("Staged (1)"))
 
 	committed(t, h, id, repo, form, "m")
 	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(roots(t, n)) == 1 && len(groups(t, n)) == 0 })
 
-	err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": mainSlot, "nodeId": form, "action": "commit", "value": map[string]string{"message": ""}}, nil)
+	err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": sidebarSlot, "nodeId": form, "action": "commit", "value": map[string]string{"message": ""}}, nil)
 	assert.ErrorContains(t, err, "commit message is required")
 }
 
@@ -214,32 +212,31 @@ func TestFreshRepoStageCommit(t *testing.T) {
 	tree := h.WaitSlot(t, id, sidebarSlot, untracked)
 	assert.Equal(t, "main", roots(t, tree)[0].Detail)
 
-	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00untracked\x00"+filepath.Join(repo, "x"))
-	h.Event(t, id, mainSlot, "stage", "stage", nil)
+	h.Event(t, id, sidebarSlot, "git", "stage", repo+"\x00untracked\x00"+filepath.Join(repo, "x"))
 	h.WaitSlot(t, id, sidebarSlot, staged)
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "unstage"); return ok })
-	h.Event(t, id, mainSlot, "unstage", "unstage", nil)
+	h.Event(t, id, sidebarSlot, "git", "unstage", repo+"\x00staged\x00"+filepath.Join(repo, "x"))
 	h.WaitSlot(t, id, sidebarSlot, untracked)
-	h.Event(t, id, mainSlot, "stage", "stage", nil)
-	h.WaitSlot(t, id, sidebarSlot, staged)
-	committed(t, h, id, repo, formOf(h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != "" })), "first")
+	h.Event(t, id, sidebarSlot, "git", "stage", repo+"\x00untracked\x00"+filepath.Join(repo, "x"))
+	committed(t, h, id, repo, formOf(h.WaitSlot(t, id, sidebarSlot, staged)), "first")
 }
 
-func TestUntrackedDirListsFiles(t *testing.T) {
-	repo := newRepo(t)
+func TestSelectOpensDiffInEditor(t *testing.T) {
+	repo := newRepo(t, "a.go")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "init")
+	write(t, filepath.Join(repo, "a.go"), "two\n")
+	git(t, repo, "add", "a.go")
 	require.NoError(t, os.Mkdir(filepath.Join(repo, "newpkg"), 0o700))
-	write(t, filepath.Join(repo, "newpkg", "a.go"), "a\n")
 	write(t, filepath.Join(repo, "newpkg", "b.go"), "b\n")
-	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Untracked (1)"]) == 1 })
+	manifest := strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.diff":null},`, 1)
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, manifest))
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)) == 2 })
 
 	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00untracked\x00"+filepath.Join(repo, "newpkg"))
-	main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, "stage"); return ok })
-	body := main.Children[1].Children[0]
-	assert.Equal(t, "mono", body.Props["style"])
-	assert.Equal(t, "newpkg/a.go\nnewpkg/b.go", body.Props["text"])
-	_, ok := find(main, "open-diff")
-	assert.False(t, ok)
+	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00staged\x00"+filepath.Join(repo, "a.go"))
+	diffs := commandArgs(t, h, "editor-nvim.diff")
+	require.Len(t, diffs, 1)
+	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":"head","target":"index"}`, filepath.Join(repo, "a.go")), string(diffs[0]))
 }
 
 func TestPlainDirIsNotARepo(t *testing.T) {
@@ -284,18 +281,21 @@ func TestDiscard(t *testing.T) {
 	git(t, nested, "add", "z")
 	git(t, nested, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "z")
 	h, id := open(t, repo)
-	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (6)"]) == 6 })
+	tree := h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (6)"]) == 6 })
 	discard := func(leaf string) error {
-		return h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": mainSlot, "nodeId": leaf, "action": "discard", "value": nil}, nil)
+		return h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": id, "slot": sidebarSlot, "nodeId": "git", "action": "discard", "value": leaf}, nil)
+	}
+	discardable := map[string]bool{}
+	for _, g := range roots(t, tree)[0].Children {
+		for _, l := range g.Children {
+			discardable[l.ID] = slices.ContainsFunc(l.Menu, func(m sdui.MenuEntry) bool { return m.Action == "discard" })
+		}
 	}
 
 	kept := map[string]string{"f.go": "keep\n", "d.go": "cee\n", "a1/u": "u\n", "d": "file\n", "n/z": "z\n"}
 	for _, name := range []string{"f.go", "d.go", "a1", "d/x", "n"} {
 		leaf := repo + "\x00changes\x00" + filepath.Join(repo, name)
-		h.Event(t, id, sidebarSlot, "git", "select", leaf)
-		main := h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return showing(n, name) })
-		_, ok := find(main, leaf)
-		assert.False(t, ok, name)
+		assert.False(t, discardable[leaf], name)
 		assert.ErrorContains(t, discard(leaf), "cannot discard "+name+": ", name)
 	}
 	for name, content := range kept {
@@ -306,25 +306,12 @@ func TestDiscard(t *testing.T) {
 	assert.DirExists(t, filepath.Join(nested, ".git"))
 
 	modified := repo + "\x00changes\x00" + filepath.Join(repo, "b.go")
-	h.Event(t, id, sidebarSlot, "git", "select", modified)
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { _, ok := find(n, modified); return ok })
+	assert.True(t, discardable[modified])
 	require.NoError(t, discard(modified))
 	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)["Changes (5)"]) == 5 })
 	content, err := os.ReadFile(filepath.Join(repo, "b.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "one\n", string(content))
-}
-
-func showing(n sdui.Node, rel string) bool {
-	if n.Type == "text" && n.Props["style"] == "mono" && n.Props["text"] == rel {
-		return true
-	}
-	for _, c := range n.Children {
-		if showing(c, rel) {
-			return true
-		}
-	}
-	return false
 }
 
 func branchRepo(t *testing.T) string {
@@ -680,6 +667,7 @@ func TestReviewBranchHeadWithoutCheckout(t *testing.T) {
 	assert.Equal(t, "feature/x", header["head"])
 	assert.Equal(t, "feature/x", header["headRef"])
 	assert.Equal(t, true, header["readOnly"])
+	assert.InDelta(t, 1, header["started"], 0)
 	assert.JSONEq(t, fmt.Sprintf(`{"cwd":%q,"base":%q,"excludes":[]}`, repo, mergeBase+".."+sha), string(commandArgs(t, h, "editor-nvim.review-open")[0]))
 	require.NoError(t, reviewAction(t, h, id, "select", "a.go"))
 	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":%q,"target":%q}`, filepath.Join(repo, "a.go"), "rev:"+mergeBase, "rev:"+sha), string(commandArgs(t, h, "editor-nvim.diff")[0]))
@@ -1050,13 +1038,13 @@ func TestSwitchRefusedWhileBusy(t *testing.T) {
 	write(t, filepath.Join(repo, "a.go"), "two\n")
 	git(t, repo, "add", "a.go")
 	h, id := openReady(t, repo)
-	form := formOf(h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != "" }))
+	form := formOf(h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return formOf(n) != "" }))
 
-	h.Event(t, id, mainSlot, form, "commit", map[string]string{"message": "slow"})
+	h.Event(t, id, sidebarSlot, form, "commit", map[string]string{"message": "slow"})
 	err := runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil)
 	assert.ErrorContains(t, err, "another git operation is running")
 	assert.Equal(t, repo, firstRoot(t, h, id))
-	h.WaitSlot(t, id, mainSlot, func(n sdui.Node) bool { return formOf(n) != form })
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return formOf(n) != form })
 }
 
 func TestHomeWorkspaceHasNoWorktrees(t *testing.T) {

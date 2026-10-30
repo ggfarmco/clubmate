@@ -5,7 +5,7 @@
   "protocol": 1,
   "command": ["git"],
   "contributes": {
-    "sections": [{"id": "git", "title": "Git", "icon": "arrow.triangle.branch", "order": 15, "slots": ["review"]}],
+    "sections": [{"id": "git", "title": "Git", "icon": "arrow.triangle.branch", "order": 15, "slots": ["review"], "host": "editor-nvim"}],
     "commands": [
       {
         "id": "git.refresh",
