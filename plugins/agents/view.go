@@ -68,7 +68,7 @@ const (
 	finishHelp     = "What the agent does once the task is done"
 
 	finishAskText   = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
-	finishMergeText = "[Clubmate finish mode: merge] When the task is done, run the project's tests. If they all pass, commit, merge the task branch into main without asking, then remove the worktree created for the task and delete the merged branch; never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
+	finishMergeText = "[Clubmate finish mode: merge] When the task is done, run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
 )
 
 var (
