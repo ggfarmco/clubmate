@@ -12,6 +12,15 @@ struct SettingsView: View {
     private static let tool = CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor())
 
     var body: some View {
+        TabView {
+            general
+                .tabItem { Label("General", systemImage: "gearshape") }
+            PluginsSettings(supervisor: app.supervisor)
+                .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
+        }
+    }
+
+    private var general: some View {
         Form {
             Section("Fonts") {
                 Stepper(value: $settings.interfaceFontSize, in: AppSettings.interfaceFontRange, step: 1) {
@@ -111,6 +120,107 @@ struct SettingsView: View {
 
     private func points(_ size: Double) -> String {
         "\(size.formatted()) pt"
+    }
+}
+
+private struct PluginsSettings: View {
+    let supervisor: ConnectionSupervisor
+
+    @State private var plugins: [PluginStatus]?
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            if let plugins {
+                if plugins.isEmpty {
+                    Text("No plugins found").foregroundStyle(.secondary)
+                }
+                ForEach(plugins) { PluginRow(plugin: $0) }
+            } else if error == nil {
+                ProgressView().controlSize(.small)
+            }
+            if let error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 420)
+        .fixedSize(horizontal: false, vertical: true)
+        .task(id: supervisor.client.map(ObjectIdentifier.init)) { await poll() }
+    }
+
+    private func poll() async {
+        while !Task.isCancelled {
+            await load()
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+
+    private func load() async {
+        guard let client = supervisor.client else {
+            error = "Not connected to the core"
+            return
+        }
+        do {
+            plugins = try await client.pluginList()
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+private struct PluginRow: View {
+    let plugin: PluginStatus
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.xs) {
+            HStack(spacing: theme.spacing.l) {
+                Text(plugin.name).fontWeight(.medium)
+                Text("\(plugin.id) \(plugin.manifest.version)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: theme.spacing.l)
+                HStack(spacing: theme.spacing.s) {
+                    Circle().fill(color).frame(width: 7, height: 7)
+                    Text(plugin.stateLabel)
+                }
+                .font(.caption)
+            }
+            Text(summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if !plugin.healthy, !plugin.lastError.isEmpty {
+                Text(plugin.lastError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private var summary: String {
+        let sections = plugin.manifest.contributes.sections.map(\.title)
+        let commands = plugin.manifest.contributes.commands.count
+        var parts = [sections.isEmpty ? "No sections" : "Sections: \(sections.joined(separator: ", "))"]
+        parts.append(commands == 1 ? "1 command" : "\(commands) commands")
+        if plugin.restarts > 0 { parts.append(plugin.restarts == 1 ? "1 restart" : "\(plugin.restarts) restarts") }
+        return parts.joined(separator: " · ")
+    }
+
+    private var color: Color {
+        switch plugin.state {
+        case "running": .green
+        case "starting", "backoff": .orange
+        case "failed": .red
+        default: .secondary
+        }
     }
 }
 
