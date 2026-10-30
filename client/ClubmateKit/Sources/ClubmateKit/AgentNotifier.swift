@@ -32,12 +32,14 @@ public struct AgentSessionState: Sendable, Equatable {
     }
 }
 
-public struct AgentAlert: Sendable, Equatable {
+public struct AgentAlert: Sendable, Equatable, Identifiable {
     public let workspace: String
     public let session: String
     public let request: String
     public let title: String
     public let body: String
+
+    public var id: String { "\(session)/\(request)" }
 }
 
 public struct AgentNotifier: Sendable {
@@ -71,11 +73,11 @@ public struct AgentNotifier: Sendable {
     }
 
     public func isPosted(_ alert: AgentAlert) -> Bool {
-        posted.contains(alert.session + "/" + alert.request)
+        posted.contains(alert.id)
     }
 
     public mutating func markPosted(_ alert: AgentAlert) {
-        posted.insert(alert.session + "/" + alert.request)
+        posted.insert(alert.id)
     }
 
     public static func selectEvent(workspace: String, session: String) -> UIEvent {

@@ -22,6 +22,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, ⌘P and ⇧⌘F, which are unbound so the app gets them (`GhosttyApp.swift`).
+⇧⌘I is an app menu key, so it shadows any ⇧⌘I mapping in terminals and nvim.
 
 ## Lists: palette, Go to File, Find in Files, pickers, switcher
 

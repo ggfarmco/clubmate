@@ -26,19 +26,24 @@ final class NotificationHubTests: XCTestCase {
         XCTAssertFalse(hub.receive(HubNotification(id: "x", workspace: "w", message: "hi"), focus: HubFocus(appActive: true, workspace: "w")))
     }
 
-    func testCountsUnreadUntilWorkspaceIsSeen() {
+    func testHiddenSessionInFrontWorkspaceStaysUnhandledAndPinned() {
         var hub = NotificationHub()
-        let away = HubFocus(appActive: false, workspace: "w")
-        XCTAssertTrue(hub.receive(HubNotification(id: "1", workspace: "w", message: "a"), focus: away))
-        XCTAssertTrue(hub.receive(HubNotification(id: "2", workspace: "w", message: "b"), focus: away))
-        XCTAssertTrue(hub.receive(HubNotification(id: "3", workspace: "v", message: "c"), focus: away))
-        XCTAssertTrue(hub.receive(HubNotification(id: "4", workspace: "v", session: "ses_9", message: "d"), focus: HubFocus(appActive: true, workspace: "v")))
-        XCTAssertEqual([hub.unread("w"), hub.unread("v")], [2, 1])
-        XCTAssertEqual(hub.total, 3)
+        let front = HubFocus(appActive: true, workspace: "w", main: terminal)
+        XCTAssertTrue(hub.receive(HubNotification(id: "ask", workspace: "w", session: "ses_2", message: "?", kind: .needsInput), focus: front))
+        XCTAssertTrue(hub.receive(HubNotification(id: "away", workspace: "v", message: "hi"), focus: front))
+        XCTAssertEqual([hub.unseen("w"), hub.unseen("v")], [1, 1])
+        XCTAssertEqual(hub.pinned.map(\.id), ["ask"])
+        XCTAssertEqual(hub.bellCount, 2)
 
-        hub.seen("w")
-        XCTAssertEqual([hub.unread("w"), hub.unread("v")], [0, 1])
-        XCTAssertEqual(hub.total, 1)
+        hub.focused(front)
+        XCTAssertEqual([hub.unseen("w"), hub.unseen("v")], [0, 1])
+        XCTAssertEqual(hub.pinned.map(\.id), ["ask"])
+        XCTAssertEqual(hub.bellCount, 2)
+
+        hub.focused(HubFocus(appActive: true, workspace: "w", main: SDUINode(type: "surface", props: ["sessionId": .string("ses_2")])))
+        XCTAssertEqual(hub.pinned, [])
+        XCTAssertEqual(hub.bellCount, 1)
+        XCTAssertEqual(hub.unseenTotal, 1)
     }
 
     func testDropsAgentSessionNeedsInputButKeepsDone() {
@@ -49,7 +54,7 @@ final class NotificationHubTests: XCTestCase {
         }
         XCTAssertTrue(hub.receive(HubNotification(id: "d", workspace: "w", session: "agt_1", message: "Finished", kind: .done), focus: away))
         XCTAssertTrue(hub.receive(HubNotification(id: "q", workspace: "w", session: "agt_1", message: "Which?", kind: .needsInput, viaAgent: true), focus: away))
-        XCTAssertEqual(hub.unread("w"), 2)
+        XCTAssertEqual(hub.unseen("w"), 2)
     }
 
     func testAgentPermissionPostsOncePerRequestWhenHidden() {

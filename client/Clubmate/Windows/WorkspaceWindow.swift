@@ -87,7 +87,7 @@ struct WorkspaceWindow: View {
     }
 
     private var inboxTotal: Int {
-        app.notifications.hub.total
+        app.notifications.hub.bellCount
     }
 
     private var inboxShown: Binding<Bool> {
@@ -98,7 +98,7 @@ struct WorkspaceWindow: View {
 
     private var otherUnread: Int {
         let workspaces = windowID.flatMap { app.window($0)?.workspaces } ?? []
-        return workspaces.filter { $0 != active }.reduce(0) { $0 + app.notifications.unread($1) }
+        return workspaces.filter { $0 != active }.reduce(0) { $0 + app.notifications.unseen($1) }
     }
 
     private var worktreeSession: ProjectSession? {
@@ -130,6 +130,12 @@ private struct WorkspaceView: View {
     @Environment(\.theme) private var theme
     @State private var focus = FocusRouter()
 
+    private var visibleTrees: [SDUINode?] {
+        let store = session.store
+        let section = store?.selectedSection
+        return [section.flatMap { store?.slots["\($0).sidebar"]?.tree }, section.flatMap { store?.mainTree($0) }]
+    }
+
     var body: some View {
         content
             .environment(\.surfaceDeck, session.deck)
@@ -156,6 +162,9 @@ private struct WorkspaceView: View {
             }
             .onChange(of: app.project(session.projectID)) {
                 Task { await session.worktrees.load(retrying: true) }
+            }
+            .onChange(of: visibleTrees) {
+                app.notifications.focusChanged()
             }
             .onChange(of: session.store?.selectedSection, initial: true) { _, section in
                 if section == CodeSection.id { app.askNavigationKeys() }

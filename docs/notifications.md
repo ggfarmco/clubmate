@@ -28,16 +28,18 @@ Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`
 - macOS asks for notification permission the first time one is shown.
 - Agents: a session waiting for permission is posted through the same path as kind `permission`, once per request. A `needs-input` or `permission` post that names an agent session (`agt_…`, e.g. from Claude's hooks inside the Agents section) is dropped, because that path already covers it; `done` and the other kinds are shown (skipped while that session is on screen, a click opens it).
 - A notification an agent posted through MCP says "via agent" under the title.
-- Unread: a notification is unread when it arrived while its workspace was not in front. The bell shows the total, the switcher (⌃⌘W) shows each workspace's count next to it and on its button for the other workspaces of a window, and the Dock icon shows the total. A workspace's notifications become read when its window becomes key with the app active, when you click one, or with Mark All Read.
+- Every notification is unseen and unhandled unless its session was on screen when it arrived (then it is listed as handled).
+  - Seen: the switcher (⌃⌘W) shows each workspace's unseen count next to it and on its button for the other workspaces of a window, and the Dock icon shows the total. A workspace's notifications become seen when its window becomes key with the app active.
+  - Handled: the bell counts what is unhandled plus the waiting agent permission requests (each request once). A notification becomes handled when you click it (in the inbox or the banner), with Mark All Read, or when its session is on screen (for one without a session, when its workspace is in front).
 
 ## Inbox
 
 The bell in the window's title bar, next to the workspace switcher, or ⇧⌘I opens the inbox. It works whether or not macOS notifications are allowed.
 
-- **Waiting for you**, pinned at the top: agent permission requests until they are answered, and unread `needs-input` notifications.
-- **History**, newest first, across all workspaces: kind icon, title, two lines of the message, the source (workspace · session · "via agent"), how long ago, and a dot when unread. A menu filters by kind. Notifications skipped because you were looking at the session are listed as read.
-- Clicking a row brings up its workspace and session and marks it read; opening the inbox does not mark anything read.
-- The history keeps the last 200 notifications from the last 7 days, with their read state, in `notifications.json` in Clubmate's state directory. It remembers the last bus event it saw, so after a restart it picks up notifications posted while the app was closed (listed unread, without a banner; so is anything older than 30 s).
+- **Waiting for you**, pinned at the top: agent permission requests until they are answered (or the session is deleted, or the workspace is closed), and unhandled `needs-input` notifications. A window becoming key does not unpin them.
+- **History**, newest first, across all workspaces: kind icon, title, two lines of the message, the source (workspace · session · "via agent"), how long ago (kept current while the inbox is open), and a dot when unhandled. A menu filters by kind. Notifications skipped because you were looking at the session are listed as read.
+- Clicking a row brings up its workspace and session and marks it handled (a pinned permission marks its history entry); opening the inbox marks nothing.
+- The history keeps the last 200 notifications from the last 7 days, with their read state, in `notifications.json` in Clubmate's state directory. It remembers the last bus event it saw, so after a restart it picks up notifications posted while the app was closed (listed unhandled, without a banner; so is anything older than 30 s). If that event is no longer on the bus (a new bus database), it starts from new events. Entries it cannot read are skipped, not the whole file.
 - When macOS notifications are off (denied in System Settings, or the permission request failed, as it does for ad-hoc signed development builds), the inbox shows "macOS notifications are off" with a button to System Settings → Notifications. Clubmate asks for permission at most once per launch.
 
 ## Claude Code hooks

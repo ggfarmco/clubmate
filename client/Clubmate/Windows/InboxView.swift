@@ -9,10 +9,11 @@ struct InboxView: View {
 
     private static let width: CGFloat = 380
     private static let height: CGFloat = 480
+    private static let tick: TimeInterval = 30
 
     var body: some View {
         let notifications = app.notifications
-        let pinned = notifications.pinned
+        let pinned = notifications.hub.pinned
         let history = notifications.hub.inbox.history(kind)
         VStack(alignment: .leading, spacing: 0) {
             header(notifications)
@@ -72,8 +73,8 @@ struct InboxView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .fixedSize()
-            Button("Mark All Read") { notifications.markAllRead() }
-                .disabled(notifications.hub.total == 0)
+            Button("Mark All Read") { notifications.handleAll() }
+                .disabled(notifications.hub.inbox.unhandled.isEmpty)
         }
         .padding(theme.gutter)
     }
@@ -94,7 +95,7 @@ struct InboxView: View {
             message: entry.note.message,
             source: entry.note.source(workspaceName: app.project(entry.note.workspace)?.name),
             date: entry.date,
-            unread: !entry.read
+            unread: !entry.handled
         ) { open { notifications.open(entry) } }
     }
 
@@ -112,9 +113,12 @@ struct InboxView: View {
                             .lineLimit(1)
                         Spacer(minLength: theme.spacing.s)
                         if let date {
-                            Text(date.formatted(.relative(presentation: .named)))
-                                .font(theme.uiSmall)
-                                .foregroundStyle(theme.muted)
+                            TimelineView(.periodic(from: .now, by: Self.tick)) { context in
+                                Text(date.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
+                                    .id(context.date)
+                                    .font(theme.uiSmall)
+                                    .foregroundStyle(theme.muted)
+                            }
                         }
                         if unread {
                             Circle().fill(theme.accent).frame(width: theme.spacing.m, height: theme.spacing.m)

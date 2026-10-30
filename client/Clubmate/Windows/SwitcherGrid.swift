@@ -88,7 +88,7 @@ struct SwitcherGridView: View {
                     .foregroundStyle(highlighted ? theme.foreground : theme.muted)
                     .lineLimit(1)
                 if let workspace {
-                    UnreadBadge(count: app.notifications.unread(workspace))
+                    UnreadBadge(count: app.notifications.unseen(workspace))
                 }
             }
         }

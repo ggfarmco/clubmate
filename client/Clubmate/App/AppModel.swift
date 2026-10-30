@@ -155,7 +155,7 @@ final class AppModel {
 
     func windowBecameKey(_ window: String) {
         keyWindowID = window
-        notifications.markSeen()
+        notifications.focusChanged()
     }
 
     var keyWorkspace: (projectID: String?, window: NSWindow?) {
@@ -251,6 +251,7 @@ final class AppModel {
     }
 
     private func syncSessions() {
+        notifications.keepOpen(openWorkspaces)
         for workspace in Set(layout.windows.flatMap(\.workspaces)) where sessions[workspace] == nil {
             _ = session(for: workspace)
         }
@@ -266,7 +267,7 @@ final class AppModel {
     }
 
     private func touch(_ projectID: String) {
-        notifications.markSeen()
+        notifications.focusChanged()
         Task { await nvimConfig.activated(projectID) }
         guard let client = supervisor.client else { return }
         Task {

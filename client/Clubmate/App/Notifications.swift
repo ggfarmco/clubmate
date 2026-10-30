@@ -15,7 +15,6 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     private static let saveDelay = Duration.milliseconds(500)
 
     private(set) var hub: NotificationHub
-    private(set) var waiting: [AgentAlert] = []
     private(set) var systemOff = false
 
     @ObservationIgnored private var notifier = AgentNotifier()
@@ -56,7 +55,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         }
         for name in [NSApplication.didBecomeActiveNotification, NSWindow.didBecomeKeyNotification] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.markSeen() }
+                MainActor.assumeIsolated { self?.focusChanged() }
             }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -66,19 +65,17 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         updateBadge()
     }
 
-    func unread(_ workspace: String) -> Int {
-        hub.unread(workspace)
-    }
-
-    var pinned: [InboxPin] {
-        hub.inbox.pinned(waiting: waiting)
+    func unseen(_ workspace: String) -> Int {
+        hub.unseen(workspace)
     }
 
     func adopt(_ client: CoreClient) {
         listener?.cancel()
         let stream = client.subscribeNotifications()
-        let after = hub.inbox.lastSeq > 0 ? hub.inbox.lastSeq : .max
+        let lastSeq = hub.inbox.lastSeq
         listener = Task { [weak self] in
+            let after = await Self.resumePoint(client, lastSeq: lastSeq)
+            if after == .max { self?.hub.inbox.forgetSeq() }
             guard let agents = try? await client.busSubscribe(pattern: AgentNotifier.changedTopic, after: .max),
                   let posted = try? await client.busSubscribe(pattern: HubNotification.topic, after: after) else { return }
             self?.checkOpenWorkspaces()
@@ -89,9 +86,15 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
                     self?.advance(event["seq"])
                     if let note = HubNotification.posted(payload) { await self?.post(note) }
                 case agents:
-                    guard let fields = payload.objectValue, fields["kind"]?.stringValue == "status",
-                          let workspace = fields["workspace"]?.stringValue else { continue }
-                    await self?.checkAgents(workspace, session: fields["session"]?.stringValue)
+                    guard let fields = payload.objectValue, let workspace = fields["workspace"]?.stringValue else { continue }
+                    switch fields["kind"]?.stringValue {
+                    case "status":
+                        await self?.checkAgents(workspace, session: fields["session"]?.stringValue)
+                    case "deleted":
+                        if let session = fields["session"]?.stringValue { self?.agentDeleted(workspace, session) }
+                    default:
+                        continue
+                    }
                 default:
                     continue
                 }
@@ -99,35 +102,50 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func markSeen() {
-        guard let front = focus().front, hub.unread(front) > 0 else { return }
-        hub.seen(front)
+    func focusChanged() {
+        let before = hub.inbox
+        hub.focused(focus())
+        if hub.inbox != before { changed() }
+    }
+
+    func handle(_ id: String) {
+        hub.inbox.handle(id)
         changed()
     }
 
-    func markRead(_ id: String) {
-        hub.inbox.markRead(id)
-        changed()
-    }
-
-    func markAllRead() {
-        hub.inbox.markAllRead()
+    func handleAll() {
+        hub.inbox.handleAll()
         changed()
     }
 
     func open(_ entry: InboxEntry) {
-        markRead(entry.id)
+        handle(entry.id)
         reveal(entry.note.workspace, entry.note.session, entry.note.owner)
     }
 
     func open(_ alert: AgentAlert) {
+        handle(alert.id)
         reveal(alert.workspace, alert.session, AgentNotifier.section)
     }
 
     func keep(_ workspaces: Set<String>) {
         hub.keep(workspaces)
-        waiting.removeAll { !workspaces.contains($0.workspace) }
         changed()
+    }
+
+    func keepOpen(_ workspaces: Set<String>) {
+        hub.waiting.keep(workspaces)
+    }
+
+    private func agentDeleted(_ workspace: String, _ session: String) {
+        hub.waiting.remove(workspace: workspace, session: session)
+    }
+
+    private static func resumePoint(_ client: CoreClient, lastSeq: Int64) async -> Int64 {
+        guard lastSeq > 0,
+              let events = try? await client.call(method: "bus.read", params: .object(["pattern": .string(HubNotification.topic), "after": .number(Double(lastSeq - 1)), "limit": .number(1)])),
+              case .number(let seq)? = events.arrayValue?.first?.objectValue?["seq"], Int64(seq) == lastSeq else { return .max }
+        return lastSeq
     }
 
     func openSystemSettings() {
@@ -137,7 +155,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func advance(_ seq: JSONValue?) {
         guard case .number(let value) = seq else { return }
-        hub.inbox.advance(to: Int64(value))
+        hub.inbox.record(seq: Int64(value))
         changed()
     }
 
@@ -153,12 +171,10 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func checkAgents(_ workspace: String, session: String?) async {
-        let scope = { (alert: AgentAlert) in alert.workspace == workspace && (session == nil || alert.session == session) }
-        guard !focus().shows(workspace: workspace, session: session) || waiting.contains(where: scope),
+        guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session),
               case .success(let listed) = await run(workspace, CommandInvocation(id: AgentNotifier.sessionsCommand)) else { return }
         let sessions = AgentSessionState.list(listed).filter { session == nil || $0.session == session }
-        waiting.removeAll(where: scope)
-        waiting += AgentNotifier.requests(sessions)
+        hub.waiting.update(workspace: workspace, session: session, sessions: sessions)
         let current = focus()
         for alert in notifier.pending(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.session) }) where !notifier.isPosted(alert) {
             let note = HubNotification(alert)
@@ -232,7 +248,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         let store = store
         saving = Task {
             guard (try? await Task.sleep(for: Self.saveDelay)) != nil else { return }
-            try? inbox.save(to: store)
+            await Task.detached { try? inbox.save(to: store) }.value
         }
     }
 
@@ -242,7 +258,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func updateBadge() {
-        NSApp.dockTile.badgeLabel = hub.total > 0 ? "\(hub.total)" : nil
+        NSApp.dockTile.badgeLabel = hub.unseenTotal > 0 ? "\(hub.unseenTotal)" : nil
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
@@ -250,7 +266,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         guard let workspace = info[Self.workspaceKey] as? String else { return }
         let session = info[Self.sessionKey] as? String
         let owner = info[Self.ownerKey] as? String
-        await markRead(response.notification.request.identifier)
+        await handle(response.notification.request.identifier)
         await reveal(workspace, session, owner)
     }
 

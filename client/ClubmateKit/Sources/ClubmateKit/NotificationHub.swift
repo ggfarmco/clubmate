@@ -61,7 +61,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     public init(_ alert: AgentAlert) {
-        self.init(id: "\(alert.session)/\(alert.request)", workspace: alert.workspace, session: alert.session, owner: AgentNotifier.section, title: alert.title, message: alert.body, kind: .permission, source: .agentsSection)
+        self.init(id: alert.id, workspace: alert.workspace, session: alert.session, owner: AgentNotifier.section, title: alert.title, message: alert.body, kind: .permission, source: .agentsSection)
     }
 
     public static func posted(_ payload: JSONValue) -> HubNotification? {
@@ -82,8 +82,10 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     static func parseDate(_ text: String) -> Date? {
-        let whole = text.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
-        return ISO8601DateFormatter().date(from: whole)
+        let millis = text.replacingOccurrences(of: #"\.(\d{1,3})\d*"#, with: ".$1", options: .regularExpression)
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: millis) ?? ISO8601DateFormatter().date(from: millis)
     }
 
     public var isAgentSession: Bool {
@@ -162,35 +164,45 @@ public struct NotificationHub: Sendable {
     public static let liveWindow: TimeInterval = 30
 
     public var inbox: NotificationInbox
+    public var waiting = AgentWaiting()
 
     public init(inbox: NotificationInbox = NotificationInbox()) {
         self.inbox = inbox
     }
 
-    public var total: Int {
-        inbox.unreadTotal
+    public var bellCount: Int {
+        inbox.unhandled.union(waiting.alerts.map(\.id)).count
     }
 
-    public func unread(_ workspace: String) -> Int {
-        inbox.unread(workspace)
+    public var unseenTotal: Int {
+        inbox.unseenTotal
+    }
+
+    public func unseen(_ workspace: String) -> Int {
+        inbox.unseen(workspace)
+    }
+
+    public var pinned: [InboxPin] {
+        inbox.pinned(waiting: waiting.alerts)
     }
 
     public mutating func receive(_ notification: HubNotification, focus: HubFocus, now: Date = Date()) -> Bool {
         if notification.coveredByAgentsSection { return false }
         let date = notification.date ?? now
         guard now.timeIntervalSince(date) <= Self.liveWindow else {
-            inbox.add(notification, at: date, read: false, now: now)
+            inbox.add(notification, at: date, handled: false, now: now)
             return false
         }
         if focus.shows(workspace: notification.workspace, session: notification.session) {
-            if notification.source == .bus { inbox.add(notification, at: date, read: true, now: now) }
+            if notification.source == .bus { inbox.add(notification, at: date, handled: true, now: now) }
             return false
         }
-        return inbox.add(notification, at: date, read: focus.front == notification.workspace, now: now)
+        return inbox.add(notification, at: date, handled: false, now: now)
     }
 
-    public mutating func seen(_ workspace: String) {
-        inbox.markRead(workspace: workspace)
+    public mutating func focused(_ focus: HubFocus) {
+        if let front = focus.front { inbox.markSeen(workspace: front) }
+        inbox.handleShown(focus)
     }
 
     public mutating func keep(_ workspaces: Set<String>) {
