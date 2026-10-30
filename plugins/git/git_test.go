@@ -920,6 +920,32 @@ func TestNewWorktree(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(string(exclude), ".worktrees/\n"))
 }
 
+func TestNewWorktreeWithoutSwitch(t *testing.T) {
+	repo := committedRepo(t)
+	h, id := openReady(t, repo)
+
+	res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "child", "switch": false})
+	child := filepath.Join(repo, ".worktrees", "child")
+	assert.Equal(t, opResult{Done: true, Path: child}, res)
+	assert.Equal(t, repo, firstRoot(t, h, id))
+}
+
+func TestNewWorktreeFromOtherWorktree(t *testing.T) {
+	repo := committedRepo(t)
+	other := filepath.Join(repo, ".worktrees", "other")
+	git(t, repo, "worktree", "add", "-q", "-b", "other", other)
+	write(t, filepath.Join(other, "a.go"), "other\n")
+	git(t, other, "commit", "-qam", "other")
+	h, id := openReady(t, repo)
+
+	res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "child", "from": other})
+	assert.Empty(t, res.Error)
+	assert.Equal(t, git(t, other, "rev-parse", "HEAD"), git(t, repo, "rev-parse", "child"))
+
+	_, err := startOp(t, h, id, "git.worktree-new", map[string]any{"branch": "bad", "from": t.TempDir()})
+	assert.ErrorContains(t, err, "not a worktree")
+}
+
 func TestNewWorktreeRefusesSymlink(t *testing.T) {
 	repo := committedRepo(t)
 	outside, err := filepath.EvalSymlinks(t.TempDir())

@@ -11,15 +11,20 @@
         "id": "agents.new",
         "title": "New Agent Session",
         "hidden": true,
-        "description": "Start an agent session in the effective root of the workspace's first git folder. The agent process starts in the background; returns {session} at once.",
+        "agent": true,
+        "description": "Start an agent session. Called from an agent session, the new session is its child: it runs in the caller's worktree, starts with the caller's mode, model, effort and advisor, and the caller may answer its permission requests. At most 8 children of one session may be running or waiting at once (\"a session may run at most 8 child sessions at once\"; prompting an idle child counts too). With branch, the session runs in a new worktree <main checkout>/.worktrees/<branch> created in the background from the HEAD of the caller's worktree (or the existing branch checked out), without switching the user's workspace; the agent starts once it exists, and if git fails the session's status is error with git's message. With prompt, sends it as the first turn, marked as coming from the calling agent session. A child with its own branch merges its tested work into the caller's branch in the caller's worktree (only commits when the caller is on the default branch); once merged and clean, Clubmate closes it and removes its worktree and branch. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Answer their permission requests yourself with agents.permission and pass the user's answers with agents.answer, never paraphrased. Returns {session, worktree} at once; wait for it with agents.wait.",
         "args": {
           "properties": {
-            "agent": {"type": "string", "enum": ["claude"], "default": "claude", "description": "Agent to run."}
+            "agent": {"type": "string", "enum": ["claude"], "default": "claude", "description": "Agent to run."},
+            "branch": {"type": "string", "description": "Branch for a new worktree to run the session in; omit to run in the caller's worktree (or the workspace's first git folder)."},
+            "prompt": {"type": "string", "description": "First prompt; omit to start the session idle."},
+            "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."}
           }
         },
         "result": {
           "properties": {
-            "session": {"type": "string", "description": "Clubmate session id."}
+            "session": {"type": "string", "description": "Clubmate session id."},
+            "worktree": {"type": "string", "description": "Directory the session runs in."}
           }
         }
       },
@@ -27,7 +32,8 @@
         "id": "agents.prompt",
         "title": "Send Prompt",
         "hidden": true,
-        "description": "Checkpoint the worktree and send a prompt to the session's agent. Returns once the turn has started; the turn runs in the background.",
+        "agent": true,
+        "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; queued when a turn is running. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started or the prompt is queued; the turn runs in the background.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
@@ -55,7 +61,8 @@
         "id": "agents.cancel",
         "title": "Stop Agent Turn",
         "hidden": true,
-        "description": "Cancel the running turn and answer pending permission requests with cancelled.",
+        "agent": true,
+        "description": "Cancel the session's running turn and answer its pending permission requests with cancelled. Queued prompts stay queued.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."}
@@ -67,7 +74,8 @@
         "id": "agents.permission",
         "title": "Answer Permission",
         "hidden": true,
-        "description": "Answer a pending permission request with one of its options.",
+        "agent": true,
+        "description": "Answer a pending permission request of a session this agent session started (directly or through its children) with one of its options; any other session fails with \"the session was not started by this agent\". Request ids are in agents.sessions (pending) and in the transcript's permission entries with their options. Leave to the user what you cannot decide.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
@@ -75,6 +83,22 @@
             "option": {"type": "string", "description": "optionId of the chosen option."}
           },
           "required": ["session", "request", "option"]
+        }
+      },
+      {
+        "id": "agents.answer",
+        "title": "Send Answer as User",
+        "hidden": true,
+        "agent": true,
+        "destructive": true,
+        "confirm": "Send this text to the agent session as your own message?",
+        "description": "Propose an answer to a session's question on the user's behalf. The user sees the text and approves it in Clubmate; only then it is sent as a normal user turn (queued when a turn is running). Use it for the user's real answer, never paraphrase the user into agents.prompt.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "text": {"type": "string", "description": "Answer text, sent as the user's message."}
+          },
+          "required": ["session", "text"]
         }
       },
       {
@@ -121,8 +145,8 @@
         "title": "Delete Agent Session",
         "hidden": true,
         "destructive": true,
-        "confirm": "Delete this agent session, its transcript and its checkpoints?",
-        "description": "Close the session, delete it in the agent when supported, and remove its log and checkpoint refs.",
+        "confirm": "Delete this agent session, its child sessions, their transcripts and their checkpoints?",
+        "description": "Close the session and its child sessions (cancelling running turns), delete them in the agent when supported, and remove their logs and checkpoint refs.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."}
@@ -176,7 +200,22 @@
         "title": "List Agent Sessions",
         "hidden": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, title, status, mode, createdAt, updatedAt, closed, error?}]. status is running, waiting (a permission is pending), done, idle, error or closed. Non-destructive."
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, title, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, asks}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question. parentSession is the agent session that started it with agents.new. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive."
+      },
+      {
+        "id": "agents.wait",
+        "title": "Wait for Agent Sessions",
+        "hidden": true,
+        "agent": true,
+        "timeout": 310,
+        "description": "Wait, without polling, for any of the listed agent sessions of the workspace to stop running. Pass only sessions you are still waiting on: one that is already done or waiting makes every call return at once. Returns at once if one of them is not running; otherwise on the first status change or new turn of any of them, or after timeout seconds with all still running (then call it again to keep waiting). Returns, in the order given, [{session, status, turn, stopReason?, error?, asks, permission?: {request, title, kind, options: [{optionId, name, kind}]}}]. status is running, waiting (a permission is pending: answer your own children's with agents.permission {session, request, option: an optionId}), done, idle, error or closed. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; answer a child yourself with agents.prompt, or relay the user's own answer with agents.answer. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Non-destructive.",
+        "args": {
+          "properties": {
+            "sessions": {"type": "array", "items": {"type": "string"}, "description": "Session ids to wait for, at least one."},
+            "timeout": {"type": "integer", "default": 120, "description": "Seconds to wait at most; default 120, capped at 300."}
+          },
+          "required": ["sessions"]
+        }
       },
       {
         "id": "agents.transcript",

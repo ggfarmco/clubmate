@@ -50,6 +50,7 @@ type Server struct {
 	Project string
 	Log     io.Writer
 	Poll    time.Duration
+	Caller  string
 
 	writeMu sync.Mutex
 	out     io.Writer
@@ -244,6 +245,9 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 	}
 	var out json.RawMessage
 	params := map[string]any{"id": tools[i].target, "projectId": workspace, "args": args, "agent": true}
+	if s.Caller != "" {
+		params["caller"] = s.Caller
+	}
 	if err := core.Call(ctx, "command.run", params, &out); err != nil {
 		if workspace == "" {
 			err = fmt.Errorf("%w (no workspace: pass %q or open one in Clubmate)", err, workspaceArg)

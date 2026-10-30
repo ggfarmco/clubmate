@@ -31,7 +31,7 @@ var (
 
 type Router interface {
 	UIEvent(ctx context.Context, pluginID string, ev json.RawMessage) (json.RawMessage, error)
-	Command(ctx context.Context, pluginID string, run json.RawMessage) (json.RawMessage, error)
+	Command(ctx context.Context, c Command, run json.RawMessage) (json.RawMessage, error)
 	Commands() []Command
 	Resolve(id string) (Command, bool)
 	Capabilities() map[string]string
@@ -49,6 +49,7 @@ type Command struct {
 	Agent       bool           `json:"agent"`
 	Destructive bool           `json:"destructive"`
 	Provides    []string       `json:"provides,omitempty"`
+	Timeout     int            `json:"timeout,omitempty"`
 }
 
 type uiState struct {
@@ -106,6 +107,7 @@ type commandRunParams struct {
 	ProjectID string          `json:"projectId"`
 	Args      json.RawMessage `json:"args"`
 	Agent     bool            `json:"agent,omitempty"`
+	Caller    string          `json:"caller,omitempty"`
 }
 
 type uiUpdatedParams struct {
@@ -336,7 +338,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if err != nil {
 		return nil, err
 	}
-	return u.router.Command(ctx, c.Plugin, raw)
+	return u.router.Command(ctx, c, raw)
 }
 
 func (s *Server) commandCapabilities(context.Context, empty) (capabilitiesResult, error) {

@@ -161,6 +161,18 @@ func TestCapabilityRouting(t *testing.T) {
 	assert.Equal(t, map[string]string{"echo.say-cap": "beta.say", "echo.down-cap": "alpha.say", "beta.say": "beta.say"}, caps.Capabilities)
 }
 
+func TestCommandTimeoutOutlivesRouteTimeout(t *testing.T) {
+	h := testutil.NewPluginHarness(t, testutil.EchoPluginDirAs(t, `{"id":"slow","name":"Slow","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"slow.wait","title":"Wait","timeout":8}]},"echoResults":{"slow.wait":{"ok":true}},"echoDelays":{"slow.wait":6000}}`))
+	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool { _, ok := h.Sup.Conn("slow"); return ok }, 5*time.Second)
+
+	var out map[string]bool
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "slow.wait", "projectId": p.ID}, &out))
+
+	assert.Equal(t, map[string]bool{"ok": true}, out)
+}
+
 type noopHandler struct{}
 
 func (noopHandler) Handle(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) {}

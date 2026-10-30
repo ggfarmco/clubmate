@@ -47,6 +47,13 @@ func TestAgentCannotReachHidden(t *testing.T) {
 	}
 }
 
+func TestAgentCallerReachesPlugin(t *testing.T) {
+	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true}`)
+	var out map[string]any
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "caller": "agt_x"}, &out))
+	assert.Equal(t, "agt_x", out["caller"])
+}
+
 func TestAgentArgsExactKeys(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"args":{"properties":{"path":{"type":"string"},"items":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string"}}}}}}}`)
 	c := h.Client(t)

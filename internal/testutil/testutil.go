@@ -167,6 +167,13 @@ func Eventually(t *testing.T, cond func() bool, timeout time.Duration) {
 	require.Eventually(t, cond, timeout, 20*time.Millisecond)
 }
 
+func Never(t *testing.T, cond func() bool, d time.Duration) {
+	t.Helper()
+	for end := time.Now().Add(d); time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+		require.False(t, cond(), "condition satisfied")
+	}
+}
+
 func Alive(pid int) bool {
 	return unix.Kill(pid, 0) == nil
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"os/signal"
@@ -42,21 +43,33 @@ const (
 	checkpointLimit = 2 * time.Minute
 	embedLimit      = 1 << 20
 	stopRootWait    = 4 * time.Second
+	worktreeLimit   = 10 * time.Minute
+	worktreeNewCmd  = "git.worktree-new"
+	worktreeOpCmd   = "git.worktree-op-status"
+	worktreesDir    = ".worktrees"
+	maxChildren     = 8
+	unknownCaller   = "unknown"
+	fromFormat      = "[From Clubmate agent session \"%s\" (%s), not from the user]\n\n"
+	fromUnknown     = "[From another agent session, not from the user]\n\n"
 )
 
 var (
-	errHome         = errors.New("Agents aren't available in the home workspace")
-	errNoFolder     = errors.New("the workspace has no folders")
-	errNoSession    = errors.New("unknown agent session")
-	errClosed       = errors.New("the session is closed")
-	errNotLive      = errors.New("the session's agent is not running")
-	errNoResume     = errors.New("the agent cannot resume this session")
-	errUnknownMode  = errors.New("unknown mode")
-	errUnknownValue = errors.New("unknown config value")
-	errUnknownCmd   = errors.New("unknown command")
-	errNoStateDir   = errors.New("no plugin state dir")
-	errShutdown     = errors.New("the agents plugin is shutting down")
-	errRelativeRoot = errors.New("stop-root: root must be absolute")
+	errHome          = errors.New("Agents aren't available in the home workspace")
+	errNoFolder      = errors.New("the workspace has no folders")
+	errNoSession     = errors.New("unknown agent session")
+	errClosed        = errors.New("the session is closed")
+	errNotLive       = errors.New("the session's agent is not running")
+	errNoResume      = errors.New("the agent cannot resume this session")
+	errUnknownMode   = errors.New("unknown mode")
+	errUnknownValue  = errors.New("unknown config value")
+	errUnknownCmd    = errors.New("unknown command")
+	errNoStateDir    = errors.New("no plugin state dir")
+	errShutdown      = errors.New("the agents plugin is shutting down")
+	errRelativeRoot  = errors.New("stop-root: root must be absolute")
+	errNotDescendant = errors.New("the session was not started by this agent")
+	errNotGit        = errors.New("the worktree is not in a git folder of the workspace")
+	errBadBranch     = errors.New("not a valid branch name")
+	errChildLimit    = fmt.Errorf("a session may run at most %d child sessions at once", maxChildren)
 )
 
 type sessionArgs struct {
@@ -64,7 +77,10 @@ type sessionArgs struct {
 }
 
 type newArgs struct {
-	Agent string `json:"agent"`
+	Agent  string `json:"agent"`
+	Branch string `json:"branch"`
+	Prompt string `json:"prompt"`
+	Title  string `json:"title"`
 }
 
 type attachment struct {
@@ -79,6 +95,12 @@ type promptArgs struct {
 	Session     string       `json:"session"`
 	Text        string       `json:"text"`
 	Attachments []attachment `json:"attachments"`
+	From        string       `json:"-"`
+}
+
+type answerArgs struct {
+	Session string `json:"session"`
+	Text    string `json:"text"`
 }
 
 type permissionArgs struct {
@@ -116,7 +138,23 @@ type transcriptArgs struct {
 }
 
 type newResult struct {
-	Session string `json:"session"`
+	Session  string `json:"session"`
+	Worktree string `json:"worktree"`
+	parent   string
+}
+
+type worktreeNewArgs struct {
+	Repo   string `json:"repo"`
+	Branch string `json:"branch"`
+	From   string `json:"from"`
+	Switch bool   `json:"switch"`
+}
+
+type worktreeOp struct {
+	ID    string `json:"id"`
+	Done  bool   `json:"done"`
+	Error string `json:"error"`
+	Path  string `json:"path"`
 }
 
 type projectPayload struct {
@@ -144,6 +182,12 @@ type app struct {
 	resumable    map[string]bool
 	noResume     map[string]bool
 	advisors     map[string]string
+
+	spawnMu    sync.Mutex
+	worktreeMu sync.Mutex
+
+	wakeMu sync.Mutex
+	woken  chan struct{}
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -190,7 +234,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		if stale {
 			rec.Status = statusIdle
 		}
-		s := a.addSession(rec, false)
+		s := a.addSession(rec, false, nil)
 		if stale {
 			a.notes.mark(s, changeStatus, true)
 		}
@@ -210,12 +254,17 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	return nil
 }
 
-func (a *app) addSession(rec record, loaded bool) *session {
+func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	var s *session
 	s = newSession(rec, newEventLog(logPath(a.stateDir, rec.ID)), loaded, func(kind string, save bool) {
+		if kind == changeStatus {
+			a.wakeWaiters()
+		}
 		a.notes.mark(s, kind, save)
 		a.kick(rec.Workspace)
 	})
+	s.setup = ready
+	s.turned = a.notes.turn
 	a.mu.Lock()
 	a.sessions[rec.ID] = s
 	a.mu.Unlock()
@@ -234,12 +283,14 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := decode(cmd.Args, &args); err != nil {
 			return nil, err
 		}
-		res, err := a.newSession(ctx, h, cmd.ProjectID, cmp.Or(args.Agent, agentClaude))
+		res, err := a.newSession(ctx, h, cmd.ProjectID, origin(cmd), args)
 		if err != nil {
 			return nil, err
 		}
-		if err := a.selectSession(ctx, cmd.ProjectID, res.Session); err != nil {
-			return nil, err
+		if res.parent == "" {
+			if err := a.selectSession(ctx, cmd.ProjectID, res.Session); err != nil {
+				return nil, err
+			}
 		}
 		a.kick(cmd.ProjectID)
 		return res, nil
@@ -248,7 +299,14 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := decode(cmd.Args, &args); err != nil {
 			return nil, err
 		}
+		args.From = origin(cmd)
 		return nil, a.prompt(cmd.ProjectID, args)
+	case "agents.answer":
+		var args answerArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return nil, a.prompt(cmd.ProjectID, promptArgs{Session: args.Session, Text: args.Text})
 	case "agents.permission":
 		var args permissionArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -257,6 +315,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		s, err := a.lookup(cmd.ProjectID, args.Session)
 		if err != nil {
 			return nil, err
+		}
+		if cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller) {
+			return nil, errNotDescendant
 		}
 		return nil, s.answer(args.Request, args.Option)
 	case "agents.mode":
@@ -288,6 +349,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, errRelativeRoot
 		}
 		return nil, a.stopRoot(ctx, filepath.Clean(args.Root))
+	case "agents.wait":
+		var args waitArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return a.wait(ctx, cmd.ProjectID, args)
 	case "agents.transcript":
 		var args transcriptArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -315,7 +382,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		a.closeSession(ctx, s, false)
 		return nil, nil
 	case "agents.delete":
-		return nil, a.deleteSession(ctx, s, true)
+		return nil, a.deleteTree(ctx, s)
 	case "agents.resume":
 		a.resume(s)
 		return nil, nil
@@ -356,7 +423,8 @@ func (a *app) setFinish(s *session, value string) error {
 	return nil
 }
 
-func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, agent string) (newResult, error) {
+func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from string, args newArgs) (newResult, error) {
+	agent := cmp.Or(args.Agent, agentClaude)
 	if agent != agentClaude {
 		return newResult{}, fmt.Errorf("%w: %s", errUnknownAgent, agent)
 	}
@@ -371,16 +439,147 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, agen
 	if err != nil {
 		return newResult{}, err
 	}
-	return a.createSession(projectID, agent, root), nil
+	rec := record{Workspace: projectID, Agent: agent, Title: titleOf(args.Title)}
+	if parent, err := a.lookup(projectID, from); err == nil {
+		prec := parent.snapshot()
+		rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree
+	}
+	var plan worktreeNewArgs
+	var ready *setup
+	if args.Branch != "" {
+		if plan, root, err = planWorktree(ctx, p, root, args.Branch); err != nil {
+			return newResult{}, err
+		}
+		ready = newSetup(plan)
+	}
+	rec.Worktree = root
+	s, err := a.spawn(rec, promptArgs{Text: args.Prompt, From: from}, ready)
+	if ready != nil && s != nil {
+		go a.createWorktree(s, ready)
+	}
+	if err != nil {
+		return newResult{}, err
+	}
+	return newResult{Session: s.rec.ID, Worktree: root, parent: rec.ParentSession}, nil
 }
 
-func (a *app) createSession(projectID, agent, root string) newResult {
+func (a *app) spawn(rec record, first promptArgs, ready *setup) (*session, error) {
+	a.spawnMu.Lock()
+	defer a.spawnMu.Unlock()
+	if rec.ParentSession != "" {
+		if parent := a.session(rec.ParentSession); parent == nil || parent.snapshot().Closed {
+			return nil, errClosed
+		}
+		if a.runningChildren(rec.ParentSession) >= maxChildren {
+			return nil, errChildLimit
+		}
+	}
+	s := a.createSession(rec, ready)
+	if first.Text == "" {
+		return s, nil
+	}
+	first.Session = s.rec.ID
+	return s, a.submit(s, &first)
+}
+
+func (a *app) createSession(rec record, ready *setup) *session {
 	now := time.Now().UTC()
-	s := a.addSession(record{ID: newSessionID(), Workspace: projectID, Worktree: root, Agent: agent, Finish: a.finishDefault(context.Background()), Status: statusIdle, CreatedAt: now, UpdatedAt: now}, true)
+	rec.ID, rec.Finish, rec.Status, rec.CreatedAt, rec.UpdatedAt = newSessionID(), a.finishDefault(context.Background()), statusIdle, now, now
+	s := a.addSession(rec, true, ready)
 	a.notes.mark(s, changeCreated, true)
-	a.kick(projectID)
+	a.kick(rec.Workspace)
 	go a.attachInBackground(s)
-	return newResult{Session: s.rec.ID}
+	return s
+}
+
+func planWorktree(ctx context.Context, p pluginsdk.Project, base, branch string) (worktreeNewArgs, string, error) {
+	if !gitrepo.ValidBranchName(branch) {
+		return worktreeNewArgs{}, "", fmt.Errorf("%w: %s", errBadBranch, branch)
+	}
+	top, ok := gitrepo.RepoRoot(base)
+	if !ok {
+		return worktreeNewArgs{}, "", errNotGit
+	}
+	for _, repo := range p.Repos {
+		f, err := gitrepo.OpenFolder(ctx, repo)
+		if err != nil {
+			continue
+		}
+		if _, ok := f.Member(top); ok {
+			dir := filepath.Join(f.Trees[0].Path, worktreesDir, branch, f.Rel)
+			return worktreeNewArgs{Repo: repo, Branch: branch, From: top}, dir, nil
+		}
+	}
+	return worktreeNewArgs{}, "", errNotGit
+}
+
+func (a *app) createWorktree(s *session, ready *setup) {
+	a.worktreeMu.Lock()
+	defer a.worktreeMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), worktreeLimit)
+	defer cancel()
+	err := a.newWorktree(ctx, s.snapshot().Workspace, ready.args)
+	if err == nil {
+		a.setFork(ctx, s)
+	}
+	ready.finish(err)
+}
+
+func (a *app) newWorktree(ctx context.Context, projectID string, args worktreeNewArgs) error {
+	var op worktreeOp
+	if err := a.host.RunCommand(ctx, worktreeNewCmd, projectID, args, &op); err != nil {
+		return fmt.Errorf("create worktree %s: %w", args.Branch, err)
+	}
+	if err := a.awaitOp(ctx, projectID, op.ID); err != nil {
+		return fmt.Errorf("create worktree %s: %w", args.Branch, err)
+	}
+	return nil
+}
+
+func (a *app) children(id string) []*session {
+	a.mu.Lock()
+	all := slices.Collect(maps.Values(a.sessions))
+	a.mu.Unlock()
+	var out []*session
+	for _, s := range all {
+		if s.snapshot().ParentSession == id {
+			out = append(out, s)
+		}
+	}
+	slices.SortFunc(out, func(x, y *session) int { return x.snapshot().CreatedAt.Compare(y.snapshot().CreatedAt) })
+	return out
+}
+
+func (a *app) runningChildren(id string) int {
+	n := 0
+	for _, c := range a.children(id) {
+		if st := c.snapshot().Status; st == statusRunning || st == statusWaiting {
+			n++
+		}
+	}
+	return n
+}
+
+func (a *app) descendantOf(id, ancestor string) bool {
+	if id == ancestor {
+		return false
+	}
+	seen := map[string]bool{}
+	for !seen[id] {
+		seen[id] = true
+		s := a.session(id)
+		if s == nil {
+			return false
+		}
+		id = s.snapshot().ParentSession
+		if id == "" {
+			return false
+		}
+		if id == ancestor {
+			return true
+		}
+	}
+	return false
 }
 
 func workRoot(p pluginsdk.Project) (string, []string, error) {
@@ -429,6 +628,7 @@ func (a *app) infos(projectID string) []sessionInfo {
 		info := sessionInfo{record: rec}
 		if s := a.session(rec.ID); s != nil {
 			info.Pending = s.pending()
+			info.Asks = s.asks()
 		}
 		out = append(out, info)
 	}
@@ -450,11 +650,16 @@ func (a *app) fail(s *session, text string) {
 	s.running = false
 	s.recordLocked(actorClubmate, kindError, turnEndPayload{Error: text})
 	s.setStatusLocked(statusError, text)
+	ended := s.turnLocked()
 	s.mu.Unlock()
+	s.turned(ended)
 	s.changed(changeStatus, true)
 }
 
 func (a *app) attach(s *session) (*agentProc, error) {
+	if err := a.worktreeReady(s).wait(); err != nil {
+		return nil, err
+	}
 	s.attachMu.Lock()
 	defer s.attachMu.Unlock()
 	s.mu.Lock()
@@ -484,7 +689,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.advisor(ctx, rec.Worktree))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return nil, authErr
@@ -508,9 +713,20 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	s.recordLocked(s.actor(), kindNew, raw)
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
-	a.applyRememberedMode(ctx, s, res.Modes)
-	a.applyRememberedConfigs(ctx, s, res.ConfigOptions)
+	mode, value := a.startSettings(ctx, rec)
+	a.applyMode(ctx, s, res.Modes, mode)
+	a.applyConfigs(ctx, s, res.ConfigOptions, value)
 	return p, nil
+}
+
+func (a *app) worktreeReady(s *session) *setup {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.setup.failed() {
+		s.setup = newSetup(s.setup.args)
+		go a.createWorktree(s, s.setup)
+	}
+	return s.setup
 }
 
 func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record, extra []string) error {
@@ -520,7 +736,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		return errNoResume
 	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.advisor(ctx, rec.Worktree))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return authErr
@@ -540,12 +756,28 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	return nil
 }
 
-func (a *app) applyRememberedMode(ctx context.Context, s *session, modes *acp.SessionModeState) {
-	if modes == nil {
-		return
+func (a *app) startSettings(ctx context.Context, rec record) (string, func(id string) string) {
+	if rec.ParentSession == "" {
+		return a.stored(ctx, modeStorageKey(rec.Worktree)), func(id string) string { return a.stored(ctx, configStorageKey(id, rec.Worktree)) }
 	}
-	var mode string
-	if found, err := a.host.StorageGet(ctx, modeStorageKey(s.snapshot().Worktree), &mode); err != nil || !found || mode == modes.CurrentModeID {
+	parent := a.session(rec.ParentSession)
+	if parent == nil {
+		return "", func(string) string { return "" }
+	}
+	mode, values := parent.settings()
+	return mode, func(id string) string { return values[id] }
+}
+
+func (a *app) stored(ctx context.Context, key string) string {
+	var value string
+	if found, err := a.host.StorageGet(ctx, key, &value); err != nil || !found {
+		return ""
+	}
+	return value
+}
+
+func (a *app) applyMode(ctx context.Context, s *session, modes *acp.SessionModeState, mode string) {
+	if modes == nil || mode == "" || mode == modes.CurrentModeID {
 		return
 	}
 	if !slices.ContainsFunc(modes.AvailableModes, func(m acp.SessionMode) bool { return m.ID == mode }) {
@@ -556,15 +788,14 @@ func (a *app) applyRememberedMode(ctx context.Context, s *session, modes *acp.Se
 	}
 }
 
-func (a *app) applyRememberedConfigs(ctx context.Context, s *session, configs []acp.SessionConfigOption) {
-	worktree := s.snapshot().Worktree
+func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.SessionConfigOption, valueOf func(id string) string) {
 	for i := 0; i < len(configs); i++ {
 		o := configs[i]
 		if !pickable(o) {
 			continue
 		}
-		var value string
-		if found, err := a.host.StorageGet(ctx, configStorageKey(o.ID, worktree), &value); err != nil || !found || value == o.Current() {
+		value := valueOf(o.ID)
+		if value == "" || value == o.Current() {
 			continue
 		}
 		if _, ok := o.Choice(value); !ok {
@@ -586,7 +817,22 @@ func (a *app) prompt(projectID string, args promptArgs) error {
 	if err != nil {
 		return err
 	}
+	if args.From == "" || s.snapshot().ParentSession != args.From {
+		return a.submit(s, &args)
+	}
+	a.spawnMu.Lock()
+	defer a.spawnMu.Unlock()
+	if st := s.snapshot().Status; st != statusRunning && st != statusWaiting && a.runningChildren(args.From) >= maxChildren {
+		return errChildLimit
+	}
 	return a.submit(s, &args)
+}
+
+func origin(cmd pluginsdk.CommandRun) string {
+	if cmd.Caller == "" && cmd.Agent {
+		return unknownCaller
+	}
+	return cmd.Caller
 }
 
 func (a *app) submit(s *session, args *promptArgs) error {
@@ -605,7 +851,10 @@ func (a *app) submit(s *session, args *promptArgs) error {
 		s.changed(changeUpdate, false)
 		return nil
 	}
-	next, ok := s.dequeueLocked(args)
+	if args != nil {
+		s.enqueueLocked(*args)
+	}
+	next, ok := s.dequeueLocked()
 	if !ok {
 		s.mu.Unlock()
 		return nil
@@ -655,10 +904,15 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	}
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)}
 	s.mu.Lock()
-	s.recordLocked(actorUser, kindPrompt, req)
+	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: req, From: args.From})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
-	req.Prompt = append(slices.Clip(req.Prompt), acp.ContentBlock{Type: "text", Text: finishPolicy(rec.Finish)})
+	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
+	req.Prompt = append(slices.Clip(req.Prompt), a.policies(ctx, rec)...)
+	cancel()
+	if args.From != "" {
+		req.Prompt[0].Text = a.fromPrefix(args.From) + req.Prompt[0].Text
+	}
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
 	if errors.Is(err, acp.ErrClosed) {
@@ -670,7 +924,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	s.running = false
 	edited := s.edited
 	var next promptArgs
-	nextTurn := 0
+	nextTurn, finished := 0, false
 	switch {
 	case s.rec.Closed:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
@@ -679,7 +933,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		s.setStatusLocked(statusError, err.Error())
 	case !s.cancelRequested && res.StopReason != acp.StopCancelled && len(s.queue) > 0:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
-		next, _ = s.dequeueLocked(nil)
+		next, _ = s.dequeueLocked()
 		nextTurn = s.beginTurnLocked()
 	default:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
@@ -687,15 +941,23 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 			s.prior = statusDone
 		} else {
 			s.setStatusLocked(statusDone, "")
+			finished = true
 		}
 	}
+	closed, ended := s.rec.Closed, s.turnLocked()
 	s.mu.Unlock()
+	if !closed {
+		s.turned(ended)
+	}
 	s.changed(changeStatus, true)
 	if edited {
 		a.checktime(rec)
 	}
 	if nextTurn > 0 {
 		a.runTurn(s, nextTurn, next)
+	}
+	if finished {
+		a.cleanupChild(s)
 	}
 }
 
@@ -723,7 +985,9 @@ func (a *app) abandon(s *session, args promptArgs) bool {
 		} else {
 			s.setStatusLocked(statusDone, "")
 		}
+		ended := s.turnLocked()
 		s.mu.Unlock()
+		s.turned(ended)
 		s.changed(changeStatus, true)
 		return true
 	}
@@ -731,11 +995,22 @@ func (a *app) abandon(s *session, args promptArgs) bool {
 	return false
 }
 
-func finishPolicy(mode string) string {
-	if mode == finishMerge {
-		return finishMergeText
+func promptActor(from string) string {
+	if from == "" {
+		return actorUser
 	}
-	return finishAskText
+	return "agent:" + from
+}
+
+func (a *app) fromPrefix(id string) string {
+	if id == unknownCaller {
+		return fromUnknown
+	}
+	var title string
+	if s := a.session(id); s != nil {
+		title = s.snapshot().Title
+	}
+	return fmt.Sprintf(fromFormat, title, id)
 }
 
 func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBlock {
@@ -874,7 +1149,16 @@ func (a *app) setAdvisor(ctx context.Context, s *session, value string) error {
 	if !slices.ContainsFunc(advisorChoices, func(c advisorChoice) bool { return c.value == value }) {
 		return fmt.Errorf("%w: %s=%s", errUnknownValue, advisorID, value)
 	}
-	worktree := s.snapshot().Worktree
+	s.mu.Lock()
+	child, worktree := s.rec.ParentSession != "", s.rec.Worktree
+	if child {
+		s.rec.Advisor = value
+	}
+	s.mu.Unlock()
+	if child {
+		s.changed(changeUpdate, true)
+		return nil
+	}
 	if err := a.host.StorageSet(ctx, advisorStorageKey(worktree), value); err != nil {
 		return err
 	}
@@ -883,6 +1167,13 @@ func (a *app) setAdvisor(ctx context.Context, s *session, value string) error {
 	a.uiMu.Unlock()
 	s.changed(changeUpdate, false)
 	return nil
+}
+
+func (a *app) sessionAdvisor(ctx context.Context, rec record) string {
+	if rec.ParentSession != "" {
+		return rec.Advisor
+	}
+	return a.advisor(ctx, rec.Worktree)
 }
 
 func (a *app) advisor(ctx context.Context, worktree string) string {
@@ -945,7 +1236,11 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 		s.rec.Closed = true
 		s.setStatusLocked(statusClosed, "")
 	}
+	ended := s.turnLocked()
 	s.mu.Unlock()
+	if running {
+		s.turned(ended)
+	}
 	s.changed(changeStatus, true)
 	a.cancelSignIn(ctx, rec.Workspace, rec.ID)
 	if p == nil {
@@ -966,6 +1261,28 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	p.unregister(agentID)
 	a.release(p)
 	return p
+}
+
+func (a *app) deleteTree(ctx context.Context, s *session) error {
+	seen := map[string]bool{}
+	var walk func(*session) error
+	walk = func(x *session) error {
+		id := x.snapshot().ID
+		if seen[id] {
+			return nil
+		}
+		seen[id] = true
+		a.closeSession(ctx, x, true)
+		a.spawnMu.Lock()
+		children := a.children(id)
+		a.spawnMu.Unlock()
+		var errs []error
+		for _, c := range children {
+			errs = append(errs, walk(c))
+		}
+		return errors.Join(append(errs, a.deleteSession(ctx, x, true))...)
+	}
+	return walk(s)
 }
 
 func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error {

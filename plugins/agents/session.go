@@ -59,6 +59,9 @@ type record struct {
 	Worktree       string    `json:"worktree"`
 	Agent          string    `json:"agent"`
 	AgentSessionID string    `json:"agentSessionId"`
+	ParentSession  string    `json:"parentSession,omitempty"`
+	Advisor        string    `json:"advisor,omitempty"`
+	Fork           string    `json:"fork,omitempty"`
 	Title          string    `json:"title"`
 	Status         string    `json:"status"`
 	Mode           string    `json:"mode"`
@@ -66,7 +69,7 @@ type record struct {
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Closed         bool      `json:"closed"`
-	Asks           bool      `json:"asks,omitempty"`
+	Asks           bool      `json:"asks"`
 	Error          string    `json:"error,omitempty"`
 }
 
@@ -87,6 +90,7 @@ type entry struct {
 	Options  []acp.PermissionOption     `json:"options,omitempty"`
 	Outcome  *acp.PermissionOutcome     `json:"outcome,omitempty"`
 	Notice   json.RawMessage            `json:"notice,omitempty"`
+	From     string                     `json:"from,omitempty"`
 }
 
 type turnInfo struct {
@@ -102,6 +106,11 @@ type transcriptView struct {
 	Commands []acp.AvailableCommand    `json:"commands"`
 	Turns    []turnInfo                `json:"turns"`
 	Entries  []*entry                  `json:"entries"`
+}
+
+type promptPayload struct {
+	acp.PromptRequest
+	From string `json:"from,omitempty"`
 }
 
 type permissionPayload struct {
@@ -140,6 +149,13 @@ type queuedPrompt struct {
 	ID          string
 	Text        string
 	Attachments []attachment
+	From        string
+}
+
+type setup struct {
+	done chan struct{}
+	err  error
+	args worktreeNewArgs
 }
 
 type session struct {
@@ -151,6 +167,8 @@ type session struct {
 	loaded    bool
 	deleted   bool
 	changed   func(kind string, save bool)
+	turned    func(turnPayload)
+	setup     *setup
 
 	entries  []*entry
 	index    map[string]int
@@ -162,6 +180,7 @@ type session struct {
 	nextID   int
 	edited   bool
 	prompted bool
+	started  time.Time
 
 	changes      bool
 	changesFresh bool
@@ -181,6 +200,35 @@ func newSessionID() string {
 		panic(err)
 	}
 	return sessionPrefix + "_" + hex.EncodeToString(b)
+}
+
+func newSetup(args worktreeNewArgs) *setup {
+	return &setup{done: make(chan struct{}), args: args}
+}
+
+func (u *setup) finish(err error) {
+	u.err = err
+	close(u.done)
+}
+
+func (u *setup) wait() error {
+	if u == nil {
+		return nil
+	}
+	<-u.done
+	return u.err
+}
+
+func (u *setup) failed() bool {
+	if u == nil {
+		return false
+	}
+	select {
+	case <-u.done:
+		return u.err != nil
+	default:
+		return false
+	}
 }
 
 func newSession(rec record, log *eventLog, loaded bool, changed func(kind string, save bool)) *session {
@@ -214,8 +262,9 @@ func (s *session) recordLocked(actor, kind string, payload any) {
 }
 
 func (s *session) envelope(actor, kind string, payload json.RawMessage) envelope {
-	s.rec.UpdatedAt = time.Now().UTC()
-	return envelope{Workspace: s.rec.Workspace, Worktree: s.rec.Worktree, Session: s.rec.ID, Turn: s.turn, Actor: actor, Kind: kind, Payload: payload}
+	now := time.Now().UTC()
+	s.rec.UpdatedAt = now
+	return envelope{Workspace: s.rec.Workspace, Worktree: s.rec.Worktree, Session: s.rec.ID, ParentSession: s.rec.ParentSession, Turn: s.turn, Actor: actor, TS: now, Kind: kind, Payload: payload}
 }
 
 func (s *session) update(params json.RawMessage) {
@@ -321,7 +370,7 @@ func (s *session) applyConfig(p configPayload) {
 }
 
 func (s *session) applyPrompt(e envelope) {
-	var req acp.PromptRequest
+	var req promptPayload
 	if json.Unmarshal(e.Payload, &req) != nil {
 		return
 	}
@@ -330,6 +379,7 @@ func (s *session) applyPrompt(e envelope) {
 	s.prompted = true
 	en := s.upsert(entryUser, "prompt-"+strconv.Itoa(e.Turn), e.Turn)
 	en.Content = nil
+	en.From = req.From
 	for _, b := range req.Prompt {
 		raw, err := json.Marshal(b)
 		if err == nil {
@@ -461,7 +511,9 @@ func (s *session) requestPermission(ctx context.Context, request string, params 
 	s.perms[id] = perm
 	s.recordLocked(s.actor(), kindPermission, permissionPayload{ID: id, RequestID: request, Params: params})
 	s.settleLocked()
+	waiting := s.turnLocked()
 	s.mu.Unlock()
+	s.turned(waiting)
 	s.changed(changeStatus, true)
 	var out acp.PermissionOutcome
 	select {
@@ -476,6 +528,13 @@ func (s *session) requestPermission(ctx context.Context, request string, params 
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	return out
+}
+
+func (s *session) notice(title, description string) {
+	s.mu.Lock()
+	s.recordLocked(actorClubmate, kindUpdate, noticeUpdate{SessionUpdate: acp.UpdateNotice, Title: title, Description: description})
+	s.mu.Unlock()
+	s.changed(changeUpdate, false)
 }
 
 func (s *session) answer(id, option string) error {
@@ -525,6 +584,7 @@ func (s *session) cancelPermissionsLocked() {
 func (s *session) beginTurnLocked() int {
 	s.running = true
 	s.cancelRequested = false
+	s.started = time.Now()
 	s.turn++
 	s.settleLocked()
 	return s.turn
@@ -543,19 +603,21 @@ func (s *session) requeueLocked(args promptArgs) {
 
 func (s *session) queuedLocked(args promptArgs) queuedPrompt {
 	s.queueSeq++
-	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments}
+	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments, From: args.From}
 }
 
-func (s *session) dequeueLocked(extra *promptArgs) (promptArgs, bool) {
-	parts := s.queue
-	if extra != nil {
-		parts = append(slices.Clone(parts), queuedPrompt{Text: extra.Text, Attachments: extra.Attachments})
-	}
-	if len(parts) == 0 {
+func (s *session) dequeueLocked() (promptArgs, bool) {
+	if len(s.queue) == 0 {
 		return promptArgs{}, false
 	}
-	s.queue = nil
-	var args promptArgs
+	from := s.queue[0].From
+	n := slices.IndexFunc(s.queue, func(q queuedPrompt) bool { return q.From != from })
+	if n < 0 {
+		n = len(s.queue)
+	}
+	parts := s.queue[:n]
+	s.queue = slices.Clone(s.queue[n:])
+	args := promptArgs{From: from}
 	var texts []string
 	for _, q := range parts {
 		if strings.TrimSpace(q.Text) != "" {
@@ -635,6 +697,17 @@ func (s *session) view(fromTurn int) transcriptView {
 		}
 	}
 	return v
+}
+
+func (s *session) settings() (string, map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	values := make(map[string]string, len(s.configs))
+	for _, o := range s.configs {
+		values[o.ID] = o.Current()
+	}
+	return s.rec.Mode, values
 }
 
 func (s *session) snapshot() record {

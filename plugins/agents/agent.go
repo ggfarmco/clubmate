@@ -428,14 +428,17 @@ func (a *app) procExited(p *agentProc, reason string) {
 		s.proc = nil
 		s.cancelPermissionsLocked()
 		quiet := p.quiet.Load() || s.rec.Closed
+		var ended turnPayload
 		if !quiet {
 			s.running = false
 			s.log.flush()
 			s.recordLocked(actorClubmate, kindError, turnEndPayload{Error: reason})
 			s.setStatusLocked(statusError, reason)
+			ended = s.turnLocked()
 		}
 		s.mu.Unlock()
 		if !quiet {
+			s.turned(ended)
 			s.changed(changeStatus, true)
 		}
 	}
@@ -473,6 +476,11 @@ func (a *app) stopAll() {
 			sessions = append(sessions, s)
 		}
 		a.mu.Unlock()
+		a.uiMu.Lock()
+		for _, p := range a.ui {
+			p.tick.stop()
+		}
+		a.uiMu.Unlock()
 		var wg sync.WaitGroup
 		for _, p := range procs {
 			wg.Go(p.shutdown)

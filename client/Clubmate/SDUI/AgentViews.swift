@@ -269,6 +269,11 @@ struct MessageNodeView: View, Equatable {
             HStack(spacing: 0) {
                 Spacer(minLength: theme.gutter * 8)
                 VStack(alignment: .leading, spacing: theme.spacing.s) {
+                    if let from = node.string("from") {
+                        Text("from \(from)")
+                            .font(theme.uiSmall)
+                            .foregroundStyle(theme.muted)
+                    }
                     MarkdownText(text: text).equatable()
                     AttachmentLabels(attachments: node.attachments())
                 }

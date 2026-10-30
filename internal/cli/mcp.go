@@ -27,6 +27,7 @@ func (a *app) mcpCmd() *cobra.Command {
 				Project: os.Getenv(projectEnv),
 				Log:     cmd.ErrOrStderr(),
 				Poll:    mcpPoll,
+				Caller:  os.Getenv(agentSessionEnv),
 			}
 			return srv.Serve(cmd.Context(), cmd.InOrStdin(), a.out)
 		},

@@ -90,6 +90,11 @@ func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (
 			return nil, err
 		}
 		canned := canned()
+		select {
+		case <-time.After(time.Duration(canned.EchoDelays[cmd.ID]) * time.Millisecond):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 		if msg, ok := canned.EchoErrors[cmd.ID]; ok {
 			return nil, errors.New(msg)
 		}
@@ -98,7 +103,11 @@ func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (
 		}
 		return nil, fmt.Errorf("unknown command %q", cmd.ID)
 	}
-	return map[string]any{"plugin": h.PluginID(), "args": cmd.Args}, nil
+	out := map[string]any{"plugin": h.PluginID(), "args": cmd.Args}
+	if cmd.Caller != "" {
+		out["caller"] = cmd.Caller
+	}
+	return out, nil
 }
 
 func forkSleepAndExit(ctx context.Context, h *pluginsdk.Host) error {
@@ -155,6 +164,7 @@ func ownsSection(h *pluginsdk.Host) bool {
 type cannedReplies struct {
 	EchoResults map[string]json.RawMessage `json:"echoResults"`
 	EchoErrors  map[string]string          `json:"echoErrors"`
+	EchoDelays  map[string]int             `json:"echoDelays"`
 }
 
 func canned() cannedReplies {

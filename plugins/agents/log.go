@@ -224,6 +224,7 @@ type notifier struct {
 	order []change
 	seen  map[change]bool
 	saves map[*session]bool
+	turns []turnPayload
 	wake  chan struct{}
 }
 
@@ -248,6 +249,17 @@ func (n *notifier) mark(s *session, kind string, save bool) {
 		n.saves[s] = true
 	}
 	n.mu.Unlock()
+	n.poke()
+}
+
+func (n *notifier) turn(p turnPayload) {
+	n.mu.Lock()
+	n.turns = append(n.turns, p)
+	n.mu.Unlock()
+	n.poke()
+}
+
+func (n *notifier) poke() {
 	select {
 	case n.wake <- struct{}{}:
 	default:
@@ -257,8 +269,8 @@ func (n *notifier) mark(s *session, kind string, save bool) {
 func (n *notifier) run() {
 	for range n.wake {
 		n.mu.Lock()
-		order, saves := n.order, n.saves
-		n.order, n.seen, n.saves = nil, map[change]bool{}, map[*session]bool{}
+		order, saves, turns := n.order, n.saves, n.turns
+		n.order, n.seen, n.saves, n.turns = nil, map[change]bool{}, map[*session]bool{}, nil
 		n.mu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		for s := range saves {
@@ -267,6 +279,11 @@ func (n *notifier) run() {
 		for _, c := range order {
 			rec := c.session.snapshot()
 			if _, err := n.host.Publish(ctx, changedTopic, changedPayload{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind}); err != nil {
+				fmt.Fprintln(os.Stderr, "agents: publish:", err)
+			}
+		}
+		for _, p := range turns {
+			if _, err := n.host.Publish(ctx, turnTopic, p); err != nil {
 				fmt.Fprintln(os.Stderr, "agents: publish:", err)
 			}
 		}

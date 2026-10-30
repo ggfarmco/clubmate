@@ -82,6 +82,8 @@ type worktreeArgs struct {
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
 	Force  bool   `json:"force"`
+	From   string `json:"from"`
+	Switch *bool  `json:"switch"`
 }
 
 type stopRootArgs struct {
@@ -462,7 +464,15 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 	if err != nil {
 		return nil, err
 	}
-	add := []string{"worktree", "add", "-b", args.Branch, dir, currentHead}
+	base := currentHead
+	if args.From != "" {
+		from, err := f.member(args.From)
+		if err != nil {
+			return nil, err
+		}
+		base = from.Head
+	}
+	add := []string{"worktree", "add", "-b", args.Branch, dir, base}
 	if hasRef(ctx, cur.Path, "refs/heads/"+args.Branch) {
 		add = []string{"worktree", "add", dir, args.Branch}
 	}
@@ -480,6 +490,9 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 		t, err := g.member(dir)
 		if err != nil {
 			return "", err
+		}
+		if args.Switch != nil && !*args.Switch {
+			return t.Path, nil
 		}
 		if _, err := h.SetWorktree(ctx, projectID, g.Repo, g.Selection(t)); err != nil {
 			return "", err

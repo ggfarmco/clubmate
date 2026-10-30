@@ -52,12 +52,16 @@ const (
 	actContinue        = "continue"
 	actUnqueue         = "unqueue"
 	actSendQueued      = "sendQueued"
+	actSelectParent    = "selectParent"
 
 	groupPrefix    = "wt:"
+	expandPrefix   = "s:"
+	fromAnother    = "another agent"
 	needsPrefix    = "needs:"
 	needsKey       = "needs"
 	closedKey      = "closed:"
 	deleteConfirm  = "Delete this agent session, its transcript and its checkpoints?"
+	deleteTree     = "Delete this agent session and its %d child sessions, their transcripts and checkpoints?"
 	noSessions     = "No agent sessions"
 	pickSession    = "Start an agent session with + New"
 	installingNote = "Installing %s adapter…"
@@ -67,8 +71,11 @@ const (
 	advisorHelp    = "Advisor model for new sessions in this worktree"
 	finishHelp     = "What the agent does once the task is done"
 
-	finishAskText   = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
-	finishMergeText = "[Clubmate finish mode: merge] When the task is done, run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
+	finishAskText         = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
+	finishMergeText       = "[Clubmate finish mode: merge] When the task is done, run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
+	finishChildText       = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit on your branch, then merge your branch into %[1]s inside %[2]s (`git -C %[2]s merge --no-edit %[3]s`). If the merge fails because another merge holds index.lock, wait 5 s and retry it once. Don't merge if %[2]s has uncommitted changes; report why instead. If the merge conflicts, run `git -C %[2]s merge --abort` and report the conflicting files. Never merge into main, never remove worktrees or branches."
+	finishChildCommitText = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit your work and stop; if they fail or cannot run, report why. Don't merge anything, never merge into main, never remove worktrees or branches."
+	orchestratorText      = "[Clubmate orchestrator] Write to the user only questions from child sessions that need the user's answer. Don't repeat what you sent to which session, don't recap statuses of sessions that need nothing. Answer children's permission requests yourself with agents.permission. Never paraphrase the user's answer to a child: use agents.answer."
 )
 
 var (
@@ -115,6 +122,7 @@ type advisorChoice struct {
 type sessionRow struct {
 	Rec      record
 	Activity string
+	Started  time.Time
 }
 
 type pendingAttachment struct {
@@ -137,6 +145,8 @@ type screen struct {
 	Installing  bool
 	Changes     bool
 	Advisor     string
+	Parent      string
+	FromTitles  map[string]string
 }
 
 type toolFields struct {
@@ -169,8 +179,9 @@ type planUpdate struct {
 }
 
 type noticeUpdate struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	SessionUpdate string `json:"sessionUpdate,omitempty"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
 }
 
 func agentLabel(agent string) string {
@@ -185,11 +196,24 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	if len(rows) == 0 {
 		return sdui.VStack(newButton, sdui.Empty(noSessions))
 	}
+	byID := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		byID[row.Rec.ID] = true
+	}
+	kids := map[string][]sessionRow{}
+	var roots []sessionRow
+	for _, row := range rows {
+		if parent := row.Rec.ParentSession; parent != "" && byID[parent] {
+			kids[parent] = append(kids[parent], row)
+			continue
+		}
+		roots = append(roots, row)
+	}
 	type bucket struct{ open, closed []sdui.TreeItem }
 	var order []string
 	buckets := map[string]*bucket{}
 	var needs []sdui.TreeItem
-	for _, row := range rows {
+	for _, row := range roots {
 		wt := row.Rec.Worktree
 		b, ok := buckets[wt]
 		if !ok {
@@ -197,13 +221,15 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			buckets[wt] = b
 			order = append(order, wt)
 		}
-		item := sessionItem(row, now)
-		if row.Rec.Closed {
+		item := nestedItem(row, kids, collapsed, now, map[string]bool{})
+		child := row.Rec.ParentSession != ""
+		if row.Rec.Closed && !child {
 			b.closed = append(b.closed, item)
 			continue
 		}
 		b.open = append(b.open, item)
-		if needsYou(row.Rec) {
+		if !child && needsYou(row.Rec) {
+			item = sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
 			item.ID = needsPrefix + item.ID
 			needs = append(needs, item)
 		}
@@ -228,6 +254,29 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	return sdui.VStack(newButton, sdui.Tree("sessions", groups, selected))
 }
 
+func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool) sdui.TreeItem {
+	path[row.Rec.ID] = true
+	defer delete(path, row.Rec.ID)
+	var children []sessionRow
+	for _, kid := range kids[row.Rec.ID] {
+		if !path[kid.Rec.ID] {
+			children = append(children, kid)
+		}
+	}
+	item := sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
+	if len(children) == 0 {
+		return item
+	}
+	item.HasChildren = true
+	item.Expanded = !collapsed[expandPrefix+row.Rec.ID]
+	if item.Expanded {
+		for _, kid := range children {
+			item.Children = append(item.Children, nestedItem(kid, kids, collapsed, now, path))
+		}
+	}
+	return item
+}
+
 func groupItem(key, label, detail, icon string, children []sdui.TreeItem, expanded bool) sdui.TreeItem {
 	item := sdui.TreeItem{ID: groupPrefix + key, Label: label, Detail: detail, Icon: icon, HasChildren: true, Expanded: expanded}
 	if expanded {
@@ -236,13 +285,28 @@ func groupItem(key, label, detail, icon string, children []sdui.TreeItem, expand
 	return item
 }
 
+func descendantCount(id string, kids map[string][]sessionRow, seen map[string]bool) int {
+	seen[id] = true
+	n := 0
+	for _, kid := range kids[id] {
+		if !seen[kid.Rec.ID] {
+			n += 1 + descendantCount(kid.Rec.ID, kids, seen)
+		}
+	}
+	return n
+}
+
 func needsYou(rec record) bool {
 	return rec.Status == statusWaiting || rec.Status == statusDone && rec.Asks
 }
 
-func sessionItem(row sessionRow, now time.Time) sdui.TreeItem {
+func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	rec := row.Rec
-	menu := []sdui.MenuEntry{{Action: actDelete, Label: "Delete Session", Confirm: deleteConfirm}}
+	confirm := deleteConfirm
+	if descendants > 0 {
+		confirm = fmt.Sprintf(deleteTree, descendants)
+	}
+	menu := []sdui.MenuEntry{{Action: actDelete, Label: "Delete Session", Confirm: confirm}}
 	if !rec.Closed {
 		menu = slices.Insert(menu, 0, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
 	}
@@ -260,10 +324,11 @@ func activity(row sessionRow, now time.Time) string {
 	label := cmp.Or(statusLabels[rec.Status], rec.Status)
 	switch rec.Status {
 	case statusRunning, statusWaiting:
-		if row.Activity != "" {
-			return label + " · " + row.Activity
+		parts := []string{label}
+		if rec.Status == statusRunning && !row.Started.IsZero() {
+			parts = append(parts, elapsed(now.Sub(row.Started)))
 		}
-		return label
+		return strings.Join(nonEmpty(append(parts, row.Activity)...), " · ")
 	case statusError:
 		if line := firstLine(rec.Error); line != "" {
 			return label + " · " + line
@@ -271,6 +336,17 @@ func activity(row sessionRow, now time.Time) string {
 		return label
 	}
 	return label + " · " + ago(rec.UpdatedAt, now)
+}
+
+func elapsed(d time.Duration) string {
+	mins := int(d / time.Minute)
+	switch {
+	case mins < 1:
+		return "<1 min"
+	case mins < 60:
+		return strconv.Itoa(mins) + " min"
+	}
+	return strconv.Itoa(mins/60) + " h " + strconv.Itoa(mins%60) + " min"
 }
 
 func ago(t, now time.Time) string {
@@ -352,6 +428,9 @@ func header(sc screen) sdui.Node {
 	row := []sdui.Node{
 		{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}},
 		sdui.MutedText(strings.Join(meta, " · ")),
+	}
+	if sc.Parent != "" {
+		row = append(row, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
 	}
 	if sc.Changes {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
@@ -485,6 +564,9 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	switch en.Kind {
 	case entryUser:
 		n := sdui.Message("user", en.Text, promptAttachments(en.Content, root))
+		if en.From != "" {
+			n.Props["from"] = cmp.Or(sc.FromTitles[en.From], fromAnother)
+		}
 		n.ID = sid + "/msg/" + en.Kind + "/" + en.ID
 		return n, true
 	case entryAgent, entryThought:
@@ -852,6 +934,9 @@ func pickers(sc screen) []sdui.Picker {
 		options = append(options, sdui.Option{Value: c.value, Label: c.label})
 	}
 	out = append(out, sdui.Picker{ID: advisorID, Title: "Advisor", Help: advisorHelp, Value: sc.Advisor, Options: options})
+	if sc.View.Session.ParentSession != "" {
+		return out
+	}
 	finish := make([]sdui.Option, 0, len(finishChoices))
 	for _, c := range finishChoices {
 		finish = append(finish, sdui.Option{Value: c.value, Label: c.label})

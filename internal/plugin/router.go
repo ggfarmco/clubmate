@@ -30,11 +30,15 @@ func NewRouter(sup *Supervisor) *Router {
 }
 
 func (r *Router) UIEvent(ctx context.Context, pluginID string, ev json.RawMessage) (json.RawMessage, error) {
-	return r.call(ctx, pluginID, "ui.event", ev)
+	return r.call(ctx, pluginID, "ui.event", ev, routeTimeout)
 }
 
-func (r *Router) Command(ctx context.Context, pluginID string, run json.RawMessage) (json.RawMessage, error) {
-	return r.call(ctx, pluginID, "command.run", run)
+func (r *Router) Command(ctx context.Context, c rpc.Command, run json.RawMessage) (json.RawMessage, error) {
+	timeout := routeTimeout
+	if c.Timeout > 0 {
+		timeout = time.Duration(c.Timeout) * time.Second
+	}
+	return r.call(ctx, c.Plugin, "command.run", run, timeout)
 }
 
 func (r *Router) Commands() []rpc.Command {
@@ -124,15 +128,16 @@ func command(pluginID string, c CommandDef) rpc.Command {
 		Agent:       c.Agent,
 		Destructive: c.Destructive,
 		Provides:    c.Provides,
+		Timeout:     c.Timeout,
 	}
 }
 
-func (r *Router) call(ctx context.Context, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
+func (r *Router) call(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
 	conn, ok := r.sup.Conn(pluginID)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrPluginUnavailable, pluginID)
 	}
-	ctx, cancel := context.WithTimeout(ctx, routeTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return callConn(ctx, conn, pluginID, method, params)
 }

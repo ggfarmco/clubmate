@@ -112,6 +112,82 @@ func TestDoneAsksWhenLastAgentMessageIsQuestion(t *testing.T) {
 	}
 }
 
+func TestSidebarNestsChildren(t *testing.T) {
+	now := time.Now()
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_c", Worktree: "/r/b", ParentSession: "agt_p", Agent: agentClaude, Status: statusDone, Asks: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_d", Worktree: "/r/a", ParentSession: "agt_p", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
+	}
+
+	tree := sidebarView(rows, "agt_c", map[string]bool{}, now)
+	require.NoError(t, internalsdui.Validate(tree))
+
+	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].Children, 1)
+	parent := groups[0].Children[0]
+	assert.True(t, parent.HasChildren)
+	assert.True(t, parent.Expanded)
+	assert.Equal(t, "a", groups[0].Label)
+	require.Len(t, parent.Children, 2)
+	assert.Equal(t, []string{"agt_c", "agt_d"}, []string{parent.Children[0].ID, parent.Children[1].ID})
+
+	collapsed := sidebarView(rows, "", map[string]bool{"s:agt_p": true}, now)
+	folded := nodesOf(collapsed, "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
+	assert.False(t, folded.Expanded)
+	assert.Empty(t, folded.Children)
+}
+
+func TestRunningActivityElapsed(t *testing.T) {
+	now := time.Now()
+	row := sessionRow{Rec: record{ID: "agt_1", Status: statusRunning}, Activity: "go test", Started: now.Add(-4 * time.Minute)}
+
+	assert.Equal(t, "Running · 4 min · go test", activity(row, now))
+	assert.Equal(t, "Running · <1 min · go test", activity(sessionRow{Rec: row.Rec, Activity: row.Activity, Started: now.Add(-10 * time.Second)}, now))
+	assert.Equal(t, "Running · 2 h 5 min", activity(sessionRow{Rec: row.Rec, Started: now.Add(-125 * time.Minute)}, now))
+}
+
+func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
+	clock := &fakeClock{now: time.Unix(0, 0)}
+	row := sessionRow{Rec: record{ID: "agt_1", Status: statusRunning}, Started: clock.Now()}
+	var details []string
+	var tick *ticker
+	tick = newTicker(clock, tickEvery, func() {
+		details = append(details, activity(row, clock.Now()))
+		tick.arm()
+	})
+
+	tick.arm()
+	clock.advance(tickEvery)
+	clock.advance(tickEvery)
+	tick.stop()
+	clock.advance(tickEvery)
+
+	assert.Equal(t, []string{"Running · <1 min", "Running · 1 min"}, details)
+}
+
+func TestChildHeaderAndAgentMessage(t *testing.T) {
+	v := transcriptView{Session: record{ID: "agt_c", Worktree: "/r", Agent: agentClaude, Status: statusDone, ParentSession: "agt_p"}}
+	v.Entries = []*entry{{Kind: entryUser, ID: "prompt-1", Turn: 1, Text: "do it", From: "agt_p"}, {Kind: entryUser, ID: "prompt-2", Turn: 2, Text: "again", From: unknownCaller}}
+
+	tree := mainView(screen{View: v, Parent: "Orchestrator", FromTitles: map[string]string{"agt_p": "Orchestrator"}, Composer: "agt_c/composer/0"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	var link []sdui.Node
+	for _, b := range nodesOf(tree, "button") {
+		if b.Props["action"] == actSelectParent {
+			link = append(link, b)
+		}
+	}
+	require.Len(t, link, 1)
+	assert.Equal(t, "from Orchestrator", link[0].Props["label"])
+	msgs := nodesOf(tree, "message")
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "Orchestrator", msgs[0].Props["from"])
+	assert.Equal(t, "another agent", msgs[1].Props["from"])
+}
+
 func TestTranscriptWindowAndShowEarlier(t *testing.T) {
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}}
 	for turn := 1; turn <= 45; turn++ {
@@ -292,4 +368,8 @@ func TestConfigPickersAndModelInHeader(t *testing.T) {
 	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
 	assert.Equal(t, []string{"Effort", "Advisor", "Finish"}, []string{got[1].Title, got[2].Title, got[3].Title})
 	assert.Equal(t, []string{"opus", "ask"}, []string{got[2].Value, got[3].Value})
+
+	v.Session.ParentSession = "agt_0"
+	child := nodesOf(mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus"}), "composer")[0].Props["pickers"].([]sdui.Picker)
+	assert.Equal(t, "Advisor", child[len(child)-1].Title)
 }

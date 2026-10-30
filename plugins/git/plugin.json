@@ -140,11 +140,13 @@
         "title": "New Worktree",
         "hidden": true,
         "agent": true,
-        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it. Checks out the branch when it exists, else creates it from HEAD of the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Returns {id}; poll git.worktree-op-status for the outcome. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
+        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Returns {id}; poll git.worktree-op-status for the outcome. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
-            "branch": {"type": "string", "description": "Branch name, also the folder name under .worktrees/."}
+            "branch": {"type": "string", "description": "Branch name, also the folder name under .worktrees/."},
+            "from": {"type": "string", "description": "Worktree root, as listed by git.worktrees, whose HEAD a new branch starts from; defaults to the current worktree. Ignored when the branch exists."},
+            "switch": {"type": "boolean", "description": "Switch the workspace folder to the new worktree; defaults to true. The returned path is the new worktree either way."}
           },
           "required": ["branch"]
         }

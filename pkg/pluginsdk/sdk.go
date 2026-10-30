@@ -32,6 +32,8 @@ type CommandRun struct {
 	ID        string          `json:"id"`
 	ProjectID string          `json:"projectId"`
 	Args      json.RawMessage `json:"args"`
+	Agent     bool            `json:"agent,omitempty"`
+	Caller    string          `json:"caller,omitempty"`
 }
 
 type FSChange struct {

@@ -22,6 +22,7 @@ import (
 
 const (
 	renderEvery     = 100 * time.Millisecond
+	tickEvery       = 30 * time.Second
 	maxSidebarRows  = 1000
 	renderTimeout   = 10 * time.Second
 	selectedKey     = "selected/"
@@ -61,6 +62,7 @@ type projectUI struct {
 	render    sync.Mutex
 	sent      map[string][sha256.Size]byte
 	throttle  *throttle
+	tick      *ticker
 	selected  string
 	row       string
 	restored  bool
@@ -81,6 +83,15 @@ type throttle struct {
 	every   time.Duration
 	last    time.Time
 	pending func() bool
+	stopped bool
+	fn      func()
+}
+
+type ticker struct {
+	mu      sync.Mutex
+	clock   clock
+	every   time.Duration
+	stopAt  func() bool
 	stopped bool
 	fn      func()
 }
@@ -166,6 +177,36 @@ func (t *throttle) fire() {
 	}
 }
 
+func newTicker(c clock, every time.Duration, fn func()) *ticker {
+	return &ticker{clock: c, every: every, fn: fn}
+}
+
+func (t *ticker) arm() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.stopAt != nil || t.stopped {
+		return
+	}
+	t.stopAt = t.clock.AfterFunc(t.every, t.fire)
+}
+
+func (t *ticker) fire() {
+	t.mu.Lock()
+	t.stopAt = nil
+	t.mu.Unlock()
+	t.fn()
+}
+
+func (t *ticker) stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.stopped = true
+	if t.stopAt != nil {
+		t.stopAt()
+		t.stopAt = nil
+	}
+}
+
 func (t *throttle) stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -187,6 +228,7 @@ func (a *app) projectState(projectID string) *projectUI {
 	if !ok {
 		p = &projectUI{sent: map[string][sha256.Size]byte{}, collapsed: map[string]bool{}, sessions: map[string]*sessionUI{}}
 		p.throttle = newThrottle(realClock{}, renderEvery, func() { a.renderLogged(projectID) })
+		p.tick = newTicker(realClock{}, tickEvery, p.throttle.kick)
 		a.ui[projectID] = p
 	}
 	return p
@@ -221,6 +263,7 @@ func (a *app) forgetProject(projectID string) {
 	a.uiMu.Unlock()
 	if p != nil {
 		p.throttle.stop()
+		p.tick.stop()
 	}
 }
 
@@ -327,8 +370,13 @@ func (a *app) render(ctx context.Context, projectID string) error {
 		row := sessionRow{Rec: rec}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
+			row.Started = s.turnStart()
+			row.Rec.Asks = s.asks()
 		}
 		rows = append(rows, row)
+		if turnActive(rec) {
+			p.tick.arm()
+		}
 	}
 	a.uiMu.Lock()
 	collapsed := maps.Clone(p.collapsed)
@@ -346,7 +394,7 @@ func (a *app) render(ctx context.Context, projectID string) error {
 			go a.refreshChanges(s)
 		}
 		sc := a.screen(projectID, s)
-		sc.Advisor = a.advisor(ctx, sc.View.Session.Worktree)
+		sc.Advisor = a.sessionAdvisor(ctx, sc.View.Session)
 		main = mainView(sc)
 	}
 	return a.push(ctx, p, projectID, mainSlot, main)
@@ -376,6 +424,7 @@ func (a *app) screen(projectID string, s *session) screen {
 	changes := s.hasChanges()
 	sid := v.Session.ID
 	st := a.sessionState(projectID, sid)
+	parent, fromTitles := a.relatives(v)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	_, needsAuth := a.auth[sid]
@@ -395,7 +444,33 @@ func (a *app) screen(projectID string, s *session) screen {
 		NodeProblem: a.nodeProblem,
 		Installing:  a.installing && detached && !v.Session.Closed,
 		Changes:     changes,
+		Parent:      parent,
+		FromTitles:  fromTitles,
 	}
+}
+
+func (a *app) relatives(v transcriptView) (string, map[string]string) {
+	title := func(id string) (string, bool) {
+		s := a.session(id)
+		if s == nil {
+			return "", false
+		}
+		return cmp.Or(s.snapshot().Title, "New session"), true
+	}
+	parent := ""
+	if v.Session.ParentSession != "" {
+		parent, _ = title(v.Session.ParentSession)
+	}
+	titles := map[string]string{}
+	for _, en := range v.Entries {
+		if _, done := titles[en.From]; en.From == "" || en.From == unknownCaller || done {
+			continue
+		}
+		if t, ok := title(en.From); ok {
+			titles[en.From] = t
+		}
+	}
+	return parent, titles
 }
 
 func (a *app) resolveSelected(ctx context.Context, projectID string, recs []record) (string, error) {
@@ -457,7 +532,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	switch ev.Action {
 	case actNew:
-		res, err := a.newSession(ctx, a.host, ev.ProjectID, agentClaude)
+		res, err := a.newSession(ctx, a.host, ev.ProjectID, "", newArgs{})
 		if err != nil {
 			return err
 		}
@@ -491,7 +566,11 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		p := a.projectState(ev.ProjectID)
 		a.uiMu.Lock()
-		p.collapsed[strings.TrimPrefix(id, groupPrefix)] = ev.Action == actCollapse
+		key := expandPrefix + id
+		if wt, ok := strings.CutPrefix(id, groupPrefix); ok {
+			key = wt
+		}
+		p.collapsed[key] = ev.Action == actCollapse
 		a.uiMu.Unlock()
 		return nil
 	case actClose, actDelete:
@@ -504,7 +583,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		if ev.Action == actDelete {
-			return a.deleteSession(ctx, s, true)
+			return a.deleteTree(ctx, s)
 		}
 		a.closeSession(ctx, s, false)
 		return nil
@@ -530,6 +609,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 	case actStop:
 		a.cancel(s)
 		return nil
+	case actSelectParent:
+		parent := s.snapshot().ParentSession
+		if a.session(parent) == nil {
+			return nil
+		}
+		return a.selectSession(ctx, ev.ProjectID, parent)
 	case actPermission:
 		var v permissionValue
 		if err := decode(ev.Value, &v); err != nil {
@@ -608,8 +693,8 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return nil
 	case actContinue:
 		rec := s.snapshot()
-		res := a.createSession(ev.ProjectID, rec.Agent, rec.Worktree)
-		return a.selectSession(ctx, ev.ProjectID, res.Session)
+		next := a.createSession(record{Workspace: ev.ProjectID, Worktree: rec.Worktree, Agent: rec.Agent, ParentSession: rec.ParentSession, Advisor: rec.Advisor, Fork: rec.Fork}, nil)
+		return a.selectSession(ctx, ev.ProjectID, next.rec.ID)
 	case actSignIn:
 		return a.signIn(ctx, ev.ProjectID, s, st)
 	case actUnqueue:
@@ -837,6 +922,12 @@ func (s *session) detached() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.proc == nil
+}
+
+func (s *session) turnStart() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.started
 }
 
 func (s *session) activity() string {

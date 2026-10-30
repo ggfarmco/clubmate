@@ -72,9 +72,13 @@ func noCore(context.Context) (mcp.Core, error) {
 
 func start(t *testing.T, dial func(ctx context.Context) (mcp.Core, error), project string) *peer {
 	t.Helper()
+	return startServer(t, &mcp.Server{Dial: dial, Version: "test", Project: project, Log: io.Discard})
+}
+
+func startServer(t *testing.T, srv *mcp.Server) *peer {
+	t.Helper()
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
-	srv := &mcp.Server{Dial: dial, Version: "test", Project: project, Log: io.Discard}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -165,6 +169,15 @@ func TestMCPHandshakeAndTools(t *testing.T) {
 	require.Len(t, res.Result.Content, 1)
 	assert.Equal(t, "text", res.Result.Content[0].Type)
 	assert.Contains(t, res.Result.Content[0].Text, `"name":"demo"`)
+}
+
+func TestToolCallForwardsCaller(t *testing.T) {
+	dial, project := startCore(t)
+	args := map[string]any{"path": "/x.go", "workspace": project}
+	withCaller := startServer(t, &mcp.Server{Dial: dial, Version: "test", Log: io.Discard, Caller: "agt_x"})
+	res := withCaller.call(t, 1, "tools/call", map[string]any{"name": "editor_open", "arguments": args})
+	require.False(t, res.Result.IsError, res.Result.Content)
+	assert.JSONEq(t, `{"plugin":"alpha","args":{"path":"/x.go"},"caller":"agt_x"}`, res.Result.Content[0].Text)
 }
 
 func TestMCPDestructiveDenied(t *testing.T) {

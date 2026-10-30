@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +37,7 @@ type step struct {
 	Exit       *int            `json:"exit"`
 	Sleep      int             `json:"sleep"`
 	Echo       bool            `json:"echo"`
+	Match      string          `json:"match"`
 }
 
 const loginArg = "--fake-login"
@@ -193,6 +195,9 @@ func (a *agent) update(session string, update any) {
 func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step) {
 	session := prompt.SessionID
 	for _, s := range steps {
+		if s.Match != "" && (len(prompt.Prompt) == 0 || !strings.Contains(prompt.Prompt[0].Text, s.Match)) {
+			continue
+		}
 		switch {
 		case s.Update != nil:
 			a.update(session, s.Update)
