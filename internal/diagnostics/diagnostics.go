@@ -27,6 +27,7 @@ const (
 	InfoName     = "info.json"
 	SettingsName = "settings.json"
 	WindowName   = "window.png"
+	AppLogName   = "logs/app.log"
 	Unreachable  = "unreachable"
 
 	keepArchives = 3
@@ -257,6 +258,8 @@ func describe(name string) string {
 		return "versions, macOS, architecture, core uptime, collection time"
 	case name == "logs/core.log":
 		return "tail of the core log"
+	case name == AppLogName:
+		return "recent app log"
 	case strings.HasPrefix(name, "logs/plugins/"):
 		return "tail of a plugin log"
 	case name == "plugins.json":

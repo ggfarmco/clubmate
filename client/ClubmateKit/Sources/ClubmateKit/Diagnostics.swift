@@ -15,6 +15,8 @@ public enum Diagnostics {
     public static let excluded = "Terminal output, environment variables and plugin storage are not included."
     public static let settingsName = "settings.json"
     public static let windowName = "window.png"
+    public static let appLogName = "logs/app.log"
+    public static let logSubsystem = "app.clubmate"
     public static let screenshotOption = "Include a screenshot of the window (may show terminal and editor contents)"
     public static let extraLimit = 10 << 20
     static let redacted = "<redacted>"
@@ -29,7 +31,7 @@ public enum Diagnostics {
     }
 
     public static func expectedFiles(screenshot: Bool) -> [String] {
-        ["info.json", "logs/core.log", "logs/plugins/<plugin>.log", "plugins.json", "workspaces.json", "sessions.json", "ui/<workspace>.json", settingsName]
+        ["info.json", "logs/core.log", "logs/plugins/<plugin>.log", appLogName, "plugins.json", "workspaces.json", "sessions.json", "ui/<workspace>.json", settingsName]
             + (screenshot ? [windowName] : [])
             + ["README.txt"]
     }

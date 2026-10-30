@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"clubmate/internal/buildinfo"
@@ -16,7 +17,7 @@ const diagnosticsExtraMax = 10 << 20
 
 var (
 	errNoDiagnostics  = errors.New("diagnostics not configured")
-	diagnosticsExtras = map[string]bool{diagnostics.SettingsName: true, diagnostics.WindowName: true}
+	diagnosticsExtras = []string{diagnostics.SettingsName, diagnostics.WindowName, diagnostics.AppLogName}
 )
 
 type diagnosticsParams struct {
@@ -55,7 +56,7 @@ func (s *Server) collectDiagnostics(ctx context.Context, p diagnosticsParams) (d
 		return diagnostics.Result{}, invalidParams("diagnostics.collect is not available to plugins")
 	}
 	for name, data := range p.Extra {
-		if !diagnosticsExtras[name] {
+		if !slices.Contains(diagnosticsExtras, name) {
 			return diagnostics.Result{}, invalidParams(fmt.Sprintf("extra: unknown file %q", name))
 		}
 		if len(data) > diagnosticsExtraMax {
@@ -73,7 +74,7 @@ func (s *Server) collectDiagnostics(ctx context.Context, p diagnosticsParams) (d
 	if err != nil {
 		return diagnostics.Result{}, err
 	}
-	for _, name := range []string{diagnostics.SettingsName, diagnostics.WindowName} {
+	for _, name := range diagnosticsExtras {
 		if data, ok := p.Extra[name]; ok {
 			entries = append(entries, diagnostics.Entry{Name: name, Data: data})
 		}

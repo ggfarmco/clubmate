@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OSLog
 import UniformTypeIdentifiers
 
 import ClubmateKit
@@ -21,6 +22,9 @@ extension AppModel {
             var extra: [String: Data] = [:]
             if let id = Bundle.main.bundleIdentifier, let domain = UserDefaults.standard.persistentDomain(forName: id) {
                 extra[Diagnostics.settingsName] = Diagnostics.redactedSettings(domain)
+            }
+            if let log = AppLog.recent() {
+                extra[Diagnostics.appLogName] = log
             }
             if screenshot, let png = window.flatMap(WindowSnapshot.png), png.count <= Diagnostics.extraLimit {
                 extra[Diagnostics.windowName] = png
@@ -115,5 +119,15 @@ private enum WindowSnapshot {
               let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds) else { return nil }
         root.cacheDisplay(in: root.bounds, to: rep)
         return rep.representation(using: .png, properties: [:])
+    }
+}
+
+private enum AppLog {
+    static func recent() -> Data? {
+        guard let store = try? OSLogStore(scope: .currentProcessIdentifier),
+              let entries = try? store.getEntries(at: store.position(date: Date(timeIntervalSinceNow: -3600)), matching: NSPredicate(format: "subsystem == %@", Diagnostics.logSubsystem)) else { return nil }
+        let lines = entries.compactMap { $0 as? OSLogEntryLog }.map { "\($0.date.ISO8601Format(Date.ISO8601FormatStyle(includingFractionalSeconds: true))) [\($0.category)] \($0.composedMessage)\n" }
+        guard !lines.isEmpty else { return nil }
+        return Data(lines.joined().utf8).suffix(Diagnostics.extraLimit)
     }
 }

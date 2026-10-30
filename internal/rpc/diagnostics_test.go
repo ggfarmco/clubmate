@@ -60,7 +60,7 @@ func TestDiagnosticsBundle(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond)
 
 	var res diagnostics.Result
-	require.NoError(t, c.Call(t.Context(), "diagnostics.collect", map[string]any{"extra": map[string][]byte{"settings.json": []byte(`{"a":1}`)}}, &res))
+	require.NoError(t, c.Call(t.Context(), "diagnostics.collect", map[string]any{"extra": map[string][]byte{"settings.json": []byte(`{"a":1}`), "logs/app.log": []byte("transcript appear")}}, &res))
 	assert.Equal(t, dirs.DiagnosticsDir(), filepath.Dir(res.Path))
 	files := readZip(t, res.Path)
 	for name, data := range files {
@@ -71,7 +71,7 @@ func TestDiagnosticsBundle(t *testing.T) {
 		names = append(names, f.Name)
 		assert.Equal(t, int64(len(files[f.Name])), f.Bytes, f.Name)
 	}
-	assert.ElementsMatch(t, []string{"info.json", "logs/core.log", "logs/plugins/files.log", "plugins.json", "workspaces.json", "sessions.json", "settings.json", "README.txt"}, names)
+	assert.ElementsMatch(t, []string{"info.json", "logs/core.log", "logs/plugins/files.log", "plugins.json", "workspaces.json", "sessions.json", "settings.json", "logs/app.log", "README.txt"}, names)
 
 	tail := files["logs/core.log"]
 	assert.LessOrEqual(t, len(tail), diagnostics.LogTailMax)

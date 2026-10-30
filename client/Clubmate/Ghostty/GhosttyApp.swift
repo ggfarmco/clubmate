@@ -6,7 +6,7 @@ import GhosttyKit
 
 import ClubmateKit
 
-let ghosttyLog = Logger(subsystem: "app.clubmate", category: "ghostty")
+let ghosttyLog = Logger(subsystem: Diagnostics.logSubsystem, category: "ghostty")
 
 @MainActor
 @Observable
