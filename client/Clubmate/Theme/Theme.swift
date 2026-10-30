@@ -3,7 +3,6 @@ import SwiftUI
 struct Theme: Sendable {
     var background: Color
     var foreground: Color
-    var selection: Color
     var accent: Color
     var success: Color
     var warning: Color
@@ -48,7 +47,6 @@ struct Theme: Sendable {
     static let fallback = Theme(
         background: Color(hex: 0x1F1F28),
         foreground: Color(hex: 0xDCD7BA),
-        selection: Color(hex: 0x2D4F67),
         accent: Color(hex: 0x7E9CD8),
         success: Color(hex: 0x98BB6C),
         warning: Color(hex: 0xE6C384),

@@ -37,6 +37,15 @@
             ]
           }
         },
+        {
+          "type": "transcript",
+          "id": "gallery-transcript",
+          "props": {},
+          "children": [
+            {"type": "message", "id": "m1", "props": {"role": "user", "text": "Fix the dark theme: my messages render as blank beige bars with invisible text."}},
+            {"type": "message", "id": "m2", "props": {"role": "agent", "text": "The bubble used the ghostty selection colour, which some themes set to the foreground."}}
+          ]
+        },
         {"type": "text", "props": {"text": "SESSIONS", "style": "muted"}},
         {
           "type": "list",

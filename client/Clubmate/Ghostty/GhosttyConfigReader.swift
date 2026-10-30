@@ -6,14 +6,13 @@ import GhosttyKit
 import ClubmateKit
 
 enum GhosttyConfigReader {
-    static func theme(from config: ghostty_config_t, dark: Bool, overlay: URL) -> Theme {
+    static func theme(from config: ghostty_config_t, overlay: URL) -> Theme {
         let fallback = Theme.fallback
         let palette = palette(config)
         let text = GhosttyConfigText(sources(overlay: overlay).compactMap(read))
         return Theme(
             background: color(config, "background") ?? fallback.background,
             foreground: color(config, "foreground") ?? fallback.foreground,
-            selection: selection(config, text: text, dark: dark) ?? fallback.selection,
             accent: palette?[4] ?? fallback.accent,
             success: palette?[2] ?? fallback.success,
             warning: palette?[3] ?? fallback.warning,
@@ -51,23 +50,6 @@ enum GhosttyConfigReader {
                 Color(red: Double($0.r) / 255, green: Double($0.g) / 255, blue: Double($0.b) / 255)
             }
         }
-    }
-
-    private static func selection(_ config: ghostty_config_t, text: GhosttyConfigText, dark: Bool) -> Color? {
-        if let color = color(config, "selection-background") { return color }
-        let value = text.last("selection-background") ?? themeText(text, dark: dark)?.last("selection-background")
-        return value.flatMap(GhosttyConfigText.hexColor).map { Color(hex: $0) }
-    }
-
-    private static func themeText(_ text: GhosttyConfigText, dark: Bool) -> GhosttyConfigText? {
-        guard let value = text.last("theme") else { return nil }
-        let name = GhosttyConfigText.themeName(value, dark: dark)
-        guard !name.isEmpty else { return nil }
-        let candidates = name.hasPrefix("/") ? [URL(filePath: name)] : [
-            configHome.appending(path: "ghostty/themes/\(name)"),
-            Bundle.main.resourceURL?.appending(path: "ghostty/themes/\(name)"),
-        ].compactMap { $0 }
-        return candidates.lazy.compactMap(read).first.map { GhosttyConfigText([$0]) }
     }
 
     private static func sources(overlay: URL) -> [URL] {

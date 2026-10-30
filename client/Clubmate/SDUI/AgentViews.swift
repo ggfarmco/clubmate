@@ -275,7 +275,7 @@ struct MessageNodeView: View, Equatable {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, theme.gutter + theme.spacing.s)
                 .padding(.vertical, theme.gutter)
-                .background(UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10, bottomTrailingRadius: 3, topTrailingRadius: 10).fill(theme.selection))
+                .background(UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10, bottomTrailingRadius: 3, topTrailingRadius: 10).fill(theme.foreground.opacity(0.06)))
             }
         case "thought":
             ThoughtView(text: text)
