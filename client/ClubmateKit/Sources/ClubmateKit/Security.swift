@@ -25,6 +25,20 @@ public enum ClubmateError: Error, Equatable {
     var isTransient: Bool {
         self == .notRunning || self == .timeout
     }
+
+    public static let noWorkspace = ClubmateError.rpc(code: 0, message: "Open a workspace to change this")
+
+    var commandText: String {
+        guard case .rpc(_, let message) = self else { return self.message }
+        return Self.commandText(message)
+    }
+
+    static func commandText(_ message: String) -> String {
+        if message.hasPrefix("plugin "), let range = message.range(of: " command.run: ") {
+            return String(message[range.upperBound...])
+        }
+        return message
+    }
 }
 
 public enum Security {

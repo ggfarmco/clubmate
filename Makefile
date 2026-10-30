@@ -13,8 +13,6 @@ build:
 	cp plugins/terminals/plugin.json bin/plugins/terminals/
 	$(GO_BUILD) -o bin/plugins/editor-nvim/editor-nvim ./plugins/editor-nvim
 	cp plugins/editor-nvim/plugin.json bin/plugins/editor-nvim/
-	$(GO_BUILD) -o bin/plugins/files/files ./plugins/files
-	cp plugins/files/plugin.json bin/plugins/files/
 	$(GO_BUILD) -o bin/plugins/git/git ./plugins/git
 	cp plugins/git/plugin.json bin/plugins/git/
 	$(GO_BUILD) -o bin/plugins/processes/processes ./plugins/processes

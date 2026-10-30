@@ -286,6 +286,6 @@ public final class RemoteDevicesModel {
     static func unavailable(_ error: any Error) -> String {
         guard let error = error as? ClubmateError else { return "unexpected reply: \(error)" }
         if case .rpc(_, let message) = error, message.contains("unknown command") { return missingPlugin }
-        return NvimConfigModel.text(error)
+        return error.commandText
     }
 }

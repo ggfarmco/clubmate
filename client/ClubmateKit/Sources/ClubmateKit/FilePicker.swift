@@ -1,17 +1,15 @@
 import Foundation
 import Observation
 
-public struct GoToFileMatch: Equatable, Sendable, Identifiable {
+public struct FilePickerMatch: Equatable, Sendable, Identifiable {
     public let path: String
     public let absPath: String
     public let positions: [Int]
-    public let line: Int?
 
-    public init(path: String, absPath: String, positions: [Int], line: Int? = nil) {
+    public init(path: String, absPath: String, positions: [Int]) {
         self.path = path
         self.absPath = absPath
         self.positions = positions
-        self.line = line
     }
 
     init?(_ value: JSONValue) {
@@ -20,7 +18,6 @@ public struct GoToFileMatch: Equatable, Sendable, Identifiable {
         self.path = path
         self.absPath = absPath
         positions = fields["positions"]?.arrayValue?.compactMap { $0.numberValue.map(Int.init) } ?? []
-        line = fields["line"]?.numberValue.map(Int.init)
     }
 
     public var id: String { absPath }
@@ -66,7 +63,7 @@ public struct HighlightRun: Equatable, Sendable {
     }
 }
 
-public enum GoToFileStatus: Equatable, Sendable {
+public enum FilePickerStatus: Equatable, Sendable {
     case ready
     case indexing
     case unavailable
@@ -75,26 +72,23 @@ public enum GoToFileStatus: Equatable, Sendable {
 
 @MainActor
 @Observable
-public final class GoToFileModel {
+public final class FilePickerModel {
     public static let searchCommand = "search.files"
-    public static let openCommand = "editor.open"
     public static let homeError = "search unavailable in the home workspace"
     public static let homeMessage = "Search isn't available in the home workspace"
 
     public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
     public private(set) var query = ""
-    public private(set) var results: [GoToFileMatch] = []
+    public private(set) var results: [FilePickerMatch] = []
     public private(set) var selection = 0
-    public private(set) var status = GoToFileStatus.ready
+    public private(set) var status = FilePickerStatus.ready
     public private(set) var truncated = false
     public private(set) var capped = false
 
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let dismiss: @MainActor () -> Void
-    @ObservationIgnored private let report: @MainActor (String) -> Void
-    @ObservationIgnored private let opened: @MainActor () -> Void
-    @ObservationIgnored private let pick: (@MainActor (String) -> Void)?
+    @ObservationIgnored private let pick: @MainActor (String) -> Void
     @ObservationIgnored private let debounce: Duration
     @ObservationIgnored private let retry: Duration
     @ObservationIgnored private var pending: Task<Void, Never>?
@@ -107,20 +101,14 @@ public final class GoToFileModel {
         retry: Duration = .milliseconds(500),
         run: @escaping Run,
         dismiss: @escaping @MainActor () -> Void,
-        report: @escaping @MainActor (String) -> Void,
-        opened: @escaping @MainActor () -> Void = {},
-        pick: (@MainActor (String) -> Void)? = nil
+        pick: @escaping @MainActor (String) -> Void
     ) {
         self.debounce = debounce
         self.retry = retry
         self.run = run
         self.dismiss = dismiss
-        self.report = report
-        self.opened = opened
         self.pick = pick
     }
-
-    public var picking: Bool { pick != nil }
 
     public func update(_ query: String) {
         self.query = query
@@ -158,13 +146,7 @@ public final class GoToFileModel {
         let match = results[selection]
         cancel()
         dismiss()
-        if let pick { return pick(match.absPath) }
-        var args: [String: JSONValue] = ["path": .string(match.absPath)]
-        if let line = match.line { args["line"] = .number(Double(line)) }
-        switch await run(CommandInvocation(id: Self.openCommand, args: .object(args))) {
-        case .success: opened()
-        case .failure(let error): report(error.message)
-        }
+        pick(match.absPath)
     }
 
     public func cancel() {
@@ -190,7 +172,7 @@ public final class GoToFileModel {
                 }
                 return
             }
-            results = fields["matches"]?.arrayValue?.compactMap(GoToFileMatch.init) ?? []
+            results = fields["matches"]?.arrayValue?.compactMap(FilePickerMatch.init) ?? []
             truncated = fields["truncated"]?.boolValue == true
             capped = fields["capped"]?.boolValue == true
             status = .ready

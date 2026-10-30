@@ -88,35 +88,14 @@ func TestSearchFilesLineSuffix(t *testing.T) {
 	assert.Equal(t, match{Path: "main.go", AbsPath: filepath.Join(dir, "main.go"), Positions: []int{0, 1, 2, 3, 4, 5, 6}, Line: 12}, got.Matches[0])
 }
 
-func TestRefusals(t *testing.T) {
-	base := tempDir(t)
-	dir, outside := filepath.Join(base, "ws"), filepath.Join(base, "out")
-	write(t, dir, "a.txt", "inside\n")
-	write(t, outside, "secret.txt", "secret\n")
-	require.NoError(t, os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(dir, "link.txt")))
-	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "linkdir")))
-	h, id := start(t, dir)
+func TestHomeWorkspaceRefused(t *testing.T) {
+	h, _ := start(t, tempDir(t))
 	home, err := h.Svc.HomeWorkspace(t.Context())
 	require.NoError(t, err)
-	run := func(projectID, cmd string, args map[string]any) error {
-		return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": cmd, "projectId": projectID, "args": args}, nil)
-	}
 
-	require.NoError(t, run(id, "search.preview", map[string]any{"path": filepath.Join(dir, "a.txt"), "line": 1}))
-	for _, path := range []string{
-		filepath.Join(dir, "link.txt"),
-		filepath.Join(dir, "linkdir", "secret.txt"),
-		filepath.Join(dir, "..", "out", "secret.txt"),
-	} {
-		assert.Error(t, run(id, "search.preview", map[string]any{"path": path, "line": 1}), path)
-	}
-	for cmd, args := range map[string]map[string]any{
-		"search.files":   {"query": "a"},
-		"search.start":   {"query": "a"},
-		"search.preview": {"path": filepath.Join(dir, "a.txt"), "line": 1},
-	} {
-		assert.ErrorContains(t, run(home.ID, cmd, args), "search unavailable in the home workspace", cmd)
-	}
+	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.files", "projectId": home.ID, "args": map[string]any{"query": "a"}}, nil)
+
+	assert.ErrorContains(t, err, "search unavailable in the home workspace")
 }
 
 func start(t *testing.T, folders ...string) (*testutil.PluginHarness, string) {
@@ -171,31 +150,23 @@ func git(t *testing.T, dir string, args ...string) {
 
 func TestSearchFollowsWorktree(t *testing.T) {
 	repo := tempDir(t)
-	write(t, repo, "a.txt", "alpha-main\n")
+	write(t, repo, "a.txt", "")
 	git(t, repo, "init", "-q", "-b", "main")
 	git(t, repo, "-c", "user.name=t", "-c", "user.email=t@t", "add", ".")
 	git(t, repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
 	wt := filepath.Join(repo, ".worktrees", "feat")
 	git(t, repo, "worktree", "add", "-q", wt, "-b", "feat")
-	write(t, wt, "a.txt", "alpha-wt\n")
 	h, id := start(t, repo)
-	grep := func(query string) []string {
-		var out struct {
-			Matches []struct {
-				AbsPath string `json:"absPath"`
-			} `json:"matches"`
-		}
-		require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.grep", "projectId": id, "args": map[string]any{"query": query}}, &out))
+	absPaths := func() []string {
 		var got []string
-		for _, m := range out.Matches {
+		for _, m := range searchFiles(t, h, id, map[string]any{"query": "a.txt"}).Matches {
 			got = append(got, m.AbsPath)
 		}
 		return got
 	}
-	require.Equal(t, []string{filepath.Join(repo, "a.txt")}, grep("alpha-main"))
+	require.Contains(t, absPaths(), filepath.Join(repo, "a.txt"))
 
 	_, err := h.Svc.SetWorktree(t.Context(), id, repo, wt)
 	require.NoError(t, err)
-	assert.Equal(t, []string{filepath.Join(wt, "a.txt")}, grep("alpha-wt"))
-	assert.Empty(t, grep("alpha-main"))
+	assert.Equal(t, []string{filepath.Join(wt, "a.txt")}, absPaths())
 }

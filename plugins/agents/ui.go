@@ -21,19 +21,18 @@ import (
 )
 
 const (
-	renderEvery     = 100 * time.Millisecond
-	tickEvery       = 30 * time.Second
-	maxSidebarRows  = 1000
-	renderTimeout   = 10 * time.Second
-	selectedKey     = "selected/"
-	collapsedKey    = "collapsed/"
-	selectionCmd    = "editor-nvim.selection"
-	openCmd         = "editor.open"
-	editorSection   = "editor-nvim"
-	editorSlot      = "editor-nvim.main"
-	reviewCmd       = "git.review"
-	signInTitle     = "Sign in to "
-	checkpointLabel = "before turn %d"
+	renderEvery    = 100 * time.Millisecond
+	tickEvery      = 30 * time.Second
+	maxSidebarRows = 1000
+	renderTimeout  = 10 * time.Second
+	selectedKey    = "selected/"
+	collapsedKey   = "collapsed/"
+	selectionCmd   = "editor-nvim.selection"
+	openCmd        = "editor.open"
+	editorSection  = "editor-nvim"
+	editorSlot     = "editor-nvim.main"
+	diffviewCmd    = "editor-nvim.diffview"
+	signInTitle    = "Sign in to "
 )
 
 var (
@@ -129,10 +128,9 @@ type turnValue struct {
 	Turn int `json:"turn"`
 }
 
-type reviewArgs struct {
-	Base      string `json:"base"`
-	Head      string `json:"head"`
-	BaseLabel string `json:"baseLabel"`
+type diffviewArgs struct {
+	Cwd string `json:"cwd"`
+	Rev string `json:"rev"`
 }
 
 type selection struct {
@@ -807,8 +805,8 @@ func (a *app) review(ctx context.Context, projectID string, s *session, turn int
 	if i < 0 {
 		return errNoCheckpoint
 	}
-	args := reviewArgs{Base: "commit:" + v.Turns[i].CheckpointSha, Head: v.Session.Worktree, BaseLabel: fmt.Sprintf(checkpointLabel, turn)}
-	return a.host.RunCommand(ctx, reviewCmd, projectID, args, nil)
+	args := diffviewArgs{Cwd: v.Session.Worktree, Rev: v.Turns[i].CheckpointSha}
+	return a.host.RunCommand(ctx, diffviewCmd, projectID, args, nil)
 }
 
 func (a *app) refreshChanges(s *session) {

@@ -59,10 +59,6 @@ type scorer struct {
 	from  []int
 }
 
-func Rank(paths []string, query string, limit int) []Match {
-	return NewCorpus(paths).Rank(query, limit)
-}
-
 func NewCorpus(paths []string) Corpus {
 	c := Corpus{paths: paths, lower: make([]string, len(paths)), ascii: make([]bool, len(paths))}
 	for i, p := range paths {
@@ -115,10 +111,6 @@ func (c Corpus) Rank(query string, limit int) []Match {
 		out = append(out, Match{Path: c.paths[cand.index], Score: cand.score, Positions: s.positions()})
 	}
 	return out
-}
-
-func (c Corpus) Paths() []string {
-	return c.paths
 }
 
 func (c Corpus) shortest(limit int) []Match {

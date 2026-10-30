@@ -6,31 +6,30 @@ public enum UIAction {
         case select(String)
         case expand(String)
         case collapse(String)
-        case focus(String)
         case submit(JSONValue)
         case toggle(Bool)
         case change(String)
         case pick([String])
         case sort(column: String, desc: Bool)
-        case reviewed(String)
-        case next(Int)
-        case collapseOthers(String)
         case named(String, JSONValue)
         case permission(request: String, option: String)
 
         public var value: JSONValue {
             switch self {
             case .click: .null
-            case .select(let id), .expand(let id), .collapse(let id), .focus(let id), .reviewed(let id), .collapseOthers(let id): .string(id)
+            case .select(let id), .expand(let id), .collapse(let id): .string(id)
             case .submit(let submitted): submitted
             case .toggle(let on): .bool(on)
             case .change(let option): .string(option)
             case .pick(let paths): .array(paths.map(JSONValue.string))
             case .sort(let column, let desc): SDUISort(column: column, desc: desc).value
-            case .next(let direction): .number(Double(direction))
             case .named(_, let value): value
             case .permission(let request, let option): .object(["request": .string(request), "option": .string(option)])
             }
+        }
+
+        public static func attachFile(_ path: String) -> Trigger {
+            .named("attachFile", .object(["path": .string(path)]))
         }
     }
 
@@ -42,14 +41,10 @@ public enum UIAction {
         case .select, .change: action = custom ?? "select"
         case .expand: action = "expand"
         case .collapse: action = "collapse"
-        case .focus: action = "focus"
         case .submit: action = custom ?? "submit"
         case .toggle: action = custom ?? "toggle"
         case .pick: action = custom ?? "pick"
         case .sort: action = "sort"
-        case .reviewed: action = "reviewed"
-        case .next: action = "next"
-        case .collapseOthers: action = "collapse-others"
         case .named(let name, _): action = name
         case .permission: action = custom ?? "permission"
         }

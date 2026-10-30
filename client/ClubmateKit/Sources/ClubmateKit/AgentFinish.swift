@@ -18,12 +18,14 @@ public enum AgentFinishMode: String, Sendable, CaseIterable {
 public final class AgentFinishModel {
     public static let command = "agents.finishDefault"
 
+    public typealias Run = @MainActor (String?, CommandInvocation) async -> Result<JSONValue, ClubmateError>
+
     public private(set) var mode: AgentFinishMode?
     public private(set) var error: String?
 
-    @ObservationIgnored private let run: NvimConfigModel.Run
+    @ObservationIgnored private let run: Run
 
-    public init(run: @escaping NvimConfigModel.Run) {
+    public init(run: @escaping Run) {
         self.run = run
     }
 
@@ -42,7 +44,7 @@ public final class AgentFinishModel {
             mode = value.objectValue?["value"]?.stringValue.flatMap(AgentFinishMode.init(rawValue:))
             error = mode == nil ? "unexpected reply from \(Self.command)" : nil
         case .failure(let failure):
-            error = NvimConfigModel.text(failure)
+            error = failure.commandText
         }
     }
 }

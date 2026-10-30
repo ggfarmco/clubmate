@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
@@ -26,16 +25,7 @@ import (
 )
 
 const (
-	stubDiffview = `local function log(entry)
-  local l = vim.g.dv_log or {}
-  l[#l + 1] = entry
-  vim.g.dv_log = l
-end
-vim.api.nvim_create_user_command("DiffviewOpen", function(ctx) if not vim.g.dv_fail then vim.cmd.tabnew() end; log(ctx.args) end, { nargs = "*" })
-vim.api.nvim_create_user_command("DiffviewClose", function() vim.cmd.tabclose(); log("close") end, {})`
-	stubSmartSplits = `_G.orig = function() vim.g.se = 1 end
-package.loaded["smart-splits"] = { config = { at_edge = _G.orig } }`
-	navDesc       = "clubmate navigate"
+	stubDiffview  = `vim.api.nvim_create_user_command("DiffviewOpen", function(ctx) vim.g.dv_log = vim.list_extend(vim.g.dv_log or {}, { ctx.args }) end, { nargs = "*" })`
 	mainSlot      = "editor-nvim.main"
 	statusSlot    = "editor-nvim.status"
 	restartWait   = 15 * time.Second
@@ -47,12 +37,6 @@ type setup struct {
 	initLua      string
 	link         bool
 	sub          string
-}
-
-type binaryInfo struct {
-	Binary        string `json:"binary"`
-	SystemPath    string `json:"systemPath"`
-	SystemVersion string `json:"systemVersion"`
 }
 
 type editor struct {
@@ -72,7 +56,6 @@ func TestOpenFileAtLine(t *testing.T) {
 	testutil.Eventually(t, func() bool {
 		return eval[string](t, v, "expand('%:p')") == path && eval[int](t, v, "line('.')") == 3
 	}, 5*time.Second)
-	e.waitBuffer(t, path)
 }
 
 func TestSelectionReturnsVisualRange(t *testing.T) {
@@ -217,7 +200,6 @@ func TestOpenLightFiles(t *testing.T) {
 		assert.Empty(t, eval[string](t, v, "&filetype"))
 		assert.Equal(t, 0, eval[int](t, v, "&swapfile"))
 		assert.True(t, eval[bool](t, v, "b:clubmate_light"))
-		e.waitBuffer(t, path)
 	}
 	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "light") })
 	small := e.file(t, "small.go")
@@ -281,7 +263,6 @@ func TestPluginRestartReconnects(t *testing.T) {
 	assert.Equal(t, second, eval[string](t, v, "expand('%:p')"))
 	assert.Equal(t, pid, eval[int](t, v, "getpid()"))
 	assert.Equal(t, []string{e.sessionID}, e.running(t))
-	assert.Equal(t, []string{e.projectID + " " + e.repo}, e.started(t))
 }
 
 func TestExitedShowsRestart(t *testing.T) {
@@ -298,7 +279,6 @@ func TestExitedShowsRestart(t *testing.T) {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
-	testutil.Eventually(t, func() bool { return len(e.started(t)) == 2 }, 5*time.Second)
 }
 
 func TestRestartRefusesUnsavedBuffers(t *testing.T) {
@@ -340,49 +320,6 @@ func TestRestartFailsClosedWhenNvimBlocks(t *testing.T) {
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
 }
 
-func TestEdgeFocusesSidebar(t *testing.T) {
-	e := startEditor(t)
-	v := dial(t, e.sock)
-	c := e.h.Client(t)
-	for _, dir := range []string{"h", "l"} {
-		drain(c)
-		require.NoError(t, v.Command("lua require('clubmate').navigate('"+dir+"')"))
-		n, ok := nextFocus(c, 5*time.Second)
-		require.True(t, ok, "no ui.focus notification for %s", dir)
-		var focus struct {
-			Section string `json:"section"`
-			Slot    string `json:"slot"`
-			Edge    string `json:"edge"`
-		}
-		require.NoError(t, json.Unmarshal(n.Params, &focus))
-		assert.Equal(t, "editor-nvim", focus.Section)
-		assert.Equal(t, "editor-nvim.sidebar", focus.Slot)
-		assert.Equal(t, dir, focus.Edge)
-	}
-}
-
-func TestEdgeAfterPluginRestart(t *testing.T) {
-	e := startEditor(t)
-	v := dial(t, e.sock)
-	require.NoError(t, v.Command("lua _G.cached = require('clubmate')"))
-	plugins := e.h.Sup.PIDs()
-	require.Len(t, plugins, 1)
-	require.NoError(t, unix.Kill(plugins[0], unix.SIGKILL))
-	c := e.h.Client(t)
-	testutil.Eventually(t, func() bool {
-		restarted := e.h.Sup.PIDs()
-		if len(restarted) != 1 || restarted[0] == plugins[0] {
-			return false
-		}
-		drain(c)
-		if v.Command("lua _G.cached.navigate('h')") != nil {
-			return false
-		}
-		_, ok := nextFocus(c, 200*time.Millisecond)
-		return ok
-	}, restartWait)
-}
-
 func TestHookCreatesNoKeymaps(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
@@ -398,319 +335,53 @@ func TestHookCreatesNoKeymaps(t *testing.T) {
 	assert.ElementsMatch(t, eval[[]string](t, ref, lhs), eval[[]string](t, v, lhs))
 }
 
-func TestNavigationOverlayToggle(t *testing.T) {
-	e := startEditor(t)
-	v := dial(t, e.sock)
-	keys := []string{"<C-h>", "<C-j>", "<C-k>", "<C-l>", "<C-р>", "<C-о>", "<C-л>", "<C-д>"}
-	descs := func(v *nvim.Nvim) []string {
-		out := make([]string, 0, len(keys))
-		for _, k := range keys {
-			out = append(out, eval[string](t, v, "get(maparg('"+k+"', 'n', 0, 1), 'desc', '')"))
-		}
-		return out
-	}
-	enabled := slices.Repeat([]string{navDesc}, len(keys))
-	e.navigation(t, true)
-	assert.Equal(t, enabled, descs(v))
-	e.navigation(t, false)
-	assert.NotContains(t, descs(v), navDesc)
-	assert.Equal(t, ":help CTRL-L-default", eval[string](t, v, "get(maparg('<C-l>', 'n', 0, 1), 'desc', '')"))
-	e.navigation(t, true)
-	assert.Equal(t, enabled, descs(v))
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": map[string]any{"force": true}}, nil))
-	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
-		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
-	})
-	restarted := dial(t, e.sock)
-	testutil.Eventually(t, func() bool { return slices.Equal(enabled, descs(restarted)) }, 5*time.Second)
-}
-
-func TestNavigationKeepsUserMappings(t *testing.T) {
-	e := startEditor(t)
-	v := dial(t, e.sock)
-	require.NoError(t, v.Command("nnoremap <C-j> <Cmd>let g:mine = 1<CR>"))
-	require.NoError(t, v.Command(`lua vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Move to left window" })`))
-	const move = "filter(maparg('<C-h>', 'n', 0, 1), {k -> index(['rhs', 'desc', 'noremap'], k) >= 0})"
-	before := eval[map[string]any](t, v, move)
-	assert.Equal(t, []string{"<C-j>"}, e.navigation(t, true))
-	assert.Equal(t, navDesc, eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')"))
-	e.navigation(t, false)
-	assert.Equal(t, before, eval[map[string]any](t, v, move))
-	assert.Equal(t, "<Cmd>let g:mine = 1<CR>", eval[string](t, v, "maparg('<C-j>', 'n')"))
-}
-
-func TestNavigationRespectsSmartSplits(t *testing.T) {
-	e := startEditorIn(t, setup{initLua: stubSmartSplits})
+func TestDiffviewOpensCheckpoint(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: stubDiffview, sub: "repo dir"})
 	v := dial(t, e.sock)
 	c := e.h.Client(t)
-	e.navigation(t, true)
-	assert.Empty(t, eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')"))
+	sha := strings.Repeat("0123456789", 4)
 	drain(c)
-	atEdge := func(dir string) {
-		require.NoError(t, v.Command(`lua package.loaded["smart-splits"].config.at_edge({ direction = "`+dir+`" })`))
-	}
-	atEdge("left")
-	assert.Equal(t, 0, eval[int](t, v, "get(g:, 'se', 0)"))
+	e.run(t, "diffview", map[string]any{"cwd": e.repo, "rev": sha}, nil)
+	want := eval[string](t, v, "'-C' . fnameescape('"+e.repo+"') . ' "+sha+" --untracked-scoped'")
+	testutil.Eventually(t, func() bool { return slices.Equal([]string{want}, eval[[]string](t, v, "get(g:, 'dv_log', [])")) }, 5*time.Second)
 	n, ok := nextFocus(c, 5*time.Second)
 	require.True(t, ok, "no ui.focus notification")
 	var focus struct {
-		Edge string `json:"edge"`
+		Section string `json:"section"`
+		Slot    string `json:"slot"`
 	}
 	require.NoError(t, json.Unmarshal(n.Params, &focus))
-	assert.Equal(t, "h", focus.Edge)
-	atEdge("right")
-	assert.Equal(t, 1, eval[int](t, v, "get(g:, 'se', 0)"))
-	e.navigation(t, false)
-	assert.True(t, eval[bool](t, v, `luaeval('package.loaded["smart-splits"].config.at_edge == _G.orig')`))
+	assert.Equal(t, "editor-nvim", focus.Section)
+	assert.Equal(t, mainSlot, focus.Slot)
 }
 
-func TestDiffOpensSideBySide(t *testing.T) {
-	e := startEditor(t)
-	a := e.file(t, "a.go")
-	c := filepath.Join(e.repo, "c.go")
-	require.NoError(t, os.WriteFile(c, []byte("x\r\ny\r\n"), 0o600))
-	git := func(args ...string) {
-		out, err := exec.Command("git", append([]string{"-C", e.repo, "-c", "core.autocrlf=false"}, args...)...).CombinedOutput()
-		require.NoError(t, err, string(out))
-	}
-	git("init", "-q", "-b", "trunk")
-	git("add", "a.go", "c.go")
-	git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a")
-	require.NoError(t, os.WriteFile(a, []byte("changed\n"), 0o600))
-	require.NoError(t, os.WriteFile(c, []byte("x\r\nz\r\n"), 0o600))
-	b := filepath.Join(e.repo, "b.go")
-	require.NoError(t, os.WriteFile(b, []byte("new\n"), 0o600))
-	git("add", "b.go")
+func TestDiffviewRejectsRange(t *testing.T) {
+	e := startEditorIn(t, setup{initLua: stubDiffview})
 	v := dial(t, e.sock)
-	for _, tc := range []struct {
-		name, path, base, target, left, right string
-		leftLines, rightLines                 []string
-	}{
-		{"worktree", a, "index", "worktree", "clubmate://index/a.go", a, slices.Repeat([]string{"line"}, 5), []string{"changed"}},
-		{"staged", b, "head", "index", "clubmate://head/b.go", "clubmate://index/b.go", []string{""}, []string{"new"}},
-		{"crlf", c, "index", "worktree", "clubmate://index/c.go", c, []string{"x", "y"}, []string{"x", "z"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			args := map[string]any{"path": tc.path, "base": tc.base, "target": tc.target}
-			require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
-			assert.Equal(t, 2, eval[int](t, v, "winnr('$')"))
-			assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
-			assert.Equal(t, []string{tc.left, tc.right}, eval[[]string](t, v, "[nvim_buf_get_name(winbufnr(1)), nvim_buf_get_name(winbufnr(2))]"))
-			assert.Equal(t, tc.leftLines, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
-			assert.Equal(t, tc.rightLines, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
-		})
-	}
-	tabs := eval[int](t, v, "tabpagenr('$')")
-	args := map[string]any{"path": a, "base": "index", "target": "worktree"}
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
-	assert.Equal(t, tabs, eval[int](t, v, "tabpagenr('$')"))
-	assert.Equal(t, 1, eval[int](t, v, "len(filter(range(1, tabpagenr('$')), {_, t -> index(tabpagebuflist(t), bufnr('"+a+"')) >= 0}))"))
-	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool {
-		return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return c.Props["text"] == "trunk" })
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "projectId": e.projectID, "args": map[string]any{"cwd": e.repo, "rev": "a...b"}}, nil)
+	require.ErrorContains(t, err, "rev must be a commit sha")
+	assert.Equal(t, 0, eval[int](t, v, "exists('g:dv_log')"))
+}
+
+func TestDiffviewSwitchesWorktree(t *testing.T) {
+	e, wt := startWorktreeEditor(t, setup{initLua: stubDiffview})
+	sha := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "HEAD"))
+	e.run(t, "diffview", map[string]any{"cwd": wt, "rev": sha}, nil)
+	p, err := e.h.Svc.GetProject(t.Context(), e.projectID)
+	require.NoError(t, err)
+	assert.Equal(t, wt, p.Roots[0])
+	feat := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
+	v := dial(t, e.h.GetSession(t, feat.Props["sessionId"].(string)).Command[2])
+	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'dv_log', [])")) == 1 }, 5*time.Second)
+	assert.Equal(t, 0, eval[int](t, dial(t, e.sock), "exists('g:dv_log')"))
 }
 
-func TestReviewReplacesTab(t *testing.T) {
-	e := startEditorIn(t, setup{initLua: stubDiffview})
-	repo := e.dir(t, "repo dir")
-	v := dial(t, e.sock)
-	assert.Equal(t, "diffview", e.review(t, repo, "feature/x", ""))
-	e.review(t, repo, "feature/x", "feature/y")
-	want := []string{openLog(t, v, repo, "feature/x", "HEAD"), "close", openLog(t, v, repo, "feature/x", "feature/y")}
-	assert.Equal(t, want, eval[[]string](t, v, "g:dv_log"))
-	assert.Equal(t, 2, eval[int](t, v, "tabpagenr('$')"))
-}
-
-func TestReviewFailedOpenRecordsNoTab(t *testing.T) {
-	e := startEditorIn(t, setup{initLua: stubDiffview})
-	v := dial(t, e.sock)
-	require.NoError(t, v.SetVar("dv_fail", true))
-	assert.Equal(t, "builtin", e.review(t, e.repo, "feature/x", ""))
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review-close", "projectId": e.projectID}, nil))
-	assert.Equal(t, []string{openLog(t, v, e.repo, "feature/x", "HEAD")}, eval[[]string](t, v, "g:dv_log"))
-	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
-}
-
-func TestReviewWithoutDiffview(t *testing.T) {
+func TestDiffviewMissingShowsOpenFailed(t *testing.T) {
 	e := startEditor(t)
-	v := dial(t, e.sock)
-	assert.Equal(t, "builtin", e.review(t, e.repo, "main", ""))
-	assert.Equal(t, 1, eval[int](t, v, "tabpagenr('$')"))
-}
-
-func TestReviewModuleBridge(t *testing.T) {
-	fork := cmp.Or(os.Getenv("CLUBMATE_DIFFVIEW_FORK"), filepath.Join(os.Getenv("HOME"), "develop/norimori/ggfarmco/diffview.nvim/.worktrees/clubmate-api"))
-	if _, err := os.Stat(filepath.Join(fork, "lua", "diffview", "clubmate.lua")); err != nil {
-		t.Skip("diffview fork worktree not found")
-	}
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	e := startEditorIn(t, setup{initLua: "vim.opt.rtp:prepend(" + strconv.Quote(fork) + ")\nrequire(\"diffview\").setup({ use_icons = false })"})
-	a := e.file(t, "a.go")
-	test := e.file(t, "a_test.go")
-	e.file(t, "pkg/b.go")
-	gitIn(t, e.repo, "init", "-q")
-	gitIn(t, e.repo, "add", ".")
-	gitIn(t, e.repo, "commit", "-qm", "init")
-	require.NoError(t, os.WriteFile(a, []byte("changed\n"), 0o600))
-	require.NoError(t, os.WriteFile(test, []byte("changed\n"), 0o600))
-	e.file(t, "new.txt")
-	var open struct {
-		Mode string `json:"mode"`
-	}
-	e.run(t, "review-open", map[string]any{"cwd": filepath.Join(e.repo, "pkg"), "base": "HEAD", "excludes": []string{"*_test.go"}}, &open)
-	assert.Equal(t, "module", open.Mode)
-	type entry struct {
-		Path      string `json:"path"`
-		Status    string `json:"status"`
-		Additions int    `json:"additions"`
-		Deletions int    `json:"deletions"`
-		Reviewed  bool   `json:"reviewed"`
-		Comments  int    `json:"comments"`
-	}
-	entries := func() []entry {
-		var out []entry
-		e.run(t, "review-entries", nil, &out)
-		return out
-	}
-	testutil.Eventually(t, func() bool { return len(entries()) == 2 }, 10*time.Second)
-	assert.Equal(t, []entry{{"a.go", "M", 1, 5, false, 0}, {"new.txt", "?", 5, 0, false, 0}}, entries())
-	type change struct {
-		ProjectID string `json:"projectId"`
-		Root      string `json:"root"`
-		Kind      string `json:"kind"`
-		Path      string `json:"path"`
-	}
-	changed := func(want change) bool {
-		events, err := e.h.Bus.Read(t.Context(), "review.changed", 0, 1000)
-		require.NoError(t, err)
-		return slices.ContainsFunc(events, func(ev bus.Event) bool {
-			var c change
-			require.NoError(t, json.Unmarshal(ev.Payload, &c))
-			return c == want
-		})
-	}
-	testutil.Eventually(t, func() bool {
-		return changed(change{e.projectID, e.repo, "files_updated", ""}) && changed(change{e.projectID, e.repo, "file_open", "a.go"})
-	}, 5*time.Second)
-	var reviewed struct {
-		Reviewed bool `json:"reviewed"`
-	}
-	e.run(t, "review-reviewed", map[string]any{"path": "a.go"}, &reviewed)
-	assert.True(t, reviewed.Reviewed)
-	e.run(t, "review-reviewed", map[string]any{"path": "a.go", "reviewed": true}, &reviewed)
-	assert.True(t, reviewed.Reviewed)
-	assert.True(t, entries()[0].Reviewed)
-	testutil.Eventually(t, func() bool { return changed(change{e.projectID, e.repo, "reviewed", "a.go"}) }, 5*time.Second)
-	var next struct {
-		Path string `json:"path"`
-	}
-	e.run(t, "review-next", map[string]any{"dir": 1}, &next)
-	assert.Equal(t, "new.txt", next.Path)
-	e.run(t, "review-excludes", map[string]any{"excludes": []string{}}, nil)
-	testutil.Eventually(t, func() bool {
-		return slices.ContainsFunc(entries(), func(en entry) bool { return en.Path == "a_test.go" })
-	}, 10*time.Second)
-	e.run(t, "review-select", map[string]any{"path": "a_test.go"}, nil)
-	v := dial(t, e.sock)
-	testutil.Eventually(t, func() bool { return eval[string](t, v, "bufname()") == test }, 5*time.Second)
-
-	closed := change{e.projectID, e.repo, "closed", ""}
-	e.run(t, "review-open", map[string]any{"cwd": e.repo, "base": "HEAD"}, &open)
-	testutil.Eventually(t, func() bool { return len(entries()) == 3 }, 10*time.Second)
-	assert.False(t, changed(closed), "replacing the review is not a user close")
-	require.NoError(t, v.Command("DiffviewClose"))
-	testutil.Eventually(t, func() bool { return changed(closed) }, 5*time.Second)
-}
-
-func TestReviewModuleOpenFailureIsAnError(t *testing.T) {
-	e := startEditorIn(t, setup{initLua: `package.loaded["diffview.clubmate"] = { version = 1, subscribe = function() end, close = function() end, open = function() return nil end }`})
-	gitIn(t, e.repo, "init", "-q")
-	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review-open", "projectId": e.projectID, "args": map[string]any{"cwd": e.repo, "base": "HEAD"}}, nil)
-	require.ErrorContains(t, err, "diffview opened no review")
-}
-
-func TestReviewFallbackWithoutModule(t *testing.T) {
-	e := startEditor(t)
-	gitIn(t, e.repo, "init", "-q")
-	var open struct {
-		Mode string `json:"mode"`
-	}
-	e.run(t, "review-open", map[string]any{"cwd": e.repo, "base": "HEAD", "excludes": []string{"*_test.go"}}, &open)
-	assert.Equal(t, "native", open.Mode)
-	var entries json.RawMessage
-	e.run(t, "review-entries", nil, &entries)
-	assert.JSONEq(t, "[]", string(entries))
-}
-
-func TestDiffRevBase(t *testing.T) {
-	e := startEditor(t)
-	a := filepath.Join(e.repo, "a.go")
-	require.NoError(t, os.WriteFile(a, []byte("one\n"), 0o600))
-	git := func(args ...string) string {
-		out, err := exec.Command("git", append([]string{"-C", e.repo}, args...)...).Output()
-		require.NoError(t, err)
-		return strings.TrimSpace(string(out))
-	}
-	git("init", "-q")
-	git("add", "a.go")
-	git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a")
-	sha := git("rev-parse", "HEAD")
-	require.NoError(t, os.WriteFile(a, []byte("two\n"), 0o600))
-	v := dial(t, e.sock)
-	diff := func() {
-		args := map[string]any{"path": a, "base": "rev:" + sha, "target": "worktree"}
-		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
-	}
-	diff()
-	tabs := eval[int](t, v, "tabpagenr('$')")
-	assert.Equal(t, []string{"clubmate://" + sha[:7] + "/a.go", a}, eval[[]string](t, v, "[nvim_buf_get_name(winbufnr(1)), nvim_buf_get_name(winbufnr(2))]"))
-	assert.Equal(t, []string{"one"}, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
-	assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
-	diff()
-	assert.Equal(t, tabs, eval[int](t, v, "tabpagenr('$')"))
-}
-
-func TestDiffRevTarget(t *testing.T) {
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	e := startEditor(t)
-	a := filepath.Join(e.repo, "a.go")
-	n := filepath.Join(e.repo, "newdir", "n.go")
-	git := func(args ...string) string {
-		out, err := exec.Command("git", append([]string{"-C", e.repo}, args...)...).Output()
-		require.NoError(t, err)
-		return strings.TrimSpace(string(out))
-	}
-	commit := func() string {
-		git("add", "-A")
-		git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c")
-		return git("rev-parse", "HEAD")
-	}
-	git("init", "-q")
-	require.NoError(t, os.WriteFile(a, []byte("one\n"), 0o600))
-	first := commit()
-	require.NoError(t, os.WriteFile(a, []byte("two\n"), 0o600))
-	require.NoError(t, os.MkdirAll(filepath.Dir(n), 0o700))
-	require.NoError(t, os.WriteFile(n, []byte("new\n"), 0o600))
-	second := commit()
-	git("checkout", "-q", "--detach", first)
-	v := dial(t, e.sock)
-	diff := func(path string) {
-		args := map[string]any{"path": path, "base": "rev:" + first, "target": "rev:" + second}
-		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diff", "projectId": e.projectID, "args": args}, nil))
-	}
-	diff(a)
-	assert.Equal(t, []string{"clubmate://" + first[:7] + "/a.go", "clubmate://" + second[:7] + "/a.go"}, eval[[]string](t, v, "[nvim_buf_get_name(winbufnr(1)), nvim_buf_get_name(winbufnr(2))]"))
-	assert.Equal(t, []string{"one"}, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
-	assert.Equal(t, []string{"two"}, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
-	assert.Equal(t, []int{1, 1}, eval[[]int](t, v, "[getwinvar(1, '&diff'), getwinvar(2, '&diff')]"))
-	assert.False(t, eval[bool](t, v, "getbufvar(winbufnr(2), '&modifiable')"))
-	diff(n)
-	diff(n)
-	assert.Equal(t, []string{""}, eval[[]string](t, v, "getbufline(winbufnr(1), 1, '$')"))
-	assert.Equal(t, []string{"new"}, eval[[]string](t, v, "getbufline(winbufnr(2), 1, '$')"))
-	assert.Equal(t, 1, eval[int](t, v, "len(filter(range(1, tabpagenr('$')), {_, t -> len(filter(tabpagebuflist(t), {_, b -> bufname(b) =~# 'n\\.go$'})) > 0}))"))
+	e.run(t, "diffview", map[string]any{"cwd": e.repo, "rev": "abcdef0"}, nil)
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: Command not found: DiffviewOpen") })
 }
 
 func TestRestartIgnoresScratchBuffers(t *testing.T) {
@@ -928,23 +599,6 @@ func (e *editor) file(t *testing.T, rel string) string {
 	return path
 }
 
-func (e *editor) dir(t *testing.T, rel string) string {
-	t.Helper()
-	path := filepath.Join(e.repo, rel)
-	require.NoError(t, os.MkdirAll(path, 0o700))
-	return path
-}
-
-func (e *editor) review(t *testing.T, repo, base, head string) string {
-	t.Helper()
-	var res struct {
-		Mode string `json:"mode"`
-	}
-	args := map[string]any{"repo": repo, "base": base, "head": head, "mergeBase": "0000000"}
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review", "projectId": e.projectID, "args": args}, &res))
-	return res.Mode
-}
-
 func (e *editor) run(t *testing.T, name string, args, res any) {
 	t.Helper()
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim." + name, "projectId": e.projectID, "args": args}, res))
@@ -957,11 +611,6 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 	return string(out)
 }
 
-func openLog(t *testing.T, v *nvim.Nvim, repo, base, head string) string {
-	t.Helper()
-	return eval[string](t, v, "'-C' . fnameescape('"+repo+"') . ' "+base+"..."+head+"'")
-}
-
 func (e *editor) open(t *testing.T, path string, line int) error {
 	t.Helper()
 	return e.openAt(t, path, line, 0)
@@ -971,16 +620,6 @@ func (e *editor) openAt(t *testing.T, path string, line, col int) error {
 	t.Helper()
 	args := map[string]any{"path": path, "line": line, "col": col}
 	return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.open", "projectId": e.projectID, "args": args}, nil)
-}
-
-func (e *editor) navigation(t *testing.T, enabled bool) []string {
-	t.Helper()
-	var res struct {
-		Skipped []string `json:"skipped"`
-	}
-	args := map[string]any{"enabled": enabled, "side": "left"}
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.navigation", "projectId": e.projectID, "args": args}, &res))
-	return res.Skipped
 }
 
 func (e *editor) running(t *testing.T) []string {
@@ -1050,41 +689,6 @@ func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
 	}
 }
 
-func (e *editor) started(t *testing.T) []string {
-	t.Helper()
-	events, err := e.h.Bus.Read(t.Context(), "editor.started", 0, 100)
-	require.NoError(t, err)
-	var out []string
-	for _, ev := range events {
-		var p struct {
-			ProjectID string `json:"projectId"`
-			Root      string `json:"root"`
-		}
-		require.NoError(t, json.Unmarshal(ev.Payload, &p))
-		out = append(out, p.ProjectID+" "+p.Root)
-	}
-	return out
-}
-
-func (e *editor) waitBuffer(t *testing.T, path string) {
-	t.Helper()
-	testutil.Eventually(t, func() bool {
-		events, err := e.h.Bus.Read(t.Context(), "editor.buffer", 0, 100)
-		require.NoError(t, err)
-		for _, ev := range events {
-			var p struct {
-				ProjectID string `json:"projectId"`
-				Path      string `json:"path"`
-			}
-			require.NoError(t, json.Unmarshal(ev.Payload, &p))
-			if p.ProjectID == e.projectID && p.Path == path {
-				return true
-			}
-		}
-		return false
-	}, 5*time.Second)
-}
-
 func hasBadge(n sdui.Node, sub string) bool {
 	if text, _ := n.Props["text"].(string); n.Type == "badge" && strings.Contains(text, sub) {
 		return true
@@ -1104,20 +708,6 @@ func contains(n sdui.Node, typ string) bool {
 	return false
 }
 
-func TestNavigationOutlastsUserMappingsAfterRestart(t *testing.T) {
-	e := startEditorIn(t, setup{initLua: `vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Move to left window" })`})
-	e.navigation(t, true)
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": map[string]any{"force": true}}, nil))
-	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
-		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
-	})
-	v := dial(t, e.sock)
-	testutil.Eventually(t, func() bool { return eval[int](t, v, "v:vim_did_enter") == 1 }, 5*time.Second)
-	testutil.Eventually(t, func() bool {
-		return eval[string](t, v, "get(maparg('<C-h>', 'n', 0, 1), 'desc', '')") == navDesc
-	}, 5*time.Second)
-}
-
 func TestBundledNvimEnv(t *testing.T) {
 	system, err := exec.LookPath("nvim")
 	if err != nil {
@@ -1131,10 +721,12 @@ func TestBundledNvimEnv(t *testing.T) {
 	require.NoError(t, os.Mkdir(tools, 0o700))
 	t.Setenv("CLUBMATE_RESOURCES", res)
 	t.Setenv("VIMRUNTIME", "/nonexistent")
+	t.Setenv("NVIM_APPNAME", "elsewhere")
 	e := startEditor(t)
 	assert.Equal(t, bundled, e.h.GetSession(t, e.sessionID).Command[0])
 	v := dial(t, e.sock)
 	assert.False(t, strings.HasPrefix(eval[string](t, v, "$VIMRUNTIME"), "/nonexistent"))
+	assert.Empty(t, eval[string](t, v, "$NVIM_APPNAME"))
 	assert.True(t, strings.HasSuffix(eval[string](t, v, "$PATH"), ":"+tools))
 }
 
@@ -1144,42 +736,4 @@ func TestBundledFallsBackToPath(t *testing.T) {
 	want, err := exec.LookPath("nvim")
 	require.NoError(t, err)
 	assert.Equal(t, want, e.h.GetSession(t, e.sessionID).Command[0])
-}
-
-func TestSystemNvimMissingShowsHint(t *testing.T) {
-	system, err := exec.LookPath("nvim")
-	if err != nil {
-		t.Skip("nvim not in PATH")
-	}
-	res := t.TempDir()
-	bundled := filepath.Join(res, "nvim", "bin", "nvim")
-	require.NoError(t, os.MkdirAll(filepath.Dir(bundled), 0o700))
-	require.NoError(t, os.Symlink(system, bundled))
-	t.Setenv("CLUBMATE_RESOURCES", res)
-	c := startCopier(t, func(xdg) { t.Setenv("PATH", t.TempDir()) })
-	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{"binary": "system"}, nil))
-	var sub struct {
-		Subscription string `json:"subscription"`
-	}
-	require.NoError(t, c.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": c.projectID}, &sub))
-	c.h.WaitSlot(t, c.projectID, mainSlot, func(n sdui.Node) bool {
-		return n.Props["text"] == "nvim not found in PATH — switch to Built-in in Settings → Editor"
-	})
-}
-
-func TestConfigBinaryRoundTrip(t *testing.T) {
-	system, err := exec.LookPath("nvim")
-	if err != nil {
-		t.Skip("nvim not in PATH")
-	}
-	c := startCopier(t, nil)
-	var info binaryInfo
-	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{}, &info))
-	assert.Equal(t, "bundled", info.Binary)
-	assert.Equal(t, system, info.SystemPath)
-	assert.True(t, strings.HasPrefix(info.SystemVersion, "NVIM v"), info.SystemVersion)
-	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{"binary": "system"}, nil))
-	require.NoError(t, c.run(t, "editor-nvim.config", map[string]any{}, &info))
-	assert.Equal(t, "system", info.Binary)
-	require.ErrorContains(t, c.run(t, "editor-nvim.config", map[string]any{"binary": "x"}, nil), "binary must be bundled or system")
 }

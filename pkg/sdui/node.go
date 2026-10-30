@@ -33,10 +33,6 @@ type TreeItem struct {
 	Muted       bool        `json:"muted,omitempty"`
 	HasChildren bool        `json:"hasChildren,omitempty"`
 	Expanded    bool        `json:"expanded,omitempty"`
-	Additions   int         `json:"additions,omitempty"`
-	Deletions   int         `json:"deletions,omitempty"`
-	Reviewed    bool        `json:"reviewed,omitempty"`
-	Comments    int         `json:"comments,omitempty"`
 	Children    []TreeItem  `json:"children,omitempty"`
 }
 
@@ -171,14 +167,6 @@ func List(id string, items []Item, selected string) Node {
 
 func Tree(id string, items []TreeItem, selected string) Node {
 	return Node{Type: "tree", ID: id, Props: withOptional(map[string]any{"items": nonNil(items)}, "selected", selected)}
-}
-
-func BreadcrumbTree(id string, items []TreeItem, selected string, breadcrumb []Item) Node {
-	n := Tree(id, items, selected)
-	if len(breadcrumb) > 0 {
-		n.Props["breadcrumb"] = breadcrumb
-	}
-	return n
 }
 
 func Table(id string, columns []Column, rows []TableRow, selected string, sort Sort) Node {

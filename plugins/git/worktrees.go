@@ -61,13 +61,12 @@ type folder struct {
 }
 
 type worktreeInfo struct {
-	Repo        string `json:"repo"`
-	Path        string `json:"path"`
-	Branch      string `json:"branch"`
-	Head        string `json:"head"`
-	Main        bool   `json:"main"`
-	Current     bool   `json:"current"`
-	DefaultBase string `json:"defaultBase,omitempty"`
+	Repo    string `json:"repo"`
+	Path    string `json:"path"`
+	Branch  string `json:"branch"`
+	Head    string `json:"head"`
+	Main    bool   `json:"main"`
+	Current bool   `json:"current"`
 }
 
 type branchInfo struct {
@@ -175,7 +174,6 @@ func (a *app) startOp(ctx context.Context, h *pluginsdk.Host, projectID string, 
 		return opStarted{}, err
 	}
 	o := a.ops.add(projectID)
-	logError("render "+projectID, a.render(ctx, h, projectID, s))
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutateTimeout)
 		defer cancel()
@@ -184,7 +182,6 @@ func (a *app) startOp(ctx context.Context, h *pluginsdk.Host, projectID string, 
 		s.busy = ""
 		s.mu.Unlock()
 		o.finish(path, err)
-		logError("render "+projectID, a.render(ctx, h, projectID, s))
 		a.schedule(h, projectID, s, 0)
 	}()
 	return opStarted{ID: o.id}, nil
@@ -263,12 +260,11 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 		if err != nil {
 			return nil, err
 		}
-		base, _ := gitrepo.DefaultBase(ctx, f.Checkout.Path)
 		for j, t := range f.Trees {
 			if t.Bare {
 				continue
 			}
-			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head], Main: j == 0, Current: f.current(t), DefaultBase: base})
+			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head], Main: j == 0, Current: f.current(t)})
 		}
 	}
 	return list, nil
@@ -387,6 +383,13 @@ func checkUnsaved(ctx context.Context, h *pluginsdk.Host, projectID, root string
 		return fmt.Errorf("%w: %s", errUnsavedSwitch, strings.Join(names, ", "))
 	}
 	return nil
+}
+
+func editorError(err error) string {
+	if rpcErr, ok := errors.AsType[*jsonrpc2.Error](err); ok {
+		return strings.TrimPrefix(rpcErr.Message, "plugin "+editorOwner+" command.run: ")
+	}
+	return err.Error()
 }
 
 func leftBehind(stderr string) string {

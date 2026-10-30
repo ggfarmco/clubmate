@@ -43,17 +43,12 @@ struct ScrollNodeView: View {
     let node: SDUINode
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let tree = node.children.first, tree.type == "tree", !tree.breadcrumb().isEmpty {
-                TreeBreadcrumb(node: tree)
+        ScrollViewReader { proxy in
+            ScrollView {
+                SDUIChildren(node: node)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    SDUIChildren(node: node)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-                .environment(\.scrollProxy, proxy)
-            }
+            .environment(\.scrollProxy, proxy)
         }
     }
 }

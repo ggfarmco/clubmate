@@ -8,9 +8,8 @@
     "commands": [
       {
         "id": "search.files",
-        "title": "Go to File",
+        "title": "Find File",
         "hidden": true,
-        "agent": true,
         "description": "Fuzzy-find files by path across the workspace folders, honoring .gitignore. Returns {matches:[{path, absPath, positions, line?}], truncated, capped, indexing?}; positions are rune indexes of the matched characters in path, and a query ending in :N matches without the suffix and puts line N on every match. Unavailable in the home workspace.",
         "args": {
           "properties": {
@@ -24,99 +23,6 @@
             "truncated": {"type": "boolean", "description": "More paths matched than limit."},
             "capped": {"type": "boolean", "description": "The workspace has more files than the 200000-path index cap; the rest are not searched."},
             "indexing": {"type": "boolean", "description": "The first index of the workspace is still being built; matches is empty, retry shortly."}
-          }
-        }
-      },
-      {
-        "id": "search.start",
-        "title": "Start Find in Files",
-        "hidden": true,
-        "description": "Start a content search across the workspace folders, cancelling the workspace's previous search; results are kept in the plugin and read with search.poll. At most 10000 matches. Unavailable in the home workspace.",
-        "args": {
-          "properties": {
-            "query": {"type": "string", "description": "Text to search for; a regular expression when regex is true."},
-            "regex": {"type": "boolean", "description": "Treat query as a regular expression (RE2 syntax with the built-in engine, Rust regex with ripgrep)."},
-            "case": {"type": "boolean", "description": "Match case; matching ignores case when false or absent."},
-            "word": {"type": "boolean", "description": "Match whole words only."},
-            "glob": {"type": "string", "description": "Comma-separated include globs such as *.go, src/**; a leading ! excludes."}
-          },
-          "required": ["query"]
-        },
-        "result": {
-          "properties": {
-            "id": {"type": "string", "description": "Search id for search.poll and search.cancel."}
-          }
-        }
-      },
-      {
-        "id": "search.poll",
-        "title": "Poll Find in Files",
-        "hidden": true,
-        "description": "Wait up to 1 s for matches of a search past index after and return at most 500 of them. Returns {id, matches, next, done, truncated?, error?}. Each match is {path, absPath, line, col, text, ranges}: path is workspace-relative (prefixed with the folder name when the workspace has several folders), line is 1-based, col is the 1-based byte column of the first match in the full line (what Neovim's cursor uses), text is the matching line cut to at most 512 characters around the first match, and ranges are [start, end) pairs of Unicode-scalar (rune) offsets into text, not byte offsets. An unknown or cancelled id returns done with no matches.",
-        "args": {
-          "properties": {
-            "id": {"type": "string", "description": "Search id from search.start."},
-            "after": {"type": "integer", "description": "Number of matches already read; pass the previous reply's next."}
-          },
-          "required": ["id"]
-        },
-        "result": {
-          "properties": {
-            "id": {"type": "string", "description": "The polled search id."},
-            "next": {"type": "integer", "description": "Value of after for the next poll."},
-            "done": {"type": "boolean", "description": "The search finished, was cancelled or is unknown, and every match has been returned."},
-            "truncated": {"type": "boolean", "description": "The search stopped at the 10000-match cap."},
-            "indexing": {"type": "boolean", "description": "The search is waiting for the workspace's first file index; keep polling."},
-            "error": {"type": "string", "description": "Why the search failed, such as an invalid regex; set only with done."}
-          }
-        }
-      },
-      {
-        "id": "search.cancel",
-        "title": "Cancel Find in Files",
-        "hidden": true,
-        "description": "Cancel a search started with search.start; a no-op for an unknown id.",
-        "args": {
-          "properties": {
-            "id": {"type": "string", "description": "Search id from search.start."}
-          },
-          "required": ["id"]
-        }
-      },
-      {
-        "id": "search.preview",
-        "title": "Preview Search Match",
-        "hidden": true,
-        "description": "Return the lines around a line of a file inside the workspace folders as {lines:[{n, text}]}, each text cut to 512 characters.",
-        "args": {
-          "properties": {
-            "path": {"type": "string", "description": "Absolute path of the file."},
-            "line": {"type": "integer", "description": "1-based line to center on."},
-            "context": {"type": "integer", "default": 8, "description": "Lines before and after line, 0 to 100."}
-          },
-          "required": ["path", "line"]
-        }
-      },
-      {
-        "id": "search.grep",
-        "title": "Find in Files",
-        "hidden": true,
-        "agent": true,
-        "description": "Search file contents across the workspace folders, honoring .gitignore, and return {matches, truncated} within 4 s. Each match is {path, absPath, line, col, text, ranges}: path is workspace-relative (prefixed with the folder name when the workspace has several folders), line is 1-based, col is the 1-based byte column of the first match in the full line (what Neovim's cursor uses), text is the matching line cut to at most 512 characters around the first match, and ranges are [start, end) pairs of Unicode-scalar (rune) offsets into text, not byte offsets. Unavailable in the home workspace.",
-        "args": {
-          "properties": {
-            "query": {"type": "string", "description": "Text to search for; a regular expression when regex is true."},
-            "regex": {"type": "boolean", "description": "Treat query as a regular expression (RE2 syntax with the built-in engine, Rust regex with ripgrep)."},
-            "case": {"type": "boolean", "description": "Match case; matching ignores case when false or absent."},
-            "word": {"type": "boolean", "description": "Match whole words only."},
-            "glob": {"type": "string", "description": "Comma-separated include globs such as *.go, src/**; a leading ! excludes."},
-            "limit": {"type": "integer", "default": 100, "description": "Maximum number of matches, 1 to 500."}
-          },
-          "required": ["query"]
-        },
-        "result": {
-          "properties": {
-            "truncated": {"type": "boolean", "description": "More matches exist than limit, the reply reached its 448 KiB budget, or the 4 s budget ran out."}
           }
         }
       }

@@ -4,14 +4,11 @@ import SwiftUI
 import ClubmateKit
 
 typealias UIEventSink = @Sendable (UIEvent) async -> Result<JSONValue, ClubmateError>
-typealias CommandSink = @Sendable (CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
 struct SDUIDispatch: Sendable {
     var slot = ""
     var projectID = ""
-    var owner = ""
     var sink: UIEventSink = { _ in .success(.null) }
-    var command: CommandSink = { _ in .success(.null) }
     var banner: EventBanner?
 
     @MainActor
@@ -31,15 +28,6 @@ struct SDUIDispatch: Sendable {
         guard let message = entry.confirm else { return self(node, .named(entry.action, .string(item))) }
         Task {
             if await Confirmation.ask(message, action: entry.label, destructive: true) { self(node, .named(entry.action, .string(item))) }
-        }
-    }
-
-    @MainActor
-    func run(_ invocation: CommandInvocation) {
-        Task { [command, banner] in
-            if case .failure(let error) = await command(invocation) {
-                banner?.show(error.message)
-            }
         }
     }
 }
@@ -120,10 +108,6 @@ enum SidebarField {
     static let suffix = ".field"
 }
 
-struct SidebarTabCycler {
-    let cycle: @MainActor (Int) -> Void
-}
-
 private struct SidebarHasFieldKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -132,17 +116,6 @@ extension EnvironmentValues {
     var sidebarHasField: Bool {
         get { self[SidebarHasFieldKey.self] }
         set { self[SidebarHasFieldKey.self] = newValue }
-    }
-}
-
-private struct CycleSidebarTabKey: EnvironmentKey {
-    static let defaultValue: SidebarTabCycler? = nil
-}
-
-extension EnvironmentValues {
-    var cycleSidebarTab: SidebarTabCycler? {
-        get { self[CycleSidebarTabKey.self] }
-        set { self[CycleSidebarTabKey.self] = newValue }
     }
 }
 
@@ -161,17 +134,15 @@ struct SDUIView: View {
     let node: SDUINode
     let slot: String
     let projectID: String
-    var owner = ""
     var drafts = ComposerDrafts()
     let send: UIEventSink
-    var run: CommandSink = { _ in .success(.null) }
 
     @Environment(EventBanner.self) private var banner: EventBanner?
 
     var body: some View {
         SDUINodeView(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, owner: owner, sink: send, command: run, banner: banner))
+            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, sink: send, banner: banner))
             .environment(\.composerDrafts, drafts)
     }
 }

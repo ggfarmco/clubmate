@@ -30,213 +30,22 @@ local function emit(ev)
   for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do lsp[#lsp + 1] = c.name end
   pcall(vim.rpcnotify, chan, "clubmate", { event = ev, file = file, mode = vim.api.nvim_get_mode().mode, lsp = lsp, light = vim.b[buf].clubmate_light == true })
 end
-for _, ev in ipairs({ "BufEnter", "BufWritePost", "ModeChanged", "LspAttach", "LspDetach", "DirChanged" }) do
+for _, ev in ipairs({ "BufEnter", "ModeChanged", "LspAttach", "LspDetach", "DirChanged" }) do
   vim.api.nvim_create_autocmd(ev, { group = g, callback = function() vim.schedule(function() emit(ev) end) end })
 end
 emit("BufEnter")
-local function edge(dir)
-  local d = ({ left = "h", right = "l", up = "k", down = "j" })[dir] or dir
-  pcall(vim.rpcnotify, chan, "clubmate", { event = "edge", dir = d })
-end
 local m = type(package.loaded["clubmate"]) == "table" and package.loaded["clubmate"] or {}
 package.loaded["clubmate"] = m
-m.edge = edge
-m.chan = chan
-local dv = package.loaded["diffview.clubmate"]
-if type(dv) == "table" and type(dv.subscribe) == "function" then pcall(dv.subscribe, chan) end
-m.navigate = function(dir)
-  local w = vim.fn.winnr()
-  vim.cmd.wincmd(dir)
-  if vim.fn.winnr() == w then edge(dir) end
-end`
+m.chan = chan`
 
-const navLua = `local m = package.loaded["clubmate"]
-m.nav_apply = function(enabled, side)
-  local desc = "clubmate navigate"
-  local keys = {
-    { "<C-h>", "h" }, { "<C-j>", "j" }, { "<C-k>", "k" }, { "<C-l>", "l" },
-    { "<C-р>", "h" }, { "<C-о>", "j" }, { "<C-л>", "k" }, { "<C-д>", "l" },
-  }
-  local function global(lhs)
-    for _, km in ipairs(vim.api.nvim_get_keymap("n")) do
-      if vim.keycode(km.lhs) == vim.keycode(lhs) then return km end
-    end
+const diffviewLua = `local cwd, rev = ...
+local m = package.loaded["clubmate"]
+vim.schedule(function()
+  local ok, err = pcall(vim.cmd, { cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(cwd), vim.fn.fnameescape(rev), "--untracked-scoped" } })
+  if not ok and type(m) == "table" and m.chan then
+    pcall(vim.rpcnotify, m.chan, "clubmate", { event = "open_error", message = tostring(err) })
   end
-  local function snapshot(lhs, km)
-    if not km then return nil end
-    local exact = vim.fn.maparg(lhs, "n", false, true)
-    return exact.buffer == 0 and exact or km
-  end
-  local function replaceable(km, dir)
-    if (km.desc or ""):match("^:help .+%-default$") then return true end
-    if type(km.rhs) ~= "string" or km.expr ~= 0 then return false end
-    local rhs = vim.keycode(km.rhs)
-    for _, move in ipairs({ "<C-w>" .. dir, "<C-w><C-" .. dir .. ">", "<Cmd>wincmd " .. dir .. "<CR>", ":wincmd " .. dir .. "<CR>" }) do
-      if rhs == vim.keycode(move) then return true end
-    end
-    return false
-  end
-  for _, key in ipairs(keys) do
-    local lhs = key[1]
-    local km = global(lhs)
-    if km and km.desc == desc then vim.keymap.del("n", lhs) end
-  end
-  for lhs, saved in pairs(m.nav_saved or {}) do
-    if not global(lhs) then vim.fn.mapset(saved) end
-  end
-  m.nav_saved = {}
-  if m.nav_target and m.nav_target.at_edge == m.nav_wrapped then m.nav_target.at_edge = m.nav_orig end
-  m.nav_target, m.nav_wrapped, m.nav_orig = nil, nil, nil
-  if not enabled then return {} end
-  local ss = package.loaded["smart-splits"]
-  if ss then
-    local cfg = type(ss) == "table" and type(ss.config) == "table" and ss.config or nil
-    if not cfg then
-      local ok, loaded = pcall(require, "smart-splits.config")
-      cfg = ok and type(loaded) == "table" and loaded or nil
-    end
-    if cfg then
-      local target = type(cfg.move) == "table" and cfg.move or cfg
-      local orig = target.at_edge
-      local toward = side == "right" and "right" or "left"
-      local function wrapped(ctx)
-        if ctx.direction == toward then return require("clubmate").edge(ctx.direction) end
-        if type(orig) == "function" then return orig(ctx) end
-        if (orig == "wrap" or orig == "split") and type(ctx[orig]) == "function" then return ctx[orig]() end
-      end
-      target.at_edge = wrapped
-      m.nav_target, m.nav_wrapped, m.nav_orig = target, wrapped, orig
-    end
-    return {}
-  end
-  local skipped = {}
-  for _, key in ipairs(keys) do
-    local lhs, dir = key[1], key[2]
-    local km = global(lhs)
-    if km and not replaceable(km, dir) then
-      skipped[#skipped + 1] = lhs
-    else
-      m.nav_saved[lhs] = snapshot(lhs, km)
-      vim.keymap.set("n", lhs, function() require("clubmate").navigate(dir) end, { desc = desc, silent = true })
-    end
-  end
-  table.sort(skipped)
-  return skipped
-end
-m.nav_args = { ... }
-local g = vim.api.nvim_create_augroup("clubmate_nav", { clear = true })
-if vim.v.vim_did_enter == 0 then
-  vim.api.nvim_create_autocmd("VimEnter", { group = g, once = true, callback = function()
-    vim.schedule(function() m.nav_apply(unpack(m.nav_args)) end)
-  end })
-end
-return m.nav_apply(...)`
-
-const diffLua = `local path, rel, base, target, left, right = ...
-local ft = vim.filetype.match({ filename = path }) or ""
-local function scratch(name, text, dos)
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b) == name then vim.api.nvim_buf_delete(b, { force = true }) end
-  end
-  local buf = vim.api.nvim_get_current_buf()
-  vim.bo[buf].buftype = "nofile"
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].swapfile = false
-  vim.api.nvim_buf_set_name(buf, name)
-  local lines = vim.split(text:gsub("\n$", ""), "\n", { plain = true })
-  if dos then
-    for i, l in ipairs(lines) do lines[i] = l:gsub("\r$", "") end
-  end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].filetype = ft
-end
-local function stale(tab)
-  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
-    local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(w))
-    if name:match("^clubmate://[^/]+/(.*)$") == rel then return true end
-  end
-  return false
-end
-if target == "worktree" then
-  vim.cmd.tabedit(vim.fn.fnameescape(path))
-else
-  vim.cmd.tabnew()
-end
-local current = vim.api.nvim_get_current_tabpage()
-for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
-  if tab ~= current and stale(tab) then
-    pcall(vim.cmd.tabclose, vim.api.nvim_tabpage_get_number(tab))
-  end
-end
-if target ~= "worktree" then
-  scratch("clubmate://" .. target .. "/" .. rel, right, false)
-end
-local dos = vim.bo.fileformat == "dos"
-vim.cmd.diffthis()
-vim.cmd("leftabove vnew")
-scratch("clubmate://" .. base .. "/" .. rel, left, dos)
-vim.cmd.diffthis()`
-
-const reviewPrelude = `local m = package.loaded["clubmate"]
-local function review_module()
-  local ok, dv = pcall(require, "diffview.clubmate")
-  if not ok or type(dv) ~= "table" or type(dv.version) ~= "number" or dv.version < 1 then return nil end
-  if m.chan then dv.subscribe(m.chan) end
-  return dv
-end
-local function close_review()
-  local dv = m.review_tab and review_module()
-  if dv then dv.close(m.review_tab) end
-  if m.review_tab and vim.api.nvim_tabpage_is_valid(m.review_tab) then
-    vim.api.nvim_set_current_tabpage(m.review_tab)
-    vim.cmd("DiffviewClose")
-  end
-  m.review_tab = nil
-end
-`
-
-const closeReviewLua = reviewPrelude + `close_review()`
-
-const reviewLua = reviewPrelude + `local cwd, rev, excludes, panel = ...
-if type(excludes) ~= "table" then excludes = {} end
-close_review()
-local dv = review_module()
-if dv then
-  local tab, err = dv.open({ cwd = cwd, base = rev, excludes = excludes })
-  if not tab then error(err or "diffview opened no review", 0) end
-  m.review_tab = tab
-  if panel then dv.set_panel(true, m.review_tab) end
-  return "module"
-end
-if vim.fn.exists(":DiffviewOpen") ~= 2 then return "native" end
-local before = vim.api.nvim_get_current_tabpage()
-vim.cmd({ cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(cwd), rev } })
-local tab = vim.api.nvim_get_current_tabpage()
-if tab == before then return "native" end
-m.review_tab = tab
-return "diffview"`
-
-const reviewEntriesLua = reviewPrelude + `local dv = review_module()
-return dv and dv.entries(m.review_tab) or {}`
-
-const reviewSelectLua = reviewPrelude + `local path = ...
-local dv = review_module()
-if dv then dv.select(path, m.review_tab) end`
-
-const reviewReviewedLua = reviewPrelude + `local path, want = ...
-local dv = review_module()
-if not dv then return false end
-if want == nil or want == vim.NIL or not dv.set_reviewed then return dv.toggle_reviewed(path, m.review_tab) == true end
-return dv.set_reviewed(path, want, m.review_tab) == true`
-
-const reviewNextLua = reviewPrelude + `local dir = ...
-local dv = review_module()
-return dv and dv.next_unreviewed(dir, m.review_tab) or ""`
-
-const reviewExcludesLua = reviewPrelude + `local excludes = ...
-local dv = review_module()
-if dv then dv.set_excludes(excludes, m.review_tab) end`
+end)`
 
 const selectionLua = `local buf = vim.api.nvim_get_current_buf()
 if vim.bo[buf].buftype ~= "" then return nil end
@@ -372,11 +181,8 @@ type nvimEvent struct {
 	File    string   `msgpack:"file"`
 	Mode    string   `msgpack:"mode"`
 	LSP     []string `msgpack:"lsp"`
-	Dir     string   `msgpack:"dir"`
 	Light   bool     `msgpack:"light"`
 	Message string   `msgpack:"message"`
-	Kind    string   `msgpack:"kind"`
-	Path    string   `msgpack:"path"`
 }
 
 type client struct {
@@ -460,14 +266,6 @@ func (c *client) hook() error {
 	return nil
 }
 
-func (c *client) navigation(nav navigationArgs) ([]string, error) {
-	var skipped []string
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(navLua, &skipped, nav.Enabled, nav.Side) }); err != nil {
-		return nil, fmt.Errorf("nvim navigation: %w", err)
-	}
-	return skipped, nil
-}
-
 func (c *client) open(path string, line, col int, light bool) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(openLua, nil, path, line, col, light) })
 }
@@ -476,52 +274,8 @@ func (c *client) quickfix(title string, items []quickfixItem) error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(quickfixLua, nil, title, items) })
 }
 
-func (c *client) diff(path, rel, base, target, left, right string) error {
-	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(diffLua, nil, path, rel, base, target, left, right) })
-}
-
-func (c *client) review(cwd, rev string, excludes []string, panel bool) (string, error) {
-	var mode string
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewLua, &mode, cwd, rev, excludes, panel) }); err != nil {
-		return "", err
-	}
-	return mode, nil
-}
-
-func (c *client) reviewEntries() ([]reviewEntry, error) {
-	var entries []reviewEntry
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewEntriesLua, &entries) }); err != nil {
-		return nil, err
-	}
-	return entries, nil
-}
-
-func (c *client) reviewSelect(path string) error {
-	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewSelectLua, nil, path) })
-}
-
-func (c *client) reviewSetReviewed(path string, want *bool) (bool, error) {
-	var reviewed bool
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewReviewedLua, &reviewed, path, want) }); err != nil {
-		return false, err
-	}
-	return reviewed, nil
-}
-
-func (c *client) reviewNext(dir int) (string, error) {
-	var path string
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewNextLua, &path, dir) }); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-func (c *client) reviewExcludes(excludes []string) error {
-	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(reviewExcludesLua, nil, excludes) })
-}
-
-func (c *client) closeReview() error {
-	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(closeReviewLua, nil) })
+func (c *client) diffview(cwd, rev string) error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(diffviewLua, nil, cwd, rev) })
 }
 
 func (c *client) selection() (*selectionResult, error) {

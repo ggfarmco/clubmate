@@ -102,7 +102,7 @@ var (
 		},
 		"tree": {
 			required:    []string{"items"},
-			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "breadcrumb": listOf(itemCheck), "review": reviewCheck, "action": actionCheck},
+			props:       map[string]propCheck{"items": listOf(treeItemCheck), "selected": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -502,24 +502,12 @@ func treeItemCheck(c *validator, v any) error {
 	}
 	fields := map[string]propCheck{
 		"muted": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
-		"additions": countNumber, "deletions": countNumber, "reviewed": isBool, "comments": countNumber,
 		"tone": oneOf(badgeTones),
 	}
 	for k, f := range itemFields {
 		fields[k] = f
 	}
 	return objectCheck(itemRequired, fields)(c, v)
-}
-
-func reviewCheck(c *validator, v any) error {
-	return objectCheck([]string{"base", "head"}, map[string]propCheck{
-		"base": isString, "head": isString, "baseRef": isString, "headRef": isString, "readOnly": isBool, "mode": isString,
-		"progress": isString, "warning": isString, "error": isString, "chips": listOf(chipCheck), "started": countNumber,
-	})(c, v)
-}
-
-func chipCheck(c *validator, v any) error {
-	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": isString, "label": isString, "on": isBool})(c, v)
 }
 
 func columnCheck(c *validator, v any) error {

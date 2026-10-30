@@ -312,7 +312,7 @@ struct ComposerNodeView: View {
         let dispatch = dispatch
         let focus = $focused
         filePicker.pick { path in
-            dispatch(node, .named("attachFile", .object(["path": .string(path)])))
+            dispatch(node, .attachFile(path))
             focus.wrappedValue = true
         }
     }

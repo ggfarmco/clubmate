@@ -24,12 +24,12 @@ import (
 )
 
 const (
-	wait           = 10 * time.Second
-	restartWait    = 15 * time.Second
-	gitManifest    = `{"id":"git","name":"Git","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"git.review","title":"Review","hidden":true}]},"echoResults":{"git.review":{}}}`
-	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]},"echoResults":{"editor-nvim.checktime":{}}}`
-	codeManifest   = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","icon":"code","order":10}],"commands":[{"id":"editor-nvim.open","provides":["editor.open"],"title":"Open File","hidden":true}]},"echoResults":{"editor-nvim.open":{}}}`
-	stopManifest   = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop","hidden":true},{"id":"editor-nvim.release-root","title":"Release","hidden":true}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
+	wait             = 10 * time.Second
+	restartWait      = 15 * time.Second
+	diffviewManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.diffview","title":"Diffview","hidden":true}]},"echoResults":{"editor-nvim.diffview":{}}}`
+	editorManifest   = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]},"echoResults":{"editor-nvim.checktime":{}}}`
+	codeManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","icon":"code","order":10}],"commands":[{"id":"editor-nvim.open","provides":["editor.open"],"title":"Open File","hidden":true}]},"echoResults":{"editor-nvim.open":{}}}`
+	stopManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop","hidden":true},{"id":"editor-nvim.release-root","title":"Release","hidden":true}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
 )
 
 type record struct {
@@ -867,7 +867,7 @@ func TestPermissionCardAction(t *testing.T) {
 
 func TestReviewActionUsesCheckpoint(t *testing.T) {
 	repo := newRepo(t)
-	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.EchoPluginDirAs(t, gitManifest))
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.EchoPluginDirAs(t, diffviewManifest))
 	project := f.project(t, repo)
 	session := f.newSession(t, project)
 	f.prompt(t, project, session, "change it")
@@ -877,7 +877,7 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 
 	f.h.Event(t, project, "agents.main", session+"/review", "review", nil)
 
-	assert.JSONEq(t, `{"base":"commit:`+sha+`","head":"`+repo+`","baseLabel":"before turn 1"}`, string(echoed(t, f, "git.review")))
+	assert.JSONEq(t, `{"cwd":"`+repo+`","rev":"`+sha+`"}`, string(echoed(t, f, "editor-nvim.diffview")))
 }
 
 func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {

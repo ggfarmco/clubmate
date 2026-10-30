@@ -130,7 +130,7 @@ var primitives = map[string]primitive{
 	"ui.focus": {
 		cmd: coreCommand("ui.focus", "Focus Section", "Show a section in the workspace's window.", &schema.Object{
 			Properties: map[string]schema.Prop{
-				"section": {Type: "string", Description: "Section id, e.g. editor-nvim, terminals, git."},
+				"section": {Type: "string", Description: "Section id, e.g. editor-nvim, terminals, agents."},
 			},
 			Required: []string{"section"},
 		}),

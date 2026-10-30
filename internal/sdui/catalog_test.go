@@ -48,7 +48,6 @@ func TestValidate(t *testing.T) {
 		{"folderField without label", sdui.Node{Type: "folderField", ID: "r"}, false},
 		{"folderField bad values", sdui.Node{Type: "folderField", ID: "r", Props: map[string]any{"label": "L", "values": []any{1}}}, false},
 		{"tree muted", sdui.Tree("t", []sdui.TreeItem{{ID: "a", Label: "A", Muted: true}}, ""), true},
-		{"tree breadcrumb", sdui.BreadcrumbTree("t", []sdui.TreeItem{{ID: "/r/a/x", Label: "x"}}, "", []sdui.Item{{ID: "/r", Label: "r"}, {ID: "/r/a", Label: "a"}}), true},
 		{"tree muted not bool", sdui.Node{Type: "tree", ID: "t", Props: map[string]any{"items": []any{map[string]any{"id": "a", "label": "A", "muted": "yes"}}}}, false},
 		{"diff", sdui.Diff("+a"), true},
 		{"diff without text", sdui.Node{Type: "diff"}, false},

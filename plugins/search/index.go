@@ -24,7 +24,6 @@ type index struct {
 }
 
 type root struct {
-	folder   string
 	resolved string
 	label    string
 }
@@ -200,7 +199,7 @@ func newRoots(folders []string) []root {
 			logError("resolve "+folders[i], err)
 			continue
 		}
-		out = append(out, root{folder: folders[i], resolved: resolved, label: label})
+		out = append(out, root{resolved: resolved, label: label})
 	}
 	return out
 }

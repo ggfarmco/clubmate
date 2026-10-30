@@ -2,33 +2,19 @@ import SwiftUI
 
 import ClubmateKit
 
-struct GoToFileView: View {
+struct FilePickerView: View {
+    let model: FilePickerModel
     let dismiss: () -> Void
 
-    @State private var model: GoToFileModel
     @Environment(\.theme) private var theme
 
     private static let visibleRows = 14
-
-    init(session: ProjectSession) {
-        dismiss = { [weak session] in session?.close(.goToFile) }
-        _model = State(initialValue: GoToFileModel(
-            run: { [weak session] invocation in
-                guard let store = session?.store else { return .failure(.notRunning) }
-                return await store.run(invocation)
-            },
-            dismiss: { [weak session] in session?.close(.goToFile) },
-            report: { [weak session] message in session?.banner.show(message) },
-            opened: { [weak session] in session?.store?.requestFocus(section: CodeSection.id, slot: CodeSection.mainSlot) },
-            pick: session.fileTarget
-        ))
-    }
 
     var body: some View {
         VStack(spacing: 0) {
             PaletteField(
                 text: Binding(get: { model.query }, set: { model.update($0) }),
-                placeholder: model.picking ? "Attach file" : "Go to file (path:line)",
+                placeholder: "Attach file",
                 move: model.move,
                 submit: choose,
                 cancel: dismiss
@@ -96,13 +82,13 @@ struct GoToFileView: View {
     private var message: String? {
         switch model.status {
         case .indexing: "Indexing…"
-        case .unavailable: GoToFileModel.homeMessage
+        case .unavailable: FilePickerModel.homeMessage
         case .failed(let error): error
         case .ready: model.results.isEmpty ? (model.query.isEmpty ? "No files" : "No matches") : nil
         }
     }
 
-    private func row(_ match: GoToFileMatch, selected: Bool) -> some View {
+    private func row(_ match: FilePickerMatch, selected: Bool) -> some View {
         let start = match.nameStart
         let end = match.path.unicodeScalars.count
         return HStack(spacing: theme.gutter) {
@@ -111,11 +97,6 @@ struct GoToFileView: View {
             Text(highlighted(match.runs(in: 0..<max(start - 1, 0)), base: theme.muted))
                 .truncationMode(.path)
             Spacer(minLength: theme.gutter)
-            if let line = match.line {
-                Text(":\(line)")
-                    .font(theme.uiSmall)
-                    .foregroundStyle(theme.muted)
-            }
         }
         .font(theme.ui)
         .lineLimit(1)
@@ -142,11 +123,11 @@ struct GoToFileView: View {
 }
 
 extension View {
-    func goToFile(_ session: ProjectSession?) -> some View {
+    func filePicker(_ session: ProjectSession?) -> some View {
         overlay(alignment: .top) {
-            if let session, session.overlay == .goToFile {
-                GoToFileView(session: session)
-                    .id(session.attachRequest)
+            if let session, session.overlay == .pickFile, let model = session.filePicker {
+                FilePickerView(model: model) { [weak session] in session?.close(.pickFile) }
+                    .id(ObjectIdentifier(model))
                     .padding(.top, 48)
             }
         }

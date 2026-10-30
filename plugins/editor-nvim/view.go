@@ -32,10 +32,7 @@ func startingView() sdui.Node {
 	return sdui.Empty("Starting Neovim…")
 }
 
-func missingView(system bool) sdui.Node {
-	if system {
-		return sdui.Empty(errSystemNvimMissing.Error())
-	}
+func missingView() sdui.Node {
 	return sdui.Empty(errNvimNotInPATH.Error())
 }
 

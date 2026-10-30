@@ -3,13 +3,15 @@ import XCTest
 import ClubmateKit
 
 @MainActor
-final class GoToFileTests: XCTestCase {
-    func testGoToFileDropsStaleReplies() async throws {
+final class FilePickerTests: XCTestCase {
+    private var paths: [String] = []
+
+    func testFilePickerDropsStaleReplies() async throws {
         let search = FakeSearch(held: ["ma"], replies: [
             "ma": [match("main.go"), match("map.go")],
             "mai": [match("main.go")],
         ])
-        let model = GoToFileModel(debounce: .zero, retry: .zero, run: search.run, dismiss: {}, report: { _ in })
+        let model = FilePickerModel(debounce: .zero, retry: .zero, run: search.run, dismiss: {}) { self.paths.append($0) }
 
         model.update("ma")
         try await waitUntil { search.waiting["ma"] != nil }
@@ -23,34 +25,37 @@ final class GoToFileTests: XCTestCase {
         XCTAssertEqual(model.query, "mai")
     }
 
-    func testGoToFileChooseOpensAtLine() async throws {
-        let search = FakeSearch(replies: ["x.go:7": [match("x.go", line: 7)]])
+    func testComposerAttachUsesFilePicker() async throws {
+        XCTAssertEqual(ComposerModel().handle(.attach), .attachFile)
+        let search = FakeSearch(replies: ["x": [match("x.go")]])
         var dismissed = false
-        let model = GoToFileModel(debounce: .zero, retry: .zero, run: search.run, dismiss: { dismissed = true }, report: { _ in })
+        var picked: [UIAction.Trigger] = []
+        let model = FilePickerModel(debounce: .zero, retry: .zero, run: search.run, dismiss: { dismissed = true }) { picked.append(.attachFile($0)) }
 
-        model.update("x.go:7")
+        model.update("x")
         try await waitUntil { !model.results.isEmpty }
         await model.choose()
 
         XCTAssertTrue(dismissed)
-        XCTAssertEqual(search.calls.last, CommandInvocation(id: "editor.open", args: .object(["path": .string("/w/x.go"), "line": .number(7)])))
+        XCTAssertEqual(picked, [.named("attachFile", .object(["path": .string("/w/x.go")]))])
+        XCTAssertEqual(search.calls.map(\.id), ["search.files"])
     }
 
-    func testGoToFileChooseWaitsForCurrentQuery() async throws {
+    func testFilePickerChooseWaitsForCurrentQuery() async throws {
         let search = FakeSearch(replies: ["ma": [match("map.go"), match("main.go")], "mai": [match("main.go")]])
-        let model = GoToFileModel(debounce: .milliseconds(50), retry: .zero, run: search.run, dismiss: {}, report: { _ in })
+        let model = FilePickerModel(debounce: .milliseconds(50), retry: .zero, run: search.run, dismiss: {}) { self.paths.append($0) }
 
         model.update("ma")
         try await waitUntil { model.results.count == 2 }
         model.update("mai")
         await model.choose()
 
-        XCTAssertEqual(search.calls.last?.args.objectValue?["path"], .string("/w/main.go"))
+        XCTAssertEqual(paths, ["/w/main.go"])
     }
 
-    func testGoToFileRetriesWhileIndexing() async throws {
+    func testFilePickerRetriesWhileIndexing() async throws {
         let search = FakeSearch(indexing: 2, replies: ["": [match("main.go")]])
-        let model = GoToFileModel(debounce: .zero, retry: .milliseconds(10), run: search.run, dismiss: {}, report: { _ in })
+        let model = FilePickerModel(debounce: .zero, retry: .milliseconds(10), run: search.run, dismiss: {}) { self.paths.append($0) }
 
         model.update("")
         try await waitUntil { model.results.map(\.path) == ["main.go"] }
@@ -58,7 +63,7 @@ final class GoToFileTests: XCTestCase {
         XCTAssertEqual(model.status, .ready)
 
         let stuck = FakeSearch(indexing: .max, replies: [:])
-        let stopped = GoToFileModel(debounce: .zero, retry: .milliseconds(10), run: stuck.run, dismiss: {}, report: { _ in })
+        let stopped = FilePickerModel(debounce: .zero, retry: .milliseconds(10), run: stuck.run, dismiss: {}) { self.paths.append($0) }
         stopped.update("")
         try await waitUntil { stuck.calls.count >= 2 }
         XCTAssertEqual(stopped.status, .indexing)
@@ -68,10 +73,10 @@ final class GoToFileTests: XCTestCase {
         XCTAssertEqual(stuck.calls.count, calls)
     }
 
-    func testGoToFileCancelDuringPendingChooseOpensNothing() async throws {
+    func testFilePickerCancelDuringPendingChoosePicksNothing() async throws {
         let search = FakeSearch(held: ["ab"], replies: ["a": [match("a.go")], "ab": [match("ab.go")]])
         var dismissed = false
-        let model = GoToFileModel(debounce: .zero, retry: .zero, run: search.run, dismiss: { dismissed = true }, report: { _ in })
+        let model = FilePickerModel(debounce: .zero, retry: .zero, run: search.run, dismiss: { dismissed = true }) { self.paths.append($0) }
 
         model.update("a")
         try await waitUntil { !model.results.isEmpty }
@@ -84,12 +89,12 @@ final class GoToFileTests: XCTestCase {
         await choosing.value
 
         XCTAssertFalse(dismissed)
-        XCTAssertFalse(search.calls.contains { $0.id == "editor.open" })
+        XCTAssertEqual(paths, [])
     }
 
-    func testGoToFileChooseWhileIndexingOpensNothing() async throws {
+    func testFilePickerChooseWhileIndexingPicksNothing() async throws {
         let search = FakeSearch(indexing: 2, replies: ["": [match("main.go")]])
-        let model = GoToFileModel(debounce: .zero, retry: .milliseconds(30), run: search.run, dismiss: {}, report: { _ in })
+        let model = FilePickerModel(debounce: .zero, retry: .milliseconds(30), run: search.run, dismiss: {}) { self.paths.append($0) }
 
         model.update("")
         try await waitUntil { model.status == .indexing }
@@ -97,21 +102,19 @@ final class GoToFileTests: XCTestCase {
         try await waitUntil { !model.results.isEmpty }
         try await Task.sleep(for: .milliseconds(50))
 
-        XCTAssertFalse(search.calls.contains { $0.id == "editor.open" })
+        XCTAssertEqual(paths, [])
     }
 
-    func testGoToFileHighlightsScalars() {
-        let match = GoToFileMatch(path: "a/𝒳b.go", absPath: "/w/a/𝒳b.go", positions: [0, 2, 3])
+    func testFilePickerHighlightsScalars() {
+        let match = FilePickerMatch(path: "a/𝒳b.go", absPath: "/w/a/𝒳b.go", positions: [0, 2, 3])
 
         XCTAssertEqual(match.nameStart, 2)
         XCTAssertEqual(match.runs(in: 2..<7), [HighlightRun(text: "𝒳b", matched: true), HighlightRun(text: ".go", matched: false)])
         XCTAssertEqual(match.runs(in: 0..<1), [HighlightRun(text: "a", matched: true)])
     }
 
-    private func match(_ path: String, line: Int? = nil) -> JSONValue {
-        var fields: [String: JSONValue] = ["path": .string(path), "absPath": .string("/w/" + path), "positions": .array([.number(0)])]
-        if let line { fields["line"] = .number(Double(line)) }
-        return .object(fields)
+    private func match(_ path: String) -> JSONValue {
+        .object(["path": .string(path), "absPath": .string("/w/" + path), "positions": .array([.number(0)])])
     }
 }
 

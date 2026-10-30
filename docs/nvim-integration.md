@@ -1,74 +1,20 @@
 # nvim integration
 
-Clubmate drives your own nvim with your own config. It never writes to `~/.config/nvim` and creates no keymaps unless you turn on navigation keys. When the Code section connects to nvim it registers a Lua module, `clubmate`, that your config can call to move focus from nvim to the Code sidebar (the file tree).
+Clubmate drives your own nvim with your own config. It never writes to `~/.config/nvim` and creates no keymaps.
 
-## The `clubmate` module
+## Neovim binary
 
-The module exists only inside nvim started by Clubmate, so always load it with `pcall(require, "clubmate")`. Clubmate updates the same module table whenever it reconnects to nvim, so a cached `require("clubmate")` keeps working.
+Clubmate runs the Neovim shipped at `Clubmate.app/Contents/Resources/nvim/bin/nvim`. Without the bundled copy (for example when the core runs outside the app), it falls back to the `nvim` in `PATH`; with neither, the editor shows `nvim not found in PATH`. Clubmate removes any inherited `VIM`, `VIMRUNTIME` and `NVIM_APPNAME` before it starts nvim, so a runtime meant for another nvim never shadows the bundled one and nvim always reads `~/.config/nvim`.
 
-- `navigate(dir)`: `wincmd dir` (`h`, `j`, `k` or `l`); if the cursor stays in the same window (the edge of the layout), it calls `edge(dir)`.
-- `edge(dir)`: tells Clubmate that nvim reached its edge in `dir`. `dir` is `h`, `j`, `k`, `l` or `left`, `down`, `up`, `right`. `h` and `l` focus the Code sidebar when it is on that side (Left for `h`, Right for `l`); `j` and `k` do nothing.
+The app's bundled tools dir (`Contents/Resources/tools`, with `rg`) is appended to the end of nvim's `PATH`, so your own tools still win. The binary is chosen each time nvim starts; a running nvim keeps its binary until it restarts. After an app update that changes the bundled Neovim version, restart Neovim (palette "Restart Neovim") so running editors pick up the new binary.
 
-## Navigation keys
+## Review changes
 
-The first time you open the Code section Clubmate asks whether to use Ctrl+H/J/K/L to move between nvim and the sidebar; "Toggle nvim Navigation Keys" in the command palette (⌘K) flips the answer later. The setting is applied over RPC to every nvim Clubmate drives, again on every reconnect, and lives only in that nvim session:
-
-- Without smart-splits.nvim, Clubmate maps normal-mode `<C-h>`, `<C-j>`, `<C-k>` and `<C-l>` to `require("clubmate").navigate(dir)` with `desc = "clubmate navigate"`. Their Russian ЙЦУКЕН equivalents `<C-р>`, `<C-о>`, `<C-л>` and `<C-д>` get the same maps, since with that layout active nvim receives the Cyrillic key. A key already mapped to a plain window move in the same direction (`<C-w>h`, `<C-w><C-h>`, `<Cmd>wincmd h<CR>` or `:wincmd h<CR>`, and so on for `j`, `k`, `l`), or to nvim's built-in default (`<C-l>`), is taken over and restored exactly when the keys are turned off. Any other mapping of yours is left alone, and Clubmate shows a banner naming the keys it skipped.
-- With smart-splits.nvim loaded (`package.loaded["smart-splits"]`), Clubmate maps nothing and wraps its `at_edge` option (`move.at_edge` in v3, `at_edge` in v2) for the direction that points at the Code sidebar (`left` when the sidebar is on the left, `right` when it is on the right): there it only calls `edge(dir)`, so the cursor neither wraps nor splits. Every other direction keeps your own behavior (`wrap`, `split`, `stop` or your function). Clubmate re-applies the wrap when you move the sidebar to the other side. A smart-splits that is lazy-loaded after Clubmate connects is not wrapped until the setting is applied again (toggle it, or restart nvim). Calling smart-splits' `setup()` again drops the wrap.
-- Turning the keys off removes exactly the keymaps with that `desc` and puts back the original `at_edge`.
-
-If you set this up yourself (below), leave navigation keys off.
-
-## Plain keymap
-
-```lua
-vim.keymap.set("n", "<C-h>", function()
-  local ok, cm = pcall(require, "clubmate")
-  if ok then cm.navigate("h") else vim.cmd.wincmd("h") end
-end)
-```
-
-Outside Clubmate this is a plain `<C-w>h`.
-
-## smart-splits.nvim
-
-Set the `at_edge` option to call the module:
-
-```lua
-require("smart-splits").setup({
-  at_edge = function(ctx) local ok, cm = pcall(require, "clubmate"); if ok then cm.edge(ctx.direction) end end,
-})
-```
-
-## Branch review
-
-A review compares a worktree's working state, uncommitted and untracked files included, with its merge-base with a base branch or another worktree's branch. Clubmate opens it in your own [diffview.nvim](https://github.com/sindrets/diffview.nvim) as `-C<worktree> <merge-base>`, so the right side is the editable worktree file, and closes the review tab it opened before, so there is only ever one. With the diffview fork's `diffview.clubmate` module, Clubmate hides diffview's file panel and shows the list itself (status, `+/−`, reviewed marks and nrev comment counts), and the review's filters become `:(exclude)` pathspecs. With plain diffview, its own panel stays and the filters only apply to Clubmate's list. Without diffview, the list's diffs open in nvim as a `clubmate://<short sha>/<path>` scratch buffer against the worktree file. Clubmate never installs or configures diffview.
-
-Start a review from the worktree switcher in the window title ("Review against <default base>", or Review… to pick any worktree or branch) or with Review… in the ⌘K palette. The switcher's worktree list has fuzzy search. The Code section's sidebar has a Files | Git | Review tab bar; Review appears while a review runs. Starting a review (Review…, the switcher, Agents' Review changes) selects the Review tab; a paused review coming back on a worktree switch does not. Otherwise the sidebar keeps the tab you last chose, also across hiding the sidebar and switching sections; `<` / `>` cycle the tabs from the list. The Review tab shows the compare header: the base and head fields each open a fuzzy picker, ⇄ swaps them and ✕ ends the review. Below it are the Tests, Generated and glob chips (a chip with a crossed eye hides its files), the progress and the file list. In the list, `r` marks a file reviewed and `n` / `N` open the next / previous unreviewed one.
+In the Agents section, "Review changes" in a session's header and "Diff" on an edit card run `DiffviewOpen -C<worktree> <checkpoint> --untracked-scoped` in that worktree's nvim and show the Code section (`editor-nvim.diffview`). The left side is the checkpoint Clubmate took before the turn (the first turn's for Review changes), the right side the editable worktree file, uncommitted and untracked files included. Clubmate never installs or configures [diffview.nvim](https://github.com/sindrets/diffview.nvim); without it, nvim's error shows as an "open failed" badge.
 
 ## Large and binary files
 
 Opening a file larger than 5 MiB, or one whose first 8000 bytes contain a NUL byte, uses light mode: `noautocmd noswapfile edit`, so no filetype detection, treesitter, LSP or swap file, plus `syntax=off` and `b:clubmate_light = true`. The status bar shows a "light" badge for such a buffer. Other files open normally. Opening is asynchronous, so a slow open never times out the command; if nvim then refuses the open (for example E37 with `nohidden` and a modified buffer), the status bar shows an "open failed" badge until the next buffer is entered.
-
-## Separate config
-
-The `nvimConfig` setting (Settings → Editor) picks which config nvim uses:
-
-- `shared` (the default): `~/.config/nvim`, as in a plain terminal. Clubmate removes any inherited `NVIM_APPNAME` before it starts nvim.
-- `clubmate`: nvim starts with `NVIM_APPNAME=clubmate` (`clubmate-dev` for dev builds), so it uses `$XDG_CONFIG_HOME/<app>`, `$XDG_DATA_HOME/<app>`, `$XDG_STATE_HOME/<app>` and `$XDG_CACHE_HOME/<app>` (by default `~/.config`, `~/.local/share`, `~/.local/state` and `~/.cache`). Clubmate's copy and the dirs it reports follow the XDG spec and ignore an empty or relative `XDG_*` value, using the default; nvim itself does not, so keep `XDG_*` absolute.
-
-A running nvim keeps its config until it restarts. Paths hard-coded to `~/.config/nvim` in your config still point there.
-
-## Neovim binary
-
-The `nvimBinary` setting (Settings → Editor) picks which nvim runs:
-
-- `bundled` (the default): Built-in, the Neovim shipped at `Clubmate.app/Contents/Resources/nvim/bin/nvim`. Clubmate removes any inherited `VIM` and `VIMRUNTIME` before it starts nvim, so a runtime meant for another nvim never shadows the bundled one. Without the bundled copy (for example when the core runs outside the app), it falls back to the `nvim` in `PATH`.
-- `system`: the `nvim` in `PATH`. If there is none, the editor shows `nvim not found in PATH — switch to Built-in in Settings → Editor`.
-
-Either way, the app's bundled tools dir (`Contents/Resources/tools`, with `rg`) is appended to the end of nvim's `PATH`, so your own tools still win. The binary is chosen each time nvim starts; a running nvim keeps its binary until it restarts. After an app update that changes the bundled Neovim version, restart Neovim (palette "Restart Neovim") so running editors pick up the new binary.
-
-`editor-nvim.config` reads the mode, the binary and the dirs, or stores a new mode and/or binary (`{mode}`, `{binary}`). Besides the dirs it returns `binary`, `bundledPath` and `systemPath` (empty when that nvim is unavailable), and `bundledVersion` and `systemVersion`, the first line of `<path> --version` (empty when unavailable or not answered within 2 s). Its source sizes are 0 for a missing source and -1 when unknown (unreadable, or not measured within about 1.5 s). `editor-nvim.config-copy {data}` starts a copy of `~/.config/nvim`, and with `data` of `~/.local/share/nvim`, into the `<app>` dirs; state and cache start empty. It never writes to the sources and refuses when a destination exists, naming it. It skips `.git` at the source root, copies symlinks as symlinks without following them, keeps file modes and skips sockets and FIFOs. An absolute symlink that points inside `~/.config/nvim` or `~/.local/share/nvim` is rewritten to the same path inside the copy, so the copy never points back at the shared config; other targets are kept. An unreadable source file aborts the copy, and the error names its path; a source file that disappears during the copy is skipped. Each part is copied into `<dest>.clubmate-tmp-<random>` and renamed into place only when all parts are complete, with an exclusive rename that never replaces anything; the data dir goes first and the config dir last, so an interrupted commit never leaves a config without its data, and if a later part's rename fails the earlier parts are moved back and removed. A cancelled or failed copy removes its temp dirs. Stopping the core cancels a running copy; quitting the app does not, since the core keeps running. Temp dirs left by a crash are removed when the plugin next starts. Network filesystems without exclusive rename (`RENAME_EXCL`) are not supported as destinations. `editor-nvim.config-copy-status {id}` returns `{copied, total, done, error?}` in bytes, waiting up to 1 s for the copy to finish; `editor-nvim.config-copy-cancel {id}` stops it. These commands are hidden and not available to agents.
 
 ## Opening at a line and column
 
@@ -77,7 +23,3 @@ Either way, the app's bundled tools dir (`Contents/Resources/tools`, with `rg`) 
 ## Quickfix
 
 `editor.quickfix {title, items:[{path, line, col?, text?}]}` replaces nvim's quickfix list with a new one (`setqflist({}, ' ', {title})`, so `:colder` brings back the previous one) and focuses the Code section. It takes 1 to 10 000 items; each `path` is absolute (at most 4096 bytes), `line` at least 1, `col` a 1-based byte column (0 or absent for none) and `text` at most 512 characters; line breaks and NUL are rejected, and so are unknown fields. nvim creates a buffer for every distinct file in the list, which is slow, so only items in the first 1000 distinct files are kept and the title then ends in " (first 1000 files)". The command returns once the request is validated. nvim then appends the items in batches of about 40 ms each, so it stays responsive. It opens the quickfix window with `copen` after the first batch and returns the cursor with `wincmd p`. A newer quickfix request stops an older one that is still filling. A failure shows as an "open failed: quickfix: ..." badge.
-
-## Back to nvim
-
-In the file tree, Ctrl+l and Esc return focus to nvim.

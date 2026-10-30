@@ -103,14 +103,9 @@ struct TreeNodeView: View {
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSide) private var side
     @Environment(\.sidebarSlot) private var sidebarSlot
-    @Environment(\.cycleSidebarTab) private var cycleSidebarTab
     @Environment(\.sidebarHasField) private var sidebarHasField
 
     private static let stickyLimit = 4
-
-    private var review: ReviewHeader? { node.reviewHeader() }
-
-    private var module: Bool? { review?.module }
 
     private struct Row: Identifiable {
         let item: SDUITreeItem
@@ -133,10 +128,9 @@ struct TreeNodeView: View {
 
     var body: some View {
         let rows = rows
-        let module = module
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
-                itemRow(row, module: module, selected: row.id == selected, cursor: focused && row.id == cursor) {
+                itemRow(row, selected: row.id == selected, cursor: focused && row.id == cursor) {
                     cursor = row.id
                     focused = true
                     select(row.id)
@@ -149,7 +143,7 @@ struct TreeNodeView: View {
                 let tree = TreeCursor.rows(node.treeItems())
                 StickyHeaders(rows: tree, limit: Self.stickyLimit) { id in
                     if let row = rows.first(where: { $0.id == id }) {
-                        itemRow(row, module: module, selected: false, cursor: false) {
+                        itemRow(row, selected: false, cursor: false) {
                             if let target = TreeCursor.stickyTarget(id, in: tree, limit: Self.stickyLimit) {
                                 scroll?.scrollTo(target, anchor: .top)
                             }
@@ -168,7 +162,6 @@ struct TreeNodeView: View {
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
-            if review != nil, let value { cursor = value }
             if let value { scroll?.scrollTo(value, anchor: .center) }
         }
         .onChange(of: router?.pending, initial: true) {
@@ -178,9 +171,8 @@ struct TreeNodeView: View {
         }
     }
 
-    private func itemRow(_ row: Row, module: Bool?, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        let marks = module.map { ReviewMarks(item: row.item, module: $0) }
-        return ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, tone: row.item.tone, depth: row.depth, marks: marks, action: action) {
+    private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
+        ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, tone: row.item.tone, depth: row.depth, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -207,90 +199,23 @@ struct TreeNodeView: View {
             return true
         }
         let rows = TreeCursor.rows(node.treeItems())
-        if review != nil, let trigger = ReviewKeys.trigger(
-            keyCode: event.keyCode,
-            shift: flags.contains(.shift),
-            control: flags.contains(.control),
-            command: flags.contains(.command),
-            option: flags.contains(.option),
-            cursor: cursor,
-            rows: rows
-        ) {
-            dispatch(node, trigger)
-            return true
-        }
-        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift)) else { return false }
-        if review != nil, action == .collapseOthers {
-            dispatch(node, .collapseOthers(cursor ?? ""))
-            return true
-        }
-        switch TreeCursor.resolve(action, cursor: cursor, in: rows, breadcrumb: node.breadcrumb().map(\.id)) {
+        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
+        switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
         case .cursor(let id):
             if let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroll?.scrollTo(target) }
             cursor = id
         case .select(let id): select(id)
         case .expand(let id): dispatch(node, .expand(id))
         case .collapse(let id): dispatch(node, .collapse(id))
-        case .focus(let id): dispatch(node, .focus(id))
-        case .run(let id):
-            guard id.hasPrefix(dispatch.owner + ".") else { return false }
-            dispatch.run(CommandInvocation(id: id))
         case .focusMain: router?.requestMain(from: sidebarSlot ?? dispatch.slot)
-        case .cycleTab(let delta):
-            guard let cycleSidebarTab else { return false }
-            cycleSidebarTab.cycle(delta)
         case nil: break
         }
         return true
     }
 
     private func chord(_ chord: TreeChord?) {
-        switch chord {
-        case .menu(let action):
-            guard let cursor, let entry = rows.first(where: { $0.id == cursor })?.item.item.menu.first(where: { $0.action == action }) else { return }
-            dispatch.choose(entry, item: cursor, in: node)
-        case .focusField:
-            if let sidebarSlot, sidebarHasField { router?.request(sidebarSlot + SidebarField.suffix) }
-        case nil:
-            break
-        }
-    }
-}
-
-struct TreeBreadcrumb: View {
-    let node: SDUINode
-
-    @Environment(\.sduiDispatch) private var dispatch
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        let crumbs = node.breadcrumb()
-        HStack(spacing: 4) {
-            ForEach(crumbs.indices, id: \.self) { index in
-                if index > 0 {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(theme.muted)
-                }
-                let last = index == crumbs.count - 1
-                Button { dispatch(node, .focus(crumbs[index].id)) } label: {
-                    Text(crumbs[index].label)
-                        .foregroundStyle(last ? theme.foreground : theme.muted)
-                        .lineLimit(1)
-                        .truncationMode(.label)
-                        .help(crumbs[index].id)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .layoutPriority(last ? 1 : 0)
-            }
-            Spacer(minLength: 0)
-        }
-        .font(theme.ui)
-        .padding(.horizontal, theme.gutter)
-        .frame(height: theme.rowHeight)
-        .background(theme.background, ignoresSafeAreaEdges: [])
-        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+        guard chord == .focusField, let sidebarSlot, sidebarHasField else { return }
+        router?.request(sidebarSlot + SidebarField.suffix)
     }
 }
 
@@ -342,20 +267,6 @@ struct Disclosure: View {
     }
 }
 
-struct ReviewMarks {
-    let reviewed: Bool?
-    let comments: Int
-    let additions: Int?
-    let deletions: Int?
-
-    init(item: SDUITreeItem, module: Bool) {
-        reviewed = module ? item.reviewed : nil
-        comments = item.comments
-        additions = item.additions
-        deletions = item.deletions
-    }
-}
-
 struct ItemRow<Leading: View>: View {
     let item: SDUIItem
     let selected: Bool
@@ -363,7 +274,6 @@ struct ItemRow<Leading: View>: View {
     var muted = false
     var tone: String?
     var depth = 0
-    var marks: ReviewMarks?
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
 
@@ -373,19 +283,6 @@ struct ItemRow<Leading: View>: View {
     var body: some View {
         HStack(spacing: 6) {
             leading()
-            if let marks {
-                if let reviewed = marks.reviewed {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(theme.success)
-                        .opacity(reviewed ? 1 : 0)
-                        .frame(width: 10)
-                }
-                Text(item.badge ?? "")
-                    .font(theme.uiSmall)
-                    .foregroundStyle(statusTone(item.badge))
-                    .frame(width: 10)
-            }
             if let icon = item.icon, !icon.isEmpty {
                 Image(systemName: SymbolName.resolve(icon))
                     .foregroundStyle(theme.tone(tone) ?? theme.muted)
@@ -403,23 +300,7 @@ struct ItemRow<Leading: View>: View {
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
             }
-            if let marks {
-                if marks.comments > 0 {
-                    Text("💬\(marks.comments)")
-                        .font(theme.uiSmall)
-                        .foregroundStyle(theme.muted)
-                }
-                if let additions = marks.additions {
-                    Text("+\(additions)")
-                        .font(theme.uiSmall)
-                        .foregroundStyle(theme.success)
-                }
-                if let deletions = marks.deletions {
-                    Text("−\(deletions)")
-                        .font(theme.uiSmall)
-                        .foregroundStyle(theme.danger)
-                }
-            } else if let badge = item.badge {
+            if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accent)
             }
         }
@@ -442,15 +323,6 @@ struct ItemRow<Leading: View>: View {
             theme.border
                 .frame(width: 1)
                 .offset(x: theme.gutter + CGFloat(level) * theme.indent + theme.indent / 2)
-        }
-    }
-
-    private func statusTone(_ status: String?) -> Color {
-        switch status {
-        case "A", "?": theme.success
-        case "D": theme.danger
-        case "M", "R", "C": theme.warning
-        default: theme.muted
         }
     }
 

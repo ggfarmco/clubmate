@@ -28,16 +28,6 @@ final class AppModel {
     @ObservationIgnored private var shownWindows: Set<String> = []
     @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var restored = false
-    @ObservationIgnored private var navigationPending = true
-    @ObservationIgnored private var navigationAsked = false
-    @ObservationIgnored private(set) lazy var nvimConfig = NvimConfigModel(
-        run: { [weak self] workspace, invocation in
-            await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
-        },
-        workspaces: { [weak self] in await self?.nvimWorkspaces() ?? [] },
-        displayed: { [weak self] in Set(self?.layout.windows.compactMap(\.active) ?? []) },
-        confirm: { message in await Confirmation.ask(message, action: "Restart", destructive: true) }
-    )
 
     @ObservationIgnored private(set) lazy var agentFinish = AgentFinishModel { [weak self] workspace, invocation in
         await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
@@ -71,7 +61,6 @@ final class AppModel {
         trackClient()
         trackProjects()
         syncSessions()
-        trackNavigationKeys()
         trackTerminalFontSize()
         _ = notifications
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
@@ -279,46 +268,10 @@ final class AppModel {
 
     private func touch(_ projectID: String) {
         notifications.focusChanged()
-        Task { await nvimConfig.activated(projectID) }
         guard let client = supervisor.client else { return }
         Task {
             try? await client.touchWorkspace(projectID)
             try? await projects?.load()
-        }
-    }
-
-    func syncNavigationKeys() {
-        guard navigationPending, let enabled = settings.navigationKeys,
-              let session = sessions.values.first(where: { $0.store?.connected == true }),
-              let store = session.store else { return }
-        navigationPending = false
-        Task {
-            switch await store.run(.navigation(enabled: enabled, side: settings.sidebarSide)) {
-            case .success(let result):
-                if let message = CodeSection.skippedKeysMessage(result) { session.banner.show(message) }
-            case .failure(let error):
-                navigationPending = true
-                session.banner.show(error.message)
-            }
-        }
-    }
-
-    func askNavigationKeys() {
-        guard settings.navigationKeys == nil, !navigationAsked else { return }
-        navigationAsked = true
-        Task {
-            settings.navigationKeys = await Confirmation.ask("Use Ctrl+H/J/K/L to move between nvim and the sidebar?", action: "Enable", cancel: "Not now")
-        }
-    }
-
-    private func trackNavigationKeys() {
-        withObservationTracking { _ = (settings.navigationKeys, settings.sidebarSide) } onChange: { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                self.navigationPending = true
-                self.syncNavigationKeys()
-                self.trackNavigationKeys()
-            }
         }
     }
 
@@ -342,7 +295,7 @@ final class AppModel {
 
     private func runCommand(_ invocation: CommandInvocation, in workspace: String?) async -> Result<JSONValue, ClubmateError> {
         guard let client = supervisor.client else { return .failure(.notRunning) }
-        guard let projectID = workspace ?? defaultWorkspace else { return .failure(NvimConfigModel.noWorkspace) }
+        guard let projectID = workspace ?? defaultWorkspace else { return .failure(.noWorkspace) }
         do {
             return .success(try await client.commandRun(id: invocation.id, projectID: projectID, args: invocation.args))
         } catch let error as ClubmateError {
@@ -354,18 +307,6 @@ final class AppModel {
 
     private var defaultWorkspace: String? {
         keyWindowID.flatMap { layout.window($0)?.active } ?? layout.windows.lazy.compactMap(\.active).first ?? projects?.projects.first?.id
-    }
-
-    private func nvimWorkspaces() async -> [NvimWorkspace] {
-        guard let client = supervisor.client, let sessions = try? await client.call(method: "session.list").arrayValue else { return [] }
-        var running: [String: String] = [:]
-        for session in sessions {
-            guard let fields = session.objectValue, fields["owner"]?.stringValue == CodeSection.id,
-                  fields["state"]?.stringValue == "running", let projectID = fields["projectId"]?.stringValue,
-                  let id = fields["id"]?.stringValue, running[projectID] == nil else { continue }
-            running[projectID] = id
-        }
-        return running.keys.sorted().map { NvimWorkspace(id: $0, name: project($0)?.name ?? $0, session: running[$0] ?? "") }
     }
 
     func project(_ id: String) -> Project? {
@@ -423,9 +364,6 @@ final class AppModel {
         }) else { return }
         let present = Set(listed.map(\.id))
         notifications.keep(present)
-        for workspace in nvimConfig.pending where !present.contains(workspace.id) {
-            nvimConfig.forget(workspace.id)
-        }
         let workspaces = Set(layout.windows.flatMap(\.workspaces))
         presence = presence.filter { workspaces.contains($0.key) }
         let gone = workspaces.filter { presence[$0, default: ProjectPresence()].observe(present.contains($0)) }
@@ -580,8 +518,7 @@ private final class ModelLink {
 
 enum WorkspaceOverlay: Equatable {
     case palette
-    case goToFile
-    case findInFiles
+    case pickFile
     case picker
 }
 
@@ -597,10 +534,8 @@ final class ProjectSession {
     let deck = SurfaceDeck()
     let banner = EventBanner()
     var overlay: WorkspaceOverlay?
-    private(set) var findInFiles: FindInFilesModel?
     private(set) var picker: PickerRequest?
-    private(set) var fileTarget: (@MainActor (String) -> Void)?
-    private(set) var attachRequest = 0
+    private(set) var filePicker: FilePickerModel?
     var thumbnail: NSImage?
     var autoNewRequest = 0
     @ObservationIgnored var autoNew = AutoNewGate()
@@ -631,7 +566,7 @@ final class ProjectSession {
         }
     }
 
-    private var storeRun: FuzzyPickerModel.Run {
+    private var storeRun: WorktreeModel.Run {
         { [weak self] invocation in
             guard let store = self?.store else { return .failure(.notRunning) }
             return await store.run(invocation)
@@ -657,29 +592,6 @@ final class ProjectSession {
         }
     }
 
-    func review(base: String?) {
-        run(ReviewCommand.start(base: base, head: worktrees.current?.path))
-    }
-
-    func chooseReviewBase(head: String?) {
-        openPicker("Review against branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
-            self?.run(ReviewCommand.start(base: item.id, head: head))
-        }
-    }
-
-    func chooseReviewHead(base: String) {
-        openPicker("Review branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
-            self?.run(ReviewCommand.start(base: base, head: item.id))
-        }
-    }
-
-    func askReviewGlob() {
-        Task {
-            guard let glob = await TextPrompt.ask("Hide review files matching", text: "", action: "Hide"), !glob.isEmpty else { return }
-            run(ReviewCommand.glob(glob))
-        }
-    }
-
     func chooseWorktreeToRemove() {
         Task {
             await worktrees.menuOpened()
@@ -702,33 +614,22 @@ final class ProjectSession {
     }
 
     func pickFile(_ target: @escaping @MainActor (String) -> Void) {
-        fileTarget = target
-        attachRequest += 1
-        overlay = .goToFile
+        filePicker?.cancel()
+        filePicker = FilePickerModel(run: storeRun, dismiss: { [weak self] in self?.close(.pickFile) }, pick: target)
+        overlay = .pickFile
     }
 
     func toggle(_ overlay: WorkspaceOverlay) {
-        if overlay == .goToFile { fileTarget = nil }
-        if overlay == .findInFiles, findInFiles == nil { findInFiles = makeFindInFiles() }
         self.overlay = self.overlay == overlay ? nil : overlay
-    }
-
-    private func makeFindInFiles() -> FindInFilesModel {
-        FindInFilesModel(
-            run: { [weak self] invocation in
-                guard let store = self?.store else { return .failure(.notRunning) }
-                return await store.run(invocation)
-            },
-            dismiss: { [weak self] in self?.close(.findInFiles) },
-            report: { [weak self] message in self?.banner.show(message) },
-            opened: { [weak self] in self?.store?.requestFocus(section: CodeSection.id, slot: CodeSection.mainSlot) }
-        )
     }
 
     func close(_ overlay: WorkspaceOverlay) {
         guard self.overlay == overlay else { return }
         self.overlay = nil
-        if overlay == .goToFile { fileTarget = nil }
+        if overlay == .pickFile {
+            filePicker?.cancel()
+            filePicker = nil
+        }
         if overlay == .picker {
             picker?.model.cancel()
             picker = nil
@@ -765,7 +666,6 @@ final class ProjectSession {
     }
 
     func close(_ supervisor: ConnectionSupervisor) async {
-        findInFiles?.stop()
         deck.closeAll()
         guard let store else { return }
         supervisor.unregister(store)

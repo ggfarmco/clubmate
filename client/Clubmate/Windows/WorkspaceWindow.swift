@@ -144,12 +144,11 @@ private struct WorkspaceView: View {
             .environment(\.filePicker, FilePicker { [session] target in session.pickFile(target) })
             .eventBanner(session.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
-            .goToFile(session)
-            .findInFiles(session)
+            .filePicker(session)
             .fuzzyPicker(session)
             .focusedSceneValue(\.projectSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
-                guard let request, !request.slot.isEmpty, request.accepts(side: app.settings.sidebarSide) else { return }
+                guard let request, !request.slot.isEmpty else { return }
                 if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
@@ -157,7 +156,6 @@ private struct WorkspaceView: View {
             }
             .onChange(of: session.store?.connected, initial: true) { _, connected in
                 guard connected == true else { return }
-                app.syncNavigationKeys()
                 Task { await session.worktrees.load(retrying: true) }
             }
             .onChange(of: app.project(session.projectID)) {
@@ -165,9 +163,6 @@ private struct WorkspaceView: View {
             }
             .onChange(of: visibleTrees) {
                 app.notifications.focusChanged()
-            }
-            .onChange(of: session.store?.selectedSection, initial: true) { _, section in
-                if section == CodeSection.id { app.askNavigationKeys() }
             }
             .onChange(of: autoNewKey, initial: true) { old, new in
                 let store = session.store
@@ -180,9 +175,6 @@ private struct WorkspaceView: View {
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
-            .onChange(of: app.settings.autoHideSidebar) { _, enabled in
-                if !enabled { session.store?.sidebarAutoHidden = false }
-            }
     }
 
     private static let sidebarSuffix = ".sidebar"
@@ -194,7 +186,7 @@ private struct WorkspaceView: View {
 
     private var sidebarKey: SidebarKey? {
         guard let store = session.store, let section = store.selectedSection else { return nil }
-        return SidebarKey(section: section, hidden: app.settings.hidesSidebar(section, manual: store.sidebarHidden[section] == true, autoHidden: store.sidebarAutoHidden))
+        return SidebarKey(section: section, hidden: store.sidebarSlot == nil)
     }
 
     private var autoNewKey: AutoNewGate.Key {
@@ -205,7 +197,7 @@ private struct WorkspaceView: View {
     @ViewBuilder private var content: some View {
         if let store = session.store, let section = store.selectedSection {
             let side = app.settings.sidebarSide
-            let sidebar = sidebarKey?.hidden == true ? nil : side
+            let sidebar = store.sidebarSlot
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Rail(
@@ -216,23 +208,21 @@ private struct WorkspaceView: View {
                         resetOrder: app.settings.sectionOrder == nil ? nil : { [app] in app.settings.sectionOrder = nil }
                     )
                     theme.border.frame(width: 1)
-                    if sidebar == .left {
-                        SidebarPane(session: session, store: store, section: section, side: .left)
+                    if let sidebar, side == .left {
+                        SidebarPane(store: store, slot: sidebar, side: .left)
                     }
                     SlotPane(store: store, slot: "\(section).main")
-                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID) {
-                            if app.settings.autoHides(section) { store.sidebarAutoHidden = true }
-                        })
+                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID))
                         .overlay(alignment: .top) {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
-                    if sidebar == .right {
-                        SidebarPane(session: session, store: store, section: section, side: .right)
+                    if let sidebar, side == .right {
+                        SidebarPane(store: store, slot: sidebar, side: .right)
                     }
                 }
                 .background {
                     Group {
-                        Button("Toggle Sidebar") { store.toggleSidebar(app.settings) }
+                        Button("Toggle Sidebar") { store.toggleSidebar() }
                             .keyboardShortcut("s", modifiers: [.command, .control])
                         Button("Increase Font Size") { app.stepTerminalFont(1) }
                             .keyboardShortcut("+")
@@ -279,7 +269,7 @@ private struct WorkspaceView: View {
 
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
-        let sections = app.settings.ordered(session.store?.sections ?? []) + (session.store?.hostedSections ?? [])
+        let sections = app.settings.ordered(session.store?.sections ?? [])
         return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
     }
 
@@ -287,8 +277,7 @@ private struct WorkspaceView: View {
         switch action {
         case .command(let id): confirm(id)
         case .section(let id): session.store?.select(id)
-        case .toggleSidebar: session.store?.toggleSidebar(app.settings)
-        case .toggleNavigationKeys: app.settings.navigationKeys = !(app.settings.navigationKeys ?? false)
+        case .toggleSidebar: session.store?.toggleSidebar()
         case .openFolder: app.openFolder(in: windowID)
         case .newHomeTerminal: app.newHomeTerminal(in: windowID)
         case .renameWorkspace: app.rename(session.projectID)
@@ -299,7 +288,6 @@ private struct WorkspaceView: View {
         case .switchWorktree: session.chooseWorktree()
         case .newWorktree: session.newWorktree(chooseFolder: true)
         case .removeWorktree: session.chooseWorktreeToRemove()
-        case .review: session.chooseReviewBase(head: session.worktrees.current?.path)
         }
     }
 
@@ -368,8 +356,6 @@ private struct WorktreeSwitcher: View {
             FuzzyPickerList(model: model, choose: switchTo, dismiss: close)
             theme.border.frame(height: 1)
             VStack(spacing: 0) {
-                action(worktrees.reviewLabel) { session.review(base: nil) }
-                action("Review…") { session.chooseReviewBase(head: worktrees.current?.path) }
                 action("New Worktree…") { session.newWorktree(chooseFolder: false) }
                 if !worktrees.linked.isEmpty {
                     action("Remove Worktree…") { session.chooseWorktreeToRemove() }
@@ -426,7 +412,6 @@ private struct SwitcherAction: View {
 private struct MainFocus: ViewModifier {
     let slot: String
     let surface: String?
-    let claimed: () -> Void
 
     @FocusState private var focused: Bool
     @Environment(\.focusRouter) private var router
@@ -445,7 +430,6 @@ private struct MainFocus: ViewModifier {
     private func claim() {
         guard router?.take(slot) == true else { return }
         if let surface { deck?.focus(surface) } else { focused = true }
-        claimed()
     }
 }
 
@@ -455,10 +439,8 @@ struct SlotPane: View {
 
     var body: some View {
         if let view = store.slots[slot] {
-            SDUIView(node: view.tree, slot: slot, projectID: store.projectID, owner: view.owner, drafts: store.drafts) { [store] event in
+            SDUIView(node: view.tree, slot: slot, projectID: store.projectID, drafts: store.drafts) { [store] event in
                 await store.send(event)
-            } run: { [store] invocation in
-                await store.run(invocation)
             }
         } else {
             EmptyNodeView(text: "")
@@ -467,9 +449,8 @@ struct SlotPane: View {
 }
 
 private struct SidebarPane: View {
-    let session: ProjectSession
     let store: ProjectUIStore
-    let section: String
+    let slot: String
     let side: SidebarSide
 
     @Environment(\.theme) private var theme
@@ -487,15 +468,12 @@ private struct SidebarPane: View {
     var body: some View {
         HStack(spacing: 0) {
             if side == .right { handle }
-            content
+            SlotPane(store: store, slot: slot)
                 .frame(width: width)
-                .environment(\.sidebarSlot, "\(section).sidebar")
+                .environment(\.sidebarSlot, slot)
+                .environment(\.sidebarHasField, store.slots[slot]?.tree.hasTextField ?? false)
             if side == .left { handle }
         }
-    }
-
-    private var content: some View {
-        SectionSidebar(session: session, store: store, section: section)
     }
 
     private var handle: some View {

@@ -181,13 +181,7 @@ private struct ProjectCommands: Commands {
             Button("Command Palette") { shortcut(.palette) }
                 .keyboardShortcut("k")
                 .disabled(session == nil)
-            Button("Go to File…") { shortcut(.goToFile) }
-                .keyboardShortcut("p")
-                .disabled(session == nil)
-            Button("Find in Files…") { shortcut(.findInFiles) }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
-                .disabled(session == nil)
-            Button("Toggle Sidebar") { store?.toggleSidebar(app.settings) }
+            Button("Toggle Sidebar") { store?.toggleSidebar() }
                 .keyboardShortcut("b")
                 .disabled(store == nil)
             Divider()

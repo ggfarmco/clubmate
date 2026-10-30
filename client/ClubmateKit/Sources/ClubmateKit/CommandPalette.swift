@@ -32,7 +32,6 @@ public enum PaletteAction: Hashable, Sendable {
     case command(String)
     case section(String)
     case toggleSidebar
-    case toggleNavigationKeys
     case openFolder
     case newHomeTerminal
     case renameWorkspace
@@ -43,12 +42,11 @@ public enum PaletteAction: Hashable, Sendable {
     case switchWorktree
     case newWorktree
     case removeWorktree
-    case review
 
     private static let fixed: [PaletteAction] = [
-        .toggleSidebar, .toggleNavigationKeys, .openFolder, .newHomeTerminal,
+        .toggleSidebar, .openFolder, .newHomeTerminal,
         .renameWorkspace, .closeWorkspace, .removeWorkspace, .moveWorkspaceToNewWindow,
-        .switchWorktree, .newWorktree, .removeWorktree, .review,
+        .switchWorktree, .newWorktree, .removeWorktree,
     ]
 
     public init?(entryID: String) {
@@ -71,7 +69,6 @@ public enum PaletteAction: Hashable, Sendable {
         case .section(let id): "section:\(id)"
         case .switchWorkspace(let id): "workspace:\(id)"
         case .toggleSidebar: "toggle-sidebar"
-        case .toggleNavigationKeys: "toggle-navigation-keys"
         case .openFolder: "open-folder"
         case .newHomeTerminal: "new-home-terminal"
         case .renameWorkspace: "rename-workspace"
@@ -81,7 +78,6 @@ public enum PaletteAction: Hashable, Sendable {
         case .switchWorktree: "switch-worktree"
         case .newWorktree: "new-worktree"
         case .removeWorktree: "remove-worktree"
-        case .review: "review"
         }
     }
 }
@@ -91,16 +87,11 @@ extension CommandPalette {
         let commandEntries = commands.filter { !$0.hidden }.map {
             PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: $0.id)
         }
-        let rail = SectionHosting.rail(sections).map(\.id)
-        let sectionEntries = sections.map { section in
-            let index = rail.firstIndex(of: section.id) ?? 9
-            return PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
+        let sectionEntries = SectionHosting.rail(sections).enumerated().map { index, section in
+            PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
         let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle Sidebar", detail: "⌘B")] : []
-        let navigationEntries = sidebar && commands.contains { $0.id == CodeSection.navigationCommand }
-            ? [PaletteEntry(id: PaletteAction.toggleNavigationKeys.entryID, title: "Toggle nvim Navigation Keys", detail: "")]
-            : []
-        return commandEntries + sectionEntries + sidebarEntries + navigationEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
+        return commandEntries + sectionEntries + sidebarEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
     }
 
     private static func worktreeEntries(_ worktrees: [Worktree]) -> [PaletteEntry] {
@@ -108,7 +99,6 @@ extension CommandPalette {
         var entries = [
             PaletteEntry(id: PaletteAction.switchWorktree.entryID, title: "Switch Worktree…", detail: ""),
             PaletteEntry(id: PaletteAction.newWorktree.entryID, title: "New Worktree…", detail: ""),
-            PaletteEntry(id: PaletteAction.review.entryID, title: "Review…", detail: ""),
         ]
         if worktrees.contains(where: { !$0.main }) {
             entries.append(PaletteEntry(id: PaletteAction.removeWorktree.entryID, title: "Remove Worktree…", detail: ""))

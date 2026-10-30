@@ -14,7 +14,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
         │ JSON-RPC over stdio                     │ spawns, attaches
         ▼                                         ▼
   plugins (one process each)               clubmate-session (one per PTY)
-  editor-nvim · files · git · search        terminals, nvim TUI; survives
+  editor-nvim · git · search                terminals, nvim TUI; survives
   terminals · processes · agents · cron     app and core restarts
 ```
 
@@ -30,7 +30,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | Package | Role |
 |---|---|
 | `rpc` | JSON-RPC server, built-in methods (primitives), command registry. Every command is flagged `agent` (visible to MCP/agents), `destructive` (needs in-app approval when an agent calls it), `hidden` (not in the palette), `remote` (runnable by paired companion devices) or `userOnly`; `scope: app` commands need no workspace. |
-| `bus` | Persistent event bus on SQLite (`bus.db`). Topics, publish, subscribe with backfill, 64 KiB payload cap. Plugins and the app react to `project.updated`, `review.changed`, `agents.changed`, `notify.posted`, … |
+| `bus` | Persistent event bus on SQLite (`bus.db`). Topics, publish, subscribe with backfill, 64 KiB payload cap. Plugins and the app react to `project.updated`, `agents.changed`, `notify.posted`, … |
 | `project` | Workspaces (`clubmate.db`): folders, git repos, the selected worktree per folder, missing folders. |
 | `session` | Session manager: creates, attaches, kills and removes `clubmate-session` hosts; owner plugin and project per session. |
 | `proc` | Process tracker: process trees per session and per root a plugin registered (agents), CPU/MEM history, orphan detection and kill. |
@@ -46,10 +46,9 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 ## Plugins (`plugins/`)
 | Plugin | Does |
 |---|---|
-| `editor-nvim` | Runs your nvim (bundled 0.12.6 by default, system nvim selectable) in a session, one per worktree. It drives nvim over RPC: open/diff/checktime/selection/unsaved, plus a review bridge to the diffview fork (`diffview.clubmate`). Hosts the Code section. |
-| `files` | File tree with neo-tree keys and focus/hoist. |
-| `git` | Status, commit and stage, worktrees and branches (switcher), and review (base ◂ head, filters, reviewed marks, checkpoint bases `commit:<sha>`). Shown as the Git tab of the Code section (`host: editor-nvim`). |
-| `search` | Find in files with the bundled ripgrep. |
+| `editor-nvim` | Runs your nvim (the bundled 0.12.6, else the `nvim` in `PATH`) in a session, one per worktree. It drives nvim over RPC: open/quickfix/diffview/checktime/selection/unsaved. Hosts the Code section. |
+| `git` | Worktrees and branches behind the switcher in the window title, and a watch that moves folders off worktrees removed outside Clubmate. No section. |
+| `search` | File index and fuzzy path search behind the agents composer's file picker. No section. |
 | `terminals` | Terminal sessions. |
 | `processes` | The Processes section, built on the core's process tracker. |
 | `agents` | ACP client that hosts Claude Code (`@agentclientprotocol/claude-agent-acp`, installed into its state dir). One process per (agent, workspace, worktree). Keeps a per-session JSONL log, takes a git checkpoint per turn (`refs/clubmate/cp/<session>/<turn>`), and renders the Agents section. |
@@ -58,9 +57,9 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | `internal/` | Shared helpers: `fuzzy`, `gitrepo`. |
 
 ## UI model (SDUI)
-- **Sections:** plugins declare them in `plugin.json`, with an icon, order and slots (`<section>.sidebar`, `<section>.main`, plus extra slots like `git.review`). The rail shows sections in the user's order. A hosted section appears as a tab of another section.
+- **Sections:** plugins declare them in `plugin.json`, with an icon, order and slots (`<section>.sidebar`, `<section>.main`, plus extra slots a section declares). The rail shows sections in the user's order. A section may name another as its `host`; it then has no rail icon of its own.
 - **Rendering:** a plugin renders a tree of nodes (`pkg/sdui` builders) into a slot. The core validates and stores it, then pushes it to every client watching that workspace.
-- **Events:** the app sends user events back as `ui.event {slot, node, action, value}`. Typed text and other client-only state stay in ClubmateKit (e.g. composer drafts, sidebar tabs).
+- **Events:** the app sends user events back as `ui.event {slot, node, action, value}`. Typed text and other client-only state stay in ClubmateKit (e.g. composer drafts).
 - **Terminals:** a terminal is a `surface` node. The app hosts a libghostty surface (`client/GhosttyKit.xcframework`) attached to the session's socket.
 - **Reference:** the contract for every node, prop and event is in `docs/sdui-protocol.md`.
 
@@ -68,7 +67,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 - **Agents in terminals:** Claude Code in a Clubmate terminal can drive Clubmate through MCP (`clubmate mcp`), seeing only agent-visible commands. Destructive commands ask for approval in the app. See `docs/agents.md`.
 - **Agents section:** ACP over stdio (`plugins/agents/acp`). Clubmate never writes `~/.claude*` or `.mcp.json`. See `.claude/skills/agents-acp/SKILL.md`.
 - **Notifications:** `cm notify`, `notify.post` and the app hub (banners, inbox, badges). See `docs/notifications.md`.
-- **nvim:** the `clubmate` Lua module and navigation keys. Your config is never written. See `docs/nvim-integration.md`.
+- **nvim:** the bundled Neovim with your own config, which is never written; agents' Review changes opens diffview. See `docs/nvim-integration.md`.
 
 ## State on disk
 - **State dir:** `~/Library/Application Support/clubmate`, or `clubmate-dev` for dev builds. Holds `clubmate.db`, `bus.db`, `plugins.db`, `plugin-data/<id>/`, `sessions/`, `diagnostics/`, `core.log`, `plugins/<id>.log` and `notifications.json`.

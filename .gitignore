@@ -13,4 +13,6 @@ client/Clubmate/Resources/terminfo
 /docs/superpowers
 /docs/verification
 /plugins/agents/agents
+/agents
+/editor-nvim
 .claude/worktrees/

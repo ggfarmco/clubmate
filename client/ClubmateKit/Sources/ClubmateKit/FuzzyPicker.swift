@@ -66,9 +66,6 @@ public enum FuzzyRank {
 @MainActor
 @Observable
 public final class FuzzyPickerModel {
-    public static let refsCommand = "git.review-refs"
-
-    public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
     public typealias Source = @MainActor (String) async -> Result<[PickerItem], ClubmateError>
 
     public let placeholder: String
@@ -156,21 +153,5 @@ public final class FuzzyPickerModel {
 
     public static func local(_ items: @escaping @MainActor () -> [PickerItem]) -> Source {
         { query in .success(FuzzyRank.rank(items(), query: query, text: \.label)) }
-    }
-
-    public static func refs(run: @escaping Run, kinds: Set<String>? = nil) -> Source {
-        { query in
-            switch await run(CommandInvocation(id: refsCommand, args: .object(["query": .string(query)]))) {
-            case .success(let value):
-                return .success((value.arrayValue ?? []).compactMap { ref in
-                    guard let fields = ref.objectValue, let id = fields["ref"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
-                    let kind = fields["kind"]?.stringValue ?? ""
-                    guard kinds?.contains(kind) ?? true else { return nil }
-                    return PickerItem(id: id, label: label, detail: kind)
-                })
-            case .failure(let error):
-                return .failure(error)
-            }
-        }
     }
 }

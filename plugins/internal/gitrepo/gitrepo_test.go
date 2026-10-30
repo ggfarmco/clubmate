@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -43,38 +42,6 @@ func newRepo(t *testing.T) string {
 	return dir
 }
 
-func TestStatusEntries(t *testing.T) {
-	repo := newRepo(t)
-	for _, f := range []string{"a.go", "b.go", "d.go"} {
-		write(t, filepath.Join(repo, f), "package x\n")
-	}
-	write(t, filepath.Join(repo, ".gitignore"), "bin/\n")
-	git(t, repo, "add", ".")
-	git(t, repo, "commit", "-q", "-m", "init")
-	write(t, filepath.Join(repo, "a.go"), "package y\n")
-	git(t, repo, "add", "a.go")
-	write(t, filepath.Join(repo, "b.go"), "package y\n")
-	write(t, filepath.Join(repo, "c.go"), "package x\n")
-	git(t, repo, "mv", "d.go", "e.go")
-	write(t, filepath.Join(repo, "bin", "x"), "x")
-
-	top, entries, err := gitrepo.Status(t.Context(), repo)
-	require.NoError(t, err)
-	assert.Equal(t, repo, top)
-	byPath := map[string]gitrepo.Entry{}
-	for _, e := range entries {
-		assert.True(t, filepath.IsAbs(e.Path))
-		byPath[e.Path] = e
-	}
-	at := func(name string) gitrepo.Entry { return byPath[filepath.Join(repo, name)] }
-	assert.Equal(t, "M ", string([]byte{at("a.go").X, at("a.go").Y}))
-	assert.Equal(t, " M", string([]byte{at("b.go").X, at("b.go").Y}))
-	assert.Equal(t, "??", string([]byte{at("c.go").X, at("c.go").Y}))
-	assert.Equal(t, "R ", string([]byte{at("e.go").X, at("e.go").Y}))
-	assert.Equal(t, filepath.Join(repo, "d.go"), at("e.go").Orig)
-	assert.NotContains(t, byPath, filepath.Join(repo, "bin"))
-}
-
 func TestDirsWorktree(t *testing.T) {
 	main := newRepo(t)
 	write(t, filepath.Join(main, "a"), "a")
@@ -105,26 +72,6 @@ func TestBranch(t *testing.T) {
 	b, err = gitrepo.Branch(t.Context(), repo)
 	require.NoError(t, err)
 	assert.Regexp(t, `^\(detached [0-9a-f]+\)$`, b)
-}
-
-func TestIgnoredPaths(t *testing.T) {
-	repo := newRepo(t)
-	write(t, filepath.Join(repo, ".gitignore"), "bin/\n*.log\n")
-	write(t, filepath.Join(repo, "bin", "x"), "x")
-	write(t, filepath.Join(repo, "a.log"), "x")
-	write(t, filepath.Join(repo, "a.go"), "x")
-	paths := []string{"bin", "bin/x", "a.log", "a.go"}
-	for i, p := range paths {
-		paths[i] = filepath.Join(repo, p)
-	}
-
-	got, err := gitrepo.Ignored(t.Context(), repo, paths)
-	require.NoError(t, err)
-	assert.Equal(t, map[string]bool{paths[0]: true, paths[1]: true, paths[2]: true}, got)
-
-	got, err = gitrepo.Ignored(t.Context(), repo, paths[3:])
-	require.NoError(t, err)
-	assert.Empty(t, got)
 }
 
 func TestMutateReturnsDespiteOrphanHoldingOutput(t *testing.T) {
@@ -170,13 +117,6 @@ func commitFile(t *testing.T, repo, name, content string) {
 	git(t, repo, "commit", "-q", "-m", name)
 }
 
-func revParse(t *testing.T, repo, ref string) string {
-	t.Helper()
-	out, err := exec.Command("git", "-C", repo, "rev-parse", ref).Output()
-	require.NoError(t, err)
-	return strings.TrimSpace(string(out))
-}
-
 func TestDefaultBase(t *testing.T) {
 	master := t.TempDir()
 	git(t, master, "init", "-q", "-b", "master")
@@ -199,75 +139,6 @@ func TestDefaultBase(t *testing.T) {
 	commitFile(t, trunk, "a", "a")
 	_, err = gitrepo.DefaultBase(t.Context(), trunk)
 	assert.ErrorIs(t, err, gitrepo.ErrNoDefaultBase)
-}
-
-func TestMergeBaseAndChanges(t *testing.T) {
-	repo := newRepo(t)
-	commitFile(t, repo, "a.go", "package x\n")
-	commitFile(t, repo, "d.go", "package x\n")
-	commitFile(t, repo, "HEAD", "x\n")
-	baseSHA := revParse(t, repo, "HEAD")
-	git(t, repo, "checkout", "-q", "-b", "feature/x")
-	commitFile(t, repo, "n.go", "package x\n")
-	commitFile(t, repo, "a.go", "package y\n")
-	git(t, repo, "rm", "-q", "d.go")
-	git(t, repo, "commit", "-q", "-m", "rm")
-
-	mb, err := gitrepo.MergeBase(t.Context(), repo, "main", "HEAD")
-	require.NoError(t, err)
-	assert.Equal(t, baseSHA, mb)
-
-	write(t, filepath.Join(repo, "n.go"), "package x\n\nvar n\n")
-	write(t, filepath.Join(repo, "u.go"), "u\nu")
-	fifo := filepath.Join(t.TempDir(), "fifo")
-	require.NoError(t, syscall.Mkfifo(fifo, 0o600))
-	require.NoError(t, os.Symlink(fifo, filepath.Join(repo, "link")))
-	changes, err := gitrepo.WorkingChanges(t.Context(), repo, mb)
-	require.NoError(t, err)
-	assert.Equal(t, []gitrepo.Change{
-		{Path: "a.go", Status: "M", Additions: 1, Deletions: 1},
-		{Path: "d.go", Status: "D", Deletions: 1},
-		{Path: "link", Status: "?", Additions: 1},
-		{Path: "n.go", Status: "A", Additions: 3},
-		{Path: "u.go", Status: "?", Additions: 2},
-	}, changes)
-
-	_, err = gitrepo.MergeBase(t.Context(), repo, "nope", "HEAD")
-	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)
-
-	git(t, repo, "checkout", "-q", "--orphan", "lone")
-	git(t, repo, "rm", "-rf", "-q", ".")
-	commitFile(t, repo, "z", "z")
-	_, err = gitrepo.MergeBase(t.Context(), repo, "main", "HEAD")
-	assert.ErrorIs(t, err, gitrepo.ErrNoMergeBase)
-}
-
-func TestMergeBaseUnbornHead(t *testing.T) {
-	repo := newRepo(t)
-	_, err := gitrepo.MergeBase(t.Context(), repo, "main", "HEAD")
-	assert.ErrorIs(t, err, gitrepo.ErrUnknownRef)
-}
-
-func TestBranches(t *testing.T) {
-	origin := t.TempDir()
-	git(t, origin, "init", "-q", "-b", "main")
-	commitFile(t, origin, "a", "a")
-	clone := filepath.Join(t.TempDir(), "clone")
-	git(t, filepath.Dir(clone), "clone", "-q", origin, clone)
-
-	local, remote, err := gitrepo.Branches(t.Context(), clone)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"main"}, local)
-	assert.Equal(t, []string{"origin/main"}, remote)
-}
-
-func TestValidGlobAllowsOnlyGlobCharacters(t *testing.T) {
-	for _, g := range []string{"*_test.go", "**/testdata/**", "{a,b}.go", "[!a]?.ts", "pkg/файл-1.go"} {
-		assert.True(t, gitrepo.ValidGlob(g), g)
-	}
-	for _, g := range []string{"", "`touch x`", "$HOME", "a b", "a\nb", "%", "#", "~/x", "a;b"} {
-		assert.False(t, gitrepo.ValidGlob(g), g)
-	}
 }
 
 func TestValidBranchName(t *testing.T) {

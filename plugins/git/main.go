@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,32 +14,18 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
-	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
 	refreshDelay  = 300 * time.Millisecond
-	diffCommand   = "editor-nvim.diff"
-	closeCommand  = "editor-nvim.review-close"
-	gitSection    = "git"
-	editorSection = "editor-nvim"
-	editorSlot    = "editor-nvim.main"
 	mutateTimeout = 10 * time.Minute
-	committing    = "Committing…"
-	staging       = "Staging…"
 	currentHead   = "HEAD"
 )
 
 var (
-	errUnknownAction  = errors.New("unknown action")
 	errUnknownCommand = errors.New("unknown command")
-	errNotChanges     = errors.New("only unstaged changes can be discarded")
-	errNoMessage      = errors.New("commit message is required")
 	errUnknownRepo    = errors.New("unknown repository")
-	errStaleTarget    = errors.New("the file is no longer listed")
-	errBusy           = errors.New("git is busy")
-	errNoRepo         = errors.New("no repository to review")
 )
 
 type projectEvent struct {
@@ -56,54 +40,28 @@ type deletedPayload struct {
 	ID string `json:"id"`
 }
 
-type commitForm struct {
-	Repo    string `json:"repo"`
-	Message string `json:"message"`
-}
-
-type diffArgs struct {
-	Path   string `json:"path"`
-	Base   string `json:"base"`
-	Target string `json:"target"`
-}
-
 type state struct {
-	mu       sync.Mutex
-	synced   bool
-	dead     bool
-	pending  bool
-	running  bool
-	dirty    bool
-	renderMu sync.Mutex
-	repos    []string
-	gitDirs  []string
-	views    map[string]repoView
-	selected string
-	folded   map[string]bool
-	commits  int
-	reviews  map[string]*review
-	active   string
-	started  int64
-	listed   map[string][]leaf
-	gen      int
-	filters  filters
-	busy     string
-	failure  string
-	watch    string
-	missing  []string
+	mu      sync.Mutex
+	dead    bool
+	pending bool
+	running bool
+	dirty   bool
+	repos   []string
+	gitDirs []string
+	busy    string
+	watch   string
+	missing []string
 }
 
 type app struct {
 	mu       sync.Mutex
 	projects map[string]*state
 	ops      opTable
-	hostOnce sync.Once
-	hosted   bool
 }
 
 func main() {
 	a := &app{projects: map[string]*state{}}
-	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
+	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
@@ -115,7 +73,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.*", "project.*", "review.*", startedTopic} {
+	for _, pattern := range []string{"ui.*", "project.*"} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -150,18 +108,6 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			return
 		}
 		a.drop(ctx, h, p.ID)
-	case reviewTopic:
-		var p reviewChanged
-		if !decodeEvent(ev, &p) {
-			return
-		}
-		a.reviewChanged(ctx, h, p)
-	case startedTopic:
-		var p rootEvent
-		if !decodeEvent(ev, &p) {
-			return
-		}
-		a.editorStarted(h, p)
 	}
 }
 
@@ -178,46 +124,6 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 	}
 }
 
-func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
-	s := a.get(ev.ProjectID)
-	if err := a.ensure(ctx, h, ev.ProjectID, s); err != nil {
-		return nil, err
-	}
-	if ev.Slot == reviewSlot {
-		return nil, a.reviewEvent(ctx, h, ev, s)
-	}
-	if ev.Action != "expand" && ev.Action != "collapse" {
-		s.clearFailure()
-	}
-	switch ev.Action {
-	case "select":
-		var item string
-		if err := json.Unmarshal(ev.Value, &item); err != nil {
-			return nil, fmt.Errorf("select value: %w", err)
-		}
-		return nil, a.selectItem(ctx, h, ev.ProjectID, s, item)
-	case "expand", "collapse":
-		var item string
-		if err := json.Unmarshal(ev.Value, &item); err != nil {
-			return nil, fmt.Errorf("%s value: %w", ev.Action, err)
-		}
-		return nil, a.fold(ctx, h, ev.ProjectID, s, item, ev.Action == "collapse")
-	case stageAction, unstageAction, discardAction:
-		if err := a.apply(ctx, s, ev.Action, ev.Value); err != nil {
-			return nil, err
-		}
-		a.schedule(h, ev.ProjectID, s, 0)
-		return nil, nil
-	case commitAction:
-		var f commitForm
-		if err := json.Unmarshal(ev.Value, &f); err != nil {
-			return nil, fmt.Errorf("commit value: %w", err)
-		}
-		return nil, a.commit(ctx, h, ev.ProjectID, s, f)
-	}
-	return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
-}
-
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	s := a.get(cmd.ProjectID)
 	if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
@@ -225,29 +131,6 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	}
 	if strings.HasPrefix(cmd.ID, "git.worktree") || strings.HasPrefix(cmd.ID, "git.branch") {
 		return a.worktreeCommand(ctx, h, cmd, s)
-	}
-	if cmd.ID == "git.end-review" || strings.HasPrefix(cmd.ID, "git.review") {
-		return a.reviewCommand(ctx, h, cmd, s)
-	}
-	s.clearFailure()
-	switch cmd.ID {
-	case "git.refresh":
-		a.schedule(h, cmd.ProjectID, s, 0)
-		return nil, nil
-	case "git.stage-all":
-		return nil, a.background(ctx, h, cmd.ProjectID, s, staging, s.live(), func(ctx context.Context, repo string) error {
-			_, err := mutate(ctx, repo, "add", "-A")
-			return err
-		})
-	case "git.unstage-all":
-		var errs []error
-		for _, repo := range s.live() {
-			if err := unstage(ctx, repo, "."); err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", filepath.Base(repo), err))
-			}
-		}
-		a.schedule(h, cmd.ProjectID, s, 0)
-		return nil, errors.Join(errs...)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -263,7 +146,7 @@ func (a *app) get(id string) *state {
 	defer a.mu.Unlock()
 	s, ok := a.projects[id]
 	if !ok {
-		s = &state{folded: map[string]bool{}, reviews: map[string]*review{}}
+		s = &state{}
 		a.projects[id] = s
 	}
 	return s
@@ -276,7 +159,6 @@ func (a *app) open(ctx context.Context, h *pluginsdk.Host, id string) {
 		return
 	}
 	logError("watch "+id, a.rewatch(ctx, h, id, s))
-	logError("render "+id, a.render(ctx, h, id, s))
 	a.schedule(h, id, s, 0)
 }
 
@@ -303,7 +185,6 @@ func (a *app) projectChanged(ctx context.Context, h *pluginsdk.Host, id string, 
 	if updated && watching {
 		logError("watch "+id, a.rewatch(ctx, h, id, s))
 	}
-	logError("render "+id, a.render(ctx, h, id, s))
 	if watching {
 		a.schedule(h, id, s, 0)
 	}
@@ -325,7 +206,6 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	if watch != "" {
 		logError("unwatch "+id, h.UnwatchFS(ctx, watch))
 	}
-	logError("drop "+id, h.StorageDelete(ctx, reviewKey(id)))
 }
 
 func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
@@ -346,16 +226,6 @@ func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 	return nil
 }
 
-func (a *app) ensure(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	s.mu.Lock()
-	synced := s.synced
-	s.mu.Unlock()
-	if synced {
-		return nil
-	}
-	return a.sync(ctx, h, id, s)
-}
-
 func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
 	p, err := h.GetProject(ctx, id)
 	if err != nil {
@@ -374,21 +244,8 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 		gitDirs = append(gitDirs, gitDir, commonDir)
 	}
 	s.mu.Lock()
-	first := !s.synced
-	s.mu.Unlock()
-	var stored storedReviews
-	if first {
-		if _, err := h.StorageGet(ctx, reviewKey(id), &stored); err != nil {
-			logError("restore review "+id, err)
-			stored = storedReviews{}
-		}
-	}
-	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.synced {
-		s.restore(stored)
-	}
-	s.repos, s.gitDirs, s.synced = repos, gitDirs, true
+	s.repos, s.gitDirs = repos, gitDirs
 	return nil
 }
 
@@ -411,7 +268,7 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 		s.running = true
 		s.mu.Unlock()
 		for {
-			logError("refresh "+id, a.refresh(context.Background(), h, id, s))
+			a.checkMissing(context.Background(), h, id, s)
 			s.mu.Lock()
 			if !s.dirty {
 				s.running = false
@@ -422,42 +279,6 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 			s.mu.Unlock()
 		}
 	})
-}
-
-func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	a.checkMissing(ctx, h, id, s)
-	s.mu.Lock()
-	repos := slices.Clone(s.repos)
-	s.mu.Unlock()
-	views := make(map[string]repoView, len(repos))
-	for _, repo := range repos {
-		_, entries, err := gitrepo.Status(ctx, repo)
-		if err != nil {
-			logError("status "+repo, err)
-			views[repo] = repoView{Path: repo, Problem: problem(ctx, repo, err)}
-			continue
-		}
-		branch, err := gitrepo.Branch(ctx, repo)
-		logError("branch "+repo, err)
-		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}, Dirs: map[string]bool{}}
-		for _, l := range leaves(rv) {
-			if l.Group == groupChanges && blocked(l) == "" {
-				rv.Restorable[l.Path] = true
-			}
-			if info, err := os.Lstat(l.Path); l.Group == groupUntracked && err == nil && info.IsDir() {
-				rv.Dirs[l.Path] = true
-			}
-		}
-		views[repo] = rv
-	}
-	s.mu.Lock()
-	s.views = views
-	s.listed = map[string][]leaf{}
-	s.gen++
-	s.selected = s.follow(s.selected)
-	s.mu.Unlock()
-	a.refreshReview(ctx, h, id, s)
-	return a.render(ctx, h, id, s)
 }
 
 func (a *app) checkMissing(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
@@ -476,365 +297,6 @@ func (a *app) checkMissing(ctx context.Context, h *pluginsdk.Host, id string, s 
 		_, err = h.CheckWorktrees(ctx, id)
 		logError("check worktrees "+id, err)
 	}
-}
-
-func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	s.renderMu.Lock()
-	defer s.renderMu.Unlock()
-	s.mu.Lock()
-	if s.dead {
-		s.mu.Unlock()
-		return nil
-	}
-	views := make([]repoView, len(s.repos))
-	for i, r := range s.repos {
-		views[i] = s.view(r)
-	}
-	m := sidebarModel{Repos: views, Folded: maps.Clone(s.folded), Live: s.liveLocked(), FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
-	if sel := s.leaf(s.selected); sel != nil {
-		m.Selected = sel.id()
-	}
-	review := s.reviewModel()
-	listed, gen := maps.Clone(s.listed), s.gen
-	s.mu.Unlock()
-	if listed == nil {
-		listed = map[string][]leaf{}
-	}
-	m.Dirs = untrackedDirs(ctx, views, m.Folded, listed)
-	s.mu.Lock()
-	if s.gen == gen && s.listed != nil {
-		maps.Copy(s.listed, listed)
-	}
-	s.mu.Unlock()
-	_, err := h.Render(ctx, id, reviewSlot, reviewView(review))
-	logError("review "+id, err)
-	if !a.gitHosted(ctx, h) {
-		_, err = h.Render(ctx, id, mainSlot, sdui.Empty(noEditor))
-		logError("main "+id, err)
-	}
-	_, err = h.Render(ctx, id, sidebarSlot, sidebarView(m))
-	return err
-}
-
-func (a *app) gitHosted(ctx context.Context, h *pluginsdk.Host) bool {
-	a.hostOnce.Do(func() {
-		a.hosted = true
-		var sections []struct {
-			ID   string `json:"id"`
-			Host string `json:"host"`
-		}
-		if err := h.Call(ctx, "ui.sections", struct{}{}, &sections); err != nil {
-			logError("sections", err)
-			return
-		}
-		for _, sec := range sections {
-			if sec.ID == gitSection {
-				a.hosted = sec.Host != ""
-			}
-		}
-	})
-	return a.hosted
-}
-
-func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
-	if strings.HasSuffix(item, idSep+moreID) {
-		return nil
-	}
-	s.mu.Lock()
-	sel := s.leaf(item)
-	s.selected = ""
-	if sel != nil {
-		s.selected = item
-	}
-	s.mu.Unlock()
-	if err := a.render(ctx, h, id, s); err != nil || sel == nil {
-		return err
-	}
-	return openDiff(ctx, h, id, *sel)
-}
-
-func (a *app) fold(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string, on bool) error {
-	s.mu.Lock()
-	s.folded[item] = on
-	s.mu.Unlock()
-	return a.render(ctx, h, id, s)
-}
-
-func (a *app) apply(ctx context.Context, s *state, action string, value json.RawMessage) error {
-	var item string
-	if err := json.Unmarshal(value, &item); err != nil {
-		return fmt.Errorf("%s value: %w", action, err)
-	}
-	s.mu.Lock()
-	sel := s.leaf(item)
-	s.mu.Unlock()
-	if sel == nil {
-		return errStaleTarget
-	}
-	rel := sel.rel()
-	var err error
-	switch action {
-	case stageAction:
-		_, err = run(ctx, sel.Repo, "add", "--", rel)
-	case unstageAction:
-		paths := []string{rel}
-		if sel.Orig != "" {
-			paths = append(paths, relPath(sel.Repo, sel.Orig))
-		}
-		err = unstage(ctx, sel.Repo, paths...)
-	case discardAction:
-		if sel.Group != groupChanges {
-			return errNotChanges
-		}
-		if reason := blocked(*sel); reason != "" {
-			return fmt.Errorf("cannot discard %s: %s", rel, reason)
-		}
-		_, err = run(ctx, sel.Repo, "restore", "--", rel)
-	}
-	return err
-}
-
-func openDiff(ctx context.Context, h *pluginsdk.Host, id string, l leaf) error {
-	if info, err := os.Lstat(l.Path); err == nil && info.IsDir() {
-		return nil
-	}
-	args := diffArgs{Path: l.Path, Base: "index", Target: "worktree"}
-	if l.Group == groupStaged {
-		args.Base, args.Target = "head", "index"
-	}
-	return h.RunCommand(ctx, diffCommand, id, args, nil)
-}
-
-func (a *app) commit(ctx context.Context, h *pluginsdk.Host, id string, s *state, f commitForm) error {
-	if strings.TrimSpace(f.Message) == "" {
-		return errNoMessage
-	}
-	live := s.live()
-	repo := f.Repo
-	if repo == "" && len(live) == 1 {
-		repo = live[0]
-	}
-	if !slices.Contains(live, repo) {
-		return fmt.Errorf("%w: %q", errUnknownRepo, repo)
-	}
-	return a.background(ctx, h, id, s, committing, []string{repo}, func(ctx context.Context, repo string) error {
-		if _, err := mutate(ctx, repo, "commit", "-m", f.Message); err != nil {
-			return err
-		}
-		s.mu.Lock()
-		s.commits++
-		s.mu.Unlock()
-		return nil
-	})
-}
-
-func (a *app) background(ctx context.Context, h *pluginsdk.Host, id string, s *state, busy string, repos []string, op func(context.Context, string) error) error {
-	s.mu.Lock()
-	if s.busy != "" {
-		s.mu.Unlock()
-		return errBusy
-	}
-	s.busy = busy
-	s.mu.Unlock()
-	logError("render "+id, a.render(ctx, h, id, s))
-	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutateTimeout)
-		defer cancel()
-		var errs []error
-		for _, repo := range repos {
-			if err := op(ctx, repo); err != nil {
-				errs = append(errs, err)
-			}
-		}
-		s.mu.Lock()
-		s.busy = ""
-		if err := errors.Join(errs...); err != nil {
-			s.failure = err.Error()
-		}
-		s.mu.Unlock()
-		logError("render "+id, a.render(ctx, h, id, s))
-		a.schedule(h, id, s, 0)
-	}()
-	return nil
-}
-
-func (s *state) clearFailure() {
-	s.mu.Lock()
-	s.failure = ""
-	s.mu.Unlock()
-}
-
-func (s *state) view(repo string) repoView {
-	v, ok := s.views[repo]
-	if !ok {
-		v = repoView{Path: repo}
-	}
-	return v
-}
-
-func (s *state) live() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.liveLocked()
-}
-
-func (s *state) liveLocked() []string {
-	var live []string
-	for _, r := range s.repos {
-		if s.view(r).Problem == "" {
-			live = append(live, r)
-		}
-	}
-	return live
-}
-
-func (s *state) leaf(id string) *leaf {
-	if id == "" {
-		return nil
-	}
-	for _, r := range s.repos {
-		for _, l := range leaves(s.view(r)) {
-			if l.id() == id {
-				return &l
-			}
-		}
-	}
-	parts := strings.SplitN(id, idSep, 3)
-	if len(parts) != 3 || parts[1] != groupUntracked || !slices.Contains(s.repos, parts[0]) || filepath.Clean(parts[2]) != parts[2] {
-		return nil
-	}
-	v := s.view(parts[0])
-	for _, l := range leaves(v) {
-		if v.Dirs[l.Path] && strings.HasPrefix(parts[2], l.Path+string(filepath.Separator)) {
-			return &leaf{Repo: parts[0], Group: groupUntracked, Path: parts[2], Code: "U"}
-		}
-	}
-	return nil
-}
-
-func untrackedDirs(ctx context.Context, views []repoView, folded map[string]bool, listed map[string][]leaf) map[string][]leaf {
-	dirs := map[string][]leaf{}
-	for _, r := range views {
-		for _, l := range leaves(r) {
-			if !r.Dirs[l.Path] {
-				continue
-			}
-			dirs[l.id()] = nil
-			if collapsed, ok := folded[l.id()]; !ok || collapsed {
-				continue
-			}
-			if _, ok := listed[l.id()]; !ok {
-				listed[l.id()] = dirFiles(ctx, l)
-			}
-			dirs[l.id()] = listed[l.id()]
-		}
-	}
-	return dirs
-}
-
-func dirFiles(ctx context.Context, dir leaf) []leaf {
-	out, err := run(ctx, dir.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", dir.rel()+"/")
-	if err != nil {
-		return nil
-	}
-	var files []leaf
-	for p := range strings.SplitSeq(string(out), "\x00") {
-		if p != "" && len(files) < maxGroupLeaves {
-			files = append(files, leaf{Repo: dir.Repo, Group: groupUntracked, Path: filepath.Join(dir.Repo, p), Code: "U"})
-		}
-	}
-	return files
-}
-
-func (s *state) follow(id string) string {
-	if id == "" || s.leaf(id) != nil {
-		return id
-	}
-	parts := strings.SplitN(id, idSep, 3)
-	if len(parts) != 3 {
-		return ""
-	}
-	for _, g := range groupTitles {
-		if l := s.leaf(parts[0] + idSep + g.id + idSep + parts[2]); l != nil {
-			return l.id()
-		}
-	}
-	return ""
-}
-
-func reviewError(base string, err error) string {
-	switch {
-	case errors.Is(err, gitrepo.ErrUnknownRef):
-		return "unknown branch " + strings.TrimPrefix(err.Error(), gitrepo.ErrUnknownRef.Error()+": ")
-	case errors.Is(err, gitrepo.ErrNoMergeBase):
-		return "no merge base with " + base
-	}
-	first, _, _ := strings.Cut(gitError(nil, err).Error(), "\n")
-	return first
-}
-
-func reviewKey(projectID string) string {
-	return "review/" + projectID
-}
-
-func blocked(l leaf) string {
-	switch {
-	case l.Unmerged:
-		return "unmerged"
-	case l.Code == "M" || l.Code == "T":
-		info, err := os.Lstat(l.Path)
-		if err != nil {
-			return "missing from the worktree"
-		}
-		if !info.Mode().IsRegular() && info.Mode()&fs.ModeSymlink == 0 {
-			return "not a regular file or symlink in the worktree"
-		}
-		return ""
-	case l.Code == "D":
-		for dir := filepath.Dir(l.Path); strings.HasPrefix(dir, l.Repo+string(filepath.Separator)); dir = filepath.Dir(dir) {
-			info, err := os.Lstat(dir)
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			if err != nil || !info.IsDir() {
-				return relPath(l.Repo, dir) + " is not a directory"
-			}
-		}
-		if _, err := os.Lstat(l.Path); !errors.Is(err, fs.ErrNotExist) {
-			return "the path exists in the worktree"
-		}
-		return ""
-	case l.Code == "A" || l.Code == "R" || l.Code == "C":
-		return "intent-to-add file"
-	}
-	return "unsupported status " + l.Code
-}
-
-func unstage(ctx context.Context, repo string, paths ...string) error {
-	args := append([]string{"restore", "--staged", "--"}, paths...)
-	out, err := gitrepo.Run(ctx, repo, "rev-parse", "--verify", "-q", "HEAD")
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 && len(ee.Stderr) == 0 {
-		args = append([]string{"rm", "--cached", "-r", "-f", "-q", "--ignore-unmatch", "--"}, paths...)
-	} else if err != nil {
-		return gitError(out, err)
-	}
-	_, err = run(ctx, repo, args...)
-	return err
-}
-
-func problem(ctx context.Context, repo string, statusErr error) string {
-	if _, err := os.Stat(repo); err != nil {
-		return missingDetail
-	}
-	out, err := gitrepo.Run(ctx, repo, "rev-parse", "--is-inside-work-tree")
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok && strings.Contains(string(ee.Stderr), "not a git repository") {
-		return notGitDetail
-	}
-	if err == nil {
-		err = statusErr
-	}
-	first, _, _ := strings.Cut(gitError(out, err).Error(), "\n")
-	return "git error: " + first
 }
 
 func mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {

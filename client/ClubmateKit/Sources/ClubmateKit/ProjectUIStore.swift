@@ -8,7 +8,6 @@ public final class ProjectUIStore {
     public let drafts = ComposerDrafts()
     public private(set) var sections: [SectionInfo] = []
     public private(set) var hostedSections: [SectionInfo] = []
-    public var sidebarTabs = SidebarTabs()
     public private(set) var slots: [String: SlotView] = [:]
     public private(set) var connected = false
     public private(set) var failure: String?
@@ -31,7 +30,6 @@ public final class ProjectUIStore {
             updateState("sidebarHidden", .object(sidebarHidden.mapValues { .bool($0) }))
         }
     }
-    public var sidebarAutoHidden = false
 
     @ObservationIgnored private var client: CoreClient
     @ObservationIgnored private var subscription: String?
@@ -111,10 +109,6 @@ public final class ProjectUIStore {
     @discardableResult
     public func select(_ section: String, slot: String = "") -> String {
         guard let target = SectionHosting.resolve(section, slot: slot, in: allSections) else { return slot }
-        if let tab = target.tab {
-            sidebarTabs.choose(tab, in: target.section)
-            revealSidebar(target.section)
-        }
         selectedSection = target.section
         return target.slot
     }
@@ -140,18 +134,18 @@ public final class ProjectUIStore {
         await saving?.value
     }
 
-    public func toggleSidebar(_ settings: AppSettings) {
-        guard let selectedSection else { return }
-        if settings.hidesSidebar(selectedSection, manual: sidebarHidden[selectedSection] == true, autoHidden: sidebarAutoHidden) {
-            revealSidebar(selectedSection)
-        } else {
-            sidebarHidden[selectedSection] = true
-        }
+    public var sidebarSlot: String? {
+        guard let selectedSection, selectedSection != CodeSection.id, sidebarHidden[selectedSection] != true else { return nil }
+        return "\(selectedSection).sidebar"
+    }
+
+    public func toggleSidebar() {
+        guard let selectedSection, selectedSection != CodeSection.id else { return }
+        sidebarHidden[selectedSection] = sidebarHidden[selectedSection] == true ? nil : true
     }
 
     public func revealSidebar(_ section: String) {
         sidebarHidden[section] = nil
-        sidebarAutoHidden = false
     }
 
     public func send(_ event: UIEvent) async -> Result<JSONValue, ClubmateError> {
@@ -224,7 +218,7 @@ public final class ProjectUIStore {
         guard params.subscription == subscription else { return }
         let slot = select(params.section, slot: params.slot)
         focusSerial += 1
-        focusRequest = FocusRequest(slot: slot, serial: focusSerial, edge: params.edge, field: params.field ?? false)
+        focusRequest = FocusRequest(slot: slot, serial: focusSerial, field: params.field ?? false)
     }
 
     private func recover() async {
@@ -273,14 +267,12 @@ public final class ProjectUIStore {
         let mine = views.filter { $0.projectId == projectID }
         slots = Dictionary(mine.map { ($0.slot, $0) }) { _, last in last }
         revs = slots.mapValues(\.rev)
-        sidebarTabs.reviewSeen(slots[ReviewSlot.slot]?.tree ?? SDUINode(type: "empty"))
     }
 
     private func apply(_ view: SlotView) {
         guard view.projectId == projectID, view.rev > revs[view.slot] ?? 0 else { return }
         revs[view.slot] = view.rev
         slots[view.slot] = view
-        if view.slot == ReviewSlot.slot { sidebarTabs.reviewSeen(view.tree) }
     }
 
     private func restore(from state: JSONValue?) {
@@ -313,23 +305,12 @@ public final class ProjectUIStore {
 public struct FocusRequest: Equatable, Sendable {
     public let slot: String
     public let serial: Int
-    public let edge: String?
     public let field: Bool
 
-    public init(slot: String, serial: Int, edge: String? = nil, field: Bool = false) {
+    public init(slot: String, serial: Int, field: Bool = false) {
         self.slot = slot
         self.serial = serial
-        self.edge = edge
         self.field = field
-    }
-
-    public func accepts(side: SidebarSide) -> Bool {
-        switch edge {
-        case nil: true
-        case "h": side == .left
-        case "l": side == .right
-        default: false
-        }
     }
 }
 
@@ -354,7 +335,6 @@ private struct UIFocusNotification: Decodable, Sendable {
     let subscription: String
     let section: String
     let slot: String
-    let edge: String?
     let field: Bool?
 }
 

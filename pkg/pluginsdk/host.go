@@ -135,10 +135,6 @@ func (h *Host) FocusField(ctx context.Context, projectID, section string) error 
 	return h.Call(ctx, "ui.focus", map[string]any{"projectId": projectID, "section": section, "slot": section + ".sidebar", "field": true}, nil)
 }
 
-func (h *Host) FocusEdge(ctx context.Context, projectID, section, slot, edge string) error {
-	return h.Call(ctx, "ui.focus", map[string]string{"projectId": projectID, "section": section, "slot": slot, "edge": edge}, nil)
-}
-
 func (h *Host) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
 	var out Session
 	err := h.Call(ctx, "session.create", req, &out)

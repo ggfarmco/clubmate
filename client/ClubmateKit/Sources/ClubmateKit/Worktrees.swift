@@ -8,7 +8,6 @@ public struct Worktree: Equatable, Sendable, Identifiable {
     public let head: String
     public let main: Bool
     public let current: Bool
-    public let defaultBase: String
 
     public var id: String { "\(repo)\u{0}\(path)" }
 
@@ -22,7 +21,6 @@ public struct Worktree: Equatable, Sendable, Identifiable {
         head = fields["head"]?.stringValue ?? ""
         main = fields["main"]?.boolValue ?? false
         current = fields["current"]?.boolValue ?? false
-        defaultBase = fields["defaultBase"]?.stringValue ?? ""
     }
 }
 
@@ -119,11 +117,6 @@ public final class WorktreeModel {
         return first.trees.first { $0.current } ?? first.trees.first { $0.main }
     }
 
-    public var reviewLabel: String {
-        guard let base = current?.defaultBase, !base.isEmpty else { return "Review against default base" }
-        return "Review against \(base)"
-    }
-
     public func switcherItems(_ query: String) -> [PickerItem] {
         let trees = worktrees.map { PickerItem(id: $0.id, label: label($0), checked: $0.current, section: Self.worktreesSection) }
         let multi = groups.count > 1
@@ -212,7 +205,7 @@ public final class WorktreeModel {
         case .success(let value):
             titles = (value.arrayValue ?? []).compactMap { $0.objectValue?["title"]?.stringValue }
         case .failure(let failure):
-            return report(NvimConfigModel.text(failure))
+            return report(failure.commandText)
         }
         let detail = titles.isEmpty ? "" : "Terminals still in it: \(titles.joined(separator: ", "))"
         guard await confirm("Remove worktree \(tree.name)? Its branch is kept.", detail) else { return }
@@ -250,7 +243,7 @@ public final class WorktreeModel {
 
     private func send(_ id: String, _ args: [String: JSONValue]) async {
         if case .failure(let failure) = await run(CommandInvocation(id: id, args: .object(args))) {
-            report(NvimConfigModel.text(failure))
+            report(failure.commandText)
         }
     }
 
@@ -261,7 +254,7 @@ public final class WorktreeModel {
             guard let started = value.objectValue?["id"]?.stringValue else { return "unexpected reply from \(invocation.id)" }
             id = started
         case .failure(let failure):
-            return NvimConfigModel.text(failure)
+            return failure.commandText
         }
         var retries = 0
         while !Task.isCancelled {
@@ -271,12 +264,12 @@ public final class WorktreeModel {
                 let fields = value.objectValue ?? [:]
                 guard fields["done"]?.boolValue == true else { continue }
                 if let notice = fields["notice"]?.stringValue, !notice.isEmpty { report(notice) }
-                return fields["error"]?.stringValue.map(NvimConfigModel.text)
+                return fields["error"]?.stringValue.map(ClubmateError.commandText)
             case .failure(let failure) where failure.isTransient && retries < Self.statusRetries:
                 retries += 1
                 try? await Task.sleep(for: .milliseconds(200 * retries))
             case .failure(let failure):
-                return NvimConfigModel.text(failure)
+                return failure.commandText
             }
         }
         return nil

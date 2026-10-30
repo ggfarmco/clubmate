@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -31,18 +32,10 @@ const (
 	renderDelay    = 30 * time.Millisecond
 	branchTimeout  = 2 * time.Second
 	noName         = "[No Name]"
-	sidebarSlot    = "editor-nvim.sidebar"
-	edgeEvent      = "edge"
 	openErrorEvent = "open_error"
-	reviewEvent    = "review"
-	reviewTopic    = "review.changed"
-	startedTopic   = "editor.started"
 	openErrorMax   = 80
-	revPrefix      = "rev:"
-	shortSHA       = 7
 	lightMaxSize   = 5 * 1024 * 1024
 	binarySniff    = 8000
-	navigationKey  = "navigation"
 	quickfixMax    = 10000
 	quickfixText   = 512
 	quickfixFiles  = 1000
@@ -60,20 +53,13 @@ var (
 	errUnsaved        = errors.New("unsaved buffers")
 	errUnsavedUnknown = fmt.Errorf("%w: unknown (nvim not responding)", errUnsaved)
 	errDeleted        = errors.New("project deleted")
-	errNotInRepo      = errors.New("not in a git repository")
-	errRelativePath   = errors.New("diff: path must be absolute")
-	errDiffSides      = errors.New("diff: base must be head, index or rev:<sha>, target index, worktree or rev:<sha>, and differ")
-	errReviewArgs     = errors.New("review: repo must be absolute and base and head refs")
-	errReviewOpen     = errors.New("review-open: cwd must be absolute and base a ref")
-	errReviewExcludes = errors.New("review: excludes must be non-empty globs of letters, digits and * ? [ ] { } , . _ - / !")
-	errReviewPath     = errors.New("review: path is required")
-	errReviewDir      = errors.New("review-next: dir must be 1 or -1")
+	errDiffviewCwd    = errors.New("diffview: cwd must be absolute")
+	errDiffviewRev    = errors.New("diffview: rev must be a commit sha")
 	errStopRoot       = errors.New("stop-root: root must be absolute")
 	errChecktimeRoot  = errors.New("checktime: root must be absolute")
 	errUnsavedRoot    = errors.New("unsaved: root must be absolute")
 	errNoSelection    = errors.New("no selection")
 	errStopping       = errors.New("the worktree is being removed")
-	errNavigationSide = errors.New("navigation: side must be left or right")
 	errQuickfixCount  = fmt.Errorf("quickfix: items must hold 1 to %d entries", quickfixMax)
 	errQuickfixTitle  = fmt.Errorf("quickfix: title must be at most %d chars without line breaks or NUL", quickfixText)
 	errQuickfixPath   = fmt.Errorf("quickfix: path must be absolute, at most %d bytes, without line breaks or NUL", quickfixPath)
@@ -81,6 +67,7 @@ var (
 	errQuickfixCol    = fmt.Errorf("quickfix: col must be 0 (none) or 1 to %d", math.MaxInt32)
 	errQuickfixText   = fmt.Errorf("quickfix: text must be at most %d chars without NUL", quickfixText)
 	errQuickfixSize   = fmt.Errorf("quickfix: items hold more than %d MiB of paths and text; send fewer", quickfixBytes>>20)
+	shaPattern        = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 )
 
 type projectEvent struct {
@@ -112,91 +99,13 @@ type quickfixItem struct {
 	Text string `json:"text" msgpack:"text"`
 }
 
-type rootEvent struct {
-	ProjectID string `json:"projectId"`
-	Root      string `json:"root"`
-}
-
-type pathEvent struct {
-	ProjectID string `json:"projectId"`
-	Path      string `json:"path"`
-}
-
-type diffArgs struct {
-	Path   string `json:"path"`
-	Base   string `json:"base"`
-	Target string `json:"target"`
-}
-
-type reviewArgs struct {
-	Repo      string `json:"repo"`
-	Base      string `json:"base"`
-	Head      string `json:"head"`
-	MergeBase string `json:"mergeBase"`
-}
-
-type reviewResult struct {
-	Mode string `json:"mode"`
-}
-
-type reviewOpenArgs struct {
-	Cwd      string   `json:"cwd"`
-	Base     string   `json:"base"`
-	Excludes []string `json:"excludes"`
-}
-
-type reviewPathArgs struct {
-	Path string `json:"path"`
-}
-
-type reviewReviewedArgs struct {
-	Path     string `json:"path"`
-	Reviewed *bool  `json:"reviewed"`
-}
-
-type reviewNextArgs struct {
-	Dir int `json:"dir"`
-}
-
-type reviewExcludesArgs struct {
-	Excludes []string `json:"excludes"`
-}
-
-type reviewedResult struct {
-	Reviewed bool `json:"reviewed"`
-}
-
-type reviewNextResult struct {
-	Path string `json:"path"`
-}
-
-type reviewEntry struct {
-	Path      string `json:"path" msgpack:"path"`
-	Status    string `json:"status" msgpack:"status"`
-	Additions int    `json:"additions" msgpack:"additions"`
-	Deletions int    `json:"deletions" msgpack:"deletions"`
-	Reviewed  bool   `json:"reviewed" msgpack:"reviewed"`
-	Comments  int    `json:"comments" msgpack:"comments"`
-}
-
-type reviewChanged struct {
-	ProjectID string `json:"projectId"`
-	Root      string `json:"root"`
-	Kind      string `json:"kind"`
-	Path      string `json:"path,omitempty"`
+type diffviewArgs struct {
+	Cwd string `json:"cwd"`
+	Rev string `json:"rev"`
 }
 
 type terminalArgs struct {
 	Cwd string `json:"cwd"`
-}
-
-type navigationArgs struct {
-	Enabled bool   `json:"enabled"`
-	Side    string `json:"side"`
-}
-
-type navigationResult struct {
-	Skipped []string `json:"skipped"`
 }
 
 type restartArgs struct {
@@ -233,8 +142,6 @@ type editorKey struct {
 }
 
 type app struct {
-	copies   *copies
-	navMu    sync.Mutex
 	slotMu   sync.Mutex
 	mu       sync.Mutex
 	editors  map[editorKey]*editor
@@ -258,18 +165,16 @@ type editor struct {
 
 func main() {
 	a := &app{
-		copies:   newCopies(),
 		editors:  map[editorKey]*editor{},
 		current:  map[string]string{},
 		folders:  map[string][]string{},
 		deleted:  map[string]bool{},
 		stopping: map[editorKey]bool{},
 	}
-	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
+	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
-	go a.sweepTemps()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err
@@ -348,45 +253,6 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	name := strings.TrimPrefix(cmd.ID, h.PluginID()+".")
-	switch name {
-	case "navigation":
-		var args navigationArgs
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("navigation args: %w", err)
-		}
-		if args.Side != "left" && args.Side != "right" {
-			return nil, errNavigationSide
-		}
-		return a.navigation(ctx, h, args)
-	case "config":
-		var args configArgs
-		if len(cmd.Args) > 0 {
-			if err := json.Unmarshal(cmd.Args, &args); err != nil {
-				return nil, fmt.Errorf("config args: %w", err)
-			}
-		}
-		return a.config(ctx, h, args)
-	case "config-copy":
-		var args copyArgs
-		if len(cmd.Args) > 0 {
-			if err := json.Unmarshal(cmd.Args, &args); err != nil {
-				return nil, fmt.Errorf("config-copy args: %w", err)
-			}
-		}
-		return a.configCopy(args)
-	case "config-copy-status":
-		var args copyIDArgs
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("config-copy-status args: %w", err)
-		}
-		return a.copies.status(ctx, args.ID)
-	case "config-copy-cancel":
-		var args copyIDArgs
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("config-copy-cancel args: %w", err)
-		}
-		return nil, a.copies.cancel(args.ID)
-	}
 	if a.isDeleted(cmd.ProjectID) {
 		return nil, nil
 	}
@@ -419,24 +285,18 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, fmt.Errorf("quickfix args: %w", err)
 		}
 		return nil, a.quickfix(ctx, h, cmd.ProjectID, args)
-	case "diff":
-		var args diffArgs
+	case "diffview":
+		var args diffviewArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("diff args: %w", err)
+			return nil, fmt.Errorf("diffview args: %w", err)
 		}
-		return nil, a.diff(ctx, h, cmd.ProjectID, args)
-	case "review":
-		var args reviewArgs
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("review args: %w", err)
+		if !filepath.IsAbs(args.Cwd) {
+			return nil, errDiffviewCwd
 		}
-		return a.review(ctx, h, cmd.ProjectID, args)
-	case "review-open":
-		var args reviewOpenArgs
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
-			return nil, fmt.Errorf("review-open args: %w", err)
+		if !shaPattern.MatchString(args.Rev) {
+			return nil, errDiffviewRev
 		}
-		return a.reviewOpen(ctx, h, cmd.ProjectID, args)
+		return struct{}{}, a.diffview(ctx, h, cmd.ProjectID, filepath.Clean(args.Cwd), args.Rev)
 	case "checktime":
 		var args rootArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -506,13 +366,6 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			}
 		}
 		return nil, a.restart(ctx, h, e, true, args.Force)
-	case "review-close":
-		if c := e.connected(); c != nil {
-			return nil, c.closeReview()
-		}
-		return nil, nil
-	case "review-entries", "review-select", "review-reviewed", "review-next", "review-excludes":
-		return reviewCommand(e.connected(), name, cmd.Args)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -749,9 +602,9 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	if c := e.connected(); c != nil {
 		return c, nil
 	}
-	s, sock, created, err := a.session(ctx, h, e)
+	s, sock, err := a.session(ctx, h, e)
 	if errors.Is(err, errNvimNotInPATH) {
-		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, missingView(errors.Is(err, errSystemNvimMissing))))
+		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, missingView()))
 	}
 	if err != nil {
 		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, failedView(err)))
@@ -765,96 +618,49 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 		return nil, err
 	}
 	e.setClient(c)
-	a.applyNavigation(ctx, h, c)
-	if created {
-		_, err := h.Publish(ctx, startedTopic, rootEvent{ProjectID: e.id, Root: e.root})
-		logError(startedTopic, err)
-	}
 	return c, nil
 }
 
-func (a *app) navigation(ctx context.Context, h *pluginsdk.Host, nav navigationArgs) (navigationResult, error) {
-	a.navMu.Lock()
-	defer a.navMu.Unlock()
-	if err := h.StorageSet(ctx, navigationKey, nav); err != nil {
-		return navigationResult{}, err
-	}
-	a.mu.Lock()
-	editors := slices.Collect(maps.Values(a.editors))
-	a.mu.Unlock()
-	res := navigationResult{Skipped: []string{}}
-	var errs []error
-	for _, e := range editors {
-		c := e.connected()
-		if c == nil {
-			continue
-		}
-		skipped, err := c.navigation(nav)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		res.Skipped = append(res.Skipped, skipped...)
-	}
-	slices.Sort(res.Skipped)
-	res.Skipped = slices.Compact(res.Skipped)
-	return res, errors.Join(errs...)
-}
-
-func (a *app) applyNavigation(ctx context.Context, h *pluginsdk.Host, c *client) {
-	a.navMu.Lock()
-	defer a.navMu.Unlock()
-	var nav navigationArgs
-	found, err := h.StorageGet(ctx, navigationKey, &nav)
-	if err == nil && found {
-		_, err = c.navigation(nav)
-	}
-	if err != nil {
-		logError(navigationKey, err)
-	}
-}
-
-func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string, string, bool, error) {
+func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string, string, error) {
 	sessions, err := h.ListSessions(ctx, e.id, true)
 	if err != nil {
-		return "", "", false, err
+		return "", "", err
 	}
 	for _, s := range sessions {
 		if sock, ok := ownedSocket(s, e.id, e.root); ok {
-			return s.ID, sock, false, nil
+			return s.ID, sock, nil
 		}
 	}
 	sock, err := socketPath(pluginsdk.RuntimeDir(), e.id, e.root)
 	if err != nil {
-		return "", "", false, err
+		return "", "", err
 	}
-	path, env, unset, pathAppend, err := a.nvimCommand(ctx, h)
+	path, unset, pathAppend, err := nvimCommand()
 	if err != nil {
-		return "", "", false, err
+		return "", "", err
 	}
 	if err := a.render(ctx, h, e, mainSlot, startingView()); err != nil {
-		return "", "", false, err
+		return "", "", err
 	}
 	for _, s := range sessions {
 		if s.State != stateRunning {
 			if err := h.RemoveSession(ctx, s.ID); err != nil {
-				return "", "", false, err
+				return "", "", err
 			}
 		}
 	}
 	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", "", false, fmt.Errorf("remove stale socket: %w", err)
+		return "", "", fmt.Errorf("remove stale socket: %w", err)
 	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
 		ProjectID:  e.id,
 		Title:      sessionTitle,
 		Command:    []string{path, "--listen", sock},
 		Cwd:        e.root,
-		Env:        env,
 		UnsetEnv:   unset,
 		PathAppend: pathAppend,
 	})
-	return s.ID, sock, err == nil, err
+	return s.ID, sock, err
 }
 
 func ownedSocket(s pluginsdk.Session, projectID, root string) (string, bool) {
@@ -1051,165 +857,20 @@ func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, editors []*ed
 	return nil
 }
 
-func (a *app) diff(ctx context.Context, h *pluginsdk.Host, projectID string, args diffArgs) error {
-	if args.Path == "" {
-		return errNoPath
-	}
-	if !filepath.IsAbs(args.Path) {
-		return fmt.Errorf("%w: %s", errRelativePath, args.Path)
-	}
-	args.Path = filepath.Clean(args.Path)
-	label, ok := baseLabel(args.Base)
-	target, targetOK := targetLabel(args.Target)
-	if !ok || !targetOK || label == target {
-		return errDiffSides
-	}
-	repo, ok := gitrepo.RepoRoot(filepath.Dir(args.Path))
-	if !ok {
-		return fmt.Errorf("%w: %s", errNotInRepo, args.Path)
-	}
-	rel, err := filepath.Rel(repo, args.Path)
-	if err != nil {
-		return err
-	}
-	rel = filepath.ToSlash(rel)
-	left, err := gitShow(ctx, repo, args.Base, rel)
-	if err != nil {
-		return err
-	}
-	right := ""
-	if args.Target != "worktree" {
-		if right, err = gitShow(ctx, repo, args.Target, rel); err != nil {
-			return err
-		}
-	}
-	e, err := a.target(ctx, h, projectID, args.Path)
-	if e == nil || err != nil {
-		return err
-	}
-	c, err := a.ensure(ctx, h, e)
-	if err != nil {
-		return err
-	}
-	return c.diff(args.Path, rel, label, target, left, right)
-}
-
-func (a *app) review(ctx context.Context, h *pluginsdk.Host, projectID string, args reviewArgs) (reviewResult, error) {
-	if args.Head == "" {
-		args.Head = "HEAD"
-	}
-	if !filepath.IsAbs(args.Repo) || !isRef(args.Base) || !isRef(args.Head) {
-		return reviewResult{}, errReviewArgs
-	}
-	res, err := a.openReview(ctx, h, projectID, filepath.Clean(args.Repo), args.Base+"..."+args.Head, nil, true)
-	switch res.Mode {
-	case "module":
-		res.Mode = "diffview"
-	case "native":
-		res.Mode = "builtin"
-	}
-	return res, err
-}
-
-func (a *app) reviewOpen(ctx context.Context, h *pluginsdk.Host, projectID string, args reviewOpenArgs) (reviewResult, error) {
-	if !filepath.IsAbs(args.Cwd) || !isRef(args.Base) {
-		return reviewResult{}, errReviewOpen
-	}
-	if err := validExcludes(args.Excludes); err != nil {
-		return reviewResult{}, err
-	}
-	top, ok := gitrepo.RepoRoot(filepath.Clean(args.Cwd))
-	if !ok {
-		return reviewResult{}, fmt.Errorf("%w: %s", errNotInRepo, args.Cwd)
-	}
-	return a.openReview(ctx, h, projectID, top, args.Base, args.Excludes, false)
-}
-
-func (a *app) openReview(ctx context.Context, h *pluginsdk.Host, projectID, cwd, rev string, excludes []string, panel bool) (reviewResult, error) {
+func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, projectID, cwd, rev string) error {
 	e, err := a.target(ctx, h, projectID, cwd)
 	if e == nil || err != nil {
-		return reviewResult{}, err
+		return err
 	}
 	c, err := a.ensure(ctx, h, e)
 	if err != nil {
-		return reviewResult{}, err
+		return err
 	}
-	mode, err := c.review(cwd, rev, excludes, panel)
-	return reviewResult{Mode: mode}, err
-}
-
-func reviewCommand(c *client, name string, raw json.RawMessage) (any, error) {
-	switch name {
-	case "review-entries":
-		if c == nil {
-			return []reviewEntry{}, nil
-		}
-		entries, err := c.reviewEntries()
-		if err != nil {
-			return nil, err
-		}
-		return append([]reviewEntry{}, entries...), nil
-	case "review-select":
-		path, err := reviewPath(name, raw)
-		if err != nil || c == nil {
-			return nil, err
-		}
-		return nil, c.reviewSelect(path)
-	case "review-reviewed":
-		var args reviewReviewedArgs
-		if err := json.Unmarshal(raw, &args); err != nil {
-			return nil, fmt.Errorf("%s args: %w", name, err)
-		}
-		if args.Path == "" {
-			return nil, errReviewPath
-		}
-		if c == nil {
-			return reviewedResult{}, nil
-		}
-		reviewed, err := c.reviewSetReviewed(args.Path, args.Reviewed)
-		return reviewedResult{Reviewed: reviewed}, err
-	case "review-next":
-		var args reviewNextArgs
-		if err := json.Unmarshal(raw, &args); err != nil {
-			return nil, fmt.Errorf("review-next args: %w", err)
-		}
-		if args.Dir != 1 && args.Dir != -1 {
-			return nil, errReviewDir
-		}
-		if c == nil {
-			return reviewNextResult{}, nil
-		}
-		path, err := c.reviewNext(args.Dir)
-		return reviewNextResult{Path: path}, err
-	case "review-excludes":
-		var args reviewExcludesArgs
-		if err := json.Unmarshal(raw, &args); err != nil {
-			return nil, fmt.Errorf("review-excludes args: %w", err)
-		}
-		if err := validExcludes(args.Excludes); err != nil || c == nil {
-			return nil, err
-		}
-		return nil, c.reviewExcludes(args.Excludes)
+	if err := c.diffview(cwd, rev); err != nil {
+		return err
 	}
-	return nil, fmt.Errorf("%w: %q", errUnknownCommand, name)
-}
-
-func reviewPath(name string, raw json.RawMessage) (string, error) {
-	var args reviewPathArgs
-	if err := json.Unmarshal(raw, &args); err != nil {
-		return "", fmt.Errorf("%s args: %w", name, err)
-	}
-	if args.Path == "" {
-		return "", errReviewPath
-	}
-	return args.Path, nil
-}
-
-func validExcludes(globs []string) error {
-	for _, g := range globs {
-		if !gitrepo.ValidGlob(g) {
-			return errReviewExcludes
-		}
+	if err := h.Focus(ctx, e.id, h.PluginID(), mainSlot); err != nil {
+		logError("focus", err)
 	}
 	return nil
 }
@@ -1312,20 +973,6 @@ func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error 
 
 func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	ctx := context.Background()
-	if ev.Event == reviewEvent {
-		if _, err := h.Publish(ctx, reviewTopic, reviewChanged{ProjectID: e.id, Root: e.root, Kind: ev.Kind, Path: ev.Path}); err != nil {
-			logError("publish "+reviewTopic, err)
-		}
-		return
-	}
-	if ev.Event == edgeEvent {
-		if ev.Dir == "h" || ev.Dir == "l" {
-			if err := h.FocusEdge(ctx, e.id, h.PluginID(), sidebarSlot, ev.Dir); err != nil {
-				logError("focus", err)
-			}
-		}
-		return
-	}
 	if ev.Event == openErrorEvent {
 		e.setOpenError(shortError(ev.Message))
 		a.scheduleStatus(h, e)
@@ -1336,11 +983,6 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 		branch = gitBranch(ctx, branchDir(ev.File, e.root))
 	}
 	e.update(ev, branch, refresh)
-	if topic := fileTopic(ev.Event); topic != "" && ev.File != "" {
-		if _, err := h.Publish(ctx, topic, pathEvent{ProjectID: e.id, Path: ev.File}); err != nil {
-			logError("publish "+topic, err)
-		}
-	}
 	a.scheduleStatus(h, e)
 }
 
@@ -1502,82 +1144,6 @@ func gitBranch(ctx context.Context, dir string) string {
 		return ""
 	}
 	return branch
-}
-
-func baseLabel(base string) (string, bool) {
-	sha, ok := strings.CutPrefix(base, revPrefix)
-	if !ok {
-		return base, base == "head" || base == "index"
-	}
-	if sha == "" || strings.Trim(sha, "0123456789abcdef") != "" {
-		return "", false
-	}
-	return sha[:min(shortSHA, len(sha))], true
-}
-
-func targetLabel(target string) (string, bool) {
-	if strings.HasPrefix(target, revPrefix) {
-		return baseLabel(target)
-	}
-	return target, target == "index" || target == "worktree"
-}
-
-func isRef(ref string) bool {
-	return ref != "" && !strings.HasPrefix(ref, "-") && !strings.ContainsAny(ref, " \t\n\r\v\f")
-}
-
-func gitShow(ctx context.Context, repo, side, rel string) (string, error) {
-	var (
-		rev    string
-		exists bool
-		err    error
-	)
-	switch sha, isRev := strings.CutPrefix(side, revPrefix); {
-	case isRev:
-		rev = sha + ":" + rel
-		exists, err = inTree(ctx, repo, sha, rel)
-	case side == "head":
-		rev = "HEAD:" + rel
-		exists, err = inHead(ctx, repo, rel)
-	default:
-		rev = ":" + rel
-		exists, err = inIndex(ctx, repo, rel)
-	}
-	if err != nil || !exists {
-		return "", err
-	}
-	out, err := gitrepo.Run(ctx, repo, "show", rev)
-	return string(out), err
-}
-
-func inHead(ctx context.Context, repo, rel string) (bool, error) {
-	if _, err := gitrepo.Run(ctx, repo, "rev-parse", "-q", "--verify", "HEAD^{commit}"); err != nil {
-		if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 {
-			return false, nil
-		}
-		return false, err
-	}
-	return inTree(ctx, repo, "HEAD", rel)
-}
-
-func inTree(ctx context.Context, repo, rev, rel string) (bool, error) {
-	out, err := gitrepo.Run(ctx, repo, "--literal-pathspecs", "ls-tree", "-z", rev, "--", rel)
-	return len(out) > 0, err
-}
-
-func inIndex(ctx context.Context, repo, rel string) (bool, error) {
-	out, err := gitrepo.Run(ctx, repo, "--literal-pathspecs", "ls-files", "-z", "--stage", "--", rel)
-	return bytes.Contains(out, []byte(" 0\t")), err
-}
-
-func fileTopic(event string) string {
-	switch event {
-	case "BufEnter":
-		return "editor.buffer"
-	case "BufWritePost":
-		return "editor.saved"
-	}
-	return ""
 }
 
 func logError(what string, err error) {

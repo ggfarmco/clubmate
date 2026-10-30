@@ -58,8 +58,6 @@ final class TreeKeysTests: XCTestCase {
             (123, false, .collapse),
             (36, false, .open),
             (31, false, .activate),
-            (47, false, .focus),
-            (51, false, .focusUp),
             (53, false, .focusMain),
         ]
         for (keyCode, control, action) in rows {
@@ -77,39 +75,25 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertNil(TreeKeys.action(keyCode: 37, control: true, command: false, side: .right))
     }
 
-    func testOpenAndFocusResolve() {
+    func testOpenResolve() {
         let rows = [
             TreeRow(id: "/r/a", depth: 0, parent: nil, hasChildren: true, expanded: true),
             TreeRow(id: "/r/a/x.go", depth: 1, parent: "/r/a", hasChildren: false, expanded: false),
             TreeRow(id: "/r/b", depth: 0, parent: nil, hasChildren: true, expanded: false),
             TreeRow(id: "/r/y.go", depth: 0, parent: nil, hasChildren: false, expanded: false),
         ]
-        let crumbs = ["/r", "/r/p"]
-        let cases: [(TreeKeyAction, String?, [String], TreeCommand?)] = [
-            (.open, "/r/a", [], .collapse("/r/a")),
-            (.open, "/r/b", [], .expand("/r/b")),
-            (.open, "/r/y.go", [], .select("/r/y.go")),
-            (.focus, "/r/b", [], .focus("/r/b")),
-            (.focus, "/r/a/x.go", [], .focus("/r/a")),
-            (.focus, "/r/y.go", [], nil),
-            (.focusUp, nil, crumbs, .focus("/r")),
-            (.focusUp, nil, [], nil),
+        let cases: [(String, TreeCommand)] = [
+            ("/r/a", .collapse("/r/a")),
+            ("/r/b", .expand("/r/b")),
+            ("/r/y.go", .select("/r/y.go")),
         ]
-        for (action, cursor, breadcrumb, command) in cases {
-            XCTAssertEqual(TreeCursor.resolve(action, cursor: cursor, in: rows, breadcrumb: breadcrumb), command, "\(action) at \(cursor ?? "nil")")
+        for (cursor, command) in cases {
+            XCTAssertEqual(TreeCursor.resolve(.open, cursor: cursor, in: rows), command, "open at \(cursor)")
         }
     }
 
-    func testTabAndChordKeys() {
-        XCTAssertEqual(TreeKeys.action(keyCode: 43, control: false, command: false, side: .left, shift: true), .cycleTab(-1))
-        XCTAssertEqual(TreeKeys.action(keyCode: 47, control: false, command: false, side: .left, shift: true), .cycleTab(1))
-        XCTAssertEqual(TreeCursor.resolve(.cycleTab(1), cursor: nil, in: []), .cycleTab(1))
-        XCTAssertEqual([0, 32, 15, 8, 9].map(TreeChord.resolve), [.menu("stage"), .menu("unstage"), .menu("discard"), .focusField, nil])
-    }
-
-    func testCollapseOthersKey() {
-        XCTAssertEqual(TreeKeys.action(keyCode: 27, control: false, command: false, side: .left), .collapseOthers)
-        XCTAssertEqual(TreeCursor.resolve(.collapseOthers, cursor: nil, in: []), .run("files.collapse-others"))
+    func testChordKeys() {
+        XCTAssertEqual([8, 0].map(TreeChord.resolve), [.focusField, nil])
     }
 
     func testStickyHeaders() {
@@ -132,8 +116,8 @@ final class TreeKeysTests: XCTestCase {
 
     func testCommandConfirmDecoded() throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
-        [{"id":"git.discard","title":"Discard","plugin":"git","hidden":false,"confirm":"Discard changes?"},
-         {"id":"git.stage","title":"Stage","plugin":"git","hidden":false}]
+        [{"id":"alpha.discard","title":"Discard","plugin":"alpha","hidden":false,"confirm":"Discard changes?"},
+         {"id":"alpha.stage","title":"Stage","plugin":"alpha","hidden":false}]
         """#.utf8))
         XCTAssertEqual(commands.map(\.confirm), ["Discard changes?", ""])
     }

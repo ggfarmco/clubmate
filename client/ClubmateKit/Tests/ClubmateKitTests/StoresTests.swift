@@ -119,15 +119,33 @@ final class StoresTests: XCTestCase {
         let first = ProjectUIStore(client: client, projectID: project.id)
         try await first.start()
         XCTAssertEqual(first.sidebarHidden, [:])
-        first.sidebarHidden["editor-nvim"] = true
+        first.sidebarHidden["terminals"] = true
         await first.stop()
         let state = try await client.uiStateGet(projectID: project.id)
-        XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object(["editor-nvim": .bool(true)]))
+        XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object(["terminals": .bool(true)]))
 
         let second = ProjectUIStore(client: client, projectID: project.id)
         try await second.start()
-        XCTAssertEqual(second.sidebarHidden, ["editor-nvim": true])
+        XCTAssertEqual(second.sidebarHidden, ["terminals": true])
         await second.stop()
+        await client.close()
+    }
+
+    func testCodeSectionHasNoSidebar() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let store = ProjectUIStore(client: client, projectID: project.id)
+        try await store.start()
+        XCTAssertEqual(store.sidebarSlot, "terminals.sidebar")
+        store.toggleSidebar()
+        XCTAssertNil(store.sidebarSlot)
+
+        store.selectedSection = CodeSection.id
+        XCTAssertNil(store.sidebarSlot)
+        store.toggleSidebar()
+        XCTAssertEqual(store.sidebarHidden, ["terminals": true])
+        XCTAssertNil(store.sidebarSlot)
+        await store.stop()
         await client.close()
     }
 
@@ -268,7 +286,6 @@ final class StoresTests: XCTestCase {
             (node("tree", "t", action: "open"), .select("i1"), "open", .string("i1")),
             (node("tree", "t", action: "open"), .expand("i1"), "expand", .string("i1")),
             (node("tree", "t", action: "open"), .collapse("i1"), "collapse", .string("i1")),
-            (node("tree", "t", action: "open"), .focus("/r/a"), "focus", .string("/r/a")),
             (node("tabs", "tabs"), .select("t2"), "select", .string("t2")),
             (node("textField", "q"), .submit(.string("hi")), "submit", .string("hi")),
             (node("textField", "q", action: "search"), .submit(.string("hi")), "search", .string("hi")),
@@ -362,25 +379,26 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(CommandPalette.rank(entries, query: ""), entries)
     }
 
-    func testPaletteEntries() throws {
+    func testPaletteEntries() async throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
         [{"id":"editor-nvim.terminal","title":"Open Terminal Here","plugin":"editor-nvim","hidden":false},
-         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true},
-         {"id":"editor-nvim.navigation","title":"nvim Navigation Keys","plugin":"editor-nvim","hidden":true}]
+         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true}]
         """#.utf8))
         let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
         [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"project","plugin":"editor-nvim"},
          {"id":"git","title":"Git","icon":"","order":15,"scope":"project","plugin":"git","host":"editor-nvim"},
          {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","plugin":"terminals"}]
         """#.utf8))
+        let worktrees = WorktreeModel(run: { _ in .success(.array([.object(["repo": .string("/r"), "path": .string("/r"), "main": .bool(true)])])) }, project: { nil }, confirm: { _, _ in false }, report: { _ in })
+        await worktrees.load()
 
-        let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true)
+        let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true, worktrees: worktrees.worktrees)
 
-        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Git", "Go to Terminals", "Toggle Sidebar", "Toggle nvim Navigation Keys", "Open Folder…", "New Home Terminal"])
-        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "", "⌘2", "⌘B", "", "⌘O", "⇧⌘N"])
+        XCTAssertEqual(entries.map(\.title), ["Open Terminal Here", "Go to Code", "Go to Terminals", "Toggle Sidebar", "Open Folder…", "New Home Terminal", "Switch Worktree…", "New Worktree…"])
+        XCTAssertEqual(entries.map(\.detail), ["editor-nvim.terminal", "⌘1", "⌘2", "⌘B", "⌘O", "⇧⌘N", "", ""])
         XCTAssertEqual(
             entries.map { PaletteAction(entryID: $0.id) },
-            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("git"), .section("terminals"), .toggleSidebar, .toggleNavigationKeys, .openFolder, .newHomeTerminal]
+            [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .openFolder, .newHomeTerminal, .switchWorktree, .newWorktree]
         )
         XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle Sidebar" })
     }

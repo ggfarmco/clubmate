@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -23,20 +22,14 @@ import (
 )
 
 const (
-	defaultLimit     = 50
-	maxLimit         = 200
-	coldWait         = 3 * time.Second
-	defaultGrepLimit = 100
-	maxGrepLimit     = 500
-	grepTimeout      = 4 * time.Second
+	defaultLimit = 50
+	maxLimit     = 200
+	coldWait     = 3 * time.Second
 )
 
 var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoProject      = errors.New("command needs a project")
-	errEmptyQuery     = errors.New("query is empty")
-	errOutside        = errors.New("path is outside the workspace folders")
-	errIndexing       = errors.New("the workspace is still being indexed; retry shortly")
 	errHome           = &jsonrpc2.Error{Code: jsonrpc2.CodeInvalidParams, Message: "search unavailable in the home workspace"}
 )
 
@@ -59,45 +52,15 @@ type filesResult struct {
 	Indexing  bool        `json:"indexing,omitempty"`
 }
 
-type startResult struct {
-	ID string `json:"id"`
-}
-
-type pollArgs struct {
-	ID    string `json:"id"`
-	After int    `json:"after"`
-}
-
-type grepArgs struct {
-	grepOptions
-	Limit int `json:"limit"`
-}
-
-type grepResult struct {
-	Matches   []grepMatch `json:"matches"`
-	Truncated bool        `json:"truncated"`
-}
-
-type previewArgs struct {
-	Path    string `json:"path"`
-	Line    int    `json:"line"`
-	Context *int   `json:"context"`
-}
-
-type previewResult struct {
-	Lines []previewLine `json:"lines"`
-}
-
 type deletedPayload struct {
 	ID string `json:"id"`
 }
 
 type listing struct {
-	folders  []string
-	resolved []string
-	labels   []string
-	corpus   fuzzy.Corpus
-	capped   bool
+	folders []string
+	labels  []string
+	corpus  fuzzy.Corpus
+	capped  bool
 }
 
 type workspace struct {
@@ -113,13 +76,12 @@ type workspace struct {
 
 type app struct {
 	idx        index
-	grep       *searches
 	mu         sync.Mutex
 	workspaces map[string]*workspace
 }
 
 func main() {
-	a := &app{idx: newIndex(), grep: newSearches(), workspaces: map[string]*workspace{}}
+	a := &app{idx: newIndex(), workspaces: map[string]*workspace{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
 
@@ -139,37 +101,6 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return a.searchFiles(ctx, h, cmd.ProjectID, args)
-	case "search.start":
-		var args grepOptions
-		if err := decodeArgs(cmd, &args); err != nil {
-			return nil, err
-		}
-		return a.startGrep(ctx, h, cmd.ProjectID, args)
-	case "search.poll":
-		var args pollArgs
-		if err := decodeArgs(cmd, &args); err != nil {
-			return nil, err
-		}
-		return a.grep.poll(ctx, cmd.ProjectID, args.ID, args.After), nil
-	case "search.cancel":
-		var args pollArgs
-		if err := decodeArgs(cmd, &args); err != nil {
-			return nil, err
-		}
-		a.grep.cancel(cmd.ProjectID, args.ID)
-		return struct{}{}, nil
-	case "search.preview":
-		var args previewArgs
-		if err := decodeArgs(cmd, &args); err != nil {
-			return nil, err
-		}
-		return a.preview(ctx, h, cmd.ProjectID, args)
-	case "search.grep":
-		var args grepArgs
-		if err := decodeArgs(cmd, &args); err != nil {
-			return nil, err
-		}
-		return a.grepNow(ctx, h, cmd.ProjectID, args)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -188,7 +119,6 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		watch, ws.watch = ws.watch, ""
 	}
 	a.mu.Unlock()
-	a.grep.drop(p.ID)
 	if watch != "" {
 		logError("unwatch "+p.ID, h.UnwatchFS(ctx, watch))
 	}
@@ -229,113 +159,6 @@ func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, projectID stri
 		res.Matches = append(res.Matches, fileMatch{Path: m.Path, AbsPath: list.abs(m.Path), Positions: m.Positions, Line: line})
 	}
 	return res, nil
-}
-
-func (a *app) startGrep(ctx context.Context, h *pluginsdk.Host, projectID string, opts grepOptions) (startResult, error) {
-	p, err := project(ctx, h, projectID)
-	if err != nil {
-		return startResult{}, err
-	}
-	if opts.Query == "" {
-		return startResult{}, errEmptyQuery
-	}
-	id := a.grep.start(p.ID, func(ctx context.Context, indexing func()) (engine, error) { return a.engine(ctx, h, p, indexing) }, opts)
-	return startResult{ID: id}, nil
-}
-
-func (a *app) grepNow(ctx context.Context, h *pluginsdk.Host, projectID string, args grepArgs) (grepResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, grepTimeout)
-	defer cancel()
-	p, err := project(ctx, h, projectID)
-	if err != nil {
-		return grepResult{}, err
-	}
-	if args.Query == "" {
-		return grepResult{}, errEmptyQuery
-	}
-	limit := args.Limit
-	if limit <= 0 {
-		limit = defaultGrepLimit
-	}
-	indexing := false
-	eng, err := a.engine(ctx, h, p, func() { indexing = true })
-	if err != nil {
-		if ctx.Err() != nil && indexing {
-			return grepResult{}, errIndexing
-		}
-		if ctx.Err() != nil {
-			return grepResult{Matches: []grepMatch{}, Truncated: true}, nil
-		}
-		return grepResult{}, err
-	}
-	matches, truncated, err := collect(ctx, eng, args.grepOptions, min(limit, maxGrepLimit))
-	return grepResult{Matches: matches, Truncated: truncated}, err
-}
-
-func rgBinary() (string, bool) {
-	if dir := pluginsdk.ResourcesDir(); dir != "" {
-		bundled := filepath.Join(dir, "tools", "rg")
-		if info, err := os.Stat(bundled); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
-			return bundled, true
-		}
-	}
-	bin, err := exec.LookPath("rg")
-	return bin, err == nil
-}
-
-func (a *app) engine(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project, indexing func()) (engine, error) {
-	roots := newRoots(p.Roots)
-	if bin, ok := rgBinary(); ok && !slices.ContainsFunc(roots, func(r root) bool { return a.idx.guarded(r.resolved) }) {
-		return rgEngine{bin: bin, roots: roots}, nil
-	}
-	ready := make(chan time.Time)
-	close(ready)
-	for {
-		list, err := a.listing(ctx, h, p, ready)
-		if err != nil {
-			return nil, err
-		}
-		if list != nil {
-			return builtinEngine{list: list}, nil
-		}
-		indexing()
-		if list, err = a.listing(ctx, h, p, nil); err != nil {
-			return nil, err
-		}
-		if list != nil {
-			return builtinEngine{list: list}, nil
-		}
-		if p, err = project(ctx, h, p.ID); err != nil {
-			return nil, err
-		}
-	}
-}
-
-func (a *app) preview(ctx context.Context, h *pluginsdk.Host, projectID string, args previewArgs) (previewResult, error) {
-	p, err := project(ctx, h, projectID)
-	if err != nil {
-		return previewResult{}, err
-	}
-	info, err := os.Lstat(args.Path)
-	if err != nil {
-		return previewResult{}, err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return previewResult{}, errOutside
-	}
-	path, err := filepath.EvalSymlinks(args.Path)
-	if err != nil {
-		return previewResult{}, err
-	}
-	if !slices.ContainsFunc(newRoots(p.Roots), func(r root) bool { return strings.HasPrefix(path, r.resolved+"/") }) {
-		return previewResult{}, errOutside
-	}
-	around := defaultContext
-	if args.Context != nil {
-		around = min(max(*args.Context, 0), maxContext)
-	}
-	lines, err := preview(path, max(args.Line, 1), around)
-	return previewResult{Lines: lines}, err
 }
 
 func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project, cold <-chan time.Time) (*listing, error) {
@@ -430,14 +253,7 @@ func (ws *workspace) watched(a *app) bool {
 }
 
 func newListing(folders, paths []string) *listing {
-	resolved := make([]string, len(folders))
-	for i, f := range folders {
-		resolved[i] = f
-		if real, err := filepath.EvalSymlinks(f); err == nil {
-			resolved[i] = real
-		}
-	}
-	return &listing{folders: folders, resolved: resolved, labels: labels(folders), corpus: fuzzy.NewCorpus(paths), capped: len(paths) >= maxFiles}
+	return &listing{folders: folders, labels: labels(folders), corpus: fuzzy.NewCorpus(paths), capped: len(paths) >= maxFiles}
 }
 
 func (l *listing) abs(path string) string {
