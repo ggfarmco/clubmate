@@ -75,6 +75,7 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    AgentFinishSettings(model: app.agentFinish)
                     LabeledContent("Notifications") {
                         Button(hooksCopied ? "Copied" : "Copy notification hooks") { copyHooks() }
                     }
@@ -91,6 +92,7 @@ struct SettingsView: View {
         }
         .task { await app.claude.refresh() }
         .task { await app.nvimConfig.load() }
+        .task { await app.agentFinish.load() }
         .sheet(isPresented: nvimSheet) { NvimConfigSheetView(model: app.nvimConfig) }
         .formStyle(.grouped)
     }
@@ -233,6 +235,35 @@ private struct PluginRow: View {
         case "starting", "backoff": .orange
         case "failed": .red
         default: .secondary
+        }
+    }
+}
+
+private struct AgentFinishSettings: View {
+    let model: AgentFinishModel
+
+    var body: some View {
+        Picker("When a task is done", selection: mode) {
+            ForEach(AgentFinishMode.allCases, id: \.self) { mode in
+                Text(mode.label).tag(Optional(mode))
+            }
+        }
+        .disabled(model.mode == nil)
+        Text("Default for new sessions; change it per session in the composer options. Merge runs the tests, merges into main and removes the worktree.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        if let error = model.error {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .textSelection(.enabled)
+        }
+    }
+
+    private var mode: Binding<AgentFinishMode?> {
+        Binding { model.mode } set: { mode in
+            guard let mode else { return }
+            Task { await model.choose(mode) }
         }
     }
 }

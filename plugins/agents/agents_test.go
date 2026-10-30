@@ -39,6 +39,7 @@ type record struct {
 	AgentSessionID string   `json:"agentSessionId"`
 	Status         string   `json:"status"`
 	Mode           string   `json:"mode"`
+	Finish         string   `json:"finish"`
 	Closed         bool     `json:"closed"`
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
@@ -640,14 +641,14 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 			return assert.ObjectsAreEqual(want, got)
 		})
 	}
-	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": ""}), "composer")[0].ID
+	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": "", "finish": "ask"}), "composer")[0].ID
 
 	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "model", "value": "opus"})
 	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "advisor", "value": "opus"})
-	pickers(first, map[string]string{"model": "opus", "advisor": "opus"})
+	pickers(first, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask"})
 
 	second := f.newSession(t, project)
-	pickers(second, map[string]string{"model": "opus", "advisor": "opus"})
+	pickers(second, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask"})
 	sets := f.calls(t, "session/set_config_option")
 	require.Len(t, sets, 2)
 	assert.JSONEq(t, `{"sessionId":"`+f.session(t, project, second).AgentSessionID+`","configId":"model","value":"opus"}`, string(sets[1].Params))
@@ -655,6 +656,29 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 	require.Len(t, news, 2)
 	assert.NotContains(t, string(news[0].Params), "advisorModel")
 	assert.Contains(t, string(news[1].Params), `"settings":{"advisorModel":"opus"}`)
+}
+
+func TestFinishMode(t *testing.T) {
+	f := start(t, nil)
+	project := f.project(t, newRepo(t))
+	first := f.newSession(t, project)
+	require.NoError(t, f.run(t, project, "agents.finishDefault", map[string]any{"value": "merge"}, nil))
+	second := f.newSession(t, project)
+	assert.Equal(t, []string{"ask", "merge"}, []string{f.session(t, project, first).Finish, f.session(t, project, second).Finish})
+
+	f.prompt(t, project, first, "one")
+	f.waitStatus(t, project, first, "done")
+	require.NoError(t, f.run(t, project, "agents.config", map[string]any{"session": first, "id": "finish", "value": "merge"}, nil))
+	f.prompt(t, project, first, "two")
+	f.waitStatus(t, project, first, "done")
+
+	prompts := f.calls(t, "session/prompt")
+	require.Len(t, prompts, 2)
+	assert.Contains(t, string(prompts[0].Params), "finish mode: ask")
+	assert.Contains(t, string(prompts[1].Params), "finish mode: merge")
+	for _, e := range ofKind(f.transcript(t, project, first).Entries, "user") {
+		assert.NotContains(t, e.Text, "Clubmate finish mode")
+	}
 }
 
 func TestDeleteDuringTurn(t *testing.T) {

@@ -62,6 +62,7 @@ type record struct {
 	Title          string    `json:"title"`
 	Status         string    `json:"status"`
 	Mode           string    `json:"mode"`
+	Finish         string    `json:"finish,omitempty"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Closed         bool      `json:"closed"`

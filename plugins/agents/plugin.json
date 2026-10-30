@@ -143,6 +143,22 @@
         }
       },
       {
+        "id": "agents.finishDefault",
+        "title": "Default Finish Mode",
+        "hidden": true,
+        "description": "Get the finish mode new sessions start with, or set it when value is given: ask (ask before merging) or merge (merge into main and clean up once tests pass).",
+        "args": {
+          "properties": {
+            "value": {"type": "string", "enum": ["ask", "merge"], "description": "New default; omit to read the current one."}
+          }
+        },
+        "result": {
+          "properties": {
+            "value": {"type": "string", "description": "Current default finish mode."}
+          }
+        }
+      },
+      {
         "id": "agents.stop-root",
         "title": "Stop Worktree Agents",
         "hidden": true,
