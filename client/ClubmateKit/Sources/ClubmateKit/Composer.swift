@@ -108,3 +108,22 @@ public final class ComposerModel {
         text = "/\(command.name) "
     }
 }
+
+@MainActor
+public final class ComposerDrafts {
+    private var models: [String: ComposerModel] = [:]
+
+    public init() {}
+
+    public func model(for id: String) -> ComposerModel {
+        if let model = models[id] { return model }
+        let model = ComposerModel()
+        models[id] = model
+        return model
+    }
+
+    public func clear(_ id: String, sent: String) {
+        guard let model = models[id], model.text.trimmingCharacters(in: .whitespacesAndNewlines) == sent else { return }
+        model.text = ""
+    }
+}
