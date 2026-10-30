@@ -123,6 +123,18 @@ func TestChecktimeKeepsModifiedBuffer(t *testing.T) {
 	assert.Equal(t, "unsaved line", eval[string](t, v, "getline(1)"))
 }
 
+func TestChecktimeLoadsFileCreatedAfterOpen(t *testing.T) {
+	e := startEditor(t)
+	path := filepath.Join(e.repo, "new.txt")
+	require.NoError(t, e.open(t, e.file(t, "a.go"), 1))
+	v := dial(t, e.sock)
+	require.NoError(t, v.Command("edit "+path))
+	require.NoError(t, os.WriteFile(path, []byte("created\n"), 0o600))
+	e.run(t, "checktime", map[string]string{"root": e.repo}, nil)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "getline(1)") == "created" }, 5*time.Second)
+	assert.False(t, eval[bool](t, v, "nvim_get_mode().blocking"))
+}
+
 func TestOpenWithColumn(t *testing.T) {
 	e := startEditor(t)
 	path := e.file(t, "a.go")

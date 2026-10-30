@@ -259,7 +259,13 @@ const checktimeLua = `vim.schedule(function()
   vim.o.autoread = true
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buftype == "" and not vim.bo[b].modified then
-      pcall(vim.cmd, "silent! checktime " .. b)
+      local name = vim.api.nvim_buf_get_name(b)
+      local empty = vim.api.nvim_buf_line_count(b) == 1 and vim.api.nvim_buf_get_lines(b, 0, 1, false)[1] == ""
+      if not empty then
+        pcall(vim.cmd, "silent! checktime " .. b)
+      elseif name ~= "" and vim.uv.fs_stat(name) then
+        pcall(vim.api.nvim_buf_call, b, function() vim.cmd("silent! edit") end)
+      end
     end
   end
   vim.o.autoread = ar
