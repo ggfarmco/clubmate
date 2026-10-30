@@ -1269,6 +1269,42 @@ func TestChildLimit(t *testing.T) {
 	assert.Equal(t, started.Error(), prompted.Error())
 }
 
+func TestChildrenFoldedUntilOpenedAndRemembered(t *testing.T) {
+	f := start(t, map[string]any{})
+	project := f.project(t, newRepo(t))
+	parent := f.newSession(t, project)
+	kid := f.newChild(t, project, parent, map[string]any{}).Session
+	expanded := func(n sdui.Node) (bool, bool) {
+		trees := cardsOf(n, "tree")
+		if len(trees) == 0 {
+			return false, false
+		}
+		raw, err := json.Marshal(trees[0].Props["items"])
+		require.NoError(t, err)
+		var groups []sdui.TreeItem
+		require.NoError(t, json.Unmarshal(raw, &groups))
+		for _, g := range groups {
+			for _, item := range g.Children {
+				if item.ID == parent && item.HasChildren {
+					return item.Expanded, true
+				}
+			}
+		}
+		return false, false
+	}
+
+	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { open, ok := expanded(n); return ok && !open })
+	f.h.Event(t, project, "agents.sidebar", kid, "select", kid)
+	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { open, _ := expanded(n); return open })
+
+	before := f.rev(t, project, "agents.sidebar")
+	f.restartPlugin(t, project)
+	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool {
+		open, _ := expanded(n)
+		return open && f.rev(t, project, "agents.sidebar") > before
+	})
+}
+
 func TestDeleteParentDeletesChildren(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 5000}}})
 	project := f.project(t, newRepo(t))

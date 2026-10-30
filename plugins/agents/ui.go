@@ -26,6 +26,7 @@ const (
 	maxSidebarRows  = 1000
 	renderTimeout   = 10 * time.Second
 	selectedKey     = "selected/"
+	collapsedKey    = "collapsed/"
 	selectionCmd    = "editor-nvim.selection"
 	openCmd         = "editor.open"
 	editorSection   = "editor-nvim"
@@ -67,6 +68,7 @@ type projectUI struct {
 	row       string
 	restored  bool
 	collapsed map[string]bool
+	folds     bool
 	sessions  map[string]*sessionUI
 }
 
@@ -378,6 +380,9 @@ func (a *app) render(ctx context.Context, projectID string) error {
 			p.tick.arm()
 		}
 	}
+	if err := a.restoreCollapsed(ctx, projectID); err != nil {
+		return err
+	}
 	a.uiMu.Lock()
 	collapsed := maps.Clone(p.collapsed)
 	row := selected
@@ -505,7 +510,65 @@ func (a *app) selectSession(ctx context.Context, projectID, sid string) error {
 	a.uiMu.Lock()
 	p.restored, p.selected, p.row = true, sid, sid
 	a.uiMu.Unlock()
-	return a.host.StorageSet(ctx, selectedKey+projectID, sid)
+	if err := a.host.StorageSet(ctx, selectedKey+projectID, sid); err != nil {
+		return err
+	}
+	open := map[string]bool{}
+	seen := map[string]bool{sid: true}
+	for s := a.session(sid); s != nil; {
+		parent := s.snapshot().ParentSession
+		if parent == "" || seen[parent] {
+			break
+		}
+		seen[parent] = true
+		open[expandPrefix+parent] = false
+		s = a.session(parent)
+	}
+	return a.setCollapsed(ctx, projectID, open)
+}
+
+func (a *app) restoreCollapsed(ctx context.Context, projectID string) error {
+	p := a.projectState(projectID)
+	a.uiMu.Lock()
+	folds := p.folds
+	a.uiMu.Unlock()
+	if folds {
+		return nil
+	}
+	var stored map[string]bool
+	if _, err := a.host.StorageGet(ctx, collapsedKey+projectID, &stored); err != nil {
+		return err
+	}
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	if !p.folds {
+		maps.Copy(stored, p.collapsed)
+		if stored != nil {
+			p.collapsed = stored
+		}
+		p.folds = true
+	}
+	return nil
+}
+
+func (a *app) setCollapsed(ctx context.Context, projectID string, keys map[string]bool) error {
+	if err := a.restoreCollapsed(ctx, projectID); err != nil {
+		return err
+	}
+	p := a.projectState(projectID)
+	a.uiMu.Lock()
+	changed := false
+	for k, v := range keys {
+		if old, ok := p.collapsed[k]; !ok || old != v {
+			p.collapsed[k], changed = v, true
+		}
+	}
+	collapsed := maps.Clone(p.collapsed)
+	a.uiMu.Unlock()
+	if !changed {
+		return nil
+	}
+	return a.host.StorageSet(ctx, collapsedKey+projectID, collapsed)
 }
 
 func (a *app) session(id string) *session {
@@ -565,15 +628,11 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
-		p := a.projectState(ev.ProjectID)
-		a.uiMu.Lock()
 		key := expandPrefix + id
 		if wt, ok := strings.CutPrefix(id, groupPrefix); ok {
 			key = wt
 		}
-		p.collapsed[key] = ev.Action == actCollapse
-		a.uiMu.Unlock()
-		return nil
+		return a.setCollapsed(ctx, ev.ProjectID, map[string]bool{key: ev.Action == actCollapse})
 	case actClose, actDelete:
 		var id string
 		if err := json.Unmarshal(ev.Value, &id); err != nil {

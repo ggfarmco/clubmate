@@ -273,7 +273,8 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 		return item
 	}
 	item.HasChildren = true
-	item.Expanded = !collapsed[expandPrefix+row.Rec.ID]
+	folded, ok := collapsed[expandPrefix+row.Rec.ID]
+	item.Expanded = ok && !folded
 	if item.Expanded {
 		for _, kid := range children {
 			item.Children = append(item.Children, nestedItem(kid, kids, collapsed, now, path))

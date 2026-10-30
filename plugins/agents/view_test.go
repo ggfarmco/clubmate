@@ -121,23 +121,22 @@ func TestSidebarNestsChildren(t *testing.T) {
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 	}
 
-	tree := sidebarView(rows, "agt_c", map[string]bool{}, now)
+	folded := nodesOf(sidebarView(rows, "", map[string]bool{}, now), "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
+	assert.True(t, folded.HasChildren)
+	assert.False(t, folded.Expanded)
+	assert.Empty(t, folded.Children)
+
+	tree := sidebarView(rows, "agt_c", map[string]bool{"s:agt_p": false}, now)
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 1)
 	require.Len(t, groups[0].Children, 1)
 	parent := groups[0].Children[0]
-	assert.True(t, parent.HasChildren)
 	assert.True(t, parent.Expanded)
 	assert.Equal(t, "a", groups[0].Label)
 	require.Len(t, parent.Children, 2)
 	assert.Equal(t, []string{"agt_c", "agt_d"}, []string{parent.Children[0].ID, parent.Children[1].ID})
-
-	collapsed := sidebarView(rows, "", map[string]bool{"s:agt_p": true}, now)
-	folded := nodesOf(collapsed, "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
-	assert.False(t, folded.Expanded)
-	assert.Empty(t, folded.Children)
 }
 
 func TestRunningActivityElapsed(t *testing.T) {
