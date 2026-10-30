@@ -113,6 +113,20 @@ var primitives = map[string]primitive{
 		cmd:    coreCommand("process.tree", "Process Tree", "List the processes of every session, flagging orphans and duplicates.", nil),
 		method: "process.tree",
 	},
+	"notify.post": {
+		cmd: coreCommand("notify.post", "Post Notification", "Show a macOS notification for the workspace, e.g. when you need the user's input or finished a long task. Skipped while the user is looking at the session; at most 5 per 10 s per workspace.", &schema.Object{
+			Properties: map[string]schema.Prop{
+				"message": {Type: "string", Description: "Notification text, up to 1000 characters (longer is cut)."},
+				"title":   {Type: "string", Description: "Short title, up to 120 characters."},
+				"kind":    {Type: "string", Enum: kindEnum(), Description: "What the notification is about (default info)."},
+				"session": {Type: "string", Description: "Session id to reveal when the notification is clicked: a terminal session (ses_…) or an agent session (agt_…)."},
+			},
+			Required: []string{"message"},
+		}),
+		method:       notifyMethod,
+		needsProject: true,
+		params:       withProject,
+	},
 	"ui.focus": {
 		cmd: coreCommand("ui.focus", "Focus Section", "Show a section in the workspace's window.", &schema.Object{
 			Properties: map[string]schema.Prop{
