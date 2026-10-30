@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -45,6 +46,8 @@ const (
 	moreRowID       = "\x00more"
 	maxReviewItems  = 4900
 	maxRefs         = 200
+	maxLabelLen     = 64
+	commitPrefix    = "commit:"
 	kindWorktree    = "worktree"
 	kindBranch      = "branch"
 	kindRemote      = "remote"
@@ -60,6 +63,7 @@ var (
 	errReviewDir     = errors.New("dir must be 1 or -1")
 	errUnknownFolder = errors.New("not a folder of the review")
 	errBadRef        = errors.New("invalid ref")
+	errLongLabel     = errors.New("baseLabel is longer than 64 characters")
 
 	globCache sync.Map
 )
@@ -72,6 +76,7 @@ type filters struct {
 
 type storedReview struct {
 	Base    string  `json:"base"`
+	Label   string  `json:"label,omitempty"`
 	Filters filters `json:"filters"`
 }
 
@@ -83,6 +88,7 @@ type storedReviews struct {
 type review struct {
 	head      string
 	base      string
+	label     string
 	filters   filters
 	mergeBase string
 	mode      string
@@ -109,8 +115,9 @@ type reviewEntry struct {
 }
 
 type reviewArgs struct {
-	Base string `json:"base"`
-	Head string `json:"head"`
+	Base      string `json:"base"`
+	Head      string `json:"head"`
+	BaseLabel string `json:"baseLabel"`
 }
 
 type filterArgs struct {
@@ -193,7 +200,7 @@ func (a *app) reviewCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsd
 		if err := decodeArgs(cmd, &args); err != nil {
 			return nil, err
 		}
-		return nil, a.startReview(ctx, h, cmd.ProjectID, s, args.Base, args.Head)
+		return nil, a.startReview(ctx, h, cmd.ProjectID, s, args.Base, args.Head, args.BaseLabel)
 	case "git.review-swap":
 		return nil, a.swapReview(ctx, h, cmd.ProjectID, s)
 	case "git.review-filter":
@@ -214,7 +221,10 @@ func (a *app) reviewCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsd
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
 
-func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, base, head string) error {
+func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *state, base, head, label string) error {
+	if utf8.RuneCountInString(label) > maxLabelLen {
+		return errLongLabel
+	}
 	for _, ref := range []string{base, head} {
 		if strings.HasPrefix(ref, "-") {
 			return fmt.Errorf("%w: %q", errBadRef, ref)
@@ -229,15 +239,11 @@ func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *
 			return err
 		}
 	}
-	ref, _, _, err := resolveBase(ctx, f, base)
-	if err != nil {
+	if _, _, _, err := reviewPoint(ctx, f, t.Real, base, label); err != nil {
 		return err
 	}
-	if _, err := gitrepo.MergeBase(ctx, t.Real, ref, currentHead); err != nil {
-		return errors.New(reviewError(base, err))
-	}
 	s.mu.Lock()
-	r := &review{head: t.Real, base: base, filters: s.filters, folded: map[string]bool{}}
+	r := &review{head: t.Real, base: base, label: label, filters: s.filters, folded: map[string]bool{}}
 	if old := s.reviews[t.Real]; old != nil && old.base == base {
 		r.filters, r.selected, r.focus, r.folded = old.filters, old.selected, old.focus, old.folded
 	}
@@ -264,7 +270,7 @@ func (a *app) swapReview(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	if r == nil {
 		return errNoReview
 	}
-	if err := a.startReview(ctx, h, id, s, r.head, r.base); err != nil {
+	if err := a.startReview(ctx, h, id, s, r.head, r.base, ""); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -414,16 +420,12 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	cur := currents[at]
 	s.active = cur.t.Real
 	r := s.reviews[s.active]
-	base, opened, mode, excludes, closed := r.base, r.opened, r.mode, r.filters.excludes(), r.closed
+	base, label, opened, mode, excludes, closed := r.base, r.label, r.opened, r.mode, r.filters.excludes(), r.closed
 	s.mu.Unlock()
 	headLabel, err := gitrepo.Branch(ctx, cur.t.Real)
 	logError("branch "+cur.t.Real, err)
-	ref, baseLabel, warning, err := resolveBase(ctx, cur.f, base)
-	var mergeBase string
+	mergeBase, baseLabel, warning, err := reviewPoint(ctx, cur.f, cur.t.Real, base, label)
 	var changes []gitrepo.Change
-	if err == nil {
-		mergeBase, err = gitrepo.MergeBase(ctx, cur.t.Real, ref, currentHead)
-	}
 	if err == nil {
 		changes, err = gitrepo.WorkingChanges(ctx, cur.t.Real, mergeBase)
 	}
@@ -655,7 +657,7 @@ func (a *app) saveReviews(ctx context.Context, h *pluginsdk.Host, id string, s *
 	s.mu.Lock()
 	st := storedReviews{Reviews: map[string]storedReview{}, Filters: s.filters}
 	for head, r := range s.reviews {
-		st.Reviews[head] = storedReview{Base: r.base, Filters: r.filters}
+		st.Reviews[head] = storedReview{Base: r.base, Label: r.label, Filters: r.filters}
 	}
 	s.mu.Unlock()
 	return h.StorageSet(ctx, reviewKey(id), st)
@@ -665,7 +667,7 @@ func (s *state) restore(st storedReviews) {
 	s.filters = st.Filters.valid()
 	for head, r := range st.Reviews {
 		if r.Base != "" && filepath.IsAbs(head) {
-			s.reviews[head] = &review{head: head, base: r.Base, filters: r.Filters.valid(), folded: map[string]bool{}}
+			s.reviews[head] = &review{head: head, base: r.Base, label: r.Label, filters: r.Filters.valid(), folded: map[string]bool{}}
 		}
 	}
 }
@@ -840,6 +842,28 @@ func headTarget(ctx context.Context, h *pluginsdk.Host, id, head string) (*folde
 		return nil, gitrepo.Worktree{}, errNoRepo
 	}
 	return nil, gitrepo.Worktree{}, fmt.Errorf("%s %w", head, errNotCheckedOut)
+}
+
+func reviewPoint(ctx context.Context, f *folder, repo, base, label string) (string, string, string, error) {
+	if sha, ok := strings.CutPrefix(base, commitPrefix); ok {
+		if sha == "" || strings.HasPrefix(sha, "-") {
+			return "", "", "", fmt.Errorf("%w: %q", errBadRef, base)
+		}
+		out, err := gitrepo.Run(ctx, repo, "rev-parse", "-q", "--verify", sha+"^{commit}")
+		if err != nil {
+			return "", "", "", fmt.Errorf("%w: %q", errBadRef, base)
+		}
+		return strings.TrimSpace(string(out)), cmp.Or(label, base), "", nil
+	}
+	ref, baseLabel, warning, err := resolveBase(ctx, f, base)
+	if err != nil {
+		return "", baseLabel, "", err
+	}
+	mergeBase, err := gitrepo.MergeBase(ctx, repo, ref, currentHead)
+	if err != nil {
+		return "", baseLabel, "", errors.New(reviewError(base, err))
+	}
+	return mergeBase, baseLabel, warning, nil
 }
 
 func resolveBase(ctx context.Context, f *folder, base string) (string, string, string, error) {

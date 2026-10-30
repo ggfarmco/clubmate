@@ -6,6 +6,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
     public let detail: String?
     public let icon: String?
     public let badge: String?
+    public let menu: [SDUIMenuEntry]
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
@@ -14,6 +15,22 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
         detail = fields["detail"]?.stringValue
         icon = fields["icon"]?.stringValue
         badge = fields["badge"]?.stringValue
+        menu = fields["menu"]?.arrayValue?.compactMap(SDUIMenuEntry.init) ?? []
+    }
+}
+
+public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
+    public let action: String
+    public let label: String
+    public let confirm: String?
+
+    public var id: String { action }
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let action = fields["action"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
+        self.action = action
+        self.label = label
+        confirm = fields["confirm"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
     }
 }
 

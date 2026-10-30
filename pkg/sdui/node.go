@@ -8,27 +8,35 @@ type Node struct {
 }
 
 type Item struct {
-	ID     string `json:"id"`
-	Label  string `json:"label"`
-	Detail string `json:"detail,omitempty"`
-	Icon   string `json:"icon,omitempty"`
-	Badge  string `json:"badge,omitempty"`
+	ID     string      `json:"id"`
+	Label  string      `json:"label"`
+	Detail string      `json:"detail,omitempty"`
+	Icon   string      `json:"icon,omitempty"`
+	Badge  string      `json:"badge,omitempty"`
+	Menu   []MenuEntry `json:"menu,omitempty"`
+}
+
+type MenuEntry struct {
+	Action  string `json:"action"`
+	Label   string `json:"label"`
+	Confirm string `json:"confirm,omitempty"`
 }
 
 type TreeItem struct {
-	ID          string     `json:"id"`
-	Label       string     `json:"label"`
-	Detail      string     `json:"detail,omitempty"`
-	Icon        string     `json:"icon,omitempty"`
-	Badge       string     `json:"badge,omitempty"`
-	Muted       bool       `json:"muted,omitempty"`
-	HasChildren bool       `json:"hasChildren,omitempty"`
-	Expanded    bool       `json:"expanded,omitempty"`
-	Additions   int        `json:"additions,omitempty"`
-	Deletions   int        `json:"deletions,omitempty"`
-	Reviewed    bool       `json:"reviewed,omitempty"`
-	Comments    int        `json:"comments,omitempty"`
-	Children    []TreeItem `json:"children,omitempty"`
+	ID          string      `json:"id"`
+	Label       string      `json:"label"`
+	Detail      string      `json:"detail,omitempty"`
+	Icon        string      `json:"icon,omitempty"`
+	Badge       string      `json:"badge,omitempty"`
+	Menu        []MenuEntry `json:"menu,omitempty"`
+	Muted       bool        `json:"muted,omitempty"`
+	HasChildren bool        `json:"hasChildren,omitempty"`
+	Expanded    bool        `json:"expanded,omitempty"`
+	Additions   int         `json:"additions,omitempty"`
+	Deletions   int         `json:"deletions,omitempty"`
+	Reviewed    bool        `json:"reviewed,omitempty"`
+	Comments    int         `json:"comments,omitempty"`
+	Children    []TreeItem  `json:"children,omitempty"`
 }
 
 type Option struct {
@@ -67,6 +75,63 @@ type Spark struct {
 type Sort struct {
 	Column string `json:"column"`
 	Desc   bool   `json:"desc,omitempty"`
+}
+
+type Attachment struct {
+	ID        string `json:"id,omitempty"`
+	Kind      string `json:"kind"`
+	Path      string `json:"path"`
+	StartLine int    `json:"startLine,omitempty"`
+	EndLine   int    `json:"endLine,omitempty"`
+}
+
+type PlanEntry struct {
+	Content string `json:"content"`
+	Status  string `json:"status"`
+}
+
+type ToolBody struct {
+	Format string `json:"format"`
+	Text   string `json:"text"`
+}
+
+type CardAction struct {
+	Action string `json:"action"`
+	Label  string `json:"label"`
+	Icon   string `json:"icon,omitempty"`
+	Value  any    `json:"value,omitempty"`
+}
+
+type ToolCardProps struct {
+	Kind      string
+	Title     string
+	Status    string
+	Body      *ToolBody
+	Truncated bool
+	Actions   []CardAction
+}
+
+type PermissionOption struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Kind  string `json:"kind,omitempty"`
+}
+
+type Command struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Hint        string `json:"hint,omitempty"`
+}
+
+type ComposerProps struct {
+	Placeholder string
+	Agent       string
+	Modes       []Option
+	Mode        string
+	Commands    []Command
+	Attach      []string
+	Attachments []Attachment
+	Running     bool
 }
 
 func VStack(children ...Node) Node {
@@ -182,6 +247,63 @@ func Surface(sessionID string) Node {
 
 func Empty(text string) Node {
 	return Node{Type: "empty", Props: map[string]any{"text": text}}
+}
+
+func Transcript(id string, children ...Node) Node {
+	return Node{Type: "transcript", ID: id, Children: children}
+}
+
+func Message(role, text string, attachments []Attachment) Node {
+	props := map[string]any{"role": role, "text": text}
+	if len(attachments) > 0 {
+		props["attachments"] = attachments
+	}
+	return Node{Type: "message", Props: props}
+}
+
+func Plan(entries []PlanEntry) Node {
+	return Node{Type: "plan", Props: map[string]any{"entries": nonNil(entries)}}
+}
+
+func ToolCard(id string, p ToolCardProps) Node {
+	props := withOptional(map[string]any{"kind": p.Kind, "title": p.Title}, "status", p.Status)
+	if p.Body != nil {
+		props["body"] = *p.Body
+	}
+	if p.Truncated {
+		props["truncated"] = true
+	}
+	if len(p.Actions) > 0 {
+		props["actions"] = p.Actions
+	}
+	return Node{Type: "toolCard", ID: id, Props: props}
+}
+
+func PermissionCard(id, request, text string, options []PermissionOption, outcome string) Node {
+	props := map[string]any{"request": request, "text": text, "options": nonNil(options)}
+	return Node{Type: "permissionCard", ID: id, Props: withOptional(props, "outcome", outcome)}
+}
+
+func Composer(id string, p ComposerProps) Node {
+	props := withOptional(map[string]any{}, "placeholder", p.Placeholder)
+	props = withOptional(props, "agent", p.Agent)
+	props = withOptional(props, "mode", p.Mode)
+	if len(p.Modes) > 0 {
+		props["modes"] = p.Modes
+	}
+	if len(p.Commands) > 0 {
+		props["commands"] = p.Commands
+	}
+	if len(p.Attach) > 0 {
+		props["attach"] = p.Attach
+	}
+	if len(p.Attachments) > 0 {
+		props["attachments"] = p.Attachments
+	}
+	if p.Running {
+		props["running"] = true
+	}
+	return Node{Type: "composer", ID: id, Props: props}
 }
 
 func WithAction(n Node, action string) Node {

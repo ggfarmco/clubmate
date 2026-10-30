@@ -21,6 +21,8 @@ build:
 	cp plugins/processes/plugin.json bin/plugins/processes/
 	$(GO_BUILD) -o bin/plugins/search/search ./plugins/search
 	cp plugins/search/plugin.json bin/plugins/search/
+	$(GO_BUILD) -o bin/plugins/agents/agents ./plugins/agents
+	cp plugins/agents/plugin.json bin/plugins/agents/
 
 run-core: build
 	bin/clubmate-core

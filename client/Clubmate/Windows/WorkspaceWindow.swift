@@ -100,6 +100,7 @@ private struct WorkspaceView: View {
             .environment(\.surfaceDeck, session.deck)
             .environment(\.focusRouter, focus)
             .environment(\.sidebarSide, app.settings.sidebarSide)
+            .environment(\.filePicker, FilePicker { [session] target in session.pickFile(target) })
             .eventBanner(session.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
             .goToFile(session)

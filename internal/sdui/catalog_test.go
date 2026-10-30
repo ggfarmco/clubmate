@@ -67,6 +67,57 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidateAgentNodes(t *testing.T) {
+	extra := func(n sdui.Node) sdui.Node {
+		props := map[string]any{"bogus": 1}
+		for k, v := range n.Props {
+			props[k] = v
+		}
+		n.Props = props
+		return n
+	}
+	attachments := []sdui.Attachment{{Kind: "file", Path: "a.go"}, {ID: "s1", Kind: "selection", Path: "b.go", StartLine: 12, EndLine: 40}}
+	nodes := map[string]sdui.Node{
+		"transcript": sdui.Transcript("t", sdui.Message("agent", "**hi**", nil)),
+		"message":    sdui.Message("user", "fix it", attachments),
+		"plan":       sdui.Plan([]sdui.PlanEntry{{Content: "Read", Status: "completed"}, {Content: "Edit", Status: "in_progress"}}),
+		"toolCard": sdui.ToolCard("c", sdui.ToolCardProps{
+			Kind: "edit", Title: "Edit a.go", Status: "completed", Body: &sdui.ToolBody{Format: "diff", Text: "+a"}, Truncated: true,
+			Actions: []sdui.CardAction{{Action: "openLocation", Label: "Open in nvim", Value: map[string]any{"path": "/r/a.go", "line": 3}}, {Action: "showAll", Label: "Show all"}},
+		}),
+		"permissionCard": sdui.PermissionCard("p", "permission-1", "Run go test?", []sdui.PermissionOption{{ID: "allow", Label: "Allow once", Kind: "allow_once"}}, ""),
+		"composer": sdui.Composer("m", sdui.ComposerProps{
+			Placeholder: "Ask", Agent: "Claude", Modes: []sdui.Option{{Value: "default", Label: "Manual"}}, Mode: "default",
+			Commands: []sdui.Command{{Name: "review", Description: "Review"}}, Attach: []string{"file", "selection"}, Attachments: attachments, Running: true,
+		}),
+		"menu": sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "delete", Label: "Delete", Confirm: "Sure?"}}}}, ""),
+	}
+	for name, n := range nodes {
+		t.Run(name, func(t *testing.T) {
+			assert.NoError(t, internalsdui.Validate(n))
+			if n.Type != "list" {
+				assert.ErrorIs(t, internalsdui.Validate(extra(n)), internalsdui.ErrInvalidTree)
+			}
+		})
+	}
+	invalid := map[string]sdui.Node{
+		"bad role":             sdui.Message("system", "x", nil),
+		"bad plan status":      sdui.Plan([]sdui.PlanEntry{{Content: "x", Status: "done"}}),
+		"card without id":      sdui.ToolCard("", sdui.ToolCardProps{Kind: "read", Title: "x"}),
+		"bad body format":      sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Body: &sdui.ToolBody{Format: "html", Text: "x"}}),
+		"nested action value":  sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Actions: []sdui.CardAction{{Action: "go", Label: "Go", Value: map[string]any{"a": []int{1}}}}}),
+		"duplicate option":     sdui.PermissionCard("p", "r", "x", []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}, ""),
+		"bad attach kind":      sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
+		"duplicate attachment": sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),
+		"menu bad action":      sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),
+	}
+	for name, n := range invalid {
+		t.Run(name, func(t *testing.T) {
+			assert.ErrorIs(t, internalsdui.Validate(n), internalsdui.ErrInvalidTree)
+		})
+	}
+}
+
 func TestValidateAcceptsJSONDecodedTree(t *testing.T) {
 	raw, err := json.Marshal(sdui.VStack(sdui.List("l", []sdui.Item{{ID: "a", Label: "A"}}, "a")))
 	require.NoError(t, err)

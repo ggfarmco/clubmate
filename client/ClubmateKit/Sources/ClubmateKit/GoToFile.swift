@@ -94,6 +94,7 @@ public final class GoToFileModel {
     @ObservationIgnored private let dismiss: @MainActor () -> Void
     @ObservationIgnored private let report: @MainActor (String) -> Void
     @ObservationIgnored private let opened: @MainActor () -> Void
+    @ObservationIgnored private let pick: (@MainActor (String) -> Void)?
     @ObservationIgnored private let debounce: Duration
     @ObservationIgnored private let retry: Duration
     @ObservationIgnored private var pending: Task<Void, Never>?
@@ -107,7 +108,8 @@ public final class GoToFileModel {
         run: @escaping Run,
         dismiss: @escaping @MainActor () -> Void,
         report: @escaping @MainActor (String) -> Void,
-        opened: @escaping @MainActor () -> Void = {}
+        opened: @escaping @MainActor () -> Void = {},
+        pick: (@MainActor (String) -> Void)? = nil
     ) {
         self.debounce = debounce
         self.retry = retry
@@ -115,7 +117,10 @@ public final class GoToFileModel {
         self.dismiss = dismiss
         self.report = report
         self.opened = opened
+        self.pick = pick
     }
+
+    public var picking: Bool { pick != nil }
 
     public func update(_ query: String) {
         self.query = query
@@ -153,6 +158,7 @@ public final class GoToFileModel {
         let match = results[selection]
         cancel()
         dismiss()
+        if let pick { return pick(match.absPath) }
         var args: [String: JSONValue] = ["path": .string(match.absPath)]
         if let line = match.line { args["line"] = .number(Double(line)) }
         switch await run(CommandInvocation(id: Self.openCommand, args: .object(args))) {

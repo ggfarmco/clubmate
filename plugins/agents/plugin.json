@@ -1,0 +1,167 @@
+{
+  "id": "agents",
+  "name": "Agents",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["agents"],
+  "contributes": {
+    "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25}],
+    "commands": [
+      {
+        "id": "agents.new",
+        "title": "New Agent Session",
+        "hidden": true,
+        "description": "Start an agent session in the effective root of the workspace's first git folder. The agent process starts in the background; returns {session} at once.",
+        "args": {
+          "properties": {
+            "agent": {"type": "string", "enum": ["claude"], "default": "claude", "description": "Agent to run."}
+          }
+        },
+        "result": {
+          "properties": {
+            "session": {"type": "string", "description": "Clubmate session id."}
+          }
+        }
+      },
+      {
+        "id": "agents.prompt",
+        "title": "Send Prompt",
+        "hidden": true,
+        "description": "Checkpoint the worktree and send a prompt to the session's agent. Returns once the turn has started; the turn runs in the background.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "text": {"type": "string", "description": "Prompt text."},
+            "attachments": {
+              "type": "array",
+              "description": "Files and selections: {kind: \"file\", path} or {kind: \"selection\", path, startLine, endLine, text}.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {"type": "string", "enum": ["file", "selection"], "description": "Attachment kind."},
+                  "path": {"type": "string", "description": "File path, absolute or relative to the session's worktree."},
+                  "startLine": {"type": "integer", "description": "First selected line, 1-based."},
+                  "endLine": {"type": "integer", "description": "Last selected line, 1-based."},
+                  "text": {"type": "string", "description": "Selected text."}
+                },
+                "required": ["kind", "path"]
+              }
+            }
+          },
+          "required": ["session", "text"]
+        }
+      },
+      {
+        "id": "agents.cancel",
+        "title": "Stop Agent Turn",
+        "hidden": true,
+        "description": "Cancel the running turn and answer pending permission requests with cancelled.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.permission",
+        "title": "Answer Permission",
+        "hidden": true,
+        "description": "Answer a pending permission request with one of its options.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "request": {"type": "string", "description": "Permission request id from the transcript."},
+            "option": {"type": "string", "description": "optionId of the chosen option."}
+          },
+          "required": ["session", "request", "option"]
+        }
+      },
+      {
+        "id": "agents.mode",
+        "title": "Set Agent Mode",
+        "hidden": true,
+        "description": "Switch the session to one of the modes its agent advertises; remembered for new sessions in the worktree.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "mode": {"type": "string", "description": "Mode id."}
+          },
+          "required": ["session", "mode"]
+        }
+      },
+      {
+        "id": "agents.close",
+        "title": "Close Agent Session",
+        "hidden": true,
+        "description": "Close the session; the agent process stops when no open sessions remain in its worktree. The transcript stays readable.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.delete",
+        "title": "Delete Agent Session",
+        "hidden": true,
+        "destructive": true,
+        "confirm": "Delete this agent session, its transcript and its checkpoints?",
+        "description": "Close the session, delete it in the agent when supported, and remove its log and checkpoint refs.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.resume",
+        "title": "Resume Agent Session",
+        "hidden": true,
+        "description": "Reattach a session whose agent process is gone (session/resume); fails when the agent cannot resume. Runs in the background.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.stop-root",
+        "title": "Stop Worktree Agents",
+        "hidden": true,
+        "agent": false,
+        "description": "Close every agent session whose worktree is inside the given root, stop their agent processes and delete their checkpoint refs; called before a worktree is removed.",
+        "args": {
+          "properties": {
+            "root": {"type": "string", "description": "Absolute worktree root."}
+          },
+          "required": ["root"]
+        }
+      },
+      {
+        "id": "agents.sessions",
+        "title": "List Agent Sessions",
+        "hidden": true,
+        "agent": true,
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, title, status, mode, createdAt, updatedAt, closed, error?}]. status is running, waiting (a permission is pending), done, idle, error or closed. Non-destructive."
+      },
+      {
+        "id": "agents.transcript",
+        "title": "Agent Session Transcript",
+        "hidden": true,
+        "agent": true,
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, commands, turns:[{turn, checkpointSha, stopReason}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission or notice. Non-destructive.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."}
+          },
+          "required": ["session"]
+        }
+      }
+    ]
+  }
+}
