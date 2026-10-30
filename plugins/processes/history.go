@@ -39,7 +39,7 @@ func (h *history) push(key string, cpu, memMB float64, now time.Time) {
 	s.seen = now
 }
 
-func (h *history) record(sessions []pluginsdk.Session, nodes []pluginsdk.ProcessNode, now time.Time) {
+func (h *history) record(sessions []group, nodes []pluginsdk.ProcessNode, now time.Time) {
 	type total struct{ cpu, mb float64 }
 	projectOf := make(map[string]string, len(sessions))
 	totals := make(map[string]*total, 2*len(sessions))

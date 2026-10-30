@@ -898,3 +898,31 @@ func TestContinueInNewSession(t *testing.T) {
 	})
 	assert.True(t, f.session(t, project, old).Closed)
 }
+
+func TestAgentProcessRegistered(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{"linger": true})
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	type root struct {
+		ID    string `json:"id"`
+		Label string `json:"label"`
+		Owner string `json:"owner"`
+		PID   int    `json:"pid"`
+	}
+	roots := func() []root {
+		var out []root
+		require.NoError(t, f.h.Client(t).Call(t.Context(), "process.roots", map[string]string{"projectId": project}, &out))
+		return out
+	}
+	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" }, wait)
+	require.Len(t, roots(), 1)
+	got := roots()[0]
+	starts := f.calls(t, "start")
+	require.Len(t, starts, 1)
+	assert.Equal(t, root{ID: got.ID, Label: "Claude · " + filepath.Base(repo), Owner: "agents", PID: starts[0].PID}, got)
+
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "process.kill", map[string]any{"sessionId": got.ID, "pids": []int{got.PID}}, nil))
+	f.waitStatus(t, project, session, "error")
+	assert.Empty(t, roots())
+}

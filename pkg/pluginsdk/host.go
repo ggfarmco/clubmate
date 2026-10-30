@@ -53,6 +53,14 @@ type ProcessNode struct {
 	Duplicate bool        `json:"duplicate"`
 }
 
+type ProcessRoot struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"projectId"`
+	Label     string `json:"label"`
+	Owner     string `json:"owner"`
+	PID       int    `json:"pid"`
+}
+
 type KillRequest struct {
 	PIDs        []int  `json:"pids"`
 	SessionID   string `json:"sessionId"`
@@ -181,6 +189,22 @@ func (h *Host) KillProcesses(ctx context.Context, req KillRequest) ([]int, error
 	return out.Killed, err
 }
 
+func (h *Host) RegisterProcess(ctx context.Context, projectID string, pid int, label string) (ProcessRoot, error) {
+	var out ProcessRoot
+	err := h.Call(ctx, "process.register", registerProcessParams{ProjectID: projectID, PID: pid, Label: label}, &out)
+	return out, err
+}
+
+func (h *Host) UnregisterProcess(ctx context.Context, pid int) error {
+	return h.Call(ctx, "process.unregister", pidParams{PID: pid}, nil)
+}
+
+func (h *Host) ProcessRoots(ctx context.Context, projectID string) ([]ProcessRoot, error) {
+	var out []ProcessRoot
+	err := h.Call(ctx, "process.roots", projectParams{ProjectID: projectID}, &out)
+	return out, err
+}
+
 func (h *Host) Publish(ctx context.Context, topic string, payload any) (Event, error) {
 	var out Event
 	err := h.Call(ctx, "bus.publish", publishParams{Topic: topic, Payload: payload}, &out)
@@ -301,6 +325,16 @@ type renderParams struct {
 
 type projectParams struct {
 	ProjectID string `json:"projectId"`
+}
+
+type registerProcessParams struct {
+	ProjectID string `json:"projectId"`
+	PID       int    `json:"pid"`
+	Label     string `json:"label"`
+}
+
+type pidParams struct {
+	PID int `json:"pid"`
 }
 
 type watchResult struct {

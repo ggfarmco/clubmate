@@ -382,6 +382,7 @@ func (a *app) startProc(ctx context.Context, agent, workspace, root string) (*ag
 		return nil, err
 	}
 	a.groups.add(p.pgid)
+	a.registerProc(ctx, p, workspace)
 	a.mu.Lock()
 	closing := a.closing
 	if !closing {
@@ -409,6 +410,7 @@ func (a *app) startProc(ctx context.Context, agent, workspace, root string) (*ag
 
 func (a *app) procExited(p *agentProc, reason string) {
 	a.groups.remove(p.pgid)
+	a.unregisterProc(p)
 	a.mu.Lock()
 	delete(a.live, p)
 	for k, slot := range a.procs {

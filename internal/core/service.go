@@ -66,6 +66,9 @@ type Service struct {
 	transitionsMu sync.Mutex
 	baselined     bool
 	reported      map[string]bool
+
+	rootsMu sync.Mutex
+	roots   []ProcessRoot
 }
 
 type sessionExited struct {
@@ -210,7 +213,7 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
+	if _, err := proc.KillTree(ctx, nodeTargets(sessionNodes(nodes)), s.killGrace); err != nil {
 		return fmt.Errorf("kill project %s: %w", id, err)
 	}
 	sessions, err := s.sessions.List(ctx, session.ListFilter{ProjectID: id})
@@ -346,6 +349,10 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 		projectOf[sess.ID] = sess.ProjectID
 		excluded[sess.HostPID] = true
 		roots = append(roots, rootOf(sess, byPID))
+	}
+	for _, r := range s.liveRoots(byPID) {
+		projectOf[r.ID] = r.ProjectID
+		roots = append(roots, proc.SessionRoot{SessionID: r.ID, RootPID: r.PID, Owned: true})
 	}
 	if s.exclude != nil {
 		for _, pid := range s.exclude() {

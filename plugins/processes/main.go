@@ -365,14 +365,14 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 	if len(ids) == 0 {
 		return
 	}
-	sessions, err := h.ListSessions(ctx, "", false)
-	if err != nil {
-		logError("list sessions", err)
-		return
-	}
 	nodes, err := h.ProcessTree(ctx, "", "")
 	if err != nil {
 		logError("process tree", err)
+		return
+	}
+	sessions, err := listGroups(ctx, h, "")
+	if err != nil {
+		logError("list groups", err)
 		return
 	}
 	a.renderMu.Lock()
@@ -386,7 +386,7 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 		if !a.visible(id) {
 			continue
 		}
-		own := slices.DeleteFunc(slices.Clone(sessions), func(s pluginsdk.Session) bool { return s.ProjectID != id })
+		own := slices.DeleteFunc(slices.Clone(sessions), func(s group) bool { return s.ProjectID != id })
 		mine := slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return projectOf[n.SessionID] != id })
 		logError("render "+id, a.show(ctx, h, id, own, mine))
 	}
@@ -491,18 +491,18 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
 	} else if err != nil {
 		return err
 	}
-	sessions, err := h.ListSessions(ctx, id, false)
+	nodes, err := h.ProcessTree(ctx, id, "")
 	if err != nil {
 		return err
 	}
-	nodes, err := h.ProcessTree(ctx, id, "")
+	sessions, err := listGroups(ctx, h, id)
 	if err != nil {
 		return err
 	}
 	return a.show(ctx, h, id, sessions, nodes)
 }
 
-func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions []pluginsdk.Session, nodes []pluginsdk.ProcessNode) error {
+func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions []group, nodes []pluginsdk.ProcessNode) error {
 	a.renderMu.Lock()
 	defer a.renderMu.Unlock()
 	st, err := a.state(ctx, h, id)
@@ -513,7 +513,7 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 		return err
 	}
 	snap := a.snapshot(st)
-	if snap.session != "" && !slices.ContainsFunc(sessions, func(s pluginsdk.Session) bool { return s.ID == snap.session }) {
+	if snap.session != "" && !slices.ContainsFunc(sessions, func(s group) bool { return s.ID == snap.session }) {
 		if err := a.clearSession(ctx, h, id, st, snap.session); err != nil {
 			return err
 		}
@@ -521,16 +521,12 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	}
 	scope, totalKey := "All", projectKey(id)
 	shown := nodes
-	if i := slices.IndexFunc(sessions, func(s pluginsdk.Session) bool { return s.ID == snap.session }); i >= 0 {
+	if i := slices.IndexFunc(sessions, func(s group) bool { return s.ID == snap.session }); i >= 0 {
 		scope, totalKey = sessions[i].Title, sessionKey(snap.session)
 		shown = slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return n.SessionID != snap.session })
 	}
 	a.forgetGone(st, &snap, nodes, shown)
-	rows := make([]sessionRow, 0, len(sessions))
-	for _, s := range sessions {
-		rows = append(rows, sessionRow{ID: s.ID, Title: s.Title, Owner: s.Owner})
-	}
-	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(rows, snap.session)); err != nil {
+	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(sessions, snap.session)); err != nil {
 		return err
 	}
 	view, depth := mainView(viewModel{
@@ -573,6 +569,25 @@ func (a *app) forgetGone(st *projectState, snap *projectState, nodes, shown []pl
 			delete(snap.collapsed, pid)
 		}
 	}
+}
+
+func listGroups(ctx context.Context, h *pluginsdk.Host, projectID string) ([]group, error) {
+	sessions, err := h.ListSessions(ctx, projectID, false)
+	if err != nil {
+		return nil, err
+	}
+	roots, err := h.ProcessRoots(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]group, 0, len(sessions)+len(roots))
+	for _, s := range sessions {
+		out = append(out, group{ID: s.ID, ProjectID: s.ProjectID, Title: s.Title, Owner: s.Owner})
+	}
+	for _, r := range roots {
+		out = append(out, group{ID: r.ID, ProjectID: r.ProjectID, Title: r.Label, Owner: r.Owner})
+	}
+	return out, nil
 }
 
 func subtree(nodes []pluginsdk.ProcessNode, root int) []int {

@@ -86,6 +86,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.fsMethods())
 	maps.Copy(s.methods, s.diagnosticsMethods())
 	maps.Copy(s.methods, s.notifyMethods())
+	maps.Copy(s.methods, s.processMethods())
 	return s
 }
 
@@ -146,6 +147,9 @@ func (s *Server) open(ctx context.Context, stream jsonrpc2.ObjectStream, caller 
 		<-conn.DisconnectNotify()
 		s.untrackClient(conn)
 		subs.closeAll()
+		if caller.IsPlugin() {
+			s.svc.DropProcesses(caller.rootOwner())
+		}
 	}()
 	return conn, done
 }

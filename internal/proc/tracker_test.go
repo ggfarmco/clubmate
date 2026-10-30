@@ -81,3 +81,23 @@ func TestDuplicateIgnoresSameNameChild(t *testing.T) {
 		assert.False(t, node(nodes, pid).Duplicate, pid)
 	}
 }
+
+func TestAttributeOwnedRootNeverOrphan(t *testing.T) {
+	t0 := time.Unix(1000, 0)
+	tr := proc.NewTracker(func(int) ([]string, error) { return nil, nil })
+	roots := []proc.SessionRoot{{SessionID: "prc_a", RootPID: 10, PGID: 10, Owned: true}}
+	snap := []proc.Process{
+		{PID: 5, PPID: 1, PGID: 5, Comm: "agents", StartTime: t0},
+		{PID: 10, PPID: 5, PGID: 10, Comm: "node", StartTime: t0},
+		{PID: 11, PPID: 10, PGID: 11, Comm: "claude", StartTime: t0},
+		{PID: 12, PPID: 11, PGID: 11, Comm: "mcp", StartTime: t0},
+	}
+	tr.Attribute(snap, roots)
+	snap[3].PPID = 1
+	nodes := tr.Attribute(snap, roots)
+	assert.Equal(t, []int{10, 11, 12}, pids(nodes))
+	for _, n := range nodes {
+		assert.Equal(t, "prc_a", n.SessionID)
+		assert.False(t, n.Orphan, n.Process.PID)
+	}
+}
