@@ -108,3 +108,11 @@ public enum Markdown {
         return MarkdownListItem(marker: digits + ".", depth: depth, text: after.dropFirst(2).trimmingCharacters(in: .whitespaces))
     }
 }
+
+public enum MarkdownLinkPolicy {
+    private static let schemes: Set<String> = ["http", "https", "mailto"]
+
+    public static func allows(_ url: URL) -> Bool {
+        url.scheme.map { schemes.contains($0.lowercased()) } ?? false
+    }
+}

@@ -82,6 +82,7 @@ struct MarkdownNodeView: View {
 
     var body: some View {
         Text(theme.inlineMarkdown(node.string("text") ?? ""))
+            .safeLinks()
             .font(theme.ui)
             .foregroundStyle(theme.foreground)
             .tint(theme.accent)

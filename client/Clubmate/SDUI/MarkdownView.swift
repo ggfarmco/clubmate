@@ -14,6 +14,14 @@ extension Theme {
     }
 }
 
+extension View {
+    func safeLinks() -> some View {
+        environment(\.openURL, OpenURLAction { url in
+            MarkdownLinkPolicy.allows(url) ? .systemAction : .discarded
+        })
+    }
+}
+
 struct MarkdownText: View {
     let text: String
     var muted = false
@@ -29,6 +37,7 @@ struct MarkdownText: View {
         .font(theme.ui)
         .foregroundStyle(muted ? theme.muted : theme.foreground)
         .tint(theme.accent)
+        .safeLinks()
     }
 
     @ViewBuilder private func view(for block: MarkdownBlock) -> some View {

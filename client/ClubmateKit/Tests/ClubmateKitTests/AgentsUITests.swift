@@ -21,6 +21,15 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(Markdown.blocks("```\nstreaming"), [.code(language: "", text: "streaming")])
     }
 
+    func testMarkdownLinksOnlyOpenWebAndMail() throws {
+        for allowed in ["https://example.com", "HTTP://example.com/a", "mailto:a@b.c"] {
+            XCTAssertTrue(MarkdownLinkPolicy.allows(try XCTUnwrap(URL(string: allowed))), allowed)
+        }
+        for denied in ["file:///etc/passwd", "x-callback-url://run", "clubmate://open", "javascript:alert(1)", "relative/path"] {
+            XCTAssertFalse(MarkdownLinkPolicy.allows(try XCTUnwrap(URL(string: denied))), denied)
+        }
+    }
+
     func testComposerKeys() throws {
         let model = ComposerModel()
         model.commands = ["review", "compact", "context"].map { ComposerCommand(name: $0, description: "", hint: "") }
