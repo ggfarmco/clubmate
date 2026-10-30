@@ -2,42 +2,44 @@ import SwiftUI
 
 import ClubmateKit
 
-struct CodeSidebar: View {
+struct SectionSidebar: View {
     let session: ProjectSession
     let store: ProjectUIStore
+    let section: String
 
-    private enum Tab {
-        case files
-        case review
-    }
-
-    @State private var tab = Tab.files
     @Environment(\.theme) private var theme
+    @Environment(\.focusRouter) private var router
 
     var body: some View {
         let review = store.slots[ReviewSlot.slot]?.tree
-        let active = ReviewSlot.isActive(review)
+        let title = store.sections.first { $0.id == section }?.title ?? section
+        let tabs = SidebarTabs.tabs(section: section, title: title, hosted: store.hostedSections, review: ReviewSlot.isActive(review))
+        let current = store.sidebarTabs.current(section, in: tabs)
         VStack(spacing: 0) {
-            if active {
+            if tabs.count > 1 {
                 HStack(spacing: 0) {
-                    TabButton(label: "Files", selected: tab == .files) { tab = .files }
-                    TabButton(label: "Review", selected: tab == .review) { tab = .review }
+                    ForEach(tabs) { tab in
+                        TabButton(label: tab.title, selected: tab == current) { store.sidebarTabs.choose(tab.slot, in: section) }
+                    }
                     Spacer(minLength: 0)
                 }
                 .frame(height: theme.rowHeight + 4)
                 .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
             }
-            if active, tab == .review {
-                if let header = ReviewSlot.header(review) {
-                    ReviewHeaderView(session: session, header: header)
-                }
-                SlotPane(store: store, slot: ReviewSlot.slot)
-            } else {
-                SlotPane(store: store, slot: "\(CodeSection.id).sidebar")
+            if current?.slot == ReviewSlot.slot, let header = ReviewSlot.header(review) {
+                ReviewHeaderView(session: session, header: header)
             }
+            SlotPane(store: store, slot: current?.slot ?? "\(section).sidebar")
+                .id(current?.slot)
+                .environment(\.cycleSidebarTab, tabs.count > 1 ? cycler(tabs) : nil)
+                .environment(\.sidebarHasField, current.flatMap { store.slots[$0.slot]?.tree.hasTextField } ?? false)
         }
-        .onChange(of: active, initial: true) { _, active in
-            tab = active ? .review : .files
+    }
+
+    private func cycler(_ tabs: [SidebarTab]) -> SidebarTabCycler {
+        SidebarTabCycler { [store, section, router] delta in
+            guard store.sidebarTabs.cycle(section, in: tabs, by: delta) != nil else { return }
+            router?.request("\(section).sidebar")
         }
     }
 }

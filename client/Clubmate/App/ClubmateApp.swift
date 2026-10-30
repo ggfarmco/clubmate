@@ -249,7 +249,7 @@ private struct ProjectCommands: Commands {
     }
 
     private func section(_ index: Int) -> SectionInfo? {
-        guard let sections = store?.sections, sections.indices.contains(index - 1) else { return nil }
+        guard let sections = store.map({ app.settings.ordered($0.sections) }), sections.indices.contains(index - 1) else { return nil }
         return sections[index - 1]
     }
 

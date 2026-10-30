@@ -149,6 +149,22 @@ func TestSectionsOrderOwnerAndSlots(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestSectionsKeepOnlyValidHosts(t *testing.T) {
+	sec := internalsdui.NewSections([]internalsdui.SectionDef{
+		{ID: "code", Plugin: "pc"},
+		{ID: "git", Plugin: "pg", Host: "code"},
+		{ID: "sub", Plugin: "ps", Host: "git"},
+		{ID: "lost", Plugin: "pl", Host: "nope"},
+		{ID: "late", Plugin: "pt", Host: "lost"},
+		{ID: "app", Plugin: "pa", Scope: internalsdui.ScopeApp, Host: "code"},
+	})
+	hosts := map[string]string{}
+	for _, s := range sec.List() {
+		hosts[s.ID] = s.Host
+	}
+	assert.Equal(t, map[string]string{"code": "", "git": "code", "sub": "", "lost": "", "late": "lost", "app": ""}, hosts)
+}
+
 func recv(t *testing.T, sub *internalsdui.Subscription) internalsdui.SlotView {
 	t.Helper()
 	select {

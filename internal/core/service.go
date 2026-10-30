@@ -66,6 +66,11 @@ type Service struct {
 	transitionsMu sync.Mutex
 	baselined     bool
 	reported      map[string]bool
+
+	startTime func(pid int) (time.Time, error)
+	rootsMu   sync.Mutex
+	roots     []*rootRecord
+	dropped   map[RootOwner]bool
 }
 
 type sessionExited struct {
@@ -88,6 +93,10 @@ func WithExcludePIDs(fn func() []int) Option {
 	return func(s *Service) { s.exclude = fn }
 }
 
+func WithStartTime(fn func(pid int) (time.Time, error)) Option {
+	return func(s *Service) { s.startTime = fn }
+}
+
 func WithKillGrace(d time.Duration) Option {
 	return func(s *Service) { s.killGrace = d }
 }
@@ -101,6 +110,8 @@ func NewService(projects *project.Store, sessions *session.Manager, tracker *pro
 		killGrace: DefaultKillGrace,
 		logger:    slog.New(slog.DiscardHandler),
 		reported:  map[string]bool{},
+		startTime: proc.StartTime,
+		dropped:   map[RootOwner]bool{},
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -210,7 +221,7 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := proc.KillTree(ctx, nodeTargets(nodes), s.killGrace); err != nil {
+	if _, err := proc.KillTree(ctx, nodeTargets(sessionNodes(nodes)), s.killGrace); err != nil {
 		return fmt.Errorf("kill project %s: %w", id, err)
 	}
 	sessions, err := s.sessions.List(ctx, session.ListFilter{ProjectID: id})
@@ -331,6 +342,7 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 	if err != nil {
 		return nil, err
 	}
+	snapStart := time.Now()
 	procs, err := s.snapshot()
 	if err != nil {
 		return nil, err
@@ -347,13 +359,16 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 		excluded[sess.HostPID] = true
 		roots = append(roots, rootOf(sess, byPID))
 	}
+	roots = append(roots, s.registeredRoots(byPID, snapStart, projectOf)...)
 	if s.exclude != nil {
 		for _, pid := range s.exclude() {
 			excluded[pid] = true
 		}
 	}
+	nodes := s.tracker.Attribute(procs, roots)
+	s.sweepRoots(nodes)
 	var out []proc.Node
-	for _, n := range s.tracker.Attribute(procs, roots) {
+	for _, n := range nodes {
 		if excluded[n.Process.PID] {
 			continue
 		}

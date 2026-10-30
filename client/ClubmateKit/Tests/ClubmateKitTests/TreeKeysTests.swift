@@ -100,6 +100,13 @@ final class TreeKeysTests: XCTestCase {
         }
     }
 
+    func testTabAndChordKeys() {
+        XCTAssertEqual(TreeKeys.action(keyCode: 43, control: false, command: false, side: .left, shift: true), .cycleTab(-1))
+        XCTAssertEqual(TreeKeys.action(keyCode: 47, control: false, command: false, side: .left, shift: true), .cycleTab(1))
+        XCTAssertEqual(TreeCursor.resolve(.cycleTab(1), cursor: nil, in: []), .cycleTab(1))
+        XCTAssertEqual([0, 32, 15, 8, 9].map(TreeChord.resolve), [.menu("stage"), .menu("unstage"), .menu("discard"), .focusField, nil])
+    }
+
     func testCollapseOthersKey() {
         XCTAssertEqual(TreeKeys.action(keyCode: 27, control: false, command: false, side: .left), .collapseOthers)
         XCTAssertEqual(TreeCursor.resolve(.collapseOthers, cursor: nil, in: []), .run("files.collapse-others"))

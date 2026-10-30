@@ -58,6 +58,7 @@ type Section struct {
 	Scope   string   `json:"scope"`
 	AutoNew bool     `json:"autoNew"`
 	Slots   []string `json:"slots"`
+	Host    string   `json:"host"`
 }
 
 type CommandDef struct {
@@ -97,7 +98,7 @@ func SectionDefs(manifests []Manifest) []sdui.SectionDef {
 	var defs []sdui.SectionDef
 	for _, m := range manifests {
 		for _, s := range m.Contributes.Sections {
-			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Scope: s.Scope, AutoNew: s.AutoNew, Plugin: m.ID, Slots: s.Slots})
+			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Scope: s.Scope, AutoNew: s.AutoNew, Plugin: m.ID, Slots: s.Slots, Host: s.Host})
 		}
 	}
 	return defs
@@ -157,6 +158,9 @@ func (m Manifest) validate() error {
 	for _, s := range m.Contributes.Sections {
 		if s.Scope != "" && s.Scope != sdui.ScopeProject && s.Scope != sdui.ScopeApp {
 			return invalid(m.Dir, "section %q has invalid scope %q", s.ID, s.Scope)
+		}
+		if s.Host == s.ID {
+			return invalid(m.Dir, "section %q has invalid host %q", s.ID, s.Host)
 		}
 		for i, name := range s.Slots {
 			if !slotPattern.MatchString(name) || slices.Contains(fixedSlots, name) || slices.Contains(s.Slots[:i], name) {

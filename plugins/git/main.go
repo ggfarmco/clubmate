@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -35,11 +36,10 @@ const (
 var (
 	errUnknownAction  = errors.New("unknown action")
 	errUnknownCommand = errors.New("unknown command")
-	errNoSelection    = errors.New("no file selected")
 	errNotChanges     = errors.New("only unstaged changes can be discarded")
 	errNoMessage      = errors.New("commit message is required")
 	errUnknownRepo    = errors.New("unknown repository")
-	errStaleTarget    = errors.New("the file is no longer selected")
+	errStaleTarget    = errors.New("the file is no longer listed")
 	errBusy           = errors.New("git is busy")
 	errNoRepo         = errors.New("no repository to review")
 )
@@ -83,6 +83,9 @@ type state struct {
 	commits  int
 	reviews  map[string]*review
 	active   string
+	started  int64
+	listed   map[string][]leaf
+	gen      int
 	filters  filters
 	busy     string
 	failure  string
@@ -94,6 +97,8 @@ type app struct {
 	mu       sync.Mutex
 	projects map[string]*state
 	ops      opTable
+	hostOnce sync.Once
+	hosted   bool
 }
 
 func main() {
@@ -198,13 +203,11 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		}
 		return nil, a.fold(ctx, h, ev.ProjectID, s, item, ev.Action == "collapse")
 	case stageAction, unstageAction, discardAction:
-		if err := a.apply(ctx, s, ev.Action, ev.NodeID); err != nil {
+		if err := a.apply(ctx, s, ev.Action, ev.Value); err != nil {
 			return nil, err
 		}
 		a.schedule(h, ev.ProjectID, s, 0)
 		return nil, nil
-	case openDiffAction:
-		return nil, a.openDiff(ctx, h, ev.ProjectID, s)
 	case commitAction:
 		var f commitForm
 		if err := json.Unmarshal(ev.Value, &f); err != nil {
@@ -436,16 +439,21 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		}
 		branch, err := gitrepo.Branch(ctx, repo)
 		logError("branch "+repo, err)
-		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}}
+		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}, Dirs: map[string]bool{}}
 		for _, l := range leaves(rv) {
 			if l.Group == groupChanges && blocked(l) == "" {
 				rv.Restorable[l.Path] = true
+			}
+			if info, err := os.Lstat(l.Path); l.Group == groupUntracked && err == nil && info.IsDir() {
+				rv.Dirs[l.Path] = true
 			}
 		}
 		views[repo] = rv
 	}
 	s.mu.Lock()
 	s.views = views
+	s.listed = map[string][]leaf{}
+	s.gen++
 	s.selected = s.follow(s.selected)
 	s.mu.Unlock()
 	a.refreshReview(ctx, h, id, s)
@@ -482,27 +490,50 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	for i, r := range s.repos {
 		views[i] = s.view(r)
 	}
-	live := s.liveLocked()
-	folded := maps.Clone(s.folded)
-	sel := s.leaf(s.selected)
-	m := mainModel{Sel: sel, Repos: live, FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
-	review := s.reviewModel()
-	s.mu.Unlock()
-	selected := ""
-	if sel != nil {
-		selected = sel.id()
-		if info, err := os.Lstat(sel.Path); err == nil && sel.Group == groupUntracked {
-			sel.Dir = info.IsDir()
-		}
-		text, truncated, err := bodyFor(ctx, *sel)
-		m.Body = bodyNode(text, truncated, sel.Dir, err)
+	m := sidebarModel{Repos: views, Folded: maps.Clone(s.folded), Live: s.liveLocked(), FormID: fmt.Sprintf("commit-%d", s.commits), Busy: s.busy, Failure: s.failure}
+	if sel := s.leaf(s.selected); sel != nil {
+		m.Selected = sel.id()
 	}
-	_, err := h.Render(ctx, id, sidebarSlot, sidebarView(views, selected, folded))
-	logError("sidebar "+id, err)
-	_, err = h.Render(ctx, id, reviewSlot, reviewView(review))
+	review := s.reviewModel()
+	listed, gen := maps.Clone(s.listed), s.gen
+	s.mu.Unlock()
+	if listed == nil {
+		listed = map[string][]leaf{}
+	}
+	m.Dirs = untrackedDirs(ctx, views, m.Folded, listed)
+	s.mu.Lock()
+	if s.gen == gen && s.listed != nil {
+		maps.Copy(s.listed, listed)
+	}
+	s.mu.Unlock()
+	_, err := h.Render(ctx, id, reviewSlot, reviewView(review))
 	logError("review "+id, err)
-	_, err = h.Render(ctx, id, mainSlot, mainView(m))
+	if !a.gitHosted(ctx, h) {
+		_, err = h.Render(ctx, id, mainSlot, sdui.Empty(noEditor))
+		logError("main "+id, err)
+	}
+	_, err = h.Render(ctx, id, sidebarSlot, sidebarView(m))
 	return err
+}
+
+func (a *app) gitHosted(ctx context.Context, h *pluginsdk.Host) bool {
+	a.hostOnce.Do(func() {
+		a.hosted = true
+		var sections []struct {
+			ID   string `json:"id"`
+			Host string `json:"host"`
+		}
+		if err := h.Call(ctx, "ui.sections", struct{}{}, &sections); err != nil {
+			logError("sections", err)
+			return
+		}
+		for _, sec := range sections {
+			if sec.ID == gitSection {
+				a.hosted = sec.Host != ""
+			}
+		}
+	})
+	return a.hosted
 }
 
 func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
@@ -510,32 +541,35 @@ func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *s
 		return nil
 	}
 	s.mu.Lock()
-	if s.leaf(item) != nil {
+	sel := s.leaf(item)
+	s.selected = ""
+	if sel != nil {
 		s.selected = item
-	} else {
-		s.selected = ""
 	}
 	s.mu.Unlock()
-	return a.render(ctx, h, id, s)
+	if err := a.render(ctx, h, id, s); err != nil || sel == nil {
+		return err
+	}
+	return openDiff(ctx, h, id, *sel)
 }
 
 func (a *app) fold(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string, on bool) error {
 	s.mu.Lock()
-	if on {
-		s.folded[item] = true
-	} else {
-		delete(s.folded, item)
-	}
+	s.folded[item] = on
 	s.mu.Unlock()
 	return a.render(ctx, h, id, s)
 }
 
-func (a *app) apply(ctx context.Context, s *state, action, target string) error {
+func (a *app) apply(ctx context.Context, s *state, action string, value json.RawMessage) error {
+	var item string
+	if err := json.Unmarshal(value, &item); err != nil {
+		return fmt.Errorf("%s value: %w", action, err)
+	}
 	s.mu.Lock()
-	sel := s.leaf(s.selected)
+	sel := s.leaf(item)
 	s.mu.Unlock()
 	if sel == nil {
-		return errNoSelection
+		return errStaleTarget
 	}
 	rel := sel.rel()
 	var err error
@@ -549,9 +583,6 @@ func (a *app) apply(ctx context.Context, s *state, action, target string) error 
 		}
 		err = unstage(ctx, sel.Repo, paths...)
 	case discardAction:
-		if target != sel.id() {
-			return errStaleTarget
-		}
 		if sel.Group != groupChanges {
 			return errNotChanges
 		}
@@ -563,23 +594,15 @@ func (a *app) apply(ctx context.Context, s *state, action, target string) error 
 	return err
 }
 
-func (a *app) openDiff(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	s.mu.Lock()
-	sel := s.leaf(s.selected)
-	s.mu.Unlock()
-	if sel == nil {
-		return errNoSelection
+func openDiff(ctx context.Context, h *pluginsdk.Host, id string, l leaf) error {
+	if info, err := os.Lstat(l.Path); err == nil && info.IsDir() {
+		return nil
 	}
-	args := diffArgs{Path: sel.Path, Base: "index", Target: "worktree"}
-	switch sel.Group {
-	case groupStaged:
+	args := diffArgs{Path: l.Path, Base: "index", Target: "worktree"}
+	if l.Group == groupStaged {
 		args.Base, args.Target = "head", "index"
 	}
-	if err := h.RunCommand(ctx, diffCommand, id, args, nil); err != nil {
-		return err
-	}
-	logError("focus "+id, h.Focus(ctx, id, editorSection, editorSlot))
-	return nil
+	return h.RunCommand(ctx, diffCommand, id, args, nil)
 }
 
 func (a *app) commit(ctx context.Context, h *pluginsdk.Host, id string, s *state, f commitForm) error {
@@ -676,7 +699,51 @@ func (s *state) leaf(id string) *leaf {
 			}
 		}
 	}
+	parts := strings.SplitN(id, idSep, 3)
+	if len(parts) != 3 || parts[1] != groupUntracked || !slices.Contains(s.repos, parts[0]) || filepath.Clean(parts[2]) != parts[2] {
+		return nil
+	}
+	v := s.view(parts[0])
+	for _, l := range leaves(v) {
+		if v.Dirs[l.Path] && strings.HasPrefix(parts[2], l.Path+string(filepath.Separator)) {
+			return &leaf{Repo: parts[0], Group: groupUntracked, Path: parts[2], Code: "U"}
+		}
+	}
 	return nil
+}
+
+func untrackedDirs(ctx context.Context, views []repoView, folded map[string]bool, listed map[string][]leaf) map[string][]leaf {
+	dirs := map[string][]leaf{}
+	for _, r := range views {
+		for _, l := range leaves(r) {
+			if !r.Dirs[l.Path] {
+				continue
+			}
+			dirs[l.id()] = nil
+			if collapsed, ok := folded[l.id()]; !ok || collapsed {
+				continue
+			}
+			if _, ok := listed[l.id()]; !ok {
+				listed[l.id()] = dirFiles(ctx, l)
+			}
+			dirs[l.id()] = listed[l.id()]
+		}
+	}
+	return dirs
+}
+
+func dirFiles(ctx context.Context, dir leaf) []leaf {
+	out, err := run(ctx, dir.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", dir.rel()+"/")
+	if err != nil {
+		return nil
+	}
+	var files []leaf
+	for p := range strings.SplitSeq(string(out), "\x00") {
+		if p != "" && len(files) < maxGroupLeaves {
+			files = append(files, leaf{Repo: dir.Repo, Group: groupUntracked, Path: filepath.Join(dir.Repo, p), Code: "U"})
+		}
+	}
+	return files
 }
 
 func (s *state) follow(id string) string {
@@ -695,28 +762,6 @@ func (s *state) follow(id string) string {
 	return ""
 }
 
-func bodyFor(ctx context.Context, l leaf) (string, bool, error) {
-	rel := l.rel()
-	switch {
-	case l.Group == groupStaged:
-		args := []string{"diff", "--no-color", "--no-ext-diff", "--cached", "--", rel}
-		if l.Orig != "" {
-			args = append(args, relPath(l.Repo, l.Orig))
-		}
-		return capture(ctx, l.Repo, args...)
-	case l.Group == groupChanges:
-		return capture(ctx, l.Repo, "diff", "--no-color", "--no-ext-diff", "--", rel)
-	case l.Dir:
-		out, truncated, err := capture(ctx, l.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", rel+"/")
-		return strings.ReplaceAll(strings.TrimSuffix(out, "\x00"), "\x00", "\n"), truncated, err
-	}
-	out, truncated, err := gitrepo.RunLimited(ctx, l.Repo, maxDiffBytes, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", rel)
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok && ee.ExitCode() == 1 && len(ee.Stderr) == 0 {
-		return string(out), truncated, nil
-	}
-	return string(out), truncated, gitError(out, err)
-}
-
 func reviewError(base string, err error) string {
 	switch {
 	case errors.Is(err, gitrepo.ErrUnknownRef):
@@ -730,11 +775,6 @@ func reviewError(base string, err error) string {
 
 func reviewKey(projectID string) string {
 	return "review/" + projectID
-}
-
-func capture(ctx context.Context, repo string, args ...string) (string, bool, error) {
-	out, truncated, err := gitrepo.RunLimited(ctx, repo, maxDiffBytes, append([]string{"--literal-pathspecs"}, args...)...)
-	return string(out), truncated, gitError(out, err)
 }
 
 func blocked(l leaf) string {

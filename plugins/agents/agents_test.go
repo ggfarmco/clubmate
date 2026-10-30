@@ -1023,3 +1023,33 @@ func TestUnqueueDropsPrompt(t *testing.T) {
 
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "three" })
 }
+
+func TestAgentProcessRegistered(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{"linger": true})
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	type root struct {
+		ID    string `json:"id"`
+		Label string `json:"label"`
+		Owner string `json:"owner"`
+		PID   int    `json:"pid"`
+		Ended bool   `json:"ended"`
+	}
+	roots := func() []root {
+		var out []root
+		require.NoError(t, f.h.Client(t).Call(t.Context(), "process.roots", map[string]string{"projectId": project}, &out))
+		return out
+	}
+	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" && len(roots()) == 1 }, wait)
+	got := roots()[0]
+	starts := f.calls(t, "start")
+	require.Len(t, starts, 1)
+	assert.Equal(t, root{ID: got.ID, Label: "Claude · " + filepath.Base(repo), Owner: "agents", PID: starts[0].PID}, got)
+
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "process.kill", map[string]any{"sessionId": got.ID, "pids": []int{got.PID}}, nil))
+	f.waitStatus(t, project, session, "error")
+	left := roots()
+	require.Len(t, left, 1)
+	assert.True(t, left[0].Ended)
+}

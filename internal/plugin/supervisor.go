@@ -301,7 +301,7 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 	go p.wait()
 	connCtx, cancel := context.WithCancel(context.Background())
 	p.cancelConn = cancel
-	p.conn = s.srv.ServeConn(connCtx, jsonrpc2.NewPlainObjectStream(pipeStream{r: stdoutR, w: stdinW}), rpc.Caller{PluginID: m.ID})
+	p.conn = s.srv.ServeConn(connCtx, jsonrpc2.NewPlainObjectStream(pipeStream{r: stdoutR, w: stdinW}), rpc.Caller{PluginID: m.ID, PID: cmd.Process.Pid})
 	return p, nil
 }
 
