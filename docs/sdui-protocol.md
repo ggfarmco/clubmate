@@ -157,6 +157,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | process.kill | `{pids, sessionId, projectId, orphansOnly}` | `{killed: [pid]}` |
 | session.send | `{id, text, enter}` | `{}` |
 | session.read | `{id, bytes, raw}` | `{text, altScreen}` |
+| notify.post | `{projectId, message, title?, kind?, session?}` | `{id}`; see [notifications](notifications.md) |
 
 `SlotView` is `{projectId, slot, owner, rev, tree}`.
 
@@ -325,6 +326,7 @@ Every event is appended to `<state>/plugin-data/agents/sessions/<id>.jsonl` as `
 - `editor.started` `{projectId, root}`: published by `editor-nvim` after it starts a new nvim for `root` (the first start and every restart) and connects to it; reconnecting to an nvim that is already running (e.g. after a plugin restart) publishes nothing.
 - `editor.saved` `{projectId, path}`: published by `editor-nvim` after nvim writes a file buffer (BufWritePost).
 - `agents.changed` `{workspace, session, kind}`: published by `agents` when a session is created, changes status or is deleted, coalesced per session and kind (`created`, `status`, `deleted`). Streamed transcript updates are not published.
+- `notify.posted` `{id, workspace, session?, owner?, title?, message, kind, ts}`: published by `notify.post` (`cm notify`, the `notify_post` MCP tool). `kind` is `needs-input`, `permission`, `done`, `stuck` or `info`; `message` is at most 1000 characters and `title` 120 (longer ones are cut with `…`); `owner` is the owner of a `ses_` session (e.g. `terminals`); `ts` is RFC 3339 UTC. `notify.post` checks that the workspace exists and that a `ses_` session belongs to it (other session ids pass as they are when shaped like `agt_<16 hex>`), and allows 5 calls per 10 s per workspace (invalid params beyond that).
 - `processes.killed` `{projectId, pids}`: published by `processes` when auto-kill terminates orphans of a project; never published with empty `pids`.
 
 ## Core notifications
