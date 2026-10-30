@@ -18,6 +18,7 @@ import (
 type script struct {
 	AuthFile string                 `json:"authFile"`
 	Resume   bool                   `json:"resume"`
+	Linger   bool                   `json:"linger"`
 	Embedded bool                   `json:"embedded"`
 	Modes    *acp.SessionModeState  `json:"modes"`
 	Commands []acp.AvailableCommand `json:"commands"`
@@ -85,11 +86,14 @@ func main() {
 	if slices.Contains(os.Args[1:], loginArg) {
 		os.Exit(login(a.script.AuthFile))
 	}
-	a.record("start", nil)
+	a.record("start", map[string]string{"project": os.Getenv("CLUBMATE_PROJECT_ID")})
 	fmt.Fprintln(os.Stdout, "fakeagent: not a JSON line")
 	a.conn = acp.NewConn(os.Stdin, os.Stdout, a, nil)
 	a.conn.Start()
 	<-a.conn.Done()
+	if a.script.Linger {
+		time.Sleep(time.Minute)
+	}
 }
 
 func (a *agent) record(method string, params any) {

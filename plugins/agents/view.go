@@ -50,10 +50,11 @@ const (
 	actSignIn          = "signIn"
 	actContinue        = "continue"
 
-	groupPrefix   = "wt:"
-	deleteConfirm = "Delete this agent session, its transcript and its checkpoints?"
-	noSessions    = "No agent sessions"
-	pickSession   = "Start an agent session with + New"
+	groupPrefix    = "wt:"
+	deleteConfirm  = "Delete this agent session, its transcript and its checkpoints?"
+	noSessions     = "No agent sessions"
+	pickSession    = "Start an agent session with + New"
+	installingNote = "Installing %s adapter…"
 )
 
 var (
@@ -103,6 +104,7 @@ type screen struct {
 	Continue    bool
 	SignIn      string
 	NodeProblem string
+	Installing  bool
 }
 
 type toolFields struct {
@@ -223,6 +225,9 @@ func mainView(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
 	children := []sdui.Node{header(sc)}
+	if sc.Installing {
+		children = append(children, sdui.MutedText(fmt.Sprintf(installingNote, agentLabel(rec.Agent))))
+	}
 	if sc.NodeProblem != "" && rec.Status == statusError {
 		return sdui.VStack(append(children, sdui.Empty(sc.NodeProblem))...)
 	}

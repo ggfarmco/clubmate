@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/bus"
+	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
@@ -374,6 +375,12 @@ func TestReaderNeverBlocks(t *testing.T) {
 	f.waitStatus(t, project, session, "done")
 
 	assert.Len(t, updates(t, f.logLines(t, session), "tool_call"), 5000)
+	changed, err := f.h.Bus.Read(t.Context(), "agents.changed", 0, 10000)
+	require.NoError(t, err)
+	assert.Less(t, len(changed), 10)
+	for _, e := range changed {
+		assert.NotContains(t, string(e.Payload), `"kind":"update"`)
+	}
 }
 
 func TestPermissionOutsidePrompt(t *testing.T) {
@@ -455,6 +462,30 @@ func TestTwoWorktrees(t *testing.T) {
 	assert.NotContains(t, f.logText(t, a), "beta")
 	assert.NotContains(t, f.logText(t, b), "alpha")
 	assert.Equal(t, tree, f.session(t, second, b).Worktree)
+}
+
+func TestWorkspacesOnOneRootGetOwnAgents(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{})
+	first, second := f.project(t, repo), f.project(t, repo)
+	a, b := f.newSession(t, first), f.newSession(t, second)
+
+	testutil.Eventually(t, func() bool {
+		return f.session(t, first, a).AgentSessionID != "" && f.session(t, second, b).AgentSessionID != ""
+	}, wait)
+
+	starts := f.calls(t, "start")
+	require.Len(t, starts, 2)
+	assert.NotEqual(t, starts[0].PID, starts[1].PID)
+	var projects []string
+	for _, s := range starts {
+		var p struct {
+			Project string `json:"project"`
+		}
+		require.NoError(t, json.Unmarshal(s.Params, &p))
+		projects = append(projects, p.Project)
+	}
+	assert.ElementsMatch(t, []string{first, second}, projects)
 }
 
 func TestCheckpointPerTurn(t *testing.T) {
@@ -584,6 +615,43 @@ func TestPermissionAfterAgentRestart(t *testing.T) {
 	assert.Equal(t, 2, perms[1].Turn)
 	assert.Empty(t, perms[1].Outcome)
 	assert.Len(t, f.calls(t, "session/resume"), 1)
+}
+
+func TestDeleteWorkspaceDeletesSessions(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{})
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "go")
+	f.waitStatus(t, project, session, "done")
+	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
+	require.FileExists(t, path)
+
+	require.NoError(t, f.h.Svc.DeleteProject(t.Context(), project))
+
+	testutil.Eventually(t, func() bool {
+		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+session)
+		require.NoError(t, err)
+		_, statErr := os.Stat(path)
+		return !found && errors.Is(statErr, os.ErrNotExist) && git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/") == ""
+	}, wait)
+}
+
+func TestOrphanAgentReapedAfterPluginCrash(t *testing.T) {
+	f := start(t, map[string]any{"linger": true})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" }, wait)
+	starts := f.calls(t, "start")
+	require.Len(t, starts, 1)
+
+	pids := f.h.Sup.PIDs()
+	require.Len(t, pids, 1)
+	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
+
+	testutil.Eventually(t, func() bool {
+		return errors.Is(syscall.Kill(-starts[0].PID, 0), syscall.ESRCH)
+	}, restartWait)
 }
 
 func TestStopRoot(t *testing.T) {
@@ -726,6 +794,29 @@ func TestSignInReattaches(t *testing.T) {
 	}, wait)
 	assert.NotEmpty(t, f.session(t, project, session).AgentSessionID)
 	assert.FileExists(t, authFile)
+}
+
+func TestCloseCancelsSignIn(t *testing.T) {
+	f := start(t, map[string]any{"authFile": filepath.Join(t.TempDir(), "authed")})
+	project := f.project(t, newRepo(t))
+	id := f.newSession(t, project)
+	f.waitStatus(t, project, id, "error")
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.Props["action"] == "signIn" })
+	})
+	f.h.Event(t, project, "agents.main", id+"/signin", "signIn", nil)
+
+	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": id}, nil))
+	require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
+
+	terminals, err := f.h.Svc.ListSessions(t.Context(), session.ListFilter{ProjectID: project, Owner: "agents"})
+	require.NoError(t, err)
+	assert.Empty(t, terminals)
+	for range 10 {
+		time.Sleep(50 * time.Millisecond)
+		require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
+		require.True(t, f.session(t, project, id).Closed)
+	}
 }
 
 func (f *fixture) rev(t *testing.T, project, slot string) int64 {

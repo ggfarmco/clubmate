@@ -233,9 +233,13 @@ func newNotifier(h *pluginsdk.Host) *notifier {
 }
 
 func (n *notifier) mark(s *session, kind string, save bool) {
+	publish := kind != changeUpdate
+	if !publish && !save {
+		return
+	}
 	n.mu.Lock()
 	c := change{session: s, kind: kind}
-	if !n.seen[c] {
+	if publish && !n.seen[c] {
 		n.seen[c] = true
 		n.order = append(n.order, c)
 	}

@@ -98,6 +98,18 @@ func TestTranscriptWindowAndShowEarlier(t *testing.T) {
 	assert.Equal(t, "agt_1/msg/agent/m26", shifted["a26"])
 }
 
+func TestInstallingNotice(t *testing.T) {
+	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusIdle}}
+	tree := mainView(screen{View: v, Installing: true, Composer: "agt_1/composer/0"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	var texts []string
+	for _, n := range nodesOf(tree, "text") {
+		texts = append(texts, n.Props["text"].(string))
+	}
+	assert.Contains(t, texts, "Installing Claude adapter…")
+}
+
 func TestHugeToolOutputRendersTruncated(t *testing.T) {
 	output := strings.Repeat(strings.Repeat("x", 99)+"\n", 50_000)
 	tool := map[string]json.RawMessage{

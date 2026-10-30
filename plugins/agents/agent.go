@@ -329,8 +329,8 @@ type procSlot struct {
 	err   error
 }
 
-func (a *app) ensureProc(ctx context.Context, agent, root string) (*agentProc, error) {
-	k := agent + "\x00" + root
+func (a *app) ensureProc(ctx context.Context, agent, workspace, root string) (*agentProc, error) {
+	k := agent + "\x00" + workspace + "\x00" + root
 	for {
 		a.mu.Lock()
 		if a.closing {
@@ -342,7 +342,7 @@ func (a *app) ensureProc(ctx context.Context, agent, root string) (*agentProc, e
 			slot = &procSlot{ready: make(chan struct{})}
 			a.procs[k] = slot
 			a.mu.Unlock()
-			p, err := a.startProc(ctx, agent, root)
+			p, err := a.startProc(ctx, agent, workspace, root)
 			a.mu.Lock()
 			slot.proc, slot.err = p, err
 			if err != nil {
@@ -372,8 +372,8 @@ func (a *app) ensureProc(ctx context.Context, agent, root string) (*agentProc, e
 	}
 }
 
-func (a *app) startProc(ctx context.Context, agent, root string) (*agentProc, error) {
-	l, err := launcherFor(context.WithoutCancel(ctx), a.stateDir, agent, root)
+func (a *app) startProc(ctx context.Context, agent, workspace, root string) (*agentProc, error) {
+	l, err := launcherFor(context.WithoutCancel(ctx), a.stateDir, agent, workspace, root, a.setInstalling)
 	if err != nil {
 		return nil, err
 	}
@@ -381,6 +381,7 @@ func (a *app) startProc(ctx context.Context, agent, root string) (*agentProc, er
 	if err != nil {
 		return nil, err
 	}
+	a.groups.add(p.pgid)
 	a.mu.Lock()
 	closing := a.closing
 	if !closing {
@@ -407,6 +408,7 @@ func (a *app) startProc(ctx context.Context, agent, root string) (*agentProc, er
 }
 
 func (a *app) procExited(p *agentProc, reason string) {
+	a.groups.remove(p.pgid)
 	a.mu.Lock()
 	delete(a.live, p)
 	for k, slot := range a.procs {

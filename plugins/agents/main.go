@@ -111,12 +111,14 @@ type app struct {
 	stateDir string
 	loaded   chan struct{}
 	notes    *notifier
+	groups   *groups
 
 	uiMu         sync.Mutex
 	ui           map[string]*projectUI
 	auth         map[string]authCommand
 	signIns      map[string]string
 	nodeProblem  string
+	installing   bool
 	goneProjects map[string]bool
 	resumable    map[string]bool
 	noResume     map[string]bool
@@ -151,6 +153,8 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return errNoStateDir
 	}
 	a.notes = newNotifier(h)
+	a.groups = newGroups(a.stateDir)
+	a.groups.reap(orphanMarkers())
 	keys, err := h.StorageList(ctx, sessionKey)
 	if err != nil {
 		return err
@@ -396,7 +400,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	if rec.Closed {
 		return nil, errClosed
 	}
-	p, err := a.ensureProc(context.Background(), rec.Agent, rec.Worktree)
+	p, err := a.ensureProc(context.Background(), rec.Agent, rec.Workspace, rec.Worktree)
 	a.setNodeProblem(err)
 	if err != nil {
 		return nil, err
@@ -710,7 +714,7 @@ func (a *app) resume(s *session) {
 
 func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentProc {
 	s.mu.Lock()
-	p, agentID, running := s.proc, s.rec.AgentSessionID, s.running
+	p, agentID, running, rec := s.proc, s.rec.AgentSessionID, s.running, s.rec
 	s.proc = nil
 	s.running = false
 	s.cancelPermissionsLocked()
@@ -721,6 +725,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	}
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
+	a.cancelSignIn(ctx, rec.Workspace, rec.ID)
 	if p == nil {
 		return nil
 	}
@@ -787,7 +792,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		var p deletedPayload
 		if json.Unmarshal(ev.Payload, &p) == nil {
 			a.forgetProject(p.ID)
-			go a.dropWorkspace(p.ID, nil)
+			go a.dropWorkspace(p.ID, nil, true)
 		}
 	case "project.updated":
 		var p projectPayload
@@ -796,7 +801,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 			go a.dropWorkspace(p.Project.ID, func(rec record) bool {
 				_, err := os.Stat(rec.Worktree)
 				return errors.Is(err, os.ErrNotExist)
-			})
+			}, false)
 		}
 	}
 }
@@ -848,7 +853,7 @@ func (a *app) stopRoot(ctx context.Context, root string) error {
 	return errors.Join(errs...)
 }
 
-func (a *app) dropWorkspace(projectID string, match func(record) bool) {
+func (a *app) dropWorkspace(projectID string, match func(record) bool, remove bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), refsTimeout)
 	defer cancel()
 	a.mu.Lock()
@@ -867,9 +872,15 @@ func (a *app) dropWorkspace(projectID string, match func(record) bool) {
 		a.mu.Lock()
 		a.dropped[rec.ID] = true
 		a.mu.Unlock()
-		a.closeSession(ctx, s, false)
-		if err := a.deleteRefs(ctx, rec); err != nil {
-			fmt.Fprintln(os.Stderr, "agents: delete checkpoints:", err)
+		var err error
+		if remove {
+			err = a.deleteSession(ctx, s)
+		} else {
+			a.closeSession(ctx, s, false)
+			err = a.deleteRefs(ctx, rec)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "agents: drop session:", err)
 		}
 	}
 }

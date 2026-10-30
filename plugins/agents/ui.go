@@ -219,21 +219,32 @@ func (a *app) forgetProject(projectID string) {
 }
 
 func (a *app) forgetSession(ctx context.Context, projectID, sid string) {
+	a.cancelSignIn(ctx, projectID, sid)
 	a.uiMu.Lock()
-	var pty string
 	if p := a.ui[projectID]; p != nil {
-		if st := p.sessions[sid]; st != nil {
-			pty = st.signIn
-		}
 		delete(p.sessions, sid)
 	}
-	delete(a.auth, sid)
 	delete(a.noResume, sid)
-	if pty != "" {
-		delete(a.signIns, pty)
+	a.uiMu.Unlock()
+}
+
+func (a *app) cancelSignIn(ctx context.Context, projectID, sid string) {
+	a.uiMu.Lock()
+	if p := a.ui[projectID]; p != nil {
+		if st := p.sessions[sid]; st != nil {
+			st.signIn = ""
+		}
+	}
+	delete(a.auth, sid)
+	var ptys []string
+	for pty, owner := range a.signIns {
+		if owner == sid {
+			ptys = append(ptys, pty)
+			delete(a.signIns, pty)
+		}
 	}
 	a.uiMu.Unlock()
-	if pty != "" {
+	for _, pty := range ptys {
 		a.removeTerminal(ctx, pty, true)
 	}
 }
@@ -345,6 +356,7 @@ func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n 
 func (a *app) screen(projectID string, s *session) screen {
 	v := s.view(0)
 	pending := s.pendingIDs()
+	detached := s.detached()
 	sid := v.Session.ID
 	st := a.sessionState(projectID, sid)
 	a.uiMu.Lock()
@@ -363,6 +375,7 @@ func (a *app) screen(projectID string, s *session) screen {
 		Continue:    cannotResume,
 		SignIn:      st.signIn,
 		NodeProblem: a.nodeProblem,
+		Installing:  a.installing && detached && !v.Session.Closed,
 	}
 }
 
@@ -693,6 +706,16 @@ func (a *app) needsAuth(sid string, p *agentProc) error {
 	return fmt.Errorf("%w: %s", errSignIn, cmp.Or(cmd.label, agentLabel(p.agent)))
 }
 
+func (a *app) setInstalling(on bool) {
+	a.uiMu.Lock()
+	a.installing = on
+	projects := slices.Collect(maps.Keys(a.ui))
+	a.uiMu.Unlock()
+	for _, id := range projects {
+		a.kick(id)
+	}
+}
+
 func (a *app) setNodeProblem(err error) {
 	text := ""
 	var nv nodeVersionError
@@ -712,6 +735,12 @@ func (s *session) pendingIDs() map[string]bool {
 		out[id] = true
 	}
 	return out
+}
+
+func (s *session) detached() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.proc == nil
 }
 
 func (s *session) activity() string {

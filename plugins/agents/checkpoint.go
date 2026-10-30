@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,7 +30,8 @@ func checkpoint(ctx context.Context, root, session string, turn int) (string, er
 		return "", err
 	}
 	defer os.RemoveAll(dir)
-	env := append([]string{"GIT_INDEX_FILE=" + filepath.Join(dir, "index")}, checkpointIdentity...)
+	index := filepath.Join(dir, "index")
+	env := append([]string{"GIT_INDEX_FILE=" + index}, checkpointIdentity...)
 	git := func(args ...string) (string, error) {
 		out, err := gitrepo.RunEnv(ctx, root, env, args...)
 		if err != nil {
@@ -38,7 +40,7 @@ func checkpoint(ctx context.Context, root, session string, turn int) (string, er
 		return strings.TrimSpace(string(out)), nil
 	}
 	head, _ := git("rev-parse", "--verify", "-q", "HEAD")
-	if head != "" {
+	if head != "" && !seedIndex(ctx, root, index) {
 		if _, err := git("read-tree", head); err != nil {
 			return "", err
 		}
@@ -62,6 +64,35 @@ func checkpoint(ctx context.Context, root, session string, turn int) (string, er
 		return "", err
 	}
 	return sha, nil
+}
+
+func seedIndex(ctx context.Context, root, dst string) bool {
+	out, err := gitrepo.Run(ctx, root, "rev-parse", "--git-path", "index")
+	if err != nil {
+		return false
+	}
+	src := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(src) {
+		src = filepath.Join(root, src)
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return false
+	}
+	defer in.Close()
+	f, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return false
+	}
+	_, err = io.Copy(f, in)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(dst)
+		return false
+	}
+	return true
 }
 
 func deleteCheckpoints(ctx context.Context, repo, session string) error {

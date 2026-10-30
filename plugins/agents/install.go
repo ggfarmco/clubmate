@@ -29,15 +29,17 @@ const (
 	installTimeout = 10 * time.Minute
 	probeTimeout   = 15 * time.Second
 	mcpName        = "clubmate"
+	projectEnv     = "CLUBMATE_PROJECT_ID"
+	installMarker  = ".clubmate-installed"
 )
 
 var errUnknownAgent = errors.New("unknown agent")
 
-func launcherFor(ctx context.Context, stateDir, agent, root string) (launch, error) {
+func launcherFor(ctx context.Context, stateDir, agent, workspace, root string, installing func(bool)) (launch, error) {
 	if agent != agentClaude {
 		return launch{}, fmt.Errorf("%w: %s", errUnknownAgent, agent)
 	}
-	env := agentEnv()
+	env := agentEnv(workspace)
 	if cmd := os.Getenv(commandEnv); cmd != "" {
 		return launch{argv: []string{cmd}, env: env, mcp: []acp.McpServer{}}, nil
 	}
@@ -47,19 +49,22 @@ func launcherFor(ctx context.Context, stateDir, agent, root string) (launch, err
 	}
 	ictx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
-	script, err := installClaude(ictx, filepath.Join(stateDir, claudeDir), env)
+	script, err := installClaude(ictx, filepath.Join(stateDir, claudeDir), env, installing)
 	if err != nil {
 		return launch{}, err
 	}
-	return launch{argv: []string{node, script}, env: env, mcp: clubmateMCP(ctx, root)}, nil
+	return launch{argv: []string{node, script}, env: env, mcp: clubmateMCP(ctx, workspace, root)}, nil
 }
 
-func agentEnv() []string {
+func agentEnv(workspace string) []string {
 	var out []string
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, apiKeyEnv+"=") {
+		if !strings.HasPrefix(kv, apiKeyEnv+"=") && !strings.HasPrefix(kv, projectEnv+"=") {
 			out = append(out, kv)
 		}
+	}
+	if workspace != "" {
+		out = append(out, projectEnv+"="+workspace)
 	}
 	return out
 }
@@ -103,8 +108,8 @@ func nodeError(found string) error {
 	return nodeVersionError{found: found}
 }
 
-func installClaude(ctx context.Context, prefix string, env []string) (string, error) {
-	if err := os.MkdirAll(prefix, 0o700); err != nil {
+func installClaude(ctx context.Context, prefix string, env []string, installing func(bool)) (string, error) {
+	if err := os.MkdirAll(filepath.Dir(prefix), 0o700); err != nil {
 		return "", err
 	}
 	lock, err := os.OpenFile(prefix+".lock", os.O_CREATE|os.O_RDWR, 0o600)
@@ -117,8 +122,11 @@ func installClaude(ctx context.Context, prefix string, env []string) (string, er
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
 	pkgDir := filepath.Join(prefix, "node_modules", filepath.FromSlash(claudePackage))
-	if manifest, err := readPackage(pkgDir); err != nil || manifest.Version != claudeVersion {
-		if err := npmInstall(ctx, prefix, env); err != nil {
+	if !installed(prefix, pkgDir) {
+		installing(true)
+		err := reinstall(ctx, prefix, env)
+		installing(false)
+		if err != nil {
 			return "", err
 		}
 	}
@@ -131,6 +139,28 @@ func installClaude(ctx context.Context, prefix string, env []string) (string, er
 		return "", fmt.Errorf("%s has no %s bin", claudePackage, claudeBin)
 	}
 	return filepath.Join(pkgDir, filepath.FromSlash(bin)), nil
+}
+
+func installed(prefix, pkgDir string) bool {
+	marker, err := os.ReadFile(filepath.Join(prefix, installMarker))
+	if err != nil || string(marker) != claudeVersion {
+		return false
+	}
+	manifest, err := readPackage(pkgDir)
+	return err == nil && manifest.Version == claudeVersion
+}
+
+func reinstall(ctx context.Context, prefix string, env []string) error {
+	if err := os.RemoveAll(prefix); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(prefix, 0o700); err != nil {
+		return err
+	}
+	if err := npmInstall(ctx, prefix, env); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(prefix, installMarker), []byte(claudeVersion), 0o600)
 }
 
 func npmInstall(ctx context.Context, prefix string, env []string) error {
@@ -188,7 +218,7 @@ func (m packageManifest) bin() string {
 	return ""
 }
 
-func clubmateMCP(ctx context.Context, root string) []acp.McpServer {
+func clubmateMCP(ctx context.Context, workspace, root string) []acp.McpServer {
 	exe, err := os.Executable()
 	if err != nil {
 		return []acp.McpServer{}
@@ -203,7 +233,7 @@ func clubmateMCP(ctx context.Context, root string) []acp.McpServer {
 	if registered(ctx, root) {
 		return []acp.McpServer{}
 	}
-	return []acp.McpServer{{Name: mcpName, Command: cli, Args: []string{"mcp"}, Env: []acp.EnvVariable{}}}
+	return []acp.McpServer{{Name: mcpName, Command: cli, Args: []string{"mcp"}, Env: []acp.EnvVariable{{Name: projectEnv, Value: workspace}}}}
 }
 
 func registered(ctx context.Context, root string) bool {
@@ -219,6 +249,6 @@ func registered(ctx context.Context, root string) bool {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, claude, "mcp", "get", name)
 	cmd.Dir = root
-	cmd.Env = agentEnv()
+	cmd.Env = agentEnv("")
 	return cmd.Run() == nil
 }
