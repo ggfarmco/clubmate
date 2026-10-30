@@ -79,7 +79,7 @@ public final class ComposerModel {
         switch key {
         case .send:
             let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return running || prompt.isEmpty ? .handled : .send(prompt)
+            return prompt.isEmpty ? .handled : .send(prompt)
         case .escape:
             return running ? .stop : nil
         case .up, .down:

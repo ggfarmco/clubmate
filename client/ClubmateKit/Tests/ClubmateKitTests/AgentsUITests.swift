@@ -43,6 +43,7 @@ final class AgentsUITests: XCTestCase {
         XCTAssertNil(model.handle(escape))
         model.running = true
         XCTAssertEqual(model.handle(escape), .stop)
+        XCTAssertEqual(model.handle(send), .send("fix it"))
 
         model.text = "/co"
         XCTAssertEqual(model.suggestions.map(\.name), ["compact", "context"])

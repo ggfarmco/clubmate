@@ -70,7 +70,7 @@ Defined in `ClubmateKit/Review.swift` (`ReviewKeys`).
 
 | Keys | Action |
 |---|---|
-| ⌘↩ | Send the prompt (ignored while a turn runs) |
+| ⌘↩ | Send the prompt; while a turn runs, queue it for the next turn |
 | Esc | Stop the running turn |
 | @ (at the start of a word) | Attach a file through the Go to File picker |
 | / (at the start of the prompt) | List the agent's commands, filtered by what follows |

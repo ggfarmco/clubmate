@@ -49,12 +49,17 @@ const (
 	actRetry           = "retry"
 	actSignIn          = "signIn"
 	actContinue        = "continue"
+	actUnqueue         = "unqueue"
+	actSendQueued      = "sendQueued"
 
 	groupPrefix    = "wt:"
 	deleteConfirm  = "Delete this agent session, its transcript and its checkpoints?"
 	noSessions     = "No agent sessions"
 	pickSession    = "Start an agent session with + New"
 	installingNote = "Installing %s adapter…"
+	queuedNote     = "Queued, sent when the turn ends"
+	heldNote       = "Queued, not sent"
+	queuePrefix    = "queue/"
 )
 
 var (
@@ -99,6 +104,7 @@ type screen struct {
 	Window      int
 	Expanded    map[string]bool
 	Attachments []pendingAttachment
+	Queue       []queuedPrompt
 	Composer    string
 	NeedsAuth   bool
 	Continue    bool
@@ -244,7 +250,32 @@ func mainView(sc screen) sdui.Node {
 		children = append(children, sdui.HStack(sdui.MutedText("The session is closed; its transcript stays readable."), reopen))
 		return sdui.VStack(children...)
 	}
+	if len(sc.Queue) > 0 {
+		children = append(children, queueView(sc))
+	}
 	return sdui.VStack(append(children, composer(sc))...)
+}
+
+func queueView(sc screen) sdui.Node {
+	rec := sc.View.Session
+	sid := rec.ID
+	head := []sdui.Node{sdui.MutedText(queuedNote)}
+	if !turnActive(rec) {
+		head = []sdui.Node{sdui.MutedText(heldNote), sdui.WithAction(sdui.Button(sid+"/"+queuePrefix+"send", "Send queued", "paperplane"), actSendQueued)}
+	}
+	rows := []sdui.Node{sdui.HStack(head...)}
+	for _, q := range sc.Queue {
+		text := strings.TrimSpace(q.Text)
+		if n := len(q.Attachments); n > 0 {
+			text = strings.Join(nonEmpty(text, strconv.Itoa(n)+" attached"), " · ")
+		}
+		rows = append(rows, sdui.HStack(sdui.MutedText(text), sdui.WithAction(sdui.Button(sid+"/"+queuePrefix+q.ID, "Remove", "xmark"), actUnqueue)))
+	}
+	return sdui.VStack(rows...)
+}
+
+func turnActive(rec record) bool {
+	return rec.Status == statusRunning || rec.Status == statusWaiting
 }
 
 func header(sc screen) sdui.Node {
@@ -261,7 +292,7 @@ func header(sc screen) sdui.Node {
 	if firstCheckpoint(sc.View.Turns) > 0 {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
 	}
-	if rec.Status == statusRunning || rec.Status == statusWaiting {
+	if turnActive(rec) {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop))
 	}
 	children := []sdui.Node{sdui.HStack(row...)}
@@ -727,7 +758,7 @@ func composer(sc screen) sdui.Node {
 		Commands:    commands,
 		Attach:      []string{"file", "selection"},
 		Attachments: attachments,
-		Running:     rec.Status == statusRunning || rec.Status == statusWaiting,
+		Running:     turnActive(rec),
 	})
 }
 
