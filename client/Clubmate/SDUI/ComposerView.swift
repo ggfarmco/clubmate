@@ -125,37 +125,60 @@ struct ComposerNodeView: View {
         .overlay(RoundedRectangle(cornerRadius: 5).stroke(theme.border, lineWidth: 1))
     }
 
+    private static let visibleSuggestions = 8
+
     private var suggestions: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(model.suggestions.enumerated()), id: \.element.id) { index, command in
-                HStack(spacing: theme.gutter) {
-                    Text("/" + command.name)
-                        .fontWeight(.semibold)
-                    Text(command.description)
-                        .foregroundStyle(theme.muted)
-                        .lineLimit(1)
-                    Spacer(minLength: theme.gutter)
-                    if !command.hint.isEmpty {
-                        Text(command.hint)
-                            .font(theme.uiSmall)
-                            .foregroundStyle(theme.muted)
-                            .lineLimit(1)
+        let shown = model.suggestions
+        let rowHeight = theme.rowHeight + theme.spacing.xs
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { index, command in
+                        suggestion(command, highlighted: index == model.highlighted)
+                            .frame(height: rowHeight)
+                            .id(command.id)
                     }
                 }
-                .font(theme.ui)
-                .foregroundStyle(theme.foreground)
-                .padding(.horizontal, theme.gutter)
-                .frame(height: theme.rowHeight + theme.spacing.xs)
-                .background(index == model.highlighted ? theme.accent.opacity(0.25) : .clear, ignoresSafeAreaEdges: [])
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    model.choose(command)
-                    focused = true
-                }
+            }
+            .frame(height: rowHeight * CGFloat(min(shown.count, Self.visibleSuggestions)))
+            .onChange(of: model.highlighted) { _, highlighted in
+                if shown.indices.contains(highlighted) { proxy.scrollTo(shown[highlighted].id) }
             }
         }
         .padding(.vertical, theme.spacing.s)
         .agentCard()
+    }
+
+    private func suggestion(_ command: ComposerCommand, highlighted: Bool) -> some View {
+        HStack(spacing: theme.gutter) {
+            Text("/" + command.name)
+                .fontWeight(.semibold)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Text(command.description)
+                .foregroundStyle(theme.muted)
+                .lineLimit(1)
+            Spacer(minLength: theme.gutter)
+            if !command.hint.isEmpty {
+                Text(command.hint)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .lineLimit(1)
+            }
+        }
+        .font(theme.ui)
+        .foregroundStyle(theme.foreground)
+        .padding(.horizontal, theme.gutter)
+        .frame(maxHeight: .infinity)
+        .background(highlighted ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+        .overlay(alignment: .leading) {
+            if highlighted { theme.accent.frame(width: 2) }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            model.choose(command)
+            focused = true
+        }
     }
 
     private var controls: some View {
