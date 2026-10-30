@@ -176,16 +176,15 @@ struct ComposerNodeView: View {
                 .help("Permission mode")
             }
             attachMenu
-            Text(running ? "Esc stop" : "⌘↩ send")
+            Text(running ? "⌘↩ queue · Esc stop" : "⌘↩ send")
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.muted)
             Spacer(minLength: theme.gutter)
             if running {
                 CardButton(label: "Stop", icon: "stop.fill", tone: .danger) { dispatch(node, .named("stop", .null)) }
-            } else {
-                CardButton(label: "Send", icon: "paperplane.fill", tone: .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
-                    if case .send(let text) = model.handle(.send) { send(text) }
-                }
+            }
+            CardButton(label: running ? "Queue" : "Send", icon: "paperplane.fill", tone: .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                if case .send(let text) = model.handle(.send) { send(text) }
             }
         }
         .font(theme.ui)

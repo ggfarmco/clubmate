@@ -42,7 +42,6 @@ var (
 	errNoFolder     = errors.New("the workspace has no folders")
 	errNoSession    = errors.New("unknown agent session")
 	errClosed       = errors.New("the session is closed")
-	errBusy         = errors.New("a turn is already running")
 	errNotLive      = errors.New("the session's agent is not running")
 	errNoResume     = errors.New("the agent cannot resume this session")
 	errUnknownMode  = errors.New("unknown mode")
@@ -493,24 +492,34 @@ func (a *app) prompt(projectID string, args promptArgs) error {
 	if err != nil {
 		return err
 	}
+	return a.submit(s, &args)
+}
+
+func (a *app) submit(s *session, args *promptArgs) error {
 	s.mu.Lock()
 	s.loadLocked()
 	switch {
 	case s.rec.Closed:
 		s.mu.Unlock()
 		return errClosed
-	case s.running:
+	case s.running && args == nil:
 		s.mu.Unlock()
-		return errBusy
+		return nil
+	case s.running:
+		s.enqueueLocked(*args)
+		s.mu.Unlock()
+		s.changed(changeUpdate, false)
+		return nil
 	}
-	s.running = true
-	s.cancelRequested = false
-	s.turn++
-	turn := s.turn
-	s.settleLocked()
+	next, ok := s.dequeueLocked(args)
+	if !ok {
+		s.mu.Unlock()
+		return nil
+	}
+	turn := s.beginTurnLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
-	go a.runTurn(s, turn, args)
+	go a.runTurn(s, turn, next)
 	return nil
 }
 
@@ -520,7 +529,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		a.fail(s, err.Error())
 		return
 	}
-	if a.abandon(s) {
+	if a.abandon(s, args) {
 		return
 	}
 	rec := s.snapshot()
@@ -544,7 +553,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		}
 		return
 	}
-	if a.abandon(s) {
+	if a.abandon(s, args) {
 		return
 	}
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)}
@@ -562,12 +571,18 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	s.log.flush()
 	s.running = false
 	edited := s.edited
+	var next promptArgs
+	nextTurn := 0
 	switch {
 	case s.rec.Closed:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 	case err != nil:
 		s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{Error: err.Error()})
 		s.setStatusLocked(statusError, err.Error())
+	case !s.cancelRequested && res.StopReason != acp.StopCancelled && len(s.queue) > 0:
+		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
+		next, _ = s.dequeueLocked(nil)
+		nextTurn = s.beginTurnLocked()
 	default:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 		if s.rec.Status == statusWaiting {
@@ -579,15 +594,22 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	if edited {
-		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-		defer cancel()
-		if err := a.host.RunCommand(ctx, checktimeCmd, rec.Workspace, map[string]string{"root": rec.Worktree}, nil); err != nil {
-			fmt.Fprintln(os.Stderr, "agents: checktime:", err)
-		}
+		a.checktime(rec)
+	}
+	if nextTurn > 0 {
+		a.runTurn(s, nextTurn, next)
 	}
 }
 
-func (a *app) abandon(s *session) bool {
+func (a *app) checktime(rec record) {
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	defer cancel()
+	if err := a.host.RunCommand(ctx, checktimeCmd, rec.Workspace, map[string]string{"root": rec.Worktree}, nil); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: checktime:", err)
+	}
+}
+
+func (a *app) abandon(s *session, args promptArgs) bool {
 	s.mu.Lock()
 	switch {
 	case s.deleted || s.rec.Closed:
@@ -596,6 +618,7 @@ func (a *app) abandon(s *session) bool {
 		return true
 	case s.cancelRequested:
 		s.running = false
+		s.requeueLocked(args)
 		s.recordLocked(actorUser, kindTurnEnd, turnEndPayload{StopReason: acp.StopCancelled})
 		if s.rec.Status == statusWaiting {
 			s.prior = statusDone
@@ -717,6 +740,7 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	p, agentID, running, rec := s.proc, s.rec.AgentSessionID, s.running, s.rec
 	s.proc = nil
 	s.running = false
+	s.queue = nil
 	s.cancelPermissionsLocked()
 	if !s.rec.Closed {
 		s.recordLocked(actorUser, kindClose, acp.SessionRequest{SessionID: agentID})

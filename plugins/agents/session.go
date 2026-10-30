@@ -127,6 +127,12 @@ type pendingPermission struct {
 	reply   chan acp.PermissionOutcome
 }
 
+type queuedPrompt struct {
+	ID          string
+	Text        string
+	Attachments []attachment
+}
+
 type session struct {
 	mu        sync.Mutex
 	attachMu  sync.Mutex
@@ -154,6 +160,8 @@ type session struct {
 	cancelRequested bool
 	prior           string
 	perms           map[string]*pendingPermission
+	queue           []queuedPrompt
+	queueSeq        int
 }
 
 func newSessionID() string {
@@ -471,6 +479,63 @@ func (s *session) cancelPermissionsLocked() {
 		delete(s.perms, id)
 		perm.reply <- acp.PermissionOutcome{Outcome: acp.OutcomeCancelled}
 	}
+}
+
+func (s *session) beginTurnLocked() int {
+	s.running = true
+	s.cancelRequested = false
+	s.turn++
+	s.settleLocked()
+	return s.turn
+}
+
+func (s *session) enqueueLocked(args promptArgs) {
+	s.queue = append(s.queue, s.queuedLocked(args))
+}
+
+func (s *session) requeueLocked(args promptArgs) {
+	if strings.TrimSpace(args.Text) == "" && len(args.Attachments) == 0 {
+		return
+	}
+	s.queue = slices.Insert(s.queue, 0, s.queuedLocked(args))
+}
+
+func (s *session) queuedLocked(args promptArgs) queuedPrompt {
+	s.queueSeq++
+	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments}
+}
+
+func (s *session) dequeueLocked(extra *promptArgs) (promptArgs, bool) {
+	parts := s.queue
+	if extra != nil {
+		parts = append(slices.Clone(parts), queuedPrompt{Text: extra.Text, Attachments: extra.Attachments})
+	}
+	if len(parts) == 0 {
+		return promptArgs{}, false
+	}
+	s.queue = nil
+	var args promptArgs
+	var texts []string
+	for _, q := range parts {
+		if strings.TrimSpace(q.Text) != "" {
+			texts = append(texts, q.Text)
+		}
+		args.Attachments = append(args.Attachments, q.Attachments...)
+	}
+	args.Text = strings.Join(texts, "\n\n")
+	return args, true
+}
+
+func (s *session) unqueue(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queue = slices.DeleteFunc(s.queue, func(q queuedPrompt) bool { return q.ID == id })
+}
+
+func (s *session) queued() []queuedPrompt {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.queue)
 }
 
 func (s *session) setStatusLocked(status, errText string) {

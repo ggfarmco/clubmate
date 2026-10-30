@@ -921,3 +921,65 @@ func TestContinueInNewSession(t *testing.T) {
 	})
 	assert.True(t, f.session(t, project, old).Closed)
 }
+
+func promptText(t *testing.T, c fakeCall) string {
+	t.Helper()
+	var p struct {
+		Prompt []struct {
+			Text string `json:"text"`
+		} `json:"prompt"`
+	}
+	require.NoError(t, json.Unmarshal(c.Params, &p))
+	require.NotEmpty(t, p.Prompt)
+	return p.Prompt[0].Text
+}
+
+func buttonsWith(n sdui.Node, action string) []sdui.Node {
+	return slices.DeleteFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.Props["action"] != action })
+}
+
+func startQueued(t *testing.T, queued ...string) (*fixture, string, string) {
+	t.Helper()
+	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "one")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	for _, text := range queued {
+		f.prompt(t, project, session, text)
+	}
+	return f, project, session
+}
+
+func TestQueuedPromptsSentAsNextTurn(t *testing.T) {
+	f, project, session := startQueued(t, "two", "three")
+
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "two\n\nthree" })
+	f.waitStatus(t, project, session, "done")
+	assert.Len(t, f.calls(t, "session/prompt"), 2)
+	assert.Len(t, f.transcript(t, project, session).Turns, 2)
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 0 })
+}
+
+func TestCancelKeepsQueue(t *testing.T) {
+	f, project, session := startQueued(t, "two")
+
+	require.NoError(t, f.run(t, project, "agents.cancel", map[string]any{"session": session}, nil))
+
+	f.waitStatus(t, project, session, "done")
+	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "sendQueued")) == 1 })
+	assert.Len(t, buttonsWith(main, "unqueue"), 1)
+	assert.Len(t, f.calls(t, "session/prompt"), 1)
+	f.h.Event(t, project, "agents.main", buttonsWith(main, "sendQueued")[0].ID, "sendQueued", nil)
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "two" })
+}
+
+func TestUnqueueDropsPrompt(t *testing.T) {
+	f, project, _ := startQueued(t, "two", "three")
+	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
+
+	f.h.Event(t, project, "agents.main", buttonsWith(main, "unqueue")[0].ID, "unqueue", nil)
+
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "three" })
+}

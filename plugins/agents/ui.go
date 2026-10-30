@@ -358,6 +358,7 @@ func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n 
 
 func (a *app) screen(projectID string, s *session) screen {
 	v := s.view(0)
+	queue := s.queued()
 	pending := s.pendingIDs()
 	detached := s.detached()
 	changes := s.hasChanges()
@@ -374,6 +375,7 @@ func (a *app) screen(projectID string, s *session) screen {
 		Window:      st.window,
 		Expanded:    maps.Clone(st.expanded),
 		Attachments: slices.Clone(st.attachments),
+		Queue:       queue,
 		Composer:    sid + "/composer/" + strconv.Itoa(st.gen),
 		NeedsAuth:   needsAuth,
 		Continue:    cannotResume,
@@ -584,6 +586,15 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.selectSession(ctx, ev.ProjectID, res.Session)
 	case actSignIn:
 		return a.signIn(ctx, ev.ProjectID, s, st)
+	case actUnqueue:
+		id, ok := strings.CutPrefix(node, queuePrefix)
+		if !ok {
+			return fmt.Errorf("%w: unqueue on %q", errUnknownAction, ev.NodeID)
+		}
+		s.unqueue(id)
+		return nil
+	case actSendQueued:
+		return a.submit(s, nil)
 	}
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
