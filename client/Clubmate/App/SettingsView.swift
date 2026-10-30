@@ -87,6 +87,10 @@ struct SettingsView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(ClaudeHooks.snippet(command: Self.tool), forType: .string)
         hooksCopied = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            hooksCopied = false
+        }
     }
 
     private var terminalFontSize: Binding<Double> {
