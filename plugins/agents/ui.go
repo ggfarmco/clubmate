@@ -332,6 +332,9 @@ func (a *app) render(ctx context.Context, projectID string) error {
 	}
 	main := sdui.Empty(pickSession)
 	if s := a.session(selected); s != nil {
+		if s.claimChangesCheck() {
+			go a.refreshChanges(s)
+		}
 		main = mainView(a.screen(projectID, s))
 	}
 	return a.push(ctx, p, projectID, mainSlot, main)
@@ -357,6 +360,7 @@ func (a *app) screen(projectID string, s *session) screen {
 	v := s.view(0)
 	pending := s.pendingIDs()
 	detached := s.detached()
+	changes := s.hasChanges()
 	sid := v.Session.ID
 	st := a.sessionState(projectID, sid)
 	a.uiMu.Lock()
@@ -376,6 +380,7 @@ func (a *app) screen(projectID string, s *session) screen {
 		SignIn:      st.signIn,
 		NodeProblem: a.nodeProblem,
 		Installing:  a.installing && detached && !v.Session.Closed,
+		Changes:     changes,
 	}
 }
 
@@ -451,9 +456,11 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
-		if _, err := a.lookup(ev.ProjectID, id); err != nil {
+		s, err := a.lookup(ev.ProjectID, id)
+		if err != nil {
 			return err
 		}
+		s.invalidateChanges()
 		return a.selectSession(ctx, ev.ProjectID, id)
 	case actExpand, actCollapse:
 		var id string
@@ -612,7 +619,7 @@ func (a *app) send(projectID string, s *session, st *sessionUI, text string) err
 func (a *app) review(ctx context.Context, projectID string, s *session, turn int) error {
 	v := s.view(0)
 	if turn == 0 {
-		turn = firstCheckpoint(v.Turns)
+		turn = firstCheckpoint(v.Turns).Turn
 	}
 	i := slices.IndexFunc(v.Turns, func(t turnInfo) bool { return t.Turn == turn && t.CheckpointSha != "" })
 	if i < 0 {
@@ -620,6 +627,28 @@ func (a *app) review(ctx context.Context, projectID string, s *session, turn int
 	}
 	args := reviewArgs{Base: "commit:" + v.Turns[i].CheckpointSha, Head: v.Session.Worktree, BaseLabel: fmt.Sprintf(checkpointLabel, turn)}
 	return a.host.RunCommand(ctx, reviewCmd, projectID, args, nil)
+}
+
+func (a *app) refreshChanges(s *session) {
+	s.changesMu.Lock()
+	defer s.changesMu.Unlock()
+	workspace, root, base := s.changesBase()
+	changes := false
+	if base != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
+		defer cancel()
+		var err error
+		if changes, err = changedSince(ctx, root, base); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: changes:", err)
+		}
+	}
+	s.mu.Lock()
+	differs := s.changes != changes
+	s.changes = changes
+	s.mu.Unlock()
+	if differs {
+		a.kick(workspace)
+	}
 }
 
 func (a *app) signIn(ctx context.Context, projectID string, s *session, st *sessionUI) error {
@@ -735,6 +764,36 @@ func (s *session) pendingIDs() map[string]bool {
 		out[id] = true
 	}
 	return out
+}
+
+func (s *session) hasChanges() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.changes
+}
+
+func (s *session) claimChangesCheck() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	if s.changesFresh {
+		return false
+	}
+	s.changesFresh = true
+	return true
+}
+
+func (s *session) invalidateChanges() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.changesFresh = false
+}
+
+func (s *session) changesBase() (string, string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	return s.rec.Workspace, s.rec.Worktree, firstCheckpoint(s.turns).CheckpointSha
 }
 
 func (s *session) detached() bool {

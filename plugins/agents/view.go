@@ -105,6 +105,7 @@ type screen struct {
 	SignIn      string
 	NodeProblem string
 	Installing  bool
+	Changes     bool
 }
 
 type toolFields struct {
@@ -258,7 +259,7 @@ func header(sc screen) sdui.Node {
 		{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}},
 		sdui.MutedText(strings.Join(meta, " · ")),
 	}
-	if firstCheckpoint(sc.View.Turns) > 0 {
+	if sc.Changes {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
 	}
 	if rec.Status == statusRunning || rec.Status == statusWaiting {
@@ -740,11 +741,11 @@ func modeName(modes []acp.SessionMode, id string) string {
 	return id
 }
 
-func firstCheckpoint(turns []turnInfo) int {
-	best := 0
+func firstCheckpoint(turns []turnInfo) turnInfo {
+	var best turnInfo
 	for _, t := range turns {
-		if t.CheckpointSha != "" && (best == 0 || t.Turn < best) {
-			best = t.Turn
+		if t.CheckpointSha != "" && (best.Turn == 0 || t.Turn < best.Turn) {
+			best = t
 		}
 	}
 	return best
