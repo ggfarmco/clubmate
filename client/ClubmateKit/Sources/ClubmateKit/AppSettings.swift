@@ -43,6 +43,9 @@ public final class AppSettings {
     public var recentsClearedAt: Date? {
         didSet { save(recentsClearedAt, Key.recentsClearedAt) }
     }
+    public var sectionOrder: [String]? {
+        didSet { save(sectionOrder, Key.sectionOrder) }
+    }
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -54,6 +57,7 @@ public final class AppSettings {
         terminalFontSize = defaults.object(forKey: Key.terminalFontSize) as? Double
         navigationKeys = defaults.object(forKey: Key.navigationKeys) as? Bool
         recentsClearedAt = defaults.object(forKey: Key.recentsClearedAt) as? Date
+        sectionOrder = defaults.stringArray(forKey: Key.sectionOrder)
     }
 
     public static let interfaceFontRange: ClosedRange<Double> = 10...20
@@ -82,5 +86,6 @@ public final class AppSettings {
         static let terminalFontSize = "terminalFontSize"
         static let navigationKeys = "navigationKeys"
         static let recentsClearedAt = "recentsClearedAt"
+        static let sectionOrder = "sectionOrder"
     }
 }

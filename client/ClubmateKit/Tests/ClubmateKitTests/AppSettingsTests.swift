@@ -48,6 +48,27 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertFalse(settings.autoHides("terminals"))
     }
 
+    func testSectionOrderKeepsUnknownSectionsAtDefaultPosition() {
+        XCTAssertEqual(SectionOrder.apply(["d", "gone", "a", "c"], to: ["a", "b", "c", "d", "e"]), ["d", "e", "a", "b", "c"])
+    }
+
+    func testMovedSectionOrderPersistsAndKeepsOtherScopes() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
+        [{"id":"a","title":"A","icon":"","order":1,"scope":"project","plugin":"p"},
+         {"id":"b","title":"B","icon":"","order":2,"scope":"project","plugin":"p"},
+         {"id":"c","title":"C","icon":"","order":3,"scope":"project","plugin":"p"}]
+        """#.utf8))
+        let settings = AppSettings(defaults: defaults)
+        settings.sectionOrder = ["home"]
+        settings.moveSection("c", onto: "a", in: sections)
+        let saved = AppSettings(defaults: defaults)
+        XCTAssertEqual(saved.sectionOrder, ["c", "a", "b", "home"])
+        XCTAssertEqual(saved.ordered(sections).map(\.id), ["c", "a", "b"])
+    }
+
     func testSidebarEdgeMatchesSide() {
         func request(_ edge: String?) -> FocusRequest {
             FocusRequest(slot: "editor-nvim.sidebar", serial: 1, edge: edge)
