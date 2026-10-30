@@ -87,15 +87,15 @@ final class AgentsUITests: XCTestCase {
 
     func testToolActionsSummary() {
         func card(_ kind: String, _ status: String = "completed") -> SDUINode {
-            SDUINode(type: "toolCard", props: ["kind": .string(kind), "status": .string(status)])
+            SDUINode(type: "toolCard", props: ["kind": .string(kind), "status": .string(status), "title": .string("go test ./...")])
         }
         let done = ToolActionsSummary(["read", "search", "execute", "read", "edit", "search", "execute", "read"].map { card($0) })
         let running = ToolActionsSummary([card("execute", "in_progress")])
 
         XCTAssertEqual(done.text, "8 actions: read 3 files, 2 searches, 2 commands, edited 1 file")
-        XCTAssertFalse(done.running)
+        XCTAssertNil(done.running)
         XCTAssertEqual(running.text, "1 action: 1 command")
-        XCTAssertTrue(running.running)
+        XCTAssertEqual(running.running, "go test ./...")
     }
 
     func testEditLineShowsFileName() {
@@ -103,10 +103,27 @@ final class AgentsUITests: XCTestCase {
             SDUINode(type: "toolCard", props: ["kind": .string(kind), "title": .string(title)])
         }
 
-        let edit = ToolLineTitle(card("edit", "Edit `/repo/plugins/agents/view.go`"))
+        let edit = ToolLineTitle(card("edit", "Edit `/repo/my docs/view.go`"))
+        let move = ToolLineTitle(card("move", "Move /repo/a.go to /repo/b/d.go."))
 
-        XCTAssertEqual([edit.text, edit.help], ["view.go", "/repo/plugins/agents/view.go"])
+        XCTAssertEqual([edit.text, edit.help], ["view.go", "/repo/my docs/view.go"])
+        XCTAssertEqual([move.text, move.help], ["a.go → d.go", "/repo/a.go → /repo/b/d.go"])
+        XCTAssertEqual(ToolLineTitle(card("edit", "Write /repo/x.go:")).text, "x.go")
         XCTAssertEqual(ToolLineTitle(card("edit", "Edit a.go")).text, "Edit a.go")
         XCTAssertNil(ToolLineTitle(card("execute", "ls /tmp/x")).help)
+    }
+
+    func testToolExpansionFollowsStreamingGroups() {
+        var state = ToolExpansionState()
+
+        state.toggle(card: "s/tool/a")
+        XCTAssertTrue(state.isExpanded(group: ["s/tool/a", "s/tool/b"]))
+        state.toggle(group: ["s/tool/a", "s/tool/b"])
+        XCTAssertFalse(state.isExpanded(card: "s/tool/a"))
+        state.toggle(group: ["s/tool/a", "s/tool/b", "s/tool/c", "s/tool/d"])
+        XCTAssertTrue(state.isExpanded(group: ["s/tool/c", "s/tool/d"]))
+        state.prune(SDUINode(type: "transcript", id: "s/transcript", children: [SDUINode(type: "toolCard", id: "s/tool/d")]))
+        XCTAssertFalse(state.isExpanded(group: ["s/tool/a", "s/tool/b", "s/tool/c"]))
+        XCTAssertTrue(state.isExpanded(group: ["s/tool/d", "s/tool/e"]))
     }
 }

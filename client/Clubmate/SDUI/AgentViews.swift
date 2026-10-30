@@ -31,6 +31,7 @@ struct TranscriptNodeView: View {
         }
         .onChange(of: node.children) {
             if pinned { position.scrollTo(edge: .bottom) }
+            ToolExpansion.shared.prune(node)
         }
         .onChange(of: ToolExpansion.shared.opened) { _, opened in
             guard let opened, let last = items.last, last.contains(opened) else { return }
@@ -51,8 +52,8 @@ private struct TranscriptItemView: View {
     var body: some View {
         switch item {
         case let .node(child): SDUINodeView(node: child.node)
-        case let .action(child): ToolActionLine(id: child.id, node: child.node)
-        case let .actions(id, cards): ToolActionsView(id: id, cards: cards)
+        case let .action(child): ToolActionLine(id: child.id, node: child.node, expanded: ToolExpansion.shared.state.isExpanded(card: child.id)).equatable()
+        case let .actions(_, cards): ToolActionsView(cards: cards)
         }
     }
 }
@@ -60,20 +61,21 @@ private struct TranscriptItemView: View {
 @MainActor @Observable private final class ToolExpansion {
     static let shared = ToolExpansion()
 
-    private var ids: Set<String> = []
+    private(set) var state = ToolExpansionState()
     private(set) var opened: String?
 
-    func contains(_ id: String) -> Bool {
-        ids.contains(id)
+    func toggle(card id: String) {
+        opened = state.toggle(card: id) ? id : nil
     }
 
-    func toggle(_ id: String) {
-        if ids.remove(id) == nil {
-            ids.insert(id)
-            opened = id
-        } else {
-            opened = nil
-        }
+    func toggle(group ids: [String]) {
+        opened = state.toggle(group: ids) ? ids.first : nil
+    }
+
+    func prune(_ transcript: SDUINode) {
+        var next = state
+        next.prune(transcript)
+        if next != state { state = next }
     }
 }
 
@@ -84,21 +86,34 @@ private extension TranscriptItem {
     }
 }
 
+private struct Chevron: View {
+    let expanded: Bool
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+            .font(theme.glyph)
+            .foregroundStyle(theme.muted)
+            .accessibilityHidden(true)
+    }
+}
+
 private struct ToolActionsView: View {
-    let id: String
     let cards: [SDUIChild]
 
     @Environment(\.theme) private var theme
 
     var body: some View {
         let summary = ToolActionsSummary(cards.map(\.node))
-        let expanded = ToolExpansion.shared.contains(id)
+        let ids = cards.map(\.id)
+        let state = ToolExpansion.shared.state
+        let expanded = state.isExpanded(group: ids)
         VStack(alignment: .leading, spacing: theme.spacing.s) {
             HStack(spacing: theme.spacing.s) {
-                Button { ToolExpansion.shared.toggle(id) } label: {
+                Button { ToolExpansion.shared.toggle(group: ids) } label: {
                     HStack(spacing: theme.spacing.s) {
-                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                            .font(theme.glyph)
+                        Chevron(expanded: expanded)
                         Text(summary.text)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -106,17 +121,23 @@ private struct ToolActionsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                if summary.running {
+                .accessibilityLabel(summary.text)
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                if let running = summary.running {
                     ProgressView().controlSize(.mini)
-                    Text("running…")
+                    if !expanded {
+                        Text("running: \(running)")
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
             }
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
             if expanded {
-                VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                LazyVStack(alignment: .leading, spacing: theme.spacing.xs) {
                     ForEach(cards) { card in
-                        ToolActionLine(id: card.id, node: card.node)
+                        ToolActionLine(id: card.id, node: card.node, expanded: state.isExpanded(card: card.id)).equatable()
                     }
                 }
                 .padding(.leading, theme.indent)
@@ -126,54 +147,69 @@ private struct ToolActionsView: View {
     }
 }
 
-private struct ToolActionLine: View {
+private struct ToolActionLine: View, Equatable {
     let id: String
     let node: SDUINode
+    let expanded: Bool
+
+    nonisolated static func == (lhs: ToolActionLine, rhs: ToolActionLine) -> Bool {
+        lhs.id == rhs.id && lhs.expanded == rhs.expanded && lhs.node == rhs.node
+    }
 
     @Environment(\.theme) private var theme
 
     var body: some View {
         let toolBody = node.toolBody()
+        let actions = node.cardActions()
         let truncated = node.bool("truncated") == true
-        let expandable = toolBody != nil || truncated
-        let expanded = expandable && ToolExpansion.shared.contains(id)
+        let expandable = toolBody != nil || truncated || !actions.isEmpty
         let title = ToolLineTitle(node)
+        let fullTitle = node.string("title") ?? ""
         VStack(alignment: .leading, spacing: theme.spacing.s) {
             HStack(spacing: theme.spacing.l) {
-                Button { ToolExpansion.shared.toggle(id) } label: {
-                    HStack(spacing: theme.spacing.s) {
-                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                            .font(theme.glyph)
-                            .foregroundStyle(theme.muted)
-                            .opacity(expandable ? 1 : 0)
-                        Image(systemName: ToolCardNodeView.icon(node.string("kind")))
-                            .foregroundStyle(theme.muted)
-                            .frame(width: theme.indent + theme.spacing.s)
-                        Text(title.text)
-                            .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .help(title.help ?? "")
-                        if let changes = toolBody?.changes {
-                            Text("+\(changes.added)").foregroundStyle(theme.success)
-                            Text("−\(changes.removed)").foregroundStyle(theme.danger)
+                if expandable {
+                    Button { ToolExpansion.shared.toggle(card: id) } label: {
+                        HStack(spacing: theme.spacing.s) {
+                            Chevron(expanded: expanded)
+                            kindIcon
+                            if !expanded { heading(title.text, changes: toolBody?.changes) }
                         }
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(fullTitle)
+                    .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                    if expanded {
+                        heading(fullTitle, changes: toolBody?.changes)
+                            .textSelection(.enabled)
+                    }
+                } else {
+                    HStack(spacing: theme.spacing.s) {
+                        Chevron(expanded: false).hidden()
+                        kindIcon
+                        heading(title.text, changes: nil)
+                    }
                 }
-                .buttonStyle(.plain)
-                .allowsHitTesting(expandable)
                 Spacer(minLength: theme.gutter)
-                ToolCardButtons(node: node)
                 ToolStatusView(status: node.string("status"))
             }
-            if expanded {
+            .help(title.help ?? fullTitle)
+            if expanded, expandable {
                 VStack(alignment: .leading, spacing: 0) {
                     if let toolBody {
                         ToolBodyView(toolBody: toolBody).equatable()
                     }
                     if truncated {
                         TruncatedNote()
+                    }
+                    if !actions.isEmpty {
+                        if toolBody != nil || truncated { theme.border.frame(height: 1) }
+                        HStack(spacing: theme.spacing.m) {
+                            ToolCardButtons(node: node)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, theme.gutter + theme.spacing.s)
+                        .padding(.vertical, theme.spacing.m)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,6 +218,26 @@ private struct ToolActionLine: View {
         }
         .font(theme.ui)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var kindIcon: some View {
+        Image(systemName: ToolCardNodeView.icon(node.string("kind")))
+            .foregroundStyle(theme.muted)
+            .frame(width: theme.indent + theme.spacing.s)
+            .accessibilityHidden(true)
+    }
+
+    private func heading(_ text: String, changes: (added: Int, removed: Int)?) -> some View {
+        HStack(spacing: theme.spacing.s) {
+            Text(text)
+                .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
+                .lineLimit(expanded ? 3 : 1)
+                .truncationMode(.middle)
+            if let changes {
+                Text("+\(changes.added)").foregroundStyle(theme.success)
+                Text("−\(changes.removed)").foregroundStyle(theme.danger)
+            }
+        }
     }
 }
 

@@ -15,7 +15,7 @@ public enum TranscriptItem: Sendable, Equatable, Identifiable {
 
 public struct ToolActionsSummary: Sendable, Equatable {
     public let text: String
-    public let running: Bool
+    public let running: String?
 
     private static let order = ["read", "search", "fetch", "execute", "edit", "delete", "move", "think", "switch_mode", "other"]
 
@@ -29,7 +29,7 @@ public struct ToolActionsSummary: Sendable, Equatable {
             .sorted { $0.value != $1.value ? $0.value > $1.value : Self.rank($0.key) < Self.rank($1.key) }
             .map { Self.phrase($0.key, $0.value) }
         text = "\(Self.plural(cards.count, "action", "actions")): " + parts.joined(separator: ", ")
-        running = cards.contains { ["pending", "in_progress"].contains($0.string("status")) }
+        running = cards.last { ["pending", "in_progress"].contains($0.string("status")) }.map { ToolLineTitle($0).text }
     }
 
     private static func rank(_ kind: String) -> Int {
@@ -62,16 +62,66 @@ public struct ToolLineTitle: Sendable, Equatable {
 
     public init(_ card: SDUINode) {
         let title = card.string("title") ?? ""
-        let path = ["edit", "delete", "move"].contains(card.string("kind"))
-            ? title.split(separator: " ").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "`'\"")) }.first { $0.contains("/") }
-            : nil
-        guard let path, let name = path.split(separator: "/").last else {
+        let paths = ["edit", "delete", "move"].contains(card.string("kind")) ? Self.paths(in: title) : []
+        let shown = Array(paths.prefix(card.string("kind") == "move" ? 2 : 1))
+        guard !shown.isEmpty else {
             text = title
             help = nil
             return
         }
-        text = String(name)
-        help = path
+        text = shown.map { $0.split(separator: "/").last.map(String.init) ?? $0 }.joined(separator: " → ")
+        help = shown.joined(separator: " → ")
+    }
+
+    private static func paths(in title: String) -> [String] {
+        let quoted = title.split(separator: "`", omittingEmptySubsequences: false).enumerated().filter { $0.offset % 2 == 1 }.map { String($0.element) }
+        let candidates = quoted.isEmpty ? title.split(separator: " ").map(String.init).filter { $0.contains("/") } : quoted
+        return candidates.map(clean).filter { !$0.isEmpty }
+    }
+
+    private static func clean(_ token: String) -> String {
+        var token = token.trimmingCharacters(in: CharacterSet(charactersIn: "'\" "))
+        while let last = token.last, ":,.'\"".contains(last) {
+            token.removeLast()
+        }
+        return token
+    }
+}
+
+public struct ToolExpansionState: Sendable, Equatable {
+    private var groups: Set<String> = []
+    private var cards: Set<String> = []
+
+    public init() {}
+
+    public func isExpanded(card id: String) -> Bool {
+        cards.contains(id)
+    }
+
+    public func isExpanded(group ids: [String]) -> Bool {
+        ids.contains { groups.contains($0) || cards.contains($0) }
+    }
+
+    @discardableResult public mutating func toggle(card id: String) -> Bool {
+        cards.remove(id) == nil && cards.insert(id).inserted
+    }
+
+    @discardableResult public mutating func toggle(group ids: [String]) -> Bool {
+        if isExpanded(group: ids) {
+            groups.subtract(ids)
+            cards.subtract(ids)
+            return false
+        }
+        groups.formUnion(ids)
+        return true
+    }
+
+    public mutating func prune(_ transcript: SDUINode) {
+        guard let id = transcript.id, let slash = id.lastIndex(of: "/") else { return }
+        let scope = id[...slash]
+        let present = Set(transcript.children.filter { $0.type == "toolCard" }.compactMap(\.id))
+        groups = groups.filter { !$0.hasPrefix(scope) || present.contains($0) }
+        cards = cards.filter { !$0.hasPrefix(scope) || present.contains($0) }
     }
 }
 
