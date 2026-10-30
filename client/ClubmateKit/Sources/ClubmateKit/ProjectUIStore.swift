@@ -5,6 +5,7 @@ import Observation
 @Observable
 public final class ProjectUIStore {
     public let projectID: String
+    public let drafts = ComposerDrafts()
     public private(set) var sections: [SectionInfo] = []
     public private(set) var hostedSections: [SectionInfo] = []
     public var sidebarTabs = SidebarTabs()

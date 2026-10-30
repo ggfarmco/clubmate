@@ -30,13 +30,16 @@ private enum ComposerFocus {
 struct ComposerNodeView: View {
     let node: SDUINode
 
-    @State private var model = ComposerModel()
     @State private var selection: TextSelection?
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.filePicker) private var filePicker
     @Environment(\.theme) private var theme
+    @Environment(\.composerDrafts) private var shared
+    @State private var local = ComposerDrafts()
 
+    private var drafts: ComposerDrafts { shared ?? local }
+    private var model: ComposerModel { drafts.model(for: node.id ?? "") }
     private var running: Bool { node.bool("running") == true }
 
     var body: some View {
@@ -76,7 +79,7 @@ struct ComposerNodeView: View {
                 .padding(.horizontal, theme.spacing.m)
                 .opacity(0)
                 .overlay {
-                    TextEditor(text: $model.text, selection: $selection)
+                    TextEditor(text: Bindable(model).text, selection: $selection)
                         .font(theme.ui)
                         .foregroundStyle(theme.foreground)
                         .scrollContentBackground(.hidden)
@@ -231,9 +234,15 @@ struct ComposerNodeView: View {
 
     private func send(_ text: String) {
         let session = ComposerFocus.session(of: node.id)
+        let drafts = drafts
+        let id = node.id ?? ""
         ComposerFocus.afterSend = session
         dispatch(node, .named("send", .object(["text": .string(text)]))) { sent in
-            if !sent, ComposerFocus.afterSend == session { ComposerFocus.afterSend = nil }
+            if sent {
+                drafts.clear(id)
+            } else if ComposerFocus.afterSend == session {
+                ComposerFocus.afterSend = nil
+            }
         }
     }
 

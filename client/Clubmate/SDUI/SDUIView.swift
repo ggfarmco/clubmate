@@ -55,6 +55,17 @@ extension EnvironmentValues {
     }
 }
 
+private struct ComposerDraftsKey: EnvironmentKey {
+    static let defaultValue: ComposerDrafts? = nil
+}
+
+extension EnvironmentValues {
+    var composerDrafts: ComposerDrafts? {
+        get { self[ComposerDraftsKey.self] }
+        set { self[ComposerDraftsKey.self] = newValue }
+    }
+}
+
 struct FocusTarget: Equatable {
     let slot: String
     let serial: Int
@@ -151,6 +162,7 @@ struct SDUIView: View {
     let slot: String
     let projectID: String
     var owner = ""
+    var drafts = ComposerDrafts()
     let send: UIEventSink
     var run: CommandSink = { _ in .success(.null) }
 
@@ -160,6 +172,7 @@ struct SDUIView: View {
         SDUINodeView(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, owner: owner, sink: send, command: run, banner: banner))
+            .environment(\.composerDrafts, drafts)
     }
 }
 

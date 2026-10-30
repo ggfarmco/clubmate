@@ -54,6 +54,17 @@ final class AgentsUITests: XCTestCase {
         XCTAssertNil(model.handle(accept))
     }
 
+    func testComposerDraftsSurviveRecreation() {
+        let drafts = ComposerDrafts()
+        drafts.model(for: "a/composer/0").text = "draft a"
+        drafts.model(for: "b/composer/0").text = "draft b"
+        XCTAssertEqual(drafts.model(for: "a/composer/0").text, "draft a")
+        XCTAssertEqual(drafts.model(for: "b/composer/0").text, "draft b")
+        drafts.clear("a/composer/0")
+        XCTAssertEqual(drafts.model(for: "a/composer/0").text, "")
+        XCTAssertEqual(drafts.model(for: "b/composer/0").text, "draft b")
+    }
+
     func testAgentEventMapping() {
         let card = SDUINode(type: "permissionCard", id: "s/permission/p1")
         let custom = SDUINode(type: "permissionCard", id: "s/permission/p2", props: ["action": .string("answer")])
