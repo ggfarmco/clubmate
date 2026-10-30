@@ -87,6 +87,9 @@ struct SwitcherGridView: View {
                     .font(theme.ui)
                     .foregroundStyle(highlighted ? theme.foreground : theme.muted)
                     .lineLimit(1)
+                if let workspace {
+                    UnreadBadge(count: app.notifications.unread(workspace))
+                }
             }
         }
         .frame(width: Self.tile.width, alignment: .leading)
@@ -153,6 +156,23 @@ struct SwitcherGridView: View {
             return app.openFolder(in: windowID)
         }
         app.activateFromSwitcher(workspaces[index], in: windowID)
+    }
+}
+
+struct UnreadBadge: View {
+    let count: Int
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if count > 0 {
+            Text("\(count)")
+                .font(theme.uiSmall.monospacedDigit())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .background(Capsule().fill(.red))
+                .accessibilityLabel("\(count) unread")
+        }
     }
 }
 

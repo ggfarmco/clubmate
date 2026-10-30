@@ -52,14 +52,9 @@ public struct AgentNotifier: Sendable {
 
     public init() {}
 
-    public static func wantsAttention(windowKey: Bool, appActive: Bool) -> Bool {
-        !(windowKey && appActive)
-    }
-
-    public mutating func alerts(_ sessions: [AgentSessionState], windowKey: Bool, appActive: Bool) -> [AgentAlert] {
-        guard Self.wantsAttention(windowKey: windowKey, appActive: appActive) else { return [] }
+    public mutating func alerts(_ sessions: [AgentSessionState], shown: (AgentSessionState) -> Bool) -> [AgentAlert] {
         var alerts: [AgentAlert] = []
-        for session in sessions where session.status == Self.waiting {
+        for session in sessions where session.status == Self.waiting && !shown(session) {
             for request in session.requests where posted.insert(session.session + "/" + request).inserted {
                 alerts.append(AgentAlert(
                     workspace: session.workspace,

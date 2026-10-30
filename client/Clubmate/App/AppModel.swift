@@ -38,14 +38,14 @@ final class AppModel {
         confirm: { message in await Confirmation.ask(message, action: "Restart", destructive: true) }
     )
 
-    @ObservationIgnored private(set) lazy var agentNotifications = AgentNotifications(
+    @ObservationIgnored private(set) lazy var notifications = Notifications(
         run: { [weak self] workspace, invocation in
             await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
         },
-        windowKey: { [weak self] workspace in self?.isKey(workspace) ?? false },
+        focus: { [weak self] in self?.hubFocus ?? HubFocus(appActive: false, workspace: nil) },
         workspaces: { [weak self] in self?.openWorkspaces ?? [] },
         workspaceName: { [weak self] workspace in self?.project(workspace)?.name },
-        reveal: { [weak self] workspace, session in self?.revealAgentSession(session, in: workspace) }
+        reveal: { [weak self] workspace, session, owner in self?.reveal(workspace, session: session, owner: owner) }
     )
 
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
@@ -60,7 +60,7 @@ final class AppModel {
         syncSessions()
         trackNavigationKeys()
         trackTerminalFontSize()
-        _ = agentNotifications
+        _ = notifications
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
@@ -152,25 +152,37 @@ final class AppModel {
 
     func windowBecameKey(_ window: String) {
         keyWindowID = window
+        notifications.markSeen()
     }
 
     var keyWorkspace: (projectID: String?, window: NSWindow?) {
         (keyWindowID.flatMap { layout.window($0)?.active }, keyWindowID.flatMap { hosts.object(forKey: $0 as NSString) })
     }
 
-    private func isKey(_ workspace: String) -> Bool {
-        layout.windows.contains { $0.active == workspace && hosts.object(forKey: $0.id as NSString)?.isKeyWindow == true }
+    private var hubFocus: HubFocus {
+        guard let window = keyWindowID, hosts.object(forKey: window as NSString)?.isKeyWindow == true,
+              let active = layout.window(window)?.active else { return HubFocus(appActive: NSApp.isActive, workspace: nil) }
+        let store = sessions[active]?.store
+        let section = store?.selectedSection
+        return HubFocus(
+            appActive: NSApp.isActive,
+            workspace: active,
+            sidebar: section.flatMap { store?.slots["\($0).sidebar"]?.tree },
+            main: section.flatMap { store?.mainTree($0) }
+        )
     }
 
-    func revealAgentSession(_ agentSession: String, in workspace: String) {
+    func reveal(_ workspace: String, session: String?, owner: String?) {
         open(workspace)
+        guard let session, let target = NotificationHub.reveal(workspace: workspace, session: session, owner: owner) else { return }
         Task {
             for _ in 0..<Self.revealAttempts {
                 if let store = existingSession(for: workspace)?.store, store.connected {
-                    store.show(section: AgentNotifier.section)
-                    if case .failure(let error) = await store.send(AgentNotifier.selectEvent(workspace: workspace, session: agentSession)) {
+                    store.show(section: target.section)
+                    if let event = target.event, case .failure(let error) = await store.send(event) {
                         existingSession(for: workspace)?.banner.show(error.message)
                     }
+                    if target.focusMain { store.requestFocus(section: target.section, slot: "\(target.section).main") }
                     return
                 }
                 try? await Task.sleep(for: .milliseconds(100))
@@ -242,6 +254,7 @@ final class AppModel {
     }
 
     private func touch(_ projectID: String) {
+        notifications.markSeen()
         Task { await nvimConfig.activated(projectID) }
         guard let client = supervisor.client else { return }
         Task {
@@ -382,6 +395,7 @@ final class AppModel {
             Task { @MainActor in self?.trackProjects() }
         }) else { return }
         let present = Set(listed.map(\.id))
+        notifications.keep(present)
         for workspace in nvimConfig.pending where !present.contains(workspace.id) {
             nvimConfig.forget(workspace.id)
         }
@@ -400,7 +414,7 @@ final class AppModel {
         for session in sessions.values {
             session.adopt(client, supervisor)
         }
-        agentNotifications.adopt(client)
+        notifications.adopt(client)
     }
 
     private func listen(_ client: CoreClient) {

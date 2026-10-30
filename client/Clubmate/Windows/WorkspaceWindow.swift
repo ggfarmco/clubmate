@@ -30,12 +30,15 @@ struct WorkspaceWindow: View {
                 ToolbarSpacer(.flexible)
                 ToolbarItem(placement: .primaryAction) {
                     Button { windowID.map(app.toggleSwitcher) } label: {
-                        Text("▦ \(workspaceCount)")
-                            .monospacedDigit()
-                            .padding(theme.spacing.capsule)
+                        HStack(spacing: 4) {
+                            Text("▦ \(workspaceCount)")
+                                .monospacedDigit()
+                            UnreadBadge(count: otherUnread)
+                        }
+                        .padding(theme.spacing.capsule)
                     }
                     .help("Workspaces (⌃⌘W)")
-                    .accessibilityLabel("Workspaces, \(workspaceCount)")
+                    .accessibilityLabel(otherUnread > 0 ? "Workspaces, \(workspaceCount), \(otherUnread) unread" : "Workspaces, \(workspaceCount)")
                     .disabled(windowID == nil)
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -64,6 +67,11 @@ struct WorkspaceWindow: View {
 
     private var workspaceCount: Int {
         windowID.flatMap { app.window($0)?.workspaces.count } ?? 0
+    }
+
+    private var otherUnread: Int {
+        let workspaces = windowID.flatMap { app.window($0)?.workspaces } ?? []
+        return workspaces.filter { $0 != active }.reduce(0) { $0 + app.notifications.unread($1) }
     }
 
     private var worktreeSession: ProjectSession? {
