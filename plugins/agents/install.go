@@ -254,6 +254,10 @@ func registered(ctx context.Context, root string) bool {
 	return cmd.Run() == nil
 }
 
-func sessionMeta(session string) *acp.SessionMeta {
-	return &acp.SessionMeta{ClaudeCode: acp.ClaudeCodeMeta{Options: acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: session}}}}
+func sessionMeta(session, advisor string) *acp.SessionMeta {
+	opts := acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: session}}
+	if advisor != "" {
+		opts.Settings = &acp.ClaudeCodeSettings{AdvisorModel: advisor}
+	}
+	return &acp.SessionMeta{ClaudeCode: acp.ClaudeCodeMeta{Options: opts}}
 }

@@ -28,6 +28,9 @@ const (
 	changedTopic    = "agents.changed"
 	sessionKey      = "session/"
 	modeKey         = "mode/"
+	configKey       = "config/"
+	advisorKey      = "advisor/"
+	advisorID       = "advisor"
 	checktimeCmd    = "editor-nvim.checktime"
 	attachTimeout   = 2 * time.Minute
 	callTimeout     = 10 * time.Second
@@ -45,6 +48,7 @@ var (
 	errNotLive      = errors.New("the session's agent is not running")
 	errNoResume     = errors.New("the agent cannot resume this session")
 	errUnknownMode  = errors.New("unknown mode")
+	errUnknownValue = errors.New("unknown config value")
 	errUnknownCmd   = errors.New("unknown command")
 	errNoStateDir   = errors.New("no plugin state dir")
 	errShutdown     = errors.New("the agents plugin is shutting down")
@@ -84,6 +88,12 @@ type modeArgs struct {
 	Mode    string `json:"mode"`
 }
 
+type configArgs struct {
+	Session string `json:"session"`
+	ID      string `json:"id"`
+	Value   string `json:"value"`
+}
+
 type rootArgs struct {
 	Root string `json:"root"`
 }
@@ -121,6 +131,7 @@ type app struct {
 	goneProjects map[string]bool
 	resumable    map[string]bool
 	noResume     map[string]bool
+	advisors     map[string]string
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -135,7 +146,7 @@ func main() {
 	a := &app{
 		loaded: make(chan struct{}), sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]bool{},
 		ui: map[string]*projectUI{}, auth: map[string]authCommand{}, signIns: map[string]string{},
-		goneProjects: map[string]bool{}, resumable: map[string]bool{}, noResume: map[string]bool{},
+		goneProjects: map[string]bool{}, resumable: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
 	}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
 	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
@@ -242,6 +253,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return nil, a.setMode(ctx, cmd.ProjectID, args)
+	case "agents.config":
+		var args configArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return nil, a.setConfig(ctx, cmd.ProjectID, args)
 	case "agents.sessions":
 		return a.infos(cmd.ProjectID), nil
 	case "agents.stop-root":
@@ -416,7 +433,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID)}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.advisor(ctx, rec.Worktree))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return nil, authErr
@@ -441,6 +458,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	a.applyRememberedMode(ctx, s, res.Modes)
+	a.applyRememberedConfigs(ctx, s, res.ConfigOptions)
 	return p, nil
 }
 
@@ -451,7 +469,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		return errNoResume
 	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID)}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.advisor(ctx, rec.Worktree))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return authErr
@@ -484,6 +502,31 @@ func (a *app) applyRememberedMode(ctx context.Context, s *session, modes *acp.Se
 	}
 	if err := a.sendMode(ctx, s, mode); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: restore mode:", err)
+	}
+}
+
+func (a *app) applyRememberedConfigs(ctx context.Context, s *session, configs []acp.SessionConfigOption) {
+	worktree := s.snapshot().Worktree
+	for i := 0; i < len(configs); i++ {
+		o := configs[i]
+		if !pickable(o) {
+			continue
+		}
+		var value string
+		if found, err := a.host.StorageGet(ctx, configStorageKey(o.ID, worktree), &value); err != nil || !found || value == o.Current() {
+			continue
+		}
+		if _, ok := o.Choice(value); !ok {
+			continue
+		}
+		next, err := a.sendConfig(ctx, s, o.ID, value)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "agents: restore config:", err)
+			continue
+		}
+		if next != nil {
+			configs = next
+		}
 	}
 }
 
@@ -719,9 +762,99 @@ func (a *app) sendMode(ctx context.Context, s *session, mode string) error {
 	return nil
 }
 
+func (a *app) setConfig(ctx context.Context, projectID string, args configArgs) error {
+	s, err := a.lookup(projectID, args.Session)
+	if err != nil {
+		return err
+	}
+	if args.ID == advisorID {
+		return a.setAdvisor(ctx, s, args.Value)
+	}
+	s.mu.Lock()
+	i := slices.IndexFunc(s.configs, func(o acp.SessionConfigOption) bool { return o.ID == args.ID && pickable(o) })
+	var known bool
+	if i >= 0 {
+		_, known = s.configs[i].Choice(args.Value)
+	}
+	worktree := s.rec.Worktree
+	s.mu.Unlock()
+	if !known {
+		return fmt.Errorf("%w: %s=%s", errUnknownValue, args.ID, args.Value)
+	}
+	if _, err := a.sendConfig(ctx, s, args.ID, args.Value); err != nil {
+		return err
+	}
+	return a.host.StorageSet(ctx, configStorageKey(args.ID, worktree), args.Value)
+}
+
+func (a *app) sendConfig(ctx context.Context, s *session, id, value string) ([]acp.SessionConfigOption, error) {
+	s.mu.Lock()
+	p, agentID := s.proc, s.rec.AgentSessionID
+	s.mu.Unlock()
+	if p == nil {
+		return nil, errNotLive
+	}
+	var res acp.SetSessionConfigOptionResponse
+	if err := p.conn.Call(ctx, acp.MethodSessionSetConfig, acp.SetSessionConfigOptionRequest{SessionID: agentID, ConfigID: id, Value: value}, &res); err != nil {
+		return nil, fmt.Errorf("session/set_config_option: %w", err)
+	}
+	s.mu.Lock()
+	s.recordLocked(actorUser, kindSetConfig, configPayload{ConfigID: id, Value: value, ConfigOptions: res.ConfigOptions})
+	s.mu.Unlock()
+	s.changed(changeStatus, true)
+	return res.ConfigOptions, nil
+}
+
+func (a *app) setAdvisor(ctx context.Context, s *session, value string) error {
+	if !slices.ContainsFunc(advisorChoices, func(c advisorChoice) bool { return c.value == value }) {
+		return fmt.Errorf("%w: %s=%s", errUnknownValue, advisorID, value)
+	}
+	worktree := s.snapshot().Worktree
+	if err := a.host.StorageSet(ctx, advisorStorageKey(worktree), value); err != nil {
+		return err
+	}
+	a.uiMu.Lock()
+	a.advisors[worktree] = value
+	a.uiMu.Unlock()
+	s.changed(changeUpdate, false)
+	return nil
+}
+
+func (a *app) advisor(ctx context.Context, worktree string) string {
+	a.uiMu.Lock()
+	value, ok := a.advisors[worktree]
+	a.uiMu.Unlock()
+	if ok {
+		return value
+	}
+	if _, err := a.host.StorageGet(ctx, advisorStorageKey(worktree), &value); err != nil {
+		return ""
+	}
+	a.uiMu.Lock()
+	a.advisors[worktree] = value
+	a.uiMu.Unlock()
+	return value
+}
+
+func pickable(o acp.SessionConfigOption) bool {
+	return o.Type == acp.ConfigSelect && o.Category != acp.CategoryMode
+}
+
 func modeStorageKey(worktree string) string {
+	return modeKey + worktreeHash(worktree)
+}
+
+func configStorageKey(id, worktree string) string {
+	return configKey + id + "/" + worktreeHash(worktree)
+}
+
+func advisorStorageKey(worktree string) string {
+	return advisorKey + worktreeHash(worktree)
+}
+
+func worktreeHash(worktree string) string {
 	sum := sha256.Sum256([]byte(worktree))
-	return modeKey + hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:])
 }
 
 func (a *app) resume(s *session) {

@@ -175,6 +175,7 @@ struct ComposerNodeView: View {
                 .fixedSize()
                 .help("Permission mode")
             }
+            pickers
             attachMenu
             Text(running ? "⌘↩ queue · Esc stop" : "⌘↩ send")
                 .font(theme.uiSmall)
@@ -188,6 +189,24 @@ struct ComposerNodeView: View {
             }
         }
         .font(theme.ui)
+    }
+
+    private var pickers: some View {
+        ForEach(node.pickers()) { picker in
+            Menu {
+                ForEach(picker.options) { option in
+                    Button(option.label) {
+                        dispatch(node, .named("config", .object(["id": .string(picker.id), "value": .string(option.value)])))
+                    }
+                }
+            } label: {
+                Text(picker.label)
+                    .font(theme.ui)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(picker.help ?? picker.label)
+        }
     }
 
     @ViewBuilder private var attachMenu: some View {

@@ -13,6 +13,7 @@ import (
 
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/acp"
 )
 
 func nodesOf(n sdui.Node, typ string) []sdui.Node {
@@ -217,4 +218,23 @@ func TestRenderThrottle(t *testing.T) {
 	th.kick()
 	clock.advance(renderEvery)
 	assert.Equal(t, before+1, lastRender)
+}
+
+func TestConfigPickersAndModelInHeader(t *testing.T) {
+	var configs []acp.SessionConfigOption
+	require.NoError(t, json.Unmarshal([]byte(`[
+		{"id":"mode","name":"Mode","category":"mode","type":"select","currentValue":"plan","options":[{"value":"plan","name":"Plan"}]},
+		{"id":"model","name":"Model","category":"model","type":"select","currentValue":"opus","options":[{"group":"claude","name":"Claude","options":[{"value":"sonnet","name":"Sonnet 5"},{"value":"opus","name":"Opus 5.5"}]}]},
+		{"id":"effort","name":"Effort","category":"thought_level","type":"select","currentValue":"high","options":[{"value":"high","name":"High"}]}
+	]`), &configs))
+	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusIdle}, Configs: configs}
+	tree := mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	assert.Equal(t, "Claude · ⑂ a · Opus 5.5", nodesOf(tree, "text")[1].Props["text"])
+	got := nodesOf(tree, "composer")[0].Props["pickers"].([]sdui.Picker)
+	require.Len(t, got, 3)
+	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
+	assert.Equal(t, []string{"Effort", "Advisor"}, []string{got[1].Title, got[2].Title})
+	assert.Equal(t, "opus", got[2].Value)
 }

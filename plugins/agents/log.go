@@ -28,6 +28,7 @@ const (
 	kindCancel     = "session/cancel"
 	kindClose      = "session/close"
 	kindSetMode    = "session/set_mode"
+	kindSetConfig  = "session/set_config_option"
 	kindPermission = "session/request_permission"
 	kindAnswer     = "permission"
 	kindCheckpoint = "checkpoint"

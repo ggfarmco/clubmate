@@ -178,7 +178,7 @@ var (
 		},
 		"composer": {
 			props: map[string]propCheck{
-				"placeholder": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString,
+				"placeholder": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
 				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachmentKinds)), "attachments": attachmentsCheck, "running": isBool,
 			},
 			children:    noChildren,
@@ -456,6 +456,12 @@ func cardActionCheck(c *validator, v any) error {
 
 func permissionOptionCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds)})(c, v)
+}
+
+func pickerCheck(c *validator, v any) error {
+	return objectCheck([]string{"id", "value", "options"}, map[string]propCheck{
+		"id": isString, "title": isString, "help": isString, "value": isString, "options": listOf(optionCheck),
+	})(c, v)
 }
 
 func commandCheck(c *validator, v any) error {

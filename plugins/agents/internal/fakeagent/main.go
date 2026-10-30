@@ -16,14 +16,15 @@ import (
 )
 
 type script struct {
-	AuthFile string                 `json:"authFile"`
-	Resume   bool                   `json:"resume"`
-	Linger   bool                   `json:"linger"`
-	Embedded bool                   `json:"embedded"`
-	Modes    *acp.SessionModeState  `json:"modes"`
-	Commands []acp.AvailableCommand `json:"commands"`
-	Prompt   []step                 `json:"prompt"`
-	After    []step                 `json:"after"`
+	AuthFile string                    `json:"authFile"`
+	Resume   bool                      `json:"resume"`
+	Linger   bool                      `json:"linger"`
+	Embedded bool                      `json:"embedded"`
+	Modes    *acp.SessionModeState     `json:"modes"`
+	Configs  []acp.SessionConfigOption `json:"configs"`
+	Commands []acp.AvailableCommand    `json:"commands"`
+	Prompt   []step                    `json:"prompt"`
+	After    []step                    `json:"after"`
 }
 
 type step struct {
@@ -137,10 +138,10 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		}
 		id := "fake-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(a.sessions.Add(1), 10)
 		go a.announce(id)
-		return acp.NewSessionResponse{SessionID: id, Modes: a.script.Modes}, nil
+		return acp.NewSessionResponse{SessionID: id, Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionResume:
 		go a.announce(req.SessionID)
-		return acp.ResumeSessionResponse{Modes: a.script.Modes}, nil
+		return acp.ResumeSessionResponse{Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionPrompt:
 		a.cancelled.Store(false)
 		var prompt acp.PromptRequest
@@ -158,10 +159,25 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		_ = json.Unmarshal(params, &set)
 		a.update(set.SessionID, map[string]any{"sessionUpdate": acp.UpdateCurrentMode, "currentModeId": set.ModeID})
 		return struct{}{}, nil
+	case acp.MethodSessionSetConfig:
+		var set acp.SetSessionConfigOptionRequest
+		_ = json.Unmarshal(params, &set)
+		return acp.SetSessionConfigOptionResponse{ConfigOptions: a.setConfig(set.ConfigID, set.Value)}, nil
 	case acp.MethodSessionClose, acp.MethodSessionDelete:
 		return struct{}{}, nil
 	}
 	return nil, acp.MethodNotFound(method)
+}
+
+func (a *agent) setConfig(id, value string) []acp.SessionConfigOption {
+	out := slices.Clone(a.script.Configs)
+	raw, _ := json.Marshal(value)
+	for i, o := range out {
+		if o.ID == id {
+			out[i].CurrentValue = raw
+		}
+	}
+	return out
 }
 
 func (a *agent) announce(session string) {

@@ -37,6 +37,7 @@ const (
 	actStop            = "stop"
 	actPermission      = "permission"
 	actMode            = "mode"
+	actConfig          = "config"
 	actAttachFile      = "attachFile"
 	actAttachSelection = "attachSelection"
 	actDetach          = "detach"
@@ -60,6 +61,7 @@ const (
 	queuedNote     = "Queued, sent when the turn ends"
 	heldNote       = "Queued, not sent"
 	queuePrefix    = "queue/"
+	advisorHelp    = "Advisor model for new sessions in this worktree"
 )
 
 var (
@@ -79,14 +81,25 @@ var (
 		statusError:   "Error",
 		statusClosed:  "Closed",
 	}
-	agentLabels  = map[string]string{agentClaude: "Claude"}
-	cardKinds    = []string{"read", "edit", "delete", "move", "search", "execute", "think", "fetch", "switch_mode", "other"}
-	cardStatuses = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
-	oneLineKinds = []string{"read", "search"}
-	permVerbs    = map[string]string{"execute": "run", "edit": "edit", "delete": "delete", "move": "move", "read": "read", "fetch": "fetch"}
-	selectionRe  = regexp.MustCompile(`^(.+):(\d+)-(\d+)\n`)
-	fragmentRe   = regexp.MustCompile(`^L(\d+)-(\d+)$`)
+	agentLabels    = map[string]string{agentClaude: "Claude"}
+	cardKinds      = []string{"read", "edit", "delete", "move", "search", "execute", "think", "fetch", "switch_mode", "other"}
+	cardStatuses   = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
+	oneLineKinds   = []string{"read", "search"}
+	permVerbs      = map[string]string{"execute": "run", "edit": "edit", "delete": "delete", "move": "move", "read": "read", "fetch": "fetch"}
+	selectionRe    = regexp.MustCompile(`^(.+):(\d+)-(\d+)\n`)
+	fragmentRe     = regexp.MustCompile(`^L(\d+)-(\d+)$`)
+	advisorChoices = []advisorChoice{
+		{label: "Default"},
+		{value: "fable", label: "Fable"},
+		{value: "opus", label: "Opus"},
+		{value: "sonnet", label: "Sonnet"},
+	}
 )
+
+type advisorChoice struct {
+	value string
+	label string
+}
 
 type sessionRow struct {
 	Rec      record
@@ -112,6 +125,7 @@ type screen struct {
 	NodeProblem string
 	Installing  bool
 	Changes     bool
+	Advisor     string
 }
 
 type toolFields struct {
@@ -284,6 +298,9 @@ func header(sc screen) sdui.Node {
 	sid := rec.ID
 	meta := []string{agentLabel(rec.Agent), "⑂ " + filepath.Base(rec.Worktree)}
 	if name := modeName(sc.View.Modes, rec.Mode); name != "" {
+		meta = append(meta, name)
+	}
+	if name := modelName(sc.View.Configs); name != "" {
 		meta = append(meta, name)
 	}
 	row := []sdui.Node{
@@ -756,11 +773,52 @@ func composer(sc screen) sdui.Node {
 		Agent:       agentLabel(rec.Agent),
 		Modes:       modes,
 		Mode:        rec.Mode,
+		Pickers:     pickers(sc),
 		Commands:    commands,
 		Attach:      []string{"file", "selection"},
 		Attachments: attachments,
 		Running:     turnActive(rec),
 	})
+}
+
+func pickers(sc screen) []sdui.Picker {
+	var out []sdui.Picker
+	for _, o := range sc.View.Configs {
+		if !pickable(o) {
+			continue
+		}
+		choices := o.Choices()
+		options := make([]sdui.Option, 0, len(choices))
+		for _, c := range choices {
+			options = append(options, sdui.Option{Value: c.Value, Label: cmp.Or(c.Name, c.Value)})
+		}
+		p := sdui.Picker{ID: o.ID, Help: cmp.Or(o.Description, o.Name), Value: o.Current(), Options: options}
+		if o.Category != acp.CategoryModel {
+			p.Title = o.Name
+		}
+		out = append(out, p)
+	}
+	if sc.View.Session.Agent != agentClaude {
+		return out
+	}
+	options := make([]sdui.Option, 0, len(advisorChoices))
+	for _, c := range advisorChoices {
+		options = append(options, sdui.Option{Value: c.value, Label: c.label})
+	}
+	return append(out, sdui.Picker{ID: advisorID, Title: "Advisor", Help: advisorHelp, Value: sc.Advisor, Options: options})
+}
+
+func modelName(configs []acp.SessionConfigOption) string {
+	for _, o := range configs {
+		if o.Category != acp.CategoryModel {
+			continue
+		}
+		if c, ok := o.Choice(o.Current()); ok {
+			return cmp.Or(c.Name, c.Value)
+		}
+		return o.Current()
+	}
+	return ""
 }
 
 func modeName(modes []acp.SessionMode, id string) string {

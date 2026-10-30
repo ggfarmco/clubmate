@@ -13,6 +13,7 @@ const (
 	MethodSessionClose      = "session/close"
 	MethodSessionDelete     = "session/delete"
 	MethodSessionSetMode    = "session/set_mode"
+	MethodSessionSetConfig  = "session/set_config_option"
 	MethodSessionUpdate     = "session/update"
 	MethodRequestPermission = "session/request_permission"
 	MethodCancelRequest     = "$/cancel_request"
@@ -25,8 +26,13 @@ const (
 	UpdatePlan              = "plan"
 	UpdateAvailableCommands = "available_commands_update"
 	UpdateCurrentMode       = "current_mode_update"
+	UpdateConfigOption      = "config_option_update"
 	UpdateSessionInfo       = "session_info_update"
 	UpdateNotice            = "notice"
+
+	ConfigSelect  = "select"
+	CategoryMode  = "mode"
+	CategoryModel = "model"
 
 	StopEndTurn   = "end_turn"
 	StopCancelled = "cancelled"
@@ -135,12 +141,18 @@ type ClaudeCodeMeta struct {
 }
 
 type ClaudeCodeOptions struct {
-	Env map[string]string `json:"env,omitempty"`
+	Env      map[string]string   `json:"env,omitempty"`
+	Settings *ClaudeCodeSettings `json:"settings,omitempty"`
+}
+
+type ClaudeCodeSettings struct {
+	AdvisorModel string `json:"advisorModel,omitempty"`
 }
 
 type NewSessionResponse struct {
-	SessionID string            `json:"sessionId"`
-	Modes     *SessionModeState `json:"modes,omitempty"`
+	SessionID     string                `json:"sessionId"`
+	Modes         *SessionModeState     `json:"modes,omitempty"`
+	ConfigOptions []SessionConfigOption `json:"configOptions,omitempty"`
 }
 
 type ResumeSessionRequest struct {
@@ -152,7 +164,8 @@ type ResumeSessionRequest struct {
 }
 
 type ResumeSessionResponse struct {
-	Modes *SessionModeState `json:"modes,omitempty"`
+	Modes         *SessionModeState     `json:"modes,omitempty"`
+	ConfigOptions []SessionConfigOption `json:"configOptions,omitempty"`
 }
 
 type SessionModeState struct {
@@ -164,6 +177,38 @@ type SessionMode struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+}
+
+type SessionConfigOption struct {
+	ID           string                `json:"id"`
+	Name         string                `json:"name"`
+	Description  string                `json:"description,omitempty"`
+	Category     string                `json:"category,omitempty"`
+	Type         string                `json:"type"`
+	CurrentValue json.RawMessage       `json:"currentValue"`
+	Options      []SessionConfigChoice `json:"options,omitempty"`
+}
+
+type SessionConfigChoice struct {
+	Value       string                `json:"value,omitempty"`
+	Name        string                `json:"name"`
+	Description string                `json:"description,omitempty"`
+	Group       string                `json:"group,omitempty"`
+	Options     []SessionConfigChoice `json:"options,omitempty"`
+}
+
+type SetSessionConfigOptionRequest struct {
+	SessionID string `json:"sessionId"`
+	ConfigID  string `json:"configId"`
+	Value     string `json:"value"`
+}
+
+type SetSessionConfigOptionResponse struct {
+	ConfigOptions []SessionConfigOption `json:"configOptions"`
+}
+
+type ConfigOptionUpdate struct {
+	ConfigOptions []SessionConfigOption `json:"configOptions"`
 }
 
 type SessionRequest struct {
@@ -259,4 +304,31 @@ type CancelRequestNotification struct {
 
 type RequestPermissionResponse struct {
 	Outcome PermissionOutcome `json:"outcome"`
+}
+
+func (o SessionConfigOption) Current() string {
+	var v string
+	_ = json.Unmarshal(o.CurrentValue, &v)
+	return v
+}
+
+func (o SessionConfigOption) Choices() []SessionConfigChoice {
+	var out []SessionConfigChoice
+	for _, c := range o.Options {
+		if len(c.Options) > 0 {
+			out = append(out, c.Options...)
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+func (o SessionConfigOption) Choice(value string) (SessionConfigChoice, bool) {
+	for _, c := range o.Choices() {
+		if c.Value == value {
+			return c, true
+		}
+	}
+	return SessionConfigChoice{}, false
 }

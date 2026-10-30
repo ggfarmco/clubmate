@@ -97,6 +97,11 @@ type modeValue struct {
 	Mode string `json:"mode"`
 }
 
+type configValue struct {
+	ID    string `json:"id"`
+	Value string `json:"value"`
+}
+
 type pathValue struct {
 	Path string `json:"path"`
 	Line int    `json:"line,omitempty"`
@@ -335,7 +340,9 @@ func (a *app) render(ctx context.Context, projectID string) error {
 		if s.claimChangesCheck() {
 			go a.refreshChanges(s)
 		}
-		main = mainView(a.screen(projectID, s))
+		sc := a.screen(projectID, s)
+		sc.Advisor = a.advisor(ctx, sc.View.Session.Worktree)
+		main = mainView(sc)
 	}
 	return a.push(ctx, p, projectID, mainSlot, main)
 }
@@ -522,6 +529,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 			return err
 		}
 		return a.setMode(ctx, ev.ProjectID, modeArgs{Session: sid, Mode: v.Mode})
+	case actConfig:
+		var v configValue
+		if err := decode(ev.Value, &v); err != nil {
+			return err
+		}
+		return a.setConfig(ctx, ev.ProjectID, configArgs{Session: sid, ID: v.ID, Value: v.Value})
 	case actAttachFile:
 		var v pathValue
 		if err := decode(ev.Value, &v); err != nil || v.Path == "" {
