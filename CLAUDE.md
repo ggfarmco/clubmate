@@ -1,3 +1,4 @@
 - Every change that adds, removes or rebinds a keyboard shortcut also updates `docs/shortcuts.md` in the same commit.
 - Every change to a view in `client/Clubmate` follows the `clubmate-ui` skill (`.claude/skills/clubmate-ui`); it is done only after `make app` builds and the result was looked at, or the report says "visually unverified".
 - A feature or fix lands in `main` as one squashed commit (`git merge --squash <branch>`, then one conventional-commit message); no merge commits and no intermediate WIP/fixup commits on `main`.
+- When the user asks to work "with agents" / "агентами" or to act as an orchestrator, start child Clubmate sessions with `mcp__clubmate__agents_new` (load it via ToolSearch) so they show in the Agents tree; do not use the built-in `Agent`/Task tool for that.
