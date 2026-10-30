@@ -100,6 +100,7 @@ var (
 	cardStatuses   = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
 	oneLineKinds   = []string{"read", "search"}
 	permVerbs      = map[string]string{"execute": "run", "edit": "edit", "delete": "delete", "move": "move", "read": "read", "fetch": "fetch"}
+	titleVerbs     = map[string][]string{"execute": {"Run"}, "edit": {"Write", "Edit"}, "delete": {"Delete"}, "move": {"Move"}, "read": {"Read"}, "fetch": {"Fetch"}}
 	selectionRe    = regexp.MustCompile(`^(.+):(\d+)-(\d+)\n`)
 	fragmentRe     = regexp.MustCompile(`^L(\d+)-(\d+)$`)
 	advisorChoices = []advisorChoice{
@@ -786,8 +787,11 @@ func permissionCard(sc screen, en *entry) sdui.Node {
 	_ = json.Unmarshal(en.ToolCall, &f)
 	text := agentLabel(rec.Agent) + " asks for permission"
 	if f.Title != "" {
-		verb := cmp.Or(permVerbs[f.Kind], "use")
-		text = agentLabel(rec.Agent) + " wants to " + verb + " " + f.Title
+		verb, title := cmp.Or(permVerbs[f.Kind], "use"), f.Title
+		if first, rest, ok := strings.Cut(title, " "); ok && slices.Contains(titleVerbs[f.Kind], first) {
+			verb, title = strings.ToLower(first), rest
+		}
+		text = agentLabel(rec.Agent) + " wants to " + verb + " " + title
 	}
 	options := make([]sdui.PermissionOption, 0, len(en.Options))
 	seen := map[string]bool{}

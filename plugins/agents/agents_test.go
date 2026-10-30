@@ -842,7 +842,7 @@ func TestPermissionCardAction(t *testing.T) {
 		return len(cards) == 1 && cards[0].Props["outcome"] == nil
 	})
 	card := cardsOf(main, "permissionCard")[0]
-	assert.Equal(t, "Claude wants to run Run tests", card.Props["text"])
+	assert.Equal(t, "Claude wants to run tests", card.Props["text"])
 	f.h.Event(t, project, "agents.main", card.ID, "permission", map[string]any{"request": card.Props["request"], "option": "allow"})
 
 	f.waitCall(t, "permission_response", func(c fakeCall) bool { return strings.Contains(string(c.Params), `"optionId":"allow"`) })
