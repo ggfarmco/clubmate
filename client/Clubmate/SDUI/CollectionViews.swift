@@ -79,6 +79,7 @@ struct ListNodeView: View {
                     focused = true
                     dispatch(node, .select(item.id))
                 }
+                .itemMenu(item.menu) { dispatch.choose($0, item: item.id, in: node) }
             }
         }
         .focusable()
@@ -178,6 +179,7 @@ struct TreeNodeView: View {
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
         }
+        .itemMenu(row.item.item.menu) { dispatch.choose($0, item: row.id, in: node) }
     }
 
     private func select(_ id: String) {
@@ -422,6 +424,29 @@ struct ItemRow<Leading: View>: View {
     private var background: Color {
         if selected { return theme.accent.opacity(0.25) }
         return hovering ? theme.foreground.opacity(0.05) : .clear
+    }
+}
+
+extension View {
+    func itemMenu(_ entries: [SDUIMenuEntry], choose: @escaping (SDUIMenuEntry) -> Void) -> some View {
+        modifier(ItemMenu(entries: entries, choose: choose))
+    }
+}
+
+private struct ItemMenu: ViewModifier {
+    let entries: [SDUIMenuEntry]
+    let choose: (SDUIMenuEntry) -> Void
+
+    func body(content: Content) -> some View {
+        if entries.isEmpty {
+            content
+        } else {
+            content.contextMenu {
+                ForEach(entries) { entry in
+                    Button(entry.label) { choose(entry) }
+                }
+            }
+        }
     }
 }
 

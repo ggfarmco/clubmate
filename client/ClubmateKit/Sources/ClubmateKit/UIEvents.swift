@@ -15,6 +15,8 @@ public enum UIAction {
         case reviewed(String)
         case next(Int)
         case collapseOthers(String)
+        case named(String, JSONValue)
+        case permission(request: String, option: String)
 
         public var value: JSONValue {
             switch self {
@@ -26,6 +28,8 @@ public enum UIAction {
             case .pick(let paths): .array(paths.map(JSONValue.string))
             case .sort(let column, let desc): SDUISort(column: column, desc: desc).value
             case .next(let direction): .number(Double(direction))
+            case .named(_, let value): value
+            case .permission(let request, let option): .object(["request": .string(request), "option": .string(option)])
             }
         }
     }
@@ -46,6 +50,8 @@ public enum UIAction {
         case .reviewed: action = "reviewed"
         case .next: action = "next"
         case .collapseOthers: action = "collapse-others"
+        case .named(let name, _): action = name
+        case .permission: action = custom ?? "permission"
         }
         return UIEvent(projectId: projectID, slot: slot, nodeId: node.id ?? "", action: action, value: trigger.value)
     }

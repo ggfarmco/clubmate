@@ -80,19 +80,8 @@ struct MarkdownNodeView: View {
 
     @Environment(\.theme) private var theme
 
-    private var content: AttributedString {
-        let source = node.string("text") ?? ""
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        var content = (try? AttributedString(markdown: source, options: options)) ?? AttributedString(source)
-        for run in content.runs where run.inlinePresentationIntent?.contains(.code) == true {
-            content[run.range].font = theme.ui
-            content[run.range].backgroundColor = theme.foreground.opacity(0.1)
-        }
-        return content
-    }
-
     var body: some View {
-        Text(content)
+        Text(theme.inlineMarkdown(node.string("text") ?? ""))
             .font(theme.ui)
             .foregroundStyle(theme.foreground)
             .tint(theme.accent)

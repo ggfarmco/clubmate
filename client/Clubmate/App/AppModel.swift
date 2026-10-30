@@ -38,6 +38,15 @@ final class AppModel {
         confirm: { message in await Confirmation.ask(message, action: "Restart", destructive: true) }
     )
 
+    @ObservationIgnored private(set) lazy var agentNotifications = AgentNotifications(
+        run: { [weak self] workspace, invocation in
+            await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
+        },
+        windowKey: { [weak self] workspace in self?.isKey(workspace) ?? false },
+        workspaceName: { [weak self] workspace in self?.project(workspace)?.name },
+        reveal: { [weak self] workspace, session in self?.revealAgentSession(session, in: workspace) }
+    )
+
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
 
     init() {
@@ -50,6 +59,7 @@ final class AppModel {
         syncSessions()
         trackNavigationKeys()
         trackTerminalFontSize()
+        _ = agentNotifications
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
@@ -145,6 +155,18 @@ final class AppModel {
 
     var keyWorkspace: (projectID: String?, window: NSWindow?) {
         (keyWindowID.flatMap { layout.window($0)?.active }, keyWindowID.flatMap { hosts.object(forKey: $0 as NSString) })
+    }
+
+    private func isKey(_ workspace: String) -> Bool {
+        guard let window = layout.windows.first(where: { $0.active == workspace }) else { return false }
+        return hosts.object(forKey: window.id as NSString)?.isKeyWindow == true
+    }
+
+    func revealAgentSession(_ agentSession: String, in workspace: String) {
+        open(workspace)
+        guard let store = existingSession(for: workspace)?.store else { return }
+        store.show(section: AgentNotifier.section)
+        Task { _ = await store.send(AgentNotifier.selectEvent(workspace: workspace, session: agentSession)) }
     }
 
     func windowAttached(_ window: String, _ host: NSWindow) {
@@ -367,6 +389,7 @@ final class AppModel {
         for session in sessions.values {
             session.adopt(client, supervisor)
         }
+        agentNotifications.adopt(client)
     }
 
     private func listen(_ client: CoreClient) {
@@ -524,6 +547,7 @@ final class ProjectSession {
     var overlay: WorkspaceOverlay?
     private(set) var findInFiles: FindInFilesModel?
     private(set) var picker: PickerRequest?
+    private(set) var fileTarget: (@MainActor (String) -> Void)?
     var thumbnail: NSImage?
     var autoNewRequest = 0
     @ObservationIgnored var autoNew = AutoNewGate()
@@ -622,7 +646,13 @@ final class ProjectSession {
         Task { await worktrees.menuOpened() }
     }
 
+    func pickFile(_ target: @escaping @MainActor (String) -> Void) {
+        fileTarget = target
+        overlay = .goToFile
+    }
+
     func toggle(_ overlay: WorkspaceOverlay) {
+        if overlay == .goToFile { fileTarget = nil }
         if overlay == .findInFiles, findInFiles == nil { findInFiles = makeFindInFiles() }
         self.overlay = self.overlay == overlay ? nil : overlay
     }
@@ -642,6 +672,7 @@ final class ProjectSession {
     func close(_ overlay: WorkspaceOverlay) {
         guard self.overlay == overlay else { return }
         self.overlay = nil
+        if overlay == .goToFile { fileTarget = nil }
         if overlay == .picker {
             picker?.model.cancel()
             picker = nil

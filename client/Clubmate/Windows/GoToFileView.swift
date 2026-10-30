@@ -19,7 +19,8 @@ struct GoToFileView: View {
             },
             dismiss: { [weak session] in session?.close(.goToFile) },
             report: { [weak session] message in session?.banner.show(message) },
-            opened: { [weak session] in session?.store?.requestFocus(section: CodeSection.id, slot: CodeSection.mainSlot) }
+            opened: { [weak session] in session?.store?.requestFocus(section: CodeSection.id, slot: CodeSection.mainSlot) },
+            pick: session.fileTarget
         ))
     }
 
@@ -27,7 +28,7 @@ struct GoToFileView: View {
         VStack(spacing: 0) {
             PaletteField(
                 text: Binding(get: { model.query }, set: { model.update($0) }),
-                placeholder: "Go to file (path:line)",
+                placeholder: model.picking ? "Attach file" : "Go to file (path:line)",
                 move: model.move,
                 submit: choose,
                 cancel: dismiss

@@ -25,6 +25,14 @@ struct SDUIDispatch: Sendable {
     }
 
     @MainActor
+    func choose(_ entry: SDUIMenuEntry, item: String, in node: SDUINode) {
+        guard let message = entry.confirm else { return self(node, .named(entry.action, .string(item))) }
+        Task {
+            if await Confirmation.ask(message, action: entry.label, destructive: true) { self(node, .named(entry.action, .string(item))) }
+        }
+    }
+
+    @MainActor
     func run(_ invocation: CommandInvocation) {
         Task { [command, banner] in
             if case .failure(let error) = await command(invocation) {
@@ -147,6 +155,12 @@ struct SDUINodeView: View {
         case "toggle": ToggleNodeView(node: node)
         case "select": SelectNodeView(node: node)
         case "form": FormNodeView(node: node)
+        case "transcript": TranscriptNodeView(node: node)
+        case "message": MessageNodeView(node: node)
+        case "plan": PlanNodeView(node: node)
+        case "toolCard": ToolCardNodeView(node: node)
+        case "permissionCard": PermissionCardNodeView(node: node)
+        case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
         case "empty": EmptyNodeView(text: node.string("text") ?? "")
         default: UnsupportedNodeView(type: node.type)
