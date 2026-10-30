@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 import ClubmateKit
 
@@ -47,27 +48,29 @@ private struct RailButton: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Button(action: action) {
-            icon
-                .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
-                .frame(width: 36, height: 36)
-                .background(background, ignoresSafeAreaEdges: [])
-                .overlay(alignment: .leading) {
-                    if selected { theme.accent.frame(width: 2) }
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(section.title)
-        .onHover { hovering = $0 }
-        .draggable(section.id) {
-            icon.foregroundStyle(theme.foreground)
-        }
-        .dropDestination(for: String.self) { items, _ in
-            guard let dragged = items.first, dragged != section.id, accepts(dragged) else { return false }
-            drop(dragged)
-            return true
-        } isTargeted: { targeted = $0 }
+        icon
+            .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
+            .frame(width: 36, height: 36)
+            .background(background, ignoresSafeAreaEdges: [])
+            .overlay(alignment: .leading) {
+                if selected { theme.accent.frame(width: 2) }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .accessibilityElement()
+            .accessibilityLabel(section.title)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { action() }
+            .help(section.title)
+            .onHover { hovering = $0 }
+            .draggable(RailItem(id: section.id)) {
+                icon.foregroundStyle(theme.foreground)
+            }
+            .dropDestination(for: RailItem.self) { items, _ in
+                guard let dragged = items.first?.id, dragged != section.id, accepts(dragged) else { return false }
+                drop(dragged)
+                return true
+            } isTargeted: { targeted = $0 }
     }
 
     private var icon: some View {
@@ -79,4 +82,16 @@ private struct RailButton: View {
         if targeted { return theme.accent.opacity(0.18) }
         return selected ? theme.foreground.opacity(0.06) : .clear
     }
+}
+
+private struct RailItem: Codable, Transferable {
+    let id: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .clubmateSection)
+    }
+}
+
+extension UTType {
+    static let clubmateSection = UTType(exportedAs: "com.clubmate.section")
 }
