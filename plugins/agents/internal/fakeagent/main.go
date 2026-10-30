@@ -21,6 +21,8 @@ type script struct {
 	Resume   bool                      `json:"resume"`
 	Linger   bool                      `json:"linger"`
 	Embedded bool                      `json:"embedded"`
+	Steering bool                      `json:"steering"`
+	Idle     bool                      `json:"idle"`
 	Modes    *acp.SessionModeState     `json:"modes"`
 	Configs  []acp.SessionConfigOption `json:"configs"`
 	Commands []acp.AvailableCommand    `json:"commands"`
@@ -63,6 +65,7 @@ type agent struct {
 	log       *os.File
 	sessions  atomic.Int64
 	cancelled atomic.Bool
+	turns     atomic.Int64
 }
 
 func main() {
@@ -128,6 +131,9 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 			caps.SessionCapabilities.Resume = &acp.Capability{}
 		}
 		res := acp.InitializeResponse{ProtocolVersion: acp.ProtocolVersion, AgentCapabilities: caps, AgentInfo: &acp.Implementation{Name: "fakeagent", Version: "0"}}
+		if a.script.Steering {
+			res.Meta = &acp.InitializeMeta{Steering: acp.SteeringMeta{Supported: true}}
+		}
 		if a.script.AuthFile != "" {
 			res.AuthMethods = []json.RawMessage{json.RawMessage(`{"id":"login","name":"Fake login","type":"terminal","args":["` + loginArg + `"]}`)}
 		}
@@ -146,6 +152,8 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		return acp.ResumeSessionResponse{Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionPrompt:
 		a.cancelled.Store(false)
+		a.turns.Add(1)
+		defer a.turns.Add(-1)
 		var prompt acp.PromptRequest
 		_ = json.Unmarshal(params, &prompt)
 		a.run(ctx, prompt, a.script.Prompt)
@@ -156,6 +164,16 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		}
 		a.record("prompt_end", res)
 		return res, nil
+	case acp.MethodSessionSteering:
+		var steer acp.SteerRequest
+		_ = json.Unmarshal(params, &steer)
+		if steer.Meta.Steering.IdleBehavior != acp.SteerPromptRequired {
+			return nil, &acp.Error{Code: -32602, Message: "steering without promptRequired"}
+		}
+		if a.script.Idle || a.turns.Load() == 0 {
+			return acp.SteerResponse{Outcome: acp.SteerPromptRequired}, nil
+		}
+		return acp.SteerResponse{Outcome: acp.SteerInjected}, nil
 	case acp.MethodSessionSetMode:
 		var set acp.SetSessionModeRequest
 		_ = json.Unmarshal(params, &set)

@@ -17,6 +17,7 @@ const (
 	MethodSessionUpdate     = "session/update"
 	MethodRequestPermission = "session/request_permission"
 	MethodCancelRequest     = "$/cancel_request"
+	MethodSessionSteering   = "_session/steering"
 
 	UpdateUserMessageChunk  = "user_message_chunk"
 	UpdateAgentMessageChunk = "agent_message_chunk"
@@ -91,6 +92,43 @@ type InitializeResponse struct {
 	AgentCapabilities AgentCapabilities `json:"agentCapabilities"`
 	AuthMethods       []json.RawMessage `json:"authMethods,omitempty"`
 	AgentInfo         *Implementation   `json:"agentInfo,omitempty"`
+	Meta              *InitializeMeta   `json:"_meta,omitempty"`
+}
+
+type InitializeMeta struct {
+	Steering SteeringMeta `json:"steering"`
+}
+
+type SteeringMeta struct {
+	Supported bool `json:"supported"`
+}
+
+const (
+	SteerInjected       = "injected"
+	SteerPromptRequired = "promptRequired"
+)
+
+type SteerRequest struct {
+	SessionID string         `json:"sessionId"`
+	Prompt    []ContentBlock `json:"prompt"`
+	Meta      SteerMeta      `json:"_meta"`
+}
+
+type SteerMeta struct {
+	Steering SteerBehavior `json:"steering"`
+}
+
+type SteerBehavior struct {
+	IdleBehavior string `json:"idleBehavior"`
+}
+
+type SteerResponse struct {
+	Outcome string `json:"outcome"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+func NewSteerRequest(sessionID string, prompt []ContentBlock) SteerRequest {
+	return SteerRequest{SessionID: sessionID, Prompt: prompt, Meta: SteerMeta{Steering: SteerBehavior{IdleBehavior: SteerPromptRequired}}}
 }
 
 type AgentCapabilities struct {

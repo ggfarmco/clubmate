@@ -111,7 +111,8 @@ type transcriptView struct {
 
 type promptPayload struct {
 	acp.PromptRequest
-	From string `json:"from,omitempty"`
+	From    string `json:"from,omitempty"`
+	Steered bool   `json:"steered,omitempty"`
 }
 
 type permissionPayload struct {
@@ -376,9 +377,15 @@ func (s *session) applyPrompt(e envelope) {
 		return
 	}
 	s.turnInfo(e.Turn)
-	s.edited = false
 	s.prompted = true
-	en := s.upsert(entryUser, "prompt-"+strconv.Itoa(e.Turn), e.Turn)
+	id := "prompt-" + strconv.Itoa(e.Turn)
+	if req.Steered {
+		s.nextID++
+		id += "-" + strconv.Itoa(s.nextID)
+	} else {
+		s.edited = false
+	}
+	en := s.upsert(entryUser, id, e.Turn)
 	en.Content = nil
 	en.From = req.From
 	for _, b := range req.Prompt {

@@ -1108,6 +1108,50 @@ func TestUnqueueDropsPrompt(t *testing.T) {
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "three" })
 }
 
+func userTexts(t *testing.T, f *fixture, project, session string) []string {
+	t.Helper()
+	var out []string
+	for _, en := range ofKind(f.transcript(t, project, session).Entries, "user") {
+		out = append(out, en.Text)
+	}
+	return out
+}
+
+func TestPromptDuringTurnSteers(t *testing.T) {
+	f := start(t, map[string]any{"steering": true, "prompt": []map[string]any{{"sleep": 1500}}})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "one")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		c := cardsOf(n, "composer")
+		return len(c) == 1 && c[0].Props["steers"] == true
+	})
+	f.prompt(t, project, session, "two")
+
+	f.waitCall(t, "_session/steering", func(c fakeCall) bool { return promptText(t, c) == "two" })
+	assert.Equal(t, []string{"one", "two"}, userTexts(t, f, project, session))
+	f.waitStatus(t, project, session, "done")
+	assert.Len(t, f.calls(t, "session/prompt"), 1)
+	assert.Len(t, f.transcript(t, project, session).Turns, 1)
+}
+
+func TestSteerPromptRequiredQueues(t *testing.T) {
+	f := start(t, map[string]any{"steering": true, "idle": true, "prompt": []map[string]any{{"sleep": 1500}}})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "one")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+
+	f.prompt(t, project, session, "two")
+
+	f.waitCall(t, "_session/steering", func(c fakeCall) bool { return promptText(t, c) == "two" })
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "two" })
+	f.waitStatus(t, project, session, "done")
+	assert.Equal(t, []string{"one", "two"}, userTexts(t, f, project, session))
+}
+
 func TestAgentProcessRegistered(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{"linger": true})
@@ -1463,12 +1507,24 @@ type waited struct {
 	} `json:"permission"`
 }
 
+type waitedAll struct {
+	Sessions []waited `json:"sessions"`
+	Message  *struct {
+		Text string `json:"text"`
+	} `json:"message"`
+}
+
+func (f *fixture) waitAll(t *testing.T, project, caller string, sessions ...string) waitedAll {
+	t.Helper()
+	var out waitedAll
+	require.NoError(t, f.runAs(t, project, caller, "agents.wait", map[string]any{"sessions": sessions}, &out))
+	require.Len(t, out.Sessions, len(sessions))
+	return out
+}
+
 func (f *fixture) wait(t *testing.T, project, caller string, sessions ...string) []waited {
 	t.Helper()
-	var out []waited
-	require.NoError(t, f.runAs(t, project, caller, "agents.wait", map[string]any{"sessions": sessions}, &out))
-	require.Len(t, out, len(sessions))
-	return out
+	return f.waitAll(t, project, caller, sessions...).Sessions
 }
 
 func TestWaitReturnsOnFirstDone(t *testing.T) {
@@ -1492,6 +1548,27 @@ func TestWaitReturnsOnNextTurn(t *testing.T) {
 
 	assert.Equal(t, "running", got.Status)
 	assert.Equal(t, 2, got.Turn)
+}
+
+func TestWaitReturnsQueuedUserMessage(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 4000}}})
+	project := f.project(t, newRepo(t))
+	parent := f.newSession(t, project)
+	f.prompt(t, project, parent, "slow")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	kid := f.newChild(t, project, parent, map[string]any{"prompt": "slow"}).Session
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		assert.NoError(t, f.run(t, project, "agents.prompt", map[string]any{"session": parent, "text": "stop"}, nil))
+	}()
+
+	got := f.waitAll(t, project, parent, kid)
+
+	assert.Equal(t, "running", got.Sessions[0].Status)
+	require.NotNil(t, got.Message)
+	assert.Equal(t, "stop", got.Message.Text)
+	f.waitStatus(t, project, parent, "done")
+	assert.False(t, slices.ContainsFunc(f.calls(t, "session/prompt"), func(c fakeCall) bool { return promptText(t, c) == "stop" }))
 }
 
 func TestWaitImmediateWhenIdle(t *testing.T) {

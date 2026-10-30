@@ -438,6 +438,7 @@ func (a *app) screen(projectID string, s *session) screen {
 		Attachments: slices.Clone(st.attachments),
 		Queue:       queue,
 		Composer:    sid + "/composer/" + strconv.Itoa(st.gen),
+		Steers:      a.steers[v.Session.Agent],
 		NeedsAuth:   needsAuth,
 		Continue:    cannotResume,
 		SignIn:      st.signIn,

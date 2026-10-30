@@ -41,6 +41,7 @@ struct ComposerNodeView: View {
     private var drafts: ComposerDrafts { shared ?? local }
     private var model: ComposerModel { drafts.model(for: node.id ?? "") }
     private var running: Bool { node.bool("running") == true }
+    private var queues: Bool { running && node.bool("steers") != true }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.l) {
@@ -226,7 +227,7 @@ struct ComposerNodeView: View {
     }
 
     private var hint: some View {
-        Text(running ? "⌘↩ queue · Esc stop" : "⌘↩ send")
+        Text(queues ? "⌘↩ queue · Esc stop" : running ? "⌘↩ send · Esc stop" : "⌘↩ send")
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
             .lineLimit(1)
@@ -237,7 +238,7 @@ struct ComposerNodeView: View {
         if running {
             CardButton(label: "Stop", icon: "stop.fill", tone: .danger) { dispatch(node, .named("stop", .null)) }
         }
-        CardButton(label: running ? "Queue" : "Send", icon: "paperplane.fill", tone: .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+        CardButton(label: queues ? "Queue" : "Send", icon: "paperplane.fill", tone: .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
             if case .send(let text) = model.handle(.send) { send(text) }
         }
     }

@@ -181,6 +181,7 @@ type app struct {
 	installing   bool
 	goneProjects map[string]bool
 	resumable    map[string]bool
+	steers       map[string]bool
 	noResume     map[string]bool
 	advisors     map[string]string
 
@@ -203,7 +204,7 @@ func main() {
 	a := &app{
 		loaded: make(chan struct{}), sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]bool{},
 		ui: map[string]*projectUI{}, auth: map[string]authCommand{}, signIns: map[string]string{},
-		goneProjects: map[string]bool{}, resumable: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
+		goneProjects: map[string]bool{}, resumable: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
 	}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
 	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
@@ -356,7 +357,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := decode(cmd.Args, &args); err != nil {
 			return nil, err
 		}
-		return a.wait(ctx, cmd.ProjectID, args)
+		return a.wait(ctx, cmd.ProjectID, cmd.Caller, args)
 	case "agents.transcript":
 		var args transcriptArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -843,6 +844,14 @@ func origin(cmd pluginsdk.CommandRun) string {
 func (a *app) submit(s *session, args *promptArgs) error {
 	s.mu.Lock()
 	s.loadLocked()
+	if args != nil && s.running && !s.cancelRequested && !s.rec.Closed && s.proc != nil && s.proc.steering {
+		p, rec := s.proc, s.rec
+		s.mu.Unlock()
+		if a.steer(s, p, rec, *args) {
+			return nil
+		}
+		s.mu.Lock()
+	}
 	switch {
 	case s.rec.Closed:
 		s.mu.Unlock()
@@ -854,6 +863,7 @@ func (a *app) submit(s *session, args *promptArgs) error {
 		s.enqueueLocked(*args)
 		s.mu.Unlock()
 		s.changed(changeUpdate, false)
+		a.wakeWaiters()
 		return nil
 	}
 	if args != nil {
@@ -869,6 +879,29 @@ func (a *app) submit(s *session, args *promptArgs) error {
 	s.changed(changeStatus, true)
 	go a.runTurn(s, turn, next)
 	return nil
+}
+
+func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool {
+	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)
+	req := acp.NewSteerRequest(rec.AgentSessionID, slices.Clone(blocks))
+	if args.From != "" {
+		req.Prompt[0].Text = a.fromPrefix(args.From) + req.Prompt[0].Text
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	defer cancel()
+	var res acp.SteerResponse
+	if err := p.conn.Call(ctx, acp.MethodSessionSteering, req, &res); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: steer:", err)
+		return false
+	}
+	if res.Outcome != acp.SteerInjected {
+		return false
+	}
+	s.mu.Lock()
+	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, Steered: true})
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+	return true
 }
 
 func (a *app) runTurn(s *session, turn int, args promptArgs) {

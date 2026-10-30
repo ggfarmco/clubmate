@@ -139,6 +139,7 @@ type screen struct {
 	Attachments []pendingAttachment
 	Queue       []queuedPrompt
 	Composer    string
+	Steers      bool
 	NeedsAuth   bool
 	Continue    bool
 	SignIn      string
@@ -910,6 +911,7 @@ func composer(sc screen) sdui.Node {
 		Attach:      []string{"file", "selection"},
 		Attachments: attachments,
 		Running:     turnActive(rec),
+		Steers:      sc.Steers,
 	})
 }
 

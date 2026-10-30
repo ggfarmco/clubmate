@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"clubmate/plugins/agents/acp"
@@ -21,6 +22,16 @@ var errNoWaitSessions = errors.New("sessions is empty")
 type waitArgs struct {
 	Sessions []string `json:"sessions"`
 	Timeout  int      `json:"timeout"`
+}
+
+type waitOutput struct {
+	Sessions []waitResult `json:"sessions"`
+	Message  *waitMessage `json:"message,omitempty"`
+}
+
+type waitMessage struct {
+	Text        string       `json:"text"`
+	Attachments []attachment `json:"attachments,omitempty"`
 }
 
 type waitResult struct {
@@ -47,18 +58,19 @@ type turnPayload struct {
 	Asks      bool   `json:"asks"`
 }
 
-func (a *app) wait(ctx context.Context, projectID string, args waitArgs) ([]waitResult, error) {
+func (a *app) wait(ctx context.Context, projectID, caller string, args waitArgs) (waitOutput, error) {
 	if len(args.Sessions) == 0 {
-		return nil, errNoWaitSessions
+		return waitOutput{}, errNoWaitSessions
 	}
 	sessions := make([]*session, 0, len(args.Sessions))
 	for _, id := range args.Sessions {
 		s, err := a.lookup(projectID, id)
 		if err != nil {
-			return nil, err
+			return waitOutput{}, err
 		}
 		sessions = append(sessions, s)
 	}
+	self := a.session(caller)
 	timer := time.NewTimer(waitTimeout(args.Timeout))
 	defer timer.Stop()
 	expired := false
@@ -72,15 +84,16 @@ func (a *app) wait(ctx context.Context, projectID string, args waitArgs) ([]wait
 		if first == nil {
 			first = out
 		}
-		if expired || moved(first, out) {
-			return out, nil
+		msg := self.takeUserPrompts()
+		if expired || moved(first, out) || msg != nil {
+			return waitOutput{Sessions: out, Message: msg}, nil
 		}
 		select {
 		case <-woken:
 		case <-timer.C:
 			expired = true
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return waitOutput{}, ctx.Err()
 		}
 	}
 }
@@ -117,6 +130,33 @@ func (a *app) wakeWaiters() {
 		close(a.woken)
 		a.woken = nil
 	}
+}
+
+func (s *session) takeUserPrompts() *waitMessage {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	var texts []string
+	var attachments []attachment
+	taken := false
+	s.queue = slices.DeleteFunc(s.queue, func(q queuedPrompt) bool {
+		if q.From != "" {
+			return false
+		}
+		if strings.TrimSpace(q.Text) != "" {
+			texts = append(texts, q.Text)
+		}
+		attachments = append(attachments, q.Attachments...)
+		taken = true
+		return true
+	})
+	s.mu.Unlock()
+	if !taken {
+		return nil
+	}
+	s.changed(changeUpdate, false)
+	return &waitMessage{Text: strings.Join(texts, "\n\n"), Attachments: attachments}
 }
 
 func (s *session) asks() bool {

@@ -63,18 +63,19 @@ func (r *ring) tail() string {
 }
 
 type agentProc struct {
-	agent  string
-	root   string
-	cmd    *exec.Cmd
-	pgid   int
-	stdin  *os.File
-	conn   *acp.Conn
-	stderr ring
-	caps   acp.AgentCapabilities
-	auth   []acp.AuthMethod
-	launch launch
-	mcp    []acp.McpServer
-	onExit func(p *agentProc, reason string)
+	agent    string
+	root     string
+	cmd      *exec.Cmd
+	pgid     int
+	stdin    *os.File
+	conn     *acp.Conn
+	stderr   ring
+	caps     acp.AgentCapabilities
+	steering bool
+	auth     []acp.AuthMethod
+	launch   launch
+	mcp      []acp.McpServer
+	onExit   func(p *agentProc, reason string)
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -170,6 +171,7 @@ func (p *agentProc) initialize(ctx context.Context) error {
 		return fmt.Errorf("initialize: unsupported ACP protocol version %d", res.ProtocolVersion)
 	}
 	p.caps = res.AgentCapabilities
+	p.steering = res.Meta != nil && res.Meta.Steering.Supported
 	for _, raw := range res.AuthMethods {
 		var m acp.AuthMethod
 		if json.Unmarshal(raw, &m) == nil && m.ID != "" {
@@ -404,6 +406,7 @@ func (a *app) startProc(ctx context.Context, agent, workspace, root string) (*ag
 	}
 	a.uiMu.Lock()
 	a.resumable[agent] = p.caps.SessionCapabilities.Resume != nil
+	a.steers[agent] = p.steering
 	a.uiMu.Unlock()
 	return p, nil
 }

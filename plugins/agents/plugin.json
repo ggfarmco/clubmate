@@ -35,7 +35,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; queued when a turn is running. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started or the prompt is queued; the turn runs in the background.",
+        "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; while a turn is running it goes into that turn when the agent supports steering, else it is queued. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started, the prompt reached the running turn or it is queued; the turn runs in the background.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
@@ -96,7 +96,7 @@
         "agent": true,
         "destructive": true,
         "confirm": "Send this text to the agent session as your own message?",
-        "description": "Propose an answer to a session's question on the user's behalf. The user sees the text and approves it in Clubmate; only then it is sent as a normal user turn (queued when a turn is running). Use it for the user's real answer, never paraphrase the user into agents.prompt.",
+        "description": "Propose an answer to a session's question on the user's behalf. The user sees the text and approves it in Clubmate; only then it is sent as a normal user prompt (into the running turn or queued, as agents.prompt). Use it for the user's real answer, never paraphrase the user into agents.prompt.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
@@ -216,7 +216,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 310,
-        "description": "Wait, without polling, for any of the listed agent sessions of the workspace to stop running. Pass only sessions you are still waiting on: one that is already done or waiting makes every call return at once. Returns at once if one of them is not running; otherwise on the first status change or new turn of any of them, or after timeout seconds with all still running (then call it again to keep waiting). Returns, in the order given, [{session, status, turn, stopReason?, error?, asks, permission?: {request, title, kind, options: [{optionId, name, kind}]}}]. status is running, waiting (a permission is pending: answer your own children's with agents.permission {session, request, option: an optionId}), done, idle, error or closed. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; answer a child yourself with agents.prompt, or relay the user's own answer with agents.answer. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Non-destructive.",
+        "description": "Wait, without polling, for any of the listed agent sessions of the workspace to stop running. Pass only sessions you are still waiting on: one that is already done or waiting makes every call return at once. Returns at once if one of them is not running; otherwise on the first status change or new turn of any of them, or after timeout seconds with all still running (then call it again to keep waiting). Also returns early when the user sent you a message that is waiting in your queue. Returns {sessions, message?}: sessions is, in the order given, [{session, status, turn, stopReason?, error?, asks, permission?: {request, title, kind, options: [{optionId, name, kind}]}}]; message {text, attachments?} is the user's queued message to you, removed from the queue so you get it only here: read it and act on it before waiting again. status is running, waiting (a permission is pending: answer your own children's with agents.permission {session, request, option: an optionId}), done, idle, error or closed. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; answer a child yourself with agents.prompt, or relay the user's own answer with agents.answer. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Non-destructive.",
         "args": {
           "properties": {
             "sessions": {"type": "array", "items": {"type": "string"}, "description": "Session ids to wait for, at least one."},

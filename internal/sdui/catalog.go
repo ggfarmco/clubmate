@@ -179,7 +179,7 @@ var (
 		"composer": {
 			props: map[string]propCheck{
 				"placeholder": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
-				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachmentKinds)), "attachments": attachmentsCheck, "running": isBool,
+				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachmentKinds)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool,
 			},
 			children:    noChildren,
 			interactive: true,
