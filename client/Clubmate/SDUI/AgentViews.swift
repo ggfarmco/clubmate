@@ -11,9 +11,10 @@ struct TranscriptNodeView: View {
 
     var body: some View {
         let slack = theme.rowHeight
+        let items = node.transcriptItems()
         ScrollView {
             LazyVStack(alignment: .leading, spacing: theme.gutter + theme.spacing.s) {
-                ForEach(node.transcriptItems()) { item in
+                ForEach(items) { item in
                     TranscriptItemView(item: item)
                 }
             }
@@ -30,6 +31,10 @@ struct TranscriptNodeView: View {
         }
         .onChange(of: node.children) {
             if pinned { position.scrollTo(edge: .bottom) }
+        }
+        .onChange(of: ToolExpansion.shared.opened) { _, opened in
+            guard let opened, let last = items.last, last.contains(opened) else { return }
+            Task { position.scrollTo(edge: .bottom) }
         }
         .onAppear {
             guard let id = node.id, let saved = TranscriptScroll.saved[id], !saved.pinned else { return }
@@ -56,13 +61,26 @@ private struct TranscriptItemView: View {
     static let shared = ToolExpansion()
 
     private var ids: Set<String> = []
+    private(set) var opened: String?
 
     func contains(_ id: String) -> Bool {
         ids.contains(id)
     }
 
     func toggle(_ id: String) {
-        if ids.remove(id) == nil { ids.insert(id) }
+        if ids.remove(id) == nil {
+            ids.insert(id)
+            opened = id
+        } else {
+            opened = nil
+        }
+    }
+}
+
+private extension TranscriptItem {
+    func contains(_ id: String) -> Bool {
+        if case let .actions(_, cards) = self, cards.contains(where: { $0.id == id }) { return true }
+        return self.id == id
     }
 }
 
@@ -119,6 +137,7 @@ private struct ToolActionLine: View {
         let truncated = node.bool("truncated") == true
         let expandable = toolBody != nil || truncated
         let expanded = expandable && ToolExpansion.shared.contains(id)
+        let title = ToolLineTitle(node)
         VStack(alignment: .leading, spacing: theme.spacing.s) {
             HStack(spacing: theme.spacing.l) {
                 Button { ToolExpansion.shared.toggle(id) } label: {
@@ -130,10 +149,11 @@ private struct ToolActionLine: View {
                         Image(systemName: ToolCardNodeView.icon(node.string("kind")))
                             .foregroundStyle(theme.muted)
                             .frame(width: theme.indent + theme.spacing.s)
-                        Text(node.string("title") ?? "")
+                        Text(title.text)
                             .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
                             .lineLimit(1)
                             .truncationMode(.middle)
+                            .help(title.help ?? "")
                         if let changes = toolBody?.changes {
                             Text("+\(changes.added)").foregroundStyle(theme.success)
                             Text("−\(changes.removed)").foregroundStyle(theme.danger)

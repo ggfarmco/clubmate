@@ -97,4 +97,16 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(running.text, "1 action: 1 command")
         XCTAssertTrue(running.running)
     }
+
+    func testEditLineShowsFileName() {
+        func card(_ kind: String, _ title: String) -> SDUINode {
+            SDUINode(type: "toolCard", props: ["kind": .string(kind), "title": .string(title)])
+        }
+
+        let edit = ToolLineTitle(card("edit", "Edit `/repo/plugins/agents/view.go`"))
+
+        XCTAssertEqual([edit.text, edit.help], ["view.go", "/repo/plugins/agents/view.go"])
+        XCTAssertEqual(ToolLineTitle(card("edit", "Edit a.go")).text, "Edit a.go")
+        XCTAssertNil(ToolLineTitle(card("execute", "ls /tmp/x")).help)
+    }
 }

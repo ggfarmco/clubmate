@@ -56,6 +56,25 @@ public struct ToolActionsSummary: Sendable, Equatable {
     }
 }
 
+public struct ToolLineTitle: Sendable, Equatable {
+    public let text: String
+    public let help: String?
+
+    public init(_ card: SDUINode) {
+        let title = card.string("title") ?? ""
+        let path = ["edit", "delete", "move"].contains(card.string("kind"))
+            ? title.split(separator: " ").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "`'\"")) }.first { $0.contains("/") }
+            : nil
+        guard let path, let name = path.split(separator: "/").last else {
+            text = title
+            help = nil
+            return
+        }
+        text = String(name)
+        help = path
+    }
+}
+
 extension SDUIToolBody {
     @MainActor public var changes: (added: Int, removed: Int)? {
         guard format == .diff else { return nil }
