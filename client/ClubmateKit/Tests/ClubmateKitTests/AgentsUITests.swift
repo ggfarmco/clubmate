@@ -107,9 +107,9 @@ final class AgentsUITests: XCTestCase {
 
         let items = transcript.transcriptItems()
 
-        XCTAssertEqual(items.map(\.id), ["m1", "t1/actions", "p1", "t3", "t4", "t5/actions"])
-        guard case .action = items[3], case .node = items[4], case let .actions(_, cards) = items[5] else { return XCTFail() }
-        XCTAssertEqual(cards.map(\.id), ["t5", "t6", "t7"])
+        XCTAssertEqual(items.map(\.id), ["m1", "t1/actions", "p1", "t3/actions"])
+        guard case let .actions(_, cards) = items[3] else { return XCTFail() }
+        XCTAssertEqual(cards.map(\.id), ["t3", "t4", "t5", "t6", "t7"])
     }
 
     func testToolActionsSummary() {
@@ -117,11 +117,13 @@ final class AgentsUITests: XCTestCase {
             SDUINode(type: "toolCard", props: ["kind": .string(kind), "status": .string(status), "title": .string("go test ./...")])
         }
         let done = ToolActionsSummary(["read", "search", "execute", "read", "edit", "search", "execute", "read"].map { card($0) })
-        let running = ToolActionsSummary([card("execute", "in_progress")])
+        let running = ToolActionsSummary([card("execute", "failed"), card("execute", "in_progress")])
 
         XCTAssertEqual(done.text, "8 actions: read 3 files, 2 searches, 2 commands, edited 1 file")
         XCTAssertNil(done.running)
-        XCTAssertEqual(running.text, "1 action: 1 command")
+        XCTAssertEqual(done.failed, 0)
+        XCTAssertEqual(running.text, "2 actions: 2 commands")
+        XCTAssertEqual(running.failed, 1)
         XCTAssertEqual(running.running, "go test ./...")
     }
 

@@ -124,6 +124,10 @@ private struct ToolActionsView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(summary.text)
                 .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                if summary.failed > 0 {
+                    Label("\(summary.failed) failed", systemImage: "xmark.circle.fill")
+                        .foregroundStyle(theme.danger)
+                }
                 if let running = summary.running {
                     ProgressView().controlSize(.mini)
                     if !expanded {

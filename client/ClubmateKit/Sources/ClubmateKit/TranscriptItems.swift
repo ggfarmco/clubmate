@@ -16,6 +16,7 @@ public enum TranscriptItem: Sendable, Equatable, Identifiable {
 public struct ToolActionsSummary: Sendable, Equatable {
     public let text: String
     public let running: String?
+    public let failed: Int
 
     private static let order = ["read", "search", "fetch", "execute", "edit", "delete", "move", "think", "switch_mode", "other"]
 
@@ -30,6 +31,7 @@ public struct ToolActionsSummary: Sendable, Equatable {
             .map { Self.phrase($0.key, $0.value) }
         text = "\(Self.plural(cards.count, "action", "actions")): " + parts.joined(separator: ", ")
         running = cards.last { ["pending", "in_progress"].contains($0.string("status")) }.map { ToolLineTitle($0).text }
+        failed = cards.filter { $0.string("status") == "failed" }.count
     }
 
     private static func rank(_ kind: String) -> Int {
@@ -146,7 +148,7 @@ extension SDUINode {
             run = []
         }
         for child in identifiedChildren {
-            if child.node.type == "toolCard", child.node.string("status") != "failed" {
+            if child.node.type == "toolCard" {
                 run.append(child)
                 continue
             }
