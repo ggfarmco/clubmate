@@ -25,30 +25,7 @@ func checkpoint(ctx context.Context, root, session string, turn int) (string, er
 	if _, ok := gitrepo.RepoRoot(root); !ok {
 		return "", nil
 	}
-	dir, err := os.MkdirTemp("", "clubmate-cp")
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(dir)
-	index := filepath.Join(dir, "index")
-	env := append([]string{"GIT_INDEX_FILE=" + index}, checkpointIdentity...)
-	git := func(args ...string) (string, error) {
-		out, err := gitrepo.RunEnv(ctx, root, env, args...)
-		if err != nil {
-			return "", fmt.Errorf("git %s: %w", args[0], err)
-		}
-		return strings.TrimSpace(string(out)), nil
-	}
-	head, _ := git("rev-parse", "--verify", "-q", "HEAD")
-	if head != "" && !seedIndex(ctx, root, index) {
-		if _, err := git("read-tree", head); err != nil {
-			return "", err
-		}
-	}
-	if _, err := git("add", "-A"); err != nil {
-		return "", err
-	}
-	tree, err := git("write-tree")
+	tree, head, err := snapshot(ctx, root)
 	if err != nil {
 		return "", err
 	}
@@ -56,14 +33,58 @@ func checkpoint(ctx context.Context, root, session string, turn int) (string, er
 	if head != "" {
 		args = append(args, "-p", head)
 	}
-	sha, err := git(args...)
+	sha, err := gitOutput(ctx, root, checkpointIdentity, args...)
 	if err != nil {
 		return "", err
 	}
-	if _, err := git("update-ref", checkpointRefs+session+"/"+strconv.Itoa(turn), sha); err != nil {
+	if _, err := gitOutput(ctx, root, nil, "update-ref", checkpointRefs+session+"/"+strconv.Itoa(turn), sha); err != nil {
 		return "", err
 	}
 	return sha, nil
+}
+
+func changedSince(ctx context.Context, root, sha string) (bool, error) {
+	tree, _, err := snapshot(ctx, root)
+	if err != nil {
+		return false, err
+	}
+	base, err := gitOutput(ctx, root, nil, "rev-parse", "--verify", "-q", sha+"^{tree}")
+	if err != nil {
+		return false, err
+	}
+	return tree != base, nil
+}
+
+func snapshot(ctx context.Context, root string) (string, string, error) {
+	dir, err := os.MkdirTemp("", "clubmate-cp")
+	if err != nil {
+		return "", "", err
+	}
+	defer os.RemoveAll(dir)
+	index := filepath.Join(dir, "index")
+	env := []string{"GIT_INDEX_FILE=" + index}
+	head, _ := gitOutput(ctx, root, env, "rev-parse", "--verify", "-q", "HEAD")
+	if head != "" && !seedIndex(ctx, root, index) {
+		if _, err := gitOutput(ctx, root, env, "read-tree", head); err != nil {
+			return "", "", err
+		}
+	}
+	if _, err := gitOutput(ctx, root, env, "add", "-A"); err != nil {
+		return "", "", err
+	}
+	tree, err := gitOutput(ctx, root, env, "write-tree")
+	if err != nil {
+		return "", "", err
+	}
+	return tree, head, nil
+}
+
+func gitOutput(ctx context.Context, root string, env []string, args ...string) (string, error) {
+	out, err := gitrepo.RunEnv(ctx, root, env, args...)
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w", args[0], err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func seedIndex(ctx context.Context, root, dst string) bool {

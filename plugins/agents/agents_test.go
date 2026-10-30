@@ -756,6 +756,29 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 	assert.JSONEq(t, `{"base":"commit:`+sha+`","head":"`+repo+`","baseLabel":"before turn 1"}`, string(echoed(t, f, "git.review")))
 }
 
+func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	button := func(n sdui.Node, id string) bool {
+		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == session+"/"+id })
+	}
+
+	f.prompt(t, project, session, "just answer")
+	f.waitStatus(t, project, session, "done")
+	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "message")) == 2 && !button(n, "stop") })
+	assert.False(t, button(main, "review"))
+
+	write(t, filepath.Join(repo, "new.txt"), "x\n")
+	f.prompt(t, project, session, "now change it")
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return button(n, "review") })
+
+	require.NoError(t, os.Remove(filepath.Join(repo, "new.txt")))
+	f.h.Event(t, project, "agents.sidebar", session, "select", session)
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return !button(n, "review") })
+}
+
 func TestOpenLocationShowsEditor(t *testing.T) {
 	repo := newRepo(t)
 	path := filepath.Join(repo, "a.go")

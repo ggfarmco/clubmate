@@ -128,13 +128,14 @@ type pendingPermission struct {
 }
 
 type session struct {
-	mu       sync.Mutex
-	attachMu sync.Mutex
-	rec      record
-	log      *eventLog
-	loaded   bool
-	deleted  bool
-	changed  func(kind string, save bool)
+	mu        sync.Mutex
+	attachMu  sync.Mutex
+	changesMu sync.Mutex
+	rec       record
+	log       *eventLog
+	loaded    bool
+	deleted   bool
+	changed   func(kind string, save bool)
 
 	entries  []*entry
 	index    map[string]int
@@ -144,6 +145,9 @@ type session struct {
 	turn     int
 	nextID   int
 	edited   bool
+
+	changes      bool
+	changesFresh bool
 
 	proc            *agentProc
 	running         bool
@@ -246,10 +250,13 @@ func (s *session) apply(e envelope) {
 	case kindPrompt:
 		s.applyPrompt(e)
 	case kindTurnEnd:
+		s.changesFresh = false
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			s.turnInfo(e.Turn).StopReason = p.StopReason
 		}
+	case kindError:
+		s.changesFresh = false
 	case kindCancel:
 		s.cancelTools(e.Turn)
 	case kindPermission:
