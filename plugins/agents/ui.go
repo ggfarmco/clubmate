@@ -62,6 +62,7 @@ type projectUI struct {
 	sent      map[string][sha256.Size]byte
 	throttle  *throttle
 	selected  string
+	row       string
 	restored  bool
 	collapsed map[string]bool
 	sessions  map[string]*sessionUI
@@ -331,8 +332,12 @@ func (a *app) render(ctx context.Context, projectID string) error {
 	}
 	a.uiMu.Lock()
 	collapsed := maps.Clone(p.collapsed)
+	row := selected
+	if p.row == needsPrefix+selected {
+		row = p.row
+	}
 	a.uiMu.Unlock()
-	if err := a.push(ctx, p, projectID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now())); err != nil {
+	if err := a.push(ctx, p, projectID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now())); err != nil {
 		return err
 	}
 	main := sdui.Empty(pickSession)
@@ -422,7 +427,7 @@ func (a *app) resolveSelected(ctx context.Context, projectID string, recs []reco
 func (a *app) selectSession(ctx context.Context, projectID, sid string) error {
 	p := a.projectState(projectID)
 	a.uiMu.Lock()
-	p.restored, p.selected = true, sid
+	p.restored, p.selected, p.row = true, sid, sid
 	a.uiMu.Unlock()
 	return a.host.StorageSet(ctx, selectedKey+projectID, sid)
 }
@@ -465,12 +470,20 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
-		s, err := a.lookup(ev.ProjectID, id)
+		sid := strings.TrimPrefix(id, needsPrefix)
+		s, err := a.lookup(ev.ProjectID, sid)
 		if err != nil {
 			return err
 		}
 		s.invalidateChanges()
-		return a.selectSession(ctx, ev.ProjectID, id)
+		if err := a.selectSession(ctx, ev.ProjectID, sid); err != nil {
+			return err
+		}
+		p := a.projectState(ev.ProjectID)
+		a.uiMu.Lock()
+		p.row = id
+		a.uiMu.Unlock()
+		return nil
 	case actExpand, actCollapse:
 		var id string
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
@@ -486,7 +499,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
-		s, err := a.lookup(ev.ProjectID, id)
+		s, err := a.lookup(ev.ProjectID, strings.TrimPrefix(id, needsPrefix))
 		if err != nil {
 			return err
 		}

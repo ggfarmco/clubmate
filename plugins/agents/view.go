@@ -54,6 +54,9 @@ const (
 	actSendQueued      = "sendQueued"
 
 	groupPrefix    = "wt:"
+	needsPrefix    = "needs:"
+	needsKey       = "needs"
+	closedKey      = "closed:"
 	deleteConfirm  = "Delete this agent session, its transcript and its checkpoints?"
 	noSessions     = "No agent sessions"
 	pickSession    = "Start an agent session with + New"
@@ -182,24 +185,59 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	if len(rows) == 0 {
 		return sdui.VStack(newButton, sdui.Empty(noSessions))
 	}
-	var groups []sdui.TreeItem
-	index := map[string]int{}
+	type bucket struct{ open, closed []sdui.TreeItem }
+	var order []string
+	buckets := map[string]*bucket{}
+	var needs []sdui.TreeItem
 	for _, row := range rows {
 		wt := row.Rec.Worktree
-		i, ok := index[wt]
+		b, ok := buckets[wt]
 		if !ok {
-			i = len(groups)
-			index[wt] = i
-			groups = append(groups, sdui.TreeItem{ID: groupPrefix + wt, Label: filepath.Base(wt), Detail: wt, Icon: "arrow.triangle.branch", HasChildren: true, Expanded: !collapsed[wt]})
+			b = &bucket{}
+			buckets[wt] = b
+			order = append(order, wt)
 		}
-		groups[i].Children = append(groups[i].Children, sessionItem(row, now))
+		item := sessionItem(row, now)
+		if row.Rec.Closed {
+			b.closed = append(b.closed, item)
+			continue
+		}
+		b.open = append(b.open, item)
+		if needsYou(row.Rec) {
+			item.ID = needsPrefix + item.ID
+			needs = append(needs, item)
+		}
 	}
-	for i := range groups {
-		if !groups[i].Expanded {
-			groups[i].Children = nil
+	var groups []sdui.TreeItem
+	if len(needs) > 0 {
+		groups = append(groups, groupItem(needsKey, fmt.Sprintf("Needs you · %d", len(needs)), "", "bell", needs, !collapsed[needsKey]))
+	}
+	for _, wt := range order {
+		b := buckets[wt]
+		children := b.open
+		if len(b.closed) > 0 {
+			key := closedKey + wt
+			folded, ok := collapsed[key]
+			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), "", statusIcons[statusClosed], b.closed, ok && !folded))
 		}
+		groups = append(groups, groupItem(wt, filepath.Base(wt), wt, "arrow.triangle.branch", children, !collapsed[wt]))
+	}
+	if !slices.ContainsFunc(needs, func(item sdui.TreeItem) bool { return item.ID == selected }) {
+		selected = strings.TrimPrefix(selected, needsPrefix)
 	}
 	return sdui.VStack(newButton, sdui.Tree("sessions", groups, selected))
+}
+
+func groupItem(key, label, detail, icon string, children []sdui.TreeItem, expanded bool) sdui.TreeItem {
+	item := sdui.TreeItem{ID: groupPrefix + key, Label: label, Detail: detail, Icon: icon, HasChildren: true, Expanded: expanded}
+	if expanded {
+		item.Children = children
+	}
+	return item
+}
+
+func needsYou(rec record) bool {
+	return rec.Status == statusWaiting || rec.Status == statusDone && rec.Asks
 }
 
 func sessionItem(row sessionRow, now time.Time) sdui.TreeItem {

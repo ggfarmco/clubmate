@@ -66,6 +66,7 @@ type record struct {
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Closed         bool      `json:"closed"`
+	Asks           bool      `json:"asks,omitempty"`
 	Error          string    `json:"error,omitempty"`
 }
 
@@ -581,7 +582,17 @@ func (s *session) queued() []queuedPrompt {
 func (s *session) setStatusLocked(status, errText string) {
 	s.rec.Status = status
 	s.rec.Error = errText
+	s.rec.Asks = status == statusDone && asksQuestion(s.entries)
 	s.rec.UpdatedAt = time.Now().UTC()
+}
+
+func asksQuestion(entries []*entry) bool {
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].Kind == entryAgent {
+			return strings.HasSuffix(strings.TrimRight(entries[i].Text, " \t\r\n*_`"), "?")
+		}
+	}
+	return false
 }
 
 func (s *session) settleLocked() {

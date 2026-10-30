@@ -40,21 +40,76 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Activity: "go test"},
 		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}},
 		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
 	}
 	tree := sidebarView(rows, "agt_2", nil, now)
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
-	require.Len(t, groups, 2)
-	assert.Equal(t, []string{"a", "b"}, []string{groups[0].Label, groups[1].Label})
-	a, b := groups[0].Children, groups[1].Children
+	require.Len(t, groups, 3)
+	assert.Equal(t, []string{"Needs you · 2", "a", "b"}, []string{groups[0].Label, groups[1].Label, groups[2].Label})
+	needs, a, b := groups[0].Children, groups[1].Children, groups[2].Children
+	require.Len(t, needs, 2)
 	require.Len(t, a, 2)
-	require.Len(t, b, 1)
-	assert.Equal(t, []string{"agt_1", "agt_3", "agt_2"}, []string{a[0].ID, a[1].ID, b[0].ID})
+	require.Len(t, b, 2)
+	assert.Equal(t, []string{needsPrefix + "agt_1", needsPrefix + "agt_4"}, []string{needs[0].ID, needs[1].ID})
+	assert.Equal(t, []string{"agt_1", "agt_2", "agt_4"}, []string{a[0].ID, b[0].ID, b[1].ID})
+	assert.Equal(t, "Closed · 1", a[1].Label)
+	assert.False(t, a[1].Expanded)
+	assert.Empty(t, a[1].Children)
 	assert.Equal(t, "Claude · Waiting for permission · go test", a[0].Detail)
 	assert.Equal(t, "Claude · Done · 12 min ago", b[0].Detail)
 	assert.Equal(t, []string{actClose, actDelete}, []string{a[0].Menu[0].Action, a[0].Menu[1].Action})
-	assert.Len(t, a[1].Menu, 1)
+}
+
+func TestSidebarExpandedClosedGroup(t *testing.T) {
+	now := time.Now()
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
+		{Rec: record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
+	}
+	tree := sidebarView(rows, "", map[string]bool{closedKey + "/r/a": false}, now)
+	require.NoError(t, internalsdui.Validate(tree))
+
+	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+	require.Len(t, groups, 1)
+	closed := groups[0].Children[1]
+	assert.True(t, closed.Expanded)
+	require.Len(t, closed.Children, 1)
+	assert.Equal(t, "agt_2", closed.Children[0].ID)
+	assert.Len(t, closed.Children[0].Menu, 1)
+}
+
+func TestSidebarNeedsSelectionFallsBackWhenAnswered(t *testing.T) {
+	now := time.Now()
+	selectedIn := func(status string) any {
+		rows := []sessionRow{{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: status, UpdatedAt: now}}}
+		return nodesOf(sidebarView(rows, needsPrefix+"agt_1", nil, now), "tree")[0].Props["selected"]
+	}
+	assert.Equal(t, needsPrefix+"agt_1", selectedIn(statusWaiting))
+	assert.Equal(t, "agt_1", selectedIn(statusRunning))
+}
+
+func TestDoneAsksWhenLastAgentMessageIsQuestion(t *testing.T) {
+	for _, tc := range []struct {
+		texts []string
+		want  bool
+	}{
+		{[]string{"Делаем?"}, true},
+		{[]string{"Делаем?**\n\n"}, true},
+		{[]string{"Готово."}, false},
+		{[]string{"Делаем?", "Сделал."}, false},
+		{nil, false},
+	} {
+		s := &session{}
+		for _, text := range tc.texts {
+			s.entries = append(s.entries, &entry{Kind: entryAgent, Text: text}, &entry{Kind: entryTool})
+		}
+		s.setStatusLocked(statusDone, "")
+		assert.Equal(t, tc.want, s.rec.Asks, tc.texts)
+		s.setStatusLocked(statusIdle, "")
+		assert.False(t, s.rec.Asks)
+	}
 }
 
 func TestTranscriptWindowAndShowEarlier(t *testing.T) {
