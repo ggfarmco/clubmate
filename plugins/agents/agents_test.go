@@ -909,14 +909,14 @@ func TestAgentProcessRegistered(t *testing.T) {
 		Label string `json:"label"`
 		Owner string `json:"owner"`
 		PID   int    `json:"pid"`
+		Ended bool   `json:"ended"`
 	}
 	roots := func() []root {
 		var out []root
 		require.NoError(t, f.h.Client(t).Call(t.Context(), "process.roots", map[string]string{"projectId": project}, &out))
 		return out
 	}
-	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" }, wait)
-	require.Len(t, roots(), 1)
+	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" && len(roots()) == 1 }, wait)
 	got := roots()[0]
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
@@ -924,5 +924,7 @@ func TestAgentProcessRegistered(t *testing.T) {
 
 	require.NoError(t, f.h.Client(t).Call(t.Context(), "process.kill", map[string]any{"sessionId": got.ID, "pids": []int{got.PID}}, nil))
 	f.waitStatus(t, project, session, "error")
-	assert.Empty(t, roots())
+	left := roots()
+	require.Len(t, left, 1)
+	assert.True(t, left[0].Ended)
 }

@@ -110,7 +110,7 @@ var primitives = map[string]primitive{
 		params: passArgs,
 	},
 	"process.tree": {
-		cmd:    coreCommand("process.tree", "Process Tree", "List the processes of every session, flagging orphans and duplicates.", nil),
+		cmd:    coreCommand("process.tree", "Process Tree", "List the processes of every session and of processes plugins register (e.g. agents), flagging orphans and duplicates.", nil),
 		method: "process.tree",
 	},
 	"notify.post": {

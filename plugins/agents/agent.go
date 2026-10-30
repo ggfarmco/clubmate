@@ -382,7 +382,7 @@ func (a *app) startProc(ctx context.Context, agent, workspace, root string) (*ag
 		return nil, err
 	}
 	a.groups.add(p.pgid)
-	a.registerProc(ctx, p, workspace)
+	go a.registerProc(ctx, p, workspace)
 	a.mu.Lock()
 	closing := a.closing
 	if !closing {

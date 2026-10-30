@@ -3,6 +3,7 @@ package rpc_test
 import (
 	"os"
 	"os/exec"
+	"slices"
 	"syscall"
 	"testing"
 	"time"
@@ -23,7 +24,8 @@ func TestProcessRegister(t *testing.T) {
 	var prj struct {
 		ID string `json:"id"`
 	}
-	require.NoError(t, connectAs(t, srv, rpc.Caller{}).Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &prj))
+	cli := connectAs(t, srv, rpc.Caller{})
+	require.NoError(t, cli.Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &prj))
 
 	child, exited := startSleep(t)
 	other, _ := startSleep(t)
@@ -54,6 +56,16 @@ func TestProcessRegister(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "registered child survived kill")
 	}
+
+	kept, _ := startSleep(t)
+	require.NoError(t, plugin.Call(t.Context(), "process.register", map[string]any{"projectId": prj.ID, "pid": kept.Process.Pid, "label": "kept"}, &root))
+	require.NoError(t, plugin.Close())
+	testutil.Eventually(t, func() bool {
+		var roots []core.ProcessRoot
+		require.NoError(t, cli.Call(t.Context(), "process.roots", map[string]any{"projectId": prj.ID}, &roots))
+		i := slices.IndexFunc(roots, func(r core.ProcessRoot) bool { return r.ID == root.ID })
+		return i >= 0 && roots[i].Ended
+	}, 5*time.Second)
 }
 
 func startSleep(t *testing.T) (*exec.Cmd, <-chan struct{}) {
