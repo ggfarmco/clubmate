@@ -44,6 +44,8 @@ type host struct {
 	pgid       int
 	ring       *wire.Ring
 	alt        altScreen
+	status     statusProbe
+	queries    chan struct{}
 	output     chan struct{}
 	maxPending int
 	mu         sync.Mutex
@@ -108,6 +110,7 @@ func Run(ctx context.Context, cfg Config) error {
 		maxPending: max(maxPendingBytes, 2*cfg.Scrollback),
 		clients:    map[*client]struct{}{},
 		output:     make(chan struct{}, 1),
+		queries:    make(chan struct{}, 1),
 	}
 	code := h.serve(ctx, cmd, ln)
 	exitedAt := time.Now()
@@ -130,6 +133,7 @@ func (h *host) serve(ctx context.Context, cmd *exec.Cmd, ln net.Listener) int {
 	defer close(exited)
 	h.wg.Go(func() { h.acceptLoop(ln) })
 	h.wg.Go(func() { hangupOnCancel(ctx, cmd.Process.Pid, exited) })
+	go answerStatus(h.ptmx, h.queries, exited)
 	h.pump()
 	return waitExit(cmd)
 }
@@ -182,6 +186,12 @@ func (h *host) broadcast(p []byte) {
 	defer h.mu.Unlock()
 	h.ring.Write(p)
 	h.alt.feed(p)
+	if h.status.feed(p) && len(h.clients) == 0 {
+		select {
+		case h.queries <- struct{}{}:
+		default:
+		}
+	}
 	select {
 	case h.output <- struct{}{}:
 	default:

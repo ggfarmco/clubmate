@@ -146,6 +146,26 @@ func TestHelperAltScreen(t *testing.T) {
 	}
 }
 
+func TestStatusQueryAnsweredOnlyWhileDetached(t *testing.T) {
+	mark := filepath.Join(t.TempDir(), "answered")
+	cfg := testConfig(t, "sh", "-c", `stty -echo -icanon min 1; printf '\033[5n'; head -c 4 >/dev/null; touch "$0"; exec cat`, mark)
+	startHost(t, cfg)
+	testutil.Eventually(t, func() bool { _, err := os.Stat(mark); return err == nil }, waitTimeout)
+	c := dial(t, cfg.Socket)
+	c.send(t, "\x1b[5nMARK\n")
+	c.waitOutput(t, "MARK")
+	c.send(t, "END\n")
+	c.waitOutput(t, "END")
+	assert.NotContains(t, c.output(), "\x1b[0n")
+}
+
+func TestStatusQueryFloodDoesNotStallOutput(t *testing.T) {
+	mark := filepath.Join(t.TempDir(), "flooded")
+	cfg := testConfig(t, "sh", "-c", `stty -echo -icanon; i=0; while [ $i -lt 20000 ]; do printf '\033[5n'; i=$((i+1)); done; touch "$0"; exec sleep 30`, mark)
+	startHost(t, cfg)
+	testutil.Eventually(t, func() bool { _, err := os.Stat(mark); return err == nil }, waitTimeout)
+}
+
 func TestSessionHostExit(t *testing.T) {
 	cfg := testConfig(t, "sh", "-c", `read x; exit 7`)
 	done := startHost(t, cfg)
