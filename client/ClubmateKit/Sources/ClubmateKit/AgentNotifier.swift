@@ -26,7 +26,7 @@ public struct AgentSessionState: Sendable, Equatable {
                 agent: fields["agent"]?.stringValue ?? "",
                 title: fields["title"]?.stringValue ?? "",
                 status: fields["status"]?.stringValue ?? "",
-                requests: []
+                requests: fields["pending"]?.arrayValue?.compactMap(\.stringValue) ?? []
             )
         }
     }
@@ -46,7 +46,6 @@ public struct AgentNotifier: Sendable {
     public static let sessionsNode = "sessions"
     public static let changedTopic = "agents.changed"
     public static let sessionsCommand = "agents.sessions"
-    public static let transcriptCommand = "agents.transcript"
     public static let waiting = "waiting"
 
     private var posted: Set<String> = []
@@ -72,18 +71,6 @@ public struct AgentNotifier: Sendable {
             }
         }
         return alerts
-    }
-
-    public static func lastTurn(_ transcript: JSONValue) -> Int {
-        (transcript.objectValue?["turns"]?.arrayValue ?? []).compactMap { $0.objectValue?["turn"]?.numberValue.map(Int.init) }.max() ?? 0
-    }
-
-    public static func pendingRequests(_ transcript: JSONValue) -> [String] {
-        (transcript.objectValue?["entries"]?.arrayValue ?? []).compactMap { value in
-            guard let fields = value.objectValue, fields["kind"]?.stringValue == "permission",
-                  fields["outcome"] == nil || fields["outcome"] == .null, let id = fields["id"]?.stringValue else { return nil }
-            return id
-        }
     }
 
     public static func selectEvent(workspace: String, session: String) -> UIEvent {

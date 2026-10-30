@@ -43,6 +43,7 @@ final class AppModel {
             await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
         },
         windowKey: { [weak self] workspace in self?.isKey(workspace) ?? false },
+        workspaces: { [weak self] in self?.openWorkspaces ?? [] },
         workspaceName: { [weak self] workspace in self?.project(workspace)?.name },
         reveal: { [weak self] workspace, session in self?.revealAgentSession(session, in: workspace) }
     )
@@ -158,16 +159,26 @@ final class AppModel {
     }
 
     private func isKey(_ workspace: String) -> Bool {
-        guard let window = layout.windows.first(where: { $0.active == workspace }) else { return false }
-        return hosts.object(forKey: window.id as NSString)?.isKeyWindow == true
+        layout.windows.contains { $0.active == workspace && hosts.object(forKey: $0.id as NSString)?.isKeyWindow == true }
     }
 
     func revealAgentSession(_ agentSession: String, in workspace: String) {
         open(workspace)
-        guard let store = existingSession(for: workspace)?.store else { return }
-        store.show(section: AgentNotifier.section)
-        Task { _ = await store.send(AgentNotifier.selectEvent(workspace: workspace, session: agentSession)) }
+        Task {
+            for _ in 0..<Self.revealAttempts {
+                if let store = existingSession(for: workspace)?.store, store.connected {
+                    store.show(section: AgentNotifier.section)
+                    if case .failure(let error) = await store.send(AgentNotifier.selectEvent(workspace: workspace, session: agentSession)) {
+                        existingSession(for: workspace)?.banner.show(error.message)
+                    }
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
     }
+
+    private static let revealAttempts = 100
 
     func windowAttached(_ window: String, _ host: NSWindow) {
         hosts.setObject(host, forKey: window as NSString)
@@ -548,6 +559,7 @@ final class ProjectSession {
     private(set) var findInFiles: FindInFilesModel?
     private(set) var picker: PickerRequest?
     private(set) var fileTarget: (@MainActor (String) -> Void)?
+    private(set) var attachRequest = 0
     var thumbnail: NSImage?
     var autoNewRequest = 0
     @ObservationIgnored var autoNew = AutoNewGate()
@@ -648,6 +660,7 @@ final class ProjectSession {
 
     func pickFile(_ target: @escaping @MainActor (String) -> Void) {
         fileTarget = target
+        attachRequest += 1
         overlay = .goToFile
     }
 

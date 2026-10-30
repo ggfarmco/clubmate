@@ -146,6 +146,7 @@ extension View {
         overlay(alignment: .top) {
             if let session, session.overlay == .goToFile {
                 GoToFileView(session: session)
+                    .id(session.attachRequest)
                     .padding(.top, 48)
             }
         }

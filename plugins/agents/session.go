@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"regexp"
 	"slices"
 	"strconv"
@@ -65,6 +66,11 @@ type record struct {
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Closed         bool      `json:"closed"`
 	Error          string    `json:"error,omitempty"`
+}
+
+type sessionInfo struct {
+	record
+	Pending []string `json:"pending,omitempty"`
 }
 
 type entry struct {
@@ -430,6 +436,14 @@ func (s *session) answer(id, option string) error {
 	delete(s.perms, id)
 	perm.reply <- acp.PermissionOutcome{Outcome: acp.OutcomeSelected, OptionID: option}
 	return nil
+}
+
+func (s *session) pending() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := slices.Collect(maps.Keys(s.perms))
+	slices.Sort(ids)
+	return ids
 }
 
 func (s *session) cancelRequest(request string) bool {

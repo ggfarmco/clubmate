@@ -9,22 +9,35 @@ final class AgentNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated private static let workspaceKey = "workspace"
     nonisolated private static let sessionKey = "session"
-    private static let latestTurn = Double(Int32.max)
 
     private var notifier = AgentNotifier()
     private var listener: Task<Void, Never>?
+    private var checks: Task<Void, Never>?
     private let run: Run
     private let windowKey: @MainActor (String) -> Bool
+    private let workspaces: @MainActor () -> Set<String>
     private let workspaceName: @MainActor (String) -> String?
     private let reveal: @MainActor (String, String) -> Void
 
-    init(run: @escaping Run, windowKey: @escaping @MainActor (String) -> Bool, workspaceName: @escaping @MainActor (String) -> String?, reveal: @escaping @MainActor (String, String) -> Void) {
+    init(
+        run: @escaping Run,
+        windowKey: @escaping @MainActor (String) -> Bool,
+        workspaces: @escaping @MainActor () -> Set<String>,
+        workspaceName: @escaping @MainActor (String) -> String?,
+        reveal: @escaping @MainActor (String, String) -> Void
+    ) {
         self.run = run
         self.windowKey = windowKey
+        self.workspaces = workspaces
         self.workspaceName = workspaceName
         self.reveal = reveal
         super.init()
         UNUserNotificationCenter.current().delegate = self
+        for name in [NSApplication.didResignActiveNotification, NSWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.checkOpenWorkspaces() }
+            }
+        }
     }
 
     func adopt(_ client: CoreClient) {
@@ -36,18 +49,26 @@ final class AgentNotifications: NSObject, UNUserNotificationCenterDelegate {
                 guard let params = notification.params.objectValue, params["subscription"]?.stringValue == subscription,
                       let payload = params["event"]?.objectValue?["payload"]?.objectValue,
                       payload["kind"]?.stringValue == "status", let workspace = payload["workspace"]?.stringValue else { continue }
-                await self?.check(workspace)
+                await self?.check(workspace, session: payload["session"]?.stringValue)
             }
         }
     }
 
-    private func check(_ workspace: String) async {
+    private func checkOpenWorkspaces() {
+        let previous = checks
+        let open = workspaces()
+        checks = Task { [weak self] in
+            await previous?.value
+            for workspace in open.sorted() {
+                await self?.check(workspace, session: nil)
+            }
+        }
+    }
+
+    private func check(_ workspace: String, session: String?) async {
         guard AgentNotifier.wantsAttention(windowKey: windowKey(workspace), appActive: NSApp.isActive),
               case .success(let listed) = await run(workspace, CommandInvocation(id: AgentNotifier.sessionsCommand)) else { return }
-        var sessions = AgentSessionState.list(listed).filter { $0.status == AgentNotifier.waiting }
-        for index in sessions.indices {
-            sessions[index].requests = await pendingRequests(workspace, sessions[index].session)
-        }
+        let sessions = AgentSessionState.list(listed).filter { session == nil || $0.session == session }
         let alerts = notifier.alerts(sessions, windowKey: windowKey(workspace), appActive: NSApp.isActive)
         guard !alerts.isEmpty else { return }
         let center = UNUserNotificationCenter.current()
@@ -62,14 +83,6 @@ final class AgentNotifications: NSObject, UNUserNotificationCenterDelegate {
             content.userInfo = [Self.workspaceKey: alert.workspace, Self.sessionKey: alert.session]
             try? await center.add(UNNotificationRequest(identifier: "\(alert.session)/\(alert.request)", content: content, trigger: nil))
         }
-    }
-
-    private func pendingRequests(_ workspace: String, _ session: String) async -> [String] {
-        let probe = CommandInvocation(id: AgentNotifier.transcriptCommand, args: .object(["session": .string(session), "fromTurn": .number(Self.latestTurn)]))
-        guard case .success(let turns) = await run(workspace, probe) else { return [] }
-        let recent = CommandInvocation(id: AgentNotifier.transcriptCommand, args: .object(["session": .string(session), "fromTurn": .number(Double(AgentNotifier.lastTurn(turns)))]))
-        guard case .success(let transcript) = await run(workspace, recent) else { return [] }
-        return AgentNotifier.pendingRequests(transcript)
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {

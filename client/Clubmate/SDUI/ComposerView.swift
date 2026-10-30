@@ -20,13 +20,18 @@ extension EnvironmentValues {
 
 @MainActor
 private enum ComposerFocus {
-    static var afterSend = false
+    static var afterSend: String?
+
+    static func session(of id: String?) -> String? {
+        id.flatMap { $0.split(separator: "/", maxSplits: 1).first.map(String.init) }
+    }
 }
 
 struct ComposerNodeView: View {
     let node: SDUINode
 
     @State private var model = ComposerModel()
+    @State private var selection: TextSelection?
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.filePicker) private var filePicker
@@ -47,8 +52,8 @@ struct ComposerNodeView: View {
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
         .onAppear {
-            guard ComposerFocus.afterSend else { return }
-            ComposerFocus.afterSend = false
+            guard let session = ComposerFocus.afterSend, session == ComposerFocus.session(of: node.id) else { return }
+            ComposerFocus.afterSend = nil
             focused = true
         }
     }
@@ -71,7 +76,7 @@ struct ComposerNodeView: View {
                 .padding(.horizontal, theme.spacing.m)
                 .opacity(0)
                 .overlay {
-                    TextEditor(text: $model.text)
+                    TextEditor(text: $model.text, selection: $selection)
                         .font(theme.ui)
                         .foregroundStyle(theme.foreground)
                         .scrollContentBackground(.hidden)
@@ -104,7 +109,7 @@ struct ComposerNodeView: View {
                     dispatch(node, .named("detach", .object(["id": .string(key)])))
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(theme.glyph)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -207,8 +212,16 @@ struct ComposerNodeView: View {
     }
 
     private func send(_ text: String) {
-        ComposerFocus.afterSend = true
-        dispatch(node, .named("send", .object(["text": .string(text)])))
+        let session = ComposerFocus.session(of: node.id)
+        ComposerFocus.afterSend = session
+        dispatch(node, .named("send", .object(["text": .string(text)]))) { sent in
+            if !sent, ComposerFocus.afterSend == session { ComposerFocus.afterSend = nil }
+        }
+    }
+
+    private var caret: String.Index? {
+        guard case .selection(let range)? = selection?.indices else { return nil }
+        return range.lowerBound
     }
 
     private func pickFile() {
@@ -233,7 +246,7 @@ struct ComposerNodeView: View {
             shift: flags.contains(.shift)
         ) else { return false }
         if key == .attach, filePicker == nil || !node.attachKinds().contains("file") { return false }
-        switch model.handle(key, before: model.text.last) {
+        switch model.handle(key, before: model.character(before: caret)) {
         case .send(let text): send(text)
         case .stop: dispatch(node, .named("stop", .null))
         case .attachFile: pickFile()

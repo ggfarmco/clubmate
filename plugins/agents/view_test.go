@@ -63,7 +63,7 @@ func TestTranscriptWindowAndShowEarlier(t *testing.T) {
 		v.Turns = append(v.Turns, turnInfo{Turn: turn, CheckpointSha: "sha" + n, StopReason: "end_turn"})
 		v.Entries = append(v.Entries, &entry{Kind: entryUser, ID: "prompt-" + n, Turn: turn, Text: "p" + n}, &entry{Kind: entryAgent, ID: "m" + n, Turn: turn, Text: "a" + n})
 	}
-	firstPrompt := func(st *sessionUI) (string, int) {
+	firstPrompt := func(st *sessionUI) (sdui.Node, int) {
 		tree := mainView(screen{View: v, Window: st.window, Composer: "agt_1/composer/0"})
 		require.NoError(t, internalsdui.Validate(tree))
 		var users []sdui.Node
@@ -77,18 +77,25 @@ func TestTranscriptWindowAndShowEarlier(t *testing.T) {
 			earlier = earlier || b.Props["action"] == actShowEarlier
 		}
 		assert.True(t, earlier)
-		return users[0].Props["text"].(string), len(users)
+		return users[0], len(users)
 	}
 
 	st := &sessionUI{window: windowStep}
 	first, shown := firstPrompt(st)
 	assert.Equal(t, 20, shown)
-	assert.Equal(t, "p26", first)
+	assert.Equal(t, "p26", first.Props["text"])
+	assert.Equal(t, "agt_1/msg/user/prompt-26", first.ID)
 
 	st.showEarlier()
 	first, shown = firstPrompt(st)
 	assert.Equal(t, 40, shown)
-	assert.Equal(t, "p6", first)
+	assert.Equal(t, "p6", first.Props["text"])
+	shifted := map[string]string{}
+	for _, m := range nodesOf(mainView(screen{View: v, Window: st.window, Composer: "agt_1/composer/0"}), "message") {
+		shifted[m.Props["text"].(string)] = m.ID
+	}
+	assert.Equal(t, "agt_1/msg/user/prompt-26", shifted["p26"])
+	assert.Equal(t, "agt_1/msg/agent/m26", shifted["a26"])
 }
 
 func TestHugeToolOutputRendersTruncated(t *testing.T) {

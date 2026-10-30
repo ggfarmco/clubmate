@@ -42,7 +42,7 @@ public struct SDUIPlanEntry: Sendable, Equatable {
     }
 }
 
-public struct SDUIToolBody: Sendable, Equatable {
+public struct SDUIToolBody: Sendable, Hashable {
     public enum Format: String, Sendable {
         case diff
         case text
@@ -56,6 +56,17 @@ public struct SDUIToolBody: Sendable, Equatable {
         guard let fields = value.objectValue, let text = fields["text"]?.stringValue else { return nil }
         format = fields["format"]?.stringValue.flatMap(Format.init) ?? .text
         self.text = text
+    }
+
+    @MainActor private static var memo: [SDUIToolBody: [DiffLine]] = [:]
+    private static let memoLimit = 64
+
+    @MainActor public var lines: [DiffLine] {
+        if let cached = Self.memo[self] { return cached }
+        let lines = format == .diff ? DiffLine.parse(text) : DiffLine.parse(text).map { DiffLine(text: $0.text, kind: .context) }
+        if Self.memo.count >= Self.memoLimit { Self.memo.removeAll() }
+        Self.memo[self] = lines
+        return lines
     }
 }
 

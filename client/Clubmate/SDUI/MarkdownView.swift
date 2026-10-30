@@ -22,9 +22,13 @@ extension View {
     }
 }
 
-struct MarkdownText: View {
+struct MarkdownText: View, Equatable {
     let text: String
     var muted = false
+
+    nonisolated static func == (lhs: MarkdownText, rhs: MarkdownText) -> Bool {
+        lhs.text == rhs.text && lhs.muted == rhs.muted
+    }
 
     @Environment(\.theme) private var theme
 

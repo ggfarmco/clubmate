@@ -45,8 +45,12 @@ private struct TranscriptScroll: Equatable {
     @MainActor static var saved: [String: TranscriptScroll] = [:]
 }
 
-struct MessageNodeView: View {
+struct MessageNodeView: View, Equatable {
     let node: SDUINode
+
+    nonisolated static func == (lhs: MessageNodeView, rhs: MessageNodeView) -> Bool {
+        lhs.node == rhs.node
+    }
 
     @Environment(\.theme) private var theme
 
@@ -57,7 +61,7 @@ struct MessageNodeView: View {
             HStack(spacing: 0) {
                 Spacer(minLength: theme.gutter * 8)
                 VStack(alignment: .leading, spacing: theme.spacing.s) {
-                    MarkdownText(text: text)
+                    MarkdownText(text: text).equatable()
                     ForEach(node.attachments()) { attachment in
                         Text(attachment.label)
                             .font(theme.uiSmall)
@@ -75,6 +79,7 @@ struct MessageNodeView: View {
             ThoughtView(text: text)
         default:
             MarkdownText(text: text)
+                .equatable()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -91,7 +96,7 @@ private struct ThoughtView: View {
             Button { expanded.toggle() } label: {
                 HStack(spacing: theme.spacing.s) {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(theme.glyph)
                     Text("Thinking")
                         .italic()
                 }
@@ -102,6 +107,7 @@ private struct ThoughtView: View {
             .buttonStyle(.plain)
             if expanded {
                 MarkdownText(text: text, muted: true)
+                    .equatable()
                     .padding(.leading, theme.indent)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -174,7 +180,7 @@ struct ToolCardNodeView: View {
             .padding(.vertical, theme.spacing.m)
             if let toolBody {
                 theme.border.frame(height: 1)
-                ToolBodyView(toolBody: toolBody)
+                ToolBodyView(toolBody: toolBody).equatable()
             }
             if node.bool("truncated") == true {
                 Text("Output truncated")
@@ -243,38 +249,31 @@ struct ToolCardNodeView: View {
     }
 }
 
-private struct ToolBodyView: View {
+private struct ToolBodyView: View, Equatable {
     let toolBody: SDUIToolBody
 
     @Environment(\.theme) private var theme
 
-    var body: some View {
-        content
-            .font(theme.ui.monospaced())
-            .textSelection(.enabled)
-            .padding(.vertical, theme.spacing.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.foreground.opacity(0.04), ignoresSafeAreaEdges: [])
+    nonisolated static func == (lhs: ToolBodyView, rhs: ToolBodyView) -> Bool {
+        lhs.toolBody == rhs.toolBody
     }
 
-    @ViewBuilder private var content: some View {
-        if toolBody.format == .diff {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(DiffLine.parse(toolBody.text).enumerated()), id: \.offset) { _, line in
-                    Text(line.text.isEmpty ? " " : line.text)
-                        .foregroundStyle(color(line.kind))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, theme.gutter + theme.spacing.s)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(tint(line.kind), ignoresSafeAreaEdges: [])
-                }
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(toolBody.lines.enumerated()), id: \.offset) { _, line in
+                Text(line.text.isEmpty ? " " : line.text)
+                    .foregroundStyle(color(line.kind))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, theme.gutter + theme.spacing.s)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(tint(line.kind), ignoresSafeAreaEdges: [])
             }
-        } else {
-            Text(toolBody.text)
-                .foregroundStyle(theme.foreground)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, theme.gutter + theme.spacing.s)
         }
+        .font(theme.ui.monospaced())
+        .textSelection(.enabled)
+        .padding(.vertical, theme.spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.foreground.opacity(0.04), ignoresSafeAreaEdges: [])
     }
 
     private func color(_ kind: DiffLine.Kind) -> Color {

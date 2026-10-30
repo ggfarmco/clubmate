@@ -240,7 +240,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		}
 		return nil, a.setMode(ctx, cmd.ProjectID, args)
 	case "agents.sessions":
-		return a.list(cmd.ProjectID), nil
+		return a.infos(cmd.ProjectID), nil
 	case "agents.stop-root":
 		var args rootArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -348,6 +348,19 @@ func (a *app) list(projectID string) []record {
 		}
 	}
 	slices.SortFunc(out, func(x, y record) int { return x.CreatedAt.Compare(y.CreatedAt) })
+	return out
+}
+
+func (a *app) infos(projectID string) []sessionInfo {
+	recs := a.list(projectID)
+	out := make([]sessionInfo, 0, len(recs))
+	for _, rec := range recs {
+		info := sessionInfo{record: rec}
+		if s := a.session(rec.ID); s != nil {
+			info.Pending = s.pending()
+		}
+		out = append(out, info)
+	}
 	return out
 }
 

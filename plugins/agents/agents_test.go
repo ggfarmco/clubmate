@@ -30,15 +30,16 @@ const (
 )
 
 type record struct {
-	ID             string `json:"id"`
-	Workspace      string `json:"workspace"`
-	Worktree       string `json:"worktree"`
-	Agent          string `json:"agent"`
-	AgentSessionID string `json:"agentSessionId"`
-	Status         string `json:"status"`
-	Mode           string `json:"mode"`
-	Closed         bool   `json:"closed"`
-	Error          string `json:"error"`
+	ID             string   `json:"id"`
+	Workspace      string   `json:"workspace"`
+	Worktree       string   `json:"worktree"`
+	Agent          string   `json:"agent"`
+	AgentSessionID string   `json:"agentSessionId"`
+	Status         string   `json:"status"`
+	Mode           string   `json:"mode"`
+	Closed         bool     `json:"closed"`
+	Error          string   `json:"error"`
+	Pending        []string `json:"pending"`
 }
 
 type entry struct {
@@ -380,9 +381,10 @@ func TestPermissionOutsidePrompt(t *testing.T) {
 	session := f.newSession(t, project)
 
 	f.prompt(t, project, session, "go")
-	f.waitStatus(t, project, session, "waiting")
+	waiting := f.waitStatus(t, project, session, "waiting")
 	perms := ofKind(f.transcript(t, project, session).Entries, "permission")
 	require.Len(t, perms, 1)
+	assert.Equal(t, []string{perms[0].ID}, waiting.Pending)
 	require.NoError(t, f.run(t, project, "agents.permission", map[string]any{"session": session, "request": perms[0].ID, "option": "allow"}, nil))
 
 	got := f.waitCall(t, "permission_response", func(fakeCall) bool { return true })

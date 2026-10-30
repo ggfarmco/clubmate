@@ -15,12 +15,14 @@ struct SDUIDispatch: Sendable {
     var banner: EventBanner?
 
     @MainActor
-    func callAsFunction(_ node: SDUINode, _ trigger: UIAction.Trigger) {
+    func callAsFunction(_ node: SDUINode, _ trigger: UIAction.Trigger, done: (@MainActor (Bool) -> Void)? = nil) {
         let event = UIAction.event(for: node, trigger: trigger, slot: slot, projectID: projectID)
         Task { [sink, banner] in
-            if case .failure(let error) = await sink(event) {
+            let result = await sink(event)
+            if case .failure(let error) = result {
                 banner?.show(error.message)
             }
+            if case .success = result { done?(true) } else { done?(false) }
         }
     }
 
@@ -156,7 +158,7 @@ struct SDUINodeView: View {
         case "select": SelectNodeView(node: node)
         case "form": FormNodeView(node: node)
         case "transcript": TranscriptNodeView(node: node)
-        case "message": MessageNodeView(node: node)
+        case "message": MessageNodeView(node: node).equatable()
         case "plan": PlanNodeView(node: node)
         case "toolCard": ToolCardNodeView(node: node)
         case "permissionCard": PermissionCardNodeView(node: node)

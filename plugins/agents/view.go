@@ -384,12 +384,16 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	root := sc.View.Session.Worktree
 	switch en.Kind {
 	case entryUser:
-		return sdui.Message("user", en.Text, promptAttachments(en.Content, root)), true
+		n := sdui.Message("user", en.Text, promptAttachments(en.Content, root))
+		n.ID = sid + "/msg/" + en.Kind + "/" + en.ID
+		return n, true
 	case entryAgent, entryThought:
 		if strings.TrimSpace(en.Text) == "" {
 			return sdui.Node{}, false
 		}
-		return sdui.Message(en.Kind, en.Text, nil), true
+		n := sdui.Message(en.Kind, en.Text, nil)
+		n.ID = sid + "/msg/" + en.Kind + "/" + en.ID
+		return n, true
 	case entryPlan:
 		var p planUpdate
 		if json.Unmarshal(en.Plan, &p) != nil {
@@ -403,7 +407,9 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 			}
 			entries = append(entries, sdui.PlanEntry{Content: e.Content, Status: status})
 		}
-		return sdui.Plan(entries), true
+		n := sdui.Plan(entries)
+		n.ID = sid + "/plan/" + strconv.Itoa(en.Turn)
+		return n, true
 	case entryTool:
 		return toolCard(sid+"/tool/"+en.ID, en, sc.Expanded[en.ID], sha != ""), true
 	case entryPermission:

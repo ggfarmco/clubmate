@@ -98,6 +98,12 @@ public final class ComposerModel {
         }
     }
 
+    public func character(before caret: String.Index?) -> Character? {
+        guard let caret else { return text.last }
+        guard caret > text.startIndex, caret <= text.endIndex else { return nil }
+        return text[text.index(before: caret)]
+    }
+
     public func choose(_ command: ComposerCommand) {
         text = "/\(command.name) "
     }
