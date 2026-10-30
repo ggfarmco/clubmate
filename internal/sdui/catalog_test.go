@@ -53,6 +53,10 @@ func TestValidate(t *testing.T) {
 		{"diff", sdui.Diff("+a"), true},
 		{"diff without text", sdui.Node{Type: "diff"}, false},
 		{"diff with children", sdui.Node{Type: "diff", Props: map[string]any{"text": "x"}, Children: []sdui.Node{sdui.Text("a")}}, false},
+		{"textField lines", sdui.WithLines(sdui.TextField("f", "", ""), 4), true},
+		{"textField lines too small", sdui.WithLines(sdui.TextField("f", "", ""), 1), false},
+		{"textField lines too large", sdui.WithLines(sdui.TextField("f", "", ""), 51), false},
+		{"textField lines not a number", sdui.Node{Type: "textField", ID: "f", Props: map[string]any{"lines": "x"}}, false},
 		{"select", sdui.Select("s", []sdui.Option{{Value: "a", Label: "A"}}, "a"), true},
 	}
 	for _, tt := range tests {

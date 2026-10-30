@@ -55,7 +55,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
 | button | label* (string), icon (string), confirm (string), action | none | yes |
-| textField | value (string), placeholder (string), action | none | yes |
+| textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), action | none | yes |
 | folderField | label* (string), values (string[]), action | none | yes |
 | toggle | value* (bool), action | none | yes |
 | select | options* (option[]), value (string), action | none | yes |
@@ -148,7 +148,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | command.list | none | `[{id, title, description, plugin, hidden, confirm, args?, result?, agent, destructive, provides?}]` |
 | command.run | `{id, projectId, args, agent}` | plugin-defined JSON, or the primitive's result |
 | command.capabilities | none | `{capabilities: {name: commandId}}` |
-| ui.focus | `{projectId, section, slot, edge}` | `{delivered}` |
+| ui.focus | `{projectId, section, slot, edge, field}` | `{delivered}` |
 | client.register | `{handles}` | `{}` |
 | project.open | `{id}` | `{clients}` |
 | project.rename | `{id, name}` | project |
@@ -216,7 +216,7 @@ Projects are shown to users as workspaces; `clubmate project …` is an alias of
 
 `client.register` marks the calling connection for the listed handles: `"project.open"` and `"ui.confirm"`; anything else is invalid params. The app registers both. Registration lasts for the connection. Plugin callers get invalid params.
 
-`ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`, or `edge` is not absent, `""`, `h`, `j`, `k` or `l`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusEdge` to pass `edge`.
+`ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`, or `edge` is not absent, `""`, `h`, `j`, `k` or `l`, or `field` is true with a `slot` other than `<section>.sidebar`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, as `Host.FocusEdge` to pass `edge`, or as `Host.FocusField` to focus the sidebar's text field.
 
 `ui.render` is invalid params for a project that has been deleted.
 
@@ -307,7 +307,7 @@ The app's Help ▸ Collect Diagnostics… first shows a sheet listing the files 
 ## Notifications
 
 - `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the project are replayed first.
-- `ui.focus` `{subscription, section, slot, edge}`: the client should show `section`, and `slot` when non-empty, for that subscription's project. `edge` is present only when the caller passed a non-empty one: the direction nvim navigation left in. The client ignores a focus whose `edge` does not lead to its sidebar (`h` with the sidebar on the left, `l` with it on the right; `j` and `k` never do). A focus to a hidden sidebar shows it first.
+- `ui.focus` `{subscription, section, slot, edge, field}`: the client should show `section`, and `slot` when non-empty, for that subscription's project. `field` is present (true) only when the caller passed it: the client puts keyboard focus into the first `textField` of that sidebar instead of its list or tree. `edge` is present only when the caller passed a non-empty one: the direction nvim navigation left in. The client ignores a focus whose `edge` does not lead to its sidebar (`h` with the sidebar on the left, `l` with it on the right; `j` and `k` never do). A focus to a hidden sidebar shows it first.
 - `ui.closed` `{subscription, error}`: the subscription ended with an error (for example it fell behind); resubscribe and replace local state.
 
 ## File watching

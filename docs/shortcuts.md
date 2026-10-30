@@ -6,7 +6,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 
 | Keys | Action | Where defined |
 |---|---|---|
-| ⌘N | New (terminal or item in the current section) | `ClubmateApp.swift` |
+| ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⌘W | Close terminal session, or the window when no terminal is focused | `ClubmateApp.swift` (`CloseKeyOwner`) |

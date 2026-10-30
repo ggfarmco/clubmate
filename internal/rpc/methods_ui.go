@@ -75,6 +75,7 @@ type focusParams struct {
 	Section   string `json:"section"`
 	Slot      string `json:"slot"`
 	Edge      string `json:"edge"`
+	Field     bool   `json:"field"`
 }
 
 type uiFocusParams struct {
@@ -82,6 +83,7 @@ type uiFocusParams struct {
 	Section      string `json:"section"`
 	Slot         string `json:"slot"`
 	Edge         string `json:"edge,omitempty"`
+	Field        bool   `json:"field,omitempty"`
 }
 
 type deliveredResult struct {
@@ -215,11 +217,14 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 	if !slices.Contains([]string{"", "h", "j", "k", "l"}, p.Edge) {
 		return deliveredResult{}, invalidParams(fmt.Sprintf("invalid edge: %q", p.Edge))
 	}
+	if p.Field && p.Slot != p.Section+".sidebar" {
+		return deliveredResult{}, invalidParams(fmt.Sprintf("field needs slot %q", p.Section+".sidebar"))
+	}
 	var wg sync.WaitGroup
 	var delivered atomic.Int32
 	for _, t := range s.presence.focusTargets(p.ProjectID) {
 		wg.Go(func() {
-			params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot, Edge: p.Edge}
+			params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot, Edge: p.Edge, Field: p.Field}
 			if t.conn.Notify(ctx, notifyUIFocus, params) == nil {
 				delivered.Add(1)
 			}

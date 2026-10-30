@@ -24,6 +24,8 @@ const (
 	minSparkHeight    = 8
 	maxSparkHeight    = 200
 	maxTreeSparkTotal = 100_000
+	minLines          = 2
+	maxLines          = 50
 )
 
 var actionPattern = regexp.MustCompile(`^[a-z][a-zA-Z0-9.-]*$`)
@@ -74,6 +76,7 @@ var (
 	unitNumber  = number(func(n float64) bool { return n >= 0 && n <= 1 }, "a number within 0…1")
 	nonNegative = number(func(n float64) bool { return n >= 0 }, "a non-negative number")
 	positive    = number(func(n float64) bool { return n > 0 }, "a positive number")
+	linesNumber = number(func(n float64) bool { return n >= minLines && n <= maxLines && n == math.Trunc(n) }, fmt.Sprintf("an integer within %d…%d", minLines, maxLines))
 	countNumber = number(func(n float64) bool { return n >= 0 && n == math.Trunc(n) }, "a non-negative integer")
 	depthNumber = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
 
@@ -133,7 +136,7 @@ var (
 			interactive: true,
 		},
 		"textField": {
-			props:       map[string]propCheck{"value": isString, "placeholder": isString, "action": actionCheck},
+			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},

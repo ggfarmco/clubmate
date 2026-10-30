@@ -11,6 +11,7 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 - Processes: the process tree of every session and of processes plugins register (agent processes).
 - UI: show a section (`ui.focus`).
 - Notifications: `notify.post` shows a macOS notification (needs input, permission, done, stuck, info), skipped while the user looks at the session; see [notifications](notifications.md).
+- Backlog: `backlog_list`, `backlog_claim`, `backlog_update`, `backlog_done` and friends share a per-workspace task list with the user; see [backlog](backlog.md).
 - Plugin actions marked for agents. Some are generic capabilities, so an agent need not know which plugin provides them: `editor.open`, `editor.quickfix`, `editor.reveal`, `terminal.new`, `terminal.close`, `files.reveal`, `git.stage-all`, `git.review`.
 - Git worktrees: `git.worktrees` lists every git folder's worktrees, `git.worktree-switch` switches a folder to one of them, `git.worktree-new` creates `.worktrees/<branch>` and switches to it, and `git.worktree-remove` removes a linked worktree (never the main checkout or one with uncommitted changes). Create and remove return `{id}` at once; `git.worktree-op-status id=…` waits up to 1 s for the outcome.
 - Agent sessions: `agents.sessions` lists the workspace's agent sessions with their status and `parentSession`, and `agents.transcript session=…` reads one session's transcript from Clubmate's own log.

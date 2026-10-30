@@ -323,6 +323,16 @@ func Composer(id string, p ComposerProps) Node {
 	return Node{Type: "composer", ID: id, Props: props}
 }
 
+func WithLines(n Node, lines int) Node {
+	props := make(map[string]any, len(n.Props)+1)
+	for k, v := range n.Props {
+		props[k] = v
+	}
+	props["lines"] = lines
+	n.Props = props
+	return n
+}
+
 func WithAction(n Node, action string) Node {
 	props := make(map[string]any, len(n.Props)+1)
 	for k, v := range n.Props {

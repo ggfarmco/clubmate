@@ -153,7 +153,7 @@ private struct WorkspaceView: View {
                 if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
-                focus.request(request.slot)
+                focus.request(request.field ? request.slot + SidebarField.suffix : request.slot)
             }
             .onChange(of: session.store?.connected, initial: true) { _, connected in
                 guard connected == true else { return }

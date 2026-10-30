@@ -1,0 +1,720 @@
+{
+  "id": "backlog",
+  "name": "Backlog",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": [
+    "backlog"
+  ],
+  "contributes": {
+    "sections": [
+      {
+        "id": "backlog",
+        "title": "Backlog",
+        "icon": "checklist",
+        "order": 27
+      }
+    ],
+    "commands": [
+      {
+        "id": "backlog.new",
+        "title": "New Backlog Task",
+        "description": "Show the Backlog section to add a task."
+      },
+      {
+        "id": "backlog.list",
+        "title": "List Backlog Tasks",
+        "hidden": true,
+        "agent": true,
+        "description": "List this workspace's backlog tasks ordered by priority, then oldest first (done: newest first). Workflow: list status todo, pick the first, claim it, record progress with backlog.update note, finish with backlog.done and a note naming the commit, or backlog.release when you give up. Only the user puts tasks into todo; tasks you find yourself go in as idea.",
+        "args": {
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now",
+                "open"
+              ],
+              "default": "open",
+              "description": "One status, or open = idea + todo + in_progress."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Return at most this many tasks."
+            }
+          }
+        },
+        "result": {
+          "properties": {
+            "tasks": {
+              "type": "array",
+              "description": "Tasks in order.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "description": "Task number."
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "One-line title."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Markdown details."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "idea",
+                      "todo",
+                      "in_progress",
+                      "done",
+                      "not_now"
+                    ],
+                    "description": "Task status."
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "normal",
+                      "low"
+                    ],
+                    "description": "Priority."
+                  },
+                  "claimedBy": {
+                    "type": "string",
+                    "description": "Owner while in_progress."
+                  },
+                  "claimedAt": {
+                    "type": "string",
+                    "description": "When the claim was made, RFC 3339."
+                  },
+                  "claimedFrom": {
+                    "type": "string",
+                    "description": "Status before the claim."
+                  },
+                  "lastClaimedBy": {
+                    "type": "string",
+                    "description": "Who held the task before it was released or taken over."
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "Last progress or result note."
+                  },
+                  "createdBy": {
+                    "type": "string",
+                    "description": "user, an agent session id or agent."
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "description": "RFC 3339."
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "description": "RFC 3339."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.get",
+        "title": "Get Backlog Task",
+        "hidden": true,
+        "agent": true,
+        "description": "Read one backlog task with its full description and note.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "result": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number."
+            },
+            "title": {
+              "type": "string",
+              "description": "One-line title."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now"
+              ],
+              "description": "Task status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority."
+            },
+            "claimedBy": {
+              "type": "string",
+              "description": "Owner while in_progress."
+            },
+            "claimedAt": {
+              "type": "string",
+              "description": "When the claim was made, RFC 3339."
+            },
+            "claimedFrom": {
+              "type": "string",
+              "description": "Status before the claim."
+            },
+            "lastClaimedBy": {
+              "type": "string",
+              "description": "Who held the task before it was released or taken over."
+            },
+            "note": {
+              "type": "string",
+              "description": "Last progress or result note."
+            },
+            "createdBy": {
+              "type": "string",
+              "description": "user, an agent session id or agent."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.add",
+        "title": "Add Backlog Task",
+        "hidden": true,
+        "agent": true,
+        "description": "Add a backlog task. From an agent it is added as idea; only the user puts tasks into todo, so ask the user to promote it. Use not_now to park a task.",
+        "args": {
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "One line, up to 200 characters."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details an agent needs to act on the task, up to 32 KiB."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority; default normal."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "not_now"
+              ],
+              "description": "Default todo from the user, idea from an agent (agents may not use todo)."
+            }
+          },
+          "required": [
+            "title"
+          ]
+        },
+        "result": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number."
+            },
+            "title": {
+              "type": "string",
+              "description": "One-line title."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now"
+              ],
+              "description": "Task status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority."
+            },
+            "claimedBy": {
+              "type": "string",
+              "description": "Owner while in_progress."
+            },
+            "claimedAt": {
+              "type": "string",
+              "description": "When the claim was made, RFC 3339."
+            },
+            "claimedFrom": {
+              "type": "string",
+              "description": "Status before the claim."
+            },
+            "lastClaimedBy": {
+              "type": "string",
+              "description": "Who held the task before it was released or taken over."
+            },
+            "note": {
+              "type": "string",
+              "description": "Last progress or result note."
+            },
+            "createdBy": {
+              "type": "string",
+              "description": "user, an agent session id or agent."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.update",
+        "title": "Update Backlog Task",
+        "hidden": true,
+        "agent": true,
+        "description": "Change a task's title, description, priority, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not set todo and may not change the status of a task claimed by someone else. Delete is not available; use not_now.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            },
+            "title": {
+              "type": "string",
+              "description": "New title."
+            },
+            "description": {
+              "type": "string",
+              "description": "New description."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "New priority."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "done",
+                "not_now"
+              ],
+              "description": "New status."
+            },
+            "note": {
+              "type": "string",
+              "description": "Progress or result note, e.g. \"merged in abc123\" or \"blocked on X\"."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "result": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number."
+            },
+            "title": {
+              "type": "string",
+              "description": "One-line title."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now"
+              ],
+              "description": "Task status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority."
+            },
+            "claimedBy": {
+              "type": "string",
+              "description": "Owner while in_progress."
+            },
+            "claimedAt": {
+              "type": "string",
+              "description": "When the claim was made, RFC 3339."
+            },
+            "claimedFrom": {
+              "type": "string",
+              "description": "Status before the claim."
+            },
+            "lastClaimedBy": {
+              "type": "string",
+              "description": "Who held the task before it was released or taken over."
+            },
+            "note": {
+              "type": "string",
+              "description": "Last progress or result note."
+            },
+            "createdBy": {
+              "type": "string",
+              "description": "user, an agent session id or agent."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.claim",
+        "title": "Claim Backlog Task",
+        "hidden": true,
+        "agent": true,
+        "description": "Take a todo or idea task and mark it in progress under your name. Fails with who holds it when someone else has it; then pick another task. Claiming a task you already hold succeeds. A claim by a closed or deleted agent session is taken over.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            },
+            "owner": {
+              "type": "string",
+              "description": "Needed only when you are not a Clubmate agent session: a name unique to you, e.g. your session id."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "result": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number."
+            },
+            "title": {
+              "type": "string",
+              "description": "One-line title."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now"
+              ],
+              "description": "Task status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority."
+            },
+            "claimedBy": {
+              "type": "string",
+              "description": "Owner while in_progress."
+            },
+            "claimedAt": {
+              "type": "string",
+              "description": "When the claim was made, RFC 3339."
+            },
+            "claimedFrom": {
+              "type": "string",
+              "description": "Status before the claim."
+            },
+            "lastClaimedBy": {
+              "type": "string",
+              "description": "Who held the task before it was released or taken over."
+            },
+            "note": {
+              "type": "string",
+              "description": "Last progress or result note."
+            },
+            "createdBy": {
+              "type": "string",
+              "description": "user, an agent session id or agent."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.release",
+        "title": "Release Backlog Task",
+        "hidden": true,
+        "agent": true,
+        "description": "Give up an in-progress task: it returns to the status it had before the claim. Allowed for the owner, an ancestor agent session of the owner and the user.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            },
+            "owner": {
+              "type": "string",
+              "description": "Needed only when you are not a Clubmate agent session: a name unique to you, e.g. your session id."
+            },
+            "note": {
+              "type": "string",
+              "description": "Progress or result note, e.g. \"merged in abc123\" or \"blocked on X\"."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "result": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number."
+            },
+            "title": {
+              "type": "string",
+              "description": "One-line title."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now"
+              ],
+              "description": "Task status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority."
+            },
+            "claimedBy": {
+              "type": "string",
+              "description": "Owner while in_progress."
+            },
+            "claimedAt": {
+              "type": "string",
+              "description": "When the claim was made, RFC 3339."
+            },
+            "claimedFrom": {
+              "type": "string",
+              "description": "Status before the claim."
+            },
+            "lastClaimedBy": {
+              "type": "string",
+              "description": "Who held the task before it was released or taken over."
+            },
+            "note": {
+              "type": "string",
+              "description": "Last progress or result note."
+            },
+            "createdBy": {
+              "type": "string",
+              "description": "user, an agent session id or agent."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.done",
+        "title": "Finish Backlog Task",
+        "hidden": true,
+        "agent": true,
+        "description": "Mark a task done, with a note saying how (e.g. the commit). Call it before you finish. Allowed for the owner, an ancestor agent session of the owner, the user, or anyone when the task is unclaimed or its claim is stale.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            },
+            "owner": {
+              "type": "string",
+              "description": "Needed only when you are not a Clubmate agent session: a name unique to you, e.g. your session id."
+            },
+            "note": {
+              "type": "string",
+              "description": "Progress or result note, e.g. \"merged in abc123\" or \"blocked on X\"."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "result": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number."
+            },
+            "title": {
+              "type": "string",
+              "description": "One-line title."
+            },
+            "description": {
+              "type": "string",
+              "description": "Markdown details."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idea",
+                "todo",
+                "in_progress",
+                "done",
+                "not_now"
+              ],
+              "description": "Task status."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low"
+              ],
+              "description": "Priority."
+            },
+            "claimedBy": {
+              "type": "string",
+              "description": "Owner while in_progress."
+            },
+            "claimedAt": {
+              "type": "string",
+              "description": "When the claim was made, RFC 3339."
+            },
+            "claimedFrom": {
+              "type": "string",
+              "description": "Status before the claim."
+            },
+            "lastClaimedBy": {
+              "type": "string",
+              "description": "Who held the task before it was released or taken over."
+            },
+            "note": {
+              "type": "string",
+              "description": "Last progress or result note."
+            },
+            "createdBy": {
+              "type": "string",
+              "description": "user, an agent session id or agent."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "RFC 3339."
+            }
+          }
+        }
+      }
+    ]
+  }
+}

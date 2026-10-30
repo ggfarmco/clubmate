@@ -185,8 +185,12 @@ struct TextFieldNodeView: View {
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSlot) private var sidebarSlot
 
+    private var lines: Int? {
+        node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 2 ? min($0, 50) : nil }
+    }
+
     var body: some View {
-        TextField("", text: $text, prompt: Text(node.string("placeholder") ?? "").foregroundStyle(theme.muted))
+        field
             .focused($focused)
             .onChange(of: router?.pending, initial: true) {
                 guard let sidebarSlot, router?.take(sidebarSlot + SidebarField.suffix) == true else { return }
@@ -195,8 +199,9 @@ struct TextFieldNodeView: View {
             .textFieldStyle(.plain)
             .font(theme.ui)
             .foregroundStyle(theme.foreground)
-            .padding(.horizontal, 6)
-            .frame(minWidth: 160, minHeight: theme.rowHeight)
+            .padding(.horizontal, theme.spacing.m)
+            .padding(.vertical, lines == nil ? 0 : theme.spacing.s)
+            .frame(minWidth: 160, minHeight: theme.rowHeight, alignment: lines == nil ? .center : .topLeading)
             .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 1))
             .padding(.horizontal, theme.gutter)
             .onSubmit(submit)
@@ -207,6 +212,16 @@ struct TextFieldNodeView: View {
                 guard let id = node.id else { return }
                 form?.values[id] = .string(value)
             }
+    }
+
+    @ViewBuilder
+    private var field: some View {
+        let prompt = Text(node.string("placeholder") ?? "").foregroundStyle(theme.muted)
+        if let lines {
+            TextField("", text: $text, prompt: prompt, axis: .vertical).lineLimit(2...lines)
+        } else {
+            TextField("", text: $text, prompt: prompt)
+        }
     }
 
     private func submit() {

@@ -224,7 +224,7 @@ public final class ProjectUIStore {
         guard params.subscription == subscription else { return }
         let slot = select(params.section, slot: params.slot)
         focusSerial += 1
-        focusRequest = FocusRequest(slot: slot, serial: focusSerial, edge: params.edge)
+        focusRequest = FocusRequest(slot: slot, serial: focusSerial, edge: params.edge, field: params.field ?? false)
     }
 
     private func recover() async {
@@ -314,11 +314,13 @@ public struct FocusRequest: Equatable, Sendable {
     public let slot: String
     public let serial: Int
     public let edge: String?
+    public let field: Bool
 
-    public init(slot: String, serial: Int, edge: String? = nil) {
+    public init(slot: String, serial: Int, edge: String? = nil, field: Bool = false) {
         self.slot = slot
         self.serial = serial
         self.edge = edge
+        self.field = field
     }
 
     public func accepts(side: SidebarSide) -> Bool {
@@ -353,6 +355,7 @@ private struct UIFocusNotification: Decodable, Sendable {
     let section: String
     let slot: String
     let edge: String?
+    let field: Bool?
 }
 
 private struct UINotification: Decodable, Sendable {

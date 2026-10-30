@@ -131,6 +131,10 @@ func (h *Host) Focus(ctx context.Context, projectID, section, slot string) error
 	return h.Call(ctx, "ui.focus", map[string]string{"projectId": projectID, "section": section, "slot": slot}, nil)
 }
 
+func (h *Host) FocusField(ctx context.Context, projectID, section string) error {
+	return h.Call(ctx, "ui.focus", map[string]any{"projectId": projectID, "section": section, "slot": section + ".sidebar", "field": true}, nil)
+}
+
 func (h *Host) FocusEdge(ctx context.Context, projectID, section, slot, edge string) error {
 	return h.Call(ctx, "ui.focus", map[string]string{"projectId": projectID, "section": section, "slot": slot, "edge": edge}, nil)
 }

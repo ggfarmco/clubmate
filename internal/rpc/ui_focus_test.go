@@ -59,6 +59,23 @@ func TestUIFocusNotifiesProjectSubscribers(t *testing.T) {
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
 
+func TestUIFocusFieldTargetsSidebarField(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo"}]}`)))
+	p := h.CreateProject(t, "p")
+	c := h.Client(t)
+	var sub struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
+	require.NoError(t, c.Call(t.Context(), "ui.focus", map[string]any{"projectId": p.ID, "section": "echo", "slot": "echo.sidebar", "field": true}, nil))
+	n, ok := nextFocus(c, 2*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	assert.JSONEq(t, fmt.Sprintf(`{"subscription":%q,"section":"echo","slot":"echo.sidebar","field":true}`, sub.Subscription), string(n.Params))
+	err := c.Call(t.Context(), "ui.focus", map[string]any{"projectId": p.ID, "section": "echo", "slot": "echo.main", "field": true}, nil)
+	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
+}
+
 func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
 	deadline := time.After(wait)
 	for {
