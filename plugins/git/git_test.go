@@ -676,7 +676,7 @@ func TestReviewBranchHeadWithoutCheckout(t *testing.T) {
 	assert.Equal(t, "feature/x", header["head"])
 	assert.Equal(t, "feature/x", header["headRef"])
 	assert.Equal(t, true, header["readOnly"])
-	assert.InDelta(t, 1, header["started"], 0)
+	assert.Positive(t, header["started"])
 	assert.JSONEq(t, fmt.Sprintf(`{"cwd":%q,"base":%q,"excludes":[]}`, repo, mergeBase+".."+sha), string(commandArgs(t, h, "editor-nvim.review-open")[0]))
 	require.NoError(t, reviewAction(t, h, id, "select", "a.go"))
 	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":%q,"target":%q}`, filepath.Join(repo, "a.go"), "rev:"+mergeBase, "rev:"+sha), string(commandArgs(t, h, "editor-nvim.diff")[0]))
@@ -733,6 +733,32 @@ func TestReviewErrors(t *testing.T) {
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-swap", nil, nil), "no review in progress")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "--output=x"}, nil), "invalid ref")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-filter", map[string]string{"glob": "`touch x`"}, nil), "glob may only contain")
+}
+
+func TestReviewStartsGrowAcrossRestartsAndMainShowsWithoutEditor(t *testing.T) {
+	repo := branchRepo(t)
+	h, id := openReady(t, repo)
+	h.WaitSlot(t, id, "git.main", func(n sdui.Node) bool { return n.Type == "empty" && n.Props["text"] != "" })
+	started := func(after float64) float64 {
+		var got float64
+		h.WaitSlot(t, id, reviewSlot, func(n sdui.Node) bool {
+			_, header := reviewView(t, n)
+			got, _ = header["started"].(float64)
+			return got > after
+		})
+		return got
+	}
+	review(t, h, id, nil)
+	first := started(0)
+	review(t, h, id, nil)
+	second := started(first)
+	restartGit(t, h)
+	h.WaitSlot(t, id, reviewSlot, func(n sdui.Node) bool {
+		_, header := reviewView(t, n)
+		return header != nil && header["started"] == nil
+	})
+	review(t, h, id, nil)
+	started(second)
 }
 
 func TestCorruptStoredReviewIgnored(t *testing.T) {

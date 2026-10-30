@@ -180,19 +180,12 @@ private struct WorkspaceView: View {
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
-            .onChange(of: reviewState) { old, new in
-                session.store?.sidebarTabs.reviewChanged(from: old, to: new)
-            }
             .onChange(of: app.settings.autoHideSidebar) { _, enabled in
                 if !enabled { session.store?.sidebarAutoHidden = false }
             }
     }
 
     private static let sidebarSuffix = ".sidebar"
-
-    private var reviewState: Int? {
-        session.store?.slots[ReviewSlot.slot].map { ReviewSlot.header($0.tree)?.started ?? 0 }
-    }
 
     private struct SidebarKey: Equatable {
         let section: String

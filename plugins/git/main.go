@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -82,7 +83,9 @@ type state struct {
 	commits  int
 	reviews  map[string]*review
 	active   string
-	starts   int
+	started  int64
+	listed   map[string][]leaf
+	gen      int
 	filters  filters
 	busy     string
 	failure  string
@@ -94,6 +97,8 @@ type app struct {
 	mu       sync.Mutex
 	projects map[string]*state
 	ops      opTable
+	hostOnce sync.Once
+	hosted   bool
 }
 
 func main() {
@@ -434,16 +439,21 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 		}
 		branch, err := gitrepo.Branch(ctx, repo)
 		logError("branch "+repo, err)
-		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}}
+		rv := repoView{Path: repo, Branch: branch, Entries: entries, Restorable: map[string]bool{}, Dirs: map[string]bool{}}
 		for _, l := range leaves(rv) {
 			if l.Group == groupChanges && blocked(l) == "" {
 				rv.Restorable[l.Path] = true
+			}
+			if info, err := os.Lstat(l.Path); l.Group == groupUntracked && err == nil && info.IsDir() {
+				rv.Dirs[l.Path] = true
 			}
 		}
 		views[repo] = rv
 	}
 	s.mu.Lock()
 	s.views = views
+	s.listed = map[string][]leaf{}
+	s.gen++
 	s.selected = s.follow(s.selected)
 	s.mu.Unlock()
 	a.refreshReview(ctx, h, id, s)
@@ -485,12 +495,45 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 		m.Selected = sel.id()
 	}
 	review := s.reviewModel()
+	listed, gen := maps.Clone(s.listed), s.gen
 	s.mu.Unlock()
-	m.Dirs = untrackedDirs(ctx, views, m.Folded)
+	if listed == nil {
+		listed = map[string][]leaf{}
+	}
+	m.Dirs = untrackedDirs(ctx, views, m.Folded, listed)
+	s.mu.Lock()
+	if s.gen == gen && s.listed != nil {
+		maps.Copy(s.listed, listed)
+	}
+	s.mu.Unlock()
 	_, err := h.Render(ctx, id, reviewSlot, reviewView(review))
 	logError("review "+id, err)
+	if !a.gitHosted(ctx, h) {
+		_, err = h.Render(ctx, id, mainSlot, sdui.Empty(noEditor))
+		logError("main "+id, err)
+	}
 	_, err = h.Render(ctx, id, sidebarSlot, sidebarView(m))
 	return err
+}
+
+func (a *app) gitHosted(ctx context.Context, h *pluginsdk.Host) bool {
+	a.hostOnce.Do(func() {
+		a.hosted = true
+		var sections []struct {
+			ID   string `json:"id"`
+			Host string `json:"host"`
+		}
+		if err := h.Call(ctx, "ui.sections", struct{}{}, &sections); err != nil {
+			logError("sections", err)
+			return
+		}
+		for _, sec := range sections {
+			if sec.ID == gitSection {
+				a.hosted = sec.Host != ""
+			}
+		}
+	})
+	return a.hosted
 }
 
 func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string) error {
@@ -657,31 +700,33 @@ func (s *state) leaf(id string) *leaf {
 		}
 	}
 	parts := strings.SplitN(id, idSep, 3)
-	if len(parts) != 3 || parts[1] != groupUntracked || !slices.Contains(s.repos, parts[0]) {
+	if len(parts) != 3 || parts[1] != groupUntracked || !slices.Contains(s.repos, parts[0]) || filepath.Clean(parts[2]) != parts[2] {
 		return nil
 	}
-	for _, l := range leaves(s.view(parts[0])) {
-		if l.Group == groupUntracked && strings.HasPrefix(parts[2], l.Path+string(filepath.Separator)) {
+	v := s.view(parts[0])
+	for _, l := range leaves(v) {
+		if v.Dirs[l.Path] && strings.HasPrefix(parts[2], l.Path+string(filepath.Separator)) {
 			return &leaf{Repo: parts[0], Group: groupUntracked, Path: parts[2], Code: "U"}
 		}
 	}
 	return nil
 }
 
-func untrackedDirs(ctx context.Context, views []repoView, folded map[string]bool) map[string][]leaf {
+func untrackedDirs(ctx context.Context, views []repoView, folded map[string]bool, listed map[string][]leaf) map[string][]leaf {
 	dirs := map[string][]leaf{}
 	for _, r := range views {
 		for _, l := range leaves(r) {
-			if l.Group != groupUntracked {
-				continue
-			}
-			if info, err := os.Lstat(l.Path); err != nil || !info.IsDir() {
+			if !r.Dirs[l.Path] {
 				continue
 			}
 			dirs[l.id()] = nil
-			if collapsed, ok := folded[l.id()]; ok && !collapsed {
-				dirs[l.id()] = dirFiles(ctx, l)
+			if collapsed, ok := folded[l.id()]; !ok || collapsed {
+				continue
 			}
+			if _, ok := listed[l.id()]; !ok {
+				listed[l.id()] = dirFiles(ctx, l)
+			}
+			dirs[l.id()] = listed[l.id()]
 		}
 	}
 	return dirs

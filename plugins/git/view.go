@@ -14,6 +14,7 @@ import (
 
 const (
 	sidebarSlot    = "git.sidebar"
+	mainSlot       = "git.main"
 	treeID         = "git"
 	idSep          = "\x00"
 	groupStaged    = "staged"
@@ -32,6 +33,7 @@ const (
 	maxTreeItems   = 4900
 	moreID         = "more"
 	noRepos        = "No repositories — add one with clubmate workspace add-folder"
+	noEditor       = "Select a change in the sidebar. Diffs open in the Code section, which is not loaded."
 )
 
 var groupTitles = []struct{ id, title string }{
@@ -46,6 +48,7 @@ type repoView struct {
 	Problem    string
 	Entries    []gitrepo.Entry
 	Restorable map[string]bool
+	Dirs       map[string]bool
 }
 
 type leaf struct {
@@ -238,7 +241,7 @@ type reviewHeader struct {
 	Warning  string       `json:"warning,omitempty"`
 	Error    string       `json:"error,omitempty"`
 	Chips    []reviewChip `json:"chips"`
-	Started  int          `json:"started,omitempty"`
+	Started  int64        `json:"started,omitempty"`
 }
 
 type reviewChip struct {

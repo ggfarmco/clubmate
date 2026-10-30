@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -105,7 +106,7 @@ type review struct {
 	selected  string
 	focus     string
 	folded    map[string]bool
-	started   int
+	started   int64
 }
 
 type reviewEntry struct {
@@ -256,8 +257,8 @@ func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *
 	if old := s.reviews[t.Real]; old != nil && old.base == base && old.branch == branch {
 		r.filters, r.selected, r.focus, r.folded = old.filters, old.selected, old.focus, old.folded
 	}
-	s.starts++
-	r.started = s.starts
+	s.started = max(s.started+1, time.Now().UnixMilli())
+	r.started = s.started
 	s.reviews[t.Real] = r
 	s.active = t.Real
 	s.mu.Unlock()

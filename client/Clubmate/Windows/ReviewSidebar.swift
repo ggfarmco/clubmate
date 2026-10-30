@@ -8,6 +8,7 @@ struct SectionSidebar: View {
     let section: String
 
     @Environment(\.theme) private var theme
+    @Environment(\.focusRouter) private var router
 
     var body: some View {
         let review = store.slots[ReviewSlot.slot]?.tree
@@ -30,6 +31,14 @@ struct SectionSidebar: View {
             }
             SlotPane(store: store, slot: current?.slot ?? "\(section).sidebar")
                 .id(current?.slot)
+                .environment(\.cycleSidebarTab, tabs.count > 1 ? cycler(tabs) : nil)
+        }
+    }
+
+    private func cycler(_ tabs: [SidebarTab]) -> SidebarTabCycler {
+        SidebarTabCycler { [store, section, router] delta in
+            guard store.sidebarTabs.cycle(section, in: tabs, by: delta) != nil else { return }
+            router?.request("\(section).sidebar")
         }
     }
 }

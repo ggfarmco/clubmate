@@ -272,12 +272,14 @@ public final class ProjectUIStore {
         let mine = views.filter { $0.projectId == projectID }
         slots = Dictionary(mine.map { ($0.slot, $0) }) { _, last in last }
         revs = slots.mapValues(\.rev)
+        if let review = slots[ReviewSlot.slot] { sidebarTabs.reviewSeen(review.tree) }
     }
 
     private func apply(_ view: SlotView) {
         guard view.projectId == projectID, view.rev > revs[view.slot] ?? 0 else { return }
         revs[view.slot] = view.rev
         slots[view.slot] = view
+        if view.slot == ReviewSlot.slot { sidebarTabs.reviewSeen(view.tree) }
     }
 
     private func restore(from state: JSONValue?) {

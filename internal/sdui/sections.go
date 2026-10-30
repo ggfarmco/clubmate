@@ -66,7 +66,16 @@ func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
 		s.list = append(s.list, Section(d))
 	}
 	for i, sec := range s.list {
-		if sec.Host != "" && !s.hostable(sec) {
+		if sec.Host != "" && (sec.Host == sec.ID || s.scopes[sec.Host] != sec.Scope) {
+			s.list[i].Host = ""
+		}
+	}
+	hosted := map[string]bool{}
+	for _, sec := range s.list {
+		hosted[sec.ID] = sec.Host != ""
+	}
+	for i, sec := range s.list {
+		if hosted[sec.Host] {
 			s.list[i].Host = ""
 		}
 	}
@@ -74,14 +83,6 @@ func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
 		return cmp.Or(cmp.Compare(a.Order, b.Order), strings.Compare(a.ID, b.ID))
 	})
 	return s
-}
-
-func (s *Sections) hostable(sec Section) bool {
-	if sec.Host == sec.ID || s.scopes[sec.Host] != sec.Scope {
-		return false
-	}
-	i := slices.IndexFunc(s.list, func(h Section) bool { return h.ID == sec.Host })
-	return i >= 0 && s.list[i].Host == ""
 }
 
 func (s *Sections) List() []Section {

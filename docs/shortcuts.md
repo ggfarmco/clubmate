@@ -51,8 +51,23 @@ Pickers are the fuzzy lists for worktrees and review refs: the worktree switcher
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the editor | |
 | . | Focus the tree on the folder under the cursor (on a file: its folder) | neo-tree `set_root` |
 | ⌫ | Move the focus up one level (from the top level: show the whole workspace) | neo-tree `navigate_up` |
+| < / > | Previous / next sidebar tab (Code: Files, Git, Review), wrapping | neo-tree `prev_source` / `next_source` |
 
 Defined in `ClubmateKit/TreeKeys.swift`.
+
+## Git list (Code sidebar, Git tab focused)
+
+The files tree keys above apply. In addition:
+
+| Keys | Action | Notes |
+|---|---|---|
+| ↩, o | Open the file's diff in nvim; focus stays in the list | |
+| ga | Stage the file or untracked folder under the cursor | neo-tree git_status `ga` |
+| gu | Unstage the staged file under the cursor | neo-tree git_status `gu` |
+| gr | Discard the unstaged changes of the file under the cursor (asks first) | neo-tree git_status `gr` |
+| gc | Focus the commit message field | neo-tree git_status `gc` |
+
+`g` waits for the next key; a key that is not listed is swallowed. A chord only acts when the file's context menu offers it. Defined in `ClubmateKit/TreeKeys.swift` (`TreeChord`).
 
 ## Review list (Code sidebar, Review tab focused)
 

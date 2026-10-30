@@ -23,6 +23,7 @@ public enum SectionHosting {
         guard let section = sections.first(where: { $0.id == id }) else { return nil }
         guard let host = host(of: section, in: sections) else { return SectionTarget(section: id, tab: nil, slot: slot) }
         let suffix = slot.hasPrefix("\(id).") ? String(slot.dropFirst(id.count + 1)) : ""
+        if section.slots.contains(suffix) { return SectionTarget(section: host, tab: slot, slot: "\(host).sidebar") }
         let mapped = suffix == "sidebar" || suffix == "main" ? "\(host).\(suffix)" : slot
         return SectionTarget(section: host, tab: "\(id).sidebar", slot: mapped)
     }
@@ -42,6 +43,7 @@ public struct SidebarTab: Equatable, Sendable, Identifiable {
 
 public struct SidebarTabs: Equatable, Sendable {
     private var choice: [String: String] = [:]
+    private var started: Int?
 
     public init() {}
 
@@ -60,12 +62,16 @@ public struct SidebarTabs: Equatable, Sendable {
         choice[section] = slot
     }
 
-    public mutating func reviewChanged(from old: Int?, to new: Int?) {
-        guard let old, let new, new > 0, new != old else { return }
-        choice[CodeSection.id] = ReviewSlot.slot
+    public mutating func reviewSeen(_ tree: SDUINode) {
+        let value = ReviewSlot.header(tree)?.started ?? 0
+        if let started, value > started { choice[CodeSection.id] = ReviewSlot.slot }
+        started = max(started ?? value, value)
     }
 
-    public mutating func reviewRequested() {
-        choice[CodeSection.id] = ReviewSlot.slot
+    public mutating func cycle(_ section: String, in tabs: [SidebarTab], by delta: Int) -> SidebarTab? {
+        guard let current = current(section, in: tabs), let index = tabs.firstIndex(of: current) else { return nil }
+        let next = tabs[(index + delta % tabs.count + tabs.count) % tabs.count]
+        choice[section] = next.slot
+        return next
     }
 }

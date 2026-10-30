@@ -105,6 +105,25 @@ extension EnvironmentValues {
     }
 }
 
+enum SidebarField {
+    static let suffix = ".field"
+}
+
+struct SidebarTabCycler {
+    let cycle: @MainActor (Int) -> Void
+}
+
+private struct CycleSidebarTabKey: EnvironmentKey {
+    static let defaultValue: SidebarTabCycler? = nil
+}
+
+extension EnvironmentValues {
+    var cycleSidebarTab: SidebarTabCycler? {
+        get { self[CycleSidebarTabKey.self] }
+        set { self[CycleSidebarTabKey.self] = newValue }
+    }
+}
+
 private struct SidebarSlotKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }

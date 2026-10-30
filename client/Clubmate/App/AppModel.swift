@@ -644,24 +644,19 @@ final class ProjectSession {
     }
 
     func review(base: String?) {
-        startReview(base: base, head: worktrees.current?.path)
+        run(ReviewCommand.start(base: base, head: worktrees.current?.path))
     }
 
     func chooseReviewBase(head: String?) {
         openPicker("Review against branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
-            self?.startReview(base: item.id, head: head)
+            self?.run(ReviewCommand.start(base: item.id, head: head))
         }
     }
 
     func chooseReviewHead(base: String) {
         openPicker("Review branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
-            self?.startReview(base: base, head: item.id)
+            self?.run(ReviewCommand.start(base: base, head: item.id))
         }
-    }
-
-    private func startReview(base: String?, head: String?) {
-        store?.sidebarTabs.reviewRequested()
-        run(ReviewCommand.start(base: base, head: head))
     }
 
     func askReviewGlob() {
