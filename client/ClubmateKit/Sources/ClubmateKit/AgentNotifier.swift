@@ -52,10 +52,10 @@ public struct AgentNotifier: Sendable {
 
     public init() {}
 
-    public mutating func alerts(_ sessions: [AgentSessionState], shown: (AgentSessionState) -> Bool) -> [AgentAlert] {
+    public func pending(_ sessions: [AgentSessionState], shown: (AgentSessionState) -> Bool) -> [AgentAlert] {
         var alerts: [AgentAlert] = []
         for session in sessions where session.status == Self.waiting && !shown(session) {
-            for request in session.requests where posted.insert(session.session + "/" + request).inserted {
+            for request in session.requests where !posted.contains(session.session + "/" + request) {
                 alerts.append(AgentAlert(
                     workspace: session.workspace,
                     session: session.session,
@@ -66,6 +66,14 @@ public struct AgentNotifier: Sendable {
             }
         }
         return alerts
+    }
+
+    public func isPosted(_ alert: AgentAlert) -> Bool {
+        posted.contains(alert.session + "/" + alert.request)
+    }
+
+    public mutating func markPosted(_ alert: AgentAlert) {
+        posted.insert(alert.session + "/" + alert.request)
     }
 
     public static func selectEvent(workspace: String, session: String) -> UIEvent {

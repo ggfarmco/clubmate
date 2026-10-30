@@ -99,21 +99,35 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func checkAgents(_ workspace: String, session: String?) async {
-        guard case .success(let listed) = await run(workspace, CommandInvocation(id: AgentNotifier.sessionsCommand)) else { return }
+        guard !focus().shows(workspace: workspace, session: session),
+              case .success(let listed) = await run(workspace, CommandInvocation(id: AgentNotifier.sessionsCommand)) else { return }
         let sessions = AgentSessionState.list(listed).filter { session == nil || $0.session == session }
         let current = focus()
-        for alert in notifier.alerts(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.session) }) {
-            await post(HubNotification(alert))
+        for alert in notifier.pending(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.session) }) where !notifier.isPosted(alert) {
+            let note = HubNotification(alert)
+            guard accept(note) else { continue }
+            notifier.markPosted(alert)
+            await deliver(note)
         }
     }
 
     private func post(_ note: HubNotification) async {
-        guard hub.receive(note, focus: focus()) else { return }
+        guard accept(note) else { return }
+        await deliver(note)
+    }
+
+    private func accept(_ note: HubNotification) -> Bool {
+        guard hub.receive(note, focus: focus()) else { return false }
         updateBadge()
+        return true
+    }
+
+    private func deliver(_ note: HubNotification) async {
         let center = UNUserNotificationCenter.current()
         guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
         let content = UNMutableNotificationContent()
         content.title = note.headline(workspaceName: workspaceName(note.workspace))
+        content.subtitle = note.subtitle
         content.body = note.message
         content.sound = .default
         content.threadIdentifier = note.session ?? note.workspace

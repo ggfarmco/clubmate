@@ -19,6 +19,11 @@ public enum NotificationKind: String, Sendable, CaseIterable {
 }
 
 public struct HubNotification: Sendable, Equatable {
+    public enum Source: Sendable, Equatable {
+        case bus
+        case agentsSection
+    }
+
     public static let topic = "notify.posted"
 
     public let id: String
@@ -28,8 +33,10 @@ public struct HubNotification: Sendable, Equatable {
     public let title: String
     public let message: String
     public let kind: NotificationKind
+    public let viaAgent: Bool
+    public let source: Source
 
-    public init(id: String, workspace: String, session: String? = nil, owner: String? = nil, title: String = "", message: String, kind: NotificationKind = .info) {
+    public init(id: String, workspace: String, session: String? = nil, owner: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, source: Source = .bus) {
         self.id = id
         self.workspace = workspace
         self.session = session
@@ -37,10 +44,12 @@ public struct HubNotification: Sendable, Equatable {
         self.title = title
         self.message = message
         self.kind = kind
+        self.viaAgent = viaAgent
+        self.source = source
     }
 
     public init(_ alert: AgentAlert) {
-        self.init(id: "\(alert.session)/\(alert.request)", workspace: alert.workspace, session: alert.session, owner: AgentNotifier.section, title: alert.title, message: alert.body, kind: .permission)
+        self.init(id: "\(alert.session)/\(alert.request)", workspace: alert.workspace, session: alert.session, owner: AgentNotifier.section, title: alert.title, message: alert.body, kind: .permission, source: .agentsSection)
     }
 
     public static func posted(_ payload: JSONValue) -> HubNotification? {
@@ -54,8 +63,18 @@ public struct HubNotification: Sendable, Equatable {
             owner: nonEmpty("owner"),
             title: fields["title"]?.stringValue ?? "",
             message: message,
-            kind: fields["kind"]?.stringValue.flatMap(NotificationKind.init(rawValue:)) ?? .info
+            kind: fields["kind"]?.stringValue.flatMap(NotificationKind.init(rawValue:)) ?? .info,
+            viaAgent: fields["agent"] == .bool(true)
         )
+    }
+
+    public var subtitle: String {
+        viaAgent ? "via agent" : ""
+    }
+
+    var coveredByAgentsSection: Bool {
+        guard source == .bus, kind == .needsInput || kind == .permission, let session else { return false }
+        return session.hasPrefix(NotificationHub.agentSessionPrefix)
     }
 
     public func headline(workspaceName: String?) -> String {
@@ -85,7 +104,8 @@ public struct HubFocus: Sendable, Equatable {
     public func shows(workspace: String, session: String?) -> Bool {
         guard front == workspace else { return false }
         guard let session else { return true }
-        return main?.surfaceSessionID == session
+        return main?.showsSurface(session) == true
+            || sidebar?.showsSurface(session) == true
             || main?.contains(idPrefix: session + "/") == true
             || sidebar?.selects(session) == true
     }
@@ -107,7 +127,7 @@ public struct NotificationHub: Sendable {
     }
 
     public mutating func receive(_ notification: HubNotification, focus: HubFocus) -> Bool {
-        if focus.shows(workspace: notification.workspace, session: notification.session) { return false }
+        if notification.coveredByAgentsSection || focus.shows(workspace: notification.workspace, session: notification.session) { return false }
         if focus.front != notification.workspace { unread[notification.workspace, default: 0] += 1 }
         return true
     }
@@ -134,23 +154,47 @@ public struct NotificationHub: Sendable {
         }
     }
 
-    private static let agentSessionPrefix = "agt_"
+    static let agentSessionPrefix = "agt_"
 }
 
 public enum ClaudeHooks {
     public static func snippet(command: String) -> String {
-        let hooks: [String: [[String: [[String: String]]]]] = [
-            "Notification": [["hooks": [["type": "command", "command": "jq -r .message | \(command) notify --kind needs-input --title Claude -"]]]],
-            "Stop": [["hooks": [["type": "command", "command": "\(command) notify --kind done --title Claude Finished"]]]],
-        ]
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        guard let data = try? encoder.encode(["hooks": hooks]) else { return "" }
-        return String(decoding: data, as: UTF8.self)
+        """
+        {
+          "hooks": {
+            "Notification": [
+              {
+                "hooks": [
+                  {
+                    "type": "command",
+                    "command": "jq -r '.message // empty' | \(command) notify --quiet --kind needs-input --title Claude -"
+                  }
+                ]
+              }
+            ],
+            "Stop": [
+              {
+                "hooks": [
+                  {
+                    "type": "command",
+                    "command": "\(command) notify --quiet --kind done --title Claude Finished"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+
+        """
     }
 }
 
 extension SDUINode {
+    func showsSurface(_ session: String) -> Bool {
+        if type == "surface", string("sessionId") == session { return true }
+        return children.contains { $0.showsSurface(session) }
+    }
+
     func contains(idPrefix: String) -> Bool {
         if id?.hasPrefix(idPrefix) == true { return true }
         return children.contains { $0.contains(idPrefix: idPrefix) }

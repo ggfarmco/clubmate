@@ -5,17 +5,18 @@ Anything running in Clubmate can raise a macOS notification: a script, a build, 
 ## `cm notify`
 
 ```sh
-cm notify [--title T] [--kind K] [--workspace W] [--session S] <message | ->
+cm notify [--title T] [--kind K] [--workspace W] [--session S] [--quiet] <message | ->
 ```
 
 `clubmate notify` is the same command. Development builds install the CLI as `cm-dev`.
 
-- Inside a Clubmate terminal the workspace and session come from `$CLUBMATE_PROJECT_ID` and `$CLUBMATE_SESSION_ID`, so a plain `cm notify "Build finished"` points at the terminal it ran in. `--workspace` and `--session` override them; the env session is used only when the workspace is the env workspace.
+- Inside a Clubmate terminal the workspace and session come from `$CLUBMATE_PROJECT_ID` and `$CLUBMATE_SESSION_ID`, so a plain `cm notify "Build finished"` points at the terminal it ran in. Inside an agent session of the Agents section `$CLUBMATE_AGENT_SESSION` names that session and wins over `$CLUBMATE_SESSION_ID`. `--workspace` and `--session` override them; the env session is used only when the workspace is the env workspace.
 - Outside Clubmate, `--workspace` is required unless exactly one workspace is open in the app.
 - `--kind` is one of `needs-input`, `permission`, `done`, `stuck`, `info` (default `info`). Any other kind is an error.
 - The message is cut to 1000 characters and the title to 120 (cut, not rejected). Several words are joined with spaces. `-` reads the message from stdin, so hooks can pipe into it.
 - It prints the notification id and exits 0 once the core accepted it. It never waits for the app; if the app isn't running the notification is dropped.
-- At most 5 notifications per 10 seconds per workspace; extra ones fail with `too many notifications`.
+- At most 5 notifications per 10 seconds per workspace and 20 in all; extra ones fail with `too many notifications`.
+- `--quiet` is for hooks: it prints nothing and exits 0 when Clubmate isn't running, no workspace resolves, the message is empty or the rate limit hits. Other errors (an unknown kind) still fail.
 
 Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`, non-destructive): `message`, optional `title`, `kind` and `session`.
 
@@ -25,7 +26,8 @@ Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`
 - The title is the workspace name and the notification's title (the kind when it has none); the body is the message.
 - Clicking it brings up the workspace's window and the session: a terminal is selected in Terminals and focused, an agent session opens in Agents.
 - macOS asks for notification permission the first time one is shown.
-- Agents: a session waiting for permission is posted through the same path as kind `permission`, once per request.
+- Agents: a session waiting for permission is posted through the same path as kind `permission`, once per request. A `needs-input` or `permission` post that names an agent session (`agt_…`, e.g. from Claude's hooks inside the Agents section) is dropped, because that path already covers it; `done` and the other kinds are shown (skipped while that session is on screen, a click opens it).
+- A notification an agent posted through MCP says "via agent" under the title.
 - Unread: each workspace counts the notifications posted while it was not in front. The count shows next to the workspace in the switcher (⌃⌘W), on the switcher button for the other workspaces of a window, and in total on the Dock icon. It clears when the workspace's window becomes key with the app active.
 
 ## Claude Code hooks
@@ -39,8 +41,8 @@ Claude Code can call `cm notify` from its hooks. **Settings → Agents → Copy 
       {
         "hooks": [
           {
-            "command": "jq -r .message | cm notify --kind needs-input --title Claude -",
-            "type": "command"
+            "type": "command",
+            "command": "jq -r '.message // empty' | cm notify --quiet --kind needs-input --title Claude -"
           }
         ]
       }
@@ -49,8 +51,8 @@ Claude Code can call `cm notify` from its hooks. **Settings → Agents → Copy 
       {
         "hooks": [
           {
-            "command": "cm notify --kind done --title Claude Finished",
-            "type": "command"
+            "type": "command",
+            "command": "cm notify --quiet --kind done --title Claude Finished"
           }
         ]
       }
@@ -59,7 +61,8 @@ Claude Code can call `cm notify` from its hooks. **Settings → Agents → Copy 
 }
 ```
 
-- `Notification` fires when Claude asks for permission or waits for your input; its hook gets JSON on stdin and `jq` pulls out the message.
+- `Notification` fires when Claude asks for permission or waits for your input; its hook gets JSON on stdin and `jq` pulls out the message (nothing when there is none).
+- `--quiet` keeps the hooks best-effort: Claude never sees an error when Clubmate is closed or busy.
 - `Stop` fires when Claude finishes a turn.
 - The hooks need the `cm` command on `PATH` (**Clubmate → Install “cm” Command…**) and `jq`.
-- Claude running in a Clubmate terminal inherits `CLUBMATE_PROJECT_ID` and `CLUBMATE_SESSION_ID`, so the notification is skipped while you look at that terminal and clicking it brings you back to it. Claude running elsewhere needs exactly one open workspace, or add `--workspace <id>` to the commands.
+- Claude running in a Clubmate terminal inherits `CLUBMATE_PROJECT_ID` and `CLUBMATE_SESSION_ID`, so the notification is skipped while you look at that terminal and clicking it brings you back to it. Claude in the Agents section gets `CLUBMATE_AGENT_SESSION` (passed per session through the adapter's `_meta.claudeCode.options.env`), so its `Stop` hook points at that agent session. Claude running elsewhere needs exactly one open workspace, or add `--workspace <id>` to the commands; otherwise `--quiet` drops the notification.

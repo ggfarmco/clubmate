@@ -13,6 +13,7 @@ final class NotificationHubTests: XCTestCase {
             (HubFocus(appActive: false, workspace: "w", main: terminal), true),
             (HubFocus(appActive: true, workspace: "other", main: terminal), true),
             (HubFocus(appActive: true, workspace: "w", main: SDUINode(type: "surface", props: ["sessionId": .string("ses_2")])), true),
+            (HubFocus(appActive: true, workspace: "w", main: SDUINode(type: "split", children: [SDUINode(type: "surface", props: ["sessionId": .string("ses_2")]), terminal])), false),
         ]
         for (index, (focus, posts)) in cases.enumerated() {
             var hub = NotificationHub()
@@ -40,20 +41,33 @@ final class NotificationHubTests: XCTestCase {
         XCTAssertEqual(hub.total, 1)
     }
 
+    func testDropsAgentSessionNeedsInputButKeepsDone() {
+        var hub = NotificationHub()
+        let away = HubFocus(appActive: false, workspace: nil)
+        for kind in [NotificationKind.needsInput, .permission] {
+            XCTAssertFalse(hub.receive(HubNotification(id: kind.rawValue, workspace: "w", session: "agt_1", message: "?", kind: kind), focus: away))
+        }
+        XCTAssertTrue(hub.receive(HubNotification(id: "d", workspace: "w", session: "agt_1", message: "Finished", kind: .done), focus: away))
+        XCTAssertEqual(hub.unread, ["w": 1])
+    }
+
     func testAgentPermissionPostsOncePerRequestWhenHidden() {
         var notifier = AgentNotifier()
         let waiting = AgentSessionState(workspace: "w", session: "agt_1", agent: "claude", title: "Fix", status: "waiting", requests: ["permission-1"])
         let running = AgentSessionState(workspace: "w", session: "agt_2", agent: "claude", title: "Run", status: "running", requests: ["permission-9"])
 
-        XCTAssertEqual(notifier.alerts([running], shown: { _ in false }), [])
-        XCTAssertEqual(notifier.alerts([waiting], shown: { _ in true }), [])
-        let alerts = notifier.alerts([waiting], shown: { _ in false })
+        XCTAssertEqual(notifier.pending([running], shown: { _ in false }), [])
+        XCTAssertEqual(notifier.pending([waiting], shown: { _ in true }), [])
+        let alerts = notifier.pending([waiting], shown: { _ in false })
         XCTAssertEqual(alerts.map(\.request), ["permission-1"])
-        XCTAssertEqual(alerts.map(HubNotification.init).map(\.kind), [.permission])
-        XCTAssertEqual(notifier.alerts([waiting], shown: { _ in false }), [])
+        var hub = NotificationHub()
+        XCTAssertTrue(hub.receive(HubNotification(alerts[0]), focus: HubFocus(appActive: false, workspace: nil)))
+        XCTAssertEqual(notifier.pending([waiting], shown: { _ in false }).map(\.request), ["permission-1"])
+        notifier.markPosted(alerts[0])
+        XCTAssertEqual(notifier.pending([waiting], shown: { _ in false }), [])
 
         var next = waiting
         next.requests = ["permission-1", "permission-2"]
-        XCTAssertEqual(notifier.alerts([next], shown: { _ in false }).map(\.request), ["permission-2"])
+        XCTAssertEqual(notifier.pending([next], shown: { _ in false }).map(\.request), ["permission-2"])
     }
 }
