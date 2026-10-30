@@ -48,7 +48,8 @@ final class NotificationHubTests: XCTestCase {
             XCTAssertFalse(hub.receive(HubNotification(id: kind.rawValue, workspace: "w", session: "agt_1", message: "?", kind: kind), focus: away))
         }
         XCTAssertTrue(hub.receive(HubNotification(id: "d", workspace: "w", session: "agt_1", message: "Finished", kind: .done), focus: away))
-        XCTAssertEqual(hub.unread, ["w": 1])
+        XCTAssertTrue(hub.receive(HubNotification(id: "q", workspace: "w", session: "agt_1", message: "Which?", kind: .needsInput, viaAgent: true), focus: away))
+        XCTAssertEqual(hub.unread, ["w": 2])
     }
 
     func testAgentPermissionPostsOncePerRequestWhenHidden() {

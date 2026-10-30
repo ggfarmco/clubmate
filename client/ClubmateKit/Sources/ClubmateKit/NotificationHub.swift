@@ -73,7 +73,7 @@ public struct HubNotification: Sendable, Equatable {
     }
 
     var coveredByAgentsSection: Bool {
-        guard source == .bus, kind == .needsInput || kind == .permission, let session else { return false }
+        guard source == .bus, !viaAgent, kind == .needsInput || kind == .permission, let session else { return false }
         return session.hasPrefix(NotificationHub.agentSessionPrefix)
     }
 
