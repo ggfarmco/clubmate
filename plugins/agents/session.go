@@ -483,8 +483,19 @@ func (s *session) beginTurnLocked() int {
 }
 
 func (s *session) enqueueLocked(args promptArgs) {
+	s.queue = append(s.queue, s.queuedLocked(args))
+}
+
+func (s *session) requeueLocked(args promptArgs) {
+	if strings.TrimSpace(args.Text) == "" && len(args.Attachments) == 0 {
+		return
+	}
+	s.queue = slices.Insert(s.queue, 0, s.queuedLocked(args))
+}
+
+func (s *session) queuedLocked(args promptArgs) queuedPrompt {
 	s.queueSeq++
-	s.queue = append(s.queue, queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments})
+	return queuedPrompt{ID: "q" + strconv.Itoa(s.queueSeq), Text: args.Text, Attachments: args.Attachments}
 }
 
 func (s *session) dequeueLocked(extra *promptArgs) (promptArgs, bool) {

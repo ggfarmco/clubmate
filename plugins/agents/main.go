@@ -529,7 +529,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		a.fail(s, err.Error())
 		return
 	}
-	if a.abandon(s) {
+	if a.abandon(s, args) {
 		return
 	}
 	rec := s.snapshot()
@@ -553,7 +553,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		}
 		return
 	}
-	if a.abandon(s) {
+	if a.abandon(s, args) {
 		return
 	}
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)}
@@ -609,7 +609,7 @@ func (a *app) checktime(rec record) {
 	}
 }
 
-func (a *app) abandon(s *session) bool {
+func (a *app) abandon(s *session, args promptArgs) bool {
 	s.mu.Lock()
 	switch {
 	case s.deleted || s.rec.Closed:
@@ -618,6 +618,7 @@ func (a *app) abandon(s *session) bool {
 		return true
 	case s.cancelRequested:
 		s.running = false
+		s.requeueLocked(args)
 		s.recordLocked(actorUser, kindTurnEnd, turnEndPayload{StopReason: acp.StopCancelled})
 		if s.rec.Status == statusWaiting {
 			s.prior = statusDone
