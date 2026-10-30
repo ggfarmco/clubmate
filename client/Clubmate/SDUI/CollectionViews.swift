@@ -475,8 +475,9 @@ private struct ItemMenu: ViewModifier {
             content
         } else {
             content.contextMenu {
-                ForEach(entries) { entry in
-                    Button(entry.label) { choose(entry) }
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    if entry.confirm != nil, index > 0 { Divider() }
+                    Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
                 }
             }
         }
