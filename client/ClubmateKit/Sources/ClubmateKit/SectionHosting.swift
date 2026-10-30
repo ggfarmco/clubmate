@@ -34,6 +34,12 @@ public enum SectionHosting {
     }
 }
 
+extension SDUINode {
+    public var hasTextField: Bool {
+        type == "textField" || children.contains { $0.hasTextField }
+    }
+}
+
 public struct SidebarTab: Equatable, Sendable, Identifiable {
     public let slot: String
     public let title: String

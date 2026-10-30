@@ -22,6 +22,14 @@ final class SectionHostingTests: XCTestCase {
         XCTAssertEqual(SectionHosting.rail(Array(all.dropFirst())).map(\.id), ["git"])
     }
 
+    func testReviewStartedRightAfterLaunchSwitches() {
+        let tabs = SidebarTabs.tabs(section: CodeSection.id, title: "Code", hosted: [], review: true)
+        var state = SidebarTabs()
+        state.reviewSeen(SDUINode(type: "empty"))
+        state.reviewSeen(SDUINode(type: "tree", props: ["review": .object(["base": .string("main"), "head": .string("x"), "started": .number(100)])]))
+        XCTAssertEqual(state.current(CodeSection.id, in: tabs)?.title, "Review")
+    }
+
     func testSidebarTabIsTheUsersUntilAReviewStarts() throws {
         let hosted = try sections(#"[{"id":"git","title":"Git","icon":"","order":15,"scope":"project","plugin":"git","host":"editor-nvim"}]"#)
         let tabs = SidebarTabs.tabs(section: CodeSection.id, title: "Code", hosted: hosted, review: true)

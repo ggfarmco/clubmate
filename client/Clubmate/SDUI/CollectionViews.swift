@@ -104,6 +104,7 @@ struct TreeNodeView: View {
     @Environment(\.sidebarSide) private var side
     @Environment(\.sidebarSlot) private var sidebarSlot
     @Environment(\.cycleSidebarTab) private var cycleSidebarTab
+    @Environment(\.sidebarHasField) private var sidebarHasField
 
     private static let stickyLimit = 4
 
@@ -161,6 +162,9 @@ struct TreeNodeView: View {
         .focusEffectDisabled()
         .focused($focused)
         .keyMonitor(active: focused, handle: handle)
+        .onChange(of: focused) { _, focused in
+            if !focused { leader = false }
+        }
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
@@ -246,7 +250,7 @@ struct TreeNodeView: View {
             guard let cursor, let entry = rows.first(where: { $0.id == cursor })?.item.item.menu.first(where: { $0.action == action }) else { return }
             dispatch.choose(entry, item: cursor, in: node)
         case .focusField:
-            if let sidebarSlot { router?.request(sidebarSlot + SidebarField.suffix) }
+            if let sidebarSlot, sidebarHasField { router?.request(sidebarSlot + SidebarField.suffix) }
         case nil:
             break
         }

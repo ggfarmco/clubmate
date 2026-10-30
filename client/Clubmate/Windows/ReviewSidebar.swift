@@ -32,6 +32,7 @@ struct SectionSidebar: View {
             SlotPane(store: store, slot: current?.slot ?? "\(section).sidebar")
                 .id(current?.slot)
                 .environment(\.cycleSidebarTab, tabs.count > 1 ? cycler(tabs) : nil)
+                .environment(\.sidebarHasField, current.flatMap { store.slots[$0.slot]?.tree.hasTextField } ?? false)
         }
     }
 

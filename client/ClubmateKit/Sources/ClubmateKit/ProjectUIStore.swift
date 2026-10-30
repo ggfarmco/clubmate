@@ -272,7 +272,7 @@ public final class ProjectUIStore {
         let mine = views.filter { $0.projectId == projectID }
         slots = Dictionary(mine.map { ($0.slot, $0) }) { _, last in last }
         revs = slots.mapValues(\.rev)
-        if let review = slots[ReviewSlot.slot] { sidebarTabs.reviewSeen(review.tree) }
+        sidebarTabs.reviewSeen(slots[ReviewSlot.slot]?.tree ?? SDUINode(type: "empty"))
     }
 
     private func apply(_ view: SlotView) {
