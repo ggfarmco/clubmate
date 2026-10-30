@@ -36,7 +36,7 @@
         "args": {
           "properties": {
             "base": {"type": "string", "description": "Branch, remote branch or worktree root to compare against; defaults to the repo's default base (origin/HEAD, main or master). A worktree root means its branch."},
-            "head": {"type": "string", "description": "Worktree root, or a branch checked out in a worktree, to review; defaults to the current worktree of the first git folder. The folder switches to it."}
+            "head": {"type": "string", "description": "Worktree root or branch to review; defaults to the current worktree of the first git folder. A worktree, or a branch checked out in one, switches the folder to it; any other local or remote branch is reviewed read-only from its commits (merge-base to branch tip) without a checkout."}
           }
         }
       },
@@ -57,7 +57,7 @@
         "id": "git.review-swap",
         "title": "Swap Review Sides",
         "agent": true,
-        "description": "Swap base and head of the current review: the base's worktree becomes the reviewed head and the old head becomes the base. Fails when the base is not checked out in a worktree."
+        "description": "Swap base and head of the current review: the base (its worktree, else the branch read-only) becomes the reviewed head and the old head becomes the base."
       },
       {
         "id": "git.review-filter",

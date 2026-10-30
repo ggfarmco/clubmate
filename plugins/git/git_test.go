@@ -640,11 +640,33 @@ func TestReviewRefsFuzzy(t *testing.T) {
 	assert.Empty(t, refs, "the head worktree and its branch are not base candidates")
 }
 
+func TestReviewBranchHeadWithoutCheckout(t *testing.T) {
+	repo := branchRepo(t)
+	git(t, repo, "checkout", "-q", "main")
+	write(t, filepath.Join(repo, "u.go"), "u\n")
+	sha := git(t, repo, "rev-parse", "feature/x")
+	mergeBase := git(t, repo, "merge-base", "main", "feature/x")
+	manifest := strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.review-open":{"mode":"native"},"editor-nvim.diff":null},`, 1)
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, manifest))
+
+	review(t, h, id, map[string]string{"base": "main", "head": "feature/x"})
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "feature/x", header["head"])
+	assert.Equal(t, "feature/x", header["headRef"])
+	assert.Equal(t, true, header["readOnly"])
+	assert.JSONEq(t, fmt.Sprintf(`{"cwd":%q,"base":%q,"excludes":[]}`, repo, mergeBase+".."+sha), string(commandArgs(t, h, "editor-nvim.review-open")[0]))
+	require.NoError(t, reviewAction(t, h, id, "select", "a.go"))
+	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":%q,"target":%q}`, filepath.Join(repo, "a.go"), "rev:"+mergeBase, "rev:"+sha), string(commandArgs(t, h, "editor-nvim.diff")[0]))
+	assert.Equal(t, "main", git(t, repo, "branch", "--show-current"))
+	assert.Equal(t, repo, firstRoot(t, h, id))
+}
+
 func TestReviewErrors(t *testing.T) {
 	repo := branchRepo(t)
 	h, id := openReady(t, repo)
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "gone"}, nil), "unknown branch gone")
-	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"head": "nope"}, nil), "nope is not checked out in a worktree")
+	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"head": "nope"}, nil), "unknown branch nope")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-swap", nil, nil), "no review in progress")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review", map[string]string{"base": "--output=x"}, nil), "invalid ref")
 	assert.ErrorContains(t, runCommand(t, h, id, "git.review-filter", map[string]string{"glob": "`touch x`"}, nil), "glob may only contain")

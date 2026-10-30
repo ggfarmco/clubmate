@@ -54,7 +54,6 @@ var (
 	testGlobs      = []string{"*_test.go", "**/testdata/**", "*.spec.*", "*.test.*"}
 	generatedGlobs = []string{"go.sum", "**/go.sum", "go.mod", "**/go.mod", "*-lock.json", "*-lock.yaml", "*.lock", "*.pb.go"}
 
-	errNotCheckedOut = errors.New("is not checked out in a worktree")
 	errNoReview      = errors.New("no review in progress")
 	errBadGlob       = errors.New("glob may only contain letters, digits and * ? [ ] { } , . _ - / !")
 	errReviewDir     = errors.New("dir must be 1 or -1")
@@ -72,6 +71,7 @@ type filters struct {
 
 type storedReview struct {
 	Base    string  `json:"base"`
+	Head    string  `json:"head,omitempty"`
 	Filters filters `json:"filters"`
 }
 
@@ -83,6 +83,8 @@ type storedReviews struct {
 type review struct {
 	head      string
 	base      string
+	branch    string
+	headSha   string
 	filters   filters
 	mergeBase string
 	mode      string
@@ -220,7 +222,7 @@ func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *
 			return fmt.Errorf("%w: %q", errBadRef, ref)
 		}
 	}
-	f, t, err := headTarget(ctx, h, id, head)
+	f, t, branch, err := headTarget(ctx, h, id, head)
 	if err != nil {
 		return err
 	}
@@ -233,12 +235,18 @@ func (a *app) startReview(ctx context.Context, h *pluginsdk.Host, id string, s *
 	if err != nil {
 		return err
 	}
-	if _, err := gitrepo.MergeBase(ctx, t.Real, ref, currentHead); err != nil {
+	headSha := currentHead
+	if branch != "" {
+		if headSha, err = commitOf(ctx, t.Real, branch); err != nil {
+			return err
+		}
+	}
+	if _, err := gitrepo.MergeBase(ctx, t.Real, ref, headSha); err != nil {
 		return errors.New(reviewError(base, err))
 	}
 	s.mu.Lock()
-	r := &review{head: t.Real, base: base, filters: s.filters, folded: map[string]bool{}}
-	if old := s.reviews[t.Real]; old != nil && old.base == base {
+	r := &review{head: t.Real, base: base, branch: branch, filters: s.filters, folded: map[string]bool{}}
+	if old := s.reviews[t.Real]; old != nil && old.base == base && old.branch == branch {
 		r.filters, r.selected, r.focus, r.folded = old.filters, old.selected, old.focus, old.folded
 	}
 	s.reviews[t.Real] = r
@@ -264,7 +272,7 @@ func (a *app) swapReview(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	if r == nil {
 		return errNoReview
 	}
-	if err := a.startReview(ctx, h, id, s, r.head, r.base); err != nil {
+	if err := a.startReview(ctx, h, id, s, cmp.Or(r.branch, r.head), r.base); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -330,7 +338,7 @@ func (a *app) reviewRefs(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	s.mu.Lock()
 	head := s.active
 	s.mu.Unlock()
-	f, current, err := headTarget(ctx, h, id, head)
+	f, current, _, err := headTarget(ctx, h, id, head)
 	if err != nil {
 		return nil, err
 	}
@@ -414,18 +422,31 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	cur := currents[at]
 	s.active = cur.t.Real
 	r := s.reviews[s.active]
-	base, opened, mode, excludes, closed := r.base, r.opened, r.mode, r.filters.excludes(), r.closed
+	base, branch, opened, mode, excludes, closed := r.base, r.branch, r.opened, r.mode, r.filters.excludes(), r.closed
 	s.mu.Unlock()
-	headLabel, err := gitrepo.Branch(ctx, cur.t.Real)
-	logError("branch "+cur.t.Real, err)
+	headLabel := branch
+	if branch == "" {
+		var err error
+		headLabel, err = gitrepo.Branch(ctx, cur.t.Real)
+		logError("branch "+cur.t.Real, err)
+	}
 	ref, baseLabel, warning, err := resolveBase(ctx, cur.f, base)
-	var mergeBase string
+	var mergeBase, headSha, rev string
 	var changes []gitrepo.Change
-	if err == nil {
-		mergeBase, err = gitrepo.MergeBase(ctx, cur.t.Real, ref, currentHead)
+	if err == nil && branch != "" {
+		headSha, err = commitOf(ctx, cur.t.Real, branch)
 	}
 	if err == nil {
+		mergeBase, err = gitrepo.MergeBase(ctx, cur.t.Real, ref, cmp.Or(headSha, currentHead))
+	}
+	switch {
+	case err != nil:
+	case branch == "":
+		rev = mergeBase
 		changes, err = gitrepo.WorkingChanges(ctx, cur.t.Real, mergeBase)
+	default:
+		rev = mergeBase + ".." + headSha
+		changes, err = gitrepo.CommitChanges(ctx, cur.t.Real, mergeBase, headSha)
 	}
 	if err != nil {
 		s.mu.Lock()
@@ -435,9 +456,9 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	}
 	reopened := false
 	var editorErr error
-	if opened != mergeBase && !closed {
+	if opened != rev && !closed {
 		var out openResult
-		if editorErr = h.RunCommand(ctx, openCommand, id, openArgs{Cwd: cur.t.Real, Base: mergeBase, Excludes: excludes}, &out); editorErr != nil {
+		if editorErr = h.RunCommand(ctx, openCommand, id, openArgs{Cwd: cur.t.Real, Base: rev, Excludes: excludes}, &out); editorErr != nil {
 			logError("review-open "+id, editorErr)
 		} else {
 			mode, reopened = cmp.Or(out.Mode, nativeMode), true
@@ -455,9 +476,9 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 		return
 	}
 	r.err, r.headLabel, r.baseLabel, r.warning = editorError(editorErr), headLabel, baseLabel, warning
-	r.mergeBase, r.changes, r.mode = mergeBase, changes, mode
+	r.mergeBase, r.headSha, r.changes, r.mode = mergeBase, headSha, changes, mode
 	if reopened {
-		r.opened = mergeBase
+		r.opened = rev
 	}
 	if mode != moduleMode || editorErr == nil && !closed {
 		r.entries = entries
@@ -539,7 +560,7 @@ func (a *app) reviewEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.U
 	rows, _ := r.rows()
 	at := slices.IndexFunc(rows, func(row reviewRow) bool { return row.Path == item })
 	isFile := at >= 0
-	head, mergeBase, mode := r.head, r.mergeBase, r.mode
+	head, mergeBase, headSha, mode := r.head, r.mergeBase, r.headSha, r.mode
 	var err error
 	switch ev.Action {
 	case "select":
@@ -560,7 +581,7 @@ func (a *app) reviewEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.U
 	}
 	switch {
 	case ev.Action == "select" && isFile:
-		err = a.openReviewFile(ctx, h, ev.ProjectID, head, mergeBase, mode, item)
+		err = a.openReviewFile(ctx, h, ev.ProjectID, head, mergeBase, headSha, mode, item)
 	case ev.Action == reviewedAction && isFile && mode == moduleMode:
 		err = a.setReviewed(ctx, h, ev.ProjectID, s, item, !rows[at].Reviewed)
 	}
@@ -570,11 +591,15 @@ func (a *app) reviewEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.U
 	return a.render(ctx, h, ev.ProjectID, s)
 }
 
-func (a *app) openReviewFile(ctx context.Context, h *pluginsdk.Host, id, head, mergeBase, mode, rel string) error {
+func (a *app) openReviewFile(ctx context.Context, h *pluginsdk.Host, id, head, mergeBase, headSha, mode, rel string) error {
 	if mode == moduleMode {
 		return h.RunCommand(ctx, selectCommand, id, pathArgs{Path: rel}, nil)
 	}
-	return h.RunCommand(ctx, diffCommand, id, diffArgs{Path: filepath.Join(head, rel), Base: "rev:" + mergeBase, Target: "worktree"}, nil)
+	target := "worktree"
+	if headSha != "" {
+		target = "rev:" + headSha
+	}
+	return h.RunCommand(ctx, diffCommand, id, diffArgs{Path: filepath.Join(head, rel), Base: "rev:" + mergeBase, Target: target}, nil)
 }
 
 func (a *app) reopenClosed(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
@@ -621,7 +646,7 @@ func (a *app) reviewNext(ctx context.Context, h *pluginsdk.Host, id string, s *s
 	}
 	rows, _ := r.rows()
 	order := buildDirs(rows).order()
-	head, mergeBase, mode, selected := r.head, r.mergeBase, r.mode, r.selected
+	head, mergeBase, headSha, mode, selected := r.head, r.mergeBase, r.headSha, r.mode, r.selected
 	s.mu.Unlock()
 	next := ""
 	if mode == moduleMode {
@@ -636,7 +661,7 @@ func (a *app) reviewNext(ctx context.Context, h *pluginsdk.Host, id string, s *s
 			at = 0
 		}
 		next = order[(at+dir+len(order))%len(order)]
-		if err := a.openReviewFile(ctx, h, id, head, mergeBase, mode, next); err != nil {
+		if err := a.openReviewFile(ctx, h, id, head, mergeBase, headSha, mode, next); err != nil {
 			return err
 		}
 	}
@@ -655,7 +680,7 @@ func (a *app) saveReviews(ctx context.Context, h *pluginsdk.Host, id string, s *
 	s.mu.Lock()
 	st := storedReviews{Reviews: map[string]storedReview{}, Filters: s.filters}
 	for head, r := range s.reviews {
-		st.Reviews[head] = storedReview{Base: r.base, Filters: r.filters}
+		st.Reviews[head] = storedReview{Base: r.base, Head: r.branch, Filters: r.filters}
 	}
 	s.mu.Unlock()
 	return h.StorageSet(ctx, reviewKey(id), st)
@@ -665,7 +690,7 @@ func (s *state) restore(st storedReviews) {
 	s.filters = st.Filters.valid()
 	for head, r := range st.Reviews {
 		if r.Base != "" && filepath.IsAbs(head) {
-			s.reviews[head] = &review{head: head, base: r.Base, filters: r.Filters.valid(), folded: map[string]bool{}}
+			s.reviews[head] = &review{head: head, base: r.Base, branch: r.Head, filters: r.Filters.valid(), folded: map[string]bool{}}
 		}
 	}
 }
@@ -808,38 +833,55 @@ func globRegexp(pattern string) *regexp.Regexp {
 	return re
 }
 
-func headTarget(ctx context.Context, h *pluginsdk.Host, id, head string) (*folder, gitrepo.Worktree, error) {
+func headTarget(ctx context.Context, h *pluginsdk.Host, id, head string) (*folder, gitrepo.Worktree, string, error) {
 	p, err := h.GetProject(ctx, id)
 	if err != nil {
-		return nil, gitrepo.Worktree{}, err
+		return nil, gitrepo.Worktree{}, "", err
 	}
 	if p.Home {
-		return nil, gitrepo.Worktree{}, errNoRepo
+		return nil, gitrepo.Worktree{}, "", errNoRepo
 	}
+	var folders []*folder
 	for i := range p.Repos {
 		f, err := openFolder(ctx, p, i)
 		if errors.Is(err, gitrepo.ErrNotRepo) {
 			continue
 		}
 		if err != nil {
-			return nil, gitrepo.Worktree{}, err
+			return nil, gitrepo.Worktree{}, "", err
 		}
 		if head == "" {
-			return f, f.currentTree(), nil
+			return f, f.currentTree(), "", nil
 		}
 		if t, ok := f.Member(head); ok {
-			return f, t, nil
+			return f, t, "", nil
 		}
 		for _, t := range f.Trees {
 			if !t.Bare && t.Branch == head {
-				return f, t, nil
+				return f, t, "", nil
 			}
 		}
+		folders = append(folders, f)
 	}
 	if head == "" {
-		return nil, gitrepo.Worktree{}, errNoRepo
+		return nil, gitrepo.Worktree{}, "", errNoRepo
 	}
-	return nil, gitrepo.Worktree{}, fmt.Errorf("%s %w", head, errNotCheckedOut)
+	for _, f := range folders {
+		t := f.currentTree()
+		if _, err := commitOf(ctx, t.Path, head); err == nil && validBranch(ctx, t.Path, head) == nil {
+			return f, t, head, nil
+		}
+	}
+	return nil, gitrepo.Worktree{}, "", fmt.Errorf("%w %s", errUnknownBranch, head)
+}
+
+func commitOf(ctx context.Context, repo, branch string) (string, error) {
+	for _, ref := range []string{"refs/heads/" + branch, "refs/remotes/" + branch} {
+		if out, err := gitrepo.Run(ctx, repo, "rev-parse", "-q", "--verify", ref+"^{commit}"); err == nil {
+			return strings.TrimSpace(string(out)), nil
+		}
+	}
+	return "", fmt.Errorf("%w %s", errUnknownBranch, branch)
 }
 
 func resolveBase(ctx context.Context, f *folder, base string) (string, string, string, error) {

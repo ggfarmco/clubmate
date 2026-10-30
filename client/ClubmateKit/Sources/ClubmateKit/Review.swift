@@ -20,7 +20,8 @@ public struct ReviewHeader: Equatable, Sendable {
     public let base: String
     public let head: String
     public let baseRef: String
-    public let headPath: String
+    public let headRef: String
+    public let readOnly: Bool
     public let mode: String
     public let progress: String
     public let warning: String
@@ -32,7 +33,8 @@ public struct ReviewHeader: Equatable, Sendable {
         self.base = base
         self.head = head
         baseRef = fields["baseRef"]?.stringValue ?? base
-        headPath = fields["headPath"]?.stringValue ?? ""
+        headRef = fields["headRef"]?.stringValue ?? ""
+        readOnly = fields["readOnly"]?.boolValue ?? false
         mode = fields["mode"]?.stringValue ?? ""
         progress = fields["progress"]?.stringValue ?? ""
         warning = fields["warning"]?.stringValue ?? ""
@@ -40,10 +42,16 @@ public struct ReviewHeader: Equatable, Sendable {
         chips = fields["chips"]?.arrayValue?.compactMap(ReviewChip.init) ?? []
     }
 
-    public static let workingTree = "(working tree)"
-    public static let workingTreeShort = "(wt)"
+    static let workingTree = "(working tree)"
+    static let workingTreeShort = "(wt)"
+    static let readOnlyTree = "(read-only)"
+    static let readOnlyShort = "(ro)"
 
-    public var headLabel: String { "\(head) \(Self.workingTree)" }
+    public var headSuffix: String { readOnly ? Self.readOnlyTree : Self.workingTree }
+
+    public var headSuffixShort: String { readOnly ? Self.readOnlyShort : Self.workingTreeShort }
+
+    public var headLabel: String { "\(head) \(headSuffix)" }
 
     public var title: String { "\(base) ◂ \(headLabel)" }
 

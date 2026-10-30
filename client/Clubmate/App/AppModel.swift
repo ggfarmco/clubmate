@@ -588,7 +588,7 @@ final class ProjectSession {
     }
 
     func chooseReviewHead(base: String) {
-        openPicker("Review worktree", source: FuzzyPickerModel.refs(run: storeRun, kinds: ["worktree"])) { [weak self] item in
+        openPicker("Review branch or worktree", source: FuzzyPickerModel.refs(run: storeRun)) { [weak self] item in
             self?.run(ReviewCommand.start(base: base, head: item.id))
         }
     }
