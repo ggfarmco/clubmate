@@ -88,6 +88,7 @@ func TestValidateAgentNodes(t *testing.T) {
 		"permissionCard": sdui.PermissionCard("p", "permission-1", "Run go test?", []sdui.PermissionOption{{ID: "allow", Label: "Allow once", Kind: "allow_once"}}, ""),
 		"composer": sdui.Composer("m", sdui.ComposerProps{
 			Placeholder: "Ask", Agent: "Claude", Modes: []sdui.Option{{Value: "default", Label: "Manual"}}, Mode: "default",
+			Pickers:  []sdui.Picker{{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "opus", Label: "Opus"}}}},
 			Commands: []sdui.Command{{Name: "review", Description: "Review"}}, Attach: []string{"file", "selection"}, Attachments: attachments, Running: true,
 		}),
 		"menu": sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "delete", Label: "Delete", Confirm: "Sure?"}}}}, ""),

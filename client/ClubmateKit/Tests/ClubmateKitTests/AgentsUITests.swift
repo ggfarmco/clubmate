@@ -64,4 +64,14 @@ final class AgentsUITests: XCTestCase {
         let send = UIAction.event(for: composer, trigger: .named("send", .object(["text": .string("hi")])), slot: "agents.main", projectID: "w")
         XCTAssertEqual(send, UIEvent(projectId: "w", slot: "agents.main", nodeId: "s/composer/0", action: "send", value: .object(["text": .string("hi")])))
     }
+
+    func testComposerPickerLabels() {
+        let option: (String, String) -> JSONValue = { .object(["value": .string($0), "label": .string($1)]) }
+        let composer = SDUINode(type: "composer", id: "s/composer/0", props: ["pickers": .array([
+            .object(["id": .string("model"), "value": .string("opus"), "options": .array([option("opus", "Opus 5.5")])]),
+            .object(["id": .string("advisor"), "title": .string("Advisor"), "value": .string(""), "options": .array([option("", "Default")])]),
+        ])])
+
+        XCTAssertEqual(composer.pickers().map(\.label), ["Opus 5.5", "Advisor: Default"])
+    }
 }

@@ -94,17 +94,24 @@ type turnInfo struct {
 }
 
 type transcriptView struct {
-	Session  record                 `json:"session"`
-	Modes    []acp.SessionMode      `json:"modes"`
-	Commands []acp.AvailableCommand `json:"commands"`
-	Turns    []turnInfo             `json:"turns"`
-	Entries  []*entry               `json:"entries"`
+	Session  record                    `json:"session"`
+	Modes    []acp.SessionMode         `json:"modes"`
+	Configs  []acp.SessionConfigOption `json:"configOptions"`
+	Commands []acp.AvailableCommand    `json:"commands"`
+	Turns    []turnInfo                `json:"turns"`
+	Entries  []*entry                  `json:"entries"`
 }
 
 type permissionPayload struct {
 	ID        string          `json:"id"`
 	RequestID string          `json:"requestId"`
 	Params    json.RawMessage `json:"params"`
+}
+
+type configPayload struct {
+	ConfigID      string                    `json:"configId"`
+	Value         string                    `json:"value"`
+	ConfigOptions []acp.SessionConfigOption `json:"configOptions,omitempty"`
 }
 
 type answerPayload struct {
@@ -140,6 +147,7 @@ type session struct {
 	index    map[string]int
 	commands []acp.AvailableCommand
 	modes    []acp.SessionMode
+	configs  []acp.SessionConfigOption
 	turns    []turnInfo
 	turn     int
 	nextID   int
@@ -229,14 +237,25 @@ func (s *session) apply(e envelope) {
 		s.applyUpdate(e.Turn, e.Payload)
 	case kindNew, kindResume:
 		var res acp.NewSessionResponse
-		if json.Unmarshal(e.Payload, &res) == nil && res.Modes != nil {
+		if json.Unmarshal(e.Payload, &res) != nil {
+			return
+		}
+		if res.Modes != nil {
 			s.modes = res.Modes.AvailableModes
 			s.rec.Mode = res.Modes.CurrentModeID
+		}
+		if res.ConfigOptions != nil {
+			s.configs = res.ConfigOptions
 		}
 	case kindSetMode:
 		var req acp.SetSessionModeRequest
 		if json.Unmarshal(e.Payload, &req) == nil {
 			s.rec.Mode = req.ModeID
+		}
+	case kindSetConfig:
+		var p configPayload
+		if json.Unmarshal(e.Payload, &p) == nil {
+			s.applyConfig(p)
 		}
 	case kindCheckpoint:
 		var p checkpointPayload
@@ -266,6 +285,19 @@ func (s *session) apply(e envelope) {
 			if i, ok := s.index[key(entryPermission, p.Request)]; ok {
 				s.entries[i].Outcome = &p.Outcome
 			}
+		}
+	}
+}
+
+func (s *session) applyConfig(p configPayload) {
+	if p.ConfigOptions != nil {
+		s.configs = p.ConfigOptions
+		return
+	}
+	for i, o := range s.configs {
+		if o.ID == p.ConfigID {
+			raw, _ := json.Marshal(p.Value)
+			s.configs[i].CurrentValue = raw
 		}
 	}
 }
@@ -318,6 +350,11 @@ func (s *session) applyUpdate(turn int, payload json.RawMessage) {
 		var u acp.CurrentModeUpdate
 		if json.Unmarshal(payload, &u) == nil {
 			s.rec.Mode = u.CurrentModeID
+		}
+	case acp.UpdateConfigOption:
+		var u acp.ConfigOptionUpdate
+		if json.Unmarshal(payload, &u) == nil && u.ConfigOptions != nil {
+			s.configs = u.ConfigOptions
 		}
 	case acp.UpdateSessionInfo:
 		var u acp.SessionInfoUpdate
@@ -498,7 +535,7 @@ func (s *session) view(fromTurn int) transcriptView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
-	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
+	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
 	for _, en := range s.entries {
 		if en.Turn >= fromTurn {
 			c := *en

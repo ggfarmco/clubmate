@@ -584,6 +584,46 @@ func TestModeAndCommands(t *testing.T) {
 	testutil.Eventually(t, func() bool { return f.transcript(t, project, session).Session.Mode == "plan" }, wait)
 }
 
+func TestConfigOptionsAndAdvisor(t *testing.T) {
+	f := start(t, map[string]any{"configs": []map[string]any{
+		{"id": "mode", "name": "Mode", "category": "mode", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Manual"}}},
+		{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "opus", "name": "Opus"}}},
+	}})
+	project := f.project(t, newRepo(t))
+	first := f.newSession(t, project)
+	pickers := func(session string, want map[string]string) sdui.Node {
+		return f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+			composers := cardsOf(n, "composer")
+			if len(composers) != 1 || !strings.HasPrefix(composers[0].ID, session+"/") {
+				return false
+			}
+			got := map[string]string{}
+			list, _ := composers[0].Props["pickers"].([]any)
+			for _, p := range list {
+				m, _ := p.(map[string]any)
+				id, _ := m["id"].(string)
+				got[id], _ = m["value"].(string)
+			}
+			return assert.ObjectsAreEqual(want, got)
+		})
+	}
+	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": ""}), "composer")[0].ID
+
+	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "model", "value": "opus"})
+	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "advisor", "value": "opus"})
+	pickers(first, map[string]string{"model": "opus", "advisor": "opus"})
+
+	second := f.newSession(t, project)
+	pickers(second, map[string]string{"model": "opus", "advisor": "opus"})
+	sets := f.calls(t, "session/set_config_option")
+	require.Len(t, sets, 2)
+	assert.JSONEq(t, `{"sessionId":"`+f.session(t, project, second).AgentSessionID+`","configId":"model","value":"opus"}`, string(sets[1].Params))
+	news := f.calls(t, "session/new")
+	require.Len(t, news, 2)
+	assert.NotContains(t, string(news[0].Params), "advisorModel")
+	assert.Contains(t, string(news[1].Params), `"settings":{"advisorModel":"opus"}`)
+}
+
 func TestDeleteDuringTurn(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})

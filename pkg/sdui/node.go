@@ -123,11 +123,20 @@ type Command struct {
 	Hint        string `json:"hint,omitempty"`
 }
 
+type Picker struct {
+	ID      string   `json:"id"`
+	Title   string   `json:"title,omitempty"`
+	Help    string   `json:"help,omitempty"`
+	Value   string   `json:"value"`
+	Options []Option `json:"options"`
+}
+
 type ComposerProps struct {
 	Placeholder string
 	Agent       string
 	Modes       []Option
 	Mode        string
+	Pickers     []Picker
 	Commands    []Command
 	Attach      []string
 	Attachments []Attachment
@@ -290,6 +299,9 @@ func Composer(id string, p ComposerProps) Node {
 	props = withOptional(props, "mode", p.Mode)
 	if len(p.Modes) > 0 {
 		props["modes"] = p.Modes
+	}
+	if len(p.Pickers) > 0 {
+		props["pickers"] = p.Pickers
 	}
 	if len(p.Commands) > 0 {
 		props["commands"] = p.Commands

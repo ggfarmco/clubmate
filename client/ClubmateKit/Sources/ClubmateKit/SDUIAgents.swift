@@ -103,6 +103,29 @@ public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct SDUIPicker: Sendable, Equatable, Identifiable {
+    public let id: String
+    public let title: String?
+    public let help: String?
+    public let value: String
+    public let options: [SDUIOption]
+
+    public var label: String {
+        let current = options.first { $0.value == value }?.label ?? value
+        guard let title else { return current }
+        return "\(title): \(current)"
+    }
+
+    init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let id = fields["id"]?.stringValue, let value = fields["value"]?.stringValue else { return nil }
+        self.id = id
+        title = fields["title"]?.stringValue
+        help = fields["help"]?.stringValue
+        self.value = value
+        options = fields["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
+    }
+}
+
 extension SDUINode {
     public func attachments() -> [SDUIAttachment] {
         props["attachments"]?.arrayValue?.compactMap(SDUIAttachment.init) ?? []
@@ -130,6 +153,10 @@ extension SDUINode {
 
     public func modes() -> [SDUIOption] {
         props["modes"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
+    }
+
+    public func pickers() -> [SDUIPicker] {
+        props["pickers"]?.arrayValue?.compactMap(SDUIPicker.init) ?? []
     }
 
     public func attachKinds() -> [String] {

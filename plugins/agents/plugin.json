@@ -91,6 +91,20 @@
         }
       },
       {
+        "id": "agents.config",
+        "title": "Set Agent Option",
+        "hidden": true,
+        "description": "Set a session option such as the model; the choice is remembered for new sessions in the worktree. The advisor option sets the advisor model for new sessions in the worktree (empty value restores the default).",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "id": {"type": "string", "description": "Option id from the transcript's configOptions, or advisor."},
+            "value": {"type": "string", "description": "Option value."}
+          },
+          "required": ["session", "id", "value"]
+        }
+      },
+      {
         "id": "agents.close",
         "title": "Close Agent Session",
         "hidden": true,
