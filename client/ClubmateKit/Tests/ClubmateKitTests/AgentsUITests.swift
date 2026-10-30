@@ -64,4 +64,37 @@ final class AgentsUITests: XCTestCase {
         let send = UIAction.event(for: composer, trigger: .named("send", .object(["text": .string("hi")])), slot: "agents.main", projectID: "w")
         XCTAssertEqual(send, UIEvent(projectId: "w", slot: "agents.main", nodeId: "s/composer/0", action: "send", value: .object(["text": .string("hi")])))
     }
+
+    func testTranscriptGroupsAdjacentToolCards() {
+        func card(_ id: String, _ status: String = "completed") -> SDUINode {
+            SDUINode(type: "toolCard", id: id, props: ["kind": .string("read"), "status": .string(status)])
+        }
+        let transcript = SDUINode(type: "transcript", children: [
+            SDUINode(type: "message", id: "m1"),
+            card("t1"), card("t2"),
+            SDUINode(type: "permissionCard", id: "p1"),
+            card("t3"),
+            card("t4", "failed"),
+            card("t5"), card("t6", "in_progress"), card("t7"),
+        ])
+
+        let items = transcript.transcriptItems()
+
+        XCTAssertEqual(items.map(\.id), ["m1", "t1/actions", "p1", "t3", "t4", "t5/actions"])
+        guard case .action = items[3], case .node = items[4], case let .actions(_, cards) = items[5] else { return XCTFail() }
+        XCTAssertEqual(cards.map(\.id), ["t5", "t6", "t7"])
+    }
+
+    func testToolActionsSummary() {
+        func card(_ kind: String, _ status: String = "completed") -> SDUINode {
+            SDUINode(type: "toolCard", props: ["kind": .string(kind), "status": .string(status)])
+        }
+        let done = ToolActionsSummary(["read", "search", "execute", "read", "edit", "search", "execute", "read"].map { card($0) })
+        let running = ToolActionsSummary([card("execute", "in_progress")])
+
+        XCTAssertEqual(done.text, "8 actions: read 3 files, 2 searches, 2 commands, edited 1 file")
+        XCTAssertFalse(done.running)
+        XCTAssertEqual(running.text, "1 action: 1 command")
+        XCTAssertTrue(running.running)
+    }
 }

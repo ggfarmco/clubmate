@@ -13,7 +13,9 @@ struct TranscriptNodeView: View {
         let slack = theme.rowHeight
         ScrollView {
             LazyVStack(alignment: .leading, spacing: theme.gutter + theme.spacing.s) {
-                SDUIChildren(node: node)
+                ForEach(node.transcriptItems()) { item in
+                    TranscriptItemView(item: item)
+                }
             }
             .padding(.horizontal, theme.gutter * 2)
             .padding(.vertical, theme.gutter + theme.spacing.s)
@@ -35,6 +37,131 @@ struct TranscriptNodeView: View {
             position.scrollTo(y: saved.offset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct TranscriptItemView: View {
+    let item: TranscriptItem
+
+    var body: some View {
+        switch item {
+        case let .node(child): SDUINodeView(node: child.node)
+        case let .action(child): ToolActionLine(id: child.id, node: child.node)
+        case let .actions(id, cards): ToolActionsView(id: id, cards: cards)
+        }
+    }
+}
+
+@MainActor @Observable private final class ToolExpansion {
+    static let shared = ToolExpansion()
+
+    private var ids: Set<String> = []
+
+    func contains(_ id: String) -> Bool {
+        ids.contains(id)
+    }
+
+    func toggle(_ id: String) {
+        if ids.remove(id) == nil { ids.insert(id) }
+    }
+}
+
+private struct ToolActionsView: View {
+    let id: String
+    let cards: [SDUIChild]
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let summary = ToolActionsSummary(cards.map(\.node))
+        let expanded = ToolExpansion.shared.contains(id)
+        VStack(alignment: .leading, spacing: theme.spacing.s) {
+            HStack(spacing: theme.spacing.s) {
+                Button { ToolExpansion.shared.toggle(id) } label: {
+                    HStack(spacing: theme.spacing.s) {
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(theme.glyph)
+                        Text(summary.text)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if summary.running {
+                    ProgressView().controlSize(.mini)
+                    Text("running…")
+                }
+            }
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            if expanded {
+                VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                    ForEach(cards) { card in
+                        ToolActionLine(id: card.id, node: card.node)
+                    }
+                }
+                .padding(.leading, theme.indent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ToolActionLine: View {
+    let id: String
+    let node: SDUINode
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let toolBody = node.toolBody()
+        let truncated = node.bool("truncated") == true
+        let expandable = toolBody != nil || truncated
+        let expanded = expandable && ToolExpansion.shared.contains(id)
+        VStack(alignment: .leading, spacing: theme.spacing.s) {
+            HStack(spacing: theme.spacing.l) {
+                Button { ToolExpansion.shared.toggle(id) } label: {
+                    HStack(spacing: theme.spacing.s) {
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(theme.glyph)
+                            .foregroundStyle(theme.muted)
+                            .opacity(expandable ? 1 : 0)
+                        Image(systemName: ToolCardNodeView.icon(node.string("kind")))
+                            .foregroundStyle(theme.muted)
+                            .frame(width: theme.indent + theme.spacing.s)
+                        Text(node.string("title") ?? "")
+                            .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if let changes = toolBody?.changes {
+                            Text("+\(changes.added)").foregroundStyle(theme.success)
+                            Text("−\(changes.removed)").foregroundStyle(theme.danger)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .allowsHitTesting(expandable)
+                Spacer(minLength: theme.gutter)
+                ToolCardButtons(node: node)
+                ToolStatusView(status: node.string("status"))
+            }
+            if expanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let toolBody {
+                        ToolBodyView(toolBody: toolBody).equatable()
+                    }
+                    if truncated {
+                        TruncatedNote()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .agentCard()
+            }
+        }
+        .font(theme.ui)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -163,18 +290,15 @@ struct PlanNodeView: View {
 struct ToolCardNodeView: View {
     let node: SDUINode
 
-    @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
-    private var kind: String { node.string("kind") ?? "other" }
-    private var oneLine: Bool { kind == "read" || kind == "search" }
+    private var oneLine: Bool { ["read", "search"].contains(node.string("kind")) }
 
     var body: some View {
-        let actions = node.cardActions()
         let toolBody = oneLine ? nil : node.toolBody()
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: theme.spacing.l) {
-                Image(systemName: icon)
+                Image(systemName: Self.icon(node.string("kind")))
                     .foregroundStyle(theme.muted)
                     .frame(width: theme.indent + theme.spacing.s)
                 Text(node.string("title") ?? "")
@@ -183,8 +307,8 @@ struct ToolCardNodeView: View {
                     .truncationMode(.middle)
                     .textSelection(.enabled)
                 Spacer(minLength: theme.gutter)
-                if oneLine { buttons(actions) }
-                status
+                if oneLine { ToolCardButtons(node: node) }
+                ToolStatusView(status: node.string("status"))
             }
             .padding(.horizontal, theme.gutter + theme.spacing.s)
             .padding(.vertical, theme.spacing.m)
@@ -193,16 +317,12 @@ struct ToolCardNodeView: View {
                 ToolBodyView(toolBody: toolBody).equatable()
             }
             if node.bool("truncated") == true {
-                Text("Output truncated")
-                    .font(theme.uiSmall)
-                    .foregroundStyle(theme.muted)
-                    .padding(.horizontal, theme.gutter + theme.spacing.s)
-                    .padding(.vertical, theme.spacing.s)
+                TruncatedNote()
             }
-            if !oneLine, !actions.isEmpty {
+            if !oneLine, !node.cardActions().isEmpty {
                 theme.border.frame(height: 1)
                 HStack(spacing: theme.spacing.m) {
-                    buttons(actions)
+                    ToolCardButtons(node: node)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, theme.gutter + theme.spacing.s)
@@ -214,16 +334,55 @@ struct ToolCardNodeView: View {
         .agentCard()
     }
 
-    private func buttons(_ actions: [SDUICardAction]) -> some View {
-        ForEach(actions) { action in
+    static func icon(_ kind: String?) -> String {
+        switch kind {
+        case "read": "doc.text"
+        case "edit": "pencil"
+        case "delete": "trash"
+        case "move": "arrow.left.arrow.right"
+        case "search": "magnifyingglass"
+        case "execute": "terminal"
+        case "think": "brain"
+        case "fetch": "globe"
+        case "switch_mode": "arrow.triangle.swap"
+        default: "wrench.and.screwdriver"
+        }
+    }
+}
+
+private struct ToolCardButtons: View {
+    let node: SDUINode
+
+    @Environment(\.sduiDispatch) private var dispatch
+
+    var body: some View {
+        ForEach(node.cardActions()) { action in
             CardButton(label: action.label, icon: action.icon) {
                 dispatch(node, .named(action.action, action.value))
             }
         }
     }
+}
 
-    @ViewBuilder private var status: some View {
-        switch node.string("status") {
+private struct TruncatedNote: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text("Output truncated")
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            .padding(.horizontal, theme.gutter + theme.spacing.s)
+            .padding(.vertical, theme.spacing.s)
+    }
+}
+
+private struct ToolStatusView: View {
+    let status: String?
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        switch status {
         case "pending", "in_progress":
             ProgressView().controlSize(.mini)
         case "failed":
@@ -240,21 +399,6 @@ struct ToolCardNodeView: View {
                 .foregroundStyle(theme.success)
         default:
             EmptyView()
-        }
-    }
-
-    private var icon: String {
-        switch kind {
-        case "read": "doc.text"
-        case "edit": "pencil"
-        case "delete": "trash"
-        case "move": "arrow.left.arrow.right"
-        case "search": "magnifyingglass"
-        case "execute": "terminal"
-        case "think": "brain"
-        case "fetch": "globe"
-        case "switch_mode": "arrow.triangle.swap"
-        default: "wrench.and.screwdriver"
         }
     }
 }
