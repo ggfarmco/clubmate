@@ -1312,6 +1312,14 @@ func TestPermissionScope(t *testing.T) {
 	assert.ErrorContains(t, answer("", kid), "the session was not started by this agent")
 	require.NoError(t, answer(parent, kid))
 	f.waitStatus(t, project, kid, "done")
+	request := ofKind(f.transcript(t, project, other).Entries, "permission")[0].ID
+	params := map[string]any{"id": "agents.permission", "projectId": project, "args": map[string]any{"session": other, "request": request, "option": "allow"}}
+	assert.ErrorContains(t, f.h.Client(t).Call(t.Context(), "command.run", params, nil), "the session was not started by this agent")
+	params["via"] = "remote"
+	assert.ErrorContains(t, f.h.Client(t).Call(t.Context(), "command.run", params, nil), "the session was not started by this agent")
+	delete(params, "via")
+	require.NoError(t, f.h.PluginCall(t, "remote", "command.run", params))
+	f.waitStatus(t, project, other, "done")
 }
 
 func TestAnswerIsUserTurn(t *testing.T) {

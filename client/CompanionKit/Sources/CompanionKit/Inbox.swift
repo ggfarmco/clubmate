@@ -1,0 +1,110 @@
+import Foundation
+
+public enum NotificationKind: String, Sendable, Equatable, CaseIterable {
+    case needsInput = "needs-input"
+    case permission
+    case done
+    case stuck
+    case info
+
+    public var label: String {
+        switch self {
+        case .needsInput: "Needs input"
+        case .permission: "Permission needed"
+        case .done: "Done"
+        case .stuck: "Stuck"
+        case .info: "Info"
+        }
+    }
+
+    public var symbol: String {
+        switch self {
+        case .needsInput: "questionmark.bubble.fill"
+        case .permission: "hand.raised.fill"
+        case .done: "checkmark.circle.fill"
+        case .stuck: "exclamationmark.triangle.fill"
+        case .info: "info.circle.fill"
+        }
+    }
+}
+
+public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
+    public static let topic = "notify.posted"
+
+    public let id: String
+    public let computerID: String
+    public let workspace: String
+    public let session: String?
+    public let title: String
+    public let message: String
+    public let kind: NotificationKind
+    public let viaAgent: Bool
+    public let date: Date
+
+    public init(id: String, computerID: String, workspace: String, session: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, date: Date) {
+        self.id = id
+        self.computerID = computerID
+        self.workspace = workspace
+        self.session = session
+        self.title = title
+        self.message = message
+        self.kind = kind
+        self.viaAgent = viaAgent
+        self.date = date
+    }
+
+    public init?(_ event: BusEvent, computerID: String, received: Date) {
+        guard event.topic == Self.topic, let id = event.payload["id"]?.stringValue, let message = event.payload["message"]?.stringValue else { return nil }
+        let nonEmpty = { (key: String) in event.payload[key]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } }
+        self.init(
+            id: id,
+            computerID: computerID,
+            workspace: nonEmpty("workspace") ?? event.workspace,
+            session: nonEmpty("session"),
+            title: nonEmpty("title") ?? "",
+            message: message,
+            kind: nonEmpty("kind").flatMap(NotificationKind.init(rawValue:)) ?? .info,
+            viaAgent: event.payload["agent"] == .bool(true),
+            date: nonEmpty("ts").flatMap(Date.parseRFC3339) ?? received
+        )
+    }
+}
+
+public struct Inbox: Sendable, Equatable {
+    public static let capacity = 200
+
+    public private(set) var items: [InboxItem] = []
+    public private(set) var unread: Set<String> = []
+
+    public init() {}
+
+    @discardableResult
+    public mutating func add(_ item: InboxItem) -> Bool {
+        guard !items.contains(where: { $0.id == item.id && $0.computerID == item.computerID }) else { return false }
+        let index = items.firstIndex { $0.date < item.date } ?? items.endIndex
+        items.insert(item, at: index)
+        unread.insert(item.id)
+        while items.count > Self.capacity {
+            unread.remove(items.removeLast().id)
+        }
+        return true
+    }
+
+    public mutating func markRead(_ id: String) {
+        unread.remove(id)
+    }
+
+    public mutating func markAllRead() {
+        unread.removeAll()
+    }
+
+    public mutating func clear() {
+        items.removeAll()
+        unread.removeAll()
+    }
+
+    public mutating func remove(computer: String) {
+        items.removeAll { $0.computerID == computer }
+        unread = unread.filter { id in items.contains { $0.id == id } }
+    }
+}

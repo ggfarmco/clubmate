@@ -24,11 +24,12 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 - **Plugins** (`plugins/*`): separate Go binaries started by the core's supervisor (`internal/plugin`). They speak JSON-RPC over stdin/stdout through `pkg/pluginsdk`, and are restarted with backoff when they crash.
 - **`clubmate` / `cm`** (`cmd/clubmate`, `internal/cli`): CLI over the same socket. It opens folders (`cm <folder>`), runs commands, reads the bus, posts notifications (`cm notify`), collects diagnostics and serves MCP (`clubmate mcp`).
 - **Clubmate.app** (`client/`): `ClubmateKit` holds the logic and is tested with `make kit-test`. The `Clubmate` app target holds views, windows, Ghostty surfaces, Sparkle updates and UserNotifications.
+- **Companion** (`client/Companion`, `client/CompanionKit`, `client/companion.yml`): iPhone/iPad app that drives agents on paired Macs over Tailscale through the `remote` plugin. `CompanionKit` (Foundation only) holds the logic and is tested with `make companion-kit-test`; `make companion` builds the app for the simulator.
 
 ## Core (`internal/`)
 | Package | Role |
 |---|---|
-| `rpc` | JSON-RPC server, built-in methods (primitives), command registry. Every command is flagged `agent` (visible to MCP/agents), `destructive` (needs in-app approval when an agent calls it), `hidden` (not in the palette) or `userOnly`. |
+| `rpc` | JSON-RPC server, built-in methods (primitives), command registry. Every command is flagged `agent` (visible to MCP/agents), `destructive` (needs in-app approval when an agent calls it), `hidden` (not in the palette), `remote` (runnable by paired companion devices) or `userOnly`; `scope: app` commands need no workspace. |
 | `bus` | Persistent event bus on SQLite (`bus.db`). Topics, publish, subscribe with backfill, 64 KiB payload cap. Plugins and the app react to `project.updated`, `review.changed`, `agents.changed`, `notify.posted`, … |
 | `project` | Workspaces (`clubmate.db`): folders, git repos, the selected worktree per folder, missing folders. |
 | `session` | Session manager: creates, attaches, kills and removes `clubmate-session` hosts; owner plugin and project per session. |
@@ -52,6 +53,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | `terminals` | Terminal sessions. |
 | `processes` | The Processes section, built on the core's process tracker. |
 | `agents` | ACP client that hosts Claude Code (`@agentclientprotocol/claude-agent-acp`, installed into its state dir). One process per (agent, workspace, worktree). Keeps a per-session JSONL log, takes a git checkpoint per turn (`refs/clubmate/cp/<session>/<turn>`), and renders the Agents section. |
+| `remote` | Companion server: HTTP + SSE on the Mac's Tailscale addresses only, QR pairing, device tokens, proxy for `"remote": true` commands. No section. See `docs/remote.md`. |
 | `internal/` | Shared helpers: `fuzzy`, `gitrepo`. |
 
 ## UI model (SDUI)

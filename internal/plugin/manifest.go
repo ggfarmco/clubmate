@@ -72,6 +72,8 @@ type CommandDef struct {
 	Args        *schema.Object `json:"args"`
 	Result      *schema.Object `json:"result"`
 	Agent       bool           `json:"agent"`
+	Remote      bool           `json:"remote"`
+	Scope       string         `json:"scope"`
 	Destructive bool           `json:"destructive"`
 	Provides    []string       `json:"provides"`
 	Timeout     int            `json:"timeout"`
@@ -184,6 +186,9 @@ func (m Manifest) validate() error {
 		}
 		if err := schema.Check(c.Result); err != nil {
 			return invalid(m.Dir, "command %q result: %v", c.ID, err)
+		}
+		if c.Scope != "" && c.Scope != sdui.ScopeProject && c.Scope != sdui.ScopeApp {
+			return invalid(m.Dir, "command %q has invalid scope %q", c.ID, c.Scope)
 		}
 		if c.Timeout != 0 && (c.Timeout < 1 || c.Timeout > maxCommandTimeout) {
 			return invalid(m.Dir, "command %q timeout %d, want 1..%d seconds", c.ID, c.Timeout, maxCommandTimeout)

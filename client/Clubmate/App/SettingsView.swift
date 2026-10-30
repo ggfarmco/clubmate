@@ -8,7 +8,7 @@ struct SettingsView: View {
 
     @Environment(AppModel.self) private var app
     @State private var hooksCopied = false
-    @State private var tab = SettingsTab.general
+    @State private var tab = SettingsTab.initial
     @Environment(\.appearsActive) private var appearsActive
 
     private static let tool = CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor())
@@ -21,6 +21,9 @@ struct SettingsView: View {
             PluginsSettings(supervisor: app.supervisor, active: appearsActive && tab == .plugins)
                 .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
                 .tag(SettingsTab.plugins)
+            DevicesSettings(model: app.remoteDevices, client: app.supervisor.client, active: tab == .devices)
+                .tabItem { Label("Devices", systemImage: "iphone") }
+                .tag(SettingsTab.devices)
         }
         .frame(width: 460, height: 560)
     }
@@ -131,6 +134,15 @@ struct SettingsView: View {
 private enum SettingsTab: Hashable {
     case general
     case plugins
+    case devices
+
+    static var initial: SettingsTab {
+        #if DEBUG
+        DevicesPreview.state == "settings" ? .devices : .general
+        #else
+        .general
+        #endif
+    }
 }
 
 private struct PluginsSettings: View {

@@ -27,6 +27,7 @@ import (
 
 const (
 	changedTopic    = "agents.changed"
+	remotePlugin    = "remote"
 	sessionKey      = "session/"
 	modeKey         = "mode/"
 	configKey       = "config/"
@@ -316,7 +317,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err != nil {
 			return nil, err
 		}
-		if cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller) {
+		user := !cmd.Agent && cmd.Via == remotePlugin
+		if !user && (cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller)) {
 			return nil, errNotDescendant
 		}
 		return nil, s.answer(args.Request, args.Option)

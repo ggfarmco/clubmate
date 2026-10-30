@@ -1,0 +1,50 @@
+[
+  {
+    "id": "agt_0000000000000001",
+    "workspace": "prj_00000000000000f1",
+    "worktree": "/Users/me/src/shop",
+    "agent": "claude",
+    "agentSessionId": "claude-session-1",
+    "title": "Refactor the cart total into its own function",
+    "status": "waiting",
+    "mode": "default",
+    "finish": "ask",
+    "createdAt": "2026-10-30T09:41:00Z",
+    "updatedAt": "2026-10-30T09:41:00Z",
+    "closed": false,
+    "asks": false,
+    "pending": [
+      "permission-3"
+    ]
+  },
+  {
+    "id": "agt_0000000000000002",
+    "workspace": "prj_00000000000000f1",
+    "worktree": "/Users/me/src/shop",
+    "agent": "claude",
+    "agentSessionId": "claude-session-2",
+    "title": "Explain the checkout flow",
+    "status": "done",
+    "mode": "default",
+    "finish": "ask",
+    "createdAt": "2026-10-30T09:41:00Z",
+    "updatedAt": "2026-10-30T09:41:00Z",
+    "closed": false,
+    "asks": true
+  },
+  {
+    "id": "agt_0000000000000003",
+    "workspace": "prj_00000000000000f1",
+    "worktree": "/Users/me/src/shop",
+    "agent": "claude",
+    "agentSessionId": "claude-session-3",
+    "title": "",
+    "status": "closed",
+    "mode": "default",
+    "finish": "ask",
+    "createdAt": "2026-10-30T09:41:00Z",
+    "updatedAt": "2026-10-30T09:41:00Z",
+    "closed": true,
+    "asks": false
+  }
+]

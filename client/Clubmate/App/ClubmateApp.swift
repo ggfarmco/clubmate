@@ -10,11 +10,27 @@ struct ClubmateApp: App {
 
     private let gallery = CommandLine.arguments.contains("--sdui-gallery")
 
+    #if DEBUG
+    private let devicesPreview = DevicesPreview.state
+
+    private func preview(_ state: String) -> some View {
+        DevicesPreviewView(state: state)
+    }
+    #else
+    private let devicesPreview: String? = nil
+
+    private func preview(_ state: String) -> some View {
+        EmptyView()
+    }
+    #endif
+
     var body: some Scene {
         WindowGroup("Workspace", for: String.self) { $windowID in
             Group {
                 if gallery {
                     GalleryView().eventBanner()
+                } else if let state = devicesPreview {
+                    preview(state)
                 } else {
                     WorkspaceWindow(windowID: $windowID)
                 }

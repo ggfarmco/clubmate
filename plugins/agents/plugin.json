@@ -11,6 +11,7 @@
         "id": "agents.new",
         "title": "New Agent Session",
         "hidden": true,
+        "remote": true,
         "agent": true,
         "description": "Start an agent session. Called from an agent session, the new session is its child: it runs in the caller's worktree, starts with the caller's mode, model, effort and advisor, and the caller may answer its permission requests. At most 8 children of one session may be running or waiting at once (\"a session may run at most 8 child sessions at once\"; prompting an idle child counts too). With branch, the session runs in a new worktree <main checkout>/.worktrees/<branch> created in the background from the HEAD of the caller's worktree (or the existing branch checked out), without switching the user's workspace; the agent starts once it exists, and if git fails the session's status is error with git's message. With prompt, sends it as the first turn, marked as coming from the calling agent session. A child with its own branch merges its tested work into the caller's branch in the caller's worktree (only commits when the caller is on the default branch); once merged and clean, Clubmate closes it and removes its worktree and branch. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Answer their permission requests yourself with agents.permission and pass the user's answers with agents.answer, never paraphrased. Returns {session, worktree} at once; wait for it with agents.wait.",
         "args": {
@@ -32,6 +33,7 @@
         "id": "agents.prompt",
         "title": "Send Prompt",
         "hidden": true,
+        "remote": true,
         "agent": true,
         "description": "Checkpoint the worktree and send a prompt to any agent session of the workspace; queued when a turn is running. Sent by an agent, the target sees it as a message from that agent session (or another agent), not from the user, so it never counts as the user's approval; relay the user's own answer with agents.answer instead. Returns once the turn has started or the prompt is queued; the turn runs in the background.",
         "args": {
@@ -61,6 +63,7 @@
         "id": "agents.cancel",
         "title": "Stop Agent Turn",
         "hidden": true,
+        "remote": true,
         "agent": true,
         "description": "Cancel the running turn of a session this agent started (a child or deeper descendant, never itself) and answer its pending permission requests with cancelled. Queued prompts stay queued.",
         "args": {
@@ -74,8 +77,9 @@
         "id": "agents.permission",
         "title": "Answer Permission",
         "hidden": true,
+        "remote": true,
         "agent": true,
-        "description": "Answer a pending permission request of a session this agent session started (directly or through its children) with one of its options; any other session fails with \"the session was not started by this agent\". Request ids are in agents.sessions (pending) and in the transcript's permission entries with their options. Leave to the user what you cannot decide.",
+        "description": "Answer a pending permission request of a session this agent session started (directly or through its children) with one of its options; any other session fails with \"the session was not started by this agent\". Request ids are in agents.sessions (pending) and in the transcript's permission entries with their options. Leave to the user what you cannot decide. A paired companion device (through the remote plugin) calls it as the user and may answer any pending request of any session.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
@@ -105,6 +109,7 @@
         "id": "agents.mode",
         "title": "Set Agent Mode",
         "hidden": true,
+        "remote": true,
         "description": "Switch the session to one of the modes its agent advertises; remembered for new sessions in the worktree.",
         "args": {
           "properties": {
@@ -118,6 +123,7 @@
         "id": "agents.config",
         "title": "Set Agent Option",
         "hidden": true,
+        "remote": true,
         "description": "Set a session option such as the model; the choice is remembered for new sessions in the worktree. The advisor option sets the advisor model for new sessions in the worktree (empty value restores the default).",
         "args": {
           "properties": {
@@ -132,6 +138,7 @@
         "id": "agents.close",
         "title": "Close Agent Session",
         "hidden": true,
+        "remote": true,
         "description": "Close the session; the agent process stops when no open sessions remain in its worktree. The transcript stays readable.",
         "args": {
           "properties": {
@@ -199,6 +206,7 @@
         "id": "agents.sessions",
         "title": "List Agent Sessions",
         "hidden": true,
+        "remote": true,
         "agent": true,
         "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, asks}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question. parentSession is the agent session that started it with agents.new. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive."
       },
@@ -221,6 +229,7 @@
         "id": "agents.transcript",
         "title": "Agent Session Transcript",
         "hidden": true,
+        "remote": true,
         "agent": true,
         "description": "Read a session's transcript from Clubmate's own log: {session, modes, commands, turns:[{turn, checkpointSha, stopReason}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission or notice. Non-destructive.",
         "args": {

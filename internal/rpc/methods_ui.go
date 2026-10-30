@@ -47,6 +47,8 @@ type Command struct {
 	Args        *schema.Object `json:"args,omitempty"`
 	Result      *schema.Object `json:"result,omitempty"`
 	Agent       bool           `json:"agent"`
+	Remote      bool           `json:"remote"`
+	Scope       string         `json:"scope,omitempty"`
 	Destructive bool           `json:"destructive"`
 	Provides    []string       `json:"provides,omitempty"`
 	Timeout     int            `json:"timeout,omitempty"`
@@ -108,6 +110,7 @@ type commandRunParams struct {
 	Args      json.RawMessage `json:"args"`
 	Agent     bool            `json:"agent,omitempty"`
 	Caller    string          `json:"caller,omitempty"`
+	Via       string          `json:"via,omitempty"`
 }
 
 type uiUpdatedParams struct {
@@ -302,8 +305,12 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if p.Agent && !c.Agent {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
 	}
+	needsProject := prim.needsProject
+	if !isPrimitive {
+		needsProject = c.Scope != sdui.ScopeApp
+	}
 	scope := ""
-	if !isPrimitive || prim.needsProject {
+	if needsProject {
 		if err := s.requireProject(ctx, p.ProjectID); err != nil {
 			return nil, err
 		}
@@ -334,6 +341,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		return s.runPrimitive(ctx, prim, p.ProjectID, p.Args)
 	}
 	p.ID = c.ID
+	p.Via = CallerFrom(ctx).PluginID
 	raw, err := json.Marshal(p)
 	if err != nil {
 		return nil, err

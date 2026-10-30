@@ -43,6 +43,13 @@ final class AppModel {
         await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
     }
 
+    @ObservationIgnored private(set) lazy var remoteDevices = RemoteDevicesModel(
+        run: { [weak self] invocation in
+            await self?.runCommand(invocation, in: self?.defaultWorkspace ?? "") ?? .failure(.notRunning)
+        },
+        confirm: { message in await Confirmation.ask(message, action: "Revoke", destructive: true) }
+    )
+
     @ObservationIgnored private(set) lazy var notifications = Notifications(
         store: ClubmatePaths.resolve().state.appending(path: "notifications.json"),
         run: { [weak self] workspace, invocation in
@@ -335,8 +342,7 @@ final class AppModel {
 
     private func runCommand(_ invocation: CommandInvocation, in workspace: String?) async -> Result<JSONValue, ClubmateError> {
         guard let client = supervisor.client else { return .failure(.notRunning) }
-        let active = keyWindowID.flatMap { layout.window($0)?.active } ?? layout.windows.lazy.compactMap(\.active).first
-        guard let projectID = workspace ?? active ?? projects?.projects.first?.id else { return .failure(NvimConfigModel.noWorkspace) }
+        guard let projectID = workspace ?? defaultWorkspace else { return .failure(NvimConfigModel.noWorkspace) }
         do {
             return .success(try await client.commandRun(id: invocation.id, projectID: projectID, args: invocation.args))
         } catch let error as ClubmateError {
@@ -344,6 +350,10 @@ final class AppModel {
         } catch {
             return .failure(.protocolError("\(error)"))
         }
+    }
+
+    private var defaultWorkspace: String? {
+        keyWindowID.flatMap { layout.window($0)?.active } ?? layout.windows.lazy.compactMap(\.active).first ?? projects?.projects.first?.id
     }
 
     private func nvimWorkspaces() async -> [NvimWorkspace] {

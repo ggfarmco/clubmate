@@ -211,7 +211,7 @@ func coerceValue(p schema.Prop, value string) (any, error) {
 
 func commandFlags(c rpc.Command) string {
 	var out []string
-	for name, on := range map[string]bool{"agent": c.Agent, "destructive": c.Destructive, "hidden": c.Hidden} {
+	for name, on := range map[string]bool{"agent": c.Agent, "app": c.Scope == "app", "destructive": c.Destructive, "hidden": c.Hidden, "remote": c.Remote} {
 		if on {
 			out = append(out, name)
 		}

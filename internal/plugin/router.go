@@ -126,6 +126,8 @@ func command(pluginID string, c CommandDef) rpc.Command {
 		Args:        c.Args,
 		Result:      c.Result,
 		Agent:       c.Agent,
+		Remote:      c.Remote,
+		Scope:       c.Scope,
 		Destructive: c.Destructive,
 		Provides:    c.Provides,
 		Timeout:     c.Timeout,

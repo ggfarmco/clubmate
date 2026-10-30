@@ -1,0 +1,157 @@
+{
+  "session": {
+    "id": "agt_0000000000000001",
+    "workspace": "prj_00000000000000f1",
+    "worktree": "/Users/me/src/shop",
+    "agent": "claude",
+    "agentSessionId": "claude-session-1",
+    "title": "Refactor the cart total into its own function",
+    "status": "waiting",
+    "mode": "default",
+    "finish": "ask",
+    "createdAt": "2026-10-30T09:41:00Z",
+    "updatedAt": "2026-10-30T09:41:00Z",
+    "closed": false,
+    "asks": false
+  },
+  "modes": [
+    {
+      "id": "default",
+      "name": "Default"
+    },
+    {
+      "id": "plan",
+      "name": "Plan Mode"
+    }
+  ],
+  "configOptions": null,
+  "commands": null,
+  "turns": [
+    {
+      "turn": 1,
+      "checkpointSha": "0123456789abcdef0123456789abcdef01234567"
+    }
+  ],
+  "entries": [
+    {
+      "kind": "user",
+      "id": "prompt-1",
+      "turn": 1,
+      "text": "Refactor the cart total into its own function",
+      "content": [
+        {
+          "type": "text",
+          "text": "Refactor the cart total into its own function"
+        }
+      ]
+    },
+    {
+      "kind": "thought",
+      "id": "thought-1",
+      "turn": 1,
+      "text": "The total is computed inline in cart.go."
+    },
+    {
+      "kind": "agent",
+      "id": "agent-2",
+      "turn": 1,
+      "text": "## Plan\n\nI'll move the total into `cartTotal` and keep **behaviour** the same:\n\n1. Extract the loop\n2. Add a test\n\n```go\nfunc cartTotal(items []Item) int {\n\treturn sum(items)\n}\n```\n"
+    },
+    {
+      "kind": "plan",
+      "id": "plan-1",
+      "turn": 1,
+      "plan": {
+        "entries": [
+          {
+            "content": "Extract cartTotal",
+            "priority": "high",
+            "status": "completed"
+          },
+          {
+            "content": "Add a test",
+            "priority": "medium",
+            "status": "in_progress"
+          },
+          {
+            "content": "Run the tests",
+            "priority": "low",
+            "status": "pending"
+          }
+        ],
+        "sessionUpdate": "plan"
+      }
+    },
+    {
+      "kind": "tool",
+      "id": "read1",
+      "turn": 1,
+      "tool": {
+        "kind": "read",
+        "locations": [
+          {
+            "path": "/Users/me/src/shop/cart.go"
+          }
+        ],
+        "status": "completed",
+        "title": "Read cart.go",
+        "toolCallId": "read1"
+      }
+    },
+    {
+      "kind": "tool",
+      "id": "edit1",
+      "turn": 1,
+      "tool": {
+        "content": [
+          {
+            "newText": "func cartTotal(items []Item) int {\n",
+            "oldText": "func total(items []Item) int {\n",
+            "path": "/Users/me/src/shop/cart.go",
+            "type": "diff"
+          }
+        ],
+        "kind": "edit",
+        "locations": [
+          {
+            "line": 1,
+            "path": "/Users/me/src/shop/cart.go"
+          }
+        ],
+        "status": "completed",
+        "title": "Edit `/Users/me/src/shop/cart.go`",
+        "toolCallId": "edit1"
+      }
+    },
+    {
+      "kind": "permission",
+      "id": "permission-3",
+      "turn": 1,
+      "toolCall": {
+        "kind": "execute",
+        "rawInput": {
+          "command": "go test ./..."
+        },
+        "title": "go test ./...",
+        "toolCallId": "run1"
+      },
+      "options": [
+        {
+          "optionId": "allow_always",
+          "name": "Always Allow",
+          "kind": "allow_always"
+        },
+        {
+          "optionId": "allow",
+          "name": "Allow",
+          "kind": "allow_once"
+        },
+        {
+          "optionId": "deny",
+          "name": "Reject",
+          "kind": "reject_once"
+        }
+      ]
+    }
+  ]
+}

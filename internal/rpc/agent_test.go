@@ -273,3 +273,15 @@ func TestAgentSendNeedsApproval(t *testing.T) {
 	a.reply <- false
 	require.ErrorIs(t, <-done, rpc.ErrDenied)
 }
+
+func TestAppScopeCommandRunsWithoutProject(t *testing.T) {
+	h, _ := startAlpha(t, `{"id":"alpha.say","title":"Say","remote":true,"scope":"app"},{"id":"alpha.other","title":"Other"}`)
+	c := h.Client(t)
+	cmds := pluginCommands(t, h)
+	require.Len(t, cmds, 2)
+	assert.True(t, cmds[0].Remote)
+	assert.Equal(t, "app", cmds[0].Scope)
+	assert.False(t, cmds[1].Remote)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": ""}, nil))
+	assert.ErrorIs(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.other", "projectId": ""}, nil), rpc.ErrInvalidParams)
+}

@@ -1,0 +1,67 @@
+{
+  "id": "remote",
+  "name": "Remote",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["remote"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "remote.status",
+        "title": "Companion Status",
+        "hidden": true,
+        "scope": "app",
+        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries and why it is not listening: {enabled, port, listening, hosts, error}."
+      },
+      {
+        "id": "remote.enable",
+        "title": "Allow Companion Devices",
+        "hidden": true,
+        "scope": "app",
+        "description": "Turn companion access on or off; returns the status.",
+        "args": {
+          "properties": {
+            "enabled": {"type": "boolean", "description": "Listen for paired devices."}
+          },
+          "required": ["enabled"]
+        }
+      },
+      {
+        "id": "remote.pair",
+        "title": "Pair Device",
+        "hidden": true,
+        "scope": "app",
+        "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt}."
+      },
+      {
+        "id": "remote.cancelPair",
+        "title": "Cancel Pairing",
+        "hidden": true,
+        "scope": "app",
+        "description": "Drop the active pairing code."
+      },
+      {
+        "id": "remote.devices",
+        "title": "Paired Devices",
+        "hidden": true,
+        "scope": "app",
+        "description": "Paired devices, newest first: [{id, name, model, pairedAt, lastSeen, connected}]."
+      },
+      {
+        "id": "remote.revoke",
+        "title": "Revoke Device",
+        "hidden": true,
+        "scope": "app",
+        "destructive": true,
+        "confirm": "Revoke this device's access to Clubmate?",
+        "description": "Forget a paired device: its token stops working and its open streams close.",
+        "args": {
+          "properties": {
+            "device": {"type": "string", "description": "Device id."}
+          },
+          "required": ["device"]
+        }
+      }
+    ]
+  }
+}

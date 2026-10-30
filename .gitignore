@@ -6,6 +6,7 @@ bin/
 .ghostty-build-stamp
 client/GhosttyKit.xcframework
 client/Clubmate.xcodeproj
+client/Companion.xcodeproj
 client/Clubmate/Resources/ghostty
 client/Clubmate/Resources/terminfo
 /dist/

@@ -23,6 +23,8 @@ build:
 	cp plugins/search/plugin.json bin/plugins/search/
 	$(GO_BUILD) -o bin/plugins/agents/agents ./plugins/agents
 	cp plugins/agents/plugin.json bin/plugins/agents/
+	$(GO_BUILD) -o bin/plugins/remote/remote ./plugins/remote
+	cp plugins/remote/plugin.json bin/plugins/remote/
 
 run-core: build
 	bin/clubmate-core
@@ -48,4 +50,10 @@ run-app:
 kit-test:
 	cd client/ClubmateKit && swift test
 
-.PHONY: build run-core test lint ghostty app app-release run-app kit-test
+companion-kit-test:
+	cd client/CompanionKit && swift test
+
+companion:
+	cd client && xcodegen generate --spec companion.yml && xcodebuild -project Companion.xcodeproj -scheme Companion -sdk iphonesimulator -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual build
+
+.PHONY: build run-core test lint ghostty app app-release run-app kit-test companion-kit-test companion
