@@ -62,6 +62,10 @@ const (
 	heldNote       = "Queued, not sent"
 	queuePrefix    = "queue/"
 	advisorHelp    = "Advisor model for new sessions in this worktree"
+	finishHelp     = "What the agent does once the task is done"
+
+	finishAskText   = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
+	finishMergeText = "[Clubmate finish mode: merge] When the task is done, run the project's tests. If they all pass, commit, merge the task branch into main without asking, then remove the worktree created for the task and delete the merged branch; never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
 )
 
 var (
@@ -93,6 +97,10 @@ var (
 		{value: "fable", label: "Fable"},
 		{value: "opus", label: "Opus"},
 		{value: "sonnet", label: "Sonnet"},
+	}
+	finishChoices = []advisorChoice{
+		{value: finishAsk, label: "Ask"},
+		{value: finishMerge, label: "Merge to main"},
 	}
 )
 
@@ -805,7 +813,12 @@ func pickers(sc screen) []sdui.Picker {
 	for _, c := range advisorChoices {
 		options = append(options, sdui.Option{Value: c.value, Label: c.label})
 	}
-	return append(out, sdui.Picker{ID: advisorID, Title: "Advisor", Help: advisorHelp, Value: sc.Advisor, Options: options})
+	out = append(out, sdui.Picker{ID: advisorID, Title: "Advisor", Help: advisorHelp, Value: sc.Advisor, Options: options})
+	finish := make([]sdui.Option, 0, len(finishChoices))
+	for _, c := range finishChoices {
+		finish = append(finish, sdui.Option{Value: c.value, Label: c.label})
+	}
+	return append(out, sdui.Picker{ID: finishID, Title: "Finish", Help: finishHelp, Value: cmp.Or(sc.View.Session.Finish, finishAsk), Options: finish})
 }
 
 func modelName(configs []acp.SessionConfigOption) string {

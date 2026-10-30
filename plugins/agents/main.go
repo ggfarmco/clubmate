@@ -31,6 +31,10 @@ const (
 	configKey       = "config/"
 	advisorKey      = "advisor/"
 	advisorID       = "advisor"
+	finishKey       = "finish/default"
+	finishID        = "finish"
+	finishAsk       = "ask"
+	finishMerge     = "merge"
 	checktimeCmd    = "editor-nvim.checktime"
 	attachTimeout   = 2 * time.Minute
 	callTimeout     = 10 * time.Second
@@ -92,6 +96,14 @@ type configArgs struct {
 	Session string `json:"session"`
 	ID      string `json:"id"`
 	Value   string `json:"value"`
+}
+
+type finishArgs struct {
+	Value string `json:"value"`
+}
+
+type finishResult struct {
+	Value string `json:"value"`
 }
 
 type rootArgs struct {
@@ -261,6 +273,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.setConfig(ctx, cmd.ProjectID, args)
 	case "agents.sessions":
 		return a.infos(cmd.ProjectID), nil
+	case "agents.finishDefault":
+		var args finishArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return a.finishCommand(ctx, args)
 	case "agents.stop-root":
 		var args rootArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -305,6 +323,39 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	return nil, fmt.Errorf("%w: %s", errUnknownCmd, cmd.ID)
 }
 
+func (a *app) finishCommand(ctx context.Context, args finishArgs) (finishResult, error) {
+	if args.Value == "" {
+		return finishResult{Value: a.finishDefault(ctx)}, nil
+	}
+	if !validFinish(args.Value) {
+		return finishResult{}, fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, args.Value)
+	}
+	return finishResult{Value: args.Value}, a.host.StorageSet(ctx, finishKey, args.Value)
+}
+
+func (a *app) finishDefault(ctx context.Context) string {
+	var value string
+	if found, err := a.host.StorageGet(ctx, finishKey, &value); err != nil || !found || !validFinish(value) {
+		return finishAsk
+	}
+	return value
+}
+
+func validFinish(value string) bool {
+	return slices.ContainsFunc(finishChoices, func(c advisorChoice) bool { return c.value == value })
+}
+
+func (a *app) setFinish(s *session, value string) error {
+	if !validFinish(value) {
+		return fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, value)
+	}
+	s.mu.Lock()
+	s.rec.Finish = value
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+	return nil
+}
+
 func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, agent string) (newResult, error) {
 	if agent != agentClaude {
 		return newResult{}, fmt.Errorf("%w: %s", errUnknownAgent, agent)
@@ -325,7 +376,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, agen
 
 func (a *app) createSession(projectID, agent, root string) newResult {
 	now := time.Now().UTC()
-	s := a.addSession(record{ID: newSessionID(), Workspace: projectID, Worktree: root, Agent: agent, Status: statusIdle, CreatedAt: now, UpdatedAt: now}, true)
+	s := a.addSession(record{ID: newSessionID(), Workspace: projectID, Worktree: root, Agent: agent, Finish: a.finishDefault(context.Background()), Status: statusIdle, CreatedAt: now, UpdatedAt: now}, true)
 	a.notes.mark(s, changeCreated, true)
 	a.kick(projectID)
 	go a.attachInBackground(s)
@@ -607,6 +658,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	s.recordLocked(actorUser, kindPrompt, req)
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
+	req.Prompt = append(slices.Clip(req.Prompt), acp.ContentBlock{Type: "text", Text: finishPolicy(rec.Finish)})
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
 	if errors.Is(err, acp.ErrClosed) {
@@ -677,6 +729,13 @@ func (a *app) abandon(s *session, args promptArgs) bool {
 	}
 	s.mu.Unlock()
 	return false
+}
+
+func finishPolicy(mode string) string {
+	if mode == finishMerge {
+		return finishMergeText
+	}
+	return finishAskText
 }
 
 func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBlock {
@@ -770,8 +829,11 @@ func (a *app) setConfig(ctx context.Context, projectID string, args configArgs) 
 	if err != nil {
 		return err
 	}
-	if args.ID == advisorID {
+	switch args.ID {
+	case advisorID:
 		return a.setAdvisor(ctx, s, args.Value)
+	case finishID:
+		return a.setFinish(s, args.Value)
 	}
 	s.mu.Lock()
 	i := slices.IndexFunc(s.configs, func(o acp.SessionConfigOption) bool { return o.ID == args.ID && pickable(o) })

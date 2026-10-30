@@ -233,8 +233,8 @@ func TestConfigPickersAndModelInHeader(t *testing.T) {
 
 	assert.Equal(t, "Claude · ⑂ a · Opus 5.5", nodesOf(tree, "text")[1].Props["text"])
 	got := nodesOf(tree, "composer")[0].Props["pickers"].([]sdui.Picker)
-	require.Len(t, got, 3)
+	require.Len(t, got, 4)
 	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
-	assert.Equal(t, []string{"Effort", "Advisor"}, []string{got[1].Title, got[2].Title})
-	assert.Equal(t, "opus", got[2].Value)
+	assert.Equal(t, []string{"Effort", "Advisor", "Finish"}, []string{got[1].Title, got[2].Title, got[3].Title})
+	assert.Equal(t, []string{"opus", "ask"}, []string{got[2].Value, got[3].Value})
 }

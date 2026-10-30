@@ -90,6 +90,10 @@ final class AgentsUITests: XCTestCase {
 
         XCTAssertEqual(composer.pickers().map(\.label), ["Opus 5.5", "Effort: High", "Advisor: Default"])
         XCTAssertEqual(SDUIPicker.summary(composer.pickers()), "Opus 5.5 · High")
+        let merging = SDUINode(type: "composer", props: ["pickers": .array([
+            .object(["id": .string("finish"), "title": .string("Finish"), "value": .string("merge"), "options": .array([option("ask", "Ask"), option("merge", "Merge to main")])]),
+        ])])
+        XCTAssertEqual(SDUIPicker.summary(merging.pickers()), "Merge to main")
 }
 
     func testTranscriptGroupsAdjacentToolCards() {

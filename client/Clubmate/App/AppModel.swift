@@ -39,6 +39,10 @@ final class AppModel {
         confirm: { message in await Confirmation.ask(message, action: "Restart", destructive: true) }
     )
 
+    @ObservationIgnored private(set) lazy var agentFinish = AgentFinishModel { [weak self] workspace, invocation in
+        await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
+    }
+
     @ObservationIgnored private(set) lazy var notifications = Notifications(
         store: ClubmatePaths.resolve().state.appending(path: "notifications.json"),
         run: { [weak self] workspace, invocation in

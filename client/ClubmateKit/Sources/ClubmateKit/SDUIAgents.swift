@@ -122,7 +122,8 @@ public struct SDUIPicker: Sendable, Equatable, Identifiable {
     public static func summary(_ pickers: [SDUIPicker]) -> String {
         let model = pickers.first { $0.title == nil }?.current.replacingOccurrences(of: " (recommended)", with: "")
         let effort = pickers.first { $0.id == "effort" }?.current
-        return [model, effort].compactMap { $0 }.joined(separator: " · ")
+        let finish = pickers.first { $0.id == "finish" && $0.value == AgentFinishMode.merge.rawValue }?.current
+        return [model, effort, finish].compactMap { $0 }.joined(separator: " · ")
     }
 
     init?(_ json: JSONValue) {
