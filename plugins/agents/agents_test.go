@@ -27,6 +27,7 @@ const (
 	restartWait    = 15 * time.Second
 	gitManifest    = `{"id":"git","name":"Git","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"git.review","title":"Review","hidden":true}]},"echoResults":{"git.review":{}}}`
 	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]},"echoResults":{"editor-nvim.checktime":{}}}`
+	codeManifest   = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","icon":"code","order":10}],"commands":[{"id":"editor-nvim.open","provides":["editor.open"],"title":"Open File","hidden":true}]},"echoResults":{"editor-nvim.open":{}}}`
 )
 
 type record struct {
@@ -670,6 +671,40 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 	f.h.Event(t, project, "agents.main", session+"/review", "review", nil)
 
 	assert.JSONEq(t, `{"base":"commit:`+sha+`","head":"`+repo+`","baseLabel":"before turn 1"}`, string(echoed(t, f, "git.review")))
+}
+
+func TestOpenLocationShowsEditor(t *testing.T) {
+	repo := newRepo(t)
+	path := filepath.Join(repo, "a.go")
+	read := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read a.go", "kind": "read", "status": "completed", "locations": []map[string]any{{"path": path, "line": 1}}}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"update": read}}}, testutil.EchoPluginDirAs(t, codeManifest))
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "read it")
+	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "toolCard")) == 1 })
+	card := cardsOf(main, "toolCard")[0]
+	c := f.h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, nil))
+
+	f.h.Event(t, project, "agents.main", card.ID, "openLocation", map[string]any{"path": path, "line": 1})
+
+	assert.JSONEq(t, `{"path":"`+path+`","line":1}`, string(echoed(t, f, "editor-nvim.open")))
+	deadline := time.After(wait)
+	for {
+		select {
+		case n := <-c.Notifications():
+			if n.Method != "ui.focus" {
+				continue
+			}
+			var got struct{ Section, Slot string }
+			require.NoError(t, json.Unmarshal(n.Params, &got))
+			assert.Equal(t, "editor-nvim", got.Section)
+			assert.Equal(t, "editor-nvim.main", got.Slot)
+			return
+		case <-deadline:
+			t.Fatal("no ui.focus notification")
+		}
+	}
 }
 
 func TestSignInReattaches(t *testing.T) {

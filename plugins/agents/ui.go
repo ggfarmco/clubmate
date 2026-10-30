@@ -27,6 +27,8 @@ const (
 	selectedKey     = "selected/"
 	selectionCmd    = "editor-nvim.selection"
 	openCmd         = "editor.open"
+	editorSection   = "editor-nvim"
+	editorSlot      = "editor-nvim.main"
 	reviewCmd       = "git.review"
 	signInTitle     = "Sign in to "
 	checkpointLabel = "before turn %d"
@@ -529,7 +531,10 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		return a.host.RunCommand(ctx, openCmd, ev.ProjectID, v, nil)
+		if err := a.host.RunCommand(ctx, openCmd, ev.ProjectID, v, nil); err != nil {
+			return err
+		}
+		return a.host.Focus(ctx, ev.ProjectID, editorSection, editorSlot)
 	case actReview:
 		var v turnValue
 		if err := decode(ev.Value, &v); err != nil {
