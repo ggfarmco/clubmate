@@ -109,4 +109,8 @@ public struct PairingReview: Sendable, Equatable, Identifiable {
     public var changesAddress: Bool {
         !addedHosts.isEmpty || !removedHosts.isEmpty || previousPort != nil
     }
+
+    public func needsConfirmation(scanned: Bool) -> Bool {
+        !scanned || replacesExisting || changesAddress
+    }
 }

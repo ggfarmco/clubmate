@@ -61,11 +61,12 @@ final class PairingFlow {
             phase = .failed(error.message)
             return
         }
-        if source == .scan || Self.autoConfirm {
+        let review = PairingReview(link: link, existing: model.computers)
+        if Self.autoConfirm || !review.needsConfirmation(scanned: source == .scan) {
             pair(link, model: model, navigation: navigation)
             return
         }
-        review = PairingReview(link: link, existing: model.computers)
+        self.review = review
     }
 
     func confirm(model: CompanionModel, navigation: AppNavigation) {

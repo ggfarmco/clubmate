@@ -57,4 +57,12 @@ final class PairingReviewTests: XCTestCase {
         XCTAssertEqual(review.removedHosts, ["100.64.0.2"])
         XCTAssertEqual(review.previousPort, 47000)
     }
+
+    func testScanSkipsConfirmationOnlyForNewComputer() {
+        let new = PairingReview(link: link, existing: [])
+        let replacing = PairingReview(link: link, existing: [Computer(id: "mac1", name: "Mac", hosts: link.hosts, port: link.port)])
+        XCTAssertFalse(new.needsConfirmation(scanned: true))
+        XCTAssertTrue(new.needsConfirmation(scanned: false))
+        XCTAssertTrue(replacing.needsConfirmation(scanned: true))
+    }
 }

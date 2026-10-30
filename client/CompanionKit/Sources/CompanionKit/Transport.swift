@@ -7,6 +7,7 @@ public protocol HTTPTransport: Sendable {
 
 public final class URLSessionTransport: HTTPTransport {
     private let session: URLSession
+    private let refuseRedirects = RefuseRedirects()
 
     public init(configuration: URLSessionConfiguration = .ephemeral) {
         configuration.waitsForConnectivity = false
@@ -16,13 +17,13 @@ public final class URLSessionTransport: HTTPTransport {
     }
 
     public func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request, delegate: refuseRedirects)
         guard let http = response as? HTTPURLResponse else { throw RemoteError.badResponse }
         return (data, http)
     }
 
     public func stream(_ request: URLRequest) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, any Error>) {
-        let (bytes, response) = try await session.bytes(for: request)
+        let (bytes, response) = try await session.bytes(for: request, delegate: refuseRedirects)
         guard let http = response as? HTTPURLResponse else { throw RemoteError.badResponse }
         let stream = AsyncThrowingStream<Data, any Error> { continuation in
             let task = Task {
@@ -44,5 +45,11 @@ public final class URLSessionTransport: HTTPTransport {
             continuation.onTermination = { _ in task.cancel() }
         }
         return (http, stream)
+    }
+}
+
+private final class RefuseRedirects: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest? {
+        nil
     }
 }
