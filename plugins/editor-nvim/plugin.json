@@ -274,6 +274,26 @@
         }
       },
       {
+        "id": "editor-nvim.selection",
+        "title": "Current Selection",
+        "hidden": true,
+        "agent": false,
+        "description": "The current or last visual selection of the current root's Neovim: {path, startLine, endLine, text}. Fails with no selection when there is none."
+      },
+      {
+        "id": "editor-nvim.checktime",
+        "title": "Reload Changed Files",
+        "hidden": true,
+        "agent": false,
+        "description": "Run :checktime in the Neovim of the given root so buffers changed on disk reload; a no-op when none runs there.",
+        "args": {
+          "properties": {
+            "root": {"type": "string", "description": "Absolute root path of the Neovim, as listed in the workspace roots."}
+          },
+          "required": ["root"]
+        }
+      },
+      {
         "id": "editor-nvim.stop-root",
         "title": "Stop Worktree Neovim",
         "hidden": true,

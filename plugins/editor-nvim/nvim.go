@@ -238,6 +238,39 @@ const reviewExcludesLua = reviewPrelude + `local excludes = ...
 local dv = review_module()
 if dv then dv.set_excludes(excludes, m.review_tab) end`
 
+const selectionLua = `local buf = vim.api.nvim_get_current_buf()
+if vim.bo[buf].buftype ~= "" then return nil end
+local mode = vim.api.nvim_get_mode().mode
+local a, b
+if mode == "v" or mode == "V" or mode == "\22" then
+  a, b = vim.fn.getpos("v"), vim.fn.getpos(".")
+else
+  a, b = vim.fn.getpos("'<"), vim.fn.getpos("'>")
+end
+if a[2] == 0 or b[2] == 0 then return nil end
+if a[2] > b[2] or (a[2] == b[2] and a[3] > b[3]) then a, b = b, a end
+local kind = mode == "v" and "v" or mode == "V" and "V" or mode == "\22" and "\22" or vim.fn.visualmode()
+if kind == "" then kind = "v" end
+local text = table.concat(vim.fn.getregion(a, b, { type = kind }), "\n")
+return { path = vim.api.nvim_buf_get_name(buf), startLine = a[2], endLine = b[2], text = text }`
+
+const checktimeLua = `vim.schedule(function()
+  local ar = vim.o.autoread
+  vim.o.autoread = true
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buftype == "" and not vim.bo[b].modified then
+      local name = vim.api.nvim_buf_get_name(b)
+      local empty = vim.api.nvim_buf_line_count(b) == 1 and vim.api.nvim_buf_get_lines(b, 0, 1, false)[1] == ""
+      if not empty then
+        pcall(vim.cmd, "silent! checktime " .. b)
+      elseif name ~= "" and vim.uv.fs_stat(name) then
+        pcall(vim.api.nvim_buf_call, b, function() vim.cmd("silent! edit") end)
+      end
+    end
+  end
+  vim.o.autoread = ar
+end)`
+
 const modifiedLua = `local names = {}
 for _, b in ipairs(vim.api.nvim_list_bufs()) do
   if vim.bo[b].modified and vim.bo[b].buftype == "" and vim.bo[b].buflisted then
@@ -489,6 +522,21 @@ func (c *client) reviewExcludes(excludes []string) error {
 
 func (c *client) closeReview() error {
 	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(closeReviewLua, nil) })
+}
+
+func (c *client) selection() (*selectionResult, error) {
+	var sel *selectionResult
+	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(selectionLua, &sel) }); err != nil {
+		return nil, err
+	}
+	if sel == nil {
+		return nil, errNoSelection
+	}
+	return sel, nil
+}
+
+func (c *client) checktime() error {
+	return c.call(func(v *nvim.Nvim) error { return v.ExecLua(checktimeLua, nil) })
 }
 
 func (c *client) modified() ([]string, error) {

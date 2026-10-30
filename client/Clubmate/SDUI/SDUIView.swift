@@ -15,12 +15,22 @@ struct SDUIDispatch: Sendable {
     var banner: EventBanner?
 
     @MainActor
-    func callAsFunction(_ node: SDUINode, _ trigger: UIAction.Trigger) {
+    func callAsFunction(_ node: SDUINode, _ trigger: UIAction.Trigger, done: (@MainActor (Bool) -> Void)? = nil) {
         let event = UIAction.event(for: node, trigger: trigger, slot: slot, projectID: projectID)
         Task { [sink, banner] in
-            if case .failure(let error) = await sink(event) {
+            let result = await sink(event)
+            if case .failure(let error) = result {
                 banner?.show(error.message)
             }
+            if case .success = result { done?(true) } else { done?(false) }
+        }
+    }
+
+    @MainActor
+    func choose(_ entry: SDUIMenuEntry, item: String, in node: SDUINode) {
+        guard let message = entry.confirm else { return self(node, .named(entry.action, .string(item))) }
+        Task {
+            if await Confirmation.ask(message, action: entry.label, destructive: true) { self(node, .named(entry.action, .string(item))) }
         }
     }
 
@@ -147,6 +157,12 @@ struct SDUINodeView: View {
         case "toggle": ToggleNodeView(node: node)
         case "select": SelectNodeView(node: node)
         case "form": FormNodeView(node: node)
+        case "transcript": TranscriptNodeView(node: node)
+        case "message": MessageNodeView(node: node).equatable()
+        case "plan": PlanNodeView(node: node)
+        case "toolCard": ToolCardNodeView(node: node)
+        case "permissionCard": PermissionCardNodeView(node: node)
+        case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
         case "empty": EmptyNodeView(text: node.string("text") ?? "")
         default: UnsupportedNodeView(type: node.type)

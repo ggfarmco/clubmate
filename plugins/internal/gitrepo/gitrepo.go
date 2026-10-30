@@ -63,6 +63,12 @@ func MutateNotice(ctx context.Context, repo string, args ...string) ([]byte, str
 	return out, stderr.String(), err
 }
 
+func RunEnv(ctx context.Context, repo string, env []string, args ...string) ([]byte, error) {
+	cmd := command(ctx, repo, args...)
+	cmd.Env = append(cmd.Env, env...)
+	return cmd.Output()
+}
+
 func RunLimited(ctx context.Context, repo string, limit int, args ...string) ([]byte, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

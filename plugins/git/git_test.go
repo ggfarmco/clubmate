@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
@@ -28,6 +29,7 @@ const (
 	reviewSlot     = "git.review"
 	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true},{"id":"editor-nvim.checktime","title":"Checktime","hidden":true},{"id":"editor-nvim.unsaved","title":"Unsaved","hidden":true}]}}`
 	restartWait    = 15 * time.Second
+	agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.stop-root","title":"Stop Worktree Agents","hidden":true}]},"echoResults":{"agents.stop-root":{}}}`
 )
 
 func TestMain(m *testing.M) {
@@ -388,6 +390,29 @@ func restartGit(t *testing.T, h *testutil.PluginHarness) {
 	}, restartWait)
 }
 
+func TestReviewLiteralBase(t *testing.T) {
+	repo := committedRepo(t)
+	write(t, filepath.Join(repo, "a.go"), "before\n")
+	write(t, filepath.Join(repo, "n.go"), "n\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "checkpoint")
+	sha := strings.TrimSpace(git(t, repo, "rev-parse", "HEAD"))
+	write(t, filepath.Join(repo, "b.go"), "b\n")
+	git(t, repo, "add", "b.go")
+	git(t, repo, "commit", "-qm", "after")
+	write(t, filepath.Join(repo, "n.go"), "n\nm\n")
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+
+	review(t, h, id, map[string]string{"base": "commit:" + sha, "baseLabel": "before turn 2"})
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "b.go", "n.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "before turn 2", header["base"])
+	assert.Equal(t, "commit:"+sha, header["baseRef"])
+
+	err := runCommand(t, h, id, "git.review", map[string]string{"base": "commit:" + strings.Repeat("0", 40)}, nil)
+	assert.ErrorContains(t, err, "invalid ref")
+}
+
 func TestReviewAgainstWorktreeUsesMergeBase(t *testing.T) {
 	repo := committedRepo(t)
 	a := filepath.Join(repo, ".worktrees", "a")
@@ -684,6 +709,25 @@ func TestReviewBranchHeadWithoutCheckout(t *testing.T) {
 	assert.Contains(t, string(diffs[len(diffs)-1]), `"target":"worktree"`)
 }
 
+func TestReviewLiteralBaseWithBranchHead(t *testing.T) {
+	repo := branchRepo(t)
+	tip := git(t, repo, "rev-parse", "HEAD")
+	git(t, repo, "checkout", "-q", "main")
+	write(t, filepath.Join(repo, "m.go"), "m\n")
+	git(t, repo, "add", "m.go")
+	git(t, repo, "commit", "-qm", "main moved")
+	sha := git(t, repo, "rev-parse", "HEAD")
+	manifest := strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.review-open":{"mode":"native"}},`, 1)
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, manifest))
+
+	review(t, h, id, map[string]string{"base": "commit:" + sha, "head": "feature/x", "baseLabel": "before turn 2"})
+	n := h.WaitSlot(t, id, reviewSlot, reviewing(t, "a.go", "c.go", "d.go", "m.go"))
+	_, header := reviewView(t, n)
+	assert.Equal(t, "before turn 2", header["base"])
+	assert.Equal(t, true, header["readOnly"])
+	assert.JSONEq(t, fmt.Sprintf(`{"cwd":%q,"base":%q,"excludes":[]}`, repo, sha+".."+tip), string(commandArgs(t, h, "editor-nvim.review-open")[0]))
+}
+
 func TestReviewErrors(t *testing.T) {
 	repo := branchRepo(t)
 	h, id := openReady(t, repo)
@@ -935,7 +979,7 @@ func TestRemoveWorktree(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")
 	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
-	h, id := openReady(t, repo, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"))
+	h, id := openReady(t, repo, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"), testutil.EchoPluginDirAs(t, agentsManifest))
 	surface := func(not string) string {
 		n := h.WaitSlot(t, id, editorSlot, func(n sdui.Node) bool { return n.Type == "surface" && n.Props["sessionId"] != not })
 		return n.Props["sessionId"].(string)
@@ -953,6 +997,11 @@ func TestRemoveWorktree(t *testing.T) {
 
 	assert.Equal(t, opResult{Done: true}, awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat}))
 	assert.NoDirExists(t, feat)
+	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 100)
+	require.NoError(t, err)
+	assert.True(t, slices.ContainsFunc(events, func(e bus.Event) bool {
+		return strings.Contains(string(e.Payload), `"agents.stop-root"`) && strings.Contains(string(e.Payload), `"root":"`+feat+`"`)
+	}))
 	assert.Equal(t, repo, firstRoot(t, h, id))
 	git(t, repo, "rev-parse", "--verify", "-q", "feat")
 	testutil.Eventually(t, func() bool {

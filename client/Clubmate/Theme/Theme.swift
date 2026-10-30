@@ -17,6 +17,7 @@ struct Theme: Sendable {
     var ui: Font { font(size: uiSize) }
     var uiSmall: Font { font(size: uiSize - 1) }
     var title: Font { font(size: uiSize + 1).weight(.semibold) }
+    var glyph: Font { .system(size: uiSize - 4, weight: .semibold) }
 
     var rowHeight: CGFloat { (uiSize * 5 / 3).rounded() }
     let gutter: CGFloat = 8

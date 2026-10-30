@@ -69,7 +69,9 @@ var (
 	errReviewPath     = errors.New("review: path is required")
 	errReviewDir      = errors.New("review-next: dir must be 1 or -1")
 	errStopRoot       = errors.New("stop-root: root must be absolute")
+	errChecktimeRoot  = errors.New("checktime: root must be absolute")
 	errUnsavedRoot    = errors.New("unsaved: root must be absolute")
+	errNoSelection    = errors.New("no selection")
 	errStopping       = errors.New("the worktree is being removed")
 	errNavigationSide = errors.New("navigation: side must be left or right")
 	errQuickfixCount  = fmt.Errorf("quickfix: items must hold 1 to %d entries", quickfixMax)
@@ -199,6 +201,17 @@ type navigationResult struct {
 
 type restartArgs struct {
 	Force bool `json:"force"`
+}
+
+type selectionResult struct {
+	Path      string `json:"path" msgpack:"path"`
+	StartLine int    `json:"startLine" msgpack:"startLine"`
+	EndLine   int    `json:"endLine" msgpack:"endLine"`
+	Text      string `json:"text" msgpack:"text"`
+}
+
+type rootArgs struct {
+	Root string `json:"root"`
 }
 
 type stopRootArgs struct {
@@ -424,6 +437,20 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, fmt.Errorf("review-open args: %w", err)
 		}
 		return a.reviewOpen(ctx, h, cmd.ProjectID, args)
+	case "checktime":
+		var args rootArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("checktime args: %w", err)
+		}
+		if !filepath.IsAbs(args.Root) {
+			return nil, errChecktimeRoot
+		}
+		if e := a.lookup(cmd.ProjectID, filepath.Clean(args.Root)); e != nil {
+			if c := e.connected(); c != nil {
+				return nil, c.checktime()
+			}
+		}
+		return nil, nil
 	case "stop-root":
 		var args stopRootArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -463,6 +490,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, errNoCurrentFile
 		}
 		return nil, exec.CommandContext(ctx, "open", "-R", file).Run()
+	case "selection":
+		c := e.connected()
+		if c == nil {
+			return nil, errNoSelection
+		}
+		return c.selection()
 	case "terminal":
 		return nil, a.terminal(ctx, h, e)
 	case "restart":

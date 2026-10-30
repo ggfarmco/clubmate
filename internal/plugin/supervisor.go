@@ -42,6 +42,7 @@ const (
 
 	pluginIDEnv   = "CLUBMATE_PLUGIN_ID"
 	runtimeDirEnv = "CLUBMATE_PLUGIN_RUNTIME_DIR"
+	stateDirEnv   = "CLUBMATE_PLUGIN_STATE_DIR"
 	flavorEnv     = "CLUBMATE_FLAVOR"
 	resourcesEnv  = "CLUBMATE_RESOURCES"
 )
@@ -285,7 +286,7 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 	defer stdoutW.Close()
 	cmd := exec.Command(m.Executable(), m.Command[1:]...)
 	cmd.Dir = m.Dir
-	cmd.Env = append(sessionhost.StripMarkers(os.Environ()), pluginIDEnv+"="+m.ID, runtimeDirEnv+"="+runtimeDir, flavorEnv+"="+buildinfo.Flavor)
+	cmd.Env = append(sessionhost.StripMarkers(os.Environ()), pluginIDEnv+"="+m.ID, runtimeDirEnv+"="+runtimeDir, stateDirEnv+"="+s.dirs.PluginState(m.ID), flavorEnv+"="+buildinfo.Flavor)
 	if s.resourceDir != "" {
 		cmd.Env = append(cmd.Env, resourcesEnv+"="+s.resourceDir)
 	}

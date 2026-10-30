@@ -64,6 +64,18 @@ The files tree keys above apply; `-` collapses every folder except the ancestors
 
 Defined in `ClubmateKit/Review.swift` (`ReviewKeys`).
 
+## Agent composer (Agents section, prompt focused)
+
+| Keys | Action |
+|---|---|
+| ⌘↩ | Send the prompt (ignored while a turn runs) |
+| Esc | Stop the running turn |
+| @ (at the start of a word) | Attach a file through the Go to File picker |
+| / (at the start of the prompt) | List the agent's commands, filtered by what follows |
+| ↑ ↓, ↩ / ⇥ | Move in the command list, insert the command |
+
+↩ alone inserts a newline. Defined in `ClubmateKit/Composer.swift` (`ComposerKey`).
+
 ## nvim navigation overlay (opt-in in Settings)
 
 | Keys | Action |

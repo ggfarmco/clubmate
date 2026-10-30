@@ -72,6 +72,10 @@ func RuntimeDir() string {
 	return os.Getenv("CLUBMATE_PLUGIN_RUNTIME_DIR")
 }
 
+func StateDir() string {
+	return os.Getenv("CLUBMATE_PLUGIN_STATE_DIR")
+}
+
 func ResourcesDir() string {
 	return os.Getenv("CLUBMATE_RESOURCES")
 }
