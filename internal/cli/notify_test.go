@@ -12,6 +12,7 @@ import (
 	"clubmate/internal/bus"
 	"clubmate/internal/cli"
 	"clubmate/internal/project"
+	"clubmate/internal/testutil"
 )
 
 type posted struct {
@@ -52,6 +53,10 @@ func TestNotifyResolvesWorkspaceAndSession(t *testing.T) {
 	run(t, "notify", "--workspace", there, "--title", "CI", "red")
 	assert.Equal(t, posted{Workspace: there, Title: "CI", Message: "red", Kind: "info"}, lastPosted(t, b))
 
+	t.Setenv("CLUBMATE_AGENT_SESSION", "agt_0123456789abcdef")
+	run(t, "notify", "--kind", "done", "Finished")
+	assert.Equal(t, posted{Workspace: here, Session: "agt_0123456789abcdef", Message: "Finished", Kind: "done"}, lastPosted(t, b))
+
 	t.Setenv("CLUBMATE_PROJECT_ID", "")
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRoot(&stdout, &stderr)
@@ -79,4 +84,20 @@ func TestNotifyRejectsUnknownKind(t *testing.T) {
 	root := cli.NewRoot(&stdout, &stderr)
 	root.SetArgs([]string{"notify", "--kind", "urgent", "hi"})
 	assert.ErrorContains(t, root.Execute(), `unknown kind "urgent"`)
+}
+
+func TestNotifyQuietIgnoresMissingCore(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
+	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
+	t.Setenv("CLUBMATE_PROJECT_ID", "")
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRoot(&stdout, &stderr)
+	root.SetArgs([]string{"notify", "--quiet", "hi"})
+	require.NoError(t, root.Execute())
+	assert.Empty(t, stdout.String())
+
+	root = cli.NewRoot(&stdout, &stderr)
+	root.SetArgs([]string{"notify", "hi"})
+	assert.Error(t, root.Execute())
 }

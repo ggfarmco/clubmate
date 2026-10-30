@@ -47,17 +47,21 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 	assert.NotEmpty(t, got["ts"])
 }
 
-func TestNotifyPostRateLimitsPerWorkspace(t *testing.T) {
+func TestNotifyPostRateLimitsPerWorkspaceAndInAll(t *testing.T) {
 	c := startServer(t)
-	p, other := createProject(t, c), createProject(t, c)
 	post := func(projectID string) error {
 		return c.Call(t.Context(), "notify.post", map[string]any{"projectId": projectID, "message": "hi"}, nil)
 	}
+	first := createProject(t, c)
 	for range 5 {
-		require.NoError(t, post(p.ID))
+		require.NoError(t, post(first.ID))
 	}
-	err := post(p.ID)
-	require.ErrorIs(t, err, rpc.ErrInvalidParams)
-	assert.ErrorContains(t, err, "too many notifications")
-	assert.NoError(t, post(other.ID))
+	assert.ErrorIs(t, post(first.ID), rpc.ErrRateLimited)
+	for range 3 {
+		p := createProject(t, c)
+		for range 5 {
+			require.NoError(t, post(p.ID))
+		}
+	}
+	assert.ErrorIs(t, post(createProject(t, c).ID), rpc.ErrRateLimited)
 }

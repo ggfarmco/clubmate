@@ -12,7 +12,6 @@ const (
 	DefaultKind = "info"
 	MaxMessage  = 1000
 	MaxTitle    = 120
-	MaxSession  = 64
 	ellipsis    = "…"
 )
 
@@ -32,25 +31,34 @@ func Clip(s string, limit int) string {
 }
 
 type Limiter struct {
-	max    int
+	perKey int
+	total  int
 	window time.Duration
 	mu     sync.Mutex
 	seen   map[string][]time.Time
+	all    []time.Time
 }
 
-func NewLimiter(max int, window time.Duration) *Limiter {
-	return &Limiter{max: max, window: window, seen: map[string][]time.Time{}}
+func NewLimiter(perKey, total int, window time.Duration) *Limiter {
+	return &Limiter{perKey: perKey, total: total, window: window, seen: map[string][]time.Time{}}
 }
 
 func (l *Limiter) Allow(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	cutoff := now.Add(-l.window)
-	recent := slices.DeleteFunc(l.seen[key], func(t time.Time) bool { return !t.After(cutoff) })
-	if len(recent) >= l.max {
-		l.seen[key] = recent
+	expired := func(t time.Time) bool { return !t.After(cutoff) }
+	l.all = slices.DeleteFunc(l.all, expired)
+	recent := slices.DeleteFunc(l.seen[key], expired)
+	if len(recent) >= l.perKey || len(l.all) >= l.total {
+		if len(recent) == 0 {
+			delete(l.seen, key)
+		} else {
+			l.seen[key] = recent
+		}
 		return false
 	}
 	l.seen[key] = append(recent, now)
+	l.all = append(l.all, now)
 	return true
 }

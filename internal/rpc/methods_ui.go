@@ -326,6 +326,9 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		}
 	}
 	if isPrimitive {
+		if p.Agent {
+			ctx = withAgentCall(ctx)
+		}
 		return s.runPrimitive(ctx, prim, p.ProjectID, p.Args)
 	}
 	p.ID = c.ID

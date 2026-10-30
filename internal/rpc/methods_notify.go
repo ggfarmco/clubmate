@@ -14,11 +14,13 @@ import (
 )
 
 const (
-	notifyPrefix     = "ntf"
-	notifyRateMax    = 5
-	notifyRateWindow = 10 * time.Second
-	notifyMethod     = "notify.post"
-	notifyTimeLayout = time.RFC3339Nano
+	notifyPrefix      = "ntf"
+	notifyRateMax     = 5
+	notifyRateTotal   = 20
+	notifyRateWindow  = 10 * time.Second
+	notifyMethod      = "notify.post"
+	notifyTimeLayout  = time.RFC3339Nano
+	notifyAgentSource = "agent"
 )
 
 var notifySessionPattern = regexp.MustCompile(`^[a-z]{2,8}_[0-9a-f]{16}$`)
@@ -39,6 +41,7 @@ type notifyPayload struct {
 	Title     string `json:"title,omitempty"`
 	Message   string `json:"message"`
 	Kind      string `json:"kind"`
+	Agent     bool   `json:"agent,omitempty"`
 	TS        string `json:"ts"`
 }
 
@@ -62,13 +65,17 @@ func (s *Server) notifyPost(ctx context.Context, p notifyParams) (notifyResult, 
 		return notifyResult{}, err
 	}
 	if !s.notifyLimit.Allow(p.ProjectID, time.Now()) {
-		return notifyResult{}, invalidParams(fmt.Sprintf("too many notifications: at most %d per %s per workspace", notifyRateMax, notifyRateWindow))
+		return notifyResult{}, fmt.Errorf("%w: too many notifications (at most %d per %s per workspace, %d in all)", ErrRateLimited, notifyRateMax, notifyRateWindow, notifyRateTotal)
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return notifyResult{}, err
 	}
-	if _, err := s.bus.Publish(ctx, notify.Topic, CallerFrom(ctx).String(), raw); err != nil {
+	source := CallerFrom(ctx).String()
+	if payload.Agent {
+		source = notifyAgentSource
+	}
+	if _, err := s.bus.Publish(ctx, notify.Topic, source, raw); err != nil {
 		return notifyResult{}, err
 	}
 	return notifyResult{ID: payload.ID}, nil
@@ -98,6 +105,7 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 		Title:     notify.Clip(p.Title, notify.MaxTitle),
 		Message:   message,
 		Kind:      kind,
+		Agent:     isAgentCall(ctx),
 		TS:        time.Now().UTC().Format(notifyTimeLayout),
 	}, nil
 }

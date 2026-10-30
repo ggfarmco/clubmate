@@ -545,6 +545,19 @@ func TestResume(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(got.Params, &params))
 	assert.Equal(t, stored, params.SessionID)
+	for _, call := range []fakeCall{f.calls(t, "session/new")[0], got} {
+		var meta struct {
+			Meta struct {
+				ClaudeCode struct {
+					Options struct {
+						Env map[string]string `json:"env"`
+					} `json:"options"`
+				} `json:"claudeCode"`
+			} `json:"_meta"`
+		}
+		require.NoError(t, json.Unmarshal(call.Params, &meta))
+		assert.Equal(t, map[string]string{"CLUBMATE_AGENT_SESSION": session}, meta.Meta.ClaudeCode.Options.Env, call.Method)
+	}
 }
 
 func TestModeAndCommands(t *testing.T) {
