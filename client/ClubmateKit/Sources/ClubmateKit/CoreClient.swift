@@ -132,6 +132,10 @@ public final class CoreClient {
         try await connection.call("ui.event", event, timeout: .seconds(8))
     }
 
+    public func pluginList() async throws -> [PluginStatus] {
+        try await connection.call("plugin.list", NoParams())
+    }
+
     public func commandList() async throws -> [Command] {
         try await connection.call("command.list", NoParams())
     }

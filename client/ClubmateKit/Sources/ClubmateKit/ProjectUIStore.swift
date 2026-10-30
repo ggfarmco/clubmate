@@ -43,10 +43,12 @@ public final class ProjectUIStore {
     @ObservationIgnored private var restoring = false
     @ObservationIgnored private var focusSerial = 0
     @ObservationIgnored private var requestedSection: String?
+    @ObservationIgnored private let order: @MainActor ([SectionInfo]) -> [SectionInfo]
 
-    public init(client: CoreClient, projectID: String) {
+    public init(client: CoreClient, projectID: String, order: @escaping @MainActor ([SectionInfo]) -> [SectionInfo] = { $0 }) {
         self.client = client
         self.projectID = projectID
+        self.order = order
     }
 
     public func start() async throws {
@@ -281,7 +283,7 @@ public final class ProjectUIStore {
     private func restore(from state: JSONValue?) {
         let saved = state?.objectValue ?? [:]
         restoring = true
-        selectedSection = sections.first?.id
+        selectedSection = order(sections).first?.id
         if let section = saved["section"]?.stringValue { select(section) }
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]

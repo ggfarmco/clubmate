@@ -40,5 +40,18 @@
 	<integer>86400</integer>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.clubmate.section</string>
+			<key>UTTypeDescription</key>
+			<string>Clubmate Section</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

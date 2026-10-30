@@ -246,7 +246,7 @@ final class AppModel {
         let session = ProjectSession(projectID: projectID) { [weak self] in self?.project(projectID) }
         session.deck.fontSize = settings.terminalFontSize
         sessions[projectID] = session
-        if let client = supervisor.client { session.adopt(client, supervisor) }
+        if let client = supervisor.client { session.adopt(client, supervisor, settings) }
         return session
     }
 
@@ -425,7 +425,7 @@ final class AppModel {
             Task { @MainActor in self?.trackClient() }
         }) else { return }
         for session in sessions.values {
-            session.adopt(client, supervisor)
+            session.adopt(client, supervisor, settings)
         }
         notifications.adopt(client)
     }
@@ -726,9 +726,9 @@ final class ProjectSession {
         }
     }
 
-    func adopt(_ client: CoreClient, _ supervisor: ConnectionSupervisor) {
+    func adopt(_ client: CoreClient, _ supervisor: ConnectionSupervisor, _ settings: AppSettings) {
         guard store == nil else { return }
-        let store = ProjectUIStore(client: client, projectID: projectID)
+        let store = ProjectUIStore(client: client, projectID: projectID) { [weak settings] in settings?.ordered($0) ?? $0 }
         self.store = store
         supervisor.register(store)
     }
