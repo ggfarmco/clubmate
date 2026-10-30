@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/paths"
 )
 
 func TestInstallRetriesAfterInterruptedNpm(t *testing.T) {
@@ -42,4 +44,25 @@ exit "${FAKE_NPM_EXIT:-0}"
 	require.NoError(t, err)
 	assert.Equal(t, 2, strings.Count(string(runs), "run"))
 	assert.Equal(t, []bool{true, false, true, false}, notes)
+}
+
+func TestAgentEnvDropsCoreAndPluginVars(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	defaults, err := paths.Defaults()
+	require.NoError(t, err)
+	custom := t.TempDir()
+	t.Setenv("CLUBMATE_STATE_DIR", defaults.State)
+	t.Setenv("CLUBMATE_RUNTIME_DIR", custom)
+	for _, name := range []string{"CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"} {
+		t.Setenv(name, "x")
+	}
+
+	env := agentEnv("prj_1")
+
+	assert.Contains(t, env, "CLUBMATE_RUNTIME_DIR="+custom)
+	assert.Contains(t, env, projectEnv+"=prj_1")
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		assert.NotContains(t, []string{"CLUBMATE_STATE_DIR", "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}, name)
+	}
 }

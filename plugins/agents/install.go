@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"clubmate/internal/paths"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/acp"
 )
@@ -57,13 +59,13 @@ func launcherFor(ctx context.Context, stateDir, agent, workspace, root string, i
 	return launch{argv: []string{node, script}, env: env, mcp: clubmateMCP(ctx, workspace, root)}, nil
 }
 
+var droppedEnv = []string{apiKeyEnv, projectEnv, "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}
+
 func agentEnv(workspace string) []string {
-	var out []string
-	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, apiKeyEnv+"=") && !strings.HasPrefix(kv, projectEnv+"=") {
-			out = append(out, kv)
-		}
-	}
+	out := paths.StripDefaults(slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		name, _, _ := strings.Cut(kv, "=")
+		return slices.Contains(droppedEnv, name)
+	}))
 	if workspace != "" {
 		out = append(out, projectEnv+"="+workspace)
 	}

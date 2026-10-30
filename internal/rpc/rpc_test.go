@@ -85,10 +85,12 @@ func TestRPCPing(t *testing.T) {
 	var out struct {
 		Version         string `json:"version"`
 		SessionProtocol int    `json:"sessionProtocol"`
+		Flavor          string `json:"flavor"`
 	}
 	require.NoError(t, c.Call(t.Context(), "core.ping", struct{}{}, &out))
 	assert.Equal(t, buildinfo.String(), out.Version)
 	assert.Equal(t, sessionhost.Protocol, out.SessionProtocol)
+	assert.Equal(t, buildinfo.Flavor, out.Flavor)
 }
 
 func TestRPCNotFoundMapsToSentinel(t *testing.T) {

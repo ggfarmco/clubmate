@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -48,6 +49,16 @@ func Defaults() (Dirs, error) {
 		return Dirs{}, fmt.Errorf("resolve home dir: %w", err)
 	}
 	return Dirs{State: defaultState(home), Runtime: defaultRuntime()}, nil
+}
+
+func StripDefaults(env []string) []string {
+	defaults, err := Defaults()
+	if err != nil {
+		return env
+	}
+	return slices.DeleteFunc(env, func(kv string) bool {
+		return kv == "CLUBMATE_STATE_DIR="+defaults.State || kv == "CLUBMATE_RUNTIME_DIR="+defaults.Runtime
+	})
 }
 
 func defaultState(home string) string {

@@ -211,6 +211,24 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testLauncherRefusesCoreOfOtherFlavor() async throws {
+        let core = try await TestCore.start(bin: try TestCore.binaries(version: "old"))
+        self.core = core
+        let before = try await CoreClient.connect(paths: core.paths)
+        let pid = try await before.ping().pid
+        await before.close()
+        let paths = ClubmatePaths(state: core.paths.state, runtime: core.paths.runtime, flavor: "release")
+        let cli = try TestCore.binaries(version: "new").appending(path: "clubmate")
+        do {
+            try await CoreLauncher(cliPath: cli, bundledVersion: "new").ensureRunning(paths: paths)
+            XCTFail("launcher replaced a dev core")
+        } catch ClubmateError.coreStartFailed {}
+        let after = try await CoreClient.connect(paths: core.paths)
+        let survivor = try await after.ping().pid
+        await after.close()
+        XCTAssertEqual(survivor, pid)
+    }
+
     func testRPCErrorMapping() async throws {
         let client = try await startCore()
         do {

@@ -204,14 +204,7 @@ func (m *Manager) spawn(sid string, payload []byte) (int, error) {
 }
 
 func hostEnv() []string {
-	env := sessionhost.StripMarkers(os.Environ())
-	defaults, err := paths.Defaults()
-	if err != nil {
-		return env
-	}
-	return slices.DeleteFunc(env, func(kv string) bool {
-		return kv == "CLUBMATE_STATE_DIR="+defaults.State || kv == "CLUBMATE_RUNTIME_DIR="+defaults.Runtime
-	})
+	return paths.StripDefaults(sessionhost.StripMarkers(os.Environ()))
 }
 
 func prependPath(env []string, dir string) []string {

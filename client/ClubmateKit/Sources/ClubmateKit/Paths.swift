@@ -4,10 +4,12 @@ import Foundation
 public struct ClubmatePaths: Sendable, Equatable {
     public let state: URL
     public let runtime: URL
+    public let flavor: String
 
-    public init(state: URL, runtime: URL) {
+    public init(state: URL, runtime: URL, flavor: String = "") {
         self.state = state
         self.runtime = runtime
+        self.flavor = flavor
     }
 
     public static func resolve(
@@ -18,7 +20,7 @@ public struct ClubmatePaths: Sendable, Equatable {
         let state = env["CLUBMATE_STATE_DIR"].flatMap(nonEmpty).map { URL(filePath: $0) }
             ?? URL(filePath: env["HOME"].flatMap(nonEmpty) ?? NSHomeDirectory()).appending(path: "Library/Application Support/\(name)")
         let runtime = URL(filePath: env["CLUBMATE_RUNTIME_DIR"].flatMap(nonEmpty) ?? "/tmp/\(name)-\(getuid())")
-        return ClubmatePaths(state: state, runtime: runtime)
+        return ClubmatePaths(state: state, runtime: runtime, flavor: flavor)
     }
 
     public var coreSocket: URL {

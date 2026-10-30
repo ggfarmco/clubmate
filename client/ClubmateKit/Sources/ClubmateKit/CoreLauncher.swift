@@ -11,20 +11,23 @@ public struct CoreLauncher: Sendable {
 
     public func ensureRunning(paths: ClubmatePaths, wait: Duration = .seconds(15)) async throws {
         do {
-            let running = try await version(paths)
-            if bundledVersion.isEmpty || running == bundledVersion { return }
+            let running = try await ping(paths)
+            if let flavor = running.flavor, !flavor.isEmpty, !paths.flavor.isEmpty, flavor != paths.flavor {
+                throw ClubmateError.coreStartFailed("a \(flavor) Clubmate core is running on \(paths.runtime.fileSystemPath); refusing to replace it")
+            }
+            if bundledVersion.isEmpty || running.version == bundledVersion { return }
             try await cli(["core", "stop"], paths: paths)
         } catch ClubmateError.notRunning {}
         try await cli(["core", "start", "--wait", "\(wait.components.seconds * 1000 + wait.components.attoseconds / 1_000_000_000_000_000)ms"], paths: paths)
-        _ = try await version(paths)
+        _ = try await ping(paths)
     }
 
-    private func version(_ paths: ClubmatePaths) async throws -> String {
+    private func ping(_ paths: ClubmatePaths) async throws -> PingResult {
         let client = try await CoreClient.connect(paths: paths)
         do {
             let ping = try await client.ping()
             await client.close()
-            return ping.version
+            return ping
         } catch {
             await client.close()
             throw error

@@ -92,6 +92,7 @@ type pingResult struct {
 	Version         string `json:"version"`
 	PID             int    `json:"pid"`
 	SessionProtocol int    `json:"sessionProtocol"`
+	Flavor          string `json:"flavor"`
 }
 
 type openResult struct {
@@ -106,7 +107,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 	svc := s.svc
 	return map[string]handlerFunc{
 		"core.ping": method(func(context.Context, empty) (pingResult, error) {
-			return pingResult{Version: buildinfo.String(), PID: os.Getpid(), SessionProtocol: sessionhost.Protocol}, nil
+			return pingResult{Version: buildinfo.String(), PID: os.Getpid(), SessionProtocol: sessionhost.Protocol, Flavor: buildinfo.Flavor}, nil
 		}),
 		"core.shutdown": method(s.shutdownCore),
 		"project.create": method(func(ctx context.Context, p createProjectParams) (project.Project, error) {
