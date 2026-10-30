@@ -43,6 +43,7 @@ struct TranscriptNodeView: View {
             position.scrollTo(y: saved.offset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
 
