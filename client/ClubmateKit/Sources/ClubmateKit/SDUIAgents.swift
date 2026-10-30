@@ -110,10 +110,19 @@ public struct SDUIPicker: Sendable, Equatable, Identifiable {
     public let value: String
     public let options: [SDUIOption]
 
+    public var current: String {
+        options.first { $0.value == value }?.label ?? value
+    }
+
     public var label: String {
-        let current = options.first { $0.value == value }?.label ?? value
         guard let title else { return current }
         return "\(title): \(current)"
+    }
+
+    public static func summary(_ pickers: [SDUIPicker]) -> String {
+        let model = pickers.first { $0.title == nil }?.current.replacingOccurrences(of: " (recommended)", with: "")
+        let effort = pickers.first { $0.id == "effort" }?.current
+        return [model, effort].compactMap { $0 }.joined(separator: " · ")
     }
 
     init?(_ json: JSONValue) {

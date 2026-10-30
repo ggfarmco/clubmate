@@ -84,10 +84,12 @@ final class AgentsUITests: XCTestCase {
         let option: (String, String) -> JSONValue = { .object(["value": .string($0), "label": .string($1)]) }
         let composer = SDUINode(type: "composer", id: "s/composer/0", props: ["pickers": .array([
             .object(["id": .string("model"), "value": .string("opus"), "options": .array([option("opus", "Opus 5.5")])]),
+            .object(["id": .string("effort"), "title": .string("Effort"), "value": .string("high"), "options": .array([option("high", "High")])]),
             .object(["id": .string("advisor"), "title": .string("Advisor"), "value": .string(""), "options": .array([option("", "Default")])]),
         ])])
 
-        XCTAssertEqual(composer.pickers().map(\.label), ["Opus 5.5", "Advisor: Default"])
+        XCTAssertEqual(composer.pickers().map(\.label), ["Opus 5.5", "Effort: High", "Advisor: Default"])
+        XCTAssertEqual(SDUIPicker.summary(composer.pickers()), "Opus 5.5 · High")
 }
 
     func testTranscriptGroupsAdjacentToolCards() {

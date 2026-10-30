@@ -159,40 +159,19 @@ struct ComposerNodeView: View {
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.s) {
-            FlowLayout(spacing: theme.gutter) {
-                if let agent = node.string("agent") {
-                    Text(agent)
-                        .foregroundStyle(theme.foreground)
-                }
-                let modes = node.modes()
-                if !modes.isEmpty {
-                    Menu {
-                        ForEach(modes) { mode in
-                            Button(mode.label) { dispatch(node, .named("mode", .object(["mode": .string(mode.value)]))) }
-                        }
-                    } label: {
-                        Text(modes.first { $0.value == node.string("mode") }?.label ?? node.string("mode") ?? "Mode")
-                            .font(theme.ui)
-                    }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .help("Permission mode")
-                }
-                pickers
-                attachMenu
-            }
+        ViewThatFits(in: .horizontal) {
             HStack(spacing: theme.gutter) {
-                Text(running ? "⌘↩ queue · Esc stop" : "⌘↩ send")
-                    .font(theme.uiSmall)
-                    .foregroundStyle(theme.muted)
-                    .lineLimit(1)
+                settings
+                hint
                 Spacer(minLength: theme.gutter)
-                if running {
-                    CardButton(label: "Stop", icon: "stop.fill", tone: .danger) { dispatch(node, .named("stop", .null)) }
-                }
-                CardButton(label: running ? "Queue" : "Send", icon: "paperplane.fill", tone: .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
-                    if case .send(let text) = model.handle(.send) { send(text) }
+                actions
+            }
+            VStack(alignment: .leading, spacing: theme.spacing.s) {
+                FlowLayout(spacing: theme.gutter) { settings }
+                HStack(spacing: theme.gutter) {
+                    hint
+                    Spacer(minLength: theme.gutter)
+                    actions
                 }
             }
         }
@@ -200,21 +179,67 @@ struct ComposerNodeView: View {
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 
-    private var pickers: some View {
-        ForEach(node.pickers()) { picker in
+    @ViewBuilder private var settings: some View {
+        if let agent = node.string("agent") {
+            Text(agent)
+                .foregroundStyle(theme.foreground)
+        }
+        let modes = node.modes()
+        if !modes.isEmpty {
             Menu {
-                ForEach(picker.options) { option in
-                    Button(option.label) {
-                        dispatch(node, .named("config", .object(["id": .string(picker.id), "value": .string(option.value)])))
-                    }
+                ForEach(modes) { mode in
+                    Button(mode.label) { dispatch(node, .named("mode", .object(["mode": .string(mode.value)]))) }
                 }
             } label: {
-                Text(picker.label)
+                Text(modes.first { $0.value == node.string("mode") }?.label ?? node.string("mode") ?? "Mode")
                     .font(theme.ui)
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help(picker.help ?? picker.label)
+            .help("Permission mode")
+        }
+        pickers
+        attachMenu
+    }
+
+    private var hint: some View {
+        Text(running ? "⌘↩ queue · Esc stop" : "⌘↩ send")
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    @ViewBuilder private var actions: some View {
+        if running {
+            CardButton(label: "Stop", icon: "stop.fill", tone: .danger) { dispatch(node, .named("stop", .null)) }
+        }
+        CardButton(label: running ? "Queue" : "Send", icon: "paperplane.fill", tone: .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+            if case .send(let text) = model.handle(.send) { send(text) }
+        }
+    }
+
+    @ViewBuilder private var pickers: some View {
+        let pickers = node.pickers()
+        if !pickers.isEmpty {
+            Menu {
+                ForEach(pickers) { picker in
+                    Menu(picker.title ?? "Model") {
+                        ForEach(picker.options) { option in
+                            Toggle(option.label, isOn: Binding(get: { option.value == picker.value }, set: { _ in
+                                dispatch(node, .named("config", .object(["id": .string(picker.id), "value": .string(option.value)])))
+                            }))
+                        }
+                    }
+                    .help(picker.help ?? picker.label)
+                }
+            } label: {
+                Text("\(Image(systemName: "slider.horizontal.3")) \(SDUIPicker.summary(pickers).isEmpty ? "Options" : SDUIPicker.summary(pickers))")
+                    .font(theme.ui)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(pickers.map(\.label).joined(separator: "\n"))
         }
     }
 
