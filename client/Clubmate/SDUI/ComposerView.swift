@@ -239,7 +239,7 @@ struct ComposerNodeView: View {
         ComposerFocus.afterSend = session
         dispatch(node, .named("send", .object(["text": .string(text)]))) { sent in
             if sent {
-                drafts.clear(id)
+                drafts.clear(id, sent: text)
             } else if ComposerFocus.afterSend == session {
                 ComposerFocus.afterSend = nil
             }

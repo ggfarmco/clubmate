@@ -122,7 +122,8 @@ public final class ComposerDrafts {
         return model
     }
 
-    public func clear(_ id: String) {
-        models[id]?.text = ""
+    public func clear(_ id: String, sent: String) {
+        guard let model = models[id], model.text.trimmingCharacters(in: .whitespacesAndNewlines) == sent else { return }
+        model.text = ""
     }
 }

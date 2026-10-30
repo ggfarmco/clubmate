@@ -60,9 +60,12 @@ final class AgentsUITests: XCTestCase {
         drafts.model(for: "b/composer/0").text = "draft b"
         XCTAssertEqual(drafts.model(for: "a/composer/0").text, "draft a")
         XCTAssertEqual(drafts.model(for: "b/composer/0").text, "draft b")
-        drafts.clear("a/composer/0")
+        drafts.clear("a/composer/0", sent: "draft a")
         XCTAssertEqual(drafts.model(for: "a/composer/0").text, "")
         XCTAssertEqual(drafts.model(for: "b/composer/0").text, "draft b")
+        drafts.model(for: "b/composer/0").text = "next prompt"
+        drafts.clear("b/composer/0", sent: "draft b")
+        XCTAssertEqual(drafts.model(for: "b/composer/0").text, "next prompt")
     }
 
     func testAgentEventMapping() {
