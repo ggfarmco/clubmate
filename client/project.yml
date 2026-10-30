@@ -55,6 +55,7 @@ targets:
         PRODUCT_NAME: Clubmate
         PRODUCT_MODULE_NAME: Clubmate
         INFOPLIST_FILE: Clubmate/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "0.0.0-dev"
         CURRENT_PROJECT_VERSION: "1"
         CLUBMATE_COMMIT: ""
