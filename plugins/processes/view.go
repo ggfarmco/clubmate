@@ -45,10 +45,11 @@ var (
 	columnIDs   = []string{colPID, colCPU, colMem, colTime, colHistory, colCommand}
 )
 
-type sessionRow struct {
-	ID    string
-	Title string
-	Owner string
+type group struct {
+	ID        string
+	ProjectID string
+	Title     string
+	Owner     string
 }
 
 type viewModel struct {
@@ -72,7 +73,7 @@ type treeEntry struct {
 	expanded    bool
 }
 
-func sidebarView(sessions []sessionRow, selected string) sdui.Node {
+func sidebarView(sessions []group, selected string) sdui.Node {
 	items := []sdui.Item{{ID: allID, Label: "All"}}
 	for _, s := range sessions {
 		items = append(items, sdui.Item{ID: s.ID, Label: s.Title, Detail: s.Owner})

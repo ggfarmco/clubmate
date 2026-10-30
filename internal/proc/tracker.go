@@ -13,6 +13,7 @@ type SessionRoot struct {
 	SessionID string
 	RootPID   int
 	PGID      int
+	Owned     bool
 }
 
 type Node struct {
@@ -54,11 +55,17 @@ func (t *Tracker) Attribute(procs []Process, roots []SessionRoot) []Node {
 	defer t.mu.Unlock()
 
 	rootByPGID := make(map[int]string, len(roots))
+	rootByPID := make(map[int]string)
 	rootIDs := make(map[string]bool, len(roots))
+	owned := make(map[string]bool)
 	for _, r := range roots {
 		rootIDs[r.SessionID] = true
 		if r.PGID > 1 {
 			rootByPGID[r.PGID] = r.SessionID
+		}
+		if r.Owned && r.RootPID > 1 {
+			rootByPID[r.RootPID] = r.SessionID
+			owned[r.SessionID] = true
 		}
 	}
 
@@ -68,6 +75,10 @@ func (t *Tracker) Attribute(procs []Process, roots []SessionRoot) []Node {
 		key := keyOf(p)
 		present[key] = true
 		if t.self[p.PID] {
+			continue
+		}
+		if id, ok := rootByPID[p.PID]; ok {
+			owner[p.PID] = id
 			continue
 		}
 		if id, ok := t.directSession(key, p, rootByPGID, rootIDs); ok {
@@ -91,7 +102,7 @@ func (t *Tracker) Attribute(procs []Process, roots []SessionRoot) []Node {
 		}
 	}
 
-	nodes := t.collect(procs, owner)
+	nodes := t.collect(procs, owner, owned)
 	t.prune(present)
 	markDuplicates(nodes)
 	sortNodes(nodes)
@@ -123,7 +134,7 @@ func (t *Tracker) marker(key procKey, pid int) string {
 	return id
 }
 
-func (t *Tracker) collect(procs []Process, owner map[int]string) []Node {
+func (t *Tracker) collect(procs []Process, owner map[int]string, owned map[string]bool) []Node {
 	var nodes []Node
 	for _, p := range procs {
 		id, ok := owner[p.PID]
@@ -131,7 +142,7 @@ func (t *Tracker) collect(procs []Process, owner map[int]string) []Node {
 			continue
 		}
 		t.sessions[keyOf(p)] = id
-		nodes = append(nodes, Node{Process: p, SessionID: id, Orphan: p.PPID == 1})
+		nodes = append(nodes, Node{Process: p, SessionID: id, Orphan: p.PPID == 1 && !owned[id]})
 	}
 	return nodes
 }

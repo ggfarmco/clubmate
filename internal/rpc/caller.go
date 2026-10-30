@@ -4,6 +4,7 @@ import "context"
 
 type Caller struct {
 	PluginID string
+	PID      int
 }
 
 type callerKey struct{}

@@ -226,7 +226,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := optionalID(projectPrefix, f.ProjectID); err != nil {
 				return nil, err
 			}
-			if err := optionalID(session.IDPrefix, f.SessionID); err != nil {
+			if err := optionalGroupID(f.SessionID); err != nil {
 				return nil, err
 			}
 			nodes, err := svc.ProcessTree(ctx, f)
@@ -236,7 +236,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			return nonNil(nodes), err
 		}),
 		"process.kill": method(func(ctx context.Context, p core.KillRequest) (killResult, error) {
-			if err := optionalID(session.IDPrefix, p.SessionID); err != nil {
+			if err := optionalGroupID(p.SessionID); err != nil {
 				return killResult{}, err
 			}
 			if err := optionalID(projectPrefix, p.ProjectID); err != nil {

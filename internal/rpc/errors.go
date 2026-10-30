@@ -125,6 +125,8 @@ func errorCode(err error) int64 {
 		errors.Is(err, core.ErrEmptyKillRequest),
 		errors.Is(err, core.ErrOrphansNeedSession),
 		errors.Is(err, proc.ErrUnsafePID),
+		errors.Is(err, core.ErrNotOwned),
+		errors.Is(err, core.ErrInvalidLabel),
 		errors.Is(err, bus.ErrInvalidTopic),
 		errors.Is(err, bus.ErrInvalidPattern),
 		errors.Is(err, bus.ErrInvalidPayload),
