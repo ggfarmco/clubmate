@@ -48,29 +48,28 @@ private struct RailButton: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        icon
-            .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
-            .frame(width: 36, height: 36)
-            .background(background, ignoresSafeAreaEdges: [])
-            .overlay(alignment: .leading) {
-                if selected { theme.accent.frame(width: 2) }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: action)
-            .accessibilityElement()
-            .accessibilityLabel(section.title)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { action() }
-            .help(section.title)
-            .onHover { hovering = $0 }
-            .draggable(RailItem(id: section.id)) {
-                icon.foregroundStyle(theme.foreground)
-            }
-            .dropDestination(for: RailItem.self) { items, _ in
-                guard let dragged = items.first?.id, dragged != section.id, accepts(dragged) else { return false }
-                drop(dragged)
-                return true
-            } isTargeted: { targeted = $0 }
+        Button(action: action) {
+            icon
+                .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
+                .frame(width: 36, height: 36)
+                .background(background, ignoresSafeAreaEdges: [])
+                .overlay(alignment: .leading) {
+                    if selected { theme.accent.frame(width: 2) }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(section.title)
+        .help(section.title)
+        .onHover { hovering = $0 }
+        .draggable(RailItem(id: section.id)) {
+            icon.foregroundStyle(theme.foreground)
+        }
+        .dropDestination(for: RailItem.self) { items, _ in
+            guard let dragged = items.first?.id, dragged != section.id, accepts(dragged) else { return false }
+            drop(dragged)
+            return true
+        } isTargeted: { targeted = $0 }
     }
 
     private var icon: some View {

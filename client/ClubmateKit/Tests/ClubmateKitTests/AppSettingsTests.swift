@@ -52,6 +52,19 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(SectionOrder.apply(["d", "gone", "a", "c"], to: ["a", "b", "c", "d", "e"]), ["d", "e", "a", "b", "c"])
     }
 
+    func testMoveSectionKeepsAbsentSectionsInPlace() {
+        let cases: [(id: String, target: String, saved: [String], want: [String]?)] = [
+            ("c", "a", ["a", "x", "b", "c"], ["c", "x", "a", "b"]),
+            ("a", "c", ["a", "x", "b", "c"], ["b", "x", "c", "a"]),
+            ("b", "a", [], ["b", "a", "c"]),
+            ("a", "a", ["a", "b", "c"], nil),
+            ("x", "a", ["a", "x", "b", "c"], nil),
+        ]
+        for c in cases {
+            XCTAssertEqual(SectionOrder.move(c.id, onto: c.target, visible: ["a", "b", "c"], saved: c.saved), c.want, "\(c.id) onto \(c.target)")
+        }
+    }
+
     func testMovedSectionOrderPersistsAndKeepsOtherScopes() throws {
         let name = "AppSettingsTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))

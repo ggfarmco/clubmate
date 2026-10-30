@@ -8,16 +8,21 @@ struct SettingsView: View {
 
     @Environment(AppModel.self) private var app
     @State private var hooksCopied = false
+    @State private var tab = SettingsTab.general
+    @Environment(\.appearsActive) private var appearsActive
 
     private static let tool = CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor())
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             general
                 .tabItem { Label("General", systemImage: "gearshape") }
-            PluginsSettings(supervisor: app.supervisor)
+                .tag(SettingsTab.general)
+            PluginsSettings(supervisor: app.supervisor, active: appearsActive && tab == .plugins)
                 .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
+                .tag(SettingsTab.plugins)
         }
+        .frame(width: 460, height: 560)
     }
 
     private var general: some View {
@@ -88,8 +93,6 @@ struct SettingsView: View {
         .task { await app.nvimConfig.load() }
         .sheet(isPresented: nvimSheet) { NvimConfigSheetView(model: app.nvimConfig) }
         .formStyle(.grouped)
-        .frame(width: 420)
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func copyHooks() {
@@ -123,8 +126,14 @@ struct SettingsView: View {
     }
 }
 
+private enum SettingsTab: Hashable {
+    case general
+    case plugins
+}
+
 private struct PluginsSettings: View {
     let supervisor: ConnectionSupervisor
+    let active: Bool
 
     @State private var plugins: [PluginStatus]?
     @State private var error: String?
@@ -147,13 +156,11 @@ private struct PluginsSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420)
-        .fixedSize(horizontal: false, vertical: true)
-        .task(id: supervisor.client.map(ObjectIdentifier.init)) { await poll() }
+        .task(id: PollKey(client: supervisor.client.map(ObjectIdentifier.init), active: active)) { await poll() }
     }
 
     private func poll() async {
-        while !Task.isCancelled {
+        while active, !Task.isCancelled {
             await load()
             try? await Task.sleep(for: .seconds(2))
         }
@@ -165,12 +172,18 @@ private struct PluginsSettings: View {
             return
         }
         do {
-            plugins = try await client.pluginList()
-            error = nil
+            let list = try await client.pluginList()
+            if list != plugins { plugins = list }
+            if error != nil { error = nil }
         } catch {
             self.error = error.localizedDescription
         }
     }
+}
+
+private struct PollKey: Equatable {
+    let client: ObjectIdentifier?
+    let active: Bool
 }
 
 private struct PluginRow: View {
