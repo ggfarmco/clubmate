@@ -6,12 +6,14 @@ public struct PickerItem: Equatable, Sendable, Identifiable {
     public let label: String
     public let detail: String
     public let checked: Bool
+    public let section: String
 
-    public init(id: String, label: String, detail: String = "", checked: Bool = false) {
+    public init(id: String, label: String, detail: String = "", checked: Bool = false, section: String = "") {
         self.id = id
         self.label = label
         self.detail = detail
         self.checked = checked
+        self.section = section
     }
 }
 
@@ -99,6 +101,15 @@ public final class FuzzyPickerModel {
             }
             await self?.fetch(query, serial)
         }
+    }
+
+    public func header(at index: Int) -> String? {
+        guard items.indices.contains(index), !items[index].section.isEmpty, index == 0 || items[index - 1].section != items[index].section else { return nil }
+        return items[index].section
+    }
+
+    public var headerCount: Int {
+        items.indices.count(where: { header(at: $0) != nil })
     }
 
     public func move(_ delta: Int) {

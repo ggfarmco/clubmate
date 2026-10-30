@@ -26,7 +26,7 @@ const (
 	editorSlot     = "editor-nvim.main"
 	mainSlot       = "git.main"
 	reviewSlot     = "git.review"
-	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true}]}}`
+	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true},{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]}}`
 	restartWait    = 15 * time.Second
 )
 
@@ -987,4 +987,72 @@ func TestHomeWorkspaceHasNoWorktrees(t *testing.T) {
 	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
 	_, err = startOp(t, h, p.ID, "git.worktree-remove", map[string]string{"path": home})
 	assert.ErrorContains(t, err, "worktrees unavailable in the home workspace")
+}
+
+type branchEntry struct {
+	Repo   string `json:"repo"`
+	Name   string `json:"name"`
+	Remote bool   `json:"remote"`
+}
+
+func commitAt(t *testing.T, repo, file, date string) {
+	t.Helper()
+	t.Setenv("GIT_COMMITTER_DATE", date)
+	write(t, filepath.Join(repo, file), date+"\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", file, "--date", date)
+}
+
+func clonedRepo(t *testing.T) string {
+	t.Helper()
+	origin := committedRepo(t)
+	git(t, origin, "checkout", "-qb", "remote-only")
+	commitAt(t, origin, "r.go", "2022-01-01T00:00:00Z")
+	git(t, origin, "checkout", "-q", "main")
+	clone, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	git(t, clone, "clone", "-q", origin, ".")
+	git(t, clone, "config", "user.name", "t")
+	git(t, clone, "config", "user.email", "t@t")
+	return clone
+}
+
+func TestBranchListSkipsWorktreesLocalFirstNewestFirst(t *testing.T) {
+	repo := clonedRepo(t)
+	for _, b := range []struct{ name, date string }{{"old", "2020-01-01T00:00:00Z"}, {"new", "2024-01-01T00:00:00Z"}} {
+		git(t, repo, "checkout", "-qb", b.name, "main")
+		commitAt(t, repo, b.name+".go", b.date)
+	}
+	git(t, repo, "checkout", "-q", "main")
+	git(t, repo, "worktree", "add", "-q", "-b", "wt", filepath.Join(repo, ".worktrees", "wt"))
+	h, id := openReady(t, repo)
+
+	var list []branchEntry
+	require.NoError(t, runCommand(t, h, id, "git.branches", nil, &list))
+	assert.Equal(t, []branchEntry{{Repo: repo, Name: "new"}, {Repo: repo, Name: "old"}, {Repo: repo, Name: "origin/remote-only", Remote: true}}, list)
+}
+
+func TestBranchSwitch(t *testing.T) {
+	repo := clonedRepo(t)
+	git(t, repo, "checkout", "-qb", "feat")
+	write(t, filepath.Join(repo, "a.go"), "two\n")
+	git(t, repo, "commit", "-qam", "feat")
+	git(t, repo, "checkout", "-q", "main")
+	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+
+	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "feat"}).Error)
+	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
+	assert.JSONEq(t, fmt.Sprintf(`{"root":%q}`, repo), string(commandArgs(t, h, "editor-nvim.checktime")[0]))
+
+	write(t, filepath.Join(repo, "a.go"), "dirty\n")
+	assert.Contains(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "main"}).Error, "would be overwritten by checkout")
+	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
+	git(t, repo, "checkout", "--", "a.go")
+
+	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"}).Error)
+	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
+	assert.Equal(t, "origin/remote-only", git(t, repo, "rev-parse", "--abbrev-ref", "@{upstream}"))
+
+	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "-x"})
+	assert.ErrorContains(t, err, "not a valid branch name")
 }

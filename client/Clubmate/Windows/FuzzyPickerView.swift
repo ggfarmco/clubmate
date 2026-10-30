@@ -44,6 +44,9 @@ struct FuzzyPickerList: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(model.items.enumerated()), id: \.element.id) { index, item in
+                            if let header = model.header(at: index) {
+                                sectionHeader(header)
+                            }
                             row(item, selected: index == model.selection)
                                 .id(item.id)
                                 .onTapGesture {
@@ -53,7 +56,7 @@ struct FuzzyPickerList: View {
                         }
                     }
                 }
-                .frame(height: (theme.rowHeight + 2) * CGFloat(min(model.items.count, Self.visibleRows)))
+                .frame(height: (theme.rowHeight + 2) * CGFloat(min(model.items.count + model.headerCount, Self.visibleRows)))
                 .onChange(of: model.selection) { _, selection in
                     if model.items.indices.contains(selection) { proxy.scrollTo(model.items[selection].id) }
                 }
@@ -65,6 +68,15 @@ struct FuzzyPickerList: View {
         if let failure = model.failure { return failure }
         guard model.items.isEmpty else { return nil }
         return model.loaded ? "No matches" : "Loading…"
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, theme.gutter * 1.5)
+            .frame(height: theme.rowHeight + 2)
     }
 
     private func row(_ item: PickerItem, selected: Bool) -> some View {

@@ -26,6 +26,21 @@ public struct Worktree: Equatable, Sendable, Identifiable {
     }
 }
 
+public struct Branch: Equatable, Sendable, Identifiable {
+    public let repo: String
+    public let name: String
+    public let remote: Bool
+
+    public var id: String { "branch:\(repo)\u{0}\(name)" }
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let repo = fields["repo"]?.stringValue, let name = fields["name"]?.stringValue else { return nil }
+        self.repo = repo
+        self.name = name
+        remote = fields["remote"]?.boolValue ?? false
+    }
+}
+
 public struct WorktreeGroup: Equatable, Sendable, Identifiable {
     public let repo: String
     public let trees: [Worktree]
@@ -44,12 +59,18 @@ public final class WorktreeModel {
     public static let removeCommand = "git.worktree-remove"
     public static let statusCommand = "git.worktree-op-status"
     public static let sessionsCommand = "git.worktree-sessions"
+    public static let branchesCommand = "git.branches"
+    public static let branchSwitchCommand = "git.branch-switch"
+    public static let worktreesSection = "Worktrees"
+    public static let branchesSection = "Branches"
+    static let maxBranchRows = 200
     static let statusRetries = 3
     public static let defaultRetryDelays: [Duration] = [.milliseconds(250), .milliseconds(500), .seconds(1), .seconds(2), .seconds(4)]
 
     public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
 
     public private(set) var worktrees: [Worktree] = []
+    public private(set) var branches: [Branch] = []
 
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let project: @MainActor () -> Project?
@@ -103,8 +124,28 @@ public final class WorktreeModel {
         return "Review against \(base)"
     }
 
-    public var pickerItems: [PickerItem] {
-        worktrees.map { PickerItem(id: $0.id, label: label($0), checked: $0.current) }
+    public func switcherItems(_ query: String) -> [PickerItem] {
+        let trees = worktrees.map { PickerItem(id: $0.id, label: label($0), checked: $0.current, section: Self.worktreesSection) }
+        let multi = groups.count > 1
+        let names = branches.map { branch in
+            let name = multi ? "\(URL(fileURLWithPath: branch.repo).lastPathComponent) ▸ \(branch.name)" : branch.name
+            return PickerItem(id: branch.id, label: name, detail: branch.remote ? "remote" : "", section: Self.branchesSection)
+        }
+        return FuzzyRank.rank(trees, query: query, text: \.label) + FuzzyRank.rank(names, query: query, text: \.label).prefix(Self.maxBranchRows)
+    }
+
+    public var switcherSource: FuzzyPickerModel.Source {
+        { [weak self] query in .success(self?.switcherItems(query) ?? []) }
+    }
+
+    public func pick(_ item: PickerItem) async {
+        if let tree = worktree(id: item.id) {
+            return await switchTo(repo: tree.repo, path: tree.path)
+        }
+        guard let branch = branches.first(where: { $0.id == item.id }) else { return }
+        let args: [String: JSONValue] = ["repo": .string(branch.repo), "branch": .string(branch.name)]
+        if let failure = await perform(CommandInvocation(id: Self.branchSwitchCommand, args: .object(args))) { report(failure) }
+        await menuOpened()
     }
 
     public func worktree(id: String) -> Worktree? {
@@ -140,6 +181,9 @@ public final class WorktreeModel {
 
     public func menuOpened() async {
         await load()
+        if case .success(let value) = await run(CommandInvocation(id: Self.branchesCommand, args: .object([:]))) {
+            branches = (value.arrayValue ?? []).compactMap(Branch.init)
+        }
     }
 
     public func switchTo(repo: String, path: String) async {

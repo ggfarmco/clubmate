@@ -113,6 +113,28 @@
         }
       },
       {
+        "id": "git.branches",
+        "title": "List Branches",
+        "hidden": true,
+        "agent": false,
+        "description": "List the branches of every git folder that no worktree has checked out: local branches, then remote-tracking ones without a local branch of the same name, each newest commit first, at most 2000 per folder. Returns [{repo, name, remote?}]."
+      },
+      {
+        "id": "git.branch-switch",
+        "title": "Switch Branch",
+        "hidden": true,
+        "agent": false,
+        "destructive": true,
+        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
+            "branch": {"type": "string", "description": "Local branch, or remote-tracking branch such as origin/x, as listed by git.branches."}
+          },
+          "required": ["branch"]
+        }
+      },
+      {
         "id": "git.worktree-new",
         "title": "New Worktree",
         "hidden": true,

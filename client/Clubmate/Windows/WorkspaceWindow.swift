@@ -307,8 +307,7 @@ private struct WorktreeSwitcher: View {
     init(session: ProjectSession, close: @escaping () -> Void) {
         self.session = session
         self.close = close
-        let worktrees = session.worktrees
-        _model = State(initialValue: FuzzyPickerModel(placeholder: "Switch to worktree", source: FuzzyPickerModel.local { worktrees.pickerItems }))
+        _model = State(initialValue: FuzzyPickerModel(placeholder: "Switch to worktree or branch", source: session.worktrees.switcherSource))
     }
 
     var body: some View {
@@ -335,8 +334,7 @@ private struct WorktreeSwitcher: View {
     }
 
     private func switchTo(_ item: PickerItem) {
-        guard let tree = session.worktrees.worktree(id: item.id) else { return }
-        session.switchWorktree(tree)
+        session.pickWorktree(item)
     }
 
     private func action(_ title: String, perform: @escaping () -> Void) -> some View {

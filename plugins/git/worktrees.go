@@ -21,11 +21,14 @@ import (
 const (
 	worktreesDir       = ".worktrees"
 	stopRootCommand    = "editor-nvim.stop-root"
+	checktimeCommand   = "editor-nvim.checktime"
 	releaseRootCommand = "editor-nvim.release-root"
 	editorOwner        = "editor-nvim"
 	sessionRunning     = "running"
 	creatingWorktree   = "Creating worktree…"
 	removingWorktree   = "Removing worktree…"
+	switchingBranch    = "Switching branch…"
+	maxBranches        = 2000
 	opPollWait         = time.Second
 	keptOps            = 64
 )
@@ -40,6 +43,7 @@ var (
 	errOpBusy          = errors.New("another git operation is running")
 	errUnknownOp       = errors.New("unknown operation")
 	errHomeWorktrees   = errors.New("worktrees unavailable in the home workspace")
+	errUnknownBranch   = errors.New("unknown branch")
 )
 
 type folder struct {
@@ -55,6 +59,12 @@ type worktreeInfo struct {
 	Main        bool   `json:"main"`
 	Current     bool   `json:"current"`
 	DefaultBase string `json:"defaultBase,omitempty"`
+}
+
+type branchInfo struct {
+	Repo   string `json:"repo"`
+	Name   string `json:"name"`
+	Remote bool   `json:"remote,omitempty"`
 }
 
 type worktreeArgs struct {
@@ -114,6 +124,12 @@ func (a *app) worktreeCommand(ctx context.Context, h *pluginsdk.Host, cmd plugin
 		return listWorktrees(ctx, h, cmd.ProjectID)
 	case "git.worktree-switch":
 		return nil, switchWorktree(ctx, h, cmd.ProjectID, s, args.Repo, args.Path)
+	case "git.branches":
+		return listBranches(ctx, h, cmd.ProjectID)
+	case "git.branch-switch":
+		return a.startOp(ctx, h, cmd.ProjectID, s, switchingBranch, func() (opFunc, error) {
+			return prepareBranchSwitch(ctx, h, cmd.ProjectID, args)
+		})
 	case "git.worktree-new":
 		return a.startOp(ctx, h, cmd.ProjectID, s, creatingWorktree, func() (opFunc, error) {
 			return prepareNew(ctx, h, cmd.ProjectID, args)
@@ -245,6 +261,109 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 	return list, nil
 }
 
+func listBranches(ctx context.Context, h *pluginsdk.Host, projectID string) ([]branchInfo, error) {
+	p, err := h.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	list := []branchInfo{}
+	if p.Home {
+		return list, nil
+	}
+	for i := range p.Repos {
+		f, err := openFolder(ctx, p, i)
+		if errors.Is(err, gitrepo.ErrNotRepo) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		local, remote, err := gitrepo.RecentBranches(ctx, f.Checkout.Path)
+		if err != nil {
+			return nil, gitError(nil, err)
+		}
+		taken := map[string]bool{}
+		for _, t := range f.Trees {
+			if t.Branch != "" {
+				taken[t.Branch] = true
+			}
+		}
+		var out []branchInfo
+		for _, b := range local {
+			if !taken[b] {
+				out = append(out, branchInfo{Repo: f.Repo, Name: b})
+			}
+			taken[b] = true
+		}
+		for _, b := range remote {
+			if _, name, ok := strings.Cut(b, "/"); ok && !taken[name] {
+				out = append(out, branchInfo{Repo: f.Repo, Name: b, Remote: true})
+			}
+		}
+		list = append(list, out[:min(len(out), maxBranches)]...)
+	}
+	return list, nil
+}
+
+func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) (opFunc, error) {
+	f, err := gitFolder(ctx, h, projectID, args.Repo)
+	if err != nil {
+		return nil, err
+	}
+	cur := f.currentTree()
+	if err := validBranch(ctx, cur.Path, args.Branch); err != nil {
+		return nil, err
+	}
+	local, track := args.Branch, ""
+	if !hasRef(ctx, cur.Path, "refs/heads/"+local) {
+		_, name, ok := strings.Cut(args.Branch, "/")
+		if !ok || !hasRef(ctx, cur.Path, "refs/remotes/"+args.Branch) {
+			return nil, fmt.Errorf("%w %s", errUnknownBranch, args.Branch)
+		}
+		local = name
+		if !hasRef(ctx, cur.Path, "refs/heads/"+local) {
+			track = args.Branch
+		}
+	}
+	if i := slices.IndexFunc(f.Trees, func(t gitrepo.Worktree) bool { return !t.Bare && t.Branch == local }); i >= 0 {
+		t := f.Trees[i]
+		return func(ctx context.Context) (string, error) {
+			_, err := h.SetWorktree(ctx, projectID, f.Repo, f.Selection(t))
+			return t.Path, err
+		}, nil
+	}
+	switchArgs := []string{"switch", "--no-guess", "--", local}
+	if track != "" {
+		switchArgs = []string{"switch", "--track", "--", track}
+	}
+	return func(ctx context.Context) (string, error) {
+		if _, err := mutate(ctx, cur.Path, switchArgs...); err != nil {
+			return "", err
+		}
+		logError("checktime "+f.root, h.RunCommand(ctx, checktimeCommand, projectID, stopRootArgs{Root: f.root}, nil))
+		return cur.Path, nil
+	}, nil
+}
+
+func validBranch(ctx context.Context, dir, branch string) error {
+	if branch == "" || strings.HasPrefix(branch, "-") {
+		return fmt.Errorf("'%s' is not a valid branch name", branch)
+	}
+	out, err := run(ctx, dir, "check-ref-format", "--branch", branch)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(out)) != branch {
+		return fmt.Errorf("'%s' is not a valid branch name", branch)
+	}
+	return nil
+}
+
+func hasRef(ctx context.Context, dir, ref string) bool {
+	_, err := gitrepo.Run(ctx, dir, "rev-parse", "-q", "--verify", ref+"^{commit}")
+	return err == nil
+}
+
 func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, s *state, repo, path string) error {
 	s.mu.Lock()
 	busy := s.busy != ""
@@ -270,12 +389,8 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 		return nil, err
 	}
 	cur := f.currentTree()
-	out, err := run(ctx, cur.Path, "check-ref-format", "--branch", args.Branch)
-	if err != nil {
+	if err := validBranch(ctx, cur.Path, args.Branch); err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(string(out)) != args.Branch {
-		return nil, fmt.Errorf("'%s' is not a valid branch name", args.Branch)
 	}
 	primary := f.Trees[0]
 	dir, err := worktreeDir(primary.Path, args.Branch)
@@ -283,7 +398,7 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 		return nil, err
 	}
 	add := []string{"worktree", "add", "-b", args.Branch, dir, currentHead}
-	if _, err := gitrepo.Run(ctx, cur.Path, "rev-parse", "-q", "--verify", "refs/heads/"+args.Branch); err == nil {
+	if hasRef(ctx, cur.Path, "refs/heads/"+args.Branch) {
 		add = []string{"worktree", "add", dir, args.Branch}
 	}
 	return func(ctx context.Context) (string, error) {
