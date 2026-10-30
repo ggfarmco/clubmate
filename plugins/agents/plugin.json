@@ -62,7 +62,7 @@
         "title": "Stop Agent Turn",
         "hidden": true,
         "agent": true,
-        "description": "Cancel the session's running turn and answer its pending permission requests with cancelled. Queued prompts stay queued.",
+        "description": "Cancel the running turn of a session this agent started (a child or deeper descendant, never itself) and answer its pending permission requests with cancelled. Queued prompts stay queued.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."}

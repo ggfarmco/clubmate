@@ -1293,6 +1293,8 @@ func TestPermissionScope(t *testing.T) {
 	}
 
 	assert.ErrorContains(t, f.runAs(t, project, parent, "agents.permission", map[string]any{"session": parent, "request": "permission-1", "option": "allow"}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runAs(t, project, parent, "agents.cancel", map[string]any{"session": other}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runAs(t, project, "", "agents.cancel", map[string]any{"session": kid}, nil), "the session was not started by this agent")
 	assert.ErrorContains(t, answer(parent, other), "the session was not started by this agent")
 	assert.ErrorContains(t, answer("", kid), "the session was not started by this agent")
 	require.NoError(t, answer(parent, kid))

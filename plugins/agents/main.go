@@ -376,6 +376,9 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	}
 	switch cmd.ID {
 	case "agents.cancel":
+		if cmd.Agent && !a.descendantOf(args.Session, cmd.Caller) {
+			return nil, errNotDescendant
+		}
 		a.cancel(s)
 		return nil, nil
 	case "agents.close":
