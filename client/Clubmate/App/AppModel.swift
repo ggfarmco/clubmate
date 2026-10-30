@@ -15,6 +15,7 @@ final class AppModel {
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
     private(set) var switcherWindow: String?
+    private(set) var inboxWindow: String?
     private let layout = WindowLayout()
 
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
@@ -39,6 +40,7 @@ final class AppModel {
     )
 
     @ObservationIgnored private(set) lazy var notifications = Notifications(
+        store: ClubmatePaths.resolve().state.appending(path: "notifications.json"),
         run: { [weak self] workspace, invocation in
             await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
         },
@@ -69,6 +71,7 @@ final class AppModel {
 
     func terminating() {
         layout.terminating()
+        notifications.flush()
     }
 
     static func launchProjectID(_ arguments: [String]) -> String? {
@@ -206,6 +209,14 @@ final class AppModel {
         switcherWindow = nil
     }
 
+    func toggleInbox(in window: String) {
+        inboxWindow = inboxWindow == window ? nil : window
+    }
+
+    func hideInbox() {
+        inboxWindow = nil
+    }
+
     private func snapshot(_ window: String?, leaving target: String? = nil, throttled: Bool = true) {
         guard let window, switcherWindow != window, let active = layout.window(window)?.active, active != target,
               let session = sessions[active], session.overlay == nil,
@@ -219,6 +230,7 @@ final class AppModel {
     func windowClosed(_ window: String) {
         if keyWindowID == window { keyWindowID = nil }
         if switcherWindow == window { switcherWindow = nil }
+        if inboxWindow == window { inboxWindow = nil }
         captured[window] = nil
         shownWindows.remove(window)
         layout.closeWindow(window)

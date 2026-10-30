@@ -29,6 +29,23 @@ struct WorkspaceWindow: View {
                 }
                 ToolbarSpacer(.flexible)
                 ToolbarItem(placement: .primaryAction) {
+                    Button { windowID.map(app.toggleInbox) } label: {
+                        HStack(spacing: theme.spacing.s) {
+                            Image(systemName: inboxTotal > 0 ? "bell.badge" : "bell")
+                            UnreadBadge(count: inboxTotal)
+                        }
+                        .padding(theme.spacing.capsule)
+                    }
+                    .help("Notifications (⇧⌘I)")
+                    .accessibilityLabel(inboxTotal > 0 ? "Notifications, \(inboxTotal) unread" : "Notifications")
+                    .disabled(windowID == nil)
+                    .popover(isPresented: inboxShown, arrowEdge: .bottom) {
+                        InboxView()
+                            .environment(app)
+                            .environment(\.theme, theme)
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Button { windowID.map(app.toggleSwitcher) } label: {
                         HStack(spacing: 4) {
                             Text("▦ \(workspaceCount)")
@@ -67,6 +84,16 @@ struct WorkspaceWindow: View {
 
     private var workspaceCount: Int {
         windowID.flatMap { app.window($0)?.workspaces.count } ?? 0
+    }
+
+    private var inboxTotal: Int {
+        app.notifications.hub.total
+    }
+
+    private var inboxShown: Binding<Bool> {
+        Binding { windowID != nil && app.inboxWindow == windowID } set: { shown in
+            if !shown, app.inboxWindow == windowID { app.hideInbox() }
+        }
     }
 
     private var otherUnread: Int {

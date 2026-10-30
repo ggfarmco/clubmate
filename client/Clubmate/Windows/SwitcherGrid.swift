@@ -169,7 +169,7 @@ struct UnreadBadge: View {
             Text("\(count)")
                 .font(theme.uiSmall.monospacedDigit())
                 .foregroundStyle(.white)
-                .padding(.horizontal, 5)
+                .padding(.horizontal, theme.spacing.m)
                 .background(Capsule().fill(.red))
                 .accessibilityLabel("\(count) unread")
         }

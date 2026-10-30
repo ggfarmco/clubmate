@@ -52,20 +52,22 @@ public struct AgentNotifier: Sendable {
 
     public init() {}
 
-    public func pending(_ sessions: [AgentSessionState], shown: (AgentSessionState) -> Bool) -> [AgentAlert] {
-        var alerts: [AgentAlert] = []
-        for session in sessions where session.status == Self.waiting && !shown(session) {
-            for request in session.requests where !posted.contains(session.session + "/" + request) {
-                alerts.append(AgentAlert(
+    public static func requests(_ sessions: [AgentSessionState]) -> [AgentAlert] {
+        sessions.filter { $0.status == waiting }.flatMap { session in
+            session.requests.map { request in
+                AgentAlert(
                     workspace: session.workspace,
                     session: session.session,
                     request: request,
                     title: "\(session.agent.isEmpty ? "Agent" : session.agent.capitalized) is waiting for permission",
                     body: session.title.isEmpty ? "New session" : session.title
-                ))
+                )
             }
         }
-        return alerts
+    }
+
+    public func pending(_ sessions: [AgentSessionState], shown: (AgentSessionState) -> Bool) -> [AgentAlert] {
+        Self.requests(sessions.filter { !shown($0) }).filter { !isPosted($0) }
     }
 
     public func isPosted(_ alert: AgentAlert) -> Bool {

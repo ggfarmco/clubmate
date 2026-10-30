@@ -1,6 +1,6 @@
 import Foundation
 
-public enum NotificationKind: String, Sendable, CaseIterable {
+public enum NotificationKind: String, Sendable, CaseIterable, Codable {
     case needsInput = "needs-input"
     case permission
     case done
@@ -16,10 +16,20 @@ public enum NotificationKind: String, Sendable, CaseIterable {
         case .info: "Info"
         }
     }
+
+    public var symbol: String {
+        switch self {
+        case .needsInput: "questionmark.bubble"
+        case .permission: "hand.raised"
+        case .done: "checkmark.circle"
+        case .stuck: "exclamationmark.triangle"
+        case .info: "info.circle"
+        }
+    }
 }
 
-public struct HubNotification: Sendable, Equatable {
-    public enum Source: Sendable, Equatable {
+public struct HubNotification: Sendable, Equatable, Codable {
+    public enum Source: Sendable, Equatable, Codable {
         case bus
         case agentsSection
     }
@@ -35,8 +45,9 @@ public struct HubNotification: Sendable, Equatable {
     public let kind: NotificationKind
     public let viaAgent: Bool
     public let source: Source
+    public let date: Date?
 
-    public init(id: String, workspace: String, session: String? = nil, owner: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, source: Source = .bus) {
+    public init(id: String, workspace: String, session: String? = nil, owner: String? = nil, title: String = "", message: String, kind: NotificationKind = .info, viaAgent: Bool = false, source: Source = .bus, date: Date? = nil) {
         self.id = id
         self.workspace = workspace
         self.session = session
@@ -46,6 +57,7 @@ public struct HubNotification: Sendable, Equatable {
         self.kind = kind
         self.viaAgent = viaAgent
         self.source = source
+        self.date = date
     }
 
     public init(_ alert: AgentAlert) {
@@ -64,8 +76,39 @@ public struct HubNotification: Sendable, Equatable {
             title: fields["title"]?.stringValue ?? "",
             message: message,
             kind: fields["kind"]?.stringValue.flatMap(NotificationKind.init(rawValue:)) ?? .info,
-            viaAgent: fields["agent"] == .bool(true)
+            viaAgent: fields["agent"] == .bool(true),
+            date: fields["ts"]?.stringValue.flatMap(Self.parseDate)
         )
+    }
+
+    static func parseDate(_ text: String) -> Date? {
+        let whole = text.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+        return ISO8601DateFormatter().date(from: whole)
+    }
+
+    public var isAgentSession: Bool {
+        session?.hasPrefix(NotificationHub.agentSessionPrefix) == true
+    }
+
+    public var what: String {
+        title.isEmpty ? kind.label : title
+    }
+
+    public func source(workspaceName: String?) -> String {
+        var parts = [workspaceName ?? workspace]
+        if let session { parts.append(Self.sessionLabel(session: session, owner: owner)) }
+        if viaAgent { parts.append("via agent") }
+        return parts.joined(separator: " · ")
+    }
+
+    static func sessionLabel(session: String, owner: String?) -> String {
+        if session.hasPrefix(NotificationHub.agentSessionPrefix) || owner == AgentNotifier.section { return "Agent" }
+        switch owner {
+        case TerminalsSection.id: return "Terminal"
+        case CodeSection.id: return "Editor"
+        case let owner? where !owner.isEmpty: return owner
+        default: return "Session"
+        }
     }
 
     public var subtitle: String {
@@ -73,12 +116,10 @@ public struct HubNotification: Sendable, Equatable {
     }
 
     var coveredByAgentsSection: Bool {
-        guard source == .bus, !viaAgent, kind == .needsInput || kind == .permission, let session else { return false }
-        return session.hasPrefix(NotificationHub.agentSessionPrefix)
+        source == .bus && !viaAgent && (kind == .needsInput || kind == .permission) && isAgentSession
     }
 
     public func headline(workspaceName: String?) -> String {
-        let what = title.isEmpty ? kind.label : title
         guard let workspaceName, !workspaceName.isEmpty else { return what }
         return "\(workspaceName) · \(what)"
     }
@@ -118,26 +159,42 @@ public struct HubReveal: Sendable, Equatable {
 }
 
 public struct NotificationHub: Sendable {
-    public private(set) var unread: [String: Int] = [:]
+    public static let liveWindow: TimeInterval = 30
 
-    public init() {}
+    public var inbox: NotificationInbox
 
-    public var total: Int {
-        unread.values.reduce(0, +)
+    public init(inbox: NotificationInbox = NotificationInbox()) {
+        self.inbox = inbox
     }
 
-    public mutating func receive(_ notification: HubNotification, focus: HubFocus) -> Bool {
-        if notification.coveredByAgentsSection || focus.shows(workspace: notification.workspace, session: notification.session) { return false }
-        if focus.front != notification.workspace { unread[notification.workspace, default: 0] += 1 }
-        return true
+    public var total: Int {
+        inbox.unreadTotal
+    }
+
+    public func unread(_ workspace: String) -> Int {
+        inbox.unread(workspace)
+    }
+
+    public mutating func receive(_ notification: HubNotification, focus: HubFocus, now: Date = Date()) -> Bool {
+        if notification.coveredByAgentsSection { return false }
+        let date = notification.date ?? now
+        guard now.timeIntervalSince(date) <= Self.liveWindow else {
+            inbox.add(notification, at: date, read: false, now: now)
+            return false
+        }
+        if focus.shows(workspace: notification.workspace, session: notification.session) {
+            if notification.source == .bus { inbox.add(notification, at: date, read: true, now: now) }
+            return false
+        }
+        return inbox.add(notification, at: date, read: focus.front == notification.workspace, now: now)
     }
 
     public mutating func seen(_ workspace: String) {
-        unread[workspace] = nil
+        inbox.markRead(workspace: workspace)
     }
 
     public mutating func keep(_ workspaces: Set<String>) {
-        unread = unread.filter { workspaces.contains($0.key) }
+        inbox.keep(workspaces)
     }
 
     public static func reveal(workspace: String, session: String, owner: String?) -> HubReveal? {

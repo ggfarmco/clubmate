@@ -33,11 +33,11 @@ final class NotificationHubTests: XCTestCase {
         XCTAssertTrue(hub.receive(HubNotification(id: "2", workspace: "w", message: "b"), focus: away))
         XCTAssertTrue(hub.receive(HubNotification(id: "3", workspace: "v", message: "c"), focus: away))
         XCTAssertTrue(hub.receive(HubNotification(id: "4", workspace: "v", session: "ses_9", message: "d"), focus: HubFocus(appActive: true, workspace: "v")))
-        XCTAssertEqual(hub.unread, ["w": 2, "v": 1])
+        XCTAssertEqual([hub.unread("w"), hub.unread("v")], [2, 1])
         XCTAssertEqual(hub.total, 3)
 
         hub.seen("w")
-        XCTAssertEqual(hub.unread, ["v": 1])
+        XCTAssertEqual([hub.unread("w"), hub.unread("v")], [0, 1])
         XCTAssertEqual(hub.total, 1)
     }
 
@@ -49,7 +49,7 @@ final class NotificationHubTests: XCTestCase {
         }
         XCTAssertTrue(hub.receive(HubNotification(id: "d", workspace: "w", session: "agt_1", message: "Finished", kind: .done), focus: away))
         XCTAssertTrue(hub.receive(HubNotification(id: "q", workspace: "w", session: "agt_1", message: "Which?", kind: .needsInput, viaAgent: true), focus: away))
-        XCTAssertEqual(hub.unread, ["w": 2])
+        XCTAssertEqual(hub.unread("w"), 2)
     }
 
     func testAgentPermissionPostsOncePerRequestWhenHidden() {
