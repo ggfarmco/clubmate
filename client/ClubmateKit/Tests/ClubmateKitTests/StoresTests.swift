@@ -65,6 +65,16 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testFreshWorkspaceOpensFirstSectionInUserOrder() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let store = ProjectUIStore(client: client, projectID: project.id) { $0.reversed() }
+        try await store.start()
+        XCTAssertEqual(store.selectedSection, "echo")
+        await store.stop()
+        await client.close()
+    }
+
     func testShownSectionWinsOverSaved() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")

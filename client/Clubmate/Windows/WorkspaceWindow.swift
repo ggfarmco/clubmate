@@ -208,7 +208,13 @@ private struct WorkspaceView: View {
             let sidebar = sidebarKey?.hidden == true ? nil : side
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
-                    Rail(sections: store.sections, selected: section) { store.selectedSection = $0 }
+                    Rail(
+                        sections: app.settings.ordered(store.sections),
+                        selected: section,
+                        select: { store.selectedSection = $0 },
+                        move: { [app] in app.settings.moveSection($0, onto: $1, in: store.sections) },
+                        resetOrder: app.settings.sectionOrder == nil ? nil : { [app] in app.settings.sectionOrder = nil }
+                    )
                     theme.border.frame(width: 1)
                     if sidebar == .left {
                         SidebarPane(session: session, store: store, section: section, side: .left)
@@ -273,7 +279,7 @@ private struct WorkspaceView: View {
 
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
-        return CommandPalette.entries(commands: app.commands, sections: session.store?.sections ?? [], sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
+        return CommandPalette.entries(commands: app.commands, sections: app.settings.ordered(session.store?.sections ?? []), sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
     }
 
     private func perform(_ action: PaletteAction) {

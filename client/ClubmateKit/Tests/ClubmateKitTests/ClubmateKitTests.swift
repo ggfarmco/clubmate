@@ -27,6 +27,17 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testPluginList() async throws {
+        let client = try await startCore()
+        let plugins = try await client.pluginList()
+        XCTAssertEqual(plugins.map(\.id), ["echo", "terminals"])
+        let terminals = try XCTUnwrap(plugins.last)
+        XCTAssertEqual(terminals.name, "Terminals")
+        XCTAssertEqual(terminals.manifest.contributes.sections.map(\.id), ["terminals"])
+        XCTAssertFalse(terminals.manifest.contributes.commands.isEmpty)
+        await client.close()
+    }
+
     func testNotificationsDelivered() async throws {
         let client = try await startCore()
         let streams = [client.subscribeNotifications(), client.subscribeNotifications()]
