@@ -12,3 +12,4 @@ client/Clubmate/Resources/terminfo
 /docs/superpowers
 /docs/verification
 /plugins/agents/agents
+.claude/worktrees/
