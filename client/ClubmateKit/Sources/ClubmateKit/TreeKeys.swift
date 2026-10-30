@@ -57,6 +57,8 @@ public enum TreeCursor {
             return row.parent.map(TreeCommand.cursor)
         case .collapseOthers:
             return .run("files.collapse-others")
+        case .cycleTab(let delta):
+            return .cycleTab(delta)
         }
     }
 
@@ -120,6 +122,7 @@ public enum TreeKeyAction: Equatable, Sendable {
     case collapse
     case collapseOthers
     case focusMain
+    case cycleTab(Int)
 }
 
 public enum TreeCommand: Equatable, Sendable {
@@ -130,11 +133,30 @@ public enum TreeCommand: Equatable, Sendable {
     case focus(String)
     case run(String)
     case focusMain
+    case cycleTab(Int)
+}
+
+public enum TreeChord: Equatable, Sendable {
+    case menu(String)
+    case focusField
+
+    public static let leader: UInt16 = 5
+
+    public static func resolve(_ keyCode: UInt16) -> TreeChord? {
+        switch keyCode {
+        case 0: .menu("stage")
+        case 32: .menu("unstage")
+        case 15: .menu("discard")
+        case 8: .focusField
+        default: nil
+        }
+    }
 }
 
 public enum TreeKeys {
-    public static func action(keyCode: UInt16, control: Bool, command: Bool, side: SidebarSide) -> TreeKeyAction? {
+    public static func action(keyCode: UInt16, control: Bool, command: Bool, side: SidebarSide, shift: Bool = false) -> TreeKeyAction? {
         guard !command else { return nil }
+        if shift, keyCode == 43 || keyCode == 47 { return .cycleTab(keyCode == 43 ? -1 : 1) }
         switch keyCode {
         case 38, 125: return .move(1)
         case 40, 126: return .move(-1)

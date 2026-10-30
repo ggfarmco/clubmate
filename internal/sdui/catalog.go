@@ -504,7 +504,7 @@ func treeItemCheck(c *validator, v any) error {
 func reviewCheck(c *validator, v any) error {
 	return objectCheck([]string{"base", "head"}, map[string]propCheck{
 		"base": isString, "head": isString, "baseRef": isString, "headRef": isString, "readOnly": isBool, "mode": isString,
-		"progress": isString, "warning": isString, "error": isString, "chips": listOf(chipCheck),
+		"progress": isString, "warning": isString, "error": isString, "chips": listOf(chipCheck), "started": countNumber,
 	})(c, v)
 }
 

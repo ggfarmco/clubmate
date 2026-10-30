@@ -96,12 +96,15 @@ struct TreeNodeView: View {
 
     @State private var selected: String?
     @State private var cursor: String?
+    @State private var leader = false
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSide) private var side
     @Environment(\.sidebarSlot) private var sidebarSlot
+    @Environment(\.cycleSidebarTab) private var cycleSidebarTab
+    @Environment(\.sidebarHasField) private var sidebarHasField
 
     private static let stickyLimit = 4
 
@@ -159,6 +162,9 @@ struct TreeNodeView: View {
         .focusEffectDisabled()
         .focused($focused)
         .keyMonitor(active: focused, handle: handle)
+        .onChange(of: focused) { _, focused in
+            if !focused { leader = false }
+        }
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
@@ -189,6 +195,17 @@ struct TreeNodeView: View {
 
     private func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
+        let plain = flags.intersection([.command, .control, .option, .shift]).isEmpty
+        if leader {
+            leader = false
+            guard plain else { return false }
+            chord(TreeChord.resolve(event.keyCode))
+            return true
+        }
+        if plain, event.keyCode == TreeChord.leader {
+            leader = true
+            return true
+        }
         let rows = TreeCursor.rows(node.treeItems())
         if review != nil, let trigger = ReviewKeys.trigger(
             keyCode: event.keyCode,
@@ -202,7 +219,7 @@ struct TreeNodeView: View {
             dispatch(node, trigger)
             return true
         }
-        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
+        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift)) else { return false }
         if review != nil, action == .collapseOthers {
             dispatch(node, .collapseOthers(cursor ?? ""))
             return true
@@ -219,9 +236,24 @@ struct TreeNodeView: View {
             guard id.hasPrefix(dispatch.owner + ".") else { return false }
             dispatch.run(CommandInvocation(id: id))
         case .focusMain: router?.requestMain(from: sidebarSlot ?? dispatch.slot)
+        case .cycleTab(let delta):
+            guard let cycleSidebarTab else { return false }
+            cycleSidebarTab.cycle(delta)
         case nil: break
         }
         return true
+    }
+
+    private func chord(_ chord: TreeChord?) {
+        switch chord {
+        case .menu(let action):
+            guard let cursor, let entry = rows.first(where: { $0.id == cursor })?.item.item.menu.first(where: { $0.action == action }) else { return }
+            dispatch.choose(entry, item: cursor, in: node)
+        case .focusField:
+            if let sidebarSlot, sidebarHasField { router?.request(sidebarSlot + SidebarField.suffix) }
+        case nil:
+            break
+        }
     }
 }
 

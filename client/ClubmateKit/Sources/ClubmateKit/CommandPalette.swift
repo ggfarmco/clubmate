@@ -91,8 +91,10 @@ extension CommandPalette {
         let commandEntries = commands.filter { !$0.hidden }.map {
             PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: $0.id)
         }
-        let sectionEntries = sections.enumerated().map { index, section in
-            PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
+        let rail = SectionHosting.rail(sections).map(\.id)
+        let sectionEntries = sections.map { section in
+            let index = rail.firstIndex(of: section.id) ?? 9
+            return PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
         let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle Sidebar", detail: "⌘B")] : []
         let navigationEntries = sidebar && commands.contains { $0.id == CodeSection.navigationCommand }

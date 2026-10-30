@@ -178,12 +178,20 @@ struct TextFieldNodeView: View {
     let node: SDUINode
 
     @State private var text = ""
+    @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
+    @Environment(\.focusRouter) private var router
+    @Environment(\.sidebarSlot) private var sidebarSlot
 
     var body: some View {
         TextField("", text: $text, prompt: Text(node.string("placeholder") ?? "").foregroundStyle(theme.muted))
+            .focused($focused)
+            .onChange(of: router?.pending, initial: true) {
+                guard let sidebarSlot, router?.take(sidebarSlot + SidebarField.suffix) == true else { return }
+                focused = true
+            }
             .textFieldStyle(.plain)
             .font(theme.ui)
             .foregroundStyle(theme.foreground)

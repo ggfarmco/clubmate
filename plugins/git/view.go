@@ -23,20 +23,17 @@ const (
 	stageAction    = "stage"
 	unstageAction  = "unstage"
 	discardAction  = "discard"
-	openDiffAction = "open-diff"
 	commitAction   = "commit"
 	repoField      = "repo"
 	messageField   = "message"
 	submitID       = "submit"
 	missingDetail  = "missing"
 	notGitDetail   = "not a git repository"
-	maxDiffLines   = 2000
-	maxLineChars   = 2000
-	maxDiffBytes   = 1 << 20
 	maxGroupLeaves = 1000
 	maxTreeItems   = 4900
 	moreID         = "more"
 	noRepos        = "No repositories — add one with clubmate workspace add-folder"
+	noEditor       = "Select a change in the sidebar. Diffs open in the Code section, which is not loaded."
 )
 
 var groupTitles = []struct{ id, title string }{
@@ -51,6 +48,7 @@ type repoView struct {
 	Problem    string
 	Entries    []gitrepo.Entry
 	Restorable map[string]bool
+	Dirs       map[string]bool
 }
 
 type leaf struct {
@@ -59,18 +57,19 @@ type leaf struct {
 	Path       string
 	Orig       string
 	Code       string
-	Dir        bool
 	Unmerged   bool
 	Restorable bool
 }
 
-type mainModel struct {
-	Sel     *leaf
-	Body    sdui.Node
-	Repos   []string
-	FormID  string
-	Busy    string
-	Failure string
+type sidebarModel struct {
+	Repos    []repoView
+	Selected string
+	Folded   map[string]bool
+	Dirs     map[string][]leaf
+	Live     []string
+	FormID   string
+	Busy     string
+	Failure  string
 }
 
 func (l leaf) id() string {
@@ -107,10 +106,37 @@ func unmerged(e gitrepo.Entry) bool {
 	return e.X == 'U' || e.Y == 'U' || pair == "AA" || pair == "DD"
 }
 
-func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui.Node {
-	if len(repos) == 0 {
+func sidebarView(m sidebarModel) sdui.Node {
+	if len(m.Repos) == 0 {
 		return sdui.Empty(noRepos)
 	}
+	var nodes []sdui.Node
+	if m.Failure != "" {
+		nodes = append(nodes, sdui.Badge(m.Failure, "danger"))
+	}
+	if m.Busy != "" {
+		nodes = append(nodes, sdui.MutedText(m.Busy))
+	}
+	if len(m.Live) > 0 {
+		nodes = append(nodes, commitView(m))
+	}
+	return sdui.VStack(append(nodes, changesView(m.Repos, m.Selected, m.Folded, m.Dirs))...)
+}
+
+func commitView(m sidebarModel) sdui.Node {
+	var fields []sdui.Node
+	if len(m.Live) > 1 {
+		value := m.Live[0]
+		if repo, _, ok := strings.Cut(m.Selected, idSep); ok && slices.Contains(m.Live, repo) {
+			value = repo
+		}
+		fields = append(fields, sdui.Select(repoField, repoOptions(m.Live), value))
+	}
+	fields = append(fields, sdui.TextField(messageField, "", "Commit message"), sdui.Button(submitID, "Commit", ""))
+	return sdui.WithAction(sdui.Form(m.FormID, fields...), commitAction)
+}
+
+func changesView(repos []repoView, selected string, folded map[string]bool, dirs map[string][]leaf) sdui.Node {
 	budget := maxTreeItems - len(repos)*(1+2*len(groupTitles)) - 2
 	items := make([]sdui.TreeItem, 0, len(repos))
 	for _, r := range repos {
@@ -123,7 +149,7 @@ func sidebarView(repos []repoView, selected string, folded map[string]bool) sdui
 		all := leaves(r)
 		for _, g := range groupTitles {
 			if group := inGroup(all, g.id); len(group) > 0 {
-				root.Children = append(root.Children, groupItem(r.Path+idSep+g.id, g.title, group, folded, &budget))
+				root.Children = append(root.Children, groupItem(r.Path+idSep+g.id, g.title, group, folded, dirs, &budget))
 			}
 		}
 		root.HasChildren = len(root.Children) > 0
@@ -142,14 +168,31 @@ func inGroup(all []leaf, group string) []leaf {
 	return out
 }
 
-func groupItem(id, title string, group []leaf, folded map[string]bool, budget *int) sdui.TreeItem {
-	shown := min(len(group), maxGroupLeaves, max(*budget, 0))
-	*budget -= shown
-	children := make([]sdui.TreeItem, 0, shown+1)
-	for _, l := range group[:shown] {
-		children = append(children, sdui.TreeItem{ID: l.id(), Label: l.rel(), Badge: l.Code})
+func groupItem(id, title string, group []leaf, folded map[string]bool, dirs map[string][]leaf, budget *int) sdui.TreeItem {
+	children := make([]sdui.TreeItem, 0, min(len(group), maxGroupLeaves)+1)
+	for _, l := range group {
+		menu := leafMenu(l)
+		if len(children) == maxGroupLeaves || *budget < 1+len(menu) {
+			break
+		}
+		*budget -= 1 + len(menu)
+		item := sdui.TreeItem{ID: l.id(), Label: l.rel(), Badge: l.Code, Menu: menu}
+		if files, ok := dirs[l.id()]; ok {
+			collapsed, seen := folded[l.id()]
+			item.HasChildren = true
+			item.Expanded = seen && !collapsed
+			for _, f := range files {
+				fileMenu := leafMenu(f)
+				if *budget < 1+len(fileMenu) {
+					break
+				}
+				*budget -= 1 + len(fileMenu)
+				item.Children = append(item.Children, sdui.TreeItem{ID: f.id(), Label: relPath(l.Path, f.Path), Badge: f.Code, Menu: fileMenu})
+			}
+		}
+		children = append(children, item)
 	}
-	if more := len(group) - shown; more > 0 {
+	if more := len(group) - len(children); more > 0 {
 		children = append(children, sdui.TreeItem{ID: id + idSep + moreID, Label: fmt.Sprintf("… %d more", more)})
 	}
 	return sdui.TreeItem{
@@ -161,42 +204,15 @@ func groupItem(id, title string, group []leaf, folded map[string]bool, budget *i
 	}
 }
 
-func mainView(m mainModel) sdui.Node {
-	var nodes []sdui.Node
-	if m.Failure != "" {
-		nodes = append(nodes, sdui.Badge(m.Failure, "danger"))
+func leafMenu(l leaf) []sdui.MenuEntry {
+	if l.Group == groupStaged {
+		return []sdui.MenuEntry{{Action: unstageAction, Label: "Unstage"}}
 	}
-	if m.Busy != "" {
-		nodes = append(nodes, sdui.MutedText(m.Busy))
+	menu := []sdui.MenuEntry{{Action: stageAction, Label: "Stage"}}
+	if l.discardable() {
+		menu = append(menu, sdui.MenuEntry{Action: discardAction, Label: "Discard", Confirm: "Discard changes to " + l.rel() + "?"})
 	}
-	if sel := m.Sel; sel != nil {
-		rel := sel.rel()
-		toolbar := []sdui.Node{mono(rel)}
-		switch sel.Group {
-		case groupStaged:
-			toolbar = append(toolbar, sdui.Button(unstageAction, "Unstage", ""))
-		default:
-			toolbar = append(toolbar, sdui.Button(stageAction, "Stage", ""))
-		}
-		if sel.discardable() {
-			discard := sdui.WithAction(sdui.Button(sel.id(), "Discard…", ""), discardAction)
-			toolbar = append(toolbar, sdui.WithConfirm(discard, "Discard changes to "+rel+"?"))
-		}
-		if !sel.Dir {
-			toolbar = append(toolbar, sdui.Button(openDiffAction, "Open Diff in Neovim", ""))
-		}
-		nodes = append(nodes, sdui.HStack(toolbar...), sdui.Scroll(m.Body))
-	}
-	var fields []sdui.Node
-	if len(m.Repos) > 1 {
-		value := m.Repos[0]
-		if m.Sel != nil {
-			value = m.Sel.Repo
-		}
-		fields = append(fields, sdui.Select(repoField, repoOptions(m.Repos), value))
-	}
-	fields = append(fields, sdui.TextField(messageField, "", "Commit message"), sdui.Button(submitID, "Commit", ""))
-	return sdui.VStack(append(nodes, sdui.WithAction(sdui.Form(m.FormID, fields...), commitAction))...)
+	return menu
 }
 
 func repoOptions(repos []string) []sdui.Option {
@@ -205,50 +221,6 @@ func repoOptions(repos []string) []sdui.Option {
 		options[i] = sdui.Option{Value: r, Label: filepath.Base(r)}
 	}
 	return options
-}
-
-func bodyNode(text string, truncated, dir bool, err error) sdui.Node {
-	switch {
-	case err != nil:
-		return sdui.MutedText(err.Error())
-	case dir:
-		return mono(truncateDiff(text, truncated))
-	}
-	return sdui.Diff(truncateDiff(text, truncated))
-}
-
-func mono(text string) sdui.Node {
-	return sdui.Node{Type: "text", Props: map[string]any{"text": text, "style": "mono"}}
-}
-
-func truncateDiff(text string, truncated bool) string {
-	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
-	more := len(lines) - maxDiffLines
-	if !truncated && more <= 0 && !slices.ContainsFunc(lines, func(l string) bool { return len(l) > maxLineChars }) {
-		return text
-	}
-	lines = lines[:min(len(lines), maxDiffLines)]
-	for i, l := range lines {
-		lines[i] = capLine(l)
-	}
-	switch {
-	case truncated:
-		lines = append(lines, "… diff truncated (over 1 MiB)")
-	case more > 0:
-		lines = append(lines, fmt.Sprintf("… diff truncated (%d more lines)", more))
-	}
-	return strings.Join(lines, "\n")
-}
-
-func capLine(l string) string {
-	n := 0
-	for i := range l {
-		if n == maxLineChars {
-			return l[:i] + " …"
-		}
-		n++
-	}
-	return l
 }
 
 func relPath(repo, path string) string {
@@ -269,6 +241,7 @@ type reviewHeader struct {
 	Warning  string       `json:"warning,omitempty"`
 	Error    string       `json:"error,omitempty"`
 	Chips    []reviewChip `json:"chips"`
+	Started  int64        `json:"started,omitempty"`
 }
 
 type reviewChip struct {
@@ -300,6 +273,7 @@ func reviewView(r *review) sdui.Node {
 		Warning:  r.warning,
 		Error:    r.err,
 		Chips:    r.filters.chips(),
+		Started:  r.started,
 	}
 	root := buildDirs(rows)
 	node := root

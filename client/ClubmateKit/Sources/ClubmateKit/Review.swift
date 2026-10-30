@@ -27,6 +27,7 @@ public struct ReviewHeader: Equatable, Sendable {
     public let warning: String
     public let error: String
     public let chips: [ReviewChip]
+    public let started: Int
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let base = fields["base"]?.stringValue, let head = fields["head"]?.stringValue else { return nil }
@@ -40,6 +41,7 @@ public struct ReviewHeader: Equatable, Sendable {
         warning = fields["warning"]?.stringValue ?? ""
         error = fields["error"]?.stringValue ?? ""
         chips = fields["chips"]?.arrayValue?.compactMap(ReviewChip.init) ?? []
+        started = fields["started"]?.numberValue.map(Int.init) ?? 0
     }
 
     static let workingTree = "(working tree)"

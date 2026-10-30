@@ -16,7 +16,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⇧⌘F | Find in Files… | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar | `ClubmateApp.swift`, `WorkspaceWindow.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Terminal font size up, down, reset | `ClubmateApp.swift`, `WorkspaceWindow.swift` |
-| ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
+| ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset). A section hosted as a sidebar tab (Git, in the Code sidebar) has no rail icon or number: reach it with its tab or "Go to Git" in ⌘K | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
@@ -51,8 +51,23 @@ Pickers are the fuzzy lists for worktrees and review refs: the worktree switcher
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the editor | |
 | . | Focus the tree on the folder under the cursor (on a file: its folder) | neo-tree `set_root` |
 | ⌫ | Move the focus up one level (from the top level: show the whole workspace) | neo-tree `navigate_up` |
+| < / > | Previous / next sidebar tab (Code: Files, Git, Review), wrapping | neo-tree `prev_source` / `next_source` |
 
 Defined in `ClubmateKit/TreeKeys.swift`.
+
+## Git list (Code sidebar, Git tab focused)
+
+The files tree keys above apply. In addition:
+
+| Keys | Action | Notes |
+|---|---|---|
+| ↩, o | Open the file's diff in nvim; focus stays in the list | |
+| ga | Stage the file or untracked folder under the cursor | neo-tree git_status `ga` |
+| gu | Unstage the staged file under the cursor | neo-tree git_status `gu` |
+| gr | Discard the unstaged changes of the file under the cursor (asks first) | neo-tree git_status `gr` |
+| gc | Focus the commit message field | neo-tree git_status `gc` |
+
+`g` waits for the next key; a key that is not listed is swallowed. A chord only acts when the file's context menu offers it. Defined in `ClubmateKit/TreeKeys.swift` (`TreeChord`).
 
 ## Review list (Code sidebar, Review tab focused)
 

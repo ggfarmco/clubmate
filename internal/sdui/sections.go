@@ -20,6 +20,7 @@ type SectionDef struct {
 	AutoNew bool
 	Plugin  string
 	Slots   []string
+	Host    string
 }
 
 type Section struct {
@@ -31,6 +32,7 @@ type Section struct {
 	AutoNew bool     `json:"autoNew"`
 	Plugin  string   `json:"plugin"`
 	Slots   []string `json:"slots,omitempty"`
+	Host    string   `json:"host,omitempty"`
 }
 
 type ViewDef struct {
@@ -62,6 +64,20 @@ func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
 			s.extra[d.ID+"."+name] = d.ID
 		}
 		s.list = append(s.list, Section(d))
+	}
+	for i, sec := range s.list {
+		if sec.Host != "" && (sec.Host == sec.ID || s.scopes[sec.Host] != sec.Scope) {
+			s.list[i].Host = ""
+		}
+	}
+	hosted := map[string]bool{}
+	for _, sec := range s.list {
+		hosted[sec.ID] = sec.Host != ""
+	}
+	for i, sec := range s.list {
+		if hosted[sec.Host] {
+			s.list[i].Host = ""
+		}
 	}
 	slices.SortFunc(s.list, func(a, b Section) int {
 		return cmp.Or(cmp.Compare(a.Order, b.Order), strings.Compare(a.ID, b.ID))

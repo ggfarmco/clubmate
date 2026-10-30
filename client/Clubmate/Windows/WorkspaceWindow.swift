@@ -279,13 +279,14 @@ private struct WorkspaceView: View {
 
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
-        return CommandPalette.entries(commands: app.commands, sections: app.settings.ordered(session.store?.sections ?? []), sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
+        let sections = app.settings.ordered(session.store?.sections ?? []) + (session.store?.hostedSections ?? [])
+        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
     }
 
     private func perform(_ action: PaletteAction) {
         switch action {
         case .command(let id): confirm(id)
-        case .section(let id): session.store?.selectedSection = id
+        case .section(let id): session.store?.select(id)
         case .toggleSidebar: session.store?.toggleSidebar(app.settings)
         case .toggleNavigationKeys: app.settings.navigationKeys = !(app.settings.navigationKeys ?? false)
         case .openFolder: app.openFolder(in: windowID)
@@ -493,12 +494,8 @@ private struct SidebarPane: View {
         }
     }
 
-    @ViewBuilder private var content: some View {
-        if section == CodeSection.id {
-            CodeSidebar(session: session, store: store)
-        } else {
-            SlotPane(store: store, slot: "\(section).sidebar")
-        }
+    private var content: some View {
+        SectionSidebar(session: session, store: store, section: section)
     }
 
     private var handle: some View {
