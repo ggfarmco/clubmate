@@ -148,7 +148,7 @@ struct FolderFieldNodeView: View {
                     .font(theme.uiSmall.monospaced())
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.label)
                     .padding(.horizontal, theme.gutter * 2)
             }
         }

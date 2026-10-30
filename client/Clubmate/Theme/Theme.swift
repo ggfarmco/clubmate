@@ -85,3 +85,8 @@ extension EnvironmentValues {
         set { self[ThemeKey.self] = newValue }
     }
 }
+
+extension Text.TruncationMode {
+    static let label: Self = .tail
+    static let path: Self = .head
+}

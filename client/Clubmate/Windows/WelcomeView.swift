@@ -123,7 +123,7 @@ private struct RecentRow: View {
                     .font(theme.uiSmall)
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.label)
             }
             Spacer(minLength: theme.gutter)
             if open {

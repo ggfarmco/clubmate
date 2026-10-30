@@ -88,7 +88,7 @@ struct FuzzyPickerList: View {
                 .frame(width: 10)
             Text(item.label)
                 .foregroundStyle(theme.foreground)
-                .truncationMode(.middle)
+                .truncationMode(.label)
             Spacer(minLength: theme.gutter)
             Text(item.detail)
                 .font(theme.uiSmall)

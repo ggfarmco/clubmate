@@ -107,7 +107,7 @@ struct ComposerNodeView: View {
         HStack(spacing: theme.spacing.s) {
             Text(attachment.label)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.label)
             if let key = attachment.key {
                 Button {
                     dispatch(node, .named("detach", .object(["id": .string(key)])))

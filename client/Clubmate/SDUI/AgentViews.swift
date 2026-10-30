@@ -137,7 +137,7 @@ private struct ToolActionsView: View {
                         Chevron(expanded: expanded)
                         Text(summary.text)
                             .lineLimit(1)
-                            .truncationMode(.tail)
+                            .truncationMode(.label)
                     }
                     .contentShape(Rectangle())
                 }
@@ -153,7 +153,7 @@ private struct ToolActionsView: View {
                     if !expanded {
                         Text("running: \(running)")
                             .lineLimit(1)
-                            .truncationMode(.middle)
+                            .truncationMode(.label)
                     }
                 }
             }
@@ -257,7 +257,7 @@ private struct ToolActionLine: View, Equatable {
             Text(text)
                 .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
                 .lineLimit(expanded ? 3 : 1)
-                .truncationMode(.middle)
+                .truncationMode(.label)
             if let changes {
                 Text("+\(changes.added)").foregroundStyle(theme.success)
                 Text("−\(changes.removed)").foregroundStyle(theme.danger)
@@ -335,7 +335,7 @@ private struct AttachmentLabels: View {
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.muted)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.label)
         }
     }
 }
@@ -422,7 +422,7 @@ struct ToolCardNodeView: View {
                 Text(node.string("title") ?? "")
                     .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
                     .lineLimit(oneLine ? 1 : 3)
-                    .truncationMode(.middle)
+                    .truncationMode(.label)
                     .textSelection(.enabled)
                 Spacer(minLength: theme.gutter)
                 if oneLine { ToolCardButtons(node: node) }

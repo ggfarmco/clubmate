@@ -25,6 +25,8 @@ build:
 	cp plugins/agents/plugin.json bin/plugins/agents/
 	$(GO_BUILD) -o bin/plugins/remote/remote ./plugins/remote
 	cp plugins/remote/plugin.json bin/plugins/remote/
+	$(GO_BUILD) -o bin/plugins/cron/cron ./plugins/cron
+	cp plugins/cron/plugin.json bin/plugins/cron/
 
 run-core: build
 	bin/clubmate-core

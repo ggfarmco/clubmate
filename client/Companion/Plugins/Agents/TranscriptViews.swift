@@ -133,7 +133,6 @@ struct ToolRow: View {
                     Text(tool.displayTitle)
                         .font(tool.kind == "execute" ? .callout.monospaced() : .callout)
                         .lineLimit(1)
-                        .truncationMode(.middle)
                         .foregroundStyle(.primary)
                     Spacer(minLength: 6)
                     if !tool.diffs.isEmpty {

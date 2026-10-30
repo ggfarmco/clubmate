@@ -66,7 +66,7 @@ struct SettingsView: View {
                             HStack {
                                 Text("\(app.claude.serverName) runs \(command.isEmpty ? "another command" : command)")
                                     .lineLimit(1)
-                                    .truncationMode(.middle)
+                                    .truncationMode(.label)
                                 Button("Reconnect") { Task { await app.claude.connect() } }
                                     .disabled(app.claude.busy)
                             }

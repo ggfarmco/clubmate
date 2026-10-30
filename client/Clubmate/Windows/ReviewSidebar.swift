@@ -56,7 +56,7 @@ private struct ReviewHeaderView: View {
                 CompareField(caption: "base", title: header.title) {
                     Text(header.base)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .truncationMode(.label)
                 } action: {
                     session.chooseReviewBase(head: header.headRef)
                 }
@@ -112,7 +112,7 @@ private struct ReviewHeaderView: View {
         HStack(spacing: theme.spacing.s) {
             Text(header.head)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.label)
             Text(suffix)
                 .foregroundStyle(theme.muted)
                 .fixedSize()
@@ -209,7 +209,7 @@ private struct ChipButton: View {
                 }
                 Text(label)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.label)
                     .frame(maxWidth: 120)
             }
             .font(theme.uiSmall)

@@ -182,7 +182,7 @@ private struct FindResultsList: View {
             Text(group.path)
                 .fontWeight(.semibold)
                 .foregroundStyle(theme.foreground)
-                .truncationMode(.head)
+                .truncationMode(.path)
             Text("\(group.matches.count)")
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.muted)

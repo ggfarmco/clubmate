@@ -109,7 +109,7 @@ struct GoToFileView: View {
             Text(highlighted(match.runs(in: start..<end), base: theme.foreground))
                 .fontWeight(.semibold)
             Text(highlighted(match.runs(in: 0..<max(start - 1, 0)), base: theme.muted))
-                .truncationMode(.head)
+                .truncationMode(.path)
             Spacer(minLength: theme.gutter)
             if let line = match.line {
                 Text(":\(line)")

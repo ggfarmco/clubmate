@@ -1,0 +1,128 @@
+{
+  "id": "cron",
+  "name": "Cron",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["cron"],
+  "contributes": {
+    "sections": [{"id": "cron", "title": "Cron", "icon": "clock", "order": 35}],
+    "commands": [
+      {
+        "id": "cron.add",
+        "title": "Add Cron Job",
+        "hidden": true,
+        "agent": true,
+        "description": "Schedule a call of an agent-visible command in this workspace, e.g. a reminder to yourself: command agents.prompt, args {\"session\":\"<your session id>\",\"text\":\"Check your children\"}, every 1m. Give exactly one of cron, every, at, in. The target command and its args are checked now, so a typo fails here. The job runs as an agent call: a destructive target asks for the user's approval when it fires. Returns the job: {id, name, workspace, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?}. Non-destructive.",
+        "args": {
+          "properties": {
+            "name": {"type": "string", "description": "Short human name of the job."},
+            "command": {"type": "string", "description": "Id of the agent-visible command to call, e.g. agents.prompt or agents.new; cron.* commands cannot be scheduled."},
+            "args": {"type": "string", "default": "{}", "description": "Arguments of the command as JSON text (a string holding a JSON object), e.g. {\"session\":\"<id>\",\"text\":\"Check your children\"}; default {}."},
+            "cron": {"type": "string", "description": "5-field cron expression (minute hour day month weekday), e.g. 0 9 * * 1-5."},
+            "timezone": {"type": "string", "description": "IANA timezone of the cron expression, e.g. Europe/Berlin; default the system's local zone."},
+            "every": {"type": "string", "description": "Repeat interval as a Go duration, at least 1m, e.g. 1m, 15m, 2h."},
+            "at": {"type": "string", "description": "Run once at this RFC 3339 time, e.g. 2026-10-31T09:00:00+01:00; the job deletes itself after it runs."},
+            "in": {"type": "string", "description": "Run once after this Go duration from now, e.g. 30m; the job deletes itself after it runs."},
+            "owner": {"type": "string", "enum": ["self", "none"], "default": "self", "description": "self (default): the job belongs to your agent session, fires as you and is deleted when your session is closed. none: the job outlives your session and fires with no caller (an agents.new then starts a top-level session). Jobs created by the user have no owner."},
+            "missed": {"type": "string", "enum": ["once", "skip"], "description": "What to do with runs missed while the Mac slept or Clubmate was down: once runs it once when back, skip drops it. Default skip for a job with an owner, once otherwise."}
+          },
+          "required": ["name", "command"]
+        }
+      },
+      {
+        "id": "cron.list",
+        "title": "List Cron Jobs",
+        "hidden": true,
+        "agent": true,
+        "description": "List the workspace's cron jobs without their run history: {jobs: [{id, name, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?}]}. Non-destructive."
+      },
+      {
+        "id": "cron.show",
+        "title": "Show Cron Job",
+        "hidden": true,
+        "agent": true,
+        "description": "Show one cron job with its last 20 runs: history [{at, status, reason?, result?}], status ok, error or skipped (busy, no app, missed, previous run still running, owner gone, owner unknown; skips are not failures). Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Job id (cj_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "cron.update",
+        "title": "Update Cron Job",
+        "hidden": true,
+        "agent": true,
+        "description": "Change a cron job; only the given fields change. Any of cron, timezone, every, at, in replaces the whole schedule (give exactly one of cron, every, at, in) and recomputes the next run. command and args are checked like in cron.add. An agent may change only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Job id (cj_…)."},
+            "name": {"type": "string", "description": "New name."},
+            "command": {"type": "string", "description": "New agent-visible command id."},
+            "args": {"type": "string", "description": "New arguments as JSON text (a string holding a JSON object), e.g. {\"session\":\"<id>\",\"text\":\"Check your children\"}."},
+            "cron": {"type": "string", "description": "New 5-field cron expression."},
+            "timezone": {"type": "string", "description": "IANA timezone for the new cron expression."},
+            "every": {"type": "string", "description": "New repeat interval, at least 1m."},
+            "at": {"type": "string", "description": "Run once at this RFC 3339 time instead."},
+            "in": {"type": "string", "description": "Run once after this duration from now instead."},
+            "missed": {"type": "string", "enum": ["once", "skip"], "description": "once runs a missed run once when Clubmate is back, skip drops it."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "cron.pause",
+        "title": "Pause Cron Job",
+        "hidden": true,
+        "agent": true,
+        "description": "Stop a cron job from firing until cron.resume. An agent may pause only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Job id (cj_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "cron.resume",
+        "title": "Resume Cron Job",
+        "hidden": true,
+        "agent": true,
+        "description": "Resume a paused cron job (also one paused after 3 failed runs in a row): clears the failure count and last error and schedules the next run from now. An agent may resume only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Job id (cj_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "cron.run",
+        "title": "Run Cron Job Now",
+        "hidden": true,
+        "agent": true,
+        "description": "Run a cron job's command now, without changing its schedule; the run is added to its history. Returns the run: {at, status, reason?, result?}, status ok, error or skipped. An agent may run only jobs owned or created by itself or its child sessions. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Job id (cj_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "cron.delete",
+        "title": "Delete Cron Job",
+        "hidden": true,
+        "agent": true,
+        "description": "Delete a cron job. An agent may delete only jobs owned or created by itself or its child sessions. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Job id (cj_…)."}
+          },
+          "required": ["id"]
+        }
+      }
+    ]
+  }
+}

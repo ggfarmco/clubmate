@@ -277,7 +277,7 @@ struct TreeBreadcrumb: View {
                     Text(crumbs[index].label)
                         .foregroundStyle(last ? theme.foreground : theme.muted)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .truncationMode(.label)
                         .help(crumbs[index].id)
                         .contentShape(Rectangle())
                 }
@@ -394,7 +394,7 @@ struct ItemRow<Leading: View>: View {
             Text(item.label)
                 .foregroundStyle(muted ? theme.muted : theme.foreground)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.label)
                 .help(item.label)
             Spacer(minLength: theme.gutter)
             if let detail = item.detail {

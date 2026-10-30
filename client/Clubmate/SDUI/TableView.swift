@@ -142,7 +142,7 @@ private struct TableCellView: View {
             if !cell.text.isEmpty {
                 Text(cell.text)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.label)
                     .foregroundStyle(textColor(tone))
             }
         }

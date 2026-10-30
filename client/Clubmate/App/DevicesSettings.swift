@@ -63,7 +63,7 @@ struct DevicesSettings: View {
                     Circle().fill(color(status.state)).frame(width: 7, height: 7)
                     Text(status.summary)
                         .lineLimit(2)
-                        .truncationMode(.middle)
+                        .truncationMode(.label)
                         .help(status.summary)
                         .textSelection(.enabled)
                 }
@@ -79,7 +79,7 @@ struct DevicesSettings: View {
                 Label(notice, systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.label)
             }
             LabeledContent("Pair an iPhone or iPad") {
                 Button("Pair Device…") { Task { await model.pair() } }
@@ -141,7 +141,7 @@ private struct DeviceRow: View {
                 Text(device.title)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.label)
                     .help(device.title)
                 TimelineView(.everyMinute) { context in
                     let detail = detail(context.date)
@@ -151,7 +151,7 @@ private struct DeviceRow: View {
                             .frame(width: 7, height: 7)
                         Text(detail)
                             .lineLimit(1)
-                            .truncationMode(.tail)
+                            .truncationMode(.label)
                             .help(detail)
                     }
                     .font(.caption)
@@ -191,7 +191,7 @@ private struct PairDeviceSheet: View {
                             Text(pairing.computerName)
                                 .fontWeight(.medium)
                                 .lineLimit(1)
-                                .truncationMode(.middle)
+                                .truncationMode(.label)
                                 .help(pairing.computerName)
                         }
                         Text(left.map { "Expires in \($0)" } ?? "Code expired. Choose New Code.")
