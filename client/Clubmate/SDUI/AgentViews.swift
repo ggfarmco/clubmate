@@ -62,13 +62,7 @@ struct MessageNodeView: View, Equatable {
                 Spacer(minLength: theme.gutter * 8)
                 VStack(alignment: .leading, spacing: theme.spacing.s) {
                     MarkdownText(text: text).equatable()
-                    ForEach(node.attachments()) { attachment in
-                        Text(attachment.label)
-                            .font(theme.uiSmall)
-                            .foregroundStyle(theme.muted)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+                    AttachmentLabels(attachments: node.attachments())
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, theme.gutter + theme.spacing.s)
@@ -81,6 +75,22 @@ struct MessageNodeView: View, Equatable {
             MarkdownText(text: text)
                 .equatable()
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct AttachmentLabels: View {
+    let attachments: [SDUIAttachment]
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ForEach(attachments) { attachment in
+            Text(attachment.label)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
     }
 }
