@@ -635,6 +635,8 @@ func TestDeleteWorkspaceDeletesSessions(t *testing.T) {
 		_, statErr := os.Stat(path)
 		return !found && errors.Is(statErr, os.ErrNotExist) && git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/") == ""
 	}, wait)
+	assert.NotEmpty(t, f.calls(t, "session/close"))
+	assert.Empty(t, f.calls(t, "session/delete"))
 }
 
 func TestOrphanAgentReapedAfterPluginCrash(t *testing.T) {

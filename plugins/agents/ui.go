@@ -475,7 +475,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		if ev.Action == actDelete {
-			return a.deleteSession(ctx, s)
+			return a.deleteSession(ctx, s, true)
 		}
 		a.closeSession(ctx, s, false)
 		return nil

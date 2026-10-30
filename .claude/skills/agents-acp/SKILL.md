@@ -33,7 +33,7 @@ Re-check anything marked volatile there before relying on it; ACP and the adapte
 2. **Treat every agent as "writes to disk".**
    - After file changes, run `:checktime` in nvim.
    - Review comes from the git diff of the turn (Clubmate's review UI), not from `fs/write_text_file`.
-3. **One agent process per (agent, worktree).** This isolates crashes, env and auth, and fits per-worktree workspaces.
+3. **One agent process per (agent, workspace, worktree).** This isolates crashes, env and auth, and fits per-worktree workspaces.
 4. **Clubmate keeps its own event log as well as relying on the agent's.** Store ACP `session/update` payloads verbatim on the SQLite bus, in an envelope `{workspace, worktree, session, parent_session?, turn_seq, seq, actor, ts}`.
    - This is the shape Zed's `delta-claude` uses.
    - It feeds search, handoffs, the phone view and attribution.

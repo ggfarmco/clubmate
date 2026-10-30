@@ -281,7 +281,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		a.closeSession(ctx, s, false)
 		return nil, nil
 	case "agents.delete":
-		return nil, a.deleteSession(ctx, s)
+		return nil, a.deleteSession(ctx, s, true)
 	case "agents.resume":
 		a.resume(s)
 		return nil, nil
@@ -746,8 +746,8 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	return p
 }
 
-func (a *app) deleteSession(ctx context.Context, s *session) error {
-	a.closeSession(ctx, s, true)
+func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error {
+	a.closeSession(ctx, s, remote)
 	a.mu.Lock()
 	delete(a.sessions, s.rec.ID)
 	a.mu.Unlock()
@@ -874,7 +874,7 @@ func (a *app) dropWorkspace(projectID string, match func(record) bool, remove bo
 		a.mu.Unlock()
 		var err error
 		if remove {
-			err = a.deleteSession(ctx, s)
+			err = a.deleteSession(ctx, s, false)
 		} else {
 			a.closeSession(ctx, s, false)
 			err = a.deleteRefs(ctx, rec)
