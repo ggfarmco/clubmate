@@ -1,0 +1,77 @@
+{
+  "fill": "automatic",
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": false,
+          "image-name": "glyph.png",
+          "name": "glyph",
+          "position": {
+            "scale": 0.8,
+            "translation-in-points": [
+              0,
+              -15
+            ]
+          }
+        },
+        {
+          "glass": false,
+          "image-name": "bombilla.png",
+          "name": "bombilla",
+          "position": {
+            "scale": 0.8,
+            "translation-in-points": [
+              0,
+              -15
+            ]
+          }
+        },
+        {
+          "glass": false,
+          "image-name": "gourd.png",
+          "name": "gourd",
+          "position": {
+            "scale": 0.8,
+            "translation-in-points": [
+              0,
+              -15
+            ]
+          }
+        }
+      ],
+      "name": "mate",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    },
+    {
+      "layers": [
+        {
+          "glass": false,
+          "image-name": "background.png",
+          "name": "background"
+        }
+      ],
+      "name": "background",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "iOS"
+    ]
+  }
+}
