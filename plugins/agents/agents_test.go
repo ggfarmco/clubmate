@@ -517,16 +517,8 @@ func TestCheckpointPerTurn(t *testing.T) {
 	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 }
 
-func TestResume(t *testing.T) {
-	f := start(t, map[string]any{"resume": true})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	var stored string
-	testutil.Eventually(t, func() bool {
-		stored = f.session(t, project, session).AgentSessionID
-		return stored != ""
-	}, wait)
-
+func (f *fixture) restartPlugin(t *testing.T, project string) {
+	t.Helper()
 	pids := f.h.Sup.PIDs()
 	require.Len(t, pids, 1)
 	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
@@ -537,6 +529,16 @@ func TestResume(t *testing.T) {
 	first := f.calls(t, "start")
 	require.Len(t, first, 1)
 	testutil.Eventually(t, func() bool { return errors.Is(syscall.Kill(first[0].PID, 0), syscall.ESRCH) }, wait)
+}
+
+func TestResume(t *testing.T) {
+	f := start(t, map[string]any{"resume": true})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "one")
+	stored := f.waitStatus(t, project, session, "done").AgentSessionID
+
+	f.restartPlugin(t, project)
 	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": session}, nil))
 
 	got := f.waitCall(t, "session/resume", func(fakeCall) bool { return true })
@@ -558,6 +560,37 @@ func TestResume(t *testing.T) {
 		require.NoError(t, json.Unmarshal(call.Params, &meta))
 		assert.Equal(t, map[string]string{"CLUBMATE_AGENT_SESSION": session}, meta.Meta.ClaudeCode.Options.Env, call.Method)
 	}
+}
+
+func TestUnpromptedSessionStartsFreshAfterRestart(t *testing.T) {
+	f := start(t, map[string]any{"resume": true})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" }, wait)
+
+	f.restartPlugin(t, project)
+	f.prompt(t, project, session, "hi")
+
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "hi" })
+	assert.Len(t, f.calls(t, "session/new"), 2)
+	assert.Empty(t, f.calls(t, "session/resume"))
+}
+
+func TestFailedAttachKeepsPrompt(t *testing.T) {
+	f := start(t, map[string]any{})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+	f.prompt(t, project, session, "one")
+	f.waitStatus(t, project, session, "done")
+	starts := f.calls(t, "start")
+	require.Len(t, starts, 1)
+	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
+	f.waitStatus(t, project, session, "error")
+
+	f.prompt(t, project, session, "two")
+
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 1 })
+	assert.Equal(t, "the agent cannot resume this session", f.waitStatus(t, project, session, "error").Error)
 }
 
 func TestModeAndCommands(t *testing.T) {

@@ -159,6 +159,7 @@ type session struct {
 	turn     int
 	nextID   int
 	edited   bool
+	prompted bool
 
 	changes      bool
 	changesFresh bool
@@ -324,6 +325,7 @@ func (s *session) applyPrompt(e envelope) {
 	}
 	s.turnInfo(e.Turn)
 	s.edited = false
+	s.prompted = true
 	en := s.upsert(entryUser, "prompt-"+strconv.Itoa(e.Turn), e.Turn)
 	en.Content = nil
 	for _, b := range req.Prompt {

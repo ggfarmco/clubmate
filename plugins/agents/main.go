@@ -408,7 +408,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	defer s.attachMu.Unlock()
 	s.mu.Lock()
 	s.loadLocked()
-	p, rec := s.proc, s.rec
+	p, rec, prompted := s.proc, s.rec, s.prompted
 	s.mu.Unlock()
 	if p != nil && p.alive() {
 		return p, nil
@@ -429,7 +429,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 			_, extra, _ = workRoot(project)
 		}
 	}
-	if rec.AgentSessionID != "" {
+	if rec.AgentSessionID != "" && prompted {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
 	var raw json.RawMessage
@@ -569,6 +569,9 @@ func (a *app) submit(s *session, args *promptArgs) error {
 func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	p, err := a.attach(s)
 	if err != nil {
+		s.mu.Lock()
+		s.requeueLocked(args)
+		s.mu.Unlock()
 		a.fail(s, err.Error())
 		return
 	}
