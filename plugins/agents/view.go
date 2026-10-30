@@ -87,13 +87,16 @@ var (
 		statusError:   "xmark.octagon",
 		statusClosed:  "archivebox",
 	}
+	statusTones = map[string]string{
+		statusRunning: "accent",
+		statusWaiting: "warning",
+		statusDone:    "success",
+		statusError:   "danger",
+	}
 	statusLabels = map[string]string{
 		statusRunning: "Running",
 		statusWaiting: "Waiting for permission",
-		statusDone:    "Done",
-		statusIdle:    "Idle",
 		statusError:   "Error",
-		statusClosed:  "Closed",
 	}
 	agentLabels    = map[string]string{agentClaude: "Claude"}
 	cardKinds      = []string{"read", "edit", "delete", "move", "search", "execute", "think", "fetch", "switch_mode", "other"}
@@ -315,8 +318,9 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
-		Detail: agentLabel(rec.Agent) + " · " + activity(row, now),
+		Detail: activity(row, now),
 		Icon:   statusIcons[rec.Status],
+		Tone:   statusTones[rec.Status],
 		Menu:   menu,
 	}
 }
@@ -325,19 +329,21 @@ func activity(row sessionRow, now time.Time) string {
 	rec := row.Rec
 	label := cmp.Or(statusLabels[rec.Status], rec.Status)
 	switch rec.Status {
-	case statusRunning, statusWaiting:
-		parts := []string{label}
-		if rec.Status == statusRunning && !row.Started.IsZero() {
+	case statusRunning:
+		var parts []string
+		if !row.Started.IsZero() {
 			parts = append(parts, elapsed(now.Sub(row.Started)))
 		}
-		return strings.Join(nonEmpty(append(parts, row.Activity)...), " · ")
+		return cmp.Or(strings.Join(nonEmpty(append(parts, row.Activity)...), " · "), label)
+	case statusWaiting:
+		return strings.Join(nonEmpty(label, row.Activity), " · ")
 	case statusError:
 		if line := firstLine(rec.Error); line != "" {
 			return label + " · " + line
 		}
 		return label
 	}
-	return label + " · " + ago(rec.UpdatedAt, now)
+	return ago(rec.UpdatedAt, now)
 }
 
 func elapsed(d time.Duration) string {

@@ -500,6 +500,7 @@ func treeItemCheck(c *validator, v any) error {
 	fields := map[string]propCheck{
 		"muted": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
 		"additions": countNumber, "deletions": countNumber, "reviewed": isBool, "comments": countNumber,
+		"tone": oneOf(badgeTones),
 	}
 	for k, f := range itemFields {
 		fields[k] = f

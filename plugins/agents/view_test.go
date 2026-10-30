@@ -57,8 +57,9 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	assert.Equal(t, "Closed · 1", a[1].Label)
 	assert.False(t, a[1].Expanded)
 	assert.Empty(t, a[1].Children)
-	assert.Equal(t, "Claude · Waiting for permission · go test", a[0].Detail)
-	assert.Equal(t, "Claude · Done · 12 min ago", b[0].Detail)
+	assert.Equal(t, "Waiting for permission · go test", a[0].Detail)
+	assert.Equal(t, "12 min ago", b[0].Detail)
+	assert.Equal(t, []string{"warning", "success"}, []string{a[0].Tone, b[0].Tone})
 	assert.Equal(t, []string{actClose, actDelete}, []string{a[0].Menu[0].Action, a[0].Menu[1].Action})
 }
 
@@ -143,9 +144,9 @@ func TestRunningActivityElapsed(t *testing.T) {
 	now := time.Now()
 	row := sessionRow{Rec: record{ID: "agt_1", Status: statusRunning}, Activity: "go test", Started: now.Add(-4 * time.Minute)}
 
-	assert.Equal(t, "Running · 4 min · go test", activity(row, now))
-	assert.Equal(t, "Running · <1 min · go test", activity(sessionRow{Rec: row.Rec, Activity: row.Activity, Started: now.Add(-10 * time.Second)}, now))
-	assert.Equal(t, "Running · 2 h 5 min", activity(sessionRow{Rec: row.Rec, Started: now.Add(-125 * time.Minute)}, now))
+	assert.Equal(t, "4 min · go test", activity(row, now))
+	assert.Equal(t, "<1 min · go test", activity(sessionRow{Rec: row.Rec, Activity: row.Activity, Started: now.Add(-10 * time.Second)}, now))
+	assert.Equal(t, "2 h 5 min", activity(sessionRow{Rec: row.Rec, Started: now.Add(-125 * time.Minute)}, now))
 }
 
 func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
@@ -164,7 +165,7 @@ func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
 	tick.stop()
 	clock.advance(tickEvery)
 
-	assert.Equal(t, []string{"Running · <1 min", "Running · 1 min"}, details)
+	assert.Equal(t, []string{"<1 min", "1 min"}, details)
 }
 
 func TestChildHeaderAndAgentMessage(t *testing.T) {

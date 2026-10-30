@@ -36,6 +36,7 @@ public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
 
 public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let item: SDUIItem
+    public let tone: String?
     public let muted: Bool
     public let hasChildren: Bool
     public let expanded: Bool
@@ -50,6 +51,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     init?(_ value: JSONValue) {
         guard let item = SDUIItem(value), let fields = value.objectValue else { return nil }
         self.item = item
+        tone = fields["tone"]?.stringValue
         muted = fields["muted"]?.boolValue ?? false
         hasChildren = fields["hasChildren"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false

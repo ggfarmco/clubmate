@@ -33,6 +33,16 @@ struct Theme: Sendable {
         let field = EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 6)
     }
 
+    func tone(_ name: String?) -> Color? {
+        switch name {
+        case "accent": accent
+        case "success": success
+        case "warning": warning
+        case "danger": danger
+        default: nil
+        }
+    }
+
     func scaled(_ size: Double) -> Theme {
         var theme = self
         theme.uiSize = size

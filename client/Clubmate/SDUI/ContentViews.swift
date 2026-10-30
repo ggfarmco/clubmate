@@ -30,18 +30,8 @@ struct BadgeNodeView: View {
 
     @Environment(\.theme) private var theme
 
-    private var tone: Color {
-        switch node.string("tone") {
-        case "accent": theme.accent
-        case "success": theme.success
-        case "warning": theme.warning
-        case "danger": theme.danger
-        default: theme.muted
-        }
-    }
-
     var body: some View {
-        BadgeLabel(text: node.string("text") ?? "", tone: tone)
+        BadgeLabel(text: node.string("text") ?? "", tone: theme.tone(node.string("tone")) ?? theme.muted)
             .padding(.horizontal, theme.gutter)
     }
 }

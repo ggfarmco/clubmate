@@ -27,6 +27,7 @@ type TreeItem struct {
 	Label       string      `json:"label"`
 	Detail      string      `json:"detail,omitempty"`
 	Icon        string      `json:"icon,omitempty"`
+	Tone        string      `json:"tone,omitempty"`
 	Badge       string      `json:"badge,omitempty"`
 	Menu        []MenuEntry `json:"menu,omitempty"`
 	Muted       bool        `json:"muted,omitempty"`

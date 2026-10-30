@@ -180,7 +180,7 @@ struct TreeNodeView: View {
 
     private func itemRow(_ row: Row, module: Bool?, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
         let marks = module.map { ReviewMarks(item: row.item, module: $0) }
-        return ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, depth: row.depth, marks: marks, action: action) {
+        return ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, tone: row.item.tone, depth: row.depth, marks: marks, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -361,6 +361,7 @@ struct ItemRow<Leading: View>: View {
     let selected: Bool
     var cursor = false
     var muted = false
+    var tone: String?
     var depth = 0
     var marks: ReviewMarks?
     let action: () -> Void
@@ -387,7 +388,7 @@ struct ItemRow<Leading: View>: View {
             }
             if let icon = item.icon, !icon.isEmpty {
                 Image(systemName: SymbolName.resolve(icon))
-                    .foregroundStyle(theme.muted)
+                    .foregroundStyle(theme.tone(tone) ?? theme.muted)
                     .frame(width: 14)
             }
             Text(item.label)

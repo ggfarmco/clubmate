@@ -33,7 +33,11 @@
                 ]
               },
               {"id": "internal", "label": "internal", "icon": "folder", "hasChildren": true, "expanded": false},
-              {"id": "readme", "label": "README.md", "icon": "doc.richtext", "badge": "M"}
+              {"id": "readme", "label": "README.md", "icon": "doc.richtext", "badge": "M"},
+              {"id": "agt-run", "label": "Мобильное приложение для управления агентами", "icon": "circle.dotted", "tone": "accent", "detail": "4 min · Read view.go"},
+              {"id": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "Waiting for permission · go test"},
+              {"id": "agt-done", "label": "Отказ от надстроек nvim", "icon": "checkmark.circle", "tone": "success", "detail": "just now"},
+              {"id": "agt-closed", "label": "Нагрев Mac и производительность приложения", "icon": "archivebox", "detail": "7 h ago"}
             ]
           }
         },
