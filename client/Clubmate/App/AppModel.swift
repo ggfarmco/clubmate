@@ -570,10 +570,13 @@ final class ProjectSession {
     func chooseWorktree() {
         Task { [weak self] in
             guard let worktrees = self?.worktrees else { return }
-            await worktrees.menuOpened()
+            await worktrees.load()
             self?.openPicker("Switch to worktree or branch", source: worktrees.switcherSource) { [weak self] item in
                 self?.pickWorktree(item)
             }
+            guard let model = self?.picker?.model else { return }
+            await worktrees.loadBranches()
+            model.update(model.query)
         }
     }
 

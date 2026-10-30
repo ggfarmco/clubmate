@@ -40,7 +40,8 @@ final class WorktreesTests: XCTestCase {
 
     func testSwitcherGroupsBranchesAfterWorktreesAndPickDispatches() async throws {
         let core = FakeGitCore()
-        let model = makeModel(core)
+        var banners: [String] = []
+        let model = WorktreeModel(run: core.run, project: { nil }, confirm: { _, _ in false }, report: { banners.append($0) })
         await model.menuOpened()
 
         let picker = FuzzyPickerModel(placeholder: "", debounce: .zero, source: model.switcherSource)
@@ -58,6 +59,7 @@ final class WorktreesTests: XCTestCase {
         XCTAssertEqual(core.calls.filter { $0.id == "git.worktree-switch" }.map(\.args), [
             .object(["repo": .string("/r"), "path": .string("/r/.worktrees/feat")]),
         ])
+        XCTAssertEqual(banners, ["Warning: you are leaving 1 commit behind"])
     }
 
     func testMenuOpenedReloadsList() async throws {
@@ -168,6 +170,8 @@ private final class FakeGitCore {
             return .success(.object(["id": .string(args["force"] == nil ? "op-1" : "op-2")]))
         case "git.worktree-op-status" where unsaved && args["id"] == .string("op-1"):
             return .success(.object(["done": .bool(true), "error": .string("plugin editor-nvim command.run: unsaved buffers: a.go")]))
+        case "git.worktree-op-status" where args["id"] == .string("op-3"):
+            return .success(.object(["done": .bool(true), "notice": .string("Warning: you are leaving 1 commit behind")]))
         case "git.worktree-op-status":
             return .success(.object(["done": .bool(true)]))
         default:

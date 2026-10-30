@@ -14,23 +14,30 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sourcegraph/jsonrpc2"
+
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
-	worktreesDir       = ".worktrees"
-	stopRootCommand    = "editor-nvim.stop-root"
-	checktimeCommand   = "editor-nvim.checktime"
-	releaseRootCommand = "editor-nvim.release-root"
-	editorOwner        = "editor-nvim"
-	sessionRunning     = "running"
-	creatingWorktree   = "Creating worktree…"
-	removingWorktree   = "Removing worktree…"
-	switchingBranch    = "Switching branch…"
-	maxBranches        = 2000
-	opPollWait         = time.Second
-	keptOps            = 64
+	worktreesDir          = ".worktrees"
+	stopRootCommand       = "editor-nvim.stop-root"
+	checktimeCommand      = "editor-nvim.checktime"
+	unsavedCommand        = "editor-nvim.unsaved"
+	releaseRootCommand    = "editor-nvim.release-root"
+	editorOwner           = "editor-nvim"
+	sessionRunning        = "running"
+	creatingWorktree      = "Creating worktree…"
+	removingWorktree      = "Removing worktree…"
+	switchingBranch       = "Switching branch…"
+	maxLocalBranches      = 1500
+	maxRemoteBranches     = 500
+	leavingMarker         = "you are leaving"
+	opPollWait            = time.Second
+	codeNotFound          = -32004
+	codePluginUnavailable = -32012
+	keptOps               = 64
 )
 
 var (
@@ -44,6 +51,7 @@ var (
 	errUnknownOp       = errors.New("unknown operation")
 	errHomeWorktrees   = errors.New("worktrees unavailable in the home workspace")
 	errUnknownBranch   = errors.New("unknown branch")
+	errUnsavedSwitch   = errors.New("Save or discard unsaved changes first")
 )
 
 type folder struct {
@@ -90,9 +98,10 @@ type opStarted struct {
 }
 
 type opStatus struct {
-	Done  bool   `json:"done"`
-	Error string `json:"error,omitempty"`
-	Path  string `json:"path,omitempty"`
+	Done   bool   `json:"done"`
+	Error  string `json:"error,omitempty"`
+	Path   string `json:"path,omitempty"`
+	Notice string `json:"notice,omitempty"`
 }
 
 type operation struct {
@@ -100,6 +109,7 @@ type operation struct {
 	project string
 	done    chan struct{}
 	path    string
+	notice  string
 	err     error
 }
 
@@ -110,7 +120,7 @@ type opTable struct {
 	order []string
 }
 
-type opFunc func(context.Context) (string, error)
+type opFunc func(ctx context.Context, note func(string)) (string, error)
 
 func (a *app) worktreeCommand(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun, s *state) (any, error) {
 	var args worktreeArgs
@@ -166,7 +176,7 @@ func (a *app) startOp(ctx context.Context, h *pluginsdk.Host, projectID string, 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutateTimeout)
 		defer cancel()
-		path, err := run(ctx)
+		path, err := run(ctx, func(text string) { o.notice = text })
 		s.mu.Lock()
 		s.busy = ""
 		s.mu.Unlock()
@@ -222,7 +232,7 @@ func (t *opTable) status(ctx context.Context, projectID, id string) (opStatus, e
 	case <-ctx.Done():
 		return opStatus{}, nil
 	}
-	out := opStatus{Done: true, Path: o.path}
+	out := opStatus{Done: true, Path: o.path, Notice: o.notice}
 	if o.err != nil {
 		out.Error = o.err.Error()
 	}
@@ -282,25 +292,30 @@ func listBranches(ctx context.Context, h *pluginsdk.Host, projectID string) ([]b
 		if err != nil {
 			return nil, gitError(nil, err)
 		}
+		remotes, err := gitrepo.Remotes(ctx, f.Checkout.Path)
+		if err != nil {
+			return nil, gitError(nil, err)
+		}
 		taken := map[string]bool{}
 		for _, t := range f.Trees {
 			if t.Branch != "" {
 				taken[t.Branch] = true
 			}
 		}
-		var out []branchInfo
+		var locals, tracking []branchInfo
 		for _, b := range local {
 			if !taken[b] {
-				out = append(out, branchInfo{Repo: f.Repo, Name: b})
+				locals = append(locals, branchInfo{Repo: f.Repo, Name: b})
 			}
 			taken[b] = true
 		}
 		for _, b := range remote {
-			if _, name, ok := strings.Cut(b, "/"); ok && !taken[name] {
-				out = append(out, branchInfo{Repo: f.Repo, Name: b, Remote: true})
+			if name, ok := localName(b, remotes); ok && !taken[name] {
+				tracking = append(tracking, branchInfo{Repo: f.Repo, Name: b, Remote: true})
 			}
 		}
-		list = append(list, out[:min(len(out), maxBranches)]...)
+		list = append(list, locals[:min(len(locals), maxLocalBranches)]...)
+		list = append(list, tracking[:min(len(tracking), maxRemoteBranches)]...)
 	}
 	return list, nil
 }
@@ -316,7 +331,11 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, projectID strin
 	}
 	local, track := args.Branch, ""
 	if !hasRef(ctx, cur.Path, "refs/heads/"+local) {
-		_, name, ok := strings.Cut(args.Branch, "/")
+		remotes, err := gitrepo.Remotes(ctx, cur.Path)
+		if err != nil {
+			return nil, gitError(nil, err)
+		}
+		name, ok := localName(args.Branch, remotes)
 		if !ok || !hasRef(ctx, cur.Path, "refs/remotes/"+args.Branch) {
 			return nil, fmt.Errorf("%w %s", errUnknownBranch, args.Branch)
 		}
@@ -327,26 +346,71 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, projectID strin
 	}
 	if i := slices.IndexFunc(f.Trees, func(t gitrepo.Worktree) bool { return !t.Bare && t.Branch == local }); i >= 0 {
 		t := f.Trees[i]
-		return func(ctx context.Context) (string, error) {
+		return func(ctx context.Context, _ func(string)) (string, error) {
 			_, err := h.SetWorktree(ctx, projectID, f.Repo, f.Selection(t))
 			return t.Path, err
 		}, nil
 	}
-	switchArgs := []string{"switch", "--no-guess", "--", local}
-	if track != "" {
-		switchArgs = []string{"switch", "--track", "--", track}
+	if err := checkUnsaved(ctx, h, projectID, f.root); err != nil {
+		return nil, err
 	}
-	return func(ctx context.Context) (string, error) {
-		if _, err := mutate(ctx, cur.Path, switchArgs...); err != nil {
-			return "", err
+	switchArgs := []string{"--literal-pathspecs", "switch", "--no-guess", "--", local}
+	if track != "" {
+		switchArgs = []string{"--literal-pathspecs", "switch", "--track", "--", track}
+	}
+	return func(ctx context.Context, note func(string)) (string, error) {
+		out, stderr, err := gitrepo.MutateNotice(ctx, cur.Path, switchArgs...)
+		if err != nil && !errors.Is(err, exec.ErrWaitDelay) {
+			return "", gitError(out, err)
+		}
+		if text := leftBehind(stderr); text != "" {
+			note(text)
 		}
 		logError("checktime "+f.root, h.RunCommand(ctx, checktimeCommand, projectID, stopRootArgs{Root: f.root}, nil))
 		return cur.Path, nil
 	}, nil
 }
 
+func checkUnsaved(ctx context.Context, h *pluginsdk.Host, projectID, root string) error {
+	var names []string
+	err := h.RunCommand(ctx, unsavedCommand, projectID, stopRootArgs{Root: root}, &names)
+	if rpcErr, ok := errors.AsType[*jsonrpc2.Error](err); ok && (rpcErr.Code == codeNotFound || rpcErr.Code == codePluginUnavailable) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %s", errUnsavedSwitch, editorError(err))
+	}
+	if len(names) > 0 {
+		return fmt.Errorf("%w: %s", errUnsavedSwitch, strings.Join(names, ", "))
+	}
+	return nil
+}
+
+func leftBehind(stderr string) string {
+	at := strings.Index(stderr, leavingMarker)
+	if at < 0 {
+		return ""
+	}
+	start := strings.LastIndex(stderr[:at], "\n") + 1
+	paragraphs := strings.SplitN(stderr[start:], "\n\n", 3)
+	return strings.Join(strings.Fields(strings.Join(paragraphs[:min(2, len(paragraphs))], " ")), " ")
+}
+
+func localName(ref string, remotes []string) (string, bool) {
+	best := ""
+	for _, r := range remotes {
+		if strings.HasPrefix(ref, r+"/") && len(r) > len(best) {
+			best = r
+		}
+	}
+	if best == "" || len(ref) == len(best)+1 {
+		return "", false
+	}
+	return ref[len(best)+1:], true
+}
+
 func validBranch(ctx context.Context, dir, branch string) error {
-	if branch == "" || strings.HasPrefix(branch, "-") {
+	if !gitrepo.ValidBranchName(branch) {
 		return fmt.Errorf("'%s' is not a valid branch name", branch)
 	}
 	out, err := run(ctx, dir, "check-ref-format", "--branch", branch)
@@ -401,7 +465,7 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 	if hasRef(ctx, cur.Path, "refs/heads/"+args.Branch) {
 		add = []string{"worktree", "add", dir, args.Branch}
 	}
-	return func(ctx context.Context) (string, error) {
+	return func(ctx context.Context, _ func(string)) (string, error) {
 		if _, err := mutate(ctx, cur.Path, add...); err != nil {
 			return "", err
 		}
@@ -464,7 +528,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 	case f.Checkout.Real:
 		return nil, errFolderCheckout
 	}
-	return func(ctx context.Context) (string, error) {
+	return func(ctx context.Context, _ func(string)) (string, error) {
 		status, err := run(ctx, t.Path, "status", "--porcelain")
 		if err != nil {
 			return "", err

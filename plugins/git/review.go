@@ -336,15 +336,22 @@ func (a *app) endReview(ctx context.Context, h *pluginsdk.Host, id string, s *st
 
 func (a *app) reviewRefs(ctx context.Context, h *pluginsdk.Host, id string, s *state, query string) ([]refInfo, error) {
 	s.mu.Lock()
-	head := s.active
+	head, branch := s.active, ""
+	if r := s.reviews[head]; r != nil {
+		branch = r.branch
+	}
 	s.mu.Unlock()
 	f, current, _, err := headTarget(ctx, h, id, head)
 	if err != nil {
 		return nil, err
 	}
+	skipTree, skipBranch := current.Real, current.Branch
+	if branch != "" {
+		skipTree, skipBranch = "", branch
+	}
 	var worktrees, branches, remotes []refInfo
 	for _, t := range f.Trees {
-		if !t.Bare && t.Real != current.Real {
+		if !t.Bare && t.Real != skipTree {
 			worktrees = append(worktrees, refInfo{Ref: t.Path, Kind: kindWorktree, Label: cmp.Or(t.Branch, filepath.Base(t.Path))})
 		}
 	}
@@ -353,12 +360,14 @@ func (a *app) reviewRefs(ctx context.Context, h *pluginsdk.Host, id string, s *s
 		return nil, err
 	}
 	for _, b := range local {
-		if b != current.Branch {
+		if b != skipBranch {
 			branches = append(branches, refInfo{Ref: b, Kind: kindBranch, Label: b})
 		}
 	}
 	for _, b := range remote {
-		remotes = append(remotes, refInfo{Ref: b, Kind: kindRemote, Label: b})
+		if b != skipBranch {
+			remotes = append(remotes, refInfo{Ref: b, Kind: kindRemote, Label: b})
+		}
 	}
 	refs := []refInfo{}
 	for _, group := range [][]refInfo{worktrees, branches, remotes} {
@@ -410,6 +419,11 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 		}
 	}
 	s.mu.Lock()
+	if s.adopt(currents) {
+		s.mu.Unlock()
+		logError("save reviews "+id, a.saveReviews(ctx, h, id, s))
+		s.mu.Lock()
+	}
 	at := slices.IndexFunc(currents, func(c current) bool { return c.t.Real == s.active && s.reviews[s.active] != nil })
 	if at < 0 {
 		at = slices.IndexFunc(currents, func(c current) bool { return s.reviews[c.t.Real] != nil })
@@ -483,6 +497,34 @@ func (a *app) refreshReview(ctx context.Context, h *pluginsdk.Host, id string, s
 	if mode != moduleMode || editorErr == nil && !closed {
 		r.entries = entries
 	}
+}
+
+func (s *state) adopt(currents []current) bool {
+	changed := false
+	for _, c := range currents {
+		if c.t.Branch == "" {
+			continue
+		}
+		if r := s.reviews[c.t.Real]; r != nil {
+			if r.branch == c.t.Branch {
+				r.branch, r.headSha, r.opened, changed = "", "", "", true
+			}
+			continue
+		}
+		for key, r := range s.reviews {
+			if r.branch == c.t.Branch {
+				delete(s.reviews, key)
+				r.head, r.branch, r.headSha, r.opened = c.t.Real, "", "", ""
+				s.reviews[c.t.Real] = r
+				if s.active == key {
+					s.active = c.t.Real
+				}
+				changed = true
+				break
+			}
+		}
+	}
+	return changed
 }
 
 func editorError(err error) string {
@@ -689,7 +731,7 @@ func (a *app) saveReviews(ctx context.Context, h *pluginsdk.Host, id string, s *
 func (s *state) restore(st storedReviews) {
 	s.filters = st.Filters.valid()
 	for head, r := range st.Reviews {
-		if r.Base != "" && filepath.IsAbs(head) {
+		if r.Base != "" && filepath.IsAbs(head) && (r.Head == "" || gitrepo.ValidBranchName(r.Head)) {
 			s.reviews[head] = &review{head: head, base: r.Base, branch: r.Head, filters: r.Filters.valid(), folded: map[string]bool{}}
 		}
 	}
@@ -834,6 +876,9 @@ func globRegexp(pattern string) *regexp.Regexp {
 }
 
 func headTarget(ctx context.Context, h *pluginsdk.Host, id, head string) (*folder, gitrepo.Worktree, string, error) {
+	if head != "" && !filepath.IsAbs(head) && !gitrepo.ValidBranchName(head) {
+		return nil, gitrepo.Worktree{}, "", fmt.Errorf("%w: %q", errBadRef, head)
+	}
 	p, err := h.GetProject(ctx, id)
 	if err != nil {
 		return nil, gitrepo.Worktree{}, "", err
@@ -868,7 +913,7 @@ func headTarget(ctx context.Context, h *pluginsdk.Host, id, head string) (*folde
 	}
 	for _, f := range folders {
 		t := f.currentTree()
-		if _, err := commitOf(ctx, t.Path, head); err == nil && validBranch(ctx, t.Path, head) == nil {
+		if _, err := commitOf(ctx, t.Path, head); err == nil {
 			return f, t, head, nil
 		}
 	}

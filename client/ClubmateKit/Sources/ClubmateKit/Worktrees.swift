@@ -181,6 +181,10 @@ public final class WorktreeModel {
 
     public func menuOpened() async {
         await load()
+        await loadBranches()
+    }
+
+    public func loadBranches() async {
         if case .success(let value) = await run(CommandInvocation(id: Self.branchesCommand, args: .object([:]))) {
             branches = (value.arrayValue ?? []).compactMap(Branch.init)
         }
@@ -266,6 +270,7 @@ public final class WorktreeModel {
                 retries = 0
                 let fields = value.objectValue ?? [:]
                 guard fields["done"]?.boolValue == true else { continue }
+                if let notice = fields["notice"]?.stringValue, !notice.isEmpty { report(notice) }
                 return fields["error"]?.stringValue.map(NvimConfigModel.text)
             case .failure(let failure) where failure.isTransient && retries < Self.statusRetries:
                 retries += 1

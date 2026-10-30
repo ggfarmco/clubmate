@@ -52,6 +52,17 @@ func Mutate(ctx context.Context, repo string, args ...string) ([]byte, error) {
 	return run(ctx, repo, nil, args...)
 }
 
+func MutateNotice(ctx context.Context, repo string, args ...string) ([]byte, string, error) {
+	var stderr bytes.Buffer
+	cmd := command(ctx, repo, args...)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
+		ee.Stderr = stderr.Bytes()
+	}
+	return out, stderr.String(), err
+}
+
 func RunLimited(ctx context.Context, repo string, limit int, args ...string) ([]byte, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -225,6 +236,36 @@ func MergeBase(ctx context.Context, repo, base, head string) (string, error) {
 
 func Branches(ctx context.Context, repo string) ([]string, []string, error) {
 	return branches(ctx, repo)
+}
+
+func Remotes(ctx context.Context, repo string) ([]string, error) {
+	out, err := Run(ctx, repo, "remote")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(out)), nil
+}
+
+func ValidBranchName(name string) bool {
+	if name == "" || name == "@" || strings.HasPrefix(name, "-") || strings.HasSuffix(name, ".") || strings.ContainsAny(name, " ~^:?*[\\\x7f") {
+		return false
+	}
+	for _, bad := range []string{"..", "@{"} {
+		if strings.Contains(name, bad) {
+			return false
+		}
+	}
+	for _, r := range name {
+		if r < 0x20 {
+			return false
+		}
+	}
+	for part := range strings.SplitSeq(name, "/") {
+		if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+			return false
+		}
+	}
+	return true
 }
 
 func RecentBranches(ctx context.Context, repo string) ([]string, []string, error) {

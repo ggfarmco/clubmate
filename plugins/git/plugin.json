@@ -117,7 +117,7 @@
         "title": "List Branches",
         "hidden": true,
         "agent": false,
-        "description": "List the branches of every git folder that no worktree has checked out: local branches, then remote-tracking ones without a local branch of the same name, each newest commit first, at most 2000 per folder. Returns [{repo, name, remote?}]."
+        "description": "List the branches of every git folder that no worktree has checked out: local branches, then remote-tracking ones without a local branch of the same name, each newest commit first, at most 1500 local and 500 remote-tracking per folder. Returns [{repo, name, remote?}]."
       },
       {
         "id": "git.branch-switch",
@@ -125,7 +125,7 @@
         "hidden": true,
         "agent": false,
         "destructive": true,
-        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome.",
+        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Refuses at once while the folder's Neovim has unsaved buffers. Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome, whose notice carries git's warning about commits left behind a detached HEAD.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -153,7 +153,7 @@
         "title": "Worktree Operation Status",
         "hidden": true,
         "agent": true,
-        "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove. Returns {done, error?, path?}; path is the new worktree after a successful create.",
+        "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove. Returns {done, error?, path?, notice?}; path is the new worktree after a successful create, notice a warning worth showing after success.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Operation id returned by git.worktree-new or git.worktree-remove."}

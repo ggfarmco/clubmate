@@ -26,7 +26,7 @@ const (
 	editorSlot     = "editor-nvim.main"
 	mainSlot       = "git.main"
 	reviewSlot     = "git.review"
-	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true},{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]}}`
+	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.diff","title":"Diff","hidden":true},{"id":"editor-nvim.review-open","title":"Open Review","hidden":true},{"id":"editor-nvim.review-entries","title":"Review Entries","hidden":true},{"id":"editor-nvim.review-select","title":"Select","hidden":true},{"id":"editor-nvim.review-reviewed","title":"Reviewed","hidden":true},{"id":"editor-nvim.review-next","title":"Next","hidden":true},{"id":"editor-nvim.review-excludes","title":"Excludes","hidden":true},{"id":"editor-nvim.review-close","title":"Close Branch Review","hidden":true},{"id":"editor-nvim.checktime","title":"Checktime","hidden":true},{"id":"editor-nvim.unsaved","title":"Unsaved","hidden":true}]}}`
 	restartWait    = 15 * time.Second
 )
 
@@ -660,6 +660,28 @@ func TestReviewBranchHeadWithoutCheckout(t *testing.T) {
 	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":%q,"target":%q}`, filepath.Join(repo, "a.go"), "rev:"+mergeBase, "rev:"+sha), string(commandArgs(t, h, "editor-nvim.diff")[0]))
 	assert.Equal(t, "main", git(t, repo, "branch", "--show-current"))
 	assert.Equal(t, repo, firstRoot(t, h, id))
+
+	var refs []struct {
+		Ref string `json:"ref"`
+	}
+	require.NoError(t, runCommand(t, h, id, "git.review-refs", map[string]string{"query": ""}, &refs))
+	var got []string
+	for _, r := range refs {
+		got = append(got, r.Ref)
+	}
+	assert.Equal(t, []string{repo, "main"}, got)
+
+	git(t, repo, "switch", "-q", "feature/x")
+	require.NoError(t, runCommand(t, h, id, "git.refresh", nil, nil))
+	n = h.WaitSlot(t, id, reviewSlot, func(n sdui.Node) bool {
+		_, header := reviewView(t, n)
+		return header != nil && header["readOnly"] == nil
+	})
+	_, header = reviewView(t, n)
+	assert.Equal(t, repo, header["headRef"])
+	require.NoError(t, reviewAction(t, h, id, "select", "c.go"))
+	diffs := commandArgs(t, h, "editor-nvim.diff")
+	assert.Contains(t, string(diffs[len(diffs)-1]), `"target":"worktree"`)
 }
 
 func TestReviewErrors(t *testing.T) {
@@ -710,9 +732,10 @@ type worktreeEntry struct {
 }
 
 type opResult struct {
-	Done  bool   `json:"done"`
-	Error string `json:"error"`
-	Path  string `json:"path"`
+	Done   bool   `json:"done"`
+	Error  string `json:"error"`
+	Path   string `json:"path"`
+	Notice string `json:"notice"`
 }
 
 type sessionEntry struct {
@@ -1060,7 +1083,9 @@ func TestBranchSwitch(t *testing.T) {
 	write(t, filepath.Join(repo, "a.go"), "two\n")
 	git(t, repo, "commit", "-qam", "feat")
 	git(t, repo, "checkout", "-q", "main")
-	h, id := openReady(t, repo, testutil.EchoPluginDirAs(t, editorManifest))
+	wt := filepath.Join(repo, ".worktrees", "wt")
+	git(t, repo, "worktree", "add", "-q", "-b", "wt", wt)
+	h, id := openReady(t, repo, switchEditor(t, `[]`))
 
 	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "feat"}).Error)
 	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
@@ -1075,6 +1100,31 @@ func TestBranchSwitch(t *testing.T) {
 	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
 	assert.Equal(t, "origin/remote-only", git(t, repo, "rev-parse", "--abbrev-ref", "@{upstream}"))
 
+	git(t, repo, "checkout", "-q", "--detach")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "lost")
+	res := awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
+	require.Empty(t, res.Error)
+	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
+	assert.Contains(t, res.Notice, "you are leaving 1 commit behind")
+
+	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "wt"}).Error)
+	assert.Equal(t, wt, firstRoot(t, h, id))
+	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
+
 	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "-x"})
 	assert.ErrorContains(t, err, "not a valid branch name")
+}
+
+func switchEditor(t *testing.T, unsaved string) string {
+	t.Helper()
+	return testutil.EchoPluginDirAs(t, strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.unsaved":`+unsaved+`,"editor-nvim.checktime":null},`, 1))
+}
+
+func TestBranchSwitchRefusesUnsavedBuffers(t *testing.T) {
+	repo := clonedRepo(t)
+	h, id := openReady(t, repo, switchEditor(t, `["a.go"]`))
+
+	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
+	assert.ErrorContains(t, err, "Save or discard unsaved changes first: a.go")
+	assert.Equal(t, "main", git(t, repo, "branch", "--show-current"))
 }

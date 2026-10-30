@@ -328,7 +328,9 @@ private struct WorktreeSwitcher: View {
         .frame(width: 360)
         .background(theme.background)
         .task {
-            await worktrees.menuOpened()
+            await worktrees.load()
+            model.update(model.query)
+            await worktrees.loadBranches()
             model.update(model.query)
         }
     }
