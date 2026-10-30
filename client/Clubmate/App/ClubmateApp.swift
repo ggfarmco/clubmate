@@ -192,6 +192,9 @@ private struct ProjectCommands: Commands {
             Button("Workspace Switcher") { windowID.map(app.toggleSwitcher) }
                 .keyboardShortcut("w", modifiers: [.control, .command])
                 .disabled(windowID == nil)
+            Button("Notifications") { windowID.map(app.toggleInbox) }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .disabled(windowID == nil)
         }
         CommandGroup(after: .help) {
             Button("\(Diagnostics.title)…") { app.collectDiagnostics() }

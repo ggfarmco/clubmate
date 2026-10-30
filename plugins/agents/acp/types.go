@@ -120,9 +120,22 @@ type McpServer struct {
 }
 
 type NewSessionRequest struct {
-	Cwd                   string      `json:"cwd"`
-	AdditionalDirectories []string    `json:"additionalDirectories,omitempty"`
-	McpServers            []McpServer `json:"mcpServers"`
+	Cwd                   string       `json:"cwd"`
+	AdditionalDirectories []string     `json:"additionalDirectories,omitempty"`
+	McpServers            []McpServer  `json:"mcpServers"`
+	Meta                  *SessionMeta `json:"_meta,omitempty"`
+}
+
+type SessionMeta struct {
+	ClaudeCode ClaudeCodeMeta `json:"claudeCode"`
+}
+
+type ClaudeCodeMeta struct {
+	Options ClaudeCodeOptions `json:"options"`
+}
+
+type ClaudeCodeOptions struct {
+	Env map[string]string `json:"env,omitempty"`
 }
 
 type NewSessionResponse struct {
@@ -131,10 +144,11 @@ type NewSessionResponse struct {
 }
 
 type ResumeSessionRequest struct {
-	SessionID             string      `json:"sessionId"`
-	Cwd                   string      `json:"cwd"`
-	AdditionalDirectories []string    `json:"additionalDirectories,omitempty"`
-	McpServers            []McpServer `json:"mcpServers"`
+	SessionID             string       `json:"sessionId"`
+	Cwd                   string       `json:"cwd"`
+	AdditionalDirectories []string     `json:"additionalDirectories,omitempty"`
+	McpServers            []McpServer  `json:"mcpServers"`
+	Meta                  *SessionMeta `json:"_meta,omitempty"`
 }
 
 type ResumeSessionResponse struct {

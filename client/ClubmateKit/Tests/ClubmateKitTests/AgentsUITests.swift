@@ -64,19 +64,4 @@ final class AgentsUITests: XCTestCase {
         let send = UIAction.event(for: composer, trigger: .named("send", .object(["text": .string("hi")])), slot: "agents.main", projectID: "w")
         XCTAssertEqual(send, UIEvent(projectId: "w", slot: "agents.main", nodeId: "s/composer/0", action: "send", value: .object(["text": .string("hi")])))
     }
-
-    func testNotifierPostsWaitingOncePerRequestWhenUnfocused() {
-        var notifier = AgentNotifier()
-        let waiting = AgentSessionState(workspace: "w", session: "s", agent: "claude", title: "Fix", status: "waiting", requests: ["permission-1"])
-        let running = AgentSessionState(workspace: "w", session: "r", agent: "claude", title: "Run", status: "running", requests: ["permission-9"])
-
-        XCTAssertEqual(notifier.alerts([running], windowKey: false, appActive: false), [])
-        XCTAssertEqual(notifier.alerts([waiting], windowKey: true, appActive: true), [])
-        XCTAssertEqual(notifier.alerts([waiting], windowKey: true, appActive: false).map(\.request), ["permission-1"])
-        XCTAssertEqual(notifier.alerts([waiting], windowKey: false, appActive: false), [])
-
-        var next = waiting
-        next.requests = ["permission-1", "permission-2"]
-        XCTAssertEqual(notifier.alerts([next], windowKey: false, appActive: true).map(\.request), ["permission-2"])
-    }
 }

@@ -18,6 +18,7 @@ import (
 	"clubmate/internal/bus"
 	"clubmate/internal/core"
 	"clubmate/internal/kv"
+	"clubmate/internal/notify"
 	"clubmate/internal/paths"
 )
 
@@ -33,21 +34,22 @@ type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
 type empty struct{}
 
 type Server struct {
-	svc        *core.Service
-	bus        *bus.Bus
-	kv         *kv.Store
-	dirs       *paths.Dirs
-	started    time.Time
-	methods    map[string]handlerFunc
-	pluginList atomic.Pointer[func() any]
-	ui         atomic.Pointer[uiState]
-	presence   presence
-	uiStateMu  sync.Mutex
-	logger     *slog.Logger
-	shutdown   atomic.Pointer[func()]
-	clientsMu  sync.Mutex
-	clients    map[*jsonrpc2.Conn]*client
-	clientSeq  uint64
+	svc         *core.Service
+	bus         *bus.Bus
+	kv          *kv.Store
+	dirs        *paths.Dirs
+	started     time.Time
+	methods     map[string]handlerFunc
+	pluginList  atomic.Pointer[func() any]
+	ui          atomic.Pointer[uiState]
+	presence    presence
+	uiStateMu   sync.Mutex
+	logger      *slog.Logger
+	shutdown    atomic.Pointer[func()]
+	clientsMu   sync.Mutex
+	clients     map[*jsonrpc2.Conn]*client
+	clientSeq   uint64
+	notifyLimit *notify.Limiter
 }
 
 type client struct {
@@ -71,7 +73,7 @@ func WithLogger(l *slog.Logger) ServerOption {
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler)}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow)}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -83,6 +85,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.uiMethods())
 	maps.Copy(s.methods, s.fsMethods())
 	maps.Copy(s.methods, s.diagnosticsMethods())
+	maps.Copy(s.methods, s.notifyMethods())
 	return s
 }
 

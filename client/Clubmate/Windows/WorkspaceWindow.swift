@@ -29,13 +29,33 @@ struct WorkspaceWindow: View {
                 }
                 ToolbarSpacer(.flexible)
                 ToolbarItem(placement: .primaryAction) {
+                    Button { windowID.map(app.toggleInbox) } label: {
+                        HStack(spacing: theme.spacing.s) {
+                            Image(systemName: inboxTotal > 0 ? "bell.badge" : "bell")
+                            UnreadBadge(count: inboxTotal)
+                        }
+                        .padding(theme.spacing.capsule)
+                    }
+                    .help("Notifications (⇧⌘I)")
+                    .accessibilityLabel(inboxTotal > 0 ? "Notifications, \(inboxTotal) unread" : "Notifications")
+                    .disabled(windowID == nil)
+                    .popover(isPresented: inboxShown, arrowEdge: .bottom) {
+                        InboxView()
+                            .environment(app)
+                            .environment(\.theme, theme)
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Button { windowID.map(app.toggleSwitcher) } label: {
-                        Text("▦ \(workspaceCount)")
-                            .monospacedDigit()
-                            .padding(theme.spacing.capsule)
+                        HStack(spacing: 4) {
+                            Text("▦ \(workspaceCount)")
+                                .monospacedDigit()
+                            UnreadBadge(count: otherUnread)
+                        }
+                        .padding(theme.spacing.capsule)
                     }
                     .help("Workspaces (⌃⌘W)")
-                    .accessibilityLabel("Workspaces, \(workspaceCount)")
+                    .accessibilityLabel(otherUnread > 0 ? "Workspaces, \(workspaceCount), \(otherUnread) unread" : "Workspaces, \(workspaceCount)")
                     .disabled(windowID == nil)
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -64,6 +84,21 @@ struct WorkspaceWindow: View {
 
     private var workspaceCount: Int {
         windowID.flatMap { app.window($0)?.workspaces.count } ?? 0
+    }
+
+    private var inboxTotal: Int {
+        app.notifications.hub.bellCount
+    }
+
+    private var inboxShown: Binding<Bool> {
+        Binding { windowID != nil && app.inboxWindow == windowID } set: { shown in
+            if !shown, app.inboxWindow == windowID { app.hideInbox() }
+        }
+    }
+
+    private var otherUnread: Int {
+        let workspaces = windowID.flatMap { app.window($0)?.workspaces } ?? []
+        return workspaces.filter { $0 != active }.reduce(0) { $0 + app.notifications.unseen($1) }
     }
 
     private var worktreeSession: ProjectSession? {
@@ -95,6 +130,12 @@ private struct WorkspaceView: View {
     @Environment(\.theme) private var theme
     @State private var focus = FocusRouter()
 
+    private var visibleTrees: [SDUINode?] {
+        let store = session.store
+        let section = store?.selectedSection
+        return [section.flatMap { store?.slots["\($0).sidebar"]?.tree }, section.flatMap { store?.mainTree($0) }]
+    }
+
     var body: some View {
         content
             .environment(\.surfaceDeck, session.deck)
@@ -121,6 +162,9 @@ private struct WorkspaceView: View {
             }
             .onChange(of: app.project(session.projectID)) {
                 Task { await session.worktrees.load(retrying: true) }
+            }
+            .onChange(of: visibleTrees) {
+                app.notifications.focusChanged()
             }
             .onChange(of: session.store?.selectedSection, initial: true) { _, section in
                 if section == CodeSection.id { app.askNavigationKeys() }

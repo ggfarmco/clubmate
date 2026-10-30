@@ -8,6 +8,8 @@ type Caller struct {
 
 type callerKey struct{}
 
+type agentCallKey struct{}
+
 func WithCaller(ctx context.Context, c Caller) context.Context {
 	return context.WithValue(ctx, callerKey{}, c)
 }
@@ -26,4 +28,13 @@ func (c Caller) String() string {
 		return "plugin:" + c.PluginID
 	}
 	return "cli"
+}
+
+func withAgentCall(ctx context.Context) context.Context {
+	return context.WithValue(ctx, agentCallKey{}, true)
+}
+
+func isAgentCall(ctx context.Context) bool {
+	agent, _ := ctx.Value(agentCallKey{}).(bool)
+	return agent
 }

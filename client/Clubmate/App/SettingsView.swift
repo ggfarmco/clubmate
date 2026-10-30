@@ -7,6 +7,9 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
 
     @Environment(AppModel.self) private var app
+    @State private var hooksCopied = false
+
+    private static let tool = CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor())
 
     var body: some View {
         Form {
@@ -58,6 +61,12 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    LabeledContent("Notifications") {
+                        Button(hooksCopied ? "Copied" : "Copy notification hooks") { copyHooks() }
+                    }
+                    Text("Merge into ~/.claude/settings.json; needs the “\(Self.tool)” command and jq.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     if !app.claude.output.isEmpty {
                         Text(app.claude.output)
                             .font(.caption.monospaced())
@@ -72,6 +81,16 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func copyHooks() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(ClaudeHooks.snippet(command: Self.tool), forType: .string)
+        hooksCopied = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            hooksCopied = false
+        }
     }
 
     private var terminalFontSize: Binding<Double> {

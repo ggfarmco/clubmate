@@ -18,19 +18,20 @@ import (
 )
 
 const (
-	agentClaude    = "claude"
-	claudePackage  = "@agentclientprotocol/claude-agent-acp"
-	claudeVersion  = "0.99.1"
-	claudeBin      = "claude-agent-acp"
-	claudeDir      = "claude-acp"
-	minNodeMajor   = 22
-	commandEnv     = "CLUBMATE_AGENTS_COMMAND"
-	apiKeyEnv      = "ANTHROPIC_API_KEY"
-	installTimeout = 10 * time.Minute
-	probeTimeout   = 15 * time.Second
-	mcpName        = "clubmate"
-	projectEnv     = "CLUBMATE_PROJECT_ID"
-	installMarker  = ".clubmate-installed"
+	agentClaude     = "claude"
+	claudePackage   = "@agentclientprotocol/claude-agent-acp"
+	claudeVersion   = "0.99.1"
+	claudeBin       = "claude-agent-acp"
+	claudeDir       = "claude-acp"
+	minNodeMajor    = 22
+	commandEnv      = "CLUBMATE_AGENTS_COMMAND"
+	apiKeyEnv       = "ANTHROPIC_API_KEY"
+	installTimeout  = 10 * time.Minute
+	probeTimeout    = 15 * time.Second
+	mcpName         = "clubmate"
+	projectEnv      = "CLUBMATE_PROJECT_ID"
+	agentSessionEnv = "CLUBMATE_AGENT_SESSION"
+	installMarker   = ".clubmate-installed"
 )
 
 var errUnknownAgent = errors.New("unknown agent")
@@ -251,4 +252,8 @@ func registered(ctx context.Context, root string) bool {
 	cmd.Dir = root
 	cmd.Env = agentEnv("")
 	return cmd.Run() == nil
+}
+
+func sessionMeta(session string) *acp.SessionMeta {
+	return &acp.SessionMeta{ClaudeCode: acp.ClaudeCodeMeta{Options: acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: session}}}}
 }

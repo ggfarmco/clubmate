@@ -32,12 +32,14 @@ public struct AgentSessionState: Sendable, Equatable {
     }
 }
 
-public struct AgentAlert: Sendable, Equatable {
+public struct AgentAlert: Sendable, Equatable, Identifiable {
     public let workspace: String
     public let session: String
     public let request: String
     public let title: String
     public let body: String
+
+    public var id: String { "\(session)/\(request)" }
 }
 
 public struct AgentNotifier: Sendable {
@@ -52,25 +54,30 @@ public struct AgentNotifier: Sendable {
 
     public init() {}
 
-    public static func wantsAttention(windowKey: Bool, appActive: Bool) -> Bool {
-        !(windowKey && appActive)
-    }
-
-    public mutating func alerts(_ sessions: [AgentSessionState], windowKey: Bool, appActive: Bool) -> [AgentAlert] {
-        guard Self.wantsAttention(windowKey: windowKey, appActive: appActive) else { return [] }
-        var alerts: [AgentAlert] = []
-        for session in sessions where session.status == Self.waiting {
-            for request in session.requests where posted.insert(session.session + "/" + request).inserted {
-                alerts.append(AgentAlert(
+    public static func requests(_ sessions: [AgentSessionState]) -> [AgentAlert] {
+        sessions.filter { $0.status == waiting }.flatMap { session in
+            session.requests.map { request in
+                AgentAlert(
                     workspace: session.workspace,
                     session: session.session,
                     request: request,
                     title: "\(session.agent.isEmpty ? "Agent" : session.agent.capitalized) is waiting for permission",
                     body: session.title.isEmpty ? "New session" : session.title
-                ))
+                )
             }
         }
-        return alerts
+    }
+
+    public func pending(_ sessions: [AgentSessionState], shown: (AgentSessionState) -> Bool) -> [AgentAlert] {
+        Self.requests(sessions.filter { !shown($0) }).filter { !isPosted($0) }
+    }
+
+    public func isPosted(_ alert: AgentAlert) -> Bool {
+        posted.contains(alert.id)
+    }
+
+    public mutating func markPosted(_ alert: AgentAlert) {
+        posted.insert(alert.id)
     }
 
     public static func selectEvent(workspace: String, session: String) -> UIEvent {
