@@ -486,6 +486,7 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string, s *state
 	}
 	review := s.reviewModel()
 	s.mu.Unlock()
+	m.Dirs = untrackedDirs(ctx, views, m.Folded)
 	_, err := h.Render(ctx, id, reviewSlot, reviewView(review))
 	logError("review "+id, err)
 	_, err = h.Render(ctx, id, sidebarSlot, sidebarView(m))
@@ -511,11 +512,7 @@ func (a *app) selectItem(ctx context.Context, h *pluginsdk.Host, id string, s *s
 
 func (a *app) fold(ctx context.Context, h *pluginsdk.Host, id string, s *state, item string, on bool) error {
 	s.mu.Lock()
-	if on {
-		s.folded[item] = true
-	} else {
-		delete(s.folded, item)
-	}
+	s.folded[item] = on
 	s.mu.Unlock()
 	return a.render(ctx, h, id, s)
 }
@@ -659,7 +656,49 @@ func (s *state) leaf(id string) *leaf {
 			}
 		}
 	}
+	parts := strings.SplitN(id, idSep, 3)
+	if len(parts) != 3 || parts[1] != groupUntracked || !slices.Contains(s.repos, parts[0]) {
+		return nil
+	}
+	for _, l := range leaves(s.view(parts[0])) {
+		if l.Group == groupUntracked && strings.HasPrefix(parts[2], l.Path+string(filepath.Separator)) {
+			return &leaf{Repo: parts[0], Group: groupUntracked, Path: parts[2], Code: "U"}
+		}
+	}
 	return nil
+}
+
+func untrackedDirs(ctx context.Context, views []repoView, folded map[string]bool) map[string][]leaf {
+	dirs := map[string][]leaf{}
+	for _, r := range views {
+		for _, l := range leaves(r) {
+			if l.Group != groupUntracked {
+				continue
+			}
+			if info, err := os.Lstat(l.Path); err != nil || !info.IsDir() {
+				continue
+			}
+			dirs[l.id()] = nil
+			if collapsed, ok := folded[l.id()]; ok && !collapsed {
+				dirs[l.id()] = dirFiles(ctx, l)
+			}
+		}
+	}
+	return dirs
+}
+
+func dirFiles(ctx context.Context, dir leaf) []leaf {
+	out, err := run(ctx, dir.Repo, "ls-files", "--others", "--exclude-standard", "-z", "--", dir.rel()+"/")
+	if err != nil {
+		return nil
+	}
+	var files []leaf
+	for p := range strings.SplitSeq(string(out), "\x00") {
+		if p != "" && len(files) < maxGroupLeaves {
+			files = append(files, leaf{Repo: dir.Repo, Group: groupUntracked, Path: filepath.Join(dir.Repo, p), Code: "U"})
+		}
+	}
+	return files
 }
 
 func (s *state) follow(id string) string {

@@ -27,7 +27,7 @@ func TestSidebarCapsGroups(t *testing.T) {
 	for i := range entries {
 		entries[i] = gitrepo.Entry{Path: fmt.Sprintf("/r/f%04d", i), X: ' ', Y: 'M'}
 	}
-	tree := changesView([]repoView{{Path: repo, Entries: entries}}, "", nil)
+	tree := changesView([]repoView{{Path: repo, Entries: entries}}, "", nil, nil)
 	require.NoError(t, internalsdui.Validate(tree))
 	items := tree.Children[0].Props["items"].([]sdui.TreeItem)
 	group := items[0].Children[0]
@@ -40,7 +40,7 @@ func TestSidebarCapsGroups(t *testing.T) {
 	for i, e := range entries {
 		full = append(full, gitrepo.Entry{Path: e.Path, X: 'M', Y: 'M'}, gitrepo.Entry{Path: fmt.Sprintf("/r/u%04d", i), X: '?', Y: '?'})
 	}
-	assert.NoError(t, internalsdui.Validate(changesView([]repoView{{Path: repo, Entries: full}, {Path: "/s", Entries: full}}, "", nil)))
+	assert.NoError(t, internalsdui.Validate(changesView([]repoView{{Path: repo, Entries: full}, {Path: "/s", Entries: full}}, "", nil, nil)))
 }
 
 func rows(r *review) []reviewRow {

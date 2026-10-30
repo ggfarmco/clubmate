@@ -232,11 +232,20 @@ func TestSelectOpensDiffInEditor(t *testing.T) {
 	h, id := open(t, repo, testutil.EchoPluginDirAs(t, manifest))
 	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool { return len(groups(t, n)) == 2 })
 
-	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00untracked\x00"+filepath.Join(repo, "newpkg"))
+	dir := repo + "\x00untracked\x00" + filepath.Join(repo, "newpkg")
+	child := repo + "\x00untracked\x00" + filepath.Join(repo, "newpkg", "b.go")
+	h.Event(t, id, sidebarSlot, "git", "select", dir)
+	h.Event(t, id, sidebarSlot, "git", "expand", dir)
+	h.WaitSlot(t, id, sidebarSlot, func(n sdui.Node) bool {
+		items := roots(t, n)[0].Children[1].Children
+		return len(items) == 1 && len(items[0].Children) == 1 && items[0].Children[0].ID == child && items[0].Children[0].Label == "b.go"
+	})
 	h.Event(t, id, sidebarSlot, "git", "select", repo+"\x00staged\x00"+filepath.Join(repo, "a.go"))
+	h.Event(t, id, sidebarSlot, "git", "select", child)
 	diffs := commandArgs(t, h, "editor-nvim.diff")
-	require.Len(t, diffs, 1)
+	require.Len(t, diffs, 2)
 	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":"head","target":"index"}`, filepath.Join(repo, "a.go")), string(diffs[0]))
+	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"base":"index","target":"worktree"}`, filepath.Join(repo, "newpkg", "b.go")), string(diffs[1]))
 }
 
 func TestPlainDirIsNotARepo(t *testing.T) {

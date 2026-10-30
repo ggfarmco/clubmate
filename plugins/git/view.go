@@ -62,6 +62,7 @@ type sidebarModel struct {
 	Repos    []repoView
 	Selected string
 	Folded   map[string]bool
+	Dirs     map[string][]leaf
 	Live     []string
 	FormID   string
 	Busy     string
@@ -116,7 +117,7 @@ func sidebarView(m sidebarModel) sdui.Node {
 	if len(m.Live) > 0 {
 		nodes = append(nodes, commitView(m))
 	}
-	return sdui.VStack(append(nodes, changesView(m.Repos, m.Selected, m.Folded))...)
+	return sdui.VStack(append(nodes, changesView(m.Repos, m.Selected, m.Folded, m.Dirs))...)
 }
 
 func commitView(m sidebarModel) sdui.Node {
@@ -132,7 +133,7 @@ func commitView(m sidebarModel) sdui.Node {
 	return sdui.WithAction(sdui.Form(m.FormID, fields...), commitAction)
 }
 
-func changesView(repos []repoView, selected string, folded map[string]bool) sdui.Node {
+func changesView(repos []repoView, selected string, folded map[string]bool, dirs map[string][]leaf) sdui.Node {
 	budget := maxTreeItems - len(repos)*(1+2*len(groupTitles)) - 2
 	items := make([]sdui.TreeItem, 0, len(repos))
 	for _, r := range repos {
@@ -145,7 +146,7 @@ func changesView(repos []repoView, selected string, folded map[string]bool) sdui
 		all := leaves(r)
 		for _, g := range groupTitles {
 			if group := inGroup(all, g.id); len(group) > 0 {
-				root.Children = append(root.Children, groupItem(r.Path+idSep+g.id, g.title, group, folded, &budget))
+				root.Children = append(root.Children, groupItem(r.Path+idSep+g.id, g.title, group, folded, dirs, &budget))
 			}
 		}
 		root.HasChildren = len(root.Children) > 0
@@ -164,7 +165,7 @@ func inGroup(all []leaf, group string) []leaf {
 	return out
 }
 
-func groupItem(id, title string, group []leaf, folded map[string]bool, budget *int) sdui.TreeItem {
+func groupItem(id, title string, group []leaf, folded map[string]bool, dirs map[string][]leaf, budget *int) sdui.TreeItem {
 	children := make([]sdui.TreeItem, 0, min(len(group), maxGroupLeaves)+1)
 	for _, l := range group {
 		menu := leafMenu(l)
@@ -172,7 +173,21 @@ func groupItem(id, title string, group []leaf, folded map[string]bool, budget *i
 			break
 		}
 		*budget -= 1 + len(menu)
-		children = append(children, sdui.TreeItem{ID: l.id(), Label: l.rel(), Badge: l.Code, Menu: menu})
+		item := sdui.TreeItem{ID: l.id(), Label: l.rel(), Badge: l.Code, Menu: menu}
+		if files, ok := dirs[l.id()]; ok {
+			collapsed, seen := folded[l.id()]
+			item.HasChildren = true
+			item.Expanded = seen && !collapsed
+			for _, f := range files {
+				fileMenu := leafMenu(f)
+				if *budget < 1+len(fileMenu) {
+					break
+				}
+				*budget -= 1 + len(fileMenu)
+				item.Children = append(item.Children, sdui.TreeItem{ID: f.id(), Label: relPath(l.Path, f.Path), Badge: f.Code, Menu: fileMenu})
+			}
+		}
+		children = append(children, item)
 	}
 	if more := len(group) - len(children); more > 0 {
 		children = append(children, sdui.TreeItem{ID: id + idSep + moreID, Label: fmt.Sprintf("… %d more", more)})
