@@ -200,7 +200,7 @@
         "title": "List Agent Sessions",
         "hidden": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, title, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, asks}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question. parentSession is the agent session that started it with agents.new. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive."
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, asks}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question. parentSession is the agent session that started it with agents.new. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive."
       },
       {
         "id": "agents.wait",

@@ -63,6 +63,7 @@ type record struct {
 	Advisor        string    `json:"advisor,omitempty"`
 	Fork           string    `json:"fork,omitempty"`
 	Title          string    `json:"title"`
+	TitleSet       bool      `json:"titleSet,omitempty"`
 	Status         string    `json:"status"`
 	Mode           string    `json:"mode"`
 	Finish         string    `json:"finish,omitempty"`
@@ -427,7 +428,7 @@ func (s *session) applyUpdate(turn int, payload json.RawMessage) {
 		}
 	case acp.UpdateSessionInfo:
 		var u acp.SessionInfoUpdate
-		if json.Unmarshal(payload, &u) == nil && u.Title != nil && *u.Title != "" {
+		if json.Unmarshal(payload, &u) == nil && !s.rec.TitleSet && u.Title != nil && *u.Title != "" {
 			s.rec.Title = titleOf(*u.Title)
 		}
 	case acp.UpdateNotice:

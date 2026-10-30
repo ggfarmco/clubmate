@@ -442,7 +442,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from
 	if err != nil {
 		return newResult{}, err
 	}
-	rec := record{Workspace: projectID, Agent: agent, Title: titleOf(args.Title)}
+	rec := record{Workspace: projectID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != ""}
 	if parent, err := a.lookup(projectID, from); err == nil {
 		prec := parent.snapshot()
 		rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree

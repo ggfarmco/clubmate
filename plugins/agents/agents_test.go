@@ -38,6 +38,7 @@ type record struct {
 	Worktree       string   `json:"worktree"`
 	Agent          string   `json:"agent"`
 	AgentSessionID string   `json:"agentSessionId"`
+	Title          string   `json:"title"`
 	ParentSession  string   `json:"parentSession"`
 	Advisor        string   `json:"advisor"`
 	Status         string   `json:"status"`
@@ -301,6 +302,18 @@ func permissionScript() map[string]any {
 			{"optionId": "deny", "name": "Deny", "kind": "reject_once"},
 		},
 	}
+}
+
+func TestNewTitleSurvivesAgentTitle(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{
+		{"update": map[string]any{"sessionUpdate": "session_info_update", "title": "Agent title"}},
+	}})
+	project := f.project(t, newRepo(t))
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, project, "agents.new", map[string]any{"title": "Mine", "prompt": "go"}, &out))
+	assert.Equal(t, "Mine", f.waitStatus(t, project, out.Session, "done").Title)
 }
 
 func TestPromptStreamsAndLogs(t *testing.T) {
