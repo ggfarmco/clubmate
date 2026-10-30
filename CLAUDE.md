@@ -1,1 +1,2 @@
 - Every change that adds, removes or rebinds a keyboard shortcut also updates `docs/shortcuts.md` in the same commit.
+- Every change to a view in `client/Clubmate` follows the `clubmate-ui` skill (`.claude/skills/clubmate-ui`); it is done only after `make app` builds and the result was looked at, or the report says "visually unverified".
