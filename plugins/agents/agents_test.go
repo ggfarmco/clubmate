@@ -1326,6 +1326,19 @@ func TestDeleteParentDeletesChildren(t *testing.T) {
 	}
 }
 
+func TestCloseParentClosesChildren(t *testing.T) {
+	f := start(t, nil)
+	project := f.project(t, newRepo(t))
+	parent := f.newSession(t, project)
+	kid := f.newChild(t, project, parent, map[string]any{}).Session
+	grandkid := f.newChild(t, project, kid, map[string]any{}).Session
+
+	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": parent}, nil))
+
+	f.waitStatus(t, project, kid, "closed")
+	f.waitStatus(t, project, grandkid, "closed")
+}
+
 func TestChildWorktreeFailure(t *testing.T) {
 	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
@@ -1472,6 +1485,17 @@ func TestMergedChildCleanedUp(t *testing.T) {
 		_, err := os.Stat(kid.Worktree)
 		return errors.Is(err, os.ErrNotExist) && git(t, repo, "branch", "--list", "c1") == ""
 	}, wait)
+}
+
+func TestChildWithRemovedWorktreeClosedAfterParentTurn(t *testing.T) {
+	f, repo, project, parent := startWithGit(t)
+	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "plan"})
+	f.waitStatus(t, project, kid.Session, "done")
+
+	git(t, repo, "worktree", "remove", "--force", kid.Worktree)
+	f.prompt(t, project, parent, "squashed")
+
+	f.waitStatus(t, project, kid.Session, "closed")
 }
 
 func mergeChild(t *testing.T, f *fixture, repo, project, parent string, kid child) {

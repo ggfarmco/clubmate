@@ -643,7 +643,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if ev.Action == actDelete {
 			return a.deleteTree(ctx, s)
 		}
-		a.closeSession(ctx, s, false)
+		a.closeTree(ctx, s)
 		return nil
 	}
 	sid, rest, _ := strings.Cut(ev.NodeID, "/")

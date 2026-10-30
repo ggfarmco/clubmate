@@ -117,6 +117,16 @@ func (a *app) merged(ctx context.Context, rec record, l *childLayout) bool {
 	return !a.othersIn(rec.ID, l.own.Real) && !slices.ContainsFunc(a.children(rec.ID), func(c *session) bool { return !c.snapshot().Closed })
 }
 
+func (a *app) closeVanishedChildren(s *session) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupLimit)
+	defer cancel()
+	for _, c := range a.children(s.snapshot().ID) {
+		if _, err := os.Stat(c.snapshot().Worktree); errors.Is(err, os.ErrNotExist) {
+			a.closeIdle(ctx, c)
+		}
+	}
+}
+
 func (a *app) othersIn(id, root string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()

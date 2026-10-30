@@ -385,7 +385,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		a.cancel(s)
 		return nil, nil
 	case "agents.close":
-		a.closeSession(ctx, s, false)
+		a.closeTree(ctx, s)
 		return nil, nil
 	case "agents.delete":
 		return nil, a.deleteTree(ctx, s)
@@ -996,6 +996,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	}
 	if finished {
 		a.cleanupChild(s)
+		a.closeVanishedChildren(s)
 	}
 }
 
@@ -1299,6 +1300,26 @@ func (a *app) closeSession(ctx context.Context, s *session, remove bool) *agentP
 	p.unregister(agentID)
 	a.release(p)
 	return p
+}
+
+func (a *app) closeTree(ctx context.Context, s *session) {
+	seen := map[string]bool{}
+	var walk func(*session)
+	walk = func(x *session) {
+		id := x.snapshot().ID
+		if seen[id] {
+			return
+		}
+		seen[id] = true
+		a.closeSession(ctx, x, false)
+		a.spawnMu.Lock()
+		children := a.children(id)
+		a.spawnMu.Unlock()
+		for _, c := range children {
+			walk(c)
+		}
+	}
+	walk(s)
 }
 
 func (a *app) deleteTree(ctx context.Context, s *session) error {
