@@ -22,3 +22,5 @@
 | Settings window wrong size | `.fixedSize` per tab | Fixed frame | 857a76c |
 | Light/dark switch needs a relaunch | Appearance read once at init | Observe `effectiveAppearance` | 54d4840 |
 | Sparkline fixed size | `.frame(width: 60, height: 16)` | Height from server, `maxWidth: .infinity` | 715a3e5 |
+| Alert body opens scrolled to its middle | Selectable `NSTextView` accessory takes first responder | `isSelectable = false` | 492561b |
+| `cm ui snapshot` draws dark alert sheets white-on-white | `cacheDisplay` skips the sheet's visual-effect background, pixels stay transparent | `WindowImage` fills sheets with `windowBackgroundColor` under the drawn pixels | sheet snapshot fix |

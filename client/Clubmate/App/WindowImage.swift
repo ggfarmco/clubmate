@@ -10,6 +10,7 @@ enum WindowImage {
         guard let root = titlebar ? window.contentView?.superview ?? window.contentView : window.contentView, root.bounds.width > 0, root.bounds.height > 0,
               let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds) else { return nil }
         root.cacheDisplay(in: root.bounds, to: rep)
+        if window.sheetParent != nil { fillBackground(rep, of: window) }
         let surfaces = terminals(in: root)
         guard !surfaces.isEmpty, let context = NSGraphicsContext(bitmapImageRep: rep) else { return rep }
         NSGraphicsContext.saveGraphicsState()
@@ -27,6 +28,17 @@ enum WindowImage {
 
     static func png(_ window: NSWindow, titlebar: Bool = false) -> Data? {
         bitmap(window, titlebar: titlebar)?.representation(using: .png, properties: [:])
+    }
+
+    private static func fillBackground(_ rep: NSBitmapImageRep, of window: NSWindow) {
+        guard let context = NSGraphicsContext(bitmapImageRep: rep) else { return }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        window.effectiveAppearance.performAsCurrentDrawingAppearance {
+            NSColor.windowBackgroundColor.setFill()
+            NSRect(origin: .zero, size: rep.size).fill(using: .destinationOver)
+        }
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     static func terminals(in view: NSView) -> [TerminalSurfaceView] {

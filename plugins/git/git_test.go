@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sourcegraph/jsonrpc2"
 	"github.com/stretchr/testify/assert"
@@ -603,7 +604,8 @@ func TestWorktreeSetupHook(t *testing.T) {
 		return res, filepath.Join(repo, ".worktrees", branch)
 	}
 
-	res, denied := create("denied")
+	long := "denied-" + strings.Repeat("x", 150)
+	res, denied := create(long)
 	assert.Empty(t, res.Error)
 	assert.Contains(t, res.Notice, "Skipped .clubmate/setup.sh: denied by user")
 	assert.Contains(t, res.Notice, `"../escape" is not a path inside the repo`)
@@ -618,6 +620,9 @@ func TestWorktreeSetupHook(t *testing.T) {
 		"\n──── .clubmate/worktree-include\n# secrets\n.env\nconf/local.env\nmissing\nlink\n../escape\n"
 	assert.Equal(t, confirmRequest{Title: "Run .clubmate/setup.sh", Args: asked.Args, Body: body, Plugin: true}, *asked)
 	assert.Equal(t, "all of .clubmate/ (3 entries, shown below)", asked.Args["trusts"])
+	assert.True(t, strings.HasPrefix(asked.Args["worktree"], "…"))
+	assert.True(t, strings.HasSuffix(asked.Args["worktree"], "/.worktrees/"+long))
+	assert.Equal(t, 200, utf8.RuneCountInString(asked.Args["worktree"]))
 
 	a.answer.Store(true)
 	for _, branch := range []string{"trusted", "again"} {

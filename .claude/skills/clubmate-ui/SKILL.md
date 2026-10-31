@@ -28,6 +28,7 @@ Neighbouring code may be the bug (the `/` command popup was an uncapped `VStack`
 - **Label**: `.lineLimit(1)`, `.truncationMode(.label)` (`.path` for a file path; both in `Theme/Theme.swift`), `.help(full)`; the identifying part gets `.layoutPriority(1)`.
 - **Selected row**: `theme.foreground.opacity(0.06)` background plus a 2pt `theme.accent` leading bar.
 - **State that must survive** re-renders and section switches (drafts, expansion, chosen tab): a ClubmateKit store keyed by a stable node id, not `@State`. In `Equatable` views every render input is in `==`; themed parts live in a child view with its own `@Environment(\.theme)`.
+- **Text body in an `NSAlert`**: an `NSTextView` accessory with `isSelectable = false`; a selectable one becomes first responder and AppKit scrolls it to the middle of the document on open.
 - **Keyboard**: every action reachable by keyboard; focusable things are real `Button`s; key changes update `docs/shortcuts.md`.
 
 ## Theme tokens, never literals
@@ -44,7 +45,7 @@ Compact, Zed/Ghostty feel; width is the scarce resource. Collapsed by default, e
 2. Stress inputs: 80+ items, the longest realistic name or path, an empty list, interface font +4.
 3. Look at it in an invisible test instance; it never takes focus or covers the user's windows, and other agents' instances don't interfere:
    - `scripts/test-app.sh start` (or `start <name> -- --sdui-gallery` for the gallery, nodes from `SDUI/GalleryFixture.json`); it opens this worktree as a workspace.
-   - `scripts/test-app.sh cm -- ui snapshot --out /tmp/clubmate-test-<name>/snapshots --size 640x800`, then again with `--size 900x800`. Read the `summary` first (`0 problems` or flagged SDUI nodes: `outside-window`, `wider-than-parent`, `overlaps-sibling`, `truncated`), then the png. Popovers and settings: `cm -- ui present inbox|worktree|switcher|settings` before the snapshot (`start <name> -- --settings-tab plugins|devices` opens Settings on that tab in Debug builds; `start <name> -- -interfaceFontSize '<real>16</real>'` sets the interface font); menus are listed as text in the `w<id>.json`.
+   - `scripts/test-app.sh cm -- ui snapshot --out /tmp/clubmate-test-<name>/snapshots --size 640x800`, then again with `--size 900x800`. Read the `summary` first (`0 problems` or flagged SDUI nodes: `outside-window`, `wider-than-parent`, `overlaps-sibling`, `truncated`), then the png. Popovers and settings: `cm -- ui present inbox|worktree|switcher|settings` before the snapshot (`start <name> -- --settings-tab plugins|devices` opens Settings on that tab in Debug builds; `start <name> -- -interfaceFontSize '<real>16</real>'` sets the interface font); menus are listed as text in the `w<id>.json`. `cm -- ui present approval` opens an `NSAlert` sheet; sheets are snapshotted as their own `sheet` window over the window background.
    - Drive it with `cm -- ui event`, `cm -- command run`, or over MCP with `testapp_call`.
    - `scripts/test-app.sh stop` afterwards; it deletes `/tmp/clubmate-test-<name>`, so copy snapshots you report elsewhere first.
    Never use `screencapture`.

@@ -35,6 +35,7 @@ const (
 	trustPrefix    = "hooks-trust/"
 	separator      = "────"
 	reviewBytes    = 64 << 10
+	approveArgMax  = 200
 	envPrefix      = "CLUBMATE_"
 	outputTail     = 4 << 10
 	hookWaitDelay  = 5 * time.Second
@@ -129,8 +130,8 @@ func (k hooks) trust(ctx context.Context, dir, script string, data []byte) error
 		return err
 	}
 	args := map[string]string{
-		"repo":     k.primary,
-		"worktree": dir,
+		"repo":     pathTail(k.primary),
+		"worktree": pathTail(dir),
 		"sha256":   hex.EncodeToString(sum[:]),
 		"size":     fmt.Sprintf("%d bytes, %d lines", len(data), bytes.Count(data, []byte("\n"))),
 		"trusts":   fmt.Sprintf("all of %s/ (%d entries, shown below)", hooksDir, len(entries)),
@@ -139,6 +140,14 @@ func (k hooks) trust(ctx context.Context, dir, script string, data []byte) error
 		return err
 	}
 	return k.h.StorageSet(ctx, key, true)
+}
+
+func pathTail(path string) string {
+	r := []rune(path)
+	if len(r) <= approveArgMax {
+		return path
+	}
+	return "…" + string(r[len(r)-approveArgMax+1:])
 }
 
 func readTree(root string) ([]byte, []hookEntry, error) {
