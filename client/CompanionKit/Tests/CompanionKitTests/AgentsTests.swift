@@ -160,6 +160,23 @@ final class TranscriptRefreshTests: XCTestCase {
         store.unwatch("s")
     }
 
+    func testSentPromptShowsUntilTheTranscriptRecordsIt() async throws {
+        let before = #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
+        let started = #"{"session":{"id":"s","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
+        let recorded = #"{"session":{"id":"s","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"user","id":"prompt-2","turn":2,"text":"one"}]}"#
+        let runner = ScriptedRunner(replies: [before, started, recorded])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        try await store.send("one", to: "s")
+        XCTAssertEqual(store.entries("s").map(\.isOutgoing), [false, true])
+        XCTAssertEqual(store.entries("s").last?.content, .user(text: "one", fromAgent: false, images: []))
+        store.handle(.event(BusEvent(seq: 1, topic: "agents.changed", payload: .object(["workspace": .string("w"), "session": .string("s")]))))
+        try await waitUntil { store.transcripts["s"]?.entries.count == 2 }
+        XCTAssertEqual(store.entries("s").map(\.id), ["user/prompt-1", "user/prompt-2"])
+        store.unwatch("s")
+    }
+
     func testWatchRetriesAFailedLoadOnceThenShowsTheErrorUntilALoadSucceeds() async throws {
         let runner = ScriptedRunner(replies: ["", "", "", #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#])
         let store = AgentsStore(workspace: "w", runner: runner)

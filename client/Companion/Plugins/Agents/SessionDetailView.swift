@@ -18,13 +18,15 @@ struct SessionDetailView: View {
 
     var body: some View {
         let transcript = store.transcripts[sessionID]
+        let entries = store.entries(sessionID)
         let session = store.session(sessionID)
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                ForEach(transcript?.entries ?? []) { entry in
+                ForEach(entries) { entry in
                     EntryView(entry: entry, session: session) { request, option in
                         try await answer(request: request, option: option)
                     }
+                    .opacity(entry.isOutgoing ? 0.6 : 1)
                 }
                 if session?.status == .running {
                     HStack(spacing: 8) {
@@ -52,9 +54,9 @@ struct SessionDetailView: View {
                 } actions: {
                     Button("Try Again") { Task { await store.loadTranscript(sessionID) } }
                 }
-            } else if transcript == nil {
+            } else if transcript == nil && entries.isEmpty {
                 ProgressView()
-            } else if transcript?.entries.isEmpty == true {
+            } else if entries.isEmpty {
                 ContentUnavailableView("No Messages Yet", systemImage: "text.bubble", description: Text("Send the first prompt below."))
             }
         }
@@ -101,7 +103,7 @@ struct SessionDetailView: View {
             Text(failure ?? "")
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: sent)
-        .onChange(of: transcript?.entries.count) { _, _ in
+        .onChange(of: entries.count) { _, _ in
             withAnimation { position.scrollTo(edge: .bottom) }
         }
         .task(id: sessionID) {
@@ -120,14 +122,17 @@ struct SessionDetailView: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let attached = attachments
         guard !text.isEmpty || !attached.isEmpty else { return }
+        let typed = draft
         sending = true
+        draft = ""
+        attachments = []
         Task {
             do {
                 try await store.send(text, attachments: attached, to: sessionID)
-                draft = ""
-                attachments = []
                 sent += 1
             } catch {
+                if draft.isEmpty { draft = typed }
+                if attachments.isEmpty { attachments = attached }
                 failure = Self.message(error)
             }
             sending = false

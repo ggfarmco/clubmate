@@ -10,6 +10,7 @@ public final class AgentsStore {
     public private(set) var loaded = false
     public private(set) var error: String?
     public private(set) var transcriptErrors: [String: String] = [:]
+    private var outgoing: [String: [Outgoing]] = [:]
 
     public static let followInterval: Duration = .seconds(2)
 
@@ -36,6 +37,10 @@ public final class AgentsStore {
 
     public func session(_ id: String) -> AgentSession? {
         sessions.first { $0.id == id } ?? transcripts[id]?.session
+    }
+
+    public func entries(_ session: String) -> [TranscriptEntry] {
+        (transcripts[session]?.entries ?? []) + (outgoing[session] ?? []).map(\.entry)
     }
 
     public func handle(_ signal: ConnectionSignal) {
@@ -103,6 +108,7 @@ public final class AgentsStore {
                     let fetched = try await Self.transcript(from: runner.command("agents.transcript", workspace: workspace, args: .object(args)))
                     transcripts[session] = fromTurn > 0 ? loaded?.merging(fetched, fromTurn: fromTurn) ?? fetched : fetched
                     transcriptErrors[session] = nil
+                    reconcile(session)
                     return
                 } catch {
                     if Task.isCancelled { return }
@@ -138,11 +144,21 @@ public final class AgentsStore {
 
     public func send(_ text: String, attachments: [ComposerAttachment] = [], to session: String) async throws {
         let images = attachments.flatMap(\.images)
-        var args: [String: JSONValue] = ["session": .string(session), "text": .string(ComposerAttachment.promptText(text, attachments))]
+        let prompt = ComposerAttachment.promptText(text, attachments)
+        var args: [String: JSONValue] = ["session": .string(session), "text": .string(prompt)]
         if !images.isEmpty {
             args["attachments"] = .array(images.map { .object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string($0.base64EncodedString())]) })
         }
-        try await run("agents.prompt", args)
+        let echo = self.echo(prompt, images: images, in: session)
+        do {
+            try await run("agents.prompt", args)
+        } catch {
+            outgoing[session]?.removeAll { $0.entry.id == echo }
+            throw error
+        }
+        if let i = outgoing[session]?.firstIndex(where: { $0.entry.id == echo }) {
+            outgoing[session]?[i].sent = true
+        }
         await refreshSession(session)
     }
 
@@ -166,6 +182,9 @@ public final class AgentsStore {
         let prompt = attachments.isEmpty ? text : ""
         let result = try await runner.command("agents.new", workspace: workspace, args: .object(prompt.isEmpty ? [:] : ["prompt": .string(prompt)]))
         guard let id = result["session"]?.stringValue, !attachments.isEmpty else {
+            if let id = result["session"]?.stringValue, !prompt.isEmpty {
+                echo(prompt, images: [], in: id, sent: true)
+            }
             await refresh()
             return result["session"]?.stringValue
         }
@@ -176,6 +195,26 @@ public final class AgentsStore {
     private func run(_ command: String, _ args: [String: JSONValue]) async throws {
         guard let runner else { return }
         _ = try await runner.command(command, workspace: workspace, args: .object(args))
+    }
+
+    @discardableResult
+    private func echo(_ text: String, images: [Data], in session: String, sent: Bool = false) -> String {
+        let entry = TranscriptEntry(outgoing: text, images: images)
+        let known = Set((transcripts[session]?.entries ?? []).map(\.id))
+        outgoing[session, default: []].append(Outgoing(entry: entry, text: text, known: known, sent: sent))
+        return entry.id
+    }
+
+    private func reconcile(_ session: String) {
+        guard let transcript = transcripts[session], let list = outgoing[session] else { return }
+        let kept = list.filter { prompt in
+            if prompt.sent && ![.running, .waiting].contains(transcript.session.status) { return false }
+            return !transcript.entries.contains { entry in
+                guard !prompt.known.contains(entry.id), case .user(let text, _, _) = entry.content else { return false }
+                return text.contains(prompt.text)
+            }
+        }
+        outgoing[session] = kept.isEmpty ? nil : kept
     }
 
     private func refreshSession(_ session: String) async {
@@ -194,6 +233,13 @@ public final class AgentsStore {
             again.remove(key)
             await work()
         } while again.contains(key)
+    }
+
+    private struct Outgoing {
+        let entry: TranscriptEntry
+        let text: String
+        let known: Set<String>
+        var sent: Bool
     }
 
     private static func message(_ error: any Error) -> String {

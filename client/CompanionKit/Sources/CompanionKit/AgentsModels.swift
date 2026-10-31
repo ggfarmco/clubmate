@@ -177,6 +177,19 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case kind, id, turn, text, content, tool, plan, toolCall, options, outcome, notice, from
     }
 
+    static let outgoingPrefix = "outgoing/"
+
+    init(outgoing text: String, images: [Data]) {
+        entryID = UUID().uuidString
+        id = Self.outgoingPrefix + entryID
+        turn = 0
+        content = .user(text: text, fromAgent: false, images: images)
+    }
+
+    public var isOutgoing: Bool {
+        id.hasPrefix(Self.outgoingPrefix)
+    }
+
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let raw = try c.decodeIfPresent(String.self, forKey: .kind) ?? ""
