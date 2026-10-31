@@ -29,6 +29,7 @@ struct Rail: View {
             Button("Reset Order") { resetOrder?() }
                 .disabled(resetOrder == nil)
         }
+        .testMenu("rail", [LayoutMenuItem(title: "Reset Order", enabled: resetOrder != nil)])
     }
 
     private func accepts(_ id: String) -> Bool {

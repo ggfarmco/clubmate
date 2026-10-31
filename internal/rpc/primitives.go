@@ -127,6 +127,22 @@ var primitives = map[string]primitive{
 		needsProject: true,
 		params:       withProject,
 	},
+	"testapp.call": {
+		cmd: coreCommand("testapp.call", "Call Test Instance", "Call a method on an isolated Clubmate test instance started with scripts/test-app.sh: ui.snapshot {out?, png?, width?, height?} draws its windows to png plus a flagged layout dump (out defaults to /tmp/clubmate-test-<instance>/snapshots and must stay inside that instance dir), ui.present {target, shown} opens a popover or sheet, ui.get/ui.event/command.list/command.run (always as an agent call)/project.list/workspace.open drive it.", &schema.Object{
+			Properties: map[string]schema.Prop{
+				"instance": {Type: "string", Description: "Test instance name, as printed by scripts/test-app.sh start or listed by testapp.list."},
+				"method":   {Type: "string", Enum: testAppMethodList(), Description: "Method to call on the instance's core."},
+				"params":   {Type: "object", Description: "The method's params."},
+			},
+			Required: []string{"instance", "method"},
+		}),
+		method: "testapp.call",
+		params: passArgs,
+	},
+	"testapp.list": {
+		cmd:    coreCommand("testapp.list", "List Test Instances", "List running Clubmate test instances started with scripts/test-app.sh.", nil),
+		method: "testapp.list",
+	},
 	"ui.focus": {
 		cmd: coreCommand("ui.focus", "Focus Section", "Show a section in the workspace's window.", &schema.Object{
 			Properties: map[string]schema.Prop{

@@ -9,6 +9,7 @@ struct WorkspaceWindow: View {
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         content
@@ -60,6 +61,9 @@ struct WorkspaceWindow: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
             }
+            .testPresenter("inbox", inboxPresented)
+            .testPresenter("switcher", switcherPresented)
+            .testPresenter("settings", settingsPresented)
             .focusedSceneValue(\.workspaceWindowID, windowID)
             .background(WindowObserver { [app, windowID] in
                 if let windowID { app.windowBecameKey(windowID) }
@@ -93,6 +97,30 @@ struct WorkspaceWindow: View {
     private var inboxShown: Binding<Bool> {
         Binding { windowID != nil && app.inboxWindow == windowID } set: { shown in
             if !shown, app.inboxWindow == windowID { app.hideInbox() }
+        }
+    }
+
+    private var inboxPresented: Binding<Bool> {
+        Binding { windowID != nil && app.inboxWindow == windowID } set: { shown in
+            guard let windowID, shown != (app.inboxWindow == windowID) else { return }
+            if shown { app.toggleInbox(in: windowID) } else { app.hideInbox() }
+        }
+    }
+
+    private var switcherPresented: Binding<Bool> {
+        Binding { windowID != nil && app.switcherWindow == windowID } set: { shown in
+            guard let windowID, shown != (app.switcherWindow == windowID) else { return }
+            if shown { app.toggleSwitcher(in: windowID) } else { app.hideSwitcher() }
+        }
+    }
+
+    private var settingsPresented: Binding<Bool> {
+        Binding { false } set: { [openSettings] shown in
+            if shown {
+                openSettings()
+            } else {
+                NSApp.windows.first { $0.identifier?.rawValue.hasPrefix("com_apple_SwiftUI_Settings") == true }?.close()
+            }
         }
     }
 
@@ -334,6 +362,7 @@ private struct WorktreeTitleMenu: View {
         .popover(isPresented: $shown, arrowEdge: .bottom) {
             WorktreeSwitcher(session: session) { shown = false }
         }
+        .testPresenter("worktree", $shown)
     }
 }
 

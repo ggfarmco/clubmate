@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct Theme: Sendable {
@@ -49,6 +50,12 @@ struct Theme: Sendable {
         var theme = self
         theme.uiSize = size
         return theme
+    }
+
+    func nsFont(size: CGFloat, bold: Bool) -> NSFont {
+        let weight: NSFont.Weight = bold ? .semibold : .regular
+        guard let fontFamily, !fontFamily.isEmpty, let font = NSFont(name: fontFamily, size: size) else { return .monospacedSystemFont(ofSize: size, weight: weight) }
+        return bold ? NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) : font
     }
 
     private func font(size: CGFloat) -> Font {

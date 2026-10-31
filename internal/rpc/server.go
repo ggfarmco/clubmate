@@ -51,6 +51,7 @@ type Server struct {
 	clients       map[*jsonrpc2.Conn]*client
 	clientSeq     uint64
 	notifyLimit   *notify.Limiter
+	testAppRoot   string
 }
 
 type client struct {
@@ -69,12 +70,16 @@ func WithDirs(d paths.Dirs) ServerOption {
 	return func(s *Server) { s.dirs = &d }
 }
 
+func WithTestAppRoot(dir string) ServerOption {
+	return func(s *Server) { s.testAppRoot = dir }
+}
+
 func WithLogger(l *slog.Logger) ServerOption {
 	return func(s *Server) { s.logger = l }
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow)}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp"}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -88,6 +93,8 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.diagnosticsMethods())
 	maps.Copy(s.methods, s.notifyMethods())
 	maps.Copy(s.methods, s.processMethods())
+	maps.Copy(s.methods, s.testModeMethods())
+	maps.Copy(s.methods, s.testAppMethods())
 	return s
 }
 

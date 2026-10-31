@@ -316,7 +316,7 @@ func (s *Server) clientRegister(ctx context.Context, p registerParams) (empty, e
 		return empty{}, invalidParams("client.register is not available to plugins")
 	}
 	for _, h := range p.Handles {
-		if h != handleProjectOpen && h != handleUIConfirm {
+		if h != handleProjectOpen && h != handleUIConfirm && h != handleUISnapshot && h != handleUIPresent {
 			return empty{}, invalidParams(fmt.Sprintf("unknown handle: %q", h))
 		}
 	}

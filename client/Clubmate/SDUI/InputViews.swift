@@ -64,7 +64,8 @@ enum Confirmation {
             return nil
         } : nil
         defer { escape.map(NSEvent.removeMonitor) }
-        guard let window = window ?? NSApp.keyWindow else {
+        guard let window = window ?? NSApp.promptWindow else {
+            if TestMode.current { return false }
             expiry?.onExpire { NSApp.abortModal() }
             return alert.runModal() == .alertFirstButtonReturn
         }
@@ -85,8 +86,10 @@ enum TextPrompt {
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         let response: NSApplication.ModalResponse
-        if let window = NSApp.keyWindow {
+        if let window = NSApp.promptWindow {
             response = await alert.beginSheetModal(for: window)
+        } else if TestMode.current {
+            return nil
         } else {
             response = alert.runModal()
         }
@@ -109,8 +112,10 @@ enum ChoicePrompt {
         alert.accessoryView = popup
         alert.window.initialFirstResponder = popup
         let response: NSApplication.ModalResponse
-        if let window = NSApp.keyWindow {
+        if let window = NSApp.promptWindow {
             response = await alert.beginSheetModal(for: window)
+        } else if TestMode.current {
+            return nil
         } else {
             response = alert.runModal()
         }
@@ -168,7 +173,7 @@ struct FolderFieldNodeView: View {
         panel.allowsMultipleSelection = true
         panel.showsHiddenFiles = true
         panel.prompt = "Choose"
-        guard panel.runModal() == .OK else { return }
+        guard !TestMode.current, panel.runModal() == .OK else { return }
         paths = panel.urls.map(\.path)
         if form == nil || node.string("action") != nil { dispatch(node, .pick(paths)) }
     }
@@ -281,6 +286,7 @@ struct SelectNodeView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+        .testMenu("\(node.id ?? "select").menu", options.map { LayoutMenuItem(title: $0.label) })
         .padding(.horizontal, theme.spacing.m)
         .frame(height: theme.rowHeight)
         .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 1))

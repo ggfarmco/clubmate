@@ -201,6 +201,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func deliver(_ note: HubNotification) async {
+        guard !TestMode.current else { return }
         let center = UNUserNotificationCenter.current()
         let status = await Self.status(center)
         switch SystemNotifications.step(status, asked: asked) {

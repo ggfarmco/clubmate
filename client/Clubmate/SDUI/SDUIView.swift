@@ -157,6 +157,15 @@ struct SDUINodeView: View {
     let node: SDUINode
 
     var body: some View {
+        if TestMode.current {
+            content.modifier(SDUIProbe(node: node))
+        } else {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch node.type {
         case "stack": StackNodeView(node: node)
         case "split": SplitNodeView(node: node)

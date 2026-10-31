@@ -42,7 +42,12 @@ Compact, Zed/Ghostty feel; width is the scarce resource. Collapsed by default, e
 
 1. `make app` prints `BUILD SUCCEEDED`. View code that was not compiled is not done.
 2. Stress inputs: 80+ items, the longest realistic name or path, an empty list, interface font +4.
-3. Look at it in the real window narrowed to ~640pt and at ~900pt, or in the gallery (`open -n "build/DerivedData/Build/Products/Debug/Clubmate Dev.app" --args --sdui-gallery`, nodes from `SDUI/GalleryFixture.json`). Tell the user before launching: the test app takes keyboard focus. Capture only its window, never the full screen (the user's own sessions are on it): `screencapture -x -o -l "$(swift .claude/skills/clubmate-ui/scripts/window-id.swift 'Clubmate Dev')" /tmp/ui.png`, then Read the png. Quit the test app afterwards.
+3. Look at it in an invisible test instance; it never takes focus or covers the user's windows, and other agents' instances don't interfere:
+   - `scripts/test-app.sh start` (or `start <name> -- --sdui-gallery` for the gallery, nodes from `SDUI/GalleryFixture.json`); it opens this worktree as a workspace.
+   - `scripts/test-app.sh cm -- ui snapshot --out /tmp/clubmate-test-<name>/snapshots --size 640x800`, then again with `--size 900x800`. Read the `summary` first (`0 problems` or flagged SDUI nodes: `outside-window`, `wider-than-parent`, `overlaps-sibling`, `truncated`), then the png. Popovers and settings: `cm -- ui present inbox|worktree|switcher|settings` before the snapshot; menus are listed as text in the `w<id>.json`.
+   - Drive it with `cm -- ui event`, `cm -- command run`, or over MCP with `testapp_call`.
+   - `scripts/test-app.sh stop` afterwards.
+   Never use `screencapture`.
 4. If you could not look, write "visually unverified" in the report and say which of the above was skipped.
 
 Past bug classes with their commits: `references/bug-classes.md`.

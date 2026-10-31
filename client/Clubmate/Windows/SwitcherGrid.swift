@@ -246,9 +246,7 @@ final class SwitcherKeyView: NSView {
 @MainActor
 enum WorkspaceThumbnail {
     static func capture(_ window: NSWindow) -> NSImage? {
-        guard let root = window.contentView, root.bounds.width > 0, root.bounds.height > 0,
-              let screen = root.bitmapImageRepForCachingDisplay(in: root.bounds) else { return nil }
-        root.cacheDisplay(in: root.bounds, to: screen)
+        guard let root = window.contentView, let screen = WindowImage.bitmap(window) else { return nil }
         let tile = SwitcherGridView.tile
         let scale = max(tile.width / root.bounds.width, tile.height / root.bounds.height)
         let size = NSSize(width: (root.bounds.width * scale).rounded(), height: (root.bounds.height * scale).rounded())

@@ -26,7 +26,7 @@ extension AppModel {
             if let log = AppLog.recent() {
                 extra[Diagnostics.appLogName] = log
             }
-            if screenshot, let png = window.flatMap(WindowSnapshot.png), png.count <= Diagnostics.extraLimit {
+            if screenshot, let png = window.flatMap { WindowImage.png($0) }, png.count <= Diagnostics.extraLimit {
                 extra[Diagnostics.windowName] = png
             }
             let result: DiagnosticsResult
@@ -92,8 +92,10 @@ private final class DiagnosticsSheet: NSObject {
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Save…")
         let response: NSApplication.ModalResponse
-        if let window = window ?? NSApp.keyWindow {
+        if let window = window ?? NSApp.promptWindow {
             response = await alert.beginSheetModal(for: window)
+        } else if TestMode.current {
+            return nil
         } else {
             response = alert.runModal()
         }
@@ -107,18 +109,8 @@ private final class DiagnosticsSheet: NSObject {
         panel.nameFieldStringValue = Diagnostics.archiveName(Date())
         panel.allowedContentTypes = [.zip]
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK else { return nil }
+        guard !TestMode.current, panel.runModal() == .OK else { return nil }
         return panel.url
-    }
-}
-
-@MainActor
-private enum WindowSnapshot {
-    static func png(_ window: NSWindow) -> Data? {
-        guard let root = window.contentView, root.bounds.width > 0, root.bounds.height > 0,
-              let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds) else { return nil }
-        root.cacheDisplay(in: root.bounds, to: rep)
-        return rep.representation(using: .png, properties: [:])
     }
 }
 

@@ -7,6 +7,8 @@ public final class CoreClient {
     private var pumpFinished = false
     public private(set) var stoppedIntentionally = false
     public var confirmHandler: (@MainActor (ConfirmRequest, ConfirmExpiry) async -> Bool)?
+    public var snapshotHandler: (@MainActor (SnapshotRequest) async throws -> SnapshotResult)?
+    public var presentHandler: (@MainActor (PresentRequest) async throws -> Bool)?
 
     var isAlive: Bool { !pumpFinished }
 
@@ -171,6 +173,20 @@ public final class CoreClient {
     }
 
     private func answer(_ request: RPCRequest) async {
+        switch request.method {
+        case "ui.snapshot":
+            await answerTest(request, snapshotHandler)
+            return
+        case "ui.present":
+            var present: (@MainActor (PresentRequest) async throws -> [String: Bool])?
+            if let handler = presentHandler {
+                present = { request in ["shown": try await handler(request)] }
+            }
+            await answerTest(request, present)
+            return
+        default:
+            break
+        }
         guard request.method == "ui.confirm" else {
             try? await connection.replyError(id: request.id, code: -32601, message: "method not found: \(request.method)")
             return
@@ -182,6 +198,24 @@ public final class CoreClient {
         let handler = confirmHandler
         let reply = await ConfirmRequest.answer(confirm) { await handler?($0, $1) ?? false }
         try? await connection.reply(id: request.id, result: reply)
+    }
+
+    private func answerTest<P: Decodable, R: Encodable & Sendable>(_ request: RPCRequest, _ handler: (@MainActor (P) async throws -> R)?) async {
+        guard let handler else {
+            try? await connection.replyError(id: request.id, code: -32601, message: "method not found: \(request.method)")
+            return
+        }
+        guard let params = try? request.params.decode(P.self) else {
+            try? await connection.replyError(id: request.id, code: -32602, message: "invalid \(request.method) params")
+            return
+        }
+        do {
+            try await connection.reply(id: request.id, result: try await handler(params))
+        } catch let error as TestModeError {
+            try? await connection.replyError(id: request.id, code: -32000, message: error.message)
+        } catch {
+            try? await connection.replyError(id: request.id, code: -32000, message: "\(error)")
+        }
     }
 
     private func broadcast(_ notification: RPCNotification) {

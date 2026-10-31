@@ -222,6 +222,7 @@ struct ComposerNodeView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help("Permission mode")
+            .testMenu("\(node.id ?? "composer").mode", modes.map { LayoutMenuItem(title: $0.label) })
         }
         pickers
         attachMenu
@@ -265,6 +266,7 @@ struct ComposerNodeView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help(pickers.map(\.label).joined(separator: "\n"))
+            .testMenu("\(node.id ?? "composer").options", pickers.map { picker in LayoutMenuItem(title: picker.title ?? "Model", children: picker.options.map { LayoutMenuItem(title: ($0.value == picker.value ? "✓ " : "") + $0.label) }) })
         }
     }
 
@@ -286,6 +288,7 @@ struct ComposerNodeView: View {
             .fixedSize()
             .help("Attach")
             .accessibilityLabel("Attach")
+            .testMenu("\(node.id ?? "composer").attach", (kinds.contains("file") && filePicker != nil ? [LayoutMenuItem(title: "File…")] : []) + (kinds.contains("selection") ? [LayoutMenuItem(title: "Editor Selection")] : []))
         }
     }
 

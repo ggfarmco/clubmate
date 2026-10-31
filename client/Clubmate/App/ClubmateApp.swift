@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let closeKey = CloseKeyOwner()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if TestMode.current { TestHarness.shared.start() }
         closeKey.start()
     }
 

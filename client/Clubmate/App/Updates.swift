@@ -55,6 +55,7 @@ final class Updates: NSObject {
         }
         alert.addButton(withTitle: "Continue")
         alert.addButton(withTitle: "Cancel")
+        guard !TestMode.current else { return false }
         NSApp.activate()
         return alert.runModal() == .alertFirstButtonReturn
     }

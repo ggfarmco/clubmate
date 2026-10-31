@@ -83,7 +83,8 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
   - `go test -race ./...`;
   - `make lint`;
   - `make kit-test`;
-  - end-to-end runs use the dev app with scratch `XDG_*` dirs; the records are in `docs/verification/`.
+  - end-to-end runs use the dev app with scratch `XDG_*` dirs; the records are in the `clubmate-notes` repo under `verification/`;
+  - agents look at the app through `scripts/test-app.sh`: an invisible test-mode instance with its own core that draws its windows to png plus a flagged layout dump (`cm ui snapshot`, MCP `testapp.call`); see `docs/agents.md`.
 - **Release:**
   - Pushing a `vX.Y.Z` tag runs the release workflow, which waits for approval of the `release` environment.
   - It signs with Developer ID (entitlements in `scripts/release/`), notarizes, builds a DMG and a Sparkle appcast, and publishes a GitHub release.

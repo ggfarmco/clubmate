@@ -10,13 +10,13 @@ import ClubmateKit
 final class AppModel {
     let supervisor: ConnectionSupervisor
     let updates: Updates
-    let settings = AppSettings()
+    let settings = AppSettings(defaults: TestMode.defaults)
     let claude = ClaudeIntegration()
     private(set) var projects: ProjectsStore?
     private(set) var commands: [Command] = []
     private(set) var switcherWindow: String?
     private(set) var inboxWindow: String?
-    private let layout = WindowLayout()
+    private let layout = WindowLayout(defaults: TestMode.defaults)
 
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
     @ObservationIgnored private var openRequests: Task<Void, Never>?
@@ -113,7 +113,7 @@ final class AppModel {
         syncSessions()
         touch(projectID)
         openWindow?(value: window)
-        NSApp.activate()
+        if !TestMode.current { NSApp.activate() }
     }
 
     func activateFromSwitcher(_ projectID: String, in window: String) {
@@ -321,6 +321,10 @@ final class AppModel {
         try await CoreLauncher(cliPath: cli, bundledVersion: Bundle.main.clubmateVersion).ensureRunning(paths: paths)
         let client = try await CoreClient.connect(paths: paths)
         client.confirmHandler = { [weak self] request, expiry in await self?.approve(request, expiry) ?? false }
+        if TestMode.current {
+            client.snapshotHandler = { try await TestHarness.shared.snapshot($0) }
+            client.presentHandler = { try TestHarness.shared.present($0) }
+        }
         do {
             let commands = try await client.commandList()
             let projects = ProjectsStore(client: client)
@@ -342,6 +346,7 @@ final class AppModel {
     }
 
     private func approve(_ request: ConfirmRequest, _ expiry: ConfirmExpiry) async -> Bool {
+        if TestMode.current { return false }
         let window = keyWindowID.flatMap { hosts.object(forKey: $0 as NSString) } ?? layout.windows.lazy.compactMap { self.hosts.object(forKey: $0.id as NSString) }.first
         let attention = NSApp.requestUserAttention(.criticalRequest)
         defer { NSApp.cancelUserAttentionRequest(attention) }
@@ -484,7 +489,7 @@ extension AppModel {
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail
-        alert.runModal()
+        if !TestMode.current { alert.runModal() }
     }
 
     private static func chooseFolders(prompt: String) -> [String]? {
@@ -494,7 +499,7 @@ extension AppModel {
         panel.allowsMultipleSelection = true
         panel.showsHiddenFiles = true
         panel.prompt = prompt
-        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return nil }
+        guard !TestMode.current, panel.runModal() == .OK, !panel.urls.isEmpty else { return nil }
         return panel.urls.map { $0.path(percentEncoded: false) }
     }
 
@@ -502,7 +507,7 @@ extension AppModel {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = message
-        alert.runModal()
+        if !TestMode.current { alert.runModal() }
     }
 }
 
