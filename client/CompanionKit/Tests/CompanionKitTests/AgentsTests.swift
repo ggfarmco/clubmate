@@ -151,8 +151,8 @@ final class TranscriptRefreshTests: XCTestCase {
         try await waitUntil { store.transcripts["s"]?.entries.count == 3 }
         store.handle(.event(BusEvent(seq: 1, topic: "agents.changed", payload: .object(["workspace": .string("w"), "session": .string("s")]))))
         try await waitUntil { store.transcripts["s"]?.entries.count == 4 }
-        XCTAssertEqual(runner.args.first, .object(["session": .string("s")]))
-        XCTAssertEqual(runner.args.last, .object(["session": .string("s"), "fromTurn": .number(2)]))
+        XCTAssertEqual(runner.args.first, .object(["session": .string("s"), "compact": .bool(true)]))
+        XCTAssertEqual(runner.args.last, .object(["session": .string("s"), "compact": .bool(true), "fromTurn": .number(2)]))
         let transcript = try XCTUnwrap(store.transcripts["s"])
         XCTAssertEqual(transcript.entries.map(\.id), ["user/prompt-1", "user/prompt-2", "agent/a2", "user/prompt-3"])
         XCTAssertEqual(transcript.entries[2].content, .agent("full answer"))
@@ -182,7 +182,7 @@ final class TranscriptRefreshTests: XCTestCase {
         store.watch("s")
         try await waitUntil { store.sessions.first?.status == .done }
         XCTAssertEqual(store.transcripts["s"]?.entries.map(\.id), ["user/prompt-1", "agent/a1"])
-        XCTAssertEqual(runner.args, [.object(["session": .string("s")]), .object(["session": .string("s"), "fromTurn": .number(1)])])
+        XCTAssertEqual(runner.args, [.object(["session": .string("s"), "compact": .bool(true)]), .object(["session": .string("s"), "compact": .bool(true), "fromTurn": .number(1)])])
         store.unwatch("s")
     }
 }

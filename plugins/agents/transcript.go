@@ -120,6 +120,9 @@ func (s *session) view(fromTurn int) transcriptView {
 				for k, val := range en.Tool {
 					c.Tool[k] = val
 				}
+				if !s.running {
+					closeTool(c.Tool)
+				}
 			}
 			v.Entries = append(v.Entries, &c)
 		}
@@ -356,11 +359,15 @@ func (s *session) cancelTools(turn int) {
 		if en.Kind != entryTool || en.Turn != turn {
 			continue
 		}
-		var status string
-		_ = json.Unmarshal(en.Tool["status"], &status)
-		if slices.Contains(openToolStatuses, status) {
-			en.Tool["status"] = json.RawMessage(`"cancelled"`)
-		}
+		closeTool(en.Tool)
+	}
+}
+
+func closeTool(tool map[string]json.RawMessage) {
+	var status string
+	_ = json.Unmarshal(tool["status"], &status)
+	if slices.Contains(openToolStatuses, status) {
+		tool["status"] = json.RawMessage(`"cancelled"`)
 	}
 }
 

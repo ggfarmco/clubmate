@@ -98,7 +98,7 @@ public final class AgentsStore {
                 do {
                     let loaded = incremental ? transcripts[session] : nil
                     let fromTurn = loaded?.lastTurn ?? 0
-                    var args: [String: JSONValue] = ["session": .string(session)]
+                    var args: [String: JSONValue] = ["session": .string(session), "compact": .bool(true)]
                     if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
                     let fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args)).decode(AgentTranscript.self)
                     transcripts[session] = fromTurn > 0 ? loaded?.merging(fetched, fromTurn: fromTurn) ?? fetched : fetched

@@ -140,6 +140,7 @@ type pathArgs struct {
 type transcriptArgs struct {
 	Session  string `json:"session"`
 	FromTurn int    `json:"fromTurn"`
+	Compact  bool   `json:"compact"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -289,6 +290,11 @@ func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 	v := s.view(args.FromTurn)
 	if cmd.Agent {
 		dropImageData(v.Entries)
+	}
+	if args.Compact {
+		for _, en := range v.Entries {
+			delete(en.Tool, "rawOutput")
+		}
 	}
 	return v, nil
 }
