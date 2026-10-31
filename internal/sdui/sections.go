@@ -12,27 +12,19 @@ const (
 )
 
 type SectionDef struct {
-	ID      string
-	Title   string
-	Icon    string
-	Order   int
-	Scope   string
-	AutoNew bool
-	Plugin  string
-	Slots   []string
-	Host    string
-}
-
-type Section struct {
 	ID      string   `json:"id"`
 	Title   string   `json:"title"`
 	Icon    string   `json:"icon"`
 	Order   int      `json:"order"`
 	Scope   string   `json:"scope"`
 	AutoNew bool     `json:"autoNew"`
-	Plugin  string   `json:"plugin"`
 	Slots   []string `json:"slots,omitempty"`
 	Host    string   `json:"host,omitempty"`
+}
+
+type Section struct {
+	SectionDef
+	Plugin string `json:"plugin"`
 }
 
 type ViewDef struct {
@@ -48,7 +40,7 @@ type Sections struct {
 	extra  map[string]string
 }
 
-func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
+func NewSections(defs []Section, views ...ViewDef) *Sections {
 	s := &Sections{list: []Section{}, owners: map[string]string{}, scopes: map[string]string{}, views: map[string]string{}, extra: map[string]string{}}
 	for _, v := range views {
 		s.views[v.Slot] = v.Plugin
@@ -63,7 +55,7 @@ func NewSections(defs []SectionDef, views ...ViewDef) *Sections {
 		for _, name := range d.Slots {
 			s.extra[d.ID+"."+name] = d.ID
 		}
-		s.list = append(s.list, Section(d))
+		s.list = append(s.list, d)
 	}
 	for i, sec := range s.list {
 		if sec.Host != "" && (sec.Host == sec.ID || s.scopes[sec.Host] != sec.Scope) {

@@ -114,24 +114,8 @@ func (r *Router) warnOnce(msg string) {
 	r.sup.logger.Warn(msg)
 }
 
-func command(st Status, c CommandDef) rpc.Command {
-	return rpc.Command{
-		ID:          c.ID,
-		Title:       c.Title,
-		Description: c.Description,
-		Plugin:      st.ID,
-		Hidden:      c.Hidden,
-		Confirm:     c.Confirm,
-		Args:        c.Args,
-		Result:      c.Result,
-		Agent:       c.Agent,
-		Remote:      c.Remote,
-		Running:     st.State == StateRunning,
-		Scope:       c.Scope,
-		Destructive: c.Destructive,
-		Provides:    c.Provides,
-		Timeout:     c.Timeout,
-	}
+func command(st Status, c rpc.CommandDef) rpc.Command {
+	return rpc.Command{CommandDef: c, Plugin: st.ID, Running: st.State == StateRunning}
 }
 
 func (r *Router) call(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {

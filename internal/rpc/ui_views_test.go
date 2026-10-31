@@ -137,8 +137,8 @@ func TestHiddenCommandListed(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.secret","title":"Secret","hidden":true},{"id":"alpha.open","title":"Open"}]}`)))
 	assert.ElementsMatch(t, []rpc.Command{
-		{ID: "alpha.secret", Title: "Secret", Plugin: "alpha", Hidden: true},
-		{ID: "alpha.open", Title: "Open", Plugin: "alpha"},
+		{CommandDef: rpc.CommandDef{ID: "alpha.secret", Title: "Secret", Hidden: true}, Plugin: "alpha"},
+		{CommandDef: rpc.CommandDef{ID: "alpha.open", Title: "Open"}, Plugin: "alpha"},
 	}, pluginCommands(t, h))
 }
 
@@ -146,8 +146,8 @@ func TestCommandConfirmListed(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[{"id":"alpha.drop","title":"Drop","confirm":"Sure?"},{"id":"alpha.open","title":"Open"}]}`)))
 	assert.ElementsMatch(t, []rpc.Command{
-		{ID: "alpha.drop", Title: "Drop", Plugin: "alpha", Confirm: "Sure?"},
-		{ID: "alpha.open", Title: "Open", Plugin: "alpha"},
+		{CommandDef: rpc.CommandDef{ID: "alpha.drop", Title: "Drop", Confirm: "Sure?"}, Plugin: "alpha"},
+		{CommandDef: rpc.CommandDef{ID: "alpha.open", Title: "Open"}, Plugin: "alpha"},
 	}, pluginCommands(t, h))
 }
 

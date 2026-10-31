@@ -37,22 +37,26 @@ type Router interface {
 	Capabilities() map[string]string
 }
 
-type Command struct {
+type CommandDef struct {
 	ID          string         `json:"id"`
 	Title       string         `json:"title"`
 	Description string         `json:"description"`
-	Plugin      string         `json:"plugin"`
 	Hidden      bool           `json:"hidden"`
 	Confirm     string         `json:"confirm"`
 	Args        *schema.Object `json:"args,omitempty"`
 	Result      *schema.Object `json:"result,omitempty"`
 	Agent       bool           `json:"agent"`
 	Remote      bool           `json:"remote"`
-	Running     bool           `json:"running"`
 	Scope       string         `json:"scope,omitempty"`
 	Destructive bool           `json:"destructive"`
 	Provides    []string       `json:"provides,omitempty"`
 	Timeout     int            `json:"timeout,omitempty"`
+}
+
+type Command struct {
+	CommandDef
+	Plugin  string `json:"plugin"`
+	Running bool   `json:"running"`
 }
 
 type uiState struct {

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"clubmate/internal/rpc"
 	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
 )
@@ -43,40 +44,13 @@ type Manifest struct {
 }
 
 type Contributes struct {
-	Sections []Section    `json:"sections"`
-	Commands []CommandDef `json:"commands"`
-	Views    []View       `json:"views"`
+	Sections []sdui.SectionDef `json:"sections"`
+	Commands []rpc.CommandDef  `json:"commands"`
+	Views    []View            `json:"views"`
 }
 
 type View struct {
 	Slot string `json:"slot"`
-}
-
-type Section struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title"`
-	Icon    string   `json:"icon"`
-	Order   int      `json:"order"`
-	Scope   string   `json:"scope"`
-	AutoNew bool     `json:"autoNew"`
-	Slots   []string `json:"slots"`
-	Host    string   `json:"host"`
-}
-
-type CommandDef struct {
-	ID          string         `json:"id"`
-	Title       string         `json:"title"`
-	Description string         `json:"description"`
-	Hidden      bool           `json:"hidden"`
-	Confirm     string         `json:"confirm"`
-	Args        *schema.Object `json:"args"`
-	Result      *schema.Object `json:"result"`
-	Agent       bool           `json:"agent"`
-	Remote      bool           `json:"remote"`
-	Scope       string         `json:"scope"`
-	Destructive bool           `json:"destructive"`
-	Provides    []string       `json:"provides"`
-	Timeout     int            `json:"timeout"`
 }
 
 func Load(dir string) (Manifest, error) {
@@ -99,11 +73,11 @@ func Load(dir string) (Manifest, error) {
 	return m, nil
 }
 
-func SectionDefs(manifests []Manifest) []sdui.SectionDef {
-	var defs []sdui.SectionDef
+func SectionDefs(manifests []Manifest) []sdui.Section {
+	var defs []sdui.Section
 	for _, m := range manifests {
 		for _, s := range m.Contributes.Sections {
-			defs = append(defs, sdui.SectionDef{ID: s.ID, Title: s.Title, Icon: s.Icon, Order: s.Order, Scope: s.Scope, AutoNew: s.AutoNew, Plugin: m.ID, Slots: s.Slots, Host: s.Host})
+			defs = append(defs, sdui.Section{SectionDef: s, Plugin: m.ID})
 		}
 	}
 	return defs

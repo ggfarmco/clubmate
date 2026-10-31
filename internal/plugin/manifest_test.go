@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/plugin"
+	"clubmate/internal/rpc"
 )
 
 func TestLoadRejectsCommandOutsideDir(t *testing.T) {
@@ -53,7 +54,7 @@ func TestManifestMetadataOptional(t *testing.T) {
 	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go"}]}}`)
 	m, err := plugin.Load(dir)
 	require.NoError(t, err)
-	assert.Equal(t, []plugin.CommandDef{{ID: "beta.go", Title: "Go"}}, m.Contributes.Commands)
+	assert.Equal(t, []rpc.CommandDef{{ID: "beta.go", Title: "Go"}}, m.Contributes.Commands)
 }
 
 func TestLoadRejectsInvalidArgsSchema(t *testing.T) {

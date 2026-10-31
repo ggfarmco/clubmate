@@ -49,7 +49,7 @@ func startCoreWithUI(t *testing.T) *internalsdui.Store {
 	t.Helper()
 	srv, _ := testutil.NewRPCServer(t)
 	store := internalsdui.NewStore()
-	sections := internalsdui.NewSections([]internalsdui.SectionDef{{ID: "echo", Title: "Echo", Plugin: "echo"}})
+	sections := internalsdui.NewSections([]internalsdui.Section{{SectionDef: internalsdui.SectionDef{ID: "echo", Title: "Echo"}, Plugin: "echo"}})
 	sup := plugin.NewSupervisor(srv, testutil.ShortDirs(t), slog.New(slog.DiscardHandler))
 	srv.SetUI(store, sections, plugin.NewRouter(sup))
 	serve(t, srv)

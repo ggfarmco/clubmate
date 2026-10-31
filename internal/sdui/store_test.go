@@ -126,10 +126,10 @@ func TestCloseIsIdempotentAndClosesChannel(t *testing.T) {
 }
 
 func TestSectionsOrderOwnerAndSlots(t *testing.T) {
-	sec := internalsdui.NewSections([]internalsdui.SectionDef{
-		{ID: "b", Title: "B", Order: 1, Plugin: "pb"},
-		{ID: "a", Title: "A", Order: 1, Plugin: "pa"},
-		{ID: "z", Title: "Z", Order: 0, Plugin: "pz"},
+	sec := internalsdui.NewSections([]internalsdui.Section{
+		{SectionDef: internalsdui.SectionDef{ID: "b", Title: "B", Order: 1}, Plugin: "pb"},
+		{SectionDef: internalsdui.SectionDef{ID: "a", Title: "A", Order: 1}, Plugin: "pa"},
+		{SectionDef: internalsdui.SectionDef{ID: "z", Title: "Z", Order: 0}, Plugin: "pz"},
 	})
 	var ids []string
 	for _, s := range sec.List() {
@@ -150,13 +150,13 @@ func TestSectionsOrderOwnerAndSlots(t *testing.T) {
 }
 
 func TestSectionsKeepOnlyValidHosts(t *testing.T) {
-	sec := internalsdui.NewSections([]internalsdui.SectionDef{
-		{ID: "code", Plugin: "pc"},
-		{ID: "git", Plugin: "pg", Host: "code"},
-		{ID: "sub", Plugin: "ps", Host: "git"},
-		{ID: "lost", Plugin: "pl", Host: "nope"},
-		{ID: "late", Plugin: "pt", Host: "lost"},
-		{ID: "app", Plugin: "pa", Scope: internalsdui.ScopeApp, Host: "code"},
+	sec := internalsdui.NewSections([]internalsdui.Section{
+		{SectionDef: internalsdui.SectionDef{ID: "code"}, Plugin: "pc"},
+		{SectionDef: internalsdui.SectionDef{ID: "git", Host: "code"}, Plugin: "pg"},
+		{SectionDef: internalsdui.SectionDef{ID: "sub", Host: "git"}, Plugin: "ps"},
+		{SectionDef: internalsdui.SectionDef{ID: "lost", Host: "nope"}, Plugin: "pl"},
+		{SectionDef: internalsdui.SectionDef{ID: "late", Host: "lost"}, Plugin: "pt"},
+		{SectionDef: internalsdui.SectionDef{ID: "app", Scope: internalsdui.ScopeApp, Host: "code"}, Plugin: "pa"},
 	})
 	hosts := map[string]string{}
 	for _, s := range sec.List() {
