@@ -177,6 +177,12 @@ func (h *Host) Render(ctx context.Context, projectID, slot string, n sdui.Node) 
 	return out.Rev, err
 }
 
+func (h *Host) RenderJSON(ctx context.Context, projectID, slot string, tree json.RawMessage) (int64, error) {
+	var out renderResult
+	err := h.Call(ctx, "ui.render", renderParams{ProjectID: projectID, Slot: slot, Tree: tree}, &out)
+	return out.Rev, err
+}
+
 func (h *Host) Approve(ctx context.Context, projectID, title, command string, args map[string]string, body string) error {
 	return h.Call(ctx, "ui.approve", approveParams{ProjectID: projectID, Title: title, Command: command, Args: args, Body: body}, nil)
 }
@@ -266,9 +272,9 @@ type subscribeResult struct {
 }
 
 type renderParams struct {
-	ProjectID string    `json:"projectId"`
-	Slot      string    `json:"slot"`
-	Tree      sdui.Node `json:"tree"`
+	ProjectID string `json:"projectId"`
+	Slot      string `json:"slot"`
+	Tree      any    `json:"tree"`
 }
 
 type approveParams struct {

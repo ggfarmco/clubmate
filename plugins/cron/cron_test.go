@@ -69,6 +69,7 @@ func newAgentsFixture(t *testing.T, script map[string]any) *fixture {
 	h := testutil.NewPluginHarness(t, cronDir(t), testutil.BuildPluginDir(t, "clubmate/plugins/agents", "plugins/agents/plugin.json"))
 	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{newRepo(t)})
 	require.NoError(t, err)
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
 	f := ready(t, &fixture{h: h, project: p.ID})
 	testutil.Eventually(t, func() bool { return f.run(t, "agents.sessions", map[string]any{}, nil) == nil }, restartWait)
 	return f

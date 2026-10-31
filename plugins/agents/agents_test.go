@@ -91,6 +91,7 @@ type fakeCall struct {
 type fixture struct {
 	h       *testutil.PluginHarness
 	fakeLog string
+	subs    map[string]string
 }
 
 func TestMain(m *testing.M) {
@@ -130,7 +131,7 @@ func start(t *testing.T, script map[string]any, dirs ...string) *fixture {
 	require.NoError(t, err)
 	scriptPath := filepath.Join(t.TempDir(), "script.json")
 	require.NoError(t, os.WriteFile(scriptPath, raw, 0o600))
-	f := &fixture{fakeLog: filepath.Join(t.TempDir(), "fake.jsonl")}
+	f := &fixture{fakeLog: filepath.Join(t.TempDir(), "fake.jsonl"), subs: map[string]string{}}
 	t.Setenv("CLUBMATE_AGENTS_COMMAND", testutil.BuildBinary(t, "clubmate/plugins/agents/internal/fakeagent"))
 	t.Setenv("FAKEAGENT_SCRIPT", scriptPath)
 	t.Setenv("FAKEAGENT_LOG", f.fakeLog)
@@ -152,7 +153,17 @@ func (f *fixture) project(t *testing.T, repo string) string {
 	t.Helper()
 	p, err := f.h.Svc.CreateProject(t.Context(), "demo", []string{repo})
 	require.NoError(t, err)
+	f.subscribe(t, p.ID)
 	return p.ID
+}
+
+func (f *fixture) subscribe(t *testing.T, project string) {
+	t.Helper()
+	var out struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, &out))
+	f.subs[project] = out.Subscription
 }
 
 func (f *fixture) run(t *testing.T, project, command string, args, out any) error {
@@ -1143,6 +1154,77 @@ func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
 
 	assert.Equal(t, main, f.rev(t, project, "agents.main"))
 	assert.Greater(t, f.rev(t, project, "agents.sidebar"), sidebar)
+}
+
+func TestHiddenSlotsStayUnrendered(t *testing.T) {
+	steps := []map[string]any{}
+	for i := range 100 {
+		steps = append(steps, map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": strconv.Itoa(i) + " "}}}, map[string]any{"sleep": 20})
+	}
+	commands := make([]map[string]string, 0, 100)
+	for i := range 100 {
+		commands = append(commands, map[string]string{"name": "skill-" + strconv.Itoa(i), "description": strings.Repeat("Use when the task needs skill "+strconv.Itoa(i)+". ", 25)})
+	}
+	f := start(t, map[string]any{"prompt": steps, "commands": commands}, testutil.EchoPluginDirAs(t, codeManifest))
+	project := f.project(t, newRepo(t))
+	c := f.h.Client(t)
+	session := f.newSession(t, project)
+	f.waitStatus(t, project, session, "idle")
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		composers := cardsOf(n, "composer")
+		return len(composers) == 1 && composers[0].Props["commands"] != nil
+	})
+
+	slots := []string{"agents.main", "agents.sidebar", "editor-nvim.sidebar"}
+	renders := map[string]map[string]int64{}
+	for _, section := range []string{"agents", "terminals", "closed"} {
+		if section == "closed" {
+			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"projectId": project, "key": "section", "value": "agents"}, nil))
+			require.NoError(t, c.Call(t.Context(), "ui.unsubscribe", map[string]string{"subscription": f.subs[project]}, nil))
+		} else {
+			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"projectId": project, "key": "section", "value": section}, nil))
+		}
+		time.Sleep(300 * time.Millisecond)
+		before := map[string]int64{}
+		for _, slot := range slots {
+			before[slot] = f.rev(t, project, slot)
+		}
+		began := time.Now()
+		f.prompt(t, project, session, "go")
+		f.waitStatus(t, project, session, "done")
+		took := time.Since(began)
+		time.Sleep(300 * time.Millisecond)
+		renders[section] = map[string]int64{}
+		for _, slot := range slots {
+			renders[section][slot] = f.rev(t, project, slot) - before[slot]
+		}
+		t.Logf("section %s, turn %s: renders %v, agents.main %d bytes", section, took.Round(time.Millisecond), renders[section], f.treeBytes(t, project, "agents.main"))
+	}
+
+	assert.Positive(t, renders["agents"]["agents.main"])
+	assert.Zero(t, renders["agents"]["editor-nvim.sidebar"])
+	assert.Zero(t, renders["terminals"]["agents.main"])
+	assert.Zero(t, renders["terminals"]["editor-nvim.sidebar"])
+	assert.Equal(t, map[string]int64{"agents.main": 0, "agents.sidebar": 0, "editor-nvim.sidebar": 0}, renders["closed"])
+
+	main := f.rev(t, project, "agents.main")
+	f.subscribe(t, project)
+	testutil.Eventually(t, func() bool { return f.rev(t, project, "agents.main") > main }, wait)
+}
+
+func (f *fixture) treeBytes(t *testing.T, project, slot string) int {
+	t.Helper()
+	var views []struct {
+		Slot string          `json:"slot"`
+		Tree json.RawMessage `json:"tree"`
+	}
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"projectId": project}, &views))
+	for _, v := range views {
+		if v.Slot == slot {
+			return len(v.Tree)
+		}
+	}
+	return 0
 }
 
 func TestContinueHandsOff(t *testing.T) {

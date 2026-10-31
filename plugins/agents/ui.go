@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,11 +49,13 @@ type uiState struct {
 	steers       map[string]bool
 	noResume     map[string]bool
 	advisors     map[string]string
+	present      map[string]bool
+	sections     map[string]string
 }
 
 type projectUI struct {
 	render    sync.Mutex
-	sent      map[string][sha256.Size]byte
+	sent      map[string][]byte
 	throttle  *throttle
 	tick      *ticker
 	selected  string
@@ -65,6 +67,11 @@ type projectUI struct {
 	sessions  map[string]*sessionUI
 	code      map[string]string
 	codeRead  bool
+}
+
+type presencePayload struct {
+	ProjectID string `json:"projectId"`
+	Section   string `json:"section"`
 }
 
 type sessionUI struct {
@@ -80,6 +87,7 @@ func newUIState() uiState {
 	return uiState{
 		ui: map[string]*projectUI{}, goneProjects: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
 		resumable: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
+		present: map[string]bool{}, sections: map[string]string{},
 	}
 }
 
@@ -88,7 +96,7 @@ func (a *app) projectState(projectID string) *projectUI {
 	defer a.uiMu.Unlock()
 	p, ok := a.ui[projectID]
 	if !ok {
-		p = &projectUI{sent: map[string][sha256.Size]byte{}, collapsed: map[string]bool{}, sessions: map[string]*sessionUI{}}
+		p = &projectUI{sent: map[string][]byte{}, collapsed: map[string]bool{}, sessions: map[string]*sessionUI{}}
 		p.throttle = newThrottle(realClock{}, renderEvery, func() { a.renderLogged(projectID) })
 		p.tick = newTicker(realClock{}, tickEvery, p.throttle.kick)
 		a.ui[projectID] = p
@@ -126,6 +134,8 @@ func (a *app) forgetProject(projectID string) {
 	a.goneProjects[projectID] = true
 	p := a.ui[projectID]
 	delete(a.ui, projectID)
+	delete(a.present, projectID)
+	delete(a.sections, projectID)
 	a.uiMu.Unlock()
 	if p != nil {
 		p.throttle.stop()
@@ -151,7 +161,7 @@ func (a *app) renderAll(ctx context.Context) {
 	}
 	a.removeLeftoverTerminals(ctx, projects)
 	for _, p := range projects {
-		if err := a.render(ctx, p.ID); err != nil {
+		if err := a.renderSlots(ctx, p.ID, a.slots()); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: render:", err)
 		}
 	}
@@ -166,6 +176,13 @@ func (a *app) renderLogged(projectID string) {
 }
 
 func (a *app) render(ctx context.Context, projectID string) error {
+	return a.renderSlots(ctx, projectID, a.shownSlots(projectID))
+}
+
+func (a *app) renderSlots(ctx context.Context, projectID string, slots []string) error {
+	if len(slots) == 0 {
+		return nil
+	}
 	p := a.projectState(projectID)
 	p.render.Lock()
 	defer p.render.Unlock()
@@ -174,7 +191,7 @@ func (a *app) render(ctx context.Context, projectID string) error {
 		return err
 	}
 	if project.Home {
-		for _, slot := range a.slots() {
+		for _, slot := range slots {
 			if err := a.push(ctx, p, projectID, slot, sdui.Empty(errHome.Error())); err != nil {
 				return err
 			}
@@ -215,12 +232,17 @@ func (a *app) render(ctx context.Context, projectID string) error {
 	if err := a.push(ctx, p, projectID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now(), branchOpen)); err != nil {
 		return err
 	}
-	main := sdui.Empty(pickSession)
-	if s := a.session(selected); s != nil {
-		main = mainView(a.screen(ctx, projectID, s))
+	if slices.Contains(slots, mainSlot) {
+		main := sdui.Empty(pickSession)
+		if s := a.session(selected); s != nil {
+			main = mainView(a.screen(ctx, projectID, s))
+		}
+		if err := a.push(ctx, p, projectID, mainSlot, main); err != nil {
+			return err
+		}
 	}
-	if err := a.push(ctx, p, projectID, mainSlot, main); err != nil {
-		return err
+	if !slices.Contains(slots, codeSlot) {
+		return nil
 	}
 	return a.renderCode(ctx, p, project, recs)
 }
@@ -230,6 +252,80 @@ func (a *app) slots() []string {
 		return []string{sidebarSlot, mainSlot, codeSlot}
 	}
 	return []string{sidebarSlot, mainSlot}
+}
+
+func (a *app) shownSlots(projectID string) []string {
+	a.uiMu.Lock()
+	present, section := a.present[projectID], a.sections[projectID]
+	a.uiMu.Unlock()
+	if !present {
+		return nil
+	}
+	slots := []string{sidebarSlot}
+	if section == "" || section == sectionID {
+		slots = append(slots, mainSlot)
+	}
+	if a.codePanel && (section == "" || section == editorSection) {
+		slots = append(slots, codeSlot)
+	}
+	return slots
+}
+
+func (a *app) loadPresence(ctx context.Context) error {
+	present, err := a.host.Presence(ctx)
+	if err != nil {
+		return err
+	}
+	for _, id := range present {
+		if err := a.setPresent(ctx, id, true); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: presence:", err)
+		}
+	}
+	return nil
+}
+
+func (a *app) presenceEvent(ctx context.Context, ev pluginsdk.Event) {
+	var p presencePayload
+	if err := json.Unmarshal(ev.Payload, &p); err != nil || p.ProjectID == "" {
+		return
+	}
+	switch ev.Topic {
+	case "ui.opened", "ui.idle":
+		if err := a.setPresent(ctx, p.ProjectID, ev.Topic == "ui.opened"); err != nil {
+			fmt.Fprintln(os.Stderr, "agents: presence:", err)
+		}
+	case "ui.section":
+		a.setSection(p.ProjectID, p.Section)
+	}
+	a.kick(p.ProjectID)
+}
+
+func (a *app) setPresent(ctx context.Context, projectID string, on bool) error {
+	if !on {
+		a.uiMu.Lock()
+		delete(a.present, projectID)
+		a.uiMu.Unlock()
+		return nil
+	}
+	section, err := a.host.SelectedSection(ctx, projectID)
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	if a.goneProjects[projectID] {
+		return nil
+	}
+	a.present[projectID] = true
+	if err == nil {
+		a.sections[projectID] = section
+	}
+	return err
+}
+
+func (a *app) setSection(projectID, section string) {
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	if !a.goneProjects[projectID] {
+		a.sections[projectID] = section
+	}
 }
 
 func (a *app) renderCode(ctx context.Context, p *projectUI, project pluginsdk.Project, recs []record) error {
@@ -336,14 +432,13 @@ func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n 
 	if err != nil {
 		return err
 	}
-	sum := sha256.Sum256(raw)
-	if p.sent[slot] == sum {
+	if bytes.Equal(p.sent[slot], raw) {
 		return nil
 	}
-	if _, err := a.host.Render(ctx, projectID, slot, n); err != nil {
+	if _, err := a.host.RenderJSON(ctx, projectID, slot, raw); err != nil {
 		return err
 	}
-	p.sent[slot] = sum
+	p.sent[slot] = raw
 	return nil
 }
 
@@ -447,6 +542,7 @@ func (a *app) reveal(ctx context.Context, projectID, sid string) error {
 	if err := a.selectSession(ctx, projectID, sid); err != nil {
 		return err
 	}
+	a.setSection(projectID, sectionID)
 	if err := a.render(ctx, projectID); err != nil {
 		return err
 	}

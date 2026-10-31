@@ -406,6 +406,20 @@ func TestConfigPickersAndModelEffortInHeader(t *testing.T) {
 	assert.Equal(t, "Advisor", child[len(child)-1].Title)
 }
 
+func TestComposerClipsCommandDescriptions(t *testing.T) {
+	long := strings.Repeat("é", commandRunes+50)
+	v := transcriptView{
+		Session:  record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusIdle},
+		Commands: []acp.AvailableCommand{{Name: "short", Description: "Review the diff"}, {Name: "long", Description: long}},
+	}
+	tree := mainView(screen{View: v, Composer: "agt_1/composer/0"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	got := nodesOf(tree, "composer")[0].Props["commands"].([]sdui.Command)
+	assert.Equal(t, "Review the diff", got[0].Description)
+	assert.Equal(t, strings.Repeat("é", commandRunes)+"…", got[1].Description)
+}
+
 func TestMergeableGates(t *testing.T) {
 	ok := record{Worktree: "/r/.worktrees/feat/x", Status: statusDone, Finish: finishAsk}
 	assert.True(t, mergeable(ok, true))

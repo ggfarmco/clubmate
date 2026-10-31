@@ -19,6 +19,7 @@ const (
 	codeSelectNode = "code/session"
 	codeNewNode    = "code/new"
 	maxCodeOptions = 50
+	commandRunes   = 300
 	installingNote = "Installing %s adapter…"
 	queuedNote     = "Queued, sent when the turn ends"
 	heldNote       = "Queued, not sent"
@@ -217,7 +218,7 @@ func composer(sc screen) sdui.Node {
 			Hint string `json:"hint"`
 		}
 		_ = json.Unmarshal(c.Input, &input)
-		commands = append(commands, sdui.Command{Name: c.Name, Description: c.Description, Hint: input.Hint})
+		commands = append(commands, sdui.Command{Name: c.Name, Description: clipRunes(c.Description, commandRunes), Hint: input.Hint})
 	}
 	attachments := make([]sdui.Attachment, 0, len(sc.Attachments))
 	for _, a := range sc.Attachments {

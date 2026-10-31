@@ -124,6 +124,12 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, "session.exited", ready.Seq); err != nil {
 		return err
 	}
+	if _, err := h.Subscribe(ctx, "ui.*", ready.Seq); err != nil {
+		return err
+	}
+	if err := a.loadPresence(ctx); err != nil {
+		return err
+	}
 	close(a.loaded)
 	go a.suspendIdleLoop(suspendDelay())
 	a.renderAll(ctx)
@@ -134,6 +140,8 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	switch ev.Topic {
 	case "session.exited":
 		a.signInExited(ctx, ev)
+	case "ui.opened", "ui.idle", "ui.section":
+		a.presenceEvent(ctx, ev)
 	case "project.created":
 		var p projectPayload
 		if json.Unmarshal(ev.Payload, &p) == nil {

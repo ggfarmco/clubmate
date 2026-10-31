@@ -364,6 +364,8 @@ Clients keep per-project UI state with `ui.state.get` / `ui.state.set` `{project
 
 `processes` uses it to skip work nobody sees: its 1 Hz refresh keeps recording history for every present project but renders only projects whose section is `processes` or unknown (`""`). On `ui.section` to `processes` it renders at once.
 
+`agents` renders only for present projects (it renders every project once at start-up). `agents.sidebar` is always rendered for a present project; `agents.main` only while the section is `agents` or unknown, and its `editor-nvim.sidebar` panel only while the section is `editor-nvim` or unknown. A hidden slot keeps its last tree in the store until the next render, which `ui.opened` and `ui.section` trigger. `agents` encodes each tree once and sends the bytes with `pluginsdk.Host.RenderJSON`, skipping the call when they equal the last sent tree. Composer command descriptions are clipped to 300 runes (`…`), as the client shows them on one line.
+
 ## Plugin runtime dir
 
 The core creates `<runtime>/p/<pluginId>` (mode 0700) and passes its path to the plugin in `CLUBMATE_PLUGIN_RUNTIME_DIR` (`pluginsdk.RuntimeDir()`). It passes `<state>/plugin-data/<pluginId>` in `CLUBMATE_PLUGIN_STATE_DIR` (`pluginsdk.StateDir()`) for data that must survive restarts; the plugin creates it when needed. It also passes the build flavour in `CLUBMATE_FLAVOR` (`pluginsdk.Flavor()`): `release` for release builds, `dev` otherwise.
