@@ -16,6 +16,7 @@ public struct AgentAlert: Sendable, Equatable, Identifiable {
     public let body: String
 
     public var id: String { "\(session)/\(request)" }
+    public var kind: NotificationKind { AgentSession.isQuestion(request) ? .needsInput : .permission }
 }
 
 public struct AgentNotifier: Sendable {
@@ -34,7 +35,7 @@ public struct AgentNotifier: Sendable {
                     workspace: session.workspace,
                     session: session.id,
                     request: request,
-                    title: "\(session.agent.isEmpty ? "Agent" : session.agent.capitalized) is waiting for permission",
+                    title: "\(session.agent.isEmpty ? "Agent" : session.agent.capitalized) \(AgentSession.isQuestion(request) ? "has a question" : "is waiting for permission")",
                     body: session.title.isEmpty ? "New session" : session.title
                 )
             }

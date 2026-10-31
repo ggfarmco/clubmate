@@ -89,18 +89,21 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
     case agent(id: String, blocks: [MarkdownBlock])
     case tools(id: String, ToolGroup)
     case answered(PermissionRequest)
+    case asked(Elicitation)
 
     public var id: String {
         switch self {
         case .entry(let entry): entry.id
         case .agent(let id, _), .tools(let id, _): id
         case .answered(let request): "permission/" + request.id
+        case .asked(let question): "elicitation/" + question.id
         }
     }
 }
 
 public enum SessionDock: Sendable, Equatable {
     case permission(PermissionRequest, more: Int)
+    case elicitation(Elicitation)
     case question(String)
 }
 
@@ -117,6 +120,7 @@ public struct SessionScreen: Sendable, Equatable {
         }
         var rows: [TranscriptRow] = []
         var waiting: [PermissionRequest] = []
+        var questions: [Elicitation] = []
         for (index, entry) in entries.enumerated() {
             switch entry.content {
             case .agent(let text):
@@ -140,6 +144,12 @@ public struct SessionScreen: Sendable, Equatable {
                 } else {
                     rows.append(.answered(request))
                 }
+            case .elicitation(let question):
+                if pending.contains(question.id) {
+                    questions.append(question)
+                } else {
+                    rows.append(.asked(question))
+                }
             case .other:
                 break
             default:
@@ -149,6 +159,8 @@ public struct SessionScreen: Sendable, Equatable {
         self.rows = rows
         if let first = waiting.first {
             dock = .permission(first, more: waiting.count - 1)
+        } else if let question = questions.first {
+            dock = .elicitation(question)
         } else if let asked {
             dock = .question(asked.question)
         } else if session?.state == .askingYou {

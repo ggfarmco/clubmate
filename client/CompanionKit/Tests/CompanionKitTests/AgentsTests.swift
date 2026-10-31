@@ -128,6 +128,14 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(transcript.configOptions[0].choices.map(\.label), ["Opus", "sonnet", "Local"])
     }
 
+    func testElicitationEntrySummarisesItsAnswer() throws {
+        let json = #"{"kind":"elicitation","id":"elicitation-3","turn":1,"elicitation":{"mode":"form","message":"Which store?","fields":[{"key":"question_0","type":"choice","options":[{"value":"pg","label":"Postgres"},{"value":"redis","label":"Redis"}]},{"key":"question_0_custom","type":"text","title":"Other"}]},"response":{"action":"accept","content":{"question_0":"pg","question_0_custom":"HA"}}}"#
+        let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
+        guard case .elicitation(let question) = entry.content else { return XCTFail("\(entry.content)") }
+        XCTAssertEqual(question.singleChoice?.key, "question_0")
+        XCTAssertEqual(question.answer, "Postgres · HA")
+    }
+
     func testUnknownEntryKindBecomesOther() throws {
         let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: Data(#"{"session":{"id":"s","status":"brand-new"},"entries":[{"kind":"hologram","id":"h1","turn":1}]}"#.utf8))
         XCTAssertEqual(transcript.session.status, .other)

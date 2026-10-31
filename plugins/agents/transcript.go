@@ -69,6 +69,10 @@ type entry struct {
 	From     string                     `json:"from,omitempty"`
 	Subagent string                     `json:"subagent,omitempty"`
 
+	Elicitation *elicitation             `json:"elicitation,omitempty"`
+	Response    *acp.ElicitationResponse `json:"response,omitempty"`
+	Completed   bool                     `json:"completed,omitempty"`
+
 	Compaction *compaction `json:"compaction,omitempty"`
 
 	node *nodeCache
@@ -324,6 +328,13 @@ func (s *session) apply(e envelope) {
 				s.entries[i].Outcome, s.entries[i].node = &p.Outcome, nil
 			}
 		}
+	case kindElicitation:
+		s.nextID++
+		s.applyElicitation(e)
+	case kindElicitationAnswer:
+		s.applyElicitationAnswer(e)
+	case kindElicitationComplete:
+		s.applyElicitationComplete(e)
 	}
 }
 

@@ -197,3 +197,9 @@ public struct PendingSummary: Codable, Sendable, Hashable {
         try c.encode(formatter.string(from: at), forKey: .at)
     }
 }
+
+extension AgentSession {
+    public static func isQuestion(_ request: String) -> Bool {
+        request.hasPrefix("elicitation-")
+    }
+}

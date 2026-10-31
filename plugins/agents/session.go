@@ -144,6 +144,8 @@ func (s *session) activity() string {
 			var f toolFields
 			_ = json.Unmarshal(en.ToolCall, &f)
 			title = f.Title
+		case s.rec.Status == statusWaiting && en.Kind == entryElicitation && s.perms[en.ID] != nil && en.Elicitation != nil:
+			title = en.Elicitation.Message
 		case s.rec.Status == statusRunning && en.Kind == entryTool:
 			s.refreshLocked(en)
 			_ = json.Unmarshal(en.Tool["title"], &title)

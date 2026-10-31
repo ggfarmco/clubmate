@@ -21,6 +21,7 @@ var (
 		"agents.prompt":         withArgs((*app).promptCommand),
 		"agents.answer":         withArgs((*app).answerCommand),
 		"agents.permission":     withArgs((*app).permissionCommand),
+		"agents.elicitation":    withArgs((*app).elicitationCommand),
 		"agents.mode":           withArgs((*app).modeCommand),
 		"agents.config":         withArgs((*app).configCommand),
 		"agents.sessions":       (*app).sessionsCommand,

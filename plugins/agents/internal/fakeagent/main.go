@@ -46,6 +46,9 @@ type step struct {
 	Fail       string          `json:"fail"`
 	ErrorKind  string          `json:"errorKind"`
 	Session    string          `json:"session"`
+
+	Elicitation json.RawMessage `json:"elicitation"`
+	Complete    string          `json:"complete"`
 }
 
 const loginArg = "--fake-login"
@@ -246,6 +249,21 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 				continue
 			}
 			a.record("permission_response", res)
+		case s.Elicitation != nil:
+			var req map[string]any
+			_ = json.Unmarshal(s.Elicitation, &req)
+			req["sessionId"] = session
+			if s.Complete != "" {
+				time.AfterFunc(200*time.Millisecond, func() {
+					_ = a.conn.Notify(acp.MethodElicitationComplete, acp.CompleteElicitationNotification{ElicitationID: s.Complete})
+				})
+			}
+			var res json.RawMessage
+			if err := a.conn.Call(ctx, acp.MethodElicitationCreate, req, &res); err != nil {
+				a.record("elicitation_error", err.Error())
+				continue
+			}
+			a.record("elicitation_response", res)
 		case s.Stderr != "":
 			fmt.Fprintln(os.Stderr, s.Stderr)
 		case s.Child:

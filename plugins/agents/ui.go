@@ -223,6 +223,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: a.branches.name(ctx, rec.Worktree)}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
+			row.Asking = s.asking()
 			row.Started = s.turnStart()
 			row.Rec.Asks = s.asks()
 		}

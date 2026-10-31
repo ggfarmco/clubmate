@@ -293,6 +293,8 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 			return err
 		}
 		return s.answer(v.Request, v.Option)
+	case actElicitation, actElicitPick, actElicitDecline, actElicitOpen:
+		return a.elicitAct(ev, s, node)
 	case actMode:
 		var v modeValue
 		if err := decode(ev.Value, &v); err != nil {

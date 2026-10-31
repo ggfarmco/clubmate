@@ -64,6 +64,8 @@ type agentProc struct {
 	quiet    atomic.Bool
 	stopOnce sync.Once
 	exited   chan struct{}
+
+	elicited map[string]bool
 }
 
 type ring struct {
@@ -148,6 +150,7 @@ func (p *agentProc) initialize(ctx context.Context) error {
 		ClientCapabilities: acp.ClientCapabilities{Session: acp.ClientSessionCapabilities{Notices: &acp.Capability{}, Compaction: &acp.Capability{}, ConfigOptions: &acp.ConfigOptionsCapabilities{Boolean: &acp.Capability{}}}, Auth: &acp.AuthCapabilities{Terminal: true}, Subagents: &acp.Capability{}},
 		ClientInfo:         &acp.Implementation{Name: clientName, Version: clientVersion},
 	}
+	req.ClientCapabilities.Elicitation = &acp.ElicitationCapabilities{Form: &acp.Capability{}, URL: &acp.Capability{}}
 	var res acp.InitializeResponse
 	if err := p.conn.Call(ctx, acp.MethodInitialize, req, &res); err != nil {
 		return fmt.Errorf("initialize: %w", err)
@@ -195,6 +198,10 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 		}
 		return
 	}
+	if method == acp.MethodElicitationComplete {
+		p.completeElicitation(params)
+		return
+	}
 	if method != acp.MethodSessionUpdate {
 		return
 	}
@@ -225,6 +232,9 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 }
 
 func (p *agentProc) Request(ctx context.Context, id, method string, params json.RawMessage) (any, error) {
+	if method == acp.MethodElicitationCreate {
+		return p.elicit(ctx, id, params), nil
+	}
 	if method != acp.MethodRequestPermission {
 		return nil, acp.MethodNotFound(method)
 	}

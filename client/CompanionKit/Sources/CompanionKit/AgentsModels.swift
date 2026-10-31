@@ -271,6 +271,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case tool(ToolCall)
         case plan([PlanItem])
         case permission(PermissionRequest)
+        case elicitation(Elicitation)
         case notice(Notice)
         case compaction(Compaction)
         case other(String)
@@ -282,7 +283,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let content: Content
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction
+        case kind, id, turn, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -325,6 +326,13 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
                 toolCall: ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .toolCall)) ?? .null),
                 options: PermissionOption.ordered((try? c.decodeIfPresent([PermissionOption].self, forKey: .options)) ?? []),
                 outcome: try? c.decodeIfPresent(PermissionOutcome.self, forKey: .outcome)
+            ))
+        case .elicitation:
+            content = .elicitation(Elicitation(
+                id: entryID,
+                request: (try? c.decodeIfPresent(Elicitation.Request.self, forKey: .elicitation)) ?? Elicitation.Request(),
+                response: try? c.decodeIfPresent(Elicitation.Response.self, forKey: .response),
+                completed: (try? c.decodeIfPresent(Bool.self, forKey: .completed)) ?? false
             ))
         case .notice:
             let notice = (try? c.decodeIfPresent(JSONValue.self, forKey: .notice)) ?? .null
@@ -442,6 +450,124 @@ public struct PermissionRequest: Sendable, Equatable {
 public struct Notice: Sendable, Equatable {
     public let title: String
     public let description: String
+}
+
+public struct Elicitation: Sendable, Equatable {
+    public struct Request: Decodable, Sendable, Equatable {
+        public var mode = ""
+        public var message = ""
+        public var url: String?
+        public var fields: [Field] = []
+
+        enum CodingKeys: String, CodingKey {
+            case mode, message, url, fields
+        }
+
+        init() {}
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            mode = try c.decodeIfPresent(String.self, forKey: .mode) ?? ""
+            message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
+            url = try c.decodeIfPresent(String.self, forKey: .url)
+            fields = (try? c.decodeIfPresent([Field].self, forKey: .fields)) ?? []
+        }
+    }
+
+    public struct Field: Decodable, Sendable, Equatable, Identifiable {
+        public let key: String
+        public let type: String
+        public let title: String
+        public let description: String
+        public let required: Bool
+        public let options: [Option]
+
+        public var id: String { key }
+        public var label: String { title.isEmpty ? key : title }
+
+        enum CodingKeys: String, CodingKey {
+            case key, type, title, description, required, options
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            key = try c.decode(String.self, forKey: .key)
+            type = try c.decodeIfPresent(String.self, forKey: .type) ?? "text"
+            title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+            description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
+            required = try c.decodeIfPresent(Bool.self, forKey: .required) ?? false
+            options = try c.decodeIfPresent([Option].self, forKey: .options) ?? []
+        }
+    }
+
+    public struct Option: Decodable, Sendable, Equatable, Identifiable {
+        public let value: String
+        public let label: String
+        public let description: String?
+
+        public var id: String { value }
+    }
+
+    public struct Response: Decodable, Sendable, Equatable {
+        public let action: String
+        public let content: [String: JSONValue]?
+    }
+
+    public struct Answer: Sendable, Equatable {
+        public let key: String
+        public let value: String
+
+        public init(key: String, value: String) {
+            self.key = key
+            self.value = value
+        }
+    }
+
+    public let id: String
+    public let request: Request
+    public let response: Response?
+    public let completed: Bool
+
+    public var isURL: Bool { request.mode == "url" }
+
+    public var singleChoice: Field? {
+        let choices = request.fields.filter { $0.type == "choice" }
+        guard choices.count == 1, !request.fields.contains(where: { $0.type == "multi" || $0.type == "boolean" }) else { return nil }
+        return choices[0]
+    }
+
+    public var answer: String? {
+        guard let response else { return nil }
+        switch response.action {
+        case "decline": return isURL ? "Declined" : "Skipped"
+        case "accept" where isURL: return completed ? "Done" : "Opened in the browser"
+        case "accept":
+            let parts = request.fields.compactMap { field -> String? in
+                guard let value = response.content?[field.key] else { return nil }
+                return Self.text(field, value)
+            }
+            return parts.isEmpty ? "Answered" : parts.joined(separator: " · ")
+        default: return "Cancelled"
+        }
+    }
+
+    private static func text(_ field: Field, _ value: JSONValue) -> String? {
+        let label: (String) -> String = { raw in field.options.first { $0.value == raw }?.label ?? raw }
+        if let list = value.arrayValue {
+            let labels = list.compactMap(\.stringValue).map(label)
+            return labels.isEmpty ? nil : labels.joined(separator: ", ")
+        }
+        if let string = value.stringValue {
+            return string.isEmpty ? nil : label(string)
+        }
+        if case .bool(let on) = value {
+            return on ? field.label : nil
+        }
+        if case .number(let number) = value {
+            return "\(field.label): \(number.formatted())"
+        }
+        return nil
+    }
 }
 
 public struct Compaction: Sendable, Equatable {

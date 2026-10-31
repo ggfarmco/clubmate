@@ -37,6 +37,18 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertNil(screen.dock)
     }
 
+    func testPendingQuestionDocksAndAnsweredOneIsARow() throws {
+        let json = #"""
+        [{"kind":"elicitation","id":"elicitation-1","elicitation":{"mode":"form","message":"Which store?","fields":[]},"response":{"action":"decline"}},
+         {"kind":"elicitation","id":"elicitation-2","elicitation":{"mode":"url","message":"Sign in","url":"https://example.com"}}]
+        """#
+        let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
+        let screen = SessionScreen(entries: entries, session: AgentSession(id: "s", status: .waiting, pending: ["elicitation-2"]))
+        XCTAssertEqual(screen.rows.map(\.id), ["elicitation/elicitation-1"])
+        guard case .elicitation(let question) = screen.dock else { return XCTFail("unexpected dock \(String(describing: screen.dock))") }
+        XCTAssertEqual(question.request.url, "https://example.com")
+    }
+
     func testDockSaysWhatTheCardHides() throws {
         let json = #"""
         [{"kind":"permission","id":"p1","toolCall":{"kind":"execute","rawInput":{"command":"a\rb\u2028c\nd\ne"}},"options":[]}]

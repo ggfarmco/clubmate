@@ -70,6 +70,7 @@ type sessionRow struct {
 	Notify   string
 	Children string
 	Branch   string
+	Asking   bool
 }
 
 type notifyChoice struct {
@@ -323,6 +324,9 @@ func activity(row sessionRow, now time.Time) string {
 		}
 		return cmp.Or(strings.Join(nonEmpty(append(parts, row.Activity)...), " · "), label)
 	case statusWaiting:
+		if row.Asking {
+			label = questionLabel
+		}
 		return strings.Join(nonEmpty(label, row.Activity), " · ")
 	case statusError:
 		if line := firstLine(rec.Error); line != "" {

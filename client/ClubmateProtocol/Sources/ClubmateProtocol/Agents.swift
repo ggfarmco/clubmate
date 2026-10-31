@@ -143,6 +143,7 @@ public enum TranscriptEntryKind: String, FallbackEnum {
     case tool
     case plan
     case permission
+    case elicitation
     case notice
     case compaction
     case other

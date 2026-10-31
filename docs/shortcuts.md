@@ -95,6 +95,17 @@ A pending request is docked above the composer.
 
 Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift`.
 
+## Agent questions (Agents section or Code chat panel)
+
+A pending question (AskUserQuestion or an MCP form) is docked above the composer like a permission request.
+
+| Keys | Action |
+|---|---|
+| ⌥1 … ⌥9 | Answer with that option (printed on each option button) when the question has a single list of options; the answer is sent at once |
+| ↩ | In a text field of the question (e.g. "Other"): send the form |
+
+Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.
+
 ## Companion on iPad / Fold (hardware keyboard, a session open)
 
 | Keys | Action |

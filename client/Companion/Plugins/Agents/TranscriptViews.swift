@@ -21,6 +21,8 @@ struct RowView: View {
             }
         case .answered(let request):
             AnsweredRow(request: request)
+        case .asked(let question):
+            AskedRow(question: question)
         }
     }
 }
@@ -42,6 +44,8 @@ struct EntryView: View {
             PlanCard(items: items)
         case .permission(let request):
             AnsweredRow(request: request)
+        case .elicitation(let question):
+            AskedRow(question: question)
         case .notice(let notice):
             NoticeView(notice: notice)
         case .compaction(let compaction):
@@ -813,6 +817,229 @@ struct QuestionCard: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+struct AskedRow: View {
+    let question: Elicitation
+
+    var body: some View {
+        Label {
+            Text((question.answer ?? "No longer pending") + " · " + question.request.message)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        } icon: {
+            Image(systemName: question.response?.action == "accept" ? "checkmark" : question.response == nil ? "clock" : "xmark")
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct ElicitationCard: View {
+    let question: Elicitation
+    let agentName: String
+    let enabled: Bool
+    let send: @MainActor (String, [Elicitation.Answer]) async throws -> Void
+    @State private var picks: [String: Set<String>] = [:]
+    @State private var texts: [String: String] = [:]
+    @State private var toggles: [String: Bool] = [:]
+    @State private var sending = false
+    @State private var failure: String?
+    @State private var fieldsHeight: CGFloat = 0
+    @Environment(\.openURL) private var openURL
+
+    private static let maxFieldsHeight: CGFloat = 300
+
+    var body: some View {
+        DockCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    DockBadge(symbol: question.isURL ? "person.badge.key.fill" : "questionmark.bubble.fill")
+                    Text(question.isURL ? "\(agentName) needs you to sign in" : "\(agentName) is asking")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.warning)
+                }
+                Text(Markdown.inline(question.request.message))
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                if question.isURL {
+                    link
+                } else {
+                    ScrollView {
+                        fields
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fieldsHeight = $0 }
+                    }
+                    .frame(height: min(fieldsHeight, Self.maxFieldsHeight))
+                    .scrollBounceBehavior(.basedOnSize)
+                }
+                actions
+                    .disabled(!enabled || sending)
+                    .opacity(enabled ? 1 : 0.5)
+                if !enabled {
+                    Text("Can't answer while the Mac is offline")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let failure {
+                    Label(failure, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(Color.danger)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var link: some View {
+        if let url = question.request.url {
+            CodeBlock(text: url, lines: 2)
+        }
+    }
+
+    private var fields: some View {
+        let single = question.singleChoice
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(question.request.fields) { field in
+                VStack(alignment: .leading, spacing: 6) {
+                    if field.key != single?.key, !field.title.isEmpty || !field.description.isEmpty {
+                        Text(field.description.isEmpty || field.type == "text" ? field.label : field.description)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    input(field, single: field.key == single?.key)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func input(_ field: Elicitation.Field, single: Bool) -> some View {
+        switch field.type {
+        case "choice", "multi":
+            ForEach(field.options) { option in
+                let selected = picks[field.key, default: []].contains(option.value)
+                Button {
+                    if single {
+                        submit("accept", [Elicitation.Answer(key: field.key, value: option.value)])
+                    } else {
+                        toggle(field, option)
+                    }
+                } label: {
+                    optionRow(option, symbol: single ? nil : selected ? "checkmark.circle.fill" : "circle")
+                }
+                .buttonStyle(.plain)
+                .disabled(!enabled || sending)
+            }
+        case "boolean":
+            Toggle(field.label, isOn: Binding(get: { toggles[field.key] ?? false }, set: { toggles[field.key] = $0 }))
+        default:
+            TextField(field.type == "text" ? (field.description.isEmpty ? field.label : field.description) : field.label, text: Binding(get: { texts[field.key] ?? "" }, set: { texts[field.key] = $0 }), axis: .vertical)
+                .lineLimit(1...4)
+                .keyboardType(field.type == "text" ? .default : .decimalPad)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.surface2, in: .rect(cornerRadius: 14))
+        }
+    }
+
+    private func optionRow(_ option: Elicitation.Option, symbol: String?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .foregroundStyle(symbol == "circle" ? Color.secondary : Color.accentColor)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(option.label)
+                    .font(.headline)
+                if let detail = option.description, !detail.isEmpty {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.vertical, 4)
+        .background(Color.surface2, in: .rect(cornerRadius: 14))
+        .contentShape(.rect)
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if question.isURL {
+            VStack(spacing: 10) {
+                primary("Open") {
+                    if let link = question.request.url, let url = URL(string: link) { openURL(url) }
+                    submit("accept", [])
+                }
+                PlainCapsule(title: "Decline", tint: Color.danger) { submit("decline", []) }
+            }
+        } else {
+            HStack(spacing: 10) {
+                if question.singleChoice == nil || question.request.fields.count > 1 {
+                    primary("Send") { submit("accept", answers) }
+                }
+                PlainCapsule(title: "Skip", tint: .primary) { submit("decline", []) }
+            }
+        }
+    }
+
+    private func primary(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .foregroundStyle(Color.onAccent)
+                .background(Color.accentColor, in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var answers: [Elicitation.Answer] {
+        question.request.fields.flatMap { field -> [Elicitation.Answer] in
+            switch field.type {
+            case "choice", "multi":
+                return field.options.filter { picks[field.key, default: []].contains($0.value) }.map { Elicitation.Answer(key: field.key, value: $0.value) }
+            case "boolean":
+                return toggles[field.key].map { [Elicitation.Answer(key: field.key, value: $0 ? "true" : "false")] } ?? []
+            default:
+                let text = texts[field.key] ?? ""
+                return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [Elicitation.Answer(key: field.key, value: text)]
+            }
+        }
+    }
+
+    private func toggle(_ field: Elicitation.Field, _ option: Elicitation.Option) {
+        var set = picks[field.key, default: []]
+        if set.contains(option.value) {
+            set.remove(option.value)
+        } else if field.type == "choice" {
+            set = [option.value]
+        } else {
+            set.insert(option.value)
+        }
+        picks[field.key] = set
+    }
+
+    private func submit(_ action: String, _ answers: [Elicitation.Answer]) {
+        sending = true
+        failure = nil
+        Task {
+            do {
+                try await send(action, answers)
+            } catch {
+                failure = (error as? RemoteError)?.message ?? error.localizedDescription
+                sending = false
+            }
+        }
     }
 }
 

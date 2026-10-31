@@ -22,6 +22,7 @@ type pendingPermission struct {
 	request string
 	at      time.Time
 	reply   chan acp.PermissionOutcome
+	elicit  chan acp.ElicitationResponse
 }
 
 func (s *session) requestPermission(ctx context.Context, request string, params json.RawMessage) acp.PermissionOutcome {
@@ -55,7 +56,7 @@ func (s *session) answer(id, option string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	perm, ok := s.perms[id]
-	if !ok {
+	if !ok || perm.elicit != nil {
 		return errUnknownRequest
 	}
 	en := s.entries[s.index[key(entryPermission, id)]]
@@ -80,6 +81,9 @@ func (s *session) permissionSummary() *pendingSummary {
 	defer s.mu.Unlock()
 	for _, en := range s.entries {
 		perm := s.perms[en.ID]
+		if perm != nil && en.Kind == entryElicitation && en.Elicitation != nil {
+			return &pendingSummary{Kind: pendingQuestion, Text: clipRunes(firstLine(en.Elicitation.Message), summaryRunes), At: perm.at}
+		}
 		if en.Kind != entryPermission || perm == nil {
 			continue
 		}

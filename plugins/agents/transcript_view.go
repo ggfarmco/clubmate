@@ -174,11 +174,14 @@ func planOnly(text string) bool {
 }
 
 func pending(sc screen, en *entry) bool {
-	return en.Kind == entryPermission && en.Outcome == nil && sc.Pending[en.ID]
+	return (en.Kind == entryPermission && en.Outcome == nil || en.Kind == entryElicitation && en.Response == nil) && sc.Pending[en.ID]
 }
 
 func dockedPermission(sc screen) (sdui.Node, bool) {
 	for _, en := range sc.View.Entries {
+		if pending(sc, en) && en.Kind == entryElicitation {
+			return elicitationCard(sc, en), true
+		}
 		if pending(sc, en) {
 			return permissionCard(sc, en), true
 		}
@@ -291,6 +294,8 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		return toolCard(sid+"/tool/"+en.ID, root, en, sc.Expanded[en.ID], sha != ""), true
 	case entryPermission:
 		return permissionCard(sc, en), true
+	case entryElicitation:
+		return elicitationCard(sc, en), en.Elicitation != nil
 	case entryCompaction:
 		return compactionCard(sid+"/compaction/"+en.ID, en), true
 	case entryNotice:

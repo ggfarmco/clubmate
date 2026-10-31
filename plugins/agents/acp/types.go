@@ -62,6 +62,17 @@ const (
 	AuthTerminal     = "terminal"
 )
 
+const (
+	MethodElicitationCreate   = "elicitation/create"
+	MethodElicitationComplete = "elicitation/complete"
+
+	ElicitationForm    = "form"
+	ElicitationURL     = "url"
+	ElicitationAccept  = "accept"
+	ElicitationDecline = "decline"
+	ElicitationCancel  = "cancel"
+)
+
 type Capability struct{}
 
 type Implementation struct {
@@ -82,7 +93,13 @@ type ClientCapabilities struct {
 	Session  ClientSessionCapabilities `json:"session"`
 	Auth     *AuthCapabilities         `json:"auth,omitempty"`
 
-	Subagents *Capability `json:"subagents,omitempty"`
+	Elicitation *ElicitationCapabilities `json:"elicitation,omitempty"`
+	Subagents   *Capability              `json:"subagents,omitempty"`
+}
+
+type ElicitationCapabilities struct {
+	Form *Capability `json:"form,omitempty"`
+	URL  *Capability `json:"url,omitempty"`
 }
 
 type AuthCapabilities struct {
@@ -483,4 +500,23 @@ func (o SessionConfigOption) Choice(value string) (SessionConfigChoice, bool) {
 		}
 	}
 	return SessionConfigChoice{}, false
+}
+
+type CreateElicitationRequest struct {
+	SessionID       string          `json:"sessionId,omitempty"`
+	ToolCallID      string          `json:"toolCallId,omitempty"`
+	Mode            string          `json:"mode"`
+	Message         string          `json:"message"`
+	RequestedSchema json.RawMessage `json:"requestedSchema,omitempty"`
+	URL             string          `json:"url,omitempty"`
+	ElicitationID   string          `json:"elicitationId,omitempty"`
+}
+
+type ElicitationResponse struct {
+	Action  string         `json:"action"`
+	Content map[string]any `json:"content,omitempty"`
+}
+
+type CompleteElicitationNotification struct {
+	ElicitationID string `json:"elicitationId"`
 }

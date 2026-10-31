@@ -317,6 +317,7 @@ func composer(sc screen) sdui.Node {
 		Attachments: attachments,
 		Running:     turnActive(rec),
 		Steers:      sc.Steers,
+		Docked:      docked(sc),
 	})
 }
 

@@ -257,7 +257,7 @@ struct ComposerNodeView: View {
         if running {
             CardButton(label: "Stop", icon: "stop.fill", tone: .danger) { dispatch(node, .named("stop", .null)) }
         }
-        CardButton(label: queues ? "Queue" : "Send", icon: "paperplane.fill", tone: .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+        CardButton(label: queues ? "Queue" : "Send", icon: "paperplane.fill", tone: node.bool("docked") == true ? .plain : .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
             if case .send(let text) = model.handle(.send) { send(text) }
         }
     }

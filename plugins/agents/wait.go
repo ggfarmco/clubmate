@@ -44,6 +44,8 @@ type waitResult struct {
 	Error      string          `json:"error,omitempty"`
 	Asks       bool            `json:"asks"`
 	Permission *waitPermission `json:"permission,omitempty"`
+
+	Elicitation *waitElicitation `json:"elicitation,omitempty"`
 }
 
 type waitPermission struct {
@@ -175,7 +177,7 @@ func (s *session) waitResult() waitResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
-	r := waitResult{Session: s.rec.ID, Status: s.rec.Status, Turn: s.turn, Error: s.rec.Error, Asks: s.asksLocked(), Permission: s.permissionLocked()}
+	r := waitResult{Session: s.rec.ID, Status: s.rec.Status, Turn: s.turn, Error: s.rec.Error, Asks: s.asksLocked(), Permission: s.permissionLocked(), Elicitation: s.elicitationLocked()}
 	if i := slices.IndexFunc(s.turns, func(t turnInfo) bool { return t.Turn == s.turn }); i >= 0 {
 		r.StopReason = s.turns[i].StopReason
 	}

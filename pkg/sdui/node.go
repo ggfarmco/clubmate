@@ -146,6 +146,7 @@ type ComposerProps struct {
 	Attachments []Attachment
 	Running     bool
 	Steers      bool
+	Docked      bool
 }
 
 func VStack(children ...Node) Node {
@@ -352,6 +353,9 @@ func Composer(id string, p ComposerProps) Node {
 	}
 	if p.Steers {
 		props["steers"] = true
+	}
+	if p.Docked {
+		props["docked"] = true
 	}
 	return Node{Type: "composer", ID: id, Props: props}
 }

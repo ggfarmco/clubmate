@@ -149,6 +149,34 @@
         }
       },
       {
+        "id": "agents.elicitation",
+        "title": "Answer Question",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Answer a pending question (elicitation) of a session this agent session started (directly or through its children); any other session fails with \"the session was not started by this agent\". Questions come from the agent's AskUserQuestion tool or from its MCP servers (forms, or a link to open such as a sign-in). Request ids and fields are in agents.wait (elicitation) and in the transcript's elicitation entries: {mode, message, url?, fields: [{key, type, title, description, required, options: [{value, label, description}]}]}. action accept sends answers [{key, value}] by field key: a choice field takes one option value, a multi field one entry per picked option value, text the text, number and integer the number as text, boolean \"true\" or \"false\"; decline skips the question, cancel aborts it. Leave to the user what you cannot decide. A paired companion device (through the remote plugin) calls it as the user and may answer any pending question of any session.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "request": {"type": "string", "description": "Question request id from the transcript or agents.wait."},
+            "action": {"type": "string", "enum": ["accept", "decline", "cancel"], "description": "accept answers with content, decline skips, cancel aborts."},
+            "answers": {
+              "type": "array",
+              "description": "Answers for accept, one entry per field (per picked option for multi fields).",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {"type": "string", "description": "Field key."},
+                  "value": {"type": "string", "description": "Option value or the typed answer."}
+                },
+                "required": ["key", "value"]
+              }
+            }
+          },
+          "required": ["session", "request", "action"]
+        }
+      },
+      {
         "id": "agents.answer",
         "title": "Send Answer as User",
         "hidden": true,
@@ -365,7 +393,7 @@
         "hidden": true,
         "agent": true,
         "timeout": 310,
-        "description": "Wait, without polling, for any of the listed agent sessions of the workspace to stop running. Pass only sessions you are still waiting on: one that is already done or waiting makes every call return at once. Returns at once if one of them is not running; otherwise on the first status change or new turn of any of them, or after timeout seconds with all still running (then call it again to keep waiting). Also returns early when the user sent you a message that is waiting in your queue. Returns {sessions, message?}: sessions is, in the order given, [{session, status, turn, stopReason?, error?, asks, permission?: {request, title, kind, options: [{optionId, name, kind}]}}]; message {text, attachments?} is the user's queued message to you, removed from the queue so you get it only here: read it and act on it before waiting again. status is running, waiting (a permission is pending: answer your own children's with agents.permission {session, request, option: an optionId}), done, idle, error or closed. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; answer a child yourself with agents.prompt, or relay the user's own answer with agents.answer. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Non-destructive.",
+        "description": "Wait, without polling, for any of the listed agent sessions of the workspace to stop running. Pass only sessions you are still waiting on: one that is already done or waiting makes every call return at once. Returns at once if one of them is not running; otherwise on the first status change or new turn of any of them, or after timeout seconds with all still running (then call it again to keep waiting). Also returns early when the user sent you a message that is waiting in your queue. Returns {sessions, message?}: sessions is, in the order given, [{session, status, turn, stopReason?, error?, asks, permission?: {request, title, kind, options: [{optionId, name, kind}]}, elicitation?: {request, mode, message, url?, fields}}]; message {text, attachments?} is the user's queued message to you, removed from the queue so you get it only here: read it and act on it before waiting again. status is running, waiting (a permission or a question is pending: answer your own children's with agents.permission {session, request, option: an optionId} or agents.elicitation {session, request, action, answers}), done, idle, error or closed. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; answer a child yourself with agents.prompt, or relay the user's own answer with agents.answer. Toward the user, report only the children's questions that need the user's answer; the sidebar shows their status. Non-destructive.",
         "args": {
           "properties": {
             "sessions": {"type": "array", "items": {"type": "string"}, "description": "Session ids to wait for, at least one."},
@@ -380,7 +408,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission or notice. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission, elicitation or notice. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},

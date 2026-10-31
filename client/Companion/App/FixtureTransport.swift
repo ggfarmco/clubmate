@@ -108,7 +108,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.permission", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")]), "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array([

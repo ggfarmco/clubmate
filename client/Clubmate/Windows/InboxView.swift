@@ -27,7 +27,7 @@ struct InboxView: View {
                             switch pin {
                             case .permission(let alert):
                                 row(
-                                    kind: .permission,
+                                    kind: alert.kind,
                                     title: alert.title,
                                     message: alert.body,
                                     source: HubNotification(alert).source(workspaceName: app.workspace(alert.workspace)?.name),

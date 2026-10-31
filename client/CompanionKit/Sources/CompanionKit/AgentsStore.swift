@@ -180,6 +180,15 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
+    public func respond(_ session: String, request: String, action: String, answers: [Elicitation.Answer] = []) async throws {
+        var args: [String: JSONValue] = ["session": .string(session), "request": .string(request), "action": .string(action)]
+        if !answers.isEmpty {
+            args["answers"] = .array(answers.map { .object(["key": .string($0.key), "value": .string($0.value)]) })
+        }
+        try await run("agents.elicitation", args)
+        await refreshSession(session)
+    }
+
     public func setMode(_ session: String, mode: String) async throws {
         try await run("agents.mode", ["session": .string(session), "mode": .string(mode)])
         await refreshSession(session)

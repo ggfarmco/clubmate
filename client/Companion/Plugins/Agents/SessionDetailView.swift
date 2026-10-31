@@ -79,6 +79,11 @@ struct SessionDetailView: View {
                                 try await answer(request: request.id, option: option)
                             }
                             .id(request.id)
+                        case .elicitation(let question):
+                            ElicitationCard(question: question, agentName: session.agentName, enabled: online) { action, answers in
+                                try await store.respond(sessionID, request: question.id, action: action, answers: answers)
+                            }
+                            .id(question.id)
                         case .question(let question):
                             QuestionCard(question: question, agentName: session.agentName, subagent: session.parentSession != nil)
                         }
