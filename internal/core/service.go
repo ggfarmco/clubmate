@@ -63,6 +63,8 @@ type Service struct {
 	rootsMu   sync.Mutex
 	roots     []*rootRecord
 	dropped   map[RootOwner]bool
+
+	cache procCache
 }
 
 func WithBus(b *bus.Bus) Option {
@@ -96,6 +98,7 @@ func NewService(workspaces *workspace.Store, sessions *session.Manager, tracker 
 		reported:   map[string]bool{},
 		startTime:  proc.StartTime,
 		dropped:    map[RootOwner]bool{},
+		cache:      procCache{readArgs: proc.ReadArgs, args: map[argsKey][]string{}},
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -213,7 +216,7 @@ func (s *Service) DeleteWorkspace(ctx context.Context, id string) error {
 	if _, err := s.workspaces.Get(ctx, id); err != nil {
 		return err
 	}
-	nodes, err := s.ProcessTree(ctx, TreeFilter{WorkspaceID: id})
+	nodes, err := s.processTree(ctx, TreeFilter{WorkspaceID: id}, s.freshSnapshot)
 	if err != nil {
 		return err
 	}
@@ -285,7 +288,7 @@ func (s *Service) KillSession(ctx context.Context, id string) error {
 	if _, err := s.sessions.Get(ctx, id); err != nil {
 		return err
 	}
-	nodes, err := s.ProcessTree(ctx, TreeFilter{SessionID: id})
+	nodes, err := s.processTree(ctx, TreeFilter{SessionID: id}, s.freshSnapshot)
 	if err != nil {
 		return err
 	}
@@ -334,19 +337,20 @@ func (s *Service) CheckTransitions(ctx context.Context) error {
 }
 
 func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, error) {
+	return s.processTree(ctx, f, s.cachedSnapshot)
+}
+
+func (s *Service) processTree(ctx context.Context, f TreeFilter, snapshot func() (procTable, error)) ([]proc.Node, error) {
 	sessions, err := s.sessions.List(ctx, session.ListFilter{})
 	if err != nil {
 		return nil, err
 	}
 	snapStart := time.Now()
-	procs, err := s.snapshot()
+	table, err := snapshot()
 	if err != nil {
 		return nil, err
 	}
-	byPID := make(map[int]proc.Process, len(procs))
-	for _, p := range procs {
-		byPID[p.PID] = p
-	}
+	procs, byPID := table.procs, table.byPID
 	workspaceOf := make(map[string]string, len(sessions))
 	excluded := make(map[int]bool, len(sessions))
 	roots := make([]proc.SessionRoot, 0, len(sessions))
@@ -386,7 +390,7 @@ func (s *Service) KillProcesses(ctx context.Context, r KillRequest) ([]int, erro
 	if len(r.PIDs) == 0 && !r.OrphansOnly {
 		return nil, ErrEmptyKillRequest
 	}
-	nodes, err := s.ProcessTree(ctx, TreeFilter{SessionID: r.SessionID, WorkspaceID: r.WorkspaceID})
+	nodes, err := s.processTree(ctx, TreeFilter{SessionID: r.SessionID, WorkspaceID: r.WorkspaceID}, s.freshSnapshot)
 	if err != nil {
 		return nil, err
 	}

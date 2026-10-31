@@ -59,6 +59,8 @@ type entry struct {
 	Outcome  *acp.PermissionOutcome     `json:"outcome,omitempty"`
 	Notice   json.RawMessage            `json:"notice,omitempty"`
 	From     string                     `json:"from,omitempty"`
+
+	card *cardCache
 }
 
 type turnInfo struct {
@@ -114,14 +116,17 @@ func (s *session) view(fromTurn int) transcriptView {
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
 	for _, en := range s.entries {
 		if en.Turn >= fromTurn {
+			if en.Kind == entryTool && en.card == nil {
+				en.card = new(cardCache)
+			}
 			c := *en
 			if en.Tool != nil {
 				c.Tool = make(map[string]json.RawMessage, len(en.Tool))
 				for k, val := range en.Tool {
 					c.Tool[k] = val
 				}
-				if !s.running {
-					closeTool(c.Tool)
+				if !s.running && closeTool(c.Tool) {
+					c.card = nil
 				}
 			}
 			v.Entries = append(v.Entries, &c)
@@ -167,6 +172,7 @@ func compactTools(entries []*entry) {
 			continue
 		}
 		delete(en.Tool, "rawOutput")
+		en.card = nil
 		var items []json.RawMessage
 		if json.Unmarshal(en.Tool["content"], &items) != nil {
 			continue
@@ -388,6 +394,7 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 	for k, v := range fields {
 		en.Tool[k] = v
 	}
+	en.card = nil
 	var kind string
 	if json.Unmarshal(en.Tool["kind"], &kind) == nil && slices.Contains(editKinds, kind) {
 		s.edited = true
@@ -399,16 +406,20 @@ func (s *session) cancelTools(turn int) {
 		if en.Kind != entryTool || en.Turn != turn {
 			continue
 		}
-		closeTool(en.Tool)
+		if closeTool(en.Tool) {
+			en.card = nil
+		}
 	}
 }
 
-func closeTool(tool map[string]json.RawMessage) {
+func closeTool(tool map[string]json.RawMessage) bool {
 	var status string
 	_ = json.Unmarshal(tool["status"], &status)
-	if slices.Contains(openToolStatuses, status) {
-		tool["status"] = json.RawMessage(`"cancelled"`)
+	if !slices.Contains(openToolStatuses, status) {
+		return false
 	}
+	tool["status"] = json.RawMessage(`"cancelled"`)
+	return true
 }
 
 func (s *session) messageEntry(kind, messageID string, turn int) *entry {

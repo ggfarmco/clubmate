@@ -1,11 +1,15 @@
 package sdui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -63,6 +67,28 @@ func (s *Store) Render(ctx context.Context, workspaceID, slot, owner string, n s
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
 	}
+	return s.put(ctx, workspaceID, slot, owner, tree)
+}
+
+func (s *Store) RenderJSON(ctx context.Context, workspaceID, slot, owner string, tree json.RawMessage) (int64, error) {
+	var n sdui.Node
+	if err := jsonv2.Unmarshal(tree, &n, jsonv2.RejectUnknownMembers(true)); err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
+	}
+	if err := Validate(n); err != nil {
+		return 0, err
+	}
+	if bytes.IndexByte(tree, '\n') >= 0 {
+		var buf bytes.Buffer
+		if err := json.Compact(&buf, tree); err != nil {
+			return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
+		}
+		tree = buf.Bytes()
+	}
+	return s.put(ctx, workspaceID, slot, owner, tree)
+}
+
+func (s *Store) put(ctx context.Context, workspaceID, slot, owner string, tree json.RawMessage) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -105,6 +131,25 @@ func (s *Store) Subscribe(workspaceID string) (*Subscription, error) {
 		sub.pushLocked(view)
 	}
 	return sub, nil
+}
+
+func (v SlotView) AppendJSON(dst []byte) []byte {
+	dst = slices.Grow(dst, len(v.Tree)+len(v.WorkspaceID)+len(v.Slot)+len(v.Owner)+64)
+	dst = append(dst, `{"workspaceId":`...)
+	dst, _ = jsontext.AppendQuote(dst, v.WorkspaceID)
+	dst = append(dst, `,"slot":`...)
+	dst, _ = jsontext.AppendQuote(dst, v.Slot)
+	dst = append(dst, `,"owner":`...)
+	dst, _ = jsontext.AppendQuote(dst, v.Owner)
+	dst = append(dst, `,"rev":`...)
+	dst = strconv.AppendInt(dst, v.Rev, 10)
+	dst = append(dst, `,"tree":`...)
+	if len(v.Tree) == 0 {
+		dst = append(dst, "null"...)
+	} else {
+		dst = append(dst, v.Tree...)
+	}
+	return append(dst, '}')
 }
 
 func (v SlotView) Node() (sdui.Node, error) {

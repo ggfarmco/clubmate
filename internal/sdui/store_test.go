@@ -2,6 +2,7 @@ package sdui_test
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"testing"
 	"time"
@@ -194,4 +195,23 @@ func node(t *testing.T, v internalsdui.SlotView) sdui.Node {
 	n, err := v.Node()
 	require.NoError(t, err)
 	return n
+}
+
+func TestSlotViewAppendJSONMatchesMarshal(t *testing.T) {
+	view := internalsdui.SlotView{WorkspaceID: "prj_\"1", Slot: "a.main", Owner: "a<b>", Rev: 42, Tree: json.RawMessage(`{"type":"empty","props":{"text":"<&>"}}`)}
+	want, err := json.Marshal(view)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(want), string(view.AppendJSON([]byte("x"))[1:]))
+}
+
+func TestStoreRenderJSONKeepsCompactedBytes(t *testing.T) {
+	s := internalsdui.NewStore()
+	for _, tree := range []string{`{"type":"marquee"}`, `{"type":"empty","type":"marquee"}`, `{"Type":"empty"}`, `{"type":"empty","extra":1}`, "{\"type\":\"empty\",\"props\":{\"text\":\"\xff\"}}"} {
+		_, err := s.RenderJSON(t.Context(), ws, "a.main", "a", json.RawMessage(tree))
+		require.ErrorIs(t, err, internalsdui.ErrInvalidTree, tree)
+	}
+
+	_, err := s.RenderJSON(t.Context(), ws, "a.main", "a", json.RawMessage("{\"type\": \"empty\",\n \"props\": {\"text\": \"<&>\"}}"))
+	require.NoError(t, err)
+	assert.Equal(t, `{"type":"empty","props":{"text":"<&>"}}`, string(s.Get(ws)[0].Tree))
 }

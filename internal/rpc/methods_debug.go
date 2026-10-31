@@ -1,78 +1,61 @@
 package rpc
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"runtime"
-	"runtime/pprof"
 	"time"
+
+	"clubmate/pkg/pprofdump"
 )
 
-const (
-	profileCPU        = "cpu"
-	defaultCPUSeconds = 10
-	maxCPUSeconds     = 120
-)
+const pluginPprofSlack = 30 * time.Second
 
 type pprofParams struct {
-	Profile string `json:"profile"`
-	Debug   int    `json:"debug"`
-	Seconds int    `json:"seconds"`
-	GC      bool   `json:"gc"`
-}
-
-type pprofResult struct {
-	Profile string `json:"profile"`
-	Data    []byte `json:"data"`
+	pprofdump.Params
+	Plugin string `json:"plugin"`
 }
 
 func (s *Server) debugMethods() map[string]handlerFunc {
 	return map[string]handlerFunc{
-		"debug.pprof": method(s.debugPprof),
+		pprofdump.Method: method(s.debugPprof),
 	}
 }
 
-func (s *Server) debugPprof(ctx context.Context, p pprofParams) (pprofResult, error) {
+func (s *Server) debugPprof(ctx context.Context, p pprofParams) (pprofdump.Result, error) {
 	if CallerFrom(ctx).IsPlugin() {
-		return pprofResult{}, invalidParams("debug.pprof is not available to plugins")
+		return pprofdump.Result{}, invalidParams("debug.pprof is not available to plugins")
 	}
-	var buf bytes.Buffer
-	if p.Profile == profileCPU {
-		if err := cpuProfile(ctx, &buf, p.Seconds); err != nil {
-			return pprofResult{}, err
-		}
-		return pprofResult{Profile: p.Profile, Data: buf.Bytes()}, nil
+	if p.Plugin != "" {
+		return s.pluginPprof(ctx, p)
 	}
-	prof := pprof.Lookup(p.Profile)
-	if prof == nil {
-		return pprofResult{}, invalidParams(fmt.Sprintf("unknown profile %q", p.Profile))
+	res, err := pprofdump.Write(ctx, p.Params)
+	if errors.Is(err, pprofdump.ErrInvalid) {
+		return pprofdump.Result{}, invalidParams(err.Error())
 	}
-	if p.GC {
-		runtime.GC()
-	}
-	if err := prof.WriteTo(&buf, p.Debug); err != nil {
-		return pprofResult{}, fmt.Errorf("write %s profile: %w", p.Profile, err)
-	}
-	return pprofResult{Profile: p.Profile, Data: buf.Bytes()}, nil
+	return res, err
 }
 
-func cpuProfile(ctx context.Context, buf *bytes.Buffer, seconds int) error {
-	if seconds <= 0 {
-		seconds = defaultCPUSeconds
+func (s *Server) pluginPprof(ctx context.Context, p pprofParams) (pprofdump.Result, error) {
+	if p.Seconds > pprofdump.MaxCPUSeconds {
+		return pprofdump.Result{}, invalidParams(fmt.Sprintf("seconds must be at most %d", pprofdump.MaxCPUSeconds))
 	}
-	if seconds > maxCPUSeconds {
-		return invalidParams(fmt.Sprintf("seconds must be at most %d", maxCPUSeconds))
+	u, err := s.uiState()
+	if err != nil {
+		return pprofdump.Result{}, err
 	}
-	if err := pprof.StartCPUProfile(buf); err != nil {
-		return fmt.Errorf("start cpu profile: %w", err)
+	raw, err := json.Marshal(p.Params)
+	if err != nil {
+		return pprofdump.Result{}, err
 	}
-	t := time.NewTimer(time.Duration(seconds) * time.Second)
-	defer t.Stop()
-	select {
-	case <-t.C:
-	case <-ctx.Done():
+	out, err := u.router.Pprof(ctx, p.Plugin, raw, p.Duration()+pluginPprofSlack)
+	if err != nil {
+		return pprofdump.Result{}, err
 	}
-	pprof.StopCPUProfile()
-	return ctx.Err()
+	var res pprofdump.Result
+	if err := json.Unmarshal(out, &res); err != nil {
+		return pprofdump.Result{}, fmt.Errorf("decode %s profile: %w", p.Plugin, err)
+	}
+	return res, nil
 }

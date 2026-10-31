@@ -29,15 +29,16 @@ func (a *app) debugPprofCmd() *cobra.Command {
 		debug   int
 		seconds int
 		gc      bool
+		plugin  string
 	)
 	cmd := &cobra.Command{
 		Use:   "pprof <heap|allocs|goroutine|block|mutex|threadcreate|cpu>",
-		Short: "Write a pprof profile of the core",
+		Short: "Write a pprof profile of the core or of a plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(seconds)*time.Second+debugCallSlack)
 			defer cancel()
-			params := map[string]any{"profile": args[0], "debug": debug, "seconds": seconds, "gc": gc}
+			params := map[string]any{"profile": args[0], "debug": debug, "seconds": seconds, "gc": gc, "plugin": plugin}
 			var res pprofResult
 			if err := a.call(ctx, "debug.pprof", params, &res); err != nil {
 				return err
@@ -59,5 +60,6 @@ func (a *app) debugPprofCmd() *cobra.Command {
 	cmd.Flags().IntVar(&debug, "debug", 0, "text format level passed to pprof (1 or 2), 0 for the binary profile")
 	cmd.Flags().IntVar(&seconds, "seconds", 0, "cpu profile duration (default 10)")
 	cmd.Flags().BoolVar(&gc, "gc", false, "run a GC before a heap profile")
+	cmd.Flags().StringVar(&plugin, "plugin", "", "profile this plugin (e.g. agents) instead of the core")
 	return cmd
 }

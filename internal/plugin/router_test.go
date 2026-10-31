@@ -208,3 +208,31 @@ func goroutines() string {
 	buf := make([]byte, 1<<20)
 	return string(buf[:runtime.Stack(buf, true)])
 }
+
+func TestResolveFollowsPluginState(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDir(t))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == plugin.StateRunning }, 5*time.Second)
+	router := plugin.NewRouter(h.Sup)
+	running := func() bool {
+		c, ok := router.Resolve("echo.say")
+		require.True(t, ok)
+		return c.Running
+	}
+	require.True(t, running())
+
+	h.Sup.Stop(t.Context())
+	assert.False(t, running())
+}
+
+func TestDebugPprofReachesPlugin(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDir(t))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == plugin.StateRunning }, 5*time.Second)
+	var res struct {
+		Data []byte `json:"data"`
+	}
+	require.NoError(t, h.Client(t).Call(t.Context(), "debug.pprof", map[string]any{"plugin": "echo", "profile": "goroutine", "debug": 1}, &res))
+	assert.Contains(t, string(res.Data), "clubmate/pkg/pluginsdk.")
+	assert.NotContains(t, string(res.Data), "clubmate/internal/rpc.")
+}

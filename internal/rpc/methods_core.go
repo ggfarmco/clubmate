@@ -228,7 +228,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			}
 			nodes, err := svc.ProcessTree(ctx, f)
 			for i := range nodes {
-				nodes[i].Process.Args = nonNil(proc.ReadArgs(nodes[i].Process.PID))
+				nodes[i].Process.Args = nonNil(svc.ProcessArgs(nodes[i].Process))
 			}
 			return nonNil(nodes), err
 		}),

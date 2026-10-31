@@ -34,6 +34,7 @@ const (
 	shellEnvTimeout   = 10 * time.Second
 	defaultShell      = "/bin/zsh"
 	refreshEvery      = 2 * time.Second
+	snapshotTTL       = 1500 * time.Millisecond
 	pluginStopTimeout = 15 * time.Second
 )
 
@@ -136,7 +137,7 @@ func run(logger *slog.Logger) error {
 	var sup *plugin.Supervisor
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
 	svc := core.NewService(store, session.NewManager(dirs, hostBin, session.WithPathDir(filepath.Dir(exe))), tracker, proc.Snapshot,
-		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }))
+		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }), core.WithSnapshotTTL(snapshotTTL))
 	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV), rpc.WithLogger(logger), rpc.WithDirs(dirs))
 	if err := srv.MigrateUIState(context.Background()); err != nil {
 		logger.Error("migrate ui state", "err", err)

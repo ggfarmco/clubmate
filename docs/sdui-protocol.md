@@ -152,7 +152,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | ui.subscribe | `{workspaceId}` | `{subscription}` |
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{workspaceId, slot, nodeId, action, value}` | plugin-defined JSON |
-| ui.render | `{workspaceId, slot, tree}` (plugin callers only) | `{rev}` |
+| ui.render | `{workspaceId, slot, tree}` (plugin callers only; `tree` is decoded strictly: exact-case member names, no duplicate or unknown members, valid UTF-8, else invalid tree; the core keeps the plugin's bytes and sends them on as they are) | `{rev}` |
 | ui.approve | `{workspaceId, title, command, args, body?}` (plugin callers only) | `{}` once the user allows it, else a denied error |
 | ui.presence | none | `[workspaceId]`, workspaces that currently have UI subscribers |
 | ui.state.section | `{workspaceId}` | `{section}`, the section saved in the workspace's UI state (`""` when unset) |
@@ -172,7 +172,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | workspace.worktree.set | `{id, repo, path}` | workspace |
 | workspace.worktree.check | `{id}` | workspace |
 | diagnostics.collect | `{workspaceId?, appVersion?, extra?}` (not for plugin callers) | `{path, files: [{name, bytes}]}` |
-| debug.pprof | `{profile, debug?, seconds?, gc?}` (not for plugin callers) | `{profile, data}` (see [debugging.md](debugging.md)) |
+| debug.pprof | `{profile, debug?, seconds?, gc?, plugin?}` (not for plugin callers; `plugin` forwards it to that plugin) | `{profile, data}` (see [debugging.md](debugging.md)) |
 | plugin.list | none | `[{id, state, pid, restarts, lastError, manifest}]` sorted by id |
 | plugin.restart | `{id}` (not for plugin callers) | `{}` |
 | process.tree | `{workspaceId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |

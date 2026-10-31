@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/rpc"
+	"clubmate/pkg/pprofdump"
 )
 
 const routeTimeout = 5 * time.Second
@@ -26,6 +28,16 @@ type Router struct {
 
 	mu     sync.Mutex
 	warned map[string]bool
+
+	tableMu sync.Mutex
+	table   *routeTable
+}
+
+type routeTable struct {
+	gen          uint64
+	commands     []rpc.Command
+	byID         map[string]rpc.Command
+	capabilities map[string]rpc.Command
 }
 
 func NewRouter(sup *Supervisor) *Router {
@@ -44,34 +56,52 @@ func (r *Router) Command(ctx context.Context, c rpc.Command, run json.RawMessage
 	return r.call(ctx, c.Plugin, "command.run", run, timeout)
 }
 
+func (r *Router) Pprof(ctx context.Context, pluginID string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
+	return r.call(ctx, pluginID, pprofdump.Method, params, timeout)
+}
+
 func (r *Router) Commands() []rpc.Command {
-	var out []rpc.Command
-	for _, st := range r.sup.Statuses() {
-		for _, c := range st.Manifest.Contributes.Commands {
-			out = append(out, command(st, c))
-		}
-	}
-	return out
+	return slices.Clip(r.routes().commands)
 }
 
 func (r *Router) Resolve(id string) (rpc.Command, bool) {
-	for _, c := range r.Commands() {
-		if c.ID == id {
-			return c, true
-		}
+	t := r.routes()
+	if c, ok := t.byID[id]; ok {
+		return c, true
 	}
-	c, ok := r.capabilities()[id]
+	c, ok := t.capabilities[id]
 	return c, ok
 }
 
 func (r *Router) Capabilities() map[string]string {
 	out := map[string]string{}
-	for name := range r.capabilities() {
+	for name := range r.routes().capabilities {
 		if c, ok := r.Resolve(name); ok {
 			out[name] = c.ID
 		}
 	}
 	return out
+}
+
+func (r *Router) routes() *routeTable {
+	gen := r.sup.generation()
+	r.tableMu.Lock()
+	defer r.tableMu.Unlock()
+	if r.table != nil && r.table.gen == gen {
+		return r.table
+	}
+	t := &routeTable{gen: gen, byID: map[string]rpc.Command{}, capabilities: r.capabilities()}
+	for _, st := range r.sup.Statuses() {
+		for _, c := range st.Manifest.Contributes.Commands {
+			cmd := command(st, c)
+			t.commands = append(t.commands, cmd)
+			if _, dup := t.byID[cmd.ID]; !dup {
+				t.byID[cmd.ID] = cmd
+			}
+		}
+	}
+	r.table = t
+	return t
 }
 
 func (r *Router) capabilities() map[string]rpc.Command {

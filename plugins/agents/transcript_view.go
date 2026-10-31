@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"clubmate/pkg/sdui"
@@ -35,6 +36,19 @@ var (
 	selectionRe  = regexp.MustCompile(`^(.+):(\d+)-(\d+)\n`)
 	fragmentRe   = regexp.MustCompile(`^L(\d+)-(\d+)$`)
 )
+
+type cardCache struct {
+	mu   sync.Mutex
+	key  cardKey
+	node sdui.Node
+	ok   bool
+}
+
+type cardKey struct {
+	id         string
+	root       string
+	reviewable bool
+}
 
 type toolFields struct {
 	Title     string         `json:"title"`
@@ -227,6 +241,24 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 }
 
 func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
+	if expanded || en.card == nil {
+		return buildToolCard(id, root, en, expanded, reviewable)
+	}
+	return en.card.get(cardKey{id: id, root: root, reviewable: reviewable}, func() sdui.Node {
+		return buildToolCard(id, root, en, false, reviewable)
+	})
+}
+
+func (c *cardCache) get(key cardKey, build func() sdui.Node) sdui.Node {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.ok || c.key != key {
+		c.key, c.node, c.ok = key, build(), true
+	}
+	return c.node
+}
+
+func buildToolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 	var f toolFields
 	for name, dst := range map[string]any{"title": &f.Title, "kind": &f.Kind, "status": &f.Status, "content": &f.Content, "locations": &f.Locations, "rawInput": &f.RawInput} {
 		if raw, ok := en.Tool[name]; ok {

@@ -3,11 +3,13 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -15,7 +17,6 @@ import (
 	"clubmate/internal/sdui"
 	"clubmate/internal/workspace"
 	"clubmate/pkg/contract"
-	pkgsdui "clubmate/pkg/sdui"
 )
 
 const (
@@ -35,6 +36,7 @@ type Router interface {
 	Commands() []Command
 	Resolve(id string) (Command, bool)
 	Capabilities() map[string]string
+	Pprof(ctx context.Context, pluginID string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error)
 }
 
 type CommandDef struct {
@@ -71,9 +73,9 @@ type workspaceParams struct {
 }
 
 type renderParams struct {
-	WorkspaceID string       `json:"workspaceId"`
-	Slot        string       `json:"slot"`
-	Tree        pkgsdui.Node `json:"tree"`
+	WorkspaceID string          `json:"workspaceId"`
+	Slot        string          `json:"slot"`
+	Tree        json.RawMessage `json:"tree"`
 }
 
 type focusParams struct {
@@ -119,11 +121,6 @@ type commandRunParams struct {
 	Caller      string          `json:"caller,omitempty"`
 	Terminal    string          `json:"terminal,omitempty"`
 	Via         string          `json:"via,omitempty"`
-}
-
-type uiUpdatedParams struct {
-	Subscription string        `json:"subscription"`
-	View         sdui.SlotView `json:"view"`
 }
 
 func (s *Server) SetUI(store *sdui.Store, sections *sdui.Sections, router Router) {
@@ -261,7 +258,7 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if err := s.requireSlotScope(ctx, u, p.Slot, p.WorkspaceID); err != nil {
 		return revResult{}, err
 	}
-	rev, err := u.store.Render(ctx, p.WorkspaceID, p.Slot, caller.PluginID, p.Tree)
+	rev, err := u.store.RenderJSON(ctx, p.WorkspaceID, p.Slot, caller.PluginID, p.Tree)
 	return revResult{Rev: rev}, err
 }
 
@@ -417,13 +414,22 @@ func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription)
 					return
 				}
 				for _, view := range views {
-					if err := conn.Notify(ctx, notifyUIUpdated, uiUpdatedParams{Subscription: sid, View: view}); err != nil {
+					if err := conn.Notify(ctx, notifyUIUpdated, uiUpdatedFrame(sid, view)); err != nil {
 						return
 					}
 				}
 			}
 		}
 	}
+}
+
+func uiUpdatedFrame(sid string, view sdui.SlotView) json.RawMessage {
+	b := make([]byte, 0, len(view.Tree)+len(sid)+192)
+	b = append(b, `{"subscription":`...)
+	b, _ = jsontext.AppendQuote(b, sid)
+	b = append(b, `,"view":`...)
+	b = view.AppendJSON(b)
+	return append(b, '}')
 }
 
 func invalidParams(msg string) error {

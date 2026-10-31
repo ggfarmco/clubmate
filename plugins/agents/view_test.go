@@ -525,3 +525,22 @@ func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
 	assert.Contains(t, nodesOf(tree.Children[0], "text")[1].Props["text"], "Ask before edits")
 	assert.Equal(t, "Ask before edits", nodesOf(tree, "composer")[0].Props["modes"].([]sdui.Option)[0].Label)
 }
+
+func TestToolCardFollowsToolUpdates(t *testing.T) {
+	s := newSession(record{}, nil, true, nil)
+	s.running = true
+	status := func() any {
+		v := s.view(0)
+		require.Len(t, v.Entries, 1)
+		return toolCard("c", "/r", v.Entries[0], false, false).Props["status"]
+	}
+	s.applyTool(true, 1, rawJSON(t, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "Read", "kind": "read", "status": "in_progress"}))
+	assert.Equal(t, "in_progress", status())
+
+	s.applyTool(false, 1, rawJSON(t, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "t1", "status": "completed"}))
+	assert.Equal(t, "completed", status())
+
+	s.applyTool(false, 1, rawJSON(t, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "t1", "status": "in_progress"}))
+	s.running = false
+	assert.Equal(t, "cancelled", status())
+}

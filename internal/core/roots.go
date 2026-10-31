@@ -65,11 +65,11 @@ func (s *Service) RegisterProcess(ctx context.Context, owner RootOwner, r Regist
 	if _, err := s.workspaces.Get(ctx, r.WorkspaceID); err != nil {
 		return ProcessRoot{}, err
 	}
-	procs, err := s.snapshot()
+	table, err := s.freshSnapshot()
 	if err != nil {
 		return ProcessRoot{}, err
 	}
-	p, ok := ownedBy(procs, owner.PID, r.PID)
+	p, ok := ownedBy(table.procs, owner.PID, r.PID)
 	if !ok {
 		return ProcessRoot{}, fmt.Errorf("pid %d: %w", r.PID, ErrNotOwned)
 	}

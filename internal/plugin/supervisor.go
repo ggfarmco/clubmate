@@ -93,6 +93,7 @@ type Supervisor struct {
 	cancel  context.CancelFunc
 	plugins map[string]*instance
 	order   []string
+	gen     uint64
 }
 
 type instance struct {
@@ -176,6 +177,7 @@ func (s *Supervisor) Start(ctx context.Context, manifests []Manifest) {
 		s.plugins[m.ID] = &instance{status: Status{ID: m.ID, State: StateStarting, Manifest: m}, restart: make(chan struct{}, 1)}
 		s.order = append(s.order, m.ID)
 	}
+	s.gen++
 	s.mu.Unlock()
 	for _, m := range manifests {
 		restart := s.plugins[m.ID].restart
@@ -418,6 +420,7 @@ func (s *Supervisor) shutdown(id string, p *process) {
 
 func (s *Supervisor) settle(ctx context.Context, id string, cause error) (time.Duration, bool) {
 	s.mu.Lock()
+	s.gen++
 	inst := s.plugins[id]
 	inst.conn = nil
 	inst.status.PID = 0
@@ -465,7 +468,14 @@ func (s *Supervisor) backoff(crashes int) time.Duration {
 func (s *Supervisor) update(id string, fn func(inst *instance)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.gen++
 	fn(s.plugins[id])
+}
+
+func (s *Supervisor) generation() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.gen
 }
 
 func initialize(ctx context.Context, m Manifest, conn *jsonrpc2.Conn) error {

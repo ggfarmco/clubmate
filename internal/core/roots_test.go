@@ -212,3 +212,47 @@ func TestRootLifecycle(t *testing.T) {
 	assert.Equal(t, []bool{true}, ended(61))
 	require.ErrorIs(t, register(61), core.ErrOwnerClosed)
 }
+
+func TestProcessTreeSharesSnapshotWithinTTL(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	store, err := workspace.Open(dirs.DB())
+	require.NoError(t, err)
+	t.Cleanup(func() { store.Close() })
+	var mu sync.Mutex
+	snapshots, argReads := 0, 0
+	t0 := time.Unix(1000, 0)
+	snapshot := func() ([]proc.Process, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		snapshots++
+		return []proc.Process{{PID: 60, PPID: 1, PGID: 60, Comm: "node", StartTime: t0}}, nil
+	}
+	readArgs := func(int) []string {
+		mu.Lock()
+		defer mu.Unlock()
+		argReads++
+		return []string{"node", "acp"}
+	}
+	tracker := proc.NewTracker(func(int) ([]string, error) { return nil, nil }, os.Getpid())
+	svc := core.NewService(store, session.NewManager(dirs, "unused"), tracker, snapshot, core.WithSnapshotTTL(time.Hour), core.WithArgsReader(readArgs))
+	p, err := svc.CreateWorkspace(t.Context(), "demo", nil)
+	require.NoError(t, err)
+
+	for range 2 {
+		_, err := svc.ProcessTree(t.Context(), core.TreeFilter{})
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 1, snapshots)
+
+	_, err = svc.RegisterProcess(t.Context(), core.RootOwner{Plugin: "agents", PID: 50}, core.RegisterRequest{WorkspaceID: p.ID, PID: 60, Label: "x"})
+	require.ErrorIs(t, err, core.ErrNotOwned)
+	assert.Equal(t, 2, snapshots)
+
+	node := proc.Process{PID: 60, Comm: "node", StartTime: t0}
+	assert.Equal(t, []string{"node", "acp"}, svc.ProcessArgs(node))
+	svc.ProcessArgs(node)
+	assert.Equal(t, 1, argReads)
+	node.StartTime = t0.Add(time.Second)
+	svc.ProcessArgs(node)
+	assert.Equal(t, 2, argReads)
+}

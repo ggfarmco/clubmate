@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 
 	"github.com/sourcegraph/jsonrpc2"
+
+	"clubmate/pkg/pprofdump"
 )
 
 const ProtocolVersion = 1
@@ -232,6 +234,13 @@ func (rt *runtime) dispatch(ctx context.Context, h *Host, req *jsonrpc2.Request)
 			return nil, nil, err
 		}
 		result, err := rt.plugin.UIEvent(ctx, h, ev)
+		return result, nil, err
+	case pprofdump.Method:
+		var p pprofdump.Params
+		if err := decode(req, &p); err != nil {
+			return nil, nil, err
+		}
+		result, err := pprofdump.Write(ctx, p)
 		return result, nil, err
 	case "command.run":
 		if rt.plugin.Command == nil {
