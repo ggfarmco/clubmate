@@ -22,6 +22,7 @@ const (
 	projectCreated = "project.created"
 	projectDeleted = "project.deleted"
 	changeDeleted  = "deleted"
+	changeCreated  = "created"
 	reasonBudget   = "turn budget of %d reached"
 	reasonCaller   = "the session that ran it is closed"
 	reasonStopped  = "stopped"
@@ -263,7 +264,66 @@ func (a *app) sessionChanged(ctx context.Context, p changedPayload) {
 	if callers {
 		a.checkCaller(ctx, p)
 	}
+	if p.Kind == changeCreated {
+		a.followHandoffs(ctx, p.Workspace)
+	}
 	a.flush(ctx)
+}
+
+func (a *app) followHandoffs(ctx context.Context, workspace string) {
+	if !a.hasLiveRun(workspace) {
+		return
+	}
+	sessions, err := a.sessions(ctx, workspace)
+	if err != nil {
+		logError(err)
+		return
+	}
+	next := map[string]string{}
+	for _, s := range sessions {
+		if s.HandoffFrom != "" {
+			next[s.HandoffFrom] = s.ID
+		}
+	}
+	a.mu.Lock()
+	var moved []*Run
+	for _, r := range a.runs {
+		if r.Workspace != workspace || r.Status != statusRunning || r.Spec == nil {
+			continue
+		}
+		changed := false
+		for i := range r.Nodes {
+			n := &r.Nodes[i]
+			for range len(next) {
+				to, ok := next[n.Session]
+				if !ok {
+					break
+				}
+				n.Session, n.HandedOff, changed = to, true, true
+			}
+		}
+		if changed {
+			a.touch(workspace)
+			logError(a.store.save(ctx, r))
+			moved = append(moved, cloneRun(r))
+		}
+	}
+	a.mu.Unlock()
+	for _, r := range moved {
+		x := &runner{call: a.runCommand, run: r}
+		logError(errors.Join(x.repoint(ctx)...))
+	}
+}
+
+func (a *app) hasLiveRun(workspace string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, r := range a.runs {
+		if r.Workspace == workspace && r.Status == statusRunning && r.Spec != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *app) checkCaller(ctx context.Context, p changedPayload) {

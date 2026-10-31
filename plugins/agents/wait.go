@@ -15,6 +15,7 @@ const (
 	turnTopic          = "agents.turn"
 	defaultWaitSeconds = 120
 	maxWaitSeconds     = 300
+	turnReplyLimit     = 4000
 )
 
 var errNoWaitSessions = errors.New("sessions is empty")
@@ -56,6 +57,7 @@ type turnPayload struct {
 	Session   string `json:"session"`
 	Status    string `json:"status"`
 	Asks      bool   `json:"asks"`
+	Reply     string `json:"reply"`
 }
 
 func (a *app) wait(ctx context.Context, projectID, caller string, args waitArgs) (waitOutput, error) {
@@ -196,5 +198,18 @@ func (s *session) permissionLocked() *waitPermission {
 }
 
 func (s *session) turnLocked() turnPayload {
-	return turnPayload{Workspace: s.rec.Workspace, Session: s.rec.ID, Status: s.rec.Status, Asks: s.asksLocked()}
+	return turnPayload{Workspace: s.rec.Workspace, Session: s.rec.ID, Status: s.rec.Status, Asks: s.asksLocked(), Reply: s.replyLocked()}
+}
+
+func (s *session) replyLocked() string {
+	for i := len(s.entries) - 1; i >= 0; i-- {
+		en := s.entries[i]
+		if en.Turn != s.turn {
+			break
+		}
+		if en.Kind == entryAgent {
+			return clipRunes(strings.TrimSpace(en.Text), turnReplyLimit)
+		}
+	}
+	return ""
 }

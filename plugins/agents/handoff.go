@@ -99,10 +99,13 @@ func handoffBrief(v transcriptView, note string) string {
 }
 
 func clip(text string) string {
-	text = strings.TrimSpace(text)
+	return clipRunes(strings.TrimSpace(text), handoffPieceLimit)
+}
+
+func clipRunes(text string, limit int) string {
 	r := []rune(text)
-	if len(r) <= handoffPieceLimit {
+	if len(r) <= limit {
 		return text
 	}
-	return string(r[:handoffPieceLimit]) + "…"
+	return string(r[:limit]) + "…"
 }

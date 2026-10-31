@@ -1863,6 +1863,7 @@ func TestAsksUser(t *testing.T) {
 		Session   string `json:"session"`
 		Status    string `json:"status"`
 		Asks      bool   `json:"asks"`
+		Reply     string `json:"reply"`
 	}
 	var last turnEvent
 	testutil.Eventually(t, func() bool {
@@ -1874,7 +1875,7 @@ func TestAsksUser(t *testing.T) {
 		require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &last))
 		return true
 	}, wait)
-	assert.Equal(t, turnEvent{Workspace: project, Session: session, Status: "done", Asks: true}, last)
+	assert.Equal(t, turnEvent{Workspace: project, Session: session, Status: "done", Asks: true, Reply: "Ship it?"}, last)
 
 	testutil.Eventually(t, func() bool {
 		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+session)

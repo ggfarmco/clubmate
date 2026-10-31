@@ -134,7 +134,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return cloneRun(r), nil
+	return publicRun(r), nil
 }
 
 func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, error) {
@@ -147,6 +147,7 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 		return shownRun{}, err
 	}
 	sessions := a.sessionMap(ctx, cmd.ProjectID)
+	r.Spec = nil
 	out := shownRun{Run: r}
 	for _, n := range r.Nodes {
 		s := sessions[n.Session]
@@ -191,7 +192,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 			return nil, err
 		}
 	}
-	return cloneRun(live), nil
+	return publicRun(live), nil
 }
 
 func (a *app) put(ctx context.Context, r *Run) error {
@@ -246,6 +247,12 @@ func cloneRun(r *Run) *Run {
 	c.Nodes = slices.Clone(r.Nodes)
 	c.Edges = slices.Clone(r.Edges)
 	return &c
+}
+
+func publicRun(r *Run) *Run {
+	c := cloneRun(r)
+	c.Spec = nil
+	return c
 }
 
 func sortRuns(runs []*Run) {

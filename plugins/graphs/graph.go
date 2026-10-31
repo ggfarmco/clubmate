@@ -225,6 +225,10 @@ func (g *Graph) node(id string) *Node {
 	return &g.Nodes[i]
 }
 
+func (g *Graph) hasEdge(from, on string) bool {
+	return slices.ContainsFunc(g.Edges, func(e Edge) bool { return e.From == from && e.On == on })
+}
+
 func (g *Graph) maxTurns() int {
 	if g.MaxTurns == 0 {
 		return defaultMaxTurns

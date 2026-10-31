@@ -40,13 +40,15 @@ type Run struct {
 	StoppedAt *time.Time `json:"stoppedAt,omitempty"`
 	Nodes     []RunNode  `json:"nodes"`
 	Edges     []RunEdge  `json:"edges"`
+	Spec      *Graph     `json:"spec,omitempty"`
 }
 
 type RunNode struct {
-	ID      string `json:"id"`
-	Role    string `json:"role"`
-	Start   bool   `json:"start,omitempty"`
-	Session string `json:"session"`
+	ID        string `json:"id"`
+	Role      string `json:"role"`
+	Start     bool   `json:"start,omitempty"`
+	Session   string `json:"session"`
+	HandedOff bool   `json:"handedOff,omitempty"`
 }
 
 type RunEdge struct {
@@ -88,6 +90,12 @@ type triggerArgs struct {
 	Owner   string `json:"owner"`
 }
 
+type updateArgs struct {
+	ID    string `json:"id"`
+	Match string `json:"match"`
+	Args  string `json:"args"`
+}
+
 type triggerResult struct {
 	ID string `json:"id"`
 }
@@ -127,6 +135,7 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 		Status:    statusRunning,
 		MaxTurns:  g.maxTurns(),
 		StartedAt: now,
+		Spec:      g,
 	}
 	for _, n := range g.Nodes {
 		r.Nodes = append(r.Nodes, RunNode{ID: n.ID, Role: n.label(), Start: n.Start})
@@ -176,6 +185,20 @@ func (x *runner) kickoff(ctx context.Context, g *Graph) error {
 	return nil
 }
 
+func (x *runner) repoint(ctx context.Context) []error {
+	var errs []error
+	for i, e := range x.run.Spec.Edges {
+		args, err := x.edgeTrigger(x.run.Spec, e)
+		if err == nil {
+			err = x.do(ctx, "triggers.update", updateArgs{ID: x.run.Edges[i].Trigger, Match: args.Match, Args: args.Args}, nil)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("re-point %s → %s: %w", e.From, e.To, err))
+		}
+	}
+	return errs
+}
+
 func (x *runner) unwind(ctx context.Context) []error {
 	var errs []error
 	for _, e := range x.run.Edges {
@@ -205,7 +228,10 @@ func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 	on, match := turnTopic, map[string]any{"session": from.Session}
 	switch e.On {
 	case onDone:
-		match["status"], match["asks"] = "done", false
+		match["status"] = "done"
+		if g.hasEdge(e.From, onAsks) {
+			match["asks"] = false
+		}
 	case onAsks:
 		match["status"], match["asks"] = "done", true
 	case onError:
@@ -218,7 +244,7 @@ func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 	if text == "" {
 		text = x.defaultEdgeText(from, e)
 	}
-	if target := g.node(e.To); !target.Start {
+	if target := g.node(e.To); !target.Start || to.HandedOff {
 		text = x.brief(target) + "\n\n" + text
 	} else {
 		text = x.header(target) + "\n\n" + text
@@ -255,6 +281,7 @@ func (x *runner) brief(n *Node) string {
 	if len(peers) > 0 {
 		b.WriteString("\n\nOther nodes of this run: " + strings.Join(peers, "; ") + ". Clubmate passes your results on along the graph's edges; read another node's work with the clubmate tool agents_transcript.")
 	}
+	b.WriteString("\n\nYour reply goes to the next node of the graph, not to a person: do not end it with a question unless you need the answer to go on.")
 	if len(n.Outcomes) > 0 {
 		payloads := make([]string, 0, len(n.Outcomes))
 		for _, o := range n.Outcomes {
@@ -272,16 +299,18 @@ func (x *runner) header(n *Node) string {
 
 func (x *runner) defaultEdgeText(from *RunNode, e Edge) string {
 	who := fmt.Sprintf("%s (%s, session %s)", from.ID, from.Role, from.Session)
-	read := fmt.Sprintf("Read its last reply with the clubmate tool agents_transcript {\"session\":%q} and act on it.", from.Session)
+	transcript := fmt.Sprintf("the clubmate tool agents_transcript {\"session\":%q}", from.Session)
+	if e.On == onOutcome {
+		return who + " reported outcome " + e.Outcome + ". Read its last reply with " + transcript + " and act on it."
+	}
+	reply := "Its last reply (possibly cut; the whole transcript is in " + transcript + "):\n\n{{payload.reply}}"
 	switch e.On {
 	case onError:
-		return who + " stopped with an error. " + read
+		return who + " stopped with an error. " + reply
 	case onAsks:
-		return who + " asks a question. " + read + " Answer it with agents_prompt to that session if you can."
-	case onOutcome:
-		return who + " reported outcome " + e.Outcome + ". " + read
+		return who + " asks a question. Answer it with agents_prompt to that session if you can. " + reply
 	}
-	return who + " finished its turn. " + read
+	return who + " finished its turn. Act on it. " + reply
 }
 
 func (x *runner) render(s string) string {

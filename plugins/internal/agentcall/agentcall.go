@@ -20,6 +20,7 @@ type Session struct {
 	Title         string `json:"title"`
 	ParentSession string `json:"parentSession"`
 	Worktree      string `json:"worktree"`
+	HandoffFrom   string `json:"handoffFrom"`
 	Status        string `json:"status"`
 	Closed        bool   `json:"closed"`
 }
