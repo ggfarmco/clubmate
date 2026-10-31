@@ -146,7 +146,7 @@ type app struct {
 	mu       sync.Mutex
 	editors  map[editorKey]*editor
 	current  map[string]string
-	folders  map[string][]string
+	projects map[string]pluginsdk.Project
 	deleted  map[string]bool
 	stopping map[editorKey]bool
 	offerMu  sync.Mutex
@@ -169,7 +169,7 @@ func main() {
 	a := &app{
 		editors:  map[editorKey]*editor{},
 		current:  map[string]string{},
-		folders:  map[string][]string{},
+		projects: map[string]pluginsdk.Project{},
 		deleted:  map[string]bool{},
 		stopping: map[editorKey]bool{},
 	}
@@ -319,12 +319,13 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if !filepath.IsAbs(args.Root) {
 			return nil, errChecktimeRoot
 		}
-		if e := a.lookup(cmd.ProjectID, filepath.Clean(args.Root)); e != nil {
+		var errs []error
+		for _, e := range a.projectEditors(cmd.ProjectID) {
 			if c := e.connected(); c != nil {
-				return nil, c.checktime()
+				errs = append(errs, c.checktime())
 			}
 		}
-		return nil, nil
+		return nil, errors.Join(errs...)
 	case "stop-root":
 		var args stopRootArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
@@ -391,7 +392,7 @@ func (a *app) active(ctx context.Context, h *pluginsdk.Host, projectID string) (
 	if err != nil {
 		return nil, err
 	}
-	e, moved, err := a.selectRoot(p)
+	e, moved, err := a.selectRoot(p, "")
 	if e == nil || err != nil || !moved {
 		return e, err
 	}
@@ -403,13 +404,17 @@ func (a *app) target(ctx context.Context, h *pluginsdk.Host, projectID, path str
 	if err != nil {
 		return nil, err
 	}
-	repo, root, switched := owner(ctx, p, path)
+	folder, root, switched := owner(ctx, p, path)
 	if switched {
-		if p, err = h.SetWorktree(ctx, projectID, repo, root); err != nil {
+		if p, err = h.SetWorktree(ctx, projectID, p.Repos[folder], root); err != nil {
 			return nil, err
 		}
 	}
-	e, moved, err := a.selectRoot(p)
+	want := ""
+	if folder >= 0 && folder < len(p.Roots) {
+		want = p.Roots[folder]
+	}
+	e, moved, err := a.selectRoot(p, want)
 	if e == nil || err != nil || !moved && !switched {
 		return e, err
 	}
@@ -424,8 +429,9 @@ func (a *app) target(ctx context.Context, h *pluginsdk.Host, projectID, path str
 	return e, nil
 }
 
-func (a *app) selectRoot(p pluginsdk.Project) (*editor, bool, error) {
-	root, err := projectRoot(p)
+func (a *app) selectRoot(p pluginsdk.Project, want string) (*editor, bool, error) {
+	existing := existingRoots(p)
+	fallback, err := firstRoot(existing)
 	if err != nil {
 		return nil, false, err
 	}
@@ -435,9 +441,35 @@ func (a *app) selectRoot(p pluginsdk.Project) (*editor, bool, error) {
 		return nil, false, nil
 	}
 	prev, known := a.current[p.ID]
+	root := fallback
+	switch changed := changedRoot(a.projects[p.ID], p); {
+	case slices.Contains(existing, want):
+		root = want
+	case slices.Contains(existing, changed):
+		root = changed
+	case known && slices.Contains(existing, prev):
+		root = prev
+	}
 	a.current[p.ID] = root
-	a.folders[p.ID] = slices.Concat(p.Repos, p.Roots)
+	a.projects[p.ID] = p
 	return a.editorLocked(p.ID, root), known && prev != root, nil
+}
+
+func changedRoot(prev, p pluginsdk.Project) string {
+	if !slices.Equal(prev.Repos, p.Repos) || len(prev.Roots) != len(p.Roots) {
+		return ""
+	}
+	changed := ""
+	for i, r := range p.Roots {
+		if r == prev.Roots[i] {
+			continue
+		}
+		if changed != "" {
+			return ""
+		}
+		changed = r
+	}
+	return changed
 }
 
 func (a *app) editorAt(projectID, root string) *editor {
@@ -495,7 +527,8 @@ func (a *app) isCurrent(e *editor) bool {
 func (a *app) projectFolders(projectID string) []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.folders[projectID]
+	p := a.projects[projectID]
+	return slices.Concat(p.Repos, p.Roots)
 }
 
 func (a *app) tracked(projectID string) bool {
@@ -509,7 +542,7 @@ func (a *app) projectUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk
 	if !a.tracked(p.ID) {
 		return
 	}
-	e, moved, err := a.selectRoot(p)
+	e, moved, err := a.selectRoot(p, "")
 	if err != nil {
 		logError("project.updated", err)
 		return
@@ -560,7 +593,7 @@ func (a *app) drop(projectID string) {
 		}
 	}
 	delete(a.current, projectID)
-	delete(a.folders, projectID)
+	delete(a.projects, projectID)
 	for k := range a.stopping {
 		if k.project == projectID {
 			delete(a.stopping, k)
@@ -791,27 +824,30 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root s
 }
 
 func (a *app) unsaved(projectID, root string) ([]string, error) {
-	names := []string{}
-	e := a.lookup(projectID, root)
-	if e == nil {
-		return names, nil
-	}
-	c := e.connected()
-	if c == nil {
-		return names, nil
-	}
-	modified, err := c.modified()
-	if err != nil {
-		return nil, errUnsavedUnknown
-	}
 	dir := gitrepo.Canonical(root)
 	var inside []string
-	for _, name := range modified {
-		if name != "" && gitrepo.Within(gitrepo.Canonical(name), dir) {
-			inside = append(inside, name)
+	for _, e := range a.projectEditors(projectID) {
+		c := e.connected()
+		if c == nil {
+			continue
+		}
+		modified, err := c.modified()
+		if err != nil {
+			return nil, errUnsavedUnknown
+		}
+		own := gitrepo.Canonical(e.root)
+		for _, name := range modified {
+			if name == "" {
+				continue
+			}
+			file := gitrepo.Canonical(name)
+			if gitrepo.Within(file, dir) && (own == dir || !gitrepo.Within(file, own)) {
+				inside = append(inside, name)
+			}
 		}
 	}
-	return append(names, relativeNames(inside, a.projectFolders(projectID))...), nil
+	slices.Sort(inside)
+	return relativeNames(slices.Compact(inside), a.projectFolders(projectID)), nil
 }
 
 func (a *app) releaseRoot(ctx context.Context, h *pluginsdk.Host, projectID, root string) error {
@@ -1122,11 +1158,19 @@ func (e *editor) update(ev nvimEvent, branch string, refresh bool) {
 	}
 }
 
-func projectRoot(p pluginsdk.Project) (string, error) {
+func existingRoots(p pluginsdk.Project) []string {
+	var out []string
 	for _, r := range p.Roots {
 		if info, err := os.Stat(r); err == nil && info.IsDir() {
-			return r, nil
+			out = append(out, r)
 		}
+	}
+	return out
+}
+
+func firstRoot(existing []string) (string, error) {
+	if len(existing) > 0 {
+		return existing[0], nil
 	}
 	return os.UserHomeDir()
 }

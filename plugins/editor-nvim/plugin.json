@@ -77,10 +77,10 @@
         "title": "Reload Changed Files",
         "hidden": true,
         "agent": false,
-        "description": "Run :checktime in the Neovim of the given root so buffers changed on disk reload; a no-op when none runs there.",
+        "description": "Run :checktime in every running Neovim of the workspace so buffers changed on disk under the given root reload; a no-op when none runs.",
         "args": {
           "properties": {
-            "root": {"type": "string", "description": "Absolute root path of the Neovim, as listed in the workspace roots."}
+            "root": {"type": "string", "description": "Absolute path whose files changed on disk."}
           },
           "required": ["root"]
         }
@@ -104,7 +104,7 @@
         "title": "Unsaved Buffers",
         "hidden": true,
         "agent": false,
-        "description": "List the modified buffers of the Neovim running in the given root whose files are inside it, as workspace-relative names; [] when none runs there. Never stops or starts Neovim; fails with unsaved buffers: unknown when it does not respond.",
+        "description": "List the modified buffers of every running Neovim of the workspace whose files are inside the given root, except files another Neovim holds inside its own root, as workspace-relative names; [] when there are none. Never stops or starts Neovim; fails with unsaved buffers: unknown when it does not respond.",
         "args": {
           "properties": {
             "root": {"type": "string", "description": "Absolute root path of the Neovim, as listed in the workspace roots."}

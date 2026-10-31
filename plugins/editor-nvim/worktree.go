@@ -9,9 +9,9 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
-func owner(ctx context.Context, p pluginsdk.Project, path string) (string, string, bool) {
+func owner(ctx context.Context, p pluginsdk.Project, path string) (int, string, bool) {
 	if !filepath.IsAbs(path) {
-		return "", "", false
+		return -1, "", false
 	}
 	target := gitrepo.Canonical(filepath.Clean(path))
 	for i, repo := range p.Repos {
@@ -32,9 +32,20 @@ func owner(ctx context.Context, p pluginsdk.Project, path string) (string, strin
 			continue
 		}
 		if i < len(p.Roots) && gitrepo.Canonical(p.Roots[i]) == mapped {
-			return "", "", false
+			return i, "", false
 		}
-		return repo, f.Selection(*owning), true
+		return i, f.Selection(*owning), true
 	}
-	return "", "", false
+	return containing(p.Roots, target), "", false
+}
+
+func containing(roots []string, target string) int {
+	found, longest := -1, -1
+	for i, r := range roots {
+		dir := gitrepo.Canonical(r)
+		if gitrepo.Within(target, dir) && len(dir) > longest {
+			found, longest = i, len(dir)
+		}
+	}
+	return found
 }

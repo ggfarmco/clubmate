@@ -39,6 +39,7 @@ type setup struct {
 	sub          string
 	plugins      []string
 	theme        string
+	second       bool
 }
 
 type editor struct {
@@ -46,6 +47,7 @@ type editor struct {
 	projectID string
 	top       string
 	repo      string
+	repo2     string
 	sessionID string
 	sock      string
 }
@@ -460,6 +462,13 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	run := func(id string, args any) error {
 		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": e.projectID, "args": args}, nil)
 	}
+	unsaved := func(root string) []string {
+		var names []string
+		e.run(t, "unsaved", map[string]string{"root": root}, &names)
+		return names
+	}
+	assert.Empty(t, unsaved(e.repo))
+	assert.Len(t, unsaved(wt), 1)
 	require.ErrorContains(t, run("editor-nvim.restart", nil), "unsaved buffers: .worktrees/feat/a.go")
 	require.ErrorContains(t, run("editor-nvim.stop-root", map[string]any{"root": wt}), "unsaved buffers:")
 	require.NoError(t, run("editor-nvim.stop-root", map[string]any{"root": wt, "force": true}))
@@ -503,31 +512,81 @@ func TestStopRootBlocksStartUntilReleased(t *testing.T) {
 	})
 }
 
+func TestSecondFolderHasOwnNvim(t *testing.T) {
+	e := startEditorIn(t, setup{second: true})
+	pid := eval[int](t, dial(t, e.sock), "getpid()")
+	path := filepath.Join(e.repo2, "b.go")
+	require.NoError(t, os.WriteFile(path, []byte("b\n"), 0o600))
+	require.NoError(t, e.open(t, path, 1))
+	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		id, _ := n.Props["sessionId"].(string)
+		return n.Type == "surface" && id != "" && e.h.GetSession(t, id).Cwd == e.repo2
+	})
+	v := dial(t, e.h.GetSession(t, main.Props["sessionId"].(string)).Command[2])
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
+	require.NoError(t, v.Command("normal! ix"))
+	require.NoError(t, v.Command("normal! V\x1b"))
+	unsaved := func(root string) []string {
+		var names []string
+		e.run(t, "unsaved", map[string]string{"root": root}, &names)
+		return names
+	}
+	assert.Empty(t, unsaved(e.repo))
+	assert.Len(t, unsaved(e.repo2), 1)
+	var sel struct {
+		Path string `json:"path"`
+	}
+	e.run(t, "selection", nil, &sel)
+	assert.Equal(t, path, sel.Path)
+	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
+}
+
+func TestSecondFolderWorktreeGetsOwnNvim(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	e := startEditorIn(t, setup{second: true})
+	require.NoError(t, os.WriteFile(filepath.Join(e.repo2, "b.go"), []byte("b\n"), 0o600))
+	wt := addWorktree(t, e.repo2)
+	feat := e.setFolderWorktree(t, e.repo2, wt)
+	assert.Equal(t, wt, eval[string](t, dial(t, feat.Command[2]), "getcwd()"))
+	assert.ElementsMatch(t, []string{e.sessionID, feat.ID}, e.running(t))
+}
+
 func startWorktreeEditor(t *testing.T, s setup) (*editor, string) {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	e := startEditorIn(t, s)
 	e.file(t, "a.go")
-	gitIn(t, e.top, "init", "-q")
-	gitIn(t, e.top, "add", ".")
-	gitIn(t, e.top, "commit", "-qm", "init")
-	gitIn(t, e.top, "worktree", "add", "-q", filepath.Join(e.top, ".worktrees", "feat"), "-b", "feat")
+	return e, addWorktree(t, e.top)
+}
+
+func addWorktree(t *testing.T, top string) string {
+	t.Helper()
+	gitIn(t, top, "init", "-q")
+	gitIn(t, top, "add", ".")
+	gitIn(t, top, "commit", "-qm", "init")
+	gitIn(t, top, "worktree", "add", "-q", filepath.Join(top, ".worktrees", "feat"), "-b", "feat")
 	var trees []string
-	for line := range strings.Lines(gitIn(t, e.top, "worktree", "list", "--porcelain")) {
+	for line := range strings.Lines(gitIn(t, top, "worktree", "list", "--porcelain")) {
 		if tree, ok := strings.CutPrefix(strings.TrimSpace(line), "worktree "); ok {
 			trees = append(trees, tree)
 		}
 	}
 	require.Len(t, trees, 2)
-	return e, trees[1]
+	return trees[1]
 }
 
 func (e *editor) setWorktree(t *testing.T, path string) session.Session {
 	t.Helper()
-	_, err := e.h.Svc.SetWorktree(t.Context(), e.projectID, e.repo, path)
+	return e.setFolderWorktree(t, e.repo, path)
+}
+
+func (e *editor) setFolderWorktree(t *testing.T, repo, path string) session.Session {
+	t.Helper()
+	_, err := e.h.Svc.SetWorktree(t.Context(), e.projectID, repo, path)
 	require.NoError(t, err)
-	want := cmp.Or(path, e.repo)
+	want := cmp.Or(path, repo)
 	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
 		id, _ := n.Props["sessionId"].(string)
 		return n.Type == "surface" && id != "" && e.h.GetSession(t, id).Cwd == want
@@ -573,12 +632,18 @@ func startEditorIn(t *testing.T, s setup) *editor {
 	if s.missingFirst {
 		repos = []string{t.TempDir(), repo}
 	}
+	repo2 := ""
+	if s.second {
+		repo2, err = filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		repos = append(repos, repo2)
+	}
 	p, err := h.Svc.CreateProject(t.Context(), "demo", repos)
 	require.NoError(t, err)
 	if s.missingFirst {
 		require.NoError(t, os.RemoveAll(repos[0]))
 	}
-	e := &editor{h: h, projectID: p.ID, top: top, repo: repo}
+	e := &editor{h: h, projectID: p.ID, top: top, repo: repo, repo2: repo2}
 	t.Cleanup(func() { e.killAll(t) })
 	var sub struct {
 		Subscription string `json:"subscription"`
