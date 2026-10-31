@@ -136,11 +136,11 @@ func mainView(t *Task, owners map[string]string, hasTasks bool) sdui.Node {
 	case t == nil:
 		return sdui.Empty(noTasks)
 	}
-	nodes := []sdui.Node{sdui.HStack(
-		sdui.Text(fmt.Sprintf("#%d", t.ID)),
-		sdui.Badge(statusLabels[t.Status], cmp.Or(statusTones[t.Status], "neutral")),
-		sdui.Badge(t.Priority, cmp.Or(priorityTone[t.Priority], "neutral")),
-	)}
+	badges := []sdui.HeaderBadge{{Text: strings.ToLower(statusLabels[t.Status]), Tone: statusTones[t.Status]}}
+	if t.Priority != "normal" {
+		badges = append(badges, sdui.HeaderBadge{Text: t.Priority, Tone: priorityTone[t.Priority]})
+	}
+	nodes := []sdui.Node{sdui.Header(fmt.Sprintf("#%d %s", t.ID, t.Title), sdui.HeaderProps{Icon: statusIcons[t.Status], Badges: badges}, actions(t)...)}
 	if t.Status == statusInProgress {
 		line := "In progress by " + labelOf(owners, t.ClaimedBy)
 		if !t.ClaimedAt.IsZero() {
@@ -158,20 +158,18 @@ func mainView(t *Task, owners map[string]string, hasTasks bool) sdui.Node {
 	if t.Note != "" {
 		nodes = append(nodes, sdui.MutedText(t.Note))
 	}
-	fields := []sdui.Node{
-		sdui.TextField("title", t.Title, "Title"),
-		sdui.WithLines(sdui.TextField("description", t.Description, "Description"), formLines),
-	}
+	fields := []sdui.Node{sdui.HStack(sdui.MutedText("Title"), sdui.TextField("title", t.Title, "Title"))}
 	if t.Status != statusInProgress {
 		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
 	}
-	fields = append(fields, sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, nil), t.Priority)), sdui.Button("save", "Save", ""))
+	fields = append(fields,
+		sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, nil), t.Priority)),
+		sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)),
+		sdui.WithShortcut(sdui.WithVariant(sdui.Button("save", "Save", ""), sdui.VariantSecondary), "cmd+s"),
+	)
 	form := sdui.VStack(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID)))
 	form.ID = fmt.Sprintf("task-%d", t.ID)
 	nodes = append(nodes, form)
-	if buttons := actions(t); len(buttons) > 0 {
-		nodes = append(nodes, sdui.HStack(buttons...))
-	}
 	return sdui.Scroll(sdui.VStack(nodes...))
 }
 
@@ -179,14 +177,14 @@ func actions(t *Task) []sdui.Node {
 	var buttons []sdui.Node
 	switch t.Status {
 	case statusTodo, statusIdea:
-		buttons = append(buttons, sdui.Button("start", "Start", "play"))
+		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.Button("start", "Start agent", "play.fill"), sdui.VariantPrimary), "cmd+return"))
 	case statusInProgress:
-		buttons = append(buttons, sdui.Button("release", "Release", "arrow.uturn.backward"))
+		buttons = append(buttons, sdui.WithVariant(sdui.Button("release", "Release", "arrow.uturn.backward"), sdui.VariantSecondary))
 	}
 	if t.Status != statusDone {
-		buttons = append(buttons, sdui.Button("done", "Done", "checkmark"))
+		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.Button("done", "Done", "checkmark"), sdui.VariantSecondary), "d"))
 	}
-	buttons = append(buttons, sdui.WithConfirm(sdui.Button("delete", "Delete", "trash"), deleteConfirm(t.ID)))
+	buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithConfirm(sdui.Button("delete", "Delete", "trash"), deleteConfirm(t.ID)), sdui.VariantDanger), "cmd+delete"))
 	return buttons
 }
 

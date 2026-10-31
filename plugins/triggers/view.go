@@ -39,14 +39,20 @@ func mainView(t *Trigger, titles map[string]string) sdui.Node {
 	if t == nil {
 		return sdui.Empty("Select a trigger")
 	}
-	return sdui.VStack(
-		sdui.Text(t.Name),
-		sdui.Text("On: "+eventLine(t)),
-		sdui.MutedText(t.Command+" "+string(t.Args)),
-		sdui.Text(stateLine(t)),
-		sdui.Text("Owner: "+automation.OwnerLabel(t.Owner, titles)),
-		historyView(t),
+	header := sdui.Header(t.Name, sdui.HeaderProps{Icon: triggerIcon(t), Badges: automation.StateBadges(t.Enabled, t.History)},
+		automation.ActionNode(t.ID, automation.PauseAction(t.Enabled)),
+		automation.ActionNode(t.ID, automation.DeleteAction("Delete trigger “"+t.Name+"”?")),
 	)
+	rows := []sdui.Node{
+		automation.Property("When", t.On, string(t.Match)),
+		automation.Property("State", stateLine(t), ""),
+		automation.Property("Owner", automation.OwnerLabel(t.Owner, titles), ""),
+	}
+	rows = append(rows, automation.Does(t.Command, t.Args)...)
+	if len(t.History) == 0 {
+		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "No runs yet.", ""))...))
+	}
+	return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "", ""))...), historyView(t))
 }
 
 func eventLine(t *Trigger) string {
@@ -102,9 +108,6 @@ func stateLine(t *Trigger) string {
 }
 
 func historyView(t *Trigger) sdui.Node {
-	if len(t.History) == 0 {
-		return sdui.MutedText("No runs yet")
-	}
 	runs := automation.NewestFirst(t.History)
 	rows := make([]sdui.TableRow, 0, len(runs))
 	for i, r := range runs {

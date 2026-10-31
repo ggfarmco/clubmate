@@ -59,6 +59,17 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct SDUIHeaderBadge: Sendable, Equatable {
+    public let text: String
+    public let tone: String?
+
+    init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let text = fields["text"]?.stringValue else { return nil }
+        self.text = text
+        tone = fields["tone"]?.stringValue
+    }
+}
+
 public struct SDUIOption: Sendable, Equatable, Identifiable {
     public let value: String
     public let label: String
@@ -215,6 +226,10 @@ extension SDUINode {
 
     public func treeItems() -> [SDUITreeItem] {
         props["items"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
+    }
+
+    public func headerBadges() -> [SDUIHeaderBadge] {
+        props["badges"]?.arrayValue?.compactMap(SDUIHeaderBadge.init) ?? []
     }
 
     public func options() -> [SDUIOption] {

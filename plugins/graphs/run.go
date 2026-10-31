@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -255,13 +256,26 @@ func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 		return triggerArgs{}, err
 	}
 	return triggerArgs{
-		Name:    fmt.Sprintf("%s %s: %s → %s", x.run.Graph, x.run.ID, e.From, e.To),
+		Name:    fmt.Sprintf("%s: %s %s → %s", cmp.Or(x.run.Title, x.run.Graph), cmp.Or(from.Role, from.ID), edgeVerb(e), cmp.Or(to.Role, to.ID)),
 		On:      on,
 		Match:   string(matchText),
 		Command: "agents.prompt",
 		Args:    string(argsText),
 		Owner:   "self",
 	}, nil
+}
+
+func edgeVerb(e Edge) string {
+	switch e.On {
+	case onAsks:
+		return "asks"
+	case onError:
+		return "fails"
+	case onOutcome:
+		return "says " + e.Outcome
+	default:
+		return "done"
+	}
 }
 
 func (x *runner) brief(n *Node) string {

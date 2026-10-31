@@ -11,8 +11,6 @@ import (
 
 const (
 	sidebarSlot = "cron.sidebar"
-	ownerNode   = "/owner"
-	actReveal   = "reveal"
 	mainSlot    = "cron.main"
 	jobsList    = "jobs"
 	historyID   = "history"
@@ -44,23 +42,26 @@ func mainView(j *Job, titles map[string]string) sdui.Node {
 	if j == nil {
 		return sdui.Empty("Select a cron job")
 	}
-	return sdui.VStack(
-		sdui.Text(j.Name),
-		sdui.MutedText(j.Command+" "+string(j.Args)),
-		sdui.Text("Schedule: "+j.Schedule.Describe()),
-		sdui.Text(stateLine(j)),
-		sdui.Text("Missed runs: "+j.Missed),
-		ownerRow(j, titles),
-		historyView(j),
-	)
-}
-
-func ownerRow(j *Job, titles map[string]string) sdui.Node {
-	owner := sdui.Text("Owner: " + automation.OwnerLabel(j.Owner, titles))
-	if _, ok := titles[j.Owner]; !ok {
-		return owner
+	actions := []sdui.Node{
+		automation.ActionNode(j.ID, automation.DetailAction{Action: automation.ActRun, Label: "Run now", Icon: "play.fill", Variant: sdui.VariantPrimary, Shortcut: "cmd+r"}),
+		automation.ActionNode(j.ID, automation.PauseAction(j.Enabled)),
 	}
-	return sdui.HStack(owner, sdui.WithAction(sdui.Button(j.ID+ownerNode, "Show Session", "sparkles"), actReveal))
+	if _, ok := titles[j.Owner]; ok {
+		actions = append(actions, automation.ActionNode(j.ID, automation.DetailAction{Action: automation.ActReveal, Label: "Show session", Icon: "sparkles", Variant: sdui.VariantGhost}))
+	}
+	actions = append(actions, automation.ActionNode(j.ID, automation.DeleteAction("Delete cron job “"+j.Name+"”?")))
+	header := sdui.Header(j.Name, sdui.HeaderProps{Icon: jobIcon(j), Badges: automation.StateBadges(j.Enabled, j.History)}, actions...)
+	rows := []sdui.Node{
+		automation.Property("Schedule", j.Schedule.Describe(), j.Schedule.Cron),
+		automation.Property(stateKey(j), stateValue(j), ""),
+		automation.Property("Missed runs", j.Missed, ""),
+		automation.Property("Owner", automation.OwnerLabel(j.Owner, titles), ""),
+	}
+	rows = append(rows, automation.Does(j.Command, j.Args)...)
+	if len(j.History) == 0 {
+		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "No runs yet. Run now with ⌘R.", ""))...))
+	}
+	return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "", ""))...), historyView(j))
 }
 
 func jobDetail(j *Job, now time.Time) string {
@@ -108,20 +109,21 @@ func jobMenu(j *Job) []sdui.MenuEntry {
 	}
 }
 
-func stateLine(j *Job) string {
+func stateKey(j *Job) string {
 	if j.Enabled {
-		return "Next run: " + j.NextRun.In(jobLocation(j)).Format(dayLayout)
+		return "Next run"
 	}
-	if j.LastError == "" {
-		return "Paused"
+	return "Paused"
+}
+
+func stateValue(j *Job) string {
+	if j.Enabled {
+		return j.NextRun.In(jobLocation(j)).Format(dayLayout)
 	}
-	return "Paused: " + j.LastError
+	return cmp.Or(j.LastError, "by the user")
 }
 
 func historyView(j *Job) sdui.Node {
-	if len(j.History) == 0 {
-		return sdui.MutedText("No runs yet")
-	}
 	runs := automation.NewestFirst(j.History)
 	loc := jobLocation(j)
 	rows := make([]sdui.TableRow, 0, len(runs))

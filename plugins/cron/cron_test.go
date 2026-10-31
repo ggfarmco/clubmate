@@ -235,6 +235,8 @@ func TestSectionFollowsUIActions(t *testing.T) {
 	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "clock" })
 	f.h.Event(t, f.workspace, "cron.sidebar", "jobs", "pause", added.ID)
 	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "pause.circle" })
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/resume", "resume", nil)
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "clock" })
 	f.h.Event(t, f.workspace, "cron.sidebar", "jobs", "delete", added.ID)
 	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })
 }
@@ -352,9 +354,9 @@ func TestShowSessionRevealsTheOwner(t *testing.T) {
 	f.newSession(t)
 	var added job
 	require.NoError(t, f.runAs(t, owner, "cron.add", ping(nil), &added))
-	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/owner")) == 1 })
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/reveal")) == 1 })
 
-	f.h.Event(t, f.workspace, "cron.main", added.ID+"/owner", "reveal", nil)
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/reveal", "reveal", nil)
 
 	f.h.WaitSlot(t, f.workspace, "agents.sidebar", func(n sdui.Node) bool {
 		trees := nodesWithType(n, "tree")

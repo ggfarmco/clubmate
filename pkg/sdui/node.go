@@ -248,6 +248,25 @@ func Empty(text string) Node {
 	return Node{Type: "empty", Props: map[string]any{"text": text}}
 }
 
+type HeaderBadge struct {
+	Text string `json:"text"`
+	Tone string `json:"tone,omitempty"`
+}
+
+type HeaderProps struct {
+	Icon   string
+	Meta   string
+	Badges []HeaderBadge
+}
+
+func Header(title string, p HeaderProps, actions ...Node) Node {
+	props := withOptional(withOptional(map[string]any{"title": title}, "icon", p.Icon), "meta", p.Meta)
+	if len(p.Badges) > 0 {
+		props["badges"] = p.Badges
+	}
+	return Node{Type: "header", Props: props, Children: actions}
+}
+
 type EmptyProps struct {
 	Title  string
 	Icon   string

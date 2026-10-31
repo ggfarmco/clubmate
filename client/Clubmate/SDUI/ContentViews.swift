@@ -121,6 +121,52 @@ struct DiffNodeView: View {
     }
 }
 
+struct HeaderNodeView: View {
+    let node: SDUINode
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let title = node.string("title") ?? ""
+        VStack(alignment: .leading, spacing: theme.spacing.l) {
+            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                if let icon = node.string("icon") {
+                    Image(systemName: SymbolName.resolve(icon))
+                        .foregroundStyle(theme.muted)
+                }
+                Text(title)
+                    .font(theme.heading)
+                    .foregroundStyle(theme.foreground)
+                    .lineLimit(2)
+                    .truncationMode(.label)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .help(title)
+                    .layoutPriority(1)
+                ForEach(Array(node.headerBadges().enumerated()), id: \.offset) { _, badge in
+                    BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
+                        .fixedSize()
+                }
+                Spacer(minLength: 0)
+            }
+            if let meta = node.string("meta") {
+                Text(meta)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !node.children.isEmpty {
+                FlowLayout(spacing: theme.spacing.m) {
+                    SDUIChildren(node: node)
+                }
+            }
+        }
+        .padding(.horizontal, theme.gutter)
+        .padding(.vertical, theme.spacing.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+    }
+}
+
 struct EmptyNodeView: View {
     let node: SDUINode
 

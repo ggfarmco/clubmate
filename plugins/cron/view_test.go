@@ -39,7 +39,9 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 		{At: at.Add(2 * time.Minute), Status: automation.StatusError, Reason: "boom"},
 	}}
 	view := mainView(j, map[string]string{"agt_1": "Orchestrator"})
-	assert.Contains(t, texts(view), "Owner: Orchestrator")
+	assert.Contains(t, texts(view), "Orchestrator")
+	assert.Equal(t, "header", view.Children[0].Type)
+	assert.Equal(t, []string{"cj_a/run", "cj_a/resume", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
 	rows := tableRows(t, view)
 	require.Len(t, rows, 3)
 	assert.Equal(t, "boom", rows[0].Cells[2].Text)
@@ -92,4 +94,12 @@ func tableRows(t *testing.T, n sdui.Node) []sdui.TableRow {
 		}
 	}
 	return nil
+}
+
+func childIDs(n sdui.Node) []string {
+	ids := make([]string, 0, len(n.Children))
+	for _, c := range n.Children {
+		ids = append(ids, c.ID)
+	}
+	return ids
 }

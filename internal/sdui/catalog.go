@@ -164,6 +164,11 @@ var (
 		},
 		"form":    {props: map[string]propCheck{"action": actionCheck}, children: anyChildren, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
+		"header": {
+			required: []string{"title"},
+			props:    map[string]propCheck{"title": isString, "icon": isString, "meta": isString, "badges": listOf(headerBadgeCheck)},
+			children: childRule{min: 0, max: 8, only: []string{"button"}},
+		},
 		"empty": {
 			required: []string{"text"},
 			props:    map[string]propCheck{"text": isString, "title": isString, "icon": isString, "hint": isString},
@@ -380,8 +385,9 @@ func shortcutCheck(_ *validator, v any) error {
 	if !ok || !shortcutPattern.MatchString(s) {
 		return fmt.Errorf("must be a key combo like cmd+r, opt+1 or p")
 	}
-	if key := s[strings.LastIndex(s, "+")+1:]; slices.Contains(reservedKeys, key) {
-		return fmt.Errorf("%s is reserved for the app", key)
+	bare := !strings.Contains(s, "cmd+") && !strings.Contains(s, "ctrl+") && !strings.Contains(s, "opt+")
+	if key := s[strings.LastIndex(s, "+")+1:]; bare && slices.Contains(reservedKeys, key) {
+		return fmt.Errorf("%s without cmd, ctrl or opt is reserved for the app", key)
 	}
 	return nil
 }
@@ -491,6 +497,10 @@ func uniqueItemID(c *validator, v any) error {
 
 func itemCheck(c *validator, v any) error {
 	return objectCheck(itemRequired, itemFields)(c, v)
+}
+
+func headerBadgeCheck(c *validator, v any) error {
+	return objectCheck([]string{"text"}, map[string]propCheck{"text": isString, "tone": oneOf(badgeTones)})(c, v)
 }
 
 func optionCheck(c *validator, v any) error {

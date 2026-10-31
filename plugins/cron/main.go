@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -136,15 +135,23 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	if ev.Slot == mainSlot && ev.Action == actReveal {
-		return nil, a.revealOwner(ctx, ev.WorkspaceID, strings.TrimSuffix(ev.NodeID, ownerNode))
-	}
-	if ev.Slot != sidebarSlot {
-		return nil, nil
-	}
 	var id string
-	if err := json.Unmarshal(ev.Value, &id); err != nil {
-		return nil, fmt.Errorf("%s value: %w", ev.Action, err)
+	switch ev.Slot {
+	case mainSlot:
+		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
+		if !ok {
+			return nil, nil
+		}
+		if ev.Action == automation.ActReveal {
+			return nil, a.revealOwner(ctx, ev.WorkspaceID, target)
+		}
+		id = target
+	case sidebarSlot:
+		if err := json.Unmarshal(ev.Value, &id); err != nil {
+			return nil, fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+	default:
+		return nil, nil
 	}
 	if ev.Action == "select" {
 		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {

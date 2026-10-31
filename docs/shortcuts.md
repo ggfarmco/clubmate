@@ -24,11 +24,16 @@ Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so
 
 ## Plugin buttons
 
-A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ cannot be plugin shortcuts. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`), combos parsed by `ClubmateKit/KeyCombo.swift`. Plugin shortcuts in use:
+A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus, app menu keys always win, and Esc, ↩ and ⇥ without ⌘, ⌃ or ⌥ cannot be plugin shortcuts. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`), combos parsed by `ClubmateKit/KeyCombo.swift`. Plugin shortcuts in use:
 
 | Keys | Action | Plugin |
 |---|---|---|
-| none yet | | |
+| ⌘R | Run the cron job now | cron |
+| P | Pause or resume the job or trigger | cron, triggers |
+| ⌘⌫ | Delete the job, trigger or task (confirmed) | cron, triggers, backlog |
+| ⌘↩ | Start an agent on the task | backlog |
+| D | Mark the task done | backlog |
+| ⌘S | Save the task | backlog |
 
 ## Lists: palette, file picker, pickers, switcher
 

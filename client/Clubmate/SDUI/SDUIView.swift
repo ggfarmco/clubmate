@@ -195,6 +195,7 @@ struct SDUINodeView: View {
         case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
         case "empty": EmptyNodeView(node: node)
+        case "header": HeaderNodeView(node: node)
         default: UnsupportedNodeView(type: node.type)
         }
     }

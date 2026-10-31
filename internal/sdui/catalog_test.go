@@ -60,7 +60,10 @@ func TestValidate(t *testing.T) {
 		{"button variant, shortcut, disabled", sdui.WithDisabled(sdui.WithShortcut(sdui.WithVariant(sdui.Button("b", "Run", ""), sdui.VariantPrimary), "cmd+shift+r")), true},
 		{"button bad variant", sdui.WithVariant(sdui.Button("b", "Run", ""), "loud"), false},
 		{"button bad shortcut", sdui.WithShortcut(sdui.Button("b", "Run", ""), "hyper+r"), false},
-		{"button reserved shortcut", sdui.WithShortcut(sdui.Button("b", "Run", ""), "cmd+return"), false},
+		{"header", sdui.Header("Nightly audit", sdui.HeaderProps{Icon: "clock", Meta: "every day", Badges: []sdui.HeaderBadge{{Text: "failed", Tone: "danger"}}}, sdui.Button("j/run", "Run now", "")), true},
+		{"header bad badge tone", sdui.Header("x", sdui.HeaderProps{Badges: []sdui.HeaderBadge{{Text: "a", Tone: "pink"}}}), false},
+		{"header with a text child", sdui.Header("x", sdui.HeaderProps{}, sdui.Text("a")), false},
+		{"button reserved shortcut", sdui.WithShortcut(sdui.Button("b", "Run", ""), "shift+return"), false},
 		{"empty state with action", sdui.EmptyState("Nothing yet.", sdui.EmptyProps{Title: "No runs", Icon: "clock", Hint: "cm cron add", Action: &sdui.Node{Type: "button", ID: "run", Props: map[string]any{"label": "Run"}}}), true},
 		{"empty state with a non-button child", sdui.Node{Type: "empty", Props: map[string]any{"text": "x"}, Children: []sdui.Node{sdui.Text("a")}}, false},
 	}
