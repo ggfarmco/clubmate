@@ -16,6 +16,7 @@ public final class CompanionModel {
     @ObservationIgnored private let cursors: UserDefaults?
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var agents: [String: AgentsStore] = [:]
+    @ObservationIgnored private var backlogs: [String: BacklogStore] = [:]
     @ObservationIgnored private var observers: [String: UUID] = [:]
     @ObservationIgnored private var lastSignal = ContinuousClock.now
     @ObservationIgnored private var receiving = 0
@@ -90,6 +91,15 @@ public final class CompanionModel {
         return store
     }
 
+    public func backlog(computer: String, workspace: String) -> BacklogStore? {
+        let key = computer + "|" + workspace
+        if let existing = backlogs[key] { return existing }
+        guard let connection = connections[computer] else { return nil }
+        let store = BacklogStore(workspace: workspace, runner: connection)
+        backlogs[key] = store
+        return store
+    }
+
     private func attach(_ computer: Computer) {
         let saved = cursors?.object(forKey: Self.cursorKey(computer.id)) as? Int
         let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, lastEventID: saved, sleep: sleep)
@@ -106,6 +116,7 @@ public final class CompanionModel {
         }
         connections[id] = nil
         agents = agents.filter { !$0.key.hasPrefix(id + "|") }
+        backlogs = backlogs.filter { !$0.key.hasPrefix(id + "|") }
     }
 
     private static func cursorKey(_ computer: String) -> String {
@@ -126,6 +137,9 @@ public final class CompanionModel {
             }
         }
         for (key, store) in agents where key.hasPrefix(computer + "|") {
+            store.handle(signal)
+        }
+        for (key, store) in backlogs where key.hasPrefix(computer + "|") {
             store.handle(signal)
         }
     }

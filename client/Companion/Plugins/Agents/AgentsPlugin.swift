@@ -62,20 +62,7 @@ struct AgentsListView: View {
         }
         .navigationTitle(workspace?.name ?? "Agents")
         .toolbar {
-            if context.connection.workspaces.count > 1 {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu("Workspace", systemImage: "folder") {
-                        Picker("Workspace", selection: Binding(get: { workspace?.id ?? "" }, set: { id in
-                            context.navigation.workspaces[context.connection.computer.id] = id
-                            context.navigation.detail = nil
-                        })) {
-                            ForEach(context.connection.workspaces) { item in
-                                Label(item.name, systemImage: "folder").tag(item.id)
-                            }
-                        }
-                    }
-                }
-            }
+            WorkspaceMenu(context: context)
             ToolbarItem(placement: .primaryAction) {
                 Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
                     .disabled(workspace == nil || context.connection.state != .online)

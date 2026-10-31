@@ -27,6 +27,7 @@ actor FixtureServer {
 
     private var sessions: [[String: JSONValue]] = []
     private var transcripts: [String: [String: JSONValue]] = [:]
+    private var tasks: [[String: JSONValue]] = []
     private var turns: [String: Task<Void, Never>] = [:]
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
     private var seq = 100
@@ -60,6 +61,13 @@ actor FixtureServer {
         }
         self.sessions = sessions
         self.transcripts = transcripts
+        tasks = (decode("backlog-tasks.json")["tasks"]?.arrayValue ?? []).enumerated().compactMap { index, value in
+            guard case .object(var fields) = value else { return nil }
+            fields["createdAt"] = Self.stamp(ago: Double(index + 1) * 5_400)
+            fields["updatedAt"] = Self.stamp(ago: Double(index + 1) * 1_800)
+            if fields["claimedBy"] != nil, let id = sessions.first?["id"] { fields["claimedBy"] = id }
+            return fields
+        }
     }
 
     func subscribe() -> AsyncThrowingStream<Data, any Error> {
@@ -84,8 +92,8 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.permission", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify"].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")]), "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("notify.posted")])])]))
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.permission", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done"].map(JSONValue.string)
+            return (200, Self.json(["result": .object(["computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")]), "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array([
                 .object(["id": .string(Self.workspace), "name": .string("shop"), "folders": .array([.object(["path": .string("/Users/me/src/shop")])])]),
@@ -176,6 +184,26 @@ actor FixtureServer {
                 _ = command("agents.prompt", workspace: workspace, args: .object(["session": .string(id), "text": .string(prompt)]))
             }
             return .object(["session": .string(id), "worktree": record["worktree"] ?? .null])
+        case "backlog.list":
+            guard workspace == Self.workspace else { return .object(["tasks": .array([])]) }
+            let status = args["status"]?.stringValue ?? "open"
+            var list = tasks.filter { task in
+                let value = task["status"]?.stringValue ?? ""
+                return status == "open" ? ["idea", "todo", "in_progress"].contains(value) : value == status
+            }
+            if case .number(let limit) = args["limit"] ?? .null { list = Array(list.prefix(Int(limit))) }
+            return .object(["tasks": .array(list.map(JSONValue.object))])
+        case "backlog.get":
+            return tasks.first { $0["id"] == args["id"] }.map(JSONValue.object) ?? .null
+        case "backlog.add":
+            let id = (tasks.compactMap { $0["id"]?.numberValue }.max() ?? 0) + 1
+            var task: [String: JSONValue] = ["id": .number(id), "title": args["title"] ?? .string(""), "status": args["status"] ?? .string("todo"), "priority": args["priority"] ?? .string("normal"), "createdBy": .string("user"), "createdAt": Self.stamp(ago: 0), "updatedAt": Self.stamp(ago: 0)]
+            if let description = args["description"] { task["description"] = description }
+            tasks.insert(task, at: 0)
+            publish("backlog.changed", ["workspace": .string(Self.workspace), "id": .number(id), "kind": .string("added")])
+            return .object(task)
+        case "backlog.update", "backlog.claim", "backlog.release", "backlog.done":
+            return updateTask(id, args)
         default:
             return .null
         }
@@ -200,6 +228,32 @@ actor FixtureServer {
             transcripts[session]?["configOptions"] = .array(options)
             update(session) { _ in }
         }
+    }
+
+    private func updateTask(_ command: String, _ args: JSONValue) -> JSONValue {
+        guard let index = tasks.firstIndex(where: { $0["id"] == args["id"] }) else { return .null }
+        var task = tasks[index]
+        switch command {
+        case "backlog.claim":
+            task["claimedFrom"] = task["status"]
+            task["status"] = .string("in_progress")
+            task["claimedBy"] = .string("user")
+        case "backlog.release":
+            task["status"] = task["claimedFrom"] ?? .string("idea")
+            task["claimedBy"] = nil
+        case "backlog.done":
+            task["status"] = .string("done")
+            task["claimedBy"] = nil
+        default:
+            for key in ["title", "description", "priority", "status"] {
+                if let value = args[key] { task[key] = value }
+            }
+            if args["status"] != nil { task["claimedBy"] = nil }
+        }
+        task["updatedAt"] = Self.stamp(ago: 0)
+        tasks[index] = task
+        publish("backlog.changed", ["workspace": .string(Self.workspace), "id": task["id"] ?? .null, "kind": .string("updated")])
+        return .object(task)
     }
 
     private func finishPrompt(_ session: String, text: String) {

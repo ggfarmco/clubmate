@@ -31,6 +31,12 @@ public enum AgentsPluginInfo {
     public static let requiredCommands = [AgentCommand.sessions, AgentCommand.transcript, AgentCommand.prompt]
 }
 
+public enum BacklogPluginInfo {
+    public static let id = "backlog"
+    public static let newTask = "new"
+    public static let requiredCommands = [BacklogCommand.list, BacklogCommand.add, BacklogCommand.update]
+}
+
 public enum InboxPluginInfo {
     public static let id = "inbox"
 }

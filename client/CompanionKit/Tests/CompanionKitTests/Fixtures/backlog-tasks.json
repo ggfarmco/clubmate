@@ -1,0 +1,11 @@
+{
+  "tasks": [
+    {"id": 7, "title": "Retry the charge step on 502", "description": "The payment provider answers **502** under load.\n\n- retry twice with backoff\n- log the attempt count", "status": "in_progress", "priority": "high", "claimedBy": "agt_0000000000000001", "claimedAt": "2026-10-31T09:12:00.123456789Z", "claimedFrom": "todo", "note": "tests written, wiring the client", "createdBy": "user", "createdAt": "2026-10-30T18:00:00Z", "updatedAt": "2026-10-31T09:30:00Z"},
+    {"id": 9, "title": "Cart badge shows stale count after checkout", "status": "todo", "priority": "high", "createdBy": "user", "createdAt": "2026-10-31T08:00:00Z", "updatedAt": "2026-10-31T08:00:00Z"},
+    {"id": 4, "title": "Split checkout.go into validate, reserve, charge", "description": "One file per step; keep the public API.", "status": "todo", "priority": "normal", "createdBy": "user", "createdAt": "2026-10-29T10:00:00Z", "updatedAt": "2026-10-29T10:00:00Z"},
+    {"id": 11, "title": "Cache product images on the CDN", "status": "idea", "priority": "low", "note": "found while profiling the product page", "createdBy": "agt_0000000000000002", "createdAt": "2026-10-31T07:00:00Z", "updatedAt": "2026-10-31T07:00:00Z"},
+    {"id": 3, "title": "Dark mode for the admin panel", "status": "not_now", "priority": "normal", "createdBy": "user", "createdAt": "2026-10-20T10:00:00Z", "updatedAt": "2026-10-22T10:00:00Z"},
+    {"id": 2, "title": "Bump Go to 1.26", "status": "done", "priority": "normal", "note": "merged in 4f1c2ab", "lastClaimedBy": "agt_0000000000000003", "createdBy": "user", "createdAt": "2026-10-18T10:00:00Z", "updatedAt": "2026-10-28T10:00:00Z"},
+    {"id": 1, "title": "Something new", "status": "archived", "priority": "urgent", "createdBy": "user", "createdAt": "2026-10-17T10:00:00Z", "updatedAt": "2026-10-17T10:00:00Z"}
+  ]
+}

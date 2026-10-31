@@ -23,6 +23,7 @@
       },
       {
         "id": "backlog.list",
+        "remote": true,
         "title": "List Backlog Tasks",
         "hidden": true,
         "agent": true,
@@ -128,6 +129,7 @@
       },
       {
         "id": "backlog.get",
+        "remote": true,
         "title": "Get Backlog Task",
         "hidden": true,
         "agent": true,
@@ -214,6 +216,7 @@
       },
       {
         "id": "backlog.add",
+        "remote": true,
         "title": "Add Backlog Task",
         "hidden": true,
         "agent": true,
@@ -322,6 +325,7 @@
       },
       {
         "id": "backlog.update",
+        "remote": true,
         "title": "Update Backlog Task",
         "hidden": true,
         "agent": true,
@@ -439,6 +443,7 @@
       },
       {
         "id": "backlog.claim",
+        "remote": true,
         "title": "Claim Backlog Task",
         "hidden": true,
         "agent": true,
@@ -529,6 +534,7 @@
       },
       {
         "id": "backlog.release",
+        "remote": true,
         "title": "Release Backlog Task",
         "hidden": true,
         "agent": true,
@@ -623,6 +629,7 @@
       },
       {
         "id": "backlog.done",
+        "remote": true,
         "title": "Finish Backlog Task",
         "hidden": true,
         "agent": true,

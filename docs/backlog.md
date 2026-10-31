@@ -6,6 +6,7 @@ The **Backlog** section is a per-workspace task list shared by you and your agen
 
 - Sidebar: a "New task" field on top (Return adds a `todo` task), then tasks grouped as In progress, Todo, Idea, Not now, Done. Rows read `#12 Title`; in-progress rows show the owner, others the first line of the note; high and low priority get a badge.
 - Main: a `header` (`#12 Title`, the status and a non-normal priority as badges) with Start agent (⌘↩), Release, Done (D) and Delete (⌘⌫, confirmed), then the owner and the last note, then the task as a form (title, status, priority, multi-line description) with Save (⌘S). An owner that is an agent session gets a "Show Session" button that selects it in Agents.
+- Companion (iPhone/iPad): a Backlog item under each Mac with the same groups (Not now and Done folded), New Task (title, description, priority, status), and a task screen with Start, Release, Done, Move to and Edit. It acts as you (owner `user`) and refreshes on `backlog.changed`.
 - ⌘N inside the section, or "New Backlog Task" in the palette, focuses the new-task field. Delete is UI-only (row menu, confirmed).
 
 Statuses: `idea`, `todo`, `in_progress`, `done`, `not_now`. Priorities: `high`, `normal`, `low`. Order is priority, then oldest first (done: newest first).
