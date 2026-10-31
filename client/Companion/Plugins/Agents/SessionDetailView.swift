@@ -221,7 +221,7 @@ struct ComposerView: View {
                             .buttonBorderShape(.circle)
                             .accessibilityLabel("Stop")
                         } else {
-                            Button(action: send) {
+                            Button(action: submit) {
                                 Group {
                                     if sending {
                                         ProgressView()
@@ -258,6 +258,11 @@ struct ComposerView: View {
             .padding(.bottom, 8)
             .frame(maxWidth: 820)
         }
+    }
+
+    private func submit() {
+        focused = false
+        send()
     }
 
     private func paste(_ images: [PastedImage]) {
