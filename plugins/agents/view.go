@@ -69,6 +69,7 @@ type screen struct {
 	Parent      string
 	Children    string
 	FromTitles  map[string]string
+	Context     *contextScreen
 }
 
 type pendingAttachment struct {
@@ -95,7 +96,11 @@ func mainView(sc screen) sdui.Node {
 		children = append(children, sdui.MutedText("Sign in to "+agentLabel(rec.Agent)+" in the terminal below; the session retries when it exits."), sdui.Surface(sc.SignIn))
 		return sdui.VStack(children...)
 	}
-	children = append(children, transcript(sc))
+	if sc.Context != nil {
+		children = append(children, contextView(sc))
+	} else {
+		children = append(children, transcript(sc))
+	}
 	if rec.closed() && rec.HandoffTo != "" {
 		next := sdui.WithAction(sdui.Button(sid+"/"+handoffToNode, "Open new session", "arrow.turn.down.right"), actOpenHandoff)
 		children = append(children, sdui.HStack(sdui.MutedText("The session was handed off to a new session."), next))
@@ -165,6 +170,9 @@ func header(sc screen) sdui.Node {
 	}
 	if rec.HandoffFrom != "" {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
+	}
+	if b, ok := contextButton(sc); ok {
+		row = append(row, b)
 	}
 	if sc.Changes {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -147,7 +148,7 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 				return nil, &acp.Error{Code: acp.CodeAuthRequired, Message: "Authentication required"}
 			}
 		}
-		id := "fake-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(a.sessions.Add(1), 10)
+		id := cmp.Or(os.Getenv("FAKEAGENT_SESSION_ID"), "fake-"+strconv.Itoa(os.Getpid())+"-"+strconv.FormatInt(a.sessions.Add(1), 10))
 		go a.announce(id)
 		return acp.NewSessionResponse{SessionID: id, Modes: a.script.Modes, ConfigOptions: a.script.Configs}, nil
 	case acp.MethodSessionResume:

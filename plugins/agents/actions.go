@@ -131,6 +131,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 }
 
 func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
+	if sid, ok := isContextEvent(ev); ok {
+		return a.contextAct(ev, sid)
+	}
 	switch ev.Action {
 	case actNew:
 		res, err := a.newSession(ctx, a.host, ev.WorkspaceID, "", newArgs{})

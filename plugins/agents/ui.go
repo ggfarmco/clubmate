@@ -17,6 +17,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/internal/claudectx"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -77,6 +78,11 @@ type sessionUI struct {
 	nextID      int
 	gen         int
 	signIn      string
+
+	context         bool
+	contextSelected string
+	contextOpen     map[string]bool
+	contextReader   *claudectx.Reader
 }
 
 func newUIState() uiState {
@@ -375,6 +381,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	parent, fromTitles := a.relatives(v)
 	advisor := a.sessionAdvisor(ctx, v.Session)
 	branch := a.branches.name(ctx, v.Session.Worktree)
+	ctxScreen := a.contextScreen(st, v.Session)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	_, needsAuth := a.auth[sid]
@@ -400,6 +407,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		Parent:      parent,
 		Children:    childStatuses(a.list(workspaceID))[sid],
 		FromTitles:  fromTitles,
+		Context:     ctxScreen,
 	}
 }
 

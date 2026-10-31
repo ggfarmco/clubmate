@@ -34,6 +34,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘↩ | Start an agent on the task | backlog |
 | D | Mark the task done | backlog |
 | ⌘S | Save the task | backlog |
+| ⌘I | Show the session's context, or back to the transcript | agents |
 
 ## Lists: palette, file picker, pickers, switcher
 

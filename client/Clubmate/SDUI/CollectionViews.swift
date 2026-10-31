@@ -286,6 +286,7 @@ struct ItemRow<Leading: View>: View {
 
     @State private var hovering = false
     @State private var detailWidth = CGFloat.infinity
+    @State private var detailIdeal = CGFloat.zero
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -310,8 +311,15 @@ struct ItemRow<Leading: View>: View {
                     .lineLimit(1)
                     .truncationMode(.label)
                     .help(detail)
-                    .opacity(detailWidth < theme.uiSize * 3 ? 0 : 1)
+                    .opacity(detailWidth + 0.5 < min(detailIdeal, theme.uiSize * 3) ? 0 : 1)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
+                    .background {
+                        Text(detail)
+                            .font(theme.uiSmall)
+                            .fixedSize()
+                            .hidden()
+                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailIdeal = $0 }
+                    }
             }
             if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accentInk)
