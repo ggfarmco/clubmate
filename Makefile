@@ -64,10 +64,13 @@ nvim-distro:
 nvim-test: nvim-distro
 	CLUBMATE_TEST_RESOURCES=$(CURDIR)/build/resources go test ./nvim-distro/...
 
+bundle-smoke:
+	$(GO_ENV) CLUBMATE_TEST_RESOURCES="$(RESOURCES)" CLUBMATE_TEST_BUNDLE=1 go test -count=1 -run '^TestBundledAppSmoke$$' ./nvim-distro/
+
 companion-kit-test:
 	cd client/CompanionKit && swift test
 
 companion:
 	cd client && xcodegen generate --spec companion.yml && xcodebuild -project Companion.xcodeproj -scheme Companion -sdk iphonesimulator -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual build
 
-.PHONY: build run-core test lint ghostty app app-release run-app kit-test nvim-distro nvim-test companion-kit-test companion
+.PHONY: build run-core test lint ghostty app app-release run-app kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion

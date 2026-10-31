@@ -48,6 +48,5 @@ else
 fi
 
 env $(env | grep -o '^CLUBMATE_[A-Za-z0-9_]*' | sed 's/^/-u /') \
-  CLUBMATE_TEST_RESOURCES="$APP/Contents/Resources" CLUBMATE_TEST_BUNDLE=1 \
-  go test -C "$ROOT" -count=1 -run '^TestBundledAppSmoke$' ./nvim-distro/
+  make -C "$ROOT" bundle-smoke RESOURCES="$APP/Contents/Resources"
 codesign --verify --strict --deep "$APP"
