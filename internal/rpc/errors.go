@@ -35,6 +35,7 @@ var (
 	ErrMethodNotFound    = errors.New("method not found")
 	ErrPluginUnavailable = errors.New("plugin unavailable")
 	ErrPluginError       = errors.New("plugin error")
+	ErrUnknownPlugin     = errors.New("unknown plugin")
 	ErrDenied            = errors.New("denied")
 	ErrRateLimited       = errors.New("rate limited")
 )
@@ -102,7 +103,8 @@ func errorCode(err error) int64 {
 		errors.Is(err, session.ErrNoSnapshot),
 		errors.Is(err, errUnknownSubscription),
 		errors.Is(err, errUnknownSection),
-		errors.Is(err, errUnknownCommand):
+		errors.Is(err, errUnknownCommand),
+		errors.Is(err, ErrUnknownPlugin):
 		return codeNotFound
 	case errors.Is(err, ErrPluginUnavailable):
 		return codePluginUnavailable

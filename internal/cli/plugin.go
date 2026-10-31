@@ -11,8 +11,8 @@ import (
 )
 
 func (a *app) pluginCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "plugin", Short: "Inspect plugins"}
-	cmd.AddCommand(a.pluginListCmd())
+	cmd := &cobra.Command{Use: "plugin", Short: "Inspect and restart plugins"}
+	cmd.AddCommand(a.pluginListCmd(), a.pluginRestartCmd())
 	return cmd
 }
 
@@ -34,6 +34,21 @@ func (a *app) pluginListCmd() *cobra.Command {
 					}
 				})
 			})
+		},
+	}
+}
+
+func (a *app) pluginRestartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "restart <id>",
+		Short: "Stop a plugin and start it again",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var res struct{}
+			if err := a.call(cmd.Context(), "plugin.restart", map[string]string{"id": args[0]}, &res); err != nil {
+				return err
+			}
+			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "restarting", args[0]) })
 		},
 	}
 }

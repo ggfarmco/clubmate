@@ -16,6 +16,7 @@ import (
 	"clubmate/internal/core"
 	"clubmate/internal/plugin"
 	"clubmate/internal/proc"
+	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
 )
 
@@ -129,4 +130,36 @@ func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 		t.Fatal("Stop hung on wedged plugin")
 	}
 	assert.False(t, testutil.Alive(pid))
+}
+
+func TestRestartReplacesRunningPlugin(t *testing.T) {
+	h := testutil.NewHarness(t)
+	p := h.CreateProject(t, "demo")
+	h.Start(t, testutil.EchoPluginDir(t))
+	c := h.Client(t)
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
+	old := h.Sup.Statuses()[0].PID
+	require.NoError(t, c.Call(t.Context(), "plugin.restart", map[string]string{"id": "echo"}, nil))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()[0]
+		return st.State == "running" && st.PID != old
+	}, 5*time.Second)
+	assert.False(t, testutil.Alive(old))
+	assert.Zero(t, h.Sup.Statuses()[0].Restarts)
+	var echoed map[string]any
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi"}}, &echoed))
+	assert.Equal(t, "echo", echoed["plugin"])
+	err := c.Call(t.Context(), "plugin.restart", map[string]string{"id": "nope"}, nil)
+	assert.ErrorIs(t, err, rpc.ErrNotFound)
+}
+
+func TestRestartRevivesFailedPlugin(t *testing.T) {
+	t.Setenv("ECHO_CRASH", "1")
+	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 50*time.Millisecond), plugin.WithCrashLimit(2, time.Minute))
+	h.Start(t, testutil.EchoPluginDir(t))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "failed" }, 5*time.Second)
+	t.Setenv("ECHO_CRASH", "0")
+	require.NoError(t, h.Sup.Restart("echo"))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
+	assert.Empty(t, h.Sup.Statuses()[0].LastError)
 }

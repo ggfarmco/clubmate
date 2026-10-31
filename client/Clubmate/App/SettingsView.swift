@@ -135,6 +135,7 @@ private struct PluginsSettings: View {
     let active: Bool
 
     @State private var plugins: [PluginStatus]?
+    @State private var restarting: Set<String> = []
     @State private var error: String?
 
     var body: some View {
@@ -143,7 +144,11 @@ private struct PluginsSettings: View {
                 if plugins.isEmpty {
                     Text("No plugins found").foregroundStyle(.secondary)
                 }
-                ForEach(plugins) { PluginRow(plugin: $0) }
+                ForEach(plugins) { plugin in
+                    PluginRow(plugin: plugin, restarting: restarting.contains(plugin.id)) {
+                        Task { await restart(plugin.id) }
+                    }
+                }
             } else if error == nil {
                 ProgressView().controlSize(.small)
             }
@@ -162,6 +167,21 @@ private struct PluginsSettings: View {
         while active, !Task.isCancelled {
             await load()
             try? await Task.sleep(for: .seconds(2))
+        }
+    }
+
+    private func restart(_ id: String) async {
+        guard let client = supervisor.client else {
+            error = "Not connected to the core"
+            return
+        }
+        restarting.insert(id)
+        defer { restarting.remove(id) }
+        do {
+            try await client.pluginRestart(id: id)
+            await load()
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 
@@ -187,22 +207,33 @@ private struct PollKey: Equatable {
 
 private struct PluginRow: View {
     let plugin: PluginStatus
+    let restarting: Bool
+    let restart: () -> Void
 
     @Environment(\.theme) private var theme
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.xs) {
             HStack(spacing: theme.spacing.l) {
-                Text(plugin.name).fontWeight(.medium)
+                Text(plugin.name)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .layoutPriority(1)
                 Text("\(plugin.id) \(plugin.manifest.version)")
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.label)
                 Spacer(minLength: theme.spacing.l)
                 HStack(spacing: theme.spacing.s) {
                     Circle().fill(color).frame(width: 7, height: 7)
-                    Text(plugin.stateLabel)
+                    Text(plugin.stateLabel).lineLimit(1)
                 }
                 .font(.caption)
+                Button("Restart", action: restart)
+                    .controlSize(.small)
+                    .disabled(restarting || plugin.state == "starting")
+                    .help("Stop \(plugin.name) and start it again")
             }
             Text(summary)
                 .font(.caption)

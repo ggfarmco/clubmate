@@ -50,6 +50,7 @@ const (
 var (
 	errExited     = errors.New("plugin exited")
 	errConnClosed = errors.New("plugin connection closed")
+	errRestart    = errors.New("plugin restart requested")
 )
 
 type Status struct {
@@ -88,6 +89,7 @@ type instance struct {
 	status  Status
 	conn    *jsonrpc2.Conn
 	crashes []time.Time
+	restart chan struct{}
 }
 
 type process struct {
@@ -157,13 +159,28 @@ func (s *Supervisor) Start(ctx context.Context, manifests []Manifest) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	for _, m := range manifests {
-		s.plugins[m.ID] = &instance{status: Status{ID: m.ID, State: StateStarting, Manifest: m}}
+		s.plugins[m.ID] = &instance{status: Status{ID: m.ID, State: StateStarting, Manifest: m}, restart: make(chan struct{}, 1)}
 		s.order = append(s.order, m.ID)
 	}
 	s.mu.Unlock()
 	for _, m := range manifests {
-		s.wg.Go(func() { s.supervise(ctx, m) })
+		restart := s.plugins[m.ID].restart
+		s.wg.Go(func() { s.supervise(ctx, m, restart) })
 	}
+}
+
+func (s *Supervisor) Restart(id string) error {
+	s.mu.Lock()
+	inst, ok := s.plugins[id]
+	s.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownPlugin, id)
+	}
+	select {
+	case inst.restart <- struct{}{}:
+	default:
+	}
+	return nil
 }
 
 func (s *Supervisor) Stop(ctx context.Context) {
@@ -234,33 +251,46 @@ func (s *Supervisor) PIDs() []int {
 	return pids
 }
 
-func (s *Supervisor) supervise(ctx context.Context, m Manifest) {
+func (s *Supervisor) supervise(ctx context.Context, m Manifest, restart <-chan struct{}) {
 	for {
-		delay, restart := s.attempt(ctx, m)
-		if !restart {
+		delay, retry := s.attempt(ctx, m, restart)
+		if !retry && ctx.Err() != nil {
 			return
 		}
-		if !sleep(ctx, delay) {
-			s.update(m.ID, func(inst *instance) { inst.status.State = StateStopped })
+		requested, ok := pause(ctx, delay, retry, restart)
+		if !ok {
+			if retry {
+				s.update(m.ID, func(inst *instance) { inst.status.State = StateStopped })
+			}
 			return
+		}
+		if requested {
+			s.update(m.ID, func(inst *instance) {
+				inst.crashes = nil
+				inst.status.LastError = ""
+			})
 		}
 	}
 }
 
-func (s *Supervisor) attempt(ctx context.Context, m Manifest) (time.Duration, bool) {
+func (s *Supervisor) attempt(ctx context.Context, m Manifest, restart <-chan struct{}) (time.Duration, bool) {
+	select {
+	case <-restart:
+	default:
+	}
 	s.update(m.ID, func(inst *instance) { inst.status.State = StateStarting })
 	p, err := s.spawn(m)
 	if err != nil {
 		return s.settle(ctx, m.ID, err)
 	}
 	s.update(m.ID, func(inst *instance) { inst.status.PID = p.cmd.Process.Pid })
-	err = s.serve(ctx, m, p)
+	err = s.serve(ctx, m, p, restart)
 	p.cancelConn()
-	delay, restart := s.settle(ctx, m.ID, err)
+	delay, retry := s.settle(ctx, m.ID, err)
 	if s.onStop != nil {
 		s.onStop(m.ID)
 	}
-	return delay, restart
+	return delay, retry
 }
 
 func (s *Supervisor) spawn(m Manifest) (*process, error) {
@@ -305,7 +335,7 @@ func (s *Supervisor) spawn(m Manifest) (*process, error) {
 	return p, nil
 }
 
-func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process) error {
+func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart <-chan struct{}) error {
 	if err := initialize(ctx, m, p.conn); err != nil {
 		if ctx.Err() != nil {
 			s.shutdown(m.ID, p)
@@ -322,6 +352,14 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process) error {
 	case <-ctx.Done():
 		s.shutdown(m.ID, p)
 		return nil
+	case <-restart:
+		s.logger.Info("plugin restarting", "id", m.ID, "pid", p.cmd.Process.Pid)
+		s.update(m.ID, func(inst *instance) {
+			inst.status.State = StateStarting
+			inst.conn = nil
+		})
+		s.shutdown(m.ID, p)
+		return errRestart
 	case <-p.exited:
 		return p.abort(errExited)
 	case <-p.conn.DisconnectNotify():
@@ -357,6 +395,13 @@ func (s *Supervisor) settle(ctx context.Context, id string, cause error) (time.D
 		inst.status.State = StateStopped
 		s.mu.Unlock()
 		return 0, false
+	}
+	if errors.Is(cause, errRestart) {
+		inst.crashes = nil
+		inst.status.LastError = ""
+		inst.status.State = StateStarting
+		s.mu.Unlock()
+		return 0, true
 	}
 	now := time.Now()
 	inst.crashes = append(slices.DeleteFunc(inst.crashes, func(t time.Time) bool { return now.Sub(t) >= s.crashWindow }), now)
@@ -464,14 +509,20 @@ func (ps pipeStream) Close() error {
 	return errors.Join(ps.w.Close(), ps.r.Close())
 }
 
-func sleep(ctx context.Context, d time.Duration) bool {
-	t := time.NewTimer(d)
-	defer t.Stop()
+func pause(ctx context.Context, d time.Duration, timed bool, restart <-chan struct{}) (bool, bool) {
+	var expired <-chan time.Time
+	if timed {
+		t := time.NewTimer(d)
+		defer t.Stop()
+		expired = t.C
+	}
 	select {
-	case <-t.C:
-		return true
+	case <-expired:
+		return false, true
+	case <-restart:
+		return true, true
 	case <-ctx.Done():
-		return false
+		return false, false
 	}
 }
 

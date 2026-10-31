@@ -63,6 +63,7 @@ func NewHarness(t *testing.T, opts ...plugin.SupervisorOption) *PluginHarness {
 	h.Srv = rpc.NewServer(h.Svc, h.Bus, rpc.WithKV(store))
 	opts = append([]plugin.SupervisorOption{plugin.WithOnStop(h.Store.ClearOwner)}, opts...)
 	h.Sup = plugin.NewSupervisor(h.Srv, h.Dirs, slog.New(slog.DiscardHandler), opts...)
+	h.Srv.SetPluginRestart(h.Sup.Restart)
 	return h
 }
 

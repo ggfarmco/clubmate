@@ -136,6 +136,10 @@ public final class CoreClient {
         try await connection.call("plugin.list", NoParams())
     }
 
+    public func pluginRestart(id: String) async throws {
+        let _: NoParams = try await connection.call("plugin.restart", IDParams(id: id))
+    }
+
     public func commandList() async throws -> [Command] {
         try await connection.call("command.list", NoParams())
     }

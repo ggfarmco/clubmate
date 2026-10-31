@@ -34,22 +34,23 @@ type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
 type empty struct{}
 
 type Server struct {
-	svc         *core.Service
-	bus         *bus.Bus
-	kv          *kv.Store
-	dirs        *paths.Dirs
-	started     time.Time
-	methods     map[string]handlerFunc
-	pluginList  atomic.Pointer[func() any]
-	ui          atomic.Pointer[uiState]
-	presence    presence
-	uiStateMu   sync.Mutex
-	logger      *slog.Logger
-	shutdown    atomic.Pointer[func()]
-	clientsMu   sync.Mutex
-	clients     map[*jsonrpc2.Conn]*client
-	clientSeq   uint64
-	notifyLimit *notify.Limiter
+	svc           *core.Service
+	bus           *bus.Bus
+	kv            *kv.Store
+	dirs          *paths.Dirs
+	started       time.Time
+	methods       map[string]handlerFunc
+	pluginList    atomic.Pointer[func() any]
+	pluginRestart atomic.Pointer[func(id string) error]
+	ui            atomic.Pointer[uiState]
+	presence      presence
+	uiStateMu     sync.Mutex
+	logger        *slog.Logger
+	shutdown      atomic.Pointer[func()]
+	clientsMu     sync.Mutex
+	clients       map[*jsonrpc2.Conn]*client
+	clientSeq     uint64
+	notifyLimit   *notify.Limiter
 }
 
 type client struct {

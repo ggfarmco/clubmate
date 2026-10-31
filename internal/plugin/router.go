@@ -16,7 +16,10 @@ import (
 
 const routeTimeout = 5 * time.Second
 
-var ErrPluginUnavailable = rpc.ErrPluginUnavailable
+var (
+	ErrPluginUnavailable = rpc.ErrPluginUnavailable
+	ErrUnknownPlugin     = rpc.ErrUnknownPlugin
+)
 
 type Router struct {
 	sup *Supervisor
