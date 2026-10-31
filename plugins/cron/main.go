@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 )
@@ -91,7 +92,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	topics := []string{automation.TopicAgentsChanged, automation.TopicAgentsReady, automation.TopicProjectCreated, automation.TopicProjectDeleted}
+	topics := []string{api.TopicChanged, api.TopicReady, automation.TopicProjectCreated, automation.TopicProjectDeleted}
 	for _, topic := range topics {
 		if _, err := h.Subscribe(ctx, topic, ready.Seq); err != nil {
 			return err

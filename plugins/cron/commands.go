@@ -10,6 +10,7 @@ import (
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 )
@@ -34,7 +35,7 @@ type listResult struct {
 	Jobs []*Job `json:"jobs"`
 }
 
-type agentSession = agentcall.Session
+type agentSession = api.Session
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	select {

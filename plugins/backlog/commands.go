@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 const (
 	userOwner  = "user"
 	agentOwner = "agent"
-	sessionPfx = "agt_"
+	sessionPfx = api.IDPrefix + "_"
 
 	kindAdded    = "added"
 	kindUpdated  = "updated"

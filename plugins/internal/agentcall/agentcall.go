@@ -9,21 +9,12 @@ import (
 
 	"clubmate/internal/schema"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 const corePlugin = "core"
 
 var ErrUnknownCommand = errors.New("unknown command")
-
-type Session struct {
-	ID            string `json:"id"`
-	Title         string `json:"title"`
-	ParentSession string `json:"parentSession"`
-	Worktree      string `json:"worktree"`
-	HandoffFrom   string `json:"handoffFrom"`
-	Status        string `json:"status"`
-	Closed        bool   `json:"closed"`
-}
 
 type target struct {
 	ID     string         `json:"id"`
@@ -32,8 +23,8 @@ type target struct {
 	Args   *schema.Object `json:"args"`
 }
 
-func Sessions(ctx context.Context, h *pluginsdk.Host, workspace string) ([]Session, error) {
-	var sessions []Session
+func Sessions(ctx context.Context, h *pluginsdk.Host, workspace string) ([]api.Session, error) {
+	var sessions []api.Session
 	if err := h.RunCommand(ctx, "agents.sessions", workspace, struct{}{}, &sessions); err != nil {
 		return nil, fmt.Errorf("agent sessions of %s: %w", workspace, err)
 	}
@@ -47,15 +38,15 @@ func Reveal(ctx context.Context, h *pluginsdk.Host, workspace, session string) e
 	return nil
 }
 
-func Find(sessions []Session, id string) (Session, bool) {
-	i := slices.IndexFunc(sessions, func(s Session) bool { return s.ID == id })
+func Find(sessions []api.Session, id string) (api.Session, bool) {
+	i := slices.IndexFunc(sessions, func(s api.Session) bool { return s.ID == id })
 	if i < 0 {
-		return Session{}, false
+		return api.Session{}, false
 	}
 	return sessions[i], true
 }
 
-func Parents(sessions []Session) map[string]string {
+func Parents(sessions []api.Session) map[string]string {
 	parents := make(map[string]string, len(sessions))
 	for _, s := range sessions {
 		if s.ParentSession != "" {

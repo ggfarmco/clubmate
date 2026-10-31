@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"clubmate/pkg/id"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -17,7 +18,6 @@ const (
 	runIDPrefix   = "gr"
 	statusRunning = "running"
 	statusStopped = "stopped"
-	turnTopic     = "agents.turn"
 	eventPrefix   = "event."
 	graphTopic    = "graph."
 	maxInput      = 16 << 10
@@ -222,7 +222,7 @@ func (x *runner) closeSessions(ctx context.Context) {
 
 func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 	from, to := x.run.node(e.From), x.run.node(e.To)
-	on, match := turnTopic, map[string]any{"session": from.Session}
+	on, match := api.TopicTurn, map[string]any{"session": from.Session}
 	switch e.On {
 	case onDone:
 		match["status"] = "done"

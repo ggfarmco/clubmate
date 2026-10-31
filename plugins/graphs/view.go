@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"clubmate/pkg/sdui"
-	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 var liveOrder = []string{"waiting", "running", "error"}
 
-func sidebarView(runs []*Run, selected string, sessions map[string]agentcall.Session) sdui.Node {
+func sidebarView(runs []*Run, selected string, sessions map[string]api.Session) sdui.Node {
 	if len(runs) == 0 {
 		return sdui.Empty("No graph runs. Put a graph in .clubmate/graphs/<name>.json and start it with graphs.run.")
 	}
@@ -42,7 +42,7 @@ func sidebarView(runs []*Run, selected string, sessions map[string]agentcall.Ses
 	return sdui.List(listID, items, selected)
 }
 
-func mainView(r *Run, sessions map[string]agentcall.Session) sdui.Node {
+func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
 	if r == nil {
 		return sdui.Empty("Select a graph run")
 	}
@@ -57,7 +57,7 @@ func mainView(r *Run, sessions map[string]agentcall.Session) sdui.Node {
 	return sdui.VStack(children...)
 }
 
-func nodeItems(r *Run, sessions map[string]agentcall.Session) []sdui.TreeItem {
+func nodeItems(r *Run, sessions map[string]api.Session) []sdui.TreeItem {
 	items := make([]sdui.TreeItem, 0, len(r.Nodes))
 	for _, n := range r.Nodes {
 		s := sessions[n.Session]
@@ -90,7 +90,7 @@ func nodeItems(r *Run, sessions map[string]agentcall.Session) []sdui.TreeItem {
 	return items
 }
 
-func runLive(r *Run, sessions map[string]agentcall.Session) string {
+func runLive(r *Run, sessions map[string]api.Session) string {
 	if r.Status != statusRunning {
 		return ""
 	}
@@ -137,7 +137,7 @@ func runMenu(r *Run) []sdui.MenuEntry {
 	return append(menu, sdui.MenuEntry{Action: "remove", Label: "Remove", Confirm: "Remove graph run “" + r.Title + "” from the list? Its sessions stay open."})
 }
 
-func nodeDetail(n RunNode, s agentcall.Session) string {
+func nodeDetail(n RunNode, s api.Session) string {
 	detail := n.ID
 	if n.Start {
 		detail += " · start"

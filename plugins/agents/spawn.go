@@ -11,6 +11,7 @@ import (
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -135,7 +136,7 @@ func (a *app) launch(rec record, first promptArgs, ready *setup) (*session, erro
 
 func (a *app) createSession(rec record, ready *setup) *session {
 	now := time.Now().UTC()
-	rec.ID, rec.Status, rec.CreatedAt, rec.UpdatedAt = id.New(sessionPrefix), statusIdle, now, now
+	rec.ID, rec.Status, rec.CreatedAt, rec.UpdatedAt = id.New(api.IDPrefix), statusIdle, now, now
 	s := a.addSession(rec, true, ready)
 	a.notes.mark(s, changeCreated, true)
 	a.kick(rec.Workspace)

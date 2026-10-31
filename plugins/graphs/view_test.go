@@ -9,7 +9,7 @@ import (
 
 	"clubmate/internal/sdui"
 	sdk "clubmate/pkg/sdui"
-	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/agents/api"
 )
 
 func TestExecutionView(t *testing.T) {
@@ -25,7 +25,7 @@ func TestExecutionView(t *testing.T) {
 			{From: "reviewer", To: "coder", On: onOutcome, Outcome: "changes"},
 		},
 	}
-	sessions := map[string]agentcall.Session{
+	sessions := map[string]api.Session{
 		"agt_1": {ID: "agt_1", Title: "Review loop · Coder", Status: "done"},
 		"agt_2": {ID: "agt_2", Title: "Review loop · Reviewer", Status: "waiting"},
 	}

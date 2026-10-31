@@ -7,15 +7,14 @@ import (
 	"sync"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 const (
-	changedTopic = "agents.changed"
-
 	changeUpdate  = "update"
-	changeStatus  = "status"
-	changeCreated = "created"
-	changeDeleted = "deleted"
+	changeStatus  = api.ChangeStatus
+	changeCreated = api.ChangeCreated
+	changeDeleted = api.ChangeDeleted
 )
 
 type notifier struct {
@@ -24,19 +23,13 @@ type notifier struct {
 	order []change
 	seen  map[change]bool
 	saves map[*session]bool
-	turns []turnPayload
+	turns []api.Turn
 	wake  chan struct{}
 }
 
 type change struct {
 	session *session
 	kind    string
-}
-
-type changedPayload struct {
-	Workspace string `json:"workspace"`
-	Session   string `json:"session"`
-	Kind      string `json:"kind"`
 }
 
 func newNotifier(h *pluginsdk.Host) *notifier {
@@ -63,7 +56,7 @@ func (n *notifier) mark(s *session, kind string, save bool) {
 	n.poke()
 }
 
-func (n *notifier) turn(p turnPayload) {
+func (n *notifier) turn(p api.Turn) {
 	n.mu.Lock()
 	n.turns = append(n.turns, p)
 	n.mu.Unlock()
@@ -89,12 +82,12 @@ func (n *notifier) run() {
 		}
 		for _, c := range order {
 			rec := c.session.snapshot()
-			if _, err := n.host.Publish(ctx, changedTopic, changedPayload{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind}); err != nil {
+			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind}); err != nil {
 				fmt.Fprintln(os.Stderr, "agents: publish:", err)
 			}
 		}
 		for _, p := range turns {
-			if _, err := n.host.Publish(ctx, turnTopic, p); err != nil {
+			if _, err := n.host.Publish(ctx, api.TopicTurn, p); err != nil {
 				fmt.Fprintln(os.Stderr, "agents: publish:", err)
 			}
 		}

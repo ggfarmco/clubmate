@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"regexp"
 	"time"
 )
 
@@ -26,14 +25,10 @@ const (
 	finishKey  = "finish/default"
 	afkKey     = "afk/default"
 
-	sessionPrefix = "agt"
-	titleRunes    = 80
+	titleRunes = 80
 )
 
-var (
-	sessionIDPattern = regexp.MustCompile(`^agt_[0-9a-f]{16}$`)
-	notifyPolicies   = []string{notifyAll, notifyNeedsInput, notifyMuted}
-)
+var notifyPolicies = []string{notifyAll, notifyNeedsInput, notifyMuted}
 
 type record struct {
 	ID             string `json:"id"`

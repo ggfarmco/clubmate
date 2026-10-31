@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/plugins/agents/api"
 )
 
 func TestRecordJSONContract(t *testing.T) {
@@ -26,4 +28,30 @@ func TestRecordJSONContract(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `{"id":"agt_2","workspace":"","worktree":"","agent":"","agentSessionId":"","parentSession":"agt_p","title":"","status":"","mode":"",`+
 		`"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z","closed":false,"asks":false,"notifyEffective":"all"}`, string(info))
+}
+
+func TestSessionInfoDecodesAsAPISession(t *testing.T) {
+	info := sessionInfo{record: record{
+		ID:        "agt_1",
+		Workspace: "ws",
+		Worktree:  "/r",
+		Title:     "T",
+		lineage:   lineage{ParentSession: "agt_p", HandoffFrom: "agt_f"},
+		Status:    statusClosed,
+		Closed:    true,
+	}}
+	raw, err := json.Marshal(info)
+	require.NoError(t, err)
+	var got api.Session
+	require.NoError(t, json.Unmarshal(raw, &got))
+	assert.Equal(t, api.Session{
+		ID:            "agt_1",
+		Workspace:     "ws",
+		Worktree:      "/r",
+		Title:         "T",
+		ParentSession: "agt_p",
+		HandoffFrom:   "agt_f",
+		Status:        statusClosed,
+		Closed:        true,
+	}, got)
 }

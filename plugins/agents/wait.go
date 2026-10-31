@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/agents/api"
 )
 
 const (
-	turnTopic          = "agents.turn"
 	defaultWaitSeconds = 120
 	maxWaitSeconds     = 300
 	turnReplyLimit     = 4000
@@ -51,14 +51,6 @@ type waitPermission struct {
 	Title   string                 `json:"title"`
 	Kind    string                 `json:"kind"`
 	Options []acp.PermissionOption `json:"options"`
-}
-
-type turnPayload struct {
-	Workspace string `json:"workspace"`
-	Session   string `json:"session"`
-	Status    string `json:"status"`
-	Asks      bool   `json:"asks"`
-	Reply     string `json:"reply"`
 }
 
 type waiters struct {
@@ -200,8 +192,8 @@ func (s *session) permissionLocked() *waitPermission {
 	return nil
 }
 
-func (s *session) turnLocked() turnPayload {
-	return turnPayload{Workspace: s.rec.Workspace, Session: s.rec.ID, Status: s.rec.Status, Asks: s.asksLocked(), Reply: s.replyLocked()}
+func (s *session) turnLocked() api.Turn {
+	return api.Turn{Workspace: s.rec.Workspace, Session: s.rec.ID, Status: s.rec.Status, Asks: s.asksLocked(), Reply: s.replyLocked()}
 }
 
 func (s *session) replyLocked() string {

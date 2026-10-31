@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 const changedTopic = "backlog.changed"
@@ -89,14 +90,14 @@ func (b *backlog) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev 
 }
 
 func (b *backlog) agentsEvent(ctx context.Context, ev pluginsdk.Event) {
-	if ev.Topic == "agents.ready" {
+	if ev.Topic == api.TopicReady {
 		b.live.invalidateAll()
 		for _, id := range b.presentIDs() {
 			b.render(ctx, id)
 		}
 		return
 	}
-	if ev.Topic != "agents.changed" && ev.Topic != "agents.turn" {
+	if ev.Topic != api.TopicChanged && ev.Topic != api.TopicTurn {
 		return
 	}
 	var p struct {

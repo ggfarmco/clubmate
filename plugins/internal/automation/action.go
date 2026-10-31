@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 )
 
@@ -52,7 +53,7 @@ type IDArgs struct {
 }
 
 type Executor struct {
-	Sessions   func(ctx context.Context, workspace string) ([]agentcall.Session, error)
+	Sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
 	RunCommand func(ctx context.Context, req CommandRequest) (json.RawMessage, error)
 	Log        func(error)
 }
@@ -75,7 +76,7 @@ func (x Executor) Fire(ctx context.Context, act Action, r Run) Run {
 	return x.Execute(ctx, act, r)
 }
 
-func (x Executor) Guard(ctx context.Context, act Action) ([]agentcall.Session, string) {
+func (x Executor) Guard(ctx context.Context, act Action) ([]api.Session, string) {
 	if act.Owner == "" && act.Command != PromptCommand {
 		return nil, ""
 	}
@@ -105,7 +106,7 @@ func (x Executor) Execute(ctx context.Context, act Action, r Run) Run {
 	return r
 }
 
-func BusyTarget(sessions []agentcall.Session, act Action) (string, bool) {
+func BusyTarget(sessions []api.Session, act Action) (string, bool) {
 	if act.Command != PromptCommand {
 		return "", false
 	}

@@ -13,6 +13,7 @@ import (
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -136,7 +137,7 @@ func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, projectID, f
 	if err != nil {
 		return importResult{}, err
 	}
-	if err := json.Unmarshal(raw, &old); err != nil || !sessionIDPattern.MatchString(old.ID) {
+	if err := json.Unmarshal(raw, &old); err != nil || !api.Valid(old.ID) {
 		return importResult{}, errBadBundle
 	}
 	_, root, err := projectRoot(ctx, h, projectID)
@@ -154,7 +155,7 @@ func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, projectID, f
 		return importResult{}, err
 	}
 	copied := record{
-		ID:        id.New(sessionPrefix),
+		ID:        id.New(api.IDPrefix),
 		Workspace: projectID,
 		Worktree:  res.Worktree,
 		Agent:     old.Agent,

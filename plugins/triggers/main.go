@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 )
@@ -33,7 +34,7 @@ type app struct {
 	ready      chan struct{}
 	now        func() time.Time
 	runCommand func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
-	sessions   func(ctx context.Context, workspace string) ([]agentcall.Session, error)
+	sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
 	projects   func(ctx context.Context) ([]pluginsdk.Project, error)
 	render     func(ctx context.Context, workspace string) error
 	notify     func(ctx context.Context, t *Trigger)
@@ -62,7 +63,7 @@ func newApp() *app {
 		Mu:             &a.mu,
 		Items:          a.triggers,
 		Noun:           "trigger",
-		Sessions:       func(ctx context.Context, ws string) ([]agentcall.Session, error) { return a.sessions(ctx, ws) },
+		Sessions:       func(ctx context.Context, ws string) ([]api.Session, error) { return a.sessions(ctx, ws) },
 		Projects:       func(ctx context.Context) ([]pluginsdk.Project, error) { return a.projects(ctx) },
 		Render:         func(ctx context.Context, ws string) error { return a.render(ctx, ws) },
 		Save:           func(ctx context.Context, t *Trigger) error { return a.store.Save(ctx, t) },
@@ -176,6 +177,6 @@ func (a *app) listProjects(ctx context.Context) ([]pluginsdk.Project, error) {
 	return a.host.ListProjects(ctx)
 }
 
-func (a *app) agentSessions(ctx context.Context, workspace string) ([]agentcall.Session, error) {
+func (a *app) agentSessions(ctx context.Context, workspace string) ([]api.Session, error) {
 	return agentcall.Sessions(ctx, a.host, workspace)
 }

@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
 )
 
 const (
-	turnTopic     = "agents.turn"
 	sessionField  = "session"
 	reasonForeign = "emitted by another agent session"
 	maxFires      = 10
@@ -86,7 +86,7 @@ func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 }
 
 func (a *app) releaseLocked(topic string, payload any) map[string]heldEvent {
-	if topic != turnTopic {
+	if topic != api.TopicTurn {
 		return nil
 	}
 	v, _ := lookup(payload, sessionField)
@@ -150,7 +150,7 @@ func (a *app) fire(ctx context.Context, t *Trigger, ev pluginsdk.Event) Run {
 	return x.Execute(ctx, act, r)
 }
 
-func foreign(t *Trigger, ev pluginsdk.Event, sessions []agentcall.Session) bool {
+func foreign(t *Trigger, ev pluginsdk.Event, sessions []api.Session) bool {
 	if t.Owner == "" || !strings.HasPrefix(ev.Topic, emitPrefix) || !placeholderRe.Match(t.Args) {
 		return false
 	}

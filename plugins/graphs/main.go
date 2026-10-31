@@ -13,16 +13,13 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 )
 
 const (
-	agentsChanged  = "agents.changed"
-	agentsReady    = "agents.ready"
 	projectCreated = "project.created"
 	projectDeleted = "project.deleted"
-	changeDeleted  = "deleted"
-	changeCreated  = "created"
 	reasonBudget   = "turn budget of %d reached"
 	reasonCaller   = "the session that ran it is closed"
 	reasonStopped  = "stopped"
@@ -54,21 +51,10 @@ type app struct {
 	ready      chan struct{}
 	now        func() time.Time
 	runCommand func(ctx context.Context, req commandRequest) (json.RawMessage, error)
-	sessions   func(ctx context.Context, workspace string) ([]agentcall.Session, error)
+	sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
 	project    func(ctx context.Context, workspace string) (pluginsdk.Project, error)
 	projects   func(ctx context.Context) ([]pluginsdk.Project, error)
 	render     func(ctx context.Context, workspace string) error
-}
-
-type changedPayload struct {
-	Workspace string `json:"workspace"`
-	Session   string `json:"session"`
-	Kind      string `json:"kind"`
-}
-
-type turnPayload struct {
-	Workspace string `json:"workspace"`
-	Session   string `json:"session"`
 }
 
 type outcomePayload struct {
@@ -142,17 +128,17 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	}
 	a.lastSeq.Store(max(a.lastSeq.Load(), ev.Seq))
 	switch ev.Topic {
-	case turnTopic:
-		var p turnPayload
+	case api.TopicTurn:
+		var p api.Turn
 		if decode(ev, &p) {
 			a.countTurn(ctx, p)
 		}
-	case agentsChanged:
-		var p changedPayload
+	case api.TopicChanged:
+		var p api.Changed
 		if decode(ev, &p) {
 			a.sessionChanged(ctx, p)
 		}
-	case agentsReady:
+	case api.TopicReady:
 		a.renderAll(ctx)
 	case projectCreated:
 		var p createdPayload
@@ -233,7 +219,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	return nil, err
 }
 
-func (a *app) countTurn(ctx context.Context, p turnPayload) {
+func (a *app) countTurn(ctx context.Context, p api.Turn) {
 	a.mu.Lock()
 	var spent []*Run
 	for _, r := range a.runs {
@@ -278,7 +264,7 @@ func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcome
 	a.flush(ctx)
 }
 
-func (a *app) sessionChanged(ctx context.Context, p changedPayload) {
+func (a *app) sessionChanged(ctx context.Context, p api.Changed) {
 	a.mu.Lock()
 	var callers, involved bool
 	for _, r := range a.runs {
@@ -299,7 +285,7 @@ func (a *app) sessionChanged(ctx context.Context, p changedPayload) {
 	if callers {
 		a.checkCaller(ctx, p)
 	}
-	if p.Kind == changeCreated {
+	if p.Kind == api.ChangeCreated {
 		a.followHandoffs(ctx, p.Workspace)
 	}
 	a.flush(ctx)
@@ -361,8 +347,8 @@ func (a *app) hasLiveRun(workspace string) bool {
 	return false
 }
 
-func (a *app) checkCaller(ctx context.Context, p changedPayload) {
-	if p.Kind != changeDeleted {
+func (a *app) checkCaller(ctx context.Context, p api.Changed) {
+	if p.Kind != api.ChangeDeleted {
 		sessions, err := a.sessions(ctx, p.Workspace)
 		if err != nil {
 			logError(err)
@@ -488,7 +474,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	runs := a.workspaceRuns(workspace)
-	var statuses map[string]agentcall.Session
+	var statuses map[string]api.Session
 	if len(runs) > 0 {
 		statuses = a.sessionMap(ctx, workspace)
 	}
@@ -511,13 +497,13 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	return nil
 }
 
-func (a *app) sessionMap(ctx context.Context, workspace string) map[string]agentcall.Session {
+func (a *app) sessionMap(ctx context.Context, workspace string) map[string]api.Session {
 	sessions, err := a.sessions(ctx, workspace)
 	if err != nil {
 		logError(err)
 		return nil
 	}
-	m := make(map[string]agentcall.Session, len(sessions))
+	m := make(map[string]api.Session, len(sessions))
 	for _, s := range sessions {
 		m[s.ID] = s
 	}
@@ -547,7 +533,7 @@ func (a *app) callCommand(ctx context.Context, req commandRequest) (json.RawMess
 	return raw, nil
 }
 
-func (a *app) agentSessions(ctx context.Context, workspace string) ([]agentcall.Session, error) {
+func (a *app) agentSessions(ctx context.Context, workspace string) ([]api.Session, error) {
 	return agentcall.Sessions(ctx, a.host, workspace)
 }
 

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"clubmate/plugins/agents/api"
 )
 
 type session struct {
@@ -16,7 +18,7 @@ type session struct {
 	loaded    bool
 	deleted   bool
 	changed   func(kind string, save bool)
-	turned    func(turnPayload)
+	turned    func(api.Turn)
 	setup     *setup
 
 	transcriptState

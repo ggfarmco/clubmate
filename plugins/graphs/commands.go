@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 )
 
@@ -216,7 +217,7 @@ func (a *app) lookup(workspace, id string) (*Run, error) {
 	return cloneRun(r), nil
 }
 
-func nodeStatus(s agentcall.Session, known bool) string {
+func nodeStatus(s api.Session, known bool) string {
 	switch {
 	case !known:
 		return "unknown"

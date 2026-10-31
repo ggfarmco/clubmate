@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/pluginsdk"
-	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/automation"
 )
 
@@ -83,10 +83,10 @@ func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
 	a.triggers["tr_1"].Command = automation.PromptCommand
 	a.triggers["tr_1"].Args = json.RawMessage(`{"session":"agt_o","text":"{{payload.n}}"}`)
 	status := "running"
-	a.sessions = func(context.Context, string) ([]agentcall.Session, error) {
-		return []agentcall.Session{{ID: "agt_o", Status: status}}, nil
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_o", Status: status}}, nil
 	}
-	turnEnd := pluginsdk.Event{Seq: 9, Topic: turnTopic, Payload: json.RawMessage(`{"workspace":"ws1","session":"agt_o"}`)}
+	turnEnd := pluginsdk.Event{Seq: 9, Topic: api.TopicTurn, Payload: json.RawMessage(`{"workspace":"ws1","session":"agt_o"}`)}
 
 	a.dispatch(t.Context(), ping(1))
 	a.runs.Wait()
@@ -105,7 +105,7 @@ func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
 }
 
 func TestForeignEmitterSkipsOwnedTemplatedTrigger(t *testing.T) {
-	sessions := []agentcall.Session{{ID: "agt_owner"}, {ID: "agt_child", ParentSession: "agt_owner"}, {ID: "agt_other"}}
+	sessions := []api.Session{{ID: "agt_owner"}, {ID: "agt_child", ParentSession: "agt_owner"}, {ID: "agt_other"}}
 	templated := &Trigger{Owner: "agt_owner", Args: json.RawMessage(`{"session":"{{payload.session}}"}`)}
 	fixed := &Trigger{Owner: "agt_owner", Args: json.RawMessage(`{"session":"agt_child"}`)}
 	unowned := &Trigger{Args: templated.Args}

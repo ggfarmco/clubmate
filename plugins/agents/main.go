@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -100,7 +101,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	for _, k := range keys {
 		var rec record
-		if found, err := h.StorageGet(ctx, k, &rec); err != nil || !found || !sessionIDPattern.MatchString(rec.ID) {
+		if found, err := h.StorageGet(ctx, k, &rec); err != nil || !found || !api.Valid(rec.ID) {
 			continue
 		}
 		stale := rec.Status == statusRunning || rec.Status == statusWaiting

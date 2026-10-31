@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 var (
@@ -127,7 +128,7 @@ func (a *app) procExited(p *agentProc, reason string) {
 		s.proc = nil
 		s.cancelPermissionsLocked()
 		quiet := p.quiet.Load() || s.rec.Closed
-		var ended turnPayload
+		var ended api.Turn
 		if !quiet {
 			s.running = false
 			s.log.flush()

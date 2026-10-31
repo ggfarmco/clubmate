@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/pluginsdk"
-	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/agents/api"
 )
 
 type memStore struct{}
@@ -52,8 +52,8 @@ func testApp(t *testing.T, core *fakeCore) *app {
 	a.now = func() time.Time { return time.Date(2026, 10, 31, 3, 0, 0, 0, time.UTC) }
 	a.runCommand = core.run
 	a.render = func(context.Context, string) error { return nil }
-	a.sessions = func(context.Context, string) ([]agentcall.Session, error) {
-		return []agentcall.Session{{ID: "agt_boss", Worktree: "testdata"}}, nil
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_boss", Worktree: "testdata"}}, nil
 	}
 	a.project = func(context.Context, string) (pluginsdk.Project, error) {
 		return pluginsdk.Project{ID: "ws1", Roots: []string{"testdata"}}, nil
@@ -92,7 +92,7 @@ func TestRunInstantiatesGraph(t *testing.T) {
 	var done, outcome triggerArgs
 	require.NoError(t, json.Unmarshal(core.calls[2].Args, &done))
 	require.NoError(t, json.Unmarshal(core.calls[3].Args, &outcome))
-	assert.Equal(t, turnTopic, done.On)
+	assert.Equal(t, api.TopicTurn, done.On)
 	assert.JSONEq(t, `{"session":"agt_1","status":"done"}`, done.Match)
 	assert.Equal(t, "event.graph."+r.ID+".reviewer", outcome.On)
 	assert.JSONEq(t, `{"by":"agt_2","outcome":"changes"}`, outcome.Match)
@@ -126,11 +126,11 @@ func TestHandoffRepointsEdges(t *testing.T) {
 	a := testApp(t, core)
 	r := runGraph(t, a)
 	core.calls = nil
-	a.sessions = func(context.Context, string) ([]agentcall.Session, error) {
-		return []agentcall.Session{{ID: "agt_boss"}, {ID: "agt_1", Closed: true}, {ID: "agt_9", HandoffFrom: "agt_1"}}, nil
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_boss"}, {ID: "agt_1", Closed: true}, {ID: "agt_9", HandoffFrom: "agt_1"}}, nil
 	}
 
-	a.sessionChanged(t.Context(), changedPayload{Workspace: "ws1", Session: "agt_9", Kind: "created"})
+	a.sessionChanged(t.Context(), api.Changed{Workspace: "ws1", Session: "agt_9", Kind: "created"})
 
 	assert.Equal(t, []string{"triggers.update", "triggers.update", "triggers.update"}, core.ids())
 	assert.Equal(t, RunNode{ID: "coder", Role: "Coder", Start: true, Session: "agt_9", HandedOff: true}, a.runs[r.ID].Nodes[0])
@@ -152,7 +152,7 @@ func TestRunStopsAtTurnBudget(t *testing.T) {
 	core.calls = nil
 
 	for range r.MaxTurns {
-		a.countTurn(t.Context(), turnPayload{Workspace: "ws1", Session: "agt_2"})
+		a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2"})
 	}
 
 	assert.Equal(t, statusStopped, a.runs[r.ID].Status)

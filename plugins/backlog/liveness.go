@@ -6,27 +6,19 @@ import (
 	"sync"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/agentcall"
 )
-
-const agentPrefix = "agt_"
-
-type agentSession struct {
-	ID            string `json:"id"`
-	Status        string `json:"status"`
-	ParentSession string `json:"parentSession"`
-	Title         string `json:"title"`
-	Closed        bool   `json:"closed"`
-}
 
 type sessions struct {
 	h     *pluginsdk.Host
 	mu    sync.Mutex
-	cache map[string]map[string]agentSession
+	cache map[string]map[string]api.Session
 	gen   map[string]int
 	epoch int
 }
 
-func (s *sessions) lookup(ctx context.Context, projectID string) (map[string]agentSession, bool) {
+func (s *sessions) lookup(ctx context.Context, projectID string) (map[string]api.Session, bool) {
 	s.mu.Lock()
 	m, ok := s.cache[projectID]
 	s.mu.Unlock()
@@ -36,16 +28,16 @@ func (s *sessions) lookup(ctx context.Context, projectID string) (map[string]age
 	return s.fetch(ctx, projectID)
 }
 
-func (s *sessions) fetch(ctx context.Context, projectID string) (map[string]agentSession, bool) {
+func (s *sessions) fetch(ctx context.Context, projectID string) (map[string]api.Session, bool) {
 	s.mu.Lock()
 	gen, epoch := s.gen[projectID], s.epoch
 	s.mu.Unlock()
 
-	var list []agentSession
-	if err := s.h.RunCommand(ctx, "agents.sessions", projectID, map[string]any{}, &list); err != nil {
+	list, err := agentcall.Sessions(ctx, s.h, projectID)
+	if err != nil {
 		return nil, false
 	}
-	m := make(map[string]agentSession, len(list))
+	m := make(map[string]api.Session, len(list))
 	for _, a := range list {
 		m[a.ID] = a
 	}
@@ -53,7 +45,7 @@ func (s *sessions) fetch(ctx context.Context, projectID string) (map[string]agen
 	defer s.mu.Unlock()
 	if s.gen[projectID] == gen && s.epoch == epoch {
 		if s.cache == nil {
-			s.cache = map[string]map[string]agentSession{}
+			s.cache = map[string]map[string]api.Session{}
 		}
 		s.cache[projectID] = m
 	}
@@ -85,7 +77,7 @@ func (s *sessions) drop(projectID string) {
 }
 
 func (s *sessions) stale(ctx context.Context, projectID, owner string) bool {
-	if !strings.HasPrefix(owner, agentPrefix) {
+	if !strings.HasPrefix(owner, sessionPfx) {
 		return false
 	}
 	m, ok := s.lookup(ctx, projectID)

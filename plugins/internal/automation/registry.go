@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 )
 
@@ -15,7 +16,7 @@ type Registry[P Entry[P]] struct {
 	Mu             *sync.Mutex
 	Items          map[string]P
 	Noun           string
-	Sessions       func(ctx context.Context, workspace string) ([]agentcall.Session, error)
+	Sessions       func(ctx context.Context, workspace string) ([]api.Session, error)
 	Projects       func(ctx context.Context) ([]pluginsdk.Project, error)
 	Render         func(ctx context.Context, workspace string) error
 	Save           func(ctx context.Context, p P) error
@@ -29,19 +30,19 @@ type Registry[P Entry[P]] struct {
 
 func (r *Registry[P]) BusEvent(ctx context.Context, ev pluginsdk.Event) {
 	switch ev.Topic {
-	case TopicAgentsChanged:
-		var p changedPayload
+	case api.TopicChanged:
+		var p api.Changed
 		if !r.decode(ev, &p) {
 			return
 		}
-		if p.Kind == changeDeleted && r.SessionDeleted != nil {
+		if p.Kind == api.ChangeDeleted && r.SessionDeleted != nil {
 			r.SessionDeleted(p.Session)
 		}
-		if (p.Kind == changeStatus || p.Kind == changeDeleted) && r.Owns(p.Session) {
+		if (p.Kind == api.ChangeStatus || p.Kind == api.ChangeDeleted) && r.Owns(p.Session) {
 			r.Reconcile(ctx, p.Workspace)
 			r.Flush(ctx)
 		}
-	case TopicAgentsReady:
+	case api.TopicReady:
 		r.ReconcileAll(ctx)
 		r.RenderAll(ctx)
 	case TopicProjectCreated:
