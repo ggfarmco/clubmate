@@ -4,18 +4,22 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
 	sidebarSlot = "graphs.sidebar"
 	mainSlot    = "graphs.main"
 	listID      = "runs"
-	treeID      = "nodes"
+	tableID     = "nodes"
+	graphIcon   = "point.3.connected.trianglepath.dotted"
+	actOpen     = "open"
+	actStop     = "stop"
+	actRemove   = "remove"
 	timeLayout  = "2006-01-02T15:04:05Z"
 	whenLayout  = "Jan 2 15:04"
 	maxBrief    = 160
@@ -25,7 +29,7 @@ var liveOrder = []string{"waiting", "running", "error"}
 
 func sidebarView(runs []*Run, selected string, sessions map[string]api.Session) sdui.Node {
 	if len(runs) == 0 {
-		return sdui.EmptyState("Graphs chain agents: when one finishes, the next starts. Start one with graphs.run.", sdui.EmptyProps{Title: "No graph runs yet", Icon: "point.3.connected.trianglepath.dotted", Hint: ".clubmate/graphs/<name>.json"})
+		return sdui.Empty("No graph runs yet")
 	}
 	items := make([]sdui.Item, 0, len(runs))
 	for _, r := range runs {
@@ -44,50 +48,134 @@ func sidebarView(runs []*Run, selected string, sessions map[string]api.Session) 
 
 func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
 	if r == nil {
-		return sdui.Empty("Select a graph run")
+		return emptyView()
 	}
-	children := []sdui.Node{
-		sdui.Text(r.Title + " · " + r.ID),
-		sdui.MutedText(stateLine(r)),
+	rows := []sdui.Node{
+		automation.Property("Input", cmp.Or(firstLine(r.Input), "none"), ""),
+		automation.Property("Started", r.StartedAt.Local().Format(whenLayout), ""),
+		automation.Property("Turns", fmt.Sprintf("%d of %d", r.Turns, r.MaxTurns), ""),
 	}
-	if r.Input != "" {
-		children = append(children, sdui.MutedText("Input: "+firstLine(r.Input)))
+	if r.Status != statusRunning {
+		stopped := cmp.Or(r.Reason, reasonStopped)
+		if r.StoppedAt != nil {
+			stopped = r.StoppedAt.Local().Format(whenLayout) + " · " + stopped
+		}
+		rows = append(rows, automation.Property("Stopped", stopped, ""))
 	}
-	children = append(children, sdui.Tree(treeID, nodeItems(r, sessions), ""))
-	return sdui.VStack(children...)
+	rows = append(rows, automation.Property("Definition", graphsDir+"/"+r.Graph+graphExt, ""))
+	nodes := sdui.Table(tableID, nodeColumns, nodeRows(r, sessions), "", sdui.Sort{})
+	return sdui.VStack(runHeader(r, sessions), automation.Properties(rows...), sdui.Scroll(nodes))
 }
 
-func nodeItems(r *Run, sessions map[string]api.Session) []sdui.TreeItem {
-	items := make([]sdui.TreeItem, 0, len(r.Nodes))
+func emptyView() sdui.Node {
+	return sdui.EmptyState("Graphs chain agents: when one finishes, the next starts. Start one with graphs.run.", sdui.EmptyProps{Title: "No graph runs yet", Icon: graphIcon, Hint: graphsDir + "/<name>" + graphExt})
+}
+
+func runHeader(r *Run, sessions map[string]api.Session) sdui.Node {
+	state := "stopped"
+	if r.Status == statusRunning {
+		state = "running"
+	}
+	badges := []sdui.HeaderBadge{{Text: fmt.Sprintf("%s · turn %d of %d", state, r.Turns, r.MaxTurns)}}
+	if n, status := attentionNode(r, sessions); n != nil && (status == "waiting" || status == "error") {
+		badges = append(badges, sdui.HeaderBadge{Text: n.Role + " " + stateLabel(status, true), Tone: statusTone(status)})
+	}
+	var actions []sdui.Node
+	if n, _ := attentionNode(r, sessions); n != nil {
+		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actOpen, Label: "Open " + n.Role, Icon: "sparkles", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
+	}
+	if r.Status == statusRunning {
+		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actStop, Label: "Stop run", Icon: "stop.circle", Variant: sdui.VariantSecondary, Shortcut: "cmd+.", Confirm: stopConfirm(r)}))
+	}
+	actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actRemove, Label: "Remove", Icon: "trash", Variant: sdui.VariantDanger, Shortcut: "cmd+delete", Confirm: removeConfirm(r)}))
+	return sdui.Header(r.Title, sdui.HeaderProps{Icon: graphIcon, Badges: badges}, actions...)
+}
+
+func attentionNode(r *Run, sessions map[string]api.Session) (*RunNode, string) {
+	for _, want := range []string{"waiting", "error", "running"} {
+		for i, n := range r.Nodes {
+			if s, ok := sessions[n.Session]; ok && s.Status == want {
+				return &r.Nodes[i], want
+			}
+		}
+	}
+	for i, n := range r.Nodes {
+		if _, ok := sessions[n.Session]; ok && n.Start {
+			return &r.Nodes[i], nodeStatus(sessions[n.Session], true)
+		}
+	}
+	return nil, ""
+}
+
+var nodeColumns = []sdui.Column{
+	{ID: "node", Title: "Node"},
+	{ID: "state", Title: "State", Width: 180},
+	{ID: "session", Title: "Session", Priority: 1},
+}
+
+func nodeRows(r *Run, sessions map[string]api.Session) []sdui.TableRow {
+	rows := make([]sdui.TableRow, 0, len(r.Nodes)+len(r.Edges))
 	for _, n := range r.Nodes {
 		s := sessions[n.Session]
 		status := nodeStatus(s, sessions != nil)
-		var edges []sdui.TreeItem
-		for i, e := range r.Edges {
-			if e.From != n.ID {
-				continue
-			}
-			edges = append(edges, sdui.TreeItem{
-				ID:     n.ID + "/e" + strconv.Itoa(i),
-				Label:  e.To,
-				Detail: edgeLabel(e),
-				Icon:   "arrow.turn.down.right",
-				Muted:  r.Status != statusRunning,
-			})
+		label := n.Role
+		if n.Start {
+			label += " · start"
 		}
-		items = append(items, sdui.TreeItem{
-			ID:          n.ID,
-			Label:       n.Role,
-			Detail:      nodeDetail(n, s),
-			Icon:        nodeIcon(n),
-			Tone:        statusTone(status),
-			Badge:       status,
-			HasChildren: len(edges) > 0,
-			Expanded:    len(edges) > 0,
-			Children:    edges,
+		rows = append(rows, sdui.TableRow{
+			ID:    n.ID,
+			Muted: r.Status != statusRunning,
+			Cells: []sdui.Cell{{Text: label}, {Text: stateLabel(status, false), Tone: cellTone(status)}, {Text: cmp.Or(s.Title, n.Session)}},
+		})
+		rows = append(rows, edgeRows(r, n.ID)...)
+	}
+	return rows
+}
+
+func edgeRows(r *Run, from string) []sdui.TableRow {
+	var targets []string
+	ons := map[string][]string{}
+	for _, e := range r.Edges {
+		if e.From != from {
+			continue
+		}
+		if _, ok := ons[e.To]; !ok {
+			targets = append(targets, e.To)
+		}
+		ons[e.To] = append(ons[e.To], edgeLabel(e))
+	}
+	rows := make([]sdui.TableRow, 0, len(targets))
+	for _, to := range targets {
+		rows = append(rows, sdui.TableRow{
+			ID:    from + "/" + to,
+			Depth: 1,
+			Muted: true,
+			Cells: []sdui.Cell{{Text: "→ " + roleOf(r, to)}, {Text: strings.Join(ons[to], " · ")}, {}},
 		})
 	}
-	return items
+	return rows
+}
+
+func roleOf(r *Run, id string) string {
+	if n := r.node(id); n != nil {
+		return n.Role
+	}
+	return id
+}
+
+func stateLabel(status string, short bool) string {
+	switch status {
+	case "waiting":
+		if short {
+			return "needs you"
+		}
+		return "waiting for you"
+	case "error":
+		return "failed"
+	case "gone":
+		return "session closed"
+	}
+	return status
 }
 
 func runLive(r *Run, sessions map[string]api.Session) string {
@@ -114,17 +202,9 @@ func runDetail(r *Run) string {
 	return when + " · " + cmp.Or(r.Reason, r.Status)
 }
 
-func stateLine(r *Run) string {
-	turns := fmt.Sprintf("%d of %d turns", r.Turns, r.MaxTurns)
-	if r.Status == statusRunning {
-		return "Running · " + turns
-	}
-	return "Stopped: " + cmp.Or(r.Reason, reasonStopped) + " · " + turns
-}
-
 func runIcon(r *Run) string {
 	if r.Status == statusRunning {
-		return "point.3.connected.trianglepath.dotted"
+		return graphIcon
 	}
 	return "stop.circle"
 }
@@ -132,24 +212,17 @@ func runIcon(r *Run) string {
 func runMenu(r *Run) []sdui.MenuEntry {
 	var menu []sdui.MenuEntry
 	if r.Status == statusRunning {
-		menu = append(menu, sdui.MenuEntry{Action: "stop", Label: "Stop", Confirm: "Stop graph run “" + r.Title + "”? Its sessions stay open."})
+		menu = append(menu, sdui.MenuEntry{Action: actStop, Label: "Stop", Confirm: stopConfirm(r)})
 	}
-	return append(menu, sdui.MenuEntry{Action: "remove", Label: "Remove", Confirm: "Remove graph run “" + r.Title + "” from the list? Its sessions stay open."})
+	return append(menu, sdui.MenuEntry{Action: actRemove, Label: "Remove", Confirm: removeConfirm(r)})
 }
 
-func nodeDetail(n RunNode, s api.Session) string {
-	detail := n.ID
-	if n.Start {
-		detail += " · start"
-	}
-	return detail + " · " + cmp.Or(s.Title, n.Session)
+func stopConfirm(r *Run) string {
+	return "Stop graph run “" + r.Title + "”? Its sessions stay open."
 }
 
-func nodeIcon(n RunNode) string {
-	if n.Start {
-		return "play.circle"
-	}
-	return "circle"
+func removeConfirm(r *Run) string {
+	return "Remove graph run “" + r.Title + "” from the list? Its sessions stay open."
 }
 
 func edgeLabel(e RunEdge) string {
@@ -171,6 +244,18 @@ func statusTone(status string) string {
 		return "danger"
 	}
 	return "neutral"
+}
+
+func cellTone(status string) string {
+	switch status {
+	case "waiting":
+		return "warn"
+	case "done":
+		return "ok"
+	case "error", "gone":
+		return "danger"
+	}
+	return ""
 }
 
 func firstLine(s string) string {

@@ -19,9 +19,11 @@ func TestExecutionView(t *testing.T) {
 		Nodes: []RunNode{
 			{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"},
 			{ID: "reviewer", Role: "Reviewer", Session: "agt_2"},
+			{ID: "tester", Role: "Tester", Session: "agt_3"},
 		},
 		Edges: []RunEdge{
 			{From: "coder", To: "reviewer", On: onDone},
+			{From: "coder", To: "reviewer", On: onError},
 			{From: "reviewer", To: "coder", On: onOutcome, Outcome: "changes"},
 		},
 	}
@@ -38,13 +40,26 @@ func TestExecutionView(t *testing.T) {
 
 	view := mainView(r, sessions)
 	require.NoError(t, sdui.Validate(view))
-	assert.Equal(t, "Input: add a flag…", view.Children[2].Props["text"])
-	tree := view.Children[3]
-	nodes, ok := tree.Props["items"].([]sdk.TreeItem)
+	header := view.Children[0]
+	assert.Equal(t, []sdk.HeaderBadge{{Text: "running · turn 3 of 12"}, {Text: "Reviewer needs you", Tone: "warning"}}, header.Props["badges"])
+	assert.Equal(t, "Open Reviewer", header.Children[0].Props["label"])
+	assert.Equal(t, []string{"gr_1/open", "gr_1/stop", "gr_1/remove"}, []string{header.Children[0].ID, header.Children[1].ID, header.Children[2].ID})
+	rows, ok := view.Children[2].Children[0].Props["rows"].([]sdk.TableRow)
 	require.True(t, ok)
-	require.Len(t, nodes, 2)
-	assert.Equal(t, "done", nodes[0].Badge)
-	assert.Equal(t, "coder · start · Review loop · Coder", nodes[0].Detail)
-	assert.Equal(t, "warning", nodes[1].Tone)
-	assert.Equal(t, "on outcome changes", nodes[1].Children[0].Detail)
+	require.Len(t, rows, 5)
+	assert.Equal(t, []string{"Coder · start", "done", "Review loop · Coder"}, cellTexts(rows[0]))
+	assert.Equal(t, []string{"→ Reviewer", "on done · on error", ""}, cellTexts(rows[1]))
+	assert.Equal(t, sdk.Cell{Text: "waiting for you", Tone: "warn"}, rows[2].Cells[1])
+	assert.Equal(t, []string{"→ Coder", "on outcome changes", ""}, cellTexts(rows[3]))
+	assert.Equal(t, "session closed", rows[4].Cells[1].Text)
+
+	assert.Equal(t, "empty", mainView(nil, nil).Type)
+}
+
+func cellTexts(row sdk.TableRow) []string {
+	texts := make([]string, 0, len(row.Cells))
+	for _, c := range row.Cells {
+		texts = append(texts, c.Text)
+	}
+	return texts
 }

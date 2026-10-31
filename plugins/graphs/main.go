@@ -174,15 +174,25 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	if ev.Slot != sidebarSlot {
-		return nil, nil
-	}
 	var id string
-	if err := json.Unmarshal(ev.Value, &id); err != nil {
-		return nil, fmt.Errorf("%s value: %w", ev.Action, err)
+	switch ev.Slot {
+	case mainSlot:
+		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
+		if !ok {
+			return nil, nil
+		}
+		id = target
+	case sidebarSlot:
+		if err := json.Unmarshal(ev.Value, &id); err != nil {
+			return nil, fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+	default:
+		return nil, nil
 	}
 	cmd := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch ev.Action {
+	case actOpen:
+		return nil, a.openAttention(ctx, ev.WorkspaceID, id)
 	case "select":
 		if err := a.host.StorageSet(ctx, selectedPrefix+ev.WorkspaceID, id); err != nil {
 			return nil, err
@@ -190,9 +200,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		a.invalidate(ev.WorkspaceID)
 		a.flush(ctx)
 		return nil, nil
-	case "stop":
+	case actStop:
 		cmd.ID = "graphs.stop"
-	case "remove":
+	case actRemove:
 		cmd.ID = "graphs.delete"
 	default:
 		return nil, fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
@@ -204,6 +214,25 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	cmd.Args = args
 	_, err = a.command(ctx, nil, cmd)
 	return nil, err
+}
+
+func (a *app) openAttention(ctx context.Context, workspace, id string) error {
+	a.mu.Lock()
+	r := a.runs[id]
+	if r != nil && r.Workspace == workspace {
+		r = cloneRun(r)
+	} else {
+		r = nil
+	}
+	a.mu.Unlock()
+	if r == nil {
+		return unknownRun(id)
+	}
+	n, _ := attentionNode(r, a.sessionMap(ctx, workspace))
+	if n == nil {
+		return fmt.Errorf("graph run %q has no open session", id)
+	}
+	return agentcall.Reveal(ctx, a.host, workspace, n.Session)
 }
 
 func (a *app) countTurn(ctx context.Context, p api.Turn) {

@@ -30,8 +30,9 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 |---|---|---|
 | ⌘R | Run the cron job now | cron |
 | P | Pause or resume the job or trigger | cron, triggers |
-| ⌘⌫ | Delete the job, trigger or task (confirmed) | cron, triggers, backlog |
-| ⌘↩ | Start an agent on the task | backlog |
+| ⌘⌫ | Delete the job, trigger or task, or remove the graph run (confirmed) | cron, triggers, backlog, graphs |
+| ⌘↩ | Start an agent on the task; open the session of the graph node that needs you (else the running or start node) | backlog, graphs |
+| ⌘. | Stop the graph run (confirmed) | graphs |
 | D | Mark the task done | backlog |
 | ⌘S | Save the task now (the form also autosaves) | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |
