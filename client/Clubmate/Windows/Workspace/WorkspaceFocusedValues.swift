@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct ProjectSessionKey: FocusedValueKey {
-    typealias Value = ProjectSession
+struct WorkspaceSessionKey: FocusedValueKey {
+    typealias Value = WorkspaceSession
 }
 
 struct WorkspaceWindowIDKey: FocusedValueKey {
@@ -9,9 +9,9 @@ struct WorkspaceWindowIDKey: FocusedValueKey {
 }
 
 extension FocusedValues {
-    var projectSession: ProjectSession? {
-        get { self[ProjectSessionKey.self] }
-        set { self[ProjectSessionKey.self] = newValue }
+    var workspaceSession: WorkspaceSession? {
+        get { self[WorkspaceSessionKey.self] }
+        set { self[WorkspaceSessionKey.self] = newValue }
     }
 
     var workspaceWindowID: String? {

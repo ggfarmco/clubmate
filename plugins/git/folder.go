@@ -21,8 +21,8 @@ type folder struct {
 	root string
 }
 
-func gitFolder(ctx context.Context, h *pluginsdk.Host, projectID, repo string) (*folder, error) {
-	p, err := h.GetProject(ctx, projectID)
+func gitFolder(ctx context.Context, h *pluginsdk.Host, workspaceID, repo string) (*folder, error) {
+	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +47,8 @@ func gitFolder(ctx context.Context, h *pluginsdk.Host, projectID, repo string) (
 	return nil, errNoGitFolder
 }
 
-func eachFolder(ctx context.Context, h *pluginsdk.Host, projectID string, fn func(*folder) error) error {
-	p, err := h.GetProject(ctx, projectID)
+func eachFolder(ctx context.Context, h *pluginsdk.Host, workspaceID string, fn func(*folder) error) error {
+	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (f *folder) shortHeads(ctx context.Context) (map[string]string, error) {
 	return heads, nil
 }
 
-func openFolder(ctx context.Context, p pluginsdk.Project, i int) (*folder, error) {
+func openFolder(ctx context.Context, p pluginsdk.Workspace, i int) (*folder, error) {
 	f, err := gitrepo.OpenFolder(ctx, p.Repos[i])
 	if err != nil {
 		return nil, gitError(nil, err)

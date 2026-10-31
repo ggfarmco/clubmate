@@ -115,7 +115,7 @@ func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 	pid := h.Sup.PIDs()[0]
 	time.Sleep(500 * time.Millisecond)
 	for i := range 40 {
-		h.CreateProject(t, fmt.Sprintf("%d-%s", i, strings.Repeat("x", 4000)))
+		h.CreateWorkspace(t, fmt.Sprintf("%d-%s", i, strings.Repeat("x", 4000)))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -134,7 +134,7 @@ func TestStopDoesNotHangOnWedgedPlugin(t *testing.T) {
 
 func TestRestartReplacesRunningPlugin(t *testing.T) {
 	h := testutil.NewHarness(t)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	h.Start(t, testutil.EchoPluginDir(t))
 	c := h.Client(t)
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
@@ -154,7 +154,7 @@ func TestRestartReplacesRunningPlugin(t *testing.T) {
 	}
 	assert.Equal(t, []string{`{"id":"echo","running":true}`, `{"id":"echo","running":false}`, `{"id":"echo","running":true}`}, payloads)
 	var echoed map[string]any
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi"}}, &echoed))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "workspaceId": p.ID, "args": map[string]any{"text": "hi"}}, &echoed))
 	assert.Equal(t, "echo", echoed["plugin"])
 	err = c.Call(t.Context(), "plugin.restart", map[string]string{"id": "nope"}, nil)
 	assert.ErrorIs(t, err, rpc.ErrNotFound)

@@ -7,21 +7,21 @@ import ClubmateKit
 final class SessionRegistry {
     private let supervisor: ConnectionSupervisor
     private let settings: AppSettings
-    private let project: @MainActor (String) -> Project?
-    private var sessions: [String: ProjectSession] = [:]
+    private let workspace: @MainActor (String) -> Workspace?
+    private var sessions: [String: WorkspaceSession] = [:]
 
-    init(supervisor: ConnectionSupervisor, settings: AppSettings, project: @escaping @MainActor (String) -> Project?) {
+    init(supervisor: ConnectionSupervisor, settings: AppSettings, workspace: @escaping @MainActor (String) -> Workspace?) {
         self.supervisor = supervisor
         self.settings = settings
-        self.project = project
+        self.workspace = workspace
         trackTerminalFontSize()
     }
 
-    func existing(_ projectID: String) -> ProjectSession? {
-        sessions[projectID]
+    func existing(_ workspaceID: String) -> WorkspaceSession? {
+        sessions[workspaceID]
     }
 
-    var stores: [ProjectUIStore] {
+    var stores: [WorkspaceUIStore] {
         sessions.values.compactMap(\.store)
     }
 
@@ -42,14 +42,14 @@ final class SessionRegistry {
         }
     }
 
-    private func open(_ projectID: String, legacyChat: LegacyChat?) {
-        let session = ProjectSession(projectID: projectID, legacyChat: legacyChat) { [project] in project(projectID) }
+    private func open(_ workspaceID: String, legacyChat: LegacyChat?) {
+        let session = WorkspaceSession(workspaceID: workspaceID, legacyChat: legacyChat) { [workspace] in workspace(workspaceID) }
         session.deck.fontSize = settings.terminalFontSize
-        sessions[projectID] = session
+        sessions[workspaceID] = session
         if let client = supervisor.client { adopt(session, client) }
     }
 
-    private func adopt(_ session: ProjectSession, _ client: CoreClient) {
+    private func adopt(_ session: WorkspaceSession, _ client: CoreClient) {
         guard let store = session.adopt(client, settings) else { return }
         supervisor.attach(store)
     }

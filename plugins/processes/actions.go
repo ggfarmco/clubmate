@@ -15,11 +15,11 @@ var (
 	errUnknownAction  = errors.New("unknown action")
 	errUnknownCommand = errors.New("unknown command")
 	errUnknownColumn  = errors.New("unknown sort column")
-	errNoProject      = errors.New("command needs a project")
+	errNoWorkspace    = errors.New("command needs a workspace")
 )
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
-	st, err := a.state(ctx, h, ev.ProjectID)
+	st, err := a.state(ctx, h, ev.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +30,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case "sort":
 		err = a.setSort(ctx, h, ev, st)
 	case killAction:
-		err = killSelected(ctx, h, ev.ProjectID, snap)
+		err = killSelected(ctx, h, ev.WorkspaceID, snap)
 	case orphanKill:
-		_, err = killOrphans(ctx, h, ev.ProjectID, snap.session)
+		_, err = killOrphans(ctx, h, ev.WorkspaceID, snap.session)
 	case "select":
 		err = a.selectSession(ctx, h, ev, st)
 	case selectPID:
@@ -45,27 +45,27 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if err != nil {
 		return nil, err
 	}
-	return nil, a.render(ctx, h, ev.ProjectID)
+	return nil, a.render(ctx, h, ev.WorkspaceID)
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	if cmd.ID != "processes.kill-orphans" {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 	}
-	if cmd.ProjectID == "" {
-		return nil, errNoProject
+	if cmd.WorkspaceID == "" {
+		return nil, errNoWorkspace
 	}
-	st, err := a.state(ctx, h, cmd.ProjectID)
+	st, err := a.state(ctx, h, cmd.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := killOrphans(ctx, h, cmd.ProjectID, a.snapshot(st).session); err != nil {
+	if _, err := killOrphans(ctx, h, cmd.WorkspaceID, a.snapshot(st).session); err != nil {
 		return nil, err
 	}
-	return nil, a.render(ctx, h, cmd.ProjectID)
+	return nil, a.render(ctx, h, cmd.WorkspaceID)
 }
 
-func (a *app) selectSession(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *projectState) error {
+func (a *app) selectSession(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *workspaceState) error {
 	var id string
 	if err := json.Unmarshal(ev.Value, &id); err != nil {
 		return fmt.Errorf("select value: %w", err)
@@ -76,10 +76,10 @@ func (a *app) selectSession(ctx context.Context, h *pluginsdk.Host, ev pluginsdk
 	a.mu.Lock()
 	st.session, st.pid = id, 0
 	a.mu.Unlock()
-	return storeOrDelete(ctx, h, selectedKey(ev.ProjectID), id, id != "")
+	return storeOrDelete(ctx, h, selectedKey(ev.WorkspaceID), id, id != "")
 }
 
-func (a *app) selectProcess(ev pluginsdk.UIEvent, st *projectState) error {
+func (a *app) selectProcess(ev pluginsdk.UIEvent, st *workspaceState) error {
 	pid, err := rowPID(ev)
 	if err != nil || pid == 0 {
 		return err
@@ -90,7 +90,7 @@ func (a *app) selectProcess(ev pluginsdk.UIEvent, st *projectState) error {
 	return nil
 }
 
-func (a *app) toggleCollapsed(ev pluginsdk.UIEvent, st *projectState) error {
+func (a *app) toggleCollapsed(ev pluginsdk.UIEvent, st *workspaceState) error {
 	pid, err := rowPID(ev)
 	if err != nil || pid == 0 {
 		return err
@@ -105,7 +105,7 @@ func (a *app) toggleCollapsed(ev pluginsdk.UIEvent, st *projectState) error {
 	return nil
 }
 
-func (a *app) setSort(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *projectState) error {
+func (a *app) setSort(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *workspaceState) error {
 	var s sdui.Sort
 	if err := json.Unmarshal(ev.Value, &s); err != nil {
 		return fmt.Errorf("%s value: %w", ev.Action, err)
@@ -116,10 +116,10 @@ func (a *app) setSort(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	a.mu.Lock()
 	st.sort = s
 	a.mu.Unlock()
-	return h.StorageSet(ctx, sortKey(ev.ProjectID), s)
+	return h.StorageSet(ctx, sortKey(ev.WorkspaceID), s)
 }
 
-func (a *app) toggleAuto(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *projectState) error {
+func (a *app) toggleAuto(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent, st *workspaceState) error {
 	var on bool
 	if err := json.Unmarshal(ev.Value, &on); err != nil {
 		return fmt.Errorf("%s value: %w", ev.Action, err)
@@ -127,7 +127,7 @@ func (a *app) toggleAuto(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UI
 	a.mu.Lock()
 	st.auto = on
 	a.mu.Unlock()
-	return storeOrDelete(ctx, h, autoKillKey(ev.ProjectID), true, on)
+	return storeOrDelete(ctx, h, autoKillKey(ev.WorkspaceID), true, on)
 }
 
 func rowPID(ev pluginsdk.UIEvent) (int, error) {

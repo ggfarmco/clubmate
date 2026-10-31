@@ -19,10 +19,10 @@ import (
 )
 
 type fsChanged struct {
-	Watch     string   `json:"watch"`
-	ProjectID string   `json:"projectId"`
-	Paths     []string `json:"paths"`
-	Overflow  bool     `json:"overflow"`
+	Watch       string   `json:"watch"`
+	WorkspaceID string   `json:"workspaceId"`
+	Paths       []string `json:"paths"`
+	Overflow    bool     `json:"overflow"`
 }
 
 func watchRepo(t *testing.T) (*rpc.Client, string, string, string) {
@@ -31,14 +31,14 @@ func watchRepo(t *testing.T) (*rpc.Client, string, string, string) {
 	h.Start(t)
 	repo := t.TempDir()
 	gone := t.TempDir()
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{gone, repo})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{gone, repo})
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(gone))
 	c := h.Client(t)
 	var w struct {
 		Watch string `json:"watch"`
 	}
-	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"projectId": p.ID}, &w))
+	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"workspaceId": p.ID}, &w))
 	real, err := filepath.EvalSymlinks(repo)
 	require.NoError(t, err)
 	return c, p.ID, w.Watch, real
@@ -65,12 +65,12 @@ func awaitFS(t *testing.T, c *rpc.Client, cond func(fsChanged) bool) fsChanged {
 }
 
 func TestFSWatchNotifies(t *testing.T) {
-	c, projectID, watch, repo := watchRepo(t)
+	c, workspaceID, watch, repo := watchRepo(t)
 	a := filepath.Join(repo, "a.txt")
 	require.NoError(t, os.WriteFile(a, []byte("a"), 0o644))
 	ev := awaitFS(t, c, func(ev fsChanged) bool { return slices.Contains(ev.Paths, a) })
 	assert.Equal(t, watch, ev.Watch)
-	assert.Equal(t, projectID, ev.ProjectID)
+	assert.Equal(t, workspaceID, ev.WorkspaceID)
 	assert.False(t, ev.Overflow)
 
 	require.NoError(t, c.Call(t.Context(), "fs.unwatch", map[string]string{"watch": watch}, nil))
@@ -113,10 +113,10 @@ func TestFSWatchWorktree(t *testing.T) {
 
 	h := testutil.NewHarness(t)
 	h.Start(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{wt})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{wt})
 	require.NoError(t, err)
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"workspaceId": p.ID}, nil))
 
 	realMain, err := filepath.EvalSymlinks(main)
 	require.NoError(t, err)
@@ -130,12 +130,12 @@ func TestFSWatchCoversRoots(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)
 	repo, selected := t.TempDir(), t.TempDir()
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{repo})
 	require.NoError(t, err)
 	_, err = h.Svc.SetWorktree(t.Context(), p.ID, repo, selected)
 	require.NoError(t, err)
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"workspaceId": p.ID}, nil))
 
 	real, err := filepath.EvalSymlinks(selected)
 	require.NoError(t, err)
@@ -160,10 +160,10 @@ func TestFSWatchBareWorktreeFiltersGitInternals(t *testing.T) {
 
 	h := testutil.NewHarness(t)
 	h.Start(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{wt})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{wt})
 	require.NoError(t, err)
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "fs.watch", map[string]string{"workspaceId": p.ID}, nil))
 
 	realBare, err := filepath.EvalSymlinks(bare)
 	require.NoError(t, err)

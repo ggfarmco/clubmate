@@ -32,7 +32,7 @@ private_dir() {
 
 cli() {
   local dir="$1"; shift
-  env -u CLUBMATE_AGENT_SESSION CLUBMATE_PROJECT_ID="$(cat "$dir/project" 2>/dev/null || true)" \
+  env -u CLUBMATE_AGENT_SESSION CLUBMATE_WORKSPACE_ID="$(cat "$dir/workspace" 2>/dev/null || true)" \
     CLUBMATE_STATE_DIR="$dir/state" CLUBMATE_RUNTIME_DIR="$dir/run" "$(cat "$dir/cli")" "$@"
 }
 
@@ -101,7 +101,7 @@ start() {
     sleep 0.2
   done
   if [[ " $* " != *" --sdui-gallery "* ]]; then
-    cli "$dir" --json workspace open "$ROOT" | sed -n 's/.*"id": "\(prj_[a-z0-9]*\)".*/\1/p' > "$dir/project"
+    cli "$dir" --json workspace open "$ROOT" | sed -n 's/.*"id": "\(prj_[a-z0-9]*\)".*/\1/p' > "$dir/workspace"
   fi
   echo "instance $name"
   echo "export CLUBMATE_STATE_DIR=$dir/state CLUBMATE_RUNTIME_DIR=$dir/run"

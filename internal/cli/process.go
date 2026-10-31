@@ -41,7 +41,7 @@ func (a *app) processTreeCmd() *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&filter.ProjectID, "project", "", "filter by project id")
+	cmd.Flags().StringVar(&filter.WorkspaceID, "workspace", "", "filter by workspace id")
 	cmd.Flags().StringVar(&filter.SessionID, "session", "", "filter by session id")
 	return cmd
 }
@@ -49,7 +49,7 @@ func (a *app) processTreeCmd() *cobra.Command {
 func (a *app) processKillCmd() *cobra.Command {
 	var req core.KillRequest
 	cmd := &cobra.Command{
-		Use:   "kill <pid>... | (--session <id> | --project <id>) --orphans",
+		Use:   "kill <pid>... | (--session <id> | --workspace <id>) --orphans",
 		Short: "Kill tracked processes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
@@ -73,8 +73,8 @@ func (a *app) processKillCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&req.SessionID, "session", "", "session id")
-	cmd.Flags().StringVar(&req.ProjectID, "project", "", "project id")
-	cmd.Flags().BoolVar(&req.OrphansOnly, "orphans", false, "kill only orphaned processes of the session or project")
+	cmd.Flags().StringVar(&req.WorkspaceID, "workspace", "", "workspace id")
+	cmd.Flags().BoolVar(&req.OrphansOnly, "orphans", false, "kill only orphaned processes of the session or workspace")
 	return cmd
 }
 

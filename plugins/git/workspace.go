@@ -38,16 +38,16 @@ type state struct {
 func (a *app) lookup(id string) *state {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.projects[id]
+	return a.workspaces[id]
 }
 
 func (a *app) get(id string) *state {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s, ok := a.projects[id]
+	s, ok := a.workspaces[id]
 	if !ok {
 		s = &state{}
-		a.projects[id] = s
+		a.workspaces[id] = s
 	}
 	return s
 }
@@ -66,7 +66,7 @@ func (a *app) idle(ctx context.Context, h *pluginsdk.Host, id string) {
 	unwatch(ctx, h, id, a.get(id).takeWatch())
 }
 
-func (a *app) projectChanged(ctx context.Context, h *pluginsdk.Host, id string, updated bool) {
+func (a *app) workspaceChanged(ctx context.Context, h *pluginsdk.Host, id string, updated bool) {
 	s := a.get(id)
 	if err := a.sync(ctx, h, id, s); err != nil {
 		logError("sync "+id, err)
@@ -83,8 +83,8 @@ func (a *app) projectChanged(ctx context.Context, h *pluginsdk.Host, id string, 
 
 func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	a.mu.Lock()
-	s := a.projects[id]
-	delete(a.projects, id)
+	s := a.workspaces[id]
+	delete(a.workspaces, id)
 	a.mu.Unlock()
 	if s == nil {
 		return
@@ -98,7 +98,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 }
 
 func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSChange) {
-	s := a.lookup(ev.ProjectID)
+	s := a.lookup(ev.WorkspaceID)
 	if s == nil {
 		return
 	}
@@ -109,7 +109,7 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 	}
 	s.mu.Unlock()
 	if relevant {
-		a.schedule(h, ev.ProjectID, s, refreshDelay)
+		a.schedule(h, ev.WorkspaceID, s, refreshDelay)
 	}
 }
 
@@ -126,7 +126,7 @@ func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, id string, s *stat
 }
 
 func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) error {
-	p, err := h.GetProject(ctx, id)
+	p, err := h.GetWorkspace(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -182,9 +182,9 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 }
 
 func (a *app) checkMissing(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
-	p, err := h.GetProject(ctx, id)
+	p, err := h.GetWorkspace(ctx, id)
 	if err != nil {
-		logError("project "+id, err)
+		logError("workspace "+id, err)
 		return
 	}
 	s.mu.Lock()

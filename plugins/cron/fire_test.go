@@ -156,8 +156,8 @@ func TestPruneDropsJobsOfDeletedWorkspaces(t *testing.T) {
 		&Job{ID: "cj_live", Workspace: "prj_live"},
 		&Job{ID: "cj_gone", Workspace: "prj_gone"},
 		&Job{ID: "cj_app"})
-	a.projects = func(context.Context) ([]pluginsdk.Project, error) {
-		return []pluginsdk.Project{{ID: "prj_live"}}, nil
+	a.workspaces = func(context.Context) ([]pluginsdk.Workspace, error) {
+		return []pluginsdk.Workspace{{ID: "prj_live"}}, nil
 	}
 
 	a.registry.Prune(t.Context())
@@ -225,7 +225,7 @@ func TestAgentsCallDoesNotBlockScheduler(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := a.pause(t.Context(), pluginsdk.CommandRun{ID: "cron.pause", ProjectID: "prj_1", Args: json.RawMessage(`{"id":"cj_1"}`), Agent: true, Caller: "agt_parent"})
+		_, err := a.pause(t.Context(), pluginsdk.CommandRun{ID: "cron.pause", WorkspaceID: "prj_1", Args: json.RawMessage(`{"id":"cj_1"}`), Agent: true, Caller: "agt_parent"})
 		done <- err
 	}()
 	<-entered

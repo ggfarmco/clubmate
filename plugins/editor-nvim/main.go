@@ -22,28 +22,28 @@ const (
 var errUnknownAction = errors.New("unknown action")
 
 type app struct {
-	slotMu   sync.Mutex
-	mu       sync.Mutex
-	editors  map[editorKey]*editor
-	current  map[string]string
-	projects map[string]pluginsdk.Project
-	deleted  map[string]bool
-	stopping map[editorKey]bool
-	offerMu  sync.Mutex
-	themeMu  sync.Mutex
-	watchMu  sync.Mutex
-	watches  map[string]projectWatch
-	branchMu sync.Mutex
+	slotMu     sync.Mutex
+	mu         sync.Mutex
+	editors    map[editorKey]*editor
+	current    map[string]string
+	workspaces map[string]pluginsdk.Workspace
+	deleted    map[string]bool
+	stopping   map[editorKey]bool
+	offerMu    sync.Mutex
+	themeMu    sync.Mutex
+	watchMu    sync.Mutex
+	watches    map[string]workspaceWatch
+	branchMu   sync.Mutex
 }
 
 func main() {
 	a := &app{
-		editors:  map[editorKey]*editor{},
-		current:  map[string]string{},
-		projects: map[string]pluginsdk.Project{},
-		deleted:  map[string]bool{},
-		stopping: map[editorKey]bool{},
-		watches:  map[string]projectWatch{},
+		editors:    map[editorKey]*editor{},
+		current:    map[string]string{},
+		workspaces: map[string]pluginsdk.Workspace{},
+		deleted:    map[string]bool{},
+		stopping:   map[editorKey]bool{},
+		watches:    map[string]workspaceWatch{},
 	}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
@@ -61,7 +61,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{contract.TopicUIOpened, contract.TopicSessionExited, contract.TopicProjectUpdated, contract.TopicProjectDeleted} {
+	for _, pattern := range []string{contract.TopicUIOpened, contract.TopicSessionExited, contract.TopicWorkspaceUpdated, contract.TopicWorkspaceDeleted} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -73,14 +73,14 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, themeTopic, themeSeq); err != nil {
 		return err
 	}
-	projects := present
+	workspaces := present
 	for _, s := range sessions {
 		if s.State == contract.SessionStateRunning && s.Title == sessionTitle {
-			projects = append(projects, s.ProjectID)
+			workspaces = append(workspaces, s.WorkspaceID)
 		}
 	}
-	slices.Sort(projects)
-	for _, id := range slices.Compact(projects) {
+	slices.Sort(workspaces)
+	for _, id := range slices.Compact(workspaces) {
 		go a.ensureLogged(ctx, h, id)
 	}
 	return nil
@@ -94,7 +94,7 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			logError(ev.Topic, err)
 			return
 		}
-		go a.ensureLogged(ctx, h, opened.ProjectID)
+		go a.ensureLogged(ctx, h, opened.Workspace)
 	case contract.TopicSessionExited:
 		var exited contract.SessionExited
 		if err := json.Unmarshal(ev.Payload, &exited); err != nil {
@@ -104,21 +104,21 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		if exited.Owner == h.PluginID() {
 			a.exited(ctx, h, exited)
 		}
-	case contract.TopicProjectUpdated:
-		var p contract.ProjectChanged
+	case contract.TopicWorkspaceUpdated:
+		var p contract.WorkspaceChanged
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			logError(ev.Topic, err)
 			return
 		}
-		a.projectUpdated(ctx, h, p.Project)
-	case contract.TopicProjectDeleted:
-		var p contract.ProjectDeleted
+		a.workspaceUpdated(ctx, h, p.Info)
+	case contract.TopicWorkspaceDeleted:
+		var p contract.WorkspaceDeleted
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			logError(ev.Topic, err)
 			return
 		}
-		a.drop(p.ID)
-		a.unwatch(ctx, h, p.ID)
+		a.drop(p.Workspace)
+		a.unwatch(ctx, h, p.Workspace)
 	case themeTopic:
 		a.themeChanged(ev.Payload)
 		if err := h.StorageSet(ctx, themeSeqKey, ev.Seq); err != nil {
@@ -131,7 +131,7 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if ev.Action != "restart" {
 		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 	}
-	e, err := a.active(ctx, h, ev.ProjectID)
+	e, err := a.active(ctx, h, ev.WorkspaceID)
 	if e == nil || err != nil {
 		return nil, err
 	}

@@ -221,12 +221,12 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 }
 
 func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
-	projects, err := s.backend.Workspaces(ctx)
+	workspaces, err := s.backend.Workspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]workspaceInfo, 0, len(projects))
-	for _, p := range projects {
+	out := make([]workspaceInfo, 0, len(workspaces))
+	for _, p := range workspaces {
 		roots := p.Roots
 		if roots == nil {
 			roots = []string{}

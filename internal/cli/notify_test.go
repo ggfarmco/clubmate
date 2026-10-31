@@ -11,8 +11,8 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/cli"
-	"clubmate/internal/project"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 type posted struct {
@@ -35,16 +35,16 @@ func lastPosted(t *testing.T, b *bus.Bus) posted {
 
 func createWorkspace(t *testing.T) string {
 	t.Helper()
-	var p project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
 	return p.ID
 }
 
 func TestNotifyResolvesWorkspaceAndSession(t *testing.T) {
 	b := startCore(t)
 	here, there := createWorkspace(t), createWorkspace(t)
-	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", here, "--", "true")))
-	t.Setenv("CLUBMATE_PROJECT_ID", here)
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--workspace", here, "--", "true")))
+	t.Setenv("CLUBMATE_WORKSPACE_ID", here)
 	t.Setenv("CLUBMATE_SESSION_ID", sid)
 
 	run(t, "notify", "--kind", "done", "Build", "finished")
@@ -57,7 +57,7 @@ func TestNotifyResolvesWorkspaceAndSession(t *testing.T) {
 	run(t, "notify", "--kind", "done", "Finished")
 	assert.Equal(t, posted{Workspace: here, Session: "agt_0123456789abcdef", Message: "Finished", Kind: "done"}, lastPosted(t, b))
 
-	t.Setenv("CLUBMATE_PROJECT_ID", "")
+	t.Setenv("CLUBMATE_WORKSPACE_ID", "")
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRoot(&stdout, &stderr)
 	root.SetArgs([]string{"notify", "hi"})
@@ -66,7 +66,7 @@ func TestNotifyResolvesWorkspaceAndSession(t *testing.T) {
 
 func TestNotifyReadsStdinAndTruncates(t *testing.T) {
 	b := startCore(t)
-	t.Setenv("CLUBMATE_PROJECT_ID", createWorkspace(t))
+	t.Setenv("CLUBMATE_WORKSPACE_ID", createWorkspace(t))
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRoot(&stdout, &stderr)
 	root.SetIn(strings.NewReader(strings.Repeat("я", 1500) + "\n"))
@@ -90,7 +90,7 @@ func TestNotifyQuietIgnoresMissingCore(t *testing.T) {
 	dirs := testutil.ShortDirs(t)
 	t.Setenv("CLUBMATE_STATE_DIR", dirs.State)
 	t.Setenv("CLUBMATE_RUNTIME_DIR", dirs.Runtime)
-	t.Setenv("CLUBMATE_PROJECT_ID", "")
+	t.Setenv("CLUBMATE_WORKSPACE_ID", "")
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRoot(&stdout, &stderr)
 	root.SetArgs([]string{"notify", "--quiet", "hi"})

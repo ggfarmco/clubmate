@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/bus"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 func TestRPCBusSubscribePushesEvents(t *testing.T) {
@@ -85,9 +85,9 @@ func TestRPCReentrantCallsDoNotDeadlock(t *testing.T) {
 	var pluginConn *jsonrpc2.Conn
 	pluginConn = jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(pluginSide), jsonrpc2.AsyncHandler(jsonrpc2.HandlerWithError(
 		func(ctx context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
-			var projects []project.Project
-			err := pluginConn.Call(ctx, "project.list", nil, &projects)
-			return len(projects), err
+			var workspaces []workspace.Workspace
+			err := pluginConn.Call(ctx, "workspace.list", nil, &workspaces)
+			return len(workspaces), err
 		})))
 	t.Cleanup(func() { pluginConn.Close(); conn.Close() })
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)

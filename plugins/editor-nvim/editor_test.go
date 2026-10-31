@@ -43,13 +43,13 @@ type setup struct {
 }
 
 type editor struct {
-	h         *testutil.PluginHarness
-	projectID string
-	top       string
-	repo      string
-	repo2     string
-	sessionID string
-	sock      string
+	h           *testutil.PluginHarness
+	workspaceID string
+	top         string
+	repo        string
+	repo2       string
+	sessionID   string
+	sock        string
 }
 
 func TestOpenFileAtLine(t *testing.T) {
@@ -69,7 +69,7 @@ func TestSelectionReturnsVisualRange(t *testing.T) {
 	require.NoError(t, e.open(t, path, 1))
 	v := dial(t, e.sock)
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
-	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.selection", "projectId": e.projectID}, nil)
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.selection", "workspaceId": e.workspaceID}, nil)
 	assert.ErrorContains(t, err, "no selection")
 	require.NoError(t, v.Command("call setpos(\"'<\", [0, 1, 3, 0])"))
 	require.NoError(t, v.Command("call setpos(\"'>\", [0, 2, 2, 0])"))
@@ -144,7 +144,7 @@ func TestQuickfix(t *testing.T) {
 	c := e.h.Client(t)
 	quickfix := func(items ...map[string]any) error {
 		args := map[string]any{"title": "Search: foo", "items": items}
-		return c.Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.quickfix", "projectId": e.projectID, "agent": true, "args": args}, nil)
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.quickfix", "workspaceId": e.workspaceID, "agent": true, "args": args}, nil)
 	}
 	require.ErrorContains(t, quickfix(map[string]any{"path": "a.go", "line": 1}), "absolute")
 	drain(c)
@@ -179,7 +179,7 @@ func TestQuickfixCapsFiles(t *testing.T) {
 	}
 	items = append(items, map[string]any{"path": filepath.Join(e.repo, "d", "0.go"), "line": 2})
 	args := map[string]any{"title": "Search: foo", "items": items}
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.quickfix", "projectId": e.projectID, "args": args}, nil))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.quickfix", "workspaceId": e.workspaceID, "args": args}, nil))
 	start := time.Now()
 	eval[int](t, v, "1")
 	assert.Less(t, time.Since(start), blockedBudget)
@@ -205,7 +205,7 @@ func TestOpenLightFiles(t *testing.T) {
 		assert.Equal(t, 0, eval[int](t, v, "&swapfile"))
 		assert.True(t, eval[bool](t, v, "b:clubmate_light"))
 	}
-	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "light") })
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "light") })
 	small := e.file(t, "small.go")
 	require.NoError(t, e.open(t, small, 1))
 	testutil.Eventually(t, func() bool {
@@ -221,7 +221,7 @@ func TestOpenFailureShowsInStatus(t *testing.T) {
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == first }, 5*time.Second)
 	require.NoError(t, v.Command("normal! ix"))
 	require.NoError(t, e.open(t, e.file(t, "b.go"), 1))
-	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed") && hasBadge(n, "E37") })
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed") && hasBadge(n, "E37") })
 }
 
 func TestNvimInitsWithoutUI(t *testing.T) {
@@ -276,10 +276,10 @@ func TestExitedShowsRestart(t *testing.T) {
 	_ = v.Command("qa!")
 	testutil.Eventually(t, func() bool { return e.h.GetSession(t, e.sessionID).State != session.StateRunning }, 5*time.Second)
 	require.NoError(t, e.h.Svc.CheckTransitions(t.Context()))
-	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool { return contains(n, "button") })
-	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return !contains(n, "badge") })
-	e.h.Event(t, e.projectID, mainSlot, "restart", "restart", nil)
-	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool { return contains(n, "button") })
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return !contains(n, "badge") })
+	e.h.Event(t, e.workspaceID, mainSlot, "restart", "restart", nil)
+	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
@@ -291,12 +291,12 @@ func TestRestartRefusesUnsavedBuffers(t *testing.T) {
 	require.NoError(t, e.open(t, path, 1))
 	require.NoError(t, dial(t, e.sock).Command("normal! ix"))
 	restart := func(args any) error {
-		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": args}, nil)
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "workspaceId": e.workspaceID, "args": args}, nil)
 	}
 	require.ErrorContains(t, restart(nil), "unsaved buffers: a.go")
 	assert.Equal(t, []string{e.sessionID}, e.running(t))
 	require.NoError(t, restart(map[string]any{"force": true}))
-	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
@@ -313,12 +313,12 @@ func TestRestartFailsClosedWhenNvimBlocks(t *testing.T) {
 		return m.Blocking
 	}, 5*time.Second)
 	restart := func(args any) error {
-		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID, "args": args}, nil)
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "workspaceId": e.workspaceID, "args": args}, nil)
 	}
 	require.ErrorContains(t, restart(nil), "unsaved buffers: unknown (nvim not responding)")
 	assert.Equal(t, []string{e.sessionID}, e.running(t))
 	require.NoError(t, restart(map[string]any{"force": true}))
-	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
@@ -362,7 +362,7 @@ func TestDiffviewOpensCheckpoint(t *testing.T) {
 func TestDiffviewRejectsRange(t *testing.T) {
 	e := startEditorIn(t, setup{initLua: stubDiffview})
 	v := dial(t, e.sock)
-	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "projectId": e.projectID, "args": map[string]any{"cwd": e.repo, "rev": "a...b"}}, nil)
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "workspaceId": e.workspaceID, "args": map[string]any{"cwd": e.repo, "rev": "a...b"}}, nil)
 	require.ErrorContains(t, err, "rev must be a commit sha")
 	assert.Equal(t, 0, eval[int](t, v, "exists('g:dv_log')"))
 }
@@ -371,10 +371,10 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{initLua: stubDiffview})
 	sha := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "HEAD"))
 	e.run(t, "diffview", map[string]any{"cwd": wt, "rev": sha}, nil)
-	p, err := e.h.Svc.GetProject(t.Context(), e.projectID)
+	p, err := e.h.Svc.GetWorkspace(t.Context(), e.workspaceID)
 	require.NoError(t, err)
 	assert.Equal(t, wt, p.Roots[0])
-	feat := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	v := dial(t, e.h.GetSession(t, feat.Props["sessionId"].(string)).Command[2])
@@ -385,15 +385,15 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 func TestDiffviewMissingShowsOpenFailed(t *testing.T) {
 	e := startEditor(t)
 	e.run(t, "diffview", map[string]any{"cwd": e.repo, "rev": "abcdef0"}, nil)
-	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: Command not found: DiffviewOpen") })
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: Command not found: DiffviewOpen") })
 }
 
 func TestRestartIgnoresScratchBuffers(t *testing.T) {
 	e := startEditor(t)
 	require.NoError(t, dial(t, e.sock).Command("setlocal buftype=nofile | normal! ix"))
-	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "projectId": e.projectID}, nil)
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.restart", "workspaceId": e.workspaceID}, nil)
 	require.NoError(t, err)
-	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 }
@@ -417,10 +417,10 @@ func TestOpenRoutesToOwningWorktree(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{link: true, sub: "sub"})
 	path := filepath.Join(e.top, ".worktrees", "feat", "sub", "a.go")
 	require.NoError(t, e.open(t, path, 1))
-	p, err := e.h.Svc.GetProject(t.Context(), e.projectID)
+	p, err := e.h.Svc.GetWorkspace(t.Context(), e.workspaceID)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(wt, "sub"), p.Roots[0])
-	feat := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	v := dial(t, e.h.GetSession(t, feat.Props["sessionId"].(string)).Command[2])
@@ -444,7 +444,7 @@ func TestOpenIgnoresForeignWorktreeList(t *testing.T) {
 	path := filepath.Join(foreign, "x.go")
 	require.NoError(t, os.WriteFile(path, []byte("x\n"), 0o600))
 	require.NoError(t, e.open(t, path, 1))
-	p, err := e.h.Svc.GetProject(t.Context(), e.projectID)
+	p, err := e.h.Svc.GetWorkspace(t.Context(), e.workspaceID)
 	require.NoError(t, err)
 	assert.Equal(t, e.repo, p.Roots[0])
 }
@@ -460,7 +460,7 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	require.NoError(t, v.Command("normal! ix"))
 	e.setWorktree(t, "")
 	run := func(id string, args any) error {
-		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": e.projectID, "args": args}, nil)
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": id, "workspaceId": e.workspaceID, "args": args}, nil)
 	}
 	unsaved := func(root string) []string {
 		var names []string
@@ -486,7 +486,7 @@ func TestUnsavedListsModifiedBuffersWithoutStopping(t *testing.T) {
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
 	unsaved := func() []string {
 		var names []string
-		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.unsaved", "projectId": e.projectID, "args": map[string]string{"root": e.repo}}, &names))
+		require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.unsaved", "workspaceId": e.workspaceID, "args": map[string]string{"root": e.repo}}, &names))
 		return names
 	}
 	assert.Empty(t, unsaved())
@@ -499,7 +499,7 @@ func TestStopRootBlocksStartUntilReleased(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{})
 	feat := e.setWorktree(t, wt)
 	run := func(id string, args any) error {
-		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": e.projectID, "args": args}, nil)
+		return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": id, "workspaceId": e.workspaceID, "args": args}, nil)
 	}
 
 	require.NoError(t, run("editor-nvim.stop-root", map[string]any{"root": wt}))
@@ -508,7 +508,7 @@ func TestStopRootBlocksStartUntilReleased(t *testing.T) {
 	assert.Equal(t, []string{e.sessionID}, e.running(t))
 
 	require.NoError(t, run("editor-nvim.release-root", map[string]any{"root": wt}))
-	e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		id, _ := n.Props["sessionId"].(string)
 		return n.Type == "surface" && id != "" && id != feat.ID && e.h.GetSession(t, id).Cwd == wt
 	})
@@ -520,7 +520,7 @@ func TestSecondFolderHasOwnNvim(t *testing.T) {
 	path := filepath.Join(e.repo2, "b.go")
 	require.NoError(t, os.WriteFile(path, []byte("b\n"), 0o600))
 	require.NoError(t, e.open(t, path, 1))
-	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		id, _ := n.Props["sessionId"].(string)
 		return n.Type == "surface" && id != "" && e.h.GetSession(t, id).Cwd == e.repo2
 	})
@@ -557,9 +557,9 @@ func TestSecondFolderWorktreeGetsOwnNvim(t *testing.T) {
 func TestStatusBranchFollowsInPlaceSwitch(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{})
 	e.setWorktree(t, wt)
-	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasText(n, "feat") })
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasText(n, "feat") })
 	gitIn(t, wt, "switch", "-q", "-c", "other")
-	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasText(n, "other") })
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasText(n, "other") })
 }
 
 func startWorktreeEditor(t *testing.T, s setup) (*editor, string) {
@@ -594,10 +594,10 @@ func (e *editor) setWorktree(t *testing.T, path string) session.Session {
 
 func (e *editor) setFolderWorktree(t *testing.T, repo, path string) session.Session {
 	t.Helper()
-	_, err := e.h.Svc.SetWorktree(t.Context(), e.projectID, repo, path)
+	_, err := e.h.Svc.SetWorktree(t.Context(), e.workspaceID, repo, path)
 	require.NoError(t, err)
 	want := cmp.Or(path, repo)
-	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		id, _ := n.Props["sessionId"].(string)
 		return n.Type == "surface" && id != "" && e.h.GetSession(t, id).Cwd == want
 	})
@@ -648,17 +648,17 @@ func startEditorIn(t *testing.T, s setup) *editor {
 		require.NoError(t, err)
 		repos = append(repos, repo2)
 	}
-	p, err := h.Svc.CreateProject(t.Context(), "demo", repos)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", repos)
 	require.NoError(t, err)
 	if s.missingFirst {
 		require.NoError(t, os.RemoveAll(repos[0]))
 	}
-	e := &editor{h: h, projectID: p.ID, top: top, repo: repo, repo2: repo2}
+	e := &editor{h: h, workspaceID: p.ID, top: top, repo: repo, repo2: repo2}
 	t.Cleanup(func() { e.killAll(t) })
 	var sub struct {
 		Subscription string `json:"subscription"`
 	}
-	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, &sub))
 	main := h.WaitSlot(t, p.ID, mainSlot, func(n sdui.Node) bool { return n.Type == "surface" })
 	h.WaitSlot(t, p.ID, statusSlot, func(n sdui.Node) bool { return contains(n, "badge") })
 	e.sessionID = main.Props["sessionId"].(string)
@@ -685,7 +685,7 @@ func (e *editor) file(t *testing.T, rel string) string {
 
 func (e *editor) run(t *testing.T, name string, args, res any) {
 	t.Helper()
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim." + name, "projectId": e.projectID, "args": args}, res))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim." + name, "workspaceId": e.workspaceID, "args": args}, res))
 }
 
 func gitIn(t *testing.T, dir string, args ...string) string {
@@ -703,12 +703,12 @@ func (e *editor) open(t *testing.T, path string, line int) error {
 func (e *editor) openAt(t *testing.T, path string, line, col int) error {
 	t.Helper()
 	args := map[string]any{"path": path, "line": line, "col": col}
-	return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.open", "projectId": e.projectID, "args": args}, nil)
+	return e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.open", "workspaceId": e.workspaceID, "args": args}, nil)
 }
 
 func (e *editor) running(t *testing.T) []string {
 	t.Helper()
-	sessions, err := e.h.Svc.ListSessions(t.Context(), session.ListFilter{ProjectID: e.projectID, Owner: "editor-nvim"})
+	sessions, err := e.h.Svc.ListSessions(t.Context(), session.ListFilter{WorkspaceID: e.workspaceID, Owner: "editor-nvim"})
 	require.NoError(t, err)
 	var ids []string
 	for _, s := range sessions {
@@ -886,7 +886,7 @@ func TestLaunchPassesThemeFile(t *testing.T) {
 		return err == nil
 	}, 5*time.Second)
 	e.run(t, "restart", nil, nil)
-	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	cmd := e.h.GetSession(t, main.Props["sessionId"].(string)).Command
@@ -936,10 +936,10 @@ func TestImportRefused(t *testing.T) {
 	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
 	p, err := e.h.Svc.HomeWorkspace(t.Context())
 	require.NoError(t, err)
-	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "projectId": p.ID}, nil)
-	assert.ErrorContains(t, err, "open a project workspace first")
+	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "workspaceId": p.ID}, nil)
+	assert.ErrorContains(t, err, "open a folder workspace first")
 	require.NoError(t, os.RemoveAll(filepath.Join(home, ".config", "nvim")))
-	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "projectId": e.projectID}, nil)
+	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "workspaceId": e.workspaceID}, nil)
 	assert.ErrorContains(t, err, "no ~/.config/nvim to import")
 	assert.Empty(t, agentCalls(t, e))
 }
@@ -951,7 +951,7 @@ func TestImportOfferedOnce(t *testing.T) {
 	v := dial(t, e.sock)
 	testutil.Eventually(t, func() bool { return eval[int](t, v, "get(g:, 'offered', 0)") == 1 }, 5*time.Second)
 	e.run(t, "restart", nil, nil)
-	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+	main := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
 	cmd := e.h.GetSession(t, main.Props["sessionId"].(string)).Command

@@ -22,7 +22,7 @@ import (
 
 func spawn(t *testing.T, m *session.Manager, command ...string) session.Session {
 	t.Helper()
-	s, err := m.Create(t.Context(), session.CreateRequest{ProjectID: "prj_x", Command: command})
+	s, err := m.Create(t.Context(), session.CreateRequest{WorkspaceID: "prj_x", Command: command})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = unix.Kill(-s.PGID, unix.SIGKILL)
@@ -34,7 +34,7 @@ func spawn(t *testing.T, m *session.Manager, command ...string) session.Session 
 func TestManagerSessionsSurviveManagerRestart(t *testing.T) {
 	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
 	s := spawn(t, session.NewManager(dirs, bin), "sh", "-c", "exec cat")
-	list, err := session.NewManager(dirs, bin).List(t.Context(), session.ListFilter{ProjectID: "prj_x"})
+	list, err := session.NewManager(dirs, bin).List(t.Context(), session.ListFilter{WorkspaceID: "prj_x"})
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.Equal(t, s.ID, list[0].ID)
@@ -43,13 +43,14 @@ func TestManagerSessionsSurviveManagerRestart(t *testing.T) {
 
 func TestManagerHostDoesNotInheritMarkers(t *testing.T) {
 	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
+	t.Setenv("CLUBMATE_WORKSPACE_ID", "prj_outer")
 	t.Setenv("CLUBMATE_PROJECT_ID", "prj_outer")
 	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
 	s := spawn(t, session.NewManager(dirs, bin), "sh", "-c", "exec cat")
 	env, err := proc.ReadEnv(s.HostPID)
 	require.NoError(t, err)
 	assert.False(t, slices.ContainsFunc(env, func(kv string) bool {
-		return strings.HasPrefix(kv, "CLUBMATE_SESSION_ID=") || strings.HasPrefix(kv, "CLUBMATE_PROJECT_ID=")
+		return strings.HasPrefix(kv, "CLUBMATE_SESSION_ID=") || strings.HasPrefix(kv, "CLUBMATE_WORKSPACE_ID=") || strings.HasPrefix(kv, "CLUBMATE_PROJECT_ID=")
 	}), env)
 }
 
@@ -98,7 +99,7 @@ func TestManagerExitedAndLost(t *testing.T) {
 	assert.Equal(t, 3, *e.ExitCode)
 }
 
-func TestManagerListFiltersByProject(t *testing.T) {
+func TestManagerListFiltersByWorkspace(t *testing.T) {
 	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
 	m := session.NewManager(dirs, bin)
 	spawn(t, m, "sh", "-c", "exec cat")
@@ -106,7 +107,7 @@ func TestManagerListFiltersByProject(t *testing.T) {
 	all, err := m.List(t.Context(), session.ListFilter{})
 	require.NoError(t, err)
 	assert.Len(t, all, 1)
-	other, err := m.List(t.Context(), session.ListFilter{ProjectID: "prj_other"})
+	other, err := m.List(t.Context(), session.ListFilter{WorkspaceID: "prj_other"})
 	require.NoError(t, err)
 	assert.Empty(t, other)
 }
@@ -168,7 +169,7 @@ printf '{"hostPid":1}' > "$(sed -n 's/.*"metaPath":"\([^"]*\)".*/\1/p')"
 	require.NoError(t, os.WriteFile(metaOnly, []byte(script), 0o700))
 	for _, host := range []string{"/usr/bin/false", metaOnly} {
 		m := session.NewManager(testutil.ShortDirs(t), host)
-		_, err := m.Create(t.Context(), session.CreateRequest{ProjectID: "prj_x", Command: []string{"true"}})
+		_, err := m.Create(t.Context(), session.CreateRequest{WorkspaceID: "prj_x", Command: []string{"true"}})
 		assert.ErrorIs(t, err, session.ErrHostStartTimeout, host)
 	}
 }
@@ -186,7 +187,7 @@ func TestManagerCreateFastExit(t *testing.T) {
 func TestManagerPersistsOwner(t *testing.T) {
 	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
 	m := session.NewManager(dirs, bin)
-	s, err := m.Create(t.Context(), session.CreateRequest{ProjectID: "prj_0123456789abcdef", Owner: "terminals", Command: []string{"sh", "-c", "exec cat"}})
+	s, err := m.Create(t.Context(), session.CreateRequest{WorkspaceID: "prj_0123456789abcdef", Owner: "terminals", Command: []string{"sh", "-c", "exec cat"}})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = unix.Kill(-s.PGID, unix.SIGKILL)

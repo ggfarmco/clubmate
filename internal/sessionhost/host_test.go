@@ -67,7 +67,7 @@ func TestMetaHasProto(t *testing.T) {
 func TestSessionHostReplacesInheritedMarkers(t *testing.T) {
 	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
 	cfg := testConfig(t, os.Args[0], "-test.run=^TestHelperSleep$")
-	cfg.Env = []string{"CLUBMATE_HELPER_SLEEP=1", "CLUBMATE_PROJECT_ID=prj_outer"}
+	cfg.Env = []string{"CLUBMATE_HELPER_SLEEP=1", "CLUBMATE_WORKSPACE_ID=prj_outer", "CLUBMATE_PROJECT_ID=prj_outer"}
 	startHost(t, cfg)
 	m, err := sessionhost.ReadMeta(cfg.MetaPath)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestSessionHostReplacesInheritedMarkers(t *testing.T) {
 	markers := slices.DeleteFunc(env, func(kv string) bool {
 		return !strings.HasPrefix(kv, "CLUBMATE_") || strings.HasPrefix(kv, "CLUBMATE_HELPER")
 	})
-	assert.Equal(t, []string{"CLUBMATE_SESSION_ID=ses_test", "CLUBMATE_PROJECT_ID=prj_test"}, markers)
+	assert.Equal(t, []string{"CLUBMATE_SESSION_ID=ses_test", "CLUBMATE_WORKSPACE_ID=prj_test", "CLUBMATE_PROJECT_ID=prj_test"}, markers)
 }
 
 func TestPathAppendGoesLast(t *testing.T) {
@@ -251,11 +251,11 @@ func testConfig(t *testing.T, command ...string) sessionhost.Config {
 	t.Helper()
 	d := testutil.ShortDirs(t)
 	return sessionhost.Config{
-		ID:        "ses_test",
-		ProjectID: "prj_test",
-		Command:   command,
-		Socket:    d.SessionSocket("ses_test"),
-		MetaPath:  d.SessionMeta("ses_test"),
+		ID:          "ses_test",
+		WorkspaceID: "prj_test",
+		Command:     command,
+		Socket:      d.SessionSocket("ses_test"),
+		MetaPath:    d.SessionMeta("ses_test"),
 	}
 }
 

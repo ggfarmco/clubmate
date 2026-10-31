@@ -19,21 +19,21 @@ const noName = "[No Name]"
 var (
 	errUnsaved        = errors.New("unsaved buffers")
 	errUnsavedUnknown = fmt.Errorf("%w: unknown (nvim not responding)", errUnsaved)
-	errDeleted        = errors.New("project deleted")
+	errDeleted        = errors.New("workspace deleted")
 	errStopping       = errors.New("the worktree is being removed")
 	errUnsavedSwitch  = errors.New("Save or discard unsaved changes first")
 )
 
-func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, projectID string) {
-	if a.isDeleted(projectID) {
+func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, workspaceID string) {
+	if a.isDeleted(workspaceID) {
 		return
 	}
-	e, err := a.active(ctx, h, projectID)
+	e, err := a.active(ctx, h, workspaceID)
 	if e != nil && err == nil {
 		_, err = a.ensure(ctx, h, e)
 	}
 	if err != nil && !quiet(err) {
-		logError("start "+projectID, err)
+		logError("start "+workspaceID, err)
 	}
 }
 
@@ -143,24 +143,24 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, cur *editor, all, 
 	return errors.Join(errs...)
 }
 
-func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root string, force bool) error {
-	sessions, err := h.ListSessions(ctx, projectID, true)
+func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, workspaceID, root string, force bool) error {
+	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return err
 	}
 	var kill []string
 	for _, s := range sessions {
-		if _, ok := ownedSocket(s, projectID, root); ok {
+		if _, ok := ownedSocket(s, workspaceID, root); ok {
 			kill = append(kill, s.ID)
 		}
 	}
-	e := a.lookup(projectID, root)
+	e := a.lookup(workspaceID, root)
 	if e == nil && len(kill) == 0 {
-		a.setStopping(projectID, root, true)
+		a.setStopping(workspaceID, root, true)
 		return nil
 	}
 	if e == nil {
-		if e = a.editorAt(projectID, root); e == nil {
+		if e = a.editorAt(workspaceID, root); e == nil {
 			return nil
 		}
 	}
@@ -171,7 +171,7 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root s
 			return err
 		}
 	}
-	a.setStopping(projectID, root, true)
+	a.setStopping(workspaceID, root, true)
 	if c := e.reset(); c != nil {
 		c.close()
 	}
@@ -184,17 +184,17 @@ func (a *app) stopRoot(ctx context.Context, h *pluginsdk.Host, projectID, root s
 	return nil
 }
 
-func (a *app) releaseRoot(ctx context.Context, h *pluginsdk.Host, projectID, root string) error {
-	a.setStopping(projectID, root, false)
-	e, err := a.active(ctx, h, projectID)
+func (a *app) releaseRoot(ctx context.Context, h *pluginsdk.Host, workspaceID, root string) error {
+	a.setStopping(workspaceID, root, false)
+	e, err := a.active(ctx, h, workspaceID)
 	if e == nil || err != nil || e.root != root {
 		return err
 	}
 	return a.show(ctx, h, e)
 }
 
-func (a *app) guardSwitch(projectID, root string) error {
-	names, err := a.unsaved(projectID, root)
+func (a *app) guardSwitch(workspaceID, root string) error {
+	names, err := a.unsaved(workspaceID, root)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errUnsavedSwitch, err)
 	}
@@ -204,10 +204,10 @@ func (a *app) guardSwitch(projectID, root string) error {
 	return nil
 }
 
-func (a *app) unsaved(projectID, root string) ([]string, error) {
+func (a *app) unsaved(workspaceID, root string) ([]string, error) {
 	dir := gitrepo.Canonical(root)
 	var inside []string
-	for _, e := range a.projectEditors(projectID) {
+	for _, e := range a.workspaceEditors(workspaceID) {
 		c := e.connected()
 		if c == nil {
 			continue
@@ -228,11 +228,11 @@ func (a *app) unsaved(projectID, root string) ([]string, error) {
 		}
 	}
 	slices.Sort(inside)
-	return relativeNames(slices.Compact(inside), a.projectFolders(projectID)), nil
+	return relativeNames(slices.Compact(inside), a.workspaceFolders(workspaceID)), nil
 }
 
 func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev contract.SessionExited) {
-	for _, e := range a.projectEditors(ev.ProjectID) {
+	for _, e := range a.workspaceEditors(ev.Workspace) {
 		c, ok := e.exited(ev.ID)
 		if !ok {
 			continue
@@ -280,13 +280,13 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string
 		return "", "", fmt.Errorf("remove stale socket: %w", err)
 	}
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
-		ProjectID:  e.id,
-		Title:      sessionTitle,
-		Command:    append(append([]string{l.Path}, l.Args...), "--listen", sock),
-		Cwd:        e.root,
-		Env:        l.Env,
-		UnsetEnv:   l.Unset,
-		PathAppend: l.PathAppend,
+		WorkspaceID: e.id,
+		Title:       sessionTitle,
+		Command:     append(append([]string{l.Path}, l.Args...), "--listen", sock),
+		Cwd:         e.root,
+		Env:         l.Env,
+		UnsetEnv:    l.Unset,
+		PathAppend:  l.PathAppend,
 	})
 	return s.ID, sock, err
 }
@@ -308,7 +308,7 @@ func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, editors []*ed
 		if err != nil {
 			return errUnsavedUnknown
 		}
-		names = append(names, relativeNames(modified, a.projectFolders(e.id))...)
+		names = append(names, relativeNames(modified, a.workspaceFolders(e.id))...)
 	}
 	if len(names) > 0 {
 		return fmt.Errorf("%w: %s", errUnsaved, strings.Join(names, ", "))
@@ -316,15 +316,15 @@ func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, editors []*ed
 	return nil
 }
 
-func ownedSocket(s pluginsdk.Session, projectID, root string) (string, bool) {
+func ownedSocket(s pluginsdk.Session, workspaceID, root string) (string, bool) {
 	n := len(s.Command)
 	if s.State != contract.SessionStateRunning || s.Cwd != root || n < 3 || s.Command[n-2] != "--listen" {
 		return "", false
 	}
 	sock := s.Command[n-1]
 	rt := pluginsdk.RuntimeDir()
-	want, err := socketPath(rt, projectID, root)
-	return sock, err == nil && sock == want || sock == legacySocketPath(rt, projectID)
+	want, err := socketPath(rt, workspaceID, root)
+	return sock, err == nil && sock == want || sock == legacySocketPath(rt, workspaceID)
 }
 
 func relativeNames(names, folders []string) []string {

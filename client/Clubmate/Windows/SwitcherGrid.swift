@@ -83,7 +83,7 @@ struct SwitcherGridView: View {
                 if let workspace, workspace == app.window(windowID)?.active {
                     Circle().fill(theme.accent).frame(width: 6, height: 6)
                 }
-                Text(workspace.map { app.project($0)?.name ?? $0 } ?? "Open Folder…")
+                Text(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open Folder…")
                     .font(theme.ui)
                     .foregroundStyle(highlighted ? theme.foreground : theme.muted)
                     .lineLimit(1)
@@ -96,7 +96,7 @@ struct SwitcherGridView: View {
         .contentShape(Rectangle())
         .onTapGesture { choose(index) }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(workspace.map { app.project($0)?.name ?? $0 } ?? "Open Folder…")
+        .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open Folder…")
         .accessibilityAddTraits(workspace != nil && workspace == app.window(windowID)?.active ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { choose(index) }
     }
@@ -121,7 +121,7 @@ struct SwitcherGridView: View {
         }
     }
 
-    private func section(_ session: ProjectSession?) -> SectionInfo? {
+    private func section(_ session: WorkspaceSession?) -> SectionInfo? {
         guard let store = session?.store else { return nil }
         return store.sections.first { $0.id == store.selectedSection }
     }

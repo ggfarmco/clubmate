@@ -37,8 +37,8 @@ type runState struct {
 	queueSeq        int
 }
 
-func (a *app) prompt(projectID string, args promptArgs) error {
-	s, err := a.lookup(projectID, args.Session)
+func (a *app) prompt(workspaceID string, args promptArgs) error {
+	s, err := a.lookup(workspaceID, args.Session)
 	if err != nil {
 		return err
 	}

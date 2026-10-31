@@ -50,7 +50,7 @@ type Core interface {
 type Server struct {
 	Dial      func(ctx context.Context) (Core, error)
 	Version   string
-	Project   string
+	Workspace string
 	Log       io.Writer
 	Poll      time.Duration
 	Caller    string
@@ -245,7 +245,7 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 		delete(p.Arguments, workspaceArg)
 	}
 	if workspace == "" {
-		workspace = s.Project
+		workspace = s.Workspace
 	}
 	if workspace == "" {
 		workspace = mostRecent(ctx, core)
@@ -255,7 +255,7 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 		args = map[string]json.RawMessage{}
 	}
 	var out json.RawMessage
-	params := map[string]any{"id": tools[i].target, "projectId": workspace, "args": args, "agent": true}
+	params := map[string]any{"id": tools[i].target, "workspaceId": workspace, "args": args, "agent": true}
 	if s.Caller != "" {
 		params["caller"] = s.Caller
 	}
@@ -402,7 +402,7 @@ func inputSchema(args *schema.Object) map[string]any {
 		}
 		required = args.Required
 	}
-	props[workspaceArg] = schema.Prop{Type: "string", Description: "Workspace id. Defaults to $CLUBMATE_PROJECT_ID, else the most recently opened workspace; ignored by tools that don't act on a workspace."}
+	props[workspaceArg] = schema.Prop{Type: "string", Description: "Workspace id. Defaults to $CLUBMATE_WORKSPACE_ID, else the most recently opened workspace; ignored by tools that don't act on a workspace."}
 	out := map[string]any{"type": "object", "properties": props}
 	if len(required) > 0 {
 		out["required"] = required
@@ -411,13 +411,13 @@ func inputSchema(args *schema.Object) map[string]any {
 }
 
 func mostRecent(ctx context.Context, core Core) string {
-	var projects []struct {
+	var workspaces []struct {
 		ID string `json:"id"`
 	}
-	if err := core.Call(ctx, "project.list", struct{}{}, &projects); err != nil || len(projects) == 0 {
+	if err := core.Call(ctx, "workspace.list", struct{}{}, &workspaces); err != nil || len(workspaces) == 0 {
 		return ""
 	}
-	return projects[0].ID
+	return workspaces[0].ID
 }
 
 func failure(err error) callResult {

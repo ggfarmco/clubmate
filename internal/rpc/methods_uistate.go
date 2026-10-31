@@ -17,18 +17,18 @@ const (
 )
 
 type uiStateGetParams struct {
-	ProjectID string `json:"projectId"`
+	WorkspaceID string `json:"workspaceId"`
 }
 
 type uiStateSetParams struct {
-	ProjectID string          `json:"projectId"`
-	State     json.RawMessage `json:"state"`
+	WorkspaceID string          `json:"workspaceId"`
+	State       json.RawMessage `json:"state"`
 }
 
 type uiStatePatchParams struct {
-	ProjectID string          `json:"projectId"`
-	Key       string          `json:"key"`
-	Value     json.RawMessage `json:"value"`
+	WorkspaceID string          `json:"workspaceId"`
+	Key         string          `json:"key"`
+	Value       json.RawMessage `json:"value"`
 }
 
 type uiStateResult struct {
@@ -42,10 +42,10 @@ type uiSectionResult struct {
 func (s *Server) uiStateMethods() map[string]handlerFunc {
 	return map[string]handlerFunc{
 		"ui.state.get": method(func(ctx context.Context, p uiStateGetParams) (uiStateResult, error) {
-			if err := s.checkUIStateClient(ctx, p.ProjectID); err != nil {
+			if err := s.checkUIStateClient(ctx, p.WorkspaceID); err != nil {
 				return uiStateResult{}, err
 			}
-			value, found, err := s.kv.Get(ctx, clientOwner, p.ProjectID)
+			value, found, err := s.kv.Get(ctx, clientOwner, p.WorkspaceID)
 			if err != nil {
 				return uiStateResult{}, err
 			}
@@ -55,47 +55,47 @@ func (s *Server) uiStateMethods() map[string]handlerFunc {
 			return uiStateResult{State: value}, nil
 		}),
 		"ui.state.set": method(func(ctx context.Context, p uiStateSetParams) (empty, error) {
-			if err := s.checkUIStateClient(ctx, p.ProjectID); err != nil {
+			if err := s.checkUIStateClient(ctx, p.WorkspaceID); err != nil {
 				return empty{}, err
 			}
 			if err := validateUIState(p.State); err != nil {
 				return empty{}, err
 			}
-			return empty{}, s.setUIState(ctx, p.ProjectID, p.State)
+			return empty{}, s.setUIState(ctx, p.WorkspaceID, p.State)
 		}),
 		"ui.state.patch": method(func(ctx context.Context, p uiStatePatchParams) (empty, error) {
-			if err := s.checkUIStateClient(ctx, p.ProjectID); err != nil {
+			if err := s.checkUIStateClient(ctx, p.WorkspaceID); err != nil {
 				return empty{}, err
 			}
 			if p.Key == "" {
 				return empty{}, &jsonrpc2.Error{Code: codeInvalidParams, Message: "key is required"}
 			}
-			return empty{}, s.patchUIState(ctx, p.ProjectID, p.Key, p.Value)
+			return empty{}, s.patchUIState(ctx, p.WorkspaceID, p.Key, p.Value)
 		}),
 		"ui.state.section": method(func(ctx context.Context, p uiStateGetParams) (uiSectionResult, error) {
-			if err := s.checkUIStateProject(ctx, p.ProjectID); err != nil {
+			if err := s.checkUIStateWorkspace(ctx, p.WorkspaceID); err != nil {
 				return uiSectionResult{}, err
 			}
-			section, err := s.savedSection(ctx, p.ProjectID)
+			section, err := s.savedSection(ctx, p.WorkspaceID)
 			return uiSectionResult{Section: section}, err
 		}),
 	}
 }
 
-func (s *Server) setUIState(ctx context.Context, projectID string, state json.RawMessage) error {
+func (s *Server) setUIState(ctx context.Context, workspaceID string, state json.RawMessage) error {
 	s.uiStateMu.Lock()
 	defer s.uiStateMu.Unlock()
-	previous, err := s.savedSection(ctx, projectID)
+	previous, err := s.savedSection(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
-	return s.writeUIState(ctx, projectID, previous, state)
+	return s.writeUIState(ctx, workspaceID, previous, state)
 }
 
-func (s *Server) patchUIState(ctx context.Context, projectID, key string, value json.RawMessage) error {
+func (s *Server) patchUIState(ctx context.Context, workspaceID, key string, value json.RawMessage) error {
 	s.uiStateMu.Lock()
 	defer s.uiStateMu.Unlock()
-	saved, found, err := s.kv.Get(ctx, clientOwner, projectID)
+	saved, found, err := s.kv.Get(ctx, clientOwner, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -118,21 +118,21 @@ func (s *Server) patchUIState(ctx context.Context, projectID, key string, value 
 	if err := validateUIState(merged); err != nil {
 		return err
 	}
-	return s.writeUIState(ctx, projectID, previous, merged)
+	return s.writeUIState(ctx, workspaceID, previous, merged)
 }
 
-func (s *Server) writeUIState(ctx context.Context, projectID, previous string, state json.RawMessage) error {
-	if err := s.kv.Set(ctx, clientOwner, projectID, state); err != nil {
+func (s *Server) writeUIState(ctx context.Context, workspaceID, previous string, state json.RawMessage) error {
+	if err := s.kv.Set(ctx, clientOwner, workspaceID, state); err != nil {
 		return err
 	}
 	if section := sectionOf(state); section != previous {
-		s.publishSection(projectID, section)
+		s.publishSection(workspaceID, section)
 	}
 	return nil
 }
 
-func (s *Server) savedSection(ctx context.Context, projectID string) (string, error) {
-	value, found, err := s.kv.Get(ctx, clientOwner, projectID)
+func (s *Server) savedSection(ctx context.Context, workspaceID string) (string, error) {
+	value, found, err := s.kv.Get(ctx, clientOwner, workspaceID)
 	if err != nil || !found {
 		return "", err
 	}
@@ -147,11 +147,11 @@ func sectionOf(state json.RawMessage) string {
 	return v.Section
 }
 
-func (s *Server) publishSection(projectID, section string) {
+func (s *Server) publishSection(workspaceID, section string) {
 	if s.bus == nil {
 		return
 	}
-	raw, err := json.Marshal(contract.UISection{ProjectID: projectID, Section: section})
+	raw, err := json.Marshal(contract.UISection{Workspace: workspaceID, Section: section})
 	if err != nil {
 		s.logger.Error("marshal section event", "err", err)
 		return
@@ -161,21 +161,21 @@ func (s *Server) publishSection(projectID, section string) {
 	}
 }
 
-func (s *Server) checkUIStateClient(ctx context.Context, projectID string) error {
+func (s *Server) checkUIStateClient(ctx context.Context, workspaceID string) error {
 	if CallerFrom(ctx).IsPlugin() {
 		return &jsonrpc2.Error{Code: codeInvalidParams, Message: "ui state requires a client caller"}
 	}
-	return s.checkUIStateProject(ctx, projectID)
+	return s.checkUIStateWorkspace(ctx, workspaceID)
 }
 
-func (s *Server) checkUIStateProject(ctx context.Context, projectID string) error {
+func (s *Server) checkUIStateWorkspace(ctx context.Context, workspaceID string) error {
 	if s.kv == nil {
 		return errNoKV
 	}
-	if err := requireID(projectPrefix, projectID); err != nil {
+	if err := requireID(workspacePrefix, workspaceID); err != nil {
 		return err
 	}
-	_, err := s.svc.GetProject(ctx, projectID)
+	_, err := s.svc.GetWorkspace(ctx, workspaceID)
 	return err
 }
 
@@ -190,9 +190,9 @@ func validateUIState(state json.RawMessage) error {
 	return nil
 }
 
-func (s *Server) deleteUIState(ctx context.Context, projectID string) error {
+func (s *Server) deleteUIState(ctx context.Context, workspaceID string) error {
 	if s.kv == nil {
 		return nil
 	}
-	return s.kv.Delete(ctx, clientOwner, projectID)
+	return s.kv.Delete(ctx, clientOwner, workspaceID)
 }

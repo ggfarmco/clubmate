@@ -9,7 +9,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
         └───────────────┬───────────────┴──────────────────────┘
                         ▼
                  clubmate-core (Go, one per user)
-   rpc · command registry · bus (SQLite) · sdui store · projects
+   rpc · command registry · bus (SQLite) · sdui store · workspaces
    sessions · process tracker · plugin supervisor · notify · mcp
         │ JSON-RPC over stdio                     │ spawns, attaches
         ▼                                         ▼
@@ -30,14 +30,14 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | Package | Role |
 |---|---|
 | `rpc` | JSON-RPC server, built-in methods (primitives), command registry. Every command is flagged `agent` (visible to MCP/agents), `destructive` (needs in-app approval when an agent calls it), `hidden` (not in the palette), `remote` (runnable by paired companion devices) or `userOnly`; `scope: app` commands need no workspace. |
-| `bus` | Persistent event bus on SQLite (`bus.db`). Topics, publish, subscribe with backfill, 64 KiB payload cap. Plugins and the app react to `project.updated`, `agents.changed`, `notify.posted`, … |
-| `project` | Workspaces (`clubmate.db`): folders, git repos, the selected worktree per folder, missing folders. |
-| `session` | Session manager: creates, attaches, kills and removes `clubmate-session` hosts; owner plugin and project per session. |
+| `bus` | Persistent event bus on SQLite (`bus.db`). Topics, publish, subscribe with backfill, 64 KiB payload cap. Plugins and the app react to `workspace.updated`, `agents.changed`, `notify.posted`, … |
+| `workspace` | Workspaces (`clubmate.db`): folders, git repos, the selected worktree per folder, missing folders. |
+| `session` | Session manager: creates, attaches, kills and removes `clubmate-session` hosts; owner plugin and workspace per session. |
 | `proc` | Process tracker: process trees per session and per root a plugin registered (agents), CPU/MEM history, orphan detection and kill. |
 | `sdui` | Node catalog and validator (max 5000 nodes, depth 32), section and slot store, hosted sections. Invalid trees are rejected before they reach a client. |
 | `plugin` | Manifest (`plugin.json`: sections, slots, commands, events), discovery, supervisor. |
 | `kv` | Plugin storage (`plugins.db`). Each plugin also has a private state dir, `plugin-data/<id>`. |
-| `mcp` | `clubmate mcp`: exposes agent-visible commands as MCP tools, scoped to `$CLUBMATE_PROJECT_ID`. |
+| `mcp` | `clubmate mcp`: exposes agent-visible commands as MCP tools, scoped to `$CLUBMATE_WORKSPACE_ID`. |
 | `notify` | `notify.post`: validates, rate-limits (per workspace and global) and publishes `notify.posted`. |
 | `shellenv` | Resolves the login-shell environment once, so GUI-launched processes get your `PATH`. |
 | `diagnostics` | `diagnostics.collect`: the zip behind Help → Collect Diagnostics. |

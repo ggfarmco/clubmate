@@ -22,14 +22,14 @@ public struct SnapshotRequest: Codable, Equatable, Sendable {
     public let png: Bool
     public let width: Double?
     public let height: Double?
-    public let projectId: String?
+    public let workspaceId: String?
 
-    public init(out: String, png: Bool, width: Double?, height: Double?, projectId: String?) {
+    public init(out: String, png: Bool, width: Double?, height: Double?, workspaceId: String?) {
         self.out = out
         self.png = png
         self.width = width
         self.height = height
-        self.projectId = projectId
+        self.workspaceId = workspaceId
     }
 
     public init(from decoder: Decoder) throws {
@@ -38,45 +38,45 @@ public struct SnapshotRequest: Codable, Equatable, Sendable {
         png = try c.decodeIfPresent(Bool.self, forKey: .png) ?? true
         width = try c.decodeIfPresent(Double.self, forKey: .width)
         height = try c.decodeIfPresent(Double.self, forKey: .height)
-        projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+        workspaceId = try c.decodeIfPresent(String.self, forKey: .workspaceId)
     }
 }
 
 public struct PresentRequest: Codable, Equatable, Sendable {
     public let target: String
     public let shown: Bool
-    public let projectId: String?
+    public let workspaceId: String?
 
-    public init(target: String, shown: Bool, projectId: String?) {
+    public init(target: String, shown: Bool, workspaceId: String?) {
         self.target = target
         self.shown = shown
-        self.projectId = projectId
+        self.workspaceId = workspaceId
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         target = try c.decode(String.self, forKey: .target)
         shown = try c.decodeIfPresent(Bool.self, forKey: .shown) ?? true
-        projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+        workspaceId = try c.decodeIfPresent(String.self, forKey: .workspaceId)
     }
 }
 
 public struct KeyRequest: Codable, Equatable, Sendable {
     public let keys: [String]
     public let focus: String?
-    public let projectId: String?
+    public let workspaceId: String?
 
-    public init(keys: [String], focus: String?, projectId: String?) {
+    public init(keys: [String], focus: String?, workspaceId: String?) {
         self.keys = keys
         self.focus = focus
-        self.projectId = projectId
+        self.workspaceId = workspaceId
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         keys = try c.decodeIfPresent([String].self, forKey: .keys) ?? []
         focus = try c.decodeIfPresent(String.self, forKey: .focus)
-        projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+        workspaceId = try c.decodeIfPresent(String.self, forKey: .workspaceId)
     }
 }
 

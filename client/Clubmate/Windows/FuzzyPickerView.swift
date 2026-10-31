@@ -118,7 +118,7 @@ struct FuzzyPickerList: View {
 }
 
 extension View {
-    func fuzzyPicker(_ session: ProjectSession?) -> some View {
+    func fuzzyPicker(_ session: WorkspaceSession?) -> some View {
         overlay(alignment: .top) {
             if let session, session.overlay == .picker, let request = session.picker {
                 FuzzyPickerList(model: request.model, choose: request.choose) { session.close(.picker) }

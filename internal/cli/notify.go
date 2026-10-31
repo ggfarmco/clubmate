@@ -15,6 +15,7 @@ import (
 
 	"clubmate/internal/notify"
 	"clubmate/internal/rpc"
+	"clubmate/pkg/contract"
 )
 
 var (
@@ -32,11 +33,11 @@ const (
 )
 
 type notifyRequest struct {
-	ProjectID string `json:"projectId"`
-	Session   string `json:"session,omitempty"`
-	Title     string `json:"title,omitempty"`
-	Message   string `json:"message"`
-	Kind      string `json:"kind"`
+	WorkspaceID string `json:"workspaceId"`
+	Session     string `json:"session,omitempty"`
+	Title       string `json:"title,omitempty"`
+	Message     string `json:"message"`
+	Kind        string `json:"kind"`
 }
 
 func (a *app) notifyCmd() *cobra.Command {
@@ -64,7 +65,7 @@ func (a *app) notifyCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&req.Title, "title", "", "title, up to 120 characters")
 	cmd.Flags().StringVar(&req.Kind, "kind", notify.DefaultKind, "one of "+strings.Join(notify.Kinds, ", "))
-	cmd.Flags().StringVar(&req.ProjectID, "workspace", "", "workspace id (default $"+projectEnv+", else the only open workspace)")
+	cmd.Flags().StringVar(&req.WorkspaceID, "workspace", "", "workspace id (default $"+contract.WorkspaceEnv+", else the only open workspace)")
 	cmd.Flags().StringVar(&req.Session, "session", "", "session to reveal on click (default $"+agentSessionEnv+", else $"+sessionEnv+")")
 	cmd.Flags().BoolVar(&quiet, "quiet", false, "print nothing and exit 0 when Clubmate isn't running, no workspace resolves, the message is empty or the rate limit hits (for hooks)")
 	return cmd
@@ -84,10 +85,10 @@ func (a *app) notify(cmd *cobra.Command, req notifyRequest, args []string) (noti
 	req.Title = notify.Clip(req.Title, notify.MaxTitle)
 	ctx, cancel := context.WithTimeout(cmd.Context(), notifyTimeout)
 	defer cancel()
-	if req.ProjectID, err = a.notifyWorkspace(ctx, req.ProjectID); err != nil {
+	if req.WorkspaceID, err = a.notifyWorkspace(ctx, req.WorkspaceID); err != nil {
 		return notifyResult{}, err
 	}
-	if req.Session == "" && req.ProjectID == os.Getenv(projectEnv) {
+	if req.Session == "" && req.WorkspaceID == contract.WorkspaceFromEnv() {
 		req.Session = cmp.Or(os.Getenv(agentSessionEnv), os.Getenv(sessionEnv))
 	}
 	var res notifyResult
@@ -113,7 +114,7 @@ func (a *app) notifyWorkspace(ctx context.Context, flag string) (string, error) 
 	if flag != "" {
 		return flag, nil
 	}
-	if env := os.Getenv(projectEnv); env != "" {
+	if env := contract.WorkspaceFromEnv(); env != "" {
 		return env, nil
 	}
 	var open []string

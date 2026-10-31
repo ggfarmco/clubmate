@@ -26,11 +26,11 @@ func TestSDKInitCanCallCoreBeforeAndAfterReplying(t *testing.T) {
 	srv, _ := testutil.NewRPCServer(t)
 	coreSide, pluginSide := net.Pipe()
 	conn := srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), rpc.Caller{PluginID: "echo"})
-	inited := make(chan []pluginsdk.Project, 1)
+	inited := make(chan []pluginsdk.Workspace, 1)
 	go func() {
 		_ = pluginsdk.RunConn(t.Context(), pluginSide, pluginsdk.Plugin{
 			Init: func(ctx context.Context, h *pluginsdk.Host) error {
-				ps, err := h.ListProjects(ctx)
+				ps, err := h.ListWorkspaces(ctx)
 				inited <- ps
 				return err
 			},
@@ -100,10 +100,10 @@ func TestSDKDeliversFSChanged(t *testing.T) {
 	conn := startPlugin(t, pluginsdk.Plugin{
 		FSChanged: func(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.FSChange) { got <- ev },
 	}, nil)
-	require.NoError(t, conn.Notify(t.Context(), "fs.changed", map[string]any{"watch": "sub_w", "projectId": "prj_x", "paths": []string{"/r/a"}, "overflow": true}))
+	require.NoError(t, conn.Notify(t.Context(), "fs.changed", map[string]any{"watch": "sub_w", "workspaceId": "prj_x", "paths": []string{"/r/a"}, "overflow": true}))
 	select {
 	case ev := <-got:
-		assert.Equal(t, pluginsdk.FSChange{Watch: "sub_w", ProjectID: "prj_x", Paths: []string{"/r/a"}, Overflow: true}, ev)
+		assert.Equal(t, pluginsdk.FSChange{Watch: "sub_w", WorkspaceID: "prj_x", Paths: []string{"/r/a"}, Overflow: true}, ev)
 	case <-time.After(3 * time.Second):
 		t.Fatal("no fs change")
 	}
@@ -232,7 +232,7 @@ func TestSDKBusEventsAreOrderedAndMayCallCore(t *testing.T) {
 	seqs := make(chan int64, n)
 	h := startWithCore(t, pluginsdk.Plugin{
 		BusEvent: func(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
-			_, _ = h.ListProjects(ctx)
+			_, _ = h.ListWorkspaces(ctx)
 			seqs <- ev.Seq
 		},
 	})

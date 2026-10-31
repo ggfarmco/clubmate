@@ -30,9 +30,9 @@ var (
 	errSymlinkedFolder = errors.New("worktrees folder must not be a symlink")
 )
 
-func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]worktreeInfo, error) {
+func listWorktrees(ctx context.Context, h *pluginsdk.Host, workspaceID string) ([]worktreeInfo, error) {
 	list := []worktreeInfo{}
-	err := eachFolder(ctx, h, projectID, func(f *folder) error {
+	err := eachFolder(ctx, h, workspaceID, func(f *folder) error {
 		heads, err := f.shortHeads(ctx)
 		if err != nil {
 			return err
@@ -51,12 +51,12 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 	return list, nil
 }
 
-func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, s *state, repo, path string) error {
+func switchWorktree(ctx context.Context, h *pluginsdk.Host, workspaceID string, s *state, repo, path string) error {
 	if !s.claim() {
 		return errOpBusy
 	}
 	defer s.release()
-	f, err := gitFolder(ctx, h, projectID, repo)
+	f, err := gitFolder(ctx, h, workspaceID, repo)
 	if err != nil {
 		return err
 	}
@@ -64,16 +64,16 @@ func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, s 
 	if err != nil {
 		return err
 	}
-	_, err = h.SetWorktree(ctx, projectID, f.Repo, f.Selection(t))
+	_, err = h.SetWorktree(ctx, workspaceID, f.Repo, f.Selection(t))
 	return err
 }
 
-func worktreeSessions(ctx context.Context, h *pluginsdk.Host, projectID, path string) ([]sessionInfo, error) {
+func worktreeSessions(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) ([]sessionInfo, error) {
 	if !filepath.IsAbs(path) {
 		return nil, errRelativePath
 	}
 	dir := gitrepo.Canonical(filepath.Clean(path))
-	sessions, err := h.ListSessions(ctx, projectID, false)
+	sessions, err := h.ListSessions(ctx, workspaceID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +90,8 @@ func worktreeSessions(ctx context.Context, h *pluginsdk.Host, projectID, path st
 	return out, nil
 }
 
-func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) (opFunc, error) {
-	f, err := gitFolder(ctx, h, projectID, args.Repo)
+func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
+	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 		}
 		base, source = from.Head, from.Path
 	}
-	k := hooks{h: h, projectID: projectID, primary: primary.Path}
+	k := hooks{h: h, workspaceID: workspaceID, primary: primary.Path}
 	add := []string{"worktree", "add", "-b", args.Branch, dir, base}
 	if hasRef(ctx, cur.Path, headsPrefix+args.Branch) {
 		add = []string{"worktree", "add", dir, args.Branch}
@@ -138,7 +138,7 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 		if len(notes) > 0 {
 			note(strings.Join(notes, "\n"))
 		}
-		g, err := gitFolder(ctx, h, projectID, f.Repo)
+		g, err := gitFolder(ctx, h, workspaceID, f.Repo)
 		if err != nil {
 			return "", err
 		}
@@ -149,15 +149,15 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 		if args.Switch != nil && !*args.Switch {
 			return t.Path, nil
 		}
-		if _, err := h.SetWorktree(ctx, projectID, g.Repo, g.Selection(t)); err != nil {
+		if _, err := h.SetWorktree(ctx, workspaceID, g.Repo, g.Selection(t)); err != nil {
 			return "", err
 		}
 		return t.Path, nil
 	}, nil
 }
 
-func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) (opFunc, error) {
-	f, err := gitFolder(ctx, h, projectID, args.Repo)
+func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
+	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +171,8 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 	case f.Checkout.Real:
 		return nil, errFolderCheckout
 	}
-	k := hooks{h: h, projectID: projectID, primary: f.Trees[0].Path}
-	users := consumers{h: h, projectID: projectID}
+	k := hooks{h: h, workspaceID: workspaceID, primary: f.Trees[0].Path}
+	users := consumers{h: h, workspaceID: workspaceID}
 	return func(ctx context.Context, note func(string)) (string, error) {
 		status, err := run(ctx, t.Path, "status", "--porcelain")
 		if err != nil {
@@ -181,7 +181,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 		if len(strings.TrimSpace(string(status))) > 0 {
 			return "", errDirtyWorktree
 		}
-		g, err := gitFolder(ctx, h, projectID, f.Repo)
+		g, err := gitFolder(ctx, h, workspaceID, f.Repo)
 		if err != nil {
 			return "", err
 		}
@@ -204,12 +204,12 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 		if _, err := mutate(ctx, f.Checkout.Path, "worktree", "remove", t.Path); err != nil {
 			return "", err
 		}
-		p, err := h.GetProject(ctx, projectID)
+		p, err := h.GetWorkspace(ctx, workspaceID)
 		if err != nil {
 			return "", err
 		}
 		if slices.ContainsFunc(p.Missing, func(m string) bool { return gitrepo.Canonical(m) == g.Mapped(t) }) {
-			_, err = h.SetWorktree(ctx, projectID, f.Repo, "")
+			_, err = h.SetWorktree(ctx, workspaceID, f.Repo, "")
 		}
 		return "", err
 	}, nil

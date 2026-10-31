@@ -32,9 +32,9 @@ type RootOwner struct {
 }
 
 type RegisterRequest struct {
-	ProjectID string `json:"projectId"`
-	PID       int    `json:"pid"`
-	Label     string `json:"label"`
+	WorkspaceID string `json:"workspaceId"`
+	PID         int    `json:"pid"`
+	Label       string `json:"label"`
 }
 
 type ProcessRoot = contract.ProcessRoot
@@ -62,7 +62,7 @@ func (s *Service) RegisterProcess(ctx context.Context, owner RootOwner, r Regist
 	if label == "" || utf8.RuneCountInString(label) > maxLabelRunes {
 		return ProcessRoot{}, ErrInvalidLabel
 	}
-	if _, err := s.projects.Get(ctx, r.ProjectID); err != nil {
+	if _, err := s.workspaces.Get(ctx, r.WorkspaceID); err != nil {
 		return ProcessRoot{}, err
 	}
 	procs, err := s.snapshot()
@@ -87,7 +87,7 @@ func (s *Service) RegisterProcess(ctx context.Context, owner RootOwner, r Regist
 		i = len(s.roots) - 1
 	}
 	rec := s.roots[i]
-	rec.ProjectID, rec.Label, rec.Ended, rec.registered = r.ProjectID, label, false, time.Now()
+	rec.WorkspaceID, rec.Label, rec.Ended, rec.registered = r.WorkspaceID, label, false, time.Now()
 	return rec.view(), nil
 }
 
@@ -112,7 +112,7 @@ func (s *Service) DropProcesses(owner RootOwner) {
 	}
 }
 
-func (s *Service) ProcessRoots(projectID string) []ProcessRoot {
+func (s *Service) ProcessRoots(workspaceID string) []ProcessRoot {
 	s.rootsMu.Lock()
 	defer s.rootsMu.Unlock()
 	var out []ProcessRoot
@@ -120,14 +120,14 @@ func (s *Service) ProcessRoots(projectID string) []ProcessRoot {
 		if !r.dead && !s.alive(r) {
 			r.Ended, r.dead = true, true
 		}
-		if projectID == "" || r.ProjectID == projectID {
+		if workspaceID == "" || r.WorkspaceID == workspaceID {
 			out = append(out, r.view())
 		}
 	}
 	return out
 }
 
-func (s *Service) registeredRoots(byPID map[int]proc.Process, snapStart time.Time, projectOf map[string]string) []proc.SessionRoot {
+func (s *Service) registeredRoots(byPID map[int]proc.Process, snapStart time.Time, workspaceOf map[string]string) []proc.SessionRoot {
 	s.rootsMu.Lock()
 	defer s.rootsMu.Unlock()
 	out := make([]proc.SessionRoot, 0, len(s.roots))
@@ -136,7 +136,7 @@ func (s *Service) registeredRoots(byPID map[int]proc.Process, snapStart time.Tim
 		if !(ok && p.StartTime.Equal(r.start)) && r.registered.Before(snapStart) && !s.alive(r) {
 			r.Ended, r.dead = true, true
 		}
-		projectOf[r.ID] = r.ProjectID
+		workspaceOf[r.ID] = r.WorkspaceID
 		root := proc.SessionRoot{SessionID: r.ID}
 		if !r.Ended {
 			root.RootPID, root.Owned = r.PID, true
@@ -176,11 +176,11 @@ func (s *Service) alive(r *rootRecord) bool {
 	return err == nil && start.Equal(r.start)
 }
 
-func (s *Service) withoutLiveRoots(projectID string, nodes []proc.Node) []proc.Node {
+func (s *Service) withoutLiveRoots(workspaceID string, nodes []proc.Node) []proc.Node {
 	s.rootsMu.Lock()
 	live := make(map[string]bool, len(s.roots))
 	for _, r := range s.roots {
-		if r.ProjectID == projectID {
+		if r.WorkspaceID == workspaceID {
 			r.orphaned = true
 		}
 		if !r.Ended {

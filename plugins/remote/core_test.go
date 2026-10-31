@@ -20,7 +20,7 @@ const alphaManifest = `{"id":"alpha","name":"alpha","version":"0.1.0","protocol"
 func TestRemoteThroughCore(t *testing.T) {
 	t.Setenv(listenEnv, "127.0.0.1:0")
 	h := testutil.NewHarness(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/remote", "plugins/remote/plugin.json"), testutil.EchoPluginDirAs(t, alphaManifest))
 	testutil.Eventually(t, func() bool {
@@ -30,7 +30,7 @@ func TestRemoteThroughCore(t *testing.T) {
 	c := h.Client(t)
 	var pr pairResult
 	testutil.Eventually(t, func() bool {
-		return c.Call(t.Context(), "command.run", map[string]any{"id": "remote.pair", "projectId": ""}, &pr) == nil
+		return c.Call(t.Context(), "command.run", map[string]any{"id": "remote.pair", "workspaceId": ""}, &pr) == nil
 	}, 10*time.Second)
 	link, err := url.Parse(pr.Link)
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestRemoteThroughCore(t *testing.T) {
 	_, err = h.Bus.Publish(t.Context(), "agents.changed", "test", json.RawMessage(`{"workspace":"`+p.ID+`"}`))
 	require.NoError(t, err)
 	var devices []deviceView
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "remote.devices", "projectId": ""}, &devices))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "remote.devices", "workspaceId": ""}, &devices))
 
 	assert.Equal(t, []string{"alpha.say"}, hello.Commands)
 	assert.Equal(t, "alpha", said["plugin"])

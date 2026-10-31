@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"clubmate/internal/buildinfo"
-	"clubmate/internal/project"
+	"clubmate/internal/workspace"
 )
 
 const (
@@ -44,8 +44,8 @@ func (a *app) workspaceListCmd() *cobra.Command {
 		Short: "List workspaces, most recently opened first",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var list []project.Project
-			if err := a.call(cmd.Context(), "project.list", struct{}{}, &list); err != nil {
+			var list []workspace.Workspace
+			if err := a.call(cmd.Context(), "workspace.list", struct{}{}, &list); err != nil {
 				return err
 			}
 			return a.render(list, func(w io.Writer) {
@@ -110,9 +110,9 @@ func (a *app) workspaceCreateCmd() *cobra.Command {
 		Short: "Create a named workspace",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var p project.Project
+			var p workspace.Workspace
 			params := map[string]any{"name": args[0], "repos": repos}
-			if err := a.call(cmd.Context(), "project.create", params, &p); err != nil {
+			if err := a.call(cmd.Context(), "workspace.create", params, &p); err != nil {
 				return err
 			}
 			return a.render(p, func(w io.Writer) { fmt.Fprintln(w, p.ID) })
@@ -128,8 +128,8 @@ func (a *app) workspaceRenameCmd() *cobra.Command {
 		Short: "Rename a workspace",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var p project.Project
-			if err := a.call(cmd.Context(), "project.rename", map[string]string{"id": args[0], "name": args[1]}, &p); err != nil {
+			var p workspace.Workspace
+			if err := a.call(cmd.Context(), "workspace.rename", map[string]string{"id": args[0], "name": args[1]}, &p); err != nil {
 				return err
 			}
 			return a.render(p, func(w io.Writer) { fmt.Fprintln(w, p.Name) })
@@ -148,8 +148,8 @@ func (a *app) workspaceAddFolderCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolve %s: %w", args[1], err)
 			}
-			var p project.Project
-			if err := a.call(cmd.Context(), "project.addRepo", map[string]string{"id": args[0], "path": dir}, &p); err != nil {
+			var p workspace.Workspace
+			if err := a.call(cmd.Context(), "workspace.folder.add", map[string]string{"id": args[0], "path": dir}, &p); err != nil {
 				return err
 			}
 			return a.render(p, func(w io.Writer) { fmt.Fprintln(w, strings.Join(p.Repos, "\n")) })
@@ -169,7 +169,7 @@ func (a *app) workspaceRemoveCmd() *cobra.Command {
 				return errRemoveNeedsYes
 			}
 			var res struct{}
-			if err := a.call(cmd.Context(), "project.delete", map[string]string{"id": args[0]}, &res); err != nil {
+			if err := a.call(cmd.Context(), "workspace.delete", map[string]string{"id": args[0]}, &res); err != nil {
 				return err
 			}
 			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "removed", args[0]) })
@@ -183,7 +183,7 @@ func (a *app) openByID(ctx context.Context, id string) error {
 	var res struct {
 		Clients int `json:"clients"`
 	}
-	if err := a.call(ctx, "project.open", map[string]string{"id": id}, &res); err != nil {
+	if err := a.call(ctx, "workspace.show", map[string]string{"id": id}, &res); err != nil {
 		return err
 	}
 	if err := a.launchWithoutClients(ctx, res.Clients, id); err != nil {
@@ -241,7 +241,7 @@ func looksLikeID(arg string) bool {
 	return err != nil || !info.IsDir()
 }
 
-func lastOpened(p project.Project) string {
+func lastOpened(p workspace.Workspace) string {
 	if p.LastOpenedAt == nil {
 		return "-"
 	}
@@ -255,8 +255,8 @@ func appBundleID() string {
 	return "com.clubmate.app.dev"
 }
 
-func launchApp(ctx context.Context, projectID string) error {
-	out, err := exec.CommandContext(ctx, "open", "-b", appBundleID(), "--args", "--open-project", projectID).CombinedOutput()
+func launchApp(ctx context.Context, workspaceID string) error {
+	out, err := exec.CommandContext(ctx, "open", "-b", appBundleID(), "--args", "--open-workspace", workspaceID).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("launch app: %w: %s", err, strings.TrimSpace(string(out)))
 	}

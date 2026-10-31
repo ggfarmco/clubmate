@@ -15,17 +15,17 @@ import (
 const corePlugin = "core"
 
 type primitive struct {
-	cmd          Command
-	method       string
-	needsProject bool
-	params       func(projectID string, args json.RawMessage) (json.RawMessage, error)
-	scope        func(ctx context.Context, svc *core.Service, projectID string, args json.RawMessage) (string, error)
+	cmd            Command
+	method         string
+	needsWorkspace bool
+	params         func(workspaceID string, args json.RawMessage) (json.RawMessage, error)
+	scope          func(ctx context.Context, svc *core.Service, workspaceID string, args json.RawMessage) (string, error)
 }
 
 var primitives = map[string]primitive{
 	"workspace.list": {
 		cmd:    coreCommand("workspace.list", "List Workspaces", "List the workspaces, most recently opened first.", nil),
-		method: "project.list",
+		method: "workspace.list",
 	},
 	"workspace.open": {
 		cmd: coreCommand("workspace.open", "Open Workspace", "Open the workspace made of exactly these folders in the app, creating it when none matches.", &schema.Object{
@@ -56,7 +56,7 @@ var primitives = map[string]primitive{
 	"diagnostics.collect": {
 		cmd:    userOnly(coreCommand("diagnostics.collect", "Collect Diagnostics", "Pack versions, log tails, plugin, workspace, session and UI state into a zip in the core's state dir.", nil)),
 		method: "diagnostics.collect",
-		params: withProject,
+		params: withWorkspace,
 	},
 	"session.list": {
 		cmd:    coreCommand("session.list", "List Sessions", "List the terminal and plugin sessions of all workspaces.", nil),
@@ -69,9 +69,9 @@ var primitives = map[string]primitive{
 				"title": {Type: "string", Description: "Session title."},
 			},
 		}),
-		method:       "session.create",
-		needsProject: true,
-		params:       withProject,
+		method:         "session.create",
+		needsWorkspace: true,
+		params:         withWorkspace,
 	},
 	"session.kill": {
 		cmd: destructive(coreCommand("session.kill", "Kill Session", "Kill a session's process group.", &schema.Object{
@@ -82,7 +82,7 @@ var primitives = map[string]primitive{
 		})),
 		method: "session.kill",
 		params: passArgs,
-		scope:  sessionProject,
+		scope:  sessionWorkspace,
 	},
 	"session.send": {
 		cmd: destructive(coreCommand("session.send", "Send to Session", "Type text into a session, optionally pressing Enter. Agents need the user's approval; send long input in chunks.", &schema.Object{
@@ -95,7 +95,7 @@ var primitives = map[string]primitive{
 		})),
 		method: "session.send",
 		params: passArgs,
-		scope:  sessionProject,
+		scope:  sessionWorkspace,
 	},
 	"session.read": {
 		cmd: coreCommand("session.read", "Read Session", "Read the tail of a session's output, without ANSI escapes unless raw. A full-screen app gives altScreen true and no text.", &schema.Object{
@@ -123,12 +123,12 @@ var primitives = map[string]primitive{
 			},
 			Required: []string{"message"},
 		}),
-		method:       notifyMethod,
-		needsProject: true,
-		params:       withProject,
+		method:         notifyMethod,
+		needsWorkspace: true,
+		params:         withWorkspace,
 	},
 	"testapp.call": {
-		cmd: coreCommand("testapp.call", "Call Test Instance", "Call a method on an isolated Clubmate test instance started with scripts/test-app.sh: ui.snapshot {out?, png?, width?, height?} draws its windows to png plus a flagged layout dump (out defaults to /tmp/clubmate-test-<instance>/snapshots and must stay inside that instance dir), ui.present {target, shown} opens a popover or sheet or, with target card:<node id>, expands a transcript tool card, ui.key {keys, focus?} focuses a node and sends key combos such as opt+return to its key monitors, view shortcuts or first responder, ui.get/ui.event/command.list/command.run (always as an agent call)/project.list/workspace.open drive it.", &schema.Object{
+		cmd: coreCommand("testapp.call", "Call Test Instance", "Call a method on an isolated Clubmate test instance started with scripts/test-app.sh: ui.snapshot {out?, png?, width?, height?} draws its windows to png plus a flagged layout dump (out defaults to /tmp/clubmate-test-<instance>/snapshots and must stay inside that instance dir), ui.present {target, shown} opens a popover or sheet or, with target card:<node id>, expands a transcript tool card, ui.key {keys, focus?} focuses a node and sends key combos such as opt+return to its key monitors, view shortcuts or first responder, ui.get/ui.event/command.list/command.run (always as an agent call)/workspace.list/workspace.open drive it.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"instance": {Type: "string", Description: "Test instance name, as printed by scripts/test-app.sh start or listed by testapp.list."},
 				"method":   {Type: "string", Enum: testAppMethodList(), Description: "Method to call on the instance's core."},
@@ -151,9 +151,9 @@ var primitives = map[string]primitive{
 			},
 			Required: []string{"section"},
 		}),
-		method:       "ui.focus",
-		needsProject: true,
-		params:       withProject,
+		method:         "ui.focus",
+		needsWorkspace: true,
+		params:         withWorkspace,
 	},
 }
 
@@ -190,22 +190,22 @@ func passArgs(_ string, args json.RawMessage) (json.RawMessage, error) {
 	return args, nil
 }
 
-func withProject(projectID string, args json.RawMessage) (json.RawMessage, error) {
+func withWorkspace(workspaceID string, args json.RawMessage) (json.RawMessage, error) {
 	fields := map[string]json.RawMessage{}
 	if len(args) > 0 && string(args) != "null" {
 		if err := json.Unmarshal(args, &fields); err != nil {
 			return nil, invalidParams("args: want object")
 		}
 	}
-	id, err := json.Marshal(projectID)
+	id, err := json.Marshal(workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	fields["projectId"] = id
+	fields["workspaceId"] = id
 	return json.Marshal(fields)
 }
 
-func sessionProject(ctx context.Context, svc *core.Service, _ string, args json.RawMessage) (string, error) {
+func sessionWorkspace(ctx context.Context, svc *core.Service, _ string, args json.RawMessage) (string, error) {
 	var p idParams
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", invalidParams(fmt.Sprintf("args: %v", err))
@@ -217,7 +217,7 @@ func sessionProject(ctx context.Context, svc *core.Service, _ string, args json.
 	if err != nil {
 		return "", err
 	}
-	return s.ProjectID, nil
+	return s.WorkspaceID, nil
 }
 
 func sessionArg(isPrimitive bool) string {
@@ -240,10 +240,10 @@ func exactArgs(c Command, args json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(fields)
 }
 
-func (s *Server) runPrimitive(ctx context.Context, p primitive, projectID string, args json.RawMessage) (json.RawMessage, error) {
+func (s *Server) runPrimitive(ctx context.Context, p primitive, workspaceID string, args json.RawMessage) (json.RawMessage, error) {
 	params := json.RawMessage("{}")
 	if p.params != nil {
-		built, err := p.params(projectID, args)
+		built, err := p.params(workspaceID, args)
 		if err != nil {
 			return nil, err
 		}

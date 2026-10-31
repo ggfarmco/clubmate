@@ -17,7 +17,7 @@ const (
 	openErrorMax   = 80
 )
 
-type projectWatch struct {
+type workspaceWatch struct {
 	id      string
 	folders []string
 }
@@ -43,14 +43,14 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 
 func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSChange) {
 	a.watchMu.Lock()
-	w, ok := a.watches[ev.ProjectID]
+	w, ok := a.watches[ev.WorkspaceID]
 	a.watchMu.Unlock()
 	if ok && w.id == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, isHead)) {
-		go a.refreshBranches(h, ev.ProjectID)
+		go a.refreshBranches(h, ev.WorkspaceID)
 	}
 }
 
-func (a *app) watch(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) {
+func (a *app) watch(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Workspace) {
 	folders := slices.Concat(p.Repos, p.Roots)
 	a.watchMu.Lock()
 	defer a.watchMu.Unlock()
@@ -69,24 +69,24 @@ func (a *app) watch(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project)
 		logError("watch "+p.ID, err)
 		return
 	}
-	a.watches[p.ID] = projectWatch{id: id, folders: folders}
+	a.watches[p.ID] = workspaceWatch{id: id, folders: folders}
 }
 
-func (a *app) unwatch(ctx context.Context, h *pluginsdk.Host, projectID string) {
+func (a *app) unwatch(ctx context.Context, h *pluginsdk.Host, workspaceID string) {
 	a.watchMu.Lock()
 	defer a.watchMu.Unlock()
-	if w, ok := a.watches[projectID]; ok {
-		delete(a.watches, projectID)
+	if w, ok := a.watches[workspaceID]; ok {
+		delete(a.watches, workspaceID)
 		if err := h.UnwatchFS(ctx, w.id); err != nil {
-			logError("unwatch "+projectID, err)
+			logError("unwatch "+workspaceID, err)
 		}
 	}
 }
 
-func (a *app) refreshBranches(h *pluginsdk.Host, projectID string) {
+func (a *app) refreshBranches(h *pluginsdk.Host, workspaceID string) {
 	a.branchMu.Lock()
 	defer a.branchMu.Unlock()
-	for _, e := range a.projectEditors(projectID) {
+	for _, e := range a.workspaceEditors(workspaceID) {
 		if e.connected() == nil {
 			continue
 		}

@@ -9,9 +9,9 @@ import (
 	"clubmate/internal/core"
 	"clubmate/internal/kv"
 	"clubmate/internal/proc"
-	"clubmate/internal/project"
 	"clubmate/internal/sdui"
 	"clubmate/internal/session"
+	"clubmate/internal/workspace"
 )
 
 const (
@@ -97,7 +97,7 @@ func toRPCError(err error) *jsonrpc2.Error {
 
 func errorCode(err error) int64 {
 	switch {
-	case errors.Is(err, project.ErrNotFound),
+	case errors.Is(err, workspace.ErrNotFound),
 		errors.Is(err, session.ErrNotFound),
 		errors.Is(err, session.ErrNotRunning),
 		errors.Is(err, session.ErrNoSnapshot),
@@ -118,11 +118,11 @@ func errorCode(err error) int64 {
 		return codeNotTracked
 	case errors.Is(err, session.ErrRunning):
 		return codeSessionRunning
-	case errors.Is(err, project.ErrInvalidRepo),
-		errors.Is(err, project.ErrDuplicateRepo),
-		errors.Is(err, project.ErrEmptyName),
-		errors.Is(err, project.ErrNotFolder),
-		errors.Is(err, project.ErrNotDirectory),
+	case errors.Is(err, workspace.ErrInvalidFolder),
+		errors.Is(err, workspace.ErrDuplicateFolder),
+		errors.Is(err, workspace.ErrEmptyName),
+		errors.Is(err, workspace.ErrNotFolder),
+		errors.Is(err, workspace.ErrNotDirectory),
 		errors.Is(err, core.ErrNoFolders),
 		errors.Is(err, core.ErrEmptyKillRequest),
 		errors.Is(err, core.ErrOrphansNeedSession),
@@ -138,7 +138,7 @@ func errorCode(err error) int64 {
 		errors.Is(err, kv.ErrValueTooLarge),
 		errors.Is(err, errEmptyConsumer),
 		errors.Is(err, sdui.ErrInvalidTree),
-		errors.Is(err, sdui.ErrUnknownProject):
+		errors.Is(err, sdui.ErrUnknownWorkspace):
 		return codeInvalidParams
 	}
 	return codeInternal

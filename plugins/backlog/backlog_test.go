@@ -44,10 +44,10 @@ func newEnv(t *testing.T, extra ...string) env {
 		events, err := h.Bus.Read(t.Context(), "backlog.ready", 0, 1)
 		return err == nil && len(events) == 1
 	}, 10*time.Second, 20*time.Millisecond)
-	e := env{h: h, p: h.CreateProject(t, "demo").ID, t: t}
+	e := env{h: h, p: h.CreateWorkspace(t, "demo").ID, t: t}
 	if len(extra) > 0 {
 		require.Eventually(t, func() bool {
-			return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "agents.sessions", "projectId": e.p, "args": map[string]any{}}, nil) == nil
+			return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "agents.sessions", "workspaceId": e.p, "args": map[string]any{}}, nil) == nil
 		}, 10*time.Second, 20*time.Millisecond)
 	}
 	return e
@@ -55,7 +55,7 @@ func newEnv(t *testing.T, extra ...string) env {
 
 func (e env) run(id, caller string, agent bool, args map[string]any) (task, error) {
 	var out task
-	err := e.h.Client(e.t).Call(e.t.Context(), "command.run", map[string]any{"id": id, "projectId": e.p, "args": args, "agent": agent, "caller": caller}, &out)
+	err := e.h.Client(e.t).Call(e.t.Context(), "command.run", map[string]any{"id": id, "workspaceId": e.p, "args": args, "agent": agent, "caller": caller}, &out)
 	return out, err
 }
 
@@ -89,7 +89,7 @@ func TestAddAndListOrder(t *testing.T) {
 	var list struct {
 		Tasks []task `json:"tasks"`
 	}
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.list", "projectId": e.p, "args": map[string]any{"status": "open"}}, &list))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": map[string]any{"status": "open"}}, &list))
 	var ids []int
 	for _, tk := range list.Tasks {
 		ids = append(ids, tk.ID)
@@ -182,14 +182,14 @@ func TestUpdateCannotStartWork(t *testing.T) {
 	assert.Equal(t, "agt_a", moved.LastClaimedBy)
 }
 
-func TestProjectDeletedDropsTasks(t *testing.T) {
+func TestWorkspaceDeletedDropsTasks(t *testing.T) {
 	e := newEnv(t)
 	e.add("one", nil)
 	e.add("two", nil)
 	keys, err := e.h.KV.List(t.Context(), "backlog", "")
 	require.NoError(t, err)
 	require.NotEmpty(t, keys)
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "project.delete", map[string]string{"id": e.p}, nil))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "workspace.delete", map[string]string{"id": e.p}, nil))
 	testutil.Eventually(t, func() bool {
 		keys, err := e.h.KV.List(t.Context(), "backlog", "")
 		if err != nil {
@@ -237,7 +237,7 @@ func TestClaimsLiveWithoutAgentsPlugin(t *testing.T) {
 
 func TestAddFromSidebar(t *testing.T) {
 	e := newEnv(t)
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": e.p}, nil))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
 	e.h.Event(t, e.p, "backlog.sidebar", "new", "add", map[string]any{"title": "From UI"})
 	e.h.WaitSlot(t, e.p, "backlog.sidebar", func(n sdui.Node) bool {
 		raw, err := json.Marshal(n)
@@ -259,7 +259,7 @@ func TestAddFromSidebar(t *testing.T) {
 
 func TestShowSessionRevealsTheClaimer(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
-	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": e.p}, nil))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
 	e.add("Task", nil)
 	e.must(e.agent("agt_live", "backlog.claim", map[string]any{"id": 1}))
 	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", "1")

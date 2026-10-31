@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDeletedProjectsExpire(t *testing.T) {
+func TestDeletedWorkspacesExpire(t *testing.T) {
 	now := time.Now()
 	a := newApp(0)
 	a.forget("p", now)

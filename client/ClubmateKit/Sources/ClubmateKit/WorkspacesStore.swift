@@ -3,8 +3,8 @@ import Observation
 
 @MainActor
 @Observable
-public final class ProjectsStore {
-    public private(set) var projects: [Project] = []
+public final class WorkspacesStore {
+    public private(set) var workspaces: [Workspace] = []
 
     @ObservationIgnored private let client: CoreClient
     @ObservationIgnored private var listener: Task<Void, Never>?
@@ -18,16 +18,16 @@ public final class ProjectsStore {
         guard listener == nil else { return }
         let generation = self.generation
         do {
-            let events = try await client.busEvents(pattern: "project.*")
+            let events = try await client.busEvents(pattern: "workspace.*")
             guard generation == self.generation else { return }
             listener = Task { [weak self] in
                 for await _ in events {
                     try? await self?.load()
                 }
             }
-            let projects = try await client.listProjects()
+            let workspaces = try await client.listWorkspaces()
             guard generation == self.generation else { return }
-            self.projects = projects
+            self.workspaces = workspaces
         } catch {
             if generation == self.generation { halt() }
             throw error
@@ -45,17 +45,17 @@ public final class ProjectsStore {
     }
 
     public func load() async throws {
-        projects = try await client.listProjects()
+        workspaces = try await client.listWorkspaces()
     }
 
-    public func create(name: String, repos: [String]) async throws -> Project {
-        let project = try await client.createProject(name: name, repos: repos)
+    public func create(name: String, repos: [String]) async throws -> Workspace {
+        let workspace = try await client.createWorkspace(name: name, repos: repos)
         try await load()
-        return project
+        return workspace
     }
 }
 
-public struct ProjectPresence: Sendable, Equatable {
+public struct WorkspacePresence: Sendable, Equatable {
     public private(set) var seen = false
 
     public init() {}

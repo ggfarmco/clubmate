@@ -11,8 +11,8 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
-func (a *app) active(ctx context.Context, h *pluginsdk.Host, projectID string) (*editor, error) {
-	p, err := h.GetProject(ctx, projectID)
+func (a *app) active(ctx context.Context, h *pluginsdk.Host, workspaceID string) (*editor, error) {
+	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -27,14 +27,14 @@ func (a *app) active(ctx context.Context, h *pluginsdk.Host, projectID string) (
 	return e, a.show(ctx, h, e)
 }
 
-func (a *app) target(ctx context.Context, h *pluginsdk.Host, projectID, path string) (*editor, error) {
-	p, err := h.GetProject(ctx, projectID)
+func (a *app) target(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (*editor, error) {
+	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	folder, root, switched := owner(ctx, p, path)
 	if switched {
-		if p, err = h.SetWorktree(ctx, projectID, p.Repos[folder], root); err != nil {
+		if p, err = h.SetWorktree(ctx, workspaceID, p.Repos[folder], root); err != nil {
 			return nil, err
 		}
 	}
@@ -54,18 +54,18 @@ func (a *app) target(ctx context.Context, h *pluginsdk.Host, projectID, path str
 		return nil, err
 	}
 	if switched {
-		focusMain(ctx, h, projectID)
+		focusMain(ctx, h, workspaceID)
 	}
 	return e, nil
 }
 
-func (a *app) projectUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) {
+func (a *app) workspaceUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Workspace) {
 	if !a.tracked(p.ID) {
 		return
 	}
 	e, moved, err := a.selectRoot(p, "")
 	if err != nil {
-		logError("project.updated", err)
+		logError("workspace.updated", err)
 		return
 	}
 	if e == nil {
@@ -82,7 +82,7 @@ func (a *app) projectUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk
 	}
 }
 
-func (a *app) selectRoot(p pluginsdk.Project, want string) (*editor, bool, error) {
+func (a *app) selectRoot(p pluginsdk.Workspace, want string) (*editor, bool, error) {
 	existing := existingRoots(p)
 	fallback, err := firstRoot(existing)
 	if err != nil {
@@ -95,7 +95,7 @@ func (a *app) selectRoot(p pluginsdk.Project, want string) (*editor, bool, error
 	}
 	prev, known := a.current[p.ID]
 	root := fallback
-	switch changed := changedRoot(a.projects[p.ID], p); {
+	switch changed := changedRoot(a.workspaces[p.ID], p); {
 	case slices.Contains(existing, want):
 		root = want
 	case slices.Contains(existing, changed):
@@ -104,25 +104,25 @@ func (a *app) selectRoot(p pluginsdk.Project, want string) (*editor, bool, error
 		root = prev
 	}
 	a.current[p.ID] = root
-	a.projects[p.ID] = p
+	a.workspaces[p.ID] = p
 	return a.editorLocked(p.ID, root), known && prev != root, nil
 }
 
-func (a *app) tracked(projectID string) bool {
+func (a *app) tracked(workspaceID string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	_, ok := a.current[projectID]
+	_, ok := a.current[workspaceID]
 	return ok
 }
 
-func (a *app) projectFolders(projectID string) []string {
+func (a *app) workspaceFolders(workspaceID string) []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	p := a.projects[projectID]
+	p := a.workspaces[workspaceID]
 	return slices.Concat(p.Repos, p.Roots)
 }
 
-func changedRoot(prev, p pluginsdk.Project) string {
+func changedRoot(prev, p pluginsdk.Workspace) string {
 	if !slices.Equal(prev.Repos, p.Repos) || len(prev.Roots) != len(p.Roots) {
 		return ""
 	}
@@ -139,7 +139,7 @@ func changedRoot(prev, p pluginsdk.Project) string {
 	return changed
 }
 
-func existingRoots(p pluginsdk.Project) []string {
+func existingRoots(p pluginsdk.Workspace) []string {
 	var out []string
 	for _, r := range p.Roots {
 		if info, err := os.Stat(r); err == nil && info.IsDir() {
@@ -156,7 +156,7 @@ func firstRoot(existing []string) (string, error) {
 	return os.UserHomeDir()
 }
 
-func owner(ctx context.Context, p pluginsdk.Project, path string) (int, string, bool) {
+func owner(ctx context.Context, p pluginsdk.Workspace, path string) (int, string, bool) {
 	if !filepath.IsAbs(path) {
 		return -1, "", false
 	}

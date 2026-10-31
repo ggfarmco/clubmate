@@ -7,13 +7,13 @@ typealias UIEventSink = @Sendable (UIEvent) async -> Result<JSONValue, ClubmateE
 
 struct SDUIDispatch: Sendable {
     var slot = ""
-    var projectID = ""
+    var workspaceID = ""
     var sink: UIEventSink = { _ in .success(.null) }
     var banner: EventBanner?
 
     @MainActor
     func callAsFunction(_ node: SDUINode, _ trigger: UIAction.Trigger, done: (@MainActor (Bool) -> Void)? = nil) {
-        let event = UIAction.event(for: node, trigger: trigger, slot: slot, projectID: projectID)
+        let event = UIAction.event(for: node, trigger: trigger, slot: slot, workspaceID: workspaceID)
         Task { [sink, banner] in
             let result = await sink(event)
             if case .failure(let error) = result {
@@ -133,7 +133,7 @@ extension EnvironmentValues {
 struct SDUIView: View {
     let node: SDUINode
     let slot: String
-    let projectID: String
+    let workspaceID: String
     var drafts = ComposerDrafts()
     let send: UIEventSink
 
@@ -148,7 +148,7 @@ struct SDUIView: View {
         SDUINodeView(node: node)
             .padding(.top, topInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, sink: send, banner: banner))
+            .environment(\.sduiDispatch, SDUIDispatch(slot: slot, workspaceID: workspaceID, sink: send, banner: banner))
             .environment(\.composerDrafts, drafts)
             .environment(\.sduiParent, slot)
     }

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/agentcall"
@@ -29,25 +30,21 @@ type workspaceUI struct {
 	sent      map[string][32]byte
 }
 
-type presenceEvent struct {
-	ProjectID string `json:"projectId"`
-}
-
-func (b *backlog) workspace(projectID string) *workspaceUI {
+func (b *backlog) workspace(workspaceID string) *workspaceUI {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	w, ok := b.ui[projectID]
+	w, ok := b.ui[workspaceID]
 	if !ok {
 		w = &workspaceUI{collapsed: map[string]bool{statusDone: true}, sent: map[string][32]byte{}}
-		b.ui[projectID] = w
+		b.ui[workspaceID] = w
 	}
 	return w
 }
 
-func (b *backlog) isPresent(projectID string) bool {
+func (b *backlog) isPresent(workspaceID string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.present[projectID]
+	return b.present[workspaceID]
 }
 
 func (b *backlog) presentIDs() []string {
@@ -56,24 +53,24 @@ func (b *backlog) presentIDs() []string {
 	return slices.Collect(maps.Keys(b.present))
 }
 
-func (b *backlog) setPresent(projectID string, on bool) {
+func (b *backlog) setPresent(workspaceID string, on bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if on {
-		b.present[projectID] = true
+		b.present[workspaceID] = true
 		return
 	}
-	delete(b.present, projectID)
-	if w, ok := b.ui[projectID]; ok {
+	delete(b.present, workspaceID)
+	if w, ok := b.ui[workspaceID]; ok {
 		w.sent = map[string][32]byte{}
 	}
 }
 
-func (b *backlog) dropUI(projectID string) {
+func (b *backlog) dropUI(workspaceID string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	delete(b.present, projectID)
-	delete(b.ui, projectID)
+	delete(b.present, workspaceID)
+	delete(b.ui, workspaceID)
 }
 
 func (b *backlog) loadPresence(ctx context.Context) error {
@@ -94,29 +91,29 @@ func (b *backlog) presenceEvent(ctx context.Context, ev pluginsdk.Event) {
 	if ev.Topic != "ui.opened" && ev.Topic != "ui.idle" {
 		return
 	}
-	var p presenceEvent
+	var p contract.UIPresence
 	if err := json.Unmarshal(ev.Payload, &p); err != nil {
 		logError(ev.Topic, err)
 		return
 	}
-	b.setPresent(p.ProjectID, ev.Topic == "ui.opened")
+	b.setPresent(p.Workspace, ev.Topic == "ui.opened")
 	if ev.Topic == "ui.opened" {
-		b.render(ctx, p.ProjectID)
+		b.render(ctx, p.Workspace)
 	}
 }
 
-func (b *backlog) render(ctx context.Context, projectID string) {
-	if !b.isPresent(projectID) {
+func (b *backlog) render(ctx context.Context, workspaceID string) {
+	if !b.isPresent(workspaceID) {
 		return
 	}
-	logError("render "+projectID, b.renderNow(ctx, projectID))
+	logError("render "+workspaceID, b.renderNow(ctx, workspaceID))
 }
 
-func (b *backlog) renderNow(ctx context.Context, projectID string) error {
-	w := b.workspace(projectID)
+func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
+	w := b.workspace(workspaceID)
 	w.render.Lock()
 	defer w.render.Unlock()
-	tasks, err := b.store.list(ctx, projectID)
+	tasks, err := b.store.list(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -133,14 +130,14 @@ func (b *backlog) renderNow(ctx context.Context, projectID string) error {
 	if current != nil {
 		selectedID = strconv.Itoa(current.ID)
 	}
-	owners := b.ownerLabels(ctx, projectID, tasks, current)
-	if err := b.push(ctx, w, projectID, sidebarSlot, sidebarView(tasks, owners, selectedID, collapsed, rev)); err != nil {
+	owners := b.ownerLabels(ctx, workspaceID, tasks, current)
+	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, owners, selectedID, collapsed, rev)); err != nil {
 		return err
 	}
-	return b.push(ctx, w, projectID, mainSlot, mainView(current, owners, len(tasks) > 0))
+	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0))
 }
 
-func (b *backlog) push(ctx context.Context, w *workspaceUI, projectID, slot string, n sdui.Node) error {
+func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot string, n sdui.Node) error {
 	raw, err := json.Marshal(n)
 	if err != nil {
 		return err
@@ -152,7 +149,7 @@ func (b *backlog) push(ctx context.Context, w *workspaceUI, projectID, slot stri
 	if same {
 		return nil
 	}
-	if _, err := b.h.Render(ctx, projectID, slot, n); err != nil {
+	if _, err := b.h.Render(ctx, workspaceID, slot, n); err != nil {
 		return err
 	}
 	b.mu.Lock()
@@ -161,7 +158,7 @@ func (b *backlog) push(ctx context.Context, w *workspaceUI, projectID, slot stri
 	return nil
 }
 
-func (b *backlog) ownerLabels(ctx context.Context, projectID string, tasks []Task, current *Task) map[string]string {
+func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, tasks []Task, current *Task) map[string]string {
 	ids := map[string]bool{}
 	for _, t := range tasks {
 		if t.Status == statusInProgress {
@@ -177,21 +174,21 @@ func (b *backlog) ownerLabels(ctx context.Context, projectID string, tasks []Tas
 			owners[id] = ownerLabel(id, "", false)
 			continue
 		}
-		title, _ := b.live.title(ctx, projectID, id)
-		owners[id] = ownerLabel(id, title, b.live.stale(ctx, projectID, id))
+		title, _ := b.live.title(ctx, workspaceID, id)
+		owners[id] = ownerLabel(id, title, b.live.stale(ctx, workspaceID, id))
 	}
 	return owners
 }
 
 func (b *backlog) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
 	err := b.act(ctx, ev)
-	b.render(ctx, ev.ProjectID)
+	b.render(ctx, ev.WorkspaceID)
 	return nil, err
 }
 
 func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
-	w := b.workspace(ev.ProjectID)
-	user := pluginsdk.CommandRun{ProjectID: ev.ProjectID}
+	w := b.workspace(ev.WorkspaceID)
+	user := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch {
 	case ev.NodeID == "new" && ev.Action == "add":
 		var args commandArgs
@@ -225,7 +222,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		_, err = b.updateCmd(ctx, user, args)
 		return err
 	case ev.Slot == mainSlot:
-		return b.taskAction(ctx, ev.ProjectID, w, ev.Action, b.selected(w))
+		return b.taskAction(ctx, ev.WorkspaceID, w, ev.Action, b.selected(w))
 	case ev.NodeID != "tasks":
 		return fmt.Errorf("%w: %s %q", errUnknownAction, ev.NodeID, ev.Action)
 	}
@@ -251,7 +248,7 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		b.mu.Unlock()
 		return nil
 	}
-	return b.taskAction(ctx, ev.ProjectID, w, ev.Action, id)
+	return b.taskAction(ctx, ev.WorkspaceID, w, ev.Action, id)
 }
 
 func (b *backlog) selected(w *workspaceUI) int {
@@ -260,8 +257,8 @@ func (b *backlog) selected(w *workspaceUI) int {
 	return w.selected
 }
 
-func (b *backlog) taskAction(ctx context.Context, projectID string, w *workspaceUI, action string, id int) error {
-	user := pluginsdk.CommandRun{ProjectID: projectID}
+func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspaceUI, action string, id int) error {
+	user := pluginsdk.CommandRun{WorkspaceID: workspaceID}
 	args := commandArgs{ID: id}
 	var err error
 	switch verb, value := parseAction(action); verb {
@@ -279,15 +276,15 @@ func (b *backlog) taskAction(ctx context.Context, projectID string, w *workspace
 		_, err = b.updateCmd(ctx, user, args)
 	case actReveal:
 		var t Task
-		if t, err = b.store.get(ctx, projectID, id); err != nil {
+		if t, err = b.store.get(ctx, workspaceID, id); err != nil {
 			return err
 		}
 		if t.Status != statusInProgress || !strings.HasPrefix(t.ClaimedBy, sessionPfx) {
 			return fmt.Errorf("task #%d is not claimed by an agent session", id)
 		}
-		err = agentcall.Reveal(ctx, b.h, projectID, t.ClaimedBy)
+		err = agentcall.Reveal(ctx, b.h, workspaceID, t.ClaimedBy)
 	case "delete":
-		if err = b.store.remove(ctx, projectID, id); err != nil {
+		if err = b.store.remove(ctx, workspaceID, id); err != nil {
 			return err
 		}
 		b.mu.Lock()
@@ -295,7 +292,7 @@ func (b *backlog) taskAction(ctx context.Context, projectID string, w *workspace
 			w.selected = 0
 		}
 		b.mu.Unlock()
-		b.changed(ctx, projectID, id, kindDeleted)
+		b.changed(ctx, workspaceID, id, kindDeleted)
 	default:
 		err = fmt.Errorf("%w: %q", errUnknownAction, action)
 	}

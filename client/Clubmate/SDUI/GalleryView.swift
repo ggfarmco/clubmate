@@ -11,7 +11,7 @@ struct GalleryView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        SDUIView(node: tree, slot: "gallery.main", projectID: "prj_0000000000000000", send: GalleryView.echo)
+        SDUIView(node: tree, slot: "gallery.main", workspaceID: "prj_0000000000000000", send: GalleryView.echo)
             .frame(minWidth: 1000, minHeight: 760)
             .background(theme.background)
             .task {

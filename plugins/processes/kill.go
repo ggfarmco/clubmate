@@ -7,15 +7,15 @@ import (
 )
 
 type killedEvent struct {
-	ProjectID string `json:"projectId"`
+	Workspace string `json:"workspace"`
 	PIDs      []int  `json:"pids"`
 }
 
-func killSelected(ctx context.Context, h *pluginsdk.Host, projectID string, st projectState) error {
+func killSelected(ctx context.Context, h *pluginsdk.Host, workspaceID string, st workspaceState) error {
 	if st.pid == 0 {
 		return nil
 	}
-	nodes, err := h.ProcessTree(ctx, projectID, st.session)
+	nodes, err := h.ProcessTree(ctx, workspaceID, st.session)
 	if err != nil {
 		return err
 	}
@@ -23,18 +23,18 @@ func killSelected(ctx context.Context, h *pluginsdk.Host, projectID string, st p
 	if len(pids) == 0 {
 		return nil
 	}
-	_, err = h.KillProcesses(ctx, pluginsdk.KillRequest{PIDs: pids, ProjectID: projectID, SessionID: st.session})
+	_, err = h.KillProcesses(ctx, pluginsdk.KillRequest{PIDs: pids, WorkspaceID: workspaceID, SessionID: st.session})
 	return err
 }
 
-func killOrphans(ctx context.Context, h *pluginsdk.Host, projectID, sessionID string) ([]int, error) {
-	return h.KillProcesses(ctx, pluginsdk.KillRequest{ProjectID: projectID, SessionID: sessionID, OrphansOnly: true})
+func killOrphans(ctx context.Context, h *pluginsdk.Host, workspaceID, sessionID string) ([]int, error) {
+	return h.KillProcesses(ctx, pluginsdk.KillRequest{WorkspaceID: workspaceID, SessionID: sessionID, OrphansOnly: true})
 }
 
 func (a *app) autoKill(ctx context.Context, h *pluginsdk.Host) {
 	a.mu.Lock()
 	var enabled []string
-	for id, st := range a.projects {
+	for id, st := range a.workspaces {
 		if st.auto {
 			enabled = append(enabled, id)
 		}
@@ -45,16 +45,16 @@ func (a *app) autoKill(ctx context.Context, h *pluginsdk.Host) {
 	}
 }
 
-func sweep(ctx context.Context, h *pluginsdk.Host, projectID string) {
-	killed, err := killOrphans(ctx, h, projectID, "")
+func sweep(ctx context.Context, h *pluginsdk.Host, workspaceID string) {
+	killed, err := killOrphans(ctx, h, workspaceID, "")
 	if err != nil {
-		logError("auto-kill "+projectID, err)
+		logError("auto-kill "+workspaceID, err)
 		return
 	}
 	if len(killed) == 0 {
 		return
 	}
-	_, err = h.Publish(ctx, killedTopic, killedEvent{ProjectID: projectID, PIDs: killed})
+	_, err = h.Publish(ctx, killedTopic, killedEvent{Workspace: workspaceID, PIDs: killed})
 	logError("publish "+killedTopic, err)
 }
 

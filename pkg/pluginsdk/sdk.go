@@ -22,27 +22,27 @@ const (
 )
 
 type UIEvent struct {
-	ProjectID string          `json:"projectId"`
-	Slot      string          `json:"slot"`
-	NodeID    string          `json:"nodeId"`
-	Action    string          `json:"action"`
-	Value     json.RawMessage `json:"value"`
+	WorkspaceID string          `json:"workspaceId"`
+	Slot        string          `json:"slot"`
+	NodeID      string          `json:"nodeId"`
+	Action      string          `json:"action"`
+	Value       json.RawMessage `json:"value"`
 }
 
 type CommandRun struct {
-	ID        string          `json:"id"`
-	ProjectID string          `json:"projectId"`
-	Args      json.RawMessage `json:"args"`
-	Agent     bool            `json:"agent,omitempty"`
-	Caller    string          `json:"caller,omitempty"`
-	Via       string          `json:"via,omitempty"`
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspaceId"`
+	Args        json.RawMessage `json:"args"`
+	Agent       bool            `json:"agent,omitempty"`
+	Caller      string          `json:"caller,omitempty"`
+	Via         string          `json:"via,omitempty"`
 }
 
 type FSChange struct {
-	Watch     string   `json:"watch"`
-	ProjectID string   `json:"projectId"`
-	Paths     []string `json:"paths"`
-	Overflow  bool     `json:"overflow"`
+	Watch       string   `json:"watch"`
+	WorkspaceID string   `json:"workspaceId"`
+	Paths       []string `json:"paths"`
+	Overflow    bool     `json:"overflow"`
 }
 
 type Plugin struct {

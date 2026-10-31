@@ -12,21 +12,21 @@ import (
 	"clubmate/internal/buildinfo"
 	"clubmate/internal/core"
 	"clubmate/internal/proc"
-	"clubmate/internal/project"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
+	"clubmate/internal/workspace"
 	"clubmate/pkg/id"
 )
 
 const (
-	projectPrefix      = "prj"
+	workspacePrefix    = "prj"
 	shutdownReplyGrace = 100 * time.Millisecond
 
-	notifyCoreStopping = "core.stopping"
-	notifyProjectOpen  = "project.open"
+	notifyCoreStopping  = "core.stopping"
+	notifyWorkspaceShow = "workspace.show"
 
-	handleProjectOpen = "project.open"
-	handleUIConfirm   = "ui.confirm"
+	handleWorkspaceShow = "workspace.show"
+	handleUIConfirm     = "ui.confirm"
 )
 
 var ownerPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
@@ -35,7 +35,7 @@ type idParams struct {
 	ID string `json:"id"`
 }
 
-type createProjectParams struct {
+type createWorkspaceParams struct {
 	Name  string   `json:"name"`
 	Repos []string `json:"repos"`
 }
@@ -72,8 +72,8 @@ type worktreeSetParams struct {
 }
 
 type listSessionsParams struct {
-	ProjectID string `json:"projectId"`
-	Owner     string `json:"owner"`
+	WorkspaceID string `json:"workspaceId"`
+	Owner       string `json:"owner"`
 }
 
 type sessionSendParams struct {
@@ -110,84 +110,84 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			return pingResult{Version: buildinfo.String(), PID: os.Getpid(), SessionProtocol: sessionhost.Protocol, Flavor: buildinfo.Flavor}, nil
 		}),
 		"core.shutdown": method(s.shutdownCore),
-		"project.create": method(func(ctx context.Context, p createProjectParams) (project.Project, error) {
-			return encodeProject(svc.CreateProject(ctx, p.Name, p.Repos))
+		"workspace.create": method(func(ctx context.Context, p createWorkspaceParams) (workspace.Workspace, error) {
+			return encodeWorkspace(svc.CreateWorkspace(ctx, p.Name, p.Repos))
 		}),
-		"project.list": method(func(ctx context.Context, _ empty) ([]project.Project, error) {
-			list, err := svc.ListProjects(ctx)
+		"workspace.list": method(func(ctx context.Context, _ empty) ([]workspace.Workspace, error) {
+			list, err := svc.ListWorkspaces(ctx)
 			for i := range list {
 				list[i].Repos = nonNil(list[i].Repos)
 				list[i].Roots = nonNil(list[i].Roots)
 			}
 			return nonNil(list), err
 		}),
-		"project.get": method(func(ctx context.Context, p idParams) (project.Project, error) {
-			if err := requireID(projectPrefix, p.ID); err != nil {
-				return project.Project{}, err
+		"workspace.get": method(func(ctx context.Context, p idParams) (workspace.Workspace, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
+				return workspace.Workspace{}, err
 			}
-			return encodeProject(svc.GetProject(ctx, p.ID))
+			return encodeWorkspace(svc.GetWorkspace(ctx, p.ID))
 		}),
-		"project.addRepo": method(func(ctx context.Context, p addRepoParams) (project.Project, error) {
-			if err := requireID(projectPrefix, p.ID); err != nil {
-				return project.Project{}, err
+		"workspace.folder.add": method(func(ctx context.Context, p addRepoParams) (workspace.Workspace, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
+				return workspace.Workspace{}, err
 			}
-			return encodeProject(svc.AddRepo(ctx, p.ID, p.Path))
+			return encodeWorkspace(svc.AddRepo(ctx, p.ID, p.Path))
 		}),
-		"project.delete": method(func(ctx context.Context, p idParams) (empty, error) {
-			if err := requireID(projectPrefix, p.ID); err != nil {
+		"workspace.delete": method(func(ctx context.Context, p idParams) (empty, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return empty{}, err
 			}
-			if err := svc.DeleteProject(ctx, p.ID); err != nil {
+			if err := svc.DeleteWorkspace(ctx, p.ID); err != nil {
 				return empty{}, err
 			}
 			if u, err := s.uiState(); err == nil {
-				u.store.DropProject(p.ID)
+				u.store.DropWorkspace(p.ID)
 			}
 			return empty{}, s.deleteUIState(ctx, p.ID)
 		}),
-		"project.rename": method(func(ctx context.Context, p renameParams) (project.Project, error) {
-			if err := requireID(projectPrefix, p.ID); err != nil {
-				return project.Project{}, err
+		"workspace.rename": method(func(ctx context.Context, p renameParams) (workspace.Workspace, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
+				return workspace.Workspace{}, err
 			}
-			return encodeProject(svc.RenameProject(ctx, p.ID, p.Name))
+			return encodeWorkspace(svc.RenameWorkspace(ctx, p.ID, p.Name))
 		}),
-		"project.open":   method(s.projectOpen),
+		"workspace.show": method(s.workspaceShow),
 		"workspace.open": method(s.workspaceOpen),
 		"workspace.home": method(s.workspaceHome),
 		"workspace.touch": method(func(ctx context.Context, p idParams) (empty, error) {
-			if err := requireID(projectPrefix, p.ID); err != nil {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return empty{}, err
 			}
-			return empty{}, svc.TouchProject(ctx, p.ID)
+			return empty{}, svc.TouchWorkspace(ctx, p.ID)
 		}),
-		"workspace.worktree.set": method(func(ctx context.Context, p worktreeSetParams) (project.Project, error) {
-			if err := requireID(projectPrefix, p.ID); err != nil {
-				return project.Project{}, err
+		"workspace.worktree.set": method(func(ctx context.Context, p worktreeSetParams) (workspace.Workspace, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
+				return workspace.Workspace{}, err
 			}
-			return encodeProject(svc.SetWorktree(ctx, p.ID, p.Repo, p.Path))
+			return encodeWorkspace(svc.SetWorktree(ctx, p.ID, p.Repo, p.Path))
 		}),
-		"workspace.worktree.check": method(func(ctx context.Context, p idParams) (project.Project, error) {
-			if err := requireID(projectPrefix, p.ID); err != nil {
-				return project.Project{}, err
+		"workspace.worktree.check": method(func(ctx context.Context, p idParams) (workspace.Workspace, error) {
+			if err := requireID(workspacePrefix, p.ID); err != nil {
+				return workspace.Workspace{}, err
 			}
-			return encodeProject(svc.CheckWorktrees(ctx, p.ID))
+			return encodeWorkspace(svc.CheckWorktrees(ctx, p.ID))
 		}),
 		"client.register": method(s.clientRegister),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
-			if err := requireID(projectPrefix, p.ProjectID); err != nil {
+			if err := requireID(workspacePrefix, p.WorkspaceID); err != nil {
 				return session.Session{}, err
 			}
 			p.Owner = CallerFrom(ctx).PluginID
 			return svc.CreateSession(ctx, p)
 		}),
 		"session.list": method(func(ctx context.Context, p listSessionsParams) ([]session.Session, error) {
-			if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+			if err := optionalID(workspacePrefix, p.WorkspaceID); err != nil {
 				return nil, err
 			}
 			if p.Owner != "" && !ownerPattern.MatchString(p.Owner) {
 				return nil, &jsonrpc2.Error{Code: codeInvalidParams, Message: fmt.Sprintf("invalid owner: %q", p.Owner)}
 			}
-			list, err := svc.ListSessions(ctx, session.ListFilter{ProjectID: p.ProjectID, Owner: p.Owner})
+			list, err := svc.ListSessions(ctx, session.ListFilter{WorkspaceID: p.WorkspaceID, Owner: p.Owner})
 			return nonNil(list), err
 		}),
 		"session.get": method(func(ctx context.Context, p idParams) (session.Session, error) {
@@ -224,7 +224,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			return empty{}, svc.RemoveSession(ctx, p.ID)
 		}),
 		"process.tree": method(func(ctx context.Context, f core.TreeFilter) ([]proc.Node, error) {
-			if err := optionalID(projectPrefix, f.ProjectID); err != nil {
+			if err := optionalID(workspacePrefix, f.WorkspaceID); err != nil {
 				return nil, err
 			}
 			if err := optionalGroupID(f.SessionID); err != nil {
@@ -240,7 +240,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := optionalGroupID(p.SessionID); err != nil {
 				return killResult{}, err
 			}
-			if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+			if err := optionalID(workspacePrefix, p.WorkspaceID); err != nil {
 				return killResult{}, err
 			}
 			killed, err := svc.KillProcesses(ctx, p)
@@ -263,7 +263,7 @@ func optionalID(prefix, s string) error {
 	return requireID(prefix, s)
 }
 
-func encodeProject(p project.Project, err error) (project.Project, error) {
+func encodeWorkspace(p workspace.Workspace, err error) (workspace.Workspace, error) {
 	p.Repos = nonNil(p.Repos)
 	p.Roots = nonNil(p.Roots)
 	return p, err
@@ -282,29 +282,29 @@ func (s *Server) shutdownCore(ctx context.Context, _ empty) (empty, error) {
 	return empty{}, nil
 }
 
-func (s *Server) projectOpen(ctx context.Context, p idParams) (openResult, error) {
-	if err := s.requireProject(ctx, p.ID); err != nil {
+func (s *Server) workspaceShow(ctx context.Context, p idParams) (openResult, error) {
+	if err := s.requireWorkspace(ctx, p.ID); err != nil {
 		return openResult{}, err
 	}
-	return openResult{Clients: s.notifyClients(notifyProjectOpen, p, connFrom(ctx), handleProjectOpen)}, nil
+	return openResult{Clients: s.notifyClients(notifyWorkspaceShow, p, connFrom(ctx), handleWorkspaceShow)}, nil
 }
 
 func (s *Server) workspaceOpen(ctx context.Context, p workspaceOpenParams) (workspaceOpenResult, error) {
-	prj, created, err := s.svc.OpenFolders(ctx, p.Folders)
+	ws, created, err := s.svc.OpenFolders(ctx, p.Folders)
 	if err != nil {
 		return workspaceOpenResult{}, err
 	}
-	clients := s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
-	return workspaceOpenResult{ID: prj.ID, Created: created, Clients: clients}, nil
+	clients := s.notifyClients(notifyWorkspaceShow, idParams{ID: ws.ID}, connFrom(ctx), handleWorkspaceShow)
+	return workspaceOpenResult{ID: ws.ID, Created: created, Clients: clients}, nil
 }
 
 func (s *Server) workspaceHome(ctx context.Context, _ empty) (workspaceHomeResult, error) {
-	prj, err := s.svc.HomeWorkspace(ctx)
+	ws, err := s.svc.HomeWorkspace(ctx)
 	if err != nil {
 		return workspaceHomeResult{}, err
 	}
-	clients := s.notifyClients(notifyProjectOpen, idParams{ID: prj.ID}, connFrom(ctx), handleProjectOpen)
-	return workspaceHomeResult{ID: prj.ID, Clients: clients}, nil
+	clients := s.notifyClients(notifyWorkspaceShow, idParams{ID: ws.ID}, connFrom(ctx), handleWorkspaceShow)
+	return workspaceHomeResult{ID: ws.ID, Clients: clients}, nil
 }
 
 type registerParams struct {
@@ -316,7 +316,7 @@ func (s *Server) clientRegister(ctx context.Context, p registerParams) (empty, e
 		return empty{}, invalidParams("client.register is not available to plugins")
 	}
 	for _, h := range p.Handles {
-		if h != handleProjectOpen && h != handleUIConfirm && h != handleUISnapshot && h != handleUIPresent && h != handleUIKey {
+		if h != handleWorkspaceShow && h != handleUIConfirm && h != handleUISnapshot && h != handleUIPresent && h != handleUIKey {
 			return empty{}, invalidParams(fmt.Sprintf("unknown handle: %q", h))
 		}
 	}

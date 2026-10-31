@@ -12,31 +12,31 @@ final class AppModel {
     let updates: Updates
     let settings = AppSettings(defaults: TestMode.defaults)
     let claude = ClaudeIntegration()
-    private(set) var projects: ProjectsStore?
+    private(set) var workspaceStore: WorkspacesStore?
     private(set) var commands: [Command] = []
 
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var gitChanges: Task<Void, Never>?
     @ObservationIgnored private var pluginChanges: Task<Void, Never>?
-    private var launchProject = launchProjectID(CommandLine.arguments)
-    @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
+    private var launchWorkspace = launchWorkspaceID(CommandLine.arguments)
+    @ObservationIgnored private var presence: [String: WorkspacePresence] = [:]
     @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
 
     @ObservationIgnored private(set) lazy var sessions: SessionRegistry = SessionRegistry(supervisor: supervisor, settings: settings) { [weak self] id in
-        self?.project(id)
+        self?.workspace(id)
     }
 
     @ObservationIgnored private(set) lazy var windows: WindowRouter = WindowRouter(
         sessions: sessions,
         opened: { [weak self] workspaces in self?.notifications.keepOpen(workspaces) },
-        touched: { [weak self] projectID in self?.touch(projectID) },
+        touched: { [weak self] workspaceID in self?.touch(workspaceID) },
         focused: { [weak self] in self?.notifications.focusChanged() }
     )
 
     @ObservationIgnored private lazy var focus: NotificationFocus = NotificationFocus(windows: windows, sessions: sessions)
 
     @ObservationIgnored private lazy var actions: WorkspaceActions = WorkspaceActions(supervisor: supervisor, windows: windows, sessions: sessions) { [weak self] id in
-        self?.project(id)
+        self?.workspace(id)
     }
 
     @ObservationIgnored private(set) lazy var agentFinish = AgentFinishModel { [weak self] workspace, invocation in
@@ -57,7 +57,7 @@ final class AppModel {
         },
         focus: { [weak self] in self?.focus.current ?? HubFocus(appActive: false, workspace: nil) },
         workspaces: { [weak self] in self?.openWorkspaces ?? [] },
-        workspaceName: { [weak self] workspace in self?.project(workspace)?.name },
+        workspaceName: { [weak self] workspace in self?.workspace(workspace)?.name },
         reveal: { [weak self] workspace, session, owner in self?.focus.reveal(workspace, session: session, owner: owner) }
     )
 
@@ -70,7 +70,7 @@ final class AppModel {
         link.model = self
         trackClient()
         trackTheme()
-        trackProjects()
+        trackWorkspaces()
         windows.syncSessions()
         _ = notifications
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
@@ -84,8 +84,8 @@ final class AppModel {
         notifications.flush()
     }
 
-    static func launchProjectID(_ arguments: [String]) -> String? {
-        guard let index = arguments.firstIndex(of: "--open-project"), arguments.indices.contains(index + 1) else { return nil }
+    static func launchWorkspaceID(_ arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: "--open-workspace"), arguments.indices.contains(index + 1) else { return nil }
         return arguments[index + 1]
     }
 
@@ -101,7 +101,7 @@ final class AppModel {
     var switcherWindow: String? { windows.switcherWindow }
     var inboxWindow: String? { windows.inboxWindow }
     var openWorkspaces: Set<String> { windows.openWorkspaces }
-    var keyWorkspace: (projectID: String?, window: NSWindow?) { windows.keyWorkspace }
+    var keyWorkspace: (workspaceID: String?, window: NSWindow?) { windows.keyWorkspace }
 
     func window(_ id: String) -> LayoutWindow? { windows.window(id) }
     func claimWindow() -> String { windows.claimWindow() }
@@ -109,33 +109,33 @@ final class AppModel {
     func windowAttached(_ window: String, _ host: NSWindow) { windows.windowAttached(window, host) }
     func windowBecameKey(_ window: String) { windows.windowBecameKey(window) }
     func windowClosed(_ window: String) { windows.windowClosed(window) }
-    func open(_ projectID: String, in target: String? = nil) { windows.open(projectID, in: target) }
-    func activate(_ projectID: String, in window: String) { windows.activate(projectID, in: window) }
-    func activateFromSwitcher(_ projectID: String, in window: String) { windows.activateFromSwitcher(projectID, in: window) }
+    func open(_ workspaceID: String, in target: String? = nil) { windows.open(workspaceID, in: target) }
+    func activate(_ workspaceID: String, in window: String) { windows.activate(workspaceID, in: window) }
+    func activateFromSwitcher(_ workspaceID: String, in window: String) { windows.activateFromSwitcher(workspaceID, in: window) }
     func next(in window: String) { windows.next(in: window) }
     func previous(in window: String) { windows.previous(in: window) }
-    func closeWorkspace(_ projectID: String, in window: String) { windows.closeWorkspace(projectID, in: window) }
-    func moveToNewWindow(_ projectID: String) { windows.moveToNewWindow(projectID) }
+    func closeWorkspace(_ workspaceID: String, in window: String) { windows.closeWorkspace(workspaceID, in: window) }
+    func moveToNewWindow(_ workspaceID: String) { windows.moveToNewWindow(workspaceID) }
     func toggleSwitcher(in window: String) { windows.toggleSwitcher(in: window) }
     func hideSwitcher() { windows.hideSwitcher() }
     func toggleInbox(in window: String) { windows.toggleInbox(in: window) }
     func hideInbox() { windows.hideInbox() }
 
-    func existingSession(for projectID: String) -> ProjectSession? { sessions.existing(projectID) }
+    func existingSession(for workspaceID: String) -> WorkspaceSession? { sessions.existing(workspaceID) }
 
     func openFolder(in window: String?) { actions.openFolder(in: window) }
     func newHomeTerminal(in window: String?) { actions.newHomeTerminal(in: window) }
-    func addFolder(to projectID: String) { actions.addFolder(to: projectID) }
-    func rename(_ projectID: String) { actions.rename(projectID) }
-    func remove(_ projectID: String) { actions.remove(projectID) }
+    func addFolder(to workspaceID: String) { actions.addFolder(to: workspaceID) }
+    func rename(_ workspaceID: String) { actions.rename(workspaceID) }
+    func remove(_ workspaceID: String) { actions.remove(workspaceID) }
     func installCommandLineTool() { CLIInstaller.install() }
 
-    private func touch(_ projectID: String) {
+    private func touch(_ workspaceID: String) {
         notifications.focusChanged()
         guard let client = supervisor.client else { return }
         Task {
-            try? await client.touchWorkspace(projectID)
-            try? await projects?.load()
+            try? await client.touchWorkspace(workspaceID)
+            try? await workspaceStore?.load()
         }
     }
 
@@ -149,9 +149,9 @@ final class AppModel {
 
     private func runCommand(_ invocation: CommandInvocation, in workspace: String?) async -> Result<JSONValue, ClubmateError> {
         guard let client = supervisor.client else { return .failure(.notRunning) }
-        guard let projectID = workspace ?? defaultWorkspace else { return .failure(.noWorkspace) }
+        guard let workspaceID = workspace ?? defaultWorkspace else { return .failure(.noWorkspace) }
         do {
-            return .success(try await client.commandRun(id: invocation.id, projectID: projectID, args: invocation.args))
+            return .success(try await client.commandRun(id: invocation.id, workspaceID: workspaceID, args: invocation.args))
         } catch let error as ClubmateError {
             return .failure(error)
         } catch {
@@ -160,11 +160,11 @@ final class AppModel {
     }
 
     private var defaultWorkspace: String? {
-        windows.activeWorkspace ?? projects?.projects.first?.id
+        windows.activeWorkspace ?? workspaceStore?.workspaces.first?.id
     }
 
-    func project(_ id: String) -> Project? {
-        projects?.projects.first { $0.id == id }
+    func workspace(_ id: String) -> Workspace? {
+        workspaceStore?.workspaces.first { $0.id == id }
     }
 
     fileprivate func connect() async throws -> CoreClient {
@@ -182,15 +182,15 @@ final class AppModel {
         }
         do {
             let commands = try await client.commandList()
-            let projects = ProjectsStore(client: client)
-            try await projects.start()
-            await self.projects?.stop()
-            self.projects = projects
+            let store = WorkspacesStore(client: client)
+            try await store.start()
+            await workspaceStore?.stop()
+            workspaceStore = store
             self.commands = commands
             listen(client)
-            windows.restore(projects.projects)
-            if let id = launchProject {
-                launchProject = nil
+            windows.restore(store.workspaces)
+            if let id = launchWorkspace {
+                launchWorkspace = nil
                 open(id)
             }
             return client
@@ -209,15 +209,15 @@ final class AppModel {
         return await Confirmation.ask(request, font: font, window: window, expiry: expiry)
     }
 
-    private func trackProjects() {
-        guard let listed = withObservationTracking({ projects?.projects }, onChange: { [weak self] in
-            Task { @MainActor in self?.trackProjects() }
+    private func trackWorkspaces() {
+        guard let listed = withObservationTracking({ workspaceStore?.workspaces }, onChange: { [weak self] in
+            Task { @MainActor in self?.trackWorkspaces() }
         }) else { return }
         let present = Set(listed.map(\.id))
         notifications.keep(present)
         let workspaces = windows.openWorkspaces
         presence = presence.filter { workspaces.contains($0.key) }
-        let gone = workspaces.filter { presence[$0, default: ProjectPresence()].observe(present.contains($0)) }
+        let gone = workspaces.filter { presence[$0, default: WorkspacePresence()].observe(present.contains($0)) }
         guard !gone.isEmpty else { return }
         windows.forget(gone)
     }
@@ -255,7 +255,7 @@ final class AppModel {
 
     private func listen(_ client: CoreClient) {
         openRequests?.cancel()
-        let requests = client.projectOpenRequests()
+        let requests = client.workspaceOpenRequests()
         openRequests = Task { [weak self] in
             for await id in requests {
                 self?.open(id)

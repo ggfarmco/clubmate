@@ -12,18 +12,18 @@ import (
 const Protocol = 1
 
 type Config struct {
-	ID         string   `json:"id"`
-	ProjectID  string   `json:"projectId"`
-	Title      string   `json:"title"`
-	Owner      string   `json:"owner"`
-	Command    []string `json:"command"`
-	Cwd        string   `json:"cwd"`
-	Env        []string `json:"env"`
-	UnsetEnv   []string `json:"unsetEnv"`
-	PathAppend []string `json:"pathAppend"`
-	Socket     string   `json:"socket"`
-	MetaPath   string   `json:"metaPath"`
-	Scrollback int      `json:"scrollback"`
+	ID          string   `json:"id"`
+	WorkspaceID string   `json:"workspaceId"`
+	Title       string   `json:"title"`
+	Owner       string   `json:"owner"`
+	Command     []string `json:"command"`
+	Cwd         string   `json:"cwd"`
+	Env         []string `json:"env"`
+	UnsetEnv    []string `json:"unsetEnv"`
+	PathAppend  []string `json:"pathAppend"`
+	Socket      string   `json:"socket"`
+	MetaPath    string   `json:"metaPath"`
+	Scrollback  int      `json:"scrollback"`
 }
 
 type Meta struct {
@@ -39,7 +39,7 @@ func ReadMeta(path string) (Meta, error) {
 		return Meta{}, fmt.Errorf("read meta: %w", err)
 	}
 	var m Meta
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err := json.Unmarshal(contract.UpgradeLegacyKeys(data), &m); err != nil {
 		return Meta{}, fmt.Errorf("decode meta %s: %w", path, err)
 	}
 	return m, nil

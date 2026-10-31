@@ -36,20 +36,20 @@ var (
 type deniedError string
 
 type confirmParams struct {
-	Title     string          `json:"title"`
-	Workspace string          `json:"workspace"`
-	Command   string          `json:"command"`
-	Args      json.RawMessage `json:"args"`
-	Body      string          `json:"body,omitempty"`
-	Plugin    bool            `json:"plugin,omitempty"`
-	TimeoutMs int64           `json:"timeoutMs"`
-	Session   *confirmSession `json:"session,omitempty"`
+	Title         string          `json:"title"`
+	WorkspaceName string          `json:"workspaceName"`
+	Command       string          `json:"command"`
+	Args          json.RawMessage `json:"args"`
+	Body          string          `json:"body,omitempty"`
+	Plugin        bool            `json:"plugin,omitempty"`
+	TimeoutMs     int64           `json:"timeoutMs"`
+	Session       *confirmSession `json:"session,omitempty"`
 }
 
 type confirmSession struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Workspace string `json:"workspace"`
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	WorkspaceName string `json:"workspaceName"`
 }
 
 type confirmResult struct {
@@ -66,11 +66,11 @@ func (deniedError) Is(target error) bool {
 }
 
 type approveParams struct {
-	ProjectID string            `json:"projectId"`
-	Title     string            `json:"title"`
-	Command   string            `json:"command"`
-	Args      map[string]string `json:"args"`
-	Body      string            `json:"body"`
+	WorkspaceID string            `json:"workspaceId"`
+	Title       string            `json:"title"`
+	Command     string            `json:"command"`
+	Args        map[string]string `json:"args"`
+	Body        string            `json:"body"`
 }
 
 func (s *Server) uiApprove(ctx context.Context, p approveParams) (empty, error) {
@@ -95,7 +95,7 @@ func (s *Server) uiApprove(ctx context.Context, p approveParams) (empty, error) 
 	if utf8.RuneCountInString(p.Body) > approvalMaxBody {
 		return empty{}, invalidParams(fmt.Sprintf("body: longer than %d characters", approvalMaxBody))
 	}
-	workspace, err := s.workspaceName(ctx, p.ProjectID)
+	name, err := s.workspaceName(ctx, p.WorkspaceID)
 	if err != nil {
 		return empty{}, err
 	}
@@ -103,22 +103,22 @@ func (s *Server) uiApprove(ctx context.Context, p approveParams) (empty, error) 
 	if err != nil {
 		return empty{}, err
 	}
-	return empty{}, s.confirm(ctx, p.ProjectID, confirmParams{Title: p.Title, Workspace: workspace, Command: p.Command, Args: args, Body: p.Body, Plugin: true})
+	return empty{}, s.confirm(ctx, p.WorkspaceID, confirmParams{Title: p.Title, WorkspaceName: name, Command: p.Command, Args: args, Body: p.Body, Plugin: true})
 }
 
-func (s *Server) workspaceName(ctx context.Context, projectID string) (string, error) {
-	if projectID == "" {
+func (s *Server) workspaceName(ctx context.Context, workspaceID string) (string, error) {
+	if workspaceID == "" {
 		return "", nil
 	}
-	p, err := s.svc.GetProject(ctx, projectID)
+	p, err := s.svc.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return "", err
 	}
 	return p.Name, nil
 }
 
-func (s *Server) approve(ctx context.Context, c Command, projectID, sessionKey string, raw json.RawMessage) (json.RawMessage, error) {
-	workspace, err := s.workspaceName(ctx, projectID)
+func (s *Server) approve(ctx context.Context, c Command, workspaceID, sessionKey string, raw json.RawMessage) (json.RawMessage, error) {
+	name, err := s.workspaceName(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -126,15 +126,15 @@ func (s *Server) approve(ctx context.Context, c Command, projectID, sessionKey s
 	if err != nil {
 		return nil, err
 	}
-	params := confirmParams{Title: c.Title, Workspace: workspace, Command: c.ID, Args: args, Session: s.targetSession(ctx, sessionKey, args)}
-	if err := s.confirm(ctx, projectID, params); err != nil {
+	params := confirmParams{Title: c.Title, WorkspaceName: name, Command: c.ID, Args: args, Session: s.targetSession(ctx, sessionKey, args)}
+	if err := s.confirm(ctx, workspaceID, params); err != nil {
 		return nil, err
 	}
 	return args, nil
 }
 
-func (s *Server) confirm(ctx context.Context, projectID string, params confirmParams) error {
-	conn, release, err := s.approver(projectID)
+func (s *Server) confirm(ctx context.Context, workspaceID string, params confirmParams) error {
+	conn, release, err := s.approver(workspaceID)
 	if err != nil {
 		return err
 	}
@@ -169,8 +169,8 @@ func (s *Server) targetSession(ctx context.Context, key string, args json.RawMes
 		return nil
 	}
 	out := &confirmSession{ID: sess.ID, Title: sess.Title}
-	if p, err := s.svc.GetProject(ctx, sess.ProjectID); err == nil {
-		out.Workspace = p.Name
+	if p, err := s.svc.GetWorkspace(ctx, sess.WorkspaceID); err == nil {
+		out.WorkspaceName = p.Name
 	}
 	return out
 }
@@ -245,10 +245,10 @@ func exact(v any) bool {
 	return true
 }
 
-func (s *Server) approver(projectID string) (*jsonrpc2.Conn, func(), error) {
+func (s *Server) approver(workspaceID string) (*jsonrpc2.Conn, func(), error) {
 	present := map[*jsonrpc2.Conn]bool{}
-	if projectID != "" {
-		for _, t := range s.presence.focusTargets(projectID) {
+	if workspaceID != "" {
+		for _, t := range s.presence.focusTargets(workspaceID) {
 			present[t.conn] = true
 		}
 	}

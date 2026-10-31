@@ -19,9 +19,9 @@ const (
 
 var errUnknownBranch = errors.New("unknown branch")
 
-func listBranches(ctx context.Context, h *pluginsdk.Host, projectID string) ([]branchInfo, error) {
+func listBranches(ctx context.Context, h *pluginsdk.Host, workspaceID string) ([]branchInfo, error) {
 	list := []branchInfo{}
-	err := eachFolder(ctx, h, projectID, func(f *folder) error {
+	err := eachFolder(ctx, h, workspaceID, func(f *folder) error {
 		local, remote, err := gitrepo.RecentBranches(ctx, f.Checkout.Path)
 		if err != nil {
 			return gitError(nil, err)
@@ -58,8 +58,8 @@ func listBranches(ctx context.Context, h *pluginsdk.Host, projectID string) ([]b
 	return list, nil
 }
 
-func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) (opFunc, error) {
-	f, err := gitFolder(ctx, h, projectID, args.Repo)
+func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
+	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -85,11 +85,11 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, projectID strin
 	if i := slices.IndexFunc(f.Trees, func(t gitrepo.Worktree) bool { return !t.Bare && t.Branch == local }); i >= 0 {
 		t := f.Trees[i]
 		return func(ctx context.Context, _ func(string)) (string, error) {
-			_, err := h.SetWorktree(ctx, projectID, f.Repo, f.Selection(t))
+			_, err := h.SetWorktree(ctx, workspaceID, f.Repo, f.Selection(t))
 			return t.Path, err
 		}, nil
 	}
-	users := consumers{h: h, projectID: projectID}
+	users := consumers{h: h, workspaceID: workspaceID}
 	if err := users.switching(ctx, f.root); err != nil {
 		return nil, err
 	}

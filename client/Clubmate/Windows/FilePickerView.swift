@@ -123,7 +123,7 @@ struct FilePickerView: View {
 }
 
 extension View {
-    func filePicker(_ session: ProjectSession?) -> some View {
+    func filePicker(_ session: WorkspaceSession?) -> some View {
         overlay(alignment: .top) {
             if let session, session.overlay == .pickFile, let model = session.filePicker {
                 FilePickerView(model: model) { [weak session] in session?.close(.pickFile) }

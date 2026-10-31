@@ -26,14 +26,14 @@ const (
 )
 
 type app struct {
-	renderMu sync.Mutex
-	hist     *history
-	memKiB   int64
-	mu       sync.Mutex
-	projects map[string]*projectState
-	present  map[string]bool
-	sections map[string]string
-	deleted  map[string]time.Time
+	renderMu   sync.Mutex
+	hist       *history
+	memKiB     int64
+	mu         sync.Mutex
+	workspaces map[string]*workspaceState
+	present    map[string]bool
+	sections   map[string]string
+	deleted    map[string]time.Time
 }
 
 func main() {
@@ -43,12 +43,12 @@ func main() {
 
 func newApp(memKiB int64) *app {
 	return &app{
-		hist:     newHistory(),
-		memKiB:   memKiB,
-		projects: map[string]*projectState{},
-		present:  map[string]bool{},
-		sections: map[string]string{},
-		deleted:  map[string]time.Time{},
+		hist:       newHistory(),
+		memKiB:     memKiB,
+		workspaces: map[string]*workspaceState{},
+		present:    map[string]bool{},
+		sections:   map[string]string{},
+		deleted:    map[string]time.Time{},
 	}
 }
 
@@ -61,12 +61,12 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.*", "project.*"} {
+	for _, pattern := range []string{"ui.*", "workspace.*"} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
 	}
-	projects, err := h.ListProjects(ctx)
+	workspaces, err := h.ListWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	for _, id := range present {
 		a.loadSection(ctx, h, id)
 	}
-	for _, p := range projects {
+	for _, p := range workspaces {
 		a.renderLogged(ctx, h, p.ID)
 	}
 	go every(ctx, refreshInterval, func() { a.tick(ctx, h) })
@@ -91,33 +91,33 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 	case contract.TopicUIOpened:
 		var p contract.UIPresence
 		if decode(ev, &p) {
-			a.setPresent(p.ProjectID, true)
-			a.loadSection(ctx, h, p.ProjectID)
-			a.renderLogged(ctx, h, p.ProjectID)
+			a.setPresent(p.Workspace, true)
+			a.loadSection(ctx, h, p.Workspace)
+			a.renderLogged(ctx, h, p.Workspace)
 		}
 	case contract.TopicUIIdle:
 		var p contract.UIPresence
 		if decode(ev, &p) {
-			a.setPresent(p.ProjectID, false)
+			a.setPresent(p.Workspace, false)
 		}
 	case contract.TopicUISection:
 		var p contract.UISection
 		if !decode(ev, &p) {
 			return
 		}
-		a.setSection(p.ProjectID, p.Section)
+		a.setSection(p.Workspace, p.Section)
 		if p.Section == sectionID {
-			a.renderLogged(ctx, h, p.ProjectID)
+			a.renderLogged(ctx, h, p.Workspace)
 		}
-	case contract.TopicProjectCreated:
-		var p contract.ProjectChanged
+	case contract.TopicWorkspaceCreated:
+		var p contract.WorkspaceChanged
 		if decode(ev, &p) {
-			a.renderLogged(ctx, h, p.Project.ID)
+			a.renderLogged(ctx, h, p.Workspace)
 		}
-	case contract.TopicProjectDeleted:
-		var p contract.ProjectDeleted
+	case contract.TopicWorkspaceDeleted:
+		var p contract.WorkspaceDeleted
 		if decode(ev, &p) {
-			a.drop(ctx, h, p.ID)
+			a.drop(ctx, h, p.Workspace)
 		}
 	}
 }

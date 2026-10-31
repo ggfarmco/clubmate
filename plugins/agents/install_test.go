@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/paths"
+	"clubmate/pkg/contract"
 )
 
 func TestInstallRetriesAfterInterruptedNpm(t *testing.T) {
@@ -60,7 +61,7 @@ func TestAgentEnvDropsCoreAndPluginVars(t *testing.T) {
 	env := agentEnv("prj_1")
 
 	assert.Contains(t, env, "CLUBMATE_RUNTIME_DIR="+custom)
-	assert.Contains(t, env, projectEnv+"=prj_1")
+	assert.Contains(t, env, contract.WorkspaceEnv+"=prj_1")
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
 		assert.NotContains(t, []string{"CLUBMATE_STATE_DIR", "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}, name)

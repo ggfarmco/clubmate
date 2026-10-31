@@ -23,11 +23,11 @@ import (
 	"clubmate/internal/paths"
 	"clubmate/internal/plugin"
 	"clubmate/internal/proc"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/shellenv"
+	"clubmate/internal/workspace"
 )
 
 const (
@@ -104,7 +104,7 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	store, err := project.Open(dirs.DB())
+	store, err := workspace.Open(dirs.DB())
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}

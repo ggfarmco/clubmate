@@ -3,7 +3,7 @@ import SwiftUI
 import ClubmateKit
 
 struct WorkspaceView: View {
-    let session: ProjectSession
+    let session: WorkspaceSession
     let windowID: String
 
     @Environment(AppModel.self) private var app
@@ -27,7 +27,7 @@ struct WorkspaceView: View {
             .testPresenter("palette", palettePresented)
             .filePicker(session)
             .fuzzyPicker(session)
-            .focusedSceneValue(\.projectSession, session)
+            .focusedSceneValue(\.workspaceSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }
                 if request.slot.hasSuffix(Self.sidebarSuffix) {
@@ -39,7 +39,7 @@ struct WorkspaceView: View {
                 guard connected == true else { return }
                 Task { await session.worktrees.load(retrying: true) }
             }
-            .onChange(of: app.project(session.projectID)) {
+            .onChange(of: app.workspace(session.workspaceID)) {
                 Task { await session.worktrees.load(retrying: true) }
             }
             .onChange(of: visibleTrees) {
@@ -111,9 +111,9 @@ struct WorkspaceView: View {
     }
 
     private func paletteEntries() -> [PaletteEntry] {
-        let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
+        let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.workspace($0)?.name ?? $0) }
         let sections = app.settings.ordered(session.store?.sections ?? [])
-        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
+        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.workspaceID, worktrees: session.worktrees.worktrees)
     }
 
     private func perform(_ action: PaletteAction) {
@@ -123,10 +123,10 @@ struct WorkspaceView: View {
         case .toggleSidebar: session.store?.toggleSidebar()
         case .openFolder: app.openFolder(in: windowID)
         case .newHomeTerminal: app.newHomeTerminal(in: windowID)
-        case .renameWorkspace: app.rename(session.projectID)
-        case .closeWorkspace: app.closeWorkspace(session.projectID, in: windowID)
-        case .removeWorkspace: app.remove(session.projectID)
-        case .moveWorkspaceToNewWindow: app.moveToNewWindow(session.projectID)
+        case .renameWorkspace: app.rename(session.workspaceID)
+        case .closeWorkspace: app.closeWorkspace(session.workspaceID, in: windowID)
+        case .removeWorkspace: app.remove(session.workspaceID)
+        case .moveWorkspaceToNewWindow: app.moveToNewWindow(session.workspaceID)
         case .switchWorkspace(let id): app.activate(id, in: windowID)
         case .switchWorktree: session.chooseWorktree()
         case .newWorktree: session.newWorktree(chooseFolder: true)

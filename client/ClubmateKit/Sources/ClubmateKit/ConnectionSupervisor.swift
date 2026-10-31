@@ -16,13 +16,13 @@ public final class ConnectionSupervisor {
 
     @ObservationIgnored private let connect: @MainActor () async throws -> CoreClient
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
-    @ObservationIgnored private let stores: @MainActor () -> [ProjectUIStore]
+    @ObservationIgnored private let stores: @MainActor () -> [WorkspaceUIStore]
     @ObservationIgnored private var started = false
     @ObservationIgnored private var running = false
 
     public init(
         connect: @escaping @MainActor () async throws -> CoreClient,
-        stores: @escaping @MainActor () -> [ProjectUIStore] = { [] },
+        stores: @escaping @MainActor () -> [WorkspaceUIStore] = { [] },
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.connect = connect
@@ -41,7 +41,7 @@ public final class ConnectionSupervisor {
         supervise()
     }
 
-    public func attach(_ store: ProjectUIStore) {
+    public func attach(_ store: WorkspaceUIStore) {
         guard phase == .ready, let client else { return }
         Task { await attach(store, client) }
     }
@@ -87,7 +87,7 @@ public final class ConnectionSupervisor {
         do {
             let client = try await connect()
             do {
-                try await client.register(handles: ["project.open", "ui.confirm"] + (TestMode.current ? ["ui.snapshot", "ui.present", "ui.key"] : []))
+                try await client.register(handles: ["workspace.show", "ui.confirm"] + (TestMode.current ? ["ui.snapshot", "ui.present", "ui.key"] : []))
             } catch {
                 await client.close()
                 throw error
@@ -100,7 +100,7 @@ public final class ConnectionSupervisor {
         }
     }
 
-    private func attach(_ store: ProjectUIStore, _ client: CoreClient) async {
+    private func attach(_ store: WorkspaceUIStore, _ client: CoreClient) async {
         guard stores().contains(where: { $0 === store }) else { return }
         await store.attach(client)
     }

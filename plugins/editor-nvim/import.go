@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	errImportHome   = errors.New("open a project workspace first")
+	errImportHome   = errors.New("open a folder workspace first")
 	errImportSource = errors.New("no ~/.config/nvim to import")
 
 	//go:embed import_prompt.md
@@ -63,8 +63,8 @@ func nvimGuide() string {
 	return filepath.Join(pluginsdk.ResourcesDir(), "nvim-distro", "skill", "SKILL.md")
 }
 
-func (a *app) importConfig(ctx context.Context, h *pluginsdk.Host, projectID string) (agentsNewResult, error) {
-	p, err := h.GetProject(ctx, projectID)
+func (a *app) importConfig(ctx context.Context, h *pluginsdk.Host, workspaceID string) (agentsNewResult, error) {
+	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return agentsNewResult{}, err
 	}
@@ -77,10 +77,10 @@ func (a *app) importConfig(ctx context.Context, h *pluginsdk.Host, projectID str
 	}
 	var out agentsNewResult
 	args := agentsNewArgs{Prompt: importPrompt(source, userLayer(), nvimGuide()), Title: importTitle}
-	if err := h.RunCommand(ctx, "agents.new", projectID, args, &out); err != nil {
+	if err := h.RunCommand(ctx, "agents.new", workspaceID, args, &out); err != nil {
 		return agentsNewResult{}, err
 	}
-	if err := h.Focus(ctx, projectID, "agents", ""); err != nil {
+	if err := h.Focus(ctx, workspaceID, "agents", ""); err != nil {
 		logError("focus", err)
 	}
 	return out, nil
@@ -102,7 +102,7 @@ func (a *app) offerImport(h *pluginsdk.Host, e *editor, c *client) {
 	if !distroInUse() || importSource() == "" {
 		return
 	}
-	p, err := h.GetProject(ctx, e.id)
+	p, err := h.GetWorkspace(ctx, e.id)
 	if err != nil || p.Home {
 		return
 	}

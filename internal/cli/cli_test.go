@@ -28,12 +28,12 @@ import (
 	"clubmate/internal/cli"
 	"clubmate/internal/paths"
 	"clubmate/internal/plugin"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 	"clubmate/pkg/sdui"
 )
 
@@ -107,23 +107,23 @@ func TestVersionCommandJSON(t *testing.T) {
 	assert.Equal(t, sessionhost.Protocol, got.SessionProtocol)
 }
 
-func TestProjectCreateAndListJSON(t *testing.T) {
+func TestWorkspaceCreateAndListJSON(t *testing.T) {
 	startCore(t)
 	repo := t.TempDir()
-	out := run(t, "project", "create", "demo", "--repo", repo, "--json")
-	var p project.Project
+	out := run(t, "workspace", "create", "demo", "--repo", repo, "--json")
+	var p workspace.Workspace
 	require.NoError(t, json.Unmarshal(out, &p))
 	assert.Equal(t, "demo", p.Name)
-	var list []project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "list", "--json"), &list))
+	var list []workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "list", "--json"), &list))
 	assert.Len(t, list, 1)
 }
 
 func TestAttachToExitedSessionReportsExitCode(t *testing.T) {
 	startCore(t)
-	var p project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
-	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "sh", "-c", "exit 3")))
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--workspace", p.ID, "--", "sh", "-c", "exit 3")))
 	testutil.Eventually(t, func() bool {
 		var list []session.Session
 		return json.Unmarshal(run(t, "session", "list", "--json"), &list) == nil && len(list) == 1 && list[0].State == session.StateExited
@@ -139,9 +139,9 @@ func TestAttachToExitedSessionReportsExitCode(t *testing.T) {
 
 func TestAttachExitsQuietlyOnSIGHUP(t *testing.T) {
 	startCore(t)
-	var p project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
-	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")))
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--workspace", p.ID, "--", "sh", "-c", "exec cat")))
 	dirs, err := paths.Resolve()
 	require.NoError(t, err)
 	testutil.Eventually(t, func() bool {
@@ -168,8 +168,8 @@ func TestAttachExitsQuietlyOnSIGHUP(t *testing.T) {
 
 func TestSessionRemoveCommand(t *testing.T) {
 	startCore(t)
-	var p project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
 	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "true")))
 	testutil.Eventually(t, func() bool {
 		var list []session.Session
@@ -234,15 +234,15 @@ func TestBusReadFollowPagesBacklogBeyondLimit(t *testing.T) {
 
 func TestUIDumpPrintsOutline(t *testing.T) {
 	store := startCoreWithUI(t)
-	var p project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
 	_, err := store.Render(t.Context(), p.ID, "echo.main", "echo", sdui.VStack(sdui.Text("hello"), sdui.Toggle("on", true)))
 	require.NoError(t, err)
 	want := "echo.main rev=1 owner=echo\n" +
 		"  stack direction=vertical\n" +
 		"    text text=hello\n" +
 		"    toggle#on value=true\n"
-	assert.Equal(t, want, string(run(t, "ui", "dump", "--project", p.ID)))
+	assert.Equal(t, want, string(run(t, "ui", "dump", "--workspace", p.ID)))
 }
 
 type syncBuffer struct {
@@ -337,10 +337,10 @@ func TestSessionSurvivesCoreStop(t *testing.T) {
 	clubmate := coreCLI(t)
 	_, code := clubmate("core", "start")
 	require.Equal(t, 0, code)
-	var p project.Project
-	out, _ := clubmate("project", "create", "demo", "--json")
+	var p workspace.Workspace
+	out, _ := clubmate("workspace", "create", "demo", "--json")
 	require.NoError(t, json.Unmarshal([]byte(out), &p))
-	out, _ = clubmate("session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")
+	out, _ = clubmate("session", "create", "--workspace", p.ID, "--", "sh", "-c", "exec cat")
 	sid := strings.TrimSpace(out)
 	var before []session.Session
 	out, _ = clubmate("session", "list", "--json")
@@ -367,17 +367,17 @@ func TestSessionSurvivesCoreStop(t *testing.T) {
 	assert.Equal(t, session.StateRunning, list[0].State)
 }
 
-func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
+func TestWorkspaceOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 	startCore(t)
-	var p project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
 	var launched []string
 	open := func() {
 		root := cli.NewRootWithLauncher(&bytes.Buffer{}, &bytes.Buffer{}, func(_ context.Context, id string) error {
 			launched = append(launched, id)
 			return nil
 		})
-		root.SetArgs([]string{"project", "open", "--id", p.ID})
+		root.SetArgs([]string{"workspace", "open", "--id", p.ID})
 		require.NoError(t, root.Execute())
 	}
 	open()
@@ -388,14 +388,14 @@ func TestProjectOpenLaunchesAppOnlyWithoutClients(t *testing.T) {
 	client, err := rpc.Dial(t.Context(), dirs.CoreSocket())
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Close() })
-	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"project.open"}}, nil))
+	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"workspace.show"}}, nil))
 	open()
 	assert.Len(t, launched, 1)
 	select {
 	case n := <-client.Notifications():
-		assert.Equal(t, "project.open", n.Method)
+		assert.Equal(t, "workspace.show", n.Method)
 	case <-time.After(2 * time.Second):
-		t.Fatal("no project.open notification")
+		t.Fatal("no workspace.open notification")
 	}
 }
 
@@ -410,7 +410,7 @@ func TestFolderShorthand(t *testing.T) {
 	})
 	root.SetArgs([]string{dir})
 	require.NoError(t, root.Execute())
-	var list []project.Project
+	var list []workspace.Workspace
 	require.NoError(t, json.Unmarshal(run(t, "workspace", "list", "--json"), &list))
 	require.Len(t, list, 1)
 	assert.Equal(t, []string{dir}, list[0].Repos)
@@ -443,20 +443,20 @@ func TestWorkspaceCLI(t *testing.T) {
 	client, err := rpc.Dial(t.Context(), dirs.CoreSocket())
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Close() })
-	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"project.open"}}, nil))
+	require.NoError(t, client.Call(t.Context(), "client.register", map[string]any{"handles": []string{"workspace.show"}}, nil))
 	again, err := open(dir)
 	require.NoError(t, err)
 	assert.Equal(t, id, again)
 	assert.Len(t, launched, 1)
 	select {
 	case n := <-client.Notifications():
-		assert.Equal(t, "project.open", n.Method)
+		assert.Equal(t, "workspace.show", n.Method)
 		assert.JSONEq(t, `{"id":"`+id+`"}`, string(n.Params))
 	case <-time.After(2 * time.Second):
-		t.Fatal("no project.open notification")
+		t.Fatal("no workspace.open notification")
 	}
-	var list []project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "list", "--json"), &list))
+	var list []workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "list", "--json"), &list))
 	require.Len(t, list, 1)
 	assert.Equal(t, id, list[0].ID)
 
@@ -466,12 +466,12 @@ func TestWorkspaceCLI(t *testing.T) {
 
 func TestCommandRunAgentNeedsApproval(t *testing.T) {
 	startCoreWithUI(t)
-	var p project.Project
-	require.NoError(t, json.Unmarshal(run(t, "project", "create", "demo", "--json"), &p))
-	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "sh", "-c", "exec cat")))
+	var p workspace.Workspace
+	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--workspace", p.ID, "--", "sh", "-c", "exec cat")))
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRoot(&stdout, &stderr)
-	root.SetArgs([]string{"command", "run", "session.kill", "--project", p.ID, "--agent", "--args", `{"id":"` + sid + `"}`})
+	root.SetArgs([]string{"command", "run", "session.kill", "--workspace", p.ID, "--agent", "--args", `{"id":"` + sid + `"}`})
 	assert.ErrorContains(t, root.Execute(), "no app to approve")
 }
 

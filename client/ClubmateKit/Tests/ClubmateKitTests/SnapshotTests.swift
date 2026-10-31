@@ -84,7 +84,7 @@ final class SnapshotTests: XCTestCase {
         }
         let result = try await client.call(method: "ui.snapshot", params: .object(["out": .string("/tmp/x"), "png": .bool(false)]))
         XCTAssertEqual(result.objectValue?["summary"]?.stringValue, "0 problems")
-        XCTAssertEqual(asked.requests, [SnapshotRequest(out: "/tmp/x", png: false, width: nil, height: nil, projectId: nil)])
+        XCTAssertEqual(asked.requests, [SnapshotRequest(out: "/tmp/x", png: false, width: nil, height: nil, workspaceId: nil)])
         await client.close()
     }
 

@@ -49,9 +49,9 @@ final class AppSettingsTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
-        [{"id":"a","title":"A","icon":"","order":1,"scope":"project","plugin":"p"},
-         {"id":"b","title":"B","icon":"","order":2,"scope":"project","plugin":"p"},
-         {"id":"c","title":"C","icon":"","order":3,"scope":"project","plugin":"p"}]
+        [{"id":"a","title":"A","icon":"","order":1,"scope":"workspace","plugin":"p"},
+         {"id":"b","title":"B","icon":"","order":2,"scope":"workspace","plugin":"p"},
+         {"id":"c","title":"C","icon":"","order":3,"scope":"workspace","plugin":"p"}]
         """#.utf8))
         let settings = AppSettings(defaults: defaults)
         settings.sectionOrder = ["home"]

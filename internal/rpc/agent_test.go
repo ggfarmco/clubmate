@@ -12,24 +12,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 type confirmRequest struct {
-	Title     string          `json:"title"`
-	Workspace string          `json:"workspace"`
-	Command   string          `json:"command"`
-	Args      json.RawMessage `json:"args"`
-	Body      string          `json:"body"`
-	Plugin    bool            `json:"plugin"`
-	TimeoutMs int64           `json:"timeoutMs"`
-	Session   *struct {
-		ID        string `json:"id"`
-		Title     string `json:"title"`
-		Workspace string `json:"workspace"`
+	Title         string          `json:"title"`
+	WorkspaceName string          `json:"workspaceName"`
+	Command       string          `json:"command"`
+	Args          json.RawMessage `json:"args"`
+	Body          string          `json:"body"`
+	Plugin        bool            `json:"plugin"`
+	TimeoutMs     int64           `json:"timeoutMs"`
+	Session       *struct {
+		ID            string `json:"id"`
+		Title         string `json:"title"`
+		WorkspaceName string `json:"workspaceName"`
 	} `json:"session"`
 }
 
@@ -42,9 +42,9 @@ type approver struct {
 func TestAgentCannotReachHidden(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","hidden":true,"provides":["echo.cap"]}`)
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID}, nil))
 	for _, id := range []string{"alpha.say", "echo.cap"} {
-		err := c.Call(t.Context(), "command.run", map[string]any{"id": id, "projectId": p.ID, "agent": true}, nil)
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": id, "workspaceId": p.ID, "agent": true}, nil)
 		assert.ErrorIs(t, err, rpc.ErrNotFound, id)
 	}
 }
@@ -52,7 +52,7 @@ func TestAgentCannotReachHidden(t *testing.T) {
 func TestAgentCallerReachesPlugin(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true}`)
 	var out map[string]any
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "caller": "agt_x"}, &out))
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true, "caller": "agt_x"}, &out))
 	assert.Equal(t, "agt_x", out["caller"])
 }
 
@@ -60,12 +60,12 @@ func TestAgentArgsExactKeys(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"args":{"properties":{"path":{"type":"string"},"items":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string"}}}}}}}`)
 	c := h.Client(t)
 	var out map[string]any
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"path": "a", "items": []any{map[string]any{"path": "a"}}}}, &out))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true, "args": map[string]any{"path": "a", "items": []any{map[string]any{"path": "a"}}}}, &out))
 	for want, args := range map[string]map[string]any{
 		"args.PATH":          {"path": "a", "PATH": "b"},
 		"args.items[1].PATH": {"items": []any{map[string]any{"path": "a"}, map[string]any{"path": "a", "PATH": "b"}}},
 	} {
-		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": args}, nil)
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true, "args": args}, nil)
 		require.ErrorIs(t, err, rpc.ErrInvalidParams)
 		assert.ErrorContains(t, err, want+": not allowed in agent calls")
 	}
@@ -82,12 +82,12 @@ func TestCapabilityNamedLikePrimitive(t *testing.T) {
 
 func TestAgentSessionCreateTakesNoCommand(t *testing.T) {
 	h := testutil.NewHarness(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t)
 	c := h.Client(t)
 	for _, field := range []string{"command", "env", "Command", "ENV"} {
-		err := c.Call(t.Context(), "command.run", map[string]any{"id": "session.create", "projectId": p.ID, "agent": true, "args": map[string]any{field: []string{"/bin/sh"}}}, nil)
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": "session.create", "workspaceId": p.ID, "agent": true, "args": map[string]any{field: []string{"/bin/sh"}}}, nil)
 		require.ErrorIs(t, err, rpc.ErrInvalidParams)
 		assert.ErrorContains(t, err, "args."+field+": not allowed in agent calls")
 	}
@@ -99,7 +99,7 @@ func TestApproverDisconnectDenies(t *testing.T) {
 	c := h.Client(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true}, nil)
+		done <- c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true}, nil)
 	}()
 	<-a.asked
 	require.NoError(t, a.conn.Close())
@@ -114,7 +114,7 @@ func TestDestructiveNeedsApproval(t *testing.T) {
 	c := h.Client(t)
 	run := func() (map[string]any, error) {
 		var out map[string]any
-		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": map[string]any{"n": 1}}, &out)
+		err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true, "args": map[string]any{"n": 1}}, &out)
 		return out, err
 	}
 	_, err := run()
@@ -129,7 +129,7 @@ func TestDestructiveNeedsApproval(t *testing.T) {
 			defer close(done)
 			out, err = run()
 		}()
-		assert.Equal(t, confirmRequest{Title: "Drop Everything", Workspace: "demo", Command: "alpha.say", Args: json.RawMessage(`{"n":1}`), TimeoutMs: 60000}, <-a.asked)
+		assert.Equal(t, confirmRequest{Title: "Drop Everything", WorkspaceName: "demo", Command: "alpha.say", Args: json.RawMessage(`{"n":1}`), TimeoutMs: 60000}, <-a.asked)
 		a.reply <- approved
 		<-done
 		if approved {
@@ -170,7 +170,7 @@ func TestDestructiveAgentArgsStrict(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true, "args": tt.args}, nil)
+			err := c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true, "args": tt.args}, nil)
 			require.ErrorIs(t, err, rpc.ErrInvalidParams)
 			assert.ErrorContains(t, err, tt.err)
 			assert.Empty(t, a.asked)
@@ -182,11 +182,11 @@ func TestApprovalPrefersWorkspaceClient(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.say","title":"Say","agent":true,"destructive":true}`)
 	first := newApprover(t, h)
 	second := newApprover(t, h)
-	require.NoError(t, second.conn.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &struct{}{}))
+	require.NoError(t, second.conn.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, &struct{}{}))
 	c := h.Client(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": p.ID, "agent": true}, nil)
+		done <- c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": p.ID, "agent": true}, nil)
 	}()
 	<-second.asked
 	second.reply <- true
@@ -196,7 +196,7 @@ func TestApprovalPrefersWorkspaceClient(t *testing.T) {
 
 func TestPrimitivesListed(t *testing.T) {
 	h := testutil.NewHarness(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t)
 	c := h.Client(t)
@@ -211,16 +211,16 @@ func TestPrimitivesListed(t *testing.T) {
 	require.NotNil(t, listed)
 	assert.Equal(t, "core", listed.Plugin)
 	assert.True(t, listed.Agent)
-	var projects []project.Project
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.list", "agent": true}, &projects))
-	require.Len(t, projects, 1)
-	assert.Equal(t, p.ID, projects[0].ID)
+	var workspaces []workspace.Workspace
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.list", "agent": true}, &workspaces))
+	require.Len(t, workspaces, 1)
+	assert.Equal(t, p.ID, workspaces[0].ID)
 }
 
-func startAlpha(t *testing.T, command string) (*testutil.PluginHarness, project.Project) {
+func startAlpha(t *testing.T, command string) (*testutil.PluginHarness, workspace.Workspace) {
 	t.Helper()
 	h := testutil.NewHarness(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"commands":[`+command+`]}`)))
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
@@ -254,10 +254,10 @@ func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
 
 func TestAgentSendNeedsApproval(t *testing.T) {
 	h := testutil.NewHarness(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t)
-	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Title: "Build", Command: []string{"sh", "-c", "exec cat"}})
+	s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: p.ID, Title: "Build", Command: []string{"sh", "-c", "exec cat"}})
 	require.NoError(t, err)
 	c := h.Client(t)
 	send := func() error {
@@ -271,12 +271,12 @@ func TestAgentSendNeedsApproval(t *testing.T) {
 	go func() { done <- send() }()
 	asked := <-a.asked
 	require.NotNil(t, asked.Session)
-	assert.Equal(t, [3]string{s.ID, "Build", "demo"}, [3]string{asked.Session.ID, asked.Session.Title, asked.Session.Workspace})
+	assert.Equal(t, [3]string{s.ID, "Build", "demo"}, [3]string{asked.Session.ID, asked.Session.Title, asked.Session.WorkspaceName})
 	a.reply <- false
 	require.ErrorIs(t, <-done, rpc.ErrDenied)
 }
 
-func TestAppScopeCommandRunsWithoutProject(t *testing.T) {
+func TestAppScopeCommandRunsWithoutWorkspace(t *testing.T) {
 	h, _ := startAlpha(t, `{"id":"alpha.say","title":"Say","remote":true,"scope":"app"},{"id":"alpha.other","title":"Other"}`)
 	c := h.Client(t)
 	cmds := pluginCommands(t, h)
@@ -285,14 +285,14 @@ func TestAppScopeCommandRunsWithoutProject(t *testing.T) {
 	assert.True(t, cmds[0].Running)
 	assert.Equal(t, "app", cmds[0].Scope)
 	assert.False(t, cmds[1].Remote)
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": ""}, nil))
-	assert.ErrorIs(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.other", "projectId": ""}, nil), rpc.ErrInvalidParams)
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "workspaceId": ""}, nil))
+	assert.ErrorIs(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.other", "workspaceId": ""}, nil), rpc.ErrInvalidParams)
 }
 
 func TestPluginApprove(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.x","title":"X"}`)
 	approve := func(command, body string) error {
-		return h.PluginCall(t, "alpha", "ui.approve", map[string]any{"projectId": p.ID, "title": "Run setup", "command": command, "args": map[string]string{"sha256": "abc"}, "body": body})
+		return h.PluginCall(t, "alpha", "ui.approve", map[string]any{"workspaceId": p.ID, "title": "Run setup", "command": command, "args": map[string]string{"sha256": "abc"}, "body": body})
 	}
 	assert.ErrorContains(t, approve("beta.run", ""), "want a alpha. command")
 	assert.ErrorContains(t, approve("alpha.run", strings.Repeat("x", 64<<10+1)), "body: longer than 65536 characters")
@@ -300,7 +300,7 @@ func TestPluginApprove(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- approve("alpha.run", "echo hi\n") }()
 	asked := <-a.asked
-	assert.Equal(t, confirmRequest{Title: "Run setup", Workspace: "demo", Command: "alpha.run", Args: asked.Args, Body: "echo hi\n", Plugin: true, TimeoutMs: 60000}, asked)
+	assert.Equal(t, confirmRequest{Title: "Run setup", WorkspaceName: "demo", Command: "alpha.run", Args: asked.Args, Body: "echo hi\n", Plugin: true, TimeoutMs: 60000}, asked)
 	assert.JSONEq(t, `{"sha256":"abc"}`, string(asked.Args))
 	a.reply <- true
 	require.NoError(t, <-done)

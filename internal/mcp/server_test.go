@@ -53,9 +53,9 @@ func manifest(id, commands string) string {
 
 func startCore(t *testing.T) (func(ctx context.Context) (mcp.Core, error), string) {
 	t.Helper()
-	t.Setenv("CLUBMATE_PROJECT_ID", "")
+	t.Setenv("CLUBMATE_WORKSPACE_ID", "")
 	h := testutil.NewHarness(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDirAs(t,
 		manifest("alpha", `{"id":"alpha.say","title":"Open","agent":true,"provides":["editor.open"],"args":{"properties":{"path":{"type":"string"}}}},{"id":"alpha.secret","title":"Secret","hidden":true},{"id":"alpha.ws","title":"Ws","agent":true,"args":{"properties":{"workspace":{"type":"string"}}}}`),
@@ -73,9 +73,9 @@ func noCore(context.Context) (mcp.Core, error) {
 	return nil, mcp.ErrNoCore
 }
 
-func start(t *testing.T, dial func(ctx context.Context) (mcp.Core, error), project string) *peer {
+func start(t *testing.T, dial func(ctx context.Context) (mcp.Core, error), workspace string) *peer {
 	t.Helper()
-	return startServer(t, &mcp.Server{Dial: dial, Version: "test", Project: project, Log: io.Discard})
+	return startServer(t, &mcp.Server{Dial: dial, Version: "test", Workspace: workspace, Log: io.Discard})
 }
 
 func startServer(t *testing.T, srv *mcp.Server) *peer {
@@ -147,7 +147,7 @@ func names(r reply) []string {
 }
 
 func TestMCPHandshakeAndTools(t *testing.T) {
-	dial, project := startCore(t)
+	dial, workspace := startCore(t)
 	p := start(t, dial, "prj_0123456789abcdef")
 	init := p.call(t, 1, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "test", "version": "1"}})
 	assert.Equal(t, "2025-06-18", init.Result.ProtocolVersion)
@@ -164,7 +164,7 @@ func TestMCPHandshakeAndTools(t *testing.T) {
 	}
 	assert.Equal(t, [2]bool{true, false}, hints["workspace_list"])
 	assert.Equal(t, [2]bool{false, true}, hints["terminals_close"])
-	opened := p.call(t, 4, "tools/call", map[string]any{"name": "editor_open", "arguments": map[string]any{"path": "/x.go", "workspace": project}})
+	opened := p.call(t, 4, "tools/call", map[string]any{"name": "editor_open", "arguments": map[string]any{"path": "/x.go", "workspace": workspace}})
 	require.False(t, opened.Result.IsError, opened.Result.Content)
 	assert.JSONEq(t, `{"plugin":"alpha","args":{"path":"/x.go"}}`, opened.Result.Content[0].Text)
 	res := p.call(t, 3, "tools/call", map[string]any{"name": "workspace_list", "arguments": map[string]any{}})
@@ -175,8 +175,8 @@ func TestMCPHandshakeAndTools(t *testing.T) {
 }
 
 func TestToolCallForwardsCaller(t *testing.T) {
-	dial, project := startCore(t)
-	args := map[string]any{"path": "/x.go", "workspace": project}
+	dial, workspace := startCore(t)
+	args := map[string]any{"path": "/x.go", "workspace": workspace}
 	withCaller := startServer(t, &mcp.Server{Dial: dial, Version: "test", Log: io.Discard, Caller: "agt_x"})
 	res := withCaller.call(t, 1, "tools/call", map[string]any{"name": "editor_open", "arguments": args})
 	require.False(t, res.Result.IsError, res.Result.Content)

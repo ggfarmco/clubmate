@@ -26,7 +26,7 @@ func TestMatches(t *testing.T) {
 		{"other topic", tr, "agents.changed", `{"workspace":"ws1","session":"agt_1","status":"done"}`, false},
 		{"prefix", prefix, "event.build.done", `{"workspace":"ws1"}`, true},
 		{"other workspace", prefix, "event.x", `{"workspace":"ws2"}`, false},
-		{"nested workspace", prefix, "event.x", `{"project":{"id":"ws2"}}`, false},
+		{"nested workspace", prefix, "event.x", `{"workspace":{"id":"ws2"}}`, false},
 		{"no workspace", prefix, "event.x", `{}`, false},
 	}
 	for _, tt := range tests {

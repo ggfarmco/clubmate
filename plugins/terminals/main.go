@@ -53,18 +53,18 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	projects, err := h.ListProjects(ctx)
+	workspaces, err := h.ListWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, p := range projects {
+	for _, p := range workspaces {
 		if err := a.render(ctx, h, p.ID); err != nil {
 			return err
 		}
 	}
-	if _, err := h.Subscribe(ctx, "project.*", ready.Seq); err != nil {
+	if _, err := h.Subscribe(ctx, "workspace.*", ready.Seq); err != nil {
 		return err
 	}
 	_, err = h.Subscribe(ctx, "session.*", ready.Seq)
@@ -77,11 +77,11 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if err := a.act(ctx, h, ev); err != nil {
 		return nil, err
 	}
-	if err := a.render(ctx, h, ev.ProjectID); err != nil {
+	if err := a.render(ctx, h, ev.WorkspaceID); err != nil {
 		return nil, err
 	}
 	if ev.Action == "new" {
-		return nil, h.Focus(ctx, ev.ProjectID, sectionID, mainSlot)
+		return nil, h.Focus(ctx, ev.WorkspaceID, sectionID, mainSlot)
 	}
 	return nil, nil
 }
@@ -92,7 +92,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("terminals.busy args: %w", err)
 		}
-		return busy(ctx, h, cmd.ProjectID, args.SessionID)
+		return busy(ctx, h, cmd.WorkspaceID, args.SessionID)
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -104,7 +104,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 				return nil, fmt.Errorf("terminals.new args: %w", err)
 			}
 		}
-		if err := a.create(ctx, h, cmd.ProjectID, args.Cwd); err != nil {
+		if err := a.create(ctx, h, cmd.WorkspaceID, args.Cwd); err != nil {
 			return nil, err
 		}
 	case "terminals.close":
@@ -112,17 +112,17 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("terminals.close args: %w", err)
 		}
-		if err := a.closeSession(ctx, h, cmd.ProjectID, args.SessionID); err != nil {
+		if err := a.closeSession(ctx, h, cmd.WorkspaceID, args.SessionID); err != nil {
 			return nil, err
 		}
 	default:
 		return nil, fmt.Errorf("%w: command %q", errUnknownAction, cmd.ID)
 	}
-	if err := a.render(ctx, h, cmd.ProjectID); err != nil {
+	if err := a.render(ctx, h, cmd.WorkspaceID); err != nil {
 		return nil, err
 	}
 	if cmd.ID == "terminals.new" {
-		return nil, h.Focus(ctx, cmd.ProjectID, sectionID, mainSlot)
+		return nil, h.Focus(ctx, cmd.WorkspaceID, sectionID, mainSlot)
 	}
 	return nil, nil
 }
@@ -130,25 +130,25 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	projectID, err := a.eventProject(ev)
+	workspaceID, err := a.eventWorkspace(ev)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "terminals:", ev.Topic, err)
 		return
 	}
-	if projectID == "" {
+	if workspaceID == "" {
 		return
 	}
-	if err := a.render(ctx, h, projectID); err != nil {
+	if err := a.render(ctx, h, workspaceID); err != nil {
 		fmt.Fprintln(os.Stderr, "terminals: render:", err)
 	}
 }
 
-func (a *app) eventProject(ev pluginsdk.Event) (string, error) {
+func (a *app) eventWorkspace(ev pluginsdk.Event) (string, error) {
 	switch ev.Topic {
-	case contract.TopicProjectCreated:
-		var created contract.ProjectChanged
+	case contract.TopicWorkspaceCreated:
+		var created contract.WorkspaceChanged
 		err := json.Unmarshal(ev.Payload, &created)
-		return created.Project.ID, err
+		return created.Workspace, err
 	case contract.TopicSessionExited:
 		var exited contract.SessionExited
 		if err := json.Unmarshal(ev.Payload, &exited); err != nil {
@@ -157,7 +157,7 @@ func (a *app) eventProject(ev pluginsdk.Event) (string, error) {
 		if exited.Owner != "terminals" {
 			return "", nil
 		}
-		return exited.ProjectID, nil
+		return exited.Workspace, nil
 	case contract.TopicSessionKilled, contract.TopicSessionRemoved:
 		var gone contract.SessionGone
 		err := json.Unmarshal(ev.Payload, &gone)
@@ -169,39 +169,39 @@ func (a *app) eventProject(ev pluginsdk.Event) (string, error) {
 func (a *app) act(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) error {
 	switch ev.Action {
 	case "new":
-		return a.create(ctx, h, ev.ProjectID, "")
+		return a.create(ctx, h, ev.WorkspaceID, "")
 	case "select":
 		var id string
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
 			return fmt.Errorf("select value: %w", err)
 		}
-		return h.StorageSet(ctx, selectedKey(ev.ProjectID), id)
+		return h.StorageSet(ctx, selectedKey(ev.WorkspaceID), id)
 	case "restart":
-		return a.restart(ctx, h, ev.ProjectID)
+		return a.restart(ctx, h, ev.WorkspaceID)
 	case "close":
-		selected, err := a.selected(ctx, h, ev.ProjectID)
+		selected, err := a.selected(ctx, h, ev.WorkspaceID)
 		if err != nil {
 			return err
 		}
-		return a.closeSession(ctx, h, ev.ProjectID, selected)
+		return a.closeSession(ctx, h, ev.WorkspaceID, selected)
 	}
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
-func (a *app) create(ctx context.Context, h *pluginsdk.Host, projectID, cwd string) error {
-	sessions, err := h.ListSessions(ctx, projectID, true)
+func (a *app) create(ctx context.Context, h *pluginsdk.Host, workspaceID, cwd string) error {
+	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return err
 	}
-	return a.spawn(ctx, h, projectID, titlePrefix+strconv.Itoa(maxNumber(sessions)+1), cwd)
+	return a.spawn(ctx, h, workspaceID, titlePrefix+strconv.Itoa(maxNumber(sessions)+1), cwd)
 }
 
-func (a *app) restart(ctx context.Context, h *pluginsdk.Host, projectID string) error {
-	selected, err := a.selected(ctx, h, projectID)
+func (a *app) restart(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {
+	selected, err := a.selected(ctx, h, workspaceID)
 	if err != nil {
 		return err
 	}
-	sessions, err := h.ListSessions(ctx, projectID, true)
+	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return err
 	}
@@ -209,14 +209,14 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, projectID string) 
 	if idx < 0 || sessions[idx].State == contract.SessionStateRunning {
 		return nil
 	}
-	if err := a.spawn(ctx, h, projectID, sessions[idx].Title, sessions[idx].Cwd); err != nil {
+	if err := a.spawn(ctx, h, workspaceID, sessions[idx].Title, sessions[idx].Cwd); err != nil {
 		return err
 	}
 	return a.removeSession(ctx, h, sessions[idx])
 }
 
-func (a *app) closeSession(ctx context.Context, h *pluginsdk.Host, projectID, id string) error {
-	sessions, err := h.ListSessions(ctx, projectID, true)
+func (a *app) closeSession(ctx context.Context, h *pluginsdk.Host, workspaceID, id string) error {
+	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (a *app) closeSession(ctx context.Context, h *pluginsdk.Host, projectID, id
 	if err := a.removeSession(ctx, h, sessions[idx]); err != nil {
 		return err
 	}
-	selected, err := a.selected(ctx, h, projectID)
+	selected, err := a.selected(ctx, h, workspaceID)
 	if err != nil || selected != id {
 		return err
 	}
@@ -236,7 +236,7 @@ func (a *app) closeSession(ctx context.Context, h *pluginsdk.Host, projectID, id
 	if len(rest) > 0 {
 		next = rest[0].ID
 	}
-	return h.StorageSet(ctx, selectedKey(projectID), next)
+	return h.StorageSet(ctx, selectedKey(workspaceID), next)
 }
 
 func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.Session) error {
@@ -248,8 +248,8 @@ func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.
 	return h.RemoveSession(ctx, s.ID)
 }
 
-func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, projectID, title, cwd string) error {
-	req := pluginsdk.SessionRequest{ProjectID: projectID, Title: title, Command: []string{shell(), "-l"}, Cwd: cwd}
+func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, workspaceID, title, cwd string) error {
+	req := pluginsdk.SessionRequest{WorkspaceID: workspaceID, Title: title, Command: []string{shell(), "-l"}, Cwd: cwd}
 	if tools := pluginsdk.ToolsDir(); tools != "" {
 		req.PathAppend = []string{tools}
 	}
@@ -257,53 +257,53 @@ func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, projectID, title, cw
 	if err != nil {
 		return err
 	}
-	a.known[s.ID] = projectID
-	return h.StorageSet(ctx, selectedKey(projectID), s.ID)
+	a.known[s.ID] = workspaceID
+	return h.StorageSet(ctx, selectedKey(workspaceID), s.ID)
 }
 
-func (a *app) render(ctx context.Context, h *pluginsdk.Host, projectID string) error {
-	sessions, err := h.ListSessions(ctx, projectID, true)
+func (a *app) render(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {
+	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return err
 	}
-	selected, err := a.selected(ctx, h, projectID)
+	selected, err := a.selected(ctx, h, workspaceID)
 	if err != nil {
 		return err
 	}
 	terminals := make([]terminal, 0, len(sessions))
 	for _, s := range sessions {
-		a.known[s.ID] = projectID
+		a.known[s.ID] = workspaceID
 		terminals = append(terminals, terminal{ID: s.ID, Title: s.Title, State: s.State, ExitCode: s.ExitCode})
 	}
 	resolved := resolveSelection(terminals, selected)
 	if resolved != selected {
-		if err := a.persistSelection(ctx, h, projectID, resolved); err != nil {
+		if err := a.persistSelection(ctx, h, workspaceID, resolved); err != nil {
 			return err
 		}
 		selected = resolved
 	}
-	if _, err := h.Render(ctx, projectID, sidebarSlot, sidebarView(terminals, selected)); err != nil {
+	if _, err := h.Render(ctx, workspaceID, sidebarSlot, sidebarView(terminals, selected)); err != nil {
 		return err
 	}
-	_, err = h.Render(ctx, projectID, mainSlot, mainView(terminals, selected))
+	_, err = h.Render(ctx, workspaceID, mainSlot, mainView(terminals, selected))
 	return err
 }
 
-func (a *app) persistSelection(ctx context.Context, h *pluginsdk.Host, projectID, id string) error {
+func (a *app) persistSelection(ctx context.Context, h *pluginsdk.Host, workspaceID, id string) error {
 	if id == "" {
-		return h.StorageDelete(ctx, selectedKey(projectID))
+		return h.StorageDelete(ctx, selectedKey(workspaceID))
 	}
-	return h.StorageSet(ctx, selectedKey(projectID), id)
+	return h.StorageSet(ctx, selectedKey(workspaceID), id)
 }
 
-func (a *app) selected(ctx context.Context, h *pluginsdk.Host, projectID string) (string, error) {
+func (a *app) selected(ctx context.Context, h *pluginsdk.Host, workspaceID string) (string, error) {
 	var id string
-	_, err := h.StorageGet(ctx, selectedKey(projectID), &id)
+	_, err := h.StorageGet(ctx, selectedKey(workspaceID), &id)
 	return id, err
 }
 
-func busy(ctx context.Context, h *pluginsdk.Host, projectID, id string) (busyResult, error) {
-	sessions, err := h.ListSessions(ctx, projectID, true)
+func busy(ctx context.Context, h *pluginsdk.Host, workspaceID, id string) (busyResult, error) {
+	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return busyResult{}, err
 	}
@@ -311,7 +311,7 @@ func busy(ctx context.Context, h *pluginsdk.Host, projectID, id string) (busyRes
 	if idx < 0 || sessions[idx].State != contract.SessionStateRunning || sessions[idx].ChildPID <= 0 {
 		return busyResult{}, nil
 	}
-	nodes, err := h.ProcessTree(ctx, projectID, id)
+	nodes, err := h.ProcessTree(ctx, workspaceID, id)
 	if err != nil {
 		return busyResult{}, err
 	}
@@ -365,6 +365,6 @@ func shell() string {
 	return defaultShell
 }
 
-func selectedKey(projectID string) string {
-	return "selected/" + projectID
+func selectedKey(workspaceID string) string {
+	return "selected/" + workspaceID
 }

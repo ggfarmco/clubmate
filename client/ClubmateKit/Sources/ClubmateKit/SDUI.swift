@@ -23,7 +23,7 @@ public struct SDUINode: Codable, Sendable, Equatable {
 }
 
 public struct SlotView: Codable, Sendable, Equatable {
-    public let projectId: String
+    public let workspaceId: String
     public let slot: String
     public let owner: String
     public let rev: Int64
@@ -55,7 +55,7 @@ public struct SectionInfo: Codable, Sendable, Equatable {
     }
 }
 
-public struct Project: Codable, Sendable, Equatable {
+public struct Workspace: Codable, Sendable, Equatable {
     public let id: String
     public let name: String
     public let repos: [String]
@@ -77,12 +77,12 @@ public struct Project: Codable, Sendable, Equatable {
         lastOpenedAt = try container.decodeIfPresent(Date.self, forKey: .lastOpenedAt)
     }
 
-    public static func recents(_ projects: [Project], hiddenBefore cutoff: Date? = nil) -> [Project] {
-        projects
-            .filter { project in
-                guard !project.home else { return false }
+    public static func recents(_ workspaces: [Workspace], hiddenBefore cutoff: Date? = nil) -> [Workspace] {
+        workspaces
+            .filter { workspace in
+                guard !workspace.home else { return false }
                 guard let cutoff else { return true }
-                return project.lastOpenedAt.map { $0 > cutoff } ?? false
+                return workspace.lastOpenedAt.map { $0 > cutoff } ?? false
             }
             .sorted { ($0.lastOpenedAt ?? .distantPast, $0.createdAt) > ($1.lastOpenedAt ?? .distantPast, $1.createdAt) }
     }
@@ -108,14 +108,14 @@ public struct Command: Codable, Sendable, Equatable {
 }
 
 public struct UIEvent: Codable, Sendable, Equatable {
-    public let projectId: String
+    public let workspaceId: String
     public let slot: String
     public let nodeId: String
     public let action: String
     public let value: JSONValue
 
-    public init(projectId: String, slot: String, nodeId: String, action: String, value: JSONValue = .null) {
-        self.projectId = projectId
+    public init(workspaceId: String, slot: String, nodeId: String, action: String, value: JSONValue = .null) {
+        self.workspaceId = workspaceId
         self.slot = slot
         self.nodeId = nodeId
         self.action = action

@@ -15,7 +15,7 @@ import (
 
 func TestAutoKillToggle(t *testing.T) {
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/processes", "plugins/processes/plugin.json"))
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	orphan := testutil.StartOrphanSession(t, h.Svc, p.ID)
 	h.WaitSlot(t, p.ID, "processes.main", func(n sdui.Node) bool { return n.Type == "stack" })
 	h.Event(t, p.ID, "processes.main", "autokill", "autokill", true)
@@ -28,12 +28,12 @@ func TestAutoKillToggle(t *testing.T) {
 
 func TestMainRendersOnlyWhileVisible(t *testing.T) {
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/processes", "plugins/processes/plugin.json"))
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
 	slotRev := func(slot string) int64 {
 		var views []internalsdui.SlotView
-		require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &views))
+		require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": p.ID}, &views))
 		for _, v := range views {
 			if v.Slot == slot {
 				return v.Rev
@@ -43,7 +43,7 @@ func TestMainRendersOnlyWhileVisible(t *testing.T) {
 	}
 	rev := func() int64 { return slotRev("processes.main") }
 	section := func(id string) {
-		require.NoError(t, c.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]string{"section": id}}, nil))
+		require.NoError(t, c.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]string{"section": id}}, nil))
 	}
 	h.WaitSlot(t, p.ID, "processes.main", func(n sdui.Node) bool { return n.Type == "stack" })
 	sidebar := slotRev("processes.sidebar")

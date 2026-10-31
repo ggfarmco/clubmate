@@ -25,15 +25,15 @@ var (
 
 type opFunc func(ctx context.Context, note func(string)) (string, error)
 
-type prepareFunc func(ctx context.Context, h *pluginsdk.Host, projectID string, args worktreeArgs) (opFunc, error)
+type prepareFunc func(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error)
 
 type operation struct {
-	id      string
-	project string
-	done    chan struct{}
-	path    string
-	notice  string
-	err     error
+	id        string
+	workspace string
+	done      chan struct{}
+	path      string
+	notice    string
+	err       error
 }
 
 type opTable struct {
@@ -46,31 +46,31 @@ func (a *app) startOp(ctx context.Context, c call, prepare prepareFunc) (opStart
 	if !c.state.claim() {
 		return opStarted{}, errOpBusy
 	}
-	run, err := prepare(ctx, c.h, c.projectID, c.args)
+	run, err := prepare(ctx, c.h, c.workspaceID, c.args)
 	if err != nil {
 		c.state.release()
 		return opStarted{}, err
 	}
-	o := a.ops.add(c.projectID)
+	o := a.ops.add(c.workspaceID)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutateTimeout)
 		defer cancel()
 		path, err := run(ctx, func(text string) { o.notice = text })
 		c.state.release()
 		o.finish(path, err)
-		a.schedule(c.h, c.projectID, c.state, 0)
+		a.schedule(c.h, c.workspaceID, c.state, 0)
 	}()
 	return opStarted{ID: o.id}, nil
 }
 
-func (t *opTable) add(projectID string) *operation {
+func (t *opTable) add(workspaceID string) *operation {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.byID == nil {
 		t.byID = map[string]*operation{}
 	}
 	opID := id.New(opPrefix)
-	o := &operation{id: opID, project: projectID, done: make(chan struct{})}
+	o := &operation{id: opID, workspace: workspaceID, done: make(chan struct{})}
 	t.byID[opID] = o
 	t.order = append(t.order, opID)
 	for i := 0; len(t.order) > keptOps && i < len(t.order); {
@@ -86,11 +86,11 @@ func (t *opTable) add(projectID string) *operation {
 	return o
 }
 
-func (t *opTable) status(ctx context.Context, projectID, id string) (opStatus, error) {
+func (t *opTable) status(ctx context.Context, workspaceID, id string) (opStatus, error) {
 	t.mu.Lock()
 	o := t.byID[id]
 	t.mu.Unlock()
-	if o == nil || o.project != projectID {
+	if o == nil || o.workspace != workspaceID {
 		return opStatus{}, fmt.Errorf("%w: %q", errUnknownOp, id)
 	}
 	timer := time.NewTimer(opPollWait)

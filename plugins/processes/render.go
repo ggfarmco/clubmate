@@ -10,13 +10,13 @@ import (
 )
 
 type group struct {
-	ID        string
-	ProjectID string
-	Title     string
-	Owner     string
+	ID          string
+	WorkspaceID string
+	Title       string
+	Owner       string
 }
 
-type projectProcesses struct {
+type workspaceProcesses struct {
 	sessions []group
 	nodes    []pluginsdk.ProcessNode
 }
@@ -40,12 +40,12 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 	a.renderMu.Lock()
 	a.hist.record(sessions, nodes, time.Now())
 	a.renderMu.Unlock()
-	byProject := splitByProject(sessions, nodes)
+	byWorkspace := splitByWorkspace(sessions, nodes)
 	for _, id := range ids {
 		if !a.visible(id) {
 			continue
 		}
-		p := byProject[id]
+		p := byWorkspace[id]
 		logError("render "+id, a.show(ctx, h, id, p.sessions, p.nodes))
 	}
 }
@@ -56,7 +56,7 @@ func (a *app) renderLogged(ctx context.Context, h *pluginsdk.Host, id string) {
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
 	_, err := a.state(ctx, h, id)
-	if errors.Is(err, errProjectDeleted) {
+	if errors.Is(err, errWorkspaceDeleted) {
 		return nil
 	}
 	if err != nil {
@@ -77,7 +77,7 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	a.renderMu.Lock()
 	defer a.renderMu.Unlock()
 	st, err := a.state(ctx, h, id)
-	if errors.Is(err, errProjectDeleted) {
+	if errors.Is(err, errWorkspaceDeleted) {
 		return nil
 	}
 	if err != nil {
@@ -90,7 +90,7 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 		}
 		snap = a.snapshot(st)
 	}
-	scope, totalKey, shown := "All", projectKey(id), nodes
+	scope, totalKey, shown := "All", workspaceKey(id), nodes
 	if i := slices.IndexFunc(sessions, func(s group) bool { return s.ID == snap.session }); i >= 0 {
 		scope, totalKey = sessions[i].Title, sessionKey(snap.session)
 		shown = slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return n.SessionID != snap.session })
@@ -119,7 +119,7 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	return err
 }
 
-func (a *app) showSidebar(ctx context.Context, h *pluginsdk.Host, id string, st *projectState, sent *sidebarInputs, sessions []group, selected string) error {
+func (a *app) showSidebar(ctx context.Context, h *pluginsdk.Host, id string, st *workspaceState, sent *sidebarInputs, sessions []group, selected string) error {
 	if sent != nil && sent.selected == selected && slices.Equal(sent.sessions, sessions) {
 		return nil
 	}
@@ -132,7 +132,7 @@ func (a *app) showSidebar(ctx context.Context, h *pluginsdk.Host, id string, st 
 	return nil
 }
 
-func (a *app) clearSession(ctx context.Context, h *pluginsdk.Host, projectID string, st *projectState, stale string) error {
+func (a *app) clearSession(ctx context.Context, h *pluginsdk.Host, workspaceID string, st *workspaceState, stale string) error {
 	a.mu.Lock()
 	cleared := st.session == stale
 	if cleared {
@@ -142,10 +142,10 @@ func (a *app) clearSession(ctx context.Context, h *pluginsdk.Host, projectID str
 	if !cleared {
 		return nil
 	}
-	return h.StorageDelete(ctx, selectedKey(projectID))
+	return h.StorageDelete(ctx, selectedKey(workspaceID))
 }
 
-func (a *app) forgetGone(st *projectState, snap *projectState, nodes, shown []pluginsdk.ProcessNode) {
+func (a *app) forgetGone(st *workspaceState, snap *workspaceState, nodes, shown []pluginsdk.ProcessNode) {
 	alive := make(map[int]bool, len(nodes))
 	for _, n := range nodes {
 		alive[n.Process.PID] = true
@@ -167,35 +167,35 @@ func (a *app) forgetGone(st *projectState, snap *projectState, nodes, shown []pl
 	}
 }
 
-func listGroups(ctx context.Context, h *pluginsdk.Host, projectID string) ([]group, error) {
-	sessions, err := h.ListSessions(ctx, projectID, false)
+func listGroups(ctx context.Context, h *pluginsdk.Host, workspaceID string) ([]group, error) {
+	sessions, err := h.ListSessions(ctx, workspaceID, false)
 	if err != nil {
 		return nil, err
 	}
-	roots, err := h.ProcessRoots(ctx, projectID)
+	roots, err := h.ProcessRoots(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]group, 0, len(sessions)+len(roots))
 	for _, s := range sessions {
-		out = append(out, group{ID: s.ID, ProjectID: s.ProjectID, Title: s.Title, Owner: s.Owner})
+		out = append(out, group{ID: s.ID, WorkspaceID: s.WorkspaceID, Title: s.Title, Owner: s.Owner})
 	}
 	for _, r := range roots {
-		out = append(out, group{ID: r.ID, ProjectID: r.ProjectID, Title: r.Label, Owner: r.Owner})
+		out = append(out, group{ID: r.ID, WorkspaceID: r.WorkspaceID, Title: r.Label, Owner: r.Owner})
 	}
 	return out, nil
 }
 
-func splitByProject(sessions []group, nodes []pluginsdk.ProcessNode) map[string]projectProcesses {
-	out := make(map[string]projectProcesses)
+func splitByWorkspace(sessions []group, nodes []pluginsdk.ProcessNode) map[string]workspaceProcesses {
+	out := make(map[string]workspaceProcesses)
 	for _, s := range sessions {
-		p := out[s.ProjectID]
+		p := out[s.WorkspaceID]
 		p.sessions = append(p.sessions, s)
-		out[s.ProjectID] = p
+		out[s.WorkspaceID] = p
 	}
-	projectOf := sessionProjects(sessions)
+	workspaceOf := sessionWorkspaces(sessions)
 	for _, n := range nodes {
-		id, ok := projectOf[n.SessionID]
+		id, ok := workspaceOf[n.SessionID]
 		if !ok {
 			continue
 		}
@@ -206,10 +206,10 @@ func splitByProject(sessions []group, nodes []pluginsdk.ProcessNode) map[string]
 	return out
 }
 
-func sessionProjects(sessions []group) map[string]string {
-	projectOf := make(map[string]string, len(sessions))
+func sessionWorkspaces(sessions []group) map[string]string {
+	workspaceOf := make(map[string]string, len(sessions))
 	for _, s := range sessions {
-		projectOf[s.ID] = s.ProjectID
+		workspaceOf[s.ID] = s.WorkspaceID
 	}
-	return projectOf
+	return workspaceOf
 }

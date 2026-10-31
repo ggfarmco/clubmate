@@ -13,15 +13,15 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-const prj = "prj_0123456789abcdef"
+const ws = "prj_0123456789abcdef"
 
 func TestStoreKeepsPreviousTreeOnInvalidRender(t *testing.T) {
 	s := internalsdui.NewStore()
-	rev, err := s.Render(t.Context(), prj, "terminals.main", "terminals", sdui.Empty("none"))
+	rev, err := s.Render(t.Context(), ws, "terminals.main", "terminals", sdui.Empty("none"))
 	require.NoError(t, err)
-	_, err = s.Render(t.Context(), prj, "terminals.main", "terminals", sdui.Node{Type: "marquee"})
+	_, err = s.Render(t.Context(), ws, "terminals.main", "terminals", sdui.Node{Type: "marquee"})
 	require.ErrorIs(t, err, internalsdui.ErrInvalidTree)
-	views := s.Get(prj)
+	views := s.Get(ws)
 	require.Len(t, views, 1)
 	assert.Equal(t, rev, views[0].Rev)
 	assert.Equal(t, "empty", node(t, views[0]).Type)
@@ -31,18 +31,18 @@ func TestStoreRejectsRenderFromCancelledCaller(t *testing.T) {
 	s := internalsdui.NewStore()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, err := s.Render(ctx, prj, "a.main", "a", sdui.Empty("late"))
+	_, err := s.Render(ctx, ws, "a.main", "a", sdui.Empty("late"))
 	require.ErrorIs(t, err, context.Canceled)
-	assert.Empty(t, s.Get(prj))
+	assert.Empty(t, s.Get(ws))
 }
 
 func TestStoreRevPerSlotAndSortedGet(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(t.Context(), prj, "b.main", "b", sdui.Empty("1"))
-	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("1"))
-	rev, _ := s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("2"))
+	_, _ = s.Render(t.Context(), ws, "b.main", "b", sdui.Empty("1"))
+	_, _ = s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("1"))
+	rev, _ := s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("2"))
 	assert.EqualValues(t, 2, rev)
-	views := s.Get(prj)
+	views := s.Get(ws)
 	require.Len(t, views, 2)
 	assert.Equal(t, []string{"a.main", "b.main"}, []string{views[0].Slot, views[1].Slot})
 	assert.Equal(t, []internalsdui.SlotView{}, s.Get("prj_other"))
@@ -50,13 +50,13 @@ func TestStoreRevPerSlotAndSortedGet(t *testing.T) {
 
 func TestSubscribeDeliversCurrentThenUpdates(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("old"))
+	_, _ = s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("old"))
 	_, _ = s.Render(t.Context(), "prj_other", "a.main", "a", sdui.Empty("other"))
-	sub, err := s.Subscribe(prj)
+	sub, err := s.Subscribe(ws)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
 	assert.Equal(t, "old", node(t, recv(t, sub)).Props["text"])
-	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("new"))
+	_, _ = s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("new"))
 	got := recv(t, sub)
 	assert.Equal(t, "new", node(t, got).Props["text"])
 	assert.EqualValues(t, 2, got.Rev)
@@ -64,10 +64,10 @@ func TestSubscribeDeliversCurrentThenUpdates(t *testing.T) {
 
 func TestClearOwnerRemovesSlotsAndNotifies(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
+	_, _ = s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("x"))
 	_, _ = s.Render(t.Context(), "prj_other", "a.sidebar", "a", sdui.Empty("x"))
-	_, _ = s.Render(t.Context(), prj, "b.main", "b", sdui.Empty("x"))
-	sub, _ := s.Subscribe(prj)
+	_, _ = s.Render(t.Context(), ws, "b.main", "b", sdui.Empty("x"))
+	sub, _ := s.Subscribe(ws)
 	t.Cleanup(sub.Close)
 	require.Len(t, recvAll(t, sub), 2)
 	s.ClearOwner("a")
@@ -75,40 +75,40 @@ func TestClearOwnerRemovesSlotsAndNotifies(t *testing.T) {
 	assert.Equal(t, "a.main", got.Slot)
 	assert.EqualValues(t, 2, got.Rev)
 	assert.Equal(t, sdui.Empty(""), node(t, got))
-	assert.Len(t, s.Get(prj), 1)
+	assert.Len(t, s.Get(ws), 1)
 	assert.Empty(t, s.Get("prj_other"))
 }
 
-func TestDropProjectRemovesSlotsAndNotifies(t *testing.T) {
+func TestDropWorkspaceRemovesSlotsAndNotifies(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
+	_, _ = s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("x"))
 	_, _ = s.Render(t.Context(), "prj_other", "a.main", "a", sdui.Empty("x"))
-	sub, _ := s.Subscribe(prj)
+	sub, _ := s.Subscribe(ws)
 	t.Cleanup(sub.Close)
 	recv(t, sub)
-	s.DropProject(prj)
+	s.DropWorkspace(ws)
 	got := recv(t, sub)
 	assert.Equal(t, "a.main", got.Slot)
 	assert.EqualValues(t, 2, got.Rev)
 	assert.Equal(t, sdui.Empty(""), node(t, got))
-	assert.Empty(t, s.Get(prj))
+	assert.Empty(t, s.Get(ws))
 	assert.Len(t, s.Get("prj_other"), 1)
 }
 
 func TestRenderAfterDropRejected(t *testing.T) {
 	s := internalsdui.NewStore()
-	s.DropProject(prj)
-	_, err := s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
-	assert.ErrorIs(t, err, internalsdui.ErrUnknownProject)
+	s.DropWorkspace(ws)
+	_, err := s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("x"))
+	assert.ErrorIs(t, err, internalsdui.ErrUnknownWorkspace)
 }
 
 func TestUndrainedSubscriberKeepsLatestViewPerSlot(t *testing.T) {
 	s := internalsdui.NewStore()
-	sub, _ := s.Subscribe(prj)
+	sub, _ := s.Subscribe(ws)
 	t.Cleanup(sub.Close)
 	for i := range 200 {
-		_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty(strconv.Itoa(i)))
-		_, _ = s.Render(t.Context(), prj, "a.sidebar", "a", sdui.Empty(strconv.Itoa(i)))
+		_, _ = s.Render(t.Context(), ws, "a.main", "a", sdui.Empty(strconv.Itoa(i)))
+		_, _ = s.Render(t.Context(), ws, "a.sidebar", "a", sdui.Empty(strconv.Itoa(i)))
 	}
 	views := recvAll(t, sub)
 	require.Len(t, views, 2)
@@ -119,8 +119,8 @@ func TestUndrainedSubscriberKeepsLatestViewPerSlot(t *testing.T) {
 
 func TestCloseIsIdempotentAndEndsSubscription(t *testing.T) {
 	s := internalsdui.NewStore()
-	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
-	sub, _ := s.Subscribe(prj)
+	_, _ = s.Render(t.Context(), ws, "a.main", "a", sdui.Empty("x"))
+	sub, _ := s.Subscribe(ws)
 	sub.Close()
 	sub.Close()
 	for range sub.Ready() {

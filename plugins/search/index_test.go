@@ -93,7 +93,7 @@ func TestHomeWorkspaceRefused(t *testing.T) {
 	home, err := h.Svc.HomeWorkspace(t.Context())
 	require.NoError(t, err)
 
-	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.files", "projectId": home.ID, "args": map[string]any{"query": "a"}}, nil)
+	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.files", "workspaceId": home.ID, "args": map[string]any{"query": "a"}}, nil)
 
 	assert.ErrorContains(t, err, "search unavailable in the home workspace")
 }
@@ -101,7 +101,7 @@ func TestHomeWorkspaceRefused(t *testing.T) {
 func start(t *testing.T, folders ...string) (*testutil.PluginHarness, string) {
 	t.Helper()
 	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/search", "plugins/search/plugin.json"))
-	p, err := h.Svc.CreateProject(t.Context(), "demo", folders)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", folders)
 	require.NoError(t, err)
 	testutil.Eventually(t, func() bool {
 		_, ok := h.Sup.Conn("search")
@@ -110,10 +110,10 @@ func start(t *testing.T, folders ...string) (*testutil.PluginHarness, string) {
 	return h, p.ID
 }
 
-func searchFiles(t *testing.T, h *testutil.PluginHarness, projectID string, args map[string]any) result {
+func searchFiles(t *testing.T, h *testutil.PluginHarness, workspaceID string, args map[string]any) result {
 	t.Helper()
 	var out result
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.files", "projectId": projectID, "args": args}, &out))
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "search.files", "workspaceId": workspaceID, "args": args}, &out))
 	require.False(t, out.Indexing)
 	return out
 }

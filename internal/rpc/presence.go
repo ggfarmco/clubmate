@@ -27,7 +27,7 @@ type focusTarget struct {
 	gone bool
 }
 
-func (p *presence) addTarget(projectID string, t *focusTarget, sid string) {
+func (p *presence) addTarget(workspaceID string, t *focusTarget, sid string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if t.gone {
@@ -37,56 +37,56 @@ func (p *presence) addTarget(projectID string, t *focusTarget, sid string) {
 	if p.targets == nil {
 		p.targets = map[string]map[*focusTarget]struct{}{}
 	}
-	if p.targets[projectID] == nil {
-		p.targets[projectID] = map[*focusTarget]struct{}{}
+	if p.targets[workspaceID] == nil {
+		p.targets[workspaceID] = map[*focusTarget]struct{}{}
 	}
-	p.targets[projectID][t] = struct{}{}
+	p.targets[workspaceID][t] = struct{}{}
 }
 
-func (p *presence) dropTarget(projectID string, t *focusTarget) {
+func (p *presence) dropTarget(workspaceID string, t *focusTarget) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	t.gone = true
-	delete(p.targets[projectID], t)
-	if len(p.targets[projectID]) == 0 {
-		delete(p.targets, projectID)
+	delete(p.targets[workspaceID], t)
+	if len(p.targets[workspaceID]) == 0 {
+		delete(p.targets, workspaceID)
 	}
 }
 
-func (p *presence) focusTargets(projectID string) []focusTarget {
+func (p *presence) focusTargets(workspaceID string) []focusTarget {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	out := make([]focusTarget, 0, len(p.targets[projectID]))
-	for t := range p.targets[projectID] {
+	out := make([]focusTarget, 0, len(p.targets[workspaceID]))
+	for t := range p.targets[workspaceID] {
 		out = append(out, focusTarget{conn: t.conn, sid: t.sid})
 	}
 	return out
 }
 
-func (p *presence) join(b *bus.Bus, logger *slog.Logger, projectID string) func() {
+func (p *presence) join(b *bus.Bus, logger *slog.Logger, workspaceID string) func() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.counts == nil {
 		p.counts = map[string]int{}
 	}
-	p.counts[projectID]++
-	if p.counts[projectID] == 1 {
-		publishPresence(b, logger, contract.TopicUIOpened, projectID)
+	p.counts[workspaceID]++
+	if p.counts[workspaceID] == 1 {
+		publishPresence(b, logger, contract.TopicUIOpened, workspaceID)
 	}
-	return func() { p.leave(b, logger, projectID) }
+	return func() { p.leave(b, logger, workspaceID) }
 }
 
-func (p *presence) leave(b *bus.Bus, logger *slog.Logger, projectID string) {
+func (p *presence) leave(b *bus.Bus, logger *slog.Logger, workspaceID string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.counts[projectID]--
-	if p.counts[projectID] == 0 {
-		delete(p.counts, projectID)
-		publishPresence(b, logger, contract.TopicUIIdle, projectID)
+	p.counts[workspaceID]--
+	if p.counts[workspaceID] == 0 {
+		delete(p.counts, workspaceID)
+		publishPresence(b, logger, contract.TopicUIIdle, workspaceID)
 	}
 }
 
-func (p *presence) projects() []string {
+func (p *presence) workspaces() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	ids := make([]string, 0, len(p.counts))
@@ -97,11 +97,11 @@ func (p *presence) projects() []string {
 	return ids
 }
 
-func publishPresence(b *bus.Bus, logger *slog.Logger, topic, projectID string) {
+func publishPresence(b *bus.Bus, logger *slog.Logger, topic, workspaceID string) {
 	if b == nil {
 		return
 	}
-	raw, err := json.Marshal(contract.UIPresence{ProjectID: projectID})
+	raw, err := json.Marshal(contract.UIPresence{Workspace: workspaceID})
 	if err != nil {
 		logger.Error("marshal presence event", "topic", topic, "err", err)
 		return

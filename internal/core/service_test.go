@@ -15,10 +15,10 @@ import (
 	"clubmate/internal/core"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
-	"clubmate/internal/project"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 func TestKillSessionKillsDetachedDescendants(t *testing.T) {
@@ -41,15 +41,15 @@ func TestKillOrphansOnlyKeepsSession(t *testing.T) {
 	assert.Equal(t, session.StateRunning, s.State)
 }
 
-func TestKillOrphansScopedToProject(t *testing.T) {
+func TestKillOrphansScopedToWorkspace(t *testing.T) {
 	svc := testutil.NewService(t)
-	a, err := svc.CreateProject(t.Context(), "a", nil)
+	a, err := svc.CreateWorkspace(t.Context(), "a", nil)
 	require.NoError(t, err)
-	b, err := svc.CreateProject(t.Context(), "b", nil)
+	b, err := svc.CreateWorkspace(t.Context(), "b", nil)
 	require.NoError(t, err)
 	orphanA := testutil.StartOrphanSession(t, svc, a.ID)
 	orphanB := testutil.StartOrphanSession(t, svc, b.ID)
-	killed, err := svc.KillProcesses(t.Context(), core.KillRequest{ProjectID: a.ID, OrphansOnly: true})
+	killed, err := svc.KillProcesses(t.Context(), core.KillRequest{WorkspaceID: a.ID, OrphansOnly: true})
 	require.NoError(t, err)
 	assert.Equal(t, []int{orphanA}, killed)
 	testutil.Eventually(t, func() bool { return !testutil.Alive(orphanA) }, 5*time.Second)
@@ -64,13 +64,13 @@ func TestKillProcessesRefusesInvalidRequests(t *testing.T) {
 	assert.ErrorIs(t, err, core.ErrOrphansNeedSession)
 }
 
-func TestDeleteProjectKillsItsSessions(t *testing.T) {
+func TestDeleteWorkspaceKillsItsSessions(t *testing.T) {
 	svc, sess, orphanPID := sessionWithOrphan(t)
-	require.NoError(t, svc.DeleteProject(t.Context(), sess.ProjectID))
+	require.NoError(t, svc.DeleteWorkspace(t.Context(), sess.WorkspaceID))
 	testutil.Eventually(t, func() bool { return !testutil.Alive(orphanPID) }, 5*time.Second)
-	_, err := svc.GetProject(t.Context(), sess.ProjectID)
-	assert.ErrorIs(t, err, project.ErrNotFound)
-	left, err := svc.ListSessions(t.Context(), session.ListFilter{ProjectID: sess.ProjectID})
+	_, err := svc.GetWorkspace(t.Context(), sess.WorkspaceID)
+	assert.ErrorIs(t, err, workspace.ErrNotFound)
+	left, err := svc.ListSessions(t.Context(), session.ListFilter{WorkspaceID: sess.WorkspaceID})
 	require.NoError(t, err)
 	assert.Empty(t, left)
 }
@@ -80,9 +80,9 @@ func TestProcessTreeIgnoresStaleRoots(t *testing.T) {
 	t0 := time.Now().Add(-time.Hour)
 	self, code := os.Getpid(), 0
 	bystander := startBystander(t)
-	writeMeta(t, dirs.SessionMeta("ses_exited"), sessionhost.Meta{ID: "ses_exited", ProjectID: "prj_x", HostPID: 1, ChildPID: 777, PGID: 777, StartedAt: t0, ExitCode: &code})
-	writeMeta(t, dirs.SessionMeta("ses_stale"), sessionhost.Meta{ID: "ses_stale", ProjectID: "prj_x", HostPID: self, ChildPID: 778, PGID: 778, StartedAt: t0.Add(-time.Hour)})
-	writeMeta(t, dirs.SessionMeta("ses_live"), sessionhost.Meta{ID: "ses_live", ProjectID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
+	writeMeta(t, dirs.SessionMeta("ses_exited"), sessionhost.Meta{ID: "ses_exited", WorkspaceID: "prj_x", HostPID: 1, ChildPID: 777, PGID: 777, StartedAt: t0, ExitCode: &code})
+	writeMeta(t, dirs.SessionMeta("ses_stale"), sessionhost.Meta{ID: "ses_stale", WorkspaceID: "prj_x", HostPID: self, ChildPID: 778, PGID: 778, StartedAt: t0.Add(-time.Hour)})
+	writeMeta(t, dirs.SessionMeta("ses_live"), sessionhost.Meta{ID: "ses_live", WorkspaceID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
 	snap := []proc.Process{
 		{PID: self, PPID: 1, PGID: self, Comm: "host", StartTime: t0.Add(-time.Minute)},
 		{PID: 900, PPID: 1, PGID: 777, Comm: "unrelated", StartTime: t0},
@@ -104,8 +104,8 @@ func TestProcessTreeNeverReturnsSessionHosts(t *testing.T) {
 	dirs := testutil.ShortDirs(t)
 	t0 := time.Now().Add(-time.Hour)
 	self := os.Getpid()
-	writeMeta(t, dirs.SessionMeta("ses_outer"), sessionhost.Meta{ID: "ses_outer", ProjectID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
-	writeMeta(t, dirs.SessionMeta("ses_inner"), sessionhost.Meta{ID: "ses_inner", ProjectID: "prj_x", HostPID: 902, ChildPID: 903, PGID: 903, StartedAt: t0})
+	writeMeta(t, dirs.SessionMeta("ses_outer"), sessionhost.Meta{ID: "ses_outer", WorkspaceID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
+	writeMeta(t, dirs.SessionMeta("ses_inner"), sessionhost.Meta{ID: "ses_inner", WorkspaceID: "prj_x", HostPID: 902, ChildPID: 903, PGID: 903, StartedAt: t0})
 	snap := []proc.Process{
 		{PID: self, PPID: 1, PGID: self, Comm: "host", StartTime: t0.Add(-time.Minute)},
 		{PID: 779, PPID: self, PGID: 779, Comm: "child", StartTime: t0},
@@ -121,7 +121,7 @@ func TestProcessTreeOmitsExcludedPIDs(t *testing.T) {
 	t0 := time.Now().Add(-time.Hour)
 	self := os.Getpid()
 	excluded := startBystander(t)
-	writeMeta(t, dirs.SessionMeta("ses_live"), sessionhost.Meta{ID: "ses_live", ProjectID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
+	writeMeta(t, dirs.SessionMeta("ses_live"), sessionhost.Meta{ID: "ses_live", WorkspaceID: "prj_x", HostPID: self, ChildPID: 779, PGID: 779, StartedAt: t0})
 	snap := []proc.Process{
 		{PID: self, PPID: 1, PGID: self, Comm: "host", StartTime: t0.Add(-time.Minute)},
 		{PID: 779, PPID: self, PGID: 779, Comm: "child", StartTime: t0},
@@ -136,18 +136,18 @@ func TestProcessTreeOmitsExcludedPIDs(t *testing.T) {
 	assert.True(t, testutil.Alive(excluded))
 }
 
-func TestCreateSessionRequiresProject(t *testing.T) {
+func TestCreateSessionRequiresWorkspace(t *testing.T) {
 	svc := testutil.NewService(t)
-	_, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: "prj_missing", Command: []string{"true"}})
-	assert.ErrorIs(t, err, project.ErrNotFound)
+	_, err := svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: "prj_missing", Command: []string{"true"}})
+	assert.ErrorIs(t, err, workspace.ErrNotFound)
 }
 
 func TestCreateSessionDefaultsCwdToFirstRepo(t *testing.T) {
 	svc := testutil.NewService(t)
 	repo := t.TempDir()
-	p, err := svc.CreateProject(t.Context(), "p", []string{repo})
+	p, err := svc.CreateWorkspace(t.Context(), "p", []string{repo})
 	require.NoError(t, err)
-	s, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Command: []string{"sh", "-c", "exec cat"}})
+	s, err := svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: p.ID, Command: []string{"sh", "-c", "exec cat"}})
 	require.NoError(t, err)
 	assert.Equal(t, repo, s.Cwd)
 }
@@ -172,9 +172,9 @@ func sessionWithOrphan(t *testing.T) (*core.Service, session.Session, int) {
 	t.Helper()
 	svc := testutil.NewService(t)
 	detachBin := testutil.BuildBinary(t, "clubmate/internal/testutil/detach")
-	p, err := svc.CreateProject(t.Context(), "p", nil)
+	p, err := svc.CreateWorkspace(t.Context(), "p", nil)
 	require.NoError(t, err)
-	sess, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: p.ID, Command: []string{"sh", "-c", detachBin + "; exec cat"}})
+	sess, err := svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: p.ID, Command: []string{"sh", "-c", detachBin + "; exec cat"}})
 	require.NoError(t, err)
 	orphanPID := 0
 	testutil.Eventually(t, func() bool {
@@ -196,7 +196,7 @@ func sessionWithOrphan(t *testing.T) (*core.Service, session.Session, int) {
 
 func fakeService(t *testing.T, dirs paths.Dirs, snap []proc.Process, opts ...core.Option) *core.Service {
 	t.Helper()
-	store, err := project.Open(dirs.DB())
+	store, err := workspace.Open(dirs.DB())
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(func(int) ([]string, error) { return nil, nil }, os.Getpid())

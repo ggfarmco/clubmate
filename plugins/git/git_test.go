@@ -25,6 +25,7 @@ import (
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
@@ -73,9 +74,9 @@ func write(t *testing.T, path, content string) {
 func open(t *testing.T, repo string, dirs ...string) (*testutil.PluginHarness, string) {
 	t.Helper()
 	h := testutil.NewPluginHarness(t, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json")}, dirs...)...)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{repo})
 	require.NoError(t, err)
-	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
 	waitReady(t, h)
 	return h, p.ID
 }
@@ -138,7 +139,7 @@ func committedRepo(t *testing.T) string {
 
 func runCommand(t *testing.T, h *testutil.PluginHarness, id, command string, args, out any) error {
 	t.Helper()
-	return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "projectId": id, "args": args}, out)
+	return h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "workspaceId": id, "args": args}, out)
 }
 
 func listWorktrees(t *testing.T, h *testutil.PluginHarness, id string) []worktreeEntry {
@@ -150,7 +151,7 @@ func listWorktrees(t *testing.T, h *testutil.PluginHarness, id string) []worktre
 
 func firstRoot(t *testing.T, h *testutil.PluginHarness, id string) string {
 	t.Helper()
-	p, err := h.Svc.GetProject(t.Context(), id)
+	p, err := h.Svc.GetWorkspace(t.Context(), id)
 	require.NoError(t, err)
 	return p.Roots[0]
 }
@@ -314,7 +315,7 @@ func TestRemoveWorktreeRefusals(t *testing.T) {
 	write(t, filepath.Join(dirty, "new.go"), "n\n")
 	h, id := open(t, repo, testutil.EchoPluginDirAs(t, stopEditorManifest))
 	shell := func(owner string) sessionEntry {
-		s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: id, Title: owner, Owner: owner, Command: []string{"sh", "-c", "exec cat"}, Cwd: feat})
+		s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: id, Title: owner, Owner: owner, Command: []string{"sh", "-c", "exec cat"}, Cwd: feat})
 		require.NoError(t, err)
 		return sessionEntry{ID: s.ID, Title: s.Title}
 	}
@@ -330,7 +331,7 @@ func TestRemoveWorktreeRefusals(t *testing.T) {
 	assert.Equal(t, "worktree has uncommitted changes", awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": dirty}).Error)
 	assert.DirExists(t, dirty)
 
-	p, err := h.Svc.CreateProject(t.Context(), "feat", []string{feat})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "feat", []string{feat})
 	require.NoError(t, err)
 	_, err = startOp(t, h, p.ID, "git.worktree-remove", map[string]string{"path": feat})
 	assert.ErrorContains(t, err, "cannot remove the checkout of the workspace folder")
@@ -385,7 +386,7 @@ func TestRemovedWorktreeFallsBack(t *testing.T) {
 	h, id := open(t, repo)
 	require.NoError(t, runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil))
 	require.Equal(t, feat, firstRoot(t, h, id))
-	sub, err := h.Bus.Subscribe("project.updated", math.MaxInt64)
+	sub, err := h.Bus.Subscribe("workspace.updated", math.MaxInt64)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
 
@@ -393,17 +394,12 @@ func TestRemovedWorktreeFallsBack(t *testing.T) {
 
 	select {
 	case ev := <-sub.C():
-		var payload struct {
-			Project struct {
-				Roots   []string `json:"roots"`
-				Missing []string `json:"missing"`
-			} `json:"project"`
-		}
+		var payload contract.WorkspaceChanged
 		require.NoError(t, json.Unmarshal(ev.Payload, &payload))
-		assert.Equal(t, []string{repo}, payload.Project.Roots)
-		assert.Equal(t, []string{feat}, payload.Project.Missing)
+		assert.Equal(t, []string{repo}, payload.Info.Roots)
+		assert.Equal(t, []string{feat}, payload.Info.Missing)
 	case <-time.After(10 * time.Second):
-		t.Fatal("no project.updated after the worktree was removed")
+		t.Fatal("no workspace.updated after the worktree was removed")
 	}
 	assert.Equal(t, repo, firstRoot(t, h, id))
 }

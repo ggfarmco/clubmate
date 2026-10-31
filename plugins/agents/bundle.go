@@ -123,7 +123,7 @@ func sessionNotes(ctx context.Context, root string, commits []string) (bool, err
 	return noted, nil
 }
 
-func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, projectID, from string, args importArgs) (importResult, error) {
+func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, workspaceID, from string, args importArgs) (importResult, error) {
 	if !filepath.IsAbs(args.Dir) {
 		return importResult{}, errBundleDir
 	}
@@ -140,23 +140,23 @@ func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, projectID, f
 	if err := json.Unmarshal(raw, &old); err != nil || !api.Valid(old.ID) {
 		return importResult{}, errBadBundle
 	}
-	_, root, err := projectRoot(ctx, h, projectID)
+	_, root, err := workspaceRoot(ctx, h, workspaceID)
 	if err != nil {
 		return importResult{}, err
 	}
-	if parent, err := a.lookup(projectID, from); err == nil {
+	if parent, err := a.lookup(workspaceID, from); err == nil {
 		root = parent.snapshot().Worktree
 	}
 	if err := fetchRefs(ctx, root, filepath.Join(args.Dir, bundleRefs), old.ID); err != nil {
 		return importResult{}, err
 	}
-	res, err := a.newSession(ctx, h, projectID, from, newArgs{Agent: old.Agent, Branch: args.Branch, Title: old.Title})
+	res, err := a.newSession(ctx, h, workspaceID, from, newArgs{Agent: old.Agent, Branch: args.Branch, Title: old.Title})
 	if err != nil {
 		return importResult{}, err
 	}
 	copied := record{
 		ID:        id.New(api.IDPrefix),
-		Workspace: projectID,
+		Workspace: workspaceID,
 		Worktree:  res.Worktree,
 		Agent:     old.Agent,
 		Title:     old.Title,

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 )
@@ -15,12 +16,12 @@ import (
 const changedTopic = "backlog.changed"
 
 type liveness interface {
-	invalidate(projectID string)
+	invalidate(workspaceID string)
 	invalidateAll()
-	drop(projectID string)
-	stale(ctx context.Context, projectID, owner string) bool
-	ancestor(ctx context.Context, projectID, ancestor, owner string) bool
-	title(ctx context.Context, projectID, id string) (string, bool)
+	drop(workspaceID string)
+	stale(ctx context.Context, workspaceID, owner string) bool
+	ancestor(ctx context.Context, workspaceID, ancestor, owner string) bool
+	title(ctx context.Context, workspaceID, id string) (string, bool)
 }
 
 type backlog struct {
@@ -38,10 +39,6 @@ type changedEvent struct {
 	Kind      string `json:"kind"`
 }
 
-type projectDeleted struct {
-	ID string `json:"id"`
-}
-
 func main() {
 	b := &backlog{store: &store{}, ui: map[string]*workspaceUI{}, present: map[string]bool{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: b.init, Command: b.command, BusEvent: b.busEvent, UIEvent: b.uiEvent})
@@ -55,7 +52,7 @@ func (b *backlog) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	if _, err = h.Subscribe(ctx, "project.*", ready.Seq); err != nil {
+	if _, err = h.Subscribe(ctx, "workspace.*", ready.Seq); err != nil {
 		return err
 	}
 	if _, err = h.Subscribe(ctx, "agents.*", ready.Seq); err != nil {
@@ -76,17 +73,17 @@ func (b *backlog) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev 
 		b.presenceEvent(ctx, ev)
 		return
 	}
-	if ev.Topic != "project.deleted" {
+	if ev.Topic != contract.TopicWorkspaceDeleted {
 		return
 	}
-	var p projectDeleted
+	var p contract.WorkspaceDeleted
 	if err := json.Unmarshal(ev.Payload, &p); err != nil {
 		logError(ev.Topic, err)
 		return
 	}
-	b.live.drop(p.ID)
-	b.dropUI(p.ID)
-	logError("drop "+p.ID, b.store.dropProject(ctx, p.ID))
+	b.live.drop(p.Workspace)
+	b.dropUI(p.Workspace)
+	logError("drop "+p.Workspace, b.store.dropWorkspace(ctx, p.Workspace))
 }
 
 func (b *backlog) agentsEvent(ctx context.Context, ev pluginsdk.Event) {
@@ -114,10 +111,10 @@ func (b *backlog) agentsEvent(ctx context.Context, ev pluginsdk.Event) {
 	b.render(ctx, p.Workspace)
 }
 
-func (b *backlog) changed(ctx context.Context, projectID string, id int, kind string) {
-	_, err := b.h.Publish(ctx, changedTopic, changedEvent{Workspace: projectID, ID: id, Kind: kind})
+func (b *backlog) changed(ctx context.Context, workspaceID string, id int, kind string) {
+	_, err := b.h.Publish(ctx, changedTopic, changedEvent{Workspace: workspaceID, ID: id, Kind: kind})
 	logError("publish "+changedTopic, err)
-	b.render(ctx, projectID)
+	b.render(ctx, workspaceID)
 }
 
 func logError(what string, err error) {

@@ -18,22 +18,22 @@ type sessions struct {
 	epoch int
 }
 
-func (s *sessions) lookup(ctx context.Context, projectID string) (map[string]api.Session, bool) {
+func (s *sessions) lookup(ctx context.Context, workspaceID string) (map[string]api.Session, bool) {
 	s.mu.Lock()
-	m, ok := s.cache[projectID]
+	m, ok := s.cache[workspaceID]
 	s.mu.Unlock()
 	if ok {
 		return m, true
 	}
-	return s.fetch(ctx, projectID)
+	return s.fetch(ctx, workspaceID)
 }
 
-func (s *sessions) fetch(ctx context.Context, projectID string) (map[string]api.Session, bool) {
+func (s *sessions) fetch(ctx context.Context, workspaceID string) (map[string]api.Session, bool) {
 	s.mu.Lock()
-	gen, epoch := s.gen[projectID], s.epoch
+	gen, epoch := s.gen[workspaceID], s.epoch
 	s.mu.Unlock()
 
-	list, err := agentcall.Sessions(ctx, s.h, projectID)
+	list, err := agentcall.Sessions(ctx, s.h, workspaceID)
 	if err != nil {
 		return nil, false
 	}
@@ -43,23 +43,23 @@ func (s *sessions) fetch(ctx context.Context, projectID string) (map[string]api.
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.gen[projectID] == gen && s.epoch == epoch {
+	if s.gen[workspaceID] == gen && s.epoch == epoch {
 		if s.cache == nil {
 			s.cache = map[string]map[string]api.Session{}
 		}
-		s.cache[projectID] = m
+		s.cache[workspaceID] = m
 	}
 	return m, true
 }
 
-func (s *sessions) invalidate(projectID string) {
+func (s *sessions) invalidate(workspaceID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.gen == nil {
 		s.gen = map[string]int{}
 	}
-	s.gen[projectID]++
-	delete(s.cache, projectID)
+	s.gen[workspaceID]++
+	delete(s.cache, workspaceID)
 }
 
 func (s *sessions) invalidateAll() {
@@ -69,23 +69,23 @@ func (s *sessions) invalidateAll() {
 	s.cache = nil
 }
 
-func (s *sessions) drop(projectID string) {
+func (s *sessions) drop(workspaceID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.cache, projectID)
-	delete(s.gen, projectID)
+	delete(s.cache, workspaceID)
+	delete(s.gen, workspaceID)
 }
 
-func (s *sessions) stale(ctx context.Context, projectID, owner string) bool {
+func (s *sessions) stale(ctx context.Context, workspaceID, owner string) bool {
 	if !strings.HasPrefix(owner, sessionPfx) {
 		return false
 	}
-	m, ok := s.lookup(ctx, projectID)
+	m, ok := s.lookup(ctx, workspaceID)
 	if !ok {
 		return false
 	}
 	if _, found := m[owner]; !found {
-		if m, ok = s.fetch(ctx, projectID); !ok {
+		if m, ok = s.fetch(ctx, workspaceID); !ok {
 			return false
 		}
 	}
@@ -93,8 +93,8 @@ func (s *sessions) stale(ctx context.Context, projectID, owner string) bool {
 	return !found || a.Closed()
 }
 
-func (s *sessions) ancestor(ctx context.Context, projectID, ancestor, owner string) bool {
-	m, ok := s.lookup(ctx, projectID)
+func (s *sessions) ancestor(ctx context.Context, workspaceID, ancestor, owner string) bool {
+	m, ok := s.lookup(ctx, workspaceID)
 	if !ok {
 		return false
 	}
@@ -108,8 +108,8 @@ func (s *sessions) ancestor(ctx context.Context, projectID, ancestor, owner stri
 	return false
 }
 
-func (s *sessions) title(ctx context.Context, projectID, id string) (string, bool) {
-	m, ok := s.lookup(ctx, projectID)
+func (s *sessions) title(ctx context.Context, workspaceID, id string) (string, bool) {
+	m, ok := s.lookup(ctx, workspaceID)
 	if !ok {
 		return "", false
 	}

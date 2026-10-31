@@ -10,9 +10,9 @@ import (
 )
 
 type broadcastParams struct {
-	Topic     string          `json:"topic"`
-	ProjectID string          `json:"projectId"`
-	Args      json.RawMessage `json:"args"`
+	Topic       string          `json:"topic"`
+	WorkspaceID string          `json:"workspaceId"`
+	Args        json.RawMessage `json:"args"`
 }
 
 type refusalError struct {
@@ -27,7 +27,7 @@ func (s *Server) commandBroadcast(ctx context.Context, p broadcastParams) (empty
 	if p.Topic == "" {
 		return empty{}, invalidParams("topic is required")
 	}
-	if err := s.requireProject(ctx, p.ProjectID); err != nil {
+	if err := s.requireWorkspace(ctx, p.WorkspaceID); err != nil {
 		return empty{}, err
 	}
 	var handlers []Command
@@ -41,7 +41,7 @@ func (s *Server) commandBroadcast(ctx context.Context, p broadcastParams) (empty
 	var wg sync.WaitGroup
 	for i, c := range handlers {
 		wg.Go(func() {
-			raw, err := json.Marshal(commandRunParams{ID: c.ID, ProjectID: p.ProjectID, Args: p.Args, Via: via})
+			raw, err := json.Marshal(commandRunParams{ID: c.ID, WorkspaceID: p.WorkspaceID, Args: p.Args, Via: via})
 			if err == nil {
 				_, err = u.router.Command(ctx, c, raw)
 			}

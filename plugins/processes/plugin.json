@@ -10,7 +10,7 @@
       {
         "id": "processes.kill-orphans",
         "title": "Kill Orphan Processes",
-        "confirm": "Kill orphan processes in this project?",
+        "confirm": "Kill orphan processes in this workspace?",
         "agent": true,
         "destructive": true,
         "description": "Kill the orphaned processes left behind by this workspace's sessions (only the session selected in the Processes view, when one is)."

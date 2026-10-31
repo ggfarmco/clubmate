@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,10 +15,7 @@ import (
 
 	"clubmate/internal/rpc"
 	"clubmate/internal/schema"
-)
-
-const (
-	projectEnv = "CLUBMATE_PROJECT_ID"
+	"clubmate/pkg/contract"
 )
 
 func (a *app) commandCmd() *cobra.Command {
@@ -73,15 +69,15 @@ func (a *app) commandDescribeCmd() *cobra.Command {
 
 func (a *app) commandRunCmd() *cobra.Command {
 	var (
-		projectID, args string
-		agent           bool
+		workspaceID, args string
+		agent             bool
 	)
 	cmd := &cobra.Command{
 		Use:   "run <id|capability> [key=value ...]",
 		Short: "Run a command",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, positional []string) error {
-			params := commandParams(positional[0], projectID)
+			params := commandParams(positional[0], workspaceID)
 			if err := setJSONParam(params, "args", args); err != nil {
 				return err
 			}
@@ -105,17 +101,17 @@ func (a *app) commandRunCmd() *cobra.Command {
 			return a.callAndPrint(cmd.Context(), "command.run", params)
 		},
 	}
-	cmd.Flags().StringVar(&projectID, "project", "", "workspace id (default $"+projectEnv+")")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id (default $"+contract.WorkspaceEnv+")")
 	cmd.Flags().StringVar(&args, "args", "", "command arguments as JSON")
 	cmd.Flags().BoolVar(&agent, "agent", false, "run as an agent call: agent commands only, destructive ones approved in the app")
 	return cmd
 }
 
-func commandParams(id, projectID string) map[string]any {
-	if projectID == "" {
-		projectID = os.Getenv(projectEnv)
+func commandParams(id, workspaceID string) map[string]any {
+	if workspaceID == "" {
+		workspaceID = contract.WorkspaceFromEnv()
 	}
-	return map[string]any{"id": id, "projectId": projectID}
+	return map[string]any{"id": id, "workspaceId": workspaceID}
 }
 
 func (a *app) resolveCommand(ctx context.Context, id string) (rpc.Command, error) {

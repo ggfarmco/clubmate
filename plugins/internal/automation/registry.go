@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
@@ -17,7 +18,7 @@ type Registry[P Entry[P]] struct {
 	Items          map[string]P
 	Noun           string
 	Sessions       func(ctx context.Context, workspace string) ([]api.Session, error)
-	Projects       func(ctx context.Context) ([]pluginsdk.Project, error)
+	Workspaces     func(ctx context.Context) ([]pluginsdk.Workspace, error)
 	Render         func(ctx context.Context, workspace string) error
 	Save           func(ctx context.Context, p P) error
 	Drop           func(ctx context.Context, p P) error
@@ -45,19 +46,19 @@ func (r *Registry[P]) BusEvent(ctx context.Context, ev pluginsdk.Event) {
 	case api.TopicReady:
 		r.ReconcileAll(ctx)
 		r.RenderAll(ctx)
-	case TopicProjectCreated:
-		var p createdPayload
+	case TopicWorkspaceCreated:
+		var p contract.WorkspaceChanged
 		if !r.decode(ev, &p) {
 			return
 		}
-		r.Invalidate(p.Project.ID)
+		r.Invalidate(p.Workspace)
 		r.Flush(ctx)
-	case TopicProjectDeleted:
-		var p deletedPayload
+	case TopicWorkspaceDeleted:
+		var p contract.WorkspaceDeleted
 		if !r.decode(ev, &p) {
 			return
 		}
-		r.DropWorkspace(ctx, p.ID)
+		r.DropWorkspace(ctx, p.Workspace)
 	}
 }
 
@@ -117,13 +118,13 @@ func (r *Registry[P]) Prune(ctx context.Context) {
 	if len(placed) == 0 {
 		return
 	}
-	projects, err := r.Projects(ctx)
+	workspaces, err := r.Workspaces(ctx)
 	if err != nil {
 		r.Log(fmt.Errorf("prune %ss of deleted workspaces: %w", r.Noun, err))
 		return
 	}
 	live := map[string]bool{}
-	for _, p := range projects {
+	for _, p := range workspaces {
 		live[p.ID] = true
 	}
 	r.Mu.Lock()
@@ -137,13 +138,13 @@ func (r *Registry[P]) Prune(ctx context.Context) {
 }
 
 func (r *Registry[P]) DropWorkspace(ctx context.Context, workspace string) {
-	projects, err := r.Projects(ctx)
+	workspaces, err := r.Workspaces(ctx)
 	if err != nil {
-		r.Log(fmt.Errorf("check deleted project %s: %w", workspace, err))
+		r.Log(fmt.Errorf("check deleted workspace %s: %w", workspace, err))
 		return
 	}
-	if slices.ContainsFunc(projects, func(p pluginsdk.Project) bool { return p.ID == workspace }) {
-		r.Log(fmt.Errorf("ignore %s for live project %s", TopicProjectDeleted, workspace))
+	if slices.ContainsFunc(workspaces, func(p pluginsdk.Workspace) bool { return p.ID == workspace }) {
+		r.Log(fmt.Errorf("ignore %s for live workspace %s", TopicWorkspaceDeleted, workspace))
 		return
 	}
 	r.Mu.Lock()
@@ -169,7 +170,7 @@ func (r *Registry[P]) Owns(session string) bool {
 
 func (r *Registry[P]) Lookup(cmd pluginsdk.CommandRun, id string) (P, error) {
 	p, ok := r.Items[id]
-	if !ok || p.Action().Workspace != cmd.ProjectID {
+	if !ok || p.Action().Workspace != cmd.WorkspaceID {
 		var zero P
 		return zero, fmt.Errorf("unknown %s %q", r.Noun, id)
 	}
@@ -264,13 +265,13 @@ func (r *Registry[P]) Titles(ctx context.Context, workspace string, items []P) m
 }
 
 func (r *Registry[P]) RenderAll(ctx context.Context) {
-	projects, err := r.Projects(ctx)
+	workspaces, err := r.Workspaces(ctx)
 	if err != nil {
 		r.Log(fmt.Errorf("render %s sections: %w", r.Noun, err))
 		return
 	}
-	ids := make([]string, 0, len(projects))
-	for _, p := range projects {
+	ids := make([]string, 0, len(workspaces))
+	for _, p := range workspaces {
 		ids = append(ids, p.ID)
 	}
 	r.Invalidate(ids...)
@@ -308,7 +309,7 @@ func (r *Registry[P]) Flush(ctx context.Context) {
 }
 
 func (r *Registry[P]) NotifyPaused(ctx context.Context, h *pluginsdk.Host, title string, act Action, lastError string) {
-	req := notifyRequest{ProjectID: act.Workspace, Title: title, Message: act.Name + ": " + lastError, Kind: "stuck"}
+	req := notifyRequest{WorkspaceID: act.Workspace, Title: title, Message: act.Name + ": " + lastError, Kind: "stuck"}
 	if err := h.Call(ctx, "notify.post", req, nil); err != nil {
 		r.Log(fmt.Errorf("notify paused %s %s: %w", r.Noun, act.ID, err))
 	}

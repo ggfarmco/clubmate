@@ -51,7 +51,7 @@ func benchModel(column string) viewModel {
 		sort:      sdui.Sort{Column: column, Desc: true},
 		collapsed: map[int]bool{},
 		scope:     "All",
-		totalKey:  projectKey("p"),
+		totalKey:  workspaceKey("p"),
 		hist:      hist,
 		memKiB:    1 << 25,
 		now:       now,
@@ -62,7 +62,7 @@ func benchFixture() ([]group, []pluginsdk.ProcessNode, *history, time.Time) {
 	now := time.Now()
 	sessions := make([]group, 0, 10)
 	for i := range cap(sessions) {
-		sessions = append(sessions, group{ID: "s" + strconv.Itoa(i), ProjectID: "p", Title: "session " + strconv.Itoa(i)})
+		sessions = append(sessions, group{ID: "s" + strconv.Itoa(i), WorkspaceID: "p", Title: "session " + strconv.Itoa(i)})
 	}
 	nodes := make([]pluginsdk.ProcessNode, benchProcesses)
 	for i := range nodes {
@@ -76,7 +76,7 @@ func benchFixture() ([]group, []pluginsdk.ProcessNode, *history, time.Time) {
 				PID:       pid,
 				PPID:      ppid,
 				Comm:      "proc" + strconv.Itoa(i),
-				Args:      []string{"/usr/local/bin/proc" + strconv.Itoa(i), "--flag", "value", "--path=/Users/me/project/src/" + strconv.Itoa(i)},
+				Args:      []string{"/usr/local/bin/proc" + strconv.Itoa(i), "--flag", "value", "--path=/Users/me/workspace/src/" + strconv.Itoa(i)},
 				StartTime: now.Add(-time.Duration(i) * time.Minute),
 				RSSKiB:    int64(1024 * (i%200 + 1)),
 				CPU:       float64(i % 37),

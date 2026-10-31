@@ -35,7 +35,7 @@ type app struct {
 	now        func() time.Time
 	runCommand func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
 	sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
-	projects   func(ctx context.Context) ([]pluginsdk.Project, error)
+	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
 	render     func(ctx context.Context, workspace string) error
 	notify     func(ctx context.Context, t *Trigger)
 }
@@ -56,7 +56,7 @@ func newApp() *app {
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
-	a.projects = a.listProjects
+	a.workspaces = a.listWorkspaces
 	a.render = a.renderWorkspace
 	a.notify = a.notifyPaused
 	a.registry = &automation.Registry[*Trigger]{
@@ -64,7 +64,7 @@ func newApp() *app {
 		Items:          a.triggers,
 		Noun:           "trigger",
 		Sessions:       func(ctx context.Context, ws string) ([]api.Session, error) { return a.sessions(ctx, ws) },
-		Projects:       func(ctx context.Context) ([]pluginsdk.Project, error) { return a.projects(ctx) },
+		Workspaces:     func(ctx context.Context) ([]pluginsdk.Workspace, error) { return a.workspaces(ctx) },
 		Render:         func(ctx context.Context, ws string) error { return a.render(ctx, ws) },
 		Save:           func(ctx context.Context, t *Trigger) error { return a.store.Save(ctx, t) },
 		Drop:           a.drop,
@@ -134,10 +134,10 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, fmt.Errorf("%s value: %w", ev.Action, err)
 	}
 	if ev.Action == "select" {
-		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.ProjectID), id); err != nil {
+		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {
 			return nil, err
 		}
-		a.registry.Invalidate(ev.ProjectID)
+		a.registry.Invalidate(ev.WorkspaceID)
 		a.registry.Flush(ctx)
 		return nil, nil
 	}
@@ -149,7 +149,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	if err != nil {
 		return nil, err
 	}
-	_, err = a.command(ctx, nil, pluginsdk.CommandRun{ID: cmdID, ProjectID: ev.ProjectID, Args: args})
+	_, err = a.command(ctx, nil, pluginsdk.CommandRun{ID: cmdID, WorkspaceID: ev.WorkspaceID, Args: args})
 	return nil, err
 }
 
@@ -173,8 +173,8 @@ func (a *app) callCommand(ctx context.Context, req automation.CommandRequest) (j
 	return automation.CallCommand(ctx, a.host, req)
 }
 
-func (a *app) listProjects(ctx context.Context) ([]pluginsdk.Project, error) {
-	return a.host.ListProjects(ctx)
+func (a *app) listWorkspaces(ctx context.Context) ([]pluginsdk.Workspace, error) {
+	return a.host.ListWorkspaces(ctx)
 }
 
 func (a *app) agentSessions(ctx context.Context, workspace string) ([]api.Session, error) {

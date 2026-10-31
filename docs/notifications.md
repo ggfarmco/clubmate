@@ -10,7 +10,7 @@ cm notify [--title T] [--kind K] [--workspace W] [--session S] [--quiet] <messag
 
 `clubmate notify` is the same command. Development builds install the CLI as `cm-dev`.
 
-- Inside a Clubmate terminal the workspace and session come from `$CLUBMATE_PROJECT_ID` and `$CLUBMATE_SESSION_ID`, so a plain `cm notify "Build finished"` points at the terminal it ran in. Inside an agent session of the Agents section `$CLUBMATE_AGENT_SESSION` names that session and wins over `$CLUBMATE_SESSION_ID`. `--workspace` and `--session` override them; the env session is used only when the workspace is the env workspace.
+- Inside a Clubmate terminal the workspace and session come from `$CLUBMATE_WORKSPACE_ID` and `$CLUBMATE_SESSION_ID`, so a plain `cm notify "Build finished"` points at the terminal it ran in. Inside an agent session of the Agents section `$CLUBMATE_AGENT_SESSION` names that session and wins over `$CLUBMATE_SESSION_ID`. `--workspace` and `--session` override them; the env session is used only when the workspace is the env workspace.
 - Outside Clubmate, `--workspace` is required unless exactly one workspace is open in the app.
 - `--kind` is one of `needs-input`, `permission`, `done`, `stuck`, `info` (default `info`). Any other kind is an error.
 - The message is cut to 1000 characters and the title to 120 (cut, not rejected). Several words are joined with spaces. `-` reads the message from stdin, so hooks can pipe into it.
@@ -90,4 +90,4 @@ Claude Code can call `cm notify` from its hooks. **Settings → Agents → Copy 
 - `--quiet` keeps the hooks best-effort: Claude never sees an error when Clubmate is closed or busy.
 - `Stop` fires when Claude finishes a turn.
 - The hooks need the `cm` command on `PATH` (**Clubmate → Install “cm” Command…**) and `jq`.
-- Claude running in a Clubmate terminal inherits `CLUBMATE_PROJECT_ID` and `CLUBMATE_SESSION_ID`, so the notification is skipped while you look at that terminal and clicking it brings you back to it. Claude in the Agents section gets `CLUBMATE_AGENT_SESSION` (passed per session through the adapter's `_meta.claudeCode.options.env`), so its `Stop` hook points at that agent session. Claude running elsewhere needs exactly one open workspace, or add `--workspace <id>` to the commands; otherwise `--quiet` drops the notification.
+- Claude running in a Clubmate terminal inherits `CLUBMATE_WORKSPACE_ID` and `CLUBMATE_SESSION_ID`, so the notification is skipped while you look at that terminal and clicking it brings you back to it. Claude in the Agents section gets `CLUBMATE_AGENT_SESSION` (passed per session through the adapter's `_meta.claudeCode.options.env`), so its `Stop` hook points at that agent session. Claude running elsewhere needs exactly one open workspace, or add `--workspace <id>` to the commands; otherwise `--quiet` drops the notification.

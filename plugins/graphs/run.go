@@ -61,11 +61,11 @@ type RunEdge struct {
 }
 
 type commandRequest struct {
-	ID        string          `json:"id"`
-	ProjectID string          `json:"projectId"`
-	Args      json.RawMessage `json:"args,omitempty"`
-	Agent     bool            `json:"agent"`
-	Caller    string          `json:"caller,omitempty"`
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspaceId"`
+	Args        json.RawMessage `json:"args,omitempty"`
+	Agent       bool            `json:"agent"`
+	Caller      string          `json:"caller,omitempty"`
 }
 
 type newArgs struct {
@@ -214,7 +214,7 @@ func (x *runner) closeSessions(ctx context.Context) {
 		if n.Session == "" {
 			continue
 		}
-		req := commandRequest{ID: "agents.close", ProjectID: x.run.Workspace}
+		req := commandRequest{ID: "agents.close", WorkspaceID: x.run.Workspace}
 		req.Args, _ = json.Marshal(sessionArgs{Session: n.Session})
 		_, _ = x.call(ctx, req)
 	}
@@ -338,7 +338,7 @@ func (x *runner) do(ctx context.Context, command string, args, out any) error {
 	if err != nil {
 		return err
 	}
-	req := commandRequest{ID: command, ProjectID: x.run.Workspace, Args: raw, Agent: x.run.Agent, Caller: x.run.Caller}
+	req := commandRequest{ID: command, WorkspaceID: x.run.Workspace, Args: raw, Agent: x.run.Agent, Caller: x.run.Caller}
 	res, err := x.call(ctx, req)
 	if err != nil {
 		return err

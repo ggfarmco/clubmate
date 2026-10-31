@@ -77,8 +77,8 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	defer cancel()
 	var extra []string
 	if p.caps.SessionCapabilities.AdditionalDirectories != nil {
-		if project, err := a.host.GetProject(ctx, rec.Workspace); err == nil {
-			_, extra, _ = workRoot(project)
+		if workspace, err := a.host.GetWorkspace(ctx, rec.Workspace); err == nil {
+			_, extra, _ = workRoot(workspace)
 		}
 	}
 	if rec.AgentSessionID != "" && prompted {

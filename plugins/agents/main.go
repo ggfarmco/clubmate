@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -53,14 +54,6 @@ type registry struct {
 	live     map[*agentProc]bool
 	dropped  map[string]dropState
 	closing  bool
-}
-
-type projectPayload struct {
-	Project pluginsdk.Project `json:"project"`
-}
-
-type deletedPayload struct {
-	ID string `json:"id"`
 }
 
 type sectionRef struct {
@@ -113,7 +106,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	if _, err := h.Subscribe(ctx, "project.*", ready.Seq); err != nil {
+	if _, err := h.Subscribe(ctx, "workspace.*", ready.Seq); err != nil {
 		return err
 	}
 	if _, err := h.Subscribe(ctx, "session.exited", ready.Seq); err != nil {
@@ -137,22 +130,22 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		a.signInExited(ctx, ev)
 	case "ui.opened", "ui.idle", "ui.section":
 		a.presenceEvent(ctx, ev)
-	case "project.created":
-		var p projectPayload
+	case contract.TopicWorkspaceCreated:
+		var p contract.WorkspaceChanged
 		if json.Unmarshal(ev.Payload, &p) == nil {
-			a.kick(p.Project.ID)
+			a.kick(p.Workspace)
 		}
-	case "project.deleted":
-		var p deletedPayload
+	case contract.TopicWorkspaceDeleted:
+		var p contract.WorkspaceDeleted
 		if json.Unmarshal(ev.Payload, &p) == nil {
-			a.forgetProject(p.ID)
-			go a.dropWorkspace(p.ID, nil, true)
+			a.forgetWorkspace(p.Workspace)
+			go a.dropWorkspace(p.Workspace, nil, true)
 		}
-	case "project.updated":
-		var p projectPayload
+	case contract.TopicWorkspaceUpdated:
+		var p contract.WorkspaceChanged
 		if json.Unmarshal(ev.Payload, &p) == nil {
-			a.kick(p.Project.ID)
-			go a.dropWorkspace(p.Project.ID, func(rec record) bool {
+			a.kick(p.Workspace)
+			go a.dropWorkspace(p.Workspace, func(rec record) bool {
 				_, err := os.Stat(rec.Worktree)
 				return errors.Is(err, os.ErrNotExist)
 			}, false)
@@ -183,17 +176,17 @@ func (a *app) session(id string) *session {
 	return a.sessions[id]
 }
 
-func (a *app) lookup(projectID, id string) (*session, error) {
+func (a *app) lookup(workspaceID, id string) (*session, error) {
 	a.mu.Lock()
 	s, ok := a.sessions[id]
 	a.mu.Unlock()
-	if !ok || s.snapshot().Workspace != projectID {
+	if !ok || s.snapshot().Workspace != workspaceID {
 		return nil, fmt.Errorf("%w: %s", errNoSession, id)
 	}
 	return s, nil
 }
 
-func (a *app) list(projectID string) []record {
+func (a *app) list(workspaceID string) []record {
 	a.mu.Lock()
 	all := make([]*session, 0, len(a.sessions))
 	for _, s := range a.sessions {
@@ -202,7 +195,7 @@ func (a *app) list(projectID string) []record {
 	a.mu.Unlock()
 	out := []record{}
 	for _, s := range all {
-		if rec := s.snapshot(); rec.Workspace == projectID {
+		if rec := s.snapshot(); rec.Workspace == workspaceID {
 			out = append(out, rec)
 		}
 	}
@@ -210,8 +203,8 @@ func (a *app) list(projectID string) []record {
 	return out
 }
 
-func (a *app) infos(projectID string) []sessionInfo {
-	recs := a.list(projectID)
+func (a *app) infos(workspaceID string) []sessionInfo {
+	recs := a.list(workspaceID)
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
 		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), Closed: rec.closed()}

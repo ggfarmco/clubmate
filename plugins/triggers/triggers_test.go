@@ -25,8 +25,8 @@ type trigger struct {
 }
 
 type fixture struct {
-	h       *testutil.PluginHarness
-	project string
+	h         *testutil.PluginHarness
+	workspace string
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -35,7 +35,7 @@ func newFixture(t *testing.T) *fixture {
 		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"),
 		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
 	)
-	f := &fixture{h: h, project: h.CreateProject(t, "demo").ID}
+	f := &fixture{h: h, workspace: h.CreateWorkspace(t, "demo").ID}
 	testutil.Eventually(t, func() bool {
 		return f.run(t, "triggers.list", map[string]any{}, nil) == nil && f.run(t, "cron.list", map[string]any{}, nil) == nil
 	}, wait)
@@ -44,7 +44,7 @@ func newFixture(t *testing.T) *fixture {
 
 func (f *fixture) run(t *testing.T, command string, args, out any) error {
 	t.Helper()
-	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "projectId": f.project, "args": args}, out)
+	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "workspaceId": f.workspace, "args": args}, out)
 }
 
 func TestCronEmitFiresTrigger(t *testing.T) {
@@ -84,9 +84,9 @@ func TestCronEmitFiresTrigger(t *testing.T) {
 	require.Len(t, events, 1)
 	assert.Equal(t, "n=7", events[0].Payload.Message)
 
-	f.h.WaitSlot(t, f.project, "triggers.sidebar", func(n sdui.Node) bool { return firstIcon(n) == "bolt" })
-	f.h.Event(t, f.project, "triggers.sidebar", "triggers", "pause", added.ID)
-	f.h.WaitSlot(t, f.project, "triggers.sidebar", func(n sdui.Node) bool { return firstIcon(n) == "pause.circle" })
+	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return firstIcon(n) == "bolt" })
+	f.h.Event(t, f.workspace, "triggers.sidebar", "triggers", "pause", added.ID)
+	f.h.WaitSlot(t, f.workspace, "triggers.sidebar", func(n sdui.Node) bool { return firstIcon(n) == "pause.circle" })
 }
 
 func TestAddRejectsLoopsAndCatchAll(t *testing.T) {

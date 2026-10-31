@@ -19,9 +19,9 @@ import (
 	"clubmate/internal/core"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
+	"clubmate/internal/workspace"
 )
 
 const testKillGrace = 300 * time.Millisecond
@@ -84,7 +84,7 @@ func newService(t *testing.T, opts ...core.Option) *core.Service {
 func newServiceIn(t *testing.T, dirs paths.Dirs, opts ...core.Option) *core.Service {
 	t.Helper()
 	bin := BuildBinary(t, "clubmate/cmd/clubmate-session")
-	store, err := project.Open(dirs.DB())
+	store, err := workspace.Open(dirs.DB())
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	tracker := proc.NewTracker(proc.ReadEnv, os.Getpid())
@@ -185,9 +185,9 @@ func copyFile(t *testing.T, src, dst string, perm os.FileMode) {
 	require.NoError(t, os.WriteFile(dst, data, perm))
 }
 
-func StartOrphanSession(t *testing.T, svc *core.Service, projectID string) int {
+func StartOrphanSession(t *testing.T, svc *core.Service, workspaceID string) int {
 	t.Helper()
-	sess, err := svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: projectID, Command: []string{"/bin/sh", "-c", "(sleep 60 &); sleep 300"}})
+	sess, err := svc.CreateSession(t.Context(), session.CreateRequest{WorkspaceID: workspaceID, Command: []string{"/bin/sh", "-c", "(sleep 60 &); sleep 300"}})
 	require.NoError(t, err)
 	orphan := 0
 	Eventually(t, func() bool {

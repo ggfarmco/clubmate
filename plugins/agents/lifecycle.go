@@ -127,7 +127,7 @@ func (a *app) deleteRefs(ctx context.Context, rec record) error {
 	if _, err := os.Stat(rec.Worktree); err == nil {
 		return deleteCheckpoints(ctx, rec.Worktree, rec.ID)
 	}
-	p, err := a.host.GetProject(ctx, rec.Workspace)
+	p, err := a.host.GetWorkspace(ctx, rec.Workspace)
 	if err != nil {
 		return nil
 	}
@@ -187,7 +187,7 @@ func (a *app) stopRoot(ctx context.Context, root string) error {
 	return errors.Join(errs...)
 }
 
-func (a *app) dropWorkspace(projectID string, match func(record) bool, remove bool) {
+func (a *app) dropWorkspace(workspaceID string, match func(record) bool, remove bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), refsTimeout)
 	defer cancel()
 	want := dropClosed
@@ -199,7 +199,7 @@ func (a *app) dropWorkspace(projectID string, match func(record) bool, remove bo
 	a.mu.Unlock()
 	for _, s := range all {
 		rec := s.snapshot()
-		if rec.Workspace != projectID || (match != nil && !match(rec)) || !a.claimDrop(rec.ID, want) {
+		if rec.Workspace != workspaceID || (match != nil && !match(rec)) || !a.claimDrop(rec.ID, want) {
 			continue
 		}
 		var err error

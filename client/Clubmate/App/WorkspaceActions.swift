@@ -8,7 +8,7 @@ struct WorkspaceActions {
     let supervisor: ConnectionSupervisor
     let windows: WindowRouter
     let sessions: SessionRegistry
-    let project: @MainActor (String) -> Project?
+    let workspace: @MainActor (String) -> Workspace?
 
     func openFolder(in window: String?) {
         guard let folders = Self.chooseFolders(prompt: "Open") else { return }
@@ -28,32 +28,32 @@ struct WorkspaceActions {
         }
     }
 
-    func addFolder(to projectID: String) {
+    func addFolder(to workspaceID: String) {
         guard let folders = Self.chooseFolders(prompt: "Add") else { return }
         perform { client in
             for folder in folders {
-                try await client.addRepo(projectID, path: folder)
+                try await client.addRepo(workspaceID, path: folder)
             }
         }
     }
 
-    func rename(_ projectID: String) {
+    func rename(_ workspaceID: String) {
         Task {
-            guard let name = await TextPrompt.ask("Rename Workspace", text: project(projectID)?.name ?? "", action: "Rename"),
+            guard let name = await TextPrompt.ask("Rename Workspace", text: workspace(workspaceID)?.name ?? "", action: "Rename"),
                   !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-            perform { client in try await client.renameProject(projectID, name: name) }
+            perform { client in try await client.renameWorkspace(workspaceID, name: name) }
         }
     }
 
-    func remove(_ projectID: String) {
+    func remove(_ workspaceID: String) {
         Task {
             guard await Confirmation.ask(
-                "Remove “\(project(projectID)?.name ?? "workspace")”?",
+                "Remove “\(workspace(workspaceID)?.name ?? "workspace")”?",
                 detail: "Its terminals, editors and agents will stop, and it will be removed from Clubmate.",
                 action: "Remove",
                 destructive: true
             ) else { return }
-            perform { client in try await client.deleteProject(projectID) }
+            perform { client in try await client.deleteWorkspace(workspaceID) }
         }
     }
 

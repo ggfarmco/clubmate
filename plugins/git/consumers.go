@@ -17,8 +17,8 @@ const (
 )
 
 type consumers struct {
-	h         *pluginsdk.Host
-	projectID string
+	h           *pluginsdk.Host
+	workspaceID string
 }
 
 type worktreeEvent struct {
@@ -33,23 +33,23 @@ type handlerInfo struct {
 }
 
 func (c consumers) switching(ctx context.Context, root string) error {
-	return refusal(c.h.Broadcast(ctx, topicSwitching, c.projectID, worktreeEvent{Root: root}))
+	return refusal(c.h.Broadcast(ctx, topicSwitching, c.workspaceID, worktreeEvent{Root: root}))
 }
 
 func (c consumers) switched(ctx context.Context, root string) error {
-	return c.h.Broadcast(ctx, topicSwitched, c.projectID, worktreeEvent{Root: root})
+	return c.h.Broadcast(ctx, topicSwitched, c.workspaceID, worktreeEvent{Root: root})
 }
 
 func (c consumers) removing(ctx context.Context, path, root string, force bool) error {
-	return refusal(c.h.Broadcast(ctx, topicRemoving, c.projectID, worktreeEvent{Path: path, Root: root, Force: force}))
+	return refusal(c.h.Broadcast(ctx, topicRemoving, c.workspaceID, worktreeEvent{Path: path, Root: root, Force: force}))
 }
 
 func (c consumers) vacating(ctx context.Context, path, root string) error {
-	return c.h.Broadcast(ctx, topicVacating, c.projectID, worktreeEvent{Path: path, Root: root})
+	return c.h.Broadcast(ctx, topicVacating, c.workspaceID, worktreeEvent{Path: path, Root: root})
 }
 
 func (c consumers) released(ctx context.Context, path, root string) error {
-	return c.h.Broadcast(ctx, topicReleased, c.projectID, worktreeEvent{Path: path, Root: root})
+	return c.h.Broadcast(ctx, topicReleased, c.workspaceID, worktreeEvent{Path: path, Root: root})
 }
 
 func removingOwners(ctx context.Context, h *pluginsdk.Host) (map[string]bool, error) {

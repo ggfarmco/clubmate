@@ -58,13 +58,13 @@ type waiters struct {
 	woken  chan struct{}
 }
 
-func (a *app) wait(ctx context.Context, projectID, caller string, args waitArgs) (waitOutput, error) {
+func (a *app) wait(ctx context.Context, workspaceID, caller string, args waitArgs) (waitOutput, error) {
 	if len(args.Sessions) == 0 {
 		return waitOutput{}, errNoWaitSessions
 	}
 	sessions := make([]*session, 0, len(args.Sessions))
 	for _, id := range args.Sessions {
-		s, err := a.lookup(projectID, id)
+		s, err := a.lookup(workspaceID, id)
 		if err != nil {
 			return waitOutput{}, err
 		}

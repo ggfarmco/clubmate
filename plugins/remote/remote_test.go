@@ -483,8 +483,8 @@ func (b *fakeBackend) Run(_ context.Context, id, workspace string, args json.Raw
 	return json.RawMessage(`{"ran":"` + id + `"}`), nil
 }
 
-func (b *fakeBackend) Workspaces(context.Context) ([]pluginsdk.Project, error) {
-	return []pluginsdk.Project{{ID: "prj_1", Name: "demo", Roots: []string{"/tmp/demo"}}}, nil
+func (b *fakeBackend) Workspaces(context.Context) ([]pluginsdk.Workspace, error) {
+	return []pluginsdk.Workspace{{ID: "prj_1", Name: "demo", Roots: []string{"/tmp/demo"}}}, nil
 }
 
 func (b *fakeBackend) Events(_ context.Context, after int64) ([]pluginsdk.Event, error) {

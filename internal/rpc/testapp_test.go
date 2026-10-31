@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/plugin"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 	"clubmate/pkg/sdui"
 )
 
@@ -100,15 +100,15 @@ func TestTestAppCommandRunIsAgentCall(t *testing.T) {
 func TestTestAppCallProxies(t *testing.T) {
 	c, root := startTestAppRoot(t)
 	startTestInstance(t, root, "demo")
-	var created project.Project
+	var created workspace.Workspace
 	require.NoError(t, c.Call(t.Context(), "testapp.call", map[string]any{
 		"instance": "demo", "method": "workspace.open", "params": map[string]any{"folders": []string{t.TempDir()}},
 	}, &created))
-	var list []project.Project
-	require.NoError(t, c.Call(t.Context(), "testapp.call", map[string]any{"instance": "demo", "method": "project.list"}, &list))
+	var list []workspace.Workspace
+	require.NoError(t, c.Call(t.Context(), "testapp.call", map[string]any{"instance": "demo", "method": "workspace.list"}, &list))
 	require.Len(t, list, 1)
-	var own []project.Project
-	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &own))
+	var own []workspace.Workspace
+	require.NoError(t, c.Call(t.Context(), "workspace.list", struct{}{}, &own))
 	assert.Empty(t, own)
 }
 
@@ -117,8 +117,8 @@ func TestTestAppCallRejects(t *testing.T) {
 	startTestInstance(t, root, "demo")
 	for _, tc := range []struct{ instance, method, want string }{
 		{"demo", "fs.read", `method "fs.read" is not allowed`},
-		{"../x", "project.list", `invalid instance name "../x"`},
-		{"gone", "project.list", "instance gone is not running"},
+		{"../x", "workspace.list", `invalid instance name "../x"`},
+		{"gone", "workspace.list", "instance gone is not running"},
 		{"demo", "ui.snapshot", "out must be inside"},
 	} {
 		err := c.Call(t.Context(), "testapp.call", map[string]any{"instance": tc.instance, "method": tc.method, "params": map[string]any{"out": "/etc/x"}}, nil)
@@ -131,7 +131,7 @@ func TestTestAppRefusesSharedDir(t *testing.T) {
 	c, root := startTestAppRoot(t)
 	startTestInstance(t, root, "demo")
 	require.NoError(t, os.Chmod(filepath.Join(root, "clubmate-test-demo"), 0o777))
-	err := c.Call(t.Context(), "testapp.call", map[string]any{"instance": "demo", "method": "project.list"}, nil)
+	err := c.Call(t.Context(), "testapp.call", map[string]any{"instance": "demo", "method": "workspace.list"}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "instance demo is not running")
 }
@@ -157,7 +157,7 @@ func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 		st := h.Sup.Statuses()
 		return len(st) == 1 && st[0].State == plugin.StateRunning
 	}, 5*time.Second)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	h.WaitSlot(t, p.ID, "alpha.main", func(n sdui.Node) bool { return n.Type == "text" })
 	tree := map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
 		map[string]any{"type": "list", "id": "files", "props": map[string]any{"items": []any{
@@ -168,9 +168,9 @@ func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 			map[string]any{"type": "button", "id": "go", "props": map[string]any{"label": "Save", "confirm": "Overwrite?"}},
 		}},
 	}}
-	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": "alpha.main", "tree": tree}))
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "tree": tree}))
 	for _, tc := range []struct{ node, action string }{{"files", "discard"}, {"ghost", "discard"}, {"kill", "kill"}, {"edit", "save"}} {
-		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.main", "nodeId": tc.node, "action": tc.action, "value": "a.go", "agent": true}, nil)
+		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "nodeId": tc.node, "action": tc.action, "value": "a.go", "agent": true}, nil)
 		require.Error(t, err, tc.node)
 		assert.Contains(t, err.Error(), fmt.Sprintf("action %q needs the user's confirmation", tc.action))
 	}

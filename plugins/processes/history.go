@@ -18,7 +18,7 @@ type seriesKind uint8
 const (
 	kindProcess seriesKind = iota + 1
 	kindSession
-	kindProject
+	kindWorkspace
 )
 
 type seriesKey struct {
@@ -49,20 +49,20 @@ func newHistory() *history {
 
 func (h *history) record(sessions []group, nodes []pluginsdk.ProcessNode, now time.Time) {
 	type total struct{ cpu, mb float64 }
-	projectOf := sessionProjects(sessions)
+	workspaceOf := sessionWorkspaces(sessions)
 	totals := make(map[seriesKey]*total, 2*len(sessions))
 	for _, s := range sessions {
 		totals[sessionKey(s.ID)] = &total{}
-		totals[projectKey(s.ProjectID)] = &total{}
+		totals[workspaceKey(s.WorkspaceID)] = &total{}
 	}
 	for _, n := range nodes {
 		mb := float64(n.Process.RSSKiB) / kibPerMiB
 		h.push(processKey(n), n.Process.CPU, mb, now)
-		project, ok := projectOf[n.SessionID]
+		workspace, ok := workspaceOf[n.SessionID]
 		if !ok {
 			continue
 		}
-		for _, t := range [...]*total{totals[sessionKey(n.SessionID)], totals[projectKey(project)]} {
+		for _, t := range [...]*total{totals[sessionKey(n.SessionID)], totals[workspaceKey(workspace)]} {
 			t.cpu += n.Process.CPU
 			t.mb += mb
 		}
@@ -135,8 +135,8 @@ func sessionKey(id string) seriesKey {
 	return seriesKey{kind: kindSession, id: id}
 }
 
-func projectKey(id string) seriesKey {
-	return seriesKey{kind: kindProject, id: id}
+func workspaceKey(id string) seriesKey {
+	return seriesKey{kind: kindWorkspace, id: id}
 }
 
 func peakAvg(values []float64) (peak, avg float64) {

@@ -3,7 +3,7 @@ import SwiftUI
 import ClubmateKit
 
 struct WorktreeTitleMenu: View {
-    let session: ProjectSession
+    let session: WorkspaceSession
     let title: String
 
     @State private var shown = false
@@ -34,13 +34,13 @@ struct WorktreeTitleMenu: View {
 }
 
 private struct WorktreeSwitcher: View {
-    let session: ProjectSession
+    let session: WorkspaceSession
     let close: () -> Void
 
     @State private var model: FuzzyPickerModel
     @Environment(\.theme) private var theme
 
-    init(session: ProjectSession, close: @escaping () -> Void) {
+    init(session: WorkspaceSession, close: @escaping () -> Void) {
         self.session = session
         self.close = close
         _model = State(initialValue: FuzzyPickerModel(placeholder: "Switch to worktree or branch", source: session.worktrees.switcherSource))

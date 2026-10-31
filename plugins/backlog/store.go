@@ -15,28 +15,28 @@ type store struct {
 	mus sync.Map
 }
 
-func taskPrefix(projectID string) string {
-	return "task/" + projectID + "/"
+func taskPrefix(workspaceID string) string {
+	return "task/" + workspaceID + "/"
 }
 
-func taskKey(projectID string, id int) string {
-	return fmt.Sprintf("%s%d", taskPrefix(projectID), id)
+func taskKey(workspaceID string, id int) string {
+	return fmt.Sprintf("%s%d", taskPrefix(workspaceID), id)
 }
 
-func seqKey(projectID string) string {
-	return "seq/" + projectID
+func seqKey(workspaceID string) string {
+	return "seq/" + workspaceID
 }
 
-func (s *store) lock(projectID string) func() {
-	mu, _ := s.mus.LoadOrStore(projectID, &sync.Mutex{})
+func (s *store) lock(workspaceID string) func() {
+	mu, _ := s.mus.LoadOrStore(workspaceID, &sync.Mutex{})
 	m := mu.(*sync.Mutex)
 	m.Lock()
 	return m.Unlock
 }
 
-func (s *store) load(ctx context.Context, projectID string, id int) (Task, error) {
+func (s *store) load(ctx context.Context, workspaceID string, id int) (Task, error) {
 	var t Task
-	ok, err := s.h.StorageGet(ctx, taskKey(projectID, id), &t)
+	ok, err := s.h.StorageGet(ctx, taskKey(workspaceID, id), &t)
 	if err != nil {
 		return Task{}, err
 	}
@@ -46,14 +46,14 @@ func (s *store) load(ctx context.Context, projectID string, id int) (Task, error
 	return t, nil
 }
 
-func (s *store) get(ctx context.Context, projectID string, id int) (Task, error) {
-	defer s.lock(projectID)()
-	return s.load(ctx, projectID, id)
+func (s *store) get(ctx context.Context, workspaceID string, id int) (Task, error) {
+	defer s.lock(workspaceID)()
+	return s.load(ctx, workspaceID, id)
 }
 
-func (s *store) list(ctx context.Context, projectID string) ([]Task, error) {
-	defer s.lock(projectID)()
-	keys, err := s.h.StorageList(ctx, taskPrefix(projectID))
+func (s *store) list(ctx context.Context, workspaceID string) ([]Task, error) {
+	defer s.lock(workspaceID)()
+	keys, err := s.h.StorageList(ctx, taskPrefix(workspaceID))
 	if err != nil {
 		return nil, err
 	}
@@ -72,28 +72,28 @@ func (s *store) list(ctx context.Context, projectID string) ([]Task, error) {
 	return tasks, nil
 }
 
-func (s *store) add(ctx context.Context, projectID string, t Task) (Task, error) {
-	defer s.lock(projectID)()
+func (s *store) add(ctx context.Context, workspaceID string, t Task) (Task, error) {
+	defer s.lock(workspaceID)()
 	var seq int
-	if _, err := s.h.StorageGet(ctx, seqKey(projectID), &seq); err != nil {
+	if _, err := s.h.StorageGet(ctx, seqKey(workspaceID), &seq); err != nil {
 		return Task{}, err
 	}
 	seq++
 	now := time.Now().UTC()
 	t.ID = seq
 	t.CreatedAt, t.UpdatedAt = now, now
-	if err := s.h.StorageSet(ctx, seqKey(projectID), seq); err != nil {
+	if err := s.h.StorageSet(ctx, seqKey(workspaceID), seq); err != nil {
 		return Task{}, err
 	}
-	if err := s.h.StorageSet(ctx, taskKey(projectID, t.ID), t); err != nil {
+	if err := s.h.StorageSet(ctx, taskKey(workspaceID, t.ID), t); err != nil {
 		return Task{}, err
 	}
 	return t, nil
 }
 
-func (s *store) mutate(ctx context.Context, projectID string, id int, fn func(*Task) error) (Task, error) {
-	defer s.lock(projectID)()
-	t, err := s.load(ctx, projectID, id)
+func (s *store) mutate(ctx context.Context, workspaceID string, id int, fn func(*Task) error) (Task, error) {
+	defer s.lock(workspaceID)()
+	t, err := s.load(ctx, workspaceID, id)
 	if err != nil {
 		return Task{}, err
 	}
@@ -101,18 +101,18 @@ func (s *store) mutate(ctx context.Context, projectID string, id int, fn func(*T
 		return Task{}, err
 	}
 	t.UpdatedAt = time.Now().UTC()
-	if err := s.h.StorageSet(ctx, taskKey(projectID, id), t); err != nil {
+	if err := s.h.StorageSet(ctx, taskKey(workspaceID, id), t); err != nil {
 		return Task{}, err
 	}
 	return t, nil
 }
 
-func (s *store) remove(ctx context.Context, projectID string, id int) error {
-	defer s.lock(projectID)()
-	return s.h.StorageDelete(ctx, taskKey(projectID, id))
+func (s *store) remove(ctx context.Context, workspaceID string, id int) error {
+	defer s.lock(workspaceID)()
+	return s.h.StorageDelete(ctx, taskKey(workspaceID, id))
 }
 
-func (s *store) dropProject(ctx context.Context, projectID string) error {
-	defer s.lock(projectID)()
-	return errors.Join(s.h.StorageDeletePrefix(ctx, taskPrefix(projectID)), s.h.StorageDelete(ctx, seqKey(projectID)))
+func (s *store) dropWorkspace(ctx context.Context, workspaceID string) error {
+	defer s.lock(workspaceID)()
+	return errors.Join(s.h.StorageDeletePrefix(ctx, taskPrefix(workspaceID)), s.h.StorageDelete(ctx, seqKey(workspaceID)))
 }

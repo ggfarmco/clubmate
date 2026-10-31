@@ -91,7 +91,7 @@ func (a *app) blameCommand(ctx context.Context, cmd pluginsdk.CommandRun) (blame
 
 func (a *app) callerDir(cmd pluginsdk.CommandRun, cwd string) string {
 	if cwd == "" && cmd.Caller != "" {
-		if s, err := a.lookup(cmd.ProjectID, cmd.Caller); err == nil {
+		if s, err := a.lookup(cmd.WorkspaceID, cmd.Caller); err == nil {
 			return s.snapshot().Worktree
 		}
 	}

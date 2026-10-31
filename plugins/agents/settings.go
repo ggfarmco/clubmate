@@ -26,8 +26,8 @@ var (
 	errUnknownValue = errors.New("unknown config value")
 )
 
-func (a *app) setMode(ctx context.Context, projectID string, args modeArgs) error {
-	s, err := a.lookup(projectID, args.Session)
+func (a *app) setMode(ctx context.Context, workspaceID string, args modeArgs) error {
+	s, err := a.lookup(workspaceID, args.Session)
 	if err != nil {
 		return err
 	}
@@ -60,8 +60,8 @@ func (a *app) sendMode(ctx context.Context, s *session, mode string) error {
 	return nil
 }
 
-func (a *app) setConfig(ctx context.Context, projectID string, args configArgs) error {
-	s, err := a.lookup(projectID, args.Session)
+func (a *app) setConfig(ctx context.Context, workspaceID string, args configArgs) error {
+	s, err := a.lookup(workspaceID, args.Session)
 	if err != nil {
 		return err
 	}

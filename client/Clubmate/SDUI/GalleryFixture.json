@@ -166,7 +166,7 @@
                       "id": "settings-form",
                       "props": {"action": "settings.save"},
                       "children": [
-                        {"type": "textField", "id": "name", "props": {"value": "clubmate", "placeholder": "Project name"}},
+                        {"type": "textField", "id": "name", "props": {"value": "clubmate", "placeholder": "Workspace name"}},
                         {
                           "type": "stack",
                           "props": {"direction": "horizontal"},

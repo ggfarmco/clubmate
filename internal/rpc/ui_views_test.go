@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/plugin"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 func manifestJSON(id, contributes string) string {
@@ -37,18 +37,18 @@ func TestViewOwnsForeignSlot(t *testing.T) {
 		st := h.Sup.Statuses()
 		return len(st) == 2 && st[0].State == plugin.StateRunning && st[1].State == plugin.StateRunning
 	}, 5*time.Second)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	c := h.Client(t)
 	tree := map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}
 	render := func(plugin, slot string) error {
-		return h.PluginCall(t, plugin, "ui.render", map[string]any{"projectId": p.ID, "slot": slot, "tree": tree})
+		return h.PluginCall(t, plugin, "ui.render", map[string]any{"workspaceId": p.ID, "slot": slot, "tree": tree})
 	}
 	require.NoError(t, render("beta", "alpha.sidebar"))
 	assert.ErrorIs(t, render("alpha", "alpha.sidebar"), rpc.ErrInvalidParams)
 	require.NoError(t, render("alpha", "alpha.main"))
 	require.NoError(t, render("alpha", "alpha.status"))
 	var res map[string]any
-	require.NoError(t, c.Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.sidebar", "nodeId": "x", "action": "say", "value": "hi"}, &res))
+	require.NoError(t, c.Call(t.Context(), "ui.event", map[string]any{"workspaceId": p.ID, "slot": "alpha.sidebar", "nodeId": "x", "action": "say", "value": "hi"}, &res))
 	assert.Equal(t, "beta", res["plugin"])
 }
 
@@ -59,28 +59,28 @@ func TestDeclaredExtraSlot(t *testing.T) {
 		st := h.Sup.Statuses()
 		return len(st) == 1 && st[0].State == plugin.StateRunning
 	}, 5*time.Second)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	tree := map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}
 	render := func(slot string) error {
-		return h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": slot, "tree": tree})
+		return h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": slot, "tree": tree})
 	}
 	require.NoError(t, render("alpha.review"))
 	assert.ErrorIs(t, render("alpha.other"), rpc.ErrInvalidParams)
 	var res map[string]any
-	require.NoError(t, h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.review", "nodeId": "x", "action": "say", "value": "hi"}, &res))
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": p.ID, "slot": "alpha.review", "nodeId": "x", "action": "say", "value": "hi"}, &res))
 	assert.Equal(t, "alpha", res["plugin"])
 }
 
 func TestPresenceEvents(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	c := h.Client(t)
 	var subs [2]struct {
 		Subscription string `json:"subscription"`
 	}
 	for i := range subs {
-		require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &subs[i]))
+		require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, &subs[i]))
 	}
 	var present []string
 	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
@@ -95,41 +95,41 @@ func TestPresenceEvents(t *testing.T) {
 	require.Len(t, events, 2)
 	assert.Equal(t, "ui.opened", events[0].Topic)
 	assert.Equal(t, "ui.idle", events[1].Topic)
-	assert.JSONEq(t, fmt.Sprintf(`{"projectId":%q}`, p.ID), string(events[0].Payload))
+	assert.JSONEq(t, fmt.Sprintf(`{"workspace":%q}`, p.ID), string(events[0].Payload))
 }
 
 func TestWorkspaceTouchOrdersList(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)
-	older := h.CreateProject(t, "older")
-	h.CreateProject(t, "newer")
+	older := h.CreateWorkspace(t, "older")
+	h.CreateWorkspace(t, "newer")
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": older.ID}, nil))
-	var list []project.Project
-	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": older.ID}, nil))
+	var list []workspace.Workspace
+	require.NoError(t, c.Call(t.Context(), "workspace.list", struct{}{}, &list))
 	require.Len(t, list, 2)
 	assert.Nil(t, list[0].LastOpenedAt)
 	assert.Nil(t, list[1].LastOpenedAt)
 	require.NoError(t, c.Call(t.Context(), "workspace.touch", map[string]string{"id": older.ID}, nil))
-	require.NoError(t, c.Call(t.Context(), "project.list", struct{}{}, &list))
+	require.NoError(t, c.Call(t.Context(), "workspace.list", struct{}{}, &list))
 	assert.Equal(t, older.ID, list[0].ID)
 	assert.NotNil(t, list[0].LastOpenedAt)
 }
 
-func TestProjectDeleteDropsSlots(t *testing.T) {
+func TestWorkspaceDeleteDropsSlots(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha"}]}`)))
 	testutil.Eventually(t, func() bool {
 		st := h.Sup.Statuses()
 		return len(st) == 1 && st[0].State == plugin.StateRunning
 	}, 5*time.Second)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	c := h.Client(t)
 	tree := map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}
-	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": "alpha.main", "tree": tree}))
-	require.NoError(t, c.Call(t.Context(), "project.delete", map[string]string{"id": p.ID}, nil))
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "tree": tree}))
+	require.NoError(t, c.Call(t.Context(), "workspace.delete", map[string]string{"id": p.ID}, nil))
 	var views []internalsdui.SlotView
-	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &views))
+	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": p.ID}, &views))
 	assert.Equal(t, []internalsdui.SlotView{}, views)
 }
 
@@ -154,11 +154,11 @@ func TestCommandConfirmListed(t *testing.T) {
 func TestArgsValidated(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
 	h := testutil.NewHarness(t, plugin.WithBackoff(time.Minute, time.Minute))
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	h.Start(t, testutil.EchoPluginDir(t))
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
-	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{}}, nil)
+	err = h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "workspaceId": p.ID, "args": map[string]any{}}, nil)
 	require.ErrorIs(t, err, rpc.ErrInvalidParams)
 	assert.ErrorContains(t, err, "args.text: required")
 }
@@ -173,27 +173,27 @@ func TestAppScopeSlots(t *testing.T) {
 		st := h.Sup.Statuses()
 		return len(st) == 2 && st[0].State == plugin.StateRunning && st[1].State == plugin.StateRunning
 	}, 5*time.Second)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	c := h.Client(t)
 	tree := map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}
-	render := func(plugin, projectID, slot string) error {
-		return h.PluginCall(t, plugin, "ui.render", map[string]any{"projectId": projectID, "slot": slot, "tree": tree})
+	render := func(plugin, workspaceID, slot string) error {
+		return h.PluginCall(t, plugin, "ui.render", map[string]any{"workspaceId": workspaceID, "slot": slot, "tree": tree})
 	}
 	require.NoError(t, render("alpha", "", "alpha.main"))
 	assert.ErrorIs(t, render("alpha", p.ID, "alpha.sidebar"), rpc.ErrInvalidParams)
 	assert.ErrorIs(t, render("beta", "", "beta.main"), rpc.ErrInvalidParams)
 	require.NoError(t, render("beta", p.ID, "beta.main"))
 
-	var app, prj []internalsdui.SlotView
-	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"projectId": ""}, &app))
-	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &prj))
+	var app, ws []internalsdui.SlotView
+	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": ""}, &app))
+	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": p.ID}, &ws))
 	require.Len(t, app, 1)
 	assert.Equal(t, "alpha.main", app[0].Slot)
-	require.Len(t, prj, 1)
-	assert.Equal(t, "beta.main", prj[0].Slot)
+	require.Len(t, ws, 1)
+	assert.Equal(t, "beta.main", ws[0].Slot)
 
-	event := func(projectID, slot string) error {
-		return c.Call(t.Context(), "ui.event", map[string]any{"projectId": projectID, "slot": slot, "nodeId": "x", "action": "say", "value": "hi"}, nil)
+	event := func(workspaceID, slot string) error {
+		return c.Call(t.Context(), "ui.event", map[string]any{"workspaceId": workspaceID, "slot": slot, "nodeId": "x", "action": "say", "value": "hi"}, nil)
 	}
 	assert.ErrorIs(t, event("", "beta.main"), rpc.ErrInvalidParams)
 	assert.ErrorIs(t, event(p.ID, "alpha.main"), rpc.ErrInvalidParams)
@@ -202,7 +202,7 @@ func TestAppScopeSlots(t *testing.T) {
 	var sub struct {
 		Subscription string `json:"subscription"`
 	}
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": ""}, &sub))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": ""}, &sub))
 	var present []string
 	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
 	assert.Empty(t, present)

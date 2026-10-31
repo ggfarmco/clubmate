@@ -173,7 +173,7 @@ func typed[T any](fn func(*app, context.Context, pluginsdk.CommandRun) (T, error
 
 func withSession(fn func(*app, context.Context, pluginsdk.CommandRun, *session) (any, error)) commandFunc {
 	return withArgs(func(a *app, ctx context.Context, cmd pluginsdk.CommandRun, args sessionArgs) (any, error) {
-		s, err := a.lookup(cmd.ProjectID, args.Session)
+		s, err := a.lookup(cmd.WorkspaceID, args.Session)
 		if err != nil {
 			return nil, err
 		}
@@ -182,30 +182,30 @@ func withSession(fn func(*app, context.Context, pluginsdk.CommandRun, *session) 
 }
 
 func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args newArgs) (any, error) {
-	res, err := a.newSession(ctx, a.host, cmd.ProjectID, origin(cmd), args)
+	res, err := a.newSession(ctx, a.host, cmd.WorkspaceID, origin(cmd), args)
 	if err != nil {
 		return nil, err
 	}
 	if res.parent == "" {
-		if err := a.selectSession(ctx, cmd.ProjectID, res.Session); err != nil {
+		if err := a.selectSession(ctx, cmd.WorkspaceID, res.Session); err != nil {
 			return nil, err
 		}
 	}
-	a.kick(cmd.ProjectID)
+	a.kick(cmd.WorkspaceID)
 	return res, nil
 }
 
 func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args promptArgs) (any, error) {
 	args.From = origin(cmd)
-	return nil, a.prompt(cmd.ProjectID, args)
+	return nil, a.prompt(cmd.WorkspaceID, args)
 }
 
 func (a *app) answerCommand(_ context.Context, cmd pluginsdk.CommandRun, args answerArgs) (any, error) {
-	return nil, a.prompt(cmd.ProjectID, promptArgs{Session: args.Session, Text: args.Text})
+	return nil, a.prompt(cmd.WorkspaceID, promptArgs{Session: args.Session, Text: args.Text})
 }
 
 func (a *app) permissionCommand(_ context.Context, cmd pluginsdk.CommandRun, args permissionArgs) (any, error) {
-	s, err := a.lookup(cmd.ProjectID, args.Session)
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -217,19 +217,19 @@ func (a *app) permissionCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 }
 
 func (a *app) modeCommand(ctx context.Context, cmd pluginsdk.CommandRun, args modeArgs) (any, error) {
-	return nil, a.setMode(ctx, cmd.ProjectID, args)
+	return nil, a.setMode(ctx, cmd.WorkspaceID, args)
 }
 
 func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args configArgs) (any, error) {
-	return nil, a.setConfig(ctx, cmd.ProjectID, args)
+	return nil, a.setConfig(ctx, cmd.WorkspaceID, args)
 }
 
 func (a *app) sessionsCommand(_ context.Context, cmd pluginsdk.CommandRun) (any, error) {
-	return a.infos(cmd.ProjectID), nil
+	return a.infos(cmd.WorkspaceID), nil
 }
 
 func (a *app) notifyCommand(_ context.Context, cmd pluginsdk.CommandRun, args notifyArgs) (any, error) {
-	s, err := a.lookup(cmd.ProjectID, args.Session)
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +252,7 @@ func (a *app) finishDefaultCommand(ctx context.Context, _ pluginsdk.CommandRun, 
 
 func (a *app) afkCommand(_ context.Context, cmd pluginsdk.CommandRun, args afkArgs) (any, error) {
 	args.Session = cmp.Or(args.Session, cmd.Caller)
-	s, err := a.lookup(cmd.ProjectID, args.Session)
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -278,11 +278,11 @@ func (a *app) stopRootCommand(ctx context.Context, _ pluginsdk.CommandRun, args 
 }
 
 func (a *app) waitCommand(ctx context.Context, cmd pluginsdk.CommandRun, args waitArgs) (any, error) {
-	return a.wait(ctx, cmd.ProjectID, cmd.Caller, args)
+	return a.wait(ctx, cmd.WorkspaceID, cmd.Caller, args)
 }
 
 func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, args transcriptArgs) (any, error) {
-	s, err := a.lookup(cmd.ProjectID, args.Session)
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 }
 
 func (a *app) exportCommand(ctx context.Context, cmd pluginsdk.CommandRun, args exportArgs) (any, error) {
-	s, err := a.lookup(cmd.ProjectID, args.Session)
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -302,21 +302,21 @@ func (a *app) exportCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 }
 
 func (a *app) importCommand(ctx context.Context, cmd pluginsdk.CommandRun, args importArgs) (any, error) {
-	res, err := a.importSession(ctx, a.host, cmd.ProjectID, origin(cmd), args)
+	res, err := a.importSession(ctx, a.host, cmd.WorkspaceID, origin(cmd), args)
 	if err != nil {
 		return nil, err
 	}
 	if !cmd.Agent {
-		if err := a.selectSession(ctx, cmd.ProjectID, res.Session); err != nil {
+		if err := a.selectSession(ctx, cmd.WorkspaceID, res.Session); err != nil {
 			return nil, err
 		}
 	}
-	a.kick(cmd.ProjectID)
+	a.kick(cmd.WorkspaceID)
 	return res, nil
 }
 
 func (a *app) handoffCommand(ctx context.Context, cmd pluginsdk.CommandRun, args handoffArgs) (any, error) {
-	s, err := a.lookup(cmd.ProjectID, args.Session)
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +328,7 @@ func (a *app) handoffCommand(ctx context.Context, cmd pluginsdk.CommandRun, args
 		return nil, err
 	}
 	if !cmd.Agent {
-		if err := a.selectSession(ctx, cmd.ProjectID, next.snapshot().ID); err != nil {
+		if err := a.selectSession(ctx, cmd.WorkspaceID, next.snapshot().ID); err != nil {
 			return nil, err
 		}
 	}
@@ -358,7 +358,7 @@ func (a *app) resumeCommand(_ context.Context, _ pluginsdk.CommandRun, s *sessio
 }
 
 func (a *app) revealCommand(ctx context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
-	return nil, a.reveal(ctx, cmd.ProjectID, s.snapshot().ID)
+	return nil, a.reveal(ctx, cmd.WorkspaceID, s.snapshot().ID)
 }
 
 func origin(cmd pluginsdk.CommandRun) string {

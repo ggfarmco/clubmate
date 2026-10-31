@@ -50,7 +50,7 @@ func (a *app) needsAuth(sid string, p *agentProc) error {
 	return fmt.Errorf("%w: %s", errSignIn, cmp.Or(cmd.label, agentLabel(p.agent)))
 }
 
-func (a *app) signIn(ctx context.Context, projectID string, s *session, st *sessionUI) error {
+func (a *app) signIn(ctx context.Context, workspaceID string, s *session, st *sessionUI) error {
 	rec := s.snapshot()
 	a.uiMu.Lock()
 	cmd, ok := a.auth[rec.ID]
@@ -63,12 +63,12 @@ func (a *app) signIn(ctx context.Context, projectID string, s *session, st *sess
 		return nil
 	}
 	pty, err := a.host.CreateSession(ctx, pluginsdk.SessionRequest{
-		ProjectID: projectID,
-		Title:     signInTitle + agentLabel(rec.Agent),
-		Command:   cmd.argv,
-		Cwd:       rec.Worktree,
-		Env:       cmd.env,
-		UnsetEnv:  []string{apiKeyEnv},
+		WorkspaceID: workspaceID,
+		Title:       signInTitle + agentLabel(rec.Agent),
+		Command:     cmd.argv,
+		Cwd:         rec.Worktree,
+		Env:         cmd.env,
+		UnsetEnv:    []string{apiKeyEnv},
 	})
 	if err != nil {
 		return err
@@ -90,8 +90,8 @@ func (a *app) signInExited(ctx context.Context, ev pluginsdk.Event) {
 	delete(a.signIns, p.ID)
 	if ok {
 		delete(a.auth, sid)
-		for _, proj := range a.ui {
-			if st := proj.sessions[sid]; st != nil && st.signIn == p.ID {
+		for _, ws := range a.ui {
+			if st := ws.sessions[sid]; st != nil && st.signIn == p.ID {
 				st.signIn = ""
 			}
 		}
@@ -106,9 +106,9 @@ func (a *app) signInExited(ctx context.Context, ev pluginsdk.Event) {
 	}
 }
 
-func (a *app) cancelSignIn(ctx context.Context, projectID, sid string) {
+func (a *app) cancelSignIn(ctx context.Context, workspaceID, sid string) {
 	a.uiMu.Lock()
-	if p := a.ui[projectID]; p != nil {
+	if p := a.ui[workspaceID]; p != nil {
 		if st := p.sessions[sid]; st != nil {
 			st.signIn = ""
 		}
@@ -127,8 +127,8 @@ func (a *app) cancelSignIn(ctx context.Context, projectID, sid string) {
 	}
 }
 
-func (a *app) removeLeftoverTerminals(ctx context.Context, projects []pluginsdk.Project) {
-	for _, p := range projects {
+func (a *app) removeLeftoverTerminals(ctx context.Context, workspaces []pluginsdk.Workspace) {
+	for _, p := range workspaces {
 		sessions, err := a.host.ListSessions(ctx, p.ID, true)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "agents: list sign-in terminals:", err)

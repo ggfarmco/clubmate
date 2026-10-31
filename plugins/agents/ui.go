@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
@@ -38,22 +39,22 @@ const (
 )
 
 type uiState struct {
-	uiMu         sync.Mutex
-	ui           map[string]*projectUI
-	goneProjects map[string]bool
-	auth         map[string]authCommand
-	signIns      map[string]string
-	nodeProblem  string
-	installing   bool
-	resumable    map[string]bool
-	steers       map[string]bool
-	noResume     map[string]bool
-	advisors     map[string]string
-	present      map[string]bool
-	sections     map[string]string
+	uiMu           sync.Mutex
+	ui             map[string]*workspaceUI
+	goneWorkspaces map[string]bool
+	auth           map[string]authCommand
+	signIns        map[string]string
+	nodeProblem    string
+	installing     bool
+	resumable      map[string]bool
+	steers         map[string]bool
+	noResume       map[string]bool
+	advisors       map[string]string
+	present        map[string]bool
+	sections       map[string]string
 }
 
-type projectUI struct {
+type workspaceUI struct {
 	render    sync.Mutex
 	sent      map[string][]byte
 	throttle  *throttle
@@ -69,11 +70,6 @@ type projectUI struct {
 	codeRead  bool
 }
 
-type presencePayload struct {
-	ProjectID string `json:"projectId"`
-	Section   string `json:"section"`
-}
-
 type sessionUI struct {
 	window      int
 	expanded    map[string]bool
@@ -85,27 +81,27 @@ type sessionUI struct {
 
 func newUIState() uiState {
 	return uiState{
-		ui: map[string]*projectUI{}, goneProjects: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
+		ui: map[string]*workspaceUI{}, goneWorkspaces: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
 		resumable: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
 		present: map[string]bool{}, sections: map[string]string{},
 	}
 }
 
-func (a *app) projectState(projectID string) *projectUI {
+func (a *app) workspaceState(workspaceID string) *workspaceUI {
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
-	p, ok := a.ui[projectID]
+	p, ok := a.ui[workspaceID]
 	if !ok {
-		p = &projectUI{sent: map[string][]byte{}, collapsed: map[string]bool{}, sessions: map[string]*sessionUI{}}
-		p.throttle = newThrottle(realClock{}, renderEvery, func() { a.renderLogged(projectID) })
+		p = &workspaceUI{sent: map[string][]byte{}, collapsed: map[string]bool{}, sessions: map[string]*sessionUI{}}
+		p.throttle = newThrottle(realClock{}, renderEvery, func() { a.renderLogged(workspaceID) })
 		p.tick = newTicker(realClock{}, tickEvery, p.throttle.kick)
-		a.ui[projectID] = p
+		a.ui[workspaceID] = p
 	}
 	return p
 }
 
-func (a *app) sessionState(projectID, sid string) *sessionUI {
-	p := a.projectState(projectID)
+func (a *app) sessionState(workspaceID, sid string) *sessionUI {
+	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	v, ok := p.sessions[sid]
@@ -120,22 +116,22 @@ func (v *sessionUI) showEarlier() {
 	v.window = max(v.window, windowStep) + windowStep
 }
 
-func (a *app) kick(projectID string) {
+func (a *app) kick(workspaceID string) {
 	a.uiMu.Lock()
-	gone := a.goneProjects[projectID]
+	gone := a.goneWorkspaces[workspaceID]
 	a.uiMu.Unlock()
 	if !gone {
-		a.projectState(projectID).throttle.kick()
+		a.workspaceState(workspaceID).throttle.kick()
 	}
 }
 
-func (a *app) forgetProject(projectID string) {
+func (a *app) forgetWorkspace(workspaceID string) {
 	a.uiMu.Lock()
-	a.goneProjects[projectID] = true
-	p := a.ui[projectID]
-	delete(a.ui, projectID)
-	delete(a.present, projectID)
-	delete(a.sections, projectID)
+	a.goneWorkspaces[workspaceID] = true
+	p := a.ui[workspaceID]
+	delete(a.ui, workspaceID)
+	delete(a.present, workspaceID)
+	delete(a.sections, workspaceID)
 	a.uiMu.Unlock()
 	if p != nil {
 		p.throttle.stop()
@@ -143,10 +139,10 @@ func (a *app) forgetProject(projectID string) {
 	}
 }
 
-func (a *app) forgetSession(ctx context.Context, projectID, sid string) {
-	a.cancelSignIn(ctx, projectID, sid)
+func (a *app) forgetSession(ctx context.Context, workspaceID, sid string) {
+	a.cancelSignIn(ctx, workspaceID, sid)
 	a.uiMu.Lock()
-	if p := a.ui[projectID]; p != nil {
+	if p := a.ui[workspaceID]; p != nil {
 		delete(p.sessions, sid)
 	}
 	delete(a.noResume, sid)
@@ -154,54 +150,54 @@ func (a *app) forgetSession(ctx context.Context, projectID, sid string) {
 }
 
 func (a *app) renderAll(ctx context.Context) {
-	projects, err := a.host.ListProjects(ctx)
+	workspaces, err := a.host.ListWorkspaces(ctx)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "agents: list projects:", err)
+		fmt.Fprintln(os.Stderr, "agents: list workspaces:", err)
 		return
 	}
-	a.removeLeftoverTerminals(ctx, projects)
-	for _, p := range projects {
+	a.removeLeftoverTerminals(ctx, workspaces)
+	for _, p := range workspaces {
 		if err := a.renderSlots(ctx, p.ID, a.slots()); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: render:", err)
 		}
 	}
 }
 
-func (a *app) renderLogged(projectID string) {
+func (a *app) renderLogged(workspaceID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), renderTimeout)
 	defer cancel()
-	if err := a.render(ctx, projectID); err != nil {
+	if err := a.render(ctx, workspaceID); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: render:", err)
 	}
 }
 
-func (a *app) render(ctx context.Context, projectID string) error {
-	return a.renderSlots(ctx, projectID, a.shownSlots(projectID))
+func (a *app) render(ctx context.Context, workspaceID string) error {
+	return a.renderSlots(ctx, workspaceID, a.shownSlots(workspaceID))
 }
 
-func (a *app) renderSlots(ctx context.Context, projectID string, slots []string) error {
+func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []string) error {
 	if len(slots) == 0 {
 		return nil
 	}
-	p := a.projectState(projectID)
+	p := a.workspaceState(workspaceID)
 	p.render.Lock()
 	defer p.render.Unlock()
-	project, err := a.host.GetProject(ctx, projectID)
+	workspace, err := a.host.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
-	if project.Home {
+	if workspace.Home {
 		for _, slot := range slots {
-			if err := a.push(ctx, p, projectID, slot, sdui.Empty(errHome.Error())); err != nil {
+			if err := a.push(ctx, p, workspaceID, slot, sdui.Empty(errHome.Error())); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	recs := a.list(projectID)
+	recs := a.list(workspaceID)
 	slices.Reverse(recs)
 	recs = recs[:min(len(recs), maxSidebarRows)]
-	selected, err := a.resolveSelected(ctx, projectID, recs)
+	selected, err := a.resolveSelected(ctx, workspaceID, recs)
 	if err != nil {
 		return err
 	}
@@ -218,7 +214,7 @@ func (a *app) renderSlots(ctx context.Context, projectID string, slots []string)
 			p.tick.arm()
 		}
 	}
-	if err := a.restoreCollapsed(ctx, projectID); err != nil {
+	if err := a.restoreCollapsed(ctx, workspaceID); err != nil {
 		return err
 	}
 	a.uiMu.Lock()
@@ -229,22 +225,22 @@ func (a *app) renderSlots(ctx context.Context, projectID string, slots []string)
 		row = p.row
 	}
 	a.uiMu.Unlock()
-	if err := a.push(ctx, p, projectID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now(), branchOpen)); err != nil {
+	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now(), branchOpen)); err != nil {
 		return err
 	}
 	if slices.Contains(slots, mainSlot) {
 		main := sdui.Empty(pickSession)
 		if s := a.session(selected); s != nil {
-			main = mainView(a.screen(ctx, projectID, s))
+			main = mainView(a.screen(ctx, workspaceID, s))
 		}
-		if err := a.push(ctx, p, projectID, mainSlot, main); err != nil {
+		if err := a.push(ctx, p, workspaceID, mainSlot, main); err != nil {
 			return err
 		}
 	}
 	if !slices.Contains(slots, codeSlot) {
 		return nil
 	}
-	return a.renderCode(ctx, p, project, recs)
+	return a.renderCode(ctx, p, workspace, recs)
 }
 
 func (a *app) slots() []string {
@@ -254,9 +250,9 @@ func (a *app) slots() []string {
 	return []string{sidebarSlot, mainSlot}
 }
 
-func (a *app) shownSlots(projectID string) []string {
+func (a *app) shownSlots(workspaceID string) []string {
 	a.uiMu.Lock()
-	present, section := a.present[projectID], a.sections[projectID]
+	present, section := a.present[workspaceID], a.sections[workspaceID]
 	a.uiMu.Unlock()
 	if !present {
 		return nil
@@ -285,58 +281,58 @@ func (a *app) loadPresence(ctx context.Context) error {
 }
 
 func (a *app) presenceEvent(ctx context.Context, ev pluginsdk.Event) {
-	var p presencePayload
-	if err := json.Unmarshal(ev.Payload, &p); err != nil || p.ProjectID == "" {
+	var p contract.UISection
+	if err := json.Unmarshal(ev.Payload, &p); err != nil || p.Workspace == "" {
 		return
 	}
 	switch ev.Topic {
 	case "ui.opened", "ui.idle":
-		if err := a.setPresent(ctx, p.ProjectID, ev.Topic == "ui.opened"); err != nil {
+		if err := a.setPresent(ctx, p.Workspace, ev.Topic == "ui.opened"); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: presence:", err)
 		}
 	case "ui.section":
-		a.setSection(p.ProjectID, p.Section)
+		a.setSection(p.Workspace, p.Section)
 	}
-	a.kick(p.ProjectID)
+	a.kick(p.Workspace)
 }
 
-func (a *app) setPresent(ctx context.Context, projectID string, on bool) error {
+func (a *app) setPresent(ctx context.Context, workspaceID string, on bool) error {
 	if !on {
 		a.uiMu.Lock()
-		delete(a.present, projectID)
+		delete(a.present, workspaceID)
 		a.uiMu.Unlock()
 		return nil
 	}
-	section, err := a.host.SelectedSection(ctx, projectID)
+	section, err := a.host.SelectedSection(ctx, workspaceID)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
-	if a.goneProjects[projectID] {
+	if a.goneWorkspaces[workspaceID] {
 		return nil
 	}
-	a.present[projectID] = true
+	a.present[workspaceID] = true
 	if err == nil {
-		a.sections[projectID] = section
+		a.sections[workspaceID] = section
 	}
 	return err
 }
 
-func (a *app) setSection(projectID, section string) {
+func (a *app) setSection(workspaceID, section string) {
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
-	if !a.goneProjects[projectID] {
-		a.sections[projectID] = section
+	if !a.goneWorkspaces[workspaceID] {
+		a.sections[workspaceID] = section
 	}
 }
 
-func (a *app) renderCode(ctx context.Context, p *projectUI, project pluginsdk.Project, recs []record) error {
+func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsdk.Workspace, recs []record) error {
 	if !a.codePanel {
 		return nil
 	}
-	root, _, err := workRoot(project)
+	root, _, err := workRoot(workspace)
 	if err != nil {
-		return a.push(ctx, p, project.ID, codeSlot, sdui.Empty(err.Error()))
+		return a.push(ctx, p, workspace.ID, codeSlot, sdui.Empty(err.Error()))
 	}
-	bound, err := a.codeSession(ctx, project.ID, root)
+	bound, err := a.codeSession(ctx, workspace.ID, root)
 	if err != nil {
 		return err
 	}
@@ -352,13 +348,13 @@ func (a *app) renderCode(ctx context.Context, p *projectUI, project pluginsdk.Pr
 	}
 	var sc *screen
 	if s := a.session(bound); s != nil {
-		v := a.screen(ctx, project.ID, s)
+		v := a.screen(ctx, workspace.ID, s)
 		sc = &v
 	}
-	return a.push(ctx, p, project.ID, codeSlot, codeView(here, bound, sc))
+	return a.push(ctx, p, workspace.ID, codeSlot, codeView(here, bound, sc))
 }
 
-func (a *app) screen(ctx context.Context, projectID string, s *session) screen {
+func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen {
 	if s.claimChangesCheck() {
 		go a.refreshChanges(s)
 	}
@@ -374,7 +370,7 @@ func (a *app) screen(ctx context.Context, projectID string, s *session) screen {
 	detached := s.detached()
 	changes := s.hasChanges()
 	sid := v.Session.ID
-	st := a.sessionState(projectID, sid)
+	st := a.sessionState(workspaceID, sid)
 	parent, fromTitles := a.relatives(v)
 	advisor := a.sessionAdvisor(ctx, v.Session)
 	a.uiMu.Lock()
@@ -427,7 +423,7 @@ func (a *app) relatives(v transcriptView) (string, map[string]string) {
 	return parent, titles
 }
 
-func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n sdui.Node) error {
+func (a *app) push(ctx context.Context, p *workspaceUI, workspaceID, slot string, n sdui.Node) error {
 	raw, err := json.Marshal(n)
 	if err != nil {
 		return err
@@ -435,22 +431,22 @@ func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n 
 	if bytes.Equal(p.sent[slot], raw) {
 		return nil
 	}
-	if _, err := a.host.RenderJSON(ctx, projectID, slot, raw); err != nil {
+	if _, err := a.host.RenderJSON(ctx, workspaceID, slot, raw); err != nil {
 		return err
 	}
 	p.sent[slot] = raw
 	return nil
 }
 
-func (a *app) codeSessions(ctx context.Context, projectID string) (map[string]string, error) {
-	p := a.projectState(projectID)
+func (a *app) codeSessions(ctx context.Context, workspaceID string) (map[string]string, error) {
+	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	read, code := p.codeRead, maps.Clone(p.code)
 	a.uiMu.Unlock()
 	if read {
 		return code, nil
 	}
-	if _, err := a.host.StorageGet(ctx, codeKey+projectID, &code); err != nil {
+	if _, err := a.host.StorageGet(ctx, codeKey+workspaceID, &code); err != nil {
 		return nil, err
 	}
 	a.uiMu.Lock()
@@ -461,21 +457,21 @@ func (a *app) codeSessions(ctx context.Context, projectID string) (map[string]st
 	return maps.Clone(p.code), nil
 }
 
-func (a *app) codeSession(ctx context.Context, projectID, root string) (string, error) {
-	code, err := a.codeSessions(ctx, projectID)
+func (a *app) codeSession(ctx context.Context, workspaceID, root string) (string, error) {
+	code, err := a.codeSessions(ctx, workspaceID)
 	return code[root], err
 }
 
-func (a *app) bindCode(ctx context.Context, projectID, sid string) error {
-	project, err := a.host.GetProject(ctx, projectID)
+func (a *app) bindCode(ctx context.Context, workspaceID, sid string) error {
+	workspace, err := a.host.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
-	root, _, err := workRoot(project)
+	root, _, err := workRoot(workspace)
 	if err != nil {
 		return err
 	}
-	code, err := a.codeSessions(ctx, projectID)
+	code, err := a.codeSessions(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -483,20 +479,20 @@ func (a *app) bindCode(ctx context.Context, projectID, sid string) error {
 		code = map[string]string{}
 	}
 	code[root] = sid
-	p := a.projectState(projectID)
+	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	p.code = maps.Clone(code)
 	a.uiMu.Unlock()
-	return a.host.StorageSet(ctx, codeKey+projectID, code)
+	return a.host.StorageSet(ctx, codeKey+workspaceID, code)
 }
 
-func (a *app) resolveSelected(ctx context.Context, projectID string, recs []record) (string, error) {
-	p := a.projectState(projectID)
+func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []record) (string, error) {
+	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	restored, selected := p.restored, p.selected
 	a.uiMu.Unlock()
 	if !restored {
-		if _, err := a.host.StorageGet(ctx, selectedKey+projectID, &selected); err != nil {
+		if _, err := a.host.StorageGet(ctx, selectedKey+workspaceID, &selected); err != nil {
 			return "", err
 		}
 	}
@@ -513,15 +509,15 @@ func (a *app) resolveSelected(ctx context.Context, projectID string, recs []reco
 	if resolved == selected && restored {
 		return resolved, nil
 	}
-	return resolved, a.host.StorageSet(ctx, selectedKey+projectID, resolved)
+	return resolved, a.host.StorageSet(ctx, selectedKey+workspaceID, resolved)
 }
 
-func (a *app) selectSession(ctx context.Context, projectID, sid string) error {
-	p := a.projectState(projectID)
+func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error {
+	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	p.restored, p.selected, p.row = true, sid, sid
 	a.uiMu.Unlock()
-	if err := a.host.StorageSet(ctx, selectedKey+projectID, sid); err != nil {
+	if err := a.host.StorageSet(ctx, selectedKey+workspaceID, sid); err != nil {
 		return err
 	}
 	open := map[string]bool{}
@@ -535,22 +531,22 @@ func (a *app) selectSession(ctx context.Context, projectID, sid string) error {
 		open[expandPrefix+parent] = false
 		s = a.session(parent)
 	}
-	return a.setCollapsed(ctx, projectID, open)
+	return a.setCollapsed(ctx, workspaceID, open)
 }
 
-func (a *app) reveal(ctx context.Context, projectID, sid string) error {
-	if err := a.selectSession(ctx, projectID, sid); err != nil {
+func (a *app) reveal(ctx context.Context, workspaceID, sid string) error {
+	if err := a.selectSession(ctx, workspaceID, sid); err != nil {
 		return err
 	}
-	a.setSection(projectID, sectionID)
-	if err := a.render(ctx, projectID); err != nil {
+	a.setSection(workspaceID, sectionID)
+	if err := a.render(ctx, workspaceID); err != nil {
 		return err
 	}
-	return a.host.Focus(ctx, projectID, sectionID, mainSlot)
+	return a.host.Focus(ctx, workspaceID, sectionID, mainSlot)
 }
 
-func (a *app) restoreCollapsed(ctx context.Context, projectID string) error {
-	p := a.projectState(projectID)
+func (a *app) restoreCollapsed(ctx context.Context, workspaceID string) error {
+	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	folds := p.folds
 	a.uiMu.Unlock()
@@ -558,7 +554,7 @@ func (a *app) restoreCollapsed(ctx context.Context, projectID string) error {
 		return nil
 	}
 	var stored map[string]bool
-	if _, err := a.host.StorageGet(ctx, collapsedKey+projectID, &stored); err != nil {
+	if _, err := a.host.StorageGet(ctx, collapsedKey+workspaceID, &stored); err != nil {
 		return err
 	}
 	a.uiMu.Lock()
@@ -573,11 +569,11 @@ func (a *app) restoreCollapsed(ctx context.Context, projectID string) error {
 	return nil
 }
 
-func (a *app) setCollapsed(ctx context.Context, projectID string, keys map[string]bool) error {
-	if err := a.restoreCollapsed(ctx, projectID); err != nil {
+func (a *app) setCollapsed(ctx context.Context, workspaceID string, keys map[string]bool) error {
+	if err := a.restoreCollapsed(ctx, workspaceID); err != nil {
 		return err
 	}
-	p := a.projectState(projectID)
+	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
 	changed := false
 	for k, v := range keys {
@@ -590,7 +586,7 @@ func (a *app) setCollapsed(ctx context.Context, projectID string, keys map[strin
 	if !changed {
 		return nil
 	}
-	return a.host.StorageSet(ctx, collapsedKey+projectID, collapsed)
+	return a.host.StorageSet(ctx, collapsedKey+workspaceID, collapsed)
 }
 
 func (a *app) setNoResume(sid string, on bool) {
@@ -606,9 +602,9 @@ func (a *app) setNoResume(sid string, on bool) {
 func (a *app) setInstalling(on bool) {
 	a.uiMu.Lock()
 	a.installing = on
-	projects := slices.Collect(maps.Keys(a.ui))
+	workspaces := slices.Collect(maps.Keys(a.ui))
 	a.uiMu.Unlock()
-	for _, id := range projects {
+	for _, id := range workspaces {
 		a.kick(id)
 	}
 }

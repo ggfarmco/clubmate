@@ -10,8 +10,8 @@ final class SectionHostingTests: XCTestCase {
 
     func testHostedSectionResolvesToItsHostTab() throws {
         let all = try sections(#"""
-        [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"project","plugin":"editor-nvim"},
-         {"id":"alpha","title":"Alpha","icon":"","order":15,"scope":"project","plugin":"alpha","host":"editor-nvim","slots":["extra"]}]
+        [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"workspace","plugin":"editor-nvim"},
+         {"id":"alpha","title":"Alpha","icon":"","order":15,"scope":"workspace","plugin":"alpha","host":"editor-nvim","slots":["extra"]}]
         """#)
 
         XCTAssertEqual(SectionHosting.rail(all).map(\.id), ["editor-nvim"])

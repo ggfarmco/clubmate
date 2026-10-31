@@ -28,7 +28,7 @@ const (
 
 var (
 	errUnknownCommand = errors.New("unknown command")
-	errNoProject      = errors.New("command needs a project")
+	errNoWorkspace    = errors.New("command needs a workspace")
 	errNeedOwner      = errors.New("pass owner: a name unique to you, e.g. your session id")
 	errAgentTodo      = errors.New("only the user puts tasks into todo; add it as idea")
 	errStartViaClaim  = errors.New("status in_progress is set by backlog.claim")
@@ -88,8 +88,8 @@ type commandArgs struct {
 }
 
 func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
-	if cmd.ProjectID == "" {
-		return nil, errNoProject
+	if cmd.WorkspaceID == "" {
+		return nil, errNoWorkspace
 	}
 	var args commandArgs
 	if len(cmd.Args) > 0 && string(cmd.Args) != "null" {
@@ -99,9 +99,9 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	}
 	switch cmd.ID {
 	case "backlog.list":
-		return b.listCmd(ctx, cmd.ProjectID, args)
+		return b.listCmd(ctx, cmd.WorkspaceID, args)
 	case "backlog.get":
-		return b.store.get(ctx, cmd.ProjectID, args.ID)
+		return b.store.get(ctx, cmd.WorkspaceID, args.ID)
 	case "backlog.add":
 		return b.addCmd(ctx, cmd, args)
 	case "backlog.update":
@@ -113,12 +113,12 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	case "backlog.done":
 		return b.doneCmd(ctx, cmd, args)
 	case "backlog.new":
-		return nil, b.h.FocusField(ctx, cmd.ProjectID, sectionID)
+		return nil, b.h.FocusField(ctx, cmd.WorkspaceID, sectionID)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
 
-func (b *backlog) listCmd(ctx context.Context, projectID string, args commandArgs) (any, error) {
+func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandArgs) (any, error) {
 	filter := statusOpen
 	if args.Status != nil && *args.Status != "" {
 		filter = *args.Status
@@ -126,7 +126,7 @@ func (b *backlog) listCmd(ctx context.Context, projectID string, args commandArg
 	if filter != statusOpen && !validStatus(filter) {
 		return nil, errBadStatus
 	}
-	all, err := b.store.list(ctx, projectID)
+	all, err := b.store.list(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,17 +171,17 @@ func (b *backlog) addCmd(ctx context.Context, cmd pluginsdk.CommandRun, args com
 	if !validPriority(priority) {
 		return nil, errBadPriority
 	}
-	t, err := b.store.add(ctx, cmd.ProjectID, Task{Title: title, Description: deref(args.Description), Status: status, Priority: priority, CreatedBy: createdBy})
+	t, err := b.store.add(ctx, cmd.WorkspaceID, Task{Title: title, Description: deref(args.Description), Status: status, Priority: priority, CreatedBy: createdBy})
 	if err != nil {
 		return nil, err
 	}
-	b.changed(ctx, cmd.ProjectID, t.ID, kindAdded)
+	b.changed(ctx, cmd.WorkspaceID, t.ID, kindAdded)
 	return t, nil
 }
 
 func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
 	self, isAgent := creatorOf(cmd)
-	t, err := b.store.mutate(ctx, cmd.ProjectID, args.ID, func(t *Task) error {
+	t, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, func(t *Task) error {
 		if args.Title != nil {
 			title, err := cleanTitle(*args.Title)
 			if err != nil {
@@ -227,7 +227,7 @@ func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args 
 	if err != nil {
 		return nil, err
 	}
-	b.changed(ctx, cmd.ProjectID, t.ID, kindUpdated)
+	b.changed(ctx, cmd.WorkspaceID, t.ID, kindUpdated)
 	return t, nil
 }
 
@@ -236,7 +236,7 @@ func (b *backlog) claimCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 	if err != nil {
 		return nil, err
 	}
-	t, err := b.store.mutate(ctx, cmd.ProjectID, args.ID, func(t *Task) error {
+	t, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, func(t *Task) error {
 		switch t.Status {
 		case statusIdea, statusTodo:
 			t.ClaimedFrom = t.Status
@@ -244,7 +244,7 @@ func (b *backlog) claimCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 			if t.ClaimedBy == who.Owner {
 				return nil
 			}
-			if !b.live.stale(ctx, cmd.ProjectID, t.ClaimedBy) {
+			if !b.live.stale(ctx, cmd.WorkspaceID, t.ClaimedBy) {
 				return fmt.Errorf("task #%d is in progress by %s; pick another task", t.ID, t.ClaimedBy)
 			}
 			t.LastClaimedBy = t.ClaimedBy
@@ -259,12 +259,12 @@ func (b *backlog) claimCmd(ctx context.Context, cmd pluginsdk.CommandRun, args c
 	if err != nil {
 		return nil, err
 	}
-	b.changed(ctx, cmd.ProjectID, t.ID, kindClaimed)
+	b.changed(ctx, cmd.WorkspaceID, t.ID, kindClaimed)
 	return t, nil
 }
 
-func (b *backlog) mayFinish(ctx context.Context, projectID string, who actor, t *Task) bool {
-	return !who.Agent || who.Owner == t.ClaimedBy || who.Session != "" && b.live.ancestor(ctx, projectID, who.Session, t.ClaimedBy)
+func (b *backlog) mayFinish(ctx context.Context, workspaceID string, who actor, t *Task) bool {
+	return !who.Agent || who.Owner == t.ClaimedBy || who.Session != "" && b.live.ancestor(ctx, workspaceID, who.Session, t.ClaimedBy)
 }
 
 func (b *backlog) releaseCmd(ctx context.Context, cmd pluginsdk.CommandRun, args commandArgs) (any, error) {
@@ -272,11 +272,11 @@ func (b *backlog) releaseCmd(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
-	t, err := b.store.mutate(ctx, cmd.ProjectID, args.ID, func(t *Task) error {
+	t, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, func(t *Task) error {
 		if t.Status != statusInProgress {
 			return fmt.Errorf("task #%d is %s: %w", t.ID, t.Status, errNotClaimed)
 		}
-		if !b.mayFinish(ctx, cmd.ProjectID, who, t) {
+		if !b.mayFinish(ctx, cmd.WorkspaceID, who, t) {
 			return fmt.Errorf("task #%d is in progress by %s: %w", t.ID, t.ClaimedBy, errNotHolder)
 		}
 		status := t.ClaimedFrom
@@ -293,7 +293,7 @@ func (b *backlog) releaseCmd(ctx context.Context, cmd pluginsdk.CommandRun, args
 	if err != nil {
 		return nil, err
 	}
-	b.changed(ctx, cmd.ProjectID, t.ID, kindReleased)
+	b.changed(ctx, cmd.WorkspaceID, t.ID, kindReleased)
 	return t, nil
 }
 
@@ -302,8 +302,8 @@ func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args co
 	if err != nil {
 		return nil, err
 	}
-	t, err := b.store.mutate(ctx, cmd.ProjectID, args.ID, func(t *Task) error {
-		if t.Status == statusInProgress && !b.mayFinish(ctx, cmd.ProjectID, who, t) && !b.live.stale(ctx, cmd.ProjectID, t.ClaimedBy) {
+	t, err := b.store.mutate(ctx, cmd.WorkspaceID, args.ID, func(t *Task) error {
+		if t.Status == statusInProgress && !b.mayFinish(ctx, cmd.WorkspaceID, who, t) && !b.live.stale(ctx, cmd.WorkspaceID, t.ClaimedBy) {
 			return fmt.Errorf("task #%d is in progress by %s: %w", t.ID, t.ClaimedBy, errNotHolder)
 		}
 		if t.Status == statusInProgress {
@@ -318,7 +318,7 @@ func (b *backlog) doneCmd(ctx context.Context, cmd pluginsdk.CommandRun, args co
 	if err != nil {
 		return nil, err
 	}
-	b.changed(ctx, cmd.ProjectID, t.ID, kindDone)
+	b.changed(ctx, cmd.WorkspaceID, t.ID, kindDone)
 	return t, nil
 }
 

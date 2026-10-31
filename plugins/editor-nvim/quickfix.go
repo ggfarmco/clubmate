@@ -41,11 +41,11 @@ type quickfixItem struct {
 	Text string `json:"text" msgpack:"text"`
 }
 
-func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, projectID string, args quickfixArgs) error {
+func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, workspaceID string, args quickfixArgs) error {
 	if err := validQuickfix(args); err != nil {
 		return err
 	}
-	e, c, err := a.attach(ctx, h, projectID, args.Items[0].Path)
+	e, c, err := a.attach(ctx, h, workspaceID, args.Items[0].Path)
 	if c == nil || err != nil {
 		return err
 	}

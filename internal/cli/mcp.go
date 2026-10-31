@@ -12,6 +12,7 @@ import (
 
 	"clubmate/internal/buildinfo"
 	"clubmate/internal/mcp"
+	"clubmate/pkg/contract"
 )
 
 const mcpPoll = 5 * time.Second
@@ -25,7 +26,7 @@ func (a *app) mcpCmd() *cobra.Command {
 			srv := &mcp.Server{
 				Dial:      a.mcpDial,
 				Version:   buildinfo.String(),
-				Project:   os.Getenv(projectEnv),
+				Workspace: contract.WorkspaceFromEnv(),
 				Log:       cmd.ErrOrStderr(),
 				Poll:      mcpPoll,
 				Caller:    os.Getenv(agentSessionEnv),

@@ -29,7 +29,7 @@ struct InboxView: View {
                                     kind: .permission,
                                     title: alert.title,
                                     message: alert.body,
-                                    source: HubNotification(alert).source(workspaceName: app.project(alert.workspace)?.name),
+                                    source: HubNotification(alert).source(workspaceName: app.workspace(alert.workspace)?.name),
                                     date: nil,
                                     unread: true
                                 ) { open { notifications.open(alert) } }
@@ -108,7 +108,7 @@ struct InboxView: View {
             kind: entry.note.kind,
             title: entry.note.what,
             message: entry.note.message,
-            source: entry.note.source(workspaceName: app.project(entry.note.workspace)?.name),
+            source: entry.note.source(workspaceName: app.workspace(entry.note.workspace)?.name),
             date: entry.date,
             unread: !entry.handled
         ) { open { notifications.open(entry) } }

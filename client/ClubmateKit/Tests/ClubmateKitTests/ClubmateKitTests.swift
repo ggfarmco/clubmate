@@ -13,15 +13,15 @@ final class ClubmateKitTests: XCTestCase {
         core = nil
     }
 
-    func testPingAndProjects() async throws {
+    func testPingAndWorkspaces() async throws {
         let client = try await startCore()
         let ping = try await client.ping()
         XCTAssertGreaterThan(ping.pid, 0)
         XCTAssertNotNil(ping.sessionProtocol)
-        let project = try await client.createProject(name: "demo", repos: [])
-        let projects = try await client.listProjects()
-        XCTAssertEqual(projects.map(\.name), ["demo"])
-        try core?.cli("session", "create", "--project", project.id, "--", "/bin/sleep", "60")
+        let workspace = try await client.createWorkspace(name: "demo", repos: [])
+        let workspaces = try await client.listWorkspaces()
+        XCTAssertEqual(workspaces.map(\.name), ["demo"])
+        try core?.cli("session", "create", "--workspace", workspace.id, "--", "/bin/sleep", "60")
         let live = try await client.liveSessionCount()
         XCTAssertEqual(live, 1)
         await client.close()
@@ -85,44 +85,44 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
-    func testProjectOpenRequests() async throws {
+    func testWorkspaceOpenRequests() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        try await client.register(handles: ["project.open"])
-        let requests = client.projectOpenRequests()
+        let workspace = try await client.createWorkspace(name: "demo")
+        try await client.register(handles: ["workspace.show"])
+        let requests = client.workspaceOpenRequests()
         guard let paths = core?.paths else { throw TestFailure(description: "no core") }
         let caller = try await CoreClient.connect(paths: paths)
-        _ = try await caller.call(method: "project.open", params: .object(["id": .string(project.id)]))
+        _ = try await caller.call(method: "workspace.show", params: .object(["id": .string(workspace.id)]))
         let id = await first(requests, within: .seconds(3))
-        XCTAssertEqual(id, project.id)
+        XCTAssertEqual(id, workspace.id)
         await caller.close()
         await client.close()
     }
 
     func testConfirmRequestDecodes() throws {
-        let fixture = Data(#"{"title":"Close Terminal","workspace":"demo","command":"terminals.close","args":{"sessionId":"ses_1","force":true,"line":3}}"#.utf8)
+        let fixture = Data(#"{"title":"Close Terminal","workspaceName":"demo","command":"terminals.close","args":{"sessionId":"ses_1","force":true,"line":3}}"#.utf8)
         let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
-        XCTAssertEqual(request, ConfirmRequest(title: "Close Terminal", workspace: "demo", command: "terminals.close", args: .object(["sessionId": .string("ses_1"), "force": .bool(true), "line": .number(3)])))
+        XCTAssertEqual(request, ConfirmRequest(title: "Close Terminal", workspaceName: "demo", command: "terminals.close", args: .object(["sessionId": .string("ses_1"), "force": .bool(true), "line": .number(3)])))
         XCTAssertEqual(request.message, "Allow agent to close Terminal?")
         XCTAssertEqual(request.detail, "Workspace: demo\nCommand: terminals.close\nforce: true\nline: 3\nsessionId: ses_1")
     }
 
     func testConfirmDetailEscapes() {
         let long = String(repeating: "x", count: 300)
-        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id\nCommand: fake": .string("ses_1\u{2028}Approved\u{202E}: yes"), "note": .string(long)]), session: ConfirmSession(id: "ses_1", title: "Build", workspace: "demo"))
+        let request = ConfirmRequest(title: "Kill Session", workspaceName: "demo", command: "session.kill", args: .object(["id\nCommand: fake": .string("ses_1\u{2028}Approved\u{202E}: yes"), "note": .string(long)]), session: ConfirmSession(id: "ses_1", title: "Build", workspaceName: "demo"))
         XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nSession: Build (ses_1) in demo\nid\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
     }
 
     func testPluginConfirmShowsBodyNeutrally() throws {
-        let fixture = Data(#"{"title":"Run .clubmate/setup.sh","workspace":"demo","command":"git.worktree-hooks","args":{},"body":"echo a\n\techo\u202e b\r\n","plugin":true}"#.utf8)
+        let fixture = Data(#"{"title":"Run .clubmate/setup.sh","workspaceName":"demo","command":"git.worktree-hooks","args":{},"body":"echo a\n\techo\u202e b\r\n","plugin":true}"#.utf8)
         let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
         XCTAssertEqual(request.message, "Run .clubmate/setup.sh?")
         XCTAssertEqual(request.displayBody, "echo a\n\techo\\u{202e} b\\r\n")
     }
 
     func testConfirmTooLongIsDeniedUnasked() async {
-        let args = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(String(repeating: "x", count: 201))]))
-        let body = ConfirmRequest(title: "Run setup", workspace: "demo", command: "git.worktree-hooks", args: .object([:]), body: String(repeating: "x", count: 64 << 10 + 1), plugin: true)
+        let args = ConfirmRequest(title: "Kill Session", workspaceName: "demo", command: "session.kill", args: .object(["id": .string(String(repeating: "x", count: 201))]))
+        let body = ConfirmRequest(title: "Run setup", workspaceName: "demo", command: "git.worktree-hooks", args: .object([:]), body: String(repeating: "x", count: 64 << 10 + 1), plugin: true)
         for request in [args, body] {
             var asked = false
             let reply = await ConfirmRequest.answer(request) { _, _ in
@@ -135,7 +135,7 @@ final class ClubmateKitTests: XCTestCase {
     }
 
     func testConfirmExpiresBeforeCoreTimeout() async {
-        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .null, timeoutMs: 5001)
+        let request = ConfirmRequest(title: "Kill Session", workspaceName: "demo", command: "session.kill", args: .null, timeoutMs: 5001)
         XCTAssertEqual(request.deadline, .milliseconds(1))
         let reply = await ConfirmRequest.answer(request) { _, expiry in
             await withCheckedContinuation { continuation in
@@ -147,8 +147,8 @@ final class ClubmateKitTests: XCTestCase {
 
     func testAgentApprovalRoundTrip() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        try core?.cli("session", "create", "--project", project.id, "--", "/bin/sleep", "60")
+        let workspace = try await client.createWorkspace(name: "demo")
+        try core?.cli("session", "create", "--workspace", workspace.id, "--", "/bin/sleep", "60")
         let sessions = try await client.call(method: "session.list")
         guard let id = sessions.arrayValue?.first?.objectValue?["id"]?.stringValue else { throw TestFailure(description: "no session") }
         try await client.register(handles: ["ui.confirm"])
@@ -166,7 +166,7 @@ final class ClubmateKitTests: XCTestCase {
         }
         approvals.answer = true
         _ = try await client.call(method: "command.run", params: kill)
-        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000, session: ConfirmSession(id: id, title: "", workspace: "demo")), count: 2))
+        XCTAssertEqual(approvals.asked, Array(repeating: ConfirmRequest(title: "Kill Session", workspaceName: "demo", command: "session.kill", args: .object(["id": .string(id)]), timeoutMs: 60000, session: ConfirmSession(id: id, title: "", workspaceName: "demo")), count: 2))
         await client.close()
     }
 
@@ -219,9 +219,9 @@ final class ClubmateKitTests: XCTestCase {
         let old = try await CoreClient.connect(paths: core.paths)
         let oldPing = try await old.ping()
         XCTAssertEqual(oldPing.version, BuildInfo.display(version: "old", commit: TestCore.commit))
-        let project = try await old.createProject(name: "demo")
+        let workspace = try await old.createWorkspace(name: "demo")
         let created = try await old.call(method: "session.create", params: .object([
-            "projectId": .string(project.id),
+            "workspaceId": .string(workspace.id),
             "command": .array([.string("sleep"), .string("60")]),
         ]))
         await old.close()
@@ -267,7 +267,7 @@ final class ClubmateKitTests: XCTestCase {
     func testRPCErrorMapping() async throws {
         let client = try await startCore()
         do {
-            _ = try await client.uiStateGet(projectID: "prj_0000000000000000")
+            _ = try await client.uiStateGet(workspaceID: "prj_0000000000000000")
             XCTFail("expected not found")
         } catch let ClubmateError.rpc(code, _) {
             XCTAssertEqual(code, -32004)

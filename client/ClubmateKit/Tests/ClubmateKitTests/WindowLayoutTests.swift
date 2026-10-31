@@ -12,7 +12,7 @@ final class WindowLayoutTests: XCTestCase {
         return defaults
     }
 
-    func testLayoutMigratesOpenProjects() throws {
+    func testLayoutMigratesOpenWorkspaces() throws {
         let defaults = try makeDefaults()
         defaults.set(["a", "b"], forKey: "openProjects")
         let layout = WindowLayout(defaults: defaults)

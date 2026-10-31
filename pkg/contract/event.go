@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	TopicProjectCreated = "project.created"
-	TopicProjectUpdated = "project.updated"
-	TopicProjectDeleted = "project.deleted"
-	TopicSessionCreated = "session.created"
-	TopicSessionExited  = "session.exited"
-	TopicSessionKilled  = "session.killed"
-	TopicSessionRemoved = "session.removed"
-	TopicUIOpened       = "ui.opened"
-	TopicUIIdle         = "ui.idle"
-	TopicUISection      = "ui.section"
+	TopicWorkspaceCreated = "workspace.created"
+	TopicWorkspaceUpdated = "workspace.updated"
+	TopicWorkspaceDeleted = "workspace.deleted"
+	TopicSessionCreated   = "session.created"
+	TopicSessionExited    = "session.exited"
+	TopicSessionKilled    = "session.killed"
+	TopicSessionRemoved   = "session.removed"
+	TopicUIOpened         = "ui.opened"
+	TopicUIIdle           = "ui.idle"
+	TopicUISection        = "ui.section"
 )
 
 type Event struct {
@@ -26,12 +26,13 @@ type Event struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-type ProjectChanged struct {
-	Project Workspace `json:"project"`
+type WorkspaceChanged struct {
+	Workspace string    `json:"workspace"`
+	Info      Workspace `json:"info"`
 }
 
-type ProjectDeleted struct {
-	ID string `json:"id"`
+type WorkspaceDeleted struct {
+	Workspace string `json:"workspace"`
 }
 
 type SessionCreated struct {
@@ -40,7 +41,7 @@ type SessionCreated struct {
 
 type SessionExited struct {
 	ID        string       `json:"id"`
-	ProjectID string       `json:"projectId"`
+	Workspace string       `json:"workspace"`
 	Owner     string       `json:"owner"`
 	State     SessionState `json:"state"`
 	ExitCode  *int         `json:"exitCode"`
@@ -51,10 +52,10 @@ type SessionGone struct {
 }
 
 type UIPresence struct {
-	ProjectID string `json:"projectId"`
+	Workspace string `json:"workspace"`
 }
 
 type UISection struct {
-	ProjectID string `json:"projectId"`
+	Workspace string `json:"workspace"`
 	Section   string `json:"section"`
 }

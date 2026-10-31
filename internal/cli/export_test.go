@@ -9,6 +9,6 @@ import (
 
 var SplitLine = splitLine
 
-func NewRootWithLauncher(stdout, stderr io.Writer, launch func(ctx context.Context, projectID string) error) *cobra.Command {
+func NewRootWithLauncher(stdout, stderr io.Writer, launch func(ctx context.Context, workspaceID string) error) *cobra.Command {
 	return newRoot(stdout, stderr, launch)
 }

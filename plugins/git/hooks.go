@@ -40,9 +40,9 @@ const (
 var errTooLarge = fmt.Errorf("%s/ holds more than %d KiB to review", hooksDir, reviewBytes>>10)
 
 type hooks struct {
-	h         *pluginsdk.Host
-	projectID string
-	primary   string
+	h           *pluginsdk.Host
+	workspaceID string
+	primary     string
 }
 
 type hookEntry struct {
@@ -115,7 +115,7 @@ func (k hooks) trust(ctx context.Context, dir, script string, data []byte) error
 		"size":     fmt.Sprintf("%d bytes, %d lines", len(data), bytes.Count(data, []byte("\n"))),
 		"trusts":   fmt.Sprintf("all of %s/ (%d entries, shown below)", hooksDir, len(entries)),
 	}
-	if err := k.h.Approve(ctx, k.projectID, "Run "+script, hooksCommand, args, review(script, data, entries)); err != nil {
+	if err := k.h.Approve(ctx, k.workspaceID, "Run "+script, hooksCommand, args, review(script, data, entries)); err != nil {
 		return err
 	}
 	return k.h.StorageSet(ctx, key, true)

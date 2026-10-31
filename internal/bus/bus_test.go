@@ -18,7 +18,7 @@ func TestPublishReadAndCursor(t *testing.T) {
 	b := openBus(t)
 	e1, err := b.Publish(t.Context(), "session.created", "core", json.RawMessage(`{"id":"ses_1"}`))
 	require.NoError(t, err)
-	e2, err := b.Publish(t.Context(), "project.created", "core", nil)
+	e2, err := b.Publish(t.Context(), "workspace.created", "core", nil)
 	require.NoError(t, err)
 	assert.Equal(t, e2.Seq, b.Head())
 	got, err := b.Read(t.Context(), "session.*", 0, 0)

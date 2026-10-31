@@ -1,4 +1,4 @@
-package project_test
+package workspace_test
 
 import (
 	"database/sql"
@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"clubmate/internal/project"
+	"clubmate/internal/workspace"
 )
 
-func openStore(t *testing.T) *project.Store {
+func openStore(t *testing.T) *workspace.Store {
 	t.Helper()
-	s, err := project.Open(filepath.Join(t.TempDir(), "db"))
+	s, err := workspace.Open(filepath.Join(t.TempDir(), "db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { s.Close() })
 	return s
@@ -40,14 +40,14 @@ func TestCreateRejectsInvalidRepo(t *testing.T) {
 	s := openStore(t)
 	for _, repo := range []string{"relative/path", "/definitely/missing/dir"} {
 		_, err := s.Create(t.Context(), "x", []string{repo})
-		assert.ErrorIs(t, err, project.ErrInvalidRepo, repo)
+		assert.ErrorIs(t, err, workspace.ErrInvalidFolder, repo)
 	}
 }
 
 func TestCreateRejectsEmptyName(t *testing.T) {
 	s := openStore(t)
 	_, err := s.Create(t.Context(), "  ", nil)
-	assert.ErrorIs(t, err, project.ErrEmptyName)
+	assert.ErrorIs(t, err, workspace.ErrEmptyName)
 }
 
 func TestAddRepo(t *testing.T) {
@@ -58,7 +58,7 @@ func TestAddRepo(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{a, b}, p.Repos)
 	_, err = s.AddRepo(t.Context(), p.ID, a)
-	assert.ErrorIs(t, err, project.ErrDuplicateRepo)
+	assert.ErrorIs(t, err, workspace.ErrDuplicateFolder)
 }
 
 func TestDelete(t *testing.T) {
@@ -66,14 +66,14 @@ func TestDelete(t *testing.T) {
 	p, _ := s.Create(t.Context(), "demo", nil)
 	require.NoError(t, s.Delete(t.Context(), p.ID))
 	_, err := s.Get(t.Context(), p.ID)
-	assert.ErrorIs(t, err, project.ErrNotFound)
+	assert.ErrorIs(t, err, workspace.ErrNotFound)
 }
 
 func TestOpenPathWithSpecialChars(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "a #b?c%41 d")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	dbPath := filepath.Join(dir, "clubmate.db")
-	s, err := project.Open(dbPath)
+	s, err := workspace.Open(dbPath)
 	require.NoError(t, err)
 	_, err = s.Create(t.Context(), "demo", nil)
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestOpenPathWithSpecialChars(t *testing.T) {
 
 func TestOpenRelativePath(t *testing.T) {
 	t.Chdir(t.TempDir())
-	s, err := project.Open("rel.db")
+	s, err := workspace.Open("rel.db")
 	require.NoError(t, err)
 	_, err = s.Create(t.Context(), "demo", nil)
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestOpenRelativePath(t *testing.T) {
 	assert.FileExists(t, "rel.db")
 }
 
-func TestMigrationKeepsProjects(t *testing.T) {
+func TestMigrationKeepsWorkspaces(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "db")
 	raw, err := sql.Open("sqlite", path)
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestMigrationKeepsProjects(t *testing.T) {
 		INSERT INTO projects(id, name, created_at) VALUES('prj_old', 'old', 1)`)
 	require.NoError(t, err)
 	require.NoError(t, raw.Close())
-	s, err := project.Open(path)
+	s, err := workspace.Open(path)
 	require.NoError(t, err)
 	all, err := s.List(t.Context())
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestMigrationKeepsProjects(t *testing.T) {
 	assert.False(t, all[0].Home)
 	assert.Nil(t, all[0].LastOpenedAt)
 	require.NoError(t, s.Close())
-	s, err = project.Open(path)
+	s, err = workspace.Open(path)
 	require.NoError(t, err)
 	require.NoError(t, s.Close())
 }
@@ -120,7 +120,7 @@ func TestRename(t *testing.T) {
 	got, err := s.Get(t.Context(), p.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "renamed", got.Name)
-	assert.ErrorIs(t, s.Rename(t.Context(), p.ID, " "), project.ErrEmptyName)
+	assert.ErrorIs(t, s.Rename(t.Context(), p.ID, " "), workspace.ErrEmptyName)
 }
 
 func TestMissingSelectionFallsBack(t *testing.T) {

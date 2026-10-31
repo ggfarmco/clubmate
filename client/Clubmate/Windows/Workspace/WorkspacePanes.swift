@@ -4,12 +4,12 @@ import SwiftUI
 import ClubmateKit
 
 struct SlotPane: View {
-    let store: ProjectUIStore
+    let store: WorkspaceUIStore
     let slot: String
 
     var body: some View {
         if let view = store.slots[slot] {
-            SDUIView(node: view.tree, slot: slot, projectID: store.projectID, drafts: store.drafts) { [store] event in
+            SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, drafts: store.drafts) { [store] event in
                 await store.send(event)
             }
         } else {
@@ -19,7 +19,7 @@ struct SlotPane: View {
 }
 
 struct SidebarPane: View {
-    let store: ProjectUIStore
+    let store: WorkspaceUIStore
     let slot: String
     let side: SidebarSide
 
@@ -35,7 +35,7 @@ struct SidebarPane: View {
 }
 
 struct ChatPane: View {
-    let store: ProjectUIStore
+    let store: WorkspaceUIStore
     let saved: Double?
     let limit: CGFloat
     let commit: (Double) -> Void

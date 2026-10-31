@@ -3,8 +3,8 @@ import Observation
 
 @MainActor
 @Observable
-public final class ProjectUIStore {
-    public let projectID: String
+public final class WorkspaceUIStore {
+    public let workspaceID: String
     public let drafts = ComposerDrafts()
     public private(set) var sections: [SectionInfo] = []
     public private(set) var hostedSections: [SectionInfo] = []
@@ -53,12 +53,12 @@ public final class ProjectUIStore {
 
     public init(
         client: CoreClient,
-        projectID: String,
+        workspaceID: String,
         legacyChat: LegacyChat? = nil,
         order: @escaping @MainActor ([SectionInfo]) -> [SectionInfo] = { $0 }
     ) {
         self.client = client
-        self.projectID = projectID
+        self.workspaceID = workspaceID
         self.legacyChat = legacyChat
         self.order = order
     }
@@ -82,13 +82,13 @@ public final class ProjectUIStore {
             let scoped = sections.filter { $0.scope == scope }
             self.sections = SectionHosting.rail(scoped)
             hostedSections = SectionHosting.hosted(scoped)
-            let views = try await client.uiGet(projectID: projectID)
+            let views = try await client.uiGet(workspaceID: workspaceID)
             guard generation == self.generation else { return }
             replace(with: views)
-            let state = isAppScope ? nil : try await client.uiStateGet(projectID: projectID)
+            let state = isAppScope ? nil : try await client.uiStateGet(workspaceID: workspaceID)
             guard generation == self.generation else { return }
             restore(from: state)
-            let subscription = try await client.uiSubscribe(projectID: projectID)
+            let subscription = try await client.uiSubscribe(workspaceID: workspaceID)
             guard generation == self.generation else { return await discard(subscription) }
             self.subscription = subscription
         } catch {
@@ -186,7 +186,7 @@ public final class ProjectUIStore {
     }
 
     public func run(_ invocation: CommandInvocation) async -> Result<JSONValue, ClubmateError> {
-        await result { try await self.client.commandRun(id: invocation.id, projectID: self.projectID, args: invocation.args) }
+        await result { try await self.client.commandRun(id: invocation.id, workspaceID: self.workspaceID, args: invocation.args) }
     }
 
     private func result(_ call: () async throws -> JSONValue) async -> Result<JSONValue, ClubmateError> {
@@ -257,10 +257,10 @@ public final class ProjectUIStore {
     private func recover() async {
         let generation = self.generation
         revs = [:]
-        guard let subscription = try? await client.uiSubscribe(projectID: projectID) else {
+        guard let subscription = try? await client.uiSubscribe(workspaceID: workspaceID) else {
             return lose(generation)
         }
-        let views = try? await client.uiGet(projectID: projectID)
+        let views = try? await client.uiGet(workspaceID: workspaceID)
         guard generation == self.generation, let views else {
             await discard(subscription)
             return lose(generation)
@@ -288,22 +288,22 @@ public final class ProjectUIStore {
         }
     }
 
-    private var isAppScope: Bool { projectID.isEmpty }
+    private var isAppScope: Bool { workspaceID.isEmpty }
 
-    private var scope: String { isAppScope ? "app" : "project" }
+    private var scope: String { isAppScope ? "app" : "workspace" }
 
     private func describe(_ error: any Error) -> String {
         (error as? ClubmateError)?.message ?? "\(error)"
     }
 
     private func replace(with views: [SlotView]) {
-        let mine = views.filter { $0.projectId == projectID }
+        let mine = views.filter { $0.workspaceId == workspaceID }
         slots = Dictionary(mine.map { ($0.slot, $0) }) { _, last in last }
         revs = slots.mapValues(\.rev)
     }
 
     private func apply(_ view: SlotView) {
-        guard view.projectId == projectID, view.rev > revs[view.slot] ?? 0 else { return }
+        guard view.workspaceId == workspaceID, view.rev > revs[view.slot] ?? 0 else { return }
         revs[view.slot] = view.rev
         slots[view.slot] = view
     }
@@ -333,7 +333,7 @@ public final class ProjectUIStore {
         let previous = saving
         saving = Task {
             await previous?.value
-            try? await client.uiStatePatch(projectID: projectID, key: key, value: value)
+            try? await client.uiStatePatch(workspaceID: workspaceID, key: key, value: value)
         }
     }
 }

@@ -50,15 +50,15 @@ final class SupervisorTests: XCTestCase {
         XCTAssertEqual(connects.values.count, 1)
     }
 
-    func testProjectOpenRegistered() async throws {
+    func testWorkspaceOpenRegistered() async throws {
         let core = try await TestCore.start()
         self.core = core
         let supervisor = ConnectionSupervisor(connect: { try await CoreClient.connect(paths: core.paths) })
         supervisor.start()
         let client = try await waitFor { supervisor.phase == .ready ? supervisor.client : nil }
-        let project = try await client.createProject(name: "demo")
+        let workspace = try await client.createWorkspace(name: "demo")
         let caller = try await CoreClient.connect(paths: core.paths)
-        let result = try await caller.call(method: "project.open", params: .object(["id": .string(project.id)]))
+        let result = try await caller.call(method: "workspace.show", params: .object(["id": .string(workspace.id)]))
         XCTAssertEqual(result.objectValue?["clients"]?.numberValue, 1)
         await caller.close()
     }
@@ -66,13 +66,13 @@ final class SupervisorTests: XCTestCase {
     func testSupervisorRebindsRegistryStoresAfterCoreRestart() async throws {
         let core = try await TestCore.start()
         self.core = core
-        let registry = Recorder<ProjectUIStore>()
+        let registry = Recorder<WorkspaceUIStore>()
         let supervisor = ConnectionSupervisor(connect: { try await CoreClient.connect(paths: core.paths) }, stores: { registry.values })
         supervisor.start()
         let client = try await waitFor { supervisor.phase == .ready ? supervisor.client : nil }
-        let project = try await client.createProject(name: "demo")
-        let kept = ProjectUIStore(client: client, projectID: project.id)
-        let dropped = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let kept = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        let dropped = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         registry.add(kept)
         registry.add(dropped)
         supervisor.attach(kept)
@@ -86,7 +86,7 @@ final class SupervisorTests: XCTestCase {
         try await waitUntil(within: .seconds(15)) { kept.connected && supervisor.client !== client }
         XCTAssertFalse(dropped.connected)
         let button = try await waitFor { kept.slots["terminals.sidebar"]?.tree.find(id: "new") }
-        _ = try await kept.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", projectID: project.id)).get()
+        _ = try await kept.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
         try await waitUntil { kept.slots["terminals.main"]?.tree.type == "surface" }
         await kept.stop()
         await dropped.stop()

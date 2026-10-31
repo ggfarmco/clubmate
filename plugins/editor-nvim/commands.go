@@ -68,7 +68,7 @@ type selectionResult struct {
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	name := strings.TrimPrefix(cmd.ID, h.PluginID()+".")
-	if a.isDeleted(cmd.ProjectID) {
+	if a.isDeleted(cmd.WorkspaceID) {
 		return nil, nil
 	}
 	switch name {
@@ -77,7 +77,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("open args: %w", err)
 		}
-		return nil, a.open(ctx, h, cmd.ProjectID, args)
+		return nil, a.open(ctx, h, cmd.WorkspaceID, args)
 	case "quickfix":
 		var args quickfixArgs
 		dec := json.NewDecoder(bytes.NewReader(cmd.Args))
@@ -85,46 +85,46 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := dec.Decode(&args); err != nil {
 			return nil, fmt.Errorf("quickfix args: %w", err)
 		}
-		return nil, a.quickfix(ctx, h, cmd.ProjectID, args)
+		return nil, a.quickfix(ctx, h, cmd.WorkspaceID, args)
 	case "diffview":
 		var args diffviewArgs
 		if err := json.Unmarshal(cmd.Args, &args); err != nil {
 			return nil, fmt.Errorf("diffview args: %w", err)
 		}
-		return struct{}{}, a.diffview(ctx, h, cmd.ProjectID, args)
+		return struct{}{}, a.diffview(ctx, h, cmd.WorkspaceID, args)
 	case "checktime":
 		if _, err := decodeRoot(name, cmd.Args, errChecktimeRoot); err != nil {
 			return nil, err
 		}
-		return nil, a.checktime(cmd.ProjectID)
+		return nil, a.checktime(cmd.WorkspaceID)
 	case "stop-root":
 		args, err := decodeRoot(name, cmd.Args, errStopRoot)
 		if err != nil {
 			return nil, err
 		}
-		return nil, a.stopRoot(ctx, h, cmd.ProjectID, args.Root, args.Force)
+		return nil, a.stopRoot(ctx, h, cmd.WorkspaceID, args.Root, args.Force)
 	case "unsaved":
 		args, err := decodeRoot(name, cmd.Args, errUnsavedRoot)
 		if err != nil {
 			return nil, err
 		}
-		return a.unsaved(cmd.ProjectID, args.Root)
+		return a.unsaved(cmd.WorkspaceID, args.Root)
 	case "guard-switch":
 		args, err := decodeRoot(name, cmd.Args, errUnsavedRoot)
 		if err != nil {
 			return nil, err
 		}
-		return nil, a.guardSwitch(cmd.ProjectID, args.Root)
+		return nil, a.guardSwitch(cmd.WorkspaceID, args.Root)
 	case "release-root":
 		args, err := decodeRoot(name, cmd.Args, errStopRoot)
 		if err != nil {
 			return nil, err
 		}
-		return nil, a.releaseRoot(ctx, h, cmd.ProjectID, args.Root)
+		return nil, a.releaseRoot(ctx, h, cmd.WorkspaceID, args.Root)
 	case "import-config":
-		return a.importConfig(ctx, h, cmd.ProjectID)
+		return a.importConfig(ctx, h, cmd.WorkspaceID)
 	}
-	e, err := a.active(ctx, h, cmd.ProjectID)
+	e, err := a.active(ctx, h, cmd.WorkspaceID)
 	if e == nil || err != nil {
 		return nil, err
 	}
@@ -155,21 +155,21 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
 
-func (a *app) open(ctx context.Context, h *pluginsdk.Host, projectID string, args openArgs) error {
+func (a *app) open(ctx context.Context, h *pluginsdk.Host, workspaceID string, args openArgs) error {
 	if args.Path == "" {
 		return errNoPath
 	}
 	if strings.ContainsAny(args.Path, "\n\r") {
 		return errBadPath
 	}
-	_, c, err := a.attach(ctx, h, projectID, args.Path)
+	_, c, err := a.attach(ctx, h, workspaceID, args.Path)
 	if c == nil || err != nil {
 		return err
 	}
 	return c.open(args.Path, args.Line, args.Col, lightFile(args.Path))
 }
 
-func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, projectID string, args diffviewArgs) error {
+func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, workspaceID string, args diffviewArgs) error {
 	if !filepath.IsAbs(args.Cwd) {
 		return errDiffviewCwd
 	}
@@ -177,7 +177,7 @@ func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, projectID string,
 		return errDiffviewRev
 	}
 	cwd := filepath.Clean(args.Cwd)
-	e, c, err := a.attach(ctx, h, projectID, cwd)
+	e, c, err := a.attach(ctx, h, workspaceID, cwd)
 	if c == nil || err != nil {
 		return err
 	}
@@ -188,9 +188,9 @@ func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, projectID string,
 	return nil
 }
 
-func (a *app) checktime(projectID string) error {
+func (a *app) checktime(workspaceID string) error {
 	var errs []error
-	for _, e := range a.projectEditors(projectID) {
+	for _, e := range a.workspaceEditors(workspaceID) {
 		if c := e.connected(); c != nil {
 			errs = append(errs, c.checktime())
 		}
@@ -206,8 +206,8 @@ func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error 
 	return h.RunCommand(ctx, "terminals.new", e.id, terminalArgs{Cwd: cwd}, nil)
 }
 
-func (a *app) attach(ctx context.Context, h *pluginsdk.Host, projectID, path string) (*editor, *client, error) {
-	e, err := a.target(ctx, h, projectID, path)
+func (a *app) attach(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (*editor, *client, error) {
+	e, err := a.target(ctx, h, workspaceID, path)
 	if e == nil || err != nil {
 		return nil, nil, err
 	}
@@ -230,8 +230,8 @@ func decodeRoot(name string, raw json.RawMessage, errRelative error) (rootArgs, 
 	return args, nil
 }
 
-func focusMain(ctx context.Context, h *pluginsdk.Host, projectID string) {
-	if err := h.Focus(ctx, projectID, h.PluginID(), mainSlot); err != nil {
+func focusMain(ctx context.Context, h *pluginsdk.Host, workspaceID string) {
+	if err := h.Focus(ctx, workspaceID, h.PluginID(), mainSlot); err != nil {
 		logError("focus", err)
 	}
 }

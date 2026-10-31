@@ -21,27 +21,27 @@ import (
 func TestProcessRegister(t *testing.T) {
 	srv, _ := testutil.NewRPCServer(t)
 	plugin := connectAs(t, srv, rpc.Caller{PluginID: "agents", PID: os.Getpid()})
-	var prj struct {
+	var ws struct {
 		ID string `json:"id"`
 	}
 	cli := connectAs(t, srv, rpc.Caller{})
-	require.NoError(t, cli.Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &prj))
+	require.NoError(t, cli.Call(t.Context(), "workspace.create", map[string]any{"name": "demo"}, &ws))
 
 	child, exited := startSleep(t)
 	other, _ := startSleep(t)
 
 	foreign := connectAs(t, srv, rpc.Caller{PluginID: "other", PID: other.Process.Pid})
-	err := foreign.Call(t.Context(), "process.register", map[string]any{"projectId": prj.ID, "pid": child.Process.Pid, "label": "x"}, nil)
+	err := foreign.Call(t.Context(), "process.register", map[string]any{"workspaceId": ws.ID, "pid": child.Process.Pid, "label": "x"}, nil)
 	var rpcErr *jsonrpc2.Error
 	require.ErrorAs(t, err, &rpcErr)
 	assert.Equal(t, int64(jsonrpc2.CodeInvalidParams), rpcErr.Code)
 
 	var root core.ProcessRoot
-	require.NoError(t, plugin.Call(t.Context(), "process.register", map[string]any{"projectId": prj.ID, "pid": child.Process.Pid, "label": "Claude · repo"}, &root))
+	require.NoError(t, plugin.Call(t.Context(), "process.register", map[string]any{"workspaceId": ws.ID, "pid": child.Process.Pid, "label": "Claude · repo"}, &root))
 	assert.Equal(t, "agents", root.Owner)
 
 	var nodes []proc.Node
-	require.NoError(t, plugin.Call(t.Context(), "process.tree", map[string]any{"projectId": prj.ID, "sessionId": root.ID}, &nodes))
+	require.NoError(t, plugin.Call(t.Context(), "process.tree", map[string]any{"workspaceId": ws.ID, "sessionId": root.ID}, &nodes))
 	require.Len(t, nodes, 1)
 	assert.Equal(t, child.Process.Pid, nodes[0].Process.PID)
 	assert.False(t, nodes[0].Orphan)
@@ -58,11 +58,11 @@ func TestProcessRegister(t *testing.T) {
 	}
 
 	kept, _ := startSleep(t)
-	require.NoError(t, plugin.Call(t.Context(), "process.register", map[string]any{"projectId": prj.ID, "pid": kept.Process.Pid, "label": "kept"}, &root))
+	require.NoError(t, plugin.Call(t.Context(), "process.register", map[string]any{"workspaceId": ws.ID, "pid": kept.Process.Pid, "label": "kept"}, &root))
 	require.NoError(t, plugin.Close())
 	testutil.Eventually(t, func() bool {
 		var roots []core.ProcessRoot
-		require.NoError(t, cli.Call(t.Context(), "process.roots", map[string]any{"projectId": prj.ID}, &roots))
+		require.NoError(t, cli.Call(t.Context(), "process.roots", map[string]any{"workspaceId": ws.ID}, &roots))
 		i := slices.IndexFunc(roots, func(r core.ProcessRoot) bool { return r.ID == root.ID })
 		return i >= 0 && roots[i].Ended
 	}, 5*time.Second)

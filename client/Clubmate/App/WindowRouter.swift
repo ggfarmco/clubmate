@@ -59,7 +59,7 @@ final class WindowRouter {
         layout.activeWorkspace(preferring: keyWindowID)
     }
 
-    var keyWorkspace: (projectID: String?, window: NSWindow?) {
+    var keyWorkspace: (workspaceID: String?, window: NSWindow?) {
         (keyWindowID.flatMap { layout.window($0)?.active }, keyWindowID.flatMap(host))
     }
 
@@ -77,25 +77,25 @@ final class WindowRouter {
         shownWindows.insert(window)
     }
 
-    func open(_ projectID: String, in target: String? = nil) {
+    func open(_ workspaceID: String, in target: String? = nil) {
         let preferred = target ?? keyWindowID ?? layout.windows.last?.id
-        snapshot(layout.windows.first { $0.workspaces.contains(projectID) }?.id ?? preferred, leaving: projectID)
-        let window = layout.open(projectID, preferring: preferred)
+        snapshot(layout.windows.first { $0.workspaces.contains(workspaceID) }?.id ?? preferred, leaving: workspaceID)
+        let window = layout.open(workspaceID, preferring: preferred)
         syncSessions()
-        touched(projectID)
+        touched(workspaceID)
         openWindow?(value: window)
         if !TestMode.current { NSApp.activate() }
     }
 
-    func activateFromSwitcher(_ projectID: String, in window: String) {
+    func activateFromSwitcher(_ workspaceID: String, in window: String) {
         hideSwitcher()
         host(window)?.contentView?.layoutSubtreeIfNeeded()
-        activate(projectID, in: window)
+        activate(workspaceID, in: window)
     }
 
-    func activate(_ projectID: String, in window: String) {
-        snapshot(window, leaving: projectID)
-        layout.activate(projectID, in: window)
+    func activate(_ workspaceID: String, in window: String) {
+        snapshot(window, leaving: workspaceID)
+        layout.activate(workspaceID, in: window)
         touchActive(in: window)
     }
 
@@ -113,13 +113,13 @@ final class WindowRouter {
         touchActive(in: window)
     }
 
-    func closeWorkspace(_ projectID: String, in window: String) {
-        layout.close(projectID, in: window)
+    func closeWorkspace(_ workspaceID: String, in window: String) {
+        layout.close(workspaceID, in: window)
         syncSessions()
     }
 
-    func moveToNewWindow(_ projectID: String) {
-        let window = layout.move(projectID, toNewWindow: true)
+    func moveToNewWindow(_ workspaceID: String) {
+        let window = layout.move(workspaceID, toNewWindow: true)
         syncSessions()
         openWindow?(value: window)
     }
@@ -161,7 +161,7 @@ final class WindowRouter {
         syncSessions()
     }
 
-    func restore(_ listed: [Project]) {
+    func restore(_ listed: [Workspace]) {
         guard !restored else { return }
         restored = true
         layout.forget(missing: layout.workspaces.subtracting(listed.map(\.id)))

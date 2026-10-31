@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	Project     = contract.Workspace
+	Workspace   = contract.Workspace
 	Session     = contract.TerminalSession
 	ProcessInfo = contract.ProcessInfo
 	ProcessNode = contract.ProcessNode
@@ -33,50 +33,50 @@ func (h *Host) Call(ctx context.Context, method string, params, result any) erro
 	return h.conn.Call(ctx, method, params, result)
 }
 
-func (h *Host) ListProjects(ctx context.Context) ([]Project, error) {
-	var out []Project
-	err := h.Call(ctx, "project.list", struct{}{}, &out)
+func (h *Host) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
+	var out []Workspace
+	err := h.Call(ctx, "workspace.list", struct{}{}, &out)
 	return out, err
 }
 
-func (h *Host) GetProject(ctx context.Context, id string) (Project, error) {
-	var out Project
-	err := h.Call(ctx, "project.get", idParams{ID: id}, &out)
+func (h *Host) GetWorkspace(ctx context.Context, id string) (Workspace, error) {
+	var out Workspace
+	err := h.Call(ctx, "workspace.get", idParams{ID: id}, &out)
 	return out, err
 }
 
-func (h *Host) CreateProject(ctx context.Context, name string, repos []string) (Project, error) {
-	var out Project
-	err := h.Call(ctx, "project.create", createProjectParams{Name: name, Repos: repos}, &out)
+func (h *Host) CreateWorkspace(ctx context.Context, name string, repos []string) (Workspace, error) {
+	var out Workspace
+	err := h.Call(ctx, "workspace.create", createWorkspaceParams{Name: name, Repos: repos}, &out)
 	return out, err
 }
 
-func (h *Host) SetWorktree(ctx context.Context, projectID, repo, path string) (Project, error) {
-	var out Project
-	err := h.Call(ctx, "workspace.worktree.set", worktreeSetParams{ID: projectID, Repo: repo, Path: path}, &out)
+func (h *Host) SetWorktree(ctx context.Context, workspaceID, repo, path string) (Workspace, error) {
+	var out Workspace
+	err := h.Call(ctx, "workspace.worktree.set", worktreeSetParams{ID: workspaceID, Repo: repo, Path: path}, &out)
 	return out, err
 }
 
-func (h *Host) CheckWorktrees(ctx context.Context, projectID string) (Project, error) {
-	var out Project
-	err := h.Call(ctx, "workspace.worktree.check", idParams{ID: projectID}, &out)
+func (h *Host) CheckWorktrees(ctx context.Context, workspaceID string) (Workspace, error) {
+	var out Workspace
+	err := h.Call(ctx, "workspace.worktree.check", idParams{ID: workspaceID}, &out)
 	return out, err
 }
 
-func (h *Host) DeleteProject(ctx context.Context, id string) error {
-	return h.Call(ctx, "project.delete", idParams{ID: id}, nil)
+func (h *Host) DeleteWorkspace(ctx context.Context, id string) error {
+	return h.Call(ctx, "workspace.delete", idParams{ID: id}, nil)
 }
 
-func (h *Host) OpenProject(ctx context.Context, id string) error {
-	return h.Call(ctx, "project.open", idParams{ID: id}, nil)
+func (h *Host) OpenWorkspace(ctx context.Context, id string) error {
+	return h.Call(ctx, "workspace.show", idParams{ID: id}, nil)
 }
 
-func (h *Host) Focus(ctx context.Context, projectID, section, slot string) error {
-	return h.Call(ctx, "ui.focus", map[string]string{"projectId": projectID, "section": section, "slot": slot}, nil)
+func (h *Host) Focus(ctx context.Context, workspaceID, section, slot string) error {
+	return h.Call(ctx, "ui.focus", map[string]string{"workspaceId": workspaceID, "section": section, "slot": slot}, nil)
 }
 
-func (h *Host) FocusField(ctx context.Context, projectID, section string) error {
-	return h.Call(ctx, "ui.focus", map[string]any{"projectId": projectID, "section": section, "slot": section + ".sidebar", "field": true}, nil)
+func (h *Host) FocusField(ctx context.Context, workspaceID, section string) error {
+	return h.Call(ctx, "ui.focus", map[string]any{"workspaceId": workspaceID, "section": section, "slot": section + ".sidebar", "field": true}, nil)
 }
 
 func (h *Host) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
@@ -91,24 +91,24 @@ func (h *Host) Presence(ctx context.Context) ([]string, error) {
 	return out, err
 }
 
-func (h *Host) SelectedSection(ctx context.Context, projectID string) (string, error) {
+func (h *Host) SelectedSection(ctx context.Context, workspaceID string) (string, error) {
 	var out struct {
 		Section string `json:"section"`
 	}
-	err := h.Call(ctx, "ui.state.section", map[string]string{"projectId": projectID}, &out)
+	err := h.Call(ctx, "ui.state.section", map[string]string{"workspaceId": workspaceID}, &out)
 	return out.Section, err
 }
 
-func (h *Host) RunCommand(ctx context.Context, id, projectID string, args any, out any) error {
-	return h.Call(ctx, "command.run", runCommandParams{ID: id, ProjectID: projectID, Args: args}, out)
+func (h *Host) RunCommand(ctx context.Context, id, workspaceID string, args any, out any) error {
+	return h.Call(ctx, "command.run", runCommandParams{ID: id, WorkspaceID: workspaceID, Args: args}, out)
 }
 
-func (h *Host) Broadcast(ctx context.Context, topic, projectID string, args any) error {
-	return h.Call(ctx, "command.broadcast", broadcastParams{Topic: topic, ProjectID: projectID, Args: args}, nil)
+func (h *Host) Broadcast(ctx context.Context, topic, workspaceID string, args any) error {
+	return h.Call(ctx, "command.broadcast", broadcastParams{Topic: topic, WorkspaceID: workspaceID, Args: args}, nil)
 }
 
-func (h *Host) ListSessions(ctx context.Context, projectID string, mine bool) ([]Session, error) {
-	params := listSessionsParams{ProjectID: projectID}
+func (h *Host) ListSessions(ctx context.Context, workspaceID string, mine bool) ([]Session, error) {
+	params := listSessionsParams{WorkspaceID: workspaceID}
 	if mine {
 		params.Owner = h.PluginID()
 	}
@@ -125,9 +125,9 @@ func (h *Host) RemoveSession(ctx context.Context, id string) error {
 	return h.Call(ctx, "session.remove", idParams{ID: id}, nil)
 }
 
-func (h *Host) ProcessTree(ctx context.Context, projectID, sessionID string) ([]ProcessNode, error) {
+func (h *Host) ProcessTree(ctx context.Context, workspaceID, sessionID string) ([]ProcessNode, error) {
 	var out []ProcessNode
-	err := h.Call(ctx, "process.tree", processTreeParams{ProjectID: projectID, SessionID: sessionID}, &out)
+	err := h.Call(ctx, "process.tree", processTreeParams{WorkspaceID: workspaceID, SessionID: sessionID}, &out)
 	return out, err
 }
 
@@ -137,9 +137,9 @@ func (h *Host) KillProcesses(ctx context.Context, req KillRequest) ([]int, error
 	return out.Killed, err
 }
 
-func (h *Host) RegisterProcess(ctx context.Context, projectID string, pid int, label string) (ProcessRoot, error) {
+func (h *Host) RegisterProcess(ctx context.Context, workspaceID string, pid int, label string) (ProcessRoot, error) {
 	var out ProcessRoot
-	err := h.Call(ctx, "process.register", registerProcessParams{ProjectID: projectID, PID: pid, Label: label}, &out)
+	err := h.Call(ctx, "process.register", registerProcessParams{WorkspaceID: workspaceID, PID: pid, Label: label}, &out)
 	return out, err
 }
 
@@ -147,9 +147,9 @@ func (h *Host) UnregisterProcess(ctx context.Context, pid int) error {
 	return h.Call(ctx, "process.unregister", pidParams{PID: pid}, nil)
 }
 
-func (h *Host) ProcessRoots(ctx context.Context, projectID string) ([]ProcessRoot, error) {
+func (h *Host) ProcessRoots(ctx context.Context, workspaceID string) ([]ProcessRoot, error) {
 	var out []ProcessRoot
-	err := h.Call(ctx, "process.roots", projectParams{ProjectID: projectID}, &out)
+	err := h.Call(ctx, "process.roots", workspaceParams{WorkspaceID: workspaceID}, &out)
 	return out, err
 }
 
@@ -165,9 +165,9 @@ func (h *Host) Subscribe(ctx context.Context, pattern string, after int64) (stri
 	return out.Subscription, err
 }
 
-func (h *Host) WatchFS(ctx context.Context, projectID string) (string, error) {
+func (h *Host) WatchFS(ctx context.Context, workspaceID string) (string, error) {
 	var out watchResult
-	err := h.Call(ctx, "fs.watch", projectParams{ProjectID: projectID}, &out)
+	err := h.Call(ctx, "fs.watch", workspaceParams{WorkspaceID: workspaceID}, &out)
 	return out.Watch, err
 }
 
@@ -175,20 +175,20 @@ func (h *Host) UnwatchFS(ctx context.Context, watch string) error {
 	return h.Call(ctx, "fs.unwatch", watchResult{Watch: watch}, nil)
 }
 
-func (h *Host) Render(ctx context.Context, projectID, slot string, n sdui.Node) (int64, error) {
+func (h *Host) Render(ctx context.Context, workspaceID, slot string, n sdui.Node) (int64, error) {
 	var out renderResult
-	err := h.Call(ctx, "ui.render", renderParams{ProjectID: projectID, Slot: slot, Tree: n}, &out)
+	err := h.Call(ctx, "ui.render", renderParams{WorkspaceID: workspaceID, Slot: slot, Tree: n}, &out)
 	return out.Rev, err
 }
 
-func (h *Host) RenderJSON(ctx context.Context, projectID, slot string, tree json.RawMessage) (int64, error) {
+func (h *Host) RenderJSON(ctx context.Context, workspaceID, slot string, tree json.RawMessage) (int64, error) {
 	var out renderResult
-	err := h.Call(ctx, "ui.render", renderParams{ProjectID: projectID, Slot: slot, Tree: tree}, &out)
+	err := h.Call(ctx, "ui.render", renderParams{WorkspaceID: workspaceID, Slot: slot, Tree: tree}, &out)
 	return out.Rev, err
 }
 
-func (h *Host) Approve(ctx context.Context, projectID, title, command string, args map[string]string, body string) error {
-	return h.Call(ctx, "ui.approve", approveParams{ProjectID: projectID, Title: title, Command: command, Args: args, Body: body}, nil)
+func (h *Host) Approve(ctx context.Context, workspaceID, title, command string, args map[string]string, body string) error {
+	return h.Call(ctx, "ui.approve", approveParams{WorkspaceID: workspaceID, Title: title, Command: command, Args: args, Body: body}, nil)
 }
 
 func (h *Host) StorageGet(ctx context.Context, key string, out any) (bool, error) {
@@ -221,15 +221,15 @@ func (h *Host) StorageList(ctx context.Context, prefix string) ([]string, error)
 }
 
 type processTreeParams struct {
-	ProjectID string `json:"projectId"`
-	SessionID string `json:"sessionId"`
+	WorkspaceID string `json:"workspaceId"`
+	SessionID   string `json:"sessionId"`
 }
 
 type killResult struct {
 	Killed []int `json:"killed"`
 }
 
-type createProjectParams struct {
+type createWorkspaceParams struct {
 	Name  string   `json:"name"`
 	Repos []string `json:"repos"`
 }
@@ -245,30 +245,30 @@ type worktreeSetParams struct {
 }
 
 type SessionRequest struct {
-	ProjectID  string   `json:"projectId"`
-	Title      string   `json:"title"`
-	Command    []string `json:"command"`
-	Cwd        string   `json:"cwd"`
-	Env        []string `json:"env"`
-	UnsetEnv   []string `json:"unsetEnv"`
-	PathAppend []string `json:"pathAppend"`
+	WorkspaceID string   `json:"workspaceId"`
+	Title       string   `json:"title"`
+	Command     []string `json:"command"`
+	Cwd         string   `json:"cwd"`
+	Env         []string `json:"env"`
+	UnsetEnv    []string `json:"unsetEnv"`
+	PathAppend  []string `json:"pathAppend"`
 }
 
 type runCommandParams struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"projectId"`
-	Args      any    `json:"args"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	Args        any    `json:"args"`
 }
 
 type broadcastParams struct {
-	Topic     string `json:"topic"`
-	ProjectID string `json:"projectId"`
-	Args      any    `json:"args"`
+	Topic       string `json:"topic"`
+	WorkspaceID string `json:"workspaceId"`
+	Args        any    `json:"args"`
 }
 
 type listSessionsParams struct {
-	ProjectID string `json:"projectId"`
-	Owner     string `json:"owner"`
+	WorkspaceID string `json:"workspaceId"`
+	Owner       string `json:"owner"`
 }
 
 type publishParams struct {
@@ -286,27 +286,27 @@ type subscribeResult struct {
 }
 
 type renderParams struct {
-	ProjectID string `json:"projectId"`
-	Slot      string `json:"slot"`
-	Tree      any    `json:"tree"`
+	WorkspaceID string `json:"workspaceId"`
+	Slot        string `json:"slot"`
+	Tree        any    `json:"tree"`
 }
 
 type approveParams struct {
-	ProjectID string            `json:"projectId"`
-	Title     string            `json:"title"`
-	Command   string            `json:"command"`
-	Args      map[string]string `json:"args"`
-	Body      string            `json:"body,omitempty"`
+	WorkspaceID string            `json:"workspaceId"`
+	Title       string            `json:"title"`
+	Command     string            `json:"command"`
+	Args        map[string]string `json:"args"`
+	Body        string            `json:"body,omitempty"`
 }
 
-type projectParams struct {
-	ProjectID string `json:"projectId"`
+type workspaceParams struct {
+	WorkspaceID string `json:"workspaceId"`
 }
 
 type registerProcessParams struct {
-	ProjectID string `json:"projectId"`
-	PID       int    `json:"pid"`
-	Label     string `json:"label"`
+	WorkspaceID string `json:"workspaceId"`
+	PID         int    `json:"pid"`
+	Label       string `json:"label"`
 }
 
 type pidParams struct {

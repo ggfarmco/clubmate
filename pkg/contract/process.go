@@ -21,17 +21,17 @@ type ProcessNode struct {
 }
 
 type ProcessRoot struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"projectId"`
-	Label     string `json:"label"`
-	Owner     string `json:"owner"`
-	PID       int    `json:"pid"`
-	Ended     bool   `json:"ended"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	Label       string `json:"label"`
+	Owner       string `json:"owner"`
+	PID         int    `json:"pid"`
+	Ended       bool   `json:"ended"`
 }
 
 type KillRequest struct {
 	PIDs        []int  `json:"pids"`
 	SessionID   string `json:"sessionId"`
-	ProjectID   string `json:"projectId"`
+	WorkspaceID string `json:"workspaceId"`
 	OrphansOnly bool   `json:"orphansOnly"`
 }

@@ -26,11 +26,11 @@ const (
 var notifySessionPattern = regexp.MustCompile(`^[a-z]{2,8}_[0-9a-f]{16}$`)
 
 type notifyParams struct {
-	ProjectID string `json:"projectId"`
-	Session   string `json:"session"`
-	Title     string `json:"title"`
-	Message   string `json:"message"`
-	Kind      string `json:"kind"`
+	WorkspaceID string `json:"workspaceId"`
+	Session     string `json:"session"`
+	Title       string `json:"title"`
+	Message     string `json:"message"`
+	Kind        string `json:"kind"`
 }
 
 type notifyPayload struct {
@@ -57,14 +57,14 @@ func (s *Server) notifyPost(ctx context.Context, p notifyParams) (notifyResult, 
 	if s.bus == nil {
 		return notifyResult{}, errNoBus
 	}
-	if err := s.requireProject(ctx, p.ProjectID); err != nil {
+	if err := s.requireWorkspace(ctx, p.WorkspaceID); err != nil {
 		return notifyResult{}, err
 	}
 	payload, err := s.notifyPayload(ctx, p)
 	if err != nil {
 		return notifyResult{}, err
 	}
-	if !s.notifyLimit.Allow(p.ProjectID, time.Now()) {
+	if !s.notifyLimit.Allow(p.WorkspaceID, time.Now()) {
 		return notifyResult{}, fmt.Errorf("%w: too many notifications (at most %d per %s per workspace, %d in all)", ErrRateLimited, notifyRateMax, notifyRateWindow, notifyRateTotal)
 	}
 	raw, err := json.Marshal(payload)
@@ -93,13 +93,13 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 	if message == "" {
 		return notifyPayload{}, invalidParams("message is required")
 	}
-	owner, err := s.notifyOwner(ctx, p.ProjectID, p.Session)
+	owner, err := s.notifyOwner(ctx, p.WorkspaceID, p.Session)
 	if err != nil {
 		return notifyPayload{}, err
 	}
 	return notifyPayload{
 		ID:        id.New(notifyPrefix),
-		Workspace: p.ProjectID,
+		Workspace: p.WorkspaceID,
 		Session:   p.Session,
 		Owner:     owner,
 		Title:     notify.Clip(p.Title, notify.MaxTitle),
@@ -110,7 +110,7 @@ func (s *Server) notifyPayload(ctx context.Context, p notifyParams) (notifyPaylo
 	}, nil
 }
 
-func (s *Server) notifyOwner(ctx context.Context, projectID, sessionID string) (string, error) {
+func (s *Server) notifyOwner(ctx context.Context, workspaceID, sessionID string) (string, error) {
 	switch {
 	case sessionID == "":
 		return "", nil
@@ -119,8 +119,8 @@ func (s *Server) notifyOwner(ctx context.Context, projectID, sessionID string) (
 		if err != nil {
 			return "", err
 		}
-		if got.ProjectID != projectID {
-			return "", invalidParams(fmt.Sprintf("session %q is not in workspace %q", sessionID, projectID))
+		if got.WorkspaceID != workspaceID {
+			return "", invalidParams(fmt.Sprintf("session %q is not in workspace %q", sessionID, workspaceID))
 		}
 		return got.Owner, nil
 	case notifySessionPattern.MatchString(sessionID):

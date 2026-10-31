@@ -17,8 +17,8 @@ struct PickerRequest {
 
 @MainActor
 @Observable
-final class ProjectSession {
-    let projectID: String
+final class WorkspaceSession {
+    let workspaceID: String
     let deck = SurfaceDeck()
     let banner = EventBanner()
     var overlay: WorkspaceOverlay?
@@ -27,20 +27,20 @@ final class ProjectSession {
     var thumbnail: NSImage?
     var autoNewRequest = 0
     @ObservationIgnored var autoNew = AutoNewGate()
-    private(set) var store: ProjectUIStore?
-    @ObservationIgnored private let lookup: @MainActor () -> Project?
+    private(set) var store: WorkspaceUIStore?
+    @ObservationIgnored private let lookup: @MainActor () -> Workspace?
     @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private(set) lazy var worktrees = WorktreeModel(
         run: storeRun,
-        project: { [weak self] in self?.lookup() },
+        workspace: { [weak self] in self?.lookup() },
         confirm: { message, detail in await Confirmation.ask(message, detail: detail, action: "Remove", destructive: true) },
         report: { [weak self] message in self?.banner.show(message) }
     )
 
-    init(projectID: String, legacyChat: LegacyChat? = nil, project: @escaping @MainActor () -> Project?) {
-        self.projectID = projectID
+    init(workspaceID: String, legacyChat: LegacyChat? = nil, workspace: @escaping @MainActor () -> Workspace?) {
+        self.workspaceID = workspaceID
         self.legacyChat = legacyChat
-        lookup = project
+        lookup = workspace
     }
 
     func newWorktree(chooseFolder: Bool) {
@@ -126,9 +126,9 @@ final class ProjectSession {
         }
     }
 
-    func adopt(_ client: CoreClient, _ settings: AppSettings) -> ProjectUIStore? {
+    func adopt(_ client: CoreClient, _ settings: AppSettings) -> WorkspaceUIStore? {
         guard store == nil else { return nil }
-        let store = ProjectUIStore(client: client, projectID: projectID, legacyChat: legacyChat) { [weak settings] in settings?.ordered($0) ?? $0 }
+        let store = WorkspaceUIStore(client: client, workspaceID: workspaceID, legacyChat: legacyChat) { [weak settings] in settings?.ordered($0) ?? $0 }
         legacyChat = nil
         self.store = store
         return store
@@ -153,7 +153,7 @@ final class ProjectSession {
 
     private func run(command id: String) {
         guard id == NvimRestart.command, let store else { return run(CommandInvocation(id: id)) }
-        let name = lookup()?.name ?? projectID
+        let name = lookup()?.name ?? workspaceID
         let banner = banner
         Task {
             let outcome = await NvimRestart.run(workspace: name, run: { await store.run($0) }) { message in

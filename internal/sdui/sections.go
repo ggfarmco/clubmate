@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	ScopeProject = "project"
-	ScopeApp     = "app"
+	ScopeWorkspace       = "workspace"
+	ScopeApp             = "app"
+	LegacyScopeWorkspace = "project"
 )
 
 type SectionDef struct {
@@ -50,7 +51,7 @@ func NewSections(defs []Section, views ...ViewDef) *Sections {
 			continue
 		}
 		s.owners[d.ID] = d.Plugin
-		d.Scope = cmp.Or(d.Scope, ScopeProject)
+		d.Scope = cmp.Or(d.Scope, ScopeWorkspace)
 		s.scopes[d.ID] = d.Scope
 		for _, name := range d.Slots {
 			s.extra[d.ID+"."+name] = d.ID

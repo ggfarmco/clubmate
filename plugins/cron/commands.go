@@ -83,7 +83,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 	caller := automation.CallerOf(cmd)
 	j := &Job{
 		Name:      args.Name,
-		Workspace: cmd.ProjectID,
+		Workspace: cmd.WorkspaceID,
 		Schedule:  s,
 		Command:   args.Command,
 		Args:      targetArgs,
@@ -114,7 +114,7 @@ func (a *app) list(cmd pluginsdk.CommandRun) listResult {
 	defer a.mu.Unlock()
 	jobs := make([]*Job, 0, len(a.jobs))
 	for _, j := range a.jobs {
-		if j.Workspace == cmd.ProjectID {
+		if j.Workspace == cmd.WorkspaceID {
 			c := *j
 			c.History = nil
 			jobs = append(jobs, &c)

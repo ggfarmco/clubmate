@@ -26,10 +26,10 @@ type fsChange struct {
 }
 
 type fsChangedParams struct {
-	Watch     string   `json:"watch"`
-	ProjectID string   `json:"projectId"`
-	Paths     []string `json:"paths"`
-	Overflow  bool     `json:"overflow"`
+	Watch       string   `json:"watch"`
+	WorkspaceID string   `json:"workspaceId"`
+	Paths       []string `json:"paths"`
+	Overflow    bool     `json:"overflow"`
 }
 
 type watchParams struct {
@@ -43,15 +43,15 @@ func (s *Server) fsMethods() map[string]handlerFunc {
 	}
 }
 
-func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, error) {
-	if err := requireID(projectPrefix, p.ProjectID); err != nil {
+func (s *Server) fsWatch(ctx context.Context, p workspaceParams) (watchParams, error) {
+	if err := requireID(workspacePrefix, p.WorkspaceID); err != nil {
 		return watchParams{}, err
 	}
-	proj, err := s.svc.GetProject(ctx, p.ProjectID)
+	ws, err := s.svc.GetWorkspace(ctx, p.WorkspaceID)
 	if err != nil {
 		return watchParams{}, err
 	}
-	folders := slices.Compact(slices.Sorted(slices.Values(slices.Concat(proj.Repos, proj.Roots))))
+	folders := slices.Compact(slices.Sorted(slices.Values(slices.Concat(ws.Repos, ws.Roots))))
 	roots := make([]string, 0, len(folders))
 	var gitRoots []string
 	for _, repo := range folders {
@@ -78,13 +78,13 @@ func (s *Server) fsWatch(ctx context.Context, p projectParams) (watchParams, err
 			}
 		})
 		if err != nil {
-			return watchParams{}, fmt.Errorf("watch project %s: %w", p.ProjectID, err)
+			return watchParams{}, fmt.Errorf("watch workspace %s: %w", p.WorkspaceID, err)
 		}
 	}
 	sid, err := subscriptionsFrom(ctx).add(kindFS, sync.OnceFunc(func() {
 		close(quit)
 		stop()
-	}), forwardFS(ctx, connFrom(ctx), p.ProjectID, changes))
+	}), forwardFS(ctx, connFrom(ctx), p.WorkspaceID, changes))
 	return watchParams{Watch: sid}, err
 }
 
@@ -124,14 +124,14 @@ func (s *Server) fsUnwatch(ctx context.Context, p watchParams) (empty, error) {
 	return empty{}, subscriptionsFrom(ctx).cancel(kindFS, p.Watch)
 }
 
-func forwardFS(ctx context.Context, conn *jsonrpc2.Conn, projectID string, changes <-chan fsChange) forwardFunc {
+func forwardFS(ctx context.Context, conn *jsonrpc2.Conn, workspaceID string, changes <-chan fsChange) forwardFunc {
 	return func(sid string, done <-chan struct{}) {
 		for {
 			select {
 			case <-done:
 				return
 			case c := <-changes:
-				params := fsChangedParams{Watch: sid, ProjectID: projectID, Paths: nonNil(c.paths), Overflow: c.overflow}
+				params := fsChangedParams{Watch: sid, WorkspaceID: workspaceID, Paths: nonNil(c.paths), Overflow: c.overflow}
 				if err := conn.Notify(ctx, notifyFSChanged, params); err != nil {
 					return
 				}

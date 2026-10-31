@@ -11,9 +11,9 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
-	"clubmate/internal/project"
 	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
+	"clubmate/internal/workspace"
 	pkgsdui "clubmate/pkg/sdui"
 )
 
@@ -65,21 +65,21 @@ type uiState struct {
 	router   Router
 }
 
-type projectParams struct {
-	ProjectID string `json:"projectId"`
+type workspaceParams struct {
+	WorkspaceID string `json:"workspaceId"`
 }
 
 type renderParams struct {
-	ProjectID string       `json:"projectId"`
-	Slot      string       `json:"slot"`
-	Tree      pkgsdui.Node `json:"tree"`
+	WorkspaceID string       `json:"workspaceId"`
+	Slot        string       `json:"slot"`
+	Tree        pkgsdui.Node `json:"tree"`
 }
 
 type focusParams struct {
-	ProjectID string `json:"projectId"`
-	Section   string `json:"section"`
-	Slot      string `json:"slot"`
-	Field     bool   `json:"field"`
+	WorkspaceID string `json:"workspaceId"`
+	Section     string `json:"section"`
+	Slot        string `json:"slot"`
+	Field       bool   `json:"field"`
 }
 
 type uiFocusParams struct {
@@ -98,12 +98,12 @@ type revResult struct {
 }
 
 type uiEventParams struct {
-	ProjectID string          `json:"projectId"`
-	Slot      string          `json:"slot"`
-	NodeID    string          `json:"nodeId"`
-	Action    string          `json:"action"`
-	Value     json.RawMessage `json:"value"`
-	Agent     bool            `json:"agent,omitempty"`
+	WorkspaceID string          `json:"workspaceId"`
+	Slot        string          `json:"slot"`
+	NodeID      string          `json:"nodeId"`
+	Action      string          `json:"action"`
+	Value       json.RawMessage `json:"value"`
+	Agent       bool            `json:"agent,omitempty"`
 }
 
 type capabilitiesResult struct {
@@ -111,12 +111,12 @@ type capabilitiesResult struct {
 }
 
 type commandRunParams struct {
-	ID        string          `json:"id"`
-	ProjectID string          `json:"projectId"`
-	Args      json.RawMessage `json:"args"`
-	Agent     bool            `json:"agent,omitempty"`
-	Caller    string          `json:"caller,omitempty"`
-	Via       string          `json:"via,omitempty"`
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspaceId"`
+	Args        json.RawMessage `json:"args"`
+	Agent       bool            `json:"agent,omitempty"`
+	Caller      string          `json:"caller,omitempty"`
+	Via         string          `json:"via,omitempty"`
 }
 
 type uiUpdatedParams struct {
@@ -154,35 +154,35 @@ func (s *Server) uiSections(context.Context, empty) ([]sdui.Section, error) {
 	return nonNil(u.sections.List()), nil
 }
 
-func (s *Server) uiGet(_ context.Context, p projectParams) ([]sdui.SlotView, error) {
+func (s *Server) uiGet(_ context.Context, p workspaceParams) ([]sdui.SlotView, error) {
 	u, err := s.uiState()
 	if err != nil {
 		return nil, err
 	}
-	if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+	if err := optionalID(workspacePrefix, p.WorkspaceID); err != nil {
 		return nil, err
 	}
-	return nonNil(u.store.Get(p.ProjectID)), nil
+	return nonNil(u.store.Get(p.WorkspaceID)), nil
 }
 
-func (s *Server) uiSubscribe(ctx context.Context, p projectParams) (subscriptionParams, error) {
+func (s *Server) uiSubscribe(ctx context.Context, p workspaceParams) (subscriptionParams, error) {
 	u, err := s.uiState()
 	if err != nil {
 		return subscriptionParams{}, err
 	}
-	if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+	if err := optionalID(workspacePrefix, p.WorkspaceID); err != nil {
 		return subscriptionParams{}, err
 	}
-	sub, err := u.store.Subscribe(p.ProjectID)
+	sub, err := u.store.Subscribe(p.WorkspaceID)
 	if err != nil {
 		return subscriptionParams{}, err
 	}
 	leave := func() {}
 	target := &focusTarget{conn: connFrom(ctx)}
-	if p.ProjectID != "" {
-		leaveCount := s.presence.join(s.bus, s.logger, p.ProjectID)
+	if p.WorkspaceID != "" {
+		leaveCount := s.presence.join(s.bus, s.logger, p.WorkspaceID)
 		leave = func() {
-			s.presence.dropTarget(p.ProjectID, target)
+			s.presence.dropTarget(p.WorkspaceID, target)
 			leaveCount()
 		}
 	}
@@ -190,14 +190,14 @@ func (s *Server) uiSubscribe(ctx context.Context, p projectParams) (subscription
 		sub.Close()
 		leave()
 	}), forwardUI(ctx, connFrom(ctx), sub))
-	if err == nil && p.ProjectID != "" {
-		s.presence.addTarget(p.ProjectID, target, sid)
+	if err == nil && p.WorkspaceID != "" {
+		s.presence.addTarget(p.WorkspaceID, target, sid)
 	}
 	return subscriptionParams{Subscription: sid}, err
 }
 
 func (s *Server) uiPresence(context.Context, empty) ([]string, error) {
-	return nonNil(s.presence.projects()), nil
+	return nonNil(s.presence.workspaces()), nil
 }
 
 func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, error) {
@@ -205,9 +205,9 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 	if err != nil {
 		return deliveredResult{}, err
 	}
-	if _, err := s.svc.GetProject(ctx, p.ProjectID); err != nil {
-		if errors.Is(err, project.ErrNotFound) {
-			return deliveredResult{}, invalidParams(fmt.Sprintf("unknown project: %q", p.ProjectID))
+	if _, err := s.svc.GetWorkspace(ctx, p.WorkspaceID); err != nil {
+		if errors.Is(err, workspace.ErrNotFound) {
+			return deliveredResult{}, invalidParams(fmt.Sprintf("unknown workspace: %q", p.WorkspaceID))
 		}
 		return deliveredResult{}, err
 	}
@@ -225,7 +225,7 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 	}
 	var wg sync.WaitGroup
 	var delivered atomic.Int32
-	for _, t := range s.presence.focusTargets(p.ProjectID) {
+	for _, t := range s.presence.focusTargets(p.WorkspaceID) {
 		wg.Go(func() {
 			params := uiFocusParams{Subscription: t.sid, Section: p.Section, Slot: p.Slot, Field: p.Field}
 			if t.conn.Notify(ctx, notifyUIFocus, params) == nil {
@@ -256,10 +256,10 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if owner, _ := u.sections.SlotOwner(p.Slot); owner != caller.PluginID {
 		return revResult{}, invalidParams(fmt.Sprintf("slot %q is not owned by plugin %q", p.Slot, caller.PluginID))
 	}
-	if err := s.requireSlotScope(ctx, u, p.Slot, p.ProjectID); err != nil {
+	if err := s.requireSlotScope(ctx, u, p.Slot, p.WorkspaceID); err != nil {
 		return revResult{}, err
 	}
-	rev, err := u.store.Render(ctx, p.ProjectID, p.Slot, caller.PluginID, p.Tree)
+	rev, err := u.store.Render(ctx, p.WorkspaceID, p.Slot, caller.PluginID, p.Tree)
 	return revResult{Rev: rev}, err
 }
 
@@ -279,10 +279,10 @@ func (s *Server) uiEvent(ctx context.Context, p uiEventParams) (json.RawMessage,
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errUnknownSection, section)
 	}
-	if err := s.requireSlotScope(ctx, u, p.Slot, p.ProjectID); err != nil {
+	if err := s.requireSlotScope(ctx, u, p.Slot, p.WorkspaceID); err != nil {
 		return nil, err
 	}
-	if p.Agent && confirmGated(u.store.Get(p.ProjectID), p.Slot, p.Action) {
+	if p.Agent && confirmGated(u.store.Get(p.WorkspaceID), p.Slot, p.Action) {
 		return nil, &jsonrpc2.Error{Code: codeDenied, Message: fmt.Sprintf("action %q needs the user's confirmation", p.Action)}
 	}
 	raw, err := json.Marshal(p)
@@ -316,16 +316,16 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if p.Agent && !c.Agent {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, p.ID)
 	}
-	needsProject := prim.needsProject
+	needsWorkspace := prim.needsWorkspace
 	if !isPrimitive {
-		needsProject = c.Scope != sdui.ScopeApp
+		needsWorkspace = c.Scope != sdui.ScopeApp
 	}
 	scope := ""
-	if needsProject {
-		if err := s.requireProject(ctx, p.ProjectID); err != nil {
+	if needsWorkspace {
+		if err := s.requireWorkspace(ctx, p.WorkspaceID); err != nil {
 			return nil, err
 		}
-		scope = p.ProjectID
+		scope = p.WorkspaceID
 	}
 	if err := schema.Validate(c.Args, p.Args); err != nil {
 		return nil, invalidParams(err.Error())
@@ -336,7 +336,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		}
 	}
 	if isPrimitive && prim.scope != nil {
-		if scope, err = prim.scope(ctx, s.svc, p.ProjectID, p.Args); err != nil {
+		if scope, err = prim.scope(ctx, s.svc, p.WorkspaceID, p.Args); err != nil {
 			return nil, err
 		}
 	}
@@ -349,7 +349,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		if p.Agent {
 			ctx = withAgentCall(ctx)
 		}
-		return s.runPrimitive(ctx, prim, p.ProjectID, p.Args)
+		return s.runPrimitive(ctx, prim, p.WorkspaceID, p.Args)
 	}
 	p.ID = c.ID
 	p.Via = CallerFrom(ctx).PluginID
@@ -382,22 +382,22 @@ func (s *Server) uiState() (*uiState, error) {
 	return u, nil
 }
 
-func (s *Server) requireSlotScope(ctx context.Context, u *uiState, slot, projectID string) error {
+func (s *Server) requireSlotScope(ctx context.Context, u *uiState, slot, workspaceID string) error {
 	scope, _ := u.sections.SlotScope(slot)
 	if scope != sdui.ScopeApp {
-		return s.requireProject(ctx, projectID)
+		return s.requireWorkspace(ctx, workspaceID)
 	}
-	if projectID != "" {
-		return invalidParams(fmt.Sprintf("slot %q is app-scope and takes an empty projectId", slot))
+	if workspaceID != "" {
+		return invalidParams(fmt.Sprintf("slot %q is app-scope and takes an empty workspaceId", slot))
 	}
 	return nil
 }
 
-func (s *Server) requireProject(ctx context.Context, projectID string) error {
-	if err := requireID(projectPrefix, projectID); err != nil {
+func (s *Server) requireWorkspace(ctx context.Context, workspaceID string) error {
+	if err := requireID(workspacePrefix, workspaceID); err != nil {
 		return err
 	}
-	_, err := s.svc.GetProject(ctx, projectID)
+	_, err := s.svc.GetWorkspace(ctx, workspaceID)
 	return err
 }
 

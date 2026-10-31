@@ -12,13 +12,13 @@ import (
 )
 
 type app struct {
-	mu       sync.Mutex
-	projects map[string]*state
-	ops      opTable
+	mu         sync.Mutex
+	workspaces map[string]*state
+	ops        opTable
 }
 
 func main() {
-	a := &app{projects: map[string]*state{}}
+	a := &app{workspaces: map[string]*state{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
 
@@ -31,7 +31,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.*", "project.*"} {
+	for _, pattern := range []string{"ui.*", "workspace.*"} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -50,22 +50,22 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			return
 		}
 		if ev.Topic == contract.TopicUIOpened {
-			a.open(ctx, h, p.ProjectID)
+			a.open(ctx, h, p.Workspace)
 		} else {
-			a.idle(ctx, h, p.ProjectID)
+			a.idle(ctx, h, p.Workspace)
 		}
-	case contract.TopicProjectCreated, contract.TopicProjectUpdated:
-		var p contract.ProjectChanged
+	case contract.TopicWorkspaceCreated, contract.TopicWorkspaceUpdated:
+		var p contract.WorkspaceChanged
 		if !decodeEvent(ev, &p) {
 			return
 		}
-		a.projectChanged(ctx, h, p.Project.ID, ev.Topic == contract.TopicProjectUpdated)
-	case contract.TopicProjectDeleted:
-		var p contract.ProjectDeleted
+		a.workspaceChanged(ctx, h, p.Workspace, ev.Topic == contract.TopicWorkspaceUpdated)
+	case contract.TopicWorkspaceDeleted:
+		var p contract.WorkspaceDeleted
 		if !decodeEvent(ev, &p) {
 			return
 		}
-		a.drop(ctx, h, p.ID)
+		a.drop(ctx, h, p.Workspace)
 	}
 }
 

@@ -47,11 +47,11 @@ final class AgentsUITests: XCTestCase {
         let custom = SDUINode(type: "permissionCard", id: "s/permission/p2", props: ["action": .string("answer")])
         let composer = SDUINode(type: "composer", id: "s/composer/0")
 
-        let answer = UIAction.event(for: card, trigger: .permission(request: "p1", option: "allow"), slot: "agents.main", projectID: "w")
-        XCTAssertEqual(answer, UIEvent(projectId: "w", slot: "agents.main", nodeId: "s/permission/p1", action: "permission", value: .object(["request": .string("p1"), "option": .string("allow")])))
-        XCTAssertEqual(UIAction.event(for: custom, trigger: .permission(request: "p2", option: "deny"), slot: "agents.main", projectID: "w").action, "answer")
-        let send = UIAction.event(for: composer, trigger: .named("send", .object(["text": .string("hi")])), slot: "agents.main", projectID: "w")
-        XCTAssertEqual(send, UIEvent(projectId: "w", slot: "agents.main", nodeId: "s/composer/0", action: "send", value: .object(["text": .string("hi")])))
+        let answer = UIAction.event(for: card, trigger: .permission(request: "p1", option: "allow"), slot: "agents.main", workspaceID: "w")
+        XCTAssertEqual(answer, UIEvent(workspaceId: "w", slot: "agents.main", nodeId: "s/permission/p1", action: "permission", value: .object(["request": .string("p1"), "option": .string("allow")])))
+        XCTAssertEqual(UIAction.event(for: custom, trigger: .permission(request: "p2", option: "deny"), slot: "agents.main", workspaceID: "w").action, "answer")
+        let send = UIAction.event(for: composer, trigger: .named("send", .object(["text": .string("hi")])), slot: "agents.main", workspaceID: "w")
+        XCTAssertEqual(send, UIEvent(workspaceId: "w", slot: "agents.main", nodeId: "s/composer/0", action: "send", value: .object(["text": .string("hi")])))
     }
 
     func testComposerPickerLabels() {

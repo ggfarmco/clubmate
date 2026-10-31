@@ -12,24 +12,25 @@ import (
 	"sync/atomic"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
 )
 
 const (
-	projectCreated = "project.created"
-	projectDeleted = "project.deleted"
-	reasonBudget   = "turn budget of %d reached"
-	reasonCaller   = "the session that ran it is closed"
-	reasonStopped  = "stopped"
-	reasonKickoff  = "start failed: %v"
-	reasonEnd      = "%s reported %s"
-	callTimeout    = 30 * time.Second
-	agentsTopics   = "agents.*"
-	projectTopics  = "project.*"
-	outcomeTopics  = eventPrefix + graphTopic + "*"
-	selectedPrefix = "selected/"
+	workspaceCreated = "workspace.created"
+	workspaceDeleted = "workspace.deleted"
+	reasonBudget     = "turn budget of %d reached"
+	reasonCaller     = "the session that ran it is closed"
+	reasonStopped    = "stopped"
+	reasonKickoff    = "start failed: %v"
+	reasonEnd        = "%s reported %s"
+	callTimeout      = 30 * time.Second
+	agentsTopics     = "agents.*"
+	workspaceTopics  = "workspace.*"
+	outcomeTopics    = eventPrefix + graphTopic + "*"
+	selectedPrefix   = "selected/"
 )
 
 var errNotYours = errors.New("this run was not started by this agent session or its child sessions")
@@ -52,8 +53,8 @@ type app struct {
 	now        func() time.Time
 	runCommand func(ctx context.Context, req commandRequest) (json.RawMessage, error)
 	sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
-	project    func(ctx context.Context, workspace string) (pluginsdk.Project, error)
-	projects   func(ctx context.Context) ([]pluginsdk.Project, error)
+	workspace  func(ctx context.Context, workspace string) (pluginsdk.Workspace, error)
+	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
 	render     func(ctx context.Context, workspace string) error
 }
 
@@ -61,14 +62,6 @@ type outcomePayload struct {
 	Workspace string `json:"workspace"`
 	By        string `json:"by"`
 	Outcome   string `json:"outcome"`
-}
-
-type createdPayload struct {
-	Project pluginsdk.Project `json:"project"`
-}
-
-type deletedPayload struct {
-	ID string `json:"id"`
 }
 
 func main() {
@@ -86,8 +79,8 @@ func newApp() *app {
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
-	a.project = a.getProject
-	a.projects = a.listProjects
+	a.workspace = a.getWorkspace
+	a.workspaces = a.listWorkspaces
 	a.render = a.renderWorkspace
 	return a
 }
@@ -110,7 +103,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	a.lastSeq.Store(ready.Seq)
-	for _, pattern := range []string{agentsTopics, projectTopics, outcomeTopics} {
+	for _, pattern := range []string{agentsTopics, workspaceTopics, outcomeTopics} {
 		if err := a.subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -140,16 +133,16 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		}
 	case api.TopicReady:
 		a.renderAll(ctx)
-	case projectCreated:
-		var p createdPayload
+	case workspaceCreated:
+		var p contract.WorkspaceChanged
 		if decode(ev, &p) {
-			a.invalidate(p.Project.ID)
+			a.invalidate(p.Workspace)
 			a.flush(ctx)
 		}
-	case projectDeleted:
-		var p deletedPayload
+	case workspaceDeleted:
+		var p contract.WorkspaceDeleted
 		if decode(ev, &p) {
-			a.dropWorkspace(ctx, p.ID)
+			a.dropWorkspace(ctx, p.Workspace)
 		}
 	default:
 		var p outcomePayload
@@ -194,13 +187,13 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	if err := json.Unmarshal(ev.Value, &id); err != nil {
 		return nil, fmt.Errorf("%s value: %w", ev.Action, err)
 	}
-	cmd := pluginsdk.CommandRun{ProjectID: ev.ProjectID}
+	cmd := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch ev.Action {
 	case "select":
-		if err := a.host.StorageSet(ctx, selectedPrefix+ev.ProjectID, id); err != nil {
+		if err := a.host.StorageSet(ctx, selectedPrefix+ev.WorkspaceID, id); err != nil {
 			return nil, err
 		}
-		a.invalidate(ev.ProjectID)
+		a.invalidate(ev.WorkspaceID)
 		a.flush(ctx)
 		return nil, nil
 	case "stop":
@@ -369,12 +362,12 @@ func (a *app) checkCaller(ctx context.Context, p api.Changed) {
 }
 
 func (a *app) dropWorkspace(ctx context.Context, workspace string) {
-	projects, err := a.projects(ctx)
+	workspaces, err := a.workspaces(ctx)
 	if err != nil {
-		logError(fmt.Errorf("check deleted project %s: %w", workspace, err))
+		logError(fmt.Errorf("check deleted workspace %s: %w", workspace, err))
 		return
 	}
-	if slices.ContainsFunc(projects, func(p pluginsdk.Project) bool { return p.ID == workspace }) {
+	if slices.ContainsFunc(workspaces, func(p pluginsdk.Workspace) bool { return p.ID == workspace }) {
 		return
 	}
 	a.mu.Lock()
@@ -398,7 +391,7 @@ func (a *app) graphDirs(ctx context.Context, workspace string, agent bool, calle
 			return []string{s.Worktree}, nil
 		}
 	}
-	p, err := a.project(ctx, workspace)
+	p, err := a.workspace(ctx, workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +411,7 @@ func (a *app) authorize(ctx context.Context, cmd pluginsdk.CommandRun, r *Run) e
 	if r.Caller == cmd.Caller {
 		return nil
 	}
-	sessions, err := a.sessions(ctx, cmd.ProjectID)
+	sessions, err := a.sessions(ctx, cmd.WorkspaceID)
 	if err != nil {
 		return err
 	}
@@ -429,13 +422,13 @@ func (a *app) authorize(ctx context.Context, cmd pluginsdk.CommandRun, r *Run) e
 }
 
 func (a *app) renderAll(ctx context.Context) {
-	projects, err := a.projects(ctx)
+	workspaces, err := a.workspaces(ctx)
 	if err != nil {
 		logError(fmt.Errorf("render graphs sections: %w", err))
 		return
 	}
-	ids := make([]string, 0, len(projects))
-	for _, p := range projects {
+	ids := make([]string, 0, len(workspaces))
+	for _, p := range workspaces {
 		ids = append(ids, p.ID)
 	}
 	a.invalidate(ids...)
@@ -537,12 +530,12 @@ func (a *app) agentSessions(ctx context.Context, workspace string) ([]api.Sessio
 	return agentcall.Sessions(ctx, a.host, workspace)
 }
 
-func (a *app) getProject(ctx context.Context, workspace string) (pluginsdk.Project, error) {
-	return a.host.GetProject(ctx, workspace)
+func (a *app) getWorkspace(ctx context.Context, workspace string) (pluginsdk.Workspace, error) {
+	return a.host.GetWorkspace(ctx, workspace)
 }
 
-func (a *app) listProjects(ctx context.Context) ([]pluginsdk.Project, error) {
-	return a.host.ListProjects(ctx)
+func (a *app) listWorkspaces(ctx context.Context) ([]pluginsdk.Workspace, error) {
+	return a.host.ListWorkspaces(ctx)
 }
 
 func decode(ev pluginsdk.Event, v any) bool {

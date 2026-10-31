@@ -123,7 +123,7 @@ func mergeable(rec record, changes bool) bool {
 	return changes && inTask && rec.ParentSession == "" && rec.Status == statusDone && cmp.Or(rec.Finish, finishAsk) == finishAsk
 }
 
-func (a *app) mergeToMain(ctx context.Context, projectID string, s *session) error {
+func (a *app) mergeToMain(ctx context.Context, workspaceID string, s *session) error {
 	rec := s.snapshot()
 	if !mergeable(rec, s.hasChanges()) {
 		return errNotMergeable
@@ -142,7 +142,7 @@ func (a *app) mergeToMain(ctx context.Context, projectID string, s *session) err
 	if len(strings.TrimSpace(string(status))) > 0 {
 		return errMainDirty
 	}
-	return a.prompt(projectID, promptArgs{Session: rec.ID, Text: mergeNowText})
+	return a.prompt(workspaceID, promptArgs{Session: rec.ID, Text: mergeNowText})
 }
 
 func (a *app) cleanupChild(s *session) {
@@ -232,8 +232,8 @@ func (a *app) removeChild(ctx context.Context, rec record, l *childLayout) error
 	return nil
 }
 
-func (a *app) folderOf(ctx context.Context, projectID, path string) (string, error) {
-	p, err := a.host.GetProject(ctx, projectID)
+func (a *app) folderOf(ctx context.Context, workspaceID, path string) (string, error) {
+	p, err := a.host.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return "", err
 	}
@@ -249,10 +249,10 @@ func (a *app) folderOf(ctx context.Context, projectID, path string) (string, err
 	return "", errNotGit
 }
 
-func (a *app) awaitOp(ctx context.Context, projectID, id string) error {
+func (a *app) awaitOp(ctx context.Context, workspaceID, id string) error {
 	for {
 		var st worktreeOp
-		if err := a.host.RunCommand(ctx, worktreeOpCmd, projectID, map[string]string{"id": id}, &st); err != nil {
+		if err := a.host.RunCommand(ctx, worktreeOpCmd, workspaceID, map[string]string{"id": id}, &st); err != nil {
 			return err
 		}
 		switch {

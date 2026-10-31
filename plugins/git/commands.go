@@ -26,10 +26,10 @@ var (
 type commandFunc func(ctx context.Context, a *app, c call) (any, error)
 
 type call struct {
-	h         *pluginsdk.Host
-	projectID string
-	state     *state
-	args      worktreeArgs
+	h           *pluginsdk.Host
+	workspaceID string
+	state       *state
+	args        worktreeArgs
 }
 
 type worktreeArgs struct {
@@ -74,15 +74,15 @@ type opStatus struct {
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
-	s := a.get(cmd.ProjectID)
-	if err := a.sync(ctx, h, cmd.ProjectID, s); err != nil {
+	s := a.get(cmd.WorkspaceID)
+	if err := a.sync(ctx, h, cmd.WorkspaceID, s); err != nil {
 		return nil, err
 	}
 	run, ok := commandTable[cmd.ID]
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 	}
-	c := call{h: h, projectID: cmd.ProjectID, state: s}
+	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s}
 	if len(cmd.Args) > 0 {
 		if err := json.Unmarshal(cmd.Args, &c.args); err != nil {
 			return nil, fmt.Errorf("%s args: %w", cmd.ID, err)
@@ -92,15 +92,15 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 }
 
 func worktreesCommand(ctx context.Context, _ *app, c call) (any, error) {
-	return listWorktrees(ctx, c.h, c.projectID)
+	return listWorktrees(ctx, c.h, c.workspaceID)
 }
 
 func worktreeSwitchCommand(ctx context.Context, _ *app, c call) (any, error) {
-	return nil, switchWorktree(ctx, c.h, c.projectID, c.state, c.args.Repo, c.args.Path)
+	return nil, switchWorktree(ctx, c.h, c.workspaceID, c.state, c.args.Repo, c.args.Path)
 }
 
 func branchesCommand(ctx context.Context, _ *app, c call) (any, error) {
-	return listBranches(ctx, c.h, c.projectID)
+	return listBranches(ctx, c.h, c.workspaceID)
 }
 
 func branchSwitchCommand(ctx context.Context, a *app, c call) (any, error) {
@@ -116,9 +116,9 @@ func worktreeRemoveCommand(ctx context.Context, a *app, c call) (any, error) {
 }
 
 func opStatusCommand(ctx context.Context, a *app, c call) (any, error) {
-	return a.ops.status(ctx, c.projectID, c.args.ID)
+	return a.ops.status(ctx, c.workspaceID, c.args.ID)
 }
 
 func worktreeSessionsCommand(ctx context.Context, _ *app, c call) (any, error) {
-	return worktreeSessions(ctx, c.h, c.projectID, c.args.Path)
+	return worktreeSessions(ctx, c.h, c.workspaceID, c.args.Path)
 }

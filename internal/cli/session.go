@@ -24,7 +24,7 @@ func (a *app) sessionCmd() *cobra.Command {
 func (a *app) sessionCreateCmd() *cobra.Command {
 	var req session.CreateRequest
 	cmd := &cobra.Command{
-		Use:   "create --project <id> [--title T] [--cwd DIR] [-- cmd args...]",
+		Use:   "create --workspace <id> [--title T] [--cwd DIR] [-- cmd args...]",
 		Short: "Create a session",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			req.Command = args
@@ -41,35 +41,35 @@ func (a *app) sessionCreateCmd() *cobra.Command {
 			return a.render(s, func(w io.Writer) { fmt.Fprintln(w, s.ID) })
 		},
 	}
-	cmd.Flags().StringVar(&req.ProjectID, "project", "", "project id")
+	cmd.Flags().StringVar(&req.WorkspaceID, "workspace", "", "workspace id")
 	cmd.Flags().StringVar(&req.Title, "title", "", "session title")
 	cmd.Flags().StringVar(&req.Cwd, "cwd", "", "working directory")
-	_ = cmd.MarkFlagRequired("project")
+	_ = cmd.MarkFlagRequired("workspace")
 	return cmd
 }
 
 func (a *app) sessionListCmd() *cobra.Command {
-	var projectID string
+	var workspaceID string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List sessions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var list []session.Session
-			if err := a.call(cmd.Context(), "session.list", map[string]string{"projectId": projectID}, &list); err != nil {
+			if err := a.call(cmd.Context(), "session.list", map[string]string{"workspaceId": workspaceID}, &list); err != nil {
 				return err
 			}
 			return a.render(list, func(w io.Writer) {
 				table(w, func(tw *tabwriter.Writer) {
-					fmt.Fprintln(tw, "ID\tPROJECT\tOWNER\tSTATE\tTITLE\tCOMMAND")
+					fmt.Fprintln(tw, "ID\tWORKSPACE\tOWNER\tSTATE\tTITLE\tCOMMAND")
 					for _, s := range list {
-						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", s.ID, s.ProjectID, s.Owner, s.State, s.Title, strings.Join(s.Command, " "))
+						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", s.ID, s.WorkspaceID, s.Owner, s.State, s.Title, strings.Join(s.Command, " "))
 					}
 				})
 			})
 		},
 	}
-	cmd.Flags().StringVar(&projectID, "project", "", "filter by project id")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "filter by workspace id")
 	return cmd
 }
 

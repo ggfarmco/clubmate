@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/plugins/agents/acp"
 )
 
@@ -94,7 +95,7 @@ func main() {
 	if slices.Contains(os.Args[1:], loginArg) {
 		os.Exit(login(a.script.AuthFile))
 	}
-	a.record("start", map[string]string{"project": os.Getenv("CLUBMATE_PROJECT_ID")})
+	a.record("start", map[string]string{"workspace": contract.WorkspaceFromEnv()})
 	fmt.Fprintln(os.Stdout, "fakeagent: not a JSON line")
 	a.conn = acp.NewConn(os.Stdin, os.Stdout, a, nil)
 	a.conn.Start()

@@ -45,17 +45,17 @@ type worktreeOp struct {
 	Path  string `json:"path"`
 }
 
-func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from string, args newArgs) (newResult, error) {
+func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, from string, args newArgs) (newResult, error) {
 	agent := cmp.Or(args.Agent, agentClaude)
 	if agent != agentClaude {
 		return newResult{}, fmt.Errorf("%w: %s", errUnknownAgent, agent)
 	}
-	p, root, err := projectRoot(ctx, h, projectID)
+	p, root, err := workspaceRoot(ctx, h, workspaceID)
 	if err != nil {
 		return newResult{}, err
 	}
-	rec := record{Workspace: projectID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify)}
-	if parent, err := a.lookup(projectID, from); err == nil {
+	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify)}
+	if parent, err := a.lookup(workspaceID, from); err == nil {
 		prec := parent.snapshot()
 		rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree
 	}
@@ -79,19 +79,19 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from
 	return newResult{Session: s.rec.ID, Worktree: root, parent: rec.ParentSession}, nil
 }
 
-func projectRoot(ctx context.Context, h *pluginsdk.Host, projectID string) (pluginsdk.Project, string, error) {
-	p, err := h.GetProject(ctx, projectID)
+func workspaceRoot(ctx context.Context, h *pluginsdk.Host, workspaceID string) (pluginsdk.Workspace, string, error) {
+	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
-		return pluginsdk.Project{}, "", err
+		return pluginsdk.Workspace{}, "", err
 	}
 	if p.Home {
-		return pluginsdk.Project{}, "", errHome
+		return pluginsdk.Workspace{}, "", errHome
 	}
 	root, _, err := workRoot(p)
 	return p, root, err
 }
 
-func workRoot(p pluginsdk.Project) (string, []string, error) {
+func workRoot(p pluginsdk.Workspace) (string, []string, error) {
 	if len(p.Roots) == 0 {
 		return "", nil, errNoFolder
 	}
@@ -144,7 +144,7 @@ func (a *app) createSession(rec record, ready *setup) *session {
 	return s
 }
 
-func planWorktree(ctx context.Context, p pluginsdk.Project, base, branch string) (worktreeNewArgs, string, error) {
+func planWorktree(ctx context.Context, p pluginsdk.Workspace, base, branch string) (worktreeNewArgs, string, error) {
 	if !gitrepo.ValidBranchName(branch) {
 		return worktreeNewArgs{}, "", fmt.Errorf("%w: %s", errBadBranch, branch)
 	}
@@ -177,12 +177,12 @@ func (a *app) createWorktree(s *session, ready *setup) {
 	ready.finish(err)
 }
 
-func (a *app) newWorktree(ctx context.Context, projectID string, args worktreeNewArgs) error {
+func (a *app) newWorktree(ctx context.Context, workspaceID string, args worktreeNewArgs) error {
 	var op worktreeOp
-	if err := a.host.RunCommand(ctx, worktreeNewCmd, projectID, args, &op); err != nil {
+	if err := a.host.RunCommand(ctx, worktreeNewCmd, workspaceID, args, &op); err != nil {
 		return fmt.Errorf("create worktree %s: %w", args.Branch, err)
 	}
-	if err := a.awaitOp(ctx, projectID, op.ID); err != nil {
+	if err := a.awaitOp(ctx, workspaceID, op.ID); err != nil {
 		return fmt.Errorf("create worktree %s: %w", args.Branch, err)
 	}
 	return nil

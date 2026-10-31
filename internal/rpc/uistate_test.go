@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/kv"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 type uiStateResult struct {
@@ -28,6 +28,24 @@ func rpcCode(t *testing.T, err error) int64 {
 	return rpcErr.Code
 }
 
+func TestLegacyProjectMethodsAndKey(t *testing.T) {
+	svc, b := testutil.NewServiceWithBus(t)
+	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { store.Close() })
+	client := connectAs(t, rpc.NewServer(svc, b, rpc.WithKV(store)), rpc.Caller{})
+	var p workspace.Workspace
+	require.NoError(t, client.Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &p))
+	var got workspace.Workspace
+	require.NoError(t, client.Call(t.Context(), "project.get", map[string]any{"id": p.ID}, &got))
+	assert.Equal(t, "demo", got.Name)
+
+	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{"section": "terminals"}}, nil))
+	var state uiStateResult
+	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, &state))
+	assert.Equal(t, map[string]any{"section": "terminals"}, state.State)
+}
+
 func TestUIStateRoundTripAndDelete(t *testing.T) {
 	svc, b := testutil.NewServiceWithBus(t)
 	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
@@ -35,28 +53,28 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 	t.Cleanup(func() { store.Close() })
 	srv := rpc.NewServer(svc, b, rpc.WithKV(store))
 	client, plug := connectAs(t, srv, rpc.Caller{}), connectAs(t, srv, rpc.Caller{PluginID: "a"})
-	var p project.Project
-	require.NoError(t, client.Call(t.Context(), "project.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
+	var p workspace.Workspace
+	require.NoError(t, client.Call(t.Context(), "workspace.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
 
 	var got uiStateResult
-	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, &got))
+	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, &got))
 	assert.Nil(t, got.State)
 
-	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{"section": "terminals"}}, nil))
-	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{"section": "terminals", "sidebarWidth": 200}}, nil))
-	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, &got))
+	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{"section": "terminals"}}, nil))
+	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{"section": "terminals", "sidebarWidth": 200}}, nil))
+	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, &got))
 	assert.Equal(t, map[string]any{"section": "terminals", "sidebarWidth": float64(200)}, got.State)
 	var section struct {
 		Section string `json:"section"`
 	}
-	require.NoError(t, plug.Call(t.Context(), "ui.state.section", map[string]any{"projectId": p.ID}, &section))
+	require.NoError(t, plug.Call(t.Context(), "ui.state.section", map[string]any{"workspaceId": p.ID}, &section))
 	assert.Equal(t, "terminals", section.Section)
 	events, err := b.Read(t.Context(), "ui.section", 0, 10)
 	require.NoError(t, err)
 	require.Len(t, events, 1)
-	assert.JSONEq(t, `{"projectId":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
+	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
 
-	err = plug.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{}}, nil)
+	err = plug.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]any{}}, nil)
 	assert.EqualValues(t, -32602, rpcCode(t, err))
 
 	for name, state := range map[string]any{
@@ -65,15 +83,15 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 		"null":    nil,
 		"too big": map[string]string{"k": strings.Repeat("x", 64<<10)},
 	} {
-		err = client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": state}, nil)
+		err = client.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": state}, nil)
 		assert.EqualValues(t, -32602, rpcCode(t, err), name)
 	}
 
-	err = client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": "prj_" + strings.Repeat("0", 16), "state": map[string]any{}}, nil)
+	err = client.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": "prj_" + strings.Repeat("0", 16), "state": map[string]any{}}, nil)
 	assert.EqualValues(t, -32004, rpcCode(t, err))
 
-	require.NoError(t, client.Call(t.Context(), "project.delete", map[string]any{"id": p.ID}, nil))
-	err = client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, nil)
+	require.NoError(t, client.Call(t.Context(), "workspace.delete", map[string]any{"id": p.ID}, nil))
+	err = client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, nil)
 	assert.EqualValues(t, -32004, rpcCode(t, err))
 	_, found, err := store.Get(t.Context(), "@client", p.ID)
 	require.NoError(t, err)
@@ -87,10 +105,10 @@ func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
 	t.Cleanup(func() { store.Close() })
 	srv := rpc.NewServer(svc, b, rpc.WithKV(store))
 	client := connectAs(t, srv, rpc.Caller{})
-	var p project.Project
-	require.NoError(t, client.Call(t.Context(), "project.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
+	var p workspace.Workspace
+	require.NoError(t, client.Call(t.Context(), "workspace.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
 	patch := func(key string, value any) error {
-		return client.Call(t.Context(), "ui.state.patch", map[string]any{"projectId": p.ID, "key": key, "value": value}, nil)
+		return client.Call(t.Context(), "ui.state.patch", map[string]any{"workspaceId": p.ID, "key": key, "value": value}, nil)
 	}
 
 	want := map[string]any{"section": "terminals"}
@@ -103,16 +121,16 @@ func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
 	wg.Go(func() { assert.NoError(t, patch("section", "terminals")) })
 	wg.Wait()
 	var got uiStateResult
-	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, &got))
+	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, &got))
 	assert.Equal(t, want, got.State)
 	events, err := b.Read(t.Context(), "ui.section", 0, 10)
 	require.NoError(t, err)
 	require.Len(t, events, 1)
-	assert.JSONEq(t, `{"projectId":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
+	assert.JSONEq(t, `{"workspace":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
 
 	require.NoError(t, patch("k0", nil))
 	var deleted uiStateResult
-	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, &deleted))
+	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, &deleted))
 	assert.NotContains(t, deleted.State, "k0")
 
 	assert.EqualValues(t, -32602, rpcCode(t, patch("", 1)))

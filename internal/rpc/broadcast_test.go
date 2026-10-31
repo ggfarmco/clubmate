@@ -11,16 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/plugin"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 func TestBroadcastRunsEveryHandler(t *testing.T) {
 	h, p := startHandlers(t, "")
 	args := map[string]string{"root": "/r"}
 
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.broadcast", map[string]any{"topic": "x.removing", "projectId": p.ID, "args": args}, nil))
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.broadcast", map[string]any{"topic": "x.removing", "workspaceId": p.ID, "args": args}, nil))
 
 	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 100)
 	require.NoError(t, err)
@@ -41,16 +41,16 @@ func TestBroadcastRunsEveryHandler(t *testing.T) {
 func TestBroadcastRefusalCarriesHandlerMessage(t *testing.T) {
 	h, p := startHandlers(t, `"echoErrors":{"beta.on-removing":"unsaved buffers: a.go"},`)
 
-	err := h.Client(t).Call(t.Context(), "command.broadcast", map[string]any{"topic": "x.removing", "projectId": p.ID}, nil)
+	err := h.Client(t).Call(t.Context(), "command.broadcast", map[string]any{"topic": "x.removing", "workspaceId": p.ID}, nil)
 
 	require.ErrorIs(t, err, rpc.ErrPluginError)
 	assert.EqualError(t, err, "unsaved buffers: a.go")
 }
 
-func startHandlers(t *testing.T, betaCanned string) (*testutil.PluginHarness, project.Project) {
+func startHandlers(t *testing.T, betaCanned string) (*testutil.PluginHarness, workspace.Workspace) {
 	t.Helper()
 	h := testutil.NewHarness(t)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	handler := func(id string) string {
 		return fmt.Sprintf(`{"id":"%s.on-removing","title":"On","hidden":true,"handles":["x.removing"]},{"id":"%s.other","title":"Other","hidden":true}`, id, id)

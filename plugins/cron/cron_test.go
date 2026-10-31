@@ -45,14 +45,14 @@ type agentSession struct {
 }
 
 type fixture struct {
-	h       *testutil.PluginHarness
-	project string
+	h         *testutil.PluginHarness
+	workspace string
 }
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	h := testutil.NewPluginHarness(t, cronDir(t))
-	return ready(t, &fixture{h: h, project: h.CreateProject(t, "demo").ID})
+	return ready(t, &fixture{h: h, workspace: h.CreateWorkspace(t, "demo").ID})
 }
 
 func newAgentsFixture(t *testing.T, script map[string]any) *fixture {
@@ -67,10 +67,10 @@ func newAgentsFixture(t *testing.T, script map[string]any) *fixture {
 	t.Setenv("FAKEAGENT_SCRIPT", scriptPath)
 	t.Setenv("FAKEAGENT_LOG", filepath.Join(t.TempDir(), "fake.jsonl"))
 	h := testutil.NewPluginHarness(t, cronDir(t), testutil.BuildPluginDir(t, "clubmate/plugins/agents", "plugins/agents/plugin.json"))
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{newRepo(t)})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{newRepo(t)})
 	require.NoError(t, err)
-	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
-	f := ready(t, &fixture{h: h, project: p.ID})
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
+	f := ready(t, &fixture{h: h, workspace: p.ID})
 	testutil.Eventually(t, func() bool { return f.run(t, "agents.sessions", map[string]any{}, nil) == nil }, restartWait)
 	return f
 }
@@ -126,12 +126,12 @@ func (f *fixture) waitStatus(t *testing.T, session, status string) {
 
 func (f *fixture) run(t *testing.T, command string, args, out any) error {
 	t.Helper()
-	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "projectId": f.project, "args": args}, out)
+	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "workspaceId": f.workspace, "args": args}, out)
 }
 
 func (f *fixture) runAs(t *testing.T, caller, command string, args, out any) error {
 	t.Helper()
-	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "projectId": f.project, "args": args, "agent": true, "caller": caller}, out)
+	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "workspaceId": f.workspace, "args": args, "agent": true, "caller": caller}, out)
 }
 
 func (f *fixture) list(t *testing.T) []job {
@@ -170,7 +170,7 @@ func TestAddListRunDelete(t *testing.T) {
 	assert.Len(t, shown.History, 1)
 	assert.Equal(t, jobs[0].NextRun, shown.NextRun)
 
-	key := "job/" + f.project + "/" + added.ID
+	key := "job/" + f.workspace + "/" + added.ID
 	_, found, err := f.h.KV.Get(t.Context(), "cron", key)
 	require.NoError(t, err)
 	require.True(t, found)
@@ -184,17 +184,17 @@ func TestAddListRunDelete(t *testing.T) {
 func TestLegacyShortIDLoads(t *testing.T) {
 	t.Setenv("SHELL", "/bin/sh")
 	h := testutil.NewHarness(t)
-	project := h.CreateProject(t, "demo").ID
+	workspace := h.CreateWorkspace(t, "demo").ID
 	legacy := "cj_0123abcd"
 	raw, err := json.Marshal(map[string]any{
-		"id": legacy, "name": "ping", "workspace": project, "command": "notify.post",
+		"id": legacy, "name": "ping", "workspace": workspace, "command": "notify.post",
 		"args": json.RawMessage(`{"message":"hi"}`), "enabled": true, "missed": "skip",
 		"schedule": map[string]string{"every": "1h"}, "nextRun": time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
-	require.NoError(t, h.KV.Set(t.Context(), "cron", "job/"+project+"/"+legacy, raw))
+	require.NoError(t, h.KV.Set(t.Context(), "cron", "job/"+workspace+"/"+legacy, raw))
 	h.Start(t, cronDir(t))
-	f := ready(t, &fixture{h: h, project: project})
+	f := ready(t, &fixture{h: h, workspace: workspace})
 
 	var r run
 	require.NoError(t, f.run(t, "cron.run", map[string]any{"id": legacy}, &r))
@@ -205,14 +205,14 @@ func TestLegacyShortIDLoads(t *testing.T) {
 
 func TestSectionFollowsUIActions(t *testing.T) {
 	f := newFixture(t)
-	f.h.WaitSlot(t, f.project, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })
 	var added job
 	require.NoError(t, f.runAs(t, "agt_0000000000000001", "cron.add", ping(nil), &added))
-	f.h.WaitSlot(t, f.project, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "clock" })
-	f.h.Event(t, f.project, "cron.sidebar", "jobs", "pause", added.ID)
-	f.h.WaitSlot(t, f.project, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "pause.circle" })
-	f.h.Event(t, f.project, "cron.sidebar", "jobs", "delete", added.ID)
-	f.h.WaitSlot(t, f.project, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "clock" })
+	f.h.Event(t, f.workspace, "cron.sidebar", "jobs", "pause", added.ID)
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return firstItem(n)["icon"] == "pause.circle" })
+	f.h.Event(t, f.workspace, "cron.sidebar", "jobs", "delete", added.ID)
+	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })
 }
 
 func TestAddRejectsInvalidTarget(t *testing.T) {
@@ -328,32 +328,32 @@ func TestShowSessionRevealsTheOwner(t *testing.T) {
 	f.newSession(t)
 	var added job
 	require.NoError(t, f.runAs(t, owner, "cron.add", ping(nil), &added))
-	f.h.WaitSlot(t, f.project, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/owner")) == 1 })
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/owner")) == 1 })
 
-	f.h.Event(t, f.project, "cron.main", added.ID+"/owner", "reveal", nil)
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/owner", "reveal", nil)
 
-	f.h.WaitSlot(t, f.project, "agents.sidebar", func(n sdui.Node) bool {
+	f.h.WaitSlot(t, f.workspace, "agents.sidebar", func(n sdui.Node) bool {
 		trees := nodesWithType(n, "tree")
 		return len(trees) == 1 && trees[0].Props["selected"] == owner
 	})
 }
 
-func TestOnlyRealProjectDeletionDropsJobs(t *testing.T) {
+func TestOnlyRealWorkspaceDeletionDropsJobs(t *testing.T) {
 	f := newFixture(t)
 	var added job
 	require.NoError(t, f.run(t, "cron.add", ping(nil), &added))
-	key := "job/" + f.project + "/" + added.ID
+	key := "job/" + f.workspace + "/" + added.ID
 	stored := func() bool {
 		_, found, err := f.h.KV.Get(t.Context(), "cron", key)
 		require.NoError(t, err)
 		return found
 	}
 
-	_, err := f.h.Bus.Publish(t.Context(), "project.deleted", "plugin:spoof", json.RawMessage(`{"id":"`+f.project+`"}`))
+	_, err := f.h.Bus.Publish(t.Context(), "workspace.deleted", "plugin:spoof", json.RawMessage(`{"workspace":"`+f.workspace+`"}`))
 	require.NoError(t, err)
 	testutil.Never(t, func() bool { return !stored() }, time.Second)
 
-	require.NoError(t, f.h.Svc.DeleteProject(t.Context(), f.project))
+	require.NoError(t, f.h.Svc.DeleteWorkspace(t.Context(), f.workspace))
 	testutil.Eventually(t, func() bool { return !stored() }, wait)
 }
 

@@ -61,7 +61,7 @@ public enum TerminalsSection {
     public static let sidebarSlot = "terminals.sidebar"
 
     public static func selectEvent(workspace: String, session: String) -> UIEvent {
-        UIEvent(projectId: workspace, slot: sidebarSlot, nodeId: id, action: "select", value: .string(session))
+        UIEvent(workspaceId: workspace, slot: sidebarSlot, nodeId: id, action: "select", value: .string(session))
     }
 
     public static func close(sidebar: SDUINode?, commands: [Command]) -> CommandInvocation? {

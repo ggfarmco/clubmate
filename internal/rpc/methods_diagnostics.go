@@ -21,9 +21,9 @@ var (
 )
 
 type diagnosticsParams struct {
-	ProjectID  string            `json:"projectId"`
-	AppVersion string            `json:"appVersion"`
-	Extra      map[string][]byte `json:"extra"`
+	WorkspaceID string            `json:"workspaceId"`
+	AppVersion  string            `json:"appVersion"`
+	Extra       map[string][]byte `json:"extra"`
 }
 
 type diagnosticsWorkspace struct {
@@ -63,7 +63,7 @@ func (s *Server) collectDiagnostics(ctx context.Context, p diagnosticsParams) (d
 			return diagnostics.Result{}, invalidParams(fmt.Sprintf("extra: %s is over %d bytes", name, diagnosticsExtraMax))
 		}
 	}
-	if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+	if err := optionalID(workspacePrefix, p.WorkspaceID); err != nil {
 		return diagnostics.Result{}, err
 	}
 	if s.dirs == nil {
@@ -123,11 +123,11 @@ func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, no
 	if err != nil {
 		return entries, nil
 	}
-	projects := s.presence.projects()
-	if p.ProjectID != "" {
-		projects = []string{p.ProjectID}
+	open := s.presence.workspaces()
+	if p.WorkspaceID != "" {
+		open = []string{p.WorkspaceID}
 	}
-	for _, id := range projects {
+	for _, id := range open {
 		if err := add("ui/"+id+".json", nonNil(u.store.Get(id))); err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func (s *Server) diagnosticsEntries(ctx context.Context, p diagnosticsParams, no
 }
 
 func (s *Server) diagnosticsWorkspaces(ctx context.Context) ([]diagnosticsWorkspace, error) {
-	list, err := s.svc.ListProjects(ctx)
+	list, err := s.svc.ListWorkspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (s *Server) diagnosticsSessions(ctx context.Context) ([]diagnosticsSession,
 	}
 	out := make([]diagnosticsSession, 0, len(list))
 	for _, x := range list {
-		out = append(out, diagnosticsSession{ID: x.ID, Workspace: x.ProjectID, Title: x.Title, Owner: x.Owner, Cwd: x.Cwd, State: x.State, ExitCode: x.ExitCode, Created: x.StartedAt})
+		out = append(out, diagnosticsSession{ID: x.ID, Workspace: x.WorkspaceID, Title: x.Title, Owner: x.Owner, Cwd: x.Cwd, State: x.State, ExitCode: x.ExitCode, Created: x.StartedAt})
 	}
 	return out, nil
 }

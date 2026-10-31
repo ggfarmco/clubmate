@@ -20,11 +20,11 @@ import (
 )
 
 type uiEventOptions struct {
-	projectID string
-	slot      string
-	node      string
-	action    string
-	value     string
+	workspaceID string
+	slot        string
+	node        string
+	action      string
+	value       string
 }
 
 func (a *app) uiCmd() *cobra.Command {
@@ -56,14 +56,14 @@ func (a *app) uiSectionsCmd() *cobra.Command {
 }
 
 func (a *app) uiDumpCmd() *cobra.Command {
-	var projectID string
+	var workspaceID string
 	cmd := &cobra.Command{
 		Use:   "dump",
-		Short: "Print the UI trees rendered for a project",
+		Short: "Print the UI trees rendered for a workspace",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var views []internalsdui.SlotView
-			if err := a.call(cmd.Context(), "ui.get", map[string]string{"projectId": projectID}, &views); err != nil {
+			if err := a.call(cmd.Context(), "ui.get", map[string]string{"workspaceId": workspaceID}, &views); err != nil {
 				return err
 			}
 			trees := make([]sdui.Node, 0, len(views))
@@ -82,8 +82,8 @@ func (a *app) uiDumpCmd() *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
-	_ = cmd.MarkFlagRequired("project")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id")
+	_ = cmd.MarkFlagRequired("workspace")
 	return cmd
 }
 
@@ -94,19 +94,19 @@ func (a *app) uiEventCmd() *cobra.Command {
 		Short: "Send a UI event to the plugin owning a slot",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			params := map[string]any{"projectId": opts.projectID, "slot": opts.slot, "nodeId": opts.node, "action": opts.action}
+			params := map[string]any{"workspaceId": opts.workspaceID, "slot": opts.slot, "nodeId": opts.node, "action": opts.action}
 			if err := setJSONParam(params, "value", opts.value); err != nil {
 				return err
 			}
 			return a.callAndPrint(cmd.Context(), "ui.event", params)
 		},
 	}
-	cmd.Flags().StringVar(&opts.projectID, "project", "", "project id")
+	cmd.Flags().StringVar(&opts.workspaceID, "workspace", "", "workspace id")
 	cmd.Flags().StringVar(&opts.slot, "slot", "", "slot, e.g. terminals.main")
 	cmd.Flags().StringVar(&opts.node, "node", "", "node id")
 	cmd.Flags().StringVar(&opts.action, "action", "", "action name")
 	cmd.Flags().StringVar(&opts.value, "value", "", "event value as JSON")
-	for _, name := range []string{"project", "slot", "node", "action"} {
+	for _, name := range []string{"workspace", "slot", "node", "action"} {
 		_ = cmd.MarkFlagRequired(name)
 	}
 	return cmd
@@ -174,10 +174,10 @@ type snapshotResult struct {
 
 func (a *app) uiSnapshotCmd() *cobra.Command {
 	var (
-		projectID string
-		out       string
-		noPNG     bool
-		size      string
+		workspaceID string
+		out         string
+		noPNG       bool
+		size        string
 	)
 	cmd := &cobra.Command{
 		Use:   "snapshot",
@@ -189,8 +189,8 @@ func (a *app) uiSnapshotCmd() *cobra.Command {
 				return err
 			}
 			params := map[string]any{"out": dir, "png": !noPNG}
-			if projectID != "" {
-				params["projectId"] = projectID
+			if workspaceID != "" {
+				params["workspaceId"] = workspaceID
 			}
 			if size != "" {
 				w, h, err := parseSize(size)
@@ -216,7 +216,7 @@ func (a *app) uiSnapshotCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&out, "out", "", "directory for the png and layout files")
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id")
 	cmd.Flags().BoolVar(&noPNG, "no-png", false, "write only the layout dump")
 	cmd.Flags().StringVar(&size, "size", "", "resize the main window first, e.g. 640x800")
 	_ = cmd.MarkFlagRequired("out")
@@ -225,8 +225,8 @@ func (a *app) uiSnapshotCmd() *cobra.Command {
 
 func (a *app) uiPresentCmd() *cobra.Command {
 	var (
-		projectID string
-		hide      bool
+		workspaceID string
+		hide        bool
 	)
 	cmd := &cobra.Command{
 		Use:   "present <target>",
@@ -234,19 +234,19 @@ func (a *app) uiPresentCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			params := map[string]any{"target": args[0], "shown": !hide}
-			if projectID != "" {
-				params["projectId"] = projectID
+			if workspaceID != "" {
+				params["workspaceId"] = workspaceID
 			}
 			return a.callAndPrint(cmd.Context(), "ui.present", params)
 		},
 	}
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id")
 	cmd.Flags().BoolVar(&hide, "hide", false, "close it instead")
 	return cmd
 }
 
 func (a *app) uiKeyCmd() *cobra.Command {
-	var projectID, focus string
+	var workspaceID, focus string
 	cmd := &cobra.Command{
 		Use:   "key [combo]...",
 		Short: "Send key combos such as opt+return or cmd+n to a test-mode app",
@@ -258,13 +258,13 @@ func (a *app) uiKeyCmd() *cobra.Command {
 			if focus != "" {
 				params["focus"] = focus
 			}
-			if projectID != "" {
-				params["projectId"] = projectID
+			if workspaceID != "" {
+				params["workspaceId"] = workspaceID
 			}
 			return a.callAndPrint(cmd.Context(), "ui.key", params)
 		},
 	}
-	cmd.Flags().StringVar(&projectID, "project", "", "project id")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id")
 	cmd.Flags().StringVar(&focus, "focus", "", "focus this node (an id from the snapshot layout) first")
 	return cmd
 }

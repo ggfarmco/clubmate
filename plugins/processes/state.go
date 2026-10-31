@@ -10,9 +10,9 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-var errProjectDeleted = errors.New("project deleted")
+var errWorkspaceDeleted = errors.New("workspace deleted")
 
-type projectState struct {
+type workspaceState struct {
 	session   string
 	pid       int
 	auto      bool
@@ -27,18 +27,18 @@ type sidebarInputs struct {
 	selected string
 }
 
-func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*projectState, error) {
+func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*workspaceState, error) {
 	a.mu.Lock()
-	st, ok := a.projects[id]
+	st, ok := a.workspaces[id]
 	_, gone := a.deleted[id]
 	a.mu.Unlock()
 	if gone {
-		return nil, errProjectDeleted
+		return nil, errWorkspaceDeleted
 	}
 	if ok {
 		return st, nil
 	}
-	loaded := &projectState{collapsed: map[int]bool{}}
+	loaded := &workspaceState{collapsed: map[int]bool{}}
 	if _, err := h.StorageGet(ctx, selectedKey(id), &loaded.session); err != nil {
 		return nil, err
 	}
@@ -54,16 +54,16 @@ func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*project
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if _, gone := a.deleted[id]; gone {
-		return nil, errProjectDeleted
+		return nil, errWorkspaceDeleted
 	}
-	if st, ok := a.projects[id]; ok {
+	if st, ok := a.workspaces[id]; ok {
 		return st, nil
 	}
-	a.projects[id] = loaded
+	a.workspaces[id] = loaded
 	return loaded, nil
 }
 
-func (a *app) snapshot(st *projectState) projectState {
+func (a *app) snapshot(st *workspaceState) workspaceState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	c := *st
@@ -123,7 +123,7 @@ func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 func (a *app) forget(id string, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	delete(a.projects, id)
+	delete(a.workspaces, id)
 	delete(a.present, id)
 	delete(a.sections, id)
 	a.deleted[id] = now
@@ -146,14 +146,14 @@ func storeOrDelete(ctx context.Context, h *pluginsdk.Host, key string, value any
 	return h.StorageSet(ctx, key, value)
 }
 
-func selectedKey(projectID string) string {
-	return "selected/" + projectID
+func selectedKey(workspaceID string) string {
+	return "selected/" + workspaceID
 }
 
-func autoKillKey(projectID string) string {
-	return "autokill/" + projectID
+func autoKillKey(workspaceID string) string {
+	return "autokill/" + workspaceID
 }
 
-func sortKey(projectID string) string {
-	return "sort/" + projectID
+func sortKey(workspaceID string) string {
+	return "sort/" + workspaceID
 }

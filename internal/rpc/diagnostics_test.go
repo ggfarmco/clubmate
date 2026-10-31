@@ -18,10 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/diagnostics"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 func TestDiagnosticsBundle(t *testing.T) {
@@ -49,10 +49,10 @@ func TestDiagnosticsBundle(t *testing.T) {
 	}
 	require.NoError(t, os.WriteFile(dirs.CoreLog(), []byte(coreLog.String()), 0o600))
 	require.NoError(t, os.WriteFile(dirs.PluginLog("files"), []byte("plugin says hi\n"), 0o600))
-	var p project.Project
-	require.NoError(t, c.Call(t.Context(), "project.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
+	var p workspace.Workspace
+	require.NoError(t, c.Call(t.Context(), "workspace.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
 	var s session.Session
-	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"projectId": p.ID, "command": []string{"sh", "-c", "echo secret-output; exec cat"}}, &s))
+	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"workspaceId": p.ID, "command": []string{"sh", "-c", "echo secret-output; exec cat"}}, &s))
 
 	require.Eventually(t, func() bool {
 		var snap session.Snapshot

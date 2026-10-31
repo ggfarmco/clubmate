@@ -48,19 +48,19 @@ const (
 )
 
 type CreateRequest struct {
-	ProjectID  string   `json:"projectId"`
-	Title      string   `json:"title"`
-	Owner      string   `json:"-"`
-	Command    []string `json:"command"`
-	Cwd        string   `json:"cwd"`
-	Env        []string `json:"env"`
-	UnsetEnv   []string `json:"unsetEnv"`
-	PathAppend []string `json:"pathAppend"`
+	WorkspaceID string   `json:"workspaceId"`
+	Title       string   `json:"title"`
+	Owner       string   `json:"-"`
+	Command     []string `json:"command"`
+	Cwd         string   `json:"cwd"`
+	Env         []string `json:"env"`
+	UnsetEnv    []string `json:"unsetEnv"`
+	PathAppend  []string `json:"pathAppend"`
 }
 
 type ListFilter struct {
-	ProjectID string
-	Owner     string
+	WorkspaceID string
+	Owner       string
 }
 
 type Manager struct {
@@ -92,17 +92,17 @@ func NewManager(dirs paths.Dirs, hostBin string, opts ...Option) *Manager {
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (Session, error) {
 	sid := id.New(IDPrefix)
 	cfg := sessionhost.Config{
-		ID:         sid,
-		ProjectID:  req.ProjectID,
-		Title:      req.Title,
-		Owner:      req.Owner,
-		Command:    req.Command,
-		Cwd:        req.Cwd,
-		Env:        req.Env,
-		UnsetEnv:   req.UnsetEnv,
-		PathAppend: req.PathAppend,
-		Socket:     m.dirs.SessionSocket(sid),
-		MetaPath:   m.dirs.SessionMeta(sid),
+		ID:          sid,
+		WorkspaceID: req.WorkspaceID,
+		Title:       req.Title,
+		Owner:       req.Owner,
+		Command:     req.Command,
+		Cwd:         req.Cwd,
+		Env:         req.Env,
+		UnsetEnv:    req.UnsetEnv,
+		PathAppend:  req.PathAppend,
+		Socket:      m.dirs.SessionSocket(sid),
+		MetaPath:    m.dirs.SessionMeta(sid),
 	}
 	payload, err := json.Marshal(cfg)
 	if err != nil {
@@ -132,7 +132,7 @@ func (m *Manager) List(_ context.Context, f ListFilter) ([]Session, error) {
 		if err != nil {
 			continue
 		}
-		if f.ProjectID != "" && s.ProjectID != f.ProjectID {
+		if f.WorkspaceID != "" && s.WorkspaceID != f.WorkspaceID {
 			continue
 		}
 		if f.Owner != "" && s.Owner != f.Owner {

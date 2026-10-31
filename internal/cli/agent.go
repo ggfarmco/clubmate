@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"clubmate/pkg/contract"
 	"errors"
 	"os"
 	"path/filepath"
@@ -15,11 +16,11 @@ const bundleExt = ".clubmate-session"
 var errLineRange = errors.New("-L takes <start>[,<end>]")
 
 func (a *app) agentCmd() *cobra.Command {
-	var projectID string
+	var workspaceID string
 	cmd := &cobra.Command{Use: "agent", Short: "Start, prompt, wait for and read agent sessions, as an agent call"}
-	cmd.PersistentFlags().StringVar(&projectID, "project", "", "workspace id (default $"+projectEnv+")")
+	cmd.PersistentFlags().StringVar(&workspaceID, "workspace", "", "workspace id (default $"+contract.WorkspaceEnv+")")
 	run := func(cmd *cobra.Command, id string, args map[string]any) error {
-		params := commandParams(id, projectID)
+		params := commandParams(id, workspaceID)
 		params["args"] = args
 		asAgent(params)
 		return a.callAndPrint(cmd.Context(), "command.run", params)

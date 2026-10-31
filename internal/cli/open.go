@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"clubmate/pkg/contract"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -12,7 +13,7 @@ import (
 const openCapability = "editor.open"
 
 func (a *app) openCmd() *cobra.Command {
-	var projectID string
+	var workspaceID string
 	cmd := &cobra.Command{
 		Use:   "open <file>[:line]",
 		Short: "Open a file in the workspace's editor",
@@ -27,12 +28,12 @@ func (a *app) openCmd() *cobra.Command {
 			if line > 0 {
 				values["line"] = line
 			}
-			params := commandParams(openCapability, projectID)
+			params := commandParams(openCapability, workspaceID)
 			params["args"] = values
 			return a.callAndPrint(cmd.Context(), "command.run", params)
 		},
 	}
-	cmd.Flags().StringVar(&projectID, "project", "", "workspace id (default $"+projectEnv+")")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "workspace id (default $"+contract.WorkspaceEnv+")")
 	return cmd
 }
 

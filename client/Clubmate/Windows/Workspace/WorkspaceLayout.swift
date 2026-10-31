@@ -3,7 +3,7 @@ import SwiftUI
 import ClubmateKit
 
 struct WorkspaceLayout: View {
-    let store: ProjectUIStore
+    let store: WorkspaceUIStore
     let section: String
     @Binding var rowWidth: CGFloat
 

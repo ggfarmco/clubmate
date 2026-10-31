@@ -33,7 +33,7 @@ public enum UIAction {
         }
     }
 
-    public static func event(for node: SDUINode, trigger: Trigger, slot: String, projectID: String) -> UIEvent {
+    public static func event(for node: SDUINode, trigger: Trigger, slot: String, workspaceID: String) -> UIEvent {
         let custom = node.string("action")
         let action: String
         switch trigger {
@@ -48,7 +48,7 @@ public enum UIAction {
         case .named(let name, _): action = name
         case .permission: action = custom ?? "permission"
         }
-        return UIEvent(projectId: projectID, slot: slot, nodeId: node.id ?? "", action: action, value: trigger.value)
+        return UIEvent(workspaceId: workspaceID, slot: slot, nodeId: node.id ?? "", action: action, value: trigger.value)
     }
 }
 

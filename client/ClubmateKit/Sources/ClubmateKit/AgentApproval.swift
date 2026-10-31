@@ -9,7 +9,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     static let margin = 5000
 
     public let title: String
-    public let workspace: String
+    public let workspaceName: String
     public let command: String
     public let args: JSONValue
     public let body: String?
@@ -17,9 +17,9 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     public let timeoutMs: Int?
     public let session: ConfirmSession?
 
-    public init(title: String, workspace: String, command: String, args: JSONValue, body: String? = nil, plugin: Bool? = nil, timeoutMs: Int? = nil, session: ConfirmSession? = nil) {
+    public init(title: String, workspaceName: String, command: String, args: JSONValue, body: String? = nil, plugin: Bool? = nil, timeoutMs: Int? = nil, session: ConfirmSession? = nil) {
         self.title = title
-        self.workspace = workspace
+        self.workspaceName = workspaceName
         self.command = command
         self.args = args
         self.body = body
@@ -39,10 +39,10 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     }
 
     public var detail: String {
-        var lines = ["Workspace: \(workspace.isEmpty ? "none" : Self.capped(workspace))", "Command: \(Self.capped(command))"]
+        var lines = ["Workspace: \(workspaceName.isEmpty ? "none" : Self.capped(workspaceName))", "Command: \(Self.capped(command))"]
         if let session {
             let title = session.title.isEmpty ? "untitled" : Self.capped(session.title)
-            let place = session.workspace.isEmpty ? "" : " in \(Self.capped(session.workspace))"
+            let place = session.workspaceName.isEmpty ? "" : " in \(Self.capped(session.workspaceName))"
             lines.append("Session: \(title) (\(Self.capped(session.id)))\(place)")
         }
         switch args {
@@ -145,12 +145,12 @@ public final class ConfirmExpiry {
 public struct ConfirmSession: Decodable, Sendable, Equatable {
     public let id: String
     public let title: String
-    public let workspace: String
+    public let workspaceName: String
 
-    public init(id: String, title: String, workspace: String) {
+    public init(id: String, title: String, workspaceName: String) {
         self.id = id
         self.title = title
-        self.workspace = workspace
+        self.workspaceName = workspaceName
     }
 }
 

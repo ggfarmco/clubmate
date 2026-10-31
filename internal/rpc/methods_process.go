@@ -9,9 +9,9 @@ import (
 )
 
 type processRegisterParams struct {
-	ProjectID string `json:"projectId"`
-	PID       int    `json:"pid"`
-	Label     string `json:"label"`
+	WorkspaceID string `json:"workspaceId"`
+	PID         int    `json:"pid"`
+	Label       string `json:"label"`
 }
 
 type processUnregisterParams struct {
@@ -19,7 +19,7 @@ type processUnregisterParams struct {
 }
 
 type processRootsParams struct {
-	ProjectID string `json:"projectId"`
+	WorkspaceID string `json:"workspaceId"`
 }
 
 func (s *Server) processMethods() map[string]handlerFunc {
@@ -29,7 +29,7 @@ func (s *Server) processMethods() map[string]handlerFunc {
 			if err != nil {
 				return core.ProcessRoot{}, err
 			}
-			if err := requireID(projectPrefix, p.ProjectID); err != nil {
+			if err := requireID(workspacePrefix, p.WorkspaceID); err != nil {
 				return core.ProcessRoot{}, err
 			}
 			return s.svc.RegisterProcess(ctx, owner, core.RegisterRequest(p))
@@ -43,10 +43,10 @@ func (s *Server) processMethods() map[string]handlerFunc {
 			return empty{}, nil
 		}),
 		"process.roots": method(func(ctx context.Context, p processRootsParams) ([]core.ProcessRoot, error) {
-			if err := optionalID(projectPrefix, p.ProjectID); err != nil {
+			if err := optionalID(workspacePrefix, p.WorkspaceID); err != nil {
 				return nil, err
 			}
-			return nonNil(s.svc.ProcessRoots(p.ProjectID)), nil
+			return nonNil(s.svc.ProcessRoots(p.WorkspaceID)), nil
 		}),
 	}
 }

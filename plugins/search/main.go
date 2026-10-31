@@ -29,7 +29,7 @@ const (
 
 var (
 	errUnknownCommand = errors.New("unknown command")
-	errNoProject      = errors.New("command needs a project")
+	errNoWorkspace    = errors.New("command needs a workspace")
 	errHome           = &jsonrpc2.Error{Code: jsonrpc2.CodeInvalidParams, Message: "search unavailable in the home workspace"}
 )
 
@@ -86,13 +86,13 @@ func main() {
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
-	_, err := h.Subscribe(ctx, "project.deleted", math.MaxInt64)
+	_, err := h.Subscribe(ctx, "workspace.deleted", math.MaxInt64)
 	return err
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
-	if cmd.ProjectID == "" {
-		return nil, errNoProject
+	if cmd.WorkspaceID == "" {
+		return nil, errNoWorkspace
 	}
 	switch cmd.ID {
 	case "search.files":
@@ -100,7 +100,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err := decodeArgs(cmd, &args); err != nil {
 			return nil, err
 		}
-		return a.searchFiles(ctx, h, cmd.ProjectID, args)
+		return a.searchFiles(ctx, h, cmd.WorkspaceID, args)
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 }
@@ -127,14 +127,14 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 func (a *app) fsChanged(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.FSChange) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	ws := a.workspaces[ev.ProjectID]
+	ws := a.workspaces[ev.WorkspaceID]
 	if ws != nil && ws.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, outsideGitDir)) {
 		ws.gen.Add(1)
 	}
 }
 
-func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, projectID string, args filesArgs) (filesResult, error) {
-	p, err := project(ctx, h, projectID)
+func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, workspaceID string, args filesArgs) (filesResult, error) {
+	p, err := lookupWorkspace(ctx, h, workspaceID)
 	if err != nil {
 		return filesResult{}, err
 	}
@@ -161,7 +161,7 @@ func (a *app) searchFiles(ctx context.Context, h *pluginsdk.Host, projectID stri
 	return res, nil
 }
 
-func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project, cold <-chan time.Time) (*listing, error) {
+func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Workspace, cold <-chan time.Time) (*listing, error) {
 	a.mu.Lock()
 	ws, ok := a.workspaces[p.ID]
 	if !ok {
@@ -228,15 +228,15 @@ func (a *app) build(ctx context.Context, ws *workspace, folders []string, gen in
 	}
 }
 
-func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, projectID string, ws *workspace) error {
+func (a *app) rewatch(ctx context.Context, h *pluginsdk.Host, workspaceID string, ws *workspace) error {
 	a.mu.Lock()
 	old := ws.watch
 	ws.watch = ""
 	a.mu.Unlock()
 	if old != "" {
-		logError("unwatch "+projectID, h.UnwatchFS(ctx, old))
+		logError("unwatch "+workspaceID, h.UnwatchFS(ctx, old))
 	}
-	watch, err := h.WatchFS(ctx, projectID)
+	watch, err := h.WatchFS(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -275,13 +275,13 @@ func (l *listing) locate(path string) (int, string) {
 	return -1, path
 }
 
-func project(ctx context.Context, h *pluginsdk.Host, id string) (pluginsdk.Project, error) {
-	p, err := h.GetProject(ctx, id)
+func lookupWorkspace(ctx context.Context, h *pluginsdk.Host, id string) (pluginsdk.Workspace, error) {
+	p, err := h.GetWorkspace(ctx, id)
 	if err != nil {
-		return pluginsdk.Project{}, err
+		return pluginsdk.Workspace{}, err
 	}
 	if p.Home {
-		return pluginsdk.Project{}, errHome
+		return pluginsdk.Workspace{}, errHome
 	}
 	return p, nil
 }

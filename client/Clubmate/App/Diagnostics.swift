@@ -11,8 +11,8 @@ extension AppModel {
             let tool = CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor())
             return AppAlert.warning("Clubmate is not connected to its core. Run “\(tool) diagnostics” in a terminal to collect its logs.")
         }
-        let (projectID, window) = keyWorkspace
-        let banner = projectID.flatMap(existingSession)?.banner
+        let (workspaceID, window) = keyWorkspace
+        let banner = workspaceID.flatMap(existingSession)?.banner
         let report: (String) -> Void = { message in
             guard let banner else { return AppAlert.warning(message) }
             banner.show(message)
@@ -31,7 +31,7 @@ extension AppModel {
             }
             let result: DiagnosticsResult
             do {
-                result = try await client.collectDiagnostics(projectID: projectID, appVersion: Bundle.main.clubmateVersion, extra: extra)
+                result = try await client.collectDiagnostics(workspaceID: workspaceID, appVersion: Bundle.main.clubmateVersion, extra: extra)
             } catch {
                 return report((error as? ClubmateError)?.message ?? "\(error)")
             }

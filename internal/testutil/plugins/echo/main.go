@@ -10,16 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
 
 type forkedPayload struct {
 	PID int `json:"pid"`
-}
-
-type projectCreated struct {
-	Project pluginsdk.Project `json:"project"`
 }
 
 func main() {
@@ -44,11 +41,11 @@ func initialize(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	projects, err := h.ListProjects(ctx)
+	workspaces, err := h.ListWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
-	for _, p := range projects {
+	for _, p := range workspaces {
 		if !ownsSection(h) {
 			break
 		}
@@ -56,23 +53,23 @@ func initialize(ctx context.Context, h *pluginsdk.Host) error {
 			return err
 		}
 	}
-	_, err = h.Subscribe(ctx, "project.*", ready.Seq)
+	_, err = h.Subscribe(ctx, "workspace.*", ready.Seq)
 	return err
 }
 
 func busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
-	if ev.Topic != "project.created" {
+	if ev.Topic != "workspace.created" {
 		return
 	}
-	var created projectCreated
+	var created contract.WorkspaceChanged
 	if err := json.Unmarshal(ev.Payload, &created); err != nil {
-		fmt.Fprintln(os.Stderr, "echo: bad project.created:", err)
+		fmt.Fprintln(os.Stderr, "echo: bad workspace.created:", err)
 		return
 	}
 	if !ownsSection(h) {
 		return
 	}
-	if _, err := h.Render(ctx, created.Project.ID, mainSlot(h), sdui.Text("hello")); err != nil {
+	if _, err := h.Render(ctx, created.Workspace, mainSlot(h), sdui.Text("hello")); err != nil {
 		fmt.Fprintln(os.Stderr, "echo: render:", err)
 	}
 }

@@ -44,14 +44,14 @@ struct WorkspaceWindow: View {
         windowID.flatMap { app.window($0)?.active }
     }
 
-    var worktreeSession: ProjectSession? {
+    var worktreeSession: WorkspaceSession? {
         guard let session = active.flatMap(app.existingSession), !session.worktrees.worktrees.isEmpty else { return nil }
         return session
     }
 
     var title: String {
         guard let active else { return "Clubmate" }
-        let name = app.project(active)?.name ?? active
+        let name = app.workspace(active)?.name ?? active
         return app.existingSession(for: active)?.worktrees.title(name) ?? name
     }
 

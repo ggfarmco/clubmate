@@ -69,12 +69,12 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 }
 
 func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, error) {
-	dirs, err := a.graphDirs(ctx, cmd.ProjectID, cmd.Agent, cmd.Caller)
+	dirs, err := a.graphDirs(ctx, cmd.WorkspaceID, cmd.Agent, cmd.Caller)
 	if err != nil {
 		return listResult{}, err
 	}
 	res := listResult{Graphs: listGraphs(dirs)}
-	for _, r := range a.workspaceRuns(cmd.ProjectID) {
+	for _, r := range a.workspaceRuns(cmd.WorkspaceID) {
 		res.Runs = append(res.Runs, runRow{
 			ID:        r.ID,
 			Graph:     r.Graph,
@@ -99,7 +99,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if cmd.Agent {
 		caller = cmd.Caller
 	}
-	dirs, err := a.graphDirs(ctx, cmd.ProjectID, cmd.Agent, caller)
+	dirs, err := a.graphDirs(ctx, cmd.WorkspaceID, cmd.Agent, caller)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	r, err := newRun(g, cmd.ProjectID, args.Input, cmd.Agent, caller, a.now())
+	r, err := newRun(g, cmd.WorkspaceID, args.Input, cmd.Agent, caller, a.now())
 	if err != nil {
 		return nil, err
 	}
@@ -143,11 +143,11 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 	if err := decodeArgs(cmd, &args); err != nil {
 		return shownRun{}, err
 	}
-	r, err := a.lookup(cmd.ProjectID, args.ID)
+	r, err := a.lookup(cmd.WorkspaceID, args.ID)
 	if err != nil {
 		return shownRun{}, err
 	}
-	sessions := a.sessionMap(ctx, cmd.ProjectID)
+	sessions := a.sessionMap(ctx, cmd.WorkspaceID)
 	r.Spec = nil
 	out := shownRun{Run: r}
 	for _, n := range r.Nodes {
@@ -162,7 +162,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	if err := decodeArgs(cmd, &args); err != nil {
 		return nil, err
 	}
-	r, err := a.lookup(cmd.ProjectID, args.ID)
+	r, err := a.lookup(cmd.WorkspaceID, args.ID)
 	if err != nil {
 		return nil, err
 	}

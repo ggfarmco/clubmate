@@ -14,8 +14,8 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/proc"
-	"clubmate/internal/project"
 	"clubmate/internal/session"
+	"clubmate/internal/workspace"
 	"clubmate/pkg/contract"
 )
 
@@ -30,13 +30,13 @@ const (
 var (
 	ErrNotTracked         = errors.New("process is not tracked by any session")
 	ErrEmptyKillRequest   = errors.New("kill request selects no processes")
-	ErrOrphansNeedSession = errors.New("orphansOnly requires a session or project id")
+	ErrOrphansNeedSession = errors.New("orphansOnly requires a session or workspace id")
 	ErrNoFolders          = errors.New("no folders to open")
 )
 
 type TreeFilter struct {
-	ProjectID string `json:"projectId"`
-	SessionID string `json:"sessionId"`
+	WorkspaceID string `json:"workspaceId"`
+	SessionID   string `json:"sessionId"`
 }
 
 type KillRequest = contract.KillRequest
@@ -44,14 +44,14 @@ type KillRequest = contract.KillRequest
 type Option func(*Service)
 
 type Service struct {
-	projects  *project.Store
-	sessions  *session.Manager
-	tracker   *proc.Tracker
-	snapshot  func() ([]proc.Process, error)
-	killGrace time.Duration
-	bus       *bus.Bus
-	logger    *slog.Logger
-	exclude   func() []int
+	workspaces *workspace.Store
+	sessions   *session.Manager
+	tracker    *proc.Tracker
+	snapshot   func() ([]proc.Process, error)
+	killGrace  time.Duration
+	bus        *bus.Bus
+	logger     *slog.Logger
+	exclude    func() []int
 
 	workspaceMu sync.Mutex
 
@@ -85,17 +85,17 @@ func WithKillGrace(d time.Duration) Option {
 	return func(s *Service) { s.killGrace = d }
 }
 
-func NewService(projects *project.Store, sessions *session.Manager, tracker *proc.Tracker, snapshot func() ([]proc.Process, error), opts ...Option) *Service {
+func NewService(workspaces *workspace.Store, sessions *session.Manager, tracker *proc.Tracker, snapshot func() ([]proc.Process, error), opts ...Option) *Service {
 	s := &Service{
-		projects:  projects,
-		sessions:  sessions,
-		tracker:   tracker,
-		snapshot:  snapshot,
-		killGrace: DefaultKillGrace,
-		logger:    slog.New(slog.DiscardHandler),
-		reported:  map[string]bool{},
-		startTime: proc.StartTime,
-		dropped:   map[RootOwner]bool{},
+		workspaces: workspaces,
+		sessions:   sessions,
+		tracker:    tracker,
+		snapshot:   snapshot,
+		killGrace:  DefaultKillGrace,
+		logger:     slog.New(slog.DiscardHandler),
+		reported:   map[string]bool{},
+		startTime:  proc.StartTime,
+		dropped:    map[RootOwner]bool{},
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -103,112 +103,112 @@ func NewService(projects *project.Store, sessions *session.Manager, tracker *pro
 	return s
 }
 
-func (s *Service) CreateProject(ctx context.Context, name string, repos []string) (project.Project, error) {
-	p, err := s.projects.Create(ctx, name, repos)
+func (s *Service) CreateWorkspace(ctx context.Context, name string, repos []string) (workspace.Workspace, error) {
+	p, err := s.workspaces.Create(ctx, name, repos)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
-	s.publish(ctx, contract.TopicProjectCreated, contract.ProjectChanged{Project: p})
+	s.publishWorkspace(ctx, contract.TopicWorkspaceCreated, p)
 	return p, nil
 }
 
-func (s *Service) OpenFolders(ctx context.Context, folders []string) (project.Project, bool, error) {
-	cleaned := project.CanonicalPaths(folders)
+func (s *Service) OpenFolders(ctx context.Context, folders []string) (workspace.Workspace, bool, error) {
+	cleaned := workspace.CanonicalPaths(folders)
 	if len(cleaned) == 0 {
-		return project.Project{}, false, ErrNoFolders
+		return workspace.Workspace{}, false, ErrNoFolders
 	}
 	s.workspaceMu.Lock()
 	defer s.workspaceMu.Unlock()
-	p, found, err := s.projects.FindByRepos(ctx, cleaned)
+	p, found, err := s.workspaces.FindByRepos(ctx, cleaned)
 	if err != nil || found {
 		return p, false, err
 	}
-	p, err = s.CreateProject(ctx, filepath.Base(filepath.Clean(folders[0])), cleaned)
+	p, err = s.CreateWorkspace(ctx, filepath.Base(filepath.Clean(folders[0])), cleaned)
 	return p, err == nil, err
 }
 
-func (s *Service) HomeWorkspace(ctx context.Context) (project.Project, error) {
+func (s *Service) HomeWorkspace(ctx context.Context) (workspace.Workspace, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return project.Project{}, fmt.Errorf("resolve home dir: %w", err)
+		return workspace.Workspace{}, fmt.Errorf("resolve home dir: %w", err)
 	}
 	s.workspaceMu.Lock()
 	defer s.workspaceMu.Unlock()
-	p, created, err := s.projects.Home(ctx, home)
+	p, created, err := s.workspaces.Home(ctx, home)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	if created {
-		s.publish(ctx, contract.TopicProjectCreated, contract.ProjectChanged{Project: p})
+		s.publishWorkspace(ctx, contract.TopicWorkspaceCreated, p)
 	}
 	return p, nil
 }
 
-func (s *Service) RenameProject(ctx context.Context, id, name string) (project.Project, error) {
-	if err := s.projects.Rename(ctx, id, name); err != nil {
-		return project.Project{}, err
+func (s *Service) RenameWorkspace(ctx context.Context, id, name string) (workspace.Workspace, error) {
+	if err := s.workspaces.Rename(ctx, id, name); err != nil {
+		return workspace.Workspace{}, err
 	}
-	p, err := s.projects.Get(ctx, id)
+	p, err := s.workspaces.Get(ctx, id)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
-	s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
+	s.publishWorkspace(ctx, contract.TopicWorkspaceUpdated, p)
 	return p, nil
 }
 
-func (s *Service) TouchProject(ctx context.Context, id string) error {
-	return s.projects.Touch(ctx, id, time.Now())
+func (s *Service) TouchWorkspace(ctx context.Context, id string) error {
+	return s.workspaces.Touch(ctx, id, time.Now())
 }
 
-func (s *Service) ListProjects(ctx context.Context) ([]project.Project, error) {
-	return s.projects.List(ctx)
+func (s *Service) ListWorkspaces(ctx context.Context) ([]workspace.Workspace, error) {
+	return s.workspaces.List(ctx)
 }
 
-func (s *Service) GetProject(ctx context.Context, id string) (project.Project, error) {
-	return s.projects.Get(ctx, id)
+func (s *Service) GetWorkspace(ctx context.Context, id string) (workspace.Workspace, error) {
+	return s.workspaces.Get(ctx, id)
 }
 
-func (s *Service) AddRepo(ctx context.Context, id, path string) (project.Project, error) {
-	p, err := s.projects.AddRepo(ctx, id, path)
+func (s *Service) AddRepo(ctx context.Context, id, path string) (workspace.Workspace, error) {
+	p, err := s.workspaces.AddRepo(ctx, id, path)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
-	s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
+	s.publishWorkspace(ctx, contract.TopicWorkspaceUpdated, p)
 	return p, nil
 }
 
-func (s *Service) SetWorktree(ctx context.Context, id, repo, path string) (project.Project, error) {
-	p, err := s.projects.SetWorktree(ctx, id, repo, path)
+func (s *Service) SetWorktree(ctx context.Context, id, repo, path string) (workspace.Workspace, error) {
+	p, err := s.workspaces.SetWorktree(ctx, id, repo, path)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
-	s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
+	s.publishWorkspace(ctx, contract.TopicWorkspaceUpdated, p)
 	return p, nil
 }
 
-func (s *Service) CheckWorktrees(ctx context.Context, id string) (project.Project, error) {
-	p, err := s.projects.Get(ctx, id)
+func (s *Service) CheckWorktrees(ctx context.Context, id string) (workspace.Workspace, error) {
+	p, err := s.workspaces.Get(ctx, id)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	if len(p.Missing) > 0 {
-		s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
+		s.publishWorkspace(ctx, contract.TopicWorkspaceUpdated, p)
 	}
 	return p, nil
 }
 
-func (s *Service) DeleteProject(ctx context.Context, id string) error {
-	if _, err := s.projects.Get(ctx, id); err != nil {
+func (s *Service) DeleteWorkspace(ctx context.Context, id string) error {
+	if _, err := s.workspaces.Get(ctx, id); err != nil {
 		return err
 	}
-	nodes, err := s.ProcessTree(ctx, TreeFilter{ProjectID: id})
+	nodes, err := s.ProcessTree(ctx, TreeFilter{WorkspaceID: id})
 	if err != nil {
 		return err
 	}
 	if _, err := proc.KillTree(ctx, nodeTargets(s.withoutLiveRoots(id, nodes)), s.killGrace); err != nil {
-		return fmt.Errorf("kill project %s: %w", id, err)
+		return fmt.Errorf("kill workspace %s: %w", id, err)
 	}
-	sessions, err := s.sessions.List(ctx, session.ListFilter{ProjectID: id})
+	sessions, err := s.sessions.List(ctx, session.ListFilter{WorkspaceID: id})
 	if err != nil {
 		return err
 	}
@@ -220,15 +220,15 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 			return err
 		}
 	}
-	if err := s.projects.Delete(ctx, id); err != nil {
+	if err := s.workspaces.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.publish(ctx, contract.TopicProjectDeleted, contract.ProjectDeleted{ID: id})
+	s.publishWorkspaceDeleted(ctx, id)
 	return nil
 }
 
 func (s *Service) CreateSession(ctx context.Context, req session.CreateRequest) (session.Session, error) {
-	p, err := s.projects.Get(ctx, req.ProjectID)
+	p, err := s.workspaces.Get(ctx, req.WorkspaceID)
 	if err != nil {
 		return session.Session{}, err
 	}
@@ -306,7 +306,7 @@ func (s *Service) CheckTransitions(ctx context.Context) error {
 		}
 		s.publish(ctx, contract.TopicSessionExited, contract.SessionExited{
 			ID:        sess.ID,
-			ProjectID: sess.ProjectID,
+			Workspace: sess.WorkspaceID,
 			Owner:     sess.Owner,
 			State:     sess.State,
 			ExitCode:  sess.ExitCode,
@@ -335,15 +335,15 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 	for _, p := range procs {
 		byPID[p.PID] = p
 	}
-	projectOf := make(map[string]string, len(sessions))
+	workspaceOf := make(map[string]string, len(sessions))
 	excluded := make(map[int]bool, len(sessions))
 	roots := make([]proc.SessionRoot, 0, len(sessions))
 	for _, sess := range sessions {
-		projectOf[sess.ID] = sess.ProjectID
+		workspaceOf[sess.ID] = sess.WorkspaceID
 		excluded[sess.HostPID] = true
 		roots = append(roots, rootOf(sess, byPID))
 	}
-	roots = append(roots, s.registeredRoots(byPID, snapStart, projectOf)...)
+	roots = append(roots, s.registeredRoots(byPID, snapStart, workspaceOf)...)
 	if s.exclude != nil {
 		for _, pid := range s.exclude() {
 			excluded[pid] = true
@@ -359,7 +359,7 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 		if f.SessionID != "" && n.SessionID != f.SessionID {
 			continue
 		}
-		if f.ProjectID != "" && projectOf[n.SessionID] != f.ProjectID {
+		if f.WorkspaceID != "" && workspaceOf[n.SessionID] != f.WorkspaceID {
 			continue
 		}
 		out = append(out, n)
@@ -368,13 +368,13 @@ func (s *Service) ProcessTree(ctx context.Context, f TreeFilter) ([]proc.Node, e
 }
 
 func (s *Service) KillProcesses(ctx context.Context, r KillRequest) ([]int, error) {
-	if r.OrphansOnly && r.SessionID == "" && r.ProjectID == "" {
+	if r.OrphansOnly && r.SessionID == "" && r.WorkspaceID == "" {
 		return nil, ErrOrphansNeedSession
 	}
 	if len(r.PIDs) == 0 && !r.OrphansOnly {
 		return nil, ErrEmptyKillRequest
 	}
-	nodes, err := s.ProcessTree(ctx, TreeFilter{SessionID: r.SessionID, ProjectID: r.ProjectID})
+	nodes, err := s.ProcessTree(ctx, TreeFilter{SessionID: r.SessionID, WorkspaceID: r.WorkspaceID})
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +492,7 @@ func startedAfter(p proc.Process, startedAt time.Time) bool {
 	return p.StartTime.After(startedAt.Add(startTimeSlack))
 }
 
-func defaultCwd(p project.Project) (string, error) {
+func defaultCwd(p workspace.Workspace) (string, error) {
 	if len(p.Roots) > 0 {
 		return p.Roots[0], nil
 	}

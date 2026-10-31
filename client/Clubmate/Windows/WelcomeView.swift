@@ -44,11 +44,11 @@ struct WelcomeView: View {
                         .foregroundStyle(theme.muted)
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(recents, id: \.id) { project in
-                                RecentRow(project: project, open: open.contains(project.id)) {
-                                    app.open(project.id, in: windowID)
+                            ForEach(recents, id: \.id) { workspace in
+                                RecentRow(workspace: workspace, open: open.contains(workspace.id)) {
+                                    app.open(workspace.id, in: windowID)
                                 } remove: {
-                                    app.remove(project.id)
+                                    app.remove(workspace.id)
                                 }
                             }
                         }
@@ -63,8 +63,8 @@ struct WelcomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var recents: [Project] {
-        Project.recents(app.projects?.projects ?? [])
+    private var recents: [Workspace] {
+        Workspace.recents(app.workspaceStore?.workspaces ?? [])
     }
 
     private var open: Set<String> {
@@ -104,7 +104,7 @@ private struct WelcomeAction: View {
 }
 
 private struct RecentRow: View {
-    let project: Project
+    let workspace: Workspace
     let open: Bool
     let select: () -> Void
     let remove: () -> Void
@@ -115,7 +115,7 @@ private struct RecentRow: View {
     var body: some View {
         HStack(spacing: theme.gutter) {
             VStack(alignment: .leading, spacing: theme.spacing.xs) {
-                Text(project.name)
+                Text(workspace.name)
                     .font(theme.ui)
                     .foregroundStyle(theme.foreground)
                     .lineLimit(1)
@@ -151,6 +151,6 @@ private struct RecentRow: View {
     }
 
     private var folders: String {
-        project.repos.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
+        workspace.repos.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
     }
 }

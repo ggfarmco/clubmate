@@ -72,7 +72,7 @@ public final class WorktreeModel {
     public private(set) var branches: [Branch] = []
 
     @ObservationIgnored private let run: Run
-    @ObservationIgnored private let project: @MainActor () -> Project?
+    @ObservationIgnored private let workspace: @MainActor () -> Workspace?
     @ObservationIgnored private let confirm: @MainActor (String, String) async -> Bool
     @ObservationIgnored private let report: @MainActor (String) -> Void
     @ObservationIgnored private let retryDelays: [Duration]
@@ -81,13 +81,13 @@ public final class WorktreeModel {
 
     public init(
         run: @escaping Run,
-        project: @escaping @MainActor () -> Project?,
+        workspace: @escaping @MainActor () -> Workspace?,
         confirm: @escaping @MainActor (String, String) async -> Bool,
         report: @escaping @MainActor (String) -> Void,
         retryDelays: [Duration] = WorktreeModel.defaultRetryDelays
     ) {
         self.run = run
-        self.project = project
+        self.workspace = workspace
         self.confirm = confirm
         self.report = report
         self.retryDelays = retryDelays
@@ -159,9 +159,9 @@ public final class WorktreeModel {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, mine == generation else { return }
         }
-        guard mine == generation, let project = project() else { return }
+        guard mine == generation, let workspace = workspace() else { return }
         var switched = false
-        for path in project.missing where !announced.contains(path) {
+        for path in workspace.missing where !announced.contains(path) {
             announced.insert(path)
             let owner = worktrees.filter { Self.within(path, $0.path) }.max { $0.path.count < $1.path.count }
             let lost = owner.flatMap { $0.main ? nil : $0 }

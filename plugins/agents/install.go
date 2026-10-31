@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"clubmate/internal/paths"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/acp"
 )
@@ -31,7 +32,6 @@ const (
 	installTimeout  = 10 * time.Minute
 	probeTimeout    = 15 * time.Second
 	mcpName         = "clubmate"
-	projectEnv      = "CLUBMATE_PROJECT_ID"
 	agentSessionEnv = "CLUBMATE_AGENT_SESSION"
 	installMarker   = ".clubmate-installed"
 )
@@ -59,7 +59,7 @@ func launcherFor(ctx context.Context, stateDir, agent, workspace, root string, i
 	return launch{argv: []string{node, script}, env: env, mcp: clubmateMCP(ctx, workspace, root)}, nil
 }
 
-var droppedEnv = []string{apiKeyEnv, projectEnv, "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}
+var droppedEnv = []string{apiKeyEnv, contract.WorkspaceEnv, contract.LegacyWorkspaceEnv, "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}
 
 func agentEnv(workspace string) []string {
 	out := paths.StripDefaults(slices.DeleteFunc(os.Environ(), func(kv string) bool {
@@ -67,7 +67,7 @@ func agentEnv(workspace string) []string {
 		return slices.Contains(droppedEnv, name)
 	}))
 	if workspace != "" {
-		out = append(out, projectEnv+"="+workspace)
+		out = append(out, contract.WorkspaceEnv+"="+workspace, contract.LegacyWorkspaceEnv+"="+workspace)
 	}
 	if tools := pluginsdk.ToolsDir(); tools != "" {
 		out = appendTools(out, tools)
@@ -249,7 +249,7 @@ func clubmateMCP(ctx context.Context, workspace, root string) []acp.McpServer {
 	if registered(ctx, root) {
 		return []acp.McpServer{}
 	}
-	return []acp.McpServer{{Name: mcpName, Command: cli, Args: []string{"mcp"}, Env: []acp.EnvVariable{{Name: projectEnv, Value: workspace}}}}
+	return []acp.McpServer{{Name: mcpName, Command: cli, Args: []string{"mcp"}, Env: []acp.EnvVariable{{Name: contract.WorkspaceEnv, Value: workspace}}}}
 }
 
 func registered(ctx context.Context, root string) bool {

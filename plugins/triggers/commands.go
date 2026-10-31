@@ -96,7 +96,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 	caller := automation.CallerOf(cmd)
 	t := &Trigger{
 		Name:      args.Name,
-		Workspace: cmd.ProjectID,
+		Workspace: cmd.WorkspaceID,
 		On:        args.On,
 		Match:     match,
 		Command:   args.Command,
@@ -124,7 +124,7 @@ func (a *app) list(cmd pluginsdk.CommandRun) listResult {
 	defer a.mu.Unlock()
 	triggers := make([]*Trigger, 0, len(a.triggers))
 	for _, t := range a.triggers {
-		if t.Workspace == cmd.ProjectID {
+		if t.Workspace == cmd.WorkspaceID {
 			c := *t
 			c.History = nil
 			triggers = append(triggers, &c)
@@ -226,7 +226,7 @@ func (a *app) emit(ctx context.Context, cmd pluginsdk.CommandRun) (emitResult, e
 			payload = map[string]any{}
 		}
 	}
-	payload["workspace"] = cmd.ProjectID
+	payload["workspace"] = cmd.WorkspaceID
 	delete(payload, byField)
 	if cmd.Agent {
 		payload[byField] = cmp.Or(cmd.Caller, byAgent)

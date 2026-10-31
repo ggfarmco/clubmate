@@ -30,16 +30,16 @@ Hidden helpers and commands not marked for agents stay out of reach.
 
 ## Import your nvim config
 
-**Import my nvim config** in the command palette starts an agent session in the Agents section that reads `~/.config/nvim` and moves your own keymaps, options, autocmds and plugins into Clubmate's Neovim user layer (`~/.config/clubmate`, or `~/.config/clubmate-dev` for development builds), following the guide bundled at `nvim-distro/skill/SKILL.md`. It skips what Clubmate's defaults already cover and asks you before adding destructive or machine-specific mappings. It needs an open project workspace and never changes `~/.config/nvim`. The first time Neovim starts in a project workspace while `~/.config/nvim` exists, it offers the same import once.
+**Import my nvim config** in the command palette starts an agent session in the Agents section that reads `~/.config/nvim` and moves your own keymaps, options, autocmds and plugins into Clubmate's Neovim user layer (`~/.config/clubmate`, or `~/.config/clubmate-dev` for development builds), following the guide bundled at `nvim-distro/skill/SKILL.md`. It skips what Clubmate's defaults already cover and asks you before adding destructive or machine-specific mappings. It needs an open folder workspace and never changes `~/.config/nvim`. The first time Neovim starts in a workspace workspace while `~/.config/nvim` exists, it offers the same import once.
 
 ## Testing the app
 
-Agents test Clubmate in their own invisible instances instead of taking over the user's screen. `scripts/test-app.sh start [name]` (name defaults to the branch) launches the Debug build with scratch state, runtime and `XDG_*` dirs under `/tmp/clubmate-test-<name>`, its own core and its own defaults suite, in test mode (`CLUBMATE_TEST_MODE=1`): it never activates, its windows are transparent and ignore the mouse, app-modal dialogs are skipped and every approval is denied. `stop [name]` quits it and removes the dirs, `list` shows running ones, `cm [name] -- <args>` runs the CLI against one, with that instance's workspace as `CLUBMATE_PROJECT_ID`. `start [name] -- --sdui-gallery` shows the SDUI gallery with a core but no workspace.
+Agents test Clubmate in their own invisible instances instead of taking over the user's screen. `scripts/test-app.sh start [name]` (name defaults to the branch) launches the Debug build with scratch state, runtime and `XDG_*` dirs under `/tmp/clubmate-test-<name>`, its own core and its own defaults suite, in test mode (`CLUBMATE_TEST_MODE=1`): it never activates, its windows are transparent and ignore the mouse, app-modal dialogs are skipped and every approval is denied. `stop [name]` quits it and removes the dirs, `list` shows running ones, `cm [name] -- <args>` runs the CLI against one, with that instance's workspace as `CLUBMATE_WORKSPACE_ID`. `start [name] -- --sdui-gallery` shows the SDUI gallery with a core but no workspace.
 
 - `ui.snapshot {out, png?, width?, height?}` (CLI `cm ui snapshot --out <dir> [--size 640x800] [--no-png]`): the app draws each of its windows itself (main window with titlebar, popovers, sheets, settings) to `w<window id>.png`, terminals included, and writes `w<window id>.json`: every rendered SDUI node with its frame in window points, its parent, its menu entries, plus every terminal's visible text and native menus listed as text. Flags: `outside-window`, `wider-than-parent`, `overlaps-sibling`, `zero-size`, `truncated` (text nodes, measured). The result's `summary` lists only flagged elements, or `0 problems`. `--size` resizes the main window first.
 - `ui.present {target, shown}` (CLI `cm ui present <target> [--hide]`): opens `inbox`, `worktree`, `switcher`, `settings` or the `approval` fixture sheet without a click; menus are never opened, they appear as text in the layout. `card:<node id>` expands a transcript tool card (`--hide` collapses it), and with it the summary row of its group; card ids (`<session>/tool/<tool call id>`) are listed by `cm ui dump` and not checked, so a wrong id changes nothing.
 - `ui.key {keys, focus?}` (CLI `cm ui key [--focus <node id>] <combo>...`): `focus` first makes the view under that SDUI node (an id from the snapshot layout; with duplicate ids any match, so prefer a unique one) first responder, e.g. a text field. Each combo then goes to the active key monitors (sidebar trees, the composer), else, when it has ⌘, to the window's key equivalents (view shortcuts; never the app menu), else as a key down and up to the first responder of the workspace window; the result lists the route each combo took (`monitor`, `shortcut`, `responder <class>`). A combo is `[cmd+][ctrl+][opt+][shift+]<key>`, `<key>` a US-layout letter, digit or punctuation, `return`, `tab`, `space`, `delete`, `esc`, `up`, `down`, `left` or `right`; `cm ui key --focus description o n e opt+return t w o` types two lines. Keys are refused while a sheet or alert is open or a terminal has focus, so they can't answer an approval or run shell commands. The test app never becomes active, so it has no key window: menu shortcuts (⌘N New, ⌘W) are not sent and Tab does not move focus. Run their commands instead (`cm command run backlog.new` focuses the new task field), and focus a sidebar with `cm command run ui.focus section=<section> slot=<section>.sidebar`.
-- Over MCP: `testapp.call` proxies `ui.snapshot`, `ui.present`, `ui.key`, `ui.get`, `ui.event`, `command.list`, `command.run` (always as an agent call), `project.list` and `workspace.open` to `/tmp/clubmate-test-<instance>`; `ui.snapshot`'s `out` defaults to and must stay inside `/tmp/clubmate-test-<instance>/snapshots`.
+- Over MCP: `testapp.call` proxies `ui.snapshot`, `ui.present`, `ui.key`, `ui.get`, `ui.event`, `command.list`, `command.run` (always as an agent call), `workspace.list` and `workspace.open` to `/tmp/clubmate-test-<instance>`; `ui.snapshot`'s `out` defaults to and must stay inside `/tmp/clubmate-test-<instance>/snapshots`.
 
 The user's own app never answers `ui.snapshot`, `ui.present` or `ui.key`: only a test-mode app registers them, and test mode needs a dev build with non-default state and runtime dirs.
 
@@ -59,7 +59,7 @@ Agent mode is a cooperative guard for well-behaved agents, not a security bounda
 
 ## CLI
 
-Inside a Clubmate terminal, `clubmate` is on `PATH` and `$CLUBMATE_PROJECT_ID` names the current workspace.
+Inside a Clubmate terminal, `clubmate` is on `PATH` and `$CLUBMATE_WORKSPACE_ID` names the current workspace.
 
 ```sh
 clubmate open src/main.go:42                       # open in the editor
@@ -135,7 +135,7 @@ Design (not built): continuing the agent's own conversation instead of a brief. 
 `clubmate mcp` is a stdio MCP server over the same registry. Every call it makes is an agent call.
 
 - Tools are named after the command or capability with `.` and `-` replaced by `_` (`editor_open`, `workspace_list`, `terminal_close`). A plugin command that provides a capability appears under the capability's name only.
-- Every tool takes an optional `workspace` id. It defaults to `$CLUBMATE_PROJECT_ID`, then the most recently opened workspace.
+- Every tool takes an optional `workspace` id. It defaults to `$CLUBMATE_WORKSPACE_ID`, then the most recently opened workspace.
 - If Clubmate isn't running, the tools still list the core primitives, and calls fail with "Clubmate isn't running". The server never starts Clubmate itself.
 
 To connect Claude Code, use **Settings → Agents → Connect Claude Code**. It runs:

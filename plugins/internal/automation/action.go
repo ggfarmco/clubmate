@@ -41,11 +41,11 @@ type Entry[P any] interface {
 }
 
 type CommandRequest struct {
-	ID        string          `json:"id"`
-	ProjectID string          `json:"projectId"`
-	Args      json.RawMessage `json:"args,omitempty"`
-	Agent     bool            `json:"agent"`
-	Caller    string          `json:"caller,omitempty"`
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspaceId"`
+	Args        json.RawMessage `json:"args,omitempty"`
+	Agent       bool            `json:"agent"`
+	Caller      string          `json:"caller,omitempty"`
 }
 
 type IDArgs struct {
@@ -94,7 +94,7 @@ func (x Executor) Guard(ctx context.Context, act Action) ([]api.Session, string)
 }
 
 func (x Executor) Execute(ctx context.Context, act Action, r Run) Run {
-	raw, err := x.RunCommand(ctx, CommandRequest{ID: act.Command, ProjectID: act.Workspace, Args: act.Args, Agent: true, Caller: act.Owner})
+	raw, err := x.RunCommand(ctx, CommandRequest{ID: act.Command, WorkspaceID: act.Workspace, Args: act.Args, Agent: true, Caller: act.Owner})
 	switch {
 	case err == nil:
 		r.Status, r.Result = StatusOK, Truncate(string(raw), MaxResult)

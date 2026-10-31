@@ -54,6 +54,6 @@ public struct AgentNotifier: Sendable {
     }
 
     public static func selectEvent(workspace: String, session: String) -> UIEvent {
-        UIEvent(projectId: workspace, slot: sidebarSlot, nodeId: sessionsNode, action: "select", value: .string(session))
+        UIEvent(workspaceId: workspace, slot: sidebarSlot, nodeId: sessionsNode, action: "select", value: .string(session))
     }
 }

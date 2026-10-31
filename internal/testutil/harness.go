@@ -19,10 +19,10 @@ import (
 	"clubmate/internal/kv"
 	"clubmate/internal/paths"
 	"clubmate/internal/plugin"
-	"clubmate/internal/project"
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
+	"clubmate/internal/workspace"
 	"clubmate/pkg/sdui"
 )
 
@@ -116,20 +116,20 @@ func (h *PluginHarness) PluginCall(t *testing.T, pluginID, method string, params
 	return err
 }
 
-func (h *PluginHarness) CreateProject(t *testing.T, name string) project.Project {
+func (h *PluginHarness) CreateWorkspace(t *testing.T, name string) workspace.Workspace {
 	t.Helper()
-	p, err := h.Svc.CreateProject(t.Context(), name, nil)
+	p, err := h.Svc.CreateWorkspace(t.Context(), name, nil)
 	require.NoError(t, err)
 	return p
 }
 
-func (h *PluginHarness) WaitSlot(t *testing.T, projectID, slot string, cond func(sdui.Node) bool) sdui.Node {
+func (h *PluginHarness) WaitSlot(t *testing.T, workspaceID, slot string, cond func(sdui.Node) bool) sdui.Node {
 	t.Helper()
 	c := h.Client(t)
 	var found sdui.Node
 	require.Eventually(t, func() bool {
 		var views []internalsdui.SlotView
-		if err := c.Call(t.Context(), "ui.get", map[string]string{"projectId": projectID}, &views); err != nil {
+		if err := c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": workspaceID}, &views); err != nil {
 			return false
 		}
 		for _, v := range views {
@@ -146,11 +146,11 @@ func (h *PluginHarness) WaitSlot(t *testing.T, projectID, slot string, cond func
 	return found
 }
 
-func (h *PluginHarness) Event(t *testing.T, projectID, slot, nodeID, action string, value any) {
+func (h *PluginHarness) Event(t *testing.T, workspaceID, slot, nodeID, action string, value any) {
 	t.Helper()
 	raw, err := json.Marshal(value)
 	require.NoError(t, err)
-	params := map[string]any{"projectId": projectID, "slot": slot, "nodeId": nodeID, "action": action, "value": json.RawMessage(raw)}
+	params := map[string]any{"workspaceId": workspaceID, "slot": slot, "nodeId": nodeID, "action": action, "value": json.RawMessage(raw)}
 	require.NoError(t, h.Client(t).Call(t.Context(), "ui.event", params, nil))
 }
 

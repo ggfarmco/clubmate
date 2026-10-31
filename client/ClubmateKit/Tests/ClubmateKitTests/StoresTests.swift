@@ -15,49 +15,49 @@ final class StoresTests: XCTestCase {
 
     func testTerminalsFlow() async throws {
         let client = try await startCore()
-        let projects = ProjectsStore(client: client)
-        try await projects.start()
-        let project = try await projects.create(name: "demo", repos: [])
-        XCTAssertEqual(projects.projects.map(\.id), [project.id])
-        let other = try await client.createProject(name: "other")
-        try await waitUntil { projects.projects.map(\.id).contains(other.id) }
+        let workspaces = WorkspacesStore(client: client)
+        try await workspaces.start()
+        let workspace = try await workspaces.create(name: "demo", repos: [])
+        XCTAssertEqual(workspaces.workspaces.map(\.id), [workspace.id])
+        let other = try await client.createWorkspace(name: "other")
+        try await waitUntil { workspaces.workspaces.map(\.id).contains(other.id) }
 
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
         XCTAssertEqual(store.sections.map(\.id), ["terminals", "echo"])
         XCTAssertEqual(store.selectedSection, "terminals")
         let button = try await waitFor { store.slots["terminals.sidebar"]?.tree.find(id: "new") }
-        _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", projectID: project.id)).get()
+        _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
         try await waitUntil { store.slots["terminals.main"]?.tree.type == "surface" }
         XCTAssertEqual(store.slots["terminals.sidebar"]?.tree.find(id: "terminals")?.items().map(\.label), ["Terminal 1"])
 
         let close = SDUINode(type: "button", id: "close")
-        _ = try await store.send(UIAction.event(for: close, trigger: .click, slot: "terminals.main", projectID: project.id)).get()
+        _ = try await store.send(UIAction.event(for: close, trigger: .click, slot: "terminals.main", workspaceID: workspace.id)).get()
         try await waitUntil { store.slots["terminals.main"]?.tree.type == "empty" }
         await store.stop()
-        await projects.stop()
+        await workspaces.stop()
         await client.close()
     }
 
     func testSelectedSectionPersists() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let fresh = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let fresh = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await fresh.start()
         await fresh.stop()
-        let initial = try await client.uiStateGet(projectID: project.id)
+        let initial = try await client.uiStateGet(workspaceID: workspace.id)
         XCTAssertEqual(initial, .object(["section": .string("terminals")]))
-        let first = ProjectUIStore(client: client, projectID: project.id)
+        let first = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await first.start()
         XCTAssertEqual(first.selectedSection, "terminals")
         XCTAssertNil(first.sidebarWidth)
         first.sidebarWidth = 240
         first.selectedSection = "echo"
         await first.stop()
-        let state = try await client.uiStateGet(projectID: project.id)
+        let state = try await client.uiStateGet(workspaceID: workspace.id)
         XCTAssertEqual(state, .object(["sidebarWidth": .number(240), "section": .string("echo")]))
 
-        let second = ProjectUIStore(client: client, projectID: project.id)
+        let second = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await second.start()
         XCTAssertEqual(second.selectedSection, "echo")
         XCTAssertEqual(second.sidebarWidth, 240)
@@ -67,9 +67,9 @@ final class StoresTests: XCTestCase {
 
     func testConcurrentStoresKeepEachOthersKeys() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let first = ProjectUIStore(client: client, projectID: project.id)
-        let second = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let first = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        let second = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await first.start()
         try await second.start()
         for width in 1...20 {
@@ -78,7 +78,7 @@ final class StoresTests: XCTestCase {
         }
         await first.stop()
         await second.stop()
-        let state = try await client.uiStateGet(projectID: project.id)?.objectValue
+        let state = try await client.uiStateGet(workspaceID: workspace.id)?.objectValue
         XCTAssertEqual(state?["sidebarWidth"], .number(20))
         XCTAssertEqual(state?["sidebarHidden"]?.objectValue?.count, 20)
         await client.close()
@@ -86,8 +86,8 @@ final class StoresTests: XCTestCase {
 
     func testFreshWorkspaceOpensFirstSectionInUserOrder() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let store = ProjectUIStore(client: client, projectID: project.id) { $0.reversed() }
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id) { $0.reversed() }
         try await store.start()
         XCTAssertEqual(store.selectedSection, "echo")
         await store.stop()
@@ -96,9 +96,9 @@ final class StoresTests: XCTestCase {
 
     func testShownSectionWinsOverSaved() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        try await client.uiStateSet(projectID: project.id, state: .object(["section": .string("echo")]))
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        try await client.uiStateSet(workspaceID: workspace.id, state: .object(["section": .string("echo")]))
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         store.show(section: "terminals")
         try await store.start()
         XCTAssertEqual(store.selectedSection, "terminals")
@@ -109,41 +109,41 @@ final class StoresTests: XCTestCase {
     func testRecentsSkipHomeAndOrderByLastOpened() throws {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let projects = try decoder.decode([Project].self, from: Data(#"""
+        let workspaces = try decoder.decode([Workspace].self, from: Data(#"""
         [{"id":"a","name":"never","repos":[],"createdAt":"2026-01-03T00:00:00Z"},
          {"id":"b","name":"old","repos":[],"createdAt":"2026-01-01T00:00:00Z","home":false,"lastOpenedAt":"2026-02-01T00:00:00Z"},
          {"id":"c","name":"~","repos":[],"createdAt":"2026-01-01T00:00:00Z","home":true,"lastOpenedAt":"2026-03-01T00:00:00Z"},
          {"id":"d","name":"new","repos":[],"createdAt":"2026-01-02T00:00:00Z","home":false,"lastOpenedAt":"2026-02-02T00:00:00Z"}]
         """#.utf8))
 
-        XCTAssertEqual(Project.recents(projects).map(\.id), ["d", "b", "a"])
-        XCTAssertEqual(Project.recents(projects, hiddenBefore: try Date("2026-02-01T12:00:00Z", strategy: .iso8601)).map(\.id), ["d"])
+        XCTAssertEqual(Workspace.recents(workspaces).map(\.id), ["d", "b", "a"])
+        XCTAssertEqual(Workspace.recents(workspaces, hiddenBefore: try Date("2026-02-01T12:00:00Z", strategy: .iso8601)).map(\.id), ["d"])
     }
 
-    func testProjectRootsDefaultToRepos() throws {
+    func testWorkspaceRootsDefaultToRepos() throws {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let projects = try decoder.decode([Project].self, from: Data(#"""
+        let workspaces = try decoder.decode([Workspace].self, from: Data(#"""
         [{"id":"a","name":"old","repos":["/a"],"createdAt":"2026-01-01T00:00:00Z"},
          {"id":"b","name":"new","repos":["/a"],"roots":["/a2"],"missing":["/gone"],"createdAt":"2026-01-01T00:00:00Z"}]
         """#.utf8))
 
-        XCTAssertEqual(projects.map(\.roots), [["/a"], ["/a2"]])
-        XCTAssertEqual(projects.map(\.missing), [[], ["/gone"]])
+        XCTAssertEqual(workspaces.map(\.roots), [["/a"], ["/a2"]])
+        XCTAssertEqual(workspaces.map(\.missing), [[], ["/gone"]])
     }
 
     func testSidebarHiddenPersists() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let first = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let first = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await first.start()
         XCTAssertEqual(first.sidebarHidden, [:])
         first.sidebarHidden["terminals"] = true
         await first.stop()
-        let state = try await client.uiStateGet(projectID: project.id)
+        let state = try await client.uiStateGet(workspaceID: workspace.id)
         XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object(["terminals": .bool(true)]))
 
-        let second = ProjectUIStore(client: client, projectID: project.id)
+        let second = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await second.start()
         XCTAssertEqual(second.sidebarHidden, ["terminals": true])
         await second.stop()
@@ -152,8 +152,8 @@ final class StoresTests: XCTestCase {
 
     func testCodeSectionHasNoSidebar() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
         XCTAssertEqual(store.sidebarSlot, "terminals.sidebar")
         store.toggleSidebar()
@@ -173,17 +173,17 @@ final class StoresTests: XCTestCase {
 
     func testLegacyChatMovesIntoUIStateOnce() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let first = ProjectUIStore(client: client, projectID: project.id, legacyChat: LegacyChat(shown: true, width: 420))
+        let workspace = try await client.createWorkspace(name: "demo")
+        let first = WorkspaceUIStore(client: client, workspaceID: workspace.id, legacyChat: LegacyChat(shown: true, width: 420))
         try await first.start()
         XCTAssertEqual(first.sidebarHidden, [CodeSection.id: false])
         XCTAssertEqual(first.chatWidth, 420)
         await first.stop()
-        let state = try await client.uiStateGet(projectID: project.id)
+        let state = try await client.uiStateGet(workspaceID: workspace.id)
         XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object([CodeSection.id: .bool(false)]))
         XCTAssertEqual(state?.objectValue?["chatWidth"], .number(420))
 
-        let second = ProjectUIStore(client: client, projectID: project.id, legacyChat: LegacyChat(shown: false, width: 300))
+        let second = WorkspaceUIStore(client: client, workspaceID: workspace.id, legacyChat: LegacyChat(shown: false, width: 300))
         try await second.start()
         XCTAssertEqual(second.sidebarHidden, [CodeSection.id: false])
         XCTAssertEqual(second.chatWidth, 420)
@@ -193,14 +193,14 @@ final class StoresTests: XCTestCase {
 
     func testFocusRequestFromNotification() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
         store.selectedSection = "echo"
         guard let paths = core?.paths else { throw TestFailure(description: "no core") }
         let caller = try await CoreClient.connect(paths: paths)
         _ = try await caller.call(method: "ui.focus", params: .object([
-            "projectId": .string(project.id), "section": .string("terminals"), "slot": .string("terminals.main"),
+            "workspaceId": .string(workspace.id), "section": .string("terminals"), "slot": .string("terminals.main"),
         ]))
         try await waitUntil { store.focusRequest?.slot == "terminals.main" }
         XCTAssertEqual(store.selectedSection, "terminals")
@@ -211,13 +211,13 @@ final class StoresTests: XCTestCase {
 
     func testFocusRequestCarriesField() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
         guard let paths = core?.paths else { throw TestFailure(description: "no core") }
         let caller = try await CoreClient.connect(paths: paths)
         _ = try await caller.call(method: "ui.focus", params: .object([
-            "projectId": .string(project.id), "section": .string("terminals"), "slot": .string("terminals.sidebar"), "field": .bool(true),
+            "workspaceId": .string(workspace.id), "section": .string("terminals"), "slot": .string("terminals.sidebar"), "field": .bool(true),
         ]))
         try await waitUntil { store.focusRequest?.field == true }
         XCTAssertEqual(store.focusRequest?.slot, "terminals.sidebar")
@@ -228,8 +228,8 @@ final class StoresTests: XCTestCase {
 
     func testPluginCrashEmptiesThenRerenders() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
         try await waitUntil { store.slots["terminals.main"]?.tree.string("text") == "Create a terminal" }
 
@@ -243,8 +243,8 @@ final class StoresTests: XCTestCase {
 
     func testReconnectRefetches() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
         try await waitUntil { store.slots["terminals.main"] != nil }
         await client.close()
@@ -255,7 +255,7 @@ final class StoresTests: XCTestCase {
         try await store.reconnect(using: fresh)
         XCTAssertTrue(store.connected)
         let button = try XCTUnwrap(store.slots["terminals.sidebar"]?.tree.find(id: "new"))
-        _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", projectID: project.id)).get()
+        _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
         try await waitUntil { store.slots["terminals.main"]?.tree.type == "surface" }
         await store.stop()
         await fresh.close()
@@ -263,8 +263,8 @@ final class StoresTests: XCTestCase {
 
     func testStopDuringStartLeavesNoSubscription() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        let store = ProjectUIStore(client: client, projectID: project.id)
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         let starting = Task { try await store.start() }
         await Task.yield()
         await store.stop()
@@ -273,7 +273,7 @@ final class StoresTests: XCTestCase {
 
         _ = try await waitFor { try await terminalsPID(client) }
         let stream = client.subscribeNotifications()
-        _ = try await client.commandRun(id: "terminals.new", projectID: project.id)
+        _ = try await client.commandRun(id: "terminals.new", workspaceID: workspace.id)
         let update = await firstUIUpdate(stream, within: .milliseconds(500))
         XCTAssertNil(update)
         await client.close()
@@ -281,15 +281,15 @@ final class StoresTests: XCTestCase {
 
     func testRestartUnderTrafficKeepsReceivingUpdates() async throws {
         let client = try await startCore()
-        let project = try await client.createProject(name: "demo")
-        weak var released: ProjectUIStore?
+        let workspace = try await client.createWorkspace(name: "demo")
+        weak var released: WorkspaceUIStore?
         do {
-            let store = ProjectUIStore(client: client, projectID: project.id)
+            let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
             released = store
-            let select = UIEvent(projectId: project.id, slot: "terminals.sidebar", nodeId: "terminals", action: "select", value: .string("x"))
+            let select = UIEvent(workspaceId: workspace.id, slot: "terminals.sidebar", nodeId: "terminals", action: "select", value: .string("x"))
             try await store.start()
             try await waitUntil { store.slots["terminals.main"] != nil }
-            _ = try await client.uiSubscribe(projectID: project.id)
+            _ = try await client.uiSubscribe(workspaceID: workspace.id)
             let traffic = Task {
                 while !Task.isCancelled { _ = try? await client.uiEvent(select) }
             }
@@ -312,8 +312,8 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
-    func testProjectPresenceReportsDeletionAfterSeen() {
-        var presence = ProjectPresence()
+    func testWorkspacePresenceReportsDeletionAfterSeen() {
+        var presence = WorkspacePresence()
         XCTAssertFalse(presence.observe(false))
         XCTAssertFalse(presence.observe(true))
         XCTAssertTrue(presence.observe(false))
@@ -340,8 +340,8 @@ final class StoresTests: XCTestCase {
             (node("table", "procs", action: "focus"), .sort(column: "cpu", desc: true), "sort", .object(["column": .string("cpu"), "desc": .bool(true)])),
         ]
         for (node, trigger, action, value) in rows {
-            let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", projectID: "prj_1")
-            XCTAssertEqual(event, UIEvent(projectId: "prj_1", slot: "x.main", nodeId: node.id ?? "", action: action, value: value), "\(node.type) \(trigger)")
+            let event = UIAction.event(for: node, trigger: trigger, slot: "x.main", workspaceID: "prj_1")
+            XCTAssertEqual(event, UIEvent(workspaceId: "prj_1", slot: "x.main", nodeId: node.id ?? "", action: action, value: value), "\(node.type) \(trigger)")
         }
     }
 
@@ -428,11 +428,11 @@ final class StoresTests: XCTestCase {
          {"id":"git.stage","title":"Stage","plugin":"git","hidden":false,"running":false}]
         """#.utf8))
         let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
-        [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"project","plugin":"editor-nvim"},
-         {"id":"git","title":"Git","icon":"","order":15,"scope":"project","plugin":"git","host":"editor-nvim"},
-         {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","plugin":"terminals"}]
+        [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"workspace","plugin":"editor-nvim"},
+         {"id":"git","title":"Git","icon":"","order":15,"scope":"workspace","plugin":"git","host":"editor-nvim"},
+         {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"workspace","plugin":"terminals"}]
         """#.utf8))
-        let worktrees = WorktreeModel(run: { _ in .success(.array([.object(["repo": .string("/r"), "path": .string("/r"), "main": .bool(true)])])) }, project: { nil }, confirm: { _, _ in false }, report: { _ in })
+        let worktrees = WorktreeModel(run: { _ in .success(.array([.object(["repo": .string("/r"), "path": .string("/r"), "main": .bool(true)])])) }, workspace: { nil }, confirm: { _, _ in false }, report: { _ in })
         await worktrees.load()
 
         let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true, worktrees: worktrees.worktrees)
@@ -455,7 +455,7 @@ final class StoresTests: XCTestCase {
         XCTAssertTrue(titles.contains("Switch to web"))
         XCTAssertFalse(titles.contains("Switch to api"))
         XCTAssertTrue(titles.contains("Remove Workspace…"))
-        XCTAssertFalse(titles.contains("Open Projects"))
+        XCTAssertFalse(titles.contains("Open Workspaces"))
     }
 
     func testSectionCommandInvocations() throws {
@@ -478,8 +478,8 @@ final class StoresTests: XCTestCase {
 
     func testShouldAutoNew() throws {
         let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
-        [{"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","autoNew":true,"plugin":"terminals"},
-         {"id":"echo","title":"Echo","icon":"","order":30,"scope":"project","plugin":"echo"}]
+        [{"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"workspace","autoNew":true,"plugin":"terminals"},
+         {"id":"echo","title":"Echo","icon":"","order":30,"scope":"workspace","plugin":"echo"}]
         """#.utf8))
         let surface = SDUINode(type: "stack", children: [SDUINode(type: "surface", props: ["sessionId": .string("ses_1")])])
         let empty = SDUINode(type: "empty")
@@ -493,7 +493,7 @@ final class StoresTests: XCTestCase {
 
     func testAutoNewGateFiresOnEachArrival() throws {
         let terminals = try JSONDecoder().decode(SectionInfo.self, from: Data(#"""
-        {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"project","autoNew":true,"plugin":"terminals"}
+        {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"workspace","autoNew":true,"plugin":"terminals"}
         """#.utf8))
         let empty = SDUINode(type: "empty")
         let loading = AutoNewGate.Key(section: "terminals", loaded: false, request: 0)
@@ -555,7 +555,7 @@ private func firstUIUpdate(_ stream: AsyncStream<RPCNotification>, within timeou
 }
 
 @MainActor
-private func mainText(_ store: ProjectUIStore) -> String? {
+private func mainText(_ store: WorkspaceUIStore) -> String? {
     guard let tree = store.slots["terminals.main"]?.tree, tree.type == "empty" else { return nil }
     return tree.string("text")
 }

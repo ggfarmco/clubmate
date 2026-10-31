@@ -17,16 +17,16 @@ import (
 )
 
 const (
-	fixtureDir      = "../../client/CompanionKit/Tests/CompanionKitTests/Fixtures"
-	fixtureWorktree = "/Users/me/src/shop"
-	fixtureProject  = "prj_00000000000000f1"
-	fixtureTime     = "2026-10-30T09:41:00Z"
-	fixtureSha      = "0123456789abcdef0123456789abcdef01234567"
-	driftFormat     = "%s drifted from the agents JSON; run: go test ./plugins/agents -run Companion -update"
-	refactorPrompt  = "Refactor the cart total into its own function"
-	explainPrompt   = "Explain the checkout flow"
-	agentMarkdown   = "## Plan\n\nI'll move the total into `cartTotal` and keep **behaviour** the same:\n\n1. Extract the loop\n2. Add a test\n\n```go\nfunc cartTotal(items []Item) int {\n\treturn sum(items)\n}\n```\n"
-	explainMarkdown = "Checkout runs in three steps: *validate*, *reserve*, *charge*.\n\nShould I add retries to the charge step?"
+	fixtureDir       = "../../client/CompanionKit/Tests/CompanionKitTests/Fixtures"
+	fixtureWorktree  = "/Users/me/src/shop"
+	fixtureWorkspace = "prj_00000000000000f1"
+	fixtureTime      = "2026-10-30T09:41:00Z"
+	fixtureSha       = "0123456789abcdef0123456789abcdef01234567"
+	driftFormat      = "%s drifted from the agents JSON; run: go test ./plugins/agents -run Companion -update"
+	refactorPrompt   = "Refactor the cart total into its own function"
+	explainPrompt    = "Explain the checkout flow"
+	agentMarkdown    = "## Plan\n\nI'll move the total into `cartTotal` and keep **behaviour** the same:\n\n1. Extract the loop\n2. Add a test\n\n```go\nfunc cartTotal(items []Item) int {\n\treturn sum(items)\n}\n```\n"
+	explainMarkdown  = "Checkout runs in three steps: *validate*, *reserve*, *charge*.\n\nShould I add retries to the charge step?"
 )
 
 var (
@@ -41,27 +41,27 @@ func TestCompanionFixtures(t *testing.T) {
 	repo := newRepo(t)
 	write(t, filepath.Join(repo, "cart.go"), "func total(items []Item) int {\n\treturn sum(items)\n}\n")
 	f := start(t, companionScript(repo))
-	project := f.project(t, repo)
+	workspace := f.workspace(t, repo)
 
-	waiting := f.newSession(t, project)
-	f.prompt(t, project, waiting, refactorPrompt)
-	f.waitStatus(t, project, waiting, "waiting")
+	waiting := f.newSession(t, workspace)
+	f.prompt(t, workspace, waiting, refactorPrompt)
+	f.waitStatus(t, workspace, waiting, "waiting")
 
-	asking := f.newSession(t, project)
-	f.prompt(t, project, asking, explainPrompt)
-	f.waitStatus(t, project, asking, "done")
+	asking := f.newSession(t, workspace)
+	f.prompt(t, workspace, asking, explainPrompt)
+	f.waitStatus(t, workspace, asking, "done")
 
-	closed := f.newSession(t, project)
-	testutil.Eventually(t, func() bool { return f.session(t, project, closed).Mode != "" }, wait)
-	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": closed}, nil))
-	f.waitStatus(t, project, closed, "closed")
+	closed := f.newSession(t, workspace)
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, closed).Mode != "" }, wait)
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": closed}, nil))
+	f.waitStatus(t, workspace, closed, "closed")
 
 	var sessions, transcript json.RawMessage
-	require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &sessions))
-	require.NoError(t, f.run(t, project, "agents.transcript", map[string]any{"session": waiting}, &transcript))
-	require.NoError(t, f.run(t, project, "agents.cancel", map[string]any{"session": waiting}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &sessions))
+	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": waiting}, &transcript))
+	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": waiting}, nil))
 
-	scrub := strings.NewReplacer(repo, fixtureWorktree, project, fixtureProject)
+	scrub := strings.NewReplacer(repo, fixtureWorktree, workspace, fixtureWorkspace)
 	checkFixture(t, "agents-sessions.json", normalize(t, scrub, sessions))
 	checkFixture(t, "agents-transcript.json", normalize(t, scrub, transcript))
 }

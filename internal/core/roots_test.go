@@ -15,9 +15,9 @@ import (
 
 	"clubmate/internal/core"
 	"clubmate/internal/proc"
-	"clubmate/internal/project"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/internal/workspace"
 )
 
 type procTable struct {
@@ -57,22 +57,22 @@ func (p *procTable) startTime(pid int) (time.Time, error) {
 func rootService(t *testing.T) (*core.Service, *procTable, string) {
 	t.Helper()
 	dirs := testutil.ShortDirs(t)
-	store, err := project.Open(dirs.DB())
+	store, err := workspace.Open(dirs.DB())
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	table := &procTable{}
 	tracker := proc.NewTracker(func(int) ([]string, error) { return nil, nil }, os.Getpid())
 	svc := core.NewService(store, session.NewManager(dirs, "unused"), tracker, table.snapshot, core.WithStartTime(table.startTime), core.WithKillGrace(time.Second))
-	p, err := svc.CreateProject(t.Context(), "demo", nil)
+	p, err := svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 	return svc, table, p.ID
 }
 
 func TestRegisteredRootSurvivesStaleSnapshot(t *testing.T) {
-	svc, table, projectID := rootService(t)
+	svc, table, workspaceID := rootService(t)
 	child := startBystander(t)
 	owner := core.RootOwner{Plugin: "agents", PID: os.Getpid()}
-	root, err := svc.RegisterProcess(t.Context(), owner, core.RegisterRequest{ProjectID: projectID, PID: child, Label: "Claude · repo"})
+	root, err := svc.RegisterProcess(t.Context(), owner, core.RegisterRequest{WorkspaceID: workspaceID, PID: child, Label: "Claude · repo"})
 	require.NoError(t, err)
 
 	live, err := proc.Snapshot()
@@ -80,24 +80,24 @@ func TestRegisteredRootSurvivesStaleSnapshot(t *testing.T) {
 	table.set(slices.DeleteFunc(live, func(p proc.Process) bool { return p.PID == child }), nil)
 	_, err = svc.ProcessTree(t.Context(), core.TreeFilter{})
 	require.NoError(t, err)
-	assert.Equal(t, []core.ProcessRoot{root}, svc.ProcessRoots(projectID))
+	assert.Equal(t, []core.ProcessRoot{root}, svc.ProcessRoots(workspaceID))
 
 	table.set(nil, nil)
 	nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{SessionID: root.ID})
 	require.NoError(t, err)
 	assert.Equal(t, []int{child}, pids(nodes))
 
-	require.NoError(t, svc.DeleteProject(t.Context(), projectID))
+	require.NoError(t, svc.DeleteWorkspace(t.Context(), workspaceID))
 	assert.True(t, testutil.Alive(child))
 }
 
-func rootWithChild(t *testing.T, svc *core.Service, projectID string) (*exec.Cmd, core.ProcessRoot, int) {
+func rootWithChild(t *testing.T, svc *core.Service, workspaceID string) (*exec.Cmd, core.ProcessRoot, int) {
 	t.Helper()
 	cmd := exec.Command("/bin/sh", "-c", "sleep 300 & wait")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) })
-	root, err := svc.RegisterProcess(t.Context(), core.RootOwner{Plugin: "agents", PID: os.Getpid()}, core.RegisterRequest{ProjectID: projectID, PID: cmd.Process.Pid, Label: "Claude · repo"})
+	root, err := svc.RegisterProcess(t.Context(), core.RootOwner{Plugin: "agents", PID: os.Getpid()}, core.RegisterRequest{WorkspaceID: workspaceID, PID: cmd.Process.Pid, Label: "Claude · repo"})
 	require.NoError(t, err)
 
 	leftover := 0
@@ -113,14 +113,14 @@ func rootWithChild(t *testing.T, svc *core.Service, projectID string) (*exec.Cmd
 	return cmd, root, leftover
 }
 
-func endedRootLeftover(t *testing.T, svc *core.Service, projectID string) int {
+func endedRootLeftover(t *testing.T, svc *core.Service, workspaceID string) int {
 	t.Helper()
-	cmd, root, leftover := rootWithChild(t, svc, projectID)
+	cmd, root, leftover := rootWithChild(t, svc, workspaceID)
 	require.NoError(t, cmd.Process.Kill())
 	_ = cmd.Wait()
 
 	testutil.Eventually(t, func() bool {
-		nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{ProjectID: projectID})
+		nodes, err := svc.ProcessTree(t.Context(), core.TreeFilter{WorkspaceID: workspaceID})
 		require.NoError(t, err)
 		return slices.ContainsFunc(nodes, func(n proc.Node) bool { return n.Process.PID == leftover && n.Orphan && n.SessionID == root.ID })
 	}, 5*time.Second)
@@ -128,36 +128,36 @@ func endedRootLeftover(t *testing.T, svc *core.Service, projectID string) int {
 }
 
 func TestDeadRootLeavesKillableOrphans(t *testing.T) {
-	svc, _, projectID := rootService(t)
-	leftover := endedRootLeftover(t, svc, projectID)
-	roots := svc.ProcessRoots(projectID)
+	svc, _, workspaceID := rootService(t)
+	leftover := endedRootLeftover(t, svc, workspaceID)
+	roots := svc.ProcessRoots(workspaceID)
 	require.Len(t, roots, 1)
 	assert.True(t, roots[0].Ended)
 	assert.True(t, strings.HasSuffix(roots[0].Label, "(exited)"))
 
-	killed, err := svc.KillProcesses(t.Context(), core.KillRequest{ProjectID: projectID, OrphansOnly: true})
+	killed, err := svc.KillProcesses(t.Context(), core.KillRequest{WorkspaceID: workspaceID, OrphansOnly: true})
 	require.NoError(t, err)
 	assert.Equal(t, []int{leftover}, killed)
 	testutil.Eventually(t, func() bool {
 		_, err := svc.ProcessTree(t.Context(), core.TreeFilter{})
 		require.NoError(t, err)
-		return len(svc.ProcessRoots(projectID)) == 0
+		return len(svc.ProcessRoots(workspaceID)) == 0
 	}, 5*time.Second)
 }
 
-func TestDeleteProjectKillsEndedRootLeftovers(t *testing.T) {
-	svc, _, projectID := rootService(t)
-	leftover := endedRootLeftover(t, svc, projectID)
+func TestDeleteWorkspaceKillsEndedRootLeftovers(t *testing.T) {
+	svc, _, workspaceID := rootService(t)
+	leftover := endedRootLeftover(t, svc, workspaceID)
 
-	require.NoError(t, svc.DeleteProject(t.Context(), projectID))
+	require.NoError(t, svc.DeleteWorkspace(t.Context(), workspaceID))
 	testutil.Eventually(t, func() bool { return !testutil.Alive(leftover) }, 5*time.Second)
 }
 
-func TestDeletedProjectRootLeftoversDieWhenRootEnds(t *testing.T) {
-	svc, _, projectID := rootService(t)
-	cmd, _, leftover := rootWithChild(t, svc, projectID)
+func TestDeletedWorkspaceRootLeftoversDieWhenRootEnds(t *testing.T) {
+	svc, _, workspaceID := rootService(t)
+	cmd, _, leftover := rootWithChild(t, svc, workspaceID)
 
-	require.NoError(t, svc.DeleteProject(t.Context(), projectID))
+	require.NoError(t, svc.DeleteWorkspace(t.Context(), workspaceID))
 	assert.True(t, testutil.Alive(leftover))
 
 	require.NoError(t, cmd.Process.Kill())
@@ -170,7 +170,7 @@ func TestDeletedProjectRootLeftoversDieWhenRootEnds(t *testing.T) {
 }
 
 func TestRootLifecycle(t *testing.T) {
-	svc, table, projectID := rootService(t)
+	svc, table, workspaceID := rootService(t)
 	t0 := time.Unix(1000, 0)
 	owner := core.RootOwner{Plugin: "agents", PID: 50}
 	table.set([]proc.Process{
@@ -180,12 +180,12 @@ func TestRootLifecycle(t *testing.T) {
 		{PID: 70, PPID: 1, PGID: 50, Comm: "stray", StartTime: t0},
 	}, map[int]time.Time{50: t0, 60: t0, 61: t0})
 	register := func(pid int) error {
-		_, err := svc.RegisterProcess(t.Context(), owner, core.RegisterRequest{ProjectID: projectID, PID: pid, Label: "x"})
+		_, err := svc.RegisterProcess(t.Context(), owner, core.RegisterRequest{WorkspaceID: workspaceID, PID: pid, Label: "x"})
 		return err
 	}
 	ended := func(pid int) []bool {
 		var out []bool
-		for _, r := range svc.ProcessRoots(projectID) {
+		for _, r := range svc.ProcessRoots(workspaceID) {
 			if r.PID == pid {
 				out = append(out, r.Ended)
 			}

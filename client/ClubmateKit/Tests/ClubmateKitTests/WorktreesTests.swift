@@ -46,7 +46,7 @@ final class WorktreesTests: XCTestCase {
     func testLoadRetriesUntilTheGitPluginIsUp() async throws {
         let core = FakeGitCore()
         core.failures = 1
-        let model = WorktreeModel(run: core.run, project: { nil }, confirm: { _, _ in false }, report: { XCTFail("unexpected banner: \($0)") }, retryDelays: [.milliseconds(1)])
+        let model = WorktreeModel(run: core.run, workspace: { nil }, confirm: { _, _ in false }, report: { XCTFail("unexpected banner: \($0)") }, retryDelays: [.milliseconds(1)])
 
         await model.load(retrying: true)
 
@@ -57,7 +57,7 @@ final class WorktreesTests: XCTestCase {
     func testSwitcherGroupsBranchesAfterWorktreesAndPickDispatches() async throws {
         let core = FakeGitCore()
         var banners: [String] = []
-        let model = WorktreeModel(run: core.run, project: { nil }, confirm: { _, _ in false }, report: { banners.append($0) })
+        let model = WorktreeModel(run: core.run, workspace: { nil }, confirm: { _, _ in false }, report: { banners.append($0) })
         await model.menuOpened()
 
         let picker = FuzzyPickerModel(placeholder: "", debounce: .zero, source: model.switcherSource)
@@ -124,8 +124,8 @@ final class WorktreesTests: XCTestCase {
             FakeGitCore.tree(repo: folder, path: folder, current: true),
         ]
         var banners: [String] = []
-        let project = try decodeProject(repo: folder, missing: ["/r/.worktrees/gone"])
-        let model = WorktreeModel(run: core.run, project: { project }, confirm: { _, _ in false }, report: { banners.append($0) })
+        let workspace = try decodeWorkspace(repo: folder, missing: ["/r/.worktrees/gone"])
+        let model = WorktreeModel(run: core.run, workspace: { workspace }, confirm: { _, _ in false }, report: { banners.append($0) })
 
         await model.load()
         await model.load()
@@ -137,14 +137,14 @@ final class WorktreesTests: XCTestCase {
     }
 
     private func makeModel(_ core: FakeGitCore, confirm: @escaping @MainActor (String, String) async -> Bool = { _, _ in false }) -> WorktreeModel {
-        WorktreeModel(run: core.run, project: { nil }, confirm: confirm, report: { XCTFail("unexpected banner: \($0)") })
+        WorktreeModel(run: core.run, workspace: { nil }, confirm: confirm, report: { XCTFail("unexpected banner: \($0)") })
     }
 
-    private func decodeProject(repo: String, missing: [String]) throws -> Project {
+    private func decodeWorkspace(repo: String, missing: [String]) throws -> Workspace {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let paths = missing.map { "\"\($0)\"" }.joined(separator: ",")
-        return try decoder.decode(Project.self, from: Data(#"{"id":"p","name":"r","repos":["\#(repo)"],"missing":[\#(paths)],"createdAt":"2026-01-01T00:00:00Z"}"#.utf8))
+        return try decoder.decode(Workspace.self, from: Data(#"{"id":"p","name":"r","repos":["\#(repo)"],"missing":[\#(paths)],"createdAt":"2026-01-01T00:00:00Z"}"#.utf8))
     }
 }
 

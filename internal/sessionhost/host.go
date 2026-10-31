@@ -19,6 +19,7 @@ import (
 
 	"clubmate/internal/proc"
 	"clubmate/internal/wire"
+	"clubmate/pkg/contract"
 )
 
 const (
@@ -32,7 +33,8 @@ const (
 	repaintTimeout    = 500 * time.Millisecond
 	defaultTerm       = "TERM=xterm-256color"
 	sessionMarker     = "CLUBMATE_SESSION_ID="
-	projectMarker     = "CLUBMATE_PROJECT_ID="
+	workspaceMarker   = contract.WorkspaceEnv + "="
+	legacyMarker      = contract.LegacyWorkspaceEnv + "="
 )
 
 var ErrEmptyCommand = errors.New("sessionhost: empty command")
@@ -84,18 +86,18 @@ func Run(ctx context.Context, cfg Config) error {
 		fmt.Fprintln(os.Stderr, "clubmate-session: host start time unavailable:", err)
 	}
 	meta := Meta{
-		ID:        cfg.ID,
-		ProjectID: cfg.ProjectID,
-		Title:     cfg.Title,
-		Owner:     cfg.Owner,
-		Command:   slices.Clone(cfg.Command),
-		Cwd:       cfg.Cwd,
-		HostPID:   os.Getpid(),
-		ChildPID:  cmd.Process.Pid,
-		PGID:      cmd.Process.Pid,
-		HostStart: hostStart,
-		StartedAt: time.Now(),
-		Proto:     Protocol,
+		ID:          cfg.ID,
+		WorkspaceID: cfg.WorkspaceID,
+		Title:       cfg.Title,
+		Owner:       cfg.Owner,
+		Command:     slices.Clone(cfg.Command),
+		Cwd:         cfg.Cwd,
+		HostPID:     os.Getpid(),
+		ChildPID:    cmd.Process.Pid,
+		PGID:        cmd.Process.Pid,
+		HostStart:   hostStart,
+		StartedAt:   time.Now(),
+		Proto:       Protocol,
 	}
 	if err := WriteMeta(cfg.MetaPath, meta); err != nil {
 		return abort(cmd, err)
@@ -454,7 +456,7 @@ func childEnv(cfg Config) []string {
 		return slices.Contains(cfg.UnsetEnv, key)
 	})
 	env = StripMarkers(append(env, cfg.Env...))
-	env = append(env, sessionMarker+cfg.ID, projectMarker+cfg.ProjectID)
+	env = append(env, sessionMarker+cfg.ID, workspaceMarker+cfg.WorkspaceID, legacyMarker+cfg.WorkspaceID)
 	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "TERM=") }) {
 		env = append(env, defaultTerm)
 	}
@@ -486,7 +488,7 @@ func appendPath(env, extra []string) []string {
 }
 
 func isMarker(kv string) bool {
-	return strings.HasPrefix(kv, sessionMarker) || strings.HasPrefix(kv, projectMarker)
+	return strings.HasPrefix(kv, sessionMarker) || strings.HasPrefix(kv, workspaceMarker) || strings.HasPrefix(kv, legacyMarker)
 }
 
 func listen(sock string) (net.Listener, error) {

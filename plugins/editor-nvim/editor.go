@@ -8,8 +8,8 @@ import (
 )
 
 type editorKey struct {
-	project string
-	root    string
+	workspace string
+	root      string
 }
 
 type editor struct {
@@ -24,46 +24,46 @@ type editor struct {
 	pending  bool
 }
 
-func (a *app) editorAt(projectID, root string) *editor {
+func (a *app) editorAt(workspaceID, root string) *editor {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.deleted[projectID] {
+	if a.deleted[workspaceID] {
 		return nil
 	}
-	return a.editorLocked(projectID, root)
+	return a.editorLocked(workspaceID, root)
 }
 
-func (a *app) editorLocked(projectID, root string) *editor {
-	key := editorKey{project: projectID, root: root}
+func (a *app) editorLocked(workspaceID, root string) *editor {
+	key := editorKey{workspace: workspaceID, root: root}
 	e, ok := a.editors[key]
 	if !ok {
-		e = &editor{id: projectID, root: root}
+		e = &editor{id: workspaceID, root: root}
 		a.editors[key] = e
 	}
 	return e
 }
 
-func (a *app) lookup(projectID, root string) *editor {
+func (a *app) lookup(workspaceID, root string) *editor {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.editors[editorKey{project: projectID, root: root}]
+	return a.editors[editorKey{workspace: workspaceID, root: root}]
 }
 
 func (a *app) forget(e *editor) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	key := editorKey{project: e.id, root: e.root}
+	key := editorKey{workspace: e.id, root: e.root}
 	if a.editors[key] == e {
 		delete(a.editors, key)
 	}
 }
 
-func (a *app) projectEditors(projectID string) []*editor {
+func (a *app) workspaceEditors(workspaceID string) []*editor {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	var out []*editor
 	for k, e := range a.editors {
-		if k.project == projectID {
+		if k.workspace == workspaceID {
 			out = append(out, e)
 		}
 	}
@@ -86,26 +86,26 @@ func (a *app) connectedClients() []*client {
 func (a *app) isCurrent(e *editor) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return !a.deleted[e.id] && a.current[e.id] == e.root && a.editors[editorKey{project: e.id, root: e.root}] == e
+	return !a.deleted[e.id] && a.current[e.id] == e.root && a.editors[editorKey{workspace: e.id, root: e.root}] == e
 }
 
-func (a *app) drop(projectID string) {
+func (a *app) drop(workspaceID string) {
 	a.mu.Lock()
 	var editors []*editor
 	for k, e := range a.editors {
-		if k.project == projectID {
+		if k.workspace == workspaceID {
 			editors = append(editors, e)
 			delete(a.editors, k)
 		}
 	}
-	delete(a.current, projectID)
-	delete(a.projects, projectID)
+	delete(a.current, workspaceID)
+	delete(a.workspaces, workspaceID)
 	for k := range a.stopping {
-		if k.project == projectID {
+		if k.workspace == workspaceID {
 			delete(a.stopping, k)
 		}
 	}
-	a.deleted[projectID] = true
+	a.deleted[workspaceID] = true
 	a.mu.Unlock()
 	for _, e := range editors {
 		go func() {
@@ -118,16 +118,16 @@ func (a *app) drop(projectID string) {
 	}
 }
 
-func (a *app) isDeleted(projectID string) bool {
+func (a *app) isDeleted(workspaceID string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.deleted[projectID]
+	return a.deleted[workspaceID]
 }
 
-func (a *app) setStopping(projectID, root string, on bool) {
+func (a *app) setStopping(workspaceID, root string, on bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	key := editorKey{project: projectID, root: root}
+	key := editorKey{workspace: workspaceID, root: root}
 	if on {
 		a.stopping[key] = true
 	} else {
@@ -135,10 +135,10 @@ func (a *app) setStopping(projectID, root string, on bool) {
 	}
 }
 
-func (a *app) isStopping(projectID, root string) bool {
+func (a *app) isStopping(workspaceID, root string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.stopping[editorKey{project: projectID, root: root}]
+	return a.stopping[editorKey{workspace: workspaceID, root: root}]
 }
 
 func (e *editor) connected() *client {

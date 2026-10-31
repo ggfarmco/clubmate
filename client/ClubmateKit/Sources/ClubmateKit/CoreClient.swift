@@ -50,11 +50,11 @@ public final class CoreClient {
         return stream
     }
 
-    public func projectOpenRequests() -> AsyncStream<String> {
+    public func workspaceOpenRequests() -> AsyncStream<String> {
         let notifications = subscribeNotifications()
         let (stream, continuation) = AsyncStream.makeStream(of: String.self)
         let pump = Task {
-            for await notification in notifications where notification.method == "project.open" {
+            for await notification in notifications where notification.method == "workspace.show" {
                 if let id = notification.params.objectValue?["id"]?.stringValue { continuation.yield(id) }
             }
             continuation.finish()
@@ -80,12 +80,12 @@ public final class CoreClient {
         return sessions.filter { $0.state == "running" }.count
     }
 
-    public func listProjects() async throws -> [Project] {
-        try await connection.call("project.list", NoParams())
+    public func listWorkspaces() async throws -> [Workspace] {
+        try await connection.call("workspace.list", NoParams())
     }
 
-    public func createProject(name: String, repos: [String] = []) async throws -> Project {
-        try await connection.call("project.create", CreateProjectParams(name: name, repos: repos))
+    public func createWorkspace(name: String, repos: [String] = []) async throws -> Workspace {
+        try await connection.call("workspace.create", CreateWorkspaceParams(name: name, repos: repos))
     }
 
     public func touchWorkspace(_ id: String) async throws {
@@ -102,28 +102,28 @@ public final class CoreClient {
         return result.id
     }
 
-    public func renameProject(_ id: String, name: String) async throws {
-        let _: Project = try await connection.call("project.rename", RenameParams(id: id, name: name))
+    public func renameWorkspace(_ id: String, name: String) async throws {
+        let _: Workspace = try await connection.call("workspace.rename", RenameParams(id: id, name: name))
     }
 
     public func addRepo(_ id: String, path: String) async throws {
-        let _: Project = try await connection.call("project.addRepo", AddRepoParams(id: id, path: path))
+        let _: Workspace = try await connection.call("workspace.folder.add", AddRepoParams(id: id, path: path))
     }
 
-    public func deleteProject(_ id: String) async throws {
-        let _: NoParams = try await connection.call("project.delete", IDParams(id: id), timeout: .seconds(60))
+    public func deleteWorkspace(_ id: String) async throws {
+        let _: NoParams = try await connection.call("workspace.delete", IDParams(id: id), timeout: .seconds(60))
     }
 
     public func uiSections() async throws -> [SectionInfo] {
         try await connection.call("ui.sections", NoParams())
     }
 
-    public func uiGet(projectID: String) async throws -> [SlotView] {
-        try await connection.call("ui.get", ProjectParams(projectId: projectID))
+    public func uiGet(workspaceID: String) async throws -> [SlotView] {
+        try await connection.call("ui.get", WorkspaceParams(workspaceId: workspaceID))
     }
 
-    public func uiSubscribe(projectID: String) async throws -> String {
-        let result: SubscriptionParams = try await connection.call("ui.subscribe", ProjectParams(projectId: projectID))
+    public func uiSubscribe(workspaceID: String) async throws -> String {
+        let result: SubscriptionParams = try await connection.call("ui.subscribe", WorkspaceParams(workspaceId: workspaceID))
         return result.subscription
     }
 
@@ -147,25 +147,25 @@ public final class CoreClient {
         try await connection.call("command.list", NoParams())
     }
 
-    public func commandRun(id: String, projectID: String, args: JSONValue = .null) async throws -> JSONValue {
-        try await connection.call("command.run", CommandRunParams(id: id, projectId: projectID, args: args), timeout: .seconds(8))
+    public func commandRun(id: String, workspaceID: String, args: JSONValue = .null) async throws -> JSONValue {
+        try await connection.call("command.run", CommandRunParams(id: id, workspaceId: workspaceID, args: args), timeout: .seconds(8))
     }
 
-    public func collectDiagnostics(projectID: String?, appVersion: String, extra: [String: Data]) async throws -> DiagnosticsResult {
-        try await connection.call("diagnostics.collect", DiagnosticsParams(projectId: projectID, appVersion: appVersion, extra: extra), timeout: .seconds(60))
+    public func collectDiagnostics(workspaceID: String?, appVersion: String, extra: [String: Data]) async throws -> DiagnosticsResult {
+        try await connection.call("diagnostics.collect", DiagnosticsParams(workspaceId: workspaceID, appVersion: appVersion, extra: extra), timeout: .seconds(60))
     }
 
-    public func uiStateGet(projectID: String) async throws -> JSONValue? {
-        let result: StateResult = try await connection.call("ui.state.get", ProjectParams(projectId: projectID))
+    public func uiStateGet(workspaceID: String) async throws -> JSONValue? {
+        let result: StateResult = try await connection.call("ui.state.get", WorkspaceParams(workspaceId: workspaceID))
         return result.state == .null ? nil : result.state
     }
 
-    public func uiStateSet(projectID: String, state: JSONValue) async throws {
-        let _: NoParams = try await connection.call("ui.state.set", StateSetParams(projectId: projectID, state: state))
+    public func uiStateSet(workspaceID: String, state: JSONValue) async throws {
+        let _: NoParams = try await connection.call("ui.state.set", StateSetParams(workspaceId: workspaceID, state: state))
     }
 
-    public func uiStatePatch(projectID: String, key: String, value: JSONValue) async throws {
-        let _: NoParams = try await connection.call("ui.state.patch", StatePatchParams(projectId: projectID, key: key, value: value))
+    public func uiStatePatch(workspaceID: String, key: String, value: JSONValue) async throws {
+        let _: NoParams = try await connection.call("ui.state.patch", StatePatchParams(workspaceId: workspaceID, key: key, value: value))
     }
 
     public func busSubscribe(pattern: String, after: Int64 = 0) async throws -> String {
@@ -283,11 +283,11 @@ private struct AddRepoParams: Encodable, Sendable {
     let path: String
 }
 
-private struct ProjectParams: Encodable, Sendable {
-    let projectId: String
+private struct WorkspaceParams: Encodable, Sendable {
+    let workspaceId: String
 }
 
-private struct CreateProjectParams: Encodable, Sendable {
+private struct CreateWorkspaceParams: Encodable, Sendable {
     let name: String
     let repos: [String]
 }
@@ -298,12 +298,12 @@ private struct SubscriptionParams: Codable, Sendable {
 
 private struct CommandRunParams: Encodable, Sendable {
     let id: String
-    let projectId: String
+    let workspaceId: String
     let args: JSONValue
 }
 
 private struct DiagnosticsParams: Encodable, Sendable {
-    let projectId: String?
+    let workspaceId: String?
     let appVersion: String
     let extra: [String: Data]
 }
@@ -313,12 +313,12 @@ private struct StateResult: Decodable, Sendable {
 }
 
 private struct StateSetParams: Encodable, Sendable {
-    let projectId: String
+    let workspaceId: String
     let state: JSONValue
 }
 
 private struct StatePatchParams: Encodable, Sendable {
-    let projectId: String
+    let workspaceId: String
     let key: String
     let value: JSONValue
 }

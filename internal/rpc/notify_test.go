@@ -15,16 +15,16 @@ import (
 
 func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 	c, b := startServerWithBus(t)
-	p, other := createProject(t, c), createProject(t, c)
+	p, other := createWorkspace(t, c), createWorkspace(t, c)
 	var s session.Session
-	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"projectId": other.ID, "command": []string{"sh", "-c", "exec cat"}}, &s))
+	require.NoError(t, c.Call(t.Context(), "session.create", map[string]any{"workspaceId": other.ID, "command": []string{"sh", "-c", "exec cat"}}, &s))
 	t.Cleanup(func() { c.Call(context.Background(), "session.kill", map[string]string{"id": s.ID}, nil) })
 
 	for name, params := range map[string]map[string]any{
-		"unknown kind":      {"projectId": p.ID, "message": "hi", "kind": "urgent"},
-		"empty message":     {"projectId": p.ID, "message": "  "},
-		"foreign session":   {"projectId": p.ID, "message": "hi", "session": s.ID},
-		"malformed session": {"projectId": p.ID, "message": "hi", "session": "../x"},
+		"unknown kind":      {"workspaceId": p.ID, "message": "hi", "kind": "urgent"},
+		"empty message":     {"workspaceId": p.ID, "message": "  "},
+		"foreign session":   {"workspaceId": p.ID, "message": "hi", "session": s.ID},
+		"malformed session": {"workspaceId": p.ID, "message": "hi", "session": "../x"},
 	} {
 		assert.ErrorIs(t, c.Call(t.Context(), "notify.post", params, nil), rpc.ErrInvalidParams, name)
 	}
@@ -32,7 +32,7 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 	var res struct {
 		ID string `json:"id"`
 	}
-	require.NoError(t, c.Call(t.Context(), "notify.post", map[string]any{"projectId": other.ID, "session": s.ID, "title": "Claude", "message": strings.Repeat("x", 1500)}, &res))
+	require.NoError(t, c.Call(t.Context(), "notify.post", map[string]any{"workspaceId": other.ID, "session": s.ID, "title": "Claude", "message": strings.Repeat("x", 1500)}, &res))
 	events, err := b.Read(t.Context(), "notify.posted", 0, 10)
 	require.NoError(t, err)
 	require.Len(t, events, 1)
@@ -49,19 +49,19 @@ func TestNotifyPostValidatesAndPublishes(t *testing.T) {
 
 func TestNotifyPostRateLimitsPerWorkspaceAndInAll(t *testing.T) {
 	c := startServer(t)
-	post := func(projectID string) error {
-		return c.Call(t.Context(), "notify.post", map[string]any{"projectId": projectID, "message": "hi"}, nil)
+	post := func(workspaceID string) error {
+		return c.Call(t.Context(), "notify.post", map[string]any{"workspaceId": workspaceID, "message": "hi"}, nil)
 	}
-	first := createProject(t, c)
+	first := createWorkspace(t, c)
 	for range 5 {
 		require.NoError(t, post(first.ID))
 	}
 	assert.ErrorIs(t, post(first.ID), rpc.ErrRateLimited)
 	for range 3 {
-		p := createProject(t, c)
+		p := createWorkspace(t, c)
 		for range 5 {
 			require.NoError(t, post(p.ID))
 		}
 	}
-	assert.ErrorIs(t, post(createProject(t, c).ID), rpc.ErrRateLimited)
+	assert.ErrorIs(t, post(createWorkspace(t, c).ID), rpc.ErrRateLimited)
 }

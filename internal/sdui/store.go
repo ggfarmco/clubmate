@@ -12,18 +12,18 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-var ErrUnknownProject = errors.New("unknown project")
+var ErrUnknownWorkspace = errors.New("unknown workspace")
 
 type SlotView struct {
-	ProjectID string          `json:"projectId"`
-	Slot      string          `json:"slot"`
-	Owner     string          `json:"owner"`
-	Rev       int64           `json:"rev"`
-	Tree      json.RawMessage `json:"tree"`
+	WorkspaceID string          `json:"workspaceId"`
+	Slot        string          `json:"slot"`
+	Owner       string          `json:"owner"`
+	Rev         int64           `json:"rev"`
+	Tree        json.RawMessage `json:"tree"`
 }
 
 type slotKey struct {
-	project, slot string
+	workspace, slot string
 }
 
 type Store struct {
@@ -37,11 +37,11 @@ type Store struct {
 }
 
 type Subscription struct {
-	store   *Store
-	project string
-	ready   chan struct{}
-	pending []SlotView
-	ended   bool
+	store     *Store
+	workspace string
+	ready     chan struct{}
+	pending   []SlotView
+	ended     bool
 }
 
 func NewStore() *Store {
@@ -55,7 +55,7 @@ func NewStore() *Store {
 	}
 }
 
-func (s *Store) Render(ctx context.Context, projectID, slot, owner string, n sdui.Node) (int64, error) {
+func (s *Store) Render(ctx context.Context, workspaceID, slot, owner string, n sdui.Node) (int64, error) {
 	if err := Validate(n); err != nil {
 		return 0, err
 	}
@@ -68,40 +68,40 @@ func (s *Store) Render(ctx context.Context, projectID, slot, owner string, n sdu
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	if _, gone := s.dropped[projectID]; gone {
-		return 0, ErrUnknownProject
+	if _, gone := s.dropped[workspaceID]; gone {
+		return 0, ErrUnknownWorkspace
 	}
-	key := slotKey{projectID, slot}
+	key := slotKey{workspaceID, slot}
 	s.revs[key]++
-	view := SlotView{ProjectID: projectID, Slot: slot, Owner: owner, Rev: s.revs[key], Tree: tree}
+	view := SlotView{WorkspaceID: workspaceID, Slot: slot, Owner: owner, Rev: s.revs[key], Tree: tree}
 	s.slots[key] = view
 	s.notifyLocked(view)
 	return view.Rev, nil
 }
 
-func (s *Store) Get(projectID string) []SlotView {
+func (s *Store) Get(workspaceID string) []SlotView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.viewsLocked(projectID)
+	return s.viewsLocked(workspaceID)
 }
 
 func (s *Store) ClearOwner(owner string) {
 	s.clear(func(_ slotKey, view SlotView) bool { return view.Owner == owner })
 }
 
-func (s *Store) DropProject(projectID string) {
+func (s *Store) DropWorkspace(workspaceID string) {
 	s.mu.Lock()
-	s.dropped[projectID] = struct{}{}
+	s.dropped[workspaceID] = struct{}{}
 	s.mu.Unlock()
-	s.clear(func(key slotKey, _ SlotView) bool { return key.project == projectID })
+	s.clear(func(key slotKey, _ SlotView) bool { return key.workspace == workspaceID })
 }
 
-func (s *Store) Subscribe(projectID string) (*Subscription, error) {
+func (s *Store) Subscribe(workspaceID string) (*Subscription, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sub := &Subscription{store: s, project: projectID, ready: make(chan struct{}, 1)}
+	sub := &Subscription{store: s, workspace: workspaceID, ready: make(chan struct{}, 1)}
 	s.subs[sub] = struct{}{}
-	for _, view := range s.viewsLocked(projectID) {
+	for _, view := range s.viewsLocked(workspaceID) {
 		sub.pushLocked(view)
 	}
 	return sub, nil
@@ -151,25 +151,25 @@ func (s *Store) clear(match func(slotKey, SlotView) bool) {
 		delete(s.slots, key)
 		s.revs[key]++
 		cleared = append(cleared, SlotView{
-			ProjectID: key.project,
-			Slot:      key.slot,
-			Owner:     view.Owner,
-			Rev:       s.revs[key],
-			Tree:      s.empty,
+			WorkspaceID: key.workspace,
+			Slot:        key.slot,
+			Owner:       view.Owner,
+			Rev:         s.revs[key],
+			Tree:        s.empty,
 		})
 	}
 	slices.SortFunc(cleared, func(a, b SlotView) int {
-		return strings.Compare(a.ProjectID+"\x00"+a.Slot, b.ProjectID+"\x00"+b.Slot)
+		return strings.Compare(a.WorkspaceID+"\x00"+a.Slot, b.WorkspaceID+"\x00"+b.Slot)
 	})
 	for _, view := range cleared {
 		s.notifyLocked(view)
 	}
 }
 
-func (s *Store) viewsLocked(projectID string) []SlotView {
+func (s *Store) viewsLocked(workspaceID string) []SlotView {
 	views := []SlotView{}
 	for key, view := range s.slots {
-		if key.project == projectID {
+		if key.workspace == workspaceID {
 			views = append(views, view)
 		}
 	}
@@ -179,7 +179,7 @@ func (s *Store) viewsLocked(projectID string) []SlotView {
 
 func (s *Store) notifyLocked(view SlotView) {
 	for sub := range s.subs {
-		if sub.project == view.ProjectID {
+		if sub.workspace == view.WorkspaceID {
 			sub.pushLocked(view)
 		}
 	}

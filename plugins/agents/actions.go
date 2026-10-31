@@ -115,17 +115,17 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, ctx.Err()
 	}
 	err := a.act(ctx, ev)
-	if rerr := a.render(ctx, ev.ProjectID); err == nil {
+	if rerr := a.render(ctx, ev.WorkspaceID); err == nil {
 		err = rerr
 	}
 	switch {
 	case err != nil:
 	case ev.Action == actNew || ev.Action == actNewBranch:
-		err = h.Focus(ctx, ev.ProjectID, sectionID, mainSlot)
+		err = h.Focus(ctx, ev.WorkspaceID, sectionID, mainSlot)
 	case ev.Action == actCodeNew:
-		err = h.Focus(ctx, ev.ProjectID, editorSection, codeSlot)
+		err = h.Focus(ctx, ev.WorkspaceID, editorSection, codeSlot)
 	case ev.Action == actShowBranch:
-		err = h.FocusField(ctx, ev.ProjectID, sectionID)
+		err = h.FocusField(ctx, ev.WorkspaceID, sectionID)
 	}
 	return nil, err
 }
@@ -133,28 +133,28 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 	switch ev.Action {
 	case actNew:
-		res, err := a.newSession(ctx, a.host, ev.ProjectID, "", newArgs{})
+		res, err := a.newSession(ctx, a.host, ev.WorkspaceID, "", newArgs{})
 		if err != nil {
 			return err
 		}
-		return a.selectSession(ctx, ev.ProjectID, res.Session)
+		return a.selectSession(ctx, ev.WorkspaceID, res.Session)
 	case actCodeNew:
-		res, err := a.newSession(ctx, a.host, ev.ProjectID, "", newArgs{})
+		res, err := a.newSession(ctx, a.host, ev.WorkspaceID, "", newArgs{})
 		if err != nil {
 			return err
 		}
-		return a.bindCode(ctx, ev.ProjectID, res.Session)
+		return a.bindCode(ctx, ev.WorkspaceID, res.Session)
 	case actCodeSelect:
 		id, err := itemID(ev)
 		if err != nil {
 			return err
 		}
-		if _, err := a.lookup(ev.ProjectID, id); err != nil {
+		if _, err := a.lookup(ev.WorkspaceID, id); err != nil {
 			return err
 		}
-		return a.bindCode(ctx, ev.ProjectID, id)
+		return a.bindCode(ctx, ev.WorkspaceID, id)
 	case actShowBranch, actHideBranch:
-		p := a.projectState(ev.ProjectID)
+		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
 		p.branch = ev.Action == actShowBranch
 		a.uiMu.Unlock()
@@ -168,15 +168,15 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if branch == "" {
 			return errNoBranch
 		}
-		res, err := a.newSession(ctx, a.host, ev.ProjectID, "", newArgs{Branch: branch})
+		res, err := a.newSession(ctx, a.host, ev.WorkspaceID, "", newArgs{Branch: branch})
 		if err != nil {
 			return err
 		}
-		p := a.projectState(ev.ProjectID)
+		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
 		p.branch = false
 		a.uiMu.Unlock()
-		return a.selectSession(ctx, ev.ProjectID, res.Session)
+		return a.selectSession(ctx, ev.WorkspaceID, res.Session)
 	case actSelect:
 		id, err := itemID(ev)
 		if err != nil {
@@ -186,15 +186,15 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return nil
 		}
 		sid := strings.TrimPrefix(id, needsPrefix)
-		s, err := a.lookup(ev.ProjectID, sid)
+		s, err := a.lookup(ev.WorkspaceID, sid)
 		if err != nil {
 			return err
 		}
 		s.invalidateChanges()
-		if err := a.selectSession(ctx, ev.ProjectID, sid); err != nil {
+		if err := a.selectSession(ctx, ev.WorkspaceID, sid); err != nil {
 			return err
 		}
-		p := a.projectState(ev.ProjectID)
+		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
 		p.row = id
 		a.uiMu.Unlock()
@@ -208,7 +208,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if wt, ok := strings.CutPrefix(id, groupPrefix); ok {
 			key = wt
 		}
-		return a.setCollapsed(ctx, ev.ProjectID, map[string]bool{key: ev.Action == actCollapse})
+		return a.setCollapsed(ctx, ev.WorkspaceID, map[string]bool{key: ev.Action == actCollapse})
 	case actClose, actDelete, actHandoff:
 		s, err := a.rowSession(ev)
 		if err != nil {
@@ -232,7 +232,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return nil
 	}
 	sid, rest, _ := strings.Cut(ev.NodeID, "/")
-	s, err := a.lookup(ev.ProjectID, sid)
+	s, err := a.lookup(ev.WorkspaceID, sid)
 	if err != nil {
 		return err
 	}
@@ -252,19 +252,19 @@ func (a *app) rowSession(ev pluginsdk.UIEvent) (*session, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.lookup(ev.ProjectID, strings.TrimPrefix(id, needsPrefix))
+	return a.lookup(ev.WorkspaceID, strings.TrimPrefix(id, needsPrefix))
 }
 
 func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, node string) error {
 	sid := s.snapshot().ID
-	st := a.sessionState(ev.ProjectID, sid)
+	st := a.sessionState(ev.WorkspaceID, sid)
 	switch ev.Action {
 	case actSend:
 		var v textValue
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		return a.send(ev.ProjectID, s, st, v.Text)
+		return a.send(ev.WorkspaceID, s, st, v.Text)
 	case actStop:
 		a.cancel(s)
 		return nil
@@ -285,13 +285,13 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		return a.setMode(ctx, ev.ProjectID, modeArgs{Session: sid, Mode: v.Mode})
+		return a.setMode(ctx, ev.WorkspaceID, modeArgs{Session: sid, Mode: v.Mode})
 	case actConfig:
 		var v configValue
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		return a.setConfig(ctx, ev.ProjectID, configArgs{Session: sid, ID: v.ID, Value: v.Value})
+		return a.setConfig(ctx, ev.WorkspaceID, configArgs{Session: sid, ID: v.ID, Value: v.Value})
 	case actAttachFile:
 		var v pathValue
 		if err := decode(ev.Value, &v); err != nil || v.Path == "" {
@@ -301,7 +301,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return nil
 	case actAttachSelection:
 		var sel selection
-		if err := a.host.RunCommand(ctx, selectionCmd, ev.ProjectID, nil, &sel); err != nil {
+		if err := a.host.RunCommand(ctx, selectionCmd, ev.WorkspaceID, nil, &sel); err != nil {
 			return err
 		}
 		if sel.Path == "" {
@@ -323,16 +323,16 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		if err := a.host.RunCommand(ctx, openCmd, ev.ProjectID, v, nil); err != nil {
+		if err := a.host.RunCommand(ctx, openCmd, ev.WorkspaceID, v, nil); err != nil {
 			return err
 		}
-		return a.host.Focus(ctx, ev.ProjectID, editorSection, editorSlot)
+		return a.host.Focus(ctx, ev.WorkspaceID, editorSection, editorSlot)
 	case actReview:
 		var v turnValue
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		return a.review(ctx, ev.ProjectID, s, v.Turn)
+		return a.review(ctx, ev.WorkspaceID, s, v.Turn)
 	case actShowEarlier:
 		a.uiMu.Lock()
 		st.showEarlier()
@@ -363,7 +363,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		}
 		return a.show(ctx, ev, target)
 	case actSignIn:
-		return a.signIn(ctx, ev.ProjectID, s, st)
+		return a.signIn(ctx, ev.WorkspaceID, s, st)
 	case actUnqueue:
 		id, ok := strings.CutPrefix(node, queuePrefix)
 		if !ok {
@@ -374,16 +374,16 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 	case actSendQueued:
 		return a.submit(s, nil)
 	case actMerge:
-		return a.mergeToMain(ctx, ev.ProjectID, s)
+		return a.mergeToMain(ctx, ev.WorkspaceID, s)
 	}
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
 func (a *app) show(ctx context.Context, ev pluginsdk.UIEvent, sid string) error {
 	if ev.Slot == codeSlot {
-		return a.bindCode(ctx, ev.ProjectID, sid)
+		return a.bindCode(ctx, ev.WorkspaceID, sid)
 	}
-	return a.selectSession(ctx, ev.ProjectID, sid)
+	return a.selectSession(ctx, ev.WorkspaceID, sid)
 }
 
 func (a *app) handoffAndSelect(ctx context.Context, ev pluginsdk.UIEvent, s *session) error {
@@ -401,7 +401,7 @@ func (a *app) addAttachment(st *sessionUI, att attachment) {
 	st.attachments = append(st.attachments, pendingAttachment{ID: "a" + strconv.Itoa(st.nextID), attachment: att})
 }
 
-func (a *app) send(projectID string, s *session, st *sessionUI, text string) error {
+func (a *app) send(workspaceID string, s *session, st *sessionUI, text string) error {
 	a.uiMu.Lock()
 	pending := st.attachments
 	a.uiMu.Unlock()
@@ -412,7 +412,7 @@ func (a *app) send(projectID string, s *session, st *sessionUI, text string) err
 	for _, p := range pending {
 		atts = append(atts, p.attachment)
 	}
-	if err := a.prompt(projectID, promptArgs{Session: s.snapshot().ID, Text: text, Attachments: atts}); err != nil {
+	if err := a.prompt(workspaceID, promptArgs{Session: s.snapshot().ID, Text: text, Attachments: atts}); err != nil {
 		return err
 	}
 	a.uiMu.Lock()
@@ -422,7 +422,7 @@ func (a *app) send(projectID string, s *session, st *sessionUI, text string) err
 	return nil
 }
 
-func (a *app) review(ctx context.Context, projectID string, s *session, turn int) error {
+func (a *app) review(ctx context.Context, workspaceID string, s *session, turn int) error {
 	v := s.view(0)
 	if turn == 0 {
 		turn = firstCheckpoint(v.Turns).Turn
@@ -432,5 +432,5 @@ func (a *app) review(ctx context.Context, projectID string, s *session, turn int
 		return errNoCheckpoint
 	}
 	args := diffviewArgs{Cwd: v.Session.Worktree, Rev: v.Turns[i].CheckpointSha}
-	return a.host.RunCommand(ctx, diffviewCmd, projectID, args, nil)
+	return a.host.RunCommand(ctx, diffviewCmd, workspaceID, args, nil)
 }

@@ -67,6 +67,7 @@ func Load(dir string) (Manifest, error) {
 		return Manifest{}, invalid(dir, "decode: %v", err)
 	}
 	m.Dir = dir
+	m.upgradeLegacyScopes()
 	if err := m.validate(); err != nil {
 		return Manifest{}, err
 	}
@@ -114,6 +115,19 @@ func (m Manifest) Executable() string {
 	return filepath.Join(m.Dir, m.Command[0])
 }
 
+func (m *Manifest) upgradeLegacyScopes() {
+	for i := range m.Contributes.Sections {
+		if m.Contributes.Sections[i].Scope == sdui.LegacyScopeWorkspace {
+			m.Contributes.Sections[i].Scope = sdui.ScopeWorkspace
+		}
+	}
+	for i := range m.Contributes.Commands {
+		if m.Contributes.Commands[i].Scope == sdui.LegacyScopeWorkspace {
+			m.Contributes.Commands[i].Scope = sdui.ScopeWorkspace
+		}
+	}
+}
+
 func (m Manifest) validate() error {
 	if !idPattern.MatchString(m.ID) {
 		return invalid(m.Dir, "id %q does not match %s", m.ID, idPattern)
@@ -135,7 +149,7 @@ func (m Manifest) validate() error {
 		return err
 	}
 	for _, s := range m.Contributes.Sections {
-		if s.Scope != "" && s.Scope != sdui.ScopeProject && s.Scope != sdui.ScopeApp {
+		if s.Scope != "" && s.Scope != sdui.ScopeWorkspace && s.Scope != sdui.ScopeApp {
 			return invalid(m.Dir, "section %q has invalid scope %q", s.ID, s.Scope)
 		}
 		if s.Host == s.ID {
@@ -161,7 +175,7 @@ func (m Manifest) validate() error {
 		if err := schema.Check(c.Result); err != nil {
 			return invalid(m.Dir, "command %q result: %v", c.ID, err)
 		}
-		if c.Scope != "" && c.Scope != sdui.ScopeProject && c.Scope != sdui.ScopeApp {
+		if c.Scope != "" && c.Scope != sdui.ScopeWorkspace && c.Scope != sdui.ScopeApp {
 			return invalid(m.Dir, "command %q has invalid scope %q", c.ID, c.Scope)
 		}
 		if c.Timeout != 0 && (c.Timeout < 1 || c.Timeout > maxCommandTimeout) {

@@ -43,7 +43,7 @@ All bodies are JSON. Authenticated endpoints need `Authorization: Bearer <token>
 - `GET /v1/events` (SSE): starts with a `: connected` comment, then `id: <seq>\nevent: bus\ndata: {"seq","topic","workspace","payload"}` for `agents.changed`, `notify.posted` and `plugin.changed` (`{id, running}`, published by the core when a plugin starts or stops running), and `: ping` every 15 s. `Last-Event-ID` (or `?after=<seq>`) replays later events from the bus first; without it, or when it is above the bus head (the Mac's event store was reset), the stream starts live and the phone takes the next event's seq as its cursor. Events only say "something changed"; the phone refetches with `command`.
 
 ## Mac app commands
-All hidden, app-scoped (`"scope": "app"`), never agent or remote. Call `command.run {id, projectId: "" (or any), args}`.
+All hidden, app-scoped (`"scope": "app"`), never agent or remote. Call `command.run {id, workspaceId: "" (or any), args}`.
 
 | Command | Args | Result |
 |---|---|---|

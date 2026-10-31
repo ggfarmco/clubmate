@@ -231,7 +231,7 @@ final class PaletteTextField: NSTextField {
 }
 
 extension View {
-    func commandPalette(_ session: ProjectSession?, entries: @escaping () -> [PaletteEntry], run: @escaping (PaletteAction) -> Void) -> some View {
+    func commandPalette(_ session: WorkspaceSession?, entries: @escaping () -> [PaletteEntry], run: @escaping (PaletteAction) -> Void) -> some View {
         overlay(alignment: .top) {
             if let session, session.overlay == .palette {
                 CommandPaletteView(entries: entries(), run: run) { session.close(.palette) }

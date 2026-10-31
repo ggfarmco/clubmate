@@ -110,7 +110,7 @@ cron.add {
 
 ## CLI
 
-Inside a Clubmate terminal `$CLUBMATE_PROJECT_ID` names the workspace:
+Inside a Clubmate terminal `$CLUBMATE_WORKSPACE_ID` names the workspace:
 
 ```sh
 cm command run cron.add --args '{"name":"Good morning","command":"agents.new","args":"{\"prompt\":\"/good-morning\"}","cron":"0 9 * * *"}'

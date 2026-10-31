@@ -28,7 +28,7 @@ func TestOpenFoldersDedupes(t *testing.T) {
 	assert.True(t, created)
 	assert.Equal(t, "link", other.Name)
 	assert.NotEqual(t, p.ID, other.ID)
-	evs, err := b.Read(t.Context(), "project.created", 0, 0)
+	evs, err := b.Read(t.Context(), "workspace.created", 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, evs, 2)
 }
@@ -46,7 +46,7 @@ func TestHomeWorkspace(t *testing.T) {
 	assert.True(t, again.Home)
 	assert.Equal(t, "~", again.Name)
 	assert.Equal(t, []string{home}, again.Repos)
-	all, err := svc.ListProjects(t.Context())
+	all, err := svc.ListWorkspaces(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, all, 1)
 }

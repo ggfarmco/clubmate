@@ -148,57 +148,57 @@ func (f *fixture) waitReady(t *testing.T, timeout time.Duration) {
 	}, timeout)
 }
 
-func (f *fixture) project(t *testing.T, repo string) string {
+func (f *fixture) workspace(t *testing.T, repo string) string {
 	t.Helper()
-	p, err := f.h.Svc.CreateProject(t.Context(), "demo", []string{repo})
+	p, err := f.h.Svc.CreateWorkspace(t.Context(), "demo", []string{repo})
 	require.NoError(t, err)
 	f.subscribe(t, p.ID)
 	return p.ID
 }
 
-func (f *fixture) subscribe(t *testing.T, project string) {
+func (f *fixture) subscribe(t *testing.T, workspace string) {
 	t.Helper()
 	var out struct {
 		Subscription string `json:"subscription"`
 	}
-	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, &out))
-	f.subs[project] = out.Subscription
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, &out))
+	f.subs[workspace] = out.Subscription
 }
 
-func (f *fixture) run(t *testing.T, project, command string, args, out any) error {
+func (f *fixture) run(t *testing.T, workspace, command string, args, out any) error {
 	t.Helper()
-	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "projectId": project, "args": args}, out)
+	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "workspaceId": workspace, "args": args}, out)
 }
 
-func (f *fixture) runAs(t *testing.T, project, caller, command string, args, out any) error {
+func (f *fixture) runAs(t *testing.T, workspace, caller, command string, args, out any) error {
 	t.Helper()
-	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "projectId": project, "args": args, "agent": true, "caller": caller}, out)
+	return f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": command, "workspaceId": workspace, "args": args, "agent": true, "caller": caller}, out)
 }
 
-func (f *fixture) answerPermission(t *testing.T, project, session, request string) {
+func (f *fixture) answerPermission(t *testing.T, workspace, session, request string) {
 	t.Helper()
-	f.h.Event(t, project, "agents.main", session+"/permission/"+request, "permission", map[string]any{"request": request, "option": "allow"})
+	f.h.Event(t, workspace, "agents.main", session+"/permission/"+request, "permission", map[string]any{"request": request, "option": "allow"})
 }
 
-func (f *fixture) newSession(t *testing.T, project string) string {
+func (f *fixture) newSession(t *testing.T, workspace string) string {
 	t.Helper()
 	var out struct {
 		Session string `json:"session"`
 	}
-	require.NoError(t, f.run(t, project, "agents.new", map[string]any{}, &out))
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{}, &out))
 	require.NotEmpty(t, out.Session)
 	return out.Session
 }
 
-func (f *fixture) prompt(t *testing.T, project, session, text string) {
+func (f *fixture) prompt(t *testing.T, workspace, session, text string) {
 	t.Helper()
-	require.NoError(t, f.run(t, project, "agents.prompt", map[string]any{"session": session, "text": text}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.prompt", map[string]any{"session": session, "text": text}, nil))
 }
 
-func (f *fixture) session(t *testing.T, project, session string) record {
+func (f *fixture) session(t *testing.T, workspace, session string) record {
 	t.Helper()
 	var list []record
-	require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
 	for _, r := range list {
 		if r.ID == session {
 			return r
@@ -207,20 +207,20 @@ func (f *fixture) session(t *testing.T, project, session string) record {
 	return record{}
 }
 
-func (f *fixture) waitStatus(t *testing.T, project, session, status string) record {
+func (f *fixture) waitStatus(t *testing.T, workspace, session, status string) record {
 	t.Helper()
 	var got record
 	testutil.Eventually(t, func() bool {
-		got = f.session(t, project, session)
+		got = f.session(t, workspace, session)
 		return got.Status == status
 	}, wait)
 	return got
 }
 
-func (f *fixture) transcript(t *testing.T, project, session string) transcript {
+func (f *fixture) transcript(t *testing.T, workspace, session string) transcript {
 	t.Helper()
 	var out transcript
-	require.NoError(t, f.run(t, project, "agents.transcript", map[string]any{"session": session}, &out))
+	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": session}, &out))
 	return out
 }
 
@@ -328,12 +328,12 @@ func TestNewTitleSurvivesAgentTitle(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		{"update": map[string]any{"sessionUpdate": "session_info_update", "title": "Agent title"}},
 	}})
-	project := f.project(t, newRepo(t))
+	workspace := f.workspace(t, newRepo(t))
 	var out struct {
 		Session string `json:"session"`
 	}
-	require.NoError(t, f.run(t, project, "agents.new", map[string]any{"title": "Mine", "prompt": "go"}, &out))
-	assert.Equal(t, "Mine", f.waitStatus(t, project, out.Session, "done").Title)
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"title": "Mine", "prompt": "go"}, &out))
+	assert.Equal(t, "Mine", f.waitStatus(t, workspace, out.Session, "done").Title)
 }
 
 func TestPromptStreamsAndLogs(t *testing.T) {
@@ -351,13 +351,13 @@ func TestPromptStreamsAndLogs(t *testing.T) {
 		{"update": toolCall},
 		{"update": map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "e1", "status": "completed"}},
 	}}, testutil.EchoPluginDirAs(t, editorManifest))
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "hi")
-	f.waitStatus(t, project, session, "done")
+	f.prompt(t, workspace, session, "hi")
+	f.waitStatus(t, workspace, session, "done")
 
-	tr := f.transcript(t, project, session)
+	tr := f.transcript(t, workspace, session)
 	agent := ofKind(tr.Entries, "agent")
 	require.Len(t, agent, 1)
 	assert.Equal(t, "Hello world", agent[0].Text)
@@ -381,7 +381,7 @@ func TestPromptStreamsAndLogs(t *testing.T) {
 			assert.Contains(t, l, k)
 		}
 		assert.JSONEq(t, `"`+session+`"`, string(l["session"]))
-		assert.JSONEq(t, `"`+project+`"`, string(l["workspace"]))
+		assert.JSONEq(t, `"`+workspace+`"`, string(l["workspace"]))
 		var seq int
 		require.NoError(t, json.Unmarshal(l["seq"], &seq))
 		assert.Equal(t, i+1, seq)
@@ -411,16 +411,16 @@ func TestPromptStreamsAndLogs(t *testing.T) {
 
 func TestReaderNeverBlocks(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"burst": 5000}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "flood")
+	f.prompt(t, workspace, session, "flood")
 	for range 5 {
 		began := time.Now()
-		f.session(t, project, session)
+		f.session(t, workspace, session)
 		assert.Less(t, time.Since(began), time.Second)
 	}
-	f.waitStatus(t, project, session, "done")
+	f.waitStatus(t, workspace, session, "done")
 
 	assert.Len(t, updates(t, f.logLines(t, session), "tool_call"), 5000)
 	changed, err := f.h.Bus.Read(t.Context(), "agents.changed", 0, 10000)
@@ -433,34 +433,34 @@ func TestReaderNeverBlocks(t *testing.T) {
 
 func TestPermissionOutsidePrompt(t *testing.T) {
 	f := start(t, map[string]any{"after": []map[string]any{{"permission": permissionScript()}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "go")
-	waiting := f.waitStatus(t, project, session, "waiting")
-	perms := ofKind(f.transcript(t, project, session).Entries, "permission")
+	f.prompt(t, workspace, session, "go")
+	waiting := f.waitStatus(t, workspace, session, "waiting")
+	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, perms, 1)
 	assert.Equal(t, []string{perms[0].ID}, waiting.Pending)
-	f.answerPermission(t, project, session, perms[0].ID)
+	f.answerPermission(t, workspace, session, perms[0].ID)
 
 	got := f.waitCall(t, "permission_response", func(fakeCall) bool { return true })
 	assert.JSONEq(t, `{"outcome":{"outcome":"selected","optionId":"allow"}}`, string(got.Params))
-	f.waitStatus(t, project, session, "done")
+	f.waitStatus(t, workspace, session, "done")
 }
 
 func TestCancelAnswersPendingPermission(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "go")
-	f.waitStatus(t, project, session, "waiting")
-	require.NoError(t, f.run(t, project, "agents.cancel", map[string]any{"session": session}, nil))
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "waiting")
+	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session}, nil))
 
 	got := f.waitCall(t, "permission_response", func(fakeCall) bool { return true })
 	assert.JSONEq(t, `{"outcome":{"outcome":"cancelled"}}`, string(got.Params))
-	f.waitStatus(t, project, session, "done")
-	tr := f.transcript(t, project, session)
+	f.waitStatus(t, workspace, session, "done")
+	tr := f.transcript(t, workspace, session)
 	require.Len(t, tr.Turns, 1)
 	assert.Equal(t, "cancelled", tr.Turns[0].StopReason)
 }
@@ -471,11 +471,11 @@ func TestAgentCrash(t *testing.T) {
 		{"stderr": "fatal: adapter blew up"},
 		{"exit": 3},
 	}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "go")
-	got := f.waitStatus(t, project, session, "error")
+	f.prompt(t, workspace, session, "go")
+	got := f.waitStatus(t, workspace, session, "error")
 
 	assert.Contains(t, got.Error, "fatal: adapter blew up")
 	starts := f.calls(t, "start")
@@ -494,7 +494,7 @@ func TestTwoWorktrees(t *testing.T) {
 	tree, err := filepath.EvalSymlinks(tree)
 	require.NoError(t, err)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
-	first, second := f.project(t, repo), f.project(t, tree)
+	first, second := f.workspace(t, repo), f.workspace(t, tree)
 	a, b := f.newSession(t, first), f.newSession(t, second)
 
 	f.prompt(t, first, a, "alpha")
@@ -515,7 +515,7 @@ func TestTwoWorktrees(t *testing.T) {
 func TestWorkspacesOnOneRootGetOwnAgents(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
-	first, second := f.project(t, repo), f.project(t, repo)
+	first, second := f.workspace(t, repo), f.workspace(t, repo)
 	a, b := f.newSession(t, first), f.newSession(t, second)
 
 	testutil.Eventually(t, func() bool {
@@ -525,15 +525,15 @@ func TestWorkspacesOnOneRootGetOwnAgents(t *testing.T) {
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 2)
 	assert.NotEqual(t, starts[0].PID, starts[1].PID)
-	var projects []string
+	var workspaces []string
 	for _, s := range starts {
 		var p struct {
-			Project string `json:"project"`
+			Workspace string `json:"workspace"`
 		}
 		require.NoError(t, json.Unmarshal(s.Params, &p))
-		projects = append(projects, p.Project)
+		workspaces = append(workspaces, p.Workspace)
 	}
-	assert.ElementsMatch(t, []string{first, second}, projects)
+	assert.ElementsMatch(t, []string{first, second}, workspaces)
 }
 
 func TestCheckpointPerTurn(t *testing.T) {
@@ -544,13 +544,13 @@ func TestCheckpointPerTurn(t *testing.T) {
 	write(t, filepath.Join(repo, "u.txt"), "untracked\n")
 	head, status, index := git(t, repo, "rev-parse", "HEAD"), git(t, repo, "status", "--porcelain"), git(t, repo, "ls-files", "-s")
 	f := start(t, map[string]any{})
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "go")
-	f.waitStatus(t, project, session, "done")
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "done")
 
-	tr := f.transcript(t, project, session)
+	tr := f.transcript(t, workspace, session)
 	require.Len(t, tr.Turns, 1)
 	sha := tr.Turns[0].CheckpointSha
 	assert.Equal(t, sha, git(t, repo, "rev-parse", "refs/clubmate/cp/"+session+"/1"))
@@ -561,18 +561,18 @@ func TestCheckpointPerTurn(t *testing.T) {
 	assert.Equal(t, status, git(t, repo, "status", "--porcelain"))
 	assert.Equal(t, index, git(t, repo, "ls-files", "-s"))
 
-	require.NoError(t, f.run(t, project, "agents.delete", map[string]any{"session": session}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.delete", map[string]any{"session": session}, nil))
 	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 }
 
-func (f *fixture) restartPlugin(t *testing.T, project string) {
+func (f *fixture) restartPlugin(t *testing.T, workspace string) {
 	t.Helper()
 	pids := f.h.Sup.PIDs()
 	require.Len(t, pids, 1)
 	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
 	testutil.Eventually(t, func() bool {
 		now := f.h.Sup.PIDs()
-		return len(now) == 1 && now[0] != pids[0] && f.run(t, project, "agents.sessions", map[string]any{}, nil) == nil
+		return len(now) == 1 && now[0] != pids[0] && f.run(t, workspace, "agents.sessions", map[string]any{}, nil) == nil
 	}, restartWait)
 	first := f.calls(t, "start")
 	require.Len(t, first, 1)
@@ -581,13 +581,13 @@ func (f *fixture) restartPlugin(t *testing.T, project string) {
 
 func TestResume(t *testing.T) {
 	f := start(t, map[string]any{"resume": true})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "one")
-	stored := f.waitStatus(t, project, session, "done").AgentSessionID
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	stored := f.waitStatus(t, workspace, session, "done").AgentSessionID
 
-	f.restartPlugin(t, project)
-	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": session}, nil))
+	f.restartPlugin(t, workspace)
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": session}, nil))
 
 	got := f.waitCall(t, "session/resume", func(fakeCall) bool { return true })
 	var params struct {
@@ -612,12 +612,12 @@ func TestResume(t *testing.T) {
 
 func TestUnpromptedSessionStartsFreshAfterRestart(t *testing.T) {
 	f := start(t, map[string]any{"resume": true})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" }, wait)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, session).AgentSessionID != "" }, wait)
 
-	f.restartPlugin(t, project)
-	f.prompt(t, project, session, "hi")
+	f.restartPlugin(t, workspace)
+	f.prompt(t, workspace, session, "hi")
 
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "hi" })
 	assert.Len(t, f.calls(t, "session/new"), 2)
@@ -626,19 +626,19 @@ func TestUnpromptedSessionStartsFreshAfterRestart(t *testing.T) {
 
 func TestFailedAttachKeepsPrompt(t *testing.T) {
 	f := start(t, map[string]any{})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "one")
-	f.waitStatus(t, project, session, "done")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	f.waitStatus(t, workspace, session, "done")
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
-	f.waitStatus(t, project, session, "error")
+	f.waitStatus(t, workspace, session, "error")
 
-	f.prompt(t, project, session, "two")
+	f.prompt(t, workspace, session, "two")
 
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 1 })
-	assert.Equal(t, "the agent cannot resume this session", f.waitStatus(t, project, session, "error").Error)
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 1 })
+	assert.Equal(t, "the agent cannot resume this session", f.waitStatus(t, workspace, session, "error").Error)
 }
 
 func TestModeAndCommands(t *testing.T) {
@@ -646,23 +646,23 @@ func TestModeAndCommands(t *testing.T) {
 		"modes":    map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "plan", "name": "Plan"}}},
 		"commands": []map[string]string{{"name": "review", "description": "Review the diff"}},
 	})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
 	testutil.Eventually(t, func() bool {
-		tr := f.transcript(t, project, session)
+		tr := f.transcript(t, workspace, session)
 		return len(tr.Commands) == 1 && len(tr.Modes) == 2
 	}, wait)
-	tr := f.transcript(t, project, session)
+	tr := f.transcript(t, workspace, session)
 	assert.Equal(t, "review", tr.Commands[0].Name)
 	assert.Equal(t, []string{"default", "plan"}, []string{tr.Modes[0].ID, tr.Modes[1].ID})
 	assert.Equal(t, "default", tr.Session.Mode)
 
-	require.NoError(t, f.run(t, project, "agents.mode", map[string]any{"session": session, "mode": "plan"}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.mode", map[string]any{"session": session, "mode": "plan"}, nil))
 
 	got := f.waitCall(t, "session/set_mode", func(fakeCall) bool { return true })
 	assert.Contains(t, string(got.Params), `"modeId":"plan"`)
-	testutil.Eventually(t, func() bool { return f.transcript(t, project, session).Session.Mode == "plan" }, wait)
+	testutil.Eventually(t, func() bool { return f.transcript(t, workspace, session).Session.Mode == "plan" }, wait)
 }
 
 func TestConfigOptionsAndAdvisor(t *testing.T) {
@@ -670,10 +670,10 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 		{"id": "mode", "name": "Mode", "category": "mode", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Manual"}}},
 		{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "opus", "name": "Opus"}}},
 	}})
-	project := f.project(t, newRepo(t))
-	first := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	first := f.newSession(t, workspace)
 	pickers := func(session string, want map[string]string) sdui.Node {
-		return f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		return f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 			composers := cardsOf(n, "composer")
 			if len(composers) != 1 || !strings.HasPrefix(composers[0].ID, session+"/") {
 				return false
@@ -690,16 +690,16 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 	}
 	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": "", "finish": "ask", "afk": "off"}), "composer")[0].ID
 
-	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "model", "value": "opus"})
-	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "advisor", "value": "opus"})
-	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "afk", "value": "on"})
+	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "model", "value": "opus"})
+	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "advisor", "value": "opus"})
+	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "afk", "value": "on"})
 	pickers(first, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "on"})
 
-	second := f.newSession(t, project)
+	second := f.newSession(t, workspace)
 	pickers(second, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "off"})
 	sets := f.calls(t, "session/set_config_option")
 	require.Len(t, sets, 2)
-	assert.JSONEq(t, `{"sessionId":"`+f.session(t, project, second).AgentSessionID+`","configId":"model","value":"opus"}`, string(sets[1].Params))
+	assert.JSONEq(t, `{"sessionId":"`+f.session(t, workspace, second).AgentSessionID+`","configId":"model","value":"opus"}`, string(sets[1].Params))
 	news := f.calls(t, "session/new")
 	require.Len(t, news, 2)
 	assert.NotContains(t, string(news[0].Params), "advisorModel")
@@ -708,40 +708,40 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 
 func TestFinishMode(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	first := f.newSession(t, project)
-	require.NoError(t, f.run(t, project, "agents.finishDefault", map[string]any{"value": "merge"}, nil))
-	second := f.newSession(t, project)
-	assert.Equal(t, []string{"ask", "merge"}, []string{f.session(t, project, first).Finish, f.session(t, project, second).Finish})
+	workspace := f.workspace(t, newRepo(t))
+	first := f.newSession(t, workspace)
+	require.NoError(t, f.run(t, workspace, "agents.finishDefault", map[string]any{"value": "merge"}, nil))
+	second := f.newSession(t, workspace)
+	assert.Equal(t, []string{"ask", "merge"}, []string{f.session(t, workspace, first).Finish, f.session(t, workspace, second).Finish})
 
-	f.prompt(t, project, first, "one")
-	f.waitStatus(t, project, first, "done")
-	require.NoError(t, f.run(t, project, "agents.config", map[string]any{"session": first, "id": "finish", "value": "merge"}, nil))
-	f.prompt(t, project, first, "two")
-	f.waitStatus(t, project, first, "done")
+	f.prompt(t, workspace, first, "one")
+	f.waitStatus(t, workspace, first, "done")
+	require.NoError(t, f.run(t, workspace, "agents.config", map[string]any{"session": first, "id": "finish", "value": "merge"}, nil))
+	f.prompt(t, workspace, first, "two")
+	f.waitStatus(t, workspace, first, "done")
 
 	prompts := f.calls(t, "session/prompt")
 	require.Len(t, prompts, 2)
 	assert.Contains(t, string(prompts[0].Params), "finish mode: ask")
 	assert.Contains(t, string(prompts[1].Params), "finish mode: merge")
-	for _, e := range ofKind(f.transcript(t, project, first).Entries, "user") {
+	for _, e := range ofKind(f.transcript(t, workspace, first).Entries, "user") {
 		assert.NotContains(t, e.Text, "Clubmate finish mode")
 	}
 }
 
 func TestAFKMode(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	require.NoError(t, f.run(t, project, "agents.afkDefault", map[string]any{"on": true}, nil))
-	parent, other := f.newSession(t, project), f.newSession(t, project)
-	assert.True(t, f.session(t, project, parent).AFK)
-	assert.ErrorContains(t, f.runAs(t, project, other, "agents.afk", map[string]any{"session": parent, "on": false}, nil), "the session was not started by this agent")
+	workspace := f.workspace(t, newRepo(t))
+	require.NoError(t, f.run(t, workspace, "agents.afkDefault", map[string]any{"on": true}, nil))
+	parent, other := f.newSession(t, workspace), f.newSession(t, workspace)
+	assert.True(t, f.session(t, workspace, parent).AFK)
+	assert.ErrorContains(t, f.runAs(t, workspace, other, "agents.afk", map[string]any{"session": parent, "on": false}, nil), "the session was not started by this agent")
 
-	away := f.newChild(t, project, parent, map[string]any{"prompt": "while away"}).Session
-	f.waitStatus(t, project, away, "done")
-	require.NoError(t, f.runAs(t, project, parent, "agents.afk", map[string]any{"on": false}, nil))
-	back := f.newChild(t, project, parent, map[string]any{"prompt": "after return"}).Session
-	f.waitStatus(t, project, back, "done")
+	away := f.newChild(t, workspace, parent, map[string]any{"prompt": "while away"}).Session
+	f.waitStatus(t, workspace, away, "done")
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.afk", map[string]any{"on": false}, nil))
+	back := f.newChild(t, workspace, parent, map[string]any{"prompt": "after return"}).Session
+	f.waitStatus(t, workspace, back, "done")
 
 	afk := map[string]bool{}
 	for _, c := range f.calls(t, "session/prompt") {
@@ -752,7 +752,7 @@ func TestAFKMode(t *testing.T) {
 		}
 	}
 	assert.Equal(t, map[string]bool{"while away": true, "after return": false}, afk)
-	for _, e := range ofKind(f.transcript(t, project, away).Entries, "user") {
+	for _, e := range ofKind(f.transcript(t, workspace, away).Entries, "user") {
 		assert.NotContains(t, e.Text, "Clubmate AFK mode")
 	}
 }
@@ -760,13 +760,13 @@ func TestAFKMode(t *testing.T) {
 func TestDeleteDuringTurn(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})
-	project := f.project(t, repo)
-	session, keeper := f.newSession(t, project), f.newSession(t, project)
-	testutil.Eventually(t, func() bool { return f.session(t, project, keeper).AgentSessionID != "" }, wait)
+	workspace := f.workspace(t, repo)
+	session, keeper := f.newSession(t, workspace), f.newSession(t, workspace)
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, keeper).AgentSessionID != "" }, wait)
 
-	f.prompt(t, project, session, "slow")
+	f.prompt(t, workspace, session, "slow")
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
-	require.NoError(t, f.run(t, project, "agents.delete", map[string]any{"session": session}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.delete", map[string]any{"session": session}, nil))
 	f.waitCall(t, "prompt_end", func(fakeCall) bool { return true })
 
 	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
@@ -779,23 +779,23 @@ func TestDeleteDuringTurn(t *testing.T) {
 
 func TestPermissionAfterAgentRestart(t *testing.T) {
 	f := start(t, map[string]any{"resume": true, "prompt": []map[string]any{{"permission": permissionScript()}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "one")
-	f.waitStatus(t, project, session, "waiting")
-	first := ofKind(f.transcript(t, project, session).Entries, "permission")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	f.waitStatus(t, workspace, session, "waiting")
+	first := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, first, 1)
-	f.answerPermission(t, project, session, first[0].ID)
-	f.waitStatus(t, project, session, "done")
+	f.answerPermission(t, workspace, session, first[0].ID)
+	f.waitStatus(t, workspace, session, "done")
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	require.NoError(t, syscall.Kill(starts[0].PID, syscall.SIGKILL))
-	f.waitStatus(t, project, session, "error")
+	f.waitStatus(t, workspace, session, "error")
 
-	f.prompt(t, project, session, "two")
-	f.waitStatus(t, project, session, "waiting")
+	f.prompt(t, workspace, session, "two")
+	f.waitStatus(t, workspace, session, "waiting")
 
-	perms := ofKind(f.transcript(t, project, session).Entries, "permission")
+	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
 	require.Len(t, perms, 2)
 	assert.NotEqual(t, perms[0].ID, perms[1].ID)
 	assert.Equal(t, 2, perms[1].Turn)
@@ -806,17 +806,17 @@ func TestPermissionAfterAgentRestart(t *testing.T) {
 func TestDeleteWorkspaceDeletesSessions(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "go")
-	f.waitStatus(t, project, session, "done")
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "done")
 	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
 	require.FileExists(t, path)
 
-	require.NoError(t, f.h.Svc.DeleteProject(t.Context(), project))
+	require.NoError(t, f.h.Svc.DeleteWorkspace(t.Context(), workspace))
 
 	testutil.Eventually(t, func() bool {
-		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+project+"/"+session)
+		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
 		require.NoError(t, err)
 		_, statErr := os.Stat(path)
 		return !found && errors.Is(statErr, os.ErrNotExist) && git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/") == ""
@@ -827,9 +827,9 @@ func TestDeleteWorkspaceDeletesSessions(t *testing.T) {
 
 func TestOrphanAgentReapedAfterPluginCrash(t *testing.T) {
 	f := start(t, map[string]any{"linger": true})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" }, wait)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, session).AgentSessionID != "" }, wait)
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 
@@ -845,25 +845,25 @@ func TestOrphanAgentReapedAfterPluginCrash(t *testing.T) {
 func TestStopRoot(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "go")
-	f.waitStatus(t, project, session, "done")
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "done")
 	require.NotEmpty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 
-	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"path": repo}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.stop-root", map[string]any{"path": repo}, nil))
 
-	assert.Equal(t, "closed", f.session(t, project, session).Status)
+	assert.Equal(t, "closed", f.session(t, workspace, session).Status)
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	assert.ErrorIs(t, syscall.Kill(starts[0].PID, 0), syscall.ESRCH)
 	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 
-	require.NoError(t, f.h.Svc.DeleteProject(t.Context(), project))
+	require.NoError(t, f.h.Svc.DeleteWorkspace(t.Context(), workspace))
 
 	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
 	testutil.Eventually(t, func() bool {
-		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+project+"/"+session)
+		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
 		require.NoError(t, err)
 		_, statErr := os.Stat(path)
 		return !found && errors.Is(statErr, os.ErrNotExist)
@@ -873,17 +873,17 @@ func TestStopRoot(t *testing.T) {
 func TestResumedSessionClosedWhenWorktreeVanishes(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
-	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"path": repo}, nil))
-	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": session}, nil))
-	require.NotEqual(t, "closed", f.session(t, project, session).Status)
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	require.NoError(t, f.run(t, workspace, "agents.stop-root", map[string]any{"path": repo}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": session}, nil))
+	require.NotEqual(t, "closed", f.session(t, workspace, session).Status)
 
 	require.NoError(t, os.RemoveAll(repo))
-	_, err := f.h.Svc.RenameProject(t.Context(), project, "renamed")
+	_, err := f.h.Svc.RenameWorkspace(t.Context(), workspace, "renamed")
 	require.NoError(t, err)
 
-	f.waitStatus(t, project, session, "closed")
+	f.waitStatus(t, workspace, session, "closed")
 }
 
 func cardsOf(n sdui.Node, typ string) []sdui.Node {
@@ -921,20 +921,20 @@ func echoed(t *testing.T, f *fixture, command string) json.RawMessage {
 
 func TestPermissionCardAction(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "go")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
 
-	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		cards := cardsOf(n, "permissionCard")
 		return len(cards) == 1 && cards[0].Props["outcome"] == nil
 	})
 	card := cardsOf(main, "permissionCard")[0]
 	assert.Equal(t, "Claude wants to run tests", card.Props["text"])
-	f.h.Event(t, project, "agents.main", card.ID, "permission", map[string]any{"request": card.Props["request"], "option": "allow"})
+	f.h.Event(t, workspace, "agents.main", card.ID, "permission", map[string]any{"request": card.Props["request"], "option": "allow"})
 
 	f.waitCall(t, "permission_response", func(c fakeCall) bool { return strings.Contains(string(c.Params), `"optionId":"allow"`) })
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		cards := cardsOf(n, "permissionCard")
 		return len(cards) == 1 && cards[0].Props["outcome"] == "allow"
 	})
@@ -943,14 +943,14 @@ func TestPermissionCardAction(t *testing.T) {
 func TestReviewActionUsesCheckpoint(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.EchoPluginDirAs(t, diffviewManifest))
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "change it")
-	f.waitStatus(t, project, session, "done")
-	sha := f.transcript(t, project, session).Turns[0].CheckpointSha
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "change it")
+	f.waitStatus(t, workspace, session, "done")
+	sha := f.transcript(t, workspace, session).Turns[0].CheckpointSha
 	require.NotEmpty(t, sha)
 
-	f.h.Event(t, project, "agents.main", session+"/review", "review", nil)
+	f.h.Event(t, workspace, "agents.main", session+"/review", "review", nil)
 
 	assert.JSONEq(t, `{"cwd":"`+repo+`","rev":"`+sha+`"}`, string(echoed(t, f, "editor-nvim.diffview")))
 }
@@ -958,24 +958,24 @@ func TestReviewActionUsesCheckpoint(t *testing.T) {
 func TestReviewButtonFollowsWorktreeChanges(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
 	button := func(n sdui.Node, id string) bool {
 		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == session+"/"+id })
 	}
 
-	f.prompt(t, project, session, "just answer")
-	f.waitStatus(t, project, session, "done")
-	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "message")) == 2 && !button(n, "stop") })
+	f.prompt(t, workspace, session, "just answer")
+	f.waitStatus(t, workspace, session, "done")
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "message")) == 2 && !button(n, "stop") })
 	assert.False(t, button(main, "review"))
 
 	write(t, filepath.Join(repo, "new.txt"), "x\n")
-	f.prompt(t, project, session, "now change it")
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return button(n, "review") })
+	f.prompt(t, workspace, session, "now change it")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return button(n, "review") })
 
 	require.NoError(t, os.Remove(filepath.Join(repo, "new.txt")))
-	f.h.Event(t, project, "agents.sidebar", session, "select", session)
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return !button(n, "review") })
+	f.h.Event(t, workspace, "agents.sidebar", session, "select", session)
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return !button(n, "review") })
 }
 
 func TestOpenLocationShowsEditor(t *testing.T) {
@@ -983,15 +983,15 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 	path := filepath.Join(repo, "a.go")
 	read := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read a.go", "kind": "read", "status": "completed", "locations": []map[string]any{{"path": path, "line": 1}}}
 	f := start(t, map[string]any{"prompt": []map[string]any{{"update": read}}}, testutil.EchoPluginDirAs(t, codeManifest))
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "read it")
-	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "toolCard")) == 1 })
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "read it")
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "toolCard")) == 1 })
 	card := cardsOf(main, "toolCard")[0]
 	c := f.h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, nil))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
 
-	f.h.Event(t, project, "agents.main", card.ID, "openLocation", map[string]any{"path": path, "line": 1})
+	f.h.Event(t, workspace, "agents.main", card.ID, "openLocation", map[string]any{"path": path, "line": 1})
 
 	assert.JSONEq(t, `{"path":"`+path+`","line":1}`, string(echoed(t, f, "editor-nvim.open")))
 	waitFocus(t, c, "editor-nvim", "editor-nvim.main")
@@ -999,15 +999,15 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 
 func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	first := f.newSession(t, project)
-	f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	first := f.newSession(t, workspace)
+	f.newSession(t, workspace)
 	c := f.h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, nil))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
 
-	require.NoError(t, f.run(t, project, "agents.reveal", map[string]any{"session": first}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.reveal", map[string]any{"session": first}, nil))
 
-	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == first })
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == first })
 	waitFocus(t, c, "agents", "agents.main")
 }
 
@@ -1034,34 +1034,34 @@ func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
 func TestCodePanelFollowsWorktree(t *testing.T) {
 	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest))
 	repo := newRepo(t)
-	project := f.project(t, repo)
-	first := f.newSession(t, project)
+	workspace := f.workspace(t, repo)
+	first := f.newSession(t, workspace)
 	shows := func(sid string) func(sdui.Node) bool {
 		return func(n sdui.Node) bool {
 			composers := cardsOf(n, "composer")
 			return len(composers) == 1 && strings.HasPrefix(composers[0].ID, sid+"/")
 		}
 	}
-	f.h.WaitSlot(t, project, "editor-nvim.sidebar", shows(first))
+	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", shows(first))
 
 	var other struct {
 		Session string `json:"session"`
 	}
-	require.NoError(t, f.run(t, project, "agents.new", map[string]any{"branch": "side"}, &other))
-	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return strings.Contains(string(rawTree(t, n)), other.Session) })
-	panel := f.h.WaitSlot(t, project, "editor-nvim.sidebar", shows(first))
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"branch": "side"}, &other))
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return strings.Contains(string(rawTree(t, n)), other.Session) })
+	panel := f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", shows(first))
 	assert.NotContains(t, string(rawTree(t, panel)), other.Session)
 
 	c := f.h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, nil))
-	f.h.Event(t, project, "editor-nvim.sidebar", "code/new", "codeNew", nil)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
+	f.h.Event(t, workspace, "editor-nvim.sidebar", "code/new", "codeNew", nil)
 	waitFocus(t, c, "editor-nvim", "editor-nvim.sidebar")
-	panel = f.h.WaitSlot(t, project, "editor-nvim.sidebar", func(n sdui.Node) bool { return !shows(first)(n) && len(cardsOf(n, "composer")) == 1 })
+	panel = f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool { return !shows(first)(n) && len(cardsOf(n, "composer")) == 1 })
 	second := strings.SplitN(cardsOf(panel, "composer")[0].ID, "/", 2)[0]
 	assert.NotEqual(t, other.Session, second)
 
-	f.h.Event(t, project, "editor-nvim.sidebar", "code/session", "codeSelect", first)
-	f.h.WaitSlot(t, project, "editor-nvim.sidebar", shows(first))
+	f.h.Event(t, workspace, "editor-nvim.sidebar", "code/session", "codeSelect", first)
+	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", shows(first))
 }
 
 func rawTree(t *testing.T, n sdui.Node) []byte {
@@ -1074,54 +1074,54 @@ func rawTree(t *testing.T, n sdui.Node) []byte {
 func TestSignInReattaches(t *testing.T) {
 	authFile := filepath.Join(t.TempDir(), "authed")
 	f := start(t, map[string]any{"authFile": authFile})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.waitStatus(t, project, session, "error")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.waitStatus(t, workspace, session, "error")
 	require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
 
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.Props["action"] == "signIn" })
 	})
-	f.h.Event(t, project, "agents.main", session+"/signin", "signIn", nil)
+	f.h.Event(t, workspace, "agents.main", session+"/signin", "signIn", nil)
 
 	testutil.Eventually(t, func() bool {
 		require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
-		return f.session(t, project, session).Status == "idle"
+		return f.session(t, workspace, session).Status == "idle"
 	}, wait)
-	assert.NotEmpty(t, f.session(t, project, session).AgentSessionID)
+	assert.NotEmpty(t, f.session(t, workspace, session).AgentSessionID)
 	assert.FileExists(t, authFile)
 }
 
 func TestCloseCancelsSignIn(t *testing.T) {
 	f := start(t, map[string]any{"authFile": filepath.Join(t.TempDir(), "authed")})
-	project := f.project(t, newRepo(t))
-	id := f.newSession(t, project)
-	f.waitStatus(t, project, id, "error")
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	workspace := f.workspace(t, newRepo(t))
+	id := f.newSession(t, workspace)
+	f.waitStatus(t, workspace, id, "error")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.Props["action"] == "signIn" })
 	})
-	f.h.Event(t, project, "agents.main", id+"/signin", "signIn", nil)
+	f.h.Event(t, workspace, "agents.main", id+"/signin", "signIn", nil)
 
-	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": id}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": id}, nil))
 	require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
 
-	terminals, err := f.h.Svc.ListSessions(t.Context(), session.ListFilter{ProjectID: project, Owner: "agents"})
+	terminals, err := f.h.Svc.ListSessions(t.Context(), session.ListFilter{WorkspaceID: workspace, Owner: "agents"})
 	require.NoError(t, err)
 	assert.Empty(t, terminals)
 	for range 10 {
 		time.Sleep(50 * time.Millisecond)
 		require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
-		require.Equal(t, "closed", f.session(t, project, id).Status)
+		require.Equal(t, "closed", f.session(t, workspace, id).Status)
 	}
 }
 
-func (f *fixture) rev(t *testing.T, project, slot string) int64 {
+func (f *fixture) rev(t *testing.T, workspace, slot string) int64 {
 	t.Helper()
 	var views []struct {
 		Slot string `json:"slot"`
 		Rev  int64  `json:"rev"`
 	}
-	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"projectId": project}, &views))
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"workspaceId": workspace}, &views))
 	for _, v := range views {
 		if v.Slot == slot {
 			return v.Rev
@@ -1136,23 +1136,23 @@ func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
 		steps = append(steps, map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": strconv.Itoa(i)}}}, map[string]any{"sleep": 10})
 	}
 	f := start(t, map[string]any{"prompt": steps})
-	project := f.project(t, newRepo(t))
-	background := f.newSession(t, project)
-	open := f.newSession(t, project)
-	f.waitStatus(t, project, background, "idle")
-	f.waitStatus(t, project, open, "idle")
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	workspace := f.workspace(t, newRepo(t))
+	background := f.newSession(t, workspace)
+	open := f.newSession(t, workspace)
+	f.waitStatus(t, workspace, background, "idle")
+	f.waitStatus(t, workspace, open, "idle")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return len(cardsOf(n, "composer")) == 1 && strings.HasPrefix(cardsOf(n, "composer")[0].ID, open+"/")
 	})
 	time.Sleep(300 * time.Millisecond)
-	main, sidebar := f.rev(t, project, "agents.main"), f.rev(t, project, "agents.sidebar")
+	main, sidebar := f.rev(t, workspace, "agents.main"), f.rev(t, workspace, "agents.sidebar")
 
-	f.prompt(t, project, background, "go")
-	f.waitStatus(t, project, background, "done")
+	f.prompt(t, workspace, background, "go")
+	f.waitStatus(t, workspace, background, "done")
 	time.Sleep(300 * time.Millisecond)
 
-	assert.Equal(t, main, f.rev(t, project, "agents.main"))
-	assert.Greater(t, f.rev(t, project, "agents.sidebar"), sidebar)
+	assert.Equal(t, main, f.rev(t, workspace, "agents.main"))
+	assert.Greater(t, f.rev(t, workspace, "agents.sidebar"), sidebar)
 }
 
 func TestHiddenSlotsStayUnrendered(t *testing.T) {
@@ -1165,11 +1165,11 @@ func TestHiddenSlotsStayUnrendered(t *testing.T) {
 		commands = append(commands, map[string]string{"name": "skill-" + strconv.Itoa(i), "description": strings.Repeat("Use when the task needs skill "+strconv.Itoa(i)+". ", 25)})
 	}
 	f := start(t, map[string]any{"prompt": steps, "commands": commands}, testutil.EchoPluginDirAs(t, codeManifest))
-	project := f.project(t, newRepo(t))
+	workspace := f.workspace(t, newRepo(t))
 	c := f.h.Client(t)
-	session := f.newSession(t, project)
-	f.waitStatus(t, project, session, "idle")
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	session := f.newSession(t, workspace)
+	f.waitStatus(t, workspace, session, "idle")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		composers := cardsOf(n, "composer")
 		return len(composers) == 1 && composers[0].Props["commands"] != nil
 	})
@@ -1178,26 +1178,26 @@ func TestHiddenSlotsStayUnrendered(t *testing.T) {
 	renders := map[string]map[string]int64{}
 	for _, section := range []string{"agents", "terminals", "closed"} {
 		if section == "closed" {
-			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"projectId": project, "key": "section", "value": "agents"}, nil))
-			require.NoError(t, c.Call(t.Context(), "ui.unsubscribe", map[string]string{"subscription": f.subs[project]}, nil))
+			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"workspaceId": workspace, "key": "section", "value": "agents"}, nil))
+			require.NoError(t, c.Call(t.Context(), "ui.unsubscribe", map[string]string{"subscription": f.subs[workspace]}, nil))
 		} else {
-			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"projectId": project, "key": "section", "value": section}, nil))
+			require.NoError(t, c.Call(t.Context(), "ui.state.patch", map[string]any{"workspaceId": workspace, "key": "section", "value": section}, nil))
 		}
 		time.Sleep(300 * time.Millisecond)
 		before := map[string]int64{}
 		for _, slot := range slots {
-			before[slot] = f.rev(t, project, slot)
+			before[slot] = f.rev(t, workspace, slot)
 		}
 		began := time.Now()
-		f.prompt(t, project, session, "go")
-		f.waitStatus(t, project, session, "done")
+		f.prompt(t, workspace, session, "go")
+		f.waitStatus(t, workspace, session, "done")
 		took := time.Since(began)
 		time.Sleep(300 * time.Millisecond)
 		renders[section] = map[string]int64{}
 		for _, slot := range slots {
-			renders[section][slot] = f.rev(t, project, slot) - before[slot]
+			renders[section][slot] = f.rev(t, workspace, slot) - before[slot]
 		}
-		t.Logf("section %s, turn %s: renders %v, agents.main %d bytes", section, took.Round(time.Millisecond), renders[section], f.treeBytes(t, project, "agents.main"))
+		t.Logf("section %s, turn %s: renders %v, agents.main %d bytes", section, took.Round(time.Millisecond), renders[section], f.treeBytes(t, workspace, "agents.main"))
 	}
 
 	assert.Positive(t, renders["agents"]["agents.main"])
@@ -1206,18 +1206,18 @@ func TestHiddenSlotsStayUnrendered(t *testing.T) {
 	assert.Zero(t, renders["terminals"]["editor-nvim.sidebar"])
 	assert.Equal(t, map[string]int64{"agents.main": 0, "agents.sidebar": 0, "editor-nvim.sidebar": 0}, renders["closed"])
 
-	main := f.rev(t, project, "agents.main")
-	f.subscribe(t, project)
-	testutil.Eventually(t, func() bool { return f.rev(t, project, "agents.main") > main }, wait)
+	main := f.rev(t, workspace, "agents.main")
+	f.subscribe(t, workspace)
+	testutil.Eventually(t, func() bool { return f.rev(t, workspace, "agents.main") > main }, wait)
 }
 
-func (f *fixture) treeBytes(t *testing.T, project, slot string) int {
+func (f *fixture) treeBytes(t *testing.T, workspace, slot string) int {
 	t.Helper()
 	var views []struct {
 		Slot string          `json:"slot"`
 		Tree json.RawMessage `json:"tree"`
 	}
-	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"projectId": project}, &views))
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"workspaceId": workspace}, &views))
 	for _, v := range views {
 		if v.Slot == slot {
 			return len(v.Tree)
@@ -1229,50 +1229,50 @@ func (f *fixture) treeBytes(t *testing.T, project, slot string) int {
 func TestContinueHandsOff(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
-	project := f.project(t, repo)
-	old := f.newSession(t, project)
-	f.waitStatus(t, project, old, "idle")
-	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": old}, nil))
+	workspace := f.workspace(t, repo)
+	old := f.newSession(t, workspace)
+	f.waitStatus(t, workspace, old, "idle")
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": old}, nil))
 
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == old+"/continue" })
 	})
-	f.h.Event(t, project, "agents.main", old+"/continue", "continue", nil)
+	f.h.Event(t, workspace, "agents.main", old+"/continue", "continue", nil)
 
 	var list []record
-	require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
 	require.Len(t, list, 2)
 	fresh := list[1]
 	assert.NotEqual(t, old, fresh.ID)
 	assert.Equal(t, repo, fresh.Worktree)
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return len(cardsOf(n, "transcript")) == 1 && cardsOf(n, "transcript")[0].ID == fresh.ID+"/transcript"
 	})
 	assert.Equal(t, old, fresh.HandoffFrom)
-	assert.Equal(t, fresh.ID, f.session(t, project, old).HandoffTo)
+	assert.Equal(t, fresh.ID, f.session(t, workspace, old).HandoffTo)
 }
 
 func TestHandoff(t *testing.T) {
 	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 800}, reply}})
-	project := f.project(t, newRepo(t))
-	old := f.newSession(t, project)
-	f.prompt(t, project, old, "fix refunds")
+	workspace := f.workspace(t, newRepo(t))
+	old := f.newSession(t, workspace)
+	f.prompt(t, workspace, old, "fix refunds")
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 
 	args := map[string]any{"session": old, "note": "finish it"}
-	require.ErrorContains(t, f.run(t, project, "agents.handoff", args, nil), "stop the session's running turn before handing it off")
-	f.waitStatus(t, project, old, "done")
-	require.NoError(t, f.run(t, project, "agents.notify", map[string]any{"session": old, "policy": "muted"}, nil))
+	require.ErrorContains(t, f.run(t, workspace, "agents.handoff", args, nil), "stop the session's running turn before handing it off")
+	f.waitStatus(t, workspace, old, "done")
+	require.NoError(t, f.run(t, workspace, "agents.notify", map[string]any{"session": old, "policy": "muted"}, nil))
 	var out struct {
 		Session string `json:"session"`
 	}
-	require.NoError(t, f.run(t, project, "agents.handoff", args, &out))
+	require.NoError(t, f.run(t, workspace, "agents.handoff", args, &out))
 
-	next := f.session(t, project, out.Session)
+	next := f.session(t, workspace, out.Session)
 	assert.Equal(t, old, next.HandoffFrom)
 	assert.Equal(t, "muted", next.Notify)
-	closed := f.waitStatus(t, project, old, "closed")
+	closed := f.waitStatus(t, workspace, old, "closed")
 	assert.Equal(t, out.Session, closed.HandoffTo)
 	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.HasSuffix(promptText(t, c), "finish it") })
 	assert.Contains(t, promptText(t, sent), "Last reply (turn 1):\nhalf done")
@@ -1282,7 +1282,7 @@ func TestExportImportContinuesInAnotherClone(t *testing.T) {
 	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
 	f := start(t, map[string]any{"prompt": []map[string]any{reply}})
 	repo := newRepo(t)
-	from := f.project(t, repo)
+	from := f.workspace(t, repo)
 	old := f.newSession(t, from)
 	f.prompt(t, from, old, "fix refunds")
 	f.waitStatus(t, from, old, "done")
@@ -1293,7 +1293,7 @@ func TestExportImportContinuesInAnotherClone(t *testing.T) {
 	git(t, repo, "clone", "-q", repo, clone)
 	clone, err := filepath.EvalSymlinks(clone)
 	require.NoError(t, err)
-	to := f.project(t, clone)
+	to := f.workspace(t, clone)
 	var out struct {
 		Session  string `json:"session"`
 		Imported string `json:"imported"`
@@ -1334,79 +1334,79 @@ func buttonsWith(n sdui.Node, action string) []sdui.Node {
 func startQueued(t *testing.T, queued ...string) (*fixture, string, string) {
 	t.Helper()
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "one")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 	for _, text := range queued {
-		f.prompt(t, project, session, text)
+		f.prompt(t, workspace, session, text)
 	}
-	return f, project, session
+	return f, workspace, session
 }
 
 func TestQueuedPromptsSentAsNextTurn(t *testing.T) {
-	f, project, session := startQueued(t, "two", "three")
+	f, workspace, session := startQueued(t, "two", "three")
 
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "two\n\nthree" })
-	f.waitStatus(t, project, session, "done")
+	f.waitStatus(t, workspace, session, "done")
 	assert.Len(t, f.calls(t, "session/prompt"), 2)
-	assert.Len(t, f.transcript(t, project, session).Turns, 2)
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 0 })
+	assert.Len(t, f.transcript(t, workspace, session).Turns, 2)
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 0 })
 }
 
 func TestInternalErrorRetriesTurnOnce(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "boom", "fail": "no results for tool calls"}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "boom")
+	f.prompt(t, workspace, session, "boom")
 
-	f.waitStatus(t, project, session, "done")
+	f.waitStatus(t, workspace, session, "done")
 	prompts := f.calls(t, "session/prompt")
 	require.Len(t, prompts, 2)
 	assert.Contains(t, promptText(t, prompts[1]), "no results for tool calls")
-	assert.Len(t, f.transcript(t, project, session).Turns, 1)
+	assert.Len(t, f.transcript(t, workspace, session).Turns, 1)
 }
 
 func TestInternalErrorAfterRetryFailsTurn(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"fail": "no results for tool calls"}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "boom")
+	f.prompt(t, workspace, session, "boom")
 
-	got := f.waitStatus(t, project, session, "error")
+	got := f.waitStatus(t, workspace, session, "error")
 	assert.Len(t, f.calls(t, "session/prompt"), 2)
 	assert.Contains(t, got.Error, "no results for tool calls")
 }
 
 func TestCancelKeepsQueue(t *testing.T) {
-	f, project, session := startQueued(t, "two")
+	f, workspace, session := startQueued(t, "two")
 
-	require.NoError(t, f.run(t, project, "agents.cancel", map[string]any{"session": session}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.cancel", map[string]any{"session": session}, nil))
 
-	f.waitStatus(t, project, session, "done")
-	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "sendQueued")) == 1 })
+	f.waitStatus(t, workspace, session, "done")
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "sendQueued")) == 1 })
 	assert.Len(t, buttonsWith(main, "unqueue"), 1)
 	assert.Len(t, f.calls(t, "session/prompt"), 1)
-	f.h.Event(t, project, "agents.main", buttonsWith(main, "sendQueued")[0].ID, "sendQueued", nil)
+	f.h.Event(t, workspace, "agents.main", buttonsWith(main, "sendQueued")[0].ID, "sendQueued", nil)
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "two" })
 }
 
 func TestUnqueueDropsPrompt(t *testing.T) {
-	f, project, _ := startQueued(t, "two", "three")
-	main := f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
+	f, workspace, _ := startQueued(t, "two", "three")
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 2 })
 
-	f.h.Event(t, project, "agents.main", buttonsWith(main, "unqueue")[0].ID, "unqueue", nil)
+	f.h.Event(t, workspace, "agents.main", buttonsWith(main, "unqueue")[0].ID, "unqueue", nil)
 
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "three" })
 }
 
-func userTexts(t *testing.T, f *fixture, project, session string) []string {
+func userTexts(t *testing.T, f *fixture, workspace, session string) []string {
 	t.Helper()
 	var out []string
-	for _, en := range ofKind(f.transcript(t, project, session).Entries, "user") {
+	for _, en := range ofKind(f.transcript(t, workspace, session).Entries, "user") {
 		out = append(out, en.Text)
 	}
 	return out
@@ -1414,44 +1414,44 @@ func userTexts(t *testing.T, f *fixture, project, session string) []string {
 
 func TestPromptDuringTurnSteers(t *testing.T) {
 	f := start(t, map[string]any{"steering": true, "prompt": []map[string]any{{"sleep": 1500}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "one")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		c := cardsOf(n, "composer")
 		return len(c) == 1 && c[0].Props["steers"] == true
 	})
-	f.prompt(t, project, session, "two")
+	f.prompt(t, workspace, session, "two")
 
 	f.waitCall(t, "_session/steering", func(c fakeCall) bool { return promptText(t, c) == "two" })
-	assert.Equal(t, []string{"one", "two"}, userTexts(t, f, project, session))
-	f.waitStatus(t, project, session, "done")
+	assert.Equal(t, []string{"one", "two"}, userTexts(t, f, workspace, session))
+	f.waitStatus(t, workspace, session, "done")
 	assert.Len(t, f.calls(t, "session/prompt"), 1)
-	assert.Len(t, f.transcript(t, project, session).Turns, 1)
+	assert.Len(t, f.transcript(t, workspace, session).Turns, 1)
 }
 
 func TestSteerPromptRequiredQueues(t *testing.T) {
 	f := start(t, map[string]any{"steering": true, "idle": true, "prompt": []map[string]any{{"sleep": 1500}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "one")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 
-	f.prompt(t, project, session, "two")
+	f.prompt(t, workspace, session, "two")
 
 	f.waitCall(t, "_session/steering", func(c fakeCall) bool { return promptText(t, c) == "two" })
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == "two" })
-	f.waitStatus(t, project, session, "done")
-	assert.Equal(t, []string{"one", "two"}, userTexts(t, f, project, session))
+	f.waitStatus(t, workspace, session, "done")
+	assert.Equal(t, []string{"one", "two"}, userTexts(t, f, workspace, session))
 }
 
 func TestAgentProcessRegistered(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{"linger": true})
-	project := f.project(t, repo)
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
 	type root struct {
 		ID    string `json:"id"`
 		Label string `json:"label"`
@@ -1461,17 +1461,17 @@ func TestAgentProcessRegistered(t *testing.T) {
 	}
 	roots := func() []root {
 		var out []root
-		require.NoError(t, f.h.Client(t).Call(t.Context(), "process.roots", map[string]string{"projectId": project}, &out))
+		require.NoError(t, f.h.Client(t).Call(t.Context(), "process.roots", map[string]string{"workspaceId": workspace}, &out))
 		return out
 	}
-	testutil.Eventually(t, func() bool { return f.session(t, project, session).AgentSessionID != "" && len(roots()) == 1 }, wait)
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, session).AgentSessionID != "" && len(roots()) == 1 }, wait)
 	got := roots()[0]
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	assert.Equal(t, root{ID: got.ID, Label: "Claude · " + filepath.Base(repo), Owner: "agents", PID: starts[0].PID}, got)
 
 	require.NoError(t, f.h.Client(t).Call(t.Context(), "process.kill", map[string]any{"sessionId": got.ID, "pids": []int{got.PID}}, nil))
-	f.waitStatus(t, project, session, "error")
+	f.waitStatus(t, workspace, session, "error")
 	left := roots()
 	require.Len(t, left, 1)
 	assert.True(t, left[0].Ended)
@@ -1482,10 +1482,10 @@ type child struct {
 	Worktree string `json:"worktree"`
 }
 
-func (f *fixture) newChild(t *testing.T, project, caller string, args map[string]any) child {
+func (f *fixture) newChild(t *testing.T, workspace, caller string, args map[string]any) child {
 	t.Helper()
 	var out child
-	require.NoError(t, f.runAs(t, project, caller, "agents.new", args, &out))
+	require.NoError(t, f.runAs(t, workspace, caller, "agents.new", args, &out))
 	require.NotEmpty(t, out.Session)
 	return out
 }
@@ -1515,22 +1515,22 @@ func TestAgentNewCreatesChildInOwnWorktree(t *testing.T) {
 		},
 	}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
-	project := f.project(t, repo)
-	parent := f.newSession(t, project)
-	f.prompt(t, project, parent, "orchestrate")
-	f.waitStatus(t, project, parent, "done")
-	require.NoError(t, f.run(t, project, "agents.mode", map[string]any{"session": parent, "mode": "plan"}, nil))
-	require.NoError(t, f.run(t, project, "agents.config", map[string]any{"session": parent, "id": "model", "value": "opus"}, nil))
-	require.NoError(t, f.run(t, project, "agents.config", map[string]any{"session": parent, "id": "advisor", "value": "opus"}, nil))
+	workspace := f.workspace(t, repo)
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "orchestrate")
+	f.waitStatus(t, workspace, parent, "done")
+	require.NoError(t, f.run(t, workspace, "agents.mode", map[string]any{"session": parent, "mode": "plan"}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.config", map[string]any{"session": parent, "id": "model", "value": "opus"}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.config", map[string]any{"session": parent, "id": "advisor", "value": "opus"}, nil))
 
-	out := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "hi"})
+	out := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "hi"})
 
 	assert.Equal(t, filepath.Join(repo, ".worktrees", "c1"), out.Worktree)
-	got := f.waitStatus(t, project, out.Session, "done")
+	got := f.waitStatus(t, workspace, out.Session, "done")
 	assert.Equal(t, parent, got.ParentSession)
 	assert.Equal(t, out.Worktree, got.Worktree)
 	assert.Equal(t, "plan", got.Mode)
-	p, err := f.h.Svc.GetProject(t.Context(), project)
+	p, err := f.h.Svc.GetWorkspace(t.Context(), workspace)
 	require.NoError(t, err)
 	assert.Equal(t, []string{repo}, p.Roots)
 	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), got.AgentSessionID) })
@@ -1548,15 +1548,15 @@ func TestAgentNewCreatesChildInOwnWorktree(t *testing.T) {
 
 func TestChildLimit(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	idle := f.newChild(t, project, parent, map[string]any{}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	idle := f.newChild(t, workspace, parent, map[string]any{}).Session
 	for range 8 {
-		f.newChild(t, project, parent, map[string]any{"prompt": "work"})
+		f.newChild(t, workspace, parent, map[string]any{"prompt": "work"})
 	}
 
-	started := f.runAs(t, project, parent, "agents.new", map[string]any{"prompt": "work"}, nil)
-	prompted := f.runAs(t, project, parent, "agents.prompt", map[string]any{"session": idle, "text": "work"}, nil)
+	started := f.runAs(t, workspace, parent, "agents.new", map[string]any{"prompt": "work"}, nil)
+	prompted := f.runAs(t, workspace, parent, "agents.prompt", map[string]any{"session": idle, "text": "work"}, nil)
 
 	require.Error(t, started)
 	require.Error(t, prompted)
@@ -1566,9 +1566,9 @@ func TestChildLimit(t *testing.T) {
 
 func TestChildrenFoldedUntilOpenedAndRemembered(t *testing.T) {
 	f := start(t, map[string]any{})
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{}).Session
 	expanded := func(n sdui.Node) (bool, bool) {
 		trees := cardsOf(n, "tree")
 		if len(trees) == 0 {
@@ -1588,31 +1588,31 @@ func TestChildrenFoldedUntilOpenedAndRemembered(t *testing.T) {
 		return false, false
 	}
 
-	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { open, ok := expanded(n); return ok && !open })
-	f.h.Event(t, project, "agents.sidebar", kid, "select", kid)
-	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { open, _ := expanded(n); return open })
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { open, ok := expanded(n); return ok && !open })
+	f.h.Event(t, workspace, "agents.sidebar", kid, "select", kid)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { open, _ := expanded(n); return open })
 
-	before := f.rev(t, project, "agents.sidebar")
-	f.restartPlugin(t, project)
-	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool {
+	before := f.rev(t, workspace, "agents.sidebar")
+	f.restartPlugin(t, workspace)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
 		open, _ := expanded(n)
-		return open && f.rev(t, project, "agents.sidebar") > before
+		return open && f.rev(t, workspace, "agents.sidebar") > before
 	})
 }
 
 func TestDeleteParentDeletesChildren(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 5000}}})
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{"prompt": "work"}).Session
-	grandkid := f.newChild(t, project, kid, map[string]any{}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "work"}).Session
+	grandkid := f.newChild(t, workspace, kid, map[string]any{}).Session
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 
-	require.NoError(t, f.run(t, project, "agents.delete", map[string]any{"session": parent}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.delete", map[string]any{"session": parent}, nil))
 
 	f.waitCall(t, "session/cancel", func(fakeCall) bool { return true })
 	var list []record
-	require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
 	for _, r := range list {
 		assert.NotContains(t, []string{parent, kid, grandkid}, r.ID)
 	}
@@ -1623,44 +1623,44 @@ func TestDeleteParentDeletesChildren(t *testing.T) {
 
 func TestCloseParentClosesChildren(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{}).Session
-	grandkid := f.newChild(t, project, kid, map[string]any{}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{}).Session
+	grandkid := f.newChild(t, workspace, kid, map[string]any{}).Session
 
-	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": parent}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.close", map[string]any{"session": parent}, nil))
 
-	f.waitStatus(t, project, kid, "closed")
-	f.waitStatus(t, project, grandkid, "closed")
+	f.waitStatus(t, workspace, kid, "closed")
+	f.waitStatus(t, workspace, grandkid, "closed")
 }
 
 func TestChildWorktreeFailure(t *testing.T) {
 	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".worktrees", "c1"), 0o700))
-	project := f.project(t, repo)
-	parent := f.newSession(t, project)
+	workspace := f.workspace(t, repo)
+	parent := f.newSession(t, workspace)
 
-	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "hi"}).Session
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "hi"}).Session
 
-	assert.Contains(t, f.waitStatus(t, project, kid, "error").Error, ".worktrees/c1 already exists")
+	assert.Contains(t, f.waitStatus(t, workspace, kid, "error").Error, ".worktrees/c1 already exists")
 
 	require.NoError(t, os.Remove(filepath.Join(repo, ".worktrees", "c1")))
-	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": kid}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.resume", map[string]any{"session": kid}, nil))
 
-	f.waitStatus(t, project, kid, "idle")
+	f.waitStatus(t, workspace, kid, "idle")
 	assert.Contains(t, git(t, repo, "worktree", "list"), filepath.Join(repo, ".worktrees", "c1"))
 }
 
 func TestChildAdvisorOnlyInRecord(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{}).Session
 
-	require.NoError(t, f.run(t, project, "agents.config", map[string]any{"session": kid, "id": "advisor", "value": "opus"}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.config", map[string]any{"session": kid, "id": "advisor", "value": "opus"}, nil))
 
-	assert.Equal(t, "opus", f.session(t, project, kid).Advisor)
+	assert.Equal(t, "opus", f.session(t, workspace, kid).Advisor)
 	keys, err := f.h.KV.List(t.Context(), "agents", "advisor/")
 	require.NoError(t, err)
 	assert.Empty(t, keys)
@@ -1668,57 +1668,57 @@ func TestChildAdvisorOnlyInRecord(t *testing.T) {
 
 func TestAgentPromptWithoutCaller(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	require.NoError(t, f.runAs(t, project, "", "agents.prompt", map[string]any{"session": session, "text": "hi"}, nil))
+	require.NoError(t, f.runAs(t, workspace, "", "agents.prompt", map[string]any{"session": session, "text": "hi"}, nil))
 
 	sent := f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 	assert.Equal(t, "[From another agent session, not from the user]\n\nhi", promptText(t, sent))
-	f.waitStatus(t, project, session, "done")
+	f.waitStatus(t, workspace, session, "done")
 	actor, _ := promptEvent(t, f.logLines(t, session))
 	assert.Equal(t, "agent:unknown", actor)
 }
 
 func TestPermissionScope(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{"prompt": "go"}).Session
-	other := f.newChild(t, project, "", map[string]any{"prompt": "go"}).Session
-	assert.Empty(t, f.session(t, project, other).ParentSession)
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "go"}).Session
+	other := f.newChild(t, workspace, "", map[string]any{"prompt": "go"}).Session
+	assert.Empty(t, f.session(t, workspace, other).ParentSession)
 	answer := func(caller, session string) error {
-		f.waitStatus(t, project, session, "waiting")
-		request := ofKind(f.transcript(t, project, session).Entries, "permission")[0].ID
-		return f.runAs(t, project, caller, "agents.permission", map[string]any{"session": session, "request": request, "option": "allow"}, nil)
+		f.waitStatus(t, workspace, session, "waiting")
+		request := ofKind(f.transcript(t, workspace, session).Entries, "permission")[0].ID
+		return f.runAs(t, workspace, caller, "agents.permission", map[string]any{"session": session, "request": request, "option": "allow"}, nil)
 	}
 
-	assert.ErrorContains(t, f.runAs(t, project, parent, "agents.permission", map[string]any{"session": parent, "request": "permission-1", "option": "allow"}, nil), "the session was not started by this agent")
-	assert.ErrorContains(t, f.runAs(t, project, parent, "agents.cancel", map[string]any{"session": other}, nil), "the session was not started by this agent")
-	assert.ErrorContains(t, f.runAs(t, project, "", "agents.cancel", map[string]any{"session": kid}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runAs(t, workspace, parent, "agents.permission", map[string]any{"session": parent, "request": "permission-1", "option": "allow"}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runAs(t, workspace, parent, "agents.cancel", map[string]any{"session": other}, nil), "the session was not started by this agent")
+	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.cancel", map[string]any{"session": kid}, nil), "the session was not started by this agent")
 	assert.ErrorContains(t, answer(parent, other), "the session was not started by this agent")
 	assert.ErrorContains(t, answer("", kid), "the session was not started by this agent")
 	require.NoError(t, answer(parent, kid))
-	f.waitStatus(t, project, kid, "done")
-	request := ofKind(f.transcript(t, project, other).Entries, "permission")[0].ID
-	params := map[string]any{"id": "agents.permission", "projectId": project, "args": map[string]any{"session": other, "request": request, "option": "allow"}}
+	f.waitStatus(t, workspace, kid, "done")
+	request := ofKind(f.transcript(t, workspace, other).Entries, "permission")[0].ID
+	params := map[string]any{"id": "agents.permission", "workspaceId": workspace, "args": map[string]any{"session": other, "request": request, "option": "allow"}}
 	assert.ErrorContains(t, f.h.Client(t).Call(t.Context(), "command.run", params, nil), "the session was not started by this agent")
 	params["via"] = "remote"
 	assert.ErrorContains(t, f.h.Client(t).Call(t.Context(), "command.run", params, nil), "the session was not started by this agent")
 	delete(params, "via")
 	require.NoError(t, f.h.PluginCall(t, "remote", "command.run", params))
-	f.waitStatus(t, project, other, "done")
+	f.waitStatus(t, workspace, other, "done")
 }
 
 func TestAnswerIsUserTurn(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{}).Session
 
-	require.NoError(t, f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "agents.answer", "projectId": project, "args": map[string]any{"session": kid, "text": "yes"}, "caller": parent}, nil))
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "agents.answer", "workspaceId": workspace, "args": map[string]any{"session": kid, "text": "yes"}, "caller": parent}, nil))
 
-	f.waitStatus(t, project, kid, "done")
+	f.waitStatus(t, workspace, kid, "done")
 	sent := f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 	assert.Equal(t, "yes", promptText(t, sent))
 	actor, from := promptEvent(t, f.logLines(t, kid))
@@ -1728,16 +1728,16 @@ func TestAnswerIsUserTurn(t *testing.T) {
 
 func TestNotifyPolicy(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{"notify": "needs-input"}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"notify": "needs-input"}).Session
 	policies := func() map[string][2]string {
 		var list []struct {
 			ID              string `json:"id"`
 			Notify          string `json:"notify"`
 			NotifyEffective string `json:"notifyEffective"`
 		}
-		require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
 		out := map[string][2]string{}
 		for _, s := range list {
 			out[s.ID] = [2]string{s.Notify, s.NotifyEffective}
@@ -1746,11 +1746,11 @@ func TestNotifyPolicy(t *testing.T) {
 	}
 
 	assert.Equal(t, map[string][2]string{parent: {"", "all"}, kid: {"needs-input", "needs-input"}}, policies())
-	assert.ErrorContains(t, f.runAs(t, project, kid, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil), "the session was not started by this agent")
-	require.NoError(t, f.runAs(t, project, parent, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil))
+	assert.ErrorContains(t, f.runAs(t, workspace, kid, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil), "the session was not started by this agent")
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil))
 	assert.Equal(t, map[string][2]string{parent: {"muted", "muted"}, kid: {"needs-input", "muted"}}, policies())
 
-	f.h.Event(t, project, "agents.sidebar", "sessions", "notifyAll", parent)
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "notifyAll", parent)
 	assert.Equal(t, map[string][2]string{parent: {"", "all"}, kid: {"needs-input", "needs-input"}}, policies())
 }
 
@@ -1759,18 +1759,18 @@ func startWithGit(t *testing.T, dirs ...string) (*fixture, string, string, strin
 	f := start(t, nil, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json")}, dirs...)...)
 	repo := newRepo(t)
 	git(t, repo, "checkout", "-qb", "feat")
-	project := f.project(t, repo)
-	return f, repo, project, f.newSession(t, project)
+	workspace := f.workspace(t, repo)
+	return f, repo, workspace, f.newSession(t, workspace)
 }
 
 func TestChildPolicyNamesParentBranch(t *testing.T) {
-	f, repo, project, parent := startWithGit(t)
+	f, repo, workspace, parent := startWithGit(t)
 
-	own := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "own"}).Session
-	shared := f.newChild(t, project, parent, map[string]any{"prompt": "shared"}).Session
+	own := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "own"}).Session
+	shared := f.newChild(t, workspace, parent, map[string]any{"prompt": "shared"}).Session
 
 	sent := func(session string) string {
-		id := f.waitStatus(t, project, session, "done").AgentSessionID
+		id := f.waitStatus(t, workspace, session, "done").AgentSessionID
 		return string(f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), id) }).Params)
 	}
 	assert.Contains(t, sent(own), "merge your branch into feat inside "+repo+" (`git -C "+repo+" merge --no-edit c1`)")
@@ -1780,30 +1780,30 @@ func TestChildPolicyNamesParentBranch(t *testing.T) {
 
 func TestChildOfDefaultBranchOnlyCommits(t *testing.T) {
 	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
 
-	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "own"}).Session
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "own"}).Session
 
-	id := f.waitStatus(t, project, kid, "done").AgentSessionID
+	id := f.waitStatus(t, workspace, kid, "done").AgentSessionID
 	sent := string(f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), id) }).Params)
 	assert.Contains(t, sent, "commit your work and stop")
 	assert.NotContains(t, sent, "merge your branch")
 }
 
 func TestMergedChildCleanedUp(t *testing.T) {
-	f, repo, project, parent := startWithGit(t, testutil.EchoPluginDirAs(t, stopManifest))
-	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "plan"})
-	f.waitStatus(t, project, kid.Session, "done")
-	testutil.Never(t, func() bool { return f.session(t, project, kid.Session).Status == "closed" }, 500*time.Millisecond)
+	f, repo, workspace, parent := startWithGit(t, testutil.EchoPluginDirAs(t, stopManifest))
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
+	f.waitStatus(t, workspace, kid.Session, "done")
+	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status == "closed" }, 500*time.Millisecond)
 
 	write(t, filepath.Join(kid.Worktree, "b.go"), "two\n")
 	git(t, kid.Worktree, "add", ".")
 	git(t, kid.Worktree, "commit", "-qm", "work")
 	git(t, repo, "merge", "--no-edit", "c1")
-	require.NoError(t, f.runAs(t, project, parent, "agents.prompt", map[string]any{"session": kid.Session, "text": "finish"}, nil))
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.prompt", map[string]any{"session": kid.Session, "text": "finish"}, nil))
 
-	f.waitStatus(t, project, kid.Session, "closed")
+	f.waitStatus(t, workspace, kid.Session, "closed")
 	testutil.Eventually(t, func() bool {
 		_, err := os.Stat(kid.Worktree)
 		return errors.Is(err, os.ErrNotExist) && git(t, repo, "branch", "--list", "c1") == ""
@@ -1811,62 +1811,62 @@ func TestMergedChildCleanedUp(t *testing.T) {
 }
 
 func TestChildWithRemovedWorktreeClosedAfterParentTurn(t *testing.T) {
-	f, repo, project, parent := startWithGit(t)
-	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "plan"})
-	f.waitStatus(t, project, kid.Session, "done")
+	f, repo, workspace, parent := startWithGit(t)
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
+	f.waitStatus(t, workspace, kid.Session, "done")
 
 	git(t, repo, "worktree", "remove", "--force", kid.Worktree)
-	f.prompt(t, project, parent, "squashed")
+	f.prompt(t, workspace, parent, "squashed")
 
-	f.waitStatus(t, project, kid.Session, "closed")
+	f.waitStatus(t, workspace, kid.Session, "closed")
 }
 
-func mergeChild(t *testing.T, f *fixture, repo, project, parent string, kid child) {
+func mergeChild(t *testing.T, f *fixture, repo, workspace, parent string, kid child) {
 	t.Helper()
-	f.waitStatus(t, project, kid.Session, "done")
+	f.waitStatus(t, workspace, kid.Session, "done")
 	write(t, filepath.Join(kid.Worktree, "b.go"), "two\n")
 	git(t, kid.Worktree, "add", ".")
 	git(t, kid.Worktree, "commit", "-qm", "work")
 	git(t, repo, "merge", "--no-edit", "c1")
-	require.NoError(t, f.runAs(t, project, parent, "agents.prompt", map[string]any{"session": kid.Session, "text": "Merged, may I stop?"}, nil))
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.prompt", map[string]any{"session": kid.Session, "text": "Merged, may I stop?"}, nil))
 }
 
 func TestMergedChildAskingStaysOpen(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"), testutil.EchoPluginDirAs(t, stopManifest))
 	repo := newRepo(t)
 	git(t, repo, "checkout", "-qb", "feat")
-	project := f.project(t, repo)
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "plan"})
+	workspace := f.workspace(t, repo)
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
 
-	mergeChild(t, f, repo, project, parent, kid)
+	mergeChild(t, f, repo, workspace, parent, kid)
 
-	testutil.Eventually(t, func() bool { return f.session(t, project, kid.Session).Asks }, wait)
-	testutil.Never(t, func() bool { return f.session(t, project, kid.Session).Status == "closed" }, 500*time.Millisecond)
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, kid.Session).Asks }, wait)
+	testutil.Never(t, func() bool { return f.session(t, workspace, kid.Session).Status == "closed" }, 500*time.Millisecond)
 	assert.DirExists(t, kid.Worktree)
 }
 
 func TestMergedChildCleanupFailureNotice(t *testing.T) {
 	failing := strings.Replace(stopManifest, `"echoResults"`, `"echoErrors":{"editor-nvim.stop-root":"unsaved buffers: b.go"},"echoResults"`, 1)
-	f, repo, project, parent := startWithGit(t, testutil.EchoPluginDirAs(t, failing))
-	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "plan"})
+	f, repo, workspace, parent := startWithGit(t, testutil.EchoPluginDirAs(t, failing))
+	kid := f.newChild(t, workspace, parent, map[string]any{"branch": "c1", "prompt": "plan"})
 
-	mergeChild(t, f, repo, project, parent, kid)
+	mergeChild(t, f, repo, workspace, parent, kid)
 
-	f.waitStatus(t, project, kid.Session, "closed")
-	testutil.Eventually(t, func() bool { return len(ofKind(f.transcript(t, project, kid.Session).Entries, "notice")) == 1 }, wait)
+	f.waitStatus(t, workspace, kid.Session, "closed")
+	testutil.Eventually(t, func() bool { return len(ofKind(f.transcript(t, workspace, kid.Session).Entries, "notice")) == 1 }, wait)
 	assert.Contains(t, f.logText(t, kid.Session), "unsaved buffers: b.go")
 	assert.DirExists(t, kid.Worktree)
 }
 
 func TestOrchestratorPolicyAfterFirstChild(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	parent, alone := f.newSession(t, project), f.newSession(t, project)
-	f.newChild(t, project, parent, map[string]any{})
+	workspace := f.workspace(t, newRepo(t))
+	parent, alone := f.newSession(t, workspace), f.newSession(t, workspace)
+	f.newChild(t, workspace, parent, map[string]any{})
 
-	f.prompt(t, project, parent, "orchestrate")
-	f.prompt(t, project, alone, "solo")
+	f.prompt(t, workspace, parent, "orchestrate")
+	f.prompt(t, workspace, alone, "solo")
 
 	sent := func(text string) string {
 		return string(f.waitCall(t, "session/prompt", func(c fakeCall) bool { return promptText(t, c) == text }).Params)
@@ -1897,27 +1897,27 @@ type waitedAll struct {
 	} `json:"message"`
 }
 
-func (f *fixture) waitAll(t *testing.T, project, caller string, sessions ...string) waitedAll {
+func (f *fixture) waitAll(t *testing.T, workspace, caller string, sessions ...string) waitedAll {
 	t.Helper()
 	var out waitedAll
-	require.NoError(t, f.runAs(t, project, caller, "agents.wait", map[string]any{"sessions": sessions}, &out))
+	require.NoError(t, f.runAs(t, workspace, caller, "agents.wait", map[string]any{"sessions": sessions}, &out))
 	require.Len(t, out.Sessions, len(sessions))
 	return out
 }
 
-func (f *fixture) wait(t *testing.T, project, caller string, sessions ...string) []waited {
+func (f *fixture) wait(t *testing.T, workspace, caller string, sessions ...string) []waited {
 	t.Helper()
-	return f.waitAll(t, project, caller, sessions...).Sessions
+	return f.waitAll(t, workspace, caller, sessions...).Sessions
 }
 
 func TestWaitReturnsOnFirstDone(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 500}, {"match": "slow", "sleep": 3000}}})
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	quick := f.newChild(t, project, parent, map[string]any{"prompt": "quick"}).Session
-	slow := f.newChild(t, project, parent, map[string]any{"prompt": "slow"}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	quick := f.newChild(t, workspace, parent, map[string]any{"prompt": "quick"}).Session
+	slow := f.newChild(t, workspace, parent, map[string]any{"prompt": "slow"}).Session
 
-	got := f.wait(t, project, parent, quick, slow)
+	got := f.wait(t, workspace, parent, quick, slow)
 
 	assert.Equal(t, waited{Session: quick, Status: "done", Turn: 1, StopReason: "end_turn"}, got[0])
 	assert.Equal(t, slow, got[1].Session)
@@ -1925,9 +1925,9 @@ func TestWaitReturnsOnFirstDone(t *testing.T) {
 }
 
 func TestWaitReturnsOnNextTurn(t *testing.T) {
-	f, project, session := startQueued(t, "two")
+	f, workspace, session := startQueued(t, "two")
 
-	got := f.wait(t, project, "", session)[0]
+	got := f.wait(t, workspace, "", session)[0]
 
 	assert.Equal(t, "running", got.Status)
 	assert.Equal(t, 2, got.Turn)
@@ -1935,34 +1935,34 @@ func TestWaitReturnsOnNextTurn(t *testing.T) {
 
 func TestWaitReturnsQueuedUserMessage(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 4000}}})
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	f.prompt(t, project, parent, "slow")
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "slow")
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
-	kid := f.newChild(t, project, parent, map[string]any{"prompt": "slow"}).Session
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "slow"}).Session
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		assert.NoError(t, f.run(t, project, "agents.prompt", map[string]any{"session": parent, "text": "stop"}, nil))
+		assert.NoError(t, f.run(t, workspace, "agents.prompt", map[string]any{"session": parent, "text": "stop"}, nil))
 	}()
 
-	got := f.waitAll(t, project, parent, kid)
+	got := f.waitAll(t, workspace, parent, kid)
 
 	assert.Equal(t, "running", got.Sessions[0].Status)
 	require.NotNil(t, got.Message)
 	assert.Equal(t, "stop", got.Message.Text)
-	f.waitStatus(t, project, parent, "done")
+	f.waitStatus(t, workspace, parent, "done")
 	assert.False(t, slices.ContainsFunc(f.calls(t, "session/prompt"), func(c fakeCall) bool { return promptText(t, c) == "stop" }))
 }
 
 func TestWaitImmediateWhenIdle(t *testing.T) {
 	f := start(t, nil)
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
-	f.prompt(t, project, session, "hi")
-	f.waitStatus(t, project, session, "done")
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "hi")
+	f.waitStatus(t, workspace, session, "done")
 
 	began := time.Now()
-	got := f.wait(t, project, "", session)
+	got := f.wait(t, workspace, "", session)
 
 	assert.Less(t, time.Since(began), time.Second)
 	assert.Equal(t, "done", got[0].Status)
@@ -1970,15 +1970,15 @@ func TestWaitImmediateWhenIdle(t *testing.T) {
 
 func TestWaitReportsPermission(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
-	project := f.project(t, newRepo(t))
-	parent := f.newSession(t, project)
-	kid := f.newChild(t, project, parent, map[string]any{"prompt": "go"}).Session
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "go"}).Session
 
-	got := f.wait(t, project, parent, kid)[0]
+	got := f.wait(t, workspace, parent, kid)[0]
 
 	assert.Equal(t, "waiting", got.Status)
 	require.NotNil(t, got.Permission)
-	request := ofKind(f.transcript(t, project, kid).Entries, "permission")[0].ID
+	request := ofKind(f.transcript(t, workspace, kid).Entries, "permission")[0].ID
 	assert.Equal(t, request, got.Permission.Request)
 	assert.Equal(t, "Run tests", got.Permission.Title)
 	assert.Equal(t, "execute", got.Permission.Kind)
@@ -1987,15 +1987,15 @@ func TestWaitReportsPermission(t *testing.T) {
 
 func TestAsksUser(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}})
-	project := f.project(t, newRepo(t))
-	session := f.newSession(t, project)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
 
-	f.prompt(t, project, session, "Ship it? ")
-	got := f.wait(t, project, "", session)[0]
+	f.prompt(t, workspace, session, "Ship it? ")
+	got := f.wait(t, workspace, "", session)[0]
 
 	assert.Equal(t, "done", got.Status)
 	assert.True(t, got.Asks)
-	assert.True(t, f.session(t, project, session).Asks)
+	assert.True(t, f.session(t, workspace, session).Asks)
 	type turnEvent struct {
 		Workspace string `json:"workspace"`
 		Session   string `json:"session"`
@@ -2013,48 +2013,48 @@ func TestAsksUser(t *testing.T) {
 		require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &last))
 		return true
 	}, wait)
-	assert.Equal(t, turnEvent{Workspace: project, Session: session, Status: "done", Asks: true, Reply: "Ship it?"}, last)
+	assert.Equal(t, turnEvent{Workspace: workspace, Session: session, Status: "done", Asks: true, Reply: "Ship it?"}, last)
 
 	testutil.Eventually(t, func() bool {
-		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+project+"/"+session)
+		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+workspace+"/"+session)
 		require.NoError(t, err)
 		return strings.Contains(string(raw), `"asks":true`)
 	}, wait)
 	require.NoError(t, os.Remove(filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")))
-	f.restartPlugin(t, project)
-	assert.True(t, f.session(t, project, session).Asks)
+	f.restartPlugin(t, workspace)
+	assert.True(t, f.session(t, workspace, session).Asks)
 }
 
 func TestNewInWorktreeThenMergeToMain(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
-	project := f.project(t, repo)
+	workspace := f.workspace(t, repo)
 	tree := filepath.Join(repo, ".worktrees", "t1")
 
-	f.h.Event(t, project, "agents.sidebar", "branch", "showBranch", nil)
-	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 1 })
-	f.h.Event(t, project, "agents.sidebar", "newBranch", "newBranch", map[string]string{"branch": " t1 "})
+	f.h.Event(t, workspace, "agents.sidebar", "branch", "showBranch", nil)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 1 })
+	f.h.Event(t, workspace, "agents.sidebar", "newBranch", "newBranch", map[string]string{"branch": " t1 "})
 	var list []record
-	require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
 	require.Len(t, list, 1)
 	session := list[0].ID
 	assert.Equal(t, tree, list[0].Worktree)
-	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 0 })
-	f.prompt(t, project, session, "work")
-	f.waitStatus(t, project, session, "done")
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 0 })
+	f.prompt(t, workspace, session, "work")
+	f.waitStatus(t, workspace, session, "done")
 	write(t, filepath.Join(tree, "new.txt"), "x\n")
-	f.h.Event(t, project, "agents.sidebar", session, "select", session)
-	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+	f.h.Event(t, workspace, "agents.sidebar", session, "select", session)
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
 		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == session+"/merge" })
 	})
 
 	write(t, filepath.Join(repo, "dirty.txt"), "x\n")
-	merge := map[string]any{"projectId": project, "slot": "agents.main", "nodeId": session + "/merge", "action": "merge", "value": nil}
+	merge := map[string]any{"workspaceId": workspace, "slot": "agents.main", "nodeId": session + "/merge", "action": "merge", "value": nil}
 	require.ErrorContains(t, f.h.Client(t).Call(t.Context(), "ui.event", merge, nil), "uncommitted changes")
 	require.NoError(t, os.Remove(filepath.Join(repo, "dirty.txt")))
 
-	f.h.Event(t, project, "agents.main", session+"/merge", "merge", nil)
-	id := f.session(t, project, session).AgentSessionID
+	f.h.Event(t, workspace, "agents.main", session+"/merge", "merge", nil)
+	id := f.session(t, workspace, session).AgentSessionID
 	f.waitCall(t, "session/prompt", func(c fakeCall) bool {
 		return strings.Contains(string(c.Params), id) && strings.Contains(promptText(t, c), "Merge this task into main now")
 	})

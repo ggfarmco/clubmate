@@ -57,7 +57,7 @@ func (a *app) scheduleStatus(h *pluginsdk.Host, e *editor) {
 		e.pending = false
 		st := e.status
 		e.mu.Unlock()
-		if err := a.render(context.Background(), h, e, statusSlot, statusView(st, a.projectFolders(e.id))); err != nil {
+		if err := a.render(context.Background(), h, e, statusSlot, statusView(st, a.workspaceFolders(e.id))); err != nil {
 			logError("render status", err)
 		}
 	})

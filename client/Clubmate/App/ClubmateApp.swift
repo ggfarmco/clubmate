@@ -40,7 +40,7 @@ struct ClubmateApp: App {
         }
         .defaultSize(width: 1100, height: 700)
         .windowToolbarStyle(.unifiedCompact)
-        .commands { ProjectCommands(app: app) }
+        .commands { WorkspaceCommands(app: app) }
 
         Settings {
             SettingsView(settings: app.settings)
@@ -114,13 +114,13 @@ private final class CloseKeyOwner {
     }
 }
 
-private struct ProjectCommands: Commands {
+private struct WorkspaceCommands: Commands {
     let app: AppModel
 
-    @FocusedValue(\.projectSession) private var session
+    @FocusedValue(\.workspaceSession) private var session
     @FocusedValue(\.workspaceWindowID) private var windowID
 
-    private var store: ProjectUIStore? {
+    private var store: WorkspaceUIStore? {
         session?.store
     }
 
@@ -132,8 +132,8 @@ private struct ProjectCommands: Commands {
         windowID != nil && active == nil
     }
 
-    private var recents: [Project] {
-        Array(Project.recents(app.projects?.projects ?? [], hiddenBefore: app.settings.recentsClearedAt).prefix(10))
+    private var recents: [Workspace] {
+        Array(Workspace.recents(app.workspaceStore?.workspaces ?? [], hiddenBefore: app.settings.recentsClearedAt).prefix(10))
     }
 
     var body: some Commands {
@@ -152,8 +152,8 @@ private struct ProjectCommands: Commands {
             Button("Open Folder…") { app.openFolder(in: windowID) }
                 .keyboardShortcut("o")
             Menu("Open Recent") {
-                ForEach(recents, id: \.id) { project in
-                    Button(project.name) { app.open(project.id, in: windowID) }
+                ForEach(recents, id: \.id) { workspace in
+                    Button(workspace.name) { app.open(workspace.id, in: windowID) }
                 }
                 Divider()
                 Button("Clear Menu") { app.settings.recentsClearedAt = Date() }
@@ -254,7 +254,7 @@ private struct ProjectCommands: Commands {
         NSApplication.shared.orderFrontStandardAboutPanel(options: [.applicationVersion: Bundle.main.clubmateVersion, .version: ""])
     }
 
-    private func run(_ resolve: (ProjectUIStore, [Command]) -> CommandInvocation?) {
+    private func run(_ resolve: (WorkspaceUIStore, [Command]) -> CommandInvocation?) {
         guard let session, let store else { return }
         session.run(resolve(store, app.commands))
     }
@@ -274,7 +274,7 @@ private struct ProjectCommands: Commands {
     }
 }
 
-extension ProjectUIStore {
+extension WorkspaceUIStore {
     func mainTree(_ section: String) -> SDUINode? {
         slots["\(section).main"]?.tree
     }

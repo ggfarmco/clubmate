@@ -46,20 +46,20 @@ type client struct {
 	done chan struct{}
 }
 
-func socketPath(runtimeDir, projectID, root string) (string, error) {
+func socketPath(runtimeDir, workspaceID, root string) (string, error) {
 	if runtimeDir == "" {
 		return "", errNoRuntimeDir
 	}
 	sum := sha256.Sum256([]byte(root))
-	sock := fmt.Sprintf("%s/%s-%x.sock", runtimeDir, projectID, sum[:rootHashBytes])
+	sock := fmt.Sprintf("%s/%s-%x.sock", runtimeDir, workspaceID, sum[:rootHashBytes])
 	if len(sock) > maxSocketPath {
 		return "", fmt.Errorf("%w: %s is %d bytes, max %d", errSocketTooLong, sock, len(sock), maxSocketPath)
 	}
 	return sock, nil
 }
 
-func legacySocketPath(runtimeDir, projectID string) string {
-	return runtimeDir + "/" + projectID + ".sock"
+func legacySocketPath(runtimeDir, workspaceID string) string {
+	return runtimeDir + "/" + workspaceID + ".sock"
 }
 
 func connect(ctx context.Context, sock string, onEvent func(nvimEvent)) (*client, error) {

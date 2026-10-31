@@ -55,8 +55,8 @@ func testApp(t *testing.T, core *fakeCore) *app {
 	a.sessions = func(context.Context, string) ([]api.Session, error) {
 		return []api.Session{{ID: "agt_boss", Worktree: "testdata"}}, nil
 	}
-	a.project = func(context.Context, string) (pluginsdk.Project, error) {
-		return pluginsdk.Project{ID: "ws1", Roots: []string{"testdata"}}, nil
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Roots: []string{"testdata"}}, nil
 	}
 	close(a.ready)
 	return a
@@ -65,11 +65,11 @@ func testApp(t *testing.T, core *fakeCore) *app {
 func runGraph(t *testing.T, a *app) *Run {
 	t.Helper()
 	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{
-		ID:        "graphs.run",
-		ProjectID: "ws1",
-		Args:      json.RawMessage(`{"graph":"review-loop","input":"add a flag"}`),
-		Agent:     true,
-		Caller:    "agt_boss",
+		ID:          "graphs.run",
+		WorkspaceID: "ws1",
+		Args:        json.RawMessage(`{"graph":"review-loop","input":"add a flag"}`),
+		Agent:       true,
+		Caller:      "agt_boss",
 	})
 	require.NoError(t, err)
 	r, ok := out.(*Run)
@@ -187,7 +187,7 @@ func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 		return core.run(ctx, req)
 	}
 
-	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.run", ProjectID: "ws1", Args: json.RawMessage(`{"graph":"review-loop"}`)})
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.run", WorkspaceID: "ws1", Args: json.RawMessage(`{"graph":"review-loop"}`)})
 
 	assert.ErrorContains(t, err, "connect reviewer → coder: boom")
 	assert.Equal(t, []string{"agents.new", "agents.new", "triggers.add", "triggers.add", "triggers.delete", "agents.close", "agents.close"}, core.ids())
@@ -196,10 +196,10 @@ func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 
 func TestListWithoutGraphsOrRuns(t *testing.T) {
 	a := testApp(t, &fakeCore{})
-	a.project = func(context.Context, string) (pluginsdk.Project, error) {
-		return pluginsdk.Project{ID: "ws1", Roots: []string{t.TempDir()}}, nil
+	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
+		return pluginsdk.Workspace{ID: "ws1", Roots: []string{t.TempDir()}}, nil
 	}
-	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", ProjectID: "ws1"})
+	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
 	require.NoError(t, err)
 	raw, err := json.Marshal(out)
 	require.NoError(t, err)

@@ -23,11 +23,11 @@ func TestTerminalsLifecycle(t *testing.T) {
 	h := newHarness(t)
 	repo, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
-	p, err := h.Svc.CreateProject(t.Context(), "demo", []string{repo, t.TempDir()})
+	p, err := h.Svc.CreateWorkspace(t.Context(), "demo", []string{repo, t.TempDir()})
 	require.NoError(t, err)
 	sidebar := h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
 	assert.Equal(t, "stack", sidebar.Type)
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID}, nil))
 	main := h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
 	sid := main.Props["sessionId"].(string)
 	s := h.GetSession(t, sid)
@@ -38,7 +38,7 @@ func TestTerminalsLifecycle(t *testing.T) {
 	h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "empty" })
 	h.WaitSessionGone(t, sid)
 	other := p.Repos[1]
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID, "args": map[string]string{"cwd": other}}, nil))
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID, "args": map[string]string{"cwd": other}}, nil))
 	main = h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
 	assert.Equal(t, other, h.GetSession(t, main.Props["sessionId"].(string)).Cwd)
 }
@@ -54,9 +54,9 @@ func TestTerminalPathHasTools(t *testing.T) {
 	t.Setenv("SHELL", sh)
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/terminals", "plugins/terminals/plugin.json"))
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID}, nil))
 	var path []byte
 	testutil.Eventually(t, func() bool {
 		var err error
@@ -68,7 +68,7 @@ func TestTerminalPathHasTools(t *testing.T) {
 
 func TestExitedTerminalCanBeRestarted(t *testing.T) {
 	h := newHarness(t)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	require.NoError(t, h.Svc.CheckTransitions(t.Context()))
 	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
 	h.Event(t, p.ID, "terminals.sidebar", "new", "new", nil)
@@ -89,11 +89,11 @@ func TestExitedTerminalCanBeRestarted(t *testing.T) {
 
 func TestNewTerminalFocusesMainSlot(t *testing.T) {
 	h := newHarness(t)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID}, nil))
 	deadline := time.After(2 * time.Second)
 	for {
 		select {
@@ -114,13 +114,13 @@ func TestNewTerminalFocusesMainSlot(t *testing.T) {
 
 func TestTerminalBusy(t *testing.T) {
 	h := newHarness(t)
-	p := h.CreateProject(t, "demo")
+	p := h.CreateWorkspace(t, "demo")
 	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
 	c := h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
+	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID}, nil))
 	sid := h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" }).Props["sessionId"].(string)
 	t.Cleanup(func() {
-		_ = c.Call(context.Background(), "command.run", map[string]any{"id": "terminals.close", "projectId": p.ID, "args": map[string]string{"sessionId": sid}}, nil)
+		_ = c.Call(context.Background(), "command.run", map[string]any{"id": "terminals.close", "workspaceId": p.ID, "args": map[string]string{"sessionId": sid}}, nil)
 		h.WaitSessionGone(t, sid)
 	})
 	busy := func(want bool, process string) func() bool {
@@ -129,7 +129,7 @@ func TestTerminalBusy(t *testing.T) {
 				Busy    bool   `json:"busy"`
 				Process string `json:"process"`
 			}
-			err := c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.busy", "projectId": p.ID, "args": map[string]string{"sessionId": sid}}, &got)
+			err := c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.busy", "workspaceId": p.ID, "args": map[string]string{"sessionId": sid}}, &got)
 			return err == nil && got.Busy == want && got.Process == process
 		}
 	}
