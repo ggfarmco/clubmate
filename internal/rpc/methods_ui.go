@@ -49,6 +49,7 @@ type CommandDef struct {
 	Scope       string         `json:"scope,omitempty"`
 	Destructive bool           `json:"destructive"`
 	Provides    []string       `json:"provides,omitempty"`
+	Handles     []string       `json:"handles,omitempty"`
 	Timeout     int            `json:"timeout,omitempty"`
 }
 
@@ -141,6 +142,7 @@ func (s *Server) uiMethods() map[string]handlerFunc {
 		"command.list":         method(s.commandList),
 		"command.run":          method(s.commandRun),
 		"command.capabilities": method(s.commandCapabilities),
+		"command.broadcast":    method(s.commandBroadcast),
 	}
 }
 

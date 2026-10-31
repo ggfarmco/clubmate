@@ -109,6 +109,12 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return a.unsaved(cmd.ProjectID, args.Root)
+	case "guard-switch":
+		args, err := decodeRoot(name, cmd.Args, errUnsavedRoot)
+		if err != nil {
+			return nil, err
+		}
+		return nil, a.guardSwitch(cmd.ProjectID, args.Root)
 	case "release-root":
 		args, err := decodeRoot(name, cmd.Args, errStopRoot)
 		if err != nil {

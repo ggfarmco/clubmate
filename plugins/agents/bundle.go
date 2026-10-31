@@ -115,7 +115,7 @@ func sessionNotes(ctx context.Context, root string, commits []string) (bool, err
 		if err != nil {
 			continue
 		}
-		if _, err := gitOutput(ctx, root, checkpointIdentity, "notes", "--ref", exportNotes, "add", "-f", "-C", blob, commit); err != nil {
+		if _, err := gitOutput(ctx, root, gitrepo.Identity, "notes", "--ref", exportNotes, "add", "-f", "-C", blob, commit); err != nil {
 			return noted, err
 		}
 		noted = true
@@ -232,7 +232,7 @@ func fetchRefs(ctx context.Context, root, bundle, session string) error {
 		if at := parseNote(commit, note); err != nil || at.Session != session || !slices.Contains(strings.Fields(checkpoints), at.Checkpoint) {
 			continue
 		}
-		if _, err := gitOutput(ctx, root, checkpointIdentity, "notes", "--ref", notesRef, "add", "-C", blob, commit); err != nil {
+		if _, err := gitOutput(ctx, root, gitrepo.Identity, "notes", "--ref", notesRef, "add", "-C", blob, commit); err != nil {
 			return err
 		}
 	}

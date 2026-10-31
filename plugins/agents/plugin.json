@@ -333,12 +333,13 @@
         "title": "Stop Worktree Agents",
         "hidden": true,
         "agent": false,
-        "description": "Close every agent session whose worktree is inside the given root, stop their agent processes and delete their checkpoint refs; called before a worktree is removed.",
+        "handles": ["git.worktree.vacating"],
+        "description": "Close every agent session whose worktree is inside the given path, stop their agent processes and delete their checkpoint refs; handles git.worktree.vacating before a worktree is removed.",
         "args": {
           "properties": {
-            "root": {"type": "string", "description": "Absolute worktree root."}
+            "path": {"type": "string", "description": "Absolute worktree path."}
           },
-          "required": ["root"]
+          "required": ["path"]
         }
       },
       {

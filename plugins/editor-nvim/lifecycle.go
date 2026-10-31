@@ -21,6 +21,7 @@ var (
 	errUnsavedUnknown = fmt.Errorf("%w: unknown (nvim not responding)", errUnsaved)
 	errDeleted        = errors.New("project deleted")
 	errStopping       = errors.New("the worktree is being removed")
+	errUnsavedSwitch  = errors.New("Save or discard unsaved changes first")
 )
 
 func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, projectID string) {
@@ -190,6 +191,17 @@ func (a *app) releaseRoot(ctx context.Context, h *pluginsdk.Host, projectID, roo
 		return err
 	}
 	return a.show(ctx, h, e)
+}
+
+func (a *app) guardSwitch(projectID, root string) error {
+	names, err := a.unsaved(projectID, root)
+	if err != nil {
+		return fmt.Errorf("%w: %w", errUnsavedSwitch, err)
+	}
+	if len(names) > 0 {
+		return fmt.Errorf("%w: %s", errUnsavedSwitch, strings.Join(names, ", "))
+	}
+	return nil
 }
 
 func (a *app) unsaved(projectID, root string) ([]string, error) {

@@ -44,7 +44,7 @@ var (
 	}
 
 	errUnknownCmd    = errors.New("unknown command")
-	errRelativeRoot  = errors.New("stop-root: root must be absolute")
+	errRelativeRoot  = errors.New("stop-root: path must be absolute")
 	errNotDescendant = errors.New("the session was not started by this agent")
 )
 
@@ -133,8 +133,8 @@ type finishResult struct {
 	Value string `json:"value"`
 }
 
-type rootArgs struct {
-	Root string `json:"root"`
+type pathArgs struct {
+	Path string `json:"path"`
 }
 
 type transcriptArgs struct {
@@ -270,11 +270,11 @@ func (a *app) afkDefaultCommand(ctx context.Context, _ pluginsdk.CommandRun, arg
 	return afkResult{On: *args.On}, a.host.StorageSet(ctx, afkKey, *args.On)
 }
 
-func (a *app) stopRootCommand(ctx context.Context, _ pluginsdk.CommandRun, args rootArgs) (any, error) {
-	if !filepath.IsAbs(args.Root) {
+func (a *app) stopRootCommand(ctx context.Context, _ pluginsdk.CommandRun, args pathArgs) (any, error) {
+	if !filepath.IsAbs(args.Path) {
 		return nil, errRelativeRoot
 	}
-	return nil, a.stopRoot(ctx, filepath.Clean(args.Root))
+	return nil, a.stopRoot(ctx, filepath.Clean(args.Path))
 }
 
 func (a *app) waitCommand(ctx context.Context, cmd pluginsdk.CommandRun, args waitArgs) (any, error) {

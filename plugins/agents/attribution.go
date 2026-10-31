@@ -143,7 +143,7 @@ func attribute(ctx context.Context, root string, at attribution) ([]string, erro
 		if _, err := gitOutput(ctx, root, nil, "notes", "--ref", notesRef, "show", commit); err == nil {
 			continue
 		}
-		if _, err := gitOutput(ctx, root, checkpointIdentity, "notes", "--ref", notesRef, "add", "-m", note, commit); err != nil {
+		if _, err := gitOutput(ctx, root, gitrepo.Identity, "notes", "--ref", notesRef, "add", "-m", note, commit); err != nil {
 			return noted, err
 		}
 		noted = append(noted, commit)
@@ -274,4 +274,12 @@ func lineEnd(endLine int) string {
 		return ""
 	}
 	return strconv.Itoa(endLine)
+}
+
+func gitOutput(ctx context.Context, root string, env []string, args ...string) (string, error) {
+	out, err := gitrepo.RunEnv(ctx, root, env, args...)
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w", args[0], err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }

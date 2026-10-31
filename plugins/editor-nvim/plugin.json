@@ -77,6 +77,7 @@
         "title": "Reload Changed Files",
         "hidden": true,
         "agent": false,
+        "handles": ["git.worktree.switched"],
         "description": "Run :checktime in every running Neovim of the workspace so buffers changed on disk under the given root reload; a no-op when none runs.",
         "args": {
           "properties": {
@@ -90,6 +91,7 @@
         "title": "Stop Worktree Neovim",
         "hidden": true,
         "agent": false,
+        "handles": ["git.worktree.removing"],
         "description": "Stop the workspace's Neovim whose root is the given path and keep it from starting there again until editor-nvim.release-root. Fails like restart while it has unsaved buffers, unless force is true. Only marks the root when no such Neovim exists.",
         "args": {
           "properties": {
@@ -113,10 +115,25 @@
         }
       },
       {
+        "id": "editor-nvim.guard-switch",
+        "title": "Guard Branch Switch",
+        "hidden": true,
+        "agent": false,
+        "handles": ["git.worktree.switching"],
+        "description": "Refuse a branch switch of the given root with Save or discard unsaved changes first: <names> while a running Neovim of the workspace has modified buffers inside it, as editor-nvim.unsaved lists them.",
+        "args": {
+          "properties": {
+            "root": {"type": "string", "description": "Absolute root path of the folder being switched."}
+          },
+          "required": ["root"]
+        }
+      },
+      {
         "id": "editor-nvim.release-root",
         "title": "Release Worktree Neovim",
         "hidden": true,
         "agent": false,
+        "handles": ["git.worktree.released"],
         "description": "End a stop-root: Neovim may start in the given root again, and starts now when it is still the workspace's current root.",
         "args": {
           "properties": {

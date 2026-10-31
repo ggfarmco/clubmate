@@ -30,7 +30,7 @@ const (
 	diffviewManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.diffview","title":"Diffview","hidden":true}]},"echoResults":{"editor-nvim.diffview":{}}}`
 	editorManifest   = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]},"echoResults":{"editor-nvim.checktime":{}}}`
 	codeManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","icon":"code","order":10}],"commands":[{"id":"editor-nvim.open","provides":["editor.open"],"title":"Open File","hidden":true}]},"echoResults":{"editor-nvim.open":{}}}`
-	stopManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop","hidden":true},{"id":"editor-nvim.release-root","title":"Release","hidden":true}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
+	stopManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop","hidden":true,"handles":["git.worktree.removing"]},{"id":"editor-nvim.release-root","title":"Release","hidden":true,"handles":["git.worktree.released"]}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
 )
 
 type record struct {
@@ -852,7 +852,7 @@ func TestStopRoot(t *testing.T) {
 	f.waitStatus(t, project, session, "done")
 	require.NotEmpty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
 
-	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"root": repo}, nil))
+	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"path": repo}, nil))
 
 	assert.True(t, f.session(t, project, session).Closed)
 	starts := f.calls(t, "start")
@@ -876,7 +876,7 @@ func TestResumedSessionClosedWhenWorktreeVanishes(t *testing.T) {
 	f := start(t, map[string]any{})
 	project := f.project(t, repo)
 	session := f.newSession(t, project)
-	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"root": repo}, nil))
+	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"path": repo}, nil))
 	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": session}, nil))
 	require.False(t, f.session(t, project, session).Closed)
 

@@ -90,7 +90,7 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, projectID strin
 		}, nil
 	}
 	users := consumers{h: h, projectID: projectID}
-	if err := users.checkUnsaved(ctx, f.root); err != nil {
+	if err := users.switching(ctx, f.root); err != nil {
 		return nil, err
 	}
 	switchArgs := []string{"switch", "--no-guess", "--", local}
@@ -105,7 +105,7 @@ func prepareBranchSwitch(ctx context.Context, h *pluginsdk.Host, projectID strin
 		if text := leftBehind(stderr); text != "" {
 			note(text)
 		}
-		logError("checktime "+f.root, users.checktime(ctx, f.root))
+		logError("switched "+f.root, users.switched(ctx, f.root))
 		return cur.Path, nil
 	}, nil
 }

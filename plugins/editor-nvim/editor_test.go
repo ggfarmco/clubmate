@@ -470,6 +470,8 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	assert.Empty(t, unsaved(e.repo))
 	assert.Len(t, unsaved(wt), 1)
 	require.ErrorContains(t, run("editor-nvim.restart", nil), "unsaved buffers: .worktrees/feat/a.go")
+	require.NoError(t, run("editor-nvim.guard-switch", map[string]any{"root": e.repo}))
+	require.ErrorContains(t, run("editor-nvim.guard-switch", map[string]any{"root": wt}), "Save or discard unsaved changes first: .worktrees/feat/a.go")
 	require.ErrorContains(t, run("editor-nvim.stop-root", map[string]any{"root": wt}), "unsaved buffers:")
 	require.NoError(t, run("editor-nvim.stop-root", map[string]any{"root": wt, "force": true}))
 	testutil.Eventually(t, func() bool { return slices.Equal([]string{e.sessionID}, e.running(t)) }, 5*time.Second)

@@ -3,73 +3,72 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
-
-	"github.com/sourcegraph/jsonrpc2"
+	"slices"
 
 	"clubmate/pkg/pluginsdk"
 )
 
 const (
-	editorOwner           = "editor-nvim"
-	editorStopRoot        = "editor-nvim.stop-root"
-	editorReleaseRoot     = "editor-nvim.release-root"
-	editorUnsaved         = "editor-nvim.unsaved"
-	editorChecktime       = "editor-nvim.checktime"
-	agentsStopRoot        = "agents.stop-root"
-	codeNotFound          = -32004
-	codePluginUnavailable = -32012
-	codePluginError       = -32013
+	topicRemoving  = "git.worktree.removing"
+	topicVacating  = "git.worktree.vacating"
+	topicReleased  = "git.worktree.released"
+	topicSwitching = "git.worktree.switching"
+	topicSwitched  = "git.worktree.switched"
 )
-
-var errUnsavedSwitch = errors.New("Save or discard unsaved changes first")
 
 type consumers struct {
 	h         *pluginsdk.Host
 	projectID string
 }
 
-type rootArgs struct {
+type worktreeEvent struct {
+	Path  string `json:"path,omitempty"`
 	Root  string `json:"root"`
 	Force bool   `json:"force,omitempty"`
 }
 
-func (c consumers) checkUnsaved(ctx context.Context, root string) error {
-	var names []string
-	err := c.h.RunCommand(ctx, editorUnsaved, c.projectID, rootArgs{Root: root}, &names)
-	if rpcErr, ok := errors.AsType[*jsonrpc2.Error](err); ok && (rpcErr.Code == codeNotFound || rpcErr.Code == codePluginUnavailable) {
+type handlerInfo struct {
+	Plugin  string   `json:"plugin"`
+	Handles []string `json:"handles"`
+}
+
+func (c consumers) switching(ctx context.Context, root string) error {
+	return refusal(c.h.Broadcast(ctx, topicSwitching, c.projectID, worktreeEvent{Root: root}))
+}
+
+func (c consumers) switched(ctx context.Context, root string) error {
+	return c.h.Broadcast(ctx, topicSwitched, c.projectID, worktreeEvent{Root: root})
+}
+
+func (c consumers) removing(ctx context.Context, path, root string, force bool) error {
+	return refusal(c.h.Broadcast(ctx, topicRemoving, c.projectID, worktreeEvent{Path: path, Root: root, Force: force}))
+}
+
+func (c consumers) vacating(ctx context.Context, path, root string) error {
+	return c.h.Broadcast(ctx, topicVacating, c.projectID, worktreeEvent{Path: path, Root: root})
+}
+
+func (c consumers) released(ctx context.Context, path, root string) error {
+	return c.h.Broadcast(ctx, topicReleased, c.projectID, worktreeEvent{Path: path, Root: root})
+}
+
+func removingOwners(ctx context.Context, h *pluginsdk.Host) (map[string]bool, error) {
+	var cmds []handlerInfo
+	if err := h.Call(ctx, "command.list", struct{}{}, &cmds); err != nil {
+		return nil, err
+	}
+	owners := map[string]bool{}
+	for _, c := range cmds {
+		if slices.Contains(c.Handles, topicRemoving) {
+			owners[c.Plugin] = true
+		}
+	}
+	return owners, nil
+}
+
+func refusal(err error) error {
+	if err == nil {
 		return nil
 	}
-	if err != nil {
-		return fmt.Errorf("%w: %s", errUnsavedSwitch, editorError(err))
-	}
-	if len(names) > 0 {
-		return fmt.Errorf("%w: %s", errUnsavedSwitch, strings.Join(names, ", "))
-	}
-	return nil
-}
-
-func (c consumers) checktime(ctx context.Context, root string) error {
-	return c.h.RunCommand(ctx, editorChecktime, c.projectID, rootArgs{Root: root}, nil)
-}
-
-func (c consumers) stopEditor(ctx context.Context, root string, force bool) error {
-	return c.h.RunCommand(ctx, editorStopRoot, c.projectID, rootArgs{Root: root, Force: force}, nil)
-}
-
-func (c consumers) releaseEditor(ctx context.Context, root string) error {
-	return c.h.RunCommand(ctx, editorReleaseRoot, c.projectID, rootArgs{Root: root}, nil)
-}
-
-func (c consumers) stopAgents(ctx context.Context, root string) error {
-	return c.h.RunCommand(ctx, agentsStopRoot, c.projectID, rootArgs{Root: root}, nil)
-}
-
-func editorError(err error) string {
-	msg := rpcMessage(err)
-	if rpcErr, ok := errors.AsType[*jsonrpc2.Error](err); ok && rpcErr.Code == codePluginError {
-		return strings.TrimPrefix(msg, "plugin "+editorOwner+" command.run: ")
-	}
-	return msg
+	return errors.New(rpcMessage(err))
 }

@@ -157,10 +157,9 @@ func trace(ctx context.Context, root, rev string) ([]traceRecord, error) {
 
 func traceCommits(ctx context.Context, root, rev string) ([]string, error) {
 	if strings.Contains(rev, "..") {
-		out, err := gitOutput(ctx, root, nil, "rev-list", "--reverse", "--no-merges", "--max-count="+strconv.Itoa(traceLimit), "--end-of-options", rev)
-		return strings.Fields(out), err
+		return gitrepo.RevList(ctx, root, rev, traceLimit)
 	}
-	commit, err := gitOutput(ctx, root, nil, "rev-parse", "--verify", "-q", "--end-of-options", rev+"^{commit}")
+	commit, err := gitrepo.ResolveCommit(ctx, root, rev)
 	if err != nil {
 		return nil, fmt.Errorf("unknown revision %s", rev)
 	}
@@ -168,17 +167,13 @@ func traceCommits(ctx context.Context, root, rev string) ([]string, error) {
 }
 
 func snapshots(ctx context.Context, root string) ([]snapshotRef, error) {
-	out, err := gitOutput(ctx, root, nil, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(parent)%00%(tree)%00%(committerdate:unix)%00%(trailers:key="+worktreeTrailer+",valueonly,separator=)", checkpointRefs)
+	refs, err := gitrepo.Refs(ctx, root, checkpointRefs, worktreeTrailer)
 	if err != nil {
 		return nil, err
 	}
 	var snaps []snapshotRef
-	for line := range strings.Lines(out) {
-		f := strings.Split(strings.TrimSpace(line), "\x00")
-		if len(f) != 6 {
-			continue
-		}
-		session, name, ok := strings.Cut(strings.TrimPrefix(f[0], checkpointRefs), "/")
+	for _, ref := range refs {
+		session, name, ok := strings.Cut(strings.TrimPrefix(ref.Name, checkpointRefs), "/")
 		if !ok {
 			continue
 		}
@@ -187,28 +182,30 @@ func snapshots(ctx context.Context, root string) ([]snapshotRef, error) {
 		if err != nil {
 			continue
 		}
-		when, _ := strconv.ParseInt(f[4], 10, 64)
-		snaps = append(snaps, snapshotRef{sha: f[1], parent: f[2], tree: f[3], time: when, worktree: f[5], session: session, turn: turn, end: end})
+		snaps = append(snaps, snapshotRef{sha: ref.Commit, parent: ref.Parent, tree: ref.Tree, time: ref.Time, worktree: ref.Trailer, session: session, turn: turn, end: end})
 	}
 	return snaps, nil
 }
 
 func traceCommit(ctx context.Context, root, commit string, snaps []snapshotRef) (traceRecord, bool, error) {
-	info, err := gitOutput(ctx, root, nil, "show", "-s", "--format=%P%x00%T%x00%cI", commit)
+	info, err := gitrepo.CommitOf(ctx, root, commit)
 	if err != nil {
 		return traceRecord{}, false, err
 	}
-	f := strings.Split(info, "\x00")
-	if len(f) != 3 || len(strings.Fields(f[0])) > 1 {
+	if info.Tree == "" || len(info.Parents) > 1 {
 		return traceRecord{}, false, nil
 	}
-	parent, tree, date := strings.TrimSpace(f[0]), f[1], f[2]
+	parent := ""
+	if len(info.Parents) == 1 {
+		parent = info.Parents[0]
+	}
+	tree, date := info.Tree, info.Date
 	at, _ := commitAttribution(ctx, root, commit)
 	picked := pickSnapshots(snaps, parent, at, root)
 	base := parent
 	baseTree := parent + "^{tree}"
 	if parent == "" {
-		if baseTree, err = gitOutput(ctx, root, nil, "hash-object", "-t", "tree", os.DevNull); err != nil {
+		if baseTree, err = gitrepo.EmptyTree(ctx, root); err != nil {
 			return traceRecord{}, false, err
 		}
 		base = baseTree
@@ -217,7 +214,7 @@ func traceCommit(ctx context.Context, root, commit string, snaps []snapshotRef) 
 	if err != nil {
 		return traceRecord{}, false, err
 	}
-	names, err := gitOutput(ctx, root, nil, "diff", "--name-only", "-z", "--no-renames", "--diff-filter=d", base, commit)
+	names, err := gitrepo.ChangedFiles(ctx, root, base, commit)
 	if err != nil {
 		return traceRecord{}, false, err
 	}
@@ -229,10 +226,7 @@ func traceCommit(ctx context.Context, root, commit string, snaps []snapshotRef) 
 		Tool:      traceTooling{Name: traceTool, Version: buildinfo.Version},
 		Files:     []traceFile{},
 	}
-	for path := range strings.SplitSeq(names, "\x00") {
-		if path == "" {
-			continue
-		}
+	for _, path := range names {
 		file, err := traceFileOf(ctx, root, base, commit, tip, path, sources)
 		if err != nil {
 			return traceRecord{}, false, err
@@ -329,13 +323,13 @@ func buildChain(ctx context.Context, root, baseTree, tree string, picked []snaps
 		trees = append(trees, s.tree)
 	}
 	trees = append(trees, tree)
-	prev, err := gitOutput(ctx, root, checkpointIdentity, "commit-tree", baseTree, "-m", "clubmate trace base")
+	prev, err := gitrepo.CommitTree(ctx, root, baseTree, "", "clubmate trace base")
 	if err != nil {
 		return nil, "", err
 	}
 	sources := map[string]source{}
 	for i, t := range trees {
-		if prev, err = gitOutput(ctx, root, checkpointIdentity, "commit-tree", t, "-p", prev, "-m", "clubmate trace step "+strconv.Itoa(i)); err != nil {
+		if prev, err = gitrepo.CommitTree(ctx, root, t, prev, "clubmate trace step "+strconv.Itoa(i)); err != nil {
 			return nil, "", err
 		}
 		sources[prev] = steps[i]
@@ -344,19 +338,19 @@ func buildChain(ctx context.Context, root, baseTree, tree string, picked []snaps
 }
 
 func traceFileOf(ctx context.Context, root, base, commit, tip, path string, sources map[string]source) (traceFile, error) {
-	out, err := gitOutput(ctx, root, nil, "diff", "-U0", "--no-color", "--no-ext-diff", base, commit, "--", path)
+	out, err := gitrepo.DiffZero(ctx, root, base, commit, path)
 	if err != nil {
 		return traceFile{}, err
 	}
-	args := []string{"blame", "--porcelain"}
+	var ranges [][2]int
 	for start, count := range hunks(out) {
-		args = append(args, "-L", strconv.Itoa(start)+",+"+strconv.Itoa(count))
+		ranges = append(ranges, [2]int{start, count})
 	}
 	file := traceFile{Path: path, Conversations: []traceConversation{}}
-	if len(args) == 2 {
+	if len(ranges) == 0 {
 		return file, nil
 	}
-	blamed, err := gitrepo.Run(ctx, root, append(args, tip, "--", path)...)
+	blamed, err := gitrepo.BlameLines(ctx, root, tip, path, ranges)
 	if err != nil {
 		return traceFile{}, fmt.Errorf("git blame: %w", err)
 	}

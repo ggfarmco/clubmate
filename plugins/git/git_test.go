@@ -30,10 +30,10 @@ import (
 
 const (
 	editorSlot         = "editor-nvim.main"
-	editorManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true},{"id":"editor-nvim.unsaved","title":"Unsaved","hidden":true}]}}`
+	editorManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true,"handles":["git.worktree.switched"]},{"id":"editor-nvim.guard-switch","title":"Guard Switch","hidden":true,"handles":["git.worktree.switching"]}]}}`
 	readyWait          = 15 * time.Second
-	stopEditorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop Root","hidden":true},{"id":"editor-nvim.release-root","title":"Release Root","hidden":true}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
-	agentsManifest     = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.stop-root","title":"Stop Worktree Agents","hidden":true}]},"echoResults":{"agents.stop-root":{}}}`
+	stopEditorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop Root","hidden":true,"handles":["git.worktree.removing"]},{"id":"editor-nvim.release-root","title":"Release Root","hidden":true,"handles":["git.worktree.released"]}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
+	agentsManifest     = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.stop-root","title":"Stop Worktree Agents","hidden":true,"handles":["git.worktree.vacating"]}]},"echoResults":{"agents.stop-root":{}}}`
 )
 
 func TestMain(m *testing.M) {
@@ -312,7 +312,7 @@ func TestRemoveWorktreeRefusals(t *testing.T) {
 	dirty := filepath.Join(repo, ".worktrees", "dirty")
 	git(t, repo, "worktree", "add", "-q", "-b", "dirty", dirty)
 	write(t, filepath.Join(dirty, "new.go"), "n\n")
-	h, id := open(t, repo)
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, stopEditorManifest))
 	shell := func(owner string) sessionEntry {
 		s, err := h.Svc.CreateSession(t.Context(), session.CreateRequest{ProjectID: id, Title: owner, Owner: owner, Command: []string{"sh", "-c", "exec cat"}, Cwd: feat})
 		require.NoError(t, err)
@@ -368,7 +368,7 @@ func TestRemoveWorktree(t *testing.T) {
 	events, err := h.Bus.Read(t.Context(), "echo.command", 0, 100)
 	require.NoError(t, err)
 	assert.True(t, slices.ContainsFunc(events, func(e bus.Event) bool {
-		return strings.Contains(string(e.Payload), `"agents.stop-root"`) && strings.Contains(string(e.Payload), `"root":"`+feat+`"`)
+		return strings.Contains(string(e.Payload), `"agents.stop-root"`) && strings.Contains(string(e.Payload), `"path":"`+feat+`"`)
 	}))
 	assert.Equal(t, repo, firstRoot(t, h, id))
 	git(t, repo, "rev-parse", "--verify", "-q", "feat")
@@ -523,7 +523,7 @@ func TestBranchSwitch(t *testing.T) {
 	git(t, repo, "checkout", "-q", "main")
 	wt := filepath.Join(repo, ".worktrees", "wt")
 	git(t, repo, "worktree", "add", "-q", "-b", "wt", wt)
-	h, id := open(t, repo, switchEditor(t, `[]`))
+	h, id := open(t, repo, switchEditor(t, ""))
 
 	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "feat"}).Error)
 	assert.Equal(t, "feat", git(t, repo, "branch", "--show-current"))
@@ -553,14 +553,18 @@ func TestBranchSwitch(t *testing.T) {
 	assert.ErrorContains(t, err, "not a valid branch name")
 }
 
-func switchEditor(t *testing.T, unsaved string) string {
+func switchEditor(t *testing.T, refusal string) string {
 	t.Helper()
-	return testutil.EchoPluginDirAs(t, strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim","echoResults":{"editor-nvim.unsaved":`+unsaved+`,"editor-nvim.checktime":null},`, 1))
+	canned := `"echoResults":{"editor-nvim.guard-switch":null,"editor-nvim.checktime":null},`
+	if refusal != "" {
+		canned += fmt.Sprintf(`"echoErrors":{"editor-nvim.guard-switch":%q},`, refusal)
+	}
+	return testutil.EchoPluginDirAs(t, strings.Replace(editorManifest, `{"id":"editor-nvim",`, `{"id":"editor-nvim",`+canned, 1))
 }
 
 func TestBranchSwitchRefusesUnsavedBuffers(t *testing.T) {
 	repo := clonedRepo(t)
-	h, id := open(t, repo, switchEditor(t, `["a.go"]`))
+	h, id := open(t, repo, switchEditor(t, "Save or discard unsaved changes first: a.go"))
 
 	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
 	assert.ErrorContains(t, err, "Save or discard unsaved changes first: a.go")
@@ -705,4 +709,22 @@ func TestWorktreeTeardownFailureStillRemoves(t *testing.T) {
 	res := awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat})
 	assert.Equal(t, opResult{Done: true, Notice: ".clubmate/teardown.sh failed: exit status 1: bye"}, res)
 	assert.NoDirExists(t, feat)
+}
+
+func TestWorktreeRemoveRefusalStopsBeforeVacating(t *testing.T) {
+	repo := committedRepo(t)
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	editor := strings.Replace(stopEditorManifest, `"echoResults"`, `"echoErrors":{"editor-nvim.stop-root":"unsaved buffers: a.go"},"echoResults"`, 1)
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, editor, agentsManifest))
+	testutil.Eventually(t, func() bool {
+		return !slices.ContainsFunc(h.Sup.Statuses(), func(s plugin.Status) bool { return s.State != "running" })
+	}, readyWait)
+
+	res := awaitOp(t, h, id, "git.worktree-remove", map[string]any{"path": feat, "force": true})
+	assert.Equal(t, opResult{Done: true, Error: "unsaved buffers: a.go"}, res)
+	assert.DirExists(t, feat)
+	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"root":%q,"force":true}`, feat, feat), string(commandArgs(t, h, "editor-nvim.stop-root")[0]))
+	assert.Empty(t, commandArgs(t, h, "agents.stop-root"))
+	assert.Len(t, commandArgs(t, h, "editor-nvim.release-root"), 1)
 }

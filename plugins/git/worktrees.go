@@ -77,9 +77,13 @@ func worktreeSessions(ctx context.Context, h *pluginsdk.Host, projectID, path st
 	if err != nil {
 		return nil, err
 	}
+	vacate, err := removingOwners(ctx, h)
+	if err != nil {
+		return nil, err
+	}
 	out := []sessionInfo{}
 	for _, s := range sessions {
-		if s.State == sessionRunning && s.Owner != editorOwner && filepath.IsAbs(s.Cwd) && gitrepo.Within(gitrepo.Canonical(s.Cwd), dir) {
+		if s.State == sessionRunning && !vacate[s.Owner] && filepath.IsAbs(s.Cwd) && gitrepo.Within(gitrepo.Canonical(s.Cwd), dir) {
 			out = append(out, sessionInfo{ID: s.ID, Title: s.Title})
 		}
 	}
@@ -186,12 +190,12 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 			root = g.root
 		}
 		defer func() {
-			logError("release "+root, users.releaseEditor(context.WithoutCancel(ctx), root))
+			logError("release "+root, users.released(context.WithoutCancel(ctx), t.Path, root))
 		}()
-		if err := users.stopEditor(ctx, root, args.Force); err != nil {
+		if err := users.removing(ctx, t.Path, root, args.Force); err != nil {
 			return "", err
 		}
-		logError("stop agents in "+t.Path, users.stopAgents(ctx, t.Path))
+		logError("vacate "+t.Path, users.vacating(ctx, t.Path, root))
 		if skipped, err := k.run(ctx, t.Path, teardownScript); err != nil {
 			note(err.Error())
 		} else if skipped != "" {

@@ -40,7 +40,7 @@
         "hidden": true,
         "agent": false,
         "destructive": true,
-        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Refuses at once while the folder's Neovim has unsaved buffers. Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome, whose notice carries git's warning about commits left behind a detached HEAD.",
+        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Refuses at once when a git.worktree.switching handler refuses (the editor does while the folder's Neovim has unsaved buffers). Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome, whose notice carries git's warning about commits left behind a detached HEAD.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -83,7 +83,7 @@
         "title": "Worktree Sessions",
         "hidden": true,
         "agent": false,
-        "description": "List the workspace's running sessions whose working directory is inside the given worktree, except the editor's own Neovim sessions. Returns [{id, title}].",
+        "description": "List the workspace's running sessions whose working directory is inside the given worktree, except sessions owned by plugins that handle git.worktree.removing (the editor's own Neovim). Returns [{id, title}].",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "Absolute worktree root."}
@@ -97,12 +97,12 @@
         "hidden": true,
         "agent": true,
         "destructive": true,
-        "description": "Start removing a linked git worktree: stops its Neovim and agent sessions, runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
+        "description": "Start removing a linked git worktree: runs the git.worktree.removing handlers (the editor stops its Neovim; any refusal is the operation's error) and then the git.worktree.vacating ones (agent sessions close), runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
             "path": {"type": "string", "description": "Worktree root, as listed by git.worktrees."},
-            "force": {"type": "boolean", "description": "Stop the worktree's Neovim even with unsaved buffers, discarding their changes."}
+            "force": {"type": "boolean", "description": "Passed to git.worktree.removing handlers: the editor stops the worktree's Neovim even with unsaved buffers, discarding their changes."}
           },
           "required": ["path"]
         }

@@ -103,6 +103,10 @@ func (h *Host) RunCommand(ctx context.Context, id, projectID string, args any, o
 	return h.Call(ctx, "command.run", runCommandParams{ID: id, ProjectID: projectID, Args: args}, out)
 }
 
+func (h *Host) Broadcast(ctx context.Context, topic, projectID string, args any) error {
+	return h.Call(ctx, "command.broadcast", broadcastParams{Topic: topic, ProjectID: projectID, Args: args}, nil)
+}
+
 func (h *Host) ListSessions(ctx context.Context, projectID string, mine bool) ([]Session, error) {
 	params := listSessionsParams{ProjectID: projectID}
 	if mine {
@@ -248,6 +252,12 @@ type SessionRequest struct {
 
 type runCommandParams struct {
 	ID        string `json:"id"`
+	ProjectID string `json:"projectId"`
+	Args      any    `json:"args"`
+}
+
+type broadcastParams struct {
+	Topic     string `json:"topic"`
 	ProjectID string `json:"projectId"`
 	Args      any    `json:"args"`
 }
