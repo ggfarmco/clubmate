@@ -9,7 +9,7 @@ import (
 
 const (
 	triggerPrefix = "trigger/"
-	idPrefix      = "tr_"
+	idPrefix      = "tr"
 )
 
 type Run = automation.Run

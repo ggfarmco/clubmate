@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"clubmate/internal/core"
-	"clubmate/internal/id"
 	"clubmate/internal/session"
+	"clubmate/pkg/id"
 )
 
 type processRegisterParams struct {

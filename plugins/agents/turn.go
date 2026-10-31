@@ -137,16 +137,22 @@ func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool 
 }
 
 func (a *app) runTurn(s *session, turn int, args promptArgs) {
+	for turn > 0 {
+		turn, args = a.playTurn(s, turn, args)
+	}
+}
+
+func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) {
 	p, err := a.attach(s)
 	if err != nil {
 		s.mu.Lock()
 		s.requeueLocked(args)
 		s.mu.Unlock()
 		a.fail(s, err.Error())
-		return
+		return 0, promptArgs{}
 	}
 	if a.abandon(s, args) {
-		return
+		return 0, promptArgs{}
 	}
 	rec := s.snapshot()
 	ctx, cancel := context.WithTimeout(context.Background(), checkpointLimit)
@@ -167,10 +173,10 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		if err := deleteCheckpoints(ctx, rec.Worktree, rec.ID); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: delete checkpoints:", err)
 		}
-		return
+		return 0, promptArgs{}
 	}
 	if a.abandon(s, args) {
-		return
+		return 0, promptArgs{}
 	}
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)}
 	s.mu.Lock()
@@ -192,7 +198,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	}
 	if errors.Is(err, acp.ErrClosed) {
 		go p.stop()
-		return
+		return 0, promptArgs{}
 	}
 	a.endSnapshot(s, rec, turn, sha)
 	commits := a.attributeTurn(rec, turn, sha, args.Text)
@@ -233,13 +239,11 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	if edited {
 		a.checktime(rec)
 	}
-	if nextTurn > 0 {
-		a.runTurn(s, nextTurn, next)
-	}
 	if finished {
 		a.cleanupChild(s)
 		a.closeVanishedChildren(s)
 	}
+	return nextTurn, next
 }
 
 func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, bool) {

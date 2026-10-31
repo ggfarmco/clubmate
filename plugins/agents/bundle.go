@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -153,7 +154,7 @@ func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, projectID, f
 		return importResult{}, err
 	}
 	copied := record{
-		ID:        newSessionID(),
+		ID:        id.New(sessionPrefix),
 		Workspace: projectID,
 		Worktree:  res.Worktree,
 		Agent:     old.Agent,

@@ -15,7 +15,7 @@ import (
 
 const (
 	jobPrefix = "job/"
-	idPrefix  = "cj_"
+	idPrefix  = "cj"
 )
 
 var uiCommands = map[string]string{

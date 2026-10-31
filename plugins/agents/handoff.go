@@ -30,6 +30,7 @@ type handoffResult struct {
 }
 
 func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from string) (*session, error) {
+	finish, afk := a.sessionDefaults(ctx, s.snapshot().ParentSession)
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
 	old := s.snapshot()
@@ -57,6 +58,8 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		Notify:   old.Notify,
 		Title:    old.Title,
 		TitleSet: old.TitleSet,
+		Finish:   finish,
+		AFK:      afk,
 	}, first, nil)
 	s.mu.Lock()
 	s.rec.HandoffTo = next.snapshot().ID

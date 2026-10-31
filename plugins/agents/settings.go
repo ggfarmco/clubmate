@@ -188,6 +188,12 @@ func (a *app) setFinish(s *session, value string) error {
 	return nil
 }
 
+func (a *app) sessionDefaults(ctx context.Context, parent string) (string, bool) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return a.finishDefault(ctx), parent == "" && a.afkDefault(ctx)
+}
+
 func (a *app) afkDefault(ctx context.Context) bool {
 	var on bool
 	if found, err := a.host.StorageGet(ctx, afkKey, &on); err != nil || !found {

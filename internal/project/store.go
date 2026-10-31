@@ -15,7 +15,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"clubmate/internal/id"
+	"clubmate/pkg/id"
 )
 
 var (

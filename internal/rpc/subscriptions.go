@@ -7,7 +7,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
-	"clubmate/internal/id"
+	"clubmate/pkg/id"
 )
 
 const (

@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"clubmate/internal/id"
 	"clubmate/internal/proc"
+	"clubmate/pkg/id"
 )
 
 const (

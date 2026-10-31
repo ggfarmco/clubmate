@@ -42,7 +42,13 @@ func (a *app) resume(s *session) {
 		s.rec.Closed = false
 		s.setStatusLocked(statusIdle, "")
 	}
+	id := s.rec.ID
 	s.mu.Unlock()
+	a.mu.Lock()
+	if a.dropped[id] == dropClosed {
+		delete(a.dropped, id)
+	}
+	a.mu.Unlock()
 	s.changed(changeStatus, true)
 	go a.attachInBackground(s)
 }

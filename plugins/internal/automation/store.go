@@ -2,8 +2,6 @@ package automation
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 
 	"clubmate/pkg/pluginsdk"
@@ -61,12 +59,4 @@ func (st *Store[E, P]) Remove(ctx context.Context, p P) error {
 func (st *Store[E, P]) key(p P) string {
 	act := p.Action()
 	return st.Prefix + act.Workspace + "/" + act.ID
-}
-
-func NewID(prefix string) (string, error) {
-	b := make([]byte, 4)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(b), nil
 }

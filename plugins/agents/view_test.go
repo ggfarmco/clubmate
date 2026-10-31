@@ -171,6 +171,7 @@ func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
 	clock.advance(tickEvery)
 	tick.stop()
 	clock.advance(tickEvery)
+	tick.fire()
 
 	assert.Equal(t, []string{"<1 min", "1 min"}, details)
 }

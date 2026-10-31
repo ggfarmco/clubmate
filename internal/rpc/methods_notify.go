@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"clubmate/internal/id"
 	"clubmate/internal/notify"
 	"clubmate/internal/session"
+	"clubmate/pkg/id"
 )
 
 const (

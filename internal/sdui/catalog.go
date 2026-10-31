@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strconv"
 
-	"clubmate/internal/id"
+	"clubmate/pkg/id"
 	"clubmate/pkg/sdui"
 )
 

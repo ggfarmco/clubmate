@@ -17,10 +17,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"clubmate/internal/id"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/sessionhost"
+	"clubmate/pkg/id"
 )
 
 const (

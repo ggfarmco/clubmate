@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
@@ -109,9 +110,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for t.ID == "" || a.triggers[t.ID] != nil {
-		if t.ID, err = automation.NewID(idPrefix); err != nil {
-			return nil, err
-		}
+		t.ID = id.Short(idPrefix)
 	}
 	if err := a.put(ctx, t); err != nil {
 		delete(a.triggers, t.ID)

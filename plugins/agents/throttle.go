@@ -89,8 +89,11 @@ func (t *ticker) arm() {
 func (t *ticker) fire() {
 	t.mu.Lock()
 	t.stopAt = nil
+	stopped := t.stopped
 	t.mu.Unlock()
-	t.fn()
+	if !stopped {
+		t.fn()
+	}
 }
 
 func (t *ticker) stop() {

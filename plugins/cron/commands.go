@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
 	"clubmate/plugins/internal/automation"
@@ -96,9 +97,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for j.ID == "" || a.jobs[j.ID] != nil {
-		if j.ID, err = automation.NewID(idPrefix); err != nil {
-			return nil, err
-		}
+		j.ID = id.Short(idPrefix)
 	}
 	if err := a.store.Save(ctx, j); err != nil {
 		return nil, err

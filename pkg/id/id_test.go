@@ -5,11 +5,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"clubmate/internal/id"
+	"clubmate/pkg/id"
 )
 
 func TestNewFormat(t *testing.T) {
 	assert.Regexp(t, `^prj_[0-9a-f]{16}$`, id.New("prj"))
+	assert.Regexp(t, `^cj_[0-9a-f]{8}$`, id.Short("cj"))
 }
 
 func TestValid(t *testing.T) {

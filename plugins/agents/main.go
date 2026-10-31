@@ -50,7 +50,7 @@ type registry struct {
 	sessions map[string]*session
 	procs    map[string]*procSlot
 	live     map[*agentProc]bool
-	dropped  map[string]bool
+	dropped  map[string]dropState
 	closing  bool
 }
 
@@ -77,7 +77,7 @@ func main() {
 }
 
 func newRegistry() registry {
-	return registry{sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]bool{}}
+	return registry{sessions: map[string]*session{}, procs: map[string]*procSlot{}, live: map[*agentProc]bool{}, dropped: map[string]dropState{}}
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {

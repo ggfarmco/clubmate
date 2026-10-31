@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"clubmate/internal/id"
 	"clubmate/internal/proc"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/id"
 )
 
 func TestSessionSendRead(t *testing.T) {

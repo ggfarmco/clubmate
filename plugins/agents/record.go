@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
@@ -61,14 +60,6 @@ type sessionInfo struct {
 	record
 	Pending         []string `json:"pending,omitempty"`
 	NotifyEffective string   `json:"notifyEffective"`
-}
-
-func newSessionID() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return sessionPrefix + "_" + hex.EncodeToString(b)
 }
 
 func titleOf(text string) string {

@@ -15,11 +15,11 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"clubmate/internal/id"
 	"clubmate/internal/paths"
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/wire"
+	"clubmate/pkg/id"
 )
 
 const (

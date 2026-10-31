@@ -847,6 +847,32 @@ func TestStopRoot(t *testing.T) {
 	require.Len(t, starts, 1)
 	assert.ErrorIs(t, syscall.Kill(starts[0].PID, 0), syscall.ESRCH)
 	assert.Empty(t, git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/"))
+
+	require.NoError(t, f.h.Svc.DeleteProject(t.Context(), project))
+
+	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
+	testutil.Eventually(t, func() bool {
+		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+session)
+		require.NoError(t, err)
+		_, statErr := os.Stat(path)
+		return !found && errors.Is(statErr, os.ErrNotExist)
+	}, wait)
+}
+
+func TestResumedSessionClosedWhenWorktreeVanishes(t *testing.T) {
+	repo := newRepo(t)
+	f := start(t, map[string]any{})
+	project := f.project(t, repo)
+	session := f.newSession(t, project)
+	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"root": repo}, nil))
+	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": session}, nil))
+	require.False(t, f.session(t, project, session).Closed)
+
+	require.NoError(t, os.RemoveAll(repo))
+	_, err := f.h.Svc.RenameProject(t.Context(), project, "renamed")
+	require.NoError(t, err)
+
+	f.waitStatus(t, project, session, "closed")
 }
 
 func cardsOf(n sdui.Node, typ string) []sdui.Node {

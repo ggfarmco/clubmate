@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"time"
 
 	"clubmate/plugins/agents/acp"
@@ -13,6 +15,13 @@ import (
 
 const (
 	stopRootWait = 4 * time.Second
+)
+
+type dropState int
+
+const (
+	dropClosed dropState = iota + 1
+	dropRemoved
 )
 
 func (a *app) closeTree(ctx context.Context, s *session) {
@@ -100,6 +109,7 @@ func (a *app) deleteSession(ctx context.Context, s *session, remote bool) error 
 	a.closeSession(ctx, s, remote)
 	a.mu.Lock()
 	delete(a.sessions, s.rec.ID)
+	delete(a.dropped, s.rec.ID)
 	a.mu.Unlock()
 	s.mu.Lock()
 	s.deleted = true
@@ -138,7 +148,7 @@ func (a *app) stopRoot(ctx context.Context, root string) error {
 	var hit []*session
 	for id, s := range a.sessions {
 		if inside(s.snapshot().Worktree) {
-			a.dropped[id] = true
+			a.dropped[id] = max(a.dropped[id], dropClosed)
 			hit = append(hit, s)
 		}
 	}
@@ -168,10 +178,12 @@ func (a *app) stopRoot(ctx context.Context, root string) error {
 		case <-ctx.Done():
 		}
 	}
+	refsCtx, refsCancel := context.WithTimeout(context.WithoutCancel(ctx), refsTimeout)
+	defer refsCancel()
 	var errs []error
 	for _, s := range hit {
 		rec := s.snapshot()
-		errs = append(errs, deleteCheckpoints(context.WithoutCancel(ctx), rec.Worktree, rec.ID))
+		errs = append(errs, deleteCheckpoints(refsCtx, rec.Worktree, rec.ID))
 	}
 	return errors.Join(errs...)
 }
@@ -179,22 +191,18 @@ func (a *app) stopRoot(ctx context.Context, root string) error {
 func (a *app) dropWorkspace(projectID string, match func(record) bool, remove bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), refsTimeout)
 	defer cancel()
-	a.mu.Lock()
-	var hit []*session
-	for id, s := range a.sessions {
-		if !a.dropped[id] {
-			hit = append(hit, s)
-		}
+	want := dropClosed
+	if remove {
+		want = dropRemoved
 	}
+	a.mu.Lock()
+	all := slices.Collect(maps.Values(a.sessions))
 	a.mu.Unlock()
-	for _, s := range hit {
+	for _, s := range all {
 		rec := s.snapshot()
-		if rec.Workspace != projectID || (match != nil && !match(rec)) {
+		if rec.Workspace != projectID || (match != nil && !match(rec)) || !a.claimDrop(rec.ID, want) {
 			continue
 		}
-		a.mu.Lock()
-		a.dropped[rec.ID] = true
-		a.mu.Unlock()
 		var err error
 		if remove {
 			err = a.deleteSession(ctx, s, false)
@@ -206,4 +214,14 @@ func (a *app) dropWorkspace(projectID string, match func(record) bool, remove bo
 			fmt.Fprintln(os.Stderr, "agents: drop session:", err)
 		}
 	}
+}
+
+func (a *app) claimDrop(id string, want dropState) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.sessions[id] == nil || a.dropped[id] >= want {
+		return false
+	}
+	a.dropped[id] = want
+	return true
 }

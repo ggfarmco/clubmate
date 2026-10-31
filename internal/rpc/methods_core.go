@@ -11,11 +11,11 @@ import (
 
 	"clubmate/internal/buildinfo"
 	"clubmate/internal/core"
-	"clubmate/internal/id"
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
+	"clubmate/pkg/id"
 )
 
 const (

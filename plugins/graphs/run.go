@@ -2,19 +2,19 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"clubmate/pkg/id"
 )
 
 const (
 	runPrefix     = "run/"
-	runIDPrefix   = "gr_"
+	runIDPrefix   = "gr"
 	statusRunning = "running"
 	statusStopped = "stopped"
 	turnTopic     = "agents.turn"
@@ -121,12 +121,8 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 	if len(input) > maxInput {
 		return nil, fmt.Errorf("input: at most %d KiB", maxInput>>10)
 	}
-	id, err := newRunID()
-	if err != nil {
-		return nil, err
-	}
 	r := &Run{
-		ID:        id,
+		ID:        id.Short(runIDPrefix),
 		Graph:     g.Name,
 		Title:     graphTitle(g),
 		Workspace: workspace,
@@ -396,14 +392,6 @@ func graphTitle(g *Graph) string {
 
 func isUnknownTrigger(err error) bool {
 	return strings.Contains(err.Error(), "unknown trigger")
-}
-
-func newRunID() (string, error) {
-	b := make([]byte, 4)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return runIDPrefix + hex.EncodeToString(b), nil
 }
 
 func runKey(r *Run) string {

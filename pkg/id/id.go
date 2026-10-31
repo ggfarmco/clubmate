@@ -6,14 +6,17 @@ import (
 	"strings"
 )
 
-const hexLen = 16
+const (
+	hexLen      = 16
+	shortHexLen = 8
+)
 
 func New(prefix string) string {
-	b := make([]byte, hexLen/2)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return prefix + "_" + hex.EncodeToString(b)
+	return generate(prefix, hexLen)
+}
+
+func Short(prefix string) string {
+	return generate(prefix, shortHexLen)
 }
 
 func Valid(prefix, s string) bool {
@@ -27,4 +30,12 @@ func Valid(prefix, s string) bool {
 		}
 	}
 	return true
+}
+
+func generate(prefix string, n int) string {
+	b := make([]byte, n/2)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return prefix + "_" + hex.EncodeToString(b)
 }

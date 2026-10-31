@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -66,6 +67,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from
 		ready = newSetup(plan)
 	}
 	rec.Worktree = root
+	rec.Finish, rec.AFK = a.sessionDefaults(ctx, rec.ParentSession)
 	s, err := a.spawn(rec, promptArgs{Text: args.Prompt, From: from}, ready)
 	if ready != nil && s != nil {
 		go a.createWorktree(s, ready)
@@ -133,8 +135,7 @@ func (a *app) launch(rec record, first promptArgs, ready *setup) (*session, erro
 
 func (a *app) createSession(rec record, ready *setup) *session {
 	now := time.Now().UTC()
-	rec.ID, rec.Finish, rec.Status, rec.CreatedAt, rec.UpdatedAt = newSessionID(), a.finishDefault(context.Background()), statusIdle, now, now
-	rec.AFK = rec.ParentSession == "" && a.afkDefault(context.Background())
+	rec.ID, rec.Status, rec.CreatedAt, rec.UpdatedAt = id.New(sessionPrefix), statusIdle, now, now
 	s := a.addSession(rec, true, ready)
 	a.notes.mark(s, changeCreated, true)
 	a.kick(rec.Workspace)

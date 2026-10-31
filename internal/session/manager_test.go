@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"clubmate/internal/id"
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/session"
 	"clubmate/internal/sessionhost"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/id"
 )
 
 func spawn(t *testing.T, m *session.Manager, command ...string) session.Session {
