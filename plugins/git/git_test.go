@@ -174,12 +174,15 @@ func awaitOp(t *testing.T, h *testutil.PluginHarness, id, command string, args a
 func waitOp(t *testing.T, h *testutil.PluginHarness, id, op string) opResult {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
-	var res opResult
-	for !res.Done {
-		require.True(t, time.Now().Before(deadline), "operation %s did not finish", op)
+	for {
+		var res opResult
 		require.NoError(t, runCommand(t, h, id, "git.worktree-op-status", map[string]string{"id": op}, &res))
+		if res.Done {
+			return res
+		}
+		require.True(t, time.Now().Before(deadline), "operation %s did not finish", op)
+		time.Sleep(20 * time.Millisecond)
 	}
-	return res
 }
 
 func TestWorktreeList(t *testing.T) {
