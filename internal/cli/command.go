@@ -100,10 +100,7 @@ func (a *app) commandRunCmd() *cobra.Command {
 				params["args"] = values
 			}
 			if agent {
-				params["agent"] = true
-				if caller := os.Getenv(agentSessionEnv); caller != "" {
-					params["caller"] = caller
-				}
+				asAgent(params)
 			}
 			return a.callAndPrint(cmd.Context(), "command.run", params)
 		},

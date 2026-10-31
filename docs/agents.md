@@ -46,6 +46,19 @@ clubmate session read ses_123
 
 `key=value` arguments are typed by the command's schema (arrays are comma-separated); `--args '{"…": …}'` takes JSON instead. `--agent` runs the command as an agent would, with the same limits and approvals. The CLI never turns it on by itself.
 
+`clubmate agent` wraps the agent-session commands and always runs them as an agent call, so a session started from an agent session's shell is its child:
+
+```sh
+clubmate agent spawn "fix the flaky test" --branch fix/flaky   # agents.new; without --branch it shares your worktree
+clubmate agent tell agt_123 "also update the docs"             # agents.prompt
+clubmate agent wait agt_123 agt_456 --timeout 300              # agents.wait
+clubmate agent output agt_123 --from-turn 2                    # agents.transcript
+clubmate agent sessions                                        # agents.sessions
+clubmate agent cancel agt_123                                  # agents.cancel
+```
+
+A reviewer is a child in your own worktree: `clubmate agent spawn "Review git diff main..HEAD read-only: report bugs, change nothing"` (or `agents_new` without `branch` over MCP), `wait` for it, `tell` it one round of follow-ups, then fix what it found yourself.
+
 ## MCP (Claude Code and other MCP clients)
 
 `clubmate mcp` is a stdio MCP server over the same registry. Every call it makes is an agent call.

@@ -21,10 +21,15 @@ type echoed struct {
 
 func startEcho(t *testing.T, command string) {
 	t.Helper()
+	startEchoPlugin(t, fmt.Sprintf(`{"id":"alpha","name":"alpha","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[%s]}}`, command))
+}
+
+func startEchoPlugin(t *testing.T, manifest string) {
+	t.Helper()
 	h := testutil.NewHarness(t)
 	p, err := h.Svc.CreateProject(t.Context(), "demo", nil)
 	require.NoError(t, err)
-	h.Start(t, testutil.EchoPluginDirAs(t, fmt.Sprintf(`{"id":"alpha","name":"alpha","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[%s]}}`, command)))
+	h.Start(t, testutil.EchoPluginDirAs(t, manifest))
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
 	h.Client(t)
 	t.Setenv("CLUBMATE_STATE_DIR", h.Dirs.State)

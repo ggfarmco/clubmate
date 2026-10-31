@@ -85,11 +85,11 @@ func uiEvent(_ context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, e
 }
 
 func command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
-	if cmd.ID != h.PluginID()+".say" {
+	canned := canned()
+	if cmd.ID != h.PluginID()+".say" && !canned.EchoAll {
 		if _, err := h.Publish(ctx, "echo.command", map[string]any{"plugin": h.PluginID(), "id": cmd.ID, "args": cmd.Args}); err != nil {
 			return nil, err
 		}
-		canned := canned()
 		select {
 		case <-time.After(time.Duration(canned.EchoDelays[cmd.ID]) * time.Millisecond):
 		case <-ctx.Done():
@@ -165,6 +165,7 @@ type cannedReplies struct {
 	EchoResults map[string]json.RawMessage `json:"echoResults"`
 	EchoErrors  map[string]string          `json:"echoErrors"`
 	EchoDelays  map[string]int             `json:"echoDelays"`
+	EchoAll     bool                       `json:"echoAll"`
 }
 
 func canned() cannedReplies {
