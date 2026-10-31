@@ -67,3 +67,16 @@ func TestMainDeleteConfirms(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "Delete task #7?", del.Props["confirm"])
 }
+
+func TestMainFormAutosaves(t *testing.T) {
+	main := mainView(&Task{ID: 7, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true)
+	form, ok := findNode(main, "edit")
+	require.True(t, ok)
+	assert.Equal(t, true, form.Props["autosave"])
+	assert.Equal(t, "save.7", form.Props["action"])
+	saved, ok := findNode(form, "save")
+	require.True(t, ok)
+	assert.Equal(t, "Saved", saved.Props["label"])
+	assert.Equal(t, sdui.VariantGhost, saved.Props["variant"])
+	assert.Equal(t, "cmd+s", saved.Props["shortcut"])
+}

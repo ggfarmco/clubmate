@@ -387,6 +387,10 @@ func WithDisabled(n Node) Node {
 	return withProp(n, "disabled", true)
 }
 
+func WithAutosave(n Node) Node {
+	return withProp(n, "autosave", true)
+}
+
 func withProp(n Node, key string, value any) Node {
 	props := make(map[string]any, len(n.Props)+1)
 	for k, v := range n.Props {

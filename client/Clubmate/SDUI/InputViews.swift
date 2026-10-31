@@ -280,6 +280,8 @@ struct FolderFieldNodeView: View {
         panel.prompt = "Choose"
         guard !TestMode.current, panel.runModal() == .OK else { return }
         paths = panel.urls.map(\.path)
+        if let id = node.id { form?.values[id] = .array(paths.map(JSONValue.string)) }
+        form?.edited()
         if form == nil || node.string("action") != nil { dispatch(node, .pick(paths)) }
     }
 }
@@ -315,7 +317,11 @@ struct TextFieldNodeView: View {
             .fieldChrome(focused: focused)
             .padding(.horizontal, theme.gutter)
             .onSubmit(submit)
+            .onChange(of: focused) { _, now in
+                if !now { form?.flush() }
+            }
             .onChange(of: node.string("value"), initial: true) { _, value in
+                if form?.autosave == true, focused { return }
                 text = value ?? ""
             }
             .onChange(of: text, initial: true) { _, value in
@@ -332,10 +338,18 @@ struct TextFieldNodeView: View {
     private var field: some View {
         let prompt = Text(node.string("placeholder") ?? "").foregroundStyle(theme.muted)
         if let lines {
-            TextField("", text: $text, prompt: prompt, axis: .vertical).lineLimit(2...lines)
+            TextField("", text: typed, prompt: prompt, axis: .vertical).lineLimit(2...lines)
         } else {
-            TextField("", text: $text, prompt: prompt)
+            TextField("", text: typed, prompt: prompt)
         }
+    }
+
+    private var typed: Binding<String> {
+        Binding(get: { text }, set: { value in
+            guard value != text else { return }
+            text = value
+            form?.edited(after: FormState.typingDelay)
+        })
     }
 
     private func submit() {
@@ -370,6 +384,8 @@ struct ToggleNodeView: View {
 
     private func change(_ value: Bool) {
         isOn = value
+        if let id = node.id { form?.values[id] = .bool(value) }
+        form?.edited()
         if form == nil || node.string("action") != nil { dispatch(node, .toggle(value)) }
     }
 }
@@ -424,6 +440,8 @@ struct SelectNodeView: View {
 
     private func choose(_ option: String) {
         value = option
+        if let id = node.id { form?.values[id] = .string(option) }
+        form?.edited()
         if form == nil || node.string("action") != nil { dispatch(node, .change(option)) }
     }
 }

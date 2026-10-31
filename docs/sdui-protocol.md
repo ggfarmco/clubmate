@@ -58,7 +58,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | folderField | label* (string), values (string[]), action | none | yes |
 | toggle | value* (bool), action | none | yes |
 | select | options* (option[]), value (string), action | none | yes |
-| form | action | any | yes |
+| form | action, autosave (bool) | any | yes |
 | surface | sessionId* (`ses_` id) | none | no |
 | header | title* (string), icon (string), meta (string), badges (`[{text*, tone}]`) | 0-8 `button` | no |
 | empty | text* (string), title (string), icon (string), hint (string) | 0-1 `button` | no |
@@ -420,6 +420,7 @@ A plugin's `session.create` (`pluginsdk.Host.CreateSession`) also takes `env`, e
 | select | change | `props.action ?? "select"` | option value |
 | folderField | pick folders | `props.action ?? "pick"` | string[] of absolute paths |
 | form | submit | `props.action ?? "submit"` | object `{fieldNodeId: value}` |
+| form with `autosave` | a field edited | `props.action ?? "submit"` | object `{fieldNodeId: value}` |
 | list / tree | choose a menu entry | entry `action` | item id |
 | toolCard | click an action | entry `action` | entry `value` (`null` when absent) |
 | permissionCard | click an option | `props.action ?? "permission"` | object `{request, option}`: `request` from props, `option` the option id |
@@ -441,3 +442,4 @@ A `form` collects the values of the `textField`, `folderField`, `toggle` and `se
 - Return in a `textField` without an `action` prop submits the form the same way.
 - Fields without an `action` prop inside a form are silent: they only update the collected values.
 - A field or button with its own `action` prop sends its own event per the contract above (fields still update the collected values); it does not submit the form.
+- With `autosave: true` the form also submits itself when the user edits a field: 600 ms after the last keystroke in a `textField` or when it loses focus with unsent edits, at once on a `select`, `toggle` or `folderField` change, and when the form leaves the tree with unsent edits. A submit (button, Return) sends at once and drops the pending one. Values a render sets do not count as edits. While a `textField` in an autosave form has focus, a changed `value` from the plugin does not replace the text (the field is the source of truth while the user types; its next save carries its text). The plugin answers each submit like a normal one; a form without `autosave` behaves as before.

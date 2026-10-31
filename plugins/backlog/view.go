@@ -165,9 +165,9 @@ func mainView(t *Task, owners map[string]string, hasTasks bool) sdui.Node {
 	fields = append(fields,
 		sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, nil), t.Priority)),
 		sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)),
-		sdui.WithShortcut(sdui.WithVariant(sdui.Button("save", "Save", ""), sdui.VariantSecondary), "cmd+s"),
+		sdui.WithShortcut(sdui.WithVariant(sdui.Button("save", "Saved", "checkmark"), sdui.VariantGhost), "cmd+s"),
 	)
-	form := sdui.VStack(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID)))
+	form := sdui.VStack(sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID))))
 	form.ID = fmt.Sprintf("task-%d", t.ID)
 	nodes = append(nodes, form)
 	return sdui.Scroll(sdui.VStack(nodes...))

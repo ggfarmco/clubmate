@@ -190,7 +190,7 @@
                     {
                       "type": "form",
                       "id": "settings-form",
-                      "props": {"action": "settings.save"},
+                      "props": {"action": "settings.save", "autosave": true},
                       "children": [
                         {"type": "textField", "id": "name", "props": {"value": "clubmate", "placeholder": "Workspace name"}},
                         {
