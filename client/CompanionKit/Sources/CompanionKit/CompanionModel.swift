@@ -91,6 +91,15 @@ public final class CompanionModel {
         return store
     }
 
+    public func needsYou() -> [NeedsYouItem] {
+        let online = computers.compactMap { connections[$0.id] }.filter { $0.state == .online }
+        return NeedsYouItem.collect(online.flatMap { connection in
+            connection.workspaces.compactMap { workspace in
+                agents(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, workspace, $0.sessions) }
+            }
+        })
+    }
+
     public func backlog(computer: String, workspace: String) -> BacklogStore? {
         let key = computer + "|" + workspace
         if let existing = backlogs[key] { return existing }

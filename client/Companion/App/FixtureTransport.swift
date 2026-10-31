@@ -26,6 +26,7 @@ actor FixtureServer {
     private static let workspace = "prj_00000000000000f1"
 
     private var sessions: [[String: JSONValue]] = []
+    private var others: [[String: JSONValue]] = []
     private var transcripts: [String: [String: JSONValue]] = [:]
     private var tasks: [[String: JSONValue]] = []
     private var turns: [String: Task<Void, Never>] = [:]
@@ -47,7 +48,22 @@ actor FixtureServer {
             if index == 2 { fields["title"] = .string("Bump dependencies") }
             if index == 1 { fields["afk"] = .bool(true) }
             if index == 1, let parent = list.first?["id"] { fields["parentSession"] = parent }
+            if case .object(var summary) = fields["pendingSummary"] ?? .null {
+                summary["at"] = stamp
+                fields["pendingSummary"] = .object(summary)
+            }
             sessions.append(fields)
+        }
+        if let template = sessions.first {
+            let extra: [(String, String, String, Double)] = [
+                ("agt_0000000000000004", "Add stock reservation expiry", "running", 240),
+                ("agt_0000000000000005", "Migrate cart storage", "error", 2_400),
+                ("agt_0000000000000006", "Bump Go to 1.25", "done", 3_700),
+            ]
+            for (id, title, status, ago) in extra {
+                sessions.append(Self.session(template, id: id, title: title, status: status, ago: ago))
+            }
+            others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600)]
         }
         var transcripts: [String: [String: JSONValue]] = [:]
         if case .object(let first) = decode("agents-transcript.json"), let id = sessions.first?["id"]?.stringValue {
@@ -110,7 +126,7 @@ actor FixtureServer {
         let session = args["session"]?.stringValue ?? ""
         switch id {
         case "agents.sessions":
-            return workspace == Self.workspace ? .array(sessions.map(JSONValue.object)) : .array([])
+            return .array((workspace == Self.workspace ? sessions : others).map(JSONValue.object))
         case "agents.transcript":
             var transcript = transcripts[session] ?? [:]
             if args["compact"] == .bool(true) {
@@ -290,6 +306,7 @@ actor FixtureServer {
     private func update(_ session: String, _ change: (inout [String: JSONValue]) -> Void) {
         guard let index = sessions.firstIndex(where: { $0["id"]?.stringValue == session }) else { return }
         change(&sessions[index])
+        if sessions[index]["pending"] == nil && sessions[index]["asks"] != .bool(true) { sessions[index]["pendingSummary"] = nil }
         sessions[index]["updatedAt"] = Self.stamp(ago: 0)
         publish("agents.changed", ["workspace": .string(Self.workspace), "session": .string(session), "kind": .string("status")])
     }
@@ -323,6 +340,20 @@ actor FixtureServer {
 
     private static func entry(_ kind: String, _ id: String, text: String) -> JSONValue {
         .object(["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)])
+    }
+
+    private static func session(_ template: [String: JSONValue], id: String, title: String, status: String, ago: TimeInterval) -> [String: JSONValue] {
+        var fields = template
+        for key in ["pending", "pendingSummary", "question", "parentSession"] { fields[key] = nil }
+        fields["id"] = .string(id)
+        fields["title"] = .string(title)
+        fields["status"] = .string(status)
+        fields["asks"] = .bool(false)
+        fields["createdAt"] = stamp(ago: ago)
+        fields["updatedAt"] = stamp(ago: status == "running" ? 5 : ago)
+        if status == "running" { fields["turnStartedAt"] = stamp(ago: ago) }
+        if status == "error" { fields["error"] = .string("exit status 1") }
+        return fields
     }
 
     private static func stamp(ago seconds: TimeInterval) -> JSONValue {

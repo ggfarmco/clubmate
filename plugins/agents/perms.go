@@ -7,6 +7,8 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
+	"time"
 
 	"clubmate/plugins/agents/acp"
 )
@@ -18,11 +20,12 @@ var (
 
 type pendingPermission struct {
 	request string
+	at      time.Time
 	reply   chan acp.PermissionOutcome
 }
 
 func (s *session) requestPermission(ctx context.Context, request string, params json.RawMessage) acp.PermissionOutcome {
-	perm := &pendingPermission{request: request, reply: make(chan acp.PermissionOutcome, 1)}
+	perm := &pendingPermission{request: request, at: time.Now().UTC(), reply: make(chan acp.PermissionOutcome, 1)}
 	s.mu.Lock()
 	s.loadLocked()
 	id := entryPermission + "-" + strconv.Itoa(s.nextID+1)
@@ -70,6 +73,25 @@ func (s *session) pending() []string {
 	ids := slices.Collect(maps.Keys(s.perms))
 	slices.Sort(ids)
 	return ids
+}
+
+func (s *session) permissionSummary() *pendingSummary {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, en := range s.entries {
+		perm := s.perms[en.ID]
+		if en.Kind != entryPermission || perm == nil {
+			continue
+		}
+		var call toolFields
+		_ = json.Unmarshal(en.ToolCall, &call)
+		text := call.Title
+		if command, ok := call.RawInput["command"].(string); ok && strings.TrimSpace(command) != "" {
+			text = command
+		}
+		return &pendingSummary{Kind: entryPermission, Text: clipRunes(firstLine(text), summaryRunes), Tool: call.Kind, At: perm.at}
+	}
+	return nil
 }
 
 func (s *session) pendingIDs() map[string]bool {

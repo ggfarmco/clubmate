@@ -24,6 +24,9 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let notify: NotificationPolicy?
     public let error: String?
     public let pending: [String]
+    public let pendingSummary: PendingSummary?
+    public let question: String?
+    public let turnStartedAt: Date?
     public let notifyEffective: NotificationPolicy
     public let childStatus: AgentSessionStatus?
 
@@ -33,7 +36,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         title: String = "", titleSet: Bool = false, status: AgentSessionStatus = .other, mode: String = "", finish: AgentFinish = .ask, afk: Bool = false,
         createdAt: Date = .distantPast, updatedAt: Date? = nil, asks: Bool = false,
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
-        childStatus: AgentSessionStatus? = nil
+        childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -58,6 +61,9 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.notify = notify
         self.error = error
         self.pending = pending
+        self.pendingSummary = pendingSummary
+        self.question = question
+        self.turnStartedAt = turnStartedAt
         self.notifyEffective = notifyEffective
         self.childStatus = childStatus
     }
@@ -67,6 +73,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
+        case pendingSummary, question, turnStartedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -101,7 +108,10 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             error: try optional(.error),
             pending: try c.decodeIfPresent([String].self, forKey: .pending) ?? [],
             notifyEffective: try c.decodeIfPresent(NotificationPolicy.self, forKey: .notifyEffective) ?? .all,
-            childStatus: try c.decodeIfPresent(AgentSessionStatus.self, forKey: .childStatus)
+            childStatus: try c.decodeIfPresent(AgentSessionStatus.self, forKey: .childStatus),
+            pendingSummary: try? c.decodeIfPresent(PendingSummary.self, forKey: .pendingSummary),
+            question: try optional(.question),
+            turnStartedAt: date(.turnStartedAt)
         )
     }
 
@@ -134,5 +144,56 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(pending, forKey: .pending)
         try c.encode(notifyEffective, forKey: .notifyEffective)
         try c.encodeIfPresent(childStatus, forKey: .childStatus)
+        try c.encodeIfPresent(pendingSummary, forKey: .pendingSummary)
+        try c.encodeIfPresent(question, forKey: .question)
+        try c.encodeIfPresent(turnStartedAt.map(formatter.string(from:)), forKey: .turnStartedAt)
+    }
+}
+
+public struct PendingSummary: Codable, Sendable, Hashable {
+    public enum Kind: String, Codable, Sendable {
+        case permission
+        case question
+    }
+
+    public let kind: Kind
+    public let text: String
+    public let tool: String?
+    public let at: Date
+
+    public init(kind: Kind, text: String, tool: String? = nil, at: Date) {
+        self.kind = kind
+        self.text = text
+        self.tool = tool
+        self.at = at
+    }
+
+    public var isCommand: Bool {
+        kind == .permission && tool == "execute"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind, text, tool, at
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let at = try c.decodeIfPresent(String.self, forKey: .at).flatMap(Date.parseRFC3339)
+        self.init(
+            kind: try c.decode(Kind.self, forKey: .kind),
+            text: try c.decodeIfPresent(String.self, forKey: .text) ?? "",
+            tool: try c.decodeIfPresent(String.self, forKey: .tool).flatMap { $0.isEmpty ? nil : $0 },
+            at: at ?? .distantPast
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        try c.encode(kind, forKey: .kind)
+        try c.encode(text, forKey: .text)
+        try c.encodeIfPresent(tool, forKey: .tool)
+        try c.encode(formatter.string(from: at), forKey: .at)
     }
 }

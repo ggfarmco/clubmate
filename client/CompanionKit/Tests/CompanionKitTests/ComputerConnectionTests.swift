@@ -52,12 +52,15 @@ final class ComputerConnectionTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(20))
         XCTAssertEqual(connection.state, .connecting)
         XCTAssertEqual(signals.values, [])
+        XCTAssertNil(connection.lastSeen)
 
         held.values[0].yield(Data(": connected\n\n".utf8))
 
         try await waitUntil { connection.state == .online }
         XCTAssertEqual(signals.values, [.online])
+        XCTAssertNotNil(connection.lastSeen)
         connection.stop()
+        XCTAssertTrue(connection.presence.hasPrefix("offline since "), connection.presence)
     }
 
     func testPluginChangedRefetchesHello() async throws {

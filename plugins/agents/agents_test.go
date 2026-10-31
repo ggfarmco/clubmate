@@ -53,7 +53,11 @@ type record struct {
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
 	Asks           bool     `json:"asks"`
-	Suspended      bool     `json:"suspended"`
+	PendingSummary *struct {
+		Kind string `json:"kind"`
+		Text string `json:"text"`
+	} `json:"pendingSummary"`
+	Suspended bool `json:"suspended"`
 }
 
 type entry struct {
@@ -2165,6 +2169,10 @@ func TestWaitReportsPermission(t *testing.T) {
 	assert.Equal(t, request, got.Permission.Request)
 	assert.Equal(t, "Run tests", got.Permission.Title)
 	assert.Equal(t, "execute", got.Permission.Kind)
+	summary := f.session(t, workspace, kid).PendingSummary
+	require.NotNil(t, summary)
+	assert.Equal(t, "permission", summary.Kind)
+	assert.Equal(t, "Run tests", summary.Text)
 	assert.Equal(t, []map[string]string{{"optionId": "allow", "name": "Allow", "kind": "allow_once"}, {"optionId": "deny", "name": "Deny", "kind": "reject_once"}}, got.Permission.Options)
 }
 
@@ -2178,7 +2186,11 @@ func TestAsksUser(t *testing.T) {
 
 	assert.Equal(t, "done", got.Status)
 	assert.True(t, got.Asks)
-	assert.True(t, f.session(t, workspace, session).Asks)
+	listed := f.session(t, workspace, session)
+	assert.True(t, listed.Asks)
+	require.NotNil(t, listed.PendingSummary)
+	assert.Equal(t, "question", listed.PendingSummary.Kind)
+	assert.Equal(t, "Ship it?", listed.PendingSummary.Text)
 	type turnEvent struct {
 		Workspace string `json:"workspace"`
 		Session   string `json:"session"`
@@ -2205,7 +2217,10 @@ func TestAsksUser(t *testing.T) {
 	}, wait)
 	require.NoError(t, os.Remove(filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")))
 	f.restartPlugin(t, workspace)
-	assert.True(t, f.session(t, workspace, session).Asks)
+	restarted := f.session(t, workspace, session)
+	assert.True(t, restarted.Asks)
+	require.NotNil(t, restarted.PendingSummary)
+	assert.Equal(t, "Ship it?", restarted.PendingSummary.Text)
 }
 
 func TestNewInWorktreeThenMergeToMain(t *testing.T) {

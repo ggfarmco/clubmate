@@ -20,6 +20,8 @@ const (
 	statusError   = "error"
 	statusClosed  = api.StatusClosed
 
+	pendingQuestion = "question"
+
 	notifyAll        = "all"
 	notifyNeedsInput = "needs-input"
 	notifyMuted      = "muted"
@@ -31,7 +33,8 @@ const (
 	finishKey  = "finish/default"
 	afkKey     = "afk/default"
 
-	titleRunes = 80
+	titleRunes   = 80
+	summaryRunes = 200
 )
 
 var notifyPolicies = []string{notifyAll, notifyNeedsInput, notifyMuted}
@@ -54,16 +57,26 @@ type record struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	Asks      bool      `json:"asks"`
+	Question  string    `json:"question,omitempty"`
 	Notify    string    `json:"notify,omitempty"`
 	Error     string    `json:"error,omitempty"`
 }
 
 type sessionInfo struct {
 	record
-	Pending         []string `json:"pending,omitempty"`
-	NotifyEffective string   `json:"notifyEffective"`
-	Closed          bool     `json:"closed"`
-	ChildStatus     string   `json:"childStatus,omitempty"`
+	Pending         []string        `json:"pending,omitempty"`
+	PendingSummary  *pendingSummary `json:"pendingSummary,omitempty"`
+	TurnStartedAt   *time.Time      `json:"turnStartedAt,omitempty"`
+	NotifyEffective string          `json:"notifyEffective"`
+	Closed          bool            `json:"closed"`
+	ChildStatus     string          `json:"childStatus,omitempty"`
+}
+
+type pendingSummary struct {
+	Kind string    `json:"kind"`
+	Text string    `json:"text"`
+	Tool string    `json:"tool,omitempty"`
+	At   time.Time `json:"at"`
 }
 
 type storedRecord struct {

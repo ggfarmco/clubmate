@@ -84,7 +84,11 @@ func (s *session) envelope(actor, kind string, payload json.RawMessage) envelope
 func (s *session) setStatusLocked(status, errText string) {
 	s.rec.Status = status
 	s.rec.Error = errText
-	s.rec.Asks = status == statusDone && asksQuestion(s.entries)
+	s.rec.Question = ""
+	if status == statusDone {
+		s.rec.Question = lastQuestion(s.entries)
+	}
+	s.rec.Asks = s.rec.Question != ""
 	s.rec.UpdatedAt = time.Now().UTC()
 }
 
@@ -179,13 +183,25 @@ func (u *setup) failed() bool {
 	}
 }
 
-func asksQuestion(entries []*entry) bool {
+func lastQuestion(entries []*entry) string {
 	for i := len(entries) - 1; i >= 0; i-- {
-		if entries[i].Kind == entryAgent {
-			return strings.HasSuffix(strings.TrimRight(entries[i].Text, " \t\r\n*_`"), "?")
+		if entries[i].Kind != entryAgent {
+			continue
 		}
+		text := strings.TrimRight(entries[i].Text, " \t\r\n*_`")
+		if !strings.HasSuffix(text, "?") {
+			return ""
+		}
+		text = text[strings.LastIndex(text, "\n")+1:]
+		start := 0
+		for _, sep := range []string{". ", "! ", "? "} {
+			if j := strings.LastIndex(text[:len(text)-1], sep); j >= 0 {
+				start = max(start, j+len(sep))
+			}
+		}
+		return clipRunes(strings.TrimLeft(text[start:], " \t*_`#>-"), summaryRunes)
 	}
-	return false
+	return ""
 }
 
 func cmpStatus(prior string) string {

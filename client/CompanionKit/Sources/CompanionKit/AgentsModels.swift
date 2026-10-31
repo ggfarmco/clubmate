@@ -12,9 +12,9 @@ public enum SessionGroup: String, Sendable, CaseIterable, Identifiable {
 
     public var title: String {
         switch self {
-        case .needsInput: "Needs Input"
+        case .needsInput: "Needs you"
         case .running: "Running"
-        case .idle: "Idle"
+        case .idle: "Done"
         case .closed: "Closed"
         }
     }

@@ -61,6 +61,7 @@ struct AgentsListView: View {
             }
         }
         .navigationTitle(workspace?.name ?? "Agents")
+        .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
         .toolbar {
             WorkspaceMenu(context: context)
             ToolbarItem(placement: .primaryAction) {
@@ -74,7 +75,6 @@ struct AgentsListView: View {
 struct SessionListView: View {
     let context: PluginContext
     let store: AgentsStore
-    @State private var expanded: Set<String> = []
     @State private var closedExpanded = false
 
     var body: some View {
@@ -88,15 +88,16 @@ struct SessionListView: View {
                 }
             }
             ForEach(store.groups, id: \.group) { group in
+                let items = group.sessions.flatMap(\.rows)
                 if group.group == .closed {
                     Section(isExpanded: $closedExpanded) {
-                        rows(group.sessions)
+                        rows(items)
                     } header: {
                         Button {
                             withAnimation { closedExpanded.toggle() }
                         } label: {
                             HStack {
-                                Text("\(group.group.title) · \(group.sessions.count)")
+                                Text("\(group.group.title) · \(items.count)")
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .rotationEffect(.degrees(closedExpanded ? 90 : 0))
@@ -107,13 +108,18 @@ struct SessionListView: View {
                     }
                 } else {
                     Section {
-                        rows(group.sessions)
+                        rows(items)
                     } header: {
-                        Text(group.group.title)
+                        HStack {
+                            Text(group.group.title)
+                            Spacer()
+                            Text("\(items.count)")
+                        }
                     }
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .overlay {
             if !store.loaded {
                 ProgressView()
@@ -132,96 +138,126 @@ struct SessionListView: View {
         .refreshable { await store.refresh() }
     }
 
-    private func rows(_ nodes: [SessionNode]) -> some View {
-        ForEach(nodes) { node in
-            SessionTreeRow(node: node, depth: 0, expanded: $expanded)
+    private func rows(_ items: [SessionRowItem]) -> some View {
+        ForEach(items) { item in
+            SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants)
+                .tag(item.id)
         }
-    }
-}
-
-struct SessionTreeRow: View {
-    let node: SessionNode
-    let depth: Int
-    @Binding var expanded: Set<String>
-
-    var body: some View {
-        HStack(spacing: 8) {
-            SessionRow(session: node.session, nested: depth > 0, descendants: node.descendants)
-            if !node.children.isEmpty {
-                Button(isExpanded ? "Collapse" : "Expand", systemImage: "chevron.right") {
-                    withAnimation { toggle() }
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.leading, CGFloat(depth) * 20)
-        .tag(node.id)
-        if isExpanded {
-            ForEach(node.children) { child in
-                SessionTreeRow(node: child, depth: depth + 1, expanded: $expanded)
-            }
-        }
-    }
-
-    private var isExpanded: Bool {
-        expanded.contains(node.id)
-    }
-
-    private func toggle() {
-        if expanded.contains(node.id) { expanded.remove(node.id) } else { expanded.insert(node.id) }
     }
 }
 
 struct SessionRow: View {
     let session: AgentSession
-    var nested = false
-    var descendants = 0
+    var depth = 0
+    var waitingChildren = 0
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            StatusIcon(session: session)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(session.displayTitle)
-                    .font(.body.weight(.medium))
-                    .lineLimit(2)
-                HStack(spacing: 4) {
-                    if session.parentSession != nil && !nested {
-                        Image(systemName: "arrow.turn.down.right")
+        TimelineView(.periodic(from: .now, by: 30)) { timeline in
+            HStack(alignment: .top, spacing: 12) {
+                SessionGlyphView(glyph: session.glyph, size: depth > 0 ? 24 : 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    if depth > 0 {
+                        Text(session.subagentLabel)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    Text(session.worktreeName)
-                    Text("·")
-                    Text(session.updatedAt.formatted(.relative(presentation: .named)))
-                    if descendants > 0 {
-                        Text("·")
-                        Text("\(Image(systemName: "arrow.triangle.branch")) \(descendants)")
-                    }
-                }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                if let error = session.error {
-                    Text(error)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                    Text(session.displayTitle)
+                        .font(.body.weight(session.glyph.needsYou ? .semibold : .regular))
+                        .foregroundStyle(session.isClosed ? .secondary : .primary)
                         .lineLimit(2)
+                    StateLineText(line: session.stateLine(now: timeline.date, waitingChildren: waitingChildren))
+                        .font(.subheadline)
+                        .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Spacer(minLength: 4)
-            HStack(spacing: 4) {
-                if session.afk {
-                    Tag(text: "AFK", color: .purple)
-                }
-                if !session.pending.isEmpty {
-                    Tag(text: session.pending.count == 1 ? "Permission" : "\(session.pending.count) Permissions", color: .orange)
-                } else if session.asks {
-                    Tag(text: "Question", color: .blue)
-                }
-            }
+            .padding(.leading, CGFloat(min(depth, 2)) * 40)
+            .padding(.vertical, 4)
+            .frame(minHeight: 52)
+            .contentShape(.rect)
+            .accessibilityElement(children: .combine)
         }
-        .padding(.vertical, 2)
+    }
+}
+
+struct StateLineText: View {
+    let line: SessionStateLine
+
+    var body: some View {
+        let lead = Text(line.lead.map { $0 + " " } ?? "").foregroundStyle(SessionPalette.needsYouInk)
+        let text = Text(line.text).monospaced(line.mono).foregroundStyle(color)
+        let age = Text(line.age.map { " · " + $0 } ?? "").foregroundStyle(.secondary)
+        Text("\(lead)\(text)\(age)")
+    }
+
+    private var color: Color {
+        switch line.tone {
+        case .primary: .primary
+        case .secondary: .secondary
+        case .needsYou: SessionPalette.needsYouInk
+        case .danger: SessionPalette.dangerInk
+        }
+    }
+}
+
+struct SessionGlyphView: View {
+    let glyph: SessionGlyph
+    var size: CGFloat = 28
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.5, weight: .semibold))
+            .foregroundStyle(foreground)
+            .frame(width: size, height: size)
+            .background(background, in: .circle)
+            .accessibilityHidden(true)
+    }
+
+    private var symbol: String {
+        switch glyph {
+        case .permission: "hand.raised.fill"
+        case .question: "questionmark.bubble.fill"
+        case .childWaiting: "exclamationmark"
+        case .running: "play.fill"
+        case .stopped: "xmark"
+        case .done: "checkmark"
+        case .closed: "archivebox"
+        }
+    }
+
+    private var foreground: Color {
+        switch glyph {
+        case .permission, .question: SessionPalette.onNeedsYou
+        case .childWaiting: SessionPalette.needsYouInk
+        case .running: .accentColor
+        case .stopped: SessionPalette.dangerInk
+        case .done, .closed: .secondary
+        }
+    }
+
+    private var background: Color {
+        switch glyph {
+        case .permission, .question: SessionPalette.needsYouFill
+        case .childWaiting: SessionPalette.needsYouFill.opacity(0.18)
+        case .running: Color.accentColor.opacity(0.18)
+        case .stopped: SessionPalette.dangerInk.opacity(0.18)
+        case .done, .closed: Color(.tertiarySystemFill)
+        }
+    }
+}
+
+enum SessionPalette {
+    static let needsYouFill = dynamic(dark: 0xF2B84B, light: 0xB5761E)
+    static let needsYouInk = dynamic(dark: 0xF2B84B, light: 0x8A5810)
+    static let onNeedsYou = dynamic(dark: 0x1A1200, light: 0xFFFFFF)
+    static let dangerInk = dynamic(dark: 0xFF7A6E, light: 0xB23A33)
+
+    private static func dynamic(dark: UInt32, light: UInt32) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? rgb(dark) : rgb(light) })
+    }
+
+    private static func rgb(_ hex: UInt32) -> UIColor {
+        UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
     }
 }
 
@@ -236,43 +272,6 @@ struct Tag: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(color, in: .capsule)
-    }
-}
-
-struct StatusIcon: View {
-    let session: AgentSession
-
-    var body: some View {
-        Image(systemName: symbol)
-            .foregroundStyle(color)
-            .symbolEffect(.rotate, isActive: session.displayStatus == .running)
-            .frame(width: 22)
-            .accessibilityLabel(session.statusLabel)
-    }
-
-    private var symbol: String {
-        if session.status == .waiting || !session.pending.isEmpty { return "hand.raised.circle.fill" }
-        if session.asks { return "questionmark.bubble.fill" }
-        switch session.displayStatus {
-        case .running: return "circle.dotted"
-        case .waiting: return "hand.raised.circle"
-        case .done: return "checkmark.circle.fill"
-        case .error: return "xmark.octagon.fill"
-        case .closed: return "archivebox"
-        default: return "circle"
-        }
-    }
-
-    private var color: Color {
-        if session.status == .waiting || !session.pending.isEmpty { return .orange }
-        if session.asks { return .blue }
-        switch session.displayStatus {
-        case .running: return .accentColor
-        case .waiting: return .orange
-        case .done: return .green
-        case .error: return .red
-        default: return .secondary
-        }
     }
 }
 

@@ -36,6 +36,7 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var hello: Hello?
     public private(set) var workspaces: [Workspace] = []
     public private(set) var lastEventID: Int?
+    public private(set) var lastSeen: Date?
 
     @ObservationIgnored public private(set) var client: RemoteClient
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
@@ -93,6 +94,19 @@ public final class ComputerConnection: CommandRunner {
         }
     }
 
+    public var presence: String {
+        switch state {
+        case .online: "online"
+        case .connecting: "connecting…"
+        case .unauthorized: "access revoked"
+        case .offline: lastSeen.map { "offline since " + Self.clock($0) } ?? "offline"
+        }
+    }
+
+    public nonisolated static func clock(_ date: Date) -> String {
+        date.formatted(date: Calendar.current.isDateInToday(date) ? .omitted : .abbreviated, time: .shortened)
+    }
+
     public func supports(_ command: String) -> Bool {
         hello?.commands.contains(command) ?? false
     }
@@ -111,6 +125,7 @@ public final class ComputerConnection: CommandRunner {
                 for try await item in try await client.events(after: lastEventID) {
                     if Task.isCancelled { return }
                     failures = 0
+                    lastSeen = .now
                     switch item {
                     case .alive:
                         state = .online

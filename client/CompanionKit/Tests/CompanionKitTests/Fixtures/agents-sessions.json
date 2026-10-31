@@ -15,6 +15,12 @@
     "pending": [
       "permission-3"
     ],
+    "pendingSummary": {
+      "kind": "permission",
+      "text": "go test ./...",
+      "tool": "execute",
+      "at": "2026-10-30T09:41:00Z"
+    },
     "notifyEffective": "all",
     "closed": false
   },
@@ -31,6 +37,12 @@
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
     "asks": true,
+    "question": "Should I add retries to the charge step?",
+    "pendingSummary": {
+      "kind": "question",
+      "text": "Should I add retries to the charge step?",
+      "at": "2026-10-30T09:41:00Z"
+    },
     "notifyEffective": "all",
     "closed": false
   },

@@ -107,22 +107,41 @@ func TestSidebarNeedsSelectionFallsBackWhenAnswered(t *testing.T) {
 func TestDoneAsksWhenLastAgentMessageIsQuestion(t *testing.T) {
 	for _, tc := range []struct {
 		texts []string
-		want  bool
+		want  string
 	}{
-		{[]string{"Делаем?"}, true},
-		{[]string{"Делаем?**\n\n"}, true},
-		{[]string{"Готово."}, false},
-		{[]string{"Делаем?", "Сделал."}, false},
-		{nil, false},
+		{[]string{"Делаем?"}, "Делаем?"},
+		{[]string{"Делаем?**\n\n"}, "Делаем?"},
+		{[]string{"Tests pass. Ship it? Or wait for review?"}, "Or wait for review?"},
+		{[]string{"Plan:\n- **Add retries to the charge step?**"}, "Add retries to the charge step?"},
+		{[]string{"Готово."}, ""},
+		{[]string{"Делаем?", "Сделал."}, ""},
+		{nil, ""},
 	} {
 		s := &session{}
 		for _, text := range tc.texts {
 			s.entries = append(s.entries, &entry{Kind: entryAgent, Text: text}, &entry{Kind: entryTool})
 		}
 		s.setStatusLocked(statusDone, "")
-		assert.Equal(t, tc.want, s.rec.Asks, tc.texts)
+		assert.Equal(t, tc.want, s.rec.Question, tc.texts)
+		assert.Equal(t, tc.want != "", s.rec.Asks, tc.texts)
 		s.setStatusLocked(statusIdle, "")
 		assert.False(t, s.rec.Asks)
+		assert.Empty(t, s.rec.Question)
+	}
+}
+
+func TestPermissionSummaryPrefersCommand(t *testing.T) {
+	at := time.Date(2026, 10, 31, 9, 41, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		call string
+		want pendingSummary
+	}{
+		{`{"title":"Run tests","kind":"execute","rawInput":{"command":"go test ./...\necho done"}}`, pendingSummary{Kind: "permission", Text: "go test ./...", Tool: "execute", At: at}},
+		{`{"title":"Edit cart.go","kind":"edit","rawInput":{"file_path":"cart.go"}}`, pendingSummary{Kind: "permission", Text: "Edit cart.go", Tool: "edit", At: at}},
+	} {
+		s := &session{perms: map[string]*pendingPermission{"permission-2": {at: at}}}
+		s.entries = []*entry{{Kind: entryPermission, ID: "permission-1", ToolCall: json.RawMessage(`{"title":"Answered"}`)}, {Kind: entryPermission, ID: "permission-2", ToolCall: json.RawMessage(tc.call)}}
+		assert.Equal(t, &tc.want, s.permissionSummary())
 	}
 }
 
