@@ -16,6 +16,7 @@ import (
 	"clubmate/internal/proc"
 	"clubmate/internal/project"
 	"clubmate/internal/session"
+	"clubmate/pkg/contract"
 )
 
 const (
@@ -38,16 +39,7 @@ type TreeFilter struct {
 	SessionID string `json:"sessionId"`
 }
 
-type KillRequest struct {
-	PIDs        []int  `json:"pids"`
-	SessionID   string `json:"sessionId"`
-	ProjectID   string `json:"projectId"`
-	OrphansOnly bool   `json:"orphansOnly"`
-}
-
-type idPayload struct {
-	ID string `json:"id"`
-}
+type KillRequest = contract.KillRequest
 
 type Option func(*Service)
 
@@ -71,14 +63,6 @@ type Service struct {
 	rootsMu   sync.Mutex
 	roots     []*rootRecord
 	dropped   map[RootOwner]bool
-}
-
-type sessionExited struct {
-	ID        string        `json:"id"`
-	ProjectID string        `json:"projectId"`
-	Owner     string        `json:"owner"`
-	State     session.State `json:"state"`
-	ExitCode  *int          `json:"exitCode"`
 }
 
 func WithBus(b *bus.Bus) Option {
@@ -124,7 +108,7 @@ func (s *Service) CreateProject(ctx context.Context, name string, repos []string
 	if err != nil {
 		return project.Project{}, err
 	}
-	s.publish(ctx, "project.created", map[string]any{"project": p})
+	s.publish(ctx, contract.TopicProjectCreated, contract.ProjectChanged{Project: p})
 	return p, nil
 }
 
@@ -155,7 +139,7 @@ func (s *Service) HomeWorkspace(ctx context.Context) (project.Project, error) {
 		return project.Project{}, err
 	}
 	if created {
-		s.publish(ctx, "project.created", map[string]any{"project": p})
+		s.publish(ctx, contract.TopicProjectCreated, contract.ProjectChanged{Project: p})
 	}
 	return p, nil
 }
@@ -168,7 +152,7 @@ func (s *Service) RenameProject(ctx context.Context, id, name string) (project.P
 	if err != nil {
 		return project.Project{}, err
 	}
-	s.publish(ctx, "project.updated", map[string]any{"project": p})
+	s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
 	return p, nil
 }
 
@@ -189,7 +173,7 @@ func (s *Service) AddRepo(ctx context.Context, id, path string) (project.Project
 	if err != nil {
 		return project.Project{}, err
 	}
-	s.publish(ctx, "project.updated", map[string]any{"project": p})
+	s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
 	return p, nil
 }
 
@@ -198,7 +182,7 @@ func (s *Service) SetWorktree(ctx context.Context, id, repo, path string) (proje
 	if err != nil {
 		return project.Project{}, err
 	}
-	s.publish(ctx, "project.updated", map[string]any{"project": p})
+	s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
 	return p, nil
 }
 
@@ -208,7 +192,7 @@ func (s *Service) CheckWorktrees(ctx context.Context, id string) (project.Projec
 		return project.Project{}, err
 	}
 	if len(p.Missing) > 0 {
-		s.publish(ctx, "project.updated", map[string]any{"project": p})
+		s.publish(ctx, contract.TopicProjectUpdated, contract.ProjectChanged{Project: p})
 	}
 	return p, nil
 }
@@ -239,7 +223,7 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if err := s.projects.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.publish(ctx, "project.deleted", idPayload{ID: id})
+	s.publish(ctx, contract.TopicProjectDeleted, contract.ProjectDeleted{ID: id})
 	return nil
 }
 
@@ -257,7 +241,7 @@ func (s *Service) CreateSession(ctx context.Context, req session.CreateRequest) 
 	if err != nil {
 		return session.Session{}, err
 	}
-	s.publish(ctx, "session.created", map[string]any{"session": sess})
+	s.publish(ctx, contract.TopicSessionCreated, contract.SessionCreated{Session: sess})
 	return sess, nil
 }
 
@@ -281,7 +265,7 @@ func (s *Service) RemoveSession(ctx context.Context, id string) error {
 	if err := s.sessions.Remove(ctx, id); err != nil {
 		return err
 	}
-	s.publish(ctx, "session.removed", idPayload{ID: id})
+	s.publish(ctx, contract.TopicSessionRemoved, contract.SessionGone{ID: id})
 	return nil
 }
 
@@ -299,7 +283,7 @@ func (s *Service) KillSession(ctx context.Context, id string) error {
 	if err := s.awaitStopped(ctx, id); err != nil {
 		return err
 	}
-	s.publish(ctx, "session.killed", idPayload{ID: id})
+	s.publish(ctx, contract.TopicSessionKilled, contract.SessionGone{ID: id})
 	return nil
 }
 
@@ -320,7 +304,7 @@ func (s *Service) CheckTransitions(ctx context.Context) error {
 		if !s.baselined {
 			continue
 		}
-		s.publish(ctx, "session.exited", sessionExited{
+		s.publish(ctx, contract.TopicSessionExited, contract.SessionExited{
 			ID:        sess.ID,
 			ProjectID: sess.ProjectID,
 			Owner:     sess.Owner,

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -23,16 +24,6 @@ const (
 )
 
 var errUnknownAction = errors.New("unknown action")
-
-type projectEvent struct {
-	Project pluginsdk.Project `json:"project"`
-}
-
-type sessionEvent struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"projectId"`
-	Owner     string `json:"owner"`
-}
 
 type closeArgs struct {
 	SessionID string `json:"sessionId"`
@@ -154,12 +145,12 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 
 func (a *app) eventProject(ev pluginsdk.Event) (string, error) {
 	switch ev.Topic {
-	case "project.created":
-		var created projectEvent
+	case contract.TopicProjectCreated:
+		var created contract.ProjectChanged
 		err := json.Unmarshal(ev.Payload, &created)
 		return created.Project.ID, err
-	case "session.exited":
-		var exited sessionEvent
+	case contract.TopicSessionExited:
+		var exited contract.SessionExited
 		if err := json.Unmarshal(ev.Payload, &exited); err != nil {
 			return "", err
 		}
@@ -167,8 +158,8 @@ func (a *app) eventProject(ev pluginsdk.Event) (string, error) {
 			return "", nil
 		}
 		return exited.ProjectID, nil
-	case "session.killed", "session.removed":
-		var gone sessionEvent
+	case contract.TopicSessionKilled, contract.TopicSessionRemoved:
+		var gone contract.SessionGone
 		err := json.Unmarshal(ev.Payload, &gone)
 		return a.known[gone.ID], err
 	}
@@ -215,7 +206,7 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, projectID string) 
 		return err
 	}
 	idx := slices.IndexFunc(sessions, func(s pluginsdk.Session) bool { return s.ID == selected })
-	if idx < 0 || sessions[idx].State == "running" {
+	if idx < 0 || sessions[idx].State == contract.SessionStateRunning {
 		return nil
 	}
 	if err := a.spawn(ctx, h, projectID, sessions[idx].Title, sessions[idx].Cwd); err != nil {
@@ -249,7 +240,7 @@ func (a *app) closeSession(ctx context.Context, h *pluginsdk.Host, projectID, id
 }
 
 func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.Session) error {
-	if s.State == "running" {
+	if s.State == contract.SessionStateRunning {
 		if err := h.KillSession(ctx, s.ID); err != nil {
 			return err
 		}
@@ -317,7 +308,7 @@ func busy(ctx context.Context, h *pluginsdk.Host, projectID, id string) (busyRes
 		return busyResult{}, err
 	}
 	idx := slices.IndexFunc(sessions, func(s pluginsdk.Session) bool { return s.ID == id })
-	if idx < 0 || sessions[idx].State != "running" || sessions[idx].ChildPID <= 0 {
+	if idx < 0 || sessions[idx].State != contract.SessionStateRunning || sessions[idx].ChildPID <= 0 {
 		return busyResult{}, nil
 	}
 	nodes, err := h.ProcessTree(ctx, projectID, id)

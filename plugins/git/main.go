@@ -7,20 +7,9 @@ import (
 	"os"
 	"sync"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
-
-type uiPayload struct {
-	ProjectID string `json:"projectId"`
-}
-
-type projectPayload struct {
-	Project pluginsdk.Project `json:"project"`
-}
-
-type deletedPayload struct {
-	ID string `json:"id"`
-}
 
 type app struct {
 	mu       sync.Mutex
@@ -55,24 +44,24 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 
 func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
 	switch ev.Topic {
-	case "ui.opened", "ui.idle":
-		var p uiPayload
+	case contract.TopicUIOpened, contract.TopicUIIdle:
+		var p contract.UIPresence
 		if !decodeEvent(ev, &p) {
 			return
 		}
-		if ev.Topic == "ui.opened" {
+		if ev.Topic == contract.TopicUIOpened {
 			a.open(ctx, h, p.ProjectID)
 		} else {
 			a.idle(ctx, h, p.ProjectID)
 		}
-	case "project.created", "project.updated":
-		var p projectPayload
+	case contract.TopicProjectCreated, contract.TopicProjectUpdated:
+		var p contract.ProjectChanged
 		if !decodeEvent(ev, &p) {
 			return
 		}
-		a.projectChanged(ctx, h, p.Project.ID, ev.Topic == "project.updated")
-	case "project.deleted":
-		var p deletedPayload
+		a.projectChanged(ctx, h, p.Project.ID, ev.Topic == contract.TopicProjectUpdated)
+	case contract.TopicProjectDeleted:
+		var p contract.ProjectDeleted
 		if !decodeEvent(ev, &p) {
 			return
 		}

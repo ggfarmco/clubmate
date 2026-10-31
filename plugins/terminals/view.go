@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"slices"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
 type terminal struct {
 	ID       string
 	Title    string
-	State    string
+	State    contract.SessionState
 	ExitCode *int
 }
 
@@ -33,7 +34,7 @@ func mainView(terminals []terminal, selected string) sdui.Node {
 		if t.ID != selected {
 			continue
 		}
-		if t.State == "running" {
+		if t.State == contract.SessionStateRunning {
 			return sdui.Surface(t.ID)
 		}
 		return sdui.VStack(
@@ -58,17 +59,17 @@ func resolveSelection(terminals []terminal, selected string) string {
 }
 
 func detail(t terminal) string {
-	if t.State == "running" {
+	if t.State == contract.SessionStateRunning {
 		return "running"
 	}
-	if t.State == "exited" && t.ExitCode != nil {
+	if t.State == contract.SessionStateExited && t.ExitCode != nil {
 		return fmt.Sprintf("exited (%d)", *t.ExitCode)
 	}
-	return t.State
+	return string(t.State)
 }
 
 func badge(t terminal) string {
-	if t.State == "running" {
+	if t.State == contract.SessionStateRunning {
 		return ""
 	}
 	return "exited"

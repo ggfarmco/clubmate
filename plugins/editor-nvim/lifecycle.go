@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
@@ -93,7 +94,7 @@ func (a *app) restart(ctx context.Context, h *pluginsdk.Host, cur *editor, all, 
 	running := map[*editor]bool{}
 	var kill []string
 	for _, s := range sessions {
-		if s.State != stateRunning {
+		if s.State != contract.SessionStateRunning {
 			continue
 		}
 		_, owned := ownedSocket(s, cur.id, s.Cwd)
@@ -218,7 +219,7 @@ func (a *app) unsaved(projectID, root string) ([]string, error) {
 	return relativeNames(slices.Compact(inside), a.projectFolders(projectID)), nil
 }
 
-func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev sessionExited) {
+func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev contract.SessionExited) {
 	for _, e := range a.projectEditors(ev.ProjectID) {
 		c, ok := e.exited(ev.ID)
 		if !ok {
@@ -257,7 +258,7 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string
 		return "", "", err
 	}
 	for _, s := range sessions {
-		if s.State != stateRunning {
+		if s.State != contract.SessionStateRunning {
 			if err := h.RemoveSession(ctx, s.ID); err != nil {
 				return "", "", err
 			}
@@ -305,7 +306,7 @@ func (a *app) checkUnsaved(ctx context.Context, h *pluginsdk.Host, editors []*ed
 
 func ownedSocket(s pluginsdk.Session, projectID, root string) (string, bool) {
 	n := len(s.Command)
-	if s.State != stateRunning || s.Cwd != root || n < 3 || s.Command[n-2] != "--listen" {
+	if s.State != contract.SessionStateRunning || s.Cwd != root || n < 3 || s.Command[n-2] != "--listen" {
 		return "", false
 	}
 	sock := s.Command[n-1]

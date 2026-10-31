@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
@@ -36,23 +37,6 @@ var (
 
 	errProjectDeleted = errors.New("project deleted")
 )
-
-type projectEvent struct {
-	ProjectID string `json:"projectId"`
-}
-
-type projectCreated struct {
-	Project pluginsdk.Project `json:"project"`
-}
-
-type sectionEvent struct {
-	ProjectID string `json:"projectId"`
-	Section   string `json:"section"`
-}
-
-type projectDeleted struct {
-	ID string `json:"id"`
-}
 
 type killedEvent struct {
 	ProjectID string `json:"projectId"`
@@ -120,24 +104,24 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 
 func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
 	switch ev.Topic {
-	case "ui.opened", "ui.idle":
-		var p projectEvent
+	case contract.TopicUIOpened, contract.TopicUIIdle:
+		var p contract.UIPresence
 		if !decode(ev, &p) {
 			return
 		}
 		a.mu.Lock()
-		if ev.Topic == "ui.idle" {
+		if ev.Topic == contract.TopicUIIdle {
 			delete(a.present, p.ProjectID)
 		} else {
 			a.present[p.ProjectID] = true
 		}
 		a.mu.Unlock()
-		if ev.Topic == "ui.opened" {
+		if ev.Topic == contract.TopicUIOpened {
 			a.loadSection(ctx, h, p.ProjectID)
 			logError("render "+p.ProjectID, a.render(ctx, h, p.ProjectID))
 		}
-	case "ui.section":
-		var p sectionEvent
+	case contract.TopicUISection:
+		var p contract.UISection
 		if !decode(ev, &p) {
 			return
 		}
@@ -145,13 +129,13 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		if p.Section == sectionID {
 			logError("render "+p.ProjectID, a.render(ctx, h, p.ProjectID))
 		}
-	case "project.created":
-		var p projectCreated
+	case contract.TopicProjectCreated:
+		var p contract.ProjectChanged
 		if decode(ev, &p) {
 			logError("render "+p.Project.ID, a.render(ctx, h, p.Project.ID))
 		}
-	case "project.deleted":
-		var p projectDeleted
+	case contract.TopicProjectDeleted:
+		var p contract.ProjectDeleted
 		if decode(ev, &p) {
 			a.drop(ctx, h, p.ID)
 		}

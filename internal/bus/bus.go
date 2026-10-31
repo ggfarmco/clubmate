@@ -14,6 +14,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"clubmate/pkg/contract"
 )
 
 const (
@@ -45,13 +47,7 @@ CREATE TABLE IF NOT EXISTS cursors(
 	seq INTEGER NOT NULL
 );`
 
-type Event struct {
-	Seq     int64           `json:"seq"`
-	Topic   string          `json:"topic"`
-	Source  string          `json:"source"`
-	Time    time.Time       `json:"time"`
-	Payload json.RawMessage `json:"payload"`
-}
+type Event = contract.Event
 
 type Bus struct {
 	db *sql.DB

@@ -20,6 +20,7 @@ import (
 	"clubmate/internal/paths"
 	"clubmate/internal/proc"
 	"clubmate/internal/sessionhost"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/id"
 )
 
@@ -35,28 +36,16 @@ var (
 	ErrRunning          = errors.New("session is running")
 )
 
-type State string
-
-const (
-	StateRunning State = "running"
-	StateExited  State = "exited"
-	StateLost    State = "lost"
+type (
+	State   = contract.SessionState
+	Session = contract.TerminalSession
 )
 
-type Session struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"projectId"`
-	Title     string    `json:"title"`
-	Owner     string    `json:"owner"`
-	Command   []string  `json:"command"`
-	Cwd       string    `json:"cwd"`
-	HostPID   int       `json:"hostPid"`
-	ChildPID  int       `json:"childPid"`
-	PGID      int       `json:"pgid"`
-	StartedAt time.Time `json:"startedAt"`
-	State     State     `json:"state"`
-	ExitCode  *int      `json:"exitCode"`
-}
+const (
+	StateRunning = contract.SessionStateRunning
+	StateExited  = contract.SessionStateExited
+	StateLost    = contract.SessionStateLost
+)
 
 type CreateRequest struct {
 	ProjectID  string   `json:"projectId"`
@@ -280,20 +269,7 @@ func readSession(path string) (Session, error) {
 }
 
 func fromMeta(meta sessionhost.Meta, state State) Session {
-	return Session{
-		ID:        meta.ID,
-		ProjectID: meta.ProjectID,
-		Title:     meta.Title,
-		Owner:     meta.Owner,
-		Command:   meta.Command,
-		Cwd:       meta.Cwd,
-		HostPID:   meta.HostPID,
-		ChildPID:  meta.ChildPID,
-		PGID:      meta.PGID,
-		StartedAt: meta.StartedAt,
-		State:     state,
-		ExitCode:  meta.ExitCode,
-	}
+	return Session{SessionInfo: meta.SessionInfo, State: state}
 }
 
 func hostAlive(meta sessionhost.Meta) bool {

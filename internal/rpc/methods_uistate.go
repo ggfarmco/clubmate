@@ -7,12 +7,13 @@ import (
 	"fmt"
 
 	"github.com/sourcegraph/jsonrpc2"
+
+	"clubmate/pkg/contract"
 )
 
 const (
-	clientOwner    = "@client"
-	maxUIStateLen  = 64 << 10
-	topicUISection = "ui.section"
+	clientOwner   = "@client"
+	maxUIStateLen = 64 << 10
 )
 
 type uiStateGetParams struct {
@@ -36,11 +37,6 @@ type uiStateResult struct {
 
 type uiSectionResult struct {
 	Section string `json:"section"`
-}
-
-type uiSectionEvent struct {
-	ProjectID string `json:"projectId"`
-	Section   string `json:"section"`
 }
 
 func (s *Server) uiStateMethods() map[string]handlerFunc {
@@ -155,12 +151,12 @@ func (s *Server) publishSection(projectID, section string) {
 	if s.bus == nil {
 		return
 	}
-	raw, err := json.Marshal(uiSectionEvent{ProjectID: projectID, Section: section})
+	raw, err := json.Marshal(contract.UISection{ProjectID: projectID, Section: section})
 	if err != nil {
 		s.logger.Error("marshal section event", "err", err)
 		return
 	}
-	if _, err := s.bus.Publish(context.Background(), topicUISection, coreSource, raw); err != nil {
+	if _, err := s.bus.Publish(context.Background(), contract.TopicUISection, coreSource, raw); err != nil {
 		s.logger.Error("publish section event", "err", err)
 	}
 }

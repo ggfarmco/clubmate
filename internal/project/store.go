@@ -15,6 +15,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/id"
 )
 
@@ -60,16 +61,7 @@ var addedColumns = []struct{ name, def string }{
 	{name: "last_opened_at", def: "INTEGER NOT NULL DEFAULT 0"},
 }
 
-type Project struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	Repos        []string   `json:"repos"`
-	Roots        []string   `json:"roots"`
-	Missing      []string   `json:"missing,omitempty"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	Home         bool       `json:"home"`
-	LastOpenedAt *time.Time `json:"lastOpenedAt"`
-}
+type Project = contract.Workspace
 
 type Store struct {
 	db *sql.DB

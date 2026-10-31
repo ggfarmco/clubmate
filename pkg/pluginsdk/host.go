@@ -3,78 +3,22 @@ package pluginsdk
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
-type Project struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	Repos        []string   `json:"repos"`
-	Roots        []string   `json:"roots"`
-	Missing      []string   `json:"missing,omitempty"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	Home         bool       `json:"home"`
-	LastOpenedAt *time.Time `json:"lastOpenedAt"`
-}
-
-type Session struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"projectId"`
-	Title     string    `json:"title"`
-	Owner     string    `json:"owner"`
-	Command   []string  `json:"command"`
-	Cwd       string    `json:"cwd"`
-	HostPID   int       `json:"hostPid"`
-	ChildPID  int       `json:"childPid"`
-	PGID      int       `json:"pgid"`
-	StartedAt time.Time `json:"startedAt"`
-	State     string    `json:"state"`
-	ExitCode  *int      `json:"exitCode"`
-}
-
-type ProcessInfo struct {
-	PID       int       `json:"pid"`
-	PPID      int       `json:"ppid"`
-	Comm      string    `json:"comm"`
-	Args      []string  `json:"args"`
-	StartTime time.Time `json:"startTime"`
-	RSSKiB    int64     `json:"rssKiB"`
-	CPU       float64   `json:"cpu"`
-}
-
-type ProcessNode struct {
-	Process   ProcessInfo `json:"process"`
-	SessionID string      `json:"sessionId"`
-	Orphan    bool        `json:"orphan"`
-	Duplicate bool        `json:"duplicate"`
-}
-
-type ProcessRoot struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"projectId"`
-	Label     string `json:"label"`
-	Owner     string `json:"owner"`
-	PID       int    `json:"pid"`
-}
-
-type KillRequest struct {
-	PIDs        []int  `json:"pids"`
-	SessionID   string `json:"sessionId"`
-	ProjectID   string `json:"projectId"`
-	OrphansOnly bool   `json:"orphansOnly"`
-}
-
-type Event struct {
-	Seq     int64           `json:"seq"`
-	Topic   string          `json:"topic"`
-	Source  string          `json:"source"`
-	Time    time.Time       `json:"time"`
-	Payload json.RawMessage `json:"payload"`
-}
+type (
+	Project     = contract.Workspace
+	Session     = contract.TerminalSession
+	ProcessInfo = contract.ProcessInfo
+	ProcessNode = contract.ProcessNode
+	ProcessRoot = contract.ProcessRoot
+	KillRequest = contract.KillRequest
+	Event       = contract.Event
+)
 
 type Host struct {
 	conn     *jsonrpc2.Conn

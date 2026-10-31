@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"clubmate/pkg/contract"
 )
 
 const Protocol = 1
@@ -25,18 +27,8 @@ type Config struct {
 }
 
 type Meta struct {
-	ID        string     `json:"id"`
-	ProjectID string     `json:"projectId"`
-	Title     string     `json:"title"`
-	Owner     string     `json:"owner"`
-	Command   []string   `json:"command"`
-	Cwd       string     `json:"cwd"`
-	HostPID   int        `json:"hostPid"`
-	ChildPID  int        `json:"childPid"`
-	PGID      int        `json:"pgid"`
+	contract.SessionInfo
 	HostStart time.Time  `json:"hostStart"`
-	StartedAt time.Time  `json:"startedAt"`
-	ExitCode  *int       `json:"exitCode"`
 	ExitedAt  *time.Time `json:"exitedAt"`
 	Proto     int        `json:"proto"`
 }

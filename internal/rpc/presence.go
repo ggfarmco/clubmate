@@ -10,13 +10,10 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/bus"
+	"clubmate/pkg/contract"
 )
 
-const (
-	topicUIOpened = "ui.opened"
-	topicUIIdle   = "ui.idle"
-	coreSource    = "core"
-)
+const coreSource = "core"
 
 type presence struct {
 	mu      sync.Mutex
@@ -74,7 +71,7 @@ func (p *presence) join(b *bus.Bus, logger *slog.Logger, projectID string) func(
 	}
 	p.counts[projectID]++
 	if p.counts[projectID] == 1 {
-		publishPresence(b, logger, topicUIOpened, projectID)
+		publishPresence(b, logger, contract.TopicUIOpened, projectID)
 	}
 	return func() { p.leave(b, logger, projectID) }
 }
@@ -85,7 +82,7 @@ func (p *presence) leave(b *bus.Bus, logger *slog.Logger, projectID string) {
 	p.counts[projectID]--
 	if p.counts[projectID] == 0 {
 		delete(p.counts, projectID)
-		publishPresence(b, logger, topicUIIdle, projectID)
+		publishPresence(b, logger, contract.TopicUIIdle, projectID)
 	}
 }
 
@@ -104,7 +101,7 @@ func publishPresence(b *bus.Bus, logger *slog.Logger, topic, projectID string) {
 	if b == nil {
 		return
 	}
-	raw, err := json.Marshal(projectParams{ProjectID: projectID})
+	raw, err := json.Marshal(contract.UIPresence{ProjectID: projectID})
 	if err != nil {
 		logger.Error("marshal presence event", "topic", topic, "err", err)
 		return

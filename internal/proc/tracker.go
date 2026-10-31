@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"clubmate/pkg/contract"
 )
 
 const sessionEnvPrefix = "CLUBMATE_SESSION_ID="
@@ -16,12 +18,7 @@ type SessionRoot struct {
 	Owned     bool
 }
 
-type Node struct {
-	Process   Process `json:"process"`
-	SessionID string  `json:"sessionId"`
-	Orphan    bool    `json:"orphan"`
-	Duplicate bool    `json:"duplicate"`
-}
+type Node = contract.ProcessNode
 
 type procKey struct {
 	pid   int

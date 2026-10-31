@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"clubmate/internal/proc"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/id"
 )
 
@@ -36,14 +37,7 @@ type RegisterRequest struct {
 	Label     string `json:"label"`
 }
 
-type ProcessRoot struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"projectId"`
-	Label     string `json:"label"`
-	Owner     string `json:"owner"`
-	PID       int    `json:"pid"`
-	Ended     bool   `json:"ended"`
-}
+type ProcessRoot = contract.ProcessRoot
 
 type rootRecord struct {
 	ProcessRoot

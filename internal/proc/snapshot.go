@@ -6,21 +6,13 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/sys/unix"
+
+	"clubmate/pkg/contract"
 )
 
-type Process struct {
-	PID       int       `json:"pid"`
-	PPID      int       `json:"ppid"`
-	PGID      int       `json:"pgid"`
-	Comm      string    `json:"comm"`
-	Args      []string  `json:"args"`
-	StartTime time.Time `json:"startTime"`
-	RSSKiB    int64     `json:"rssKiB"`
-	CPU       float64   `json:"cpu"`
-}
+type Process = contract.ProcessInfo
 
 type usage struct {
 	rssKiB int64

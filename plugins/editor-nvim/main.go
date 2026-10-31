@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -16,7 +17,6 @@ const (
 	mainSlot     = "editor-nvim.main"
 	statusSlot   = "editor-nvim.status"
 	sessionTitle = "nvim"
-	stateRunning = "running"
 )
 
 var errUnknownAction = errors.New("unknown action")
@@ -34,25 +34,6 @@ type app struct {
 	watchMu  sync.Mutex
 	watches  map[string]projectWatch
 	branchMu sync.Mutex
-}
-
-type projectEvent struct {
-	ProjectID string `json:"projectId"`
-}
-
-type sessionExited struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"projectId"`
-	Owner     string `json:"owner"`
-	ExitCode  *int   `json:"exitCode"`
-}
-
-type projectPayload struct {
-	Project pluginsdk.Project `json:"project"`
-}
-
-type deletedPayload struct {
-	ID string `json:"id"`
 }
 
 func main() {
@@ -80,7 +61,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.opened", "session.exited", "project.updated", "project.deleted"} {
+	for _, pattern := range []string{contract.TopicUIOpened, contract.TopicSessionExited, contract.TopicProjectUpdated, contract.TopicProjectDeleted} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -94,7 +75,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	projects := present
 	for _, s := range sessions {
-		if s.State == stateRunning && s.Title == sessionTitle {
+		if s.State == contract.SessionStateRunning && s.Title == sessionTitle {
 			projects = append(projects, s.ProjectID)
 		}
 	}
@@ -107,33 +88,33 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 
 func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev pluginsdk.Event) {
 	switch ev.Topic {
-	case "ui.opened":
-		var opened projectEvent
+	case contract.TopicUIOpened:
+		var opened contract.UIPresence
 		if err := json.Unmarshal(ev.Payload, &opened); err != nil {
-			logError("ui.opened", err)
+			logError(ev.Topic, err)
 			return
 		}
 		go a.ensureLogged(ctx, h, opened.ProjectID)
-	case "session.exited":
-		var exited sessionExited
+	case contract.TopicSessionExited:
+		var exited contract.SessionExited
 		if err := json.Unmarshal(ev.Payload, &exited); err != nil {
-			logError("session.exited", err)
+			logError(ev.Topic, err)
 			return
 		}
 		if exited.Owner == h.PluginID() {
 			a.exited(ctx, h, exited)
 		}
-	case "project.updated":
-		var p projectPayload
+	case contract.TopicProjectUpdated:
+		var p contract.ProjectChanged
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
-			logError("project.updated", err)
+			logError(ev.Topic, err)
 			return
 		}
 		a.projectUpdated(ctx, h, p.Project)
-	case "project.deleted":
-		var p deletedPayload
+	case contract.TopicProjectDeleted:
+		var p contract.ProjectDeleted
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
-			logError("project.deleted", err)
+			logError(ev.Topic, err)
 			return
 		}
 		a.drop(p.ID)
