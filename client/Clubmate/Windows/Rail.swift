@@ -6,6 +6,7 @@ import ClubmateKit
 struct Rail: View {
     let sections: [SectionInfo]
     let selected: String?
+    var attention: Set<String> = []
     let select: (String) -> Void
     let move: (String, String) -> Void
     let resetOrder: (() -> Void)?
@@ -15,7 +16,7 @@ struct Rail: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(sections, id: \.id) { section in
-                RailButton(section: section, selected: section.id == selected, accepts: accepts) { select(section.id) } drop: { dragged in
+                RailButton(section: section, selected: section.id == selected, attention: attention.contains(section.id), accepts: accepts) { select(section.id) } drop: { dragged in
                     move(dragged, section.id)
                 }
             }
@@ -40,6 +41,7 @@ struct Rail: View {
 private struct RailButton: View {
     let section: SectionInfo
     let selected: Bool
+    let attention: Bool
     let accepts: (String) -> Bool
     let action: () -> Void
     let drop: (String) -> Void
@@ -60,7 +62,7 @@ private struct RailButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(section.title)
+        .accessibilityLabel(attention ? "\(section.title), needs you" : section.title)
         .help(section.title)
         .onHover { hovering = $0 }
         .draggable(RailItem(id: section.id)) {
@@ -76,6 +78,15 @@ private struct RailButton: View {
     private var icon: some View {
         Image(systemName: SymbolName.resolve(section.icon, fallback: "square.grid.2x2"))
             .font(.system(size: 14))
+            .overlay(alignment: .topTrailing) {
+                if attention {
+                    Circle()
+                        .fill(theme.warning)
+                        .frame(width: 6, height: 6)
+                        .offset(x: 3, y: -3)
+                        .accessibilityHidden(true)
+                }
+            }
     }
 
     private var background: Color {

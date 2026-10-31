@@ -40,6 +40,7 @@ struct WorkspaceView: View {
             .onChange(of: session.store?.connected, initial: true) { _, connected in
                 guard connected == true else { return }
                 Task { await session.worktrees.load(retrying: true) }
+                Task { [app, session] in await app.notifications.tally(session.workspaceID) }
             }
             .onChange(of: app.workspace(session.workspaceID)) {
                 Task { await session.worktrees.load(retrying: true) }

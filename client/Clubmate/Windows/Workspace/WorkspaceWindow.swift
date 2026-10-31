@@ -52,8 +52,11 @@ struct WorkspaceWindow: View {
 
     var title: String {
         guard let active else { return "Clubmate" }
-        let name = app.workspace(active)?.name ?? active
-        return app.sessions.existing(active)?.worktrees.title(name) ?? name
+        return app.sessions.existing(active)?.worktrees.title(workspaceName) ?? workspaceName
+    }
+
+    var workspaceName: String {
+        active.map { app.workspace($0)?.name ?? $0 } ?? "Clubmate"
     }
 
     @ViewBuilder private var content: some View {

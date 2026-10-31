@@ -39,11 +39,8 @@ var (
 		childrenWaiting: "exclamationmark.circle",
 	}
 	statusTones = map[string]string{
-		statusRunning:   "accent",
 		statusWaiting:   "warning",
-		statusDone:      "success",
 		statusError:     "danger",
-		childrenRunning: "accent",
 		childrenWaiting: "warning",
 	}
 	statusLabels = map[string]string{
@@ -68,6 +65,7 @@ type sessionRow struct {
 	Started  time.Time
 	Notify   string
 	Children string
+	Branch   string
 }
 
 type notifyChoice struct {
@@ -100,7 +98,10 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		}
 		roots = append(roots, row)
 	}
-	type bucket struct{ open, closed []sdui.TreeItem }
+	type bucket struct {
+		label        string
+		open, closed []sdui.TreeItem
+	}
 	var order []string
 	buckets := map[string]*bucket{}
 	var needs []sdui.TreeItem
@@ -108,7 +109,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		wt := row.Rec.Worktree
 		b, ok := buckets[wt]
 		if !ok {
-			b = &bucket{}
+			b = &bucket{label: cmp.Or(row.Branch, filepath.Base(wt))}
 			buckets[wt] = b
 			order = append(order, wt)
 		}
@@ -127,7 +128,9 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	var groups []sdui.TreeItem
 	if len(needs) > 0 {
-		groups = append(groups, groupItem(needsKey, fmt.Sprintf("Needs you · %d", len(needs)), "", "bell", needs, !collapsed[needsKey]))
+		group := groupItem(needsKey, fmt.Sprintf("Needs you · %d", len(needs)), "bell", needs, !collapsed[needsKey])
+		group.Tone = statusTones[statusWaiting]
+		groups = append(groups, group)
 	}
 	for _, wt := range order {
 		b := buckets[wt]
@@ -135,9 +138,9 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		if len(b.closed) > 0 {
 			key := closedKey + wt
 			folded, ok := collapsed[key]
-			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), "", statusIcons[statusClosed], b.closed, ok && !folded))
+			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), statusIcons[statusClosed], b.closed, ok && !folded))
 		}
-		groups = append(groups, groupItem(wt, filepath.Base(wt), wt, "arrow.triangle.branch", children, !collapsed[wt]))
+		groups = append(groups, groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt]))
 	}
 	if !slices.ContainsFunc(needs, func(item sdui.TreeItem) bool { return item.ID == selected }) {
 		selected = strings.TrimPrefix(selected, needsPrefix)
@@ -169,8 +172,8 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 	return item
 }
 
-func groupItem(key, label, detail, icon string, children []sdui.TreeItem, expanded bool) sdui.TreeItem {
-	item := sdui.TreeItem{ID: groupPrefix + key, Label: label, Detail: detail, Icon: icon, HasChildren: true, Expanded: expanded}
+func groupItem(key, label, icon string, children []sdui.TreeItem, expanded bool) sdui.TreeItem {
+	item := sdui.TreeItem{ID: groupPrefix + key, Label: label, Icon: icon, HasChildren: true, Expanded: expanded}
 	if expanded {
 		item.Children = children
 	}

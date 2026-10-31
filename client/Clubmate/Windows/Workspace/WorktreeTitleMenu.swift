@@ -4,7 +4,7 @@ import ClubmateKit
 
 struct WorktreeTitleMenu: View {
     let session: WorkspaceSession
-    let title: String
+    let workspace: String
 
     @State private var shown = false
     @Environment(\.theme) private var theme
@@ -13,19 +13,35 @@ struct WorktreeTitleMenu: View {
 
     var body: some View {
         Button { shown.toggle() } label: {
-            Text(title)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: Self.maxWidth)
-                .padding(theme.spacing.capsule)
-                .onHover { inside in
-                    if inside { session.worktreeMenuOpened() }
+            TitlePill(pressed: shown) {
+                Text(workspace)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                if let branch = session.worktrees.current?.name {
+                    Text("/")
+                        .foregroundStyle(theme.faint)
+                        .fixedSize()
+                    Image(systemName: "arrow.triangle.branch")
+                        .foregroundStyle(theme.muted)
+                    Text(branch)
+                        .foregroundStyle(theme.foreground)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .layoutPriority(1)
                 }
+                Image(systemName: "chevron.down")
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+            }
+            .frame(maxWidth: Self.maxWidth)
+            .onHover { inside in
+                if inside { session.worktreeMenuOpened() }
+            }
         }
         .buttonStyle(.plain)
         .fixedSize()
-        .help("Worktrees")
+        .help(session.worktrees.current.map { "\(workspace) / \($0.name)" } ?? "Worktrees")
         .popover(isPresented: $shown, arrowEdge: .bottom) {
             WorktreeSwitcher(session: session) { shown = false }
         }

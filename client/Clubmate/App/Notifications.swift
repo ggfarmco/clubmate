@@ -16,6 +16,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private(set) var hub: NotificationHub
     private(set) var systemOff = false
+    private(set) var agents: [String: AgentTally] = [:]
 
     @ObservationIgnored private var notifier = AgentNotifier()
     @ObservationIgnored private var listener: Task<Void, Never>?
@@ -104,8 +105,9 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
             await checkAgents(event.workspace, session: fields["session"]?.stringValue)
         case "deleted":
             if let session = fields["session"]?.stringValue { agentDeleted(event.workspace, session) }
+            await tally(event.workspace)
         default:
-            break
+            await tally(event.workspace)
         }
     }
 
@@ -142,6 +144,12 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     func keepOpen(_ workspaces: Set<String>) {
         hub.waiting.keep(workspaces)
+        agents = agents.filter { workspaces.contains($0.key) }
+    }
+
+    func tally(_ workspace: String) async {
+        guard case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
+        agents[workspace] = AgentTally(AgentSession.list(listed))
     }
 
     private func agentDeleted(_ workspace: String, _ session: String) {
@@ -176,9 +184,11 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func checkAgents(_ workspace: String, session: String?) async {
-        guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session),
-              case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
-        let sessions = AgentSession.list(listed).filter { session == nil || $0.id == session }
+        guard case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
+        let all = AgentSession.list(listed)
+        agents[workspace] = AgentTally(all)
+        guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session) else { return }
+        let sessions = all.filter { session == nil || $0.id == session }
         hub.waiting.update(workspace: workspace, session: session, sessions: sessions)
         let current = focus()
         for alert in notifier.pending(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.id) }) where !notifier.isPosted(alert) {

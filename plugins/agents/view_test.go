@@ -38,7 +38,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Activity: "go test"},
-		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}, Notify: notifyMuted},
+		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}, Notify: notifyMuted, Branch: "feat/auth"},
 		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
 	}
@@ -47,7 +47,8 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 3)
-	assert.Equal(t, []string{"Needs you · 2", "a", "b"}, []string{groups[0].Label, groups[1].Label, groups[2].Label})
+	assert.Equal(t, []string{"Needs you · 2", "a", "feat/auth"}, []string{groups[0].Label, groups[1].Label, groups[2].Label})
+	assert.Empty(t, groups[2].Detail)
 	needs, a, b := groups[0].Children, groups[1].Children, groups[2].Children
 	require.Len(t, needs, 2)
 	require.Len(t, a, 2)
@@ -59,7 +60,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	assert.Empty(t, a[1].Children)
 	assert.Equal(t, "Waiting for permission · go test", a[0].Detail)
 	assert.Equal(t, "Muted · 12 min ago", b[0].Detail)
-	assert.Equal(t, []string{"warning", "success"}, []string{a[0].Tone, b[0].Tone})
+	assert.Equal(t, []string{"warning", ""}, []string{a[0].Tone, b[0].Tone})
 	assert.Equal(t, []string{actNotifyNeeds, actNotifyMuted, actClose, actDelete}, menuActions(a[0].Menu))
 }
 
@@ -391,10 +392,10 @@ func TestConfigPickersAndModelEffortInHeader(t *testing.T) {
 		{"id":"effort","name":"Effort","category":"thought_level","type":"select","currentValue":"high","options":[{"value":"high","name":"High"}]}
 	]`), &configs))
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusIdle}, Configs: configs}
-	tree := mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus"})
+	tree := mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus", Branch: "feat/a"})
 	require.NoError(t, internalsdui.Validate(tree))
 
-	assert.Equal(t, "Claude · ⑂ a · Opus 5.5 · High effort", nodesOf(tree, "text")[1].Props["text"])
+	assert.Equal(t, "Claude · ⑂ feat/a · Opus 5.5 · High effort", nodesOf(tree, "text")[1].Props["text"])
 	got := nodesOf(tree, "composer")[0].Props["pickers"].([]sdui.Picker)
 	require.Len(t, got, 5)
 	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
@@ -470,7 +471,7 @@ func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 	for _, tc := range []struct {
 		children, icon, tone, detail string
 	}{
-		{statusRunning, "circle.dotted", "accent", "Waiting for child sessions"},
+		{statusRunning, "circle.dotted", "", "Waiting for child sessions"},
 		{statusWaiting, "exclamationmark.circle", "warning", "Child session waiting"},
 	} {
 		rows := []sessionRow{{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}, Children: tc.children}}

@@ -18,6 +18,7 @@ struct WorkspaceLayout: View {
                 Rail(
                     sections: app.settings.ordered(store.sections),
                     selected: section,
+                    attention: (app.notifications.agents[store.workspaceID]?.needYou ?? 0) > 0 ? [AgentNotifier.section] : [],
                     select: { store.selectedSection = $0 },
                     move: { [app] in app.settings.moveSection($0, onto: $1, in: store.sections) },
                     resetOrder: app.settings.sectionOrder == nil ? nil : { [app] in app.settings.sectionOrder = nil }
@@ -54,7 +55,7 @@ struct WorkspaceLayout: View {
             }
             .frame(maxHeight: .infinity)
             .clipped()
-            StatusBar(connection: connection, section: store.sections.first { $0.id == section }?.title ?? section, usage: app.usage.usage) { [app] in
+            StatusBar(connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage) { [app] in
                 app.retry()
             } trailing: {
                 if store.slots["\(section).status"] != nil {

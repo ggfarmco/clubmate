@@ -65,6 +65,7 @@ type screen struct {
 	Installing  bool
 	Changes     bool
 	Advisor     string
+	Branch      string
 	Parent      string
 	Children    string
 	FromTitles  map[string]string
@@ -142,7 +143,7 @@ func codeView(recs []record, bound string, sc *screen) sdui.Node {
 func header(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
-	meta := []string{agentLabel(rec.Agent), "⑂ " + filepath.Base(rec.Worktree)}
+	meta := []string{agentLabel(rec.Agent), "⑂ " + cmp.Or(sc.Branch, filepath.Base(rec.Worktree))}
 	if name := modeName(sc.View.Modes, rec.Mode); name != "" {
 		meta = append(meta, name)
 	}

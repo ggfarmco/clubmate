@@ -204,7 +204,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	rows := make([]sessionRow, 0, len(recs))
 	for _, rec := range recs {
-		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID]}
+		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: a.branches.name(ctx, rec.Worktree)}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
 			row.Started = s.turnStart()
@@ -374,6 +374,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	st := a.sessionState(workspaceID, sid)
 	parent, fromTitles := a.relatives(v)
 	advisor := a.sessionAdvisor(ctx, v.Session)
+	branch := a.branches.name(ctx, v.Session.Worktree)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	_, needsAuth := a.auth[sid]
@@ -395,6 +396,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		Installing:  a.installing && detached && !v.Session.closed(),
 		Changes:     changes,
 		Advisor:     advisor,
+		Branch:      branch,
 		Parent:      parent,
 		Children:    childStatuses(a.list(workspaceID))[sid],
 		FromTitles:  fromTitles,

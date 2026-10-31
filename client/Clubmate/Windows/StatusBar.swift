@@ -11,7 +11,7 @@ enum ConnectionStatus {
 
 struct StatusBar<Trailing: View>: View {
     let connection: ConnectionStatus
-    let section: String
+    let agents: AgentTally?
     let usage: SubscriptionUsage?
     let retry: () -> Void
     @ViewBuilder let trailing: Trailing
@@ -20,13 +20,18 @@ struct StatusBar<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: theme.gutter * 1.5) {
-            Text(label).foregroundStyle(tone)
+            HStack(spacing: theme.spacing.s) {
+                Text(dot).foregroundStyle(tone)
+                Text(label).foregroundStyle(connected ? theme.muted : tone)
+            }
             if case .failed = connection {
                 Button("Retry", action: retry)
                     .buttonStyle(.plain)
                     .foregroundStyle(theme.accentInk)
             }
-            Text(section).foregroundStyle(theme.muted)
+            if connected, let agents {
+                AgentCounts(tally: agents)
+            }
             UsageStatus(usage: usage)
                 .layoutPriority(1)
             Spacer(minLength: 0)
@@ -35,6 +40,10 @@ struct StatusBar<Trailing: View>: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .frame(height: 22)
                 .clipped()
+            Text("⌘K")
+                .foregroundStyle(theme.muted)
+                .fixedSize()
+                .help("Command Palette (⌘K)")
         }
         .font(theme.uiSmall)
         .lineLimit(1)
@@ -44,21 +53,57 @@ struct StatusBar<Trailing: View>: View {
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
     }
 
+    private var connected: Bool {
+        if case .connected = connection { return true }
+        return false
+    }
+
+    private var dot: String {
+        connected ? "●" : "○"
+    }
+
     private var label: String {
         switch connection {
-        case .connected: "● connected"
-        case .connecting: "○ connecting"
-        case .reconnecting(let attempt): "○ reconnecting (attempt \(attempt))"
-        case .failed(let message): "○ \(message)"
+        case .connected: "core"
+        case .connecting: "core connecting"
+        case .reconnecting(let attempt): "core reconnecting (attempt \(attempt))"
+        case .failed(let message): message
         }
     }
 
     private var tone: Color {
         switch connection {
-        case .connected: theme.success
+        case .connected: theme.muted
         case .connecting, .reconnecting: theme.warning
         case .failed: theme.danger
         }
+    }
+}
+
+private struct AgentCounts: View {
+    let tally: AgentTally
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            counts(active: true)
+            counts(active: false)
+        }
+    }
+
+    private func counts(active: Bool) -> some View {
+        HStack(spacing: 0) {
+            if active, tally.active > 0 {
+                Text(tally.active == 1 ? "1 agent" : "\(tally.active) agents").foregroundStyle(theme.muted)
+                if tally.needYou > 0 { Text(" · ").foregroundStyle(theme.muted) }
+            }
+            if tally.needYou > 0 {
+                Text("\(tally.needYou) need you").foregroundStyle(theme.warning)
+            }
+        }
+        .monospacedDigit()
+        .fixedSize()
     }
 }
 

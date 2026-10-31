@@ -38,6 +38,7 @@ type app struct {
 	groups    *groups
 	codePanel bool
 	usage     usageTracker
+	branches  branchCache
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
@@ -119,6 +120,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, "ui.*", ready.Seq); err != nil {
 		return err
 	}
+	if _, err := h.Subscribe(ctx, gitChangedTopic, ready.Seq); err != nil {
+		return err
+	}
 	if err := a.loadPresence(ctx); err != nil {
 		return err
 	}
@@ -134,6 +138,12 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		a.signInExited(ctx, ev)
 	case "ui.opened", "ui.idle", "ui.section":
 		a.presenceEvent(ctx, ev)
+	case gitChangedTopic:
+		var p gitChanged
+		if json.Unmarshal(ev.Payload, &p) == nil {
+			a.branches.reset()
+			a.kick(p.Workspace)
+		}
 	case contract.TopicWorkspaceCreated:
 		var p contract.WorkspaceChanged
 		if json.Unmarshal(ev.Payload, &p) == nil {

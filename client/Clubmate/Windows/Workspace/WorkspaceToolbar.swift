@@ -4,18 +4,19 @@ extension WorkspaceWindow {
     @ToolbarContentBuilder var toolbarItems: some ToolbarContent {
         if let worktreeSession {
             ToolbarItem(placement: .navigation) {
-                WorktreeTitleMenu(session: worktreeSession, title: title)
+                WorktreeTitleMenu(session: worktreeSession, workspace: workspaceName)
             }
+            .sharedBackgroundVisibility(.hidden)
         }
         ToolbarSpacer(.flexible)
         ToolbarItem(placement: .primaryAction) {
             Button { windowID.map(windows.toggleInbox) } label: {
-                HStack(spacing: theme.spacing.s) {
-                    Image(systemName: inboxTotal > 0 ? "bell.badge" : "bell")
-                    UnreadBadge(count: inboxTotal)
+                TitlePill {
+                    Image(systemName: "bell")
+                    CountBadge(count: inboxTotal, needsYou: !app.notifications.hub.pinned.isEmpty)
                 }
-                .padding(theme.spacing.capsule)
             }
+            .buttonStyle(.plain)
             .help("Notifications (⇧⌘I)")
             .accessibilityLabel(inboxTotal > 0 ? "Notifications, \(inboxTotal) unread" : "Notifications")
             .disabled(windowID == nil)
@@ -26,19 +27,23 @@ extension WorkspaceWindow {
                     .environment(\.theme, theme)
             }
         }
+        .sharedBackgroundVisibility(.hidden)
+        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             Button { windowID.map(windows.toggleSwitcher) } label: {
-                HStack(spacing: theme.spacing.s) {
-                    Text("▦ \(workspaceCount)")
+                TitlePill {
+                    Image(systemName: "square.on.square")
+                    Text("\(workspaceCount)")
                         .monospacedDigit()
-                    UnreadBadge(count: otherUnread)
+                    CountBadge(count: otherUnread, needsYou: false)
                 }
-                .padding(theme.spacing.capsule)
             }
+            .buttonStyle(.plain)
             .help("Workspaces (⌃⌘W)")
             .accessibilityLabel(otherUnread > 0 ? "Workspaces, \(workspaceCount), \(otherUnread) unread" : "Workspaces, \(workspaceCount)")
             .disabled(windowID == nil)
         }
+        .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
     }
 

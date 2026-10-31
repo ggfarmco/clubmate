@@ -1,0 +1,46 @@
+package main
+
+import (
+	"context"
+	"os"
+	"sync"
+
+	"clubmate/plugins/internal/gitrepo"
+)
+
+const gitChangedTopic = "git.changed"
+
+type gitChanged struct {
+	Workspace string `json:"workspace"`
+}
+
+type branchCache struct {
+	mu    sync.Mutex
+	names map[string]string
+}
+
+func (c *branchCache) name(ctx context.Context, root string) string {
+	c.mu.Lock()
+	name, ok := c.names[root]
+	c.mu.Unlock()
+	if ok {
+		return name
+	}
+	if _, err := os.Stat(root); err != nil {
+		return ""
+	}
+	name, _ = gitrepo.Branch(ctx, root)
+	c.mu.Lock()
+	if c.names == nil {
+		c.names = map[string]string{}
+	}
+	c.names[root] = name
+	c.mu.Unlock()
+	return name
+}
+
+func (c *branchCache) reset() {
+	c.mu.Lock()
+	c.names = nil
+	c.mu.Unlock()
+}
