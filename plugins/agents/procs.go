@@ -171,6 +171,7 @@ func (a *app) stopAll() {
 	a.stopOnce.Do(func() {
 		a.mu.Lock()
 		a.closing = true
+		close(a.quit)
 		procs := make([]*agentProc, 0, len(a.live))
 		for p := range a.live {
 			procs = append(procs, p)

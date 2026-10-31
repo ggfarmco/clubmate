@@ -132,6 +132,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 		a.setNoResume(rec.ID, true)
 		return errNoResume
 	}
+	mode, values := s.settings()
 	var raw json.RawMessage
 	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
@@ -150,6 +151,11 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	}
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
+	var res acp.ResumeSessionResponse
+	if json.Unmarshal(raw, &res) == nil {
+		a.applyMode(ctx, s, res.Modes, mode)
+		a.applyConfigs(ctx, s, res.ConfigOptions, func(id string) string { return values[id] })
+	}
 	return nil
 }
 

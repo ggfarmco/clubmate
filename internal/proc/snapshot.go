@@ -28,15 +28,26 @@ type usage struct {
 }
 
 func Snapshot() ([]Process, error) {
-	kprocs, err := unix.SysctlKinfoProcSlice("kern.proc.all")
+	procs, err := List()
 	if err != nil {
-		return nil, fmt.Errorf("list processes: %w", err)
+		return nil, err
 	}
 	usages, err := readUsage()
 	if err != nil {
 		return nil, err
 	}
+	for i := range procs {
+		u := usages[procs[i].PID]
+		procs[i].RSSKiB, procs[i].CPU = u.rssKiB, u.cpu
+	}
+	return procs, nil
+}
 
+func List() ([]Process, error) {
+	kprocs, err := unix.SysctlKinfoProcSlice("kern.proc.all")
+	if err != nil {
+		return nil, fmt.Errorf("list processes: %w", err)
+	}
 	uid := uint32(os.Getuid())
 	procs := make([]Process, 0, len(kprocs))
 	for i := range kprocs {
@@ -44,16 +55,12 @@ func Snapshot() ([]Process, error) {
 		if k.Eproc.Ucred.Uid != uid {
 			continue
 		}
-		pid := int(k.Proc.P_pid)
-		u := usages[pid]
 		procs = append(procs, Process{
-			PID:       pid,
+			PID:       int(k.Proc.P_pid),
 			PPID:      int(k.Eproc.Ppid),
 			PGID:      int(k.Eproc.Pgid),
 			Comm:      commString(k.Proc.P_comm[:]),
 			StartTime: startOf(k),
-			RSSKiB:    u.rssKiB,
-			CPU:       u.cpu,
 		})
 	}
 	return procs, nil

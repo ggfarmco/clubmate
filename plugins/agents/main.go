@@ -33,6 +33,7 @@ type app struct {
 	host      *pluginsdk.Host
 	stateDir  string
 	loaded    chan struct{}
+	quit      chan struct{}
 	notes     *notifier
 	groups    *groups
 	codePanel bool
@@ -68,7 +69,7 @@ type sectionRef struct {
 }
 
 func main() {
-	a := &app{loaded: make(chan struct{}), registry: newRegistry(), uiState: newUIState()}
+	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), registry: newRegistry(), uiState: newUIState()}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
 	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 	a.stopAll()
@@ -124,6 +125,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	close(a.loaded)
+	go a.suspendIdleLoop(suspendDelay())
 	a.renderAll(ctx)
 	return nil
 }

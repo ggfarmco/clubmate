@@ -45,11 +45,9 @@ func (a *app) setMode(ctx context.Context, projectID string, args modeArgs) erro
 }
 
 func (a *app) sendMode(ctx context.Context, s *session, mode string) error {
-	s.mu.Lock()
-	p, agentID := s.proc, s.rec.AgentSessionID
-	s.mu.Unlock()
-	if p == nil {
-		return errNotLive
+	p, agentID, err := a.liveProc(s)
+	if err != nil {
+		return err
 	}
 	req := acp.SetSessionModeRequest{SessionID: agentID, ModeID: mode}
 	if err := p.conn.Call(ctx, acp.MethodSessionSetMode, req, nil); err != nil {
@@ -97,11 +95,9 @@ func (a *app) setConfig(ctx context.Context, projectID string, args configArgs) 
 }
 
 func (a *app) sendConfig(ctx context.Context, s *session, id, value string) ([]acp.SessionConfigOption, error) {
-	s.mu.Lock()
-	p, agentID := s.proc, s.rec.AgentSessionID
-	s.mu.Unlock()
-	if p == nil {
-		return nil, errNotLive
+	p, agentID, err := a.liveProc(s)
+	if err != nil {
+		return nil, err
 	}
 	var res acp.SetSessionConfigOptionResponse
 	if err := p.conn.Call(ctx, acp.MethodSessionSetConfig, acp.SetSessionConfigOptionRequest{SessionID: agentID, ConfigID: id, Value: value}, &res); err != nil {

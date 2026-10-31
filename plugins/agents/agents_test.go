@@ -54,6 +54,7 @@ type record struct {
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
 	Asks           bool     `json:"asks"`
+	Suspended      bool     `json:"suspended"`
 }
 
 type entry struct {

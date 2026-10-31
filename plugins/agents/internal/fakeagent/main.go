@@ -36,6 +36,7 @@ type step struct {
 	Permission json.RawMessage `json:"permission"`
 	Stderr     string          `json:"stderr"`
 	Child      bool            `json:"child"`
+	Shell      string          `json:"shell"`
 	Exit       *int            `json:"exit"`
 	Sleep      int             `json:"sleep"`
 	Echo       bool            `json:"echo"`
@@ -246,6 +247,12 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 			cmd := exec.Command("sleep", "60")
 			if err := cmd.Start(); err == nil {
 				a.record("child", cmd.Process.Pid)
+			}
+		case s.Shell != "":
+			cmd := exec.Command("/bin/sh", "-c", s.Shell)
+			if err := cmd.Start(); err == nil {
+				a.record("shell", cmd.Process.Pid)
+				go cmd.Wait()
 			}
 		case s.Exit != nil:
 			os.Exit(*s.Exit)

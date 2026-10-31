@@ -237,6 +237,7 @@ func (p *agentProc) register(agentSessionID string, s *session) {
 	p.sessions[agentSessionID] = s
 	s.mu.Lock()
 	s.proc = p
+	s.rec.Suspended = false
 	s.mu.Unlock()
 	pending := p.orphans[agentSessionID]
 	delete(p.orphans, agentSessionID)
