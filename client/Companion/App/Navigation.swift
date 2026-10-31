@@ -16,11 +16,29 @@ final class AppNavigation {
     var workspaces: [String: String] = [:]
     var showingAddComputer = false
     var preferredColumn: NavigationSplitViewColumn = .sidebar
+    var layout: CompanionLayout = .compact
+    var visibility: NavigationSplitViewVisibility = .all
 
     func open(computer: String, plugin: String, detail: String? = nil) {
         sidebar = SidebarItem(computer: computer, plugin: plugin)
         self.detail = detail
         preferredColumn = detail == nil ? .content : .detail
+    }
+
+    func arrange() {
+        let chosen = sidebar != nil
+        switch layout.columns(chosen: chosen) {
+        case .stack:
+            switch CompanionLayout.stackColumn(chosen: chosen, detail: detail != nil) {
+            case .sidebar: preferredColumn = .sidebar
+            case .content: preferredColumn = .content
+            case .detail: preferredColumn = .detail
+            }
+        case .two:
+            visibility = .doubleColumn
+        case .three:
+            visibility = .all
+        }
     }
 
     func workspace(for connection: ComputerConnection) -> Workspace? {

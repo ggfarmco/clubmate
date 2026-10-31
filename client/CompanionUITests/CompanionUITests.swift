@@ -94,6 +94,26 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '· AFK'")).firstMatch.waitForExistence(timeout: 5))
     }
 
+    func testOptionKeysAnswerThePermissionInButtonOrder() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        XCTAssertTrue(app.buttons["Reject"].waitForExistence(timeout: 10))
+        app.typeKey("2", modifierFlags: .option)
+        XCTAssertTrue(app.buttons["Reject"].exists)
+        app.typeKey("1", modifierFlags: .option)
+        XCTAssertTrue(wait(for: app.buttons["Reject"], "exists == false"))
+    }
+
+    func testRotatingKeepsTheOpenSession() {
+        let app = launch(open: "agents/agt_0000000000000002")
+        let title = app.navigationBars["Explain the checkout flow"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+            XCUIDevice.shared.orientation = orientation
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            XCTAssertTrue(app.textFields["composer"].exists)
+        }
+    }
+
     private func launch(open target: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target]

@@ -72,6 +72,7 @@ struct CompanionApp: App {
                     #endif
                 }
         }
+        .commands { SessionCommands() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:

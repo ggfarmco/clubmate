@@ -95,6 +95,15 @@ A pending request is docked above the composer.
 
 Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift`.
 
+## Companion on iPad / Fold (hardware keyboard, a session open)
+
+| Keys | Action |
+|---|---|
+| ⌥1 ⌥2 ⌥3 | Choose the pending permission request's option in button order (Allow first); "Always" options have no key and need a tap and the confirm |
+| ⌘↩ | Send the composer's message (Session menu) |
+
+Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionKeys`.
+
 ## Code chat panel starters (session with no turns yet)
 
 | Keys | Action |

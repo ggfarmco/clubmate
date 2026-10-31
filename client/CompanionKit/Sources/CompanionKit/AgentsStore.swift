@@ -43,6 +43,14 @@ public final class AgentsStore {
         (transcripts[session]?.entries ?? []) + (outgoing[session] ?? []).map(\.entry)
     }
 
+    public func pendingPermission(_ session: String) -> PermissionRequest? {
+        guard let pending = self.session(session)?.pending, !pending.isEmpty else { return nil }
+        return entries(session).lazy.compactMap { entry -> PermissionRequest? in
+            guard case .permission(let request) = entry.content, request.outcome == nil, pending.contains(request.id) else { return nil }
+            return request
+        }.first
+    }
+
     public func handle(_ signal: ConnectionSignal) {
         switch signal {
         case .online:

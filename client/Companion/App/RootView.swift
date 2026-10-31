@@ -6,17 +6,25 @@ struct RootView: View {
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
     @Environment(PairingFlow.self) private var pairing
-    @State private var visibility: NavigationSplitViewVisibility = .all
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var width = 0.0
 
     var body: some View {
         @Bindable var navigation = navigation
-        NavigationSplitView(columnVisibility: $visibility, preferredCompactColumn: $navigation.preferredColumn) {
+        NavigationSplitView(columnVisibility: $navigation.visibility, preferredCompactColumn: $navigation.preferredColumn) {
             SidebarView()
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
         } content: {
             content
+                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 440)
         } detail: {
             detail
         }
+        .navigationSplitViewStyle(.balanced)
+        .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
+        .onChange(of: CompanionLayout(width: width, compactClass: sizeClass == .compact), initial: true) { _, layout in navigation.layout = layout }
+        .onChange(of: navigation.layout) { _, _ in navigation.arrange() }
+        .onChange(of: navigation.sidebar) { _, _ in navigation.arrange() }
         .sheet(isPresented: $navigation.showingAddComputer) {
             AddComputerView()
         }
