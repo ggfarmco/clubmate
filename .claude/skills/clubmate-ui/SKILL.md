@@ -1,11 +1,24 @@
 ---
 name: clubmate-ui
-description: Use when adding or changing any SwiftUI/AppKit view in client/Clubmate or an SDUI node renderer — lists, popups, pickers, menus, control rows, labels, cards, focus or keyboard handling, UI state — or when the user sends a screenshot of something in the app that looks broken.
+description: Use when adding or changing any SwiftUI/AppKit view in client/Clubmate, an SDUI node renderer, or the SDUI tree a plugin renders (plugins/*/view.go, pkg/sdui) — lists, popups, pickers, menus, control rows, labels, cards, detail panes, empty states, badges, colours, theme tokens, focus or keyboard handling, UI state — or when the user sends a screenshot of something in the app that looks broken or asks for a design or UX change.
 ---
 
 # Building Clubmate UI
 
 Every UI complaint so far was a screenshot of code that compiled fine: a list grew past the window, a row pushed the window wider, text ran under a header, state vanished on a section switch. Build each element from the recipe, then look at it.
+
+## Design language: read it first
+
+Clubmate has a design language: `references/design-language.md` (principles, colour roles, type and spacing, one spec per node type, patterns, the SDUI additions it needs). The boards it was distilled from are in `design/language/` (`png/` or `html/`); before you change a screen, open its mockup there (`Agents-1280`, `Agents-640`, `Code-*`, `Backlog-*`, `Cron-1280`, `Triggers-640`, `Graphs-*`, `Processes-*`) and build toward it. Where this file and the design language disagree, the design language wins.
+
+It is a target; the code is partway there. Scope each change:
+
+| Change | Do |
+|---|---|
+| A plugin view or one screen | Apply the principles and patterns (detail view, empty states, truncation, names over ids, badges only for attention, one primary action, keys printed) with today's tokens. |
+| A token or a node renderer (selection, surfaces, text levels, button look) | Its own change in `Theme.swift` and the renderer, for every view at once, with the formula from the token table. Never in one view only, never as a side effect of a feature. |
+| A new SDUI prop or node | Only the four the language names (`header`, `button` variant/disabled/shortcut, table column truncate/align/priority, `empty` icon/title/action/hint), each its own change with `pkg/sdui`, `docs/sdui-protocol.md`, the renderer and the gallery fixture. Anything else: build it from existing nodes, or ask. |
+| A key the boards propose | `docs/shortcuts.md` is the source of truth; a board key that clashes with it is a question for the user, not a rebind. |
 
 ## Copy these, not the nearest neighbour
 
@@ -26,7 +39,7 @@ Neighbouring code may be the bug (the `/` command popup was an uncapped `VStack`
 - **ScrollView inside a stack**: `.clipped()`.
 - **Row of controls**: fits at 640pt. `ViewThatFits(in: .horizontal)` with one row, then a wrapped `FlowLayout`; container `.frame(minWidth: 0, maxWidth: .infinity)`; no fixed `minWidth` on fields.
 - **Label**: `.lineLimit(1)`, `.truncationMode(.label)` (`.path` for a file path; both in `Theme/Theme.swift`), `.help(full)`; the identifying part gets `.layoutPriority(1)`.
-- **Selected row**: `theme.foreground.opacity(0.06)` background plus a 2pt `theme.accent` leading bar.
+- **Selected row**: today `theme.foreground.opacity(0.06)` background plus a 2pt `theme.accent` leading bar; the target `selected` / `selected-idle` roles land as one token change (see the table above).
 - **State that must survive** re-renders and section switches (drafts, expansion, chosen tab): a ClubmateKit store keyed by a stable node id, not `@State`. In `Equatable` views every render input is in `==`; themed parts live in a child view with its own `@Environment(\.theme)`.
 - **Text body in an `NSAlert`**: an `NSTextView` accessory with `isSelectable = false`; a selectable one becomes first responder and AppKit scrolls it to the middle of the document on open.
 - **Keyboard**: every action reachable by keyboard; focusable things are real `Button`s; key changes update `docs/shortcuts.md`.
@@ -37,7 +50,7 @@ Neighbouring code may be the bug (the `/` command popup was an uncapped `VStack`
 
 ## Design defaults
 
-Compact, Zed/Ghostty feel; width is the scarce resource. Collapsed by default, expand on click. Rarely changed settings behind a menu. Keyboard first, fuzzy search in every long list.
+Compact, Zed/Ghostty feel; width is the scarce resource. Collapsed by default, expand on click. Rarely changed settings behind a menu. Keyboard first, fuzzy search in every long list. The full rules are the six principles in `references/design-language.md`.
 
 ## Done means
 
@@ -51,6 +64,7 @@ Compact, Zed/Ghostty feel; width is the scarce resource. Collapsed by default, e
    - Tool cards: `cm -- ui present card:<session>/tool/<id>` expands one (ids from `cm -- ui dump`). For a transcript with cards, build `plugins/agents/internal/fakeagent`, write a `FAKEAGENT_SCRIPT` of `tool_call` updates, start with `CLUBMATE_AGENTS_COMMAND=<fakeagent> FAKEAGENT_SCRIPT=<json> scripts/test-app.sh start` and `cm -- agent spawn "<prompt>"`.
    - `scripts/test-app.sh stop` afterwards; it deletes `/tmp/clubmate-test-<name>`, so copy snapshots you report elsewhere first.
    Never use `screencapture`.
-4. If you could not look, write "visually unverified" in the report and say which of the above was skipped.
+4. Put the snapshot next to the screen's mockup and the node specs in `references/design-language.md`; the report names every place it still differs and why (e.g. "action keys wait for the `button` shortcut prop").
+5. If you could not look, write "visually unverified" in the report and say which of the above was skipped.
 
 Past bug classes with their commits: `references/bug-classes.md`.
