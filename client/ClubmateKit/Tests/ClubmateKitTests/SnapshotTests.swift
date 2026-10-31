@@ -30,7 +30,8 @@ final class SnapshotTests: XCTestCase {
             element("row", frame: Rect(x: 0, y: 0, width: 412, height: 20), parent: "panel"),
             element("a", frame: Rect(x: 0, y: 30, width: 100, height: 20), parent: "panel"),
             element("b", frame: Rect(x: 0, y: 46, width: 100, height: 20), parent: "panel"),
-            element("label", frame: Rect(x: 0, y: 80, width: 50, height: 20), parent: "panel", idealWidth: 72),
+            element("label", frame: Rect(x: 0, y: 80, width: 50, height: 20), parent: "panel", idealWidth: 72, lineHeight: 16),
+            element("wrapped", frame: Rect(x: 0, y: 110, width: 50, height: 32), parent: "panel", idealWidth: 72, lineHeight: 16),
             element("footer", frame: Rect(x: 0, y: 590, width: 100, height: 20)),
             element("ax-row", source: "ax", frame: Rect(x: 0, y: 100, width: 500, height: 20), parent: "panel"),
         ]
@@ -40,8 +41,18 @@ final class SnapshotTests: XCTestCase {
         XCTAssertEqual(flagged["a"], ["overlaps-sibling"])
         XCTAssertEqual(flagged["b"], ["overlaps-sibling"])
         XCTAssertEqual(flagged["label"], ["truncated"])
+        XCTAssertEqual(flagged["wrapped"], [])
         XCTAssertEqual(flagged["footer"], ["outside-window"])
         XCTAssertEqual(flagged["ax-row"], [])
+    }
+
+    func testParentIsTheSameIDElementHoldingTheChild() {
+        let flagged = LayoutAnalyzer.flag([
+            element("stack", frame: Rect(x: 0, y: 0, width: 220, height: 500)),
+            element("stack", frame: Rect(x: 220, y: 0, width: 542, height: 500)),
+            element("transcript", frame: Rect(x: 220, y: 0, width: 542, height: 400), parent: "stack"),
+        ], bounds: Rect(x: 0, y: 0, width: 800, height: 600))
+        XCTAssertEqual(flagged.first { $0.id == "transcript" }?.flags, [])
     }
 
     func testSummary() {
@@ -77,8 +88,8 @@ final class SnapshotTests: XCTestCase {
         await client.close()
     }
 
-    private func element(_ id: String, source: String = "sdui", frame: Rect, parent: String? = nil, idealWidth: Double? = nil) -> LayoutElement {
-        LayoutElement(id: id, source: source, role: "group", label: id, frame: frame, parent: parent, text: nil, idealWidth: idealWidth, menu: nil, flags: [])
+    private func element(_ id: String, source: String = "sdui", frame: Rect, parent: String? = nil, idealWidth: Double? = nil, lineHeight: Double? = nil) -> LayoutElement {
+        LayoutElement(id: id, source: source, role: "group", label: id, frame: frame, parent: parent, text: nil, idealWidth: idealWidth, lineHeight: lineHeight, menu: nil, flags: [])
     }
 }
 

@@ -53,7 +53,7 @@ When the Mac slept or Clubmate was down, a job that is more than 1 minute late f
 
 ## Owner
 
-A job added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Jobs added by the user or the CLI have no owner.
+A job added by an agent belongs to that agent session by default (`owner: "self"`) and is deleted when the session is closed or deleted. `owner: "none"` makes it outlive the session. Jobs added by the user or the CLI have no owner. In the Cron section, "Show Session" next to the owner selects that session in Agents.
 
 An agent may update, pause, resume, run and delete only jobs owned or created by itself or by its child sessions; an agent call without an agent session may not change any. The Cron section acts for you, so it can change any job.
 

@@ -69,6 +69,9 @@ func (s *Server) busMethods() map[string]handlerFunc {
 			events, err := b.Read(ctx, p.Pattern, p.After, p.Limit)
 			return nonNil(events), err
 		}),
+		"bus.head": method(func(context.Context, empty) (seqResult, error) {
+			return seqResult{Seq: b.Head()}, nil
+		}),
 		"bus.subscribe": method(func(ctx context.Context, p subscribeParams) (subscriptionParams, error) {
 			sub, err := b.Subscribe(p.Pattern, p.After)
 			if err != nil {

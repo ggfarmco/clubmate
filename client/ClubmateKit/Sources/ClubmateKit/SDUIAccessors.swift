@@ -44,6 +44,10 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
 
     public var id: String { item.id }
 
+    public var visibleItems: [SDUIItem] {
+        [item] + (expanded ? children.flatMap(\.visibleItems) : [])
+    }
+
     init?(_ value: JSONValue) {
         guard let item = SDUIItem(value), let fields = value.objectValue else { return nil }
         self.item = item

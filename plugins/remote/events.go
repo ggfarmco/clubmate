@@ -160,8 +160,14 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 	}
 	var seen int64
 	if resume {
-		if seen, err = s.backfill(r.Context(), rc, w, after); err != nil {
+		head, err := s.backend.Head(r.Context())
+		if err != nil {
 			return
+		}
+		if after <= head {
+			if seen, err = s.backfill(r.Context(), rc, w, after); err != nil {
+				return
+			}
 		}
 	}
 	ping := time.NewTicker(s.ping)

@@ -140,10 +140,10 @@ final class TestHarness {
         }
         var out: [LayoutElement] = []
         for probe in probes.allObjects where probe.window === window && !probe.isHiddenOrHasHiddenAncestor {
-            out.append(LayoutElement(id: probe.nodeID, source: "sdui", role: probe.role, label: probe.label, frame: flip(probe.convert(probe.bounds, to: nil)), parent: probe.parent, text: nil, idealWidth: probe.idealWidth, menu: probe.menuItems, flags: []))
+            out.append(LayoutElement(id: probe.nodeID, source: "sdui", role: probe.role, label: probe.label, frame: flip(probe.convert(probe.bounds, to: nil)), parent: probe.parent, text: nil, idealWidth: probe.idealWidth, lineHeight: probe.lineHeight, menu: probe.menuItems, flags: []))
         }
         for terminal in WindowImage.terminals(in: root) {
-            out.append(LayoutElement(id: "terminal-\(terminal.sessionID)", source: "terminal", role: "terminal", label: terminal.sessionID, frame: flip(terminal.convert(terminal.bounds, to: nil)), parent: nil, text: terminal.viewportText(), idealWidth: nil, menu: nil, flags: []))
+            out.append(LayoutElement(id: "terminal-\(terminal.sessionID)", source: "terminal", role: "terminal", label: terminal.sessionID, frame: flip(terminal.convert(terminal.bounds, to: nil)), parent: nil, text: terminal.viewportText(), idealWidth: nil, lineHeight: nil, menu: nil, flags: []))
         }
         return out
     }
@@ -168,6 +168,7 @@ final class TestProbeNSView: NSView {
     var label = ""
     var parent: String?
     var idealWidth: Double?
+    var lineHeight: Double?
     var menuItems: [LayoutMenuItem]?
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -179,6 +180,7 @@ struct TestProbe: NSViewRepresentable {
     let label: String
     let parent: String?
     let idealWidth: Double?
+    var lineHeight: Double?
     let menu: [LayoutMenuItem]?
 
     func makeNSView(context: Context) -> TestProbeNSView {
@@ -193,6 +195,7 @@ struct TestProbe: NSViewRepresentable {
         view.label = label
         view.parent = parent
         view.idealWidth = idealWidth
+        view.lineHeight = lineHeight
         view.menuItems = menu
     }
 }
@@ -216,7 +219,7 @@ struct SDUIProbe: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(TestProbe(nodeID: probeID, role: node.type, label: label, parent: parent, idealWidth: idealWidth, menu: menu))
+            .background(TestProbe(nodeID: probeID, role: node.type, label: label, parent: parent, idealWidth: idealWidth, lineHeight: lineHeight, menu: menu))
             .environment(\.sduiParent, probeID)
     }
 
@@ -228,16 +231,25 @@ struct SDUIProbe: ViewModifier {
         node.string("text") ?? node.string("label") ?? node.string("title") ?? ""
     }
 
-    private var idealWidth: Double? {
-        guard node.type == "text", let text = node.string("text"), !text.isEmpty else { return nil }
+    private var font: NSFont? {
+        guard node.type == "text", node.string("text")?.isEmpty == false else { return nil }
         let title = node.string("style") == "title"
-        let font = theme.nsFont(size: theme.uiSize + (title ? 1 : 0), bold: title)
+        return theme.nsFont(size: theme.uiSize + (title ? 1 : 0), bold: title)
+    }
+
+    private var idealWidth: Double? {
+        guard let font, let text = node.string("text") else { return nil }
         return (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up) + theme.gutter * 2
+    }
+
+    private var lineHeight: Double? {
+        font.map { NSLayoutManager().defaultLineHeight(for: $0) }
     }
 
     private var menu: [LayoutMenuItem]? {
         var seen = Set<String>()
-        let entries = node.items().flatMap(\.menu).filter { seen.insert($0.action).inserted }
+        let items = node.type == "tree" ? node.treeItems().flatMap(\.visibleItems) : node.items()
+        let entries = items.flatMap(\.menu).filter { seen.insert($0.action).inserted }
         return entries.isEmpty ? nil : entries.map { LayoutMenuItem(title: $0.label, destructive: $0.confirm != nil) }
     }
 }

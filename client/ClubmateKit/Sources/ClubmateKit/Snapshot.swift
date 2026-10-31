@@ -84,10 +84,11 @@ public struct LayoutElement: Codable, Equatable, Sendable {
     public var parent: String?
     public var text: String?
     public var idealWidth: Double?
+    public var lineHeight: Double?
     public var menu: [LayoutMenuItem]?
     public var flags: [String]
 
-    public init(id: String, source: String, role: String, label: String, frame: Rect, parent: String?, text: String?, idealWidth: Double?, menu: [LayoutMenuItem]?, flags: [String]) {
+    public init(id: String, source: String, role: String, label: String, frame: Rect, parent: String?, text: String?, idealWidth: Double?, lineHeight: Double?, menu: [LayoutMenuItem]?, flags: [String]) {
         self.id = id
         self.source = source
         self.role = role
@@ -96,6 +97,7 @@ public struct LayoutElement: Codable, Equatable, Sendable {
         self.parent = parent
         self.text = text
         self.idealWidth = idealWidth
+        self.lineHeight = lineHeight
         self.menu = menu
         self.flags = flags
     }

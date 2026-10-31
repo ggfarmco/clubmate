@@ -38,6 +38,13 @@ func Sessions(ctx context.Context, h *pluginsdk.Host, workspace string) ([]Sessi
 	return sessions, nil
 }
 
+func Reveal(ctx context.Context, h *pluginsdk.Host, workspace, session string) error {
+	if err := h.RunCommand(ctx, "agents.reveal", workspace, map[string]string{"session": session}, nil); err != nil {
+		return fmt.Errorf("reveal agent session %s: %w", session, err)
+	}
+	return nil
+}
+
 func Find(sessions []Session, id string) (Session, bool) {
 	i := slices.IndexFunc(sessions, func(s Session) bool { return s.ID == id })
 	if i < 0 {

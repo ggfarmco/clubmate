@@ -136,6 +136,12 @@ func (b *Bus) Read(ctx context.Context, pattern string, after int64, limit int) 
 	return b.readRange(ctx, pattern, after, math.MaxInt64, min(limit, maxLimit))
 }
 
+func (b *Bus) Head() int64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.last
+}
+
 func (b *Bus) SetCursor(ctx context.Context, consumer string, seq int64) error {
 	if _, err := b.db.ExecContext(ctx, `INSERT INTO cursors(consumer, seq) VALUES(?, ?) ON CONFLICT(consumer) DO UPDATE SET seq = excluded.seq`, consumer, seq); err != nil {
 		return fmt.Errorf("set cursor: %w", err)

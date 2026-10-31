@@ -248,6 +248,16 @@ func TestEventsResumeFromLastEventID(t *testing.T) {
 	assert.True(t, strings.HasPrefix(frame(t, r), "id: 5\n"))
 }
 
+func TestEventsCursorAheadOfBusStartsLive(t *testing.T) {
+	f := newFixture(t)
+	f.backend.events = []pluginsdk.Event{{Seq: 3, Topic: "agents.changed", Payload: json.RawMessage(`{}`)}}
+	_, r := f.openEvents(t, f.pair(t, "phone"), "100")
+
+	assert.Equal(t, ": connected", frame(t, r))
+	f.srv.hub.publish(pluginsdk.Event{Seq: 4, Topic: "agents.changed", Payload: json.RawMessage(`{}`)})
+	assert.True(t, strings.HasPrefix(frame(t, r), "id: 4\n"))
+}
+
 func TestRevokeClosesStreamsAndToken(t *testing.T) {
 	f := newFixture(t)
 	token := f.pair(t, "phone")
@@ -448,6 +458,16 @@ func (b *fakeBackend) Events(_ context.Context, after int64) ([]pluginsdk.Event,
 		}
 	}
 	return out, nil
+}
+
+func (b *fakeBackend) Head(context.Context) (int64, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var head int64
+	for _, ev := range b.events {
+		head = max(head, ev.Seq)
+	}
+	return head, nil
 }
 
 func (b *fakeBackend) Version(context.Context) (string, error) {

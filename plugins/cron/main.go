@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -183,6 +184,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+	if ev.Slot == mainSlot && ev.Action == actReveal {
+		return nil, a.revealOwner(ctx, ev.ProjectID, strings.TrimSuffix(ev.NodeID, ownerNode))
+	}
 	if ev.Slot != sidebarSlot {
 		return nil, nil
 	}
@@ -217,6 +221,19 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	}
 	_, err = a.command(ctx, nil, cmd)
 	return nil, err
+}
+
+func (a *app) revealOwner(ctx context.Context, workspace, id string) error {
+	a.mu.Lock()
+	var owner string
+	if j, ok := a.jobs[id]; ok && j.Workspace == workspace {
+		owner = j.Owner
+	}
+	a.mu.Unlock()
+	if owner == "" {
+		return fmt.Errorf("job %q has no owner session", id)
+	}
+	return agentcall.Reveal(ctx, a.host, workspace, owner)
 }
 
 func (a *app) reconcileAll(ctx context.Context) {

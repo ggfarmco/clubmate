@@ -11,6 +11,8 @@ import (
 
 const (
 	sidebarSlot = "cron.sidebar"
+	ownerNode   = "/owner"
+	actReveal   = "reveal"
 	mainSlot    = "cron.main"
 	jobsList    = "jobs"
 	historyID   = "history"
@@ -48,9 +50,17 @@ func mainView(j *Job, titles map[string]string) sdui.Node {
 		sdui.Text("Schedule: "+j.Schedule.Describe()),
 		sdui.Text(stateLine(j)),
 		sdui.Text("Missed runs: "+j.Missed),
-		sdui.Text("Owner: "+ownerLabel(j.Owner, titles)),
+		ownerRow(j, titles),
 		historyView(j),
 	)
+}
+
+func ownerRow(j *Job, titles map[string]string) sdui.Node {
+	owner := sdui.Text("Owner: " + ownerLabel(j.Owner, titles))
+	if _, ok := titles[j.Owner]; !ok {
+		return owner
+	}
+	return sdui.HStack(owner, sdui.WithAction(sdui.Button(j.ID+ownerNode, "Show Session", "sparkles"), actReveal))
 }
 
 func sortJobs(jobs []*Job) {

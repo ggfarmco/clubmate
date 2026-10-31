@@ -298,6 +298,22 @@ func TestOwnerClosedDeletesJobs(t *testing.T) {
 	}, wait)
 }
 
+func TestShowSessionRevealsTheOwner(t *testing.T) {
+	f := newAgentsFixture(t, map[string]any{})
+	owner := f.newSession(t)
+	f.newSession(t)
+	var added job
+	require.NoError(t, f.runAs(t, owner, "cron.add", ping(nil), &added))
+	f.h.WaitSlot(t, f.project, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/owner")) == 1 })
+
+	f.h.Event(t, f.project, "cron.main", added.ID+"/owner", "reveal", nil)
+
+	f.h.WaitSlot(t, f.project, "agents.sidebar", func(n sdui.Node) bool {
+		trees := nodesWithType(n, "tree")
+		return len(trees) == 1 && trees[0].Props["selected"] == owner
+	})
+}
+
 func TestOnlyRealProjectDeletionDropsJobs(t *testing.T) {
 	f := newFixture(t)
 	var added job
@@ -315,6 +331,25 @@ func TestOnlyRealProjectDeletionDropsJobs(t *testing.T) {
 
 	require.NoError(t, f.h.Svc.DeleteProject(t.Context(), f.project))
 	testutil.Eventually(t, func() bool { return !stored() }, wait)
+}
+
+func nodesWithID(n sdui.Node, id string) []sdui.Node {
+	return nodesWhere(n, func(c sdui.Node) bool { return c.ID == id })
+}
+
+func nodesWithType(n sdui.Node, typ string) []sdui.Node {
+	return nodesWhere(n, func(c sdui.Node) bool { return c.Type == typ })
+}
+
+func nodesWhere(n sdui.Node, match func(sdui.Node) bool) []sdui.Node {
+	var out []sdui.Node
+	if match(n) {
+		out = append(out, n)
+	}
+	for _, c := range n.Children {
+		out = append(out, nodesWhere(c, match)...)
+	}
+	return out
 }
 
 func firstItem(n sdui.Node) map[string]any {

@@ -17,6 +17,7 @@ final class TreeKeysTests: XCTestCase {
             TreeRow(id: "a1", depth: 1, parent: "a", hasChildren: true, expanded: false),
             TreeRow(id: "b", depth: 0, parent: nil, hasChildren: false, expanded: false),
         ])
+        XCTAssertEqual(tree.treeItems().flatMap(\.visibleItems).map(\.id), rows.map(\.id))
         XCTAssertEqual(TreeCursor.move("a1", by: 1, in: rows), "b")
         XCTAssertEqual(TreeCursor.move("b", by: 1, in: rows), "b")
         XCTAssertEqual(TreeCursor.move(nil, by: 1, in: rows), "a")

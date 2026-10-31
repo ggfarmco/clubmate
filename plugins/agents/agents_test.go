@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/bus"
+	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
@@ -925,6 +926,25 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 	f.h.Event(t, project, "agents.main", card.ID, "openLocation", map[string]any{"path": path, "line": 1})
 
 	assert.JSONEq(t, `{"path":"`+path+`","line":1}`, string(echoed(t, f, "editor-nvim.open")))
+	waitFocus(t, c, "editor-nvim", "editor-nvim.main")
+}
+
+func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
+	f := start(t, nil)
+	project := f.project(t, newRepo(t))
+	first := f.newSession(t, project)
+	f.newSession(t, project)
+	c := f.h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, nil))
+
+	require.NoError(t, f.run(t, project, "agents.reveal", map[string]any{"session": first}, nil))
+
+	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return cardsOf(n, "tree")[0].Props["selected"] == first })
+	waitFocus(t, c, "agents", "agents.main")
+}
+
+func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
+	t.Helper()
 	deadline := time.After(wait)
 	for {
 		select {
@@ -934,8 +954,8 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 			}
 			var got struct{ Section, Slot string }
 			require.NoError(t, json.Unmarshal(n.Params, &got))
-			assert.Equal(t, "editor-nvim", got.Section)
-			assert.Equal(t, "editor-nvim.main", got.Slot)
+			assert.Equal(t, section, got.Section)
+			assert.Equal(t, slot, got.Slot)
 			return
 		case <-deadline:
 			t.Fatal("no ui.focus notification")

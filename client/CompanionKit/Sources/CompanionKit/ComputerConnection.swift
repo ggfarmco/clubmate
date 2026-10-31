@@ -117,7 +117,7 @@ public final class ComputerConnection: CommandRunner {
                         state = .online
                         emit(.online)
                     case .event(let event):
-                        lastEventID = max(lastEventID ?? 0, event.seq)
+                        lastEventID = event.seq
                         if event.topic == Self.pluginChangedTopic, let fresh = try? await client.hello() {
                             if Task.isCancelled { return }
                             self.hello = fresh

@@ -32,7 +32,7 @@ final class ComputerConnectionTests: XCTestCase {
         connection.start()
         try await waitUntil { held.values.count == 1 && connection.state == .online }
         XCTAssertEqual(delays.values, [.seconds(1), .seconds(2), .seconds(1)])
-        XCTAssertEqual(transport.requests.last?.value(forHTTPHeaderField: "Last-Event-ID"), "5")
+        XCTAssertEqual(transport.requests.last?.value(forHTTPHeaderField: "Last-Event-ID"), "3")
         XCTAssertEqual(signals.values, [.online, .event(BusEvent(seq: 5, topic: "agents.changed", workspace: "w")), .event(BusEvent(seq: 3, topic: "agents.changed", workspace: "w")), .online])
         XCTAssertEqual(connection.workspaces.map(\.name), ["shop"])
         XCTAssertEqual(connection.computer.name, "Mac Studio")

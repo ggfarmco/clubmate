@@ -3,6 +3,7 @@ package main_test
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
@@ -33,7 +35,7 @@ type env struct {
 	t *testing.T
 }
 
-const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true}]},"echoResults":{"agents.sessions":[{"id":"agt_dead","status":"closed","closed":true},{"id":"agt_live","status":"running"},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
+const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true},{"id":"agents.reveal","title":"Reveal","hidden":true}]},"echoResults":{"agents.reveal":null,"agents.sessions":[{"id":"agt_dead","status":"closed","closed":true},{"id":"agt_live","status":"running"},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
 
 func newEnv(t *testing.T, extra ...string) env {
 	dirs := append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/backlog", "plugins/backlog/plugin.json")}, extra...)
@@ -253,4 +255,26 @@ func TestAddFromSidebar(t *testing.T) {
 	assert.Equal(t, "Renamed", got.Title)
 	assert.Equal(t, "high", got.Priority)
 	assert.Equal(t, "agt_a", got.ClaimedBy)
+}
+
+func TestShowSessionRevealsTheClaimer(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"projectId": e.p}, nil))
+	e.add("Task", nil)
+	e.must(e.agent("agt_live", "backlog.claim", map[string]any{"id": 1}))
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", "1")
+	e.h.WaitSlot(t, e.p, "backlog.main", func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		return err == nil && strings.Contains(string(raw), `"id":"claimer"`)
+	})
+
+	e.h.Event(t, e.p, "backlog.main", "claimer", "reveal", nil)
+
+	require.Eventually(t, func() bool {
+		events, err := e.h.Bus.Read(t.Context(), "echo.command", 0, 100)
+		require.NoError(t, err)
+		return slices.ContainsFunc(events, func(ev bus.Event) bool {
+			return strings.Contains(string(ev.Payload), `"id":"agents.reveal"`) && strings.Contains(string(ev.Payload), `"session":"agt_live"`)
+		})
+	}, 10*time.Second, 20*time.Millisecond)
 }

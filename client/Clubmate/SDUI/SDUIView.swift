@@ -150,6 +150,7 @@ struct SDUIView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, sink: send, banner: banner))
             .environment(\.composerDrafts, drafts)
+            .environment(\.sduiParent, slot)
     }
 }
 

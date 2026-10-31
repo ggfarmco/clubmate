@@ -533,6 +533,16 @@ func (a *app) selectSession(ctx context.Context, projectID, sid string) error {
 	return a.setCollapsed(ctx, projectID, open)
 }
 
+func (a *app) reveal(ctx context.Context, projectID, sid string) error {
+	if err := a.selectSession(ctx, projectID, sid); err != nil {
+		return err
+	}
+	if err := a.render(ctx, projectID); err != nil {
+		return err
+	}
+	return a.host.Focus(ctx, projectID, sectionID, mainSlot)
+}
+
 func (a *app) restoreCollapsed(ctx context.Context, projectID string) error {
 	p := a.projectState(projectID)
 	a.uiMu.Lock()

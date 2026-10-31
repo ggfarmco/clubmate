@@ -16,6 +16,7 @@ const (
 	groupPrefix = "group:"
 	noTasks     = "No tasks yet — add one on the left"
 	formLines   = 8
+	actReveal   = "reveal"
 )
 
 var (
@@ -145,7 +146,11 @@ func mainView(t *Task, owners map[string]string, hasTasks bool) sdui.Node {
 		if !t.ClaimedAt.IsZero() {
 			line += " since " + t.ClaimedAt.Local().Format("Jan 2 15:04")
 		}
-		nodes = append(nodes, sdui.MutedText(line))
+		claimer := sdui.MutedText(line)
+		if strings.HasPrefix(t.ClaimedBy, sessionPfx) {
+			claimer = sdui.HStack(claimer, sdui.WithAction(sdui.Button("claimer", "Show Session", "sparkles"), actReveal))
+		}
+		nodes = append(nodes, claimer)
 	}
 	if t.LastClaimedBy != "" {
 		nodes = append(nodes, sdui.MutedText("Last claimed by "+labelOf(owners, t.LastClaimedBy)))

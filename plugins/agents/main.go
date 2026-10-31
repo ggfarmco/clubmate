@@ -443,6 +443,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	case "agents.resume":
 		a.resume(s)
 		return nil, nil
+	case "agents.reveal":
+		return nil, a.reveal(ctx, cmd.ProjectID, args.Session)
 	}
 	return nil, fmt.Errorf("%w: %s", errUnknownCmd, cmd.ID)
 }

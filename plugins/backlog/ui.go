@@ -14,6 +14,7 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/agentcall"
 )
 
 const kindDeleted = "deleted"
@@ -276,6 +277,15 @@ func (b *backlog) taskAction(ctx context.Context, projectID string, w *workspace
 	case "priority":
 		args.Priority = &value
 		_, err = b.updateCmd(ctx, user, args)
+	case actReveal:
+		var t Task
+		if t, err = b.store.get(ctx, projectID, id); err != nil {
+			return err
+		}
+		if t.Status != statusInProgress || !strings.HasPrefix(t.ClaimedBy, sessionPfx) {
+			return fmt.Errorf("task #%d is not claimed by an agent session", id)
+		}
+		err = agentcall.Reveal(ctx, b.h, projectID, t.ClaimedBy)
 	case "delete":
 		if err = b.store.remove(ctx, projectID, id); err != nil {
 			return err

@@ -184,6 +184,18 @@
         }
       },
       {
+        "id": "agents.reveal",
+        "title": "Show Agent Session",
+        "hidden": true,
+        "description": "Select the session in the Agents section and focus its transcript; Cron and Backlog call it to show an owner or claimer.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
         "id": "agents.delete",
         "title": "Delete Agent Session",
         "hidden": true,
