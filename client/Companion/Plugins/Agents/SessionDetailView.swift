@@ -14,6 +14,7 @@ struct SessionDetailView: View {
     @State private var failure: String?
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var confirmingClose = false
+    @FocusState private var composerFocused: Bool
 
     var body: some View {
         let transcript = store.transcripts[sessionID]
@@ -57,11 +58,13 @@ struct SessionDetailView: View {
                 ContentUnavailableView("No Messages Yet", systemImage: "text.bubble", description: Text("Send the first prompt below."))
             }
         }
+        .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .safeAreaInset(edge: .bottom) {
             if let session {
                 ComposerView(
                     draft: $draft,
                     attachments: $attachments,
+                    focused: $composerFocused,
                     session: session,
                     enabled: context.connection.state == .online,
                     sending: sending,
@@ -158,12 +161,12 @@ struct SessionDetailView: View {
 struct ComposerView: View {
     @Binding var draft: String
     @Binding var attachments: [ComposerAttachment]
+    var focused: FocusState<Bool>.Binding
     let session: AgentSession?
     let enabled: Bool
     let sending: Bool
     let send: () -> Void
     let stop: () -> Void
-    @FocusState private var focused: Bool
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
 
@@ -206,7 +209,7 @@ struct ComposerView: View {
                         .accessibilityLabel("Attach Photos or Videos")
                         TextField(placeholder, text: $draft, axis: .vertical)
                             .lineLimit(1...6)
-                            .focused($focused)
+                            .focused(focused)
                             .pasteDestination(for: PastedImage.self, action: paste)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
@@ -252,7 +255,7 @@ struct ComposerView: View {
                     }
                 }
             }
-            .onAppear { if session == nil { focused = true } }
+            .onAppear { if session == nil { focused.wrappedValue = true } }
             .disabled(!enabled)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
@@ -261,7 +264,7 @@ struct ComposerView: View {
     }
 
     private func submit() {
-        focused = false
+        focused.wrappedValue = false
         send()
     }
 

@@ -348,14 +348,18 @@ struct NewSessionView: View {
     @State private var attachments: [ComposerAttachment] = []
     @State private var sending = false
     @State private var failure: String?
+    @FocusState private var composerFocused: Bool
 
     var body: some View {
         ContentUnavailableView("New Session", systemImage: "sparkles", description: Text("Describe the task and attach photos or videos. The session starts when you send."))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(.rect)
+            .onTapGesture { composerFocused = false }
             .safeAreaInset(edge: .bottom) {
                 ComposerView(
                     draft: $draft,
                     attachments: $attachments,
+                    focused: $composerFocused,
                     session: nil,
                     enabled: context.connection.state == .online,
                     sending: sending,
