@@ -149,6 +149,8 @@ type app struct {
 	folders  map[string][]string
 	deleted  map[string]bool
 	stopping map[editorKey]bool
+	offerMu  sync.Mutex
+	themeMu  sync.Mutex
 }
 
 type editor struct {
@@ -191,6 +193,13 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
+	}
+	var themeSeq int64
+	if _, err := h.StorageGet(ctx, themeSeqKey, &themeSeq); err != nil {
+		return err
+	}
+	if _, err := h.Subscribe(ctx, themeTopic, themeSeq); err != nil {
+		return err
 	}
 	projects := present
 	for _, s := range sessions {
@@ -237,6 +246,11 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			return
 		}
 		a.drop(p.ID)
+	case themeTopic:
+		a.themeChanged(ev.Payload)
+		if err := h.StorageSet(ctx, themeSeqKey, ev.Seq); err != nil {
+			logError(themeTopic, err)
+		}
 	}
 }
 
@@ -338,6 +352,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, errStopRoot
 		}
 		return nil, a.releaseRoot(ctx, h, cmd.ProjectID, filepath.Clean(args.Root))
+	case "import-config":
+		return a.importConfig(ctx, h, cmd.ProjectID)
 	}
 	e, err := a.active(ctx, h, cmd.ProjectID)
 	if e == nil || err != nil {
@@ -618,6 +634,8 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 		return nil, err
 	}
 	e.setClient(c)
+	go a.applyTheme(c)
+	go a.offerImport(h, e, c)
 	return c, nil
 }
 
@@ -635,7 +653,7 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string
 	if err != nil {
 		return "", "", err
 	}
-	path, unset, pathAppend, err := nvimCommand()
+	l, err := nvimLaunch()
 	if err != nil {
 		return "", "", err
 	}
@@ -655,19 +673,21 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string
 	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{
 		ProjectID:  e.id,
 		Title:      sessionTitle,
-		Command:    []string{path, "--listen", sock},
+		Command:    append(append([]string{l.Path}, l.Args...), "--listen", sock),
 		Cwd:        e.root,
-		UnsetEnv:   unset,
-		PathAppend: pathAppend,
+		Env:        l.Env,
+		UnsetEnv:   l.Unset,
+		PathAppend: l.PathAppend,
 	})
 	return s.ID, sock, err
 }
 
 func ownedSocket(s pluginsdk.Session, projectID, root string) (string, bool) {
-	if s.State != stateRunning || s.Cwd != root || len(s.Command) != 3 || s.Command[1] != "--listen" {
+	n := len(s.Command)
+	if s.State != stateRunning || s.Cwd != root || n < 3 || s.Command[n-2] != "--listen" {
 		return "", false
 	}
-	sock := s.Command[2]
+	sock := s.Command[n-1]
 	rt := pluginsdk.RuntimeDir()
 	want, err := socketPath(rt, projectID, root)
 	return sock, err == nil && sock == want || sock == legacySocketPath(rt, projectID)
@@ -976,6 +996,10 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	if ev.Event == openErrorEvent {
 		e.setOpenError(shortError(ev.Message))
 		a.scheduleStatus(h, e)
+		return
+	}
+	if ev.Event == importEvent {
+		go a.importFromEditor(h, e)
 		return
 	}
 	branch, refresh := "", ev.Event == "BufEnter" || ev.Event == "DirChanged"

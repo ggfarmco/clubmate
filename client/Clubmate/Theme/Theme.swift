@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 
+import ClubmateKit
+
 struct Theme: Sendable {
     var background: Color
     var foreground: Color
@@ -10,6 +12,11 @@ struct Theme: Sendable {
     var danger: Color
     var fontFamily: String?
     var uiSize: CGFloat = 12
+    var name: String?
+    var isDark = true
+    var backgroundHex = "#1f1f28"
+    var foregroundHex = "#dcd7ba"
+    var palette: [String] = []
 
     var muted: Color { foreground.opacity(0.55) }
     var border: Color { foreground.opacity(0.10) }
@@ -34,6 +41,11 @@ struct Theme: Sendable {
         let chip = EdgeInsets(top: 2, leading: 7, bottom: 2, trailing: 7)
         let badge = EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6)
         let field = EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 6)
+    }
+
+    var event: ThemeEvent? {
+        guard palette.count >= 16 else { return nil }
+        return ThemeEvent(name: name, dark: isDark, background: backgroundHex, foreground: foregroundHex, palette: palette)
     }
 
     func tone(_ name: String?) -> Color? {

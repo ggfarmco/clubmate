@@ -258,7 +258,11 @@ func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.
 }
 
 func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, projectID, title, cwd string) error {
-	s, err := h.CreateSession(ctx, pluginsdk.SessionRequest{ProjectID: projectID, Title: title, Command: []string{shell(), "-l"}, Cwd: cwd})
+	req := pluginsdk.SessionRequest{ProjectID: projectID, Title: title, Command: []string{shell(), "-l"}, Cwd: cwd}
+	if tools := pluginsdk.ToolsDir(); tools != "" {
+		req.PathAppend = []string{tools}
+	}
+	s, err := h.CreateSession(ctx, req)
 	if err != nil {
 		return err
 	}

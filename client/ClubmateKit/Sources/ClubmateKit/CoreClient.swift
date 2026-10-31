@@ -168,6 +168,10 @@ public final class CoreClient {
         return result.subscription
     }
 
+    public func busPublish<P: Encodable & Sendable>(topic: String, payload: P) async throws {
+        let _: JSONValue = try await connection.call("bus.publish", BusPublishParams(topic: topic, payload: payload))
+    }
+
     public func busUnsubscribe(_ subscription: String) async throws {
         let _: NoParams = try await connection.call("bus.unsubscribe", SubscriptionParams(subscription: subscription))
     }
@@ -304,4 +308,9 @@ private struct StateSetParams: Encodable, Sendable {
 private struct BusSubscribeParams: Encodable, Sendable {
     let pattern: String
     let after: Int64
+}
+
+private struct BusPublishParams<P: Encodable & Sendable>: Encodable, Sendable {
+    let topic: String
+    let payload: P
 }

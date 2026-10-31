@@ -1,16 +1,60 @@
 # nvim integration
 
-Clubmate drives your own nvim with your own config. It never writes to `~/.config/nvim` and creates no keymaps.
+Clubmate always starts its bundled Neovim with its own distribution: lazy.nvim, snacks (picker, input, notifications), which-key, blink.cmp, treesitter, gitsigns, neo-tree, lualine, LSP configs, dap/neotest and the `0xnorimori/diffview.nvim` fork with `nrev`. It never reads or writes `~/.config/nvim` or `~/.local/share/nvim`; the only access is an existence check for the import offer.
 
 ## Neovim binary
 
-Clubmate runs the Neovim shipped at `Clubmate.app/Contents/Resources/nvim/bin/nvim`. Without the bundled copy (for example when the core runs outside the app), it falls back to the `nvim` in `PATH`; with neither, the editor shows `nvim not found in PATH`. Clubmate removes any inherited `VIM`, `VIMRUNTIME` and `NVIM_APPNAME` before it starts nvim, so a runtime meant for another nvim never shadows the bundled one and nvim always reads `~/.config/nvim`.
+Clubmate runs the Neovim shipped at `Clubmate.app/Contents/Resources/nvim/bin/nvim` as `nvim -u <Resources>/nvim-distro/init.lua`. Without the bundled copy (for example when the core runs outside the app), it falls back to the `nvim` in `PATH`; with neither, the editor shows `nvim not found in PATH`. Clubmate removes any inherited `VIM` and `VIMRUNTIME` and sets `NVIM_APPNAME` to `clubmate` (release) or `clubmate-dev` (every other build), so `stdpath("config")`, `data`, `state` and `cache` are Clubmate's own (`~/.config/clubmate`, `~/.local/share/clubmate`, …).
 
-The app's bundled tools dir (`Contents/Resources/tools`, with `rg`) is appended to the end of nvim's `PATH`, so your own tools still win. The binary is chosen each time nvim starts; a running nvim keeps its binary until it restarts. After an app update that changes the bundled Neovim version, restart Neovim (palette "Restart Neovim") so running editors pick up the new binary.
+The app's bundled tools dir (`Contents/Resources/tools`, with `rg` and `nrev`) is appended to the end of `PATH` for nvim, terminals and agent sessions, so your own tools still win. The binary is chosen each time nvim starts; after an app update, restart Neovim (palette "Restart Neovim") so running editors pick up the new binary and distribution.
+
+## The distribution
+
+`Contents/Resources/nvim-distro/` is read-only and replaced by every app update:
+
+| Path | What |
+|---|---|
+| `init.lua` | entry: ui2 cmdline and messages, lazy.nvim pointed at the bundled plugin dirs, then the user layer |
+| `lua/clubmate/` | options, keymaps (leader `,`, see `docs/shortcuts.md`), autocmds, theme, LSP, health check, import offer; `plugins/*.lua` are the default lazy specs |
+| `lua/clubmate/manifest.lua` | generated: every plugin's URL and commit, the parser list and the lock file's sha256 |
+| `plugins/<name>/` | each plugin's unmodified source tree at its pinned commit, with generated `doc/tags`; `blink.cmp/target/release/libblink_cmp_fuzzy.dylib` is blink's prebuilt fuzzy library |
+| `site/{parser,queries,parser-info}/` | treesitter parsers compiled at bundle time |
+| `colors/`, `lsp/` | the `clubmate` and `lightowl` colorschemes, LSP server configs |
+| `skill/SKILL.md` | the guide agents follow to change the user layer |
+
+Nothing is cloned, downloaded or compiled when nvim starts, and nothing writes inside the app. lazy.nvim's checker and change detection are off and its module cache is disabled, so a long install path (a dev build in DerivedData) cannot break `vim.loader`.
+
+## User layer
+
+Your changes live in `stdpath("config")` (`~/.config/clubmate`, or `~/.config/clubmate-dev`) and survive app updates: `lua/user/options.lua` (before plugins), `lua/user/plugins/*.lua` (lazy specs merged over the defaults: `opts`, `enabled = false`, `keys`, extra plugins), `lua/user/keymaps.lua` and `lua/user/autocmds.lua` (after the defaults), `snippets/` for blink. Each file is optional; an error in one shows as a notification and the rest still loads. A root `init.lua` or `lua/plugins/` there (an old copied config) is ignored. Plugins you add are installed by lazy.nvim into `stdpath("data")/lazy`; that is the only download, and only for plugins you chose.
+
+## Theme
+
+The app publishes its Ghostty theme (name, dark flag, background, foreground, 16-colour palette) on the bus as `theme.changed` at launch and on every change, including light/dark switches. editor-nvim writes it to `plugin-data/editor-nvim/theme.json`, passes that file to new nvims as `CLUBMATE_THEME_FILE`, and calls `require("clubmate.theme").apply(t)` in every running one. It remembers the last event it handled, so a theme published while the core or plugin restarts is still picked up. Known themes (Kanagawa Wave/Dragon/Lotus, Light Owl) take their syntax from the bundled colorscheme; any other theme gets a generated scheme from the palette. Chrome groups (floats, picker, cmdline, which-key, blink, gitsigns, diffview, neo-tree, lualine, notifications) follow the app's tokens. If you pick another colorscheme in your layer, theme changes leave it alone.
+
+## LSP and mason
+
+The distribution ships `lsp/*.lua` for gopls, rust_analyzer, ts_ls, tailwindcss, sqls and solidity_ls_nomicfoundation and enables them; a server found in `PATH` or in mason's dir just works. Servers are never installed automatically. The first time you open a file whose server is missing, a notification names the `:MasonInstall …` command to run.
+
+## Health check
+
+`:checkhealth clubmate` lists the distribution root and lock, every bundled plugin and parser, the fuzzy matcher, ui2, the theme, your user layer files, missing LSP servers with their `:MasonInstall` lines, and the bundled tools.
+
+## Import my nvim config
+
+Palette "Import my nvim config" (offered once when `~/.config/nvim` exists) starts an agent session that moves your own settings into the user layer; see `docs/agents.md`.
+
+## Bumping a plugin
+
+1. Edit its line in `scripts/nvim-distro.lock` (`plugin <name> <commit> <sha256> <url>`; the sha256 is of `<url>/archive/<commit>.tar.gz`). A parser bump follows nvim-treesitter's `parsers.lua`; blink's `blink-lib` line must name the same commit as the `blink.cmp` plugin line.
+2. Refresh `scripts/licenses/nvim-distro/<name>/` (licence files and `COMMIT`).
+3. `make nvim-test`: vendors into `build/resources` and runs the distro tests against the bundled nvim.
+4. `scripts/licenses.sh` to regenerate `THIRD_PARTY_LICENSES.md` (it also lists the Rust crates in blink's fuzzy library from blink's `Cargo.lock`); `go test ./nvim-distro/` fails while the licences name an older commit.
+5. `make app` runs the same smoke tests against the built `Clubmate.app` and fails the build on any error.
 
 ## Review changes
 
-In the Agents section, "Review changes" in a session's header and "Diff" on an edit card run `DiffviewOpen -C<worktree> <checkpoint> --untracked-scoped` in that worktree's nvim and show the Code section (`editor-nvim.diffview`). The left side is the checkpoint Clubmate took before the turn (the first turn's for Review changes), the right side the editable worktree file, uncommitted and untracked files included. Clubmate never installs or configures [diffview.nvim](https://github.com/sindrets/diffview.nvim); without it, nvim's error shows as an "open failed" badge.
+In the Agents section, "Review changes" in a session's header and "Diff" on an edit card run `DiffviewOpen -C<worktree> <checkpoint> --untracked-scoped` in that worktree's nvim and show the Code section (`editor-nvim.diffview`). The left side is the checkpoint Clubmate took before the turn (the first turn's for Review changes), the right side the editable worktree file, uncommitted and untracked files included. The diffview is the bundled `0xnorimori/diffview.nvim` fork; its `nrev` review comments (`,rc`, `,rl`, …) are what the `review` skill reads.
 
 ## Large and binary files
 

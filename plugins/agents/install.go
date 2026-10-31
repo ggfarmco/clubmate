@@ -69,7 +69,20 @@ func agentEnv(workspace string) []string {
 	if workspace != "" {
 		out = append(out, projectEnv+"="+workspace)
 	}
+	if tools := pluginsdk.ToolsDir(); tools != "" {
+		out = appendTools(out, tools)
+	}
 	return out
+}
+
+func appendTools(env []string, tools string) []string {
+	i := slices.IndexFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "PATH=") })
+	if i < 0 {
+		return append(env, "PATH="+tools)
+	}
+	parts := slices.DeleteFunc(strings.Split(strings.TrimPrefix(env[i], "PATH="), ":"), func(p string) bool { return p == "" || p == tools })
+	env[i] = "PATH=" + strings.Join(append(parts, tools), ":")
+	return env
 }
 
 func nodeBinary(ctx context.Context) (string, error) {

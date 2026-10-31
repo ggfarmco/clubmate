@@ -91,7 +91,7 @@ final class GhosttyApp {
         ghostty_app_update_config(app, config)
         let derived = GhosttyCallbacks.takeDerivedConfig()
         let applied = derived ?? config
-        theme = GhosttyConfigReader.theme(from: applied, overlay: Self.overlayURL)
+        theme = GhosttyConfigReader.theme(from: applied, overlay: Self.overlayURL, dark: colorScheme == GHOSTTY_COLOR_SCHEME_DARK)
         configFontSize = GhosttyConfigReader.fontSize(applied) ?? configFontSize
         if let derived { ghostty_config_free(derived) }
     }

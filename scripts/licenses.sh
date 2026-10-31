@@ -115,6 +115,121 @@ bundled_tools_section() {
   printf '\n'
 }
 
+nvim_distro_fragment() {
+  local name="$1" rev="$2" dir="$FRAGMENTS/nvim-distro/$1" files f
+  [[ -f "$dir/COMMIT" ]] || fail "$dir/COMMIT missing"
+  [[ "$(cat "$dir/COMMIT")" == "$rev" ]] || fail "$name licences are for $(cat "$dir/COMMIT"), nvim-distro.lock pins $rev"
+  files="$(licence_files "$dir")"
+  [[ -n "$files" ]] || fail "no licence file in $dir"
+  while IFS= read -r f; do block "${f#"$dir"/}" "$f"; done <<<"$files"
+}
+
+nvim_distro_section() {
+  local lock="scripts/nvim-distro.lock" kind name rev sha url dir diffview="" locked=" "
+  printf '## Neovim distribution bundled in Clubmate.app\n\n'
+  printf 'Clubmate.app ships the Neovim plugins below as their complete, unmodified source trees in `Contents/Resources/nvim-distro/plugins/`, tree-sitter parsers compiled from the grammars below into `nvim-distro/site/parser/`, and the prebuilt fuzzy-matching library from the blink.cmp release that matches the bundled blink.cmp source.\n\n'
+  printf 'diffview.nvim and nvim-dap are licensed under the GNU General Public License v3.0. Each is a separate program aggregated with Clubmate on the same medium; nothing in Clubmate links them, and their complete corresponding source ships unmodified next to them. `Contents/Resources/tools/nrev` is compiled, without modification, from the `nrev/` directory of diffview.nvim, whose complete source ships at `nvim-distro/plugins/diffview.nvim/nrev/`; it is licensed under GPL-3.0 as well.\n\n'
+  while read -r kind name rev sha url; do
+    [[ "$kind" == plugin ]] || continue
+    locked+="$name "
+    printf '### %s %s\n\nSource: %s\n\n' "$name" "$rev" "$url"
+    nvim_distro_fragment "$name" "$rev"
+    if [[ "$name" == blink.cmp ]]; then
+      blink_crates_section "$name" "$rev" "$sha"
+    fi
+    if [[ "$name" == diffview.nvim ]]; then
+      diffview="$name-$rev.tar.gz $sha"
+    fi
+  done <"$lock"
+  while read -r kind name rev sha url; do
+    [[ "$kind" == parser ]] || continue
+    locked+="$name "
+    printf '### %s tree-sitter parser %s\n\nSource: %s\n\n' "$name" "$rev" "$url"
+    nvim_distro_fragment "$name" "$rev"
+  done <"$lock"
+  for dir in "$FRAGMENTS"/nvim-distro/*; do
+    [[ "$locked" == *" $(basename "$dir") "* ]] || fail "$dir is not in $lock"
+  done
+  [[ -n "$diffview" ]] || fail "diffview.nvim is not in $lock"
+  nrev_section $diffview
+}
+
+crate_licence_files() {
+  find "$1" -maxdepth 1 -type f \( -iname 'licen[cs]e*' -o -iname 'copying*' -o -iname 'unlicense*' -o -iname 'copyright*' \) ! -iname '*.rs' ! -iname '*.toml' | LC_ALL=C sort
+}
+
+blink_crates_section() {
+  local name="$1" rev="$2" sha="$3" archive="build/vendor/nvim-distro/$1-$2.tar.gz" lib_rev src="$TMP/blink" cache="build/vendor/crates"
+  local crate version checksum file dir licence files f hash
+  lib_rev="$(awk -v n="$name" '$1 == "blink-lib" && $2 == n { print $3 }' scripts/nvim-distro.lock)"
+  [[ "$lib_rev" == "$rev" ]] || fail "blink-lib $name ${lib_rev:-missing} does not match plugin $name $rev"
+  [[ -f "$archive" ]] || fail "$archive missing (run make nvim-distro)"
+  [[ "$(shasum -a 256 "$archive" | awk '{print $1}')" == "$sha" ]] || fail "$archive checksum mismatch"
+  mkdir -p "$src" "$cache" "$TMP/crates" "$TMP/texts"
+  tar -xzf "$archive" -C "$src" --strip-components 1
+  [[ -f "$src/Cargo.lock" ]] || fail "$name $rev has no Cargo.lock"
+  awk '
+    /^\[\[package\]\]/ { if (n != "" && s ~ /^"registry\+/) print n, v, c; n = v = s = c = "" }
+    /^name = / { n = $3 } /^version = / { v = $3 } /^source = / { s = $3 } /^checksum = / { c = $3 }
+    END { if (n != "" && s ~ /^"registry\+/) print n, v, c }
+  ' "$src/Cargo.lock" | tr -d '"' | LC_ALL=C sort >"$TMP/crates.list"
+  [[ -s "$TMP/crates.list" ]] || fail "no registry crates in $name $rev Cargo.lock"
+  : >"$TMP/crates.md"
+  : >"$TMP/texts.order"
+  while read -r crate version checksum; do
+    file="$cache/$crate-$version.crate"
+    if [[ ! -f "$file" ]]; then
+      /usr/bin/curl -fsSL --retry 3 -o "$file.part" "https://static.crates.io/crates/$crate/$crate-$version.crate"
+      mv "$file.part" "$file"
+    fi
+    [[ "$(shasum -a 256 "$file" | awk '{print $1}')" == "$checksum" ]] || fail "$file checksum does not match $name Cargo.lock"
+    dir="$TMP/crates/$crate-$version"
+    mkdir -p "$dir"
+    tar -xzf "$file" -C "$dir" --strip-components 1
+    licence="$(awk '/^\[/ { p = ($0 == "[package]") } p && /^license = / { sub(/^license = /, ""); gsub(/"/, ""); print; exit }' "$dir/Cargo.toml")"
+    [[ -n "$licence" ]] || licence="see licence file"
+    files="$(crate_licence_files "$dir")"
+    [[ -n "$files" ]] || licence+=" (no licence file in the published crate)"
+    printf -- '- %s %s: %s\n' "$crate" "$version" "$licence" >>"$TMP/crates.md"
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      hash="$(shasum -a 256 "$f" | awk '{print $1}')"
+      if [[ ! -f "$TMP/texts/$hash" ]]; then
+        cp "$f" "$TMP/texts/$hash"
+        printf '%s %s\n' "$hash" "$(basename "$f")" >>"$TMP/texts.order"
+      fi
+      printf '%s %s\n' "$crate" "$version" >>"$TMP/texts/$hash.users"
+    done <<<"$files"
+  done <"$TMP/crates.list"
+  printf '#### Rust crates in libblink_cmp_fuzzy.dylib (%s %s)\n\n' "$name" "$rev"
+  printf 'The prebuilt fuzzy-matching library is built from these crates (every crates.io package in %s %s `Cargo.lock`; the blink-cmp-fuzzy crate itself is covered by the blink.cmp licence above). Licence texts that are identical are shown once.\n\n' "$name" "$rev"
+  printf '##### Crates\n\n'
+  cat "$TMP/crates.md"
+  printf '\n##### Licence texts\n\n'
+  while read -r hash f; do
+    printf '###### %s\n\nUsed by: %s\n\n````text\n' "$f" "$(paste -sd, - <"$TMP/texts/$hash.users" | sed 's/,/, /g')"
+    cat "$TMP/texts/$hash"
+    printf '\n````\n\n'
+  done <"$TMP/texts.order"
+}
+
+nrev_section() {
+  local archive="build/vendor/nvim-distro/$1" sha="$2" src="$TMP/diffview" modules path version dir files f
+  [[ -f "$archive" ]] || fail "$archive missing (run make nvim-distro)"
+  [[ "$(shasum -a 256 "$archive" | awk '{print $1}')" == "$sha" ]] || fail "$archive checksum mismatch"
+  mkdir -p "$src"
+  tar -xzf "$archive" -C "$src" --strip-components 1
+  printf '## nrev\n\n`tools/nrev` is built with Go (standard library licence above) and links these modules.\n\n'
+  go -C "$src/nrev" mod download
+  modules="$(GOOS=darwin GOARCH=arm64 go -C "$src/nrev" list -deps -f '{{with .Module}}{{if not .Main}}{{.Path}}{{end}}{{end}}' . | LC_ALL=C sort -u)"
+  while IFS='|' read -r path version dir; do
+    printf '### %s %s\n\n' "$path" "$version"
+    files="$(licence_files "$dir")"
+    [[ -n "$files" ]] || fail "no licence file in $dir"
+    while IFS= read -r f; do block "${f#"$dir"/}" "$f"; done <<<"$files"
+  done < <(go -C "$src/nrev" list -m -f '{{.Path}}|{{.Version}}|{{.Dir}}' $modules)
+}
+
 fonts_section() {
   local res="$GHOSTTY_SRC/src/font/res"
   printf '## Fonts bundled in libghostty\n\nghostty embeds fonts from `src/font/res`; JetBrains Mono and Symbols Nerd Font are listed with the GhosttyKit dependencies above.\n\n'
@@ -144,6 +259,7 @@ trap 'rm -rf "$TMP"' EXIT
   ghostty_section
   vendored_section
   bundled_tools_section
+  nvim_distro_section
   fonts_section
   sparkle_section
 } >"$OUT.tmp"

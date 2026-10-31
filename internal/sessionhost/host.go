@@ -72,6 +72,9 @@ func Run(ctx context.Context, cfg Config) error {
 	cmd := exec.Command(cfg.Command[0], cfg.Command[1:]...)
 	cmd.Dir = cfg.Cwd
 	cmd.Env = childEnv(cfg)
+	if err := raiseNoFile(); err != nil {
+		fmt.Fprintln(os.Stderr, "clubmate-session: raise open-file limit:", err)
+	}
 	ptmx, err := pty.StartWithAttrs(cmd, &pty.Winsize{Cols: initialCols, Rows: initialRows}, &syscall.SysProcAttr{Setsid: true, Setctty: true})
 	if err != nil {
 		return fmt.Errorf("start session: %w", err)

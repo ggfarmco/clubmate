@@ -1,0 +1,1 @@
+require("clubmate.theme").load()

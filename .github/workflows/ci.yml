@@ -73,5 +73,14 @@ jobs:
             client/Clubmate/Resources/terminfo
             .ghostty-build-stamp
 
+      - name: Vendor cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: vendor-${{ hashFiles('scripts/tools.lock', 'scripts/nvim-distro.lock') }}
+          path: build/vendor
+
       - name: Build app
         run: make app
+
+      - name: Nvim distro tests
+        run: make nvim-test

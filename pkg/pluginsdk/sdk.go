@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -81,6 +82,18 @@ func StateDir() string {
 
 func ResourcesDir() string {
 	return os.Getenv("CLUBMATE_RESOURCES")
+}
+
+func ToolsDir() string {
+	dir := ResourcesDir()
+	if dir == "" {
+		return ""
+	}
+	tools := filepath.Join(dir, "tools")
+	if info, err := os.Stat(tools); err != nil || !info.IsDir() {
+		return ""
+	}
+	return tools
 }
 
 func Flavor() string {

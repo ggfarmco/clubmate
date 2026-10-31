@@ -139,6 +139,12 @@
         "description": "Open a new terminal in the directory of the file open in Neovim, or in the first workspace folder."
       },
       {
+        "id": "editor-nvim.import-config",
+        "title": "Import my nvim config",
+        "agent": false,
+        "description": "Start an agent session in the Agents section that reads ~/.config/nvim and moves the user's own keymaps, options, autocmds and plugins into Clubmate's Neovim user layer, following the bundled nvim guide. Fails with open a project workspace first in the home workspace and with no ~/.config/nvim to import when that directory is missing."
+      },
+      {
         "id": "editor-nvim.restart",
         "title": "Restart Neovim",
         "agent": true,

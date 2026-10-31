@@ -20,7 +20,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 
 ## Processes
 - **`clubmate-core`** (`cmd/clubmate-core`): a single daemon per user, guarded by a lock in the state dir. It listens on a unix socket in the runtime dir and outlives the app. The app starts it on demand (`CoreLauncher`), as does the CLI.
-- **`clubmate-session`** (`cmd/clubmate-session`, `internal/sessionhost`): one PTY host per terminal session, in its own session (`setsid`). It keeps a scrollback ring, so a terminal or the editor's nvim survives an app or core restart and is reattached. While no client is attached, it answers a program's status query itself.
+- **`clubmate-session`** (`cmd/clubmate-session`, `internal/sessionhost`): one PTY host per terminal session, in its own session (`setsid`). It keeps a scrollback ring, so a terminal or the editor's nvim survives an app or core restart and is reattached. While no client is attached, it answers a program's status query itself. Before it starts the program it raises the soft open-file limit (`RLIMIT_NOFILE`) to 10240, capped by the hard limit; the bundled tools dir (`Contents/Resources/tools`: `rg`, `nrev`) is appended to `PATH` for nvim, terminals and agent sessions.
 - **Plugins** (`plugins/*`): separate Go binaries started by the core's supervisor (`internal/plugin`). They speak JSON-RPC over stdin/stdout through `pkg/pluginsdk`, and are restarted with backoff when they crash.
 - **`clubmate` / `cm`** (`cmd/clubmate`, `internal/cli`): CLI over the same socket. It opens folders (`cm <folder>`), runs commands, reads the bus, posts notifications (`cm notify`), collects diagnostics and serves MCP (`clubmate mcp`).
 - **Clubmate.app** (`client/`): `ClubmateKit` holds the logic and is tested with `make kit-test`. The `Clubmate` app target holds views, windows, Ghostty surfaces, Sparkle updates and UserNotifications.
@@ -46,7 +46,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 ## Plugins (`plugins/`)
 | Plugin | Does |
 |---|---|
-| `editor-nvim` | Runs your nvim (the bundled 0.12.6, else the `nvim` in `PATH`) in a session, one per worktree. It drives nvim over RPC: open/quickfix/diffview/checktime/selection/unsaved. Hosts the Code section. |
+| `editor-nvim` | Runs the bundled nvim 0.12.6 with the Clubmate distribution (`NVIM_APPNAME=clubmate`/`clubmate-dev`, else the `nvim` in `PATH`) in a session, one per worktree. It drives nvim over RPC: open/quickfix/diffview/checktime/selection/unsaved, pushes the app's `theme.changed` into running nvims and offers the config import. Hosts the Code section. |
 | `git` | Worktrees and branches behind the switcher in the window title, and a watch that moves folders off worktrees removed outside Clubmate. No section. |
 | `search` | File index and fuzzy path search behind the agents composer's file picker. No section. |
 | `terminals` | Terminal sessions. |
@@ -68,7 +68,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 - **Agents in terminals:** Claude Code in a Clubmate terminal can drive Clubmate through MCP (`clubmate mcp`), seeing only agent-visible commands. Destructive commands ask for approval in the app. See `docs/agents.md`.
 - **Agents section:** ACP over stdio (`plugins/agents/acp`). Clubmate never writes `~/.claude*` or `.mcp.json`. See `.claude/skills/agents-acp/SKILL.md`.
 - **Notifications:** `cm notify`, `notify.post` and the app hub (banners, inbox, badges). See `docs/notifications.md`.
-- **nvim:** the bundled Neovim with your own config, which is never written; agents' Review changes opens diffview. See `docs/nvim-integration.md`.
+- **nvim:** the bundled Neovim with Clubmate's own pinned distribution plus a user layer; `~/.config/nvim` is never read or written. The app publishes its Ghostty theme as `theme.changed`; editor-nvim persists it to `theme.json` and applies it live. Agents' Review changes opens diffview. See `docs/nvim-integration.md`.
 
 ## State on disk
 - **State dir:** `~/Library/Application Support/clubmate`, or `clubmate-dev` for dev builds. Holds `clubmate.db`, `bus.db`, `plugins.db`, `plugin-data/<id>/`, `sessions/`, `diagnostics/`, `core.log`, `plugins/<id>.log` and `notifications.json`.
@@ -79,11 +79,13 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 - **Build:**
   - `make build` builds the Go binaries.
   - `make app` builds the Debug "Clubmate Dev.app" (`com.clubmate.app.dev`). It builds GhosttyKit from source on first run (`scripts/build-ghostty.sh`).
-  - `scripts/vendor-tools.sh` fetches the bundled ripgrep and Neovim pinned in `scripts/tools.lock`.
+  - `scripts/vendor-tools.sh` fetches the bundled ripgrep, Neovim and the tree-sitter CLI pinned in `scripts/tools.lock`.
+  - `scripts/vendor-nvim-distro.sh` builds `Contents/Resources/nvim-distro`: the plugins pinned in `scripts/nvim-distro.lock` (checksummed tarballs), treesitter parsers compiled with the vendored tree-sitter CLI and clang, blink.cmp's prebuilt fuzzy dylib, and `tools/nrev` built from the diffview fork. `bundle-app.sh` signs every added Mach-O, then runs `TestBundledAppSmoke` against the built app and fails the build if nvim starts with any error, missing plugin or parser, network call or write into the bundle.
 - **Test:**
   - `go test -race ./...`;
   - `make lint`;
   - `make kit-test`;
+  - `make nvim-test` (vendors the distribution into `build/resources` and runs `nvim-distro/distro_test.go` against the bundled nvim);
   - end-to-end runs use the dev app with scratch `XDG_*` dirs; the records are in the `clubmate-notes` repo under `verification/`;
   - agents look at the app through `scripts/test-app.sh`: an invisible test-mode instance with its own core that draws its windows to png plus a flagged layout dump (`cm ui snapshot`, MCP `testapp.call`); see `docs/agents.md`.
 - **Release:**

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +41,29 @@ func TestTerminalsLifecycle(t *testing.T) {
 	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID, "args": map[string]string{"cwd": other}}, nil))
 	main = h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
 	assert.Equal(t, other, h.GetSession(t, main.Props["sessionId"].(string)).Cwd)
+}
+
+func TestTerminalPathHasTools(t *testing.T) {
+	dir := t.TempDir()
+	tools := filepath.Join(dir, "tools")
+	out := filepath.Join(dir, "path")
+	sh := filepath.Join(dir, "sh")
+	require.NoError(t, os.Mkdir(tools, 0o700))
+	require.NoError(t, os.WriteFile(sh, []byte("#!/bin/sh\nprintf '%s' \"$PATH\" > "+out+"\nexec sleep 30\n"), 0o700))
+	t.Setenv("CLUBMATE_RESOURCES", dir)
+	t.Setenv("SHELL", sh)
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.BuildPluginDir(t, "clubmate/plugins/terminals", "plugins/terminals/plugin.json"))
+	p := h.CreateProject(t, "demo")
+	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "projectId": p.ID}, nil))
+	var path []byte
+	testutil.Eventually(t, func() bool {
+		var err error
+		path, err = os.ReadFile(out)
+		return err == nil && len(path) > 0
+	}, 5*time.Second)
+	assert.True(t, strings.HasSuffix(string(path), ":"+tools), string(path))
 }
 
 func TestExitedTerminalCanBeRestarted(t *testing.T) {

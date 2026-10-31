@@ -66,3 +66,12 @@ func TestAgentEnvDropsCoreAndPluginVars(t *testing.T) {
 		assert.NotContains(t, []string{"CLUBMATE_STATE_DIR", "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}, name)
 	}
 }
+
+func TestAgentEnvAppendsTools(t *testing.T) {
+	res := t.TempDir()
+	tools := filepath.Join(res, "tools")
+	require.NoError(t, os.Mkdir(tools, 0o700))
+	t.Setenv("CLUBMATE_RESOURCES", res)
+	t.Setenv("PATH", "/a:"+tools+":/b")
+	assert.Contains(t, agentEnv(""), "PATH=/a:/b:"+tools)
+}

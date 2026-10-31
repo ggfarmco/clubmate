@@ -28,6 +28,10 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 
 Hidden helpers and commands not marked for agents stay out of reach.
 
+## Import your nvim config
+
+**Import my nvim config** in the command palette starts an agent session in the Agents section that reads `~/.config/nvim` and moves your own keymaps, options, autocmds and plugins into Clubmate's Neovim user layer (`~/.config/clubmate`, or `~/.config/clubmate-dev` for development builds), following the guide bundled at `nvim-distro/skill/SKILL.md`. It skips what Clubmate's defaults already cover and asks you before adding destructive or machine-specific mappings. It needs an open project workspace and never changes `~/.config/nvim`. The first time Neovim starts in a project workspace while `~/.config/nvim` exists, it offers the same import once.
+
 ## Testing the app
 
 Agents test Clubmate in their own invisible instances instead of taking over the user's screen. `scripts/test-app.sh start [name]` (name defaults to the branch) launches the Debug build with scratch state, runtime and `XDG_*` dirs under `/tmp/clubmate-test-<name>`, its own core and its own defaults suite, in test mode (`CLUBMATE_TEST_MODE=1`): it never activates, its windows are transparent and ignore the mouse, app-modal dialogs are skipped and every approval is denied. `stop [name]` quits it and removes the dirs, `list` shows running ones, `cm [name] -- <args>` runs the CLI against one.

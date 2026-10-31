@@ -28,6 +28,7 @@ final class AppModel {
     @ObservationIgnored private var shownWindows: Set<String> = []
     @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var restored = false
+    @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
 
     @ObservationIgnored private(set) lazy var agentFinish = AgentFinishModel { [weak self] workspace, invocation in
         await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
@@ -59,6 +60,7 @@ final class AppModel {
         updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
+        trackTheme()
         trackProjects()
         syncSessions()
         trackTerminalFontSize()
@@ -402,6 +404,29 @@ final class AppModel {
             session.adopt(client, supervisor, settings)
         }
         notifications.adopt(client)
+        publishTheme()
+    }
+
+    private func trackTheme() {
+        _ = withObservationTracking({ GhosttyApp.shared.theme }, onChange: { [weak self] in
+            Task { @MainActor in self?.trackTheme() }
+        })
+        publishTheme()
+    }
+
+    private func publishTheme() {
+        guard let client = supervisor.client, let event = GhosttyApp.shared.theme.event else { return }
+        let sent = (client: ObjectIdentifier(client), event: event)
+        if let publishedTheme, publishedTheme.client == sent.client, publishedTheme.event == event { return }
+        publishedTheme = sent
+        Task { [weak self] in
+            do {
+                try await client.busPublish(topic: ThemeEvent.topic, payload: event)
+            } catch {
+                guard let self, let current = self.publishedTheme, current.client == sent.client, current.event == event else { return }
+                self.publishedTheme = nil
+            }
+        }
     }
 
     private func listen(_ client: CoreClient) {

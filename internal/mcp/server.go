@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -28,6 +29,8 @@ const (
 	codeInternal       = -32603
 
 	workspaceArg = "workspace"
+
+	baseInstructions = "Tools drive the Clubmate app: workspaces, sessions (terminals), the editor and plugin actions. Destructive tools wait for the user's approval in the app."
 )
 
 var (
@@ -45,12 +48,13 @@ type Core interface {
 }
 
 type Server struct {
-	Dial    func(ctx context.Context) (Core, error)
-	Version string
-	Project string
-	Log     io.Writer
-	Poll    time.Duration
-	Caller  string
+	Dial      func(ctx context.Context) (Core, error)
+	Version   string
+	Project   string
+	Log       io.Writer
+	Poll      time.Duration
+	Caller    string
+	NvimGuide string
 
 	writeMu sync.Mutex
 	out     io.Writer
@@ -178,6 +182,13 @@ func (s *Server) handle(ctx context.Context, line []byte) {
 	s.reply(req.ID, result, nil)
 }
 
+func (s *Server) instructions() string {
+	if _, err := os.Stat(s.NvimGuide); s.NvimGuide == "" || err != nil {
+		return baseInstructions
+	}
+	return baseInstructions + " To customise Clubmate's Neovim, read " + s.NvimGuide + " first."
+}
+
 func (s *Server) dispatch(ctx context.Context, req request) (any, error) {
 	switch req.Method {
 	case "initialize":
@@ -191,7 +202,7 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, error) {
 			"protocolVersion": version,
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": true}},
 			"serverInfo":      map[string]any{"name": "clubmate", "version": s.Version},
-			"instructions":    "Tools drive the Clubmate app: workspaces, sessions (terminals), the editor and plugin actions. Destructive tools wait for the user's approval in the app.",
+			"instructions":    s.instructions(),
 		}, nil
 	case "ping":
 		return map[string]any{}, nil

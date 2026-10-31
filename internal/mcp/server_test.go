@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ type reply struct {
 	ID     json.RawMessage `json:"id"`
 	Result struct {
 		ProtocolVersion string `json:"protocolVersion"`
+		Instructions    string `json:"instructions"`
 		Tools           []struct {
 			Name        string `json:"name"`
 			Annotations struct {
@@ -208,4 +211,22 @@ func TestMCPWithoutCore(t *testing.T) {
 	res := p.call(t, 2, "tools/call", map[string]any{"name": "workspace_list", "arguments": map[string]any{}})
 	assert.True(t, res.Result.IsError)
 	assert.Equal(t, "Clubmate isn't running", res.Result.Content[0].Text)
+}
+
+func instructions(t *testing.T, guide string) string {
+	t.Helper()
+	p := startServer(t, &mcp.Server{Dial: noCore, Version: "test", Log: io.Discard, NvimGuide: guide})
+	return p.call(t, 1, "initialize", map[string]any{"protocolVersion": "2025-06-18"}).Result.Instructions
+}
+
+func TestInstructionsPointAtNvimGuide(t *testing.T) {
+	guide := filepath.Join(t.TempDir(), "SKILL.md")
+	require.NoError(t, os.WriteFile(guide, []byte("# guide\n"), 0o644))
+	assert.Contains(t, instructions(t, guide), "To customise Clubmate's Neovim, read "+guide+" first.")
+}
+
+func TestInstructionsWithoutGuide(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "SKILL.md")
+	assert.Equal(t, instructions(t, ""), instructions(t, missing))
+	assert.NotContains(t, instructions(t, missing), "Neovim")
 }

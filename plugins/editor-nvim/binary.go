@@ -9,19 +9,60 @@ import (
 	"clubmate/pkg/pluginsdk"
 )
 
-var scrubEnv = []string{"VIM", "VIMRUNTIME", "NVIM_APPNAME"}
+var scrubEnv = []string{"VIM", "VIMRUNTIME"}
 
-func nvimCommand() (path string, unset, pathAppend []string, err error) {
-	if tools := toolsDir(); tools != "" {
-		pathAppend = []string{tools}
+type launch struct {
+	Path       string
+	Args       []string
+	Env        []string
+	Unset      []string
+	PathAppend []string
+}
+
+func nvimLaunch() (launch, error) {
+	l := launch{
+		Env:   []string{"NVIM_APPNAME=" + appName()},
+		Unset: slices.Clone(scrubEnv),
 	}
-	if path = bundledNvim(); path != "" {
-		return path, slices.Clone(scrubEnv), pathAppend, nil
+	if file := themeFile(); file != "" {
+		if _, err := os.Stat(file); err == nil {
+			l.Env = append(l.Env, themeFileEnv+"="+file)
+		}
 	}
-	if path, err = exec.LookPath("nvim"); err != nil {
-		return "", nil, nil, errNvimNotInPATH
+	if tools := pluginsdk.ToolsDir(); tools != "" {
+		l.PathAppend = []string{tools}
 	}
-	return path, slices.Clone(scrubEnv), pathAppend, nil
+	if l.Path = bundledNvim(); l.Path != "" {
+		if distro := distroInit(); distro != "" {
+			l.Args = []string{"-u", distro}
+		}
+		return l, nil
+	}
+	path, err := exec.LookPath("nvim")
+	if err != nil {
+		return launch{}, errNvimNotInPATH
+	}
+	l.Path = path
+	return l, nil
+}
+
+func appName() string {
+	if pluginsdk.Flavor() == "release" {
+		return "clubmate"
+	}
+	return "clubmate-dev"
+}
+
+func distroInit() string {
+	dir := pluginsdk.ResourcesDir()
+	if dir == "" {
+		return ""
+	}
+	path := filepath.Join(dir, "nvim-distro", "init.lua")
+	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	return path
 }
 
 func bundledNvim() string {
@@ -35,16 +76,4 @@ func bundledNvim() string {
 		return ""
 	}
 	return path
-}
-
-func toolsDir() string {
-	dir := pluginsdk.ResourcesDir()
-	if dir == "" {
-		return ""
-	}
-	tools := filepath.Join(dir, "tools")
-	if info, err := os.Stat(tools); err != nil || !info.IsDir() {
-		return ""
-	}
-	return tools
 }

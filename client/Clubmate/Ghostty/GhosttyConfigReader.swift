@@ -6,18 +6,26 @@ import GhosttyKit
 import ClubmateKit
 
 enum GhosttyConfigReader {
-    static func theme(from config: ghostty_config_t, overlay: URL) -> Theme {
+    static func theme(from config: ghostty_config_t, overlay: URL, dark: Bool) -> Theme {
         let fallback = Theme.fallback
+        let background = rgb(config, "background")
+        let foreground = rgb(config, "foreground")
         let palette = palette(config)
+        let colors = palette?.map(color)
         let text = GhosttyConfigText(sources(overlay: overlay).compactMap(read))
         return Theme(
-            background: color(config, "background") ?? fallback.background,
-            foreground: color(config, "foreground") ?? fallback.foreground,
-            accent: palette?[4] ?? fallback.accent,
-            success: palette?[2] ?? fallback.success,
-            warning: palette?[3] ?? fallback.warning,
-            danger: palette?[1] ?? fallback.danger,
-            fontFamily: string(config, "font-family") ?? text.first("font-family")
+            background: background.map(color) ?? fallback.background,
+            foreground: foreground.map(color) ?? fallback.foreground,
+            accent: colors?[4] ?? fallback.accent,
+            success: colors?[2] ?? fallback.success,
+            warning: colors?[3] ?? fallback.warning,
+            danger: colors?[1] ?? fallback.danger,
+            fontFamily: string(config, "font-family") ?? text.first("font-family"),
+            name: GhosttyThemeName.resolve(text.last("theme"), dark: dark),
+            isDark: background.map(isDark) ?? fallback.isDark,
+            backgroundHex: background.map(hex) ?? fallback.backgroundHex,
+            foregroundHex: foreground.map(hex) ?? fallback.foregroundHex,
+            palette: palette?.map(hex) ?? []
         )
     }
 
@@ -28,10 +36,22 @@ enum GhosttyConfigReader {
         return Double(value)
     }
 
-    private static func color(_ config: ghostty_config_t, _ key: String) -> Color? {
+    private static func rgb(_ config: ghostty_config_t, _ key: String) -> ghostty_config_color_s? {
         var value = ghostty_config_color_s()
         guard key.withCString({ ghostty_config_get(config, &value, $0, UInt(key.utf8.count)) }) else { return nil }
-        return Color(red: Double(value.r) / 255, green: Double(value.g) / 255, blue: Double(value.b) / 255)
+        return value
+    }
+
+    private static func color(_ value: ghostty_config_color_s) -> Color {
+        Color(red: Double(value.r) / 255, green: Double(value.g) / 255, blue: Double(value.b) / 255)
+    }
+
+    private static func hex(_ value: ghostty_config_color_s) -> String {
+        ThemeEvent.hex(red: value.r, green: value.g, blue: value.b)
+    }
+
+    private static func isDark(_ value: ghostty_config_color_s) -> Bool {
+        0.2126 * Double(value.r) + 0.7152 * Double(value.g) + 0.0722 * Double(value.b) < 128
     }
 
     private static func string(_ config: ghostty_config_t, _ key: String) -> String? {
@@ -41,14 +61,12 @@ enum GhosttyConfigReader {
         return string.isEmpty ? nil : string
     }
 
-    private static func palette(_ config: ghostty_config_t) -> [Color]? {
+    private static func palette(_ config: ghostty_config_t) -> [ghostty_config_color_s]? {
         var value = ghostty_config_palette_s()
         let key = "palette"
         guard key.withCString({ ghostty_config_get(config, &value, $0, UInt(key.utf8.count)) }) else { return nil }
         return withUnsafeBytes(of: value.colors) { raw in
-            raw.bindMemory(to: ghostty_config_color_s.self).prefix(16).map {
-                Color(red: Double($0.r) / 255, green: Double($0.g) / 255, blue: Double($0.b) / 255)
-            }
+            Array(raw.bindMemory(to: ghostty_config_color_s.self).prefix(16))
         }
     }
 

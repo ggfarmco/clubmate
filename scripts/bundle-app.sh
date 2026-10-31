@@ -19,17 +19,21 @@ cp "$ROOT/bin/clubmate" "$ROOT/bin/clubmate-core" "$ROOT/bin/clubmate-session" "
 cp -R "$ROOT/bin/plugins" "$DEST/plugins"
 cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/"
 "$ROOT/scripts/vendor-tools.sh" "$APP/Contents/Resources"
+"$ROOT/scripts/vendor-nvim-distro.sh" "$APP/Contents/Resources"
 
 SIGN=(codesign --force --options runtime --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}")
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 
 "${SIGN[@]}" \
   "$DEST/clubmate" "$DEST/clubmate-core" "$DEST/clubmate-session" "$DEST/plugins/terminals/terminals" "$DEST/plugins/editor-nvim/editor-nvim" "$DEST/plugins/git/git" "$DEST/plugins/processes/processes" "$DEST/plugins/search/search" "$DEST/plugins/agents/agents" "$DEST/plugins/remote/remote" "$DEST/plugins/cron/cron" "$DEST/plugins/triggers/triggers" "$DEST/plugins/backlog/backlog" "$DEST/plugins/graphs/graphs"
-"${SIGN[@]}" "$APP/Contents/Resources/tools/rg"
+"${SIGN[@]}" "$APP/Contents/Resources/tools/rg" "$APP/Contents/Resources/tools/nrev"
 ADHOC=(codesign --force --sign -)
 for parser in "$APP"/Contents/Resources/nvim/lib/nvim/parser/*.so; do
   "${ADHOC[@]}" "$parser"
 done
+while IFS= read -r -d '' lib; do
+  "${ADHOC[@]}" "$lib"
+done < <(find "$APP/Contents/Resources/nvim-distro" -type f \( -name '*.so' -o -name '*.dylib' \) -print0)
 "${ADHOC[@]}" "$APP/Contents/Resources/nvim/bin/nvim"
 "${SIGN[@]}" "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
 "${SIGN[@]}" --preserve-metadata=entitlements "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
@@ -42,3 +46,8 @@ if [[ -n "${TARGET_TEMP_DIR:-}" && -f "$ENTITLEMENTS" ]]; then
 else
   "${SIGN[@]}" --preserve-metadata=entitlements "$APP"
 fi
+
+env $(env | grep -o '^CLUBMATE_[A-Za-z0-9_]*' | sed 's/^/-u /') \
+  CLUBMATE_TEST_RESOURCES="$APP/Contents/Resources" CLUBMATE_TEST_BUNDLE=1 \
+  go test -C "$ROOT" -count=1 -run '^TestBundledAppSmoke$' ./nvim-distro/
+codesign --verify --strict --deep "$APP"

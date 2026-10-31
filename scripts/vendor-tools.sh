@@ -20,7 +20,9 @@ verify() {
 
 fetch() {
   local name="$1" version="$2" sha="$3" url="$4"
-  local archive="$CACHE/$name-$version.tar.gz"
+  local ext="tar.gz"
+  [[ "$url" == *.tar.gz ]] || ext="gz"
+  local archive="$CACHE/$name-$version.$ext"
   if [[ -f "$archive" ]] && ! verify "$archive" "$sha"; then
     echo "error: $name $version checksum mismatch (delete ${archive#"$ROOT/"})" >&2
     exit 1
@@ -35,7 +37,12 @@ fetch() {
     mv "$archive.part" "$archive"
   fi
   mkdir -p "$TMP/$name"
-  tar -xzf "$archive" -C "$TMP/$name"
+  if [[ "$ext" == gz ]]; then
+    gunzip -c "$archive" > "$TMP/$name/$name"
+    chmod 755 "$TMP/$name/$name"
+  else
+    tar -xzf "$archive" -C "$TMP/$name"
+  fi
 }
 
 while read -r name version sha url; do
@@ -58,4 +65,6 @@ NVIM="$(dirname "$(dirname "$NVIM_BIN")")"
 rm -rf "$RES/tools" "$RES/nvim"
 mkdir -p "$RES/tools" "$RES/nvim"
 cp "$RG" "$RES/tools/rg"
+mkdir -p "$CACHE/bin"
+cp "$TMP/tree-sitter/tree-sitter" "$CACHE/bin/tree-sitter"
 cp -R "$NVIM/bin" "$NVIM/lib" "$NVIM/share" "$RES/nvim/"

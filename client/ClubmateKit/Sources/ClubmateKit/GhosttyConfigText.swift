@@ -13,6 +13,10 @@ public struct GhosttyConfigText: Sendable {
         return values[reset...].first
     }
 
+    public func last(_ key: String) -> String? {
+        entries.last { $0.key == key }.flatMap { $0.value.isEmpty ? nil : $0.value }
+    }
+
     private static func parse(_ text: String) -> [(key: String, value: String)] {
         text.split(whereSeparator: \.isNewline).compactMap { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)

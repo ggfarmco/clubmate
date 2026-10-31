@@ -29,7 +29,10 @@ import (
 
 const waitTimeout = 3 * time.Second
 
-var bgPID = regexp.MustCompile(`bg:(\d+)\r?\n`)
+var (
+	bgPID  = regexp.MustCompile(`bg:(\d+)\r?\n`)
+	noFile = regexp.MustCompile(`nofile:(\d+)\r?\n`)
+)
 
 type testClient struct {
 	conn net.Conn
@@ -87,6 +90,20 @@ func TestPathAppendGoesLast(t *testing.T) {
 	env, err := proc.ReadEnv(m.ChildPID)
 	require.NoError(t, err)
 	assert.Contains(t, env, "PATH=/a:/b:/t")
+}
+
+func TestChildNoFileLimitRaised(t *testing.T) {
+	var lim syscall.Rlimit
+	require.NoError(t, syscall.Getrlimit(syscall.RLIMIT_NOFILE, &lim))
+	t.Cleanup(func() { assert.NoError(t, syscall.Setrlimit(syscall.RLIMIT_NOFILE, &lim)) })
+	require.NoError(t, syscall.Setrlimit(syscall.RLIMIT_NOFILE, &syscall.Rlimit{Cur: min(256, lim.Max), Max: lim.Max}))
+	cfg := testConfig(t, "sh", "-c", `echo nofile:$(ulimit -n); read x`)
+	startHost(t, cfg)
+	c := dial(t, cfg.Socket)
+	testutil.Eventually(t, func() bool { return noFile.MatchString(c.output()) }, waitTimeout)
+	got, err := strconv.ParseUint(noFile.FindStringSubmatch(c.output())[1], 10, 64)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, got, min(10240, lim.Max))
 }
 
 func TestHelperSleep(t *testing.T) {

@@ -37,6 +37,8 @@ type setup struct {
 	initLua      string
 	link         bool
 	sub          string
+	plugins      []string
+	theme        string
 }
 
 type editor struct {
@@ -547,11 +549,17 @@ func startEditorIn(t *testing.T, s setup) *editor {
 		t.Setenv(key, t.TempDir())
 	}
 	if s.initLua != "" {
-		dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "nvim")
+		dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "clubmate-dev")
 		require.NoError(t, os.MkdirAll(dir, 0o700))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "init.lua"), []byte(s.initLua), 0o600))
 	}
-	h := testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json"))
+	t.Setenv("SHELL", "/bin/sh")
+	h := testutil.NewHarness(t)
+	if s.theme != "" {
+		_, err := h.Bus.Publish(t.Context(), "theme.changed", "test", json.RawMessage(s.theme))
+		require.NoError(t, err)
+	}
+	h.Start(t, append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/editor-nvim", "plugins/editor-nvim/plugin.json")}, s.plugins...)...)
 	top, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	if s.link {
@@ -582,8 +590,9 @@ func startEditorIn(t *testing.T, s setup) *editor {
 	sess := h.GetSession(t, e.sessionID)
 	assert.Equal(t, "nvim", sess.Title)
 	assert.Equal(t, repo, sess.Cwd)
-	require.Len(t, sess.Command, 3)
-	e.sock = sess.Command[2]
+	require.GreaterOrEqual(t, len(sess.Command), 3)
+	require.Equal(t, "--listen", sess.Command[len(sess.Command)-2])
+	e.sock = sess.Command[len(sess.Command)-1]
 	if s.initLua != "" {
 		v := dial(t, e.sock)
 		testutil.Eventually(t, func() bool { return eval[int](t, v, "v:vim_did_enter") == 1 }, 5*time.Second)
@@ -708,7 +717,7 @@ func contains(n sdui.Node, typ string) bool {
 	return false
 }
 
-func TestBundledNvimEnv(t *testing.T) {
+func TestLaunchSetsAppNameAndDistro(t *testing.T) {
 	system, err := exec.LookPath("nvim")
 	if err != nil {
 		t.Skip("nvim not in PATH")
@@ -716,24 +725,215 @@ func TestBundledNvimEnv(t *testing.T) {
 	res := t.TempDir()
 	bundled := filepath.Join(res, "nvim", "bin", "nvim")
 	tools := filepath.Join(res, "tools")
+	distroInit := filepath.Join(res, "nvim-distro", "init.lua")
 	require.NoError(t, os.MkdirAll(filepath.Dir(bundled), 0o700))
 	require.NoError(t, os.Symlink(system, bundled))
 	require.NoError(t, os.Mkdir(tools, 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Dir(distroInit), 0o700))
+	require.NoError(t, os.WriteFile(distroInit, []byte("vim.g.distro = 1"), 0o600))
 	t.Setenv("CLUBMATE_RESOURCES", res)
 	t.Setenv("VIMRUNTIME", "/nonexistent")
 	t.Setenv("NVIM_APPNAME", "elsewhere")
 	e := startEditor(t)
-	assert.Equal(t, bundled, e.h.GetSession(t, e.sessionID).Command[0])
+	assert.Equal(t, []string{bundled, "-u", distroInit, "--listen", e.sock}, e.h.GetSession(t, e.sessionID).Command)
 	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[int](t, v, "v:vim_did_enter") == 1 }, 5*time.Second)
+	assert.Equal(t, 1, eval[int](t, v, "g:distro"))
 	assert.False(t, strings.HasPrefix(eval[string](t, v, "$VIMRUNTIME"), "/nonexistent"))
-	assert.Empty(t, eval[string](t, v, "$NVIM_APPNAME"))
+	assert.Equal(t, "clubmate-dev", eval[string](t, v, "$NVIM_APPNAME"))
 	assert.True(t, strings.HasSuffix(eval[string](t, v, "$PATH"), ":"+tools))
 }
 
 func TestBundledFallsBackToPath(t *testing.T) {
-	t.Setenv("CLUBMATE_RESOURCES", t.TempDir())
+	res := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(res, "nvim-distro"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(res, "nvim-distro", "init.lua"), nil, 0o600))
+	t.Setenv("CLUBMATE_RESOURCES", res)
 	e := startEditor(t)
 	want, err := exec.LookPath("nvim")
 	require.NoError(t, err)
-	assert.Equal(t, want, e.h.GetSession(t, e.sessionID).Command[0])
+	assert.Equal(t, []string{want, "--listen", e.sock}, e.h.GetSession(t, e.sessionID).Command)
+}
+
+func TestThemeFileWrittenAndPushed(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	require.NoError(t, v.ExecLua(`package.loaded["clubmate.theme"] = { apply = function(t) vim.g.got = vim.list_extend(vim.g.got or {}, { t.name }) end }`, nil))
+	bad := themePayload("Bad", 15)
+	good := themePayload("Dracula", 16)
+	e.publish(t, "theme.changed", bad)
+	e.publish(t, "theme.changed", good)
+	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'got', [])")) > 0 }, 5*time.Second)
+	assert.Equal(t, []string{"Dracula"}, eval[[]string](t, v, "g:got"))
+	got, err := os.ReadFile(e.themeFile())
+	require.NoError(t, err)
+	assert.JSONEq(t, good, string(got))
+}
+
+func TestThemePublishedBeforeStartIsWritten(t *testing.T) {
+	theme := themePayload("Catppuccin Mocha", 16)
+	e := startEditorIn(t, setup{theme: theme})
+	testutil.Eventually(t, func() bool {
+		_, err := os.Stat(e.themeFile())
+		return err == nil
+	}, 5*time.Second)
+	got, err := os.ReadFile(e.themeFile())
+	require.NoError(t, err)
+	assert.JSONEq(t, theme, string(got))
+}
+
+func TestThemeAppliedOnAttach(t *testing.T) {
+	e := startEditorIn(t, setup{
+		theme:   themePayload("Catppuccin Mocha", 16),
+		initLua: `package.loaded["clubmate.theme"] = { apply = function(t) vim.g.applied = t.name end }`,
+	})
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[string](t, v, "get(g:, 'applied', '')") == "Catppuccin Mocha" }, 5*time.Second)
+}
+
+func TestLaunchPassesThemeFile(t *testing.T) {
+	e := startEditor(t)
+	assert.Empty(t, eval[string](t, dial(t, e.sock), "$CLUBMATE_THEME_FILE"))
+	e.publish(t, "theme.changed", themePayload("Dracula", 16))
+	testutil.Eventually(t, func() bool {
+		_, err := os.Stat(e.themeFile())
+		return err == nil
+	}, 5*time.Second)
+	e.run(t, "restart", nil, nil)
+	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	cmd := e.h.GetSession(t, main.Props["sessionId"].(string)).Command
+	assert.Equal(t, e.themeFile(), eval[string](t, dial(t, cmd[len(cmd)-1]), "$CLUBMATE_THEME_FILE"))
+}
+
+func themePayload(name string, colors int) string {
+	palette, _ := json.Marshal(slices.Repeat([]string{"#112233"}, colors))
+	return `{"name":"` + name + `","dark":true,"background":"#1f1f28","foreground":"#dcd7ba","palette":` + string(palette) + `}`
+}
+
+func (e *editor) publish(t *testing.T, topic, payload string) {
+	t.Helper()
+	_, err := e.h.Bus.Publish(t.Context(), topic, "test", json.RawMessage(payload))
+	require.NoError(t, err)
+}
+
+func (e *editor) themeFile() string {
+	return filepath.Join(e.h.Dirs.PluginState("editor-nvim"), "theme.json")
+}
+
+func TestImportStartsAgentSession(t *testing.T) {
+	home := importHome(t)
+	res := t.TempDir()
+	t.Setenv("CLUBMATE_RESOURCES", res)
+	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
+	c := e.h.Client(t)
+	drain(c)
+	e.run(t, "import-config", nil, nil)
+	calls := agentCalls(t, e)
+	require.Len(t, calls, 1)
+	assert.Equal(t, "Import nvim config", calls[0].Title)
+	assert.Contains(t, calls[0].Prompt, filepath.Join(home, ".config", "nvim"))
+	assert.Contains(t, calls[0].Prompt, filepath.Join(home, ".config", "clubmate-dev"))
+	assert.Contains(t, calls[0].Prompt, filepath.Join(res, "nvim-distro", "skill", "SKILL.md"))
+	n, ok := nextFocus(c, 5*time.Second)
+	require.True(t, ok, "no ui.focus notification")
+	var focus struct {
+		Section string `json:"section"`
+	}
+	require.NoError(t, json.Unmarshal(n.Params, &focus))
+	assert.Equal(t, "agents", focus.Section)
+}
+
+func TestImportRefused(t *testing.T) {
+	home := importHome(t)
+	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
+	p, err := e.h.Svc.HomeWorkspace(t.Context())
+	require.NoError(t, err)
+	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "projectId": p.ID}, nil)
+	assert.ErrorContains(t, err, "open a project workspace first")
+	require.NoError(t, os.RemoveAll(filepath.Join(home, ".config", "nvim")))
+	err = e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.import-config", "projectId": e.projectID}, nil)
+	assert.ErrorContains(t, err, "no ~/.config/nvim to import")
+	assert.Empty(t, agentCalls(t, e))
+}
+
+func TestImportOfferedOnce(t *testing.T) {
+	importHome(t)
+	distroWith(t, `package.loaded["clubmate.import"] = { offer = function() vim.g.offered = (vim.g.offered or 0) + 1 end }`)
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	testutil.Eventually(t, func() bool { return eval[int](t, v, "get(g:, 'offered', 0)") == 1 }, 5*time.Second)
+	e.run(t, "restart", nil, nil)
+	main := e.h.WaitSlot(t, e.projectID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	cmd := e.h.GetSession(t, main.Props["sessionId"].(string)).Command
+	w := dial(t, cmd[len(cmd)-1])
+	testutil.Eventually(t, func() bool { return eval[int](t, w, "v:vim_did_enter") == 1 }, 5*time.Second)
+	testutil.Never(t, func() bool { return eval[int](t, w, "get(g:, 'offered', 0)") > 0 }, time.Second)
+}
+
+func TestImportEventStartsSession(t *testing.T) {
+	importHome(t)
+	distroWith(t, `package.loaded["clubmate.import"] = { offer = function() vim.schedule(function() vim.rpcnotify(require("clubmate").chan, "clubmate", { event = "import" }) end) end }`)
+	e := startEditorIn(t, setup{plugins: []string{fakeAgents(t)}})
+	testutil.Eventually(t, func() bool { return len(agentCalls(t, e)) == 1 }, 5*time.Second)
+}
+
+type agentsNew struct {
+	Prompt string `json:"prompt"`
+	Title  string `json:"title"`
+}
+
+func importHome(t *testing.T) string {
+	t.Helper()
+	for _, key := range []string{"GOPATH", "GOMODCACHE", "GOCACHE"} {
+		out, err := exec.Command("go", "env", key).Output()
+		require.NoError(t, err)
+		t.Setenv(key, strings.TrimSpace(string(out)))
+	}
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "nvim"), 0o700))
+	t.Setenv("HOME", home)
+	return home
+}
+
+func distroWith(t *testing.T, initLua string) {
+	t.Helper()
+	system, err := exec.LookPath("nvim")
+	if err != nil {
+		t.Skip("nvim not in PATH")
+	}
+	res := t.TempDir()
+	bundled := filepath.Join(res, "nvim", "bin", "nvim")
+	require.NoError(t, os.MkdirAll(filepath.Dir(bundled), 0o700))
+	require.NoError(t, os.Symlink(system, bundled))
+	require.NoError(t, os.MkdirAll(filepath.Join(res, "nvim-distro"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(res, "nvim-distro", "init.lua"), []byte(initLua), 0o600))
+	t.Setenv("CLUBMATE_RESOURCES", res)
+}
+
+func fakeAgents(t *testing.T) string {
+	t.Helper()
+	return testutil.EchoPluginDirAs(t, `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"agents","title":"Agents","icon":"sparkles","order":25}],"commands":[{"id":"agents.new","title":"New Agent Session","hidden":true}]},"echoResults":{"agents.new":{"session":"agt_1","worktree":"/x"}}}`)
+}
+
+func agentCalls(t *testing.T, e *editor) []agentsNew {
+	t.Helper()
+	events, err := e.h.Bus.Read(t.Context(), "echo.command", 0, 100)
+	require.NoError(t, err)
+	var out []agentsNew
+	for _, ev := range events {
+		var call struct {
+			ID   string    `json:"id"`
+			Args agentsNew `json:"args"`
+		}
+		require.NoError(t, json.Unmarshal(ev.Payload, &call))
+		if call.ID == "agents.new" {
+			out = append(out, call.Args)
+		}
+	}
+	return out
 }
