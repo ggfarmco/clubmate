@@ -14,7 +14,7 @@ The app's bundled tools dir (`Contents/Resources/tools`, with `rg` and `nrev`) i
 
 | Path | What |
 |---|---|
-| `init.lua` | entry: ui2 cmdline and messages, lazy.nvim pointed at the bundled plugin dirs, then the user layer |
+| `init.lua` | entry: lazy.nvim pointed at the bundled plugin dirs, then the user layer |
 | `lua/clubmate/` | options, keymaps (leader `,`, see `docs/shortcuts.md`), autocmds, theme, LSP, health check, import offer; `plugins/*.lua` are the default lazy specs |
 | `lua/clubmate/manifest.lua` | generated: every plugin's URL and commit, the parser list and the lock file's sha256 |
 | `plugins/<name>/` | each plugin's unmodified source tree at its pinned commit, with generated `doc/tags`; `blink.cmp/target/release/libblink_cmp_fuzzy.dylib` is blink's prebuilt fuzzy library |
@@ -30,7 +30,7 @@ Your changes live in `stdpath("config")` (`~/.config/clubmate`, or `~/.config/cl
 
 ## Theme
 
-The app publishes its Ghostty theme (name, dark flag, background, foreground, 16-colour palette) on the bus as `theme.changed` at launch and on every change, including light/dark switches. editor-nvim writes it to `plugin-data/editor-nvim/theme.json`, passes that file to new nvims as `CLUBMATE_THEME_FILE`, and calls `require("clubmate.theme").apply(t)` in every running one. It remembers the last event it handled, so a theme published while the core or plugin restarts is still picked up. Known themes (Kanagawa Wave/Dragon/Lotus, Light Owl) take their syntax from the bundled colorscheme; any other theme gets a generated scheme from the palette. Chrome groups (floats, picker, cmdline, which-key, blink, gitsigns, diffview, neo-tree, lualine, notifications) follow the app's tokens. If you pick another colorscheme in your layer, theme changes leave it alone.
+The app publishes its Ghostty theme (name, dark flag, background, foreground, 16-colour palette) on the bus as `theme.changed` at launch and on every change, including light/dark switches. editor-nvim writes it to `plugin-data/editor-nvim/theme.json`, passes that file to new nvims as `CLUBMATE_THEME_FILE`, and calls `require("clubmate.theme").apply(t)` in every running one. It remembers the last event it handled, so a theme published while the core or plugin restarts is still picked up. Known themes (Kanagawa Wave/Dragon/Lotus, Light Owl) take their syntax from the bundled colorscheme; any other theme gets a generated scheme from the palette. Chrome groups (floats, picker, which-key, blink, gitsigns, diffview, neo-tree, lualine, notifications) follow the app's tokens. If you pick another colorscheme in your layer, theme changes leave it alone.
 
 ## LSP and mason
 
@@ -38,7 +38,7 @@ The distribution ships `lsp/*.lua` for gopls, rust_analyzer, ts_ls, tailwindcss,
 
 ## Health check
 
-`:checkhealth clubmate` lists the distribution root and lock, every bundled plugin and parser, the fuzzy matcher, ui2, the theme, your user layer files, missing LSP servers with their `:MasonInstall` lines, and the bundled tools.
+`:checkhealth clubmate` lists the distribution root and lock, every bundled plugin and parser, the fuzzy matcher, the theme, your user layer files, missing LSP servers with their `:MasonInstall` lines, and the bundled tools.
 
 ## Import my nvim config
 

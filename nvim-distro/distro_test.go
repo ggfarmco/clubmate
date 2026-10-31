@@ -705,21 +705,6 @@ func TestNoThemeFileFallsBack(t *testing.T) {
 	assert.Empty(t, errorsOf(t, v))
 }
 
-func TestUi2Enabled(t *testing.T) {
-	v := startDistro(t, opts{})
-	var state struct {
-		Cmd       bool
-		Win       bool
-		Cmdheight int
-	}
-	require.NoError(t, v.ExecLua(`
-local ui2 = require("vim._core.ui2")
-return { Cmd = type(ui2.cmd) == "table", Win = vim.api.nvim_win_is_valid(ui2.wins.cmd), Cmdheight = vim.o.cmdheight }`, &state))
-	assert.True(t, state.Cmd)
-	assert.True(t, state.Win)
-	assert.Equal(t, 0, state.Cmdheight)
-}
-
 func waitMode(t *testing.T, v *nvim.Nvim, want string) {
 	t.Helper()
 	testutil.Eventually(t, func() bool {
@@ -727,32 +712,6 @@ func waitMode(t *testing.T, v *nvim.Nvim, want string) {
 		require.NoError(t, err)
 		return m.Mode == want
 	}, 5*time.Second)
-}
-
-func TestCmdlinePopup(t *testing.T) {
-	v := startDistro(t, opts{})
-	_, err := v.Input(":")
-	require.NoError(t, err)
-	waitMode(t, v, "c")
-	var cfg struct {
-		Relative string
-		Bordered bool
-		Title    string
-		Width    int
-		Columns  int
-	}
-	require.NoError(t, v.ExecLua(`
-local c = vim.api.nvim_win_get_config(require("vim._core.ui2").wins.cmd)
-local title = type(c.title) == "table" and table.concat(vim.tbl_map(function(chunk) return chunk[1] end, c.title)) or tostring(c.title or "")
-return { Relative = c.relative, Bordered = c.border ~= nil and c.border ~= "none", Title = title, Width = c.width, Columns = vim.o.columns }`, &cfg))
-	_, err = v.Input("<Esc>")
-	require.NoError(t, err)
-	waitMode(t, v, "n")
-	assert.Equal(t, "editor", cfg.Relative)
-	assert.True(t, cfg.Bordered)
-	assert.Contains(t, cfg.Title, "Cmdline")
-	assert.Equal(t, cfg.Columns/2, cfg.Width)
-	assert.Empty(t, errorsOf(t, v))
 }
 
 func TestWhichKeyLeaderGroup(t *testing.T) {

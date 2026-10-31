@@ -65,16 +65,6 @@ local function completion()
   end
 end
 
-local function ui()
-  health.start("UI")
-  local ok, ui2 = pcall(require, "vim._core.ui2")
-  if ok and ui2.cfg.enable ~= false and ui2.cmd ~= nil then
-    health.ok("ui2 enabled")
-  else
-    health.warn("ui2 is not enabled")
-  end
-end
-
 local function theme()
   health.start("Theme")
   local t = vim.g.clubmate_theme
@@ -150,7 +140,6 @@ function M.check()
   plugins(manifest)
   parsers(manifest)
   completion()
-  ui()
   theme()
   user_layer()
   lsp()

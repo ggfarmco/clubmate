@@ -2,24 +2,6 @@ local M = {}
 
 local spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
-local function cmdline_popup()
-  local ok, ui2 = pcall(require, "vim._core.ui2")
-  if not ok then
-    return
-  end
-  local w = math.floor(vim.o.columns * 0.5)
-  pcall(vim.api.nvim_win_set_config, ui2.wins.cmd, {
-    relative = "editor",
-    row = math.floor(vim.o.lines * 0.25),
-    col = math.floor((vim.o.columns - w) / 2),
-    width = w,
-    height = 1,
-    border = "rounded",
-    title = " Cmdline ",
-    title_pos = "center",
-  })
-end
-
 local function lsp_progress()
   local progress = vim.defaulttable()
   vim.api.nvim_create_autocmd("LspProgress", {
@@ -62,13 +44,8 @@ local function lsp_progress()
 end
 
 function M.setup()
-  vim.o.cmdheight = 0
   vim.o.winborder = "rounded"
   vim.o.showmode = false
-  vim.api.nvim_create_autocmd("CmdlineEnter", {
-    group = vim.api.nvim_create_augroup("clubmate.cmdline", {}),
-    callback = cmdline_popup,
-  })
   lsp_progress()
 end
 

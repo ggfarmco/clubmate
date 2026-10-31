@@ -1,5 +1,3 @@
-pcall(require("vim._core.ui2").enable, { msg = { targets = "msg" } })
-
 local root = vim.fs.dirname(vim.fs.normalize(debug.getinfo(1, "S").source:sub(2)))
 vim.opt.rtp:prepend({ root, root .. "/site", root .. "/plugins/lazy.nvim" })
 
