@@ -46,6 +46,13 @@ app_pid() {
   ps -E -axo pid=,command= | grep "/Contents/MacOS/Clubmate Dev .*CLUBMATE_RUNTIME_DIR=$dir/run" | grep -v grep | awk '{print $1}' || true
 }
 
+instance_pids() {
+  local dir="$1"
+  { ps -E -axo pid=,command= | grep "clubmate-session .*CLUBMATE_RUNTIME_DIR=$dir/run" || true
+    ps -axo pid=,command= | grep -- "--listen $dir/run/" || true
+  } | { grep -v grep || true; } | awk '{print $1}' | sort -u | tr '\n' ' '
+}
+
 kill_app() {
   local dir="$1" pids
   pids="$(app_pid "$dir")"
@@ -117,12 +124,14 @@ stop() {
   kill_app "$dir"
   alive "$dir" && cli "$dir" core stop >/dev/null 2>&1 || true
   local sessions
-  sessions="$(ps -E -axo pid=,command= | grep "clubmate-session .*CLUBMATE_RUNTIME_DIR=$dir/run" | grep -v grep | awk '{print $1}' || true)"
+  sessions="$(instance_pids "$dir")"
   [[ -n "$sessions" ]] && kill $sessions 2>/dev/null || true
   for _ in $(seq 1 25); do
-    [[ -S "$dir/run/core.sock" ]] || break
+    [[ -S "$dir/run/core.sock" || -n "$(instance_pids "$dir")" ]] || break
     sleep 0.2
   done
+  sessions="$(instance_pids "$dir")"
+  [[ -n "$sessions" ]] && kill -9 $sessions 2>/dev/null || true
   defaults delete "com.clubmate.app.dev.test.clubmate-test-$name" >/dev/null 2>&1 || true
   rm -rf "$dir"
   echo "stopped $name"

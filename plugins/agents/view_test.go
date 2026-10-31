@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -590,7 +591,7 @@ func TestToolCardFollowsToolUpdates(t *testing.T) {
 	status := func() any {
 		v := s.view(0)
 		require.Len(t, v.Entries, 1)
-		return toolCard("c", "/r", v.Entries[0], false, false).Props["status"]
+		return entryNode(screen{View: v}, v.Entries[0], "").node.Props["status"]
 	}
 	s.applyTool(true, 1, rawJSON(t, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "Read", "kind": "read", "status": "in_progress"}))
 	assert.Equal(t, "in_progress", status())
@@ -621,4 +622,22 @@ func TestCodePanelHeaderAndStarters(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"Explain notify.go opt+1", "Review the last commit opt+2", "Write a test for notify.go opt+3"}, starts)
+}
+
+func TestEntryNodeCachedUntilEntryChanges(t *testing.T) {
+	s := newSession(record{ID: "agt_1"}, nil, true, nil)
+	chunk := func(text string) {
+		s.applyUpdate(1, rawJSON(t, map[string]any{"sessionUpdate": acp.UpdateAgentMessageChunk, "content": map[string]string{"type": "text", "text": text}}))
+	}
+	message := func() sdui.Node {
+		v := s.view(0)
+		require.Len(t, v.Entries, 1)
+		return entryNode(screen{View: v}, v.Entries[0], "").node
+	}
+	chunk("Hello")
+	first := message()
+	assert.Equal(t, reflect.ValueOf(first.Props).Pointer(), reflect.ValueOf(message().Props).Pointer())
+
+	chunk(", world")
+	assert.Equal(t, "Hello, world", message().Props["text"])
 }

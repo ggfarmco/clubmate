@@ -63,7 +63,7 @@ type entry struct {
 	Notice   json.RawMessage            `json:"notice,omitempty"`
 	From     string                     `json:"from,omitempty"`
 
-	card *cardCache
+	node *nodeCache
 }
 
 type turnInfo struct {
@@ -120,17 +120,13 @@ func (s *session) view(fromTurn int) transcriptView {
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
 	for _, en := range s.entries {
 		if en.Turn >= fromTurn {
-			if en.Kind == entryTool && en.card == nil {
-				en.card = new(cardCache)
+			if en.node == nil {
+				en.node = new(nodeCache)
 			}
 			c := *en
-			if en.Tool != nil {
-				c.Tool = make(map[string]json.RawMessage, len(en.Tool))
-				for k, val := range en.Tool {
-					c.Tool[k] = val
-				}
-				if !s.running && closeTool(c.Tool) {
-					c.card = nil
+			if en.Tool != nil && !s.running {
+				if closed, ok := closeTool(en.Tool); ok {
+					c.Tool, c.node = closed, nil
 				}
 			}
 			v.Entries = append(v.Entries, &c)
@@ -166,7 +162,7 @@ func dropImageData(entries []*entry) {
 			}
 			content = append(content, raw)
 		}
-		en.Content = content
+		en.Content, en.node = content, nil
 	}
 }
 
@@ -175,8 +171,8 @@ func compactTools(entries []*entry) {
 		if en.Tool == nil {
 			continue
 		}
+		en.Tool, en.node = maps.Clone(en.Tool), nil
 		delete(en.Tool, "rawOutput")
-		en.card = nil
 		var items []json.RawMessage
 		if json.Unmarshal(en.Tool["content"], &items) != nil {
 			continue
@@ -292,7 +288,7 @@ func (s *session) apply(e envelope) {
 		var p answerPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			if i, ok := s.index[key(entryPermission, p.Request)]; ok {
-				s.entries[i].Outcome = &p.Outcome
+				s.entries[i].Outcome, s.entries[i].node = &p.Outcome, nil
 			}
 		}
 	}
@@ -395,13 +391,12 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 	}
 	delete(fields, "sessionUpdate")
 	en := s.upsert(entryTool, head.ToolCallID, turn)
-	if create || en.Tool == nil {
-		en.Tool = map[string]json.RawMessage{}
+	tool := make(map[string]json.RawMessage, len(en.Tool)+len(fields))
+	if !create {
+		maps.Copy(tool, en.Tool)
 	}
-	for k, v := range fields {
-		en.Tool[k] = v
-	}
-	en.card = nil
+	maps.Copy(tool, fields)
+	en.Tool = tool
 	var kind string
 	if json.Unmarshal(en.Tool["kind"], &kind) == nil && slices.Contains(editKinds, kind) {
 		s.edited = true
@@ -413,20 +408,21 @@ func (s *session) cancelTools(turn int) {
 		if en.Kind != entryTool || en.Turn != turn {
 			continue
 		}
-		if closeTool(en.Tool) {
-			en.card = nil
+		if closed, ok := closeTool(en.Tool); ok {
+			en.Tool, en.node = closed, nil
 		}
 	}
 }
 
-func closeTool(tool map[string]json.RawMessage) bool {
+func closeTool(tool map[string]json.RawMessage) (map[string]json.RawMessage, bool) {
 	var status string
 	_ = json.Unmarshal(tool["status"], &status)
 	if !slices.Contains(openToolStatuses, status) {
-		return false
+		return tool, false
 	}
-	tool["status"] = json.RawMessage(`"cancelled"`)
-	return true
+	closed := maps.Clone(tool)
+	closed["status"] = json.RawMessage(`"cancelled"`)
+	return closed, true
 }
 
 func (s *session) messageEntry(kind, messageID string, turn int) *entry {
@@ -435,6 +431,7 @@ func (s *session) messageEntry(kind, messageID string, turn int) *entry {
 	}
 	if n := len(s.entries); n > 0 {
 		if last := s.entries[n-1]; last.Kind == kind && last.Turn == turn {
+			last.node = nil
 			return last
 		}
 	}
@@ -445,6 +442,7 @@ func (s *session) messageEntry(kind, messageID string, turn int) *entry {
 func (s *session) upsert(kind, id string, turn int) *entry {
 	k := key(kind, id)
 	if i, ok := s.index[k]; ok {
+		s.entries[i].node = nil
 		return s.entries[i]
 	}
 	en := &entry{Kind: kind, ID: id, Turn: turn}

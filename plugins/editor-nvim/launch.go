@@ -10,7 +10,10 @@ import (
 	"clubmate/pkg/pluginsdk"
 )
 
-const ghosttyTerm = "xterm-ghostty"
+const (
+	ghosttyTerm = "xterm-ghostty"
+	exitUnblock = `autocmd VimLeave * lua if #vim.api.nvim_list_uis() == 0 then vim.api.nvim_input("<CR>") end`
+)
 
 var (
 	errNvimNotInPATH = errors.New("nvim not found in PATH")
@@ -28,6 +31,7 @@ type launch struct {
 func nvimLaunch() (launch, error) {
 	l := launch{
 		Env:   []string{"NVIM_APPNAME=" + appName(), "COLORTERM=truecolor"},
+		Args:  []string{"--cmd", exitUnblock},
 		Unset: slices.Clone(scrubEnv),
 	}
 	if dir := terminfoDir(); dir != "" {
@@ -43,7 +47,7 @@ func nvimLaunch() (launch, error) {
 	}
 	if l.Path = bundledNvim(); l.Path != "" {
 		if distro := distroInit(); distro != "" {
-			l.Args = []string{"-u", distro}
+			l.Args = append([]string{"-u", distro}, l.Args...)
 		}
 		return l, nil
 	}

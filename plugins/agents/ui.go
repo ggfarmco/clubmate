@@ -245,10 +245,12 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now(), branchOpen)); err != nil {
 		return err
 	}
+	var shown *screen
 	if slices.Contains(slots, mainSlot) {
 		main := sdui.Empty(pickSession)
 		if s := a.session(selected); s != nil {
-			main = mainView(a.screen(ctx, workspaceID, s))
+			sc := a.screen(ctx, workspaceID, s)
+			main, shown = mainView(sc), &sc
 		}
 		if err := a.push(ctx, p, workspaceID, mainSlot, main); err != nil {
 			return err
@@ -257,7 +259,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if !slices.Contains(slots, codeSlot) {
 		return nil
 	}
-	return a.renderCode(ctx, p, workspace, recs)
+	return a.renderCode(ctx, p, workspace, recs, shown)
 }
 
 func (a *app) slots() []string {
@@ -341,7 +343,7 @@ func (a *app) setSection(workspaceID, section string) {
 	}
 }
 
-func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsdk.Workspace, recs []record) error {
+func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsdk.Workspace, recs []record, shown *screen) error {
 	if !a.codePanel {
 		return nil
 	}
@@ -363,10 +365,13 @@ func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsd
 			bound = here[i].ID
 		}
 	}
-	var sc *screen
-	if s := a.session(bound); s != nil {
-		v := a.screen(ctx, workspace.ID, s)
-		sc = &v
+	sc := shown
+	if sc == nil || sc.View.Session.ID != bound {
+		sc = nil
+		if s := a.session(bound); s != nil {
+			v := a.screen(ctx, workspace.ID, s)
+			sc = &v
+		}
 	}
 	return a.push(ctx, p, workspace.ID, codeSlot, codeView(here, bound, sc, a.editorFile(workspace.ID, root)))
 }

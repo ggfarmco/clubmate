@@ -38,17 +38,25 @@ var (
 	fragmentRe   = regexp.MustCompile(`^L(\d+)-(\d+)$`)
 )
 
-type cardCache struct {
-	mu   sync.Mutex
-	key  cardKey
-	node sdui.Node
-	ok   bool
+type nodeCache struct {
+	mu    sync.Mutex
+	key   nodeKey
+	built builtNode
+	ok    bool
 }
 
-type cardKey struct {
-	id         string
+type nodeKey struct {
+	sid        string
 	root       string
 	reviewable bool
+	pending    bool
+	from       string
+}
+
+type builtNode struct {
+	node  sdui.Node
+	shown bool
+	cost  int
 }
 
 type toolFields struct {
@@ -106,27 +114,32 @@ func transcript(sc screen) sdui.Node {
 	budget := nodeBudget
 	for i := len(shown) - 1; i >= 0; i-- {
 		en := shown[i]
-		var group []sdui.Node
+		note := ""
 		if i == len(shown)-1 || shown[i+1].Turn != en.Turn {
-			if note := stopNote(stops[en.Turn]); note != "" {
-				group = append(group, sdui.MutedText(note))
-			}
+			note = stopNote(stops[en.Turn])
 		}
-		n, ok := entryNode(sc, en, shas[en.Turn])
-		if ok && !pending(sc, en) {
-			group = slices.Insert(group, 0, n)
-		}
+		b := entryNode(sc, en, shas[en.Turn])
+		b.shown = b.shown && !pending(sc, en)
 		cost := 0
-		for _, g := range group {
-			cost += nodeCost(g)
+		if note != "" {
+			cost++
+		}
+		if b.shown {
+			cost += b.cost
 		}
 		if cost > budget {
 			hidden += i + 1
 			break
 		}
 		budget -= cost
-		nodes = append(group, nodes...)
+		if note != "" {
+			nodes = append(nodes, sdui.MutedText(note))
+		}
+		if b.shown {
+			nodes = append(nodes, b.node)
+		}
 	}
+	slices.Reverse(nodes)
 	if hidden > 0 {
 		label := "Show earlier"
 		if len(turns) > window {
@@ -193,7 +206,31 @@ func nodeCost(n sdui.Node) int {
 	return cost
 }
 
-func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
+func entryNode(sc screen, en *entry, sha string) builtNode {
+	build := func() builtNode {
+		n, ok := buildEntryNode(sc, en, sha)
+		if !ok {
+			return builtNode{}
+		}
+		return builtNode{node: n, shown: true, cost: nodeCost(n)}
+	}
+	if en.node == nil || en.Kind == entryTool && sc.Expanded[en.ID] {
+		return build()
+	}
+	key := nodeKey{sid: sc.View.Session.ID, root: sc.View.Session.Worktree, reviewable: sha != "", pending: sc.Pending[en.ID], from: sc.FromTitles[en.From]}
+	return en.node.get(key, build)
+}
+
+func (c *nodeCache) get(key nodeKey, build func() builtNode) builtNode {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.ok || c.key != key {
+		c.key, c.built, c.ok = key, build(), true
+	}
+	return c.built
+}
+
+func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	sid := sc.View.Session.ID
 	root := sc.View.Session.Worktree
 	switch en.Kind {
@@ -241,24 +278,6 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	return sdui.Node{}, false
 }
 
-func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
-	if expanded || en.card == nil {
-		return buildToolCard(id, root, en, expanded, reviewable)
-	}
-	return en.card.get(cardKey{id: id, root: root, reviewable: reviewable}, func() sdui.Node {
-		return buildToolCard(id, root, en, false, reviewable)
-	})
-}
-
-func (c *cardCache) get(key cardKey, build func() sdui.Node) sdui.Node {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !c.ok || c.key != key {
-		c.key, c.node, c.ok = key, build(), true
-	}
-	return c.node
-}
-
 func parseTool(tool map[string]json.RawMessage) (toolFields, string, string) {
 	var f toolFields
 	for name, dst := range map[string]any{"title": &f.Title, "kind": &f.Kind, "status": &f.Status, "content": &f.Content, "locations": &f.Locations, "rawInput": &f.RawInput} {
@@ -274,7 +293,7 @@ func parseTool(tool map[string]json.RawMessage) (toolFields, string, string) {
 	return f, kind, command
 }
 
-func buildToolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
+func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 	f, kind, command := parseTool(en.Tool)
 	status := f.Status
 	if status == "" {

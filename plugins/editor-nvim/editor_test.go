@@ -285,6 +285,19 @@ func TestExitedShowsRestart(t *testing.T) {
 	assert.Equal(t, []string{main.Props["sessionId"].(string)}, e.running(t))
 }
 
+func TestServerExitsWhenHostStopsAndExitErrors(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	pid := eval[int](t, v, "getpid()")
+	t.Cleanup(func() { _ = unix.Kill(pid, unix.SIGKILL) })
+	shada := filepath.Join(eval[string](t, v, "stdpath('state')"), "shada")
+	require.NoError(t, os.MkdirAll(shada, 0o700))
+	require.NoError(t, os.Chmod(shada, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(shada, 0o700) })
+	require.NoError(t, unix.Kill(e.h.GetSession(t, e.sessionID).HostPID, unix.SIGTERM))
+	testutil.Eventually(t, func() bool { return unix.Kill(pid, 0) == unix.ESRCH }, 5*time.Second)
+}
+
 func TestRestartRefusesUnsavedBuffers(t *testing.T) {
 	e := startEditor(t)
 	path := e.file(t, "a.go")
@@ -377,7 +390,7 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
-	v := dial(t, e.h.GetSession(t, feat.Props["sessionId"].(string)).Command[2])
+	v := dial(t, listenSocket(e.h.GetSession(t, feat.Props["sessionId"].(string))))
 	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'dv_log', [])")) == 1 }, 5*time.Second)
 	assert.Equal(t, 0, eval[int](t, dial(t, e.sock), "exists('g:dv_log')"))
 }
@@ -407,7 +420,7 @@ func TestSwitchKeepsNvimPerRoot(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{})
 	pid := eval[int](t, dial(t, e.sock), "getpid()")
 	feat := e.setWorktree(t, wt)
-	assert.Equal(t, wt, eval[string](t, dial(t, feat.Command[2]), "getcwd()"))
+	assert.Equal(t, wt, eval[string](t, dial(t, listenSocket(feat)), "getcwd()"))
 	e.setWorktree(t, "")
 	assert.Equal(t, pid, eval[int](t, dial(t, e.sock), "getpid()"))
 	assert.ElementsMatch(t, []string{e.sessionID, feat.ID}, e.running(t))
@@ -423,7 +436,7 @@ func TestOpenRoutesToOwningWorktree(t *testing.T) {
 	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
-	v := dial(t, e.h.GetSession(t, feat.Props["sessionId"].(string)).Command[2])
+	v := dial(t, listenSocket(e.h.GetSession(t, feat.Props["sessionId"].(string))))
 	real, err := filepath.EvalSymlinks(path)
 	require.NoError(t, err)
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "resolve(expand('%:p'))") == real }, 5*time.Second)
@@ -455,7 +468,7 @@ func TestStopRootRefusesUnsaved(t *testing.T) {
 	feat := e.setWorktree(t, wt)
 	path := filepath.Join(wt, "a.go")
 	require.NoError(t, e.open(t, path, 1))
-	v := dial(t, feat.Command[2])
+	v := dial(t, listenSocket(feat))
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
 	require.NoError(t, v.Command("normal! ix"))
 	e.setWorktree(t, "")
@@ -524,7 +537,7 @@ func TestSecondFolderHasOwnNvim(t *testing.T) {
 		id, _ := n.Props["sessionId"].(string)
 		return n.Type == "surface" && id != "" && e.h.GetSession(t, id).Cwd == e.repo2
 	})
-	v := dial(t, e.h.GetSession(t, main.Props["sessionId"].(string)).Command[2])
+	v := dial(t, listenSocket(e.h.GetSession(t, main.Props["sessionId"].(string))))
 	testutil.Eventually(t, func() bool { return eval[string](t, v, "expand('%:p')") == path }, 5*time.Second)
 	require.NoError(t, v.Command("normal! ix"))
 	require.NoError(t, v.Command("normal! V\x1b"))
@@ -550,7 +563,7 @@ func TestSecondFolderWorktreeGetsOwnNvim(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(e.repo2, "b.go"), []byte("b\n"), 0o600))
 	wt := addWorktree(t, e.repo2)
 	feat := e.setFolderWorktree(t, e.repo2, wt)
-	assert.Equal(t, wt, eval[string](t, dial(t, feat.Command[2]), "getcwd()"))
+	assert.Equal(t, wt, eval[string](t, dial(t, listenSocket(feat)), "getcwd()"))
 	assert.ElementsMatch(t, []string{e.sessionID, feat.ID}, e.running(t))
 }
 
@@ -730,6 +743,10 @@ func (e *editor) killAll(t *testing.T) {
 	}
 }
 
+func listenSocket(s session.Session) string {
+	return s.Command[len(s.Command)-1]
+}
+
 func dial(t *testing.T, sock string) *nvim.Nvim {
 	t.Helper()
 	var v *nvim.Nvim
@@ -820,7 +837,9 @@ func TestLaunchSetsAppNameAndDistro(t *testing.T) {
 	t.Setenv("VIMRUNTIME", "/nonexistent")
 	t.Setenv("NVIM_APPNAME", "elsewhere")
 	e := startEditor(t)
-	assert.Equal(t, []string{bundled, "-u", distroInit, "--listen", e.sock}, e.h.GetSession(t, e.sessionID).Command)
+	cmd := e.h.GetSession(t, e.sessionID).Command
+	assert.Equal(t, []string{bundled, "-u", distroInit}, cmd[:3])
+	assert.Equal(t, []string{"--listen", e.sock}, cmd[len(cmd)-2:])
 	v := dial(t, e.sock)
 	testutil.Eventually(t, func() bool { return eval[int](t, v, "v:vim_did_enter") == 1 }, 5*time.Second)
 	assert.Equal(t, 1, eval[int](t, v, "g:distro"))
@@ -838,7 +857,9 @@ func TestBundledFallsBackToPath(t *testing.T) {
 	e := startEditor(t)
 	want, err := exec.LookPath("nvim")
 	require.NoError(t, err)
-	assert.Equal(t, []string{want, "--listen", e.sock}, e.h.GetSession(t, e.sessionID).Command)
+	cmd := e.h.GetSession(t, e.sessionID).Command
+	assert.Equal(t, want, cmd[0])
+	assert.NotContains(t, cmd, "-u")
 }
 
 func TestThemeFileWrittenAndPushed(t *testing.T) {
