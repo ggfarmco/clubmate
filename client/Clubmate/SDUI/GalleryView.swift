@@ -7,11 +7,16 @@ struct GalleryView: View {
     private let tree = GalleryView.loadFixture()
 
     @Environment(\.theme) private var theme
+    @Environment(AppModel.self) private var app
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         SDUIView(node: tree, slot: "gallery.main", projectID: "prj_0000000000000000", send: GalleryView.echo)
             .frame(minWidth: 1000, minHeight: 760)
             .background(theme.background)
+            .task {
+                if TestMode.current { app.launch(openWindow) }
+            }
     }
 
     private static let echo: UIEventSink = { event in

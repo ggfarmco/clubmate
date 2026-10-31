@@ -19,6 +19,7 @@ const (
 	statusStopped = "stopped"
 	turnTopic     = "agents.turn"
 	eventPrefix   = "event."
+	graphTopic    = "graph."
 	maxInput      = 16 << 10
 )
 
@@ -289,6 +290,9 @@ func (x *runner) brief(n *Node) string {
 		}
 		fmt.Fprintf(&b, "\n\nWhen you finish, report the outcome before ending your turn: call the clubmate tool triggers_emit with name %q and payload one of %s.",
 			x.run.outcomeEvent(n.ID), strings.Join(payloads, ", "))
+		if len(n.End) > 0 {
+			fmt.Fprintf(&b, " Reporting %s ends the run.", strings.Join(n.End, " or "))
+		}
 	}
 	return b.String()
 }
@@ -359,7 +363,15 @@ func (r *Run) node(id string) *RunNode {
 }
 
 func (r *Run) outcomeEvent(node string) string {
-	return "graph." + r.ID + "." + node
+	return graphTopic + r.ID + "." + node
+}
+
+func parseOutcomeTopic(topic string) (run, node string, ok bool) {
+	rest, ok := strings.CutPrefix(topic, eventPrefix+graphTopic)
+	if !ok {
+		return "", "", false
+	}
+	return strings.Cut(rest, ".")
 }
 
 func (r *Run) nodeBySession(session string) *RunNode {

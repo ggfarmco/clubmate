@@ -258,6 +258,10 @@ struct TextFieldNodeView: View {
                 text = value ?? ""
             }
             .onChange(of: text, initial: true) { _, value in
+                if lines == nil, value.contains(where: \.isNewline) {
+                    text = value.split(whereSeparator: \.isNewline).joined(separator: " ")
+                    return
+                }
                 guard let id = node.id else { return }
                 form?.values[id] = .string(value)
             }

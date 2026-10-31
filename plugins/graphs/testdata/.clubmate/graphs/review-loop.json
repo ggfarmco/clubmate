@@ -13,7 +13,8 @@
       "id": "reviewer",
       "role": "Reviewer",
       "prompt": "Review the latest commits of session {{node.coder}} in this worktree for bugs and missing tests. Do not edit code.",
-      "outcomes": ["approved", "changes"]
+      "outcomes": ["approved", "changes"],
+      "end": ["approved"]
     }
   ],
   "edges": [

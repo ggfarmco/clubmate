@@ -160,6 +160,22 @@ func TestRunStopsAtTurnBudget(t *testing.T) {
 	assert.Equal(t, []string{"triggers.delete", "triggers.delete", "triggers.delete"}, core.ids())
 }
 
+func TestEndOutcomeFinishesRun(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	r := runGraph(t, a)
+	core.calls = nil
+	topic := eventPrefix + r.outcomeEvent("reviewer")
+
+	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Topic: topic, Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_1","outcome":"approved"}`)})
+	assert.Equal(t, statusRunning, a.runs[r.ID].Status)
+
+	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Topic: topic, Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"approved"}`)})
+	assert.Equal(t, statusStopped, a.runs[r.ID].Status)
+	assert.Equal(t, "reviewer reported approved", a.runs[r.ID].Reason)
+	assert.Equal(t, []string{"triggers.delete", "triggers.delete", "triggers.delete"}, core.ids())
+}
+
 func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)

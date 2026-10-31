@@ -27,9 +27,11 @@ const (
 	reasonCaller   = "the session that ran it is closed"
 	reasonStopped  = "stopped"
 	reasonKickoff  = "start failed: %v"
+	reasonEnd      = "%s reported %s"
 	callTimeout    = 30 * time.Second
 	agentsTopics   = "agents.*"
 	projectTopics  = "project.*"
+	outcomeTopics  = eventPrefix + graphTopic + "*"
 	selectedPrefix = "selected/"
 )
 
@@ -67,6 +69,12 @@ type changedPayload struct {
 type turnPayload struct {
 	Workspace string `json:"workspace"`
 	Session   string `json:"session"`
+}
+
+type outcomePayload struct {
+	Workspace string `json:"workspace"`
+	By        string `json:"by"`
+	Outcome   string `json:"outcome"`
 }
 
 type createdPayload struct {
@@ -116,7 +124,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	a.lastSeq.Store(ready.Seq)
-	for _, pattern := range []string{agentsTopics, projectTopics} {
+	for _, pattern := range []string{agentsTopics, projectTopics, outcomeTopics} {
 		if err := a.subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -156,6 +164,11 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		var p deletedPayload
 		if decode(ev, &p) {
 			a.dropWorkspace(ctx, p.ID)
+		}
+	default:
+		var p outcomePayload
+		if run, node, ok := parseOutcomeTopic(ev.Topic); ok && decode(ev, &p) {
+			a.reportOutcome(ctx, run, node, p)
 		}
 	}
 }
@@ -240,6 +253,28 @@ func (a *app) countTurn(ctx context.Context, p turnPayload) {
 		x := &runner{call: a.runCommand, run: r}
 		logError(errors.Join(x.unwind(ctx)...))
 	}
+	a.flush(ctx)
+}
+
+func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcomePayload) {
+	a.mu.Lock()
+	r := a.runs[runID]
+	if r == nil || r.Workspace != p.Workspace || r.Status != statusRunning || r.Spec == nil {
+		a.mu.Unlock()
+		return
+	}
+	n, spec := r.node(nodeID), r.Spec.node(nodeID)
+	if n == nil || spec == nil || n.Session != p.By || !slices.Contains(spec.End, p.Outcome) {
+		a.mu.Unlock()
+		return
+	}
+	r.stop(fmt.Sprintf(reasonEnd, nodeID, p.Outcome), a.now())
+	a.touch(r.Workspace)
+	logError(a.store.save(ctx, r))
+	ended := cloneRun(r)
+	a.mu.Unlock()
+	x := &runner{call: a.runCommand, run: ended}
+	logError(errors.Join(x.unwind(ctx)...))
 	a.flush(ctx)
 }
 

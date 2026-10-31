@@ -32,7 +32,8 @@ private_dir() {
 
 cli() {
   local dir="$1"; shift
-  CLUBMATE_STATE_DIR="$dir/state" CLUBMATE_RUNTIME_DIR="$dir/run" "$(cat "$dir/cli")" "$@"
+  env -u CLUBMATE_AGENT_SESSION CLUBMATE_PROJECT_ID="$(cat "$dir/project" 2>/dev/null || true)" \
+    CLUBMATE_STATE_DIR="$dir/state" CLUBMATE_RUNTIME_DIR="$dir/run" "$(cat "$dir/cli")" "$@"
 }
 
 alive() {
@@ -43,6 +44,16 @@ alive() {
 app_pid() {
   local dir="$1"
   ps -E -axo pid=,command= | grep "/Contents/MacOS/Clubmate Dev .*CLUBMATE_RUNTIME_DIR=$dir/run" | grep -v grep | awk '{print $1}' || true
+}
+
+kill_app() {
+  local dir="$1" pids
+  pids="$(app_pid "$dir")"
+  if [[ -f "$dir/app.pid" ]]; then
+    local saved; saved="$(cat "$dir/app.pid")"
+    ps -p "$saved" -o command= 2>/dev/null | grep -q "/Contents/MacOS/Clubmate Dev" && pids="$pids $saved"
+  fi
+  [[ -n "${pids// /}" ]] && kill $pids 2>/dev/null || true
 }
 
 start() {
@@ -77,15 +88,21 @@ start() {
   env -i HOME="$HOME" USER="$USER" LOGNAME="${LOGNAME:-$USER}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="${TMPDIR:-/tmp}" \
     open -n -g -j "${envs[@]}" ${passthrough[@]+"${passthrough[@]}"} "$app" --args -ApplePersistenceIgnoreState YES "$@"
   for _ in $(seq 1 100); do
+    if [[ ! -f "$dir/app.pid" ]]; then
+      local pid; pid="$(app_pid "$dir")"
+      if [[ -n "$pid" ]]; then echo "$pid" > "$dir/app.pid"; fi
+    fi
     alive "$dir" && break
     sleep 0.2
   done
-  alive "$dir" || { echo "instance $name: core did not start" >&2; exit 1; }
+  alive "$dir" || { kill_app "$dir"; echo "instance $name: core did not start; app stopped" >&2; exit 1; }
   for _ in $(seq 1 50); do
     cli "$dir" ui sections >/dev/null 2>&1 && break
     sleep 0.2
   done
-  cli "$dir" workspace open "$ROOT" >/dev/null
+  if [[ " $* " != *" --sdui-gallery "* ]]; then
+    cli "$dir" --json workspace open "$ROOT" | sed -n 's/.*"id": "\(prj_[a-z0-9]*\)".*/\1/p' > "$dir/project"
+  fi
   echo "instance $name"
   echo "export CLUBMATE_STATE_DIR=$dir/state CLUBMATE_RUNTIME_DIR=$dir/run"
   echo "snapshots: $0 cm $name -- ui snapshot --out $dir/snapshots"
@@ -97,8 +114,7 @@ stop() {
   local dir; dir="$(dir_of "$name")"
   [[ -d "$dir" ]] || { echo "no instance $name" >&2; exit 1; }
   private_dir "$dir" || { echo "$dir is not a private directory of $(id -un); not touching it" >&2; exit 1; }
-  local pid; pid="$(app_pid "$dir" || true)"
-  [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+  kill_app "$dir"
   alive "$dir" && cli "$dir" core stop >/dev/null 2>&1 || true
   local sessions
   sessions="$(ps -E -axo pid=,command= | grep "clubmate-session .*CLUBMATE_RUNTIME_DIR=$dir/run" | grep -v grep | awk '{print $1}' || true)"

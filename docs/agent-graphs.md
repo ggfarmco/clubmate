@@ -26,7 +26,7 @@ Graphs live in `.clubmate/graphs/<name>.json` of the caller's worktree (an agent
   "nodes": [
     {"id": "coder", "role": "Coder", "start": true,
      "prompt": "Implement the task in this worktree with tests, and commit when they pass. Task: {{input}}"},
-    {"id": "reviewer", "role": "Reviewer", "outcomes": ["approved", "changes"],
+    {"id": "reviewer", "role": "Reviewer", "outcomes": ["approved", "changes"], "end": ["approved"],
      "prompt": "Review the latest commits of session {{node.coder}} in this worktree for bugs and missing tests. Do not edit code."}
   ],
   "edges": [
@@ -49,6 +49,7 @@ The same file is `plugins/graphs/testdata/.clubmate/graphs/review-loop.json` (wi
 | `nodes[].start` | Prompted when the run starts. At least one node. |
 | `nodes[].branch` | Run the node's session in a new worktree on this branch (as `agents.new {branch}`); may use `{{run}}` and `{{graph}}`. |
 | `nodes[].outcomes` | Words the node may report, e.g. `["approved","changes"]`; needed for `on: outcome` edges. |
+| `nodes[].end` | Outcomes that finish the run, e.g. `["approved"]`; each one of the node's `outcomes`, and no `on: outcome` edge may fire on it. |
 | `edges[].from`, `to` | Node ids. Self-loops are allowed. At most 32 edges. |
 | `edges[].on` | `done` (turn ended; default), `asks` (turn ended with a question), `error` (turn failed), `outcome` (the node reported `outcome`). A `done` edge also fires on a turn that ends with a question, unless the node has an `asks` edge, which then takes those. |
 | `edges[].outcome` | For `on: outcome`: one of the source node's `outcomes`. |
@@ -72,7 +73,7 @@ The start nodes get `[Agent graph <name>, run <run>: you are node <id> (<role>)]
 
 A node that is not a start node gets that whole brief in front of every edge message, since an edge can't know whether it is the node's first message; a start node gets only the header line, until it is handed off (see [Handoff](#handoff)). This keeps every message self-contained, also after a handoff or a long context. Every brief also says that the reply goes to the next node, not to a person, so the node shouldn't end it with a question it doesn't need answered.
 
-A node with `outcomes` is told to call the clubmate tool `triggers_emit {name: "graph.<run>.<node>", payload: "{\"outcome\":\"<word>\"}"}` before it ends its turn. The edge's trigger listens on `event.graph.<run>.<node>` and matches `outcome` and `by` (the emitting session), so no other session can report for it.
+A node with `outcomes` is told to call the clubmate tool `triggers_emit {name: "graph.<run>.<node>", payload: "{\"outcome\":\"<word>\"}"}` before it ends its turn, and which of them end the run. The edge's trigger listens on `event.graph.<run>.<node>` and matches `outcome` and `by` (the emitting session), so no other session can report for it. The plugin listens on `event.graph.*` itself for `end` outcomes, with the same `by` check.
 
 ## Running
 
@@ -104,6 +105,7 @@ The calls carry the caller (`agent`, `caller`) like a trigger does, so a graph c
 ### Stopping
 
 A run stops when:
+- a node reports one of its `end` outcomes (reason `<node> reported <outcome>`); the turn it ends with is neither counted nor fires anything, since the run is already stopped;
 - `graphs.stop`, or Stop in the section;
 - its node sessions together finished `maxTurns` turns (counted from `agents.turn`; the edge of the last turn may still fire, since the trigger and the count see the same event);
 - the agent session that ran it closes;
@@ -115,7 +117,7 @@ Stopping deletes only triggers. Cancel or close sessions with `agents.cancel` an
 
 `agents.handoff` closes a node's session and continues it in a new one. The plugin sees the new session's `agents.changed` `created` event, finds a node whose session it was handed off from (`handoffFrom`, followed along a chain), moves the node to the new session and re-points every edge of the run with `triggers.update` (match and message: the briefs name the peers' sessions). The node is marked `handedOff`, and from then on gets its whole brief in front of every edge message, also as a start node. The handoff's own first turn counts and fires the node's edges like any other. Handing off the session that ran the graph still stops the run: its triggers are owned by that session.
 
-Cycles are the point (coder ↔ reviewer), so loops are bounded by `maxTurns`, the triggers' 10-per-minute pause and the reviewer's `approved` outcome having no edge.
+Cycles are the point (coder ↔ reviewer), so loops are bounded by `maxTurns`, the triggers' 10-per-minute pause and the reviewer's `approved` outcome ending the run.
 
 ## Graphs section
 
@@ -126,7 +128,7 @@ The sidebar lists the runs, newest first: title, start time and turns (or the st
 - **Fan-in.** An edge fires per source turn; there is no "wait for A and B". Two edges into one node give two prompts (the second held while the node is busy). See [Join nodes](#join-nodes) for the planned design.
 - **Restarts.** Triggers see only events published while they run (see [triggers](triggers.md#firing)); a turn that ends while Clubmate is down fires nothing, and neither does a handoff made then.
 - **Outcome edges carry no reply.** A node reports its outcome before it writes its final message, so `on: outcome` edges point the target at the transcript instead.
-- **No end state.** A run whose last turn fired no edge (the reviewer's `approved`) stays `running` until `graphs.stop` or the turn budget.
+- **End state is explicit.** A run finishes on an `end` outcome; one whose last turn fired no edge and reported no `end` outcome stays `running` until `graphs.stop` or the turn budget. Detecting "no edge can fire any more" from outside the triggers is racy: when `agents.turn` arrives the edge's prompt may not have reached its target yet, and prompts held for a busy target are invisible to the plugin.
 - **Runs from before handoff support** (no stored graph) don't follow handoffs.
 - **Trust.** `.clubmate/graphs/` is inside `.clubmate/`, so in a repo whose worktree hooks you trusted, changing a graph asks for hook trust again (see [worktree hooks](worktree-hooks.md#trust)). Running a graph needs no trust: it starts only what its caller could start.
 
@@ -141,7 +143,7 @@ Compiling a run into sessions and triggers, instead of a graph engine, was chose
 ### Next steps
 
 1. **Join nodes**, see below.
-2. **End state:** finish a run when no edge can fire any more, or on outcomes marked as terminal.
+2. **Idle end:** finish a run without an `end` outcome once every node is idle and no trigger holds a prompt for one (needs the triggers' held state, and a quiet period).
 3. **Run timeline:** per-run history of which edge fired when, merged from the edge triggers' history (`triggers.show`).
 4. **Sub-graphs:** a node whose role is another graph.
 5. **Graph from the composer:** `/graph review-loop <task>` in the Agents composer.

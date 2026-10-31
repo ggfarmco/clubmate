@@ -51,6 +51,7 @@ type Node struct {
 	Start    bool     `json:"start,omitempty"`
 	Branch   string   `json:"branch,omitempty"`
 	Outcomes []string `json:"outcomes,omitempty"`
+	End      []string `json:"end,omitempty"`
 }
 
 type Edge struct {
@@ -202,6 +203,8 @@ func (g *Graph) validate() error {
 			return fmt.Errorf("edges[%d].outcome %q: not among node %s's outcomes %v", i, e.Outcome, e.From, from.Outcomes)
 		case e.On != onOutcome && e.Outcome != "":
 			return fmt.Errorf("edges[%d].outcome: only for on: outcome", i)
+		case e.On == onOutcome && slices.Contains(from.End, e.Outcome):
+			return fmt.Errorf("edges[%d].outcome %q: ends the run (node %s's end), so no edge can fire on it", i, e.Outcome, e.From)
 		}
 		if err := checkPlaceholders(e.Text, nodes, true); err != nil {
 			return fmt.Errorf("edges[%d].text: %w", i, err)
@@ -211,6 +214,11 @@ func (g *Graph) validate() error {
 		for _, o := range n.Outcomes {
 			if strings.TrimSpace(o) == "" || strings.Contains(o, "{{") {
 				return fmt.Errorf("node %s: outcome %q: give a plain word", id, o)
+			}
+		}
+		for _, o := range n.End {
+			if !slices.Contains(n.Outcomes, o) {
+				return fmt.Errorf("node %s: end %q: not among its outcomes %v", id, o, n.Outcomes)
 			}
 		}
 	}
