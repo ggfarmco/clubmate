@@ -23,8 +23,21 @@ struct InboxPlugin: CompanionPluginUI {
 
     @MainActor
     func badge(context: PluginContext) -> Int {
-        let inbox = context.model.inbox
-        return inbox.items.filter { $0.computerID == context.connection.computer.id && inbox.isUnread($0) }.count
+        let sections = Self.sections(context)
+        return sections.waiting.count { context.model.inbox.showsDot($0, in: sections) }
+    }
+
+    @MainActor
+    static func store(_ context: PluginContext, _ item: InboxItem) -> AgentsStore? {
+        context.model.agents(computer: item.computerID, workspace: item.workspace)
+    }
+
+    @MainActor
+    static func sections(_ context: PluginContext) -> InboxSections {
+        context.model.inbox.sections(computer: context.connection.computer.id) { item in
+            guard let session = item.session, let store = store(context, item), store.loaded else { return nil }
+            return store.session(session)?.group == .needsInput
+        }
     }
 }
 
@@ -32,24 +45,40 @@ struct InboxListView: View {
     let context: PluginContext
 
     var body: some View {
-        let items = context.model.inbox.items.filter { $0.computerID == context.connection.computer.id }
+        let sections = InboxPlugin.sections(context)
+        let workspaces = Set((sections.waiting + sections.earlier).map(\.workspace)).sorted()
         List {
-            ForEach(items) { item in
-                Button {
-                    open(item)
-                } label: {
-                    InboxRow(item: item, unread: context.model.inbox.isUnread(item), workspace: context.connection.workspaces.first { $0.id == item.workspace }?.name)
+            if !sections.waiting.isEmpty {
+                Section {
+                    rows(sections.waiting, sections: sections, waiting: true)
+                } header: {
+                    HStack {
+                        Text("Waiting for you")
+                        Spacer()
+                        Text("\(sections.waiting.count)")
+                    }
                 }
-                .buttonStyle(.plain)
-                .listRowBackground(context.navigation.detail == item.id ? Color.accentColor.opacity(0.15) : nil)
+            }
+            if !sections.earlier.isEmpty {
+                Section("Earlier") {
+                    rows(sections.earlier, sections: sections, waiting: false)
+                }
             }
         }
+        .listStyle(.insetGrouped)
         .overlay {
-            if items.isEmpty {
-                ContentUnavailableView("No Notifications", systemImage: "tray", description: Text("Agent notifications from \(context.connection.computer.name) appear here while the app is open."))
+            if sections.waiting.isEmpty && sections.earlier.isEmpty {
+                ContentUnavailableView("Nothing Needs You", systemImage: "tray", description: Text("Questions, permission requests and finished runs from agents on \(context.connection.computer.name) land here while the app is open."))
+            }
+        }
+        .task(id: workspaces) {
+            for workspace in workspaces {
+                guard let store = context.model.agents(computer: context.connection.computer.id, workspace: workspace), !store.loaded else { continue }
+                await store.refresh()
             }
         }
         .navigationTitle("Inbox")
+        .navigationSubtitle(context.connection.computer.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
@@ -59,7 +88,36 @@ struct InboxListView: View {
                         context.navigation.detail = nil
                     }
                 }
-                .disabled(items.isEmpty)
+                .disabled(sections.waiting.isEmpty && sections.earlier.isEmpty)
+            }
+        }
+    }
+
+    private func rows(_ items: [InboxItem], sections: InboxSections, waiting: Bool) -> some View {
+        ForEach(items) { item in
+            let store = InboxPlugin.store(context, item)
+            Button {
+                open(item)
+            } label: {
+                InboxRow(
+                    item: item,
+                    waiting: waiting,
+                    dot: context.model.inbox.showsDot(item, in: sections),
+                    command: item.kind == .permission ? item.session.flatMap { store?.transcripts[$0] }.flatMap { InboxItem.pendingCommand($0.entries) } : nil,
+                    place: [context.connection.workspaces.first { $0.id == item.workspace }?.name, item.session.flatMap { store?.session($0)?.displayTitle }].compactMap { $0 }.joined(separator: " · ")
+                )
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(context.navigation.detail == item.id ? Color.accentColor.opacity(0.15) : nil)
+            .swipeActions(edge: .leading) {
+                if context.model.inbox.isUnread(item) {
+                    Button("Mark as Read", systemImage: "envelope.open") { context.model.inbox.markRead(item) }
+                        .tint(.accentColor)
+                }
+            }
+            .task(id: item.id) {
+                guard waiting, item.kind == .permission, let session = item.session, let store, store.transcripts[session] == nil else { return }
+                await store.loadTranscript(session)
             }
         }
     }
@@ -78,49 +136,93 @@ struct InboxListView: View {
 
 struct InboxRow: View {
     let item: InboxItem
-    let unread: Bool
-    let workspace: String?
+    let waiting: Bool
+    let dot: Bool
+    let command: String?
+    let place: String
+
+    private var muted: Bool {
+        item.kind == .done || item.kind == .info
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: item.kind.symbol)
-                .font(.title3)
-                .foregroundStyle(color)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(item.title.isEmpty ? item.kind.label : item.title)
-                        .font(.body.weight(unread ? .semibold : .regular))
+            InboxGlyph(kind: item.kind, waiting: waiting)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.heading)
+                        .font(.body.weight(waiting ? .semibold : .regular))
+                        .foregroundStyle(muted ? .secondary : .primary)
                         .lineLimit(1)
-                    Spacer()
-                    Text(item.date.formatted(.relative(presentation: .named)))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    TimelineView(.periodic(from: .now, by: 30)) { timeline in
+                        Text(item.age(now: timeline.date))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                Text(item.message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                Text([workspace, item.session == nil ? nil : "Opens the session"].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                summary
+                    .font(.subheadline)
+                    .foregroundStyle(muted ? .tertiary : .secondary)
+                    .lineLimit(2)
+                if !place.isEmpty {
+                    Text(place)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
-            if unread {
-                Circle().fill(.tint).frame(width: 8, height: 8).padding(.top, 6)
-            }
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 9, height: 9)
+                .padding(.top, 7)
+                .opacity(dot ? 1 : 0)
+                .accessibilityHidden(!dot)
+                .accessibilityLabel("Unread")
         }
+        .frame(minHeight: 52)
         .contentShape(.rect)
-        .padding(.vertical, 2)
     }
 
-    private var color: Color {
-        switch item.kind {
-        case .needsInput: .blue
-        case .permission: .orange
-        case .done: .green
-        case .stuck: .red
-        case .info: .secondary
+    private var summary: Text {
+        if let command {
+            return Text("Run \(Text(command).font(.system(.subheadline, design: .monospaced)))")
         }
+        return Text(item.message.isEmpty ? item.displayTitle : item.message)
+    }
+}
+
+struct InboxGlyph: View {
+    let kind: NotificationKind
+    let waiting: Bool
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(ink)
+            .frame(width: 28, height: 28)
+            .background(fill, in: .circle)
+            .accessibilityHidden(true)
+    }
+
+    private var symbol: String {
+        switch kind {
+        case .needsInput: "questionmark.bubble"
+        case .permission: "hand.raised"
+        case .stuck: "exclamationmark.circle"
+        case .done: "checkmark"
+        case .info: "info"
+        }
+    }
+
+    private var ink: Color {
+        if waiting { return .onWarning }
+        return kind == .stuck ? .dangerInk : .secondary
+    }
+
+    private var fill: Color {
+        if waiting { return .warning }
+        return kind == .stuck ? Color.danger.opacity(0.18) : .surface2
     }
 }
 
@@ -134,7 +236,7 @@ struct InboxDetailView: View {
                 Label(item.kind.label, systemImage: item.kind.symbol)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(item.title.isEmpty ? item.kind.label : item.title)
+                Text(item.displayTitle)
                     .font(.title2.bold())
                 Text(item.message)
                     .textSelection(.enabled)

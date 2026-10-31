@@ -296,6 +296,7 @@ actor FixtureServer {
 
     private func notifyAll() {
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null
+        publish("notify.posted", ["id": .string("ntf_0"), "workspace": .string(Self.workspace), "title": .string("Stuck"), "message": .string("No output for 15 minutes"), "kind": .string("stuck"), "ts": Self.stamp(ago: 3600)])
         publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(Self.workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])
         publish("notify.posted", ["id": .string("ntf_2"), "workspace": .string(Self.workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run go test ./... in shop."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 60)])
         publish("notify.posted", ["id": .string("ntf_3"), "workspace": .string(Self.workspace), "session": asking, "title": .string("Checkout question"), "message": .string("Should I add retries to the charge step?"), "kind": .string("needs-input"), "agent": .bool(true), "ts": Self.stamp(ago: 30)])

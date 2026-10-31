@@ -67,6 +67,42 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(item.date.timeIntervalSince1970, 1_793_353_260.123, accuracy: 0.0005)
     }
 
+    func testInboxWaitsOnlyForTheNewestOpenRequestPerSession() {
+        var inbox = Inbox()
+        let now = Date(timeIntervalSince1970: 10_000)
+        let item = { (id: String, session: String?, kind: NotificationKind, age: TimeInterval) in
+            InboxItem(notificationID: id, computerID: "m", workspace: "w", session: session, message: "", kind: kind, date: now.addingTimeInterval(-age))
+        }
+        let question = item("q", "agt_1", .needsInput, 30)
+        let older = item("p", "agt_1", .permission, 60)
+        let answered = item("a", "agt_2", .permission, 90)
+        let unknown = item("u", nil, .needsInput, 100)
+        let seen = item("s", nil, .permission, 110)
+        let done = item("d", "agt_3", .done, 120)
+        for entry in [question, older, answered, unknown, seen, done, InboxItem(notificationID: "x", computerID: "other", workspace: "w", message: "", kind: .permission, date: now)] {
+            inbox.add(entry)
+        }
+        inbox.markRead(question)
+        inbox.markRead(seen)
+        let sections = inbox.sections(computer: "m") { $0.session.map { $0 == "agt_1" } }
+        XCTAssertEqual(sections.waiting.map(\.notificationID), ["q", "u"])
+        XCTAssertEqual(sections.earlier.map(\.notificationID), ["p", "a", "s", "d"])
+        XCTAssertEqual(sections.waiting.map { inbox.showsDot($0, in: sections) }, [false, true])
+        XCTAssertFalse(inbox.showsDot(done, in: sections))
+    }
+
+    func testInboxAgeIsCompact() {
+        let now = Date(timeIntervalSince1970: 200_000)
+        let ages = [30, 600, 3_700, 90_000].map { InboxItem(notificationID: "n", computerID: "m", workspace: "w", message: "", date: now.addingTimeInterval(-TimeInterval($0))).age(now: now) }
+        XCTAssertEqual(ages, ["30 s", "10 min", "1 h", "1 d"])
+    }
+
+    func testInboxCommandIsThePendingPermissionsCommand() throws {
+        let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: fixture("agents-transcript"))
+        XCTAssertEqual(InboxItem.pendingCommand(transcript.entries), "go test ./...")
+        XCTAssertNil(InboxItem.pendingCommand(Array(transcript.entries.prefix(6))))
+    }
+
     func testLocalAlertOnlyForRecentActionableItems() throws {
         let now = Date(timeIntervalSince1970: 10_000)
         let item = { (kind: NotificationKind, age: TimeInterval) in

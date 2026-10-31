@@ -111,3 +111,66 @@ public struct LocalAlert: Sendable, Equatable {
         session = item.session
     }
 }
+
+public struct InboxSections: Sendable, Equatable {
+    public let waiting: [InboxItem]
+    public let earlier: [InboxItem]
+}
+
+extension InboxItem {
+    public var needsAction: Bool {
+        kind == .needsInput || kind == .permission
+    }
+
+    public var displayTitle: String {
+        title.isEmpty ? kind.label : title
+    }
+
+    public var heading: String {
+        switch kind {
+        case .needsInput: "Question"
+        case .permission: "Permission"
+        default: displayTitle
+        }
+    }
+
+    public func age(now: Date) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(date)))
+        switch seconds {
+        case ..<60: return "\(seconds) s"
+        case ..<3600: return "\(seconds / 60) min"
+        case ..<86_400: return "\(seconds / 3600) h"
+        default: return "\(seconds / 86_400) d"
+        }
+    }
+
+    public static func pendingCommand(_ entries: [TranscriptEntry]) -> String? {
+        for entry in entries.reversed() {
+            if case .permission(let request) = entry.content, request.outcome == nil {
+                return request.toolCall.command ?? (request.toolCall.title.isEmpty ? nil : request.toolCall.title)
+            }
+        }
+        return nil
+    }
+}
+
+extension Inbox {
+    public func sections(computer: String, sessionWaiting: (InboxItem) -> Bool?) -> InboxSections {
+        var waiting: [InboxItem] = []
+        var earlier: [InboxItem] = []
+        var claimed: Set<String> = []
+        for item in items where item.computerID == computer {
+            let candidate = item.needsAction && (sessionWaiting(item) ?? isUnread(item))
+            if candidate, item.session.map({ claimed.insert($0).inserted }) ?? true {
+                waiting.append(item)
+            } else {
+                earlier.append(item)
+            }
+        }
+        return InboxSections(waiting: waiting, earlier: earlier)
+    }
+
+    public func showsDot(_ item: InboxItem, in sections: InboxSections) -> Bool {
+        isUnread(item) && sections.waiting.contains(item)
+    }
+}
