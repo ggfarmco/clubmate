@@ -75,6 +75,7 @@ type record struct {
 	Status         string    `json:"status"`
 	Mode           string    `json:"mode"`
 	Finish         string    `json:"finish,omitempty"`
+	AFK            bool      `json:"afk,omitempty"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Closed         bool      `json:"closed"`

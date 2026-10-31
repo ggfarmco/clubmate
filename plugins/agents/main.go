@@ -37,6 +37,10 @@ const (
 	finishID        = "finish"
 	finishAsk       = "ask"
 	finishMerge     = "merge"
+	afkKey          = "afk/default"
+	afkID           = "afk"
+	afkOn           = "on"
+	afkOff          = "off"
 	checktimeCmd    = "editor-nvim.checktime"
 	attachTimeout   = 2 * time.Minute
 	callTimeout     = 10 * time.Second
@@ -132,6 +136,19 @@ type configArgs struct {
 	Session string `json:"session"`
 	ID      string `json:"id"`
 	Value   string `json:"value"`
+}
+
+type afkArgs struct {
+	Session string `json:"session"`
+	On      bool   `json:"on"`
+}
+
+type afkDefaultArgs struct {
+	On *bool `json:"on"`
+}
+
+type afkResult struct {
+	On bool `json:"on"`
 }
 
 type finishArgs struct {
@@ -380,6 +397,30 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return a.finishCommand(ctx, args)
+	case "agents.afk":
+		var args afkArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		args.Session = cmp.Or(args.Session, cmd.Caller)
+		s, err := a.lookup(cmd.ProjectID, args.Session)
+		if err != nil {
+			return nil, err
+		}
+		if cmd.Agent && args.Session != cmd.Caller && !a.descendantOf(args.Session, cmd.Caller) {
+			return nil, errNotDescendant
+		}
+		a.setAFK(s, args.On)
+		return nil, nil
+	case "agents.afkDefault":
+		var args afkDefaultArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if args.On == nil {
+			return afkResult{On: a.afkDefault(ctx)}, nil
+		}
+		return afkResult{On: *args.On}, a.host.StorageSet(ctx, afkKey, *args.On)
 	case "agents.stop-root":
 		var args rootArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -520,6 +561,37 @@ func (a *app) setFinish(s *session, value string) error {
 	return nil
 }
 
+func (a *app) afkDefault(ctx context.Context) bool {
+	var on bool
+	if found, err := a.host.StorageGet(ctx, afkKey, &on); err != nil || !found {
+		return false
+	}
+	return on
+}
+
+func (a *app) setAFK(s *session, on bool) {
+	s.mu.Lock()
+	s.rec.AFK = on
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+}
+
+func (a *app) effectiveAFK(rec record) bool {
+	seen := map[string]bool{}
+	for !seen[rec.ID] {
+		if rec.AFK {
+			return true
+		}
+		seen[rec.ID] = true
+		parent := a.session(rec.ParentSession)
+		if parent == nil {
+			break
+		}
+		rec = parent.snapshot()
+	}
+	return false
+}
+
 func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from string, args newArgs) (newResult, error) {
 	agent := cmp.Or(args.Agent, agentClaude)
 	if agent != agentClaude {
@@ -599,6 +671,7 @@ func (a *app) launch(rec record, first promptArgs, ready *setup) (*session, erro
 func (a *app) createSession(rec record, ready *setup) *session {
 	now := time.Now().UTC()
 	rec.ID, rec.Finish, rec.Status, rec.CreatedAt, rec.UpdatedAt = newSessionID(), a.finishDefault(context.Background()), statusIdle, now, now
+	rec.AFK = rec.ParentSession == "" && a.afkDefault(context.Background())
 	s := a.addSession(rec, true, ready)
 	a.notes.mark(s, changeCreated, true)
 	a.kick(rec.Workspace)
@@ -1317,6 +1390,12 @@ func (a *app) setConfig(ctx context.Context, projectID string, args configArgs) 
 		return a.setAdvisor(ctx, s, args.Value)
 	case finishID:
 		return a.setFinish(s, args.Value)
+	case afkID:
+		if args.Value != afkOn && args.Value != afkOff {
+			return fmt.Errorf("%w: %s=%s", errUnknownValue, afkID, args.Value)
+		}
+		a.setAFK(s, args.Value == afkOn)
+		return nil
 	}
 	s.mu.Lock()
 	i := slices.IndexFunc(s.configs, func(o acp.SessionConfigOption) bool { return o.ID == args.ID && pickable(o) })

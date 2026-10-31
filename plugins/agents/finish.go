@@ -47,6 +47,9 @@ func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
 	if len(a.children(rec.ID)) > 0 {
 		out = append(out, acp.ContentBlock{Type: "text", Text: orchestratorText})
 	}
+	if a.effectiveAFK(rec) {
+		out = append(out, acp.ContentBlock{Type: "text", Text: afkText})
+	}
 	return out
 }
 

@@ -395,10 +395,10 @@ func TestConfigPickersAndModelEffortInHeader(t *testing.T) {
 
 	assert.Equal(t, "Claude · ⑂ a · Opus 5.5 · High effort", nodesOf(tree, "text")[1].Props["text"])
 	got := nodesOf(tree, "composer")[0].Props["pickers"].([]sdui.Picker)
-	require.Len(t, got, 4)
+	require.Len(t, got, 5)
 	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
-	assert.Equal(t, []string{"Effort", "Advisor", "Finish"}, []string{got[1].Title, got[2].Title, got[3].Title})
-	assert.Equal(t, []string{"opus", "ask"}, []string{got[2].Value, got[3].Value})
+	assert.Equal(t, []string{"Effort", "Advisor", "Finish", "AFK"}, []string{got[1].Title, got[2].Title, got[3].Title, got[4].Title})
+	assert.Equal(t, []string{"opus", "ask", "off"}, []string{got[2].Value, got[3].Value, got[4].Value})
 
 	v.Session.ParentSession = "agt_0"
 	child := nodesOf(mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus"}), "composer")[0].Props["pickers"].([]sdui.Picker)

@@ -77,6 +77,37 @@
         }
       },
       {
+        "id": "agents.afk",
+        "title": "Set AFK Mode",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Turn AFK mode of an agent session on or off. Turn it on for your own session when the user says they are away (\"я афк\", \"I'm afk\", \"ухожу\"), off when they say they are back (\"я вернулся\", \"I'm back\"). While it is on, every prompt of the session and of its child sessions carries a [Clubmate AFK mode] block: work without asking the user, decide yourself, and give one report at the end. An agent may set it for itself and the sessions it started; session defaults to the caller.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id; defaults to the calling agent session."},
+            "on": {"type": "boolean", "description": "true to turn AFK mode on, false to turn it off."}
+          },
+          "required": ["on"]
+        }
+      },
+      {
+        "id": "agents.afkDefault",
+        "title": "Default AFK Mode",
+        "hidden": true,
+        "description": "Get whether new top-level sessions start in AFK mode, or set it when on is given. Child sessions follow their parent.",
+        "args": {
+          "properties": {
+            "on": {"type": "boolean", "description": "New default; omit to read the current one."}
+          }
+        },
+        "result": {
+          "properties": {
+            "on": {"type": "boolean", "description": "Current default."}
+          }
+        }
+      },
+      {
         "id": "agents.cancel",
         "title": "Stop Agent Turn",
         "hidden": true,

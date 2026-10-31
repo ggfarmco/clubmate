@@ -88,6 +88,7 @@ const (
 	queuePrefix    = "queue/"
 	advisorHelp    = "Advisor model for new sessions in this worktree"
 	finishHelp     = "What the agent does once the task is done"
+	afkHelp        = "Away mode: the agent works without asking you and reports when done; child sessions follow it"
 
 	finishAskText         = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
 	mergeSteps            = "run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
@@ -96,6 +97,7 @@ const (
 	mergeConfirm          = "Ask the agent to run the tests, squash its branch into main as one commit and remove its worktree and branch?"
 	finishChildText       = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit on your branch, then merge your branch into %[1]s inside %[2]s (`git -C %[2]s merge --no-edit %[3]s`). If the merge fails because another merge holds index.lock, wait 5 s and retry it once. Don't merge if %[2]s has uncommitted changes; report why instead. If the merge conflicts, run `git -C %[2]s merge --abort` and report the conflicting files. Never merge into main, never remove worktrees or branches."
 	finishChildCommitText = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit your work and stop; if they fail or cannot run, report why. Don't merge anything, never merge into main, never remove worktrees or branches."
+	afkText               = "[Clubmate AFK mode] The user is away. Do as much as you can without them: don't ask questions and don't wait for answers; make reasonable decisions yourself and note each one. Split large work into child sessions (agents.new) and subagents. Keep going while there is work. At the end give one short report: what was done (commits), which decisions you made, and which questions are left for the user."
 	orchestratorText      = "[Clubmate orchestrator] Write to the user only questions from child sessions that need the user's answer. Don't repeat what you sent to which session, don't recap statuses of sessions that need nothing. Answer children's permission requests yourself with agents.permission. Never paraphrase the user's answer to a child: use agents.answer."
 )
 
@@ -132,6 +134,10 @@ var (
 		{value: "fable", label: "Fable"},
 		{value: "opus", label: "Opus"},
 		{value: "sonnet", label: "Sonnet"},
+	}
+	afkChoices = []advisorChoice{
+		{value: afkOff, label: "Off"},
+		{value: afkOn, label: "On"},
 	}
 	finishChoices = []advisorChoice{
 		{value: finishAsk, label: "Ask"},
@@ -1046,7 +1052,18 @@ func pickers(sc screen) []sdui.Picker {
 	for _, c := range finishChoices {
 		finish = append(finish, sdui.Option{Value: c.value, Label: c.label})
 	}
-	return append(out, sdui.Picker{ID: finishID, Title: "Finish", Help: finishHelp, Value: cmp.Or(sc.View.Session.Finish, finishAsk), Options: finish})
+	afk := make([]sdui.Option, 0, len(afkChoices))
+	for _, c := range afkChoices {
+		afk = append(afk, sdui.Option{Value: c.value, Label: c.label})
+	}
+	afkValue := afkOff
+	if sc.View.Session.AFK {
+		afkValue = afkOn
+	}
+	return append(out,
+		sdui.Picker{ID: finishID, Title: "Finish", Help: finishHelp, Value: cmp.Or(sc.View.Session.Finish, finishAsk), Options: finish},
+		sdui.Picker{ID: afkID, Title: "AFK", Help: afkHelp, Value: afkValue, Options: afk},
+	)
 }
 
 func effortName(configs []acp.SessionConfigOption) string {

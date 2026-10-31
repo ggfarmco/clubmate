@@ -49,6 +49,7 @@ type record struct {
 	Status         string   `json:"status"`
 	Mode           string   `json:"mode"`
 	Finish         string   `json:"finish"`
+	AFK            bool     `json:"afk"`
 	Closed         bool     `json:"closed"`
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
@@ -676,14 +677,15 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 			return assert.ObjectsAreEqual(want, got)
 		})
 	}
-	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": "", "finish": "ask"}), "composer")[0].ID
+	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": "", "finish": "ask", "afk": "off"}), "composer")[0].ID
 
 	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "model", "value": "opus"})
 	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "advisor", "value": "opus"})
-	pickers(first, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask"})
+	f.h.Event(t, project, "agents.main", composer, "config", map[string]string{"id": "afk", "value": "on"})
+	pickers(first, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "on"})
 
 	second := f.newSession(t, project)
-	pickers(second, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask"})
+	pickers(second, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "off"})
 	sets := f.calls(t, "session/set_config_option")
 	require.Len(t, sets, 2)
 	assert.JSONEq(t, `{"sessionId":"`+f.session(t, project, second).AgentSessionID+`","configId":"model","value":"opus"}`, string(sets[1].Params))
@@ -713,6 +715,34 @@ func TestFinishMode(t *testing.T) {
 	assert.Contains(t, string(prompts[1].Params), "finish mode: merge")
 	for _, e := range ofKind(f.transcript(t, project, first).Entries, "user") {
 		assert.NotContains(t, e.Text, "Clubmate finish mode")
+	}
+}
+
+func TestAFKMode(t *testing.T) {
+	f := start(t, nil)
+	project := f.project(t, newRepo(t))
+	require.NoError(t, f.run(t, project, "agents.afkDefault", map[string]any{"on": true}, nil))
+	parent, other := f.newSession(t, project), f.newSession(t, project)
+	assert.True(t, f.session(t, project, parent).AFK)
+	assert.ErrorContains(t, f.runAs(t, project, other, "agents.afk", map[string]any{"session": parent, "on": false}, nil), "the session was not started by this agent")
+
+	away := f.newChild(t, project, parent, map[string]any{"prompt": "while away"}).Session
+	f.waitStatus(t, project, away, "done")
+	require.NoError(t, f.runAs(t, project, parent, "agents.afk", map[string]any{"on": false}, nil))
+	back := f.newChild(t, project, parent, map[string]any{"prompt": "after return"}).Session
+	f.waitStatus(t, project, back, "done")
+
+	afk := map[string]bool{}
+	for _, c := range f.calls(t, "session/prompt") {
+		for _, text := range []string{"while away", "after return"} {
+			if strings.Contains(string(c.Params), text) {
+				afk[text] = strings.Contains(string(c.Params), "[Clubmate AFK mode]")
+			}
+		}
+	}
+	assert.Equal(t, map[string]bool{"while away": true, "after return": false}, afk)
+	for _, e := range ofKind(f.transcript(t, project, away).Entries, "user") {
+		assert.NotContains(t, e.Text, "Clubmate AFK mode")
 	}
 }
 
