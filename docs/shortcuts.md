@@ -95,6 +95,14 @@ A pending request is docked above the composer.
 
 Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift`.
 
+## Code chat panel starters (session with no turns yet)
+
+| Keys | Action |
+|---|---|
+| ⌥1 ⌥2 ⌥3 | Send the starter prompt in that row (printed on each starter); "Explain" and "Write a test" attach the file open in Neovim. Works while the prompt has a draft and leaves it untouched; not while Neovim has focus |
+
+Defined by the agents plugin (`plugins/agents/view.go`, button `shortcut`).
+
 ## nvim (Clubmate distribution, leader `,`)
 
 Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode unless noted. The user layer (`~/.config/clubmate/lua/user/keymaps.lua`) can add or override any of them.

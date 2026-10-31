@@ -15,7 +15,14 @@ const (
 	branchTimeout  = 2 * time.Second
 	openErrorEvent = "open_error"
 	openErrorMax   = 80
+	fileTopic      = "editor-nvim.file"
 )
+
+type fileEvent struct {
+	Workspace string `json:"workspace"`
+	Root      string `json:"root"`
+	Path      string `json:"path"`
+}
 
 type workspaceWatch struct {
 	id      string
@@ -39,6 +46,11 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	}
 	e.update(ev, branch, refresh)
 	a.scheduleStatus(h, e)
+	if ev.Event == "BufEnter" && e.share(ev.File) {
+		if _, err := h.Publish(ctx, fileTopic, fileEvent{Workspace: e.id, Root: e.root, Path: ev.File}); err != nil {
+			logError("publish file", err)
+		}
+	}
 }
 
 func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSChange) {

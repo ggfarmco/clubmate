@@ -544,3 +544,23 @@ func TestToolCardFollowsToolUpdates(t *testing.T) {
 	s.running = false
 	assert.Equal(t, "cancelled", status())
 }
+
+func TestCodePanelHeaderAndStarters(t *testing.T) {
+	rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Reviewer", Status: statusIdle}
+	idle := screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0"}
+	tree := codeView([]record{rec}, "agt_1", &idle, "/r/a/internal/notify/notify.go")
+	require.NoError(t, internalsdui.Validate(tree))
+
+	for _, n := range nodesOf(tree, "text") {
+		assert.NotEqual(t, "Reviewer", n.Props["text"])
+	}
+	assert.Len(t, nodesOf(tree, "select"), 1)
+	assert.Equal(t, "notify.go", nodesOf(tree, "badge")[0].Props["text"])
+	var starts []string
+	for _, b := range nodesOf(tree, "button") {
+		if b.Props["action"] == actStarter {
+			starts = append(starts, b.Props["label"].(string)+" "+b.Props["shortcut"].(string))
+		}
+	}
+	assert.Equal(t, []string{"Explain notify.go opt+1", "Review the last commit opt+2", "Write a test for notify.go opt+3"}, starts)
+}

@@ -49,6 +49,7 @@ const (
 	actUnqueue         = "unqueue"
 	actSendQueued      = "sendQueued"
 	actMerge           = "merge"
+	actStarter         = "starter"
 
 	handoffFromNode = "handoffFrom"
 	handoffToNode   = "handoffTo"
@@ -378,8 +379,25 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.submit(s, nil)
 	case actMerge:
 		return a.mergeToMain(ctx, ev.WorkspaceID, s)
+	case actStarter:
+		return a.start(ev.WorkspaceID, s, node)
 	}
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+}
+
+func (a *app) start(workspaceID string, s *session, node string) error {
+	n, err := strconv.Atoi(strings.TrimPrefix(node, starterPrefix))
+	rec := s.snapshot()
+	file := a.editorFile(workspaceID, rec.Worktree)
+	list := starters(file)
+	if err != nil || n < 1 || n > len(list) {
+		return fmt.Errorf("%w: starter %q", errUnknownAction, node)
+	}
+	args := promptArgs{Session: rec.ID, Text: list[n-1].prompt}
+	if list[n-1].attach {
+		args.Attachments = []attachment{{Kind: "file", Path: file}}
+	}
+	return a.prompt(workspaceID, args)
 }
 
 func (a *app) show(ctx context.Context, ev pluginsdk.UIEvent, sid string) error {

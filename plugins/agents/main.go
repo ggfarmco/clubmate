@@ -126,6 +126,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, gitChangedTopic, ready.Seq); err != nil {
 		return err
 	}
+	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
+		return err
+	}
 	if err := a.loadPresence(ctx); err != nil {
 		return err
 	}
@@ -147,6 +150,11 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		if json.Unmarshal(ev.Payload, &p) == nil {
 			a.branches.reset()
 			a.kick(p.Workspace)
+		}
+	case editorFileTopic:
+		var f editorFile
+		if json.Unmarshal(ev.Payload, &f) == nil && a.setEditorFile(f) {
+			a.kick(f.Workspace)
 		}
 	case contract.TopicWorkspaceCreated:
 		var p contract.WorkspaceChanged

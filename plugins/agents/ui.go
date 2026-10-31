@@ -53,6 +53,15 @@ type uiState struct {
 	advisors       map[string]string
 	present        map[string]bool
 	sections       map[string]string
+	editorFiles    map[string]editorFile
+}
+
+const editorFileTopic = "editor-nvim.file"
+
+type editorFile struct {
+	Workspace string `json:"workspace"`
+	Root      string `json:"root"`
+	Path      string `json:"path"`
 }
 
 type workspaceUI struct {
@@ -89,7 +98,7 @@ func newUIState() uiState {
 	return uiState{
 		ui: map[string]*workspaceUI{}, goneWorkspaces: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
 		resumable: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
-		present: map[string]bool{}, sections: map[string]string{},
+		present: map[string]bool{}, sections: map[string]string{}, editorFiles: map[string]editorFile{},
 	}
 }
 
@@ -138,6 +147,7 @@ func (a *app) forgetWorkspace(workspaceID string) {
 	delete(a.ui, workspaceID)
 	delete(a.present, workspaceID)
 	delete(a.sections, workspaceID)
+	delete(a.editorFiles, workspaceID)
 	a.uiMu.Unlock()
 	if p != nil {
 		p.throttle.stop()
@@ -358,7 +368,27 @@ func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsd
 		v := a.screen(ctx, workspace.ID, s)
 		sc = &v
 	}
-	return a.push(ctx, p, workspace.ID, codeSlot, codeView(here, bound, sc))
+	return a.push(ctx, p, workspace.ID, codeSlot, codeView(here, bound, sc, a.editorFile(workspace.ID, root)))
+}
+
+func (a *app) setEditorFile(f editorFile) bool {
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	if a.goneWorkspaces[f.Workspace] || a.editorFiles[f.Workspace] == f {
+		return false
+	}
+	a.editorFiles[f.Workspace] = f
+	return true
+}
+
+func (a *app) editorFile(workspaceID, root string) string {
+	a.uiMu.Lock()
+	f := a.editorFiles[workspaceID]
+	a.uiMu.Unlock()
+	if f.Path == "" || gitrepo.Canonical(f.Root) != gitrepo.Canonical(root) {
+		return ""
+	}
+	return f.Path
 }
 
 func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen {

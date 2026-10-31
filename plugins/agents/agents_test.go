@@ -1132,6 +1132,26 @@ func TestCodePanelFollowsWorktree(t *testing.T) {
 	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", shows(first))
 }
 
+func TestCodePanelStarterAttachesEditorFile(t *testing.T) {
+	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest))
+	repo := newRepo(t)
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	file := filepath.Join(repo, "notify.go")
+	c := f.h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "bus.publish", map[string]any{"topic": "editor-nvim.file", "payload": map[string]string{"workspace": workspace, "root": repo, "path": file}}, nil))
+	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool {
+		badges := cardsOf(n, "badge")
+		return len(badges) == 1 && badges[0].Props["text"] == "notify.go"
+	})
+
+	f.h.Event(t, workspace, "editor-nvim.sidebar", session+"/starter/1", "starter", nil)
+	call := f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	assert.Contains(t, string(call.Params), "Explain this file.")
+	assert.Contains(t, string(call.Params), "notify.go")
+	f.h.WaitSlot(t, workspace, "editor-nvim.sidebar", func(n sdui.Node) bool { return len(buttonsWith(n, "starter")) == 0 })
+}
+
 func rawTree(t *testing.T, n sdui.Node) []byte {
 	t.Helper()
 	raw, err := json.Marshal(n)

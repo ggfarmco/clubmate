@@ -2,6 +2,7 @@ package main
 
 import (
 	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ type editor struct {
 	client   *client
 	status   status
 	pending  bool
+	shared   string
 }
 
 func (a *app) editorAt(workspaceID, root string) *editor {
@@ -187,6 +189,16 @@ func (e *editor) current() status {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.status
+}
+
+func (e *editor) share(file string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if !filepath.IsAbs(file) || file == e.shared {
+		return false
+	}
+	e.shared = file
+	return true
 }
 
 func (e *editor) setOpenError(msg string) {

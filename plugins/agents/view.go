@@ -14,9 +14,12 @@ import (
 
 const (
 	pickSession    = "Start an agent session with + New"
-	noCodeSession  = "No agent session in this worktree"
+	noCodeTitle    = "No agent session in this worktree"
+	noCodeSession  = "Start one to ask about the code you're on."
 	codeSelectNode = "code/session"
 	codeNewNode    = "code/new"
+	starterPrefix  = "starter/"
+	starterNote    = "Ask anything, @ to attach a file, or start from one of these."
 	maxCodeOptions = 50
 	commandRunes   = 300
 	installingNote = "Installing %s adapter…"
@@ -70,6 +73,19 @@ type screen struct {
 	Children    string
 	FromTitles  map[string]string
 	Context     *contextScreen
+	Code        *codePanel
+}
+
+type codePanel struct {
+	Picker sdui.Node
+	New    sdui.Node
+	File   string
+}
+
+type starter struct {
+	label  string
+	prompt string
+	attach bool
 }
 
 type pendingAttachment struct {
@@ -96,9 +112,12 @@ func mainView(sc screen) sdui.Node {
 		children = append(children, sdui.MutedText("Sign in to "+agentLabel(rec.Agent)+" in the terminal below; the session retries when it exits."), sdui.Surface(sc.SignIn))
 		return sdui.VStack(children...)
 	}
-	if sc.Context != nil {
+	switch {
+	case sc.Context != nil:
 		children = append(children, contextView(sc))
-	} else {
+	case startable(sc):
+		children = append(children, starterView(sc))
+	default:
 		children = append(children, transcript(sc))
 	}
 	if rec.closed() && rec.HandoffTo != "" {
@@ -123,26 +142,63 @@ func mainView(sc screen) sdui.Node {
 	return sdui.VStack(append(children, composer(sc))...)
 }
 
-func codeView(recs []record, bound string, sc *screen) sdui.Node {
+func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {
+	add := sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, "New", "plus"), actCodeNew), "ghost")
+	if sc == nil {
+		return sdui.EmptyState(noCodeSession, sdui.EmptyProps{Title: noCodeTitle, Action: &add})
+	}
 	var opts []sdui.Option
 	for _, rec := range recs {
 		if len(opts) < maxCodeOptions && (!rec.closed() || rec.ID == bound) {
 			opts = append(opts, sdui.Option{Value: rec.ID, Label: cmp.Or(rec.Title, "New session")})
 		}
 	}
-	if sc != nil && !slices.ContainsFunc(opts, func(o sdui.Option) bool { return o.Value == bound }) {
+	if !slices.ContainsFunc(opts, func(o sdui.Option) bool { return o.Value == bound }) {
 		opts = append(opts, sdui.Option{Value: bound, Label: cmp.Or(sc.View.Session.Title, "New session")})
 	}
-	var bar []sdui.Node
-	if len(opts) > 0 {
-		bar = append(bar, sdui.WithAction(sdui.Select(codeSelectNode, opts, bound), actCodeSelect))
+	v := *sc
+	v.Code = &codePanel{Picker: sdui.WithAction(sdui.Select(codeSelectNode, opts, bound), actCodeSelect), New: add, File: file}
+	return mainView(v)
+}
+
+func startable(sc screen) bool {
+	rec := sc.View.Session
+	return sc.Code != nil && len(sc.View.Entries) == 0 && len(sc.Queue) == 0 && !rec.closed() && rec.Status != statusError && !turnActive(rec)
+}
+
+func starters(file string) []starter {
+	if file == "" {
+		return []starter{
+			{label: "Explain how this worktree is laid out", prompt: "Explain how this worktree is laid out."},
+			{label: "Review the last commit", prompt: "Review the last commit."},
+			{label: "Review the uncommitted changes", prompt: "Review the uncommitted changes."},
+		}
 	}
-	bar = append(bar, sdui.WithAction(sdui.Button(codeNewNode, "New", "plus"), actCodeNew))
-	body := sdui.Empty(noCodeSession)
-	if sc != nil {
-		body = mainView(*sc)
+	name := filepath.Base(file)
+	return []starter{
+		{label: "Explain " + name, prompt: "Explain this file.", attach: true},
+		{label: "Review the last commit", prompt: "Review the last commit."},
+		{label: "Write a test for " + name, prompt: "Write a test for this file.", attach: true},
 	}
-	return sdui.VStack(sdui.HStack(bar...), body)
+}
+
+func starterView(sc screen) sdui.Node {
+	rec := sc.View.Session
+	sid := rec.ID
+	nodes := []sdui.Node{sdui.VStack(
+		sdui.Node{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, agentLabel(rec.Agent)) + " is idle", "style": "title"}},
+		sdui.MutedText(starterNote),
+	)}
+	if sc.Code.File != "" {
+		nodes = append(nodes, sdui.HStack(sdui.Badge(filepath.Base(sc.Code.File), "")))
+	}
+	var buttons []sdui.Node
+	for i, s := range starters(sc.Code.File) {
+		n := strconv.Itoa(i + 1)
+		b := sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+starterPrefix+n, s.label, ""), actStarter), "ghost")
+		buttons = append(buttons, sdui.WithShortcut(b, "opt+"+n))
+	}
+	return sdui.Transcript(sid+"/transcript", append(nodes, sdui.VStack(buttons...))...)
 }
 
 func header(sc screen) sdui.Node {
@@ -158,6 +214,9 @@ func header(sc screen) sdui.Node {
 	row := []sdui.Node{{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}}}
 	if len(meta) > 0 {
 		row = append(row, sdui.MutedText(strings.Join(meta, " · ")))
+	}
+	if sc.Code != nil {
+		row = []sdui.Node{sc.Code.Picker}
 	}
 	if sc.Parent != "" {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
@@ -176,6 +235,9 @@ func header(sc screen) sdui.Node {
 	}
 	if turnActive(rec) {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop))
+	}
+	if sc.Code != nil {
+		row = append(row, sc.Code.New)
 	}
 	children := []sdui.Node{sdui.HStack(row...)}
 	if rec.Status != statusError {
