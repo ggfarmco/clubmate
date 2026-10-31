@@ -248,6 +248,22 @@ func Empty(text string) Node {
 	return Node{Type: "empty", Props: map[string]any{"text": text}}
 }
 
+type EmptyProps struct {
+	Title  string
+	Icon   string
+	Hint   string
+	Action *Node
+}
+
+func EmptyState(text string, p EmptyProps) Node {
+	props := withOptional(withOptional(withOptional(map[string]any{"text": text}, "title", p.Title), "icon", p.Icon), "hint", p.Hint)
+	n := Node{Type: "empty", Props: props}
+	if p.Action != nil {
+		n.Children = []Node{*p.Action}
+	}
+	return n
+}
+
 func Transcript(id string, children ...Node) Node {
 	return Node{Type: "transcript", ID: id, Children: children}
 }
@@ -322,25 +338,41 @@ func WithLines(n Node, lines int) Node {
 }
 
 func WithAction(n Node, action string) Node {
-	props := make(map[string]any, len(n.Props)+1)
-	for k, v := range n.Props {
-		props[k] = v
-	}
-	props["action"] = action
-	n.Props = props
-	return n
+	return withProp(n, "action", action)
 }
 
 func WithConfirm(n Node, text string) Node {
+	return withProp(n, "confirm", text)
+}
+
+const (
+	VariantPrimary   = "primary"
+	VariantSecondary = "secondary"
+	VariantGhost     = "ghost"
+	VariantDanger    = "danger"
+)
+
+func WithVariant(n Node, variant string) Node {
+	return withProp(n, "variant", variant)
+}
+
+func WithShortcut(n Node, combo string) Node {
+	return withProp(n, "shortcut", combo)
+}
+
+func WithDisabled(n Node) Node {
+	return withProp(n, "disabled", true)
+}
+
+func withProp(n Node, key string, value any) Node {
 	props := make(map[string]any, len(n.Props)+1)
 	for k, v := range n.Props {
 		props[k] = v
 	}
-	props["confirm"] = text
+	props[key] = value
 	n.Props = props
 	return n
 }
-
 func clamp(values []float64, maxValue float64) []float64 {
 	out := make([]float64, len(values))
 	for i, v := range values {

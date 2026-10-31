@@ -162,6 +162,17 @@
                       ]
                     },
                     {
+                      "type": "stack",
+                      "props": {"direction": "horizontal"},
+                      "children": [
+                        {"type": "button", "id": "run", "props": {"label": "Run now", "variant": "primary", "shortcut": "cmd+r"}},
+                        {"type": "button", "id": "pause", "props": {"label": "Pause", "variant": "secondary", "shortcut": "p"}},
+                        {"type": "button", "id": "edit", "props": {"label": "Edit", "variant": "ghost", "shortcut": "e"}},
+                        {"type": "button", "id": "delete", "props": {"label": "Delete", "variant": "danger", "confirm": "Delete?"}},
+                        {"type": "button", "id": "off", "props": {"label": "Disabled", "variant": "secondary", "disabled": true}}
+                      ]
+                    },
+                    {
                       "type": "form",
                       "id": "settings-form",
                       "props": {"action": "settings.save"},
@@ -206,7 +217,11 @@
               "props": {"direction": "horizontal"},
               "children": [
                 {"type": "surface", "props": {"sessionId": "ses_0123456789abcdef"}},
-                {"type": "empty", "props": {"text": "No session selected"}}
+                {
+                  "type": "empty",
+                  "props": {"text": "Graphs chain agents: when one finishes, the next starts.", "title": "No graph runs yet", "icon": "point.3.connected.trianglepath.dotted", "hint": ".clubmate/graphs/<name>.json"},
+                  "children": [{"type": "button", "id": "start", "props": {"label": "Run a graph", "variant": "primary", "shortcut": "cmd+shift+r"}}]
+                }
               ]
             }
           ]

@@ -57,6 +57,11 @@ func TestValidate(t *testing.T) {
 		{"textField lines too large", sdui.WithLines(sdui.TextField("f", "", ""), 51), false},
 		{"textField lines not a number", sdui.Node{Type: "textField", ID: "f", Props: map[string]any{"lines": "x"}}, false},
 		{"select", sdui.Select("s", []sdui.Option{{Value: "a", Label: "A"}}, "a"), true},
+		{"button variant, shortcut, disabled", sdui.WithDisabled(sdui.WithShortcut(sdui.WithVariant(sdui.Button("b", "Run", ""), sdui.VariantPrimary), "cmd+shift+r")), true},
+		{"button bad variant", sdui.WithVariant(sdui.Button("b", "Run", ""), "loud"), false},
+		{"button bad shortcut", sdui.WithShortcut(sdui.Button("b", "Run", ""), "hyper+r"), false},
+		{"empty state with action", sdui.EmptyState("Nothing yet.", sdui.EmptyProps{Title: "No runs", Icon: "clock", Hint: "cm cron add", Action: &sdui.Node{Type: "button", ID: "run", Props: map[string]any{"label": "Run"}}}), true},
+		{"empty state with a non-button child", sdui.Node{Type: "empty", Props: map[string]any{"text": "x"}, Children: []sdui.Node{sdui.Text("a")}}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

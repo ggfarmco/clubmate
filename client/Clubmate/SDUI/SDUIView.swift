@@ -194,7 +194,7 @@ struct SDUINodeView: View {
         case "permissionCard": PermissionCardNodeView(node: node)
         case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
-        case "empty": EmptyNodeView(text: node.string("text") ?? "")
+        case "empty": EmptyNodeView(node: node)
         default: UnsupportedNodeView(type: node.type)
         }
     }

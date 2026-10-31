@@ -36,6 +36,18 @@ public struct KeyCombo: Equatable, Sendable {
         }
     }
 
+    public var label: String {
+        let names: [UInt16: String] = [36: "↩", 48: "⇥", 49: "Space", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑"]
+        let key = names[keyCode] ?? charactersIgnoringModifiers.uppercased()
+        return (control ? "⌃" : "") + (option ? "⌥" : "") + (shift ? "⇧" : "") + (command ? "⌘" : "") + key
+    }
+
+    public var bare: Bool { !(command || control || option) }
+
+    public func matches(keyCode: UInt16, command: Bool, control: Bool, option: Bool, shift: Bool) -> Bool {
+        keyCode == self.keyCode && command == self.command && control == self.control && option == self.option && shift == self.shift
+    }
+
     private struct Key {
         let code: UInt16
         let text: String

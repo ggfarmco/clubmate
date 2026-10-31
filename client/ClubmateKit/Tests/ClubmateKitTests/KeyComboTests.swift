@@ -22,4 +22,13 @@ final class KeyComboTests: XCTestCase {
             XCTAssertNil(KeyCombo(invalid), invalid)
         }
     }
+
+    func testLabelAndMatch() throws {
+        let key = try XCTUnwrap(KeyCombo("cmd+shift+r"))
+        XCTAssertEqual(key.label, "⇧⌘R")
+        XCTAssertEqual(try XCTUnwrap(KeyCombo("esc")).label, "⎋")
+        XCTAssertTrue(key.matches(keyCode: 15, command: true, control: false, option: false, shift: true))
+        XCTAssertFalse(key.matches(keyCode: 15, command: true, control: false, option: false, shift: false))
+        XCTAssertTrue(try XCTUnwrap(KeyCombo("p")).bare)
+    }
 }

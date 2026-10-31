@@ -30,7 +30,8 @@ Neighbouring code may be the bug (the `/` command popup was an uncapped `VStack`
 | Row of controls | `controls` in `SDUI/ComposerView.swift` |
 | Text field in an overlay | `PaletteTextField` |
 | Key handling | `.keyMonitor(active:handle:)` |
-| Card, button | `.agentCard()`, `CardButton` |
+| Card, button | `.agentCard()`, `CardButton`; SDUI buttons take `variant`/`shortcut` |
+| Text field, select chrome | `.fieldChrome(focused:)` |
 | Rarely changed options | one `Menu` with a short summary label (composer options) |
 
 ## Recipe per element

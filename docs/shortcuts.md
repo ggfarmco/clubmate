@@ -22,6 +22,14 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
 ⇧⌘I is an app menu key, so it shadows any ⇧⌘I mapping in terminals and nvim.
 
+## Plugin buttons
+
+A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the button is on screen; a combo without ⌘, ⌃ or ⌥ does nothing while a text field has focus. Defined in `SDUI/InputViews.swift` (`ButtonNodeView`), combos parsed by `ClubmateKit/KeyCombo.swift`. Plugin shortcuts in use:
+
+| Keys | Action | Plugin |
+|---|---|---|
+| none yet | | |
+
 ## Lists: palette, file picker, pickers, switcher
 
 Pickers are the fuzzy lists for worktrees: the worktree switcher in the window title and Switch Worktree… in the palette. The file picker is the composer's attach list. Esc closes the title switcher too.

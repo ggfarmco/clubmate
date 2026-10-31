@@ -53,14 +53,14 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | icon | name* (string) | none | no |
 | diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
-| button | label* (string), icon (string), confirm (string), action | none | yes |
+| button | label* (string), icon (string), confirm (string), variant (`primary`\|`secondary`\|`ghost`\|`danger`), disabled (bool), shortcut (key combo), action | none | yes |
 | textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), action | none | yes |
 | folderField | label* (string), values (string[]), action | none | yes |
 | toggle | value* (bool), action | none | yes |
 | select | options* (option[]), value (string), action | none | yes |
 | form | action | any | yes |
 | surface | sessionId* (`ses_` id) | none | no |
-| empty | text* (string) | none | no |
+| empty | text* (string), title (string), icon (string), hint (string) | 0-1 `button` | no |
 | transcript | none | any | no |
 | message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]) | none | no |
 | plan | entries* (plan entry[]) | none | no |
@@ -84,6 +84,10 @@ Agent chat nodes (the `agents` section):
 - `composer` is the prompt editor: a multi-line field (`placeholder`), the `attachments` as removable chips, an attach menu with the kinds in `attach`, the `agent` label, a mode picker over `modes` (current `mode`), one menu per `pickers` entry, and Send (with Stop beside it while `running`; labelled Queue while `running` unless `steers`, set when the agent takes prompts into a running turn). ⌘↩ sends (the plugin steers or queues it while a turn runs), Esc stops while `running`, `@` opens the client's fuzzy file picker (`search.files`) in attach mode, and `/` at the start lists `commands` filtered by the typed prefix; choosing one inserts `/name `. The field is uncontrolled; the plugin clears it after a send by rendering the composer with a new `id`.
 
 `button.confirm`: when set, the client asks the user to confirm with that text before sending the event.
+
+`button.variant`: `primary` (accent fill; at most one per pane), `secondary` (raised, bordered), `ghost` (text only, fill on hover; toolbars and headers) or `danger` (danger outline; destructive actions). Without it the button looks like `ghost` in the body text colour. `disabled: true` greys it out and drops clicks and its shortcut. `shortcut` is a key combo in `cm ui key` form (`cmd+r`, `opt+1`, `shift+p`, `p`): the client prints it inside the button (`⌘R`) and presses the button on that key while the button is on screen in the key window; a combo without `cmd`, `ctrl` or `opt` does nothing while a text field has focus. A plugin keeps its shortcuts unique per pane and lists them in `docs/shortcuts.md`.
+
+`empty` fills its pane, top-left in the content column: an optional `icon` and `title`, the `text` (one sentence), an optional `hint` in monospace (a path or command) and at most one `button` child, the action that fills the pane.
 
 Input fields are uncontrolled: `value`/`values` on `textField`, `folderField`, `toggle` and `select` are initial values. The client keeps what the user entered while the node keeps its identity. A changed `value` in a later render replaces it, but re-rendering an unchanged one does not. To reset a form (e.g. after a successful submit), the plugin renders it with a new node `id`. The client then discards the form's field state and starts again from the props. Actions are routed by `action`, not by `id`, so rotating ids (e.g. `create-<n>`) does not change event handling.
 

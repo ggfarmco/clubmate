@@ -25,7 +25,7 @@ var liveOrder = []string{"waiting", "running", "error"}
 
 func sidebarView(runs []*Run, selected string, sessions map[string]api.Session) sdui.Node {
 	if len(runs) == 0 {
-		return sdui.Empty("No graph runs. Put a graph in .clubmate/graphs/<name>.json and start it with graphs.run.")
+		return sdui.EmptyState("Graphs chain agents: when one finishes, the next starts. Start one with graphs.run.", sdui.EmptyProps{Title: "No graph runs yet", Icon: "point.3.connected.trianglepath.dotted", Hint: ".clubmate/graphs/<name>.json"})
 	}
 	items := make([]sdui.Item, 0, len(runs))
 	for _, r := range runs {

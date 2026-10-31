@@ -11,6 +11,10 @@ struct ButtonNodeView: View {
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
 
+    private var variant: String? { node.string("variant") }
+    private var disabled: Bool { node.bool("disabled") == true }
+    private var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
+
     var body: some View {
         Button(action: click) {
             HStack(spacing: theme.spacing.m) {
@@ -18,16 +22,60 @@ struct ButtonNodeView: View {
                     Image(systemName: SymbolName.resolve(icon))
                 }
                 Text(node.string("label") ?? "")
+                    .lineLimit(1)
+                if let combo {
+                    Text(combo.label)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(variant == "primary" ? theme.onAccent : theme.muted)
+                }
             }
             .font(theme.ui)
-            .foregroundStyle(theme.foreground)
+            .foregroundStyle(foreground)
             .padding(.horizontal, theme.gutter)
-            .frame(height: theme.rowHeight)
-            .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(hovering ? theme.hover : .clear))
+            .frame(height: variant == nil ? theme.rowHeight : theme.control)
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(fill))
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering && !disabled ? theme.hover : .clear))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(stroke, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(disabled)
         .onHover { hovering = $0 }
+        .keyMonitor(active: combo != nil && !disabled, handle: press)
+    }
+
+    private var foreground: Color {
+        if disabled { return theme.faint }
+        switch variant {
+        case "primary": return theme.onAccent
+        case "danger": return theme.danger
+        case "ghost": return hovering ? theme.foreground : theme.text2
+        default: return theme.foreground
+        }
+    }
+
+    private var fill: Color {
+        switch variant {
+        case "primary": disabled ? theme.selectedIdle : theme.accent
+        case "secondary": theme.surface2
+        default: .clear
+        }
+    }
+
+    private var stroke: Color {
+        switch variant {
+        case "secondary": theme.borderStrong
+        case "danger": theme.toneBorder(theme.danger)
+        default: .clear
+        }
+    }
+
+    private func press(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags
+        guard let combo, combo.matches(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
+        if combo.bare, event.window?.firstResponder is NSTextView { return false }
+        click()
+        return true
     }
 
     private func click() {
@@ -250,8 +298,8 @@ struct TextFieldNodeView: View {
             .foregroundStyle(theme.foreground)
             .padding(.horizontal, theme.spacing.m)
             .padding(.vertical, lines == nil ? 0 : theme.spacing.s)
-            .frame(minWidth: 160, minHeight: theme.rowHeight, alignment: lines == nil ? .center : .topLeading)
-            .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 1))
+            .frame(minWidth: 160, minHeight: theme.control, alignment: lines == nil ? .center : .topLeading)
+            .fieldChrome(focused: focused)
             .padding(.horizontal, theme.gutter)
             .onSubmit(submit)
             .onChange(of: node.string("value"), initial: true) { _, value in
@@ -334,8 +382,8 @@ struct SelectNodeView: View {
         .help(label)
         .testMenu("\(node.id ?? "select").menu", options.map { LayoutMenuItem(title: $0.label) })
         .padding(.horizontal, theme.spacing.m)
-        .frame(height: theme.rowHeight)
-        .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 1))
+        .frame(height: theme.control)
+        .fieldChrome(focused: false)
         .padding(.horizontal, theme.gutter)
         .onChange(of: node.string("value"), initial: true) { _, current in
             value = current ?? options.first?.value ?? ""
@@ -358,10 +406,30 @@ struct SelectNodeView: View {
                 .truncationMode(.tail)
         }
         .menuStyle(.borderlessButton)
+        .environment(\.colorScheme, theme.isDark ? .dark : .light)
     }
 
     private func choose(_ option: String) {
         value = option
         if form == nil || node.string("action") != nil { dispatch(node, .change(option)) }
+    }
+}
+
+extension View {
+    func fieldChrome(focused: Bool) -> some View {
+        modifier(FieldChrome(focused: focused))
+    }
+}
+
+private struct FieldChrome: ViewModifier {
+    let focused: Bool
+
+    @Environment(\.theme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.accent : theme.borderStrong, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.toneBg(theme.accent) : .clear, lineWidth: 6))
     }
 }

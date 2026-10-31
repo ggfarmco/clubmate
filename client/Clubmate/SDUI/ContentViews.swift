@@ -122,16 +122,47 @@ struct DiffNodeView: View {
 }
 
 struct EmptyNodeView: View {
-    let text: String
+    let node: SDUINode
+
+    init(node: SDUINode) {
+        self.node = node
+    }
+
+    init(text: String) {
+        node = SDUINode(type: "empty", props: ["text": .string(text)])
+    }
 
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Text(text)
-            .font(theme.ui)
-            .foregroundStyle(theme.muted)
-            .padding(.horizontal, theme.gutter)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(alignment: .leading, spacing: theme.spacing.m) {
+            if let icon = node.string("icon") {
+                Image(systemName: SymbolName.resolve(icon))
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.muted)
+            }
+            if let title = node.string("title") {
+                Text(title)
+                    .font(theme.strong)
+                    .foregroundStyle(theme.foreground)
+            }
+            Text(node.string("text") ?? "")
+                .font(theme.ui)
+                .foregroundStyle(theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            if let hint = node.string("hint") {
+                Text(hint)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.text2)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, theme.spacing.m)
+                    .padding(.vertical, theme.spacing.xs)
+                    .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(theme.surface2))
+            }
+            SDUIChildren(node: node)
+        }
+        .padding(theme.gutter * 2)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

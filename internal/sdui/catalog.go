@@ -28,7 +28,10 @@ const (
 	maxLines          = 50
 )
 
-var actionPattern = regexp.MustCompile(`^[a-z][a-zA-Z0-9.-]*$`)
+var (
+	actionPattern   = regexp.MustCompile(`^[a-z][a-zA-Z0-9.-]*$`)
+	shortcutPattern = regexp.MustCompile("^((cmd|ctrl|opt|shift)\\+){0,4}(return|tab|space|delete|esc|left|right|down|up|[a-z0-9=\\-\\[\\]';\\\\,/.`])$")
+)
 
 var ErrInvalidTree = errors.New("invalid sdui tree")
 
@@ -36,6 +39,7 @@ type propCheck func(c *validator, v any) error
 
 type childRule struct {
 	min, max int
+	only     []string
 }
 
 type spec struct {
@@ -47,11 +51,12 @@ type spec struct {
 }
 
 var (
-	anyChildren = childRule{0, -1}
-	noChildren  = childRule{0, 0}
+	anyChildren = childRule{min: 0, max: -1}
+	noChildren  = childRule{min: 0, max: 0}
 
 	directions = []string{"vertical", "horizontal"}
 	textStyles = []string{"body", "muted", "title", "mono"}
+	variants   = []string{"primary", "secondary", "ghost", "danger"}
 	badgeTones = []string{"neutral", "accent", "success", "warning", "danger"}
 
 	itemFields = map[string]propCheck{
@@ -87,8 +92,8 @@ var (
 
 	catalog = map[string]spec{
 		"stack":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: anyChildren},
-		"split":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{2, 4}},
-		"scroll": {children: childRule{1, 1}},
+		"split":  {required: []string{"direction"}, props: map[string]propCheck{"direction": oneOf(directions)}, children: childRule{min: 2, max: 4}},
+		"scroll": {children: childRule{min: 1, max: 1}},
 		"tabs": {
 			required:    []string{"items", "selected"},
 			props:       map[string]propCheck{"items": listOf(itemCheck), "selected": isString, "action": actionCheck},
@@ -132,7 +137,7 @@ var (
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -156,7 +161,11 @@ var (
 		},
 		"form":    {props: map[string]propCheck{"action": actionCheck}, children: anyChildren, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
-		"empty":   {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
+		"empty": {
+			required: []string{"text"},
+			props:    map[string]propCheck{"text": isString, "title": isString, "icon": isString, "hint": isString},
+			children: childRule{min: 0, max: 1, only: []string{"button"}},
+		},
 
 		"transcript": {children: anyChildren},
 		"message": {
@@ -287,6 +296,11 @@ func checkChildCount(n sdui.Node, sp spec, path string) error {
 	if count < sp.children.min || (sp.children.max >= 0 && count > sp.children.max) {
 		return invalid(path, "invalid child count %d", count)
 	}
+	for _, c := range n.Children {
+		if len(sp.children.only) > 0 && !slices.Contains(sp.children.only, c.Type) {
+			return invalid(path, "child %s not allowed; only %v", c.Type, sp.children.only)
+		}
+	}
 	return nil
 }
 
@@ -354,6 +368,14 @@ func actionCheck(_ *validator, v any) error {
 	s, ok := v.(string)
 	if !ok || len(s) == 0 || len(s) > maxActionLen || !actionPattern.MatchString(s) {
 		return fmt.Errorf("must match %s and be 1-%d characters", actionPattern, maxActionLen)
+	}
+	return nil
+}
+
+func shortcutCheck(_ *validator, v any) error {
+	s, ok := v.(string)
+	if !ok || !shortcutPattern.MatchString(s) {
+		return fmt.Errorf("must be a key combo like cmd+r, opt+1 or p")
 	}
 	return nil
 }
