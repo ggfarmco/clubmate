@@ -132,7 +132,7 @@ final class GhosttyApp {
     }
 
     private static func forceOverrides(_ config: ghostty_config_t) -> String? {
-        var lines = ["keybind = super+w=unbind"]
+        var lines = ["keybind = super+w=unbind", "window-padding-balance = true"]
         var failure: String?
         if let features = sshFeaturesOff(config) {
             lines.append(features)
