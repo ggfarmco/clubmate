@@ -588,7 +588,7 @@ func columnCheck(c *validator, v any) error {
 
 func tableRowCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "cells"}, map[string]propCheck{
-		"id": uniqueItemID, "depth": depthNumber, "hasChildren": isBool, "expanded": isBool, "muted": isBool, "cells": cellsCheck,
+		"id": uniqueItemID, "depth": depthNumber, "hasChildren": isBool, "expanded": isBool, "muted": isBool, "group": isBool, "cells": cellsCheck,
 	})(c, v)
 }
 

@@ -35,6 +35,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | D | Mark the task done | backlog |
 | ⌘S | Save the task now (the form also autosaves) | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |
+| ⇧K | Kill the selected process and its children (confirmed) | processes |
 
 ## Lists: palette, file picker, pickers, switcher
 

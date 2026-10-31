@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,15 +23,19 @@ const (
 	killAction  = "kill"
 	orphanKill  = "kill-orphans"
 	autoKill    = "autokill"
+	optionsID   = "options"
+	groupPrefix = "g:"
+	otherGroup  = "other"
 	kibPerMiB   = 1024
 	mibPerGiB   = 1024
 	maxRows     = 1000
 	maxDepth    = 32
 	pidWidth    = 64
 	indent      = 12
-	chartHeight = 64
+	stripHeight = 16
 	cellRunes   = 512
-	titleRunes  = 2048
+	stripRunes  = 64
+	killKey     = "shift+k"
 
 	colPID     = "pid"
 	colCPU     = "cpu"
@@ -43,14 +48,18 @@ const (
 var (
 	defaultSort = sdui.Sort{Column: colCPU, Desc: true}
 	columnIDs   = []string{colPID, colCPU, colMem, colTime, colHistory, colCommand}
+	ownerLabels = map[string]string{"terminals": "Terminals", "agents": "Agents", "editor-nvim": "Code"}
 )
 
 type viewModel struct {
 	nodes     []pluginsdk.ProcessNode
+	groups    []group
 	selected  int
 	auto      bool
+	options   bool
 	sort      sdui.Sort
 	collapsed map[int]bool
+	folded    map[string]bool
 	scope     string
 	totalKey  seriesKey
 	hist      *history
@@ -74,6 +83,13 @@ type procRow struct {
 	avg     float64
 }
 
+type ownerGroup struct {
+	key    string
+	label  string
+	nodes  []pluginsdk.ProcessNode
+	titles map[string]string
+}
+
 func sidebarView(sessions []group, selected string) sdui.Node {
 	items := []sdui.Item{{ID: allID, Label: "All"}}
 	for _, s := range sessions {
@@ -93,59 +109,87 @@ func mainView(m viewModel) (sdui.Node, int) {
 		selectedID = strconv.Itoa(m.selected)
 	}
 	table := sdui.WithAction(sdui.Table(tableID, tableColumns(depth), rows, selectedID, m.sort), selectPID)
-	return withID(sdui.VStack(toolbarView(m), summaryView(m), withID(sdui.Scroll(table), "table-scroll"), detailView(m)), "main"), depth
+	children := []sdui.Node{headerView(m)}
+	if m.options {
+		children = append(children, optionsView(m))
+	}
+	children = append(children, totalsView(m), withID(sdui.Scroll(table), "table-scroll"))
+	if strip, ok := actionStrip(m); ok {
+		children = append(children, strip)
+	}
+	return withID(sdui.VStack(children...), "main"), depth
 }
 
-func toolbarView(m viewModel) sdui.Node {
+func headerView(m viewModel) sdui.Node {
 	orphans := 0
 	for _, n := range m.nodes {
 		if n.Orphan {
 			orphans++
 		}
 	}
-	var controls []sdui.Node
-	if n, ok := m.selectedNode(); ok {
-		confirm := fmt.Sprintf("Kill %s (%d) and its children?", n.Process.Comm, m.selected)
-		controls = append(controls, sdui.WithConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), confirm))
+	meta := fmt.Sprintf("%d running · %d orphans", len(m.nodes), orphans)
+	if m.auto {
+		meta += " · auto-kill on"
 	}
-	controls = append(controls,
-		sdui.WithConfirm(sdui.Button(orphanKill, "Kill orphans", "trash"), "Kill all orphan processes?"),
-		sdui.WithAction(sdui.Toggle(autoKill, m.auto), autoKill),
-		sdui.Text("Auto-kill orphans"),
-		sdui.MutedText(fmt.Sprintf("%d processes · %d orphans", len(m.nodes), orphans)),
-	)
-	return withID(sdui.HStack(controls...), "toolbar")
+	title := m.scope
+	if title == "All" {
+		title = "All processes"
+	}
+	kill := sdui.WithVariant(sdui.WithConfirm(sdui.Button(orphanKill, "Kill orphans", "trash"), "Kill all orphan processes?"), sdui.VariantDanger)
+	if orphans == 0 {
+		kill = sdui.WithDisabled(kill)
+	}
+	options := sdui.WithVariant(sdui.Button(optionsID, "Options", "slider.horizontal.3"), sdui.VariantGhost)
+	if m.options {
+		options = sdui.WithVariant(sdui.Button(optionsID, "Hide options", "slider.horizontal.3"), sdui.VariantGhost)
+	}
+	return withID(sdui.Header(title, sdui.HeaderProps{Meta: meta}, kill, options), "header")
 }
 
-func summaryView(m viewModel) sdui.Node {
+func optionsView(m viewModel) sdui.Node {
+	return withID(sdui.HStack(
+		sdui.WithAction(sdui.Toggle(autoKill, m.auto), autoKill),
+		sdui.Text("Auto-kill orphans"),
+		sdui.MutedText(fmt.Sprintf("every %d s", int(autoKillEvery/time.Second))),
+	), "options-row")
+}
+
+func totalsView(m viewModel) sdui.Node {
 	cpu, rss := 0.0, int64(0)
 	for _, n := range m.nodes {
 		cpu += n.Process.CPU
 		rss += n.Process.RSSKiB
 	}
-	recent := m.hist.cpu(m.totalKey, recentLen)
+	cpuHist, memHist := m.hist.cpu(m.totalKey, historyLen), m.hist.mem(m.totalKey, historyLen)
+	cpuPeak, _ := peakAvg(cpuHist)
+	memPeak, memAvg := peakAvg(memHist)
 	return withID(sdui.HStack(
-		sdui.Text(m.scope),
-		sdui.MutedText(fmt.Sprintf("CPU %.0f%% · MEM %s", cpu, formatMB(float64(rss)/kibPerMiB))),
-		sdui.Sparkline("total-cpu", recent, cpuScale(recent)),
-	), "summary")
+		sdui.VStack(sdui.MutedText(fmt.Sprintf("CPU · peak %.0f%%", cpuPeak)), sdui.Text(strconv.FormatFloat(cpu, 'f', 1, 64)+"%")),
+		sdui.SparklineSized("total-cpu", cpuHist, cpuScale(cpuHist), stripHeight),
+		sdui.VStack(sdui.MutedText("MEM · avg "+formatMB(memAvg)), sdui.Text(formatMB(float64(rss)/kibPerMiB))),
+		sdui.SparklineSized("total-mem", memHist, max(memPeak, 1), stripHeight),
+	), "totals")
 }
 
-func detailView(m viewModel) sdui.Node {
-	title, key := m.scope+" total", m.totalKey
-	if n, ok := m.selectedNode(); ok {
-		title, key = fmt.Sprintf("%s (%d)", command(n, titleRunes), m.selected), processKey(n)
+func actionStrip(m viewModel) (sdui.Node, bool) {
+	n, ok := m.selectedNode()
+	if !ok {
+		return sdui.Node{}, false
 	}
-	cpu, mem := m.hist.cpu(key, historyLen), m.hist.mem(key, historyLen)
-	cpuPeak, cpuAvg := peakAvg(cpu)
-	memPeak, memAvg := peakAvg(mem)
-	return withID(sdui.VStack(
-		sdui.Text(title),
-		sdui.MutedText(fmt.Sprintf("CPU · peak %.0f%% · avg %.1f%%", cpuPeak, cpuAvg)),
-		sdui.SparklineSized("detail-cpu", cpu, cpuScale(cpu), chartHeight),
-		sdui.MutedText(fmt.Sprintf("MEM · peak %s · avg %s", formatMB(memPeak), formatMB(memAvg))),
-		sdui.SparklineSized("detail-mem", mem, max(memPeak, 1), chartHeight),
-	), "detail")
+	p := n.Process
+	var facts []string
+	if slices.ContainsFunc(m.nodes, func(o pluginsdk.ProcessNode) bool { return o.Process.PID == p.PPID && p.PPID != p.PID }) {
+		facts = append(facts, "child of "+strconv.Itoa(p.PPID))
+	}
+	if !p.StartTime.IsZero() {
+		facts = append(facts, "started "+startedAt(p.StartTime, m.now))
+	}
+	confirm := fmt.Sprintf("Kill %s (%d) and its children?", p.Comm, p.PID)
+	kill := sdui.WithShortcut(sdui.WithVariant(sdui.WithConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), confirm), sdui.VariantDanger), killKey)
+	return withID(sdui.HStack(
+		sdui.VStack(titleText(strconv.Itoa(p.PID)+"  "+middle(shortCommand(n), cellRunes)), sdui.MutedText(strings.Join(facts, " · "))),
+		kill,
+	), "action-strip"), true
 }
 
 func tableColumns(depth int) []sdui.Column {
@@ -154,20 +198,55 @@ func tableColumns(depth int) []sdui.Column {
 		{ID: colCPU, Title: "CPU%", Align: "right", Width: 64},
 		{ID: colMem, Title: "MEM", Align: "right", Width: 72, Priority: 1},
 		{ID: colTime, Title: "TIME", Align: "right", Width: 72, Priority: 2},
-		{ID: colHistory, Title: "HISTORY", Width: 72, Priority: 3},
+		{ID: colHistory, Title: "LAST MIN", Width: 72, Priority: 3},
 		{ID: colCommand, Title: "COMMAND", Truncate: "middle"},
 	}
 }
 
 func processRows(m viewModel) ([]sdui.TableRow, int) {
-	entries := treeEntries(m)
-	shown := entries
-	if len(entries) > maxRows {
-		shown = entries[:maxRows-1]
-	}
-	rows := make([]sdui.TableRow, 0, len(shown)+1)
+	groups := ownerGroups(m.groups, m.nodes)
+	var all []sdui.TableRow
 	depth := 0
-	for _, e := range shown {
+	if len(groups) <= 1 {
+		var titles map[string]string
+		if len(groups) == 1 {
+			titles = groups[0].titles
+		}
+		all, depth = m.treeRows(m.nodes, titles, 0)
+	} else {
+		for _, g := range groups {
+			id := groupPrefix + g.key
+			open := !m.folded[g.key]
+			cells := make([]sdui.Cell, len(columnIDs))
+			cells[0].Text = g.label
+			all = append(all, sdui.TableRow{ID: id, Group: true, HasChildren: true, Expanded: open, Cells: cells})
+			if !open {
+				continue
+			}
+			rows, d := m.treeRows(g.nodes, g.titles, 1)
+			all = append(all, rows...)
+			depth = max(depth, d)
+		}
+	}
+	if len(all) <= maxRows {
+		return all, depth
+	}
+	hidden := 0
+	for _, r := range all[maxRows-1:] {
+		if !r.Group {
+			hidden++
+		}
+	}
+	cells := make([]sdui.Cell, len(columnIDs))
+	cells[len(cells)-1].Text = fmt.Sprintf("… %d more", hidden)
+	return append(all[:maxRows-1:maxRows-1], sdui.TableRow{ID: moreID, Muted: true, Cells: cells}), depth
+}
+
+func (m viewModel) treeRows(nodes []pluginsdk.ProcessNode, titles map[string]string, base int) ([]sdui.TableRow, int) {
+	entries := treeEntries(m, nodes, titles, base)
+	rows := make([]sdui.TableRow, 0, len(entries))
+	depth := 0
+	for _, e := range entries {
 		depth = max(depth, e.depth)
 		rows = append(rows, sdui.TableRow{
 			ID:          e.proc.id,
@@ -177,33 +256,79 @@ func processRows(m viewModel) ([]sdui.TableRow, int) {
 			Cells:       m.cells(e.proc),
 		})
 	}
-	if hidden := len(entries) - len(shown); hidden > 0 {
-		cells := make([]sdui.Cell, len(columnIDs))
-		cells[len(cells)-1].Text = fmt.Sprintf("… %d more", hidden)
-		rows = append(rows, sdui.TableRow{ID: moreID, Muted: true, Cells: cells})
-	}
 	return rows, depth
 }
 
-func treeEntries(m viewModel) []treeEntry {
-	procs := make([]procRow, len(m.nodes))
-	present := make(map[int]bool, len(m.nodes))
-	for i, n := range m.nodes {
+func ownerGroups(sessions []group, nodes []pluginsdk.ProcessNode) []ownerGroup {
+	perOwner := make(map[string]int, len(sessions))
+	for _, s := range sessions {
+		perOwner[s.Owner]++
+	}
+	keyOf := make(map[string]string, len(sessions))
+	var out []ownerGroup
+	index := map[string]int{}
+	add := func(key, label string) int {
+		i, ok := index[key]
+		if !ok {
+			i = len(out)
+			index[key] = i
+			out = append(out, ownerGroup{key: key, label: label, titles: map[string]string{}})
+		}
+		return i
+	}
+	for _, s := range sessions {
+		key, label := s.ID, s.Title
+		if perOwner[s.Owner] > 1 {
+			key, label = s.Owner, ownerLabel(s.Owner)
+			out[add(key, label)].titles[s.ID] = s.Title
+		} else {
+			add(key, label)
+		}
+		keyOf[s.ID] = key
+	}
+	for _, n := range nodes {
+		key, known := keyOf[n.SessionID]
+		i := index[key]
+		if !known {
+			i = add(otherGroup, "Other")
+		}
+		out[i].nodes = append(out[i].nodes, n)
+	}
+	return slices.DeleteFunc(out, func(g ownerGroup) bool { return len(g.nodes) == 0 })
+}
+
+func ownerLabel(owner string) string {
+	if label, ok := ownerLabels[owner]; ok {
+		return label
+	}
+	if owner == "" {
+		return "Other"
+	}
+	return strings.ToUpper(owner[:1]) + owner[1:]
+}
+
+func treeEntries(m viewModel, nodes []pluginsdk.ProcessNode, titles map[string]string, base int) []treeEntry {
+	procs := make([]procRow, len(nodes))
+	present := make(map[int]bool, len(nodes))
+	for i, n := range nodes {
 		procs[i] = m.procRow(n)
 		present[n.Process.PID] = true
 	}
-	children := make(map[int][]*procRow, len(m.nodes))
+	children := make(map[int][]*procRow, len(nodes))
 	var roots []*procRow
 	for i := range procs {
 		p := &procs[i].node.Process
 		if present[p.PPID] && p.PPID != p.PID {
 			children[p.PPID] = append(children[p.PPID], &procs[i])
-		} else {
-			roots = append(roots, &procs[i])
+			continue
 		}
+		if title := titles[procs[i].node.SessionID]; title != "" {
+			procs[i].command += " · " + title
+		}
+		roots = append(roots, &procs[i])
 	}
 	compare := m.comparator()
-	entries := make([]treeEntry, 0, len(m.nodes))
+	entries := make([]treeEntry, 0, len(nodes))
 	var walk func(siblings []*procRow, depth int)
 	walk = func(siblings []*procRow, depth int) {
 		slices.SortFunc(siblings, compare)
@@ -217,7 +342,7 @@ func treeEntries(m viewModel) []treeEntry {
 			}
 		}
 	}
-	walk(roots, 0)
+	walk(roots, base)
 	return entries
 }
 
@@ -310,6 +435,33 @@ func command(n pluginsdk.ProcessNode, limit int) string {
 		return text
 	}
 	return string([]rune(text)[:limit-1]) + "…"
+}
+
+func titleText(text string) sdui.Node {
+	return sdui.Node{Type: "text", Props: map[string]any{"text": text, "style": "title"}}
+}
+
+func shortCommand(n pluginsdk.ProcessNode) string {
+	if len(n.Process.Args) == 0 {
+		return n.Process.Comm
+	}
+	return strings.Join(append([]string{filepath.Base(n.Process.Args[0])}, n.Process.Args[1:]...), " ")
+}
+
+func middle(text string, limit int) string {
+	r := []rune(text)
+	if len(r) <= limit {
+		return text
+	}
+	head := (limit - 1) / 2
+	return string(r[:head]) + "…" + string(r[len(r)-(limit-1-head):])
+}
+
+func startedAt(start, now time.Time) string {
+	if start.Format(time.DateOnly) == now.Format(time.DateOnly) {
+		return start.Format("15:04")
+	}
+	return start.Format("Jan 2 15:04")
 }
 
 func badges(n pluginsdk.ProcessNode) string {

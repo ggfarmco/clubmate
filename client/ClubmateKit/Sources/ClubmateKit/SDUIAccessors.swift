@@ -189,14 +189,16 @@ public struct SDUITableRow: Sendable, Equatable, Identifiable {
     public let hasChildren: Bool
     public let expanded: Bool
     public let muted: Bool
+    public let group: Bool
     public let cells: [SDUICell]
 
-    public init(id: String, depth: Int, hasChildren: Bool, expanded: Bool, muted: Bool, cells: [SDUICell]) {
+    public init(id: String, depth: Int, hasChildren: Bool, expanded: Bool, muted: Bool, group: Bool = false, cells: [SDUICell]) {
         self.id = id
         self.depth = depth
         self.hasChildren = hasChildren
         self.expanded = expanded
         self.muted = muted
+        self.group = group
         self.cells = cells
     }
 
@@ -208,6 +210,7 @@ public struct SDUITableRow: Sendable, Equatable, Identifiable {
             hasChildren: fields["hasChildren"]?.boolValue ?? false,
             expanded: fields["expanded"]?.boolValue ?? false,
             muted: fields["muted"]?.boolValue ?? false,
+            group: fields["group"]?.boolValue ?? false,
             cells: fields["cells"]?.arrayValue?.map(SDUICell.init) ?? []
         )
     }

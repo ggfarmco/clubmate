@@ -20,13 +20,14 @@ struct TableNodeView: View {
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
             Section {
                 ForEach(rows) { row in
-                    TableRowView(row: row, columns: columns, tree: tree, selected: row.id == selected) {
-                        selected = row.id
-                        dispatch(node, .select(row.id))
-                    } toggle: { expanded in
-                        dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
+                    if row.group {
+                        TableGroupRow(row: row) { expanded in
+                            dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
+                        }
+                        .id(row.id)
+                    } else {
+                        tableRow(row, columns: columns, tree: tree)
                     }
-                    .id(row.id)
                 }
             } header: {
                 TableHeader(columns: columns.map(\.column), sort: sort) { column in
@@ -46,6 +47,45 @@ struct TableNodeView: View {
             selected = value
             if let value { scroll?.scrollTo(value, anchor: .center) }
         }
+    }
+
+    private func tableRow(_ row: SDUITableRow, columns: [(index: Int, column: SDUIColumn)], tree: Bool) -> some View {
+        TableRowView(row: row, columns: columns, tree: tree, selected: row.id == selected) {
+            selected = row.id
+            dispatch(node, .select(row.id))
+        } toggle: { expanded in
+            dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
+        }
+        .id(row.id)
+    }
+}
+
+private struct TableGroupRow: View {
+    let row: SDUITableRow
+    let toggle: (Bool) -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let label = row.cells.first?.text ?? ""
+        HStack(spacing: 0) {
+            Disclosure(hasChildren: row.hasChildren, expanded: row.expanded, toggle: toggle)
+                .padding(.leading, CGFloat(row.depth) * theme.indent)
+            Text(label)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(label)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, theme.gutter)
+        .frame(height: theme.rowHeight)
+        .background(hovering ? theme.hover : .clear, ignoresSafeAreaEdges: [])
+        .contentShape(Rectangle())
+        .onTapGesture { if row.hasChildren { toggle(row.expanded) } }
+        .onHover { hovering = $0 }
     }
 }
 

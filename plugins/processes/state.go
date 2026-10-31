@@ -16,8 +16,10 @@ type workspaceState struct {
 	session   string
 	pid       int
 	auto      bool
+	options   bool
 	sort      sdui.Sort
 	collapsed map[int]bool
+	folded    map[string]bool
 	pidDepth  int
 	sidebar   *sidebarInputs
 }
@@ -38,11 +40,14 @@ func (a *app) state(ctx context.Context, h *pluginsdk.Host, id string) (*workspa
 	if ok {
 		return st, nil
 	}
-	loaded := &workspaceState{collapsed: map[int]bool{}}
+	loaded := &workspaceState{collapsed: map[int]bool{}, folded: map[string]bool{}}
 	if _, err := h.StorageGet(ctx, selectedKey(id), &loaded.session); err != nil {
 		return nil, err
 	}
 	if _, err := h.StorageGet(ctx, autoKillKey(id), &loaded.auto); err != nil {
+		return nil, err
+	}
+	if _, err := h.StorageGet(ctx, optionsKey(id), &loaded.options); err != nil {
 		return nil, err
 	}
 	if _, err := h.StorageGet(ctx, sortKey(id), &loaded.sort); err != nil {
@@ -68,6 +73,7 @@ func (a *app) snapshot(st *workspaceState) workspaceState {
 	defer a.mu.Unlock()
 	c := *st
 	c.collapsed = maps.Clone(st.collapsed)
+	c.folded = maps.Clone(st.folded)
 	return c
 }
 
@@ -117,7 +123,7 @@ func (a *app) visible(id string) bool {
 
 func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
 	a.forget(id, time.Now())
-	logError("drop "+id, errors.Join(h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, autoKillKey(id)), h.StorageDelete(ctx, sortKey(id))))
+	logError("drop "+id, errors.Join(h.StorageDelete(ctx, selectedKey(id)), h.StorageDelete(ctx, autoKillKey(id)), h.StorageDelete(ctx, optionsKey(id)), h.StorageDelete(ctx, sortKey(id))))
 }
 
 func (a *app) forget(id string, now time.Time) {
@@ -156,4 +162,8 @@ func autoKillKey(workspaceID string) string {
 
 func sortKey(workspaceID string) string {
 	return "sort/" + workspaceID
+}
+
+func optionsKey(workspaceID string) string {
+	return "options/" + workspaceID
 }

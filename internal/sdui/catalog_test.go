@@ -179,7 +179,7 @@ func TestTableValidation(t *testing.T) {
 	half := 0.5
 	over := 1.5
 	row := func(id string, bar *float64, spark *sdui.Spark) sdui.TableRow {
-		return sdui.TableRow{ID: id, Depth: 1, HasChildren: true, Expanded: true, Muted: true, Cells: []sdui.Cell{{Text: id}, {Text: "50%", Bar: bar, Tone: "warn"}, {Spark: spark}}}
+		return sdui.TableRow{ID: id, Depth: 1, HasChildren: true, Expanded: true, Muted: true, Group: true, Cells: []sdui.Cell{{Text: id}, {Text: "50%", Bar: bar, Tone: "warn"}, {Spark: spark}}}
 	}
 	rows := func(n, sparks int) []sdui.TableRow {
 		out := make([]sdui.TableRow, n)

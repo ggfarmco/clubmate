@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -39,6 +40,8 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		err = a.selectProcess(ev, st)
 	case autoKill:
 		err = a.toggleAuto(ctx, h, ev, st)
+	case optionsID:
+		err = a.toggleOptions(ctx, h, ev.WorkspaceID, st)
 	default:
 		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 	}
@@ -91,6 +94,17 @@ func (a *app) selectProcess(ev pluginsdk.UIEvent, st *workspaceState) error {
 }
 
 func (a *app) toggleCollapsed(ev pluginsdk.UIEvent, st *workspaceState) error {
+	var raw string
+	if err := json.Unmarshal(ev.Value, &raw); err == nil && strings.HasPrefix(raw, groupPrefix) {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if ev.Action == "collapse" {
+			st.folded[strings.TrimPrefix(raw, groupPrefix)] = true
+		} else {
+			delete(st.folded, strings.TrimPrefix(raw, groupPrefix))
+		}
+		return nil
+	}
 	pid, err := rowPID(ev)
 	if err != nil || pid == 0 {
 		return err
@@ -130,12 +144,20 @@ func (a *app) toggleAuto(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UI
 	return storeOrDelete(ctx, h, autoKillKey(ev.WorkspaceID), true, on)
 }
 
+func (a *app) toggleOptions(ctx context.Context, h *pluginsdk.Host, workspaceID string, st *workspaceState) error {
+	a.mu.Lock()
+	st.options = !st.options
+	open := st.options
+	a.mu.Unlock()
+	return storeOrDelete(ctx, h, optionsKey(workspaceID), true, open)
+}
+
 func rowPID(ev pluginsdk.UIEvent) (int, error) {
 	var raw string
 	if err := json.Unmarshal(ev.Value, &raw); err != nil {
 		return 0, fmt.Errorf("%s value: %w", ev.Action, err)
 	}
-	if raw == moreID {
+	if raw == moreID || strings.HasPrefix(raw, groupPrefix) {
 		return 0, nil
 	}
 	pid, err := strconv.Atoi(raw)

@@ -58,6 +58,7 @@ type TableRow struct {
 	HasChildren bool   `json:"hasChildren,omitempty"`
 	Expanded    bool   `json:"expanded,omitempty"`
 	Muted       bool   `json:"muted,omitempty"`
+	Group       bool   `json:"group,omitempty"`
 	Cells       []Cell `json:"cells"`
 }
 

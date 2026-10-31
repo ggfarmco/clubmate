@@ -97,9 +97,9 @@ func (a *app) draw(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 		cleared = a.clearSession(st, snap.session)
 		snap = a.snapshot(st)
 	}
-	scope, totalKey, shown := "All", workspaceKey(id), nodes
+	scope, totalKey, shown, groups := "All", workspaceKey(id), nodes, sessions
 	if i := slices.IndexFunc(sessions, func(s group) bool { return s.ID == snap.session }); i >= 0 {
-		scope, totalKey = sessions[i].Title, sessionKey(snap.session)
+		scope, totalKey, groups = sessions[i].Title, sessionKey(snap.session), sessions[i:i+1]
 		shown = slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return n.SessionID != snap.session })
 	}
 	a.forgetGone(st, &snap, nodes, shown)
@@ -108,8 +108,11 @@ func (a *app) draw(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	}
 	view, depth := mainView(viewModel{
 		nodes:     shown,
+		groups:    groups,
 		selected:  snap.pid,
 		auto:      snap.auto,
+		options:   snap.options,
+		folded:    snap.folded,
 		sort:      snap.sort,
 		collapsed: snap.collapsed,
 		scope:     scope,
