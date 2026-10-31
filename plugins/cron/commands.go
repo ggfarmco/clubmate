@@ -247,9 +247,12 @@ func (a *app) remove(ctx context.Context, cmd pluginsdk.CommandRun) error {
 	if err := decode(cmd, &args); err != nil {
 		return err
 	}
+	if _, err := a.authorized(ctx, cmd, args.ID); err != nil {
+		return err
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	j, err := a.authorized(ctx, cmd, args.ID)
+	j, err := a.lookup(cmd, args.ID)
 	if err != nil {
 		return err
 	}
@@ -263,28 +266,41 @@ func (a *app) remove(ctx context.Context, cmd pluginsdk.CommandRun) error {
 }
 
 func (a *app) mutate(ctx context.Context, cmd pluginsdk.CommandRun, id string, change func(*Job) error) (*Job, error) {
+	for {
+		j, err := a.authorized(ctx, cmd, id)
+		if err != nil {
+			return nil, err
+		}
+		updated := clone(j)
+		if err := change(updated); err != nil {
+			return nil, err
+		}
+		saved, err := a.replace(ctx, j, updated)
+		if err != nil {
+			return nil, err
+		}
+		if saved {
+			return clone(updated), nil
+		}
+	}
+}
+
+func (a *app) replace(ctx context.Context, current, updated *Job) (bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	j, err := a.authorized(ctx, cmd, id)
-	if err != nil {
-		return nil, err
-	}
-	updated := clone(j)
-	if err := change(updated); err != nil {
-		return nil, err
+	if a.jobs[updated.ID] != current {
+		return false, nil
 	}
 	if err := a.store.save(ctx, updated); err != nil {
-		return nil, err
+		return false, err
 	}
-	a.jobs[id] = updated
+	a.jobs[updated.ID] = updated
 	a.touch(updated.Workspace)
 	a.wake()
-	return clone(updated), nil
+	return true, nil
 }
 
 func (a *app) snapshot(ctx context.Context, cmd pluginsdk.CommandRun, id string) (*Job, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	j, err := a.authorized(ctx, cmd, id)
 	if err != nil {
 		return nil, err
@@ -293,7 +309,9 @@ func (a *app) snapshot(ctx context.Context, cmd pluginsdk.CommandRun, id string)
 }
 
 func (a *app) authorized(ctx context.Context, cmd pluginsdk.CommandRun, id string) (*Job, error) {
+	a.mu.Lock()
 	j, err := a.lookup(cmd, id)
+	a.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}

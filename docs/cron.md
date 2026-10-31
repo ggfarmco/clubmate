@@ -28,7 +28,7 @@ Give exactly one of:
 - `at`: an RFC 3339 time, e.g. `2026-10-31T09:00:00+01:00`; runs once.
 - `in`: a Go duration from now, e.g. `30m`; stored as `at`, runs once.
 
-A one-shot job (`at`, `in`) deletes itself when it starts.
+A one-shot job (`at`, `in`) deletes itself when it runs; a skipped run (see below) keeps it and tries again on the next check.
 
 ## Firing
 

@@ -182,3 +182,65 @@ func TestReconcileDropsJobsOfGoneOwners(t *testing.T) {
 	assert.False(t, st.has("cj_closed"))
 	assert.False(t, st.has("cj_absent"))
 }
+
+func TestSkippedOneShotRetries(t *testing.T) {
+	now := time.Date(2026, 10, 30, 15, 0, 0, 0, time.UTC)
+	status := "running"
+	var calls atomic.Int32
+	a, st := testApp(&now, func(context.Context, commandRequest) (json.RawMessage, error) {
+		calls.Add(1)
+		return json.RawMessage(`{}`), nil
+	}, &Job{ID: "cj_1", Command: "agents.prompt", Args: json.RawMessage(`{"session":"agt_1"}`), Enabled: true, Schedule: Schedule{At: now}, Missed: "skip", NextRun: now})
+	a.sessions = func(context.Context, string) ([]agentSession, error) {
+		return []agentSession{{ID: "agt_1", Status: status}}, nil
+	}
+
+	a.tick(t.Context())
+	a.runs.Wait()
+
+	require.Contains(t, a.jobs, "cj_1")
+	assert.True(t, st.has("cj_1"))
+	assert.Equal(t, []Run{{At: now, Status: "skipped", Reason: "busy"}}, a.jobs["cj_1"].History)
+	assert.True(t, a.jobs["cj_1"].NextRun.Equal(now.Add(30*time.Second)), a.jobs["cj_1"].NextRun)
+
+	status = "done"
+	now = now.Add(30 * time.Second)
+	a.tick(t.Context())
+	a.runs.Wait()
+
+	assert.NotContains(t, a.jobs, "cj_1")
+	assert.False(t, st.has("cj_1"))
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestAgentsCallDoesNotBlockScheduler(t *testing.T) {
+	now := time.Date(2026, 10, 30, 15, 0, 0, 0, time.UTC)
+	entered, release := make(chan struct{}), make(chan struct{})
+	a, _ := testApp(&now, nil, &Job{ID: "cj_1", Workspace: "prj_1", Command: "notify.post", Enabled: true, Schedule: Schedule{Every: "1m"}, Owner: "agt_child", NextRun: now.Add(time.Minute)})
+	a.sessions = func(context.Context, string) ([]agentSession, error) {
+		close(entered)
+		<-release
+		return []agentSession{{ID: "agt_child", ParentSession: "agt_parent"}}, nil
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := a.pause(t.Context(), pluginsdk.CommandRun{ID: "cron.pause", ProjectID: "prj_1", Args: json.RawMessage(`{"id":"cj_1"}`), Agent: true, Caller: "agt_parent"})
+		done <- err
+	}()
+	<-entered
+
+	ticked := make(chan struct{})
+	go func() {
+		a.tick(t.Context())
+		close(ticked)
+	}()
+	select {
+	case <-ticked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("tick blocked behind agents.sessions")
+	}
+	close(release)
+
+	require.NoError(t, <-done)
+	assert.False(t, a.jobs["cj_1"].Enabled)
+}

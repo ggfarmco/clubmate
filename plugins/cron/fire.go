@@ -158,7 +158,10 @@ func (a *app) recordLocked(ctx context.Context, id string, r Run, spent bool) (*
 	updated := clone(current)
 	paused := record(updated, r)
 	if _, more := updated.Schedule.Next(r.At); spent && !more {
-		return updated, paused, a.drop(ctx, updated)
+		if r.Status != statusSkipped {
+			return updated, paused, a.drop(ctx, updated)
+		}
+		updated.NextRun = a.now().Add(tick)
 	}
 	if err := a.store.save(ctx, updated); err != nil {
 		return nil, false, err
