@@ -45,13 +45,6 @@ var (
 	columnIDs   = []string{colPID, colCPU, colMem, colTime, colHistory, colCommand}
 )
 
-type group struct {
-	ID        string
-	ProjectID string
-	Title     string
-	Owner     string
-}
-
 type viewModel struct {
 	nodes     []pluginsdk.ProcessNode
 	selected  int
@@ -59,7 +52,7 @@ type viewModel struct {
 	sort      sdui.Sort
 	collapsed map[int]bool
 	scope     string
-	totalKey  string
+	totalKey  seriesKey
 	hist      *history
 	memKiB    int64
 	pidDepth  int
@@ -67,10 +60,18 @@ type viewModel struct {
 }
 
 type treeEntry struct {
-	node        pluginsdk.ProcessNode
+	proc        *procRow
 	depth       int
 	hasChildren bool
 	expanded    bool
+}
+
+type procRow struct {
+	node    pluginsdk.ProcessNode
+	id      string
+	command string
+	recent  []float64
+	avg     float64
 }
 
 func sidebarView(sessions []group, selected string) sdui.Node {
@@ -103,7 +104,8 @@ func toolbarView(m viewModel) sdui.Node {
 		}
 	}
 	var controls []sdui.Node
-	if confirm, ok := killConfirm(m.nodes, m.selected); ok {
+	if n, ok := m.selectedNode(); ok {
+		confirm := fmt.Sprintf("Kill %s (%d) and its children?", n.Process.Comm, m.selected)
 		controls = append(controls, sdui.WithConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), confirm))
 	}
 	controls = append(controls,
@@ -131,8 +133,8 @@ func summaryView(m viewModel) sdui.Node {
 
 func detailView(m viewModel) sdui.Node {
 	title, key := m.scope+" total", m.totalKey
-	if i := slices.IndexFunc(m.nodes, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == m.selected }); i >= 0 {
-		title, key = fmt.Sprintf("%s (%d)", command(m.nodes[i], titleRunes), m.selected), processKey(m.nodes[i])
+	if n, ok := m.selectedNode(); ok {
+		title, key = fmt.Sprintf("%s (%d)", command(n, titleRunes), m.selected), processKey(n)
 	}
 	cpu, mem := m.hist.cpu(key, historyLen), m.hist.mem(key, historyLen)
 	cpuPeak, cpuAvg := peakAvg(cpu)
@@ -168,11 +170,11 @@ func processRows(m viewModel) ([]sdui.TableRow, int) {
 	for _, e := range shown {
 		depth = max(depth, e.depth)
 		rows = append(rows, sdui.TableRow{
-			ID:          strconv.Itoa(e.node.Process.PID),
+			ID:          e.proc.id,
 			Depth:       e.depth,
 			HasChildren: e.hasChildren,
 			Expanded:    e.expanded,
-			Cells:       m.cells(e.node),
+			Cells:       m.cells(e.proc),
 		})
 	}
 	if hidden := len(entries) - len(shown); hidden > 0 {
@@ -184,28 +186,32 @@ func processRows(m viewModel) ([]sdui.TableRow, int) {
 }
 
 func treeEntries(m viewModel) []treeEntry {
+	procs := make([]procRow, len(m.nodes))
 	present := make(map[int]bool, len(m.nodes))
-	for _, n := range m.nodes {
+	for i, n := range m.nodes {
+		procs[i] = m.procRow(n)
 		present[n.Process.PID] = true
 	}
-	children := make(map[int][]pluginsdk.ProcessNode, len(m.nodes))
-	var roots []pluginsdk.ProcessNode
-	for _, n := range m.nodes {
-		if present[n.Process.PPID] && n.Process.PPID != n.Process.PID {
-			children[n.Process.PPID] = append(children[n.Process.PPID], n)
+	children := make(map[int][]*procRow, len(m.nodes))
+	var roots []*procRow
+	for i := range procs {
+		p := &procs[i].node.Process
+		if present[p.PPID] && p.PPID != p.PID {
+			children[p.PPID] = append(children[p.PPID], &procs[i])
 		} else {
-			roots = append(roots, n)
+			roots = append(roots, &procs[i])
 		}
 	}
 	compare := m.comparator()
 	entries := make([]treeEntry, 0, len(m.nodes))
-	var walk func(siblings []pluginsdk.ProcessNode, depth int)
-	walk = func(siblings []pluginsdk.ProcessNode, depth int) {
+	var walk func(siblings []*procRow, depth int)
+	walk = func(siblings []*procRow, depth int) {
 		slices.SortFunc(siblings, compare)
-		for _, n := range siblings {
-			kids := children[n.Process.PID]
-			expanded := len(kids) > 0 && !m.collapsed[n.Process.PID]
-			entries = append(entries, treeEntry{node: n, depth: min(depth, maxDepth), hasChildren: len(kids) > 0, expanded: expanded})
+		for _, p := range siblings {
+			pid := p.node.Process.PID
+			kids := children[pid]
+			expanded := len(kids) > 0 && !m.collapsed[pid]
+			entries = append(entries, treeEntry{proc: p, depth: min(depth, maxDepth), hasChildren: len(kids) > 0, expanded: expanded})
 			if expanded {
 				walk(kids, depth+1)
 			}
@@ -215,26 +221,30 @@ func treeEntries(m viewModel) []treeEntry {
 	return entries
 }
 
-func (m viewModel) comparator() func(a, b pluginsdk.ProcessNode) int {
-	var key func(a, b pluginsdk.ProcessNode) int
+func (m viewModel) procRow(n pluginsdk.ProcessNode) procRow {
+	recent := m.hist.cpu(processKey(n), recentLen)
+	_, avg := peakAvg(recent)
+	return procRow{node: n, id: strconv.Itoa(n.Process.PID), command: command(n, cellRunes), recent: recent, avg: avg}
+}
+
+func (m viewModel) comparator() func(a, b *procRow) int {
+	var key func(a, b *procRow) int
 	switch m.sort.Column {
 	case colPID:
-		key = func(a, b pluginsdk.ProcessNode) int { return 0 }
+		key = func(a, b *procRow) int { return 0 }
 	case colMem:
-		key = func(a, b pluginsdk.ProcessNode) int { return cmp.Compare(a.Process.RSSKiB, b.Process.RSSKiB) }
+		key = func(a, b *procRow) int { return cmp.Compare(a.node.Process.RSSKiB, b.node.Process.RSSKiB) }
 	case colTime:
-		key = func(a, b pluginsdk.ProcessNode) int { return b.Process.StartTime.Compare(a.Process.StartTime) }
+		key = func(a, b *procRow) int { return b.node.Process.StartTime.Compare(a.node.Process.StartTime) }
 	case colHistory:
-		key = func(a, b pluginsdk.ProcessNode) int { return cmp.Compare(m.recentAvg(a), m.recentAvg(b)) }
+		key = func(a, b *procRow) int { return cmp.Compare(a.avg, b.avg) }
 	case colCommand:
-		key = func(a, b pluginsdk.ProcessNode) int {
-			return strings.Compare(command(a, cellRunes), command(b, cellRunes))
-		}
+		key = func(a, b *procRow) int { return strings.Compare(a.command, b.command) }
 	default:
-		key = func(a, b pluginsdk.ProcessNode) int { return cmp.Compare(a.Process.CPU, b.Process.CPU) }
+		key = func(a, b *procRow) int { return cmp.Compare(a.node.Process.CPU, b.node.Process.CPU) }
 	}
-	return func(a, b pluginsdk.ProcessNode) int {
-		c := cmp.Or(key(a, b), cmp.Compare(a.Process.PID, b.Process.PID))
+	return func(a, b *procRow) int {
+		c := cmp.Or(key(a, b), cmp.Compare(a.node.Process.PID, b.node.Process.PID))
 		if m.sort.Desc {
 			return -c
 		}
@@ -242,30 +252,33 @@ func (m viewModel) comparator() func(a, b pluginsdk.ProcessNode) int {
 	}
 }
 
-func (m viewModel) recentAvg(n pluginsdk.ProcessNode) float64 {
-	_, avg := peakAvg(m.hist.cpu(processKey(n), recentLen))
-	return avg
+func (m viewModel) selectedNode() (pluginsdk.ProcessNode, bool) {
+	i := slices.IndexFunc(m.nodes, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == m.selected })
+	if i < 0 {
+		return pluginsdk.ProcessNode{}, false
+	}
+	return m.nodes[i], true
 }
 
-func (m viewModel) cells(n pluginsdk.ProcessNode) []sdui.Cell {
-	p := n.Process
+func (m viewModel) cells(row *procRow) []sdui.Cell {
+	n, p := row.node, row.node.Process
 	cpuBar := min(max(p.CPU/100, 0), 1)
 	mem := sdui.Cell{Text: formatMB(float64(p.RSSKiB) / kibPerMiB)}
 	if m.memKiB > 0 {
 		share := min(float64(p.RSSKiB)/float64(m.memKiB), 1)
 		mem.Bar, mem.Tone = &share, tone(share*100, 10, 30)
 	}
-	history := sdui.Cell{}
-	if recent := m.hist.cpu(processKey(n), recentLen); len(recent) > 0 {
-		history.Spark = sdui.NewSpark(recent, cpuScale(recent))
+	var history sdui.Cell
+	if len(row.recent) > 0 {
+		history.Spark = sdui.NewSpark(row.recent, cpuScale(row.recent))
 	}
-	commandCell := sdui.Cell{Text: command(n, cellRunes) + badges(n)}
+	commandCell := sdui.Cell{Text: row.command + badges(n)}
 	if n.Orphan {
 		commandCell.Tone = "warn"
 	}
 	return []sdui.Cell{
-		{Text: strconv.Itoa(p.PID)},
-		{Text: fmt.Sprintf("%.1f", p.CPU), Bar: &cpuBar, Tone: tone(p.CPU, 50, 90)},
+		{Text: row.id},
+		{Text: strconv.FormatFloat(p.CPU, 'f', 1, 64), Bar: &cpuBar, Tone: tone(p.CPU, 50, 90)},
 		mem,
 		{Text: elapsed(p.StartTime, m.now)},
 		history,
@@ -293,7 +306,7 @@ func command(n pluginsdk.ProcessNode, limit int) string {
 	if len(n.Process.Args) > 0 {
 		text = strings.Join(n.Process.Args, " ")
 	}
-	if utf8.RuneCountInString(text) <= limit {
+	if len(text) <= limit || utf8.RuneCountInString(text) <= limit {
 		return text
 	}
 	return string([]rune(text)[:limit-1]) + "…"
@@ -314,42 +327,30 @@ func elapsed(start, now time.Time) string {
 	if start.IsZero() {
 		return ""
 	}
-	d := max(now.Sub(start), 0)
-	return fmt.Sprintf("%d:%02d:%02d", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
+	s := int(max(now.Sub(start), 0) / time.Second)
+	b := strconv.AppendInt(make([]byte, 0, 16), int64(s/3600), 10)
+	b = append(b, ':')
+	b = appendTwoDigits(b, s/60%60)
+	b = append(b, ':')
+	return string(appendTwoDigits(b, s%60))
+}
+
+func appendTwoDigits(b []byte, v int) []byte {
+	return append(b, byte('0'+v/10), byte('0'+v%10))
 }
 
 func formatMB(mb float64) string {
 	if mb >= mibPerGiB {
-		return fmt.Sprintf("%.1f GB", mb/mibPerGiB)
+		return strconv.FormatFloat(mb/mibPerGiB, 'f', 1, 64) + " GB"
 	}
-	return fmt.Sprintf("%.0f MB", mb)
+	return strconv.FormatFloat(mb, 'f', 0, 64) + " MB"
 }
 
 func validSort(s sdui.Sort) bool {
 	return slices.Contains(columnIDs, s.Column)
 }
 
-func processKey(n pluginsdk.ProcessNode) string {
-	return fmt.Sprintf("p/%d/%d", n.Process.PID, n.Process.StartTime.UnixNano())
-}
-
-func sessionKey(id string) string {
-	return "s/" + id
-}
-
-func projectKey(id string) string {
-	return "a/" + id
-}
-
 func withID(n sdui.Node, id string) sdui.Node {
 	n.ID = id
 	return n
-}
-
-func killConfirm(nodes []pluginsdk.ProcessNode, selected int) (string, bool) {
-	i := slices.IndexFunc(nodes, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == selected })
-	if i < 0 {
-		return "", false
-	}
-	return fmt.Sprintf("Kill %s (%d) and its children?", nodes[i].Process.Comm, selected), true
 }

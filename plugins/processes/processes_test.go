@@ -31,25 +31,28 @@ func TestMainRendersOnlyWhileVisible(t *testing.T) {
 	p := h.CreateProject(t, "demo")
 	c := h.Client(t)
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, nil))
-	rev := func() int64 {
+	slotRev := func(slot string) int64 {
 		var views []internalsdui.SlotView
 		require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &views))
 		for _, v := range views {
-			if v.Slot == "processes.main" {
+			if v.Slot == slot {
 				return v.Rev
 			}
 		}
 		return 0
 	}
+	rev := func() int64 { return slotRev("processes.main") }
 	section := func(id string) {
 		require.NoError(t, c.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]string{"section": id}}, nil))
 	}
 	h.WaitSlot(t, p.ID, "processes.main", func(n sdui.Node) bool { return n.Type == "stack" })
+	sidebar := slotRev("processes.sidebar")
 	section("terminals")
 	time.Sleep(1500 * time.Millisecond)
 	hidden := rev()
 	time.Sleep(2500 * time.Millisecond)
 	assert.Equal(t, hidden, rev())
 	section("processes")
-	testutil.Eventually(t, func() bool { return rev() > hidden }, 5*time.Second)
+	testutil.Eventually(t, func() bool { return rev() > hidden+1 }, 5*time.Second)
+	assert.Equal(t, sidebar, slotRev("processes.sidebar"))
 }

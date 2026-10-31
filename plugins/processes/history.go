@@ -2,7 +2,6 @@ package main
 
 import (
 	"math"
-	"slices"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
@@ -14,37 +13,45 @@ const (
 	recentLen  = 60
 )
 
+type seriesKind uint8
+
+const (
+	kindProcess seriesKind = iota + 1
+	kindSession
+	kindProject
+)
+
+type seriesKey struct {
+	kind  seriesKind
+	id    string
+	pid   int
+	start int64
+}
+
 type series struct {
-	cpu  []float64
-	mem  []float64
+	cpu  ring
+	mem  ring
 	seen time.Time
 }
 
+type ring struct {
+	values []float64
+	head   int
+}
+
 type history struct {
-	series map[string]*series
+	series map[seriesKey]*series
 }
 
 func newHistory() *history {
-	return &history{series: map[string]*series{}}
-}
-
-func (h *history) push(key string, cpu, memMB float64, now time.Time) {
-	s, ok := h.series[key]
-	if !ok {
-		s = &series{}
-		h.series[key] = s
-	}
-	s.cpu = appendCapped(s.cpu, math.Round(cpu))
-	s.mem = appendCapped(s.mem, math.Round(memMB*10)/10)
-	s.seen = now
+	return &history{series: map[seriesKey]*series{}}
 }
 
 func (h *history) record(sessions []group, nodes []pluginsdk.ProcessNode, now time.Time) {
 	type total struct{ cpu, mb float64 }
-	projectOf := make(map[string]string, len(sessions))
-	totals := make(map[string]*total, 2*len(sessions))
+	projectOf := sessionProjects(sessions)
+	totals := make(map[seriesKey]*total, 2*len(sessions))
 	for _, s := range sessions {
-		projectOf[s.ID] = s.ProjectID
 		totals[sessionKey(s.ID)] = &total{}
 		totals[projectKey(s.ProjectID)] = &total{}
 	}
@@ -55,15 +62,26 @@ func (h *history) record(sessions []group, nodes []pluginsdk.ProcessNode, now ti
 		if !ok {
 			continue
 		}
-		for _, key := range []string{sessionKey(n.SessionID), projectKey(project)} {
-			totals[key].cpu += n.Process.CPU
-			totals[key].mb += mb
+		for _, t := range [...]*total{totals[sessionKey(n.SessionID)], totals[projectKey(project)]} {
+			t.cpu += n.Process.CPU
+			t.mb += mb
 		}
 	}
 	for key, t := range totals {
 		h.push(key, t.cpu, t.mb, now)
 	}
 	h.prune(now)
+}
+
+func (h *history) push(key seriesKey, cpu, memMB float64, now time.Time) {
+	s, ok := h.series[key]
+	if !ok {
+		s = &series{}
+		h.series[key] = s
+	}
+	s.cpu.push(math.Round(cpu))
+	s.mem.push(math.Round(memMB*10) / 10)
+	s.seen = now
 }
 
 func (h *history) prune(now time.Time) {
@@ -74,31 +92,51 @@ func (h *history) prune(now time.Time) {
 	}
 }
 
-func (h *history) cpu(key string, n int) []float64 {
+func (h *history) cpu(key seriesKey, n int) []float64 {
 	if s, ok := h.series[key]; ok {
-		return tail(s.cpu, n)
+		return s.cpu.tail(n)
 	}
 	return nil
 }
 
-func (h *history) mem(key string, n int) []float64 {
+func (h *history) mem(key seriesKey, n int) []float64 {
 	if s, ok := h.series[key]; ok {
-		return tail(s.mem, n)
+		return s.mem.tail(n)
 	}
 	return nil
 }
 
-func appendCapped(values []float64, v float64) []float64 {
-	if len(values) < historyLen {
-		return append(values, v)
+func (r *ring) push(v float64) {
+	if len(r.values) < historyLen {
+		r.values = append(r.values, v)
+		return
 	}
-	copy(values, values[1:])
-	values[len(values)-1] = v
-	return values
+	r.values[r.head] = v
+	r.head = (r.head + 1) % historyLen
 }
 
-func tail(values []float64, n int) []float64 {
-	return slices.Clone(values[max(0, len(values)-n):])
+func (r *ring) tail(n int) []float64 {
+	n = min(n, len(r.values))
+	if n == 0 {
+		return nil
+	}
+	out := make([]float64, n)
+	start := (r.head + len(r.values) - n) % len(r.values)
+	copied := copy(out, r.values[start:])
+	copy(out[copied:], r.values)
+	return out
+}
+
+func processKey(n pluginsdk.ProcessNode) seriesKey {
+	return seriesKey{kind: kindProcess, pid: n.Process.PID, start: n.Process.StartTime.UnixNano()}
+}
+
+func sessionKey(id string) seriesKey {
+	return seriesKey{kind: kindSession, id: id}
+}
+
+func projectKey(id string) seriesKey {
+	return seriesKey{kind: kindProject, id: id}
 }
 
 func peakAvg(values []float64) (peak, avg float64) {
