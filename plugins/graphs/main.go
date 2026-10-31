@@ -354,7 +354,7 @@ func (a *app) checkCaller(ctx context.Context, p api.Changed) {
 			logError(err)
 			return
 		}
-		if s, ok := agentcall.Find(sessions, p.Session); ok && !s.Closed {
+		if s, ok := agentcall.Find(sessions, p.Session); ok && !s.Closed() {
 			return
 		}
 	}

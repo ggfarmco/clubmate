@@ -60,7 +60,7 @@ func TestHandoffBrief(t *testing.T) {
 }
 
 func TestHandoffLinks(t *testing.T) {
-	old := mainView(screen{View: transcriptView{Session: record{ID: "agt_1", Closed: true, Status: statusClosed, lineage: lineage{HandoffTo: "agt_2"}}}})
+	old := mainView(screen{View: transcriptView{Session: record{ID: "agt_1", Status: statusClosed, lineage: lineage{HandoffTo: "agt_2"}}}})
 	fresh := mainView(screen{View: transcriptView{Session: record{ID: "agt_2", Status: statusIdle, lineage: lineage{HandoffFrom: "agt_1"}}}, Composer: "agt_2/composer/0"})
 
 	assert.Equal(t, []string{"agt_1/" + handoffToNode}, buttonIDs(old, actOpenHandoff))

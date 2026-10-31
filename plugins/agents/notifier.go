@@ -101,9 +101,9 @@ func (n *notifier) persist(ctx context.Context, s *session) {
 	s.mu.Unlock()
 	var err error
 	if deleted {
-		err = n.host.StorageDelete(ctx, sessionKey+rec.ID)
+		err = n.host.StorageDelete(ctx, sessionStorageKey(rec))
 	} else {
-		err = n.host.StorageSet(ctx, sessionKey+rec.ID, rec)
+		err = n.host.StorageSet(ctx, sessionStorageKey(rec), rec)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agents: save session:", err)

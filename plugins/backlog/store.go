@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -115,16 +114,5 @@ func (s *store) remove(ctx context.Context, projectID string, id int) error {
 
 func (s *store) dropProject(ctx context.Context, projectID string) error {
 	defer s.lock(projectID)()
-	keys, err := s.h.StorageList(ctx, taskPrefix(projectID))
-	if err != nil {
-		return err
-	}
-	var errs []error
-	for _, k := range keys {
-		if strings.HasPrefix(k, taskPrefix(projectID)) {
-			errs = append(errs, s.h.StorageDelete(ctx, k))
-		}
-	}
-	errs = append(errs, s.h.StorageDelete(ctx, seqKey(projectID)))
-	return errors.Join(errs...)
+	return errors.Join(s.h.StorageDeletePrefix(ctx, taskPrefix(projectID)), s.h.StorageDelete(ctx, seqKey(projectID)))
 }

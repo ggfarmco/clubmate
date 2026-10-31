@@ -58,6 +58,22 @@ func TestKVListIsSortedAndPrefixed(t *testing.T) {
 	assert.Equal(t, []string{"%b", "a/1", "b/1", "b/2"}, all)
 }
 
+func TestKVDeletePrefixKeepsOtherKeysAndPlugins(t *testing.T) {
+	s := openKV(t)
+	for _, k := range []string{"task/prj_1/1", "task/prj_1/2", "task/prj_10/1", "seq/prj_1"} {
+		require.NoError(t, s.Set(t.Context(), "a", k, json.RawMessage(`1`)))
+	}
+	require.NoError(t, s.Set(t.Context(), "b", "task/prj_1/1", json.RawMessage(`1`)))
+	require.NoError(t, s.DeletePrefix(t.Context(), "a", "task/prj_1/"))
+	keys, err := s.List(t.Context(), "a", "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"seq/prj_1", "task/prj_10/1"}, keys)
+	other, err := s.List(t.Context(), "b", "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"task/prj_1/1"}, other)
+	assert.ErrorIs(t, s.DeletePrefix(t.Context(), "a", ""), kv.ErrInvalidKey)
+}
+
 func TestKVValidation(t *testing.T) {
 	s := openKV(t)
 	ctx := t.Context()

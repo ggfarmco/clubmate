@@ -45,6 +45,9 @@ func TestRPCStorageIsolatedPerPlugin(t *testing.T) {
 	}
 	require.NoError(t, other.Call(t.Context(), "storage.list", map[string]any{"prefix": ""}, &list))
 	assert.Equal(t, []string{}, list.Keys)
+	require.NoError(t, other.Call(t.Context(), "storage.deletePrefix", map[string]any{"prefix": "k"}, nil))
+	require.NoError(t, a.Call(t.Context(), "storage.get", map[string]any{"key": "k"}, &got))
+	assert.True(t, got.Found)
 	err = a.Call(t.Context(), "storage.set", map[string]any{"key": "", "value": 1}, nil)
 	var rpcErr *jsonrpc2.Error
 	require.ErrorAs(t, err, &rpcErr)

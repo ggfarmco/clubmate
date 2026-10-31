@@ -38,7 +38,7 @@ extension AgentSession {
     }
 
     public var group: SessionGroup {
-        if closed || status == .closed { return .closed }
+        if isClosed { return .closed }
         if status == .waiting || !pending.isEmpty || asks || status == .error { return .needsInput }
         if status == .running { return .running }
         return .idle

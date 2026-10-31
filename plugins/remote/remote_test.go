@@ -69,7 +69,7 @@ func TestPairIssuesTokenReplacingTheDevicesOldOne(t *testing.T) {
 	require.Equal(t, ": connected", frame(t, stream))
 
 	assert.Regexp(t, `^cmt_[A-Za-z0-9_-]{43}$`, first)
-	stored := f.kv.get(devicesKey)
+	stored := f.kv.get(deviceKey("phone-1"))
 	assert.NotContains(t, stored, first)
 	assert.Contains(t, stored, hashToken(first))
 	second := f.pair(t, "phone-1")
@@ -183,6 +183,45 @@ func TestRevokeDuringAFailedRepairStaysRevoked(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, f.rpcStatus(t, old))
 	assert.Empty(t, f.srv.devices.list())
+}
+
+func TestRevokeDuringLastSeenSaveStaysRevoked(t *testing.T) {
+	f := newFixture(t)
+	token := f.pair(t, "phone")
+	f.clock.advance(seenPersistAt)
+	entered, release := f.kv.holdNextSet()
+	go f.srv.devices.authenticate(t.Context(), token)
+	<-entered
+	revoked := make(chan error)
+	go func() { revoked <- f.srv.devices.revoke(t.Context(), "phone") }()
+	time.Sleep(20 * time.Millisecond)
+
+	close(release)
+	require.NoError(t, <-revoked)
+
+	assert.Empty(t, f.kv.get(deviceKey("phone")))
+}
+
+func TestDevicesMigrateFromLegacyList(t *testing.T) {
+	kv := &memKV{data: map[string][]byte{
+		legacyDevicesKey:   []byte(`[{"id":"phone","tokenHash":"new"},{"id":"pad","tokenHash":"pad"}]`),
+		deviceKey("phone"): []byte(`{"id":"phone","tokenHash":"old"}`),
+		deviceKey("mac"):   []byte(`{"id":"mac","tokenHash":"mac"}`),
+	}}
+
+	for range 2 {
+		s := newDeviceStore(kv, time.Now)
+		require.NoError(t, s.load(t.Context()))
+
+		hashes := map[string]string{}
+		for _, d := range s.list() {
+			hashes[d.ID] = d.TokenHash
+		}
+		assert.Equal(t, map[string]string{"phone": "new", "pad": "pad", "mac": "mac"}, hashes)
+		keys, err := kv.StorageList(t.Context(), "")
+		require.NoError(t, err)
+		assert.Equal(t, []string{deviceKey("mac"), deviceKey("pad"), deviceKey("phone")}, keys)
+	}
 }
 
 func TestPairHostsError(t *testing.T) {
@@ -504,6 +543,29 @@ func (m *memKV) StorageSet(_ context.Context, key string, v any) error {
 	defer m.mu.Unlock()
 	m.data[key] = raw
 	return nil
+}
+
+func (m *memKV) StorageDelete(_ context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.fail != nil {
+		return m.fail
+	}
+	delete(m.data, key)
+	return nil
+}
+
+func (m *memKV) StorageList(_ context.Context, prefix string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var keys []string
+	for k := range m.data {
+		if strings.HasPrefix(k, prefix) {
+			keys = append(keys, k)
+		}
+	}
+	slices.Sort(keys)
+	return keys, nil
 }
 
 func (m *memKV) holdNextSet() (entered, release chan struct{}) {

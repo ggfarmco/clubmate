@@ -21,8 +21,8 @@ final class AgentsTests: XCTestCase {
           {"id":"kid","parentSession":"root","status":"waiting","updatedAt":"2026-10-30T08:00:00Z"},
           {"id":"grandkid","parentSession":"kid","status":"done","updatedAt":"2026-10-30T07:00:00Z"},
           {"id":"orphan","parentSession":"gone","status":"done","updatedAt":"2026-10-30T10:00:00Z"},
-          {"id":"loop-a","parentSession":"loop-b","status":"closed","closed":true},
-          {"id":"loop-b","parentSession":"loop-a","status":"closed","closed":true}
+          {"id":"loop-a","parentSession":"loop-b","status":"closed"},
+          {"id":"loop-b","parentSession":"loop-a","status":"closed"}
         ]
         """#
         let groups = AgentSession.grouped(try JSONDecoder.companion.decode([AgentSession].self, from: Data(json.utf8)))

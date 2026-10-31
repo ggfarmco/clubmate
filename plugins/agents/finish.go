@@ -174,7 +174,7 @@ func (a *app) merged(ctx context.Context, rec record, l *childLayout) bool {
 	if err := a.host.RunCommand(ctx, worktreeSessionsCmd, rec.Workspace, map[string]string{"path": l.own.Path}, &terminals); err != nil || len(terminals) > 0 {
 		return false
 	}
-	return !a.othersIn(rec.ID, l.own.Real) && !slices.ContainsFunc(a.children(rec.ID), func(c *session) bool { return !c.snapshot().Closed })
+	return !a.othersIn(rec.ID, l.own.Real) && !slices.ContainsFunc(a.children(rec.ID), func(c *session) bool { return !c.snapshot().closed() })
 }
 
 func (a *app) closeVanishedChildren(s *session) {
@@ -192,7 +192,7 @@ func (a *app) othersIn(id, root string) bool {
 	defer a.mu.Unlock()
 	for other, s := range a.sessions {
 		rec := s.snapshot()
-		if other != id && !rec.Closed && gitrepo.Within(gitrepo.Canonical(rec.Worktree), root) {
+		if other != id && !rec.closed() && gitrepo.Within(gitrepo.Canonical(rec.Worktree), root) {
 			return true
 		}
 	}
@@ -201,12 +201,11 @@ func (a *app) othersIn(id, root string) bool {
 
 func (a *app) closeIdle(ctx context.Context, s *session) bool {
 	s.mu.Lock()
-	if s.running || len(s.queue) > 0 || s.rec.Closed || s.rec.Status != statusDone || s.asksLocked() {
+	if s.running || len(s.queue) > 0 || s.rec.Status != statusDone || s.asksLocked() {
 		s.mu.Unlock()
 		return false
 	}
 	s.recordLocked(actorClubmate, kindClose, acp.SessionRequest{SessionID: s.rec.AgentSessionID})
-	s.rec.Closed = true
 	s.setStatusLocked(statusClosed, "")
 	s.mu.Unlock()
 	a.closeSession(ctx, s, false)

@@ -87,7 +87,7 @@ func (x Executor) Guard(ctx context.Context, act Action) ([]api.Session, string)
 			return nil, ReasonUnknown
 		}
 	}
-	if s, ok := agentcall.Find(sessions, act.Owner); act.Owner != "" && (!ok || s.Closed) {
+	if s, ok := agentcall.Find(sessions, act.Owner); act.Owner != "" && (!ok || s.Closed()) {
 		return sessions, ReasonGone
 	}
 	return sessions, ""

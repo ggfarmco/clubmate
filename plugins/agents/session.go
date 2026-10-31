@@ -90,7 +90,7 @@ func (s *session) setStatusLocked(status, errText string) {
 
 func (s *session) settleLocked() {
 	switch {
-	case s.rec.Closed:
+	case s.rec.closed():
 	case len(s.perms) > 0:
 		if s.rec.Status != statusWaiting {
 			s.prior = s.rec.Status

@@ -127,7 +127,7 @@ func TestHandoffRepointsEdges(t *testing.T) {
 	r := runGraph(t, a)
 	core.calls = nil
 	a.sessions = func(context.Context, string) ([]api.Session, error) {
-		return []api.Session{{ID: "agt_boss"}, {ID: "agt_1", Closed: true}, {ID: "agt_9", HandoffFrom: "agt_1"}}, nil
+		return []api.Session{{ID: "agt_boss"}, {ID: "agt_1", Status: api.StatusClosed}, {ID: "agt_9", HandoffFrom: "agt_1"}}, nil
 	}
 
 	a.sessionChanged(t.Context(), api.Changed{Workspace: "ws1", Session: "agt_9", Kind: "created"})

@@ -23,7 +23,7 @@ func (a *app) attachInBackground(s *session) {
 
 func (a *app) fail(s *session, text string) {
 	s.mu.Lock()
-	if s.rec.Closed {
+	if s.rec.closed() {
 		s.mu.Unlock()
 		return
 	}
@@ -38,8 +38,7 @@ func (a *app) fail(s *session, text string) {
 
 func (a *app) resume(s *session) {
 	s.mu.Lock()
-	if s.rec.Closed {
-		s.rec.Closed = false
+	if s.rec.closed() {
 		s.setStatusLocked(statusIdle, "")
 	}
 	id := s.rec.ID
@@ -66,7 +65,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	if p != nil && p.alive() {
 		return p, nil
 	}
-	if rec.Closed {
+	if rec.closed() {
 		return nil, errClosed
 	}
 	p, err := a.ensureProc(context.Background(), rec.Agent, rec.Workspace, rec.Worktree)

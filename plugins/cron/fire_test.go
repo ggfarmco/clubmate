@@ -87,7 +87,7 @@ func TestFireClassifiesErrors(t *testing.T) {
 		{"error", ping, nil, "", errors.New("boom"), Run{At: now, Status: "error", Reason: "boom"}, ""},
 		{"long result", ping, nil, long, nil, Run{At: now, Status: "ok", Result: `"` + strings.Repeat("é", 199)}, ""},
 		{"target waiting", remind, []agentSession{{ID: "agt_1", Status: "waiting"}}, "", called, Run{At: now, Status: "skipped", Reason: "busy"}, ""},
-		{"owner closed", owned, []agentSession{{ID: "agt_1", Closed: true}}, "", called, Run{At: now, Status: "skipped", Reason: "owner gone"}, ""},
+		{"owner closed", owned, []agentSession{{ID: "agt_1", Status: "closed"}}, "", called, Run{At: now, Status: "skipped", Reason: "owner gone"}, ""},
 		{"owner unknown", owned, nil, "", called, Run{At: now, Status: "skipped", Reason: "owner unknown"}, ""},
 		{"owner alive", owned, []agentSession{{ID: "agt_1", Status: "done"}}, "{}", nil, Run{At: now, Status: "ok", Result: "{}"}, "agt_1"},
 	}
@@ -174,7 +174,7 @@ func TestReconcileDropsJobsOfGoneOwners(t *testing.T) {
 		&Job{ID: "cj_live", Workspace: "prj_1", Owner: "agt_live"},
 		&Job{ID: "cj_free", Workspace: "prj_1"})
 	a.sessions = func(context.Context, string) ([]agentSession, error) {
-		return []agentSession{{ID: "agt_closed", Closed: true}, {ID: "agt_live"}}, nil
+		return []agentSession{{ID: "agt_closed", Status: "closed"}, {ID: "agt_live"}}, nil
 	}
 
 	a.registry.ReconcileAll(t.Context())

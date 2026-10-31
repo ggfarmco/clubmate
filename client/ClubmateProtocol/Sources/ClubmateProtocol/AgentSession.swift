@@ -20,7 +20,6 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let afk: Bool
     public let createdAt: Date
     public let updatedAt: Date
-    public let closed: Bool
     public let asks: Bool
     public let notify: NotificationPolicy?
     public let error: String?
@@ -31,7 +30,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
         parentSession: String? = nil, advisor: String? = nil, fork: String? = nil, handoffFrom: String? = nil, handoffTo: String? = nil, importedFrom: String? = nil,
         title: String = "", titleSet: Bool = false, status: AgentSessionStatus = .other, mode: String = "", finish: AgentFinish = .ask, afk: Bool = false,
-        createdAt: Date = .distantPast, updatedAt: Date? = nil, closed: Bool = false, asks: Bool = false,
+        createdAt: Date = .distantPast, updatedAt: Date? = nil, asks: Bool = false,
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all
     ) {
         self.id = id
@@ -53,7 +52,6 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.afk = afk
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
-        self.closed = closed
         self.asks = asks
         self.notify = notify
         self.error = error
@@ -61,9 +59,11 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.notifyEffective = notifyEffective
     }
 
+    public var isClosed: Bool { status == .closed }
+
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
-        case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, closed, asks, notify, error, pending, notifyEffective
+        case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective
     }
 
     public init(from decoder: any Decoder) throws {
@@ -93,7 +93,6 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             afk: try flag(.afk),
             createdAt: created,
             updatedAt: date(.updatedAt) ?? created,
-            closed: try flag(.closed),
             asks: try flag(.asks),
             notify: try optional(.notify).map(NotificationPolicy.init),
             error: try optional(.error),
@@ -125,7 +124,6 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(afk, forKey: .afk)
         try c.encode(formatter.string(from: createdAt), forKey: .createdAt)
         try c.encode(formatter.string(from: updatedAt), forKey: .updatedAt)
-        try c.encode(closed, forKey: .closed)
         try c.encode(asks, forKey: .asks)
         try c.encodeIfPresent(notify, forKey: .notify)
         try c.encodeIfPresent(error, forKey: .error)

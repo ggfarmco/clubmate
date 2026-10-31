@@ -346,7 +346,7 @@ func (a *app) renderCode(ctx context.Context, p *projectUI, project pluginsdk.Pr
 	})
 	if a.session(bound) == nil || !slices.ContainsFunc(recs, func(r record) bool { return r.ID == bound }) {
 		bound = ""
-		if i := slices.IndexFunc(here, func(r record) bool { return !r.Closed }); i >= 0 {
+		if i := slices.IndexFunc(here, func(r record) bool { return !r.closed() }); i >= 0 {
 			bound = here[i].ID
 		}
 	}
@@ -395,7 +395,7 @@ func (a *app) screen(ctx context.Context, projectID string, s *session) screen {
 		Continue:    cannotResume,
 		SignIn:      st.signIn,
 		NodeProblem: a.nodeProblem,
-		Installing:  a.installing && detached && !v.Session.Closed,
+		Installing:  a.installing && detached && !v.Session.closed(),
 		Changes:     changes,
 		Advisor:     advisor,
 		Parent:      parent,

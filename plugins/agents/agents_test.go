@@ -50,7 +50,6 @@ type record struct {
 	Mode           string   `json:"mode"`
 	Finish         string   `json:"finish"`
 	AFK            bool     `json:"afk"`
-	Closed         bool     `json:"closed"`
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
 	Asks           bool     `json:"asks"`
@@ -817,7 +816,7 @@ func TestDeleteWorkspaceDeletesSessions(t *testing.T) {
 	require.NoError(t, f.h.Svc.DeleteProject(t.Context(), project))
 
 	testutil.Eventually(t, func() bool {
-		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+session)
+		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+project+"/"+session)
 		require.NoError(t, err)
 		_, statErr := os.Stat(path)
 		return !found && errors.Is(statErr, os.ErrNotExist) && git(t, repo, "for-each-ref", "refs/clubmate/cp/"+session+"/") == ""
@@ -854,7 +853,7 @@ func TestStopRoot(t *testing.T) {
 
 	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"path": repo}, nil))
 
-	assert.True(t, f.session(t, project, session).Closed)
+	assert.Equal(t, "closed", f.session(t, project, session).Status)
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	assert.ErrorIs(t, syscall.Kill(starts[0].PID, 0), syscall.ESRCH)
@@ -864,7 +863,7 @@ func TestStopRoot(t *testing.T) {
 
 	path := filepath.Join(f.h.Dirs.PluginState("agents"), "sessions", session+".jsonl")
 	testutil.Eventually(t, func() bool {
-		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+session)
+		_, found, err := f.h.KV.Get(t.Context(), "agents", "session/"+project+"/"+session)
 		require.NoError(t, err)
 		_, statErr := os.Stat(path)
 		return !found && errors.Is(statErr, os.ErrNotExist)
@@ -878,7 +877,7 @@ func TestResumedSessionClosedWhenWorktreeVanishes(t *testing.T) {
 	session := f.newSession(t, project)
 	require.NoError(t, f.run(t, project, "agents.stop-root", map[string]any{"path": repo}, nil))
 	require.NoError(t, f.run(t, project, "agents.resume", map[string]any{"session": session}, nil))
-	require.False(t, f.session(t, project, session).Closed)
+	require.NotEqual(t, "closed", f.session(t, project, session).Status)
 
 	require.NoError(t, os.RemoveAll(repo))
 	_, err := f.h.Svc.RenameProject(t.Context(), project, "renamed")
@@ -1112,7 +1111,7 @@ func TestCloseCancelsSignIn(t *testing.T) {
 	for range 10 {
 		time.Sleep(50 * time.Millisecond)
 		require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
-		require.True(t, f.session(t, project, id).Closed)
+		require.Equal(t, "closed", f.session(t, project, id).Status)
 	}
 }
 
@@ -1308,7 +1307,7 @@ func TestExportImportContinuesInAnotherClone(t *testing.T) {
 	copied := f.session(t, to, out.Imported)
 	assert.Equal(t, old, copied.ImportedFrom)
 	assert.Equal(t, out.Session, copied.HandoffTo)
-	assert.True(t, copied.Closed)
+	assert.Equal(t, "closed", copied.Status)
 	assert.Equal(t, out.Imported, f.session(t, to, out.Session).HandoffFrom)
 	assert.Equal(t, "fix refunds", ofKind(f.transcript(t, to, out.Imported).Entries, "user")[0].Text)
 	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.HasSuffix(promptText(t, c), "finish it") })
@@ -1796,7 +1795,7 @@ func TestMergedChildCleanedUp(t *testing.T) {
 	f, repo, project, parent := startWithGit(t, testutil.EchoPluginDirAs(t, stopManifest))
 	kid := f.newChild(t, project, parent, map[string]any{"branch": "c1", "prompt": "plan"})
 	f.waitStatus(t, project, kid.Session, "done")
-	testutil.Never(t, func() bool { return f.session(t, project, kid.Session).Closed }, 500*time.Millisecond)
+	testutil.Never(t, func() bool { return f.session(t, project, kid.Session).Status == "closed" }, 500*time.Millisecond)
 
 	write(t, filepath.Join(kid.Worktree, "b.go"), "two\n")
 	git(t, kid.Worktree, "add", ".")
@@ -1843,7 +1842,7 @@ func TestMergedChildAskingStaysOpen(t *testing.T) {
 	mergeChild(t, f, repo, project, parent, kid)
 
 	testutil.Eventually(t, func() bool { return f.session(t, project, kid.Session).Asks }, wait)
-	testutil.Never(t, func() bool { return f.session(t, project, kid.Session).Closed }, 500*time.Millisecond)
+	testutil.Never(t, func() bool { return f.session(t, project, kid.Session).Status == "closed" }, 500*time.Millisecond)
 	assert.DirExists(t, kid.Worktree)
 }
 
@@ -2017,7 +2016,7 @@ func TestAsksUser(t *testing.T) {
 	assert.Equal(t, turnEvent{Workspace: project, Session: session, Status: "done", Asks: true, Reply: "Ship it?"}, last)
 
 	testutil.Eventually(t, func() bool {
-		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+session)
+		raw, _, err := f.h.KV.Get(t.Context(), "agents", "session/"+project+"/"+session)
 		require.NoError(t, err)
 		return strings.Contains(string(raw), `"asks":true`)
 	}, wait)

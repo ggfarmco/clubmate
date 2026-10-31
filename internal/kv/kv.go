@@ -102,6 +102,16 @@ func (s *Store) Delete(ctx context.Context, plugin, key string) error {
 	return nil
 }
 
+func (s *Store) DeletePrefix(ctx context.Context, plugin, prefix string) error {
+	if err := validateKey(prefix); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM kv WHERE plugin = ? AND substr(key, 1, length(?)) = ?`, plugin, prefix, prefix); err != nil {
+		return fmt.Errorf("delete kv prefix: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) List(ctx context.Context, plugin, prefix string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT key FROM kv WHERE plugin = ? AND substr(key, 1, length(?)) = ? ORDER BY key`, plugin, prefix, prefix)
 	if err != nil {

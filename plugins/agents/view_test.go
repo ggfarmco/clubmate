@@ -39,7 +39,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Activity: "go test"},
 		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}, Notify: notifyMuted},
-		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
 	}
 	tree := sidebarView(rows, "agt_2", nil, now, false)
@@ -75,7 +75,7 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
-		{Rec: record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 	}
 	tree := sidebarView(rows, "", map[string]bool{closedKey + "/r/a": false}, now, false)
 	require.NoError(t, internalsdui.Validate(tree))
@@ -125,7 +125,7 @@ func TestSidebarNestsChildren(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_c", Worktree: "/r/b", lineage: lineage{ParentSession: "agt_p"}, Agent: agentClaude, Status: statusDone, Asks: true, UpdatedAt: now}},
-		{Rec: record{ID: "agt_d", Worktree: "/r/a", lineage: lineage{ParentSession: "agt_p"}, Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_d", Worktree: "/r/a", lineage: lineage{ParentSession: "agt_p"}, Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 	}
 

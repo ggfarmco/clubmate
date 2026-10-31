@@ -223,8 +223,6 @@ func nodeStatus(s api.Session, known bool) string {
 		return "unknown"
 	case s.ID == "":
 		return "gone"
-	case s.Closed:
-		return "closed"
 	}
 	return cmp.Or(s.Status, "idle")
 }

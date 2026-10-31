@@ -11,12 +11,12 @@
     "finish": "ask",
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
-    "closed": false,
     "asks": false,
     "pending": [
       "permission-3"
     ],
-    "notifyEffective": "all"
+    "notifyEffective": "all",
+    "closed": false
   },
   {
     "id": "agt_0000000000000002",
@@ -30,9 +30,9 @@
     "finish": "ask",
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
-    "closed": false,
     "asks": true,
-    "notifyEffective": "all"
+    "notifyEffective": "all",
+    "closed": false
   },
   {
     "id": "agt_0000000000000003",
@@ -46,8 +46,8 @@
     "finish": "ask",
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
-    "closed": true,
     "asks": false,
-    "notifyEffective": "all"
+    "notifyEffective": "all",
+    "closed": true
   }
 ]

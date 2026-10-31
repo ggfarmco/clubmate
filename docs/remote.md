@@ -27,7 +27,7 @@ clubmate command run remote.setPort port=<port>
 ## Security model
 - WireGuard (Tailscale) encrypts and authenticates the hosts; the device token authorizes the app. No app-level TLS in v1.
 - Pairing code: 128 random bits, base32, valid 5 minutes, single use, one active code at a time (a new `remote.pair` replaces it). A source address with 5 wrong guesses is refused for the rest of the code's life while the code stays valid for others; 50 wrong guesses in total invalidate it. If saving the new device fails, the pair request gets `500` and the code stays valid.
-- Device token: `cmt_` + base64url of 32 random bytes. Only its hex SHA-256 is stored (plugin storage `devices`); comparisons are constant-time. Tokens and codes are never logged.
+- Device token: `cmt_` + base64url of 32 random bytes. Only its hex SHA-256 is stored (plugin storage `device/<id>`, one key per device; the old `devices` list moves there on load); comparisons are constant-time. Tokens and codes are never logged.
 - Pairing the same device id again replaces its old token. Revoking a device closes its event streams; its next request gets 401.
 - A paired device acts as you: it can run every command whose manifest has `"remote": true` (the agents commands: sessions, transcript, prompt, cancel, permission, new, close, mode, config) and answer any pending permission. Commands run through core `command.run` with `agent: false` and no caller; the core marks them `via: "remote"`.
 - Request bodies are limited to 16 MiB (room for photos attached to prompts); the server has header/read/idle timeouts and per-write deadlines.

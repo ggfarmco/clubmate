@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
-	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -96,15 +95,11 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	a.codePanel = slices.ContainsFunc(sections, func(s sectionRef) bool { return s.ID == editorSection })
-	keys, err := h.StorageList(ctx, sessionKey)
+	recs, err := loadRecords(ctx, h)
 	if err != nil {
 		return err
 	}
-	for _, k := range keys {
-		var rec record
-		if found, err := h.StorageGet(ctx, k, &rec); err != nil || !found || !api.Valid(rec.ID) {
-			continue
-		}
+	for _, rec := range recs {
 		stale := rec.Status == statusRunning || rec.Status == statusWaiting
 		if stale {
 			rec.Status = statusIdle
@@ -219,7 +214,7 @@ func (a *app) infos(projectID string) []sessionInfo {
 	recs := a.list(projectID)
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
-		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec)}
+		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), Closed: rec.closed()}
 		if s := a.session(rec.ID); s != nil {
 			info.Pending = s.pending()
 			info.Asks = s.asks()

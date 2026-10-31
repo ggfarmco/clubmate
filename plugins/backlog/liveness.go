@@ -90,7 +90,7 @@ func (s *sessions) stale(ctx context.Context, projectID, owner string) bool {
 		}
 	}
 	a, found := m[owner]
-	return !found || a.Closed || a.Status == "closed"
+	return !found || a.Closed()
 }
 
 func (s *sessions) ancestor(ctx context.Context, projectID, ancestor, owner string) bool {

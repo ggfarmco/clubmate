@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"os"
+	"strings"
 	"time"
+
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -12,7 +18,7 @@ const (
 	statusDone    = "done"
 	statusIdle    = "idle"
 	statusError   = "error"
-	statusClosed  = "closed"
+	statusClosed  = api.StatusClosed
 
 	notifyAll        = "all"
 	notifyNeedsInput = "needs-input"
@@ -46,7 +52,6 @@ type record struct {
 	Suspended bool      `json:"suspended,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
-	Closed    bool      `json:"closed"`
 	Asks      bool      `json:"asks"`
 	Notify    string    `json:"notify,omitempty"`
 	Error     string    `json:"error,omitempty"`
@@ -56,6 +61,70 @@ type sessionInfo struct {
 	record
 	Pending         []string `json:"pending,omitempty"`
 	NotifyEffective string   `json:"notifyEffective"`
+	Closed          bool     `json:"closed"`
+}
+
+type storedRecord struct {
+	record
+	Closed bool `json:"closed"`
+}
+
+type sessionStore interface {
+	StorageList(ctx context.Context, prefix string) ([]string, error)
+	StorageGet(ctx context.Context, key string, out any) (bool, error)
+	StorageSet(ctx context.Context, key string, v any) error
+	StorageDelete(ctx context.Context, key string) error
+}
+
+func loadRecords(ctx context.Context, kv sessionStore) ([]record, error) {
+	keys, err := kv.StorageList(ctx, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	latest := map[string]record{}
+	legacy := map[string]string{}
+	for _, k := range keys {
+		var stored storedRecord
+		if found, err := kv.StorageGet(ctx, k, &stored); err != nil || !found || !api.Valid(stored.ID) {
+			continue
+		}
+		rec := stored.record
+		if stored.Closed {
+			rec.Status = statusClosed
+		}
+		if !strings.Contains(strings.TrimPrefix(k, sessionKey), "/") {
+			legacy[rec.ID] = k
+		}
+		prev, seen := latest[rec.ID]
+		if !seen {
+			ids = append(ids, rec.ID)
+		}
+		if !seen || rec.UpdatedAt.After(prev.UpdatedAt) {
+			latest[rec.ID] = rec
+		}
+	}
+	out := make([]record, 0, len(ids))
+	for _, id := range ids {
+		rec := latest[id]
+		out = append(out, rec)
+		old, ok := legacy[id]
+		if !ok {
+			continue
+		}
+		err := kv.StorageSet(ctx, sessionStorageKey(rec), rec)
+		if err == nil {
+			err = kv.StorageDelete(ctx, old)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "agents: migrate session:", err)
+		}
+	}
+	return out, nil
+}
+
+func (r record) closed() bool {
+	return r.Status == statusClosed
 }
 
 func titleOf(text string) string {
@@ -67,6 +136,10 @@ func storedNotify(policy string) string {
 		return ""
 	}
 	return policy
+}
+
+func sessionStorageKey(rec record) string {
+	return sessionKey + rec.Workspace + "/" + rec.ID
 }
 
 func modeStorageKey(worktree string) string {

@@ -71,7 +71,7 @@ struct SessionDetailView: View {
                     Button("Refresh", systemImage: "arrow.clockwise") {
                         Task { await store.loadTranscript(sessionID) }
                     }
-                    if session?.closed == false {
+                    if session?.isClosed == false {
                         Button("Close Session…", systemImage: "archivebox", role: .destructive) { confirmingClose = true }
                     }
                 }
@@ -165,7 +165,7 @@ struct ComposerView: View {
     }
 
     var body: some View {
-        if session.closed {
+        if session.isClosed {
             Label("This session is closed", systemImage: "archivebox")
                 .font(.callout)
                 .foregroundStyle(.secondary)

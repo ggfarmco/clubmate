@@ -131,7 +131,7 @@ actor FixtureServer {
             update(session) { $0["status"] = .string("done"); $0["pending"] = nil }
             return .null
         case "agents.close":
-            update(session) { $0["status"] = .string("closed"); $0["closed"] = .bool(true) }
+            update(session) { $0["status"] = .string("closed") }
             return .null
         case "agents.new":
             let id = String(format: "agt_%016x", sessions.count + 1)

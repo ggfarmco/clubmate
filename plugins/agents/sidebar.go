@@ -103,7 +103,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		}
 		item := nestedItem(row, kids, collapsed, now, map[string]bool{})
 		child := row.Rec.ParentSession != ""
-		if row.Rec.Closed && !child {
+		if row.Rec.closed() && !child {
 			b.closed = append(b.closed, item)
 			continue
 		}
@@ -192,7 +192,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 			menu = append(menu, sdui.MenuEntry{Action: n.action, Label: n.label})
 		}
 	}
-	if !rec.Closed {
+	if !rec.closed() {
 		menu = append(menu, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
 	}
 	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})

@@ -35,7 +35,7 @@ type env struct {
 	t *testing.T
 }
 
-const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true},{"id":"agents.reveal","title":"Reveal","hidden":true}]},"echoResults":{"agents.reveal":null,"agents.sessions":[{"id":"agt_dead","status":"closed","closed":true},{"id":"agt_live","status":"running"},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
+const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true},{"id":"agents.reveal","title":"Reveal","hidden":true}]},"echoResults":{"agents.reveal":null,"agents.sessions":[{"id":"agt_dead","status":"closed"},{"id":"agt_live","status":"running"},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
 
 func newEnv(t *testing.T, extra ...string) env {
 	dirs := append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/backlog", "plugins/backlog/plugin.json")}, extra...)

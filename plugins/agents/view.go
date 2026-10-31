@@ -94,12 +94,12 @@ func mainView(sc screen) sdui.Node {
 		return sdui.VStack(children...)
 	}
 	children = append(children, transcript(sc))
-	if rec.Closed && rec.HandoffTo != "" {
+	if rec.closed() && rec.HandoffTo != "" {
 		next := sdui.WithAction(sdui.Button(sid+"/"+handoffToNode, "Open new session", "arrow.turn.down.right"), actOpenHandoff)
 		children = append(children, sdui.HStack(sdui.MutedText("The session was handed off to a new session."), next))
 		return sdui.VStack(children...)
 	}
-	if rec.Closed {
+	if rec.closed() {
 		reopen := sdui.WithAction(sdui.Button(sid+"/reopen", "Reopen", "arrow.clockwise"), actRetry)
 		if sc.Continue {
 			reopen = continueButton(sid)
@@ -116,7 +116,7 @@ func mainView(sc screen) sdui.Node {
 func codeView(recs []record, bound string, sc *screen) sdui.Node {
 	var opts []sdui.Option
 	for _, rec := range recs {
-		if len(opts) < maxCodeOptions && (!rec.Closed || rec.ID == bound) {
+		if len(opts) < maxCodeOptions && (!rec.closed() || rec.ID == bound) {
 			opts = append(opts, sdui.Option{Value: rec.ID, Label: cmp.Or(rec.Title, "New session")})
 		}
 	}

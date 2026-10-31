@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	devicesKey    = "devices"
-	tokenPrefix   = "cmt_"
-	tokenBytes    = 32
-	seenPersistAt = time.Minute
+	legacyDevicesKey = "devices"
+	devicePrefix     = "device/"
+	tokenPrefix      = "cmt_"
+	tokenBytes       = 32
+	seenPersistAt    = time.Minute
 )
 
 var errUnknownDevice = errors.New("unknown device")
@@ -47,8 +48,22 @@ func newDeviceStore(kv kvStore, now func() time.Time) *deviceStore {
 }
 
 func (s *deviceStore) load(ctx context.Context) error {
-	var list []device
-	if _, err := s.kv.StorageGet(ctx, devicesKey, &list); err != nil {
+	keys, err := s.kv.StorageList(ctx, devicePrefix)
+	if err != nil {
+		return err
+	}
+	list := make([]device, 0, len(keys))
+	for _, k := range keys {
+		var d device
+		found, err := s.kv.StorageGet(ctx, k, &d)
+		if err != nil {
+			return err
+		}
+		if found && d.ID != "" {
+			list = append(list, d)
+		}
+	}
+	if list, err = s.migrate(ctx, list); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -79,7 +94,7 @@ func (s *deviceStore) add(ctx context.Context, id, name, model string) (string, 
 	s.devices = append(s.devices, d)
 	s.saved[id] = now
 	s.mu.Unlock()
-	if err := s.save(ctx); err != nil {
+	if err := s.persist(ctx, id); err != nil {
 		s.undoAdd(d, prev, prevSaved, hadSaved)
 		return "", err
 	}
@@ -105,7 +120,7 @@ func (s *deviceStore) authenticate(ctx context.Context, token string) (device, b
 	}
 	s.mu.Unlock()
 	if persist {
-		_ = s.save(ctx)
+		_ = s.persist(ctx, d.ID)
 	}
 	return d, true
 }
@@ -130,7 +145,7 @@ func (s *deviceStore) revoke(ctx context.Context, id string) error {
 	if !removed {
 		return errUnknownDevice
 	}
-	return s.save(ctx)
+	return s.persist(ctx, id)
 }
 
 func (s *deviceStore) list() []device {
@@ -155,13 +170,39 @@ func (s *deviceStore) undoAdd(added device, prev *device, prevSaved time.Time, h
 	}
 }
 
-func (s *deviceStore) save(ctx context.Context) error {
+func (s *deviceStore) migrate(ctx context.Context, list []device) ([]device, error) {
+	var legacy []device
+	if found, err := s.kv.StorageGet(ctx, legacyDevicesKey, &legacy); err != nil || !found {
+		return list, err
+	}
+	for _, d := range legacy {
+		if err := s.kv.StorageSet(ctx, deviceKey(d.ID), d); err != nil {
+			return nil, err
+		}
+		list = slices.DeleteFunc(list, func(cur device) bool { return cur.ID == d.ID })
+		list = append(list, d)
+	}
+	return list, s.kv.StorageDelete(ctx, legacyDevicesKey)
+}
+
+func (s *deviceStore) persist(ctx context.Context, id string) error {
 	s.saveMu.Lock()
 	defer s.saveMu.Unlock()
 	s.mu.Lock()
-	list := slices.Clone(s.devices)
+	i := slices.IndexFunc(s.devices, func(d device) bool { return d.ID == id })
+	var d device
+	if i >= 0 {
+		d = s.devices[i]
+	}
 	s.mu.Unlock()
-	return s.kv.StorageSet(ctx, devicesKey, list)
+	if i < 0 {
+		return s.kv.StorageDelete(ctx, deviceKey(id))
+	}
+	return s.kv.StorageSet(ctx, deviceKey(id), d)
+}
+
+func deviceKey(id string) string {
+	return devicePrefix + id
 }
 
 func hashToken(token string) string {

@@ -99,7 +99,7 @@ func (r *Registry[P]) Reconcile(ctx context.Context, workspace string) {
 		if !ok || p.Action().Owner != owner {
 			continue
 		}
-		if s, alive := agentcall.Find(sessions, owner); !alive || s.Closed {
+		if s, alive := agentcall.Find(sessions, owner); !alive || s.Closed() {
 			r.Log(r.Drop(ctx, p))
 		}
 	}

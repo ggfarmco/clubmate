@@ -62,6 +62,13 @@ func (s *Server) storageMethods() map[string]handlerFunc {
 			}
 			return empty{}, s.kv.Delete(ctx, plugin, p.Key)
 		}),
+		"storage.deletePrefix": method(func(ctx context.Context, p storageListParams) (empty, error) {
+			plugin, err := s.storagePlugin(ctx)
+			if err != nil {
+				return empty{}, err
+			}
+			return empty{}, s.kv.DeletePrefix(ctx, plugin, p.Prefix)
+		}),
 		"storage.list": method(func(ctx context.Context, p storageListParams) (storageListResult, error) {
 			plugin, err := s.storagePlugin(ctx)
 			if err != nil {

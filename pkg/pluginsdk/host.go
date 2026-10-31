@@ -210,6 +210,10 @@ func (h *Host) StorageDelete(ctx context.Context, key string) error {
 	return h.Call(ctx, "storage.delete", storageKeyParams{Key: key}, nil)
 }
 
+func (h *Host) StorageDeletePrefix(ctx context.Context, prefix string) error {
+	return h.Call(ctx, "storage.deletePrefix", storageListParams{Prefix: prefix}, nil)
+}
+
 func (h *Host) StorageList(ctx context.Context, prefix string) ([]string, error) {
 	var res storageListResult
 	err := h.Call(ctx, "storage.list", storageListParams{Prefix: prefix}, &res)

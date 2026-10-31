@@ -21,6 +21,8 @@ type backend interface {
 type kvStore interface {
 	StorageGet(ctx context.Context, key string, out any) (bool, error)
 	StorageSet(ctx context.Context, key string, v any) error
+	StorageDelete(ctx context.Context, key string) error
+	StorageList(ctx context.Context, prefix string) ([]string, error)
 }
 
 type commandInfo struct {

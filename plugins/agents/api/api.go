@@ -12,6 +12,8 @@ const (
 	ChangeCreated = "created"
 	ChangeStatus  = "status"
 	ChangeDeleted = "deleted"
+
+	StatusClosed = "closed"
 )
 
 type Session struct {
@@ -22,7 +24,6 @@ type Session struct {
 	ParentSession string `json:"parentSession"`
 	HandoffFrom   string `json:"handoffFrom"`
 	Status        string `json:"status"`
-	Closed        bool   `json:"closed"`
 }
 
 type Turn struct {
@@ -37,6 +38,10 @@ type Changed struct {
 	Workspace string `json:"workspace"`
 	Session   string `json:"session"`
 	Kind      string `json:"kind"`
+}
+
+func (s Session) Closed() bool {
+	return s.Status == StatusClosed
 }
 
 func Valid(s string) bool {

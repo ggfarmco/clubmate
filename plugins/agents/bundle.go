@@ -165,7 +165,6 @@ func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, projectID, f
 		Status:    statusClosed,
 		CreatedAt: old.CreatedAt,
 		UpdatedAt: old.UpdatedAt,
-		Closed:    true,
 	}
 	if err := copyFile(filepath.Join(args.Dir, bundleLog), logPath(a.stateDir, copied.ID)); err != nil {
 		return importResult{}, err

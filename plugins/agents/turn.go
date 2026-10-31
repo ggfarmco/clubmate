@@ -56,7 +56,7 @@ func (a *app) prompt(projectID string, args promptArgs) error {
 func (a *app) submit(s *session, args *promptArgs) error {
 	s.mu.Lock()
 	s.loadLocked()
-	if args != nil && s.running && !s.cancelRequested && !s.rec.Closed && s.proc != nil && s.proc.steering {
+	if args != nil && s.running && !s.cancelRequested && !s.rec.closed() && s.proc != nil && s.proc.steering {
 		p, rec := s.proc, s.rec
 		s.mu.Unlock()
 		if a.steer(s, p, rec, *args) {
@@ -65,7 +65,7 @@ func (a *app) submit(s *session, args *promptArgs) error {
 		s.mu.Lock()
 	}
 	switch {
-	case s.rec.Closed:
+	case s.rec.closed():
 		s.mu.Unlock()
 		return errClosed
 	case s.running && args == nil:
@@ -212,7 +212,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	var next promptArgs
 	nextTurn, finished := 0, false
 	switch {
-	case s.rec.Closed:
+	case s.rec.closed():
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 	case err != nil:
 		s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{Error: err.Error()})
@@ -230,7 +230,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 			finished = true
 		}
 	}
-	closed, ended := s.rec.Closed, s.turnLocked()
+	closed, ended := s.rec.closed(), s.turnLocked()
 	s.mu.Unlock()
 	if !closed {
 		s.turned(ended)
@@ -256,7 +256,7 @@ func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, b
 	time.Sleep(retryDelay)
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: []acp.ContentBlock{{Type: "text", Text: fmt.Sprintf(retryFormat, reason)}}}
 	s.mu.Lock()
-	ok = !s.cancelRequested && !s.rec.Closed && !s.deleted
+	ok = !s.cancelRequested && !s.rec.closed() && !s.deleted
 	if ok {
 		s.recordLocked(actorClubmate, kindPrompt, promptPayload{PromptRequest: req, Steered: true})
 	}
@@ -270,7 +270,7 @@ func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, b
 func (a *app) abandon(s *session, args promptArgs) bool {
 	s.mu.Lock()
 	switch {
-	case s.deleted || s.rec.Closed:
+	case s.deleted || s.rec.closed():
 		s.running = false
 		s.mu.Unlock()
 		return true

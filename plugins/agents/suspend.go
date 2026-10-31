@@ -114,7 +114,7 @@ func (a *app) resumes(id string) bool {
 
 func (s *session) idleLocked(after time.Duration) bool {
 	switch {
-	case s.rec.Closed, s.deleted, s.running, len(s.perms) > 0, len(s.queue) > 0:
+	case s.rec.closed(), s.deleted, s.running, len(s.perms) > 0, len(s.queue) > 0:
 		return false
 	case s.rec.Status != statusDone && s.rec.Status != statusIdle:
 		return false
