@@ -3,6 +3,7 @@ package rpc_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -156,13 +157,16 @@ func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 		return len(st) == 1 && st[0].State == plugin.StateRunning
 	}, 5*time.Second)
 	p := h.CreateProject(t, "demo")
-	tree := map[string]any{"type": "list", "id": "files", "props": map[string]any{"items": []any{
-		map[string]any{"id": "a.go", "label": "a.go", "menu": []any{map[string]any{"action": "discard", "label": "Discard", "confirm": "Discard a.go?"}}},
-	}}}
+	tree := map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
+		map[string]any{"type": "list", "id": "files", "props": map[string]any{"items": []any{
+			map[string]any{"id": "a.go", "label": "a.go", "menu": []any{map[string]any{"action": "discard", "label": "Discard", "confirm": "Discard a.go?"}}},
+		}}},
+		map[string]any{"type": "button", "id": "kill", "props": map[string]any{"label": "Kill", "confirm": "Kill it?"}},
+	}}
 	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": "alpha.main", "tree": tree}))
-	for _, node := range []string{"files", "ghost"} {
-		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.main", "nodeId": node, "action": "discard", "value": "a.go", "agent": true}, nil)
-		require.Error(t, err, node)
-		assert.Contains(t, err.Error(), `action "discard" needs the user's confirmation`)
+	for _, tc := range []struct{ node, action string }{{"files", "discard"}, {"ghost", "discard"}, {"kill", "kill"}} {
+		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.main", "nodeId": tc.node, "action": tc.action, "value": "a.go", "agent": true}, nil)
+		require.Error(t, err, tc.node)
+		assert.Contains(t, err.Error(), fmt.Sprintf("action %q needs the user's confirmation", tc.action))
 	}
 }

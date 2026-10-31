@@ -185,6 +185,17 @@ func hasConfirm(v any, action string) bool {
 				return true
 			}
 		}
+		if props, ok := v["props"].(map[string]any); ok {
+			if c, _ := props["confirm"].(string); c != "" {
+				a, ok := props["action"].(string)
+				if !ok {
+					a, _ = v["id"].(string)
+				}
+				if a == action {
+					return true
+				}
+			}
+		}
 		for _, child := range v {
 			if hasConfirm(child, action) {
 				return true
