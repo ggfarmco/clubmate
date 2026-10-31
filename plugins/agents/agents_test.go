@@ -337,6 +337,20 @@ func TestNewTitleSurvivesAgentTitle(t *testing.T) {
 	assert.Equal(t, "Mine", f.waitStatus(t, workspace, out.Session, "done").Title)
 }
 
+func TestAgentTitleIgnoresSenderTitle(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{
+		{"update": map[string]any{"sessionUpdate": "session_info_update", "title": "orchestrate"}},
+	}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "orchestrate")
+	f.waitStatus(t, workspace, parent, "done")
+
+	out := f.newChild(t, workspace, parent, map[string]any{"prompt": "hi"})
+
+	assert.Equal(t, "hi", f.waitStatus(t, workspace, out.Session, "done").Title)
+}
+
 func TestPromptStreamsAndLogs(t *testing.T) {
 	repo := newRepo(t)
 	toolCall := map[string]any{

@@ -119,8 +119,9 @@ func (a *app) cancel(s *session) {
 func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool {
 	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)
 	req := acp.NewSteerRequest(rec.AgentSessionID, slices.Clone(blocks))
+	fromTitle := a.senderTitle(args.From)
 	if args.From != "" {
-		req.Prompt[0].Text = a.fromPrefix(args.From) + req.Prompt[0].Text
+		req.Prompt[0].Text = fromPrefix(args.From, fromTitle) + req.Prompt[0].Text
 	}
 	req.Prompt = sendable(req.Prompt)
 	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
@@ -134,7 +135,7 @@ func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool 
 		return false
 	}
 	s.mu.Lock()
-	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, Steered: true})
+	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Steered: true})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 	return true
@@ -183,15 +184,16 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		return 0, promptArgs{}
 	}
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)}
+	fromTitle := a.senderTitle(args.From)
 	s.mu.Lock()
-	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: req, From: args.From})
+	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: req, From: args.From, FromTitle: fromTitle})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)
 	req.Prompt = append(slices.Clip(req.Prompt), a.policies(ctx, rec)...)
 	cancel()
 	if args.From != "" {
-		req.Prompt[0].Text = a.fromPrefix(args.From) + req.Prompt[0].Text
+		req.Prompt[0].Text = fromPrefix(args.From, fromTitle) + req.Prompt[0].Text
 	}
 	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
@@ -314,13 +316,19 @@ func (s *session) beginTurnLocked() int {
 	return s.turn
 }
 
-func (a *app) fromPrefix(id string) string {
+func (a *app) senderTitle(id string) string {
+	if id == "" || id == unknownCaller {
+		return ""
+	}
+	if s := a.session(id); s != nil {
+		return s.snapshot().Title
+	}
+	return ""
+}
+
+func fromPrefix(id, title string) string {
 	if id == unknownCaller {
 		return fromUnknown
-	}
-	var title string
-	if s := a.session(id); s != nil {
-		title = s.snapshot().Title
 	}
 	return fmt.Sprintf(fromFormat, title, id)
 }

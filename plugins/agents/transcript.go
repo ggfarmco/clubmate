@@ -35,6 +35,7 @@ type transcriptState struct {
 	nextID   int
 	edited   bool
 	prompted bool
+	senders  []string
 }
 
 type transcriptView struct {
@@ -73,8 +74,9 @@ type turnInfo struct {
 
 type promptPayload struct {
 	acp.PromptRequest
-	From    string `json:"from,omitempty"`
-	Steered bool   `json:"steered,omitempty"`
+	From      string `json:"from,omitempty"`
+	FromTitle string `json:"fromTitle,omitempty"`
+	Steered   bool   `json:"steered,omitempty"`
 }
 
 type permissionPayload struct {
@@ -325,6 +327,9 @@ func (s *session) applyPrompt(e envelope) {
 	en := s.upsert(entryUser, id, e.Turn)
 	en.Content = nil
 	en.From = req.From
+	if req.FromTitle != "" && !slices.Contains(s.senders, req.FromTitle) {
+		s.senders = append(s.senders, req.FromTitle)
+	}
 	for _, b := range req.Prompt {
 		raw, err := json.Marshal(b)
 		if err == nil {
@@ -372,7 +377,7 @@ func (s *session) applyUpdate(turn int, payload json.RawMessage) {
 		}
 	case acp.UpdateSessionInfo:
 		var u acp.SessionInfoUpdate
-		if json.Unmarshal(payload, &u) == nil && !s.rec.TitleSet && u.Title != nil && *u.Title != "" {
+		if json.Unmarshal(payload, &u) == nil && !s.rec.TitleSet && u.Title != nil && *u.Title != "" && !slices.Contains(s.senders, titleOf(*u.Title)) {
 			s.rec.Title = titleOf(*u.Title)
 		}
 	case acp.UpdateNotice:
