@@ -98,7 +98,7 @@ func transcript(sc screen) sdui.Node {
 			}
 		}
 		n, ok := entryNode(sc, en, shas[en.Turn])
-		if ok && !pending(en) {
+		if ok && !pending(sc, en) {
 			group = slices.Insert(group, 0, n)
 		}
 		cost := 0
@@ -122,18 +122,17 @@ func transcript(sc screen) sdui.Node {
 	return sdui.Transcript(sid+"/transcript", nodes...)
 }
 
-func pending(en *entry) bool {
-	return en.Kind == entryPermission && en.Outcome == nil
+func pending(sc screen, en *entry) bool {
+	return en.Kind == entryPermission && en.Outcome == nil && sc.Pending[en.ID]
 }
 
-func pendingPermissions(sc screen) []sdui.Node {
-	var nodes []sdui.Node
+func dockedPermission(sc screen) (sdui.Node, bool) {
 	for _, en := range sc.View.Entries {
-		if pending(en) {
-			nodes = append(nodes, permissionCard(sc, en))
+		if pending(sc, en) {
+			return permissionCard(sc, en), true
 		}
 	}
-	return nodes
+	return sdui.Node{}, false
 }
 
 func turnNumbers(v transcriptView) []int {
@@ -426,6 +425,7 @@ func permissionCard(sc screen, en *entry) sdui.Node {
 		}
 		options = append(options, sdui.PermissionOption{ID: o.OptionID, Label: cmp.Or(o.Name, o.OptionID), Kind: kind})
 	}
+	slices.SortStableFunc(options, func(a, b sdui.PermissionOption) int { return cmp.Compare(optionRank(a.Kind), optionRank(b.Kind)) })
 	outcome := ""
 	switch {
 	case en.Outcome != nil && en.Outcome.Outcome == acp.OutcomeSelected:
@@ -434,6 +434,13 @@ func permissionCard(sc screen, en *entry) sdui.Node {
 		outcome = acp.OutcomeCancelled
 	}
 	return sdui.PermissionCard(rec.ID+"/permission/"+en.ID, en.ID, text, options, outcome)
+}
+
+func optionRank(kind string) int {
+	if i := slices.Index([]string{"allow_once", "allow_always", "reject_once", "reject_always"}, kind); i >= 0 {
+		return i
+	}
+	return 4
 }
 
 func promptAttachments(content []json.RawMessage, root string) []sdui.Attachment {

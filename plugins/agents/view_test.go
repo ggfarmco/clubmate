@@ -499,23 +499,28 @@ func TestHeaderShowsWaitingForChildren(t *testing.T) {
 
 func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
 	call := rawJSON(t, map[string]string{"title": "go test", "kind": "execute"})
+	options := []acp.PermissionOption{{OptionID: "always", Name: "Always Allow", Kind: "allow_always"}, {OptionID: "allow", Name: "Allow", Kind: "allow_once"}, {OptionID: "deny", Name: "Reject", Kind: "reject_once"}}
 	v := transcriptView{
 		Session: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusWaiting, Mode: "default"},
 		Modes:   []acp.SessionMode{{ID: "default", Name: "Default"}},
 		Entries: []*entry{
 			{Kind: entryPermission, ID: "perm-1", Turn: 1, ToolCall: call, Outcome: &acp.PermissionOutcome{Outcome: acp.OutcomeSelected, OptionID: "allow"}},
-			{Kind: entryPermission, ID: "perm-2", Turn: 2, ToolCall: call},
+			{Kind: entryPermission, ID: "perm-stale", Turn: 1, ToolCall: call},
+			{Kind: entryPermission, ID: "perm-2", Turn: 2, ToolCall: call, Options: options},
+			{Kind: entryPermission, ID: "perm-3", Turn: 2, ToolCall: call, Options: options},
 		},
 	}
-	tree := mainView(screen{View: v, Composer: "agt_1/composer/0"})
+	tree := mainView(screen{View: v, Composer: "agt_1/composer/0", Pending: map[string]bool{"perm-2": true, "perm-3": true}})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	inTranscript := nodesOf(nodesOf(tree, "transcript")[0], "permissionCard")
-	require.Len(t, inTranscript, 1)
-	assert.Equal(t, "perm-1", inTranscript[0].Props["request"])
-	last := tree.Children[len(tree.Children)-2]
-	assert.Equal(t, "permissionCard", last.Type)
-	assert.Equal(t, "perm-2", last.Props["request"])
+	assert.Len(t, inTranscript, 2)
+	docked := tree.Children[len(tree.Children)-2]
+	require.Equal(t, "permissionCard", docked.Type)
+	assert.Equal(t, "perm-2", docked.Props["request"])
+	assert.Len(t, nodesOf(tree, "permissionCard"), 3)
+	got := docked.Props["options"].([]sdui.PermissionOption)
+	assert.Equal(t, []string{"allow", "always", "deny"}, []string{got[0].ID, got[1].ID, got[2].ID})
 	assert.Contains(t, nodesOf(tree.Children[0], "text")[1].Props["text"], "Ask before edits")
 	assert.Equal(t, "Ask before edits", nodesOf(tree, "composer")[0].Props["modes"].([]sdui.Option)[0].Label)
 }

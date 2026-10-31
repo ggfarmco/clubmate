@@ -67,7 +67,7 @@ A pending request is docked above the composer.
 
 | Keys | Action |
 |---|---|
-| ⌥1 … ⌥9 | Choose the request's option in button order (printed on each button); works while the prompt has a draft and leaves it untouched |
+| ⌥1 … ⌥9 | Choose the request's option in button order (printed on each button; Allow first); works while the prompt has a draft and leaves it untouched. "Always" options have no key and need a click |
 
 Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift`.
 

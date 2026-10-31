@@ -108,7 +108,9 @@ func mainView(sc screen) sdui.Node {
 		children = append(children, sdui.HStack(sdui.MutedText("The session is closed; its transcript stays readable."), reopen))
 		return sdui.VStack(children...)
 	}
-	children = append(children, pendingPermissions(sc)...)
+	if card, ok := dockedPermission(sc); ok {
+		children = append(children, card)
+	}
 	if len(sc.Queue) > 0 {
 		children = append(children, queueView(sc))
 	}

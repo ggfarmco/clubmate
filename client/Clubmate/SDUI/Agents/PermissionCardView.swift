@@ -29,7 +29,7 @@ struct PermissionCardNodeView: View {
             }
             FlowLayout(spacing: theme.spacing.m) {
                 ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
-                    CardButton(label: option.label, shortcut: PermissionKeys.label(index), tone: tone(option)) {
+                    CardButton(label: option.label, shortcut: PermissionKeys.label(index, kind: option.kind), tone: tone(option)) {
                         choose(option)
                     }
                 }
@@ -44,7 +44,7 @@ struct PermissionCardNodeView: View {
         .padding(.bottom, theme.spacing.l)
         .keyMonitor(active: true) { event in
             let flags = event.modifierFlags
-            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, count: options.count) else { return false }
+            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, kinds: options.map(\.kind)) else { return false }
             choose(options[index])
             return true
         }
