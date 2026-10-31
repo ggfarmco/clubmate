@@ -151,6 +151,14 @@ type app struct {
 	stopping map[editorKey]bool
 	offerMu  sync.Mutex
 	themeMu  sync.Mutex
+	watchMu  sync.Mutex
+	watches  map[string]projectWatch
+	branchMu sync.Mutex
+}
+
+type projectWatch struct {
+	id      string
+	folders []string
 }
 
 type editor struct {
@@ -172,8 +180,9 @@ func main() {
 		projects: map[string]pluginsdk.Project{},
 		deleted:  map[string]bool{},
 		stopping: map[editorKey]bool{},
+		watches:  map[string]projectWatch{},
 	}
-	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
+	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
@@ -246,6 +255,7 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 			return
 		}
 		a.drop(p.ID)
+		a.unwatch(ctx, h, p.ID)
 	case themeTopic:
 		a.themeChanged(ev.Payload)
 		if err := h.StorageSet(ctx, themeSeqKey, ev.Seq); err != nil {
@@ -393,8 +403,12 @@ func (a *app) active(ctx context.Context, h *pluginsdk.Host, projectID string) (
 		return nil, err
 	}
 	e, moved, err := a.selectRoot(p, "")
-	if e == nil || err != nil || !moved {
+	if e == nil || err != nil {
 		return e, err
+	}
+	a.watch(ctx, h, p)
+	if !moved {
+		return e, nil
 	}
 	return e, a.show(ctx, h, e)
 }
@@ -415,8 +429,12 @@ func (a *app) target(ctx context.Context, h *pluginsdk.Host, projectID, path str
 		want = p.Roots[folder]
 	}
 	e, moved, err := a.selectRoot(p, want)
-	if e == nil || err != nil || !moved && !switched {
+	if e == nil || err != nil {
 		return e, err
+	}
+	a.watch(ctx, h, p)
+	if !moved && !switched {
+		return e, nil
 	}
 	if err := a.show(ctx, h, e); err != nil {
 		return nil, err
@@ -550,6 +568,7 @@ func (a *app) projectUpdated(ctx context.Context, h *pluginsdk.Host, p pluginsdk
 	if e == nil {
 		return
 	}
+	a.watch(ctx, h, p)
 	a.scheduleStatus(h, e)
 	if moved {
 		go func() {
@@ -1046,6 +1065,66 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	a.scheduleStatus(h, e)
 }
 
+func (a *app) watch(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Project) {
+	folders := slices.Concat(p.Repos, p.Roots)
+	a.watchMu.Lock()
+	defer a.watchMu.Unlock()
+	old, ok := a.watches[p.ID]
+	if a.isDeleted(p.ID) || ok && slices.Equal(old.folders, folders) {
+		return
+	}
+	if ok {
+		delete(a.watches, p.ID)
+		if err := h.UnwatchFS(ctx, old.id); err != nil {
+			logError("unwatch "+p.ID, err)
+		}
+	}
+	id, err := h.WatchFS(ctx, p.ID)
+	if err != nil {
+		logError("watch "+p.ID, err)
+		return
+	}
+	a.watches[p.ID] = projectWatch{id: id, folders: folders}
+}
+
+func (a *app) unwatch(ctx context.Context, h *pluginsdk.Host, projectID string) {
+	a.watchMu.Lock()
+	defer a.watchMu.Unlock()
+	if w, ok := a.watches[projectID]; ok {
+		delete(a.watches, projectID)
+		if err := h.UnwatchFS(ctx, w.id); err != nil {
+			logError("unwatch "+projectID, err)
+		}
+	}
+}
+
+func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSChange) {
+	a.watchMu.Lock()
+	w, ok := a.watches[ev.ProjectID]
+	a.watchMu.Unlock()
+	if ok && w.id == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, isHead)) {
+		go a.refreshBranches(h, ev.ProjectID)
+	}
+}
+
+func isHead(path string) bool {
+	return filepath.Base(path) == "HEAD"
+}
+
+func (a *app) refreshBranches(h *pluginsdk.Host, projectID string) {
+	a.branchMu.Lock()
+	defer a.branchMu.Unlock()
+	for _, e := range a.projectEditors(projectID) {
+		if e.connected() == nil {
+			continue
+		}
+		file := e.current().File
+		if e.setBranch(file, gitBranch(context.Background(), branchDir(file, e.root))) {
+			a.scheduleStatus(h, e)
+		}
+	}
+}
+
 func (a *app) scheduleStatus(h *pluginsdk.Host, e *editor) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -1156,6 +1235,16 @@ func (e *editor) update(ev nvimEvent, branch string, refresh bool) {
 	if refresh {
 		e.status.Branch = branch
 	}
+}
+
+func (e *editor) setBranch(file, branch string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.status.File != file || e.status.Branch == branch {
+		return false
+	}
+	e.status.Branch = branch
+	return true
 }
 
 func existingRoots(p pluginsdk.Project) []string {

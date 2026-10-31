@@ -552,6 +552,14 @@ func TestSecondFolderWorktreeGetsOwnNvim(t *testing.T) {
 	assert.ElementsMatch(t, []string{e.sessionID, feat.ID}, e.running(t))
 }
 
+func TestStatusBranchFollowsInPlaceSwitch(t *testing.T) {
+	e, wt := startWorktreeEditor(t, setup{})
+	e.setWorktree(t, wt)
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasText(n, "feat") })
+	gitIn(t, wt, "switch", "-q", "-c", "other")
+	e.h.WaitSlot(t, e.projectID, statusSlot, func(n sdui.Node) bool { return hasText(n, "other") })
+}
+
 func startWorktreeEditor(t *testing.T, s setup) (*editor, string) {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
@@ -768,6 +776,13 @@ func hasBadge(n sdui.Node, sub string) bool {
 		return true
 	}
 	return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return hasBadge(c, sub) })
+}
+
+func hasText(n sdui.Node, text string) bool {
+	if s, _ := n.Props["text"].(string); n.Type == "text" && s == text {
+		return true
+	}
+	return slices.ContainsFunc(n.Children, func(c sdui.Node) bool { return hasText(c, text) })
 }
 
 func contains(n sdui.Node, typ string) bool {
