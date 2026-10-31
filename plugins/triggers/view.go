@@ -35,7 +35,7 @@ func sidebarView(triggers []*Trigger, selected string) sdui.Node {
 	return sdui.List(listID, items, selected)
 }
 
-func mainView(t *Trigger, titles map[string]string) sdui.Node {
+func mainView(t *Trigger, titles map[string]string, expanded bool) sdui.Node {
 	if t == nil {
 		return sdui.Empty("Select a trigger")
 	}
@@ -48,7 +48,7 @@ func mainView(t *Trigger, titles map[string]string) sdui.Node {
 		automation.Property("State", stateLine(t), ""),
 		automation.Property("Owner", automation.OwnerLabel(t.Owner, titles), ""),
 	}
-	rows = append(rows, automation.Does(t.Command, t.Args)...)
+	rows = append(rows, automation.Does(t.ID, t.Command, t.Args, expanded)...)
 	if len(t.History) == 0 {
 		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "No runs yet.", ""))...))
 	}

@@ -364,6 +364,22 @@ func TestShowSessionRevealsTheOwner(t *testing.T) {
 	})
 }
 
+func TestShowAsJSONTogglesTheArgs(t *testing.T) {
+	f := newFixture(t)
+	var added job
+	require.NoError(t, f.runAs(t, "agt_0000000000000001", "cron.add", ping(nil), &added))
+	shown := func(n sdui.Node) bool {
+		return len(nodesWhere(n, func(c sdui.Node) bool { return c.Props["text"] == "{\n  \"message\": \"hi\"\n}" })) == 1
+	}
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/json")) == 1 && !shown(n) })
+
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/json", "json", nil)
+	f.h.WaitSlot(t, f.workspace, "cron.main", shown)
+
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/json", "json", nil)
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/json")) == 1 && !shown(n) })
+}
+
 func TestOnlyRealWorkspaceDeletionDropsJobs(t *testing.T) {
 	f := newFixture(t)
 	var added job

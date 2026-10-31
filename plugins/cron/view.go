@@ -38,7 +38,7 @@ func sidebarView(jobs []*Job, titles map[string]string, selected string, now tim
 	return sdui.List(jobsList, items, selected)
 }
 
-func mainView(j *Job, titles map[string]string) sdui.Node {
+func mainView(j *Job, titles map[string]string, expanded bool) sdui.Node {
 	if j == nil {
 		return sdui.Empty("Select a cron job")
 	}
@@ -57,7 +57,7 @@ func mainView(j *Job, titles map[string]string) sdui.Node {
 		automation.Property("Missed runs", j.Missed, ""),
 		automation.Property("Owner", automation.OwnerLabel(j.Owner, titles), ""),
 	}
-	rows = append(rows, automation.Does(j.Command, j.Args)...)
+	rows = append(rows, automation.Does(j.ID, j.Command, j.Args, expanded)...)
 	if len(j.History) == 0 {
 		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "No runs yet. Run now with ⌘R.", ""))...))
 	}

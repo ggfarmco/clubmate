@@ -13,6 +13,7 @@ const (
 	ActRun    = "run"
 	ActDelete = "delete"
 	ActReveal = "reveal"
+	ActJSON   = "json"
 
 	propsID = "props"
 )
@@ -78,7 +79,7 @@ func Properties(rows ...sdui.Node) sdui.Node {
 	return sdui.Form(propsID, rows...)
 }
 
-func Does(command string, args json.RawMessage) []sdui.Node {
+func Does(id, command string, args json.RawMessage, expanded bool) []sdui.Node {
 	rows := []sdui.Node{Property("Does", command, "")}
 	var fields map[string]any
 	if json.Unmarshal(args, &fields) != nil || len(fields) == 0 {
@@ -91,8 +92,16 @@ func Does(command string, args json.RawMessage) []sdui.Node {
 			break
 		}
 	}
-	if len(fields) > 0 {
-		rest, _ := json.Marshal(fields)
+	if len(fields) == 0 {
+		return rows
+	}
+	toggle := DetailAction{Action: ActJSON, Label: "Show as JSON", Icon: "chevron.right", Variant: sdui.VariantGhost}
+	if expanded {
+		toggle.Label, toggle.Icon = "Hide JSON", "chevron.down"
+	}
+	rows = append(rows, sdui.HStack(sdui.MutedText(""), ActionNode(id, toggle)))
+	if expanded {
+		rest, _ := json.MarshalIndent(fields, "", "  ")
 		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.MutedText(string(rest))))
 	}
 	return rows

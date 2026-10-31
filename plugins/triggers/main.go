@@ -141,6 +141,14 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	default:
 		return nil, nil
 	}
+	if ev.Action == automation.ActJSON {
+		if err := automation.ToggleJSON(ctx, a.host, ev.WorkspaceID, id); err != nil {
+			return nil, err
+		}
+		a.registry.Invalidate(ev.WorkspaceID)
+		a.registry.Flush(ctx)
+		return nil, nil
+	}
 	if ev.Action == "select" {
 		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {
 			return nil, err
@@ -167,11 +175,15 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
+	expanded, err := automation.JSONExpanded(ctx, a.host, workspace, selected)
+	if err != nil {
+		return fmt.Errorf("render %s: %w", workspace, err)
+	}
 	titles := a.registry.Titles(ctx, workspace, triggers)
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(triggers, selected)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, expanded)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil

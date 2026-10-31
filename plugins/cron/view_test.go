@@ -38,7 +38,7 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 		{At: at, Status: automation.StatusOK, Result: `{"session":"agt_2"}`},
 		{At: at.Add(2 * time.Minute), Status: automation.StatusError, Reason: "boom"},
 	}}
-	view := mainView(j, map[string]string{"agt_1": "Orchestrator"})
+	view := mainView(j, map[string]string{"agt_1": "Orchestrator"}, false)
 	assert.Contains(t, texts(view), "Orchestrator")
 	assert.Equal(t, "header", view.Children[0].Type)
 	assert.Equal(t, []string{"cj_a/run", "cj_a/resume", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
@@ -51,7 +51,7 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 
 func TestEmptyStates(t *testing.T) {
 	assert.Equal(t, "empty", sidebarView(nil, nil, "", time.Now()).Type)
-	assert.Equal(t, "empty", mainView(nil, nil).Type)
+	assert.Equal(t, "empty", mainView(nil, nil, false).Type)
 }
 
 func listItems(t *testing.T, n sdui.Node) []sdui.Item {
