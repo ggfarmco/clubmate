@@ -24,10 +24,13 @@ type watchdog struct {
 	pending map[string]map[string]string
 	waits   map[string]map[string]int
 	timers  map[string]*time.Timer
+
+	retries     map[string]int
+	retryTimers map[string]*time.Timer
 }
 
 func newWatchdog() watchdog {
-	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string]map[string]int{}, timers: map[string]*time.Timer{}}
+	return watchdog{last: map[string]string{}, seen: map[string]string{}, pending: map[string]map[string]string{}, waits: map[string]map[string]int{}, timers: map[string]*time.Timer{}, retries: map[string]int{}, retryTimers: map[string]*time.Timer{}}
 }
 
 func (a *app) continueCutOff(cut []*session) {
@@ -55,7 +58,7 @@ func (a *app) statusChanged(s *session) {
 	w.mu.Lock()
 	prev := w.last[rec.ID]
 	w.last[rec.ID] = rec.Status
-	report := rec.ParentSession != "" && reportable(rec.Status) && busy(prev) && prev != rec.Status && w.seen[rec.ID] != key
+	report := rec.ParentSession != "" && reportable(rec.Status) && busy(prev) && prev != rec.Status && w.seen[rec.ID] != key && w.retryTimers[rec.ID] == nil
 	if report {
 		if w.pending[rec.ParentSession] == nil {
 			w.pending[rec.ParentSession] = map[string]string{}

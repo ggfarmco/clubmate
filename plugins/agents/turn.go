@@ -241,6 +241,11 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	if !closed {
 		s.turned(ended)
 	}
+	if err != nil {
+		a.retryNetwork(s, err)
+	} else {
+		a.resetNetRetry(rec.ID)
+	}
 	s.changed(changeStatus, true)
 	if edited {
 		a.checktime(rec)
@@ -255,6 +260,9 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, bool) {
 	rpcErr, ok := errors.AsType[*acp.Error](err)
 	if !ok || rpcErr.Code != acp.CodeInternal {
+		return acp.PromptRequest{}, false
+	}
+	if _, net := networkError(err); net {
 		return acp.PromptRequest{}, false
 	}
 	reason := firstLine(rpcErr.Message)
