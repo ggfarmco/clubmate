@@ -9,15 +9,21 @@ public final class AgentsStore {
     public private(set) var transcripts: [String: AgentTranscript] = [:]
     public private(set) var loaded = false
     public private(set) var error: String?
+    public private(set) var transcriptErrors: [String: String] = [:]
+
+    public static let followInterval: Duration = .seconds(2)
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
+    @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var watched: [String: Int] = [:]
+    @ObservationIgnored private var followers: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var inflight: Set<String> = []
     @ObservationIgnored private var again: Set<String> = []
 
-    public init(workspace: String, runner: any CommandRunner) {
+    public init(workspace: String, runner: any CommandRunner, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
         self.runner = runner
+        self.sleep = sleep
     }
 
     public var groups: [(group: SessionGroup, sessions: [SessionNode])] {
@@ -51,7 +57,7 @@ public final class AgentsStore {
     public func refreshAll() async {
         await refresh()
         for session in watched.keys {
-            await loadTranscript(session)
+            await loadTranscript(session, incremental: true)
         }
     }
 
@@ -70,26 +76,54 @@ public final class AgentsStore {
 
     public func watch(_ session: String) {
         watched[session, default: 0] += 1
+        guard followers[session] == nil else { return }
+        followers[session] = Task { [weak self] in await self?.follow(session) }
     }
 
     public func unwatch(_ session: String) {
         guard let count = watched[session] else { return }
-        watched[session] = count > 1 ? count - 1 : nil
+        guard count == 1 else {
+            watched[session] = count - 1
+            return
+        }
+        watched[session] = nil
+        followers.removeValue(forKey: session)?.cancel()
     }
 
     public func loadTranscript(_ session: String, incremental: Bool = false) async {
         await coalesced("transcript/" + session) { [weak self] in
             guard let self, let runner else { return }
-            do {
-                let loaded = incremental ? transcripts[session] : nil
-                let fromTurn = loaded?.lastTurn ?? 0
-                var args: [String: JSONValue] = ["session": .string(session)]
-                if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
-                let fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args)).decode(AgentTranscript.self)
-                transcripts[session] = fromTurn > 0 ? loaded?.merging(fetched, fromTurn: fromTurn) ?? fetched : fetched
-            } catch {
-                self.error = Self.message(error)
+            var failure: (any Error)?
+            for _ in 0..<2 {
+                do {
+                    let loaded = incremental ? transcripts[session] : nil
+                    let fromTurn = loaded?.lastTurn ?? 0
+                    var args: [String: JSONValue] = ["session": .string(session)]
+                    if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
+                    let fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args)).decode(AgentTranscript.self)
+                    transcripts[session] = fromTurn > 0 ? loaded?.merging(fetched, fromTurn: fromTurn) ?? fetched : fetched
+                    transcriptErrors[session] = nil
+                    return
+                } catch {
+                    if Task.isCancelled { return }
+                    failure = error
+                }
             }
+            transcriptErrors[session] = failure.map(Self.message)
+        }
+    }
+
+    private func follow(_ session: String) async {
+        await loadTranscript(session, incremental: true)
+        while !Task.isCancelled {
+            do {
+                try await sleep(Self.followInterval)
+            } catch {
+                return
+            }
+            guard sessions.first(where: { $0.id == session })?.status == .running else { continue }
+            await loadTranscript(session, incremental: true)
+            if let status = transcripts[session]?.session.status, status != .running { await refresh() }
         }
     }
 

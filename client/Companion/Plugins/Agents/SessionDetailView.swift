@@ -43,7 +43,15 @@ struct SessionDetailView: View {
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
         .overlay {
-            if transcript == nil {
+            if transcript == nil, let failure = store.transcriptErrors[sessionID] {
+                ContentUnavailableView {
+                    Label("Couldn't Load the Transcript", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(failure)
+                } actions: {
+                    Button("Try Again") { Task { await store.loadTranscript(sessionID) } }
+                }
+            } else if transcript == nil {
                 ProgressView()
             } else if transcript?.entries.isEmpty == true {
                 ContentUnavailableView("No Messages Yet", systemImage: "text.bubble", description: Text("Send the first prompt below."))
@@ -95,7 +103,6 @@ struct SessionDetailView: View {
         }
         .task(id: sessionID) {
             store.watch(sessionID)
-            await store.loadTranscript(sessionID)
             try? await Task.sleep(for: .seconds(31_536_000))
             store.unwatch(sessionID)
         }
@@ -200,6 +207,7 @@ struct ComposerView: View {
                         TextField(placeholder, text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .focused($focused)
+                            .pasteDestination(for: PastedImage.self, action: paste)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
                             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
@@ -250,5 +258,9 @@ struct ComposerView: View {
             .padding(.bottom, 8)
             .frame(maxWidth: 820)
         }
+    }
+
+    private func paste(_ images: [PastedImage]) {
+        attachments += images.compactMap { PhotoEncoder.jpeg($0.data).map(ComposerAttachment.photo) }
     }
 }

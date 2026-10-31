@@ -61,6 +61,14 @@ enum ComposerMedia {
     }
 }
 
+struct PastedImage: Transferable {
+    let data: Data
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { PastedImage(data: $0) }
+    }
+}
+
 struct PickedMovie: Transferable {
     let url: URL
 

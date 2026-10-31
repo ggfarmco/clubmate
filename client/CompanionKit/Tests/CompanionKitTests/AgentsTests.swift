@@ -80,11 +80,10 @@ final class AgentsTests: XCTestCase {
     func testStoreRefetchesOnChangesForItsWorkspace() async throws {
         let runner = FakeRunner()
         let store = AgentsStore(workspace: "prj_00000000000000f1", runner: runner)
-        store.watch("agt_0000000000000001")
         store.handle(.event(BusEvent(seq: 1, topic: "agents.changed", payload: .object(["workspace": .string("other"), "session": .string("agt_0000000000000001")]))))
         store.handle(.event(BusEvent(seq: 2, topic: "agents.changed", payload: .object(["workspace": .string("prj_00000000000000f1"), "session": .string("agt_0000000000000001")]))))
-        try await waitUntil { store.transcripts.count == 1 && store.sessions.count == 3 }
-        XCTAssertEqual(runner.calls.values.sorted(), ["agents.sessions", "agents.transcript"])
+        try await waitUntil { store.sessions.count == 3 }
+        XCTAssertEqual(runner.calls.values, ["agents.sessions"])
     }
 
     func testCreateWithAttachmentsStartsIdleThenPromptsWithImages() async throws {
@@ -135,7 +134,7 @@ final class TranscriptRefreshTests: XCTestCase {
         let runner = ScriptedRunner(replies: [first, second])
         let store = AgentsStore(workspace: "w", runner: runner)
         store.watch("s")
-        await store.loadTranscript("s")
+        try await waitUntil { store.transcripts["s"]?.entries.count == 3 }
         store.handle(.event(BusEvent(seq: 1, topic: "agents.changed", payload: .object(["workspace": .string("w"), "session": .string("s")]))))
         try await waitUntil { store.transcripts["s"]?.entries.count == 4 }
         XCTAssertEqual(runner.args.first, .object(["session": .string("s")]))
@@ -144,20 +143,51 @@ final class TranscriptRefreshTests: XCTestCase {
         XCTAssertEqual(transcript.entries.map(\.id), ["user/prompt-1", "user/prompt-2", "agent/a2", "user/prompt-3"])
         XCTAssertEqual(transcript.entries[2].content, .agent("full answer"))
         XCTAssertEqual(transcript.session.status, .running)
+        store.unwatch("s")
+    }
+
+    func testWatchRetriesAFailedLoadOnceThenShowsTheErrorUntilALoadSucceeds() async throws {
+        let runner = ScriptedRunner(replies: ["", "", "", #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.watch("s")
+        try await waitUntil { store.transcriptErrors["s"] != nil }
+        XCTAssertEqual(runner.args.count, 2)
+        XCTAssertNil(store.transcripts["s"])
+        await store.loadTranscript("s")
+        XCTAssertEqual(store.transcripts["s"]?.entries.count, 1)
+        XCTAssertNil(store.transcriptErrors["s"])
+        store.unwatch("s")
+    }
+
+    func testFollowsARunningSessionUntilItsTurnEnds() async throws {
+        let running = #"{"session":{"id":"s","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
+        let done = #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"agent","id":"a1","turn":1,"text":"answer"}]}"#
+        let runner = ScriptedRunner(replies: [running, done], sessions: [#"[{"id":"s","status":"running"}]"#, #"[{"id":"s","status":"done"}]"#])
+        let store = AgentsStore(workspace: "w", runner: runner, sleep: { _ in await Task.yield() })
+        await store.refresh()
+        store.watch("s")
+        try await waitUntil { store.sessions.first?.status == .done }
+        XCTAssertEqual(store.transcripts["s"]?.entries.map(\.id), ["user/prompt-1", "agent/a1"])
+        XCTAssertEqual(runner.args, [.object(["session": .string("s")]), .object(["session": .string("s"), "fromTurn": .number(1)])])
+        store.unwatch("s")
     }
 }
 
 @MainActor
 final class ScriptedRunner: CommandRunner {
     private var replies: [String]
+    private var sessions: [String]
     private(set) var args: [JSONValue] = []
 
-    init(replies: [String]) {
+    init(replies: [String], sessions: [String] = []) {
         self.replies = replies
+        self.sessions = sessions
     }
 
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
-        guard id == "agents.transcript" else { return .array([]) }
+        guard id == "agents.transcript" else {
+            return sessions.isEmpty ? .array([]) : try JSONDecoder().decode(JSONValue.self, from: Data(sessions.removeFirst().utf8))
+        }
         self.args.append(args ?? .null)
         return try JSONDecoder().decode(JSONValue.self, from: Data(replies.removeFirst().utf8))
     }
