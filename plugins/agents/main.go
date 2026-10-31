@@ -39,6 +39,7 @@ type app struct {
 	codePanel bool
 	usage     usageTracker
 	branches  branchCache
+	watchdog  watchdog
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
@@ -63,7 +64,7 @@ type sectionRef struct {
 }
 
 func main() {
-	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), registry: newRegistry(), uiState: newUIState()}
+	a := &app{loaded: make(chan struct{}), quit: make(chan struct{}), watchdog: newWatchdog(), registry: newRegistry(), uiState: newUIState()}
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM)
 	err := pluginsdk.Run(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, Shutdown: a.shutdown})
 	a.stopAll()
@@ -97,6 +98,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
+	var cut []*session
 	for _, rec := range recs {
 		stale := rec.Status == statusRunning || rec.Status == statusWaiting
 		if stale {
@@ -105,6 +107,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		s := a.addSession(rec, false, nil)
 		if stale {
 			a.notes.mark(s, changeStatus, true)
+			cut = append(cut, s)
 		}
 	}
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
@@ -128,6 +131,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	close(a.loaded)
 	go a.suspendIdleLoop(suspendDelay())
+	go a.continueCutOff(cut)
 	a.renderAll(ctx)
 	return nil
 }
@@ -172,6 +176,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	s = newSession(rec, newEventLog(logPath(a.stateDir, rec.ID)), loaded, func(kind string, save bool) {
 		if kind == changeStatus {
 			a.wakeWaiters()
+			a.statusChanged(s)
 		}
 		a.notes.mark(s, kind, save)
 		a.kick(rec.Workspace)

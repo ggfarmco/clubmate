@@ -619,14 +619,16 @@ func (f *fixture) restartPlugin(t *testing.T, workspace string) {
 	t.Helper()
 	pids := f.h.Sup.PIDs()
 	require.Len(t, pids, 1)
+	first := f.calls(t, "start")
+	require.NotEmpty(t, first)
 	require.NoError(t, syscall.Kill(pids[0], syscall.SIGKILL))
 	testutil.Eventually(t, func() bool {
 		now := f.h.Sup.PIDs()
 		return len(now) == 1 && now[0] != pids[0] && f.run(t, workspace, "agents.sessions", map[string]any{}, nil) == nil
 	}, restartWait)
-	first := f.calls(t, "start")
-	require.Len(t, first, 1)
-	testutil.Eventually(t, func() bool { return errors.Is(syscall.Kill(first[0].PID, 0), syscall.ESRCH) }, wait)
+	testutil.Eventually(t, func() bool {
+		return !slices.ContainsFunc(first, func(c fakeCall) bool { return !errors.Is(syscall.Kill(c.PID, 0), syscall.ESRCH) })
+	}, wait)
 }
 
 func TestResume(t *testing.T) {

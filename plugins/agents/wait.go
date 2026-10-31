@@ -71,6 +71,7 @@ func (a *app) wait(ctx context.Context, workspaceID, caller string, args waitArg
 		sessions = append(sessions, s)
 	}
 	self := a.session(caller)
+	defer a.watchWait(caller, args.Sessions)()
 	timer := time.NewTimer(waitTimeout(args.Timeout))
 	defer timer.Stop()
 	expired := false
@@ -86,6 +87,7 @@ func (a *app) wait(ctx context.Context, workspaceID, caller string, args waitArg
 		}
 		msg := self.takeUserPrompts()
 		if expired || moved(first, out) || msg != nil {
+			a.observed(caller, out)
 			return waitOutput{Sessions: out, Message: msg}, nil
 		}
 		select {

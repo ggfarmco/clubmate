@@ -81,16 +81,20 @@ func (a *app) submit(s *session, args *promptArgs) error {
 	if args != nil {
 		s.enqueueLocked(*args)
 	}
+	a.runQueuedLocked(s)
+	return nil
+}
+
+func (a *app) runQueuedLocked(s *session) {
 	next, ok := s.dequeueLocked()
 	if !ok {
 		s.mu.Unlock()
-		return nil
+		return
 	}
 	turn := s.beginTurnLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	go a.runTurn(s, turn, next)
-	return nil
 }
 
 func (a *app) cancel(s *session) {
