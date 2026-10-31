@@ -1,6 +1,6 @@
 # Triggers
 
-The `triggers` plugin calls an agent-visible command when a bus event arrives: a trigger is "on event X (with payload Y), call command Z" in one workspace. It is the event-driven sibling of [cron](cron.md); the two compose through `triggers.emit`, which cron can schedule. Agents manage triggers through MCP (`triggers.*` tools); you can do the same from the CLI. The Triggers section shows the workspace's triggers and their runs; it is for watching and managing, not for authoring.
+The `triggers` plugin calls an agent-visible command when a bus event arrives: a trigger is "on event X (with payload Y), call command Z" in one workspace. It is the event-driven sibling of [cron](cron.md); the two compose through `triggers.emit`, which cron can schedule. [Agent graphs](agent-graphs.md) are built from triggers: each edge of a run is one. Agents manage triggers through MCP (`triggers.*` tools); you can do the same from the CLI. The Triggers section shows the workspace's triggers and their runs; it is for watching and managing, not for authoring.
 
 ## Trigger
 

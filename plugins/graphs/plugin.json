@@ -1,0 +1,72 @@
+{
+  "id": "graphs",
+  "name": "Graphs",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["graphs"],
+  "contributes": {
+    "sections": [{"id": "graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37}],
+    "commands": [
+      {
+        "id": "graphs.list",
+        "title": "List Agent Graphs",
+        "hidden": true,
+        "agent": true,
+        "description": "List the agent graphs in .clubmate/graphs/*.json of your worktree (else of the workspace's folders) and this workspace's graph runs: {graphs: [{name, title?, description?, path, nodes, error?}], runs: [{id, graph, title, status, reason?, turns, maxTurns, startedAt}]}. A graph whose file is invalid has error set. Non-destructive."
+      },
+      {
+        "id": "graphs.run",
+        "title": "Run Agent Graph",
+        "hidden": true,
+        "agent": true,
+        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json: one idle agent session per node (your child sessions when you call it), one trigger per edge (on the source node's turn end or reported outcome, prompt the target node), then the start nodes get their prompt with input. The run stops itself after the graph's maxTurns turns (default 20) or when your session closes; graphs.stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, status, turns, maxTurns, nodes: [{id, role, start?, session}], edges: [{from, to, on, outcome?, trigger}]}. Watch nodes with agents.wait on their sessions. Non-destructive.",
+        "args": {
+          "properties": {
+            "graph": {"type": "string", "description": "Graph name: the file name in .clubmate/graphs/ without .json, e.g. review-loop."},
+            "input": {"type": "string", "description": "Task for the run, filled into {{input}} of the node prompts or appended to the start nodes' prompt; must not contain {{."}
+          },
+          "required": ["graph"]
+        }
+      },
+      {
+        "id": "graphs.show",
+        "title": "Show Agent Graph Run",
+        "hidden": true,
+        "agent": true,
+        "description": "Show one graph run with each node's session title and live status (running, waiting, done, idle, error, closed, gone): {id, graph, title, status, reason?, input?, turns, maxTurns, startedAt, stoppedAt?, nodes: [{id, role, start?, session, title?, status}], edges: [{from, to, on, outcome?, trigger}]}. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "graphs.stop",
+        "title": "Stop Agent Graph Run",
+        "hidden": true,
+        "agent": true,
+        "description": "Stop a graph run: delete its edge triggers so no node prompts another. Running turns go on and the sessions stay open; cancel or close them with agents.cancel and agents.close. An agent may stop only runs started by itself or its child sessions. Returns the run. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "graphs.delete",
+        "title": "Remove Agent Graph Run",
+        "hidden": true,
+        "agent": true,
+        "description": "Stop a graph run like graphs.stop and remove it from the list. The sessions stay open. An agent may remove only runs started by itself or its child sessions. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
+        }
+      }
+    ]
+  }
+}

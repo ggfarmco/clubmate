@@ -313,6 +313,7 @@ struct ItemRow<Leading: View>: View {
             }
             if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accent)
+                    .fixedSize()
             }
         }
         .font(theme.ui)

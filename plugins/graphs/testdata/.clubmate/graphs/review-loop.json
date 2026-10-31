@@ -1,0 +1,24 @@
+{
+  "title": "Review loop",
+  "description": "A coder implements, a reviewer reviews, until the reviewer approves.",
+  "maxTurns": 12,
+  "nodes": [
+    {
+      "id": "coder",
+      "role": "Coder",
+      "start": true,
+      "prompt": "Implement the task in this worktree with tests, and commit when they pass. Task: {{input}}"
+    },
+    {
+      "id": "reviewer",
+      "role": "Reviewer",
+      "prompt": "Review the latest commits of session {{node.coder}} in this worktree for bugs and missing tests. Do not edit code.",
+      "outcomes": ["approved", "changes"]
+    }
+  ],
+  "edges": [
+    {"from": "coder", "to": "reviewer", "on": "done"},
+    {"from": "reviewer", "to": "coder", "on": "outcome", "outcome": "changes", "text": "The reviewer asks for changes: read its last reply with agents_transcript {\"session\":\"{{node.reviewer}}\"}, fix them and commit."},
+    {"from": "coder", "to": "reviewer", "on": "error", "text": "The coder stopped with an error ({{payload.status}}). Look at its transcript and tell it how to continue with agents_prompt."}
+  ]
+}

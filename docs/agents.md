@@ -21,6 +21,7 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 - Attribution: `agents.blame path=…` (or `commit=…`) tells which agent session, turn and prompt made a file's lines or a commit; see [History and attribution](#history-and-attribution).
 - Reminders and schedules: `cron.add` calls a command later or repeatedly, e.g. `agents.prompt` to your own session every minute to check your children; the job is deleted with your session unless `owner: "none"`. See [cron](cron.md).
 - Reacting to events: `triggers.add` calls a command when a bus event arrives, e.g. `agents.prompt` to yourself when a child's `agents.turn` ends; `triggers.emit` publishes your own `event.<name>`, which `cron.add` can schedule. See [triggers](triggers.md).
+- Agent graphs: `graphs.run graph=… input=…` starts a team of child sessions from `.clubmate/graphs/<graph>.json` (one session per role, one trigger per edge) and the Graphs section shows the run; `graphs.list`, `graphs.show`, `graphs.stop`. See [agent graphs](agent-graphs.md).
 - Answers on your behalf (asks you first): `agents.answer session=… text=…` shows you the text and, once you allow it, sends it to the session as your own message.
 - Testing the app: `testapp.list` lists running test instances and `testapp.call instance=… method=…` calls one of them (see below).
 

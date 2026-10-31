@@ -30,6 +30,8 @@ build:
 	cp plugins/triggers/plugin.json bin/plugins/triggers/
 	$(GO_BUILD) -o bin/plugins/backlog/backlog ./plugins/backlog
 	cp plugins/backlog/plugin.json bin/plugins/backlog/
+	$(GO_BUILD) -o bin/plugins/graphs/graphs ./plugins/graphs
+	cp plugins/graphs/plugin.json bin/plugins/graphs/
 
 run-core: build
 	bin/clubmate-core

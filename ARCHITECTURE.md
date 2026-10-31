@@ -53,6 +53,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 | `processes` | The Processes section, built on the core's process tracker. |
 | `agents` | ACP client that hosts Claude Code (`@agentclientprotocol/claude-agent-acp`, installed into its state dir). One process per (agent, workspace, worktree). Keeps a per-session JSONL log, takes a git checkpoint per turn (`refs/clubmate/cp/<session>/<turn>`), and renders the Agents section. |
 | `cron` | Calls agent-visible commands on a schedule (cron, every, one-shot), jobs per workspace, optionally owned by an agent session; renders the Cron section. See `docs/cron.md`. |
+| `graphs` | Agent graphs: reads `.clubmate/graphs/*.json`, starts a run as one idle agent session per node and one trigger per edge, stops it at its turn budget; renders the Graphs section. See `docs/agent-graphs.md`. |
 | `remote` | Companion server: HTTP + SSE on the Mac's Tailscale addresses only, QR pairing, device tokens, proxy for `"remote": true` commands. No section. See `docs/remote.md`. |
 | `internal/` | Shared helpers: `fuzzy`, `gitrepo`. |
 
