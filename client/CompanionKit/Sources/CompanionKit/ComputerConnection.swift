@@ -30,6 +30,7 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
+    public static let pluginChangedTopic = "plugin.changed"
 
     public private(set) var computer: Computer
     public private(set) var state: State = .offline(nil)
@@ -42,8 +43,9 @@ public final class ComputerConnection: CommandRunner {
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
 
-    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.computer = computer
+        self.lastEventID = lastEventID
         self.sleep = sleep
         client = RemoteClient(hosts: computer.hosts, port: computer.port, token: token, transport: transport, policy: policy)
         if token == nil { state = .unauthorized }
@@ -116,6 +118,10 @@ public final class ComputerConnection: CommandRunner {
                         emit(.online)
                     case .event(let event):
                         lastEventID = max(lastEventID ?? 0, event.seq)
+                        if event.topic == Self.pluginChangedTopic, let fresh = try? await client.hello() {
+                            if Task.isCancelled { return }
+                            self.hello = fresh
+                        }
                         emit(.event(event))
                     }
                 }

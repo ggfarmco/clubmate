@@ -139,7 +139,7 @@ func run(logger *slog.Logger) error {
 		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }))
 	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV), rpc.WithLogger(logger), rpc.WithDirs(dirs))
 	uiStore := sdui.NewStore()
-	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))))
+	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithBus(eventBus), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))))
 	srv.SetPluginList(func() any { return sup.Statuses() })
 	srv.SetPluginRestart(sup.Restart)
 	srv.SetUI(uiStore, sdui.NewSections(plugin.SectionDefs(manifests), plugin.ViewDefs(manifests, logger)...), plugin.NewRouter(sup))

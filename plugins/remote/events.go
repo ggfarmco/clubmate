@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	forwardedTopics = []string{"agents.changed", "notify.posted"}
+	forwardedTopics = []string{"agents.changed", "notify.posted", "plugin.changed"}
 
 	errBadCursor = errors.New("invalid Last-Event-ID or after")
 )

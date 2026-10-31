@@ -130,7 +130,7 @@ public struct Inbox: Sendable, Equatable {
 }
 
 public struct LocalAlert: Sendable, Equatable {
-    public static let window: TimeInterval = 600
+    public static let window: TimeInterval = 3600
     public static let kinds: Set<NotificationKind> = [.needsInput, .permission, .stuck, .done]
 
     public let id: String

@@ -51,6 +51,8 @@ type rootRecord struct {
 	start      time.Time
 	registered time.Time
 	dead       bool
+	orphaned   bool
+	reaped     bool
 }
 
 func (r *rootRecord) view() ProcessRoot {
@@ -150,14 +152,29 @@ func (s *Service) registeredRoots(byPID map[int]proc.Process, snapStart time.Tim
 	return out
 }
 
-func (s *Service) sweepRoots(nodes []proc.Node) {
+func (s *Service) sweepRoots(ctx context.Context, nodes []proc.Node) {
 	carried := make(map[string]bool)
 	for _, n := range nodes {
 		carried[n.SessionID] = true
 	}
 	s.rootsMu.Lock()
-	defer s.rootsMu.Unlock()
+	reap := make(map[string]bool)
+	for _, r := range s.roots {
+		if r.Ended && r.orphaned && !r.reaped && carried[r.ID] {
+			r.reaped, reap[r.ID] = true, true
+		}
+	}
 	s.roots = slices.DeleteFunc(s.roots, func(r *rootRecord) bool { return r.Ended && !carried[r.ID] })
+	s.rootsMu.Unlock()
+	if len(reap) == 0 {
+		return
+	}
+	leftovers := slices.DeleteFunc(slices.Clone(nodes), func(n proc.Node) bool { return !reap[n.SessionID] })
+	go func() {
+		if _, err := proc.KillTree(context.WithoutCancel(ctx), nodeTargets(leftovers), s.killGrace); err != nil {
+			s.logger.Error("kill leftovers of a deleted workspace", "err", err)
+		}
+	}()
 }
 
 func (s *Service) alive(r *rootRecord) bool {
@@ -165,10 +182,13 @@ func (s *Service) alive(r *rootRecord) bool {
 	return err == nil && start.Equal(r.start)
 }
 
-func (s *Service) withoutLiveRoots(nodes []proc.Node) []proc.Node {
+func (s *Service) withoutLiveRoots(projectID string, nodes []proc.Node) []proc.Node {
 	s.rootsMu.Lock()
 	live := make(map[string]bool, len(s.roots))
 	for _, r := range s.roots {
+		if r.ProjectID == projectID {
+			r.orphaned = true
+		}
 		if !r.Ended {
 			live[r.ID] = true
 		}

@@ -60,6 +60,30 @@ final class ComputerConnectionTests: XCTestCase {
         connection.stop()
     }
 
+    func testPluginChangedRefetchesHello() async throws {
+        let hellos = Recorder<Int>()
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let transport = FakeTransport(reply: { request in
+            if FakeTransport.rpc(request) == "workspaces" { return (FakeTransport.result(workspacesJSON), 200) }
+            hellos.add(1)
+            return (FakeTransport.result(hellos.values.count == 1 ? helloJSON : #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.13","commands":[],"topics":[]}"#), 200)
+        }, stream: { _ in
+            (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                held.add($0)
+            })
+        })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online && held.values.count == 1 }
+        XCTAssertTrue(connection.supports("agents.sessions"))
+
+        held.values[0].yield(Data("id: 9\nevent: bus\ndata: {\"seq\":9,\"topic\":\"plugin.changed\",\"payload\":{\"id\":\"agents\",\"running\":false}}\n\n".utf8))
+
+        try await waitUntil { !connection.supports("agents.sessions") }
+        connection.stop()
+    }
+
     func testCancelledRunLeavesTheNewerStateAlone() async throws {
         let hellos = Recorder<Int>()
         let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()

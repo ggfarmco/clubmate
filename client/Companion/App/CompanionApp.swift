@@ -1,3 +1,4 @@
+import BackgroundTasks
 import SwiftUI
 import UIKit
 
@@ -5,10 +6,13 @@ import CompanionKit
 
 @main
 struct CompanionApp: App {
+    static let refreshTask = "com.clubmate.companion.refresh"
+    static let refreshEvery: TimeInterval = 15 * 60
+
     @State private var model: CompanionModel
-    @State private var navigation = AppNavigation()
+    @State private var navigation: AppNavigation
     @State private var pairing = PairingFlow()
-    @State private var notifier = LocalNotifier()
+    @State private var notifier: LocalNotifier
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -22,7 +26,31 @@ struct CompanionApp: App {
         let policy = HostPolicy.tailnet
         let transport = URLSessionTransport()
         #endif
-        _model = State(initialValue: CompanionModel(store: store, transport: transport, device: device, policy: policy))
+        let model = CompanionModel(store: store, transport: transport, device: device, policy: policy, cursors: .standard)
+        let navigation = AppNavigation()
+        let notifier = LocalNotifier()
+        _model = State(initialValue: model)
+        _navigation = State(initialValue: navigation)
+        _notifier = State(initialValue: notifier)
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTask, using: .main) { task in
+            MainActor.assumeIsolated {
+                Self.scheduleRefresh(model)
+                notifier.attach(model: model, navigation: navigation)
+                let work = Task { @MainActor in
+                    await model.catchUp()
+                    task.setTaskCompleted(success: !Task.isCancelled)
+                }
+                task.expirationHandler = { work.cancel() }
+            }
+        }
+    }
+
+    @MainActor
+    static func scheduleRefresh(_ model: CompanionModel) {
+        guard !model.computers.isEmpty else { return }
+        let request = BGAppRefreshTaskRequest(identifier: refreshTask)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: refreshEvery)
+        try? BGTaskScheduler.shared.submit(request)
     }
 
     var body: some Scene {
@@ -51,6 +79,7 @@ struct CompanionApp: App {
                 model.reconnectAll()
             case .background:
                 notifier.enteredBackground()
+                Self.scheduleRefresh(model)
             default:
                 break
             }

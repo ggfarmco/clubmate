@@ -45,6 +45,10 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         background = .invalid
     }
 
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
         guard let computer = info["computer"] as? String else { return }

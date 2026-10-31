@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/buildinfo"
+	"clubmate/internal/bus"
 	"clubmate/internal/paths"
 	"clubmate/internal/rpc"
 	"clubmate/internal/sessionhost"
@@ -45,6 +46,9 @@ const (
 	stateDirEnv   = "CLUBMATE_PLUGIN_STATE_DIR"
 	flavorEnv     = "CLUBMATE_FLAVOR"
 	resourcesEnv  = "CLUBMATE_RESOURCES"
+
+	ChangedTopic = "plugin.changed"
+	eventSource  = "core"
 )
 
 var (
@@ -64,6 +68,11 @@ type Status struct {
 
 type SupervisorOption func(*Supervisor)
 
+type changedEvent struct {
+	ID      string `json:"id"`
+	Running bool   `json:"running"`
+}
+
 type Supervisor struct {
 	srv         *rpc.Server
 	dirs        paths.Dirs
@@ -74,6 +83,7 @@ type Supervisor struct {
 	crashWindow time.Duration
 	onStop      func(id string)
 	resourceDir string
+	bus         *bus.Bus
 
 	hurryCtx context.Context
 	hurry    context.CancelFunc
@@ -129,6 +139,10 @@ func WithOnStop(fn func(id string)) SupervisorOption {
 
 func WithResourcesDir(dir string) SupervisorOption {
 	return func(s *Supervisor) { s.resourceDir = dir }
+}
+
+func WithBus(b *bus.Bus) SupervisorOption {
+	return func(s *Supervisor) { s.bus = b }
 }
 
 func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts ...SupervisorOption) *Supervisor {
@@ -348,6 +362,8 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 		inst.conn = p.conn
 	})
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
+	s.changed(m.ID, true)
+	defer s.changed(m.ID, false)
 	select {
 	case <-ctx.Done():
 		s.shutdown(m.ID, p)
@@ -364,6 +380,20 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 		return p.abort(errExited)
 	case <-p.conn.DisconnectNotify():
 		return p.abort(errConnClosed)
+	}
+}
+
+func (s *Supervisor) changed(id string, running bool) {
+	if s.bus == nil {
+		return
+	}
+	raw, err := json.Marshal(changedEvent{ID: id, Running: running})
+	if err != nil {
+		s.logger.Error("marshal plugin event", "id", id, "err", err)
+		return
+	}
+	if _, err := s.bus.Publish(context.Background(), ChangedTopic, eventSource, raw); err != nil {
+		s.logger.Debug("publish plugin event", "id", id, "err", err)
 	}
 }
 

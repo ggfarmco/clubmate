@@ -37,10 +37,10 @@ All bodies are JSON. Authenticated endpoints need `Authorization: Bearer <token>
 
 - `POST /v1/pair` (no auth) `{"code","device":{"id","name","model"}}` → `{"token","computer":{"id","name"}}`; a wrong, expired or used code → `403 pairing_failed`; a malformed body → `400 invalid_params`.
 - `POST /v1/rpc` `{"method","params"}` → `200 {"result":...}` or `200 {"error":{"code","message"}}` (`not_allowed`, `invalid_params`, `failed`):
-  - `hello` → `{computer, version, commands, topics}`; `commands` = registered commands with `"remote": true` whose plugin is running (`command.list` carries `running`). The phone reads `hello` once per connection, so a plugin that starts later shows up after the next reconnect.
+  - `hello` → `{computer, version, commands, topics}`; `commands` = registered commands with `"remote": true` whose plugin is running (`command.list` carries `running`). The phone reads `hello` on each connection and again on every `plugin.changed` event, so a plugin that starts or stops later is reflected live.
   - `workspaces` → `[{id, name, roots}]`.
   - `command {id, workspace, args}` → the command's result verbatim; ids missing from `hello.commands` (non-remote or plugin not running) fail with `not_allowed`.
-- `GET /v1/events` (SSE): starts with a `: connected` comment, then `id: <seq>\nevent: bus\ndata: {"seq","topic","workspace","payload"}` for `agents.changed` and `notify.posted`, and `: ping` every 15 s. `Last-Event-ID` (or `?after=<seq>`) replays later events from the bus first; without it the stream starts live. Events only say "something changed"; the phone refetches with `command`.
+- `GET /v1/events` (SSE): starts with a `: connected` comment, then `id: <seq>\nevent: bus\ndata: {"seq","topic","workspace","payload"}` for `agents.changed`, `notify.posted` and `plugin.changed` (`{id, running}`, published by the core when a plugin starts or stops running), and `: ping` every 15 s. `Last-Event-ID` (or `?after=<seq>`) replays later events from the bus first; without it the stream starts live. Events only say "something changed"; the phone refetches with `command`.
 
 ## Mac app commands
 All hidden, app-scoped (`"scope": "app"`), never agent or remote. Call `command.run {id, projectId: "" (or any), args}`.
@@ -73,10 +73,11 @@ The Companion app talks plain HTTP to the Mac's `remote` plugin. Its `Info.plist
 ## Companion app: notifications
 
 There is no push yet. The app posts **local** notifications from its own event stream:
-- When a `notify.posted` event arrives and the app is not active, it shows a notification for kinds `needs-input`, `permission`, `stuck` and `done` (not `info`) posted less than 10 minutes ago. The identifier is `<computer id>|<notification id>`, so a replayed event does not alert twice. Tapping it opens the session (or the Inbox when the notification has no session).
-- A notification about an agent session first asks `agents.sessions` for the session's applied notification policy (`notifyEffective`); one the policy holds back goes into the Inbox as read and shows no notification (see [per-session policy](notifications.md#per-session-policy)).
+- When a `notify.posted` event arrives and the app is not active, it shows a notification for kinds `needs-input`, `permission`, `stuck` and `done` (not `info`) posted less than an hour ago. The identifier is `<computer id>|<notification id>`, so a replayed event does not alert twice. Tapping it opens the session (or the Inbox when the notification has no session). A notification posted while the app is inactive (e.g. Control Center pulled over it) is shown as a banner too.
+- A notification about an agent session first asks `agents.sessions` for the session's applied notification policy (`notifyEffective`); one the policy holds back goes into the Inbox as read and shows no notification (see [per-session policy](notifications.md#per-session-policy)). This applies to notifications replayed by the background refresh too.
 - The app asks for notification permission after the first pairing (or at launch when a Mac is already paired).
 - Limit: iOS suspends the app shortly after it goes to the background. The app asks for background time (about 30 s) to keep the stream open; after that the stream is gone and nothing arrives until the app is opened again, when `Last-Event-ID` replays the missed events into the Inbox. So this covers "switched to another app for a moment", not "phone in the pocket".
+- Background refresh fallback: on going to the background the app schedules a `BGAppRefreshTask` (`com.clubmate.companion.refresh`, earliest in 15 min). When iOS runs it, the app reconnects to every Mac, replays the events since the last seen `seq` (kept per Mac in `UserDefaults`, so it survives the app being terminated), posts local notifications for what it missed and waits until each Mac is online and the stream has been quiet for 2 s (at most 20 s), then schedules the next run. iOS decides when (and whether) it runs, based on how often the app is used, so alerts can be late by much more than 15 min; it is a fallback, not push. Debug a run on a device from Xcode's debugger with `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.clubmate.companion.refresh"]`.
 
 ### Real push: design (needs the user's Apple account)
 The no-backend model stays: the Mac sends pushes itself.
@@ -86,7 +87,7 @@ The no-backend model stays: the Mac sends pushes itself.
   1. A paid Apple Developer Program membership (free/personal teams can't enable Push Notifications).
   2. The Push Notifications capability on the App ID `com.clubmate.companion` (plus the `aps-environment` entitlement in the app).
   3. An APNs auth key (`.p8`, its Key ID and the Team ID) installed on the Mac for the plugin.
-- Cheaper interim option without an account: a `BGAppRefreshTask` that polls `agents.sessions` per Mac and posts local notifications. iOS schedules it (often 15 min or more apart, not guaranteed), so it is a fallback, not push.
+- Until then the background refresh fallback above is the only way alerts reach a phone that has been in the pocket for a while.
 
 ## Testing on a real iPhone
 
@@ -106,3 +107,5 @@ The simulator covers loopback only. On a device, check:
 8. **Reconnects**: put the Mac to sleep and wake it; switch the phone between Wi-Fi and cellular. The app reconnects (backoff up to 30 s) and replays missed events.
 9. **Notifications**: allow notifications, switch to another app, make an agent ask for permission within ~30 s; a notification appears and opens the session when tapped.
 10. **MagicDNS off**: pairing still works via the IP hosts in the link.
+11. **Background refresh**: put the app in the background for over a minute (stream gone), make an agent ask for permission, then pause in Xcode and run the `_simulateLaunchForTaskWithIdentifier` command above; the notification appears. Also: Control Center pulled over the app shows a banner for a new notification.
+12. **Plugin restart**: with the Agents tab open, restart the `agents` plugin on the Mac (Settings → Plugins); the tab disappears and comes back without reconnecting.

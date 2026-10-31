@@ -53,6 +53,45 @@ final class ModelTests: XCTestCase {
     }
 
     @MainActor
+    func testCatchUpResumesFromTheSavedCursor() async throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        try store.save(Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621), token: "t")
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": return (FakeTransport.result(workspacesJSON), 200)
+            case NotificationPolicy.sessionsCommand:
+                try await Task.sleep(for: .milliseconds(300))
+                return (FakeTransport.result(#"[{"id":"agt_2","notifyEffective":"muted"}]"#), 200)
+            default: return (FakeTransport.result(helloJSON), 200)
+            }
+        }, stream: { request in
+            let after = request.value(forHTTPHeaderField: "Last-Event-ID")
+            let wire = after == nil
+                ? ": connected\n\nid: 7\nevent: bus\ndata: {\"seq\":7,\"topic\":\"agents.changed\",\"payload\":{}}\n\n"
+                : ": connected\n\nid: 8\nevent: bus\ndata: {\"seq\":8,\"topic\":\"notify.posted\",\"workspace\":\"w\",\"payload\":{\"id\":\"n8\",\"session\":\"agt_2\",\"message\":\"m\",\"kind\":\"done\"}}\n\n"
+            return (200, AsyncThrowingStream { $0.yield(Data(wire.utf8)) })
+        })
+        let device = DeviceIdentity(id: "d", name: "Phone", model: "iPhone")
+        let first = CompanionModel(store: store, transport: transport, device: device, cursors: defaults, sleep: { _ in })
+        first.start()
+        try await waitUntil { first.connection("mac1")?.lastEventID == 7 }
+        first.connection("mac1")?.stop()
+
+        let second = CompanionModel(store: store, transport: transport, device: device, cursors: defaults, sleep: { _ in })
+        let posted = Recorder<String>()
+        second.posted = { posted.add($0.id) }
+        await second.catchUp(quiet: .milliseconds(50), timeout: .seconds(5))
+
+        XCTAssertEqual(second.connection("mac1")?.state, .online)
+        XCTAssertEqual(transport.requests.first { $0.url?.path == "/v1/events" && $0.value(forHTTPHeaderField: "Last-Event-ID") != nil }?.value(forHTTPHeaderField: "Last-Event-ID"), "7")
+        XCTAssertEqual(second.inbox.items.map(\.id), ["n8"])
+        XCTAssertEqual(second.inbox.unread, [])
+        XCTAssertEqual(posted.values, [])
+        second.connection("mac1")?.stop()
+    }
+
+    @MainActor
     func testComputerStoreKeepsTokensInVault() throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
         let vault = MemoryTokenVault()
