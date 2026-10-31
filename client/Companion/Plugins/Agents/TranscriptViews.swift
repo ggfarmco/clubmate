@@ -36,10 +36,24 @@ struct UserBubble: View {
     let fromAgent: Bool
     let images: [Data]
 
+    private var shown: [Data] {
+        images.filter { !$0.isEmpty }
+    }
+
+    private var omitted: Int {
+        images.count - shown.count
+    }
+
     var body: some View {
+        let images = shown
         VStack(alignment: .trailing, spacing: 4) {
             if fromAgent {
                 Label("From another agent", systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if omitted > 0 {
+                Label(omitted == 1 ? "1 image" : "\(omitted) images", systemImage: "photo.on.rectangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

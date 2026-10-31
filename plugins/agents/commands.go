@@ -293,7 +293,7 @@ func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 	if args.Last {
 		v = v.lastTurn()
 	}
-	if cmd.Agent {
+	if cmd.Agent || args.Compact {
 		dropImageData(v.Entries)
 	}
 	if args.Compact {

@@ -384,7 +384,7 @@
             "session": {"type": "string", "description": "Session id."},
             "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."},
             "last": {"type": "boolean", "description": "Only the last turn's entry in turns and its entries; modes, configOptions and commands are null."},
-            "compact": {"type": "boolean", "description": "Drop tool calls' rawOutput and the images in their content."}
+            "compact": {"type": "boolean", "description": "Drop tool calls' rawOutput and the images in their content, and the image data in user prompts."}
           },
           "required": ["session"]
         }

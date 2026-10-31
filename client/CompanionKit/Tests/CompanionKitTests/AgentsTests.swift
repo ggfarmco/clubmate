@@ -50,9 +50,9 @@ final class AgentsTests: XCTestCase {
     }
 
     func testDecodesUserImages() throws {
-        let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"}]}"#
+        let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"},{"type":"image","mimeType":"image/jpeg"}]}"#
         let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
-        XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2])]))
+        XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2]), Data()]))
     }
 
     func testPromptTextNotesVideoFrames() {

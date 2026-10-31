@@ -200,7 +200,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         switch TranscriptEntryKind(raw) {
         case .user:
             let blocks = (try? c.decodeIfPresent([JSONValue].self, forKey: .content)) ?? []
-            let images = blocks.compactMap { $0["type"]?.stringValue == "image" ? $0["data"]?.stringValue.flatMap { Data(base64Encoded: $0) } : nil }
+            let images = blocks.compactMap { $0["type"]?.stringValue == "image" ? Data(base64Encoded: $0["data"]?.stringValue ?? "") ?? Data() : nil }
             content = .user(text: text, fromAgent: !(try c.decodeIfPresent(String.self, forKey: .from) ?? "").isEmpty, images: images)
         case .agent:
             content = .agent(text)

@@ -62,17 +62,24 @@ struct SessionDetailView: View {
         }
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .safeAreaInset(edge: .bottom) {
-            if let session {
-                ComposerView(
-                    draft: $draft,
-                    attachments: $attachments,
-                    focused: $composerFocused,
-                    session: session,
-                    enabled: context.connection.state == .online,
-                    sending: sending,
-                    send: send,
-                    stop: stop
-                )
+            VStack(spacing: 8) {
+                if transcript != nil, let failure = store.transcriptErrors[sessionID] {
+                    RefreshFailedBanner(message: failure) {
+                        Task { await store.loadTranscript(sessionID, incremental: true) }
+                    }
+                }
+                if let session {
+                    ComposerView(
+                        draft: $draft,
+                        attachments: $attachments,
+                        focused: $composerFocused,
+                        session: session,
+                        enabled: context.connection.state == .online,
+                        sending: sending,
+                        send: send,
+                        stop: stop
+                    )
+                }
             }
         }
         .navigationTitle(session?.displayTitle ?? "Session")
@@ -160,6 +167,32 @@ struct SessionDetailView: View {
 
     private static func message(_ error: any Error) -> String {
         (error as? RemoteError)?.message ?? error.localizedDescription
+    }
+}
+
+struct RefreshFailedBanner: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Label {
+                Text("Couldn't refresh: \(message)").lineLimit(2)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle")
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button("Retry", action: retry)
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.glass)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .glassEffect(in: .rect(cornerRadius: 18))
+        .padding(.horizontal, 12)
+        .frame(maxWidth: 820)
     }
 }
 
