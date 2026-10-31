@@ -52,9 +52,10 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, projectID string) ([]
 }
 
 func switchWorktree(ctx context.Context, h *pluginsdk.Host, projectID string, s *state, repo, path string) error {
-	if s.isBusy() {
+	if !s.claim() {
 		return errOpBusy
 	}
+	defer s.release()
 	f, err := gitFolder(ctx, h, projectID, repo)
 	if err != nil {
 		return err

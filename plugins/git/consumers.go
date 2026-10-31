@@ -20,6 +20,7 @@ const (
 	agentsStopRoot        = "agents.stop-root"
 	codeNotFound          = -32004
 	codePluginUnavailable = -32012
+	codePluginError       = -32013
 )
 
 var errUnsavedSwitch = errors.New("Save or discard unsaved changes first")
@@ -66,8 +67,9 @@ func (c consumers) stopAgents(ctx context.Context, root string) error {
 }
 
 func editorError(err error) string {
-	if _, ok := errors.AsType[*jsonrpc2.Error](err); ok {
-		return strings.TrimPrefix(rpcMessage(err), "plugin "+editorOwner+" command.run: ")
+	msg := rpcMessage(err)
+	if rpcErr, ok := errors.AsType[*jsonrpc2.Error](err); ok && rpcErr.Code == codePluginError {
+		return strings.TrimPrefix(msg, "plugin "+editorOwner+" command.run: ")
 	}
-	return err.Error()
+	return msg
 }

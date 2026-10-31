@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
+	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -15,7 +15,7 @@ const (
 	mutateTimeout = 10 * time.Minute
 	opPollWait    = time.Second
 	keptOps       = 64
-	opPrefix      = "wt-"
+	opPrefix      = "wt"
 )
 
 var (
@@ -38,7 +38,6 @@ type operation struct {
 
 type opTable struct {
 	mu    sync.Mutex
-	seq   int
 	byID  map[string]*operation
 	order []string
 }
@@ -70,11 +69,10 @@ func (t *opTable) add(projectID string) *operation {
 	if t.byID == nil {
 		t.byID = map[string]*operation{}
 	}
-	t.seq++
-	id := opPrefix + strconv.Itoa(t.seq)
-	o := &operation{id: id, project: projectID, done: make(chan struct{})}
-	t.byID[id] = o
-	t.order = append(t.order, id)
+	opID := id.New(opPrefix)
+	o := &operation{id: opID, project: projectID, done: make(chan struct{})}
+	t.byID[opID] = o
+	t.order = append(t.order, opID)
 	for i := 0; len(t.order) > keptOps && i < len(t.order); {
 		old := t.byID[t.order[i]]
 		select {

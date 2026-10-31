@@ -226,12 +226,6 @@ func (s *state) release() {
 	s.busy = false
 }
 
-func (s *state) isBusy() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.busy
-}
-
 func (s *state) watching() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
