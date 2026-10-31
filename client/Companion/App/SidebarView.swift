@@ -12,7 +12,7 @@ struct SidebarView: View {
             guard item != navigation.sidebar else { return }
             navigation.sidebar = item
             navigation.detail = nil
-            navigation.preferredColumn = .content
+            if item != nil { navigation.preferredColumn = .content }
         })) {
             ForEach(model.computers) { computer in
                 if let connection = model.connection(computer.id) {

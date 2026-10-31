@@ -151,7 +151,7 @@ struct SessionDetailView: View {
 struct ComposerView: View {
     @Binding var draft: String
     @Binding var attachments: [ComposerAttachment]
-    let session: AgentSession
+    let session: AgentSession?
     let enabled: Bool
     let sending: Bool
     let send: () -> Void
@@ -164,8 +164,17 @@ struct ComposerView: View {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty
     }
 
+    private var turnActive: Bool {
+        session?.isTurnActive == true
+    }
+
+    private var placeholder: String {
+        guard let session else { return "What should the agent do?" }
+        return session.isTurnActive ? "Queue a message" : "Message \(session.agentName)"
+    }
+
     var body: some View {
-        if session.isClosed {
+        if session?.isClosed == true {
             Label("This session is closed", systemImage: "archivebox")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -188,13 +197,13 @@ struct ComposerView: View {
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
                         .accessibilityLabel("Attach Photos or Videos")
-                        TextField(session.isTurnActive ? "Queue a message" : "Message \(session.agentName)", text: $draft, axis: .vertical)
+                        TextField(placeholder, text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .focused($focused)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
                             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
-                        if session.isTurnActive && draft.isEmpty && attachments.isEmpty && importing == 0 {
+                        if turnActive && draft.isEmpty && attachments.isEmpty && importing == 0 {
                             Button(action: stop) {
                                 Image(systemName: "stop.fill")
                                     .font(.body.weight(.semibold))
@@ -235,6 +244,7 @@ struct ComposerView: View {
                     }
                 }
             }
+            .onAppear { if session == nil { focused = true } }
             .disabled(!enabled)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)

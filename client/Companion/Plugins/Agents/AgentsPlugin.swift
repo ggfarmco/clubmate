@@ -21,6 +21,9 @@ struct AgentsPlugin: CompanionPluginUI {
         guard let selection, let store = Self.store(context) else {
             return AnyView(ContentUnavailableView("No Session Selected", systemImage: "sparkles", description: Text("Pick a session to read its transcript and reply.")))
         }
+        if selection == AgentsPluginInfo.newSession {
+            return AnyView(NewSessionView(context: context, store: store))
+        }
         return AnyView(SessionDetailView(context: context, store: store, sessionID: selection).id(selection))
     }
 
@@ -34,17 +37,22 @@ struct AgentsPlugin: CompanionPluginUI {
         guard let workspace = context.navigation.workspace(for: context.connection) else { return nil }
         return context.model.agents(computer: context.connection.computer.id, workspace: workspace.id)
     }
+
+    @MainActor
+    static func startNew(_ context: PluginContext) {
+        context.navigation.detail = AgentsPluginInfo.newSession
+        context.navigation.preferredColumn = .detail
+    }
 }
 
 struct AgentsListView: View {
     let context: PluginContext
-    @State private var creating = false
 
     var body: some View {
         let workspace = context.navigation.workspace(for: context.connection)
         Group {
             if let workspace, let store = AgentsPlugin.store(context) {
-                SessionListView(context: context, store: store, creating: $creating)
+                SessionListView(context: context, store: store)
                     .task(id: workspace.id) { await store.refresh() }
             } else if context.connection.state == .online {
                 ContentUnavailableView("No Workspaces", systemImage: "folder", description: Text("Open a workspace in Clubmate on \(context.connection.computer.name)."))
@@ -69,7 +77,7 @@ struct AgentsListView: View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                Button("New Session", systemImage: "square.and.pencil") { creating = true }
+                Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
                     .disabled(workspace == nil || context.connection.state != .online)
             }
         }
@@ -79,7 +87,6 @@ struct AgentsListView: View {
 struct SessionListView: View {
     let context: PluginContext
     let store: AgentsStore
-    @Binding var creating: Bool
     @State private var expanded: Set<String> = []
     @State private var closedExpanded = false
 
@@ -129,19 +136,13 @@ struct SessionListView: View {
                 } description: {
                     Text(store.error ?? "Start a session and follow it from here.")
                 } actions: {
-                    Button("New Session", systemImage: "square.and.pencil") { creating = true }
+                    Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
                         .buttonStyle(.glassProminent)
                         .disabled(context.connection.state != .online)
                 }
             }
         }
         .refreshable { await store.refresh() }
-        .sheet(isPresented: $creating) {
-            NewSessionView(store: store) { id in
-                context.navigation.detail = id
-                context.navigation.preferredColumn = .detail
-            }
-        }
     }
 
     private func rows(_ nodes: [SessionNode]) -> some View {
@@ -339,70 +340,50 @@ struct ConnectionUnavailableView: View {
 }
 
 struct NewSessionView: View {
+    let context: PluginContext
     let store: AgentsStore
-    let created: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var prompt = ""
-    @State private var title = ""
-    @State private var starting = false
-    @State private var error: String?
-    @FocusState private var focused: Bool
+    @State private var draft = ""
+    @State private var attachments: [ComposerAttachment] = []
+    @State private var sending = false
+    @State private var failure: String?
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("What should the agent do?", text: $prompt, axis: .vertical)
-                        .lineLimit(4...12)
-                        .focused($focused)
-                } header: {
-                    Text("First Prompt")
-                } footer: {
-                    Text("Leave empty to start the session idle.")
-                }
-                Section("Title") {
-                    TextField("Optional", text: $title)
-                }
-                if let error {
-                    Section {
-                        Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                    }
-                }
+        ContentUnavailableView("New Session", systemImage: "sparkles", description: Text("Describe the task and attach photos or videos. The session starts when you send."))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .bottom) {
+                ComposerView(
+                    draft: $draft,
+                    attachments: $attachments,
+                    session: nil,
+                    enabled: context.connection.state == .online,
+                    sending: sending,
+                    send: send,
+                    stop: {}
+                )
             }
             .navigationTitle("New Session")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if starting {
-                        ProgressView()
-                    } else {
-                        Button("Start", systemImage: "arrow.up") { start() }
-                            .buttonStyle(.glassProminent)
-                    }
-                }
+            .alert("Couldn't Start the Session", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+                Button("OK") { failure = nil }
+            } message: {
+                Text(failure ?? "")
             }
-            .onAppear { focused = true }
-        }
-        .presentationDetents([.medium, .large])
-        .sensoryFeedback(.success, trigger: starting) { old, new in old && !new && error == nil }
     }
 
-    private func start() {
-        starting = true
-        error = nil
+    private func send() {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let attached = attachments
+        guard !text.isEmpty || !attached.isEmpty else { return }
+        sending = true
         Task {
             do {
-                let id = try await store.create(prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines), title: title.trimmingCharacters(in: .whitespacesAndNewlines))
-                starting = false
-                dismiss()
-                if let id { created(id) }
+                if let id = try await store.create(text, attachments: attached) {
+                    context.navigation.detail = id
+                }
             } catch {
-                self.error = (error as? RemoteError)?.message ?? error.localizedDescription
-                starting = false
+                failure = (error as? RemoteError)?.message ?? error.localizedDescription
             }
+            sending = false
         }
     }
 }

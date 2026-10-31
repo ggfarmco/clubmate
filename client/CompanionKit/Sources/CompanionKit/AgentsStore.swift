@@ -118,14 +118,16 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
-    public func create(prompt: String, title: String) async throws -> String? {
-        var args: [String: JSONValue] = [:]
-        if !prompt.isEmpty { args["prompt"] = .string(prompt) }
-        if !title.isEmpty { args["title"] = .string(title) }
+    public func create(_ text: String, attachments: [ComposerAttachment] = []) async throws -> String? {
         guard let runner else { return nil }
-        let result = try await runner.command("agents.new", workspace: workspace, args: .object(args))
-        await refresh()
-        return result["session"]?.stringValue
+        let prompt = attachments.isEmpty ? text : ""
+        let result = try await runner.command("agents.new", workspace: workspace, args: .object(prompt.isEmpty ? [:] : ["prompt": .string(prompt)]))
+        guard let id = result["session"]?.stringValue, !attachments.isEmpty else {
+            await refresh()
+            return result["session"]?.stringValue
+        }
+        try await send(text, attachments: attachments, to: id)
+        return id
     }
 
     private func run(_ command: String, _ args: [String: JSONValue]) async throws {

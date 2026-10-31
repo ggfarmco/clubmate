@@ -86,6 +86,34 @@ final class AgentsTests: XCTestCase {
         try await waitUntil { store.transcripts.count == 1 && store.sessions.count == 3 }
         XCTAssertEqual(runner.calls.values.sorted(), ["agents.sessions", "agents.transcript"])
     }
+
+    func testCreateWithAttachmentsStartsIdleThenPromptsWithImages() async throws {
+        let runner = CreateRunner()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        let id = try await store.create("look", attachments: [.photo(Data([1]))])
+        XCTAssertEqual(id, "s")
+        XCTAssertEqual(runner.calls.map(\.id), ["agents.new", "agents.prompt", "agents.sessions"])
+        XCTAssertEqual(runner.calls[0].args, .object([:]))
+        XCTAssertEqual(runner.calls[1].args, .object([
+            "session": .string("s"),
+            "text": .string("look"),
+            "attachments": .array([.object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string("AQ==")])]),
+        ]))
+    }
+}
+
+@MainActor
+final class CreateRunner: CommandRunner {
+    private(set) var calls: [(id: String, args: JSONValue?)] = []
+
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        calls.append((id, args))
+        switch id {
+        case "agents.new": return .object(["session": .string("s")])
+        case "agents.sessions": return .array([])
+        default: return .null
+        }
+    }
 }
 
 @MainActor
