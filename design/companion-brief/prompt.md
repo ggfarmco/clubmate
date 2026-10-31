@@ -32,7 +32,7 @@ All from the simulator with fixture data (`-fixtures`, see the README), iPhone 1
 |---|---|---|
 | `01-macs-*` | Paired Macs, each with Agents and Inbox counts | Plain grouped list; the online dot is the only state; counts don't say what needs me. |
 | `02-agents-*` | One workspace's sessions grouped "Needs Input" / "Closed" | Readable; the orange "Permission" pill and hand icon say the same thing twice; child count `⑂ 1` is cryptic. |
-| `03-session-permission-*` | Transcript: agent message with a code block, plan card, tool rows, permission request, composer | **"Always Allow" is first and the most prominent (filled green)** — the opposite of the Mac rule. The plan appears twice (markdown "Plan" and the plan card); done steps are struck through. The glass header covers the start of the transcript. Every tool call is its own card. |
+| `03-session-permission-*` | Transcript: agent message with a code block, plan card, tool rows, permission request, composer | **"Always Allow" is first and the most prominent (filled green)** — the opposite of the Mac rule (fixed after these shots: Allow first and prominent, Always allow plain; design the final treatment anyway). The plan appears twice (markdown "Plan" and the plan card); done steps are struck through. The glass header covers the start of the transcript. Every tool call is its own card. |
 | `04-session-question-*` | A child session in AFK mode that ended with a question | The question is just the last line of text; nothing marks it as waiting for an answer. User bubble in indigo. |
 | `05-inbox-*` | Notifications with kind icons, time, workspace, unread dot | Close to the Mac spec already; no grouping into "Waiting for you" / "Earlier". |
 

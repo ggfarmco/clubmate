@@ -402,10 +402,13 @@ struct PermissionCard: View {
     @ViewBuilder
     private var buttons: some View {
         ForEach(request.options) { option in
-            if option.kind.allows {
+            if option.kind == .allowOnce {
                 Button(option.name) { pick(option) }
                     .buttonStyle(.glassProminent)
-                    .tint(option.kind == .allowOnce ? .accentColor : .green)
+                    .tint(.accentColor)
+            } else if option.kind.allows {
+                Button(option.name) { pick(option) }
+                    .buttonStyle(.glass)
             } else {
                 Button(option.name, role: .destructive) { pick(option) }
                     .buttonStyle(.glass)

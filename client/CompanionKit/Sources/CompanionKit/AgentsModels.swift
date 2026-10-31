@@ -215,7 +215,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
             content = .permission(PermissionRequest(
                 id: entryID,
                 toolCall: ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .toolCall)) ?? .null),
-                options: (try? c.decodeIfPresent([PermissionOption].self, forKey: .options)) ?? [],
+                options: PermissionOption.ordered((try? c.decodeIfPresent([PermissionOption].self, forKey: .options)) ?? []),
                 outcome: try? c.decodeIfPresent(PermissionOutcome.self, forKey: .outcome)
             ))
         case .notice:
@@ -298,6 +298,14 @@ public struct PermissionOption: Decodable, Sendable, Equatable, Identifiable {
     public let kind: PermissionKind
 
     public var id: String { optionId }
+
+    static func ordered(_ options: [PermissionOption]) -> [PermissionOption] {
+        let rank: [PermissionKind] = [.allowOnce, .allowAlways, .rejectOnce, .rejectAlways]
+        return options.enumerated().sorted { a, b in
+            let ra = rank.firstIndex(of: a.element.kind) ?? rank.count, rb = rank.firstIndex(of: b.element.kind) ?? rank.count
+            return ra == rb ? a.offset < b.offset : ra < rb
+        }.map(\.element)
+    }
 }
 
 public struct PermissionOutcome: Decodable, Sendable, Equatable {
