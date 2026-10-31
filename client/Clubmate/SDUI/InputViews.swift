@@ -89,15 +89,32 @@ enum Confirmation {
         view.autoresizingMask = .width
         view.isEditable = false
         view.isSelectable = false
-        view.isRichText = false
         view.font = font
         view.minSize = NSSize(width: 0, height: scroll.contentSize.height)
         view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         view.isVerticallyResizable = true
         view.textContainer?.widthTracksTextView = true
         scroll.documentView = view
-        view.string = text
+        view.textStorage?.setAttributedString(styledBody(text, font: font))
         return scroll
+    }
+
+    private static func styledBody(_ text: String, font: NSFont) -> NSAttributedString {
+        let indent = NSMutableParagraphStyle()
+        indent.headIndent = ("  " as NSString).size(withAttributes: [.font: font]).width
+        let plain: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.textColor, .paragraphStyle: indent]
+        let header: [NSAttributedString.Key: Any] = [
+            .font: NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask),
+            .foregroundColor: NSColor.textColor,
+            .backgroundColor: NSColor.selectedContentBackgroundColor.withAlphaComponent(0.25),
+        ]
+        let result = NSMutableAttributedString()
+        let lines = text.components(separatedBy: "\n")
+        for (index, line) in lines.enumerated() {
+            let end = index < lines.count - 1 ? "\n" : ""
+            result.append(NSAttributedString(string: line + end, attributes: line.hasPrefix("──── ") ? header : plain))
+        }
+        return result
     }
 }
 

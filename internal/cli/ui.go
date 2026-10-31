@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -28,7 +29,7 @@ type uiEventOptions struct {
 
 func (a *app) uiCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "ui", Short: "Inspect and drive plugin UI"}
-	cmd.AddCommand(a.uiSectionsCmd(), a.uiDumpCmd(), a.uiEventCmd(), a.uiSnapshotCmd(), a.uiPresentCmd())
+	cmd.AddCommand(a.uiSectionsCmd(), a.uiDumpCmd(), a.uiEventCmd(), a.uiSnapshotCmd(), a.uiPresentCmd(), a.uiKeyCmd())
 	return cmd
 }
 
@@ -233,6 +234,30 @@ func (a *app) uiPresentCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&projectID, "project", "", "project id")
 	cmd.Flags().BoolVar(&hide, "hide", false, "close it instead")
+	return cmd
+}
+
+func (a *app) uiKeyCmd() *cobra.Command {
+	var projectID, focus string
+	cmd := &cobra.Command{
+		Use:   "key [combo]...",
+		Short: "Send key combos such as opt+return or cmd+n to a test-mode app",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 && focus == "" {
+				return errors.New("give at least one combo or --focus")
+			}
+			params := map[string]any{"keys": args}
+			if focus != "" {
+				params["focus"] = focus
+			}
+			if projectID != "" {
+				params["projectId"] = projectID
+			}
+			return a.callAndPrint(cmd.Context(), "ui.key", params)
+		},
+	}
+	cmd.Flags().StringVar(&projectID, "project", "", "project id")
+	cmd.Flags().StringVar(&focus, "focus", "", "focus this node (an id from the snapshot layout) first")
 	return cmd
 }
 

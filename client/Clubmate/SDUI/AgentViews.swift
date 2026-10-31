@@ -79,7 +79,7 @@ private struct TranscriptItemView: View {
     }
 }
 
-@MainActor @Observable private final class ToolExpansion {
+@MainActor @Observable final class ToolExpansion {
     static let shared = ToolExpansion()
 
     private(set) var state = ToolExpansionState()
@@ -87,6 +87,10 @@ private struct TranscriptItemView: View {
 
     func toggle(card id: String) {
         opened = state.toggle(card: id) ? id : nil
+    }
+
+    func set(card id: String, expanded: Bool) {
+        if state.isExpanded(card: id) != expanded { toggle(card: id) }
     }
 
     func toggle(group ids: [String]) {

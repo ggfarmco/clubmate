@@ -61,6 +61,25 @@ public struct PresentRequest: Codable, Equatable, Sendable {
     }
 }
 
+public struct KeyRequest: Codable, Equatable, Sendable {
+    public let keys: [String]
+    public let focus: String?
+    public let projectId: String?
+
+    public init(keys: [String], focus: String?, projectId: String?) {
+        self.keys = keys
+        self.focus = focus
+        self.projectId = projectId
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        keys = try c.decodeIfPresent([String].self, forKey: .keys) ?? []
+        focus = try c.decodeIfPresent(String.self, forKey: .focus)
+        projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+    }
+}
+
 public struct LayoutMenuItem: Codable, Equatable, Sendable {
     public let title: String
     public let enabled: Bool

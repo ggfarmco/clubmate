@@ -9,6 +9,7 @@ public final class CoreClient {
     public var confirmHandler: (@MainActor (ConfirmRequest, ConfirmExpiry) async -> Bool)?
     public var snapshotHandler: (@MainActor (SnapshotRequest) async throws -> SnapshotResult)?
     public var presentHandler: (@MainActor (PresentRequest) async throws -> Bool)?
+    public var keyHandler: (@MainActor (KeyRequest) async throws -> [String])?
 
     var isAlive: Bool { !pumpFinished }
 
@@ -187,6 +188,13 @@ public final class CoreClient {
                 present = { request in ["shown": try await handler(request)] }
             }
             await answerTest(request, present)
+            return
+        case "ui.key":
+            var key: (@MainActor (KeyRequest) async throws -> [String: [String]])?
+            if let handler = keyHandler {
+                key = { request in ["routes": try await handler(request)] }
+            }
+            await answerTest(request, key)
             return
         default:
             break

@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 
+import ClubmateKit
+
 extension View {
     func keyMonitor(active: Bool, handle: @escaping @MainActor (NSEvent) -> Bool) -> some View {
         background(KeyMonitor(active: active, handle: handle))
@@ -21,7 +23,7 @@ private struct KeyMonitor: NSViewRepresentable {
     }
 }
 
-private final class KeyMonitorView: NSView {
+final class KeyMonitorView: NSView {
     var handle: (@MainActor (NSEvent) -> Bool)?
     var active = false {
         didSet { update() }
@@ -43,12 +45,15 @@ private final class KeyMonitorView: NSView {
         guard active, window != nil else { return remove() }
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let consumed = MainActor.assumeIsolated {
-                guard let self, let window = self.window, event.window === window, !(window.firstResponder is TerminalSurfaceView) else { return false }
-                return self.handle?(event) == true
-            }
+            let consumed = MainActor.assumeIsolated { self?.deliver(event) == true }
             return consumed ? nil : event
         }
+        if TestMode.current { TestHarness.shared.register(self) }
+    }
+
+    func deliver(_ event: NSEvent) -> Bool {
+        guard monitor != nil, let window, event.window === window, !(window.firstResponder is TerminalSurfaceView) else { return false }
+        return handle?(event) == true
     }
 
     private func remove() {

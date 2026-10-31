@@ -128,7 +128,7 @@ var primitives = map[string]primitive{
 		params:       withProject,
 	},
 	"testapp.call": {
-		cmd: coreCommand("testapp.call", "Call Test Instance", "Call a method on an isolated Clubmate test instance started with scripts/test-app.sh: ui.snapshot {out?, png?, width?, height?} draws its windows to png plus a flagged layout dump (out defaults to /tmp/clubmate-test-<instance>/snapshots and must stay inside that instance dir), ui.present {target, shown} opens a popover or sheet, ui.get/ui.event/command.list/command.run (always as an agent call)/project.list/workspace.open drive it.", &schema.Object{
+		cmd: coreCommand("testapp.call", "Call Test Instance", "Call a method on an isolated Clubmate test instance started with scripts/test-app.sh: ui.snapshot {out?, png?, width?, height?} draws its windows to png plus a flagged layout dump (out defaults to /tmp/clubmate-test-<instance>/snapshots and must stay inside that instance dir), ui.present {target, shown} opens a popover or sheet or, with target card:<node id>, expands a transcript tool card, ui.key {keys, focus?} focuses a node and sends key combos such as opt+return to its key monitors, view shortcuts or first responder, ui.get/ui.event/command.list/command.run (always as an agent call)/project.list/workspace.open drive it.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"instance": {Type: "string", Description: "Test instance name, as printed by scripts/test-app.sh start or listed by testapp.list."},
 				"method":   {Type: "string", Enum: testAppMethodList(), Description: "Method to call on the instance's core."},
@@ -147,6 +147,7 @@ var primitives = map[string]primitive{
 		cmd: coreCommand("ui.focus", "Focus Section", "Show a section in the workspace's window.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"section": {Type: "string", Description: "Section id, e.g. editor-nvim, terminals, agents."},
+				"slot":    {Type: "string", Description: "Slot to focus: <section>.sidebar or <section>.main; empty shows the section only."},
 			},
 			Required: []string{"section"},
 		}),

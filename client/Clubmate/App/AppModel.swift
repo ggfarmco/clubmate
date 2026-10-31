@@ -342,6 +342,7 @@ final class AppModel {
         if TestMode.current {
             client.snapshotHandler = { try await TestHarness.shared.snapshot($0) }
             client.presentHandler = { try TestHarness.shared.present($0) }
+            client.keyHandler = { try await TestHarness.shared.key($0) }
         }
         do {
             let commands = try await client.commandList()

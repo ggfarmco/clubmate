@@ -25,7 +25,7 @@ const (
 
 var (
 	testAppName    = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
-	testAppMethods = []string{"command.list", "command.run", "project.list", "ui.event", "ui.get", "ui.present", "ui.snapshot", "workspace.open"}
+	testAppMethods = []string{"command.list", "command.run", "project.list", "ui.event", "ui.get", "ui.key", "ui.present", "ui.snapshot", "workspace.open"}
 )
 
 type testAppCallParams struct {

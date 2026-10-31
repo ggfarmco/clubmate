@@ -12,6 +12,7 @@ import (
 const (
 	handleUISnapshot = "ui.snapshot"
 	handleUIPresent  = "ui.present"
+	handleUIKey      = "ui.key"
 	testCallTimeout  = 30 * time.Second
 )
 
@@ -19,6 +20,7 @@ func (s *Server) testModeMethods() map[string]handlerFunc {
 	return map[string]handlerFunc{
 		handleUISnapshot: method(s.forwardToTestApp(handleUISnapshot, "snapshot")),
 		handleUIPresent:  method(s.forwardToTestApp(handleUIPresent, "present")),
+		handleUIKey:      method(s.forwardToTestApp(handleUIKey, "key input")),
 	}
 }
 
