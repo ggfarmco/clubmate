@@ -39,6 +39,7 @@ type Changed struct {
 	Workspace string `json:"workspace"`
 	Session   string `json:"session"`
 	Kind      string `json:"kind"`
+	Status    string `json:"status,omitempty"`
 }
 
 func (s Session) Closed() bool {

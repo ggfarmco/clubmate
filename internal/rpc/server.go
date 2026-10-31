@@ -54,6 +54,9 @@ type Server struct {
 	clientSeq     uint64
 	notifyLimit   *notify.Limiter
 	testAppRoot   string
+	browserGuard  func(context.Context, BrowserGuardInput) error
+	browserURLs   map[browserTabKey]string
+	browserURLsMu sync.Mutex
 	writeTimeout  time.Duration
 }
 
@@ -105,6 +108,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.diagnosticsMethods())
 	maps.Copy(s.methods, s.debugMethods())
 	maps.Copy(s.methods, s.notifyMethods())
+	maps.Copy(s.methods, s.browserMethods())
 	maps.Copy(s.methods, s.processMethods())
 	maps.Copy(s.methods, s.testModeMethods())
 	maps.Copy(s.methods, s.testAppMethods())

@@ -30,6 +30,7 @@ func (a *app) mcpCmd() *cobra.Command {
 				Log:       cmd.ErrOrStderr(),
 				Poll:      mcpPoll,
 				Caller:    os.Getenv(agentSessionEnv),
+				Terminal:  os.Getenv(sessionEnv),
 				NvimGuide: nvimGuide(),
 			}
 			return srv.Serve(cmd.Context(), cmd.InOrStdin(), a.out)

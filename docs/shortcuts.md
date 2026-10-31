@@ -74,6 +74,12 @@ Pickers are the fuzzy lists for worktrees: the worktree switcher in the window t
 
 ↩ alone inserts a newline. Defined in `ClubmateKit/Composer.swift` (`ComposerKey`).
 
+## Agent Browser window (during a handoff)
+
+| Keys | Action | Where defined |
+|---|---|---|
+| ↩ | Done: hand the page back to the agent (only when the page does not have focus; closing the window does the same) | `BrowserWindow.swift` |
+
 ## Permission requests (Agents section or Code chat panel)
 
 A pending request is docked above the composer.

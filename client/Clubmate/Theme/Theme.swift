@@ -70,6 +70,7 @@ struct Theme: Sendable {
     var glyph: Font { .system(size: uiSize - 4, weight: .semibold) }
 
     var rowHeight: CGFloat { (uiSize * 5 / 3).rounded() }
+    var labelMaxWidth: CGFloat { (uiSize * 12).rounded() }
     var rowHeight2: CGFloat { (uiSize * 3).rounded() }
     var control: CGFloat { (uiSize * 2).rounded() }
     var header: CGFloat { (uiSize * 8 / 3).rounded() }

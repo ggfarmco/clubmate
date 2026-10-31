@@ -1,6 +1,7 @@
 public enum Topic {
     public static let notifyPosted = "notify.posted"
     public static let agentsChanged = "agents.changed"
+    public static let sessionRemoved = "session.removed"
     public static let pluginChanged = "plugin.changed"
 }
 

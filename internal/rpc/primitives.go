@@ -22,7 +22,7 @@ type primitive struct {
 	scope          func(ctx context.Context, svc *core.Service, workspaceID string, args json.RawMessage) (string, error)
 }
 
-var primitives = map[string]primitive{
+var primitives = browserPrimitives(map[string]primitive{
 	"workspace.list": {
 		cmd:    coreCommand("workspace.list", "List Workspaces", "List the workspaces, most recently opened first.", nil),
 		method: "workspace.list",
@@ -155,7 +155,7 @@ var primitives = map[string]primitive{
 		needsWorkspace: true,
 		params:         withWorkspace,
 	},
-}
+})
 
 func coreCommand(id, title, description string, args *schema.Object) Command {
 	return Command{ID: id, Title: title, Description: description, Plugin: corePlugin, Hidden: true, Args: args, Agent: true}

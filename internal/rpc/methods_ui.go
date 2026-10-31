@@ -117,6 +117,7 @@ type commandRunParams struct {
 	Args        json.RawMessage `json:"args"`
 	Agent       bool            `json:"agent,omitempty"`
 	Caller      string          `json:"caller,omitempty"`
+	Terminal    string          `json:"terminal,omitempty"`
 	Via         string          `json:"via,omitempty"`
 }
 
@@ -351,6 +352,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 		if p.Agent {
 			ctx = withAgentCall(ctx)
 		}
+		ctx = withOrigin(ctx, p.Caller, p.Terminal)
 		return s.runPrimitive(ctx, prim, p.WorkspaceID, p.Args)
 	}
 	p.ID = c.ID

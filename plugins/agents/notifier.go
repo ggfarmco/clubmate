@@ -82,7 +82,7 @@ func (n *notifier) run() {
 		}
 		for _, c := range order {
 			rec := c.session.snapshot()
-			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind}); err != nil {
+			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind, Status: rec.Status}); err != nil {
 				fmt.Fprintln(os.Stderr, "agents: publish:", err)
 			}
 		}

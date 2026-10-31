@@ -24,6 +24,7 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 - Reacting to events: `triggers.add` calls a command when a bus event arrives, e.g. `agents.prompt` to yourself when a child's `agents.turn` ends; `triggers.emit` publishes your own `event.<name>`, which `cron.add` can schedule. See [triggers](triggers.md).
 - Agent graphs: `graphs.run graph=… input=…` starts a team of child sessions from `.clubmate/graphs/<graph>.json` (one session per role, one trigger per edge) and the Graphs section shows the run; `graphs.list`, `graphs.show`, `graphs.stop`. See [agent graphs](agent-graphs.md).
 - Answers on your behalf (asks you first): `agents.answer session=… text=…` shows you the text and, once you allow it, sends it to the session as your own message.
+- Web research: `browser.open`, `browser.snapshot`, `browser.click` and the other `browser.*` tools drive a hidden WebKit browser in the app, one set of tabs per agent session, and `browser.handoff` asks the user to solve a captcha or sign in; see [agent browser](browser.md).
 - Testing the app: `testapp.list` lists running test instances and `testapp.call instance=… method=…` calls one of them (see below).
 
 Hidden helpers and commands not marked for agents stay out of reach.

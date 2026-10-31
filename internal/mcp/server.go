@@ -59,6 +59,7 @@ type Server struct {
 	Log       io.Writer
 	Poll      time.Duration
 	Caller    string
+	Terminal  string
 	NvimGuide string
 
 	writeMu sync.Mutex
@@ -265,6 +266,9 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 	params := map[string]any{"id": tools[i].target, "workspaceId": workspace, "args": args, "agent": true}
 	if s.Caller != "" {
 		params["caller"] = s.Caller
+	}
+	if s.Terminal != "" {
+		params["terminal"] = s.Terminal
 	}
 	if err := core.Call(ctx, "command.run", params, &out); err != nil {
 		if workspace == "" {

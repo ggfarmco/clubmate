@@ -10,6 +10,7 @@ public final class CoreClient {
     public var snapshotHandler: (@MainActor (SnapshotRequest) async throws -> SnapshotResult)?
     public var presentHandler: (@MainActor (PresentRequest) async throws -> Bool)?
     public var keyHandler: (@MainActor (KeyRequest) async throws -> [String])?
+    public var browserHandler: (@MainActor (BrowserCall) async throws -> JSONValue)?
 
     var isAlive: Bool { !pumpFinished }
 
@@ -200,6 +201,9 @@ public final class CoreClient {
             }
             await answerTest(request, key)
             return
+        case "browser.call":
+            await answerTest(request, browserHandler)
+            return
         default:
             break
         }
@@ -228,6 +232,8 @@ public final class CoreClient {
         do {
             try await connection.reply(id: request.id, result: try await handler(params))
         } catch let error as TestModeError {
+            try? await connection.replyError(id: request.id, code: -32000, message: error.message)
+        } catch let error as BrowserError {
             try? await connection.replyError(id: request.id, code: -32000, message: error.message)
         } catch {
             try? await connection.replyError(id: request.id, code: -32000, message: "\(error)")

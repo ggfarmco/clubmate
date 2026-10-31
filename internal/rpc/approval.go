@@ -246,36 +246,57 @@ func exact(v any) bool {
 }
 
 func (s *Server) approver(workspaceID string) (*jsonrpc2.Conn, func(), error) {
+	present := s.present(workspaceID)
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
+	best, info := s.pickClient(handleUIConfirm, present)
+	if best == nil {
+		return nil, nil, errNoApprover
+	}
+	if info.approving {
+		return nil, nil, errApprovalBusy
+	}
+	info.approving = true
+	return best, func() {
+		s.clientsMu.Lock()
+		defer s.clientsMu.Unlock()
+		info.approving = false
+	}, nil
+}
+
+func (s *Server) clientFor(handle, workspaceID string) (*jsonrpc2.Conn, error) {
+	present := s.present(workspaceID)
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
+	best, _ := s.pickClient(handle, present)
+	if best == nil {
+		return nil, errNoBrowserApp
+	}
+	return best, nil
+}
+
+func (s *Server) present(workspaceID string) map[*jsonrpc2.Conn]bool {
 	present := map[*jsonrpc2.Conn]bool{}
 	if workspaceID != "" {
 		for _, t := range s.presence.focusTargets(workspaceID) {
 			present[t.conn] = true
 		}
 	}
-	s.clientsMu.Lock()
-	defer s.clientsMu.Unlock()
+	return present
+}
+
+func (s *Server) pickClient(handle string, present map[*jsonrpc2.Conn]bool) (*jsonrpc2.Conn, *client) {
 	var (
 		best     *jsonrpc2.Conn
 		bestInfo *client
 	)
 	for conn, c := range s.clients {
-		if _, ok := c.handles[handleUIConfirm]; !ok {
+		if _, ok := c.handles[handle]; !ok {
 			continue
 		}
 		if best == nil || present[conn] && !present[best] || present[conn] == present[best] && c.seq < bestInfo.seq {
 			best, bestInfo = conn, c
 		}
 	}
-	if best == nil {
-		return nil, nil, errNoApprover
-	}
-	if bestInfo.approving {
-		return nil, nil, errApprovalBusy
-	}
-	bestInfo.approving = true
-	return best, func() {
-		s.clientsMu.Lock()
-		defer s.clientsMu.Unlock()
-		bestInfo.approving = false
-	}, nil
+	return best, bestInfo
 }

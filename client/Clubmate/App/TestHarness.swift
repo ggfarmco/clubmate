@@ -158,7 +158,7 @@ final class TestHarness {
             window.ignoresMouseEvents = true
             window.hasShadow = false
         }
-        for window in NSApp.windows where window.contentView != nil && window.styleMask.contains(.titled) && !(window is NSPanel) && window.sheetParent == nil && !sized.contains(window.windowNumber) {
+        for window in NSApp.windows where window.contentView != nil && window.styleMask.contains(.titled) && !(window is NSPanel) && window.sheetParent == nil && window.identifier != BrowserWindowHost.identifier && !sized.contains(window.windowNumber) {
             sized.insert(window.windowNumber)
             window.setFrameAutosaveName("")
             window.isRestorable = false

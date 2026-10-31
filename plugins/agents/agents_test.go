@@ -1163,6 +1163,11 @@ func TestCloseCancelsSignIn(t *testing.T) {
 		require.NoError(t, f.h.Svc.CheckTransitions(t.Context()))
 		require.Equal(t, "closed", f.session(t, workspace, id).Status)
 	}
+	changed, err := f.h.Bus.Read(t.Context(), "agents.changed", 0, 1000)
+	require.NoError(t, err)
+	assert.True(t, slices.ContainsFunc(changed, func(e bus.Event) bool {
+		return strings.Contains(string(e.Payload), `"kind":"status"`) && strings.Contains(string(e.Payload), `"status":"closed"`)
+	}))
 }
 
 func (f *fixture) rev(t *testing.T, workspace, slot string) int64 {

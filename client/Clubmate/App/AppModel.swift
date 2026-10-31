@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import SwiftUI
+import WebKit
 
 import ClubmateKit
 
@@ -18,6 +19,7 @@ final class AppModel {
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var gitChanges: Task<Void, Never>?
     @ObservationIgnored private var pluginChanges: Task<Void, Never>?
+    @ObservationIgnored private var browserClosing: [Task<Void, Never>] = []
     @ObservationIgnored private var usageChanges: Task<Void, Never>?
     private var launchWorkspace = launchWorkspaceID(CommandLine.arguments)
     @ObservationIgnored private var presence: [String: WorkspacePresence] = [:]
@@ -66,11 +68,30 @@ final class AppModel {
         reveal: { [weak self] workspace, session, owner in self?.focus.reveal(workspace, session: session, owner: owner) }
     )
 
+    @ObservationIgnored private lazy var browserHost = BrowserWindowHost(
+        theme: { [weak self] in GhosttyApp.shared.theme.scaled(self?.settings.interfaceFontSize ?? 12) },
+        title: { [weak self] owner in await self?.sessionTitle(owner) }
+    )
+
+    @ObservationIgnored private var agentBrowser: AgentBrowser?
+
+    private var browser: AgentBrowser {
+        if let agentBrowser { return agentBrowser }
+        let browser = AgentBrowser(
+            host: browserHost,
+            dataStore: WKWebsiteDataStore(forIdentifier: BrowserWindowHost.dataStoreID(flavor: ClubmatePaths.resolve().flavor)),
+            userAgent: BrowserWindowHost.userAgent(),
+            screenshots: FileManager.default.temporaryDirectory.appending(path: "clubmate-browser")
+        )
+        agentBrowser = browser
+        return browser
+    }
+
     var phase: ConnectionSupervisor.Phase { supervisor.phase }
 
     init() {
         let link = ModelLink()
-        supervisor = ConnectionSupervisor(connect: { try await link.connect() }, stores: { link.model?.sessions.stores ?? [] })
+        supervisor = ConnectionSupervisor(connect: { try await link.connect() }, stores: { link.model?.sessions.stores ?? [] }, browser: true)
         updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
@@ -148,6 +169,10 @@ final class AppModel {
         try await CoreLauncher(cliPath: cli, bundledVersion: Bundle.main.clubmateVersion).ensureRunning(paths: paths)
         let client = try await CoreClient.connect(paths: paths)
         client.confirmHandler = { [weak self] request, expiry in await self?.approve(request, expiry) ?? false }
+        client.browserHandler = { [weak self] call in
+            guard let self else { throw ClubmateError.notRunning }
+            return try await self.browser.handle(call)
+        }
         if TestMode.current {
             client.snapshotHandler = { try await TestHarness.shared.snapshot($0) }
             client.presentHandler = { try TestHarness.shared.present($0) }
@@ -255,6 +280,23 @@ final class AppModel {
                 await self?.usage.load()
             }
         }
+        browserClosing.forEach { $0.cancel() }
+        browserClosing = [Topic.agentsChanged, Topic.sessionRemoved].map { topic in
+            Task { [weak self] in
+                guard let events = try? await client.busEvents(pattern: topic) else { return }
+                for await event in events {
+                    if let owner = AgentBrowser.owner(closedBy: event) { self?.agentBrowser?.close(owner: owner) }
+                }
+            }
+        }
+    }
+
+    private func sessionTitle(_ owner: String) async -> String? {
+        for workspace in windows.openWorkspaces {
+            guard case .success(let sessions) = await runCommand(CommandInvocation(id: "agents.sessions"), in: workspace) else { continue }
+            if let title = sessions.arrayValue?.first(where: { $0["id"]?.stringValue == owner })?["title"]?.stringValue { return title }
+        }
+        return nil
     }
 
     private func reloadCommands(_ client: CoreClient) async {

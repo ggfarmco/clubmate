@@ -17,16 +17,19 @@ public final class ConnectionSupervisor {
     @ObservationIgnored private let connect: @MainActor () async throws -> CoreClient
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private let stores: @MainActor () -> [WorkspaceUIStore]
+    @ObservationIgnored private let browser: Bool
     @ObservationIgnored private var started = false
     @ObservationIgnored private var running = false
 
     public init(
         connect: @escaping @MainActor () async throws -> CoreClient,
         stores: @escaping @MainActor () -> [WorkspaceUIStore] = { [] },
+        browser: Bool = false,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.connect = connect
         self.stores = stores
+        self.browser = browser
         self.sleep = sleep
     }
 
@@ -87,7 +90,7 @@ public final class ConnectionSupervisor {
         do {
             let client = try await connect()
             do {
-                try await client.register(handles: ["workspace.show", "ui.confirm"] + (TestMode.current ? ["ui.snapshot", "ui.present", "ui.key"] : []))
+                try await client.register(handles: ["workspace.show", "ui.confirm"] + (TestMode.current ? ["ui.snapshot", "ui.present", "ui.key"] : []) + (browser ? ["browser.call"] : []))
             } catch {
                 await client.close()
                 throw error
