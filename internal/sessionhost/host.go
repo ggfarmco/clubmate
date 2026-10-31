@@ -334,12 +334,15 @@ func (h *host) repaint(cols, rows uint16) {
 }
 
 func (h *host) sizeIs(cols, rows uint16) bool {
-	ws, err := pty.GetsizeFull(h.ptmx)
-	return err == nil && ws.Cols == cols && ws.Rows == rows
+	ws, err := h.winsize()
+	return err == nil && ws.Col == cols && ws.Row == rows
 }
 
 func (h *host) setSize(cols, rows uint16) bool {
-	if err := pty.Setsize(h.ptmx, &pty.Winsize{Cols: cols, Rows: rows}); err != nil {
+	err := h.ioctl(func(fd int) error {
+		return unix.IoctlSetWinsize(fd, unix.TIOCSWINSZ, &unix.Winsize{Col: cols, Row: rows})
+	})
+	if err != nil {
 		return false
 	}
 	unix.Kill(-h.foregroundPGID(), unix.SIGWINCH)
@@ -360,8 +363,8 @@ func (h *host) reply(done <-chan struct{}) {
 				return
 			}
 		case <-h.reports:
-			if ws, err := pty.GetsizeFull(h.ptmx); err == nil {
-				h.reportSize(ws.Cols, ws.Rows)
+			if ws, err := h.winsize(); err == nil {
+				h.reportSize(ws.Col, ws.Row)
 			}
 		case <-done:
 			return
@@ -389,11 +392,36 @@ func (h *host) replayQueries(c *client) {
 }
 
 func (h *host) foregroundPGID() int {
-	pgid, err := unix.IoctlGetInt(int(h.ptmx.Fd()), unix.TIOCGPGRP)
+	var pgid int
+	err := h.ioctl(func(fd int) (err error) {
+		pgid, err = unix.IoctlGetInt(fd, unix.TIOCGPGRP)
+		return err
+	})
 	if err != nil || pgid <= 1 {
 		return h.pgid
 	}
 	return pgid
+}
+
+func (h *host) winsize() (*unix.Winsize, error) {
+	var ws *unix.Winsize
+	err := h.ioctl(func(fd int) (err error) {
+		ws, err = unix.IoctlGetWinsize(fd, unix.TIOCGWINSZ)
+		return err
+	})
+	return ws, err
+}
+
+func (h *host) ioctl(fn func(fd int) error) error {
+	rc, err := h.ptmx.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var opErr error
+	if err := rc.Control(func(fd uintptr) { opErr = fn(int(fd)) }); err != nil {
+		return err
+	}
+	return opErr
 }
 
 func (h *host) drop(c *client) {

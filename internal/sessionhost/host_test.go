@@ -163,6 +163,16 @@ func TestHelperAltScreen(t *testing.T) {
 	}
 }
 
+func TestExitDuringReattachRepaint(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `trap 'exit 0' WINCH; printf '\033[?1049h'; while :; do sleep 0.05; done`)
+	done := startHost(t, cfg)
+	dial(t, cfg.Socket).waitOutput(t, "\x1b[?1049h")
+	c := dial(t, cfg.Socket)
+	c.resize(t, 80, 24)
+	assert.Equal(t, 0, c.waitExit(t))
+	require.NoError(t, <-done)
+}
+
 func TestStatusQueryAnsweredOnlyWhileDetached(t *testing.T) {
 	mark := filepath.Join(t.TempDir(), "answered")
 	cfg := testConfig(t, "sh", "-c", `stty -echo -icanon min 1; printf '\033[5n'; head -c 4 >/dev/null; touch "$0"; exec cat`, mark)
