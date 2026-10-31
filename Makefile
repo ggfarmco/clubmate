@@ -77,4 +77,18 @@ companion-kit-test:
 companion:
 	cd client && xcodegen generate --spec companion.yml && xcodebuild -project Companion.xcodeproj -scheme Companion -sdk iphonesimulator -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual build
 
-.PHONY: build run-core test lint ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion
+COMPANION_SIM ?= cm-companion-ui
+COMPANION_SIM_TYPE ?= iPhone 18 Pro
+
+companion-ui-test:
+	@udid=$$(xcrun simctl list devices | grep " $(COMPANION_SIM) (" | grep -oE '[0-9A-F-]{36}' | head -1); \
+	[ -n "$$udid" ] || udid=$$(xcrun simctl create $(COMPANION_SIM) "$(COMPANION_SIM_TYPE)"); \
+	xcrun simctl shutdown $$udid 2>/dev/null; \
+	xcrun simctl erase $$udid && xcrun simctl boot $$udid && xcrun simctl bootstatus $$udid >/dev/null && \
+	xcrun simctl spawn $$udid defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true && \
+	xcrun simctl addmedia $$udid design/companion-brief/screens/01-macs-dark.png && \
+	cd client && xcodegen generate --spec companion.yml && \
+	xcodebuild test -project Companion.xcodeproj -scheme Companion -destination id=$$udid -parallel-testing-enabled NO -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual; \
+	status=$$?; xcrun simctl shutdown $$udid; exit $$status
+
+.PHONY: build run-core test lint ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion companion-ui-test

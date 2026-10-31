@@ -43,3 +43,19 @@ targets:
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
     dependencies:
       - package: CompanionKit
+    scheme:
+      testTargets:
+        - CompanionUITests
+
+  CompanionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: CompanionUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.companion.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Companion
+    dependencies:
+      - target: Companion

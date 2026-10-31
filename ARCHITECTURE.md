@@ -24,7 +24,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 - **Plugins** (`plugins/*`): separate Go binaries started by the core's supervisor (`internal/plugin`). They speak JSON-RPC over stdin/stdout through `pkg/pluginsdk`, and are restarted with backoff when they crash.
 - **`clubmate` / `cm`** (`cmd/clubmate`, `internal/cli`): CLI over the same socket. It opens folders (`cm <folder>`), runs commands, reads the bus, posts notifications (`cm notify`), collects diagnostics and serves MCP (`clubmate mcp`).
 - **Clubmate.app** (`client/`): `ClubmateKit` holds the logic and is tested with `make kit-test`. The `Clubmate` app target holds views, windows, Ghostty surfaces, Sparkle updates and UserNotifications.
-- **Companion** (`client/Companion`, `client/CompanionKit`, `client/companion.yml`): iPhone/iPad app that drives agents on paired Macs over Tailscale through the `remote` plugin. `CompanionKit` (Foundation only) holds the logic and is tested with `make companion-kit-test`; `make companion` builds the app for the simulator.
+- **Companion** (`client/Companion`, `client/CompanionKit`, `client/companion.yml`): iPhone/iPad app that drives agents on paired Macs over Tailscale through the `remote` plugin. `CompanionKit` (Foundation only) holds the logic and is tested with `make companion-kit-test`; `make companion` builds the app for the simulator; `make companion-ui-test` runs the XCUITest scenarios (`client/CompanionUITests`) against the Debug fixture server on a dedicated, freshly erased simulator.
 
 ## Core (`internal/`)
 | Package | Role |

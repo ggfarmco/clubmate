@@ -27,6 +27,7 @@ actor FixtureServer {
 
     private var sessions: [[String: JSONValue]] = []
     private var transcripts: [String: [String: JSONValue]] = [:]
+    private var turns: [String: Task<Void, Never>] = [:]
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
     private var seq = 100
     private var notified = false
@@ -104,6 +105,9 @@ actor FixtureServer {
             return workspace == Self.workspace ? .array(sessions.map(JSONValue.object)) : .array([])
         case "agents.transcript":
             var transcript = transcripts[session] ?? [:]
+            if args["compact"] == .bool(true) {
+                transcript["entries"] = .array((transcript["entries"]?.arrayValue ?? []).map(Self.compact))
+            }
             if case .number(let from) = args["fromTurn"] ?? .null {
                 transcript["entries"] = .array((transcript["entries"]?.arrayValue ?? []).filter { entry in
                     if case .number(let turn) = entry["turn"] ?? .null { return turn >= from }
@@ -117,10 +121,24 @@ actor FixtureServer {
             return .object(transcript)
         case "agents.prompt":
             let text = args["text"]?.stringValue ?? ""
-            append(session, Self.entry("user", "prompt-\(UUID().uuidString)", text: text))
-            update(session) { $0["status"] = .string("running"); $0["asks"] = .bool(false) }
-            Task {
-                try? await Task.sleep(for: .seconds(2))
+            var prompt = Self.entry("user", "prompt-\(UUID().uuidString)", text: text)
+            if case .object(var fields) = prompt, let attachments = args["attachments"]?.arrayValue, !attachments.isEmpty {
+                fields["content"] = .array(attachments.map { .object(["type": .string("image"), "mimeType": $0["mimeType"] ?? .null, "data": $0["data"] ?? .null]) })
+                prompt = .object(fields)
+            }
+            append(session, prompt)
+            update(session) { record in
+                record["status"] = .string("running")
+                record["asks"] = .bool(false)
+                if record["title"]?.stringValue?.isEmpty ?? true { record["title"] = .string(text) }
+            }
+            turns[session]?.cancel()
+            turns[session] = Task {
+                do {
+                    try await Task.sleep(for: .seconds(4))
+                } catch {
+                    return
+                }
                 finishPrompt(session, text: text)
             }
             return .null
@@ -128,6 +146,7 @@ actor FixtureServer {
             answer(session, request: args["request"]?.stringValue ?? "", option: args["option"]?.stringValue ?? "")
             return .null
         case "agents.cancel":
+            turns.removeValue(forKey: session)?.cancel()
             update(session) { $0["status"] = .string("done"); $0["pending"] = nil }
             return .null
         case "agents.close":
@@ -205,6 +224,16 @@ actor FixtureServer {
         for subscriber in subscribers {
             subscriber.yield(wire)
         }
+    }
+
+    private static func compact(_ entry: JSONValue) -> JSONValue {
+        guard case .object(var fields) = entry, let blocks = fields["content"]?.arrayValue else { return entry }
+        fields["content"] = .array(blocks.map { block in
+            guard case .object(var image) = block, image["type"] == .string("image") else { return block }
+            image["data"] = .string("")
+            return .object(image)
+        })
+        return .object(fields)
     }
 
     private static func entry(_ kind: String, _ id: String, text: String) -> JSONValue {

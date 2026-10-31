@@ -248,6 +248,7 @@ struct ComposerView: View {
                         TextField(placeholder, text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .focused(focused)
+                            .accessibilityIdentifier("composer")
                             .pasteDestination(for: PastedImage.self, action: paste)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
