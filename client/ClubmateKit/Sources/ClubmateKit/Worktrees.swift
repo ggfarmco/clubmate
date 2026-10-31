@@ -59,6 +59,7 @@ public final class WorktreeModel {
     public static let sessionsCommand = "git.worktree-sessions"
     public static let branchesCommand = "git.branches"
     public static let branchSwitchCommand = "git.branch-switch"
+    public static let changedTopic = "git.changed"
     public static let worktreesSection = "Worktrees"
     public static let branchesSection = "Branches"
     static let maxBranchRows = 200
@@ -273,6 +274,25 @@ public final class WorktreeModel {
             }
         }
         return nil
+    }
+
+    public static func follow(_ client: CoreClient, changed: @escaping @MainActor (String) async -> Void) async {
+        let stream = client.subscribeNotifications()
+        guard var subscription = try? await client.busSubscribe(pattern: changedTopic, after: .max) else { return }
+        for await notification in stream {
+            guard let params = notification.params.objectValue, params["subscription"]?.stringValue == subscription else { continue }
+            switch notification.method {
+            case "bus.event":
+                guard let workspace = params["event"]?.objectValue?["payload"]?.objectValue?["workspace"]?.stringValue else { continue }
+                await changed(workspace)
+            case "bus.closed":
+                guard let next = try? await client.busSubscribe(pattern: changedTopic, after: .max) else { return }
+                subscription = next
+            default:
+                continue
+            }
+        }
+        Task { [subscription] in try? await client.busUnsubscribe(subscription) }
     }
 
     private static func within(_ path: String, _ dir: String) -> Bool {

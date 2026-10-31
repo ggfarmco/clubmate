@@ -21,6 +21,7 @@ const (
 	refreshDelay  = 300 * time.Millisecond
 	mutateTimeout = 10 * time.Minute
 	currentHead   = "HEAD"
+	changedTopic  = "git.changed"
 )
 
 var (
@@ -40,12 +41,17 @@ type deletedPayload struct {
 	ID string `json:"id"`
 }
 
+type changedEvent struct {
+	Workspace string `json:"workspace"`
+}
+
 type state struct {
 	mu      sync.Mutex
 	dead    bool
 	pending bool
 	running bool
 	dirty   bool
+	head    bool
 	repos   []string
 	gitDirs []string
 	busy    string
@@ -118,6 +124,9 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 	}
 	s.mu.Lock()
 	relevant := s.watch != "" && s.watch == ev.Watch && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return containing(s.repos, p) || containing(s.gitDirs, p) }))
+	if relevant && (ev.Overflow || slices.ContainsFunc(ev.Paths, func(p string) bool { return filepath.Base(p) == currentHead && containing(s.gitDirs, p) })) {
+		s.head = true
+	}
 	s.mu.Unlock()
 	if relevant {
 		a.schedule(h, ev.ProjectID, s, refreshDelay)
@@ -269,6 +278,7 @@ func (a *app) schedule(h *pluginsdk.Host, id string, s *state, delay time.Durati
 		s.mu.Unlock()
 		for {
 			a.checkMissing(context.Background(), h, id, s)
+			a.publishHead(context.Background(), h, id, s)
 			s.mu.Lock()
 			if !s.dirty {
 				s.running = false
@@ -296,6 +306,17 @@ func (a *app) checkMissing(ctx context.Context, h *pluginsdk.Host, id string, s 
 	if !skip && len(p.Missing) > 0 {
 		_, err = h.CheckWorktrees(ctx, id)
 		logError("check worktrees "+id, err)
+	}
+}
+
+func (a *app) publishHead(ctx context.Context, h *pluginsdk.Host, id string, s *state) {
+	s.mu.Lock()
+	head := s.head
+	s.head = false
+	s.mu.Unlock()
+	if head {
+		_, err := h.Publish(ctx, changedTopic, changedEvent{Workspace: id})
+		logError("publish "+changedTopic, err)
 	}
 }
 

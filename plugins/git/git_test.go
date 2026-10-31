@@ -404,6 +404,30 @@ func TestRemovedWorktreeFallsBack(t *testing.T) {
 	assert.Equal(t, repo, firstRoot(t, h, id))
 }
 
+func TestInPlaceSwitchPublishesChanged(t *testing.T) {
+	repo := committedRepo(t)
+	h, id := open(t, repo)
+	sub, err := h.Bus.Subscribe("git.changed", math.MaxInt64)
+	require.NoError(t, err)
+	t.Cleanup(sub.Close)
+
+	deadline := time.Now().Add(10 * time.Second)
+	for n := 0; ; n++ {
+		require.True(t, time.Now().Before(deadline), "no git.changed after an in-place switch")
+		git(t, repo, "switch", "-q", "-c", fmt.Sprintf("b%d", n))
+		select {
+		case ev := <-sub.C():
+			var payload struct {
+				Workspace string `json:"workspace"`
+			}
+			require.NoError(t, json.Unmarshal(ev.Payload, &payload))
+			assert.Equal(t, id, payload.Workspace)
+			return
+		case <-time.After(time.Second):
+		}
+	}
+}
+
 func TestSwitchRefusedWhileBusy(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")

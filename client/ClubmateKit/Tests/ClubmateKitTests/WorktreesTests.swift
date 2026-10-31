@@ -5,6 +5,30 @@ import ClubmateKit
 
 @MainActor
 final class WorktreesTests: XCTestCase {
+    private var testCore: TestCore?
+
+    override func tearDown() async throws {
+        await testCore?.stop()
+        testCore = nil
+    }
+
+    func testFollowReportsChangedWorkspace() async throws {
+        let core = try await TestCore.start()
+        testCore = core
+        let client = try await CoreClient.connect(paths: core.paths)
+        var changed: [String] = []
+        let follower = Task { await WorktreeModel.follow(client) { changed.append($0) } }
+        defer { follower.cancel() }
+
+        try await waitUntil {
+            try? core.cli("bus", "publish", WorktreeModel.changedTopic, #"{"workspace":"prj_a"}"#)
+            return !changed.isEmpty
+        }
+
+        XCTAssertEqual(changed.first, "prj_a")
+        await client.close()
+    }
+
     func testSwitchCallsCommandForTheFolder() async throws {
         let core = FakeGitCore()
         core.trees = ["/r/a", "/r/b"].flatMap { repo in

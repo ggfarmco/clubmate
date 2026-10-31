@@ -20,6 +20,7 @@ final class AppModel {
 
     @ObservationIgnored private var sessions: [String: ProjectSession] = [:]
     @ObservationIgnored private var openRequests: Task<Void, Never>?
+    @ObservationIgnored private var gitChanges: Task<Void, Never>?
     @ObservationIgnored private var openWindow: OpenWindowAction?
     private var launchProject = launchProjectID(CommandLine.arguments)
     @ObservationIgnored private var keyWindowID: String?
@@ -436,6 +437,12 @@ final class AppModel {
         openRequests = Task { [weak self] in
             for await id in requests {
                 self?.open(id)
+            }
+        }
+        gitChanges?.cancel()
+        gitChanges = Task { [weak self] in
+            await WorktreeModel.follow(client) { workspace in
+                await self?.existingSession(for: workspace)?.worktrees.load()
             }
         }
     }
