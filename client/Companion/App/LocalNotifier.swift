@@ -29,6 +29,9 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func requestAuthorization() {
+        #if DEBUG
+        if UserDefaults.standard.string(forKey: "fixtures") != nil { return }
+        #endif
         Task { _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge]) }
     }
 
