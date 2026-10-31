@@ -16,7 +16,7 @@ public struct BusFeed: Sendable {
     }
 
     public mutating func receive(_ notification: RPCNotification) -> Step {
-        guard let params = notification.params.objectValue, params["subscription"]?.stringValue == subscription else { return .ignored }
+        guard ["bus.event", "bus.closed"].contains(notification.method), let params = notification.params.objectValue, params["subscription"]?.stringValue == subscription else { return .ignored }
         switch notification.method {
         case "bus.event":
             guard let event = try? params["event"]?.decode(BusEvent.self) else { return .ignored }

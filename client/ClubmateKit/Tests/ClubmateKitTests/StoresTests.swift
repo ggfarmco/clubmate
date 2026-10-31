@@ -30,6 +30,7 @@ final class StoresTests: XCTestCase {
         _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
         try await waitUntil { store.slots["terminals.main"]?.tree.type == "surface" }
         XCTAssertEqual(store.slots["terminals.sidebar"]?.tree.find(id: "terminals")?.items().map(\.label), ["Terminal 1"])
+        try await waitUntil { try await client.uiGet(workspaceID: workspace.id).allSatisfy { store.slots[$0.slot] == $0 } }
 
         let close = SDUINode(type: "button", id: "close")
         _ = try await store.send(UIAction.event(for: close, trigger: .click, slot: "terminals.main", workspaceID: workspace.id)).get()

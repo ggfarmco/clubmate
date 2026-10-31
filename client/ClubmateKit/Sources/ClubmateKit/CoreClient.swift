@@ -124,7 +124,7 @@ public final class CoreClient {
     }
 
     public func uiSubscribe(workspaceID: String) async throws -> String {
-        let result: SubscriptionParams = try await connection.call("ui.subscribe", WorkspaceParams(workspaceId: workspaceID))
+        let result: SubscriptionParams = try await connection.call("ui.subscribe", UISubscribeParams(workspaceId: workspaceID, delta: true))
         return result.subscription
     }
 
@@ -291,6 +291,11 @@ private struct AddRepoParams: Encodable, Sendable {
 
 private struct WorkspaceParams: Encodable, Sendable {
     let workspaceId: String
+}
+
+private struct UISubscribeParams: Encodable, Sendable {
+    let workspaceId: String
+    let delta: Bool
 }
 
 private struct CreateWorkspaceParams: Encodable, Sendable {

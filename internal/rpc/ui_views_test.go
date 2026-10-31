@@ -1,6 +1,7 @@
 package rpc_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"testing"
@@ -210,4 +211,60 @@ func TestAppScopeSlots(t *testing.T) {
 	events, err := h.Bus.Read(t.Context(), "ui.*", 0, 0)
 	require.NoError(t, err)
 	assert.Empty(t, events)
+}
+
+func TestDeltaSubscriberGetsRefsAgainstLastSentTree(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha"}]}`)))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()
+		return len(st) == 1 && st[0].State == plugin.StateRunning
+	}, 5*time.Second)
+	p := h.CreateWorkspace(t, "demo")
+	render := func(text string) {
+		tree := map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
+			map[string]any{"type": "text", "props": map[string]any{"text": "a line that stays the same"}},
+			map[string]any{"type": "text", "props": map[string]any{"text": text}},
+		}}
+		require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.sidebar", "tree": tree}))
+	}
+	render("first")
+	c := h.Client(t)
+	var plain, delta struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]any{"workspaceId": p.ID}, &plain))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]any{"workspaceId": p.ID, "delta": true}, &delta))
+	frames := func() map[string]map[string]any {
+		got := map[string]map[string]any{}
+		for len(got) < 2 {
+			select {
+			case n := <-c.Notifications():
+				var params struct {
+					Subscription string         `json:"subscription"`
+					View         map[string]any `json:"view"`
+				}
+				require.NoError(t, json.Unmarshal(n.Params, &params))
+				if params.View["slot"] == "alpha.sidebar" {
+					got[params.Subscription] = params.View
+				}
+			case <-time.After(2 * time.Second):
+				require.FailNow(t, "missing ui.updated")
+			}
+		}
+		return got
+	}
+	replay := frames()
+	assert.Contains(t, replay[delta.Subscription], "tree")
+	render("second")
+	next := frames()
+	assert.Contains(t, next[plain.Subscription], "tree")
+	assert.NotContains(t, next[plain.Subscription], "delta")
+	assert.Equal(t, map[string]any{
+		"workspaceId": p.ID, "slot": "alpha.sidebar", "owner": "alpha", "rev": float64(2), "base": float64(1),
+		"delta": map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
+			map[string]any{"ref": []any{float64(0)}},
+			map[string]any{"type": "text", "props": map[string]any{"text": "second"}},
+		}},
+	}, next[delta.Subscription])
 }

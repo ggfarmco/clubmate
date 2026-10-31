@@ -1,0 +1,257 @@
+[
+  {
+    "name": "unchanged tree is one ref to the root",
+    "base": {
+      "type": "stack",
+      "props": {
+        "direction": "vertical"
+      },
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "text": "hello"
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "stack",
+      "props": {
+        "direction": "vertical"
+      },
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "text": "hello"
+          }
+        }
+      ]
+    },
+    "delta": {
+      "ref": []
+    }
+  },
+  {
+    "name": "changed leaf is sent, its siblings are refs",
+    "base": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "run the tests"
+          }
+        },
+        {
+          "type": "toolCard",
+          "id": "s/tool/1",
+          "props": {
+            "kind": "execute",
+            "title": "go test ./...",
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Running"
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "run the tests"
+          }
+        },
+        {
+          "type": "toolCard",
+          "id": "s/tool/1",
+          "props": {
+            "kind": "execute",
+            "title": "go test ./...",
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Running the whole suite"
+          }
+        }
+      ]
+    },
+    "delta": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "ref": [
+            0
+          ]
+        },
+        {
+          "ref": [
+            1
+          ]
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Running the whole suite"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "shifted window refers to the old positions",
+    "base": {
+      "type": "split",
+      "props": {
+        "direction": "vertical"
+      },
+      "children": [
+        {
+          "type": "transcript",
+          "id": "s/transcript",
+          "children": [
+            {
+              "type": "message",
+              "id": "s/msg/1",
+              "props": {
+                "role": "user",
+                "text": "first prompt"
+              }
+            },
+            {
+              "type": "message",
+              "id": "s/msg/2",
+              "props": {
+                "role": "agent",
+                "text": "first answer"
+              }
+            },
+            {
+              "type": "message",
+              "id": "s/msg/3",
+              "props": {
+                "role": "user",
+                "text": "second prompt"
+              }
+            }
+          ]
+        },
+        {
+          "type": "composer",
+          "id": "s/composer/1",
+          "props": {
+            "placeholder": "Message the agent"
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "split",
+      "props": {
+        "direction": "vertical"
+      },
+      "children": [
+        {
+          "type": "transcript",
+          "id": "s/transcript",
+          "children": [
+            {
+              "type": "message",
+              "id": "s/msg/2",
+              "props": {
+                "role": "agent",
+                "text": "first answer"
+              }
+            },
+            {
+              "type": "message",
+              "id": "s/msg/3",
+              "props": {
+                "role": "user",
+                "text": "second prompt"
+              }
+            },
+            {
+              "type": "message",
+              "id": "s/msg/4",
+              "props": {
+                "role": "agent",
+                "text": "second answer"
+              }
+            }
+          ]
+        },
+        {
+          "type": "composer",
+          "id": "s/composer/1",
+          "props": {
+            "placeholder": "Message the agent"
+          }
+        }
+      ]
+    },
+    "delta": {
+      "type": "split",
+      "props": {
+        "direction": "vertical"
+      },
+      "children": [
+        {
+          "type": "transcript",
+          "id": "s/transcript",
+          "children": [
+            {
+              "ref": [
+                0,
+                1
+              ]
+            },
+            {
+              "ref": [
+                0,
+                2
+              ]
+            },
+            {
+              "type": "message",
+              "id": "s/msg/4",
+              "props": {
+                "role": "agent",
+                "text": "second answer"
+              }
+            }
+          ]
+        },
+        {
+          "ref": [
+            1
+          ]
+        }
+      ]
+    }
+  }
+]

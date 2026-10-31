@@ -23,7 +23,9 @@ type SlotView struct {
 	Slot        string          `json:"slot"`
 	Owner       string          `json:"owner"`
 	Rev         int64           `json:"rev"`
-	Tree        json.RawMessage `json:"tree"`
+	Tree        json.RawMessage `json:"tree,omitempty"`
+	Base        int64           `json:"base,omitempty"`
+	Delta       json.RawMessage `json:"delta,omitempty"`
 }
 
 type slotKey struct {
@@ -134,7 +136,7 @@ func (s *Store) Subscribe(workspaceID string) (*Subscription, error) {
 }
 
 func (v SlotView) AppendJSON(dst []byte) []byte {
-	dst = slices.Grow(dst, len(v.Tree)+len(v.WorkspaceID)+len(v.Slot)+len(v.Owner)+64)
+	dst = slices.Grow(dst, len(v.Tree)+len(v.Delta)+len(v.WorkspaceID)+len(v.Slot)+len(v.Owner)+96)
 	dst = append(dst, `{"workspaceId":`...)
 	dst, _ = jsontext.AppendQuote(dst, v.WorkspaceID)
 	dst = append(dst, `,"slot":`...)
@@ -143,6 +145,12 @@ func (v SlotView) AppendJSON(dst []byte) []byte {
 	dst, _ = jsontext.AppendQuote(dst, v.Owner)
 	dst = append(dst, `,"rev":`...)
 	dst = strconv.AppendInt(dst, v.Rev, 10)
+	if len(v.Delta) > 0 {
+		dst = append(dst, `,"base":`...)
+		dst = strconv.AppendInt(dst, v.Base, 10)
+		dst = append(dst, `,"delta":`...)
+		return append(append(dst, v.Delta...), '}')
+	}
 	dst = append(dst, `,"tree":`...)
 	if len(v.Tree) == 0 {
 		dst = append(dst, "null"...)

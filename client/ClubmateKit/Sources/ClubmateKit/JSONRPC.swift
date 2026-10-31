@@ -4,12 +4,35 @@ import Foundation
 @_exported import ClubmateProtocol
 
 public struct RPCNotification: Sendable, Equatable {
+    private enum Payload: Sendable, Equatable {
+        case value(JSONValue)
+        case line(Data)
+    }
+
     public let method: String
-    public let params: JSONValue
+    private let payload: Payload
 
     public init(method: String, params: JSONValue) {
         self.method = method
-        self.params = params
+        payload = .value(params)
+    }
+
+    init(method: String, line: Data) {
+        self.method = method
+        payload = .line(line)
+    }
+
+    public var params: JSONValue {
+        (try? decodeParams(JSONValue.self)) ?? .null
+    }
+
+    public func decodeParams<T: Decodable>(_ type: T.Type) throws -> T {
+        switch payload {
+        case .value(let value):
+            return try value.decode(type)
+        case .line(let line):
+            return try JSONDecoder.clubmate.decode(Envelope<T>.self, from: line).params
+        }
     }
 }
 
@@ -113,9 +136,10 @@ public actor RPCConnection {
         guard let header = try? JSONDecoder.clubmate.decode(Header.self, from: line) else { return }
         if let method = header.method {
             if let id = header.id {
-                request.yield(RPCRequest(id: id, method: method, params: header.params ?? .null))
+                let params = (try? JSONDecoder.clubmate.decode(Envelope<JSONValue>.self, from: line).params) ?? .null
+                request.yield(RPCRequest(id: id, method: method, params: params))
             } else {
-                notify.yield(RPCNotification(method: method, params: header.params ?? .null))
+                notify.yield(RPCNotification(method: method, line: line))
             }
             return
         }
@@ -263,6 +287,9 @@ private struct Header: Decodable {
 
     let id: Int?
     let method: String?
-    let params: JSONValue?
     let error: ErrorBody?
+}
+
+private struct Envelope<P: Decodable>: Decodable {
+    let params: P
 }

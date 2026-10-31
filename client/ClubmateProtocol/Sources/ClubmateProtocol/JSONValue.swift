@@ -12,12 +12,12 @@ public enum JSONValue: Codable, Sendable, Hashable {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
         } else if let value = try? container.decode(Bool.self) {
             self = .bool(value)
         } else if let value = try? container.decode(Double.self) {
             self = .number(value)
-        } else if let value = try? container.decode(String.self) {
-            self = .string(value)
         } else if let value = try? container.decode([JSONValue].self) {
             self = .array(value)
         } else {

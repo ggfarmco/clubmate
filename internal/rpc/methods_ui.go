@@ -72,6 +72,11 @@ type workspaceParams struct {
 	WorkspaceID string `json:"workspaceId"`
 }
 
+type uiSubscribeParams struct {
+	WorkspaceID string `json:"workspaceId"`
+	Delta       bool   `json:"delta,omitempty"`
+}
+
 type renderParams struct {
 	WorkspaceID string          `json:"workspaceId"`
 	Slot        string          `json:"slot"`
@@ -164,7 +169,7 @@ func (s *Server) uiGet(_ context.Context, p workspaceParams) ([]sdui.SlotView, e
 	return nonNil(u.store.Get(p.WorkspaceID)), nil
 }
 
-func (s *Server) uiSubscribe(ctx context.Context, p workspaceParams) (subscriptionParams, error) {
+func (s *Server) uiSubscribe(ctx context.Context, p uiSubscribeParams) (subscriptionParams, error) {
 	u, err := s.uiState()
 	if err != nil {
 		return subscriptionParams{}, err
@@ -188,7 +193,7 @@ func (s *Server) uiSubscribe(ctx context.Context, p workspaceParams) (subscripti
 	sid, err := subscriptionsFrom(ctx).add(kindUI, sync.OnceFunc(func() {
 		sub.Close()
 		leave()
-	}), forwardUI(ctx, connFrom(ctx), sub))
+	}), forwardUI(ctx, connFrom(ctx), sub, p.Delta))
 	if err == nil && p.WorkspaceID != "" {
 		s.presence.addTarget(p.WorkspaceID, target, sid)
 	}
@@ -402,8 +407,12 @@ func (s *Server) requireWorkspace(ctx context.Context, workspaceID string) error
 	return err
 }
 
-func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription) forwardFunc {
+func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription, delta bool) forwardFunc {
 	return func(sid string, done <-chan struct{}) {
+		var tracker *sdui.DeltaTracker
+		if delta {
+			tracker = sdui.NewDeltaTracker()
+		}
 		for {
 			select {
 			case <-done:
@@ -414,6 +423,9 @@ func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription)
 					return
 				}
 				for _, view := range views {
+					if tracker != nil {
+						view = tracker.Frame(view)
+					}
 					if err := conn.Notify(ctx, notifyUIUpdated, uiUpdatedFrame(sid, view)); err != nil {
 						return
 					}
@@ -424,7 +436,7 @@ func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription)
 }
 
 func uiUpdatedFrame(sid string, view sdui.SlotView) json.RawMessage {
-	b := make([]byte, 0, len(view.Tree)+len(sid)+192)
+	b := make([]byte, 0, len(view.Tree)+len(view.Delta)+len(sid)+224)
 	b = append(b, `{"subscription":`...)
 	b, _ = jsontext.AppendQuote(b, sid)
 	b = append(b, `,"view":`...)

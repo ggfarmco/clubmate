@@ -234,7 +234,7 @@ public final class WorkspaceUIStore {
             return false
         case .view(let params, let closed):
             guard params.subscription == subscription else { return false }
-            if let view = params.view { apply(view) }
+            if let update = params.view, !apply(update) { return true }
             return closed
         case .ignored:
             return false
@@ -256,10 +256,12 @@ public final class WorkspaceUIStore {
 
     private func recover() async {
         let generation = self.generation
+        let stale = subscription
         revs = [:]
         guard let subscription = try? await client.uiSubscribe(workspaceID: workspaceID) else {
             return lose(generation)
         }
+        if let stale { await discard(stale) }
         let views = try? await client.uiGet(workspaceID: workspaceID)
         guard generation == self.generation, let views else {
             await discard(subscription)
@@ -302,10 +304,12 @@ public final class WorkspaceUIStore {
         revs = slots.mapValues(\.rev)
     }
 
-    private func apply(_ view: SlotView) {
-        guard view.workspaceId == workspaceID, view.rev > revs[view.slot] ?? 0 else { return }
+    private func apply(_ update: SlotUpdate) -> Bool {
+        guard update.workspaceId == workspaceID, update.rev > revs[update.slot] ?? 0 else { return true }
+        guard let view = update.view(over: slots[update.slot]) else { return false }
         revs[view.slot] = view.rev
         slots[view.slot] = view
+        return true
     }
 
     private func restore(from state: JSONValue?) {
@@ -358,9 +362,9 @@ private enum UIMessage: Sendable {
     @concurrent static func decode(_ notification: RPCNotification) async -> UIMessage {
         switch notification.method {
         case "ui.focus":
-            return (try? notification.params.decode(UIFocusNotification.self)).map { .focus($0) } ?? .ignored
+            return (try? notification.decodeParams(UIFocusNotification.self)).map { .focus($0) } ?? .ignored
         case "ui.updated", "ui.closed":
-            return (try? notification.params.decode(UINotification.self)).map { .view($0, closed: notification.method == "ui.closed") } ?? .ignored
+            return (try? notification.decodeParams(UINotification.self)).map { .view($0, closed: notification.method == "ui.closed") } ?? .ignored
         default:
             return .ignored
         }
@@ -376,5 +380,5 @@ private struct UIFocusNotification: Decodable, Sendable {
 
 private struct UINotification: Decodable, Sendable {
     let subscription: String
-    let view: SlotView?
+    let view: SlotUpdate?
 }

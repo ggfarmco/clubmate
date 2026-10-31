@@ -151,7 +151,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 |---|---|---|
 | ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin, slots?}]` |
 | ui.get | `{workspaceId}` (`""` for app scope) | `[SlotView]` sorted by slot |
-| ui.subscribe | `{workspaceId}` | `{subscription}` |
+| ui.subscribe | `{workspaceId, delta?}` | `{subscription}`; `delta: true` opts into delta frames (see `ui.updated`) |
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{workspaceId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{workspaceId, slot, tree}` (plugin callers only; `tree` is decoded strictly: exact-case member names, no duplicate or unknown members, valid UTF-8, else invalid tree; the core keeps the plugin's bytes and sends them on as they are) | `{rev}` |
@@ -317,6 +317,17 @@ The app's Help ▸ Collect Diagnostics… first shows a sheet listing the files 
 ## Notifications
 
 - `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the workspace are replayed first. A subscriber is never dropped for falling behind: while the core waits to write to a slow connection, a newer render of a slot replaces the one still pending for that slot, so a slow client skips intermediate revs and gets the latest view of each slot.
+
+### Delta frames
+
+A subscriber that passed `delta: true` to `ui.subscribe` may get a view without `tree`: `{workspaceId, slot, owner, rev, base, delta}`. `base` is the rev of the last view of that slot the core sent on this subscription, and `delta` is the new tree in which any subtree that also occurs, byte for byte, in the tree of `base` can be replaced by `{"ref": [i, j, …]}`: the child indexes leading from the root of the `base` tree to that node (`{"ref": []}` is the whole `base` tree, an identical re-render). Only nodes are referenced (the root and elements of `children`), never props, so a ref may stand wherever a node may. The client resolves refs against its tree of rev `base` and keeps the resolved nodes as they are, so unchanged subtrees keep their decoded values.
+
+- The first view of a slot on a subscription (the replay, or the first render after it) is always a full `tree`; so is a view whose delta would not be smaller than the tree.
+- The core diffs against what it sent, not against rev − 1, so skipped revs (a slow client) still yield a delta.
+- A client whose tree for the slot is not at rev `base` (or whose ref does not resolve) resubscribes: it calls `ui.subscribe` again, unsubscribes the old subscription and reloads with `ui.get`; the new subscription starts with full trees.
+- Without `delta`, or from a core that predates it (it ignores the unknown param), every view carries the full `tree`; old clients never see `base` or `delta`. `ui.get` always returns full trees.
+
+The app subscribes with `delta: true`. While an agent streams into a ~620 KB `agents.main` tree, each frame is a few KB: the streaming message in full plus refs for every other node.
 - `ui.focus` `{subscription, section, slot, field}`: the client should show `section`, and `slot` when non-empty, for that subscription's workspace. `field` is present (true) only when the caller passed it: the client puts keyboard focus into the first `textField` of that sidebar instead of its list or tree. A focus to a hidden sidebar shows it first.
 
 ## File watching
