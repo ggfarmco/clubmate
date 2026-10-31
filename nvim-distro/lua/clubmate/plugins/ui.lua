@@ -50,7 +50,7 @@ return {
     opts = {
       options = {
         globalstatus = true,
-        ignore_focus = { "snacks_picker_input", "snacks_picker_list", "snacks_input", "cmd", "msg", "pager", "dialog" },
+        ignore_focus = { "snacks_picker_input", "snacks_picker_list", "snacks_input" },
       },
       sections = {
         lualine_a = { "mode" },
