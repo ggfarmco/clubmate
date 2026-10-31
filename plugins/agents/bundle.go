@@ -152,10 +152,20 @@ func (a *app) importSession(ctx context.Context, h *pluginsdk.Host, projectID, f
 	if err != nil {
 		return importResult{}, err
 	}
-	copied := old
-	copied.ID, copied.Workspace, copied.Worktree, copied.ImportedFrom = newSessionID(), projectID, res.Worktree, old.ID
-	copied.ParentSession, copied.HandoffFrom, copied.HandoffTo = "", "", res.Session
-	copied.Closed, copied.Status, copied.Error = true, statusClosed, ""
+	copied := record{
+		ID:           newSessionID(),
+		Workspace:    projectID,
+		Worktree:     res.Worktree,
+		Agent:        old.Agent,
+		Title:        old.Title,
+		TitleSet:     old.TitleSet,
+		HandoffTo:    res.Session,
+		ImportedFrom: old.ID,
+		Status:       statusClosed,
+		CreatedAt:    old.CreatedAt,
+		UpdatedAt:    old.UpdatedAt,
+		Closed:       true,
+	}
 	if err := copyFile(filepath.Join(args.Dir, bundleLog), logPath(a.stateDir, copied.ID)); err != nil {
 		return importResult{}, err
 	}
