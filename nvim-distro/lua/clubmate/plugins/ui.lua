@@ -26,7 +26,7 @@ return {
   pin("folke/which-key.nvim", {
     event = "VeryLazy",
     opts = {
-      preset = "helix",
+      preset = "modern",
       delay = 300,
       win = { border = "rounded" },
       spec = {
