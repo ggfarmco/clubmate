@@ -5,13 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
-
-	"github.com/neovim/go-client/nvim"
 
 	"clubmate/pkg/pluginsdk"
 )
@@ -22,7 +18,6 @@ const (
 	themeFileName = "theme.json"
 	themeSeqKey   = "theme.seq"
 	paletteSize   = 16
-	themeLua      = "local ok, m = pcall(require, 'clubmate.theme') if ok then m.apply(...) end"
 )
 
 var (
@@ -88,7 +83,7 @@ func (a *app) applyTheme(c *client) {
 }
 
 func pushTheme(c *client, t theme) {
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(themeLua, nil, t) }); err != nil {
+	if err := c.exec(themeLua, nil, t); err != nil {
 		logError(themeTopic, err)
 	}
 }
@@ -130,17 +125,4 @@ func writeTheme(payload json.RawMessage) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
-}
-
-func (a *app) connectedClients() []*client {
-	a.mu.Lock()
-	editors := slices.Collect(maps.Values(a.editors))
-	a.mu.Unlock()
-	var clients []*client
-	for _, e := range editors {
-		if c := e.connected(); c != nil {
-			clients = append(clients, c)
-		}
-	}
-	return clients
 }

@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/neovim/go-client/nvim"
-
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -17,8 +15,6 @@ const (
 	importTitle     = "Import nvim config"
 	importEvent     = "import"
 	importOfferedID = "importOffered"
-	offerLua        = "local ok, m = pcall(require, 'clubmate.import') if ok then m.offer() end"
-	importErrorLua  = "vim.notify(..., vim.log.levels.ERROR)"
 )
 
 var (
@@ -67,10 +63,6 @@ func nvimGuide() string {
 	return filepath.Join(pluginsdk.ResourcesDir(), "nvim-distro", "skill", "SKILL.md")
 }
 
-func distroInUse() bool {
-	return bundledNvim() != "" && distroInit() != ""
-}
-
 func (a *app) importConfig(ctx context.Context, h *pluginsdk.Host, projectID string) (agentsNewResult, error) {
 	p, err := h.GetProject(ctx, projectID)
 	if err != nil {
@@ -101,7 +93,7 @@ func (a *app) importFromEditor(h *pluginsdk.Host, e *editor) {
 	}
 	logError(importEvent, err)
 	if c := e.connected(); c != nil {
-		_ = c.call(func(v *nvim.Nvim) error { return v.ExecLua(importErrorLua, nil, "Import: "+err.Error()) })
+		_ = c.exec(importErrorLua, nil, "Import: "+err.Error())
 	}
 }
 
@@ -124,7 +116,7 @@ func (a *app) offerImport(h *pluginsdk.Host, e *editor, c *client) {
 		logError(importEvent, err)
 		return
 	}
-	if err := c.call(func(v *nvim.Nvim) error { return v.ExecLua(offerLua, nil) }); err != nil {
+	if err := c.exec(offerLua, nil); err != nil {
 		logError(importEvent, err)
 	}
 }

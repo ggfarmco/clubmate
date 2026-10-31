@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 )
+
+const renderDelay = 30 * time.Millisecond
 
 type status struct {
 	Mode      string
@@ -26,6 +31,36 @@ var modeNames = map[byte]string{
 	'c':  "COMMAND",
 	't':  "TERMINAL",
 	'R':  "REPLACE",
+}
+
+func (a *app) render(ctx context.Context, h *pluginsdk.Host, e *editor, slot string, n sdui.Node) error {
+	a.slotMu.Lock()
+	defer a.slotMu.Unlock()
+	if !a.isCurrent(e) {
+		return nil
+	}
+	_, err := h.Render(ctx, e.id, slot, n)
+	return err
+}
+
+func (a *app) scheduleStatus(h *pluginsdk.Host, e *editor) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.pending {
+		return
+	}
+	e.pending = true
+	time.AfterFunc(renderDelay, func() {
+		e.renderMu.Lock()
+		defer e.renderMu.Unlock()
+		e.mu.Lock()
+		e.pending = false
+		st := e.status
+		e.mu.Unlock()
+		if err := a.render(context.Background(), h, e, statusSlot, statusView(st, a.projectFolders(e.id))); err != nil {
+			logError("render status", err)
+		}
+	})
 }
 
 func startingView() sdui.Node {

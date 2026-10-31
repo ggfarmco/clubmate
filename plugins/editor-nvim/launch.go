@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,7 +12,10 @@ import (
 
 const ghosttyTerm = "xterm-ghostty"
 
-var scrubEnv = []string{"VIM", "VIMRUNTIME"}
+var (
+	errNvimNotInPATH = errors.New("nvim not found in PATH")
+	scrubEnv         = []string{"VIM", "VIMRUNTIME"}
+)
 
 type launch struct {
 	Path       string
@@ -93,4 +97,8 @@ func bundledNvim() string {
 		return ""
 	}
 	return path
+}
+
+func distroInUse() bool {
+	return bundledNvim() != "" && distroInit() != ""
 }

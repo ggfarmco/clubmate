@@ -327,7 +327,7 @@ func TestRestartFailsClosedWhenNvimBlocks(t *testing.T) {
 func TestHookCreatesNoKeymaps(t *testing.T) {
 	e := startEditor(t)
 	v := dial(t, e.sock)
-	ref, err := nvim.NewChildProcess(nvim.ChildProcessArgs("--embed", "--headless"), nvim.ChildProcessLogf(func(string, ...any) {}))
+	ref, err := nvim.NewChildProcess(nvim.ChildProcessArgs("--embed", "--headless", "-i", "NONE", "--clean"), nvim.ChildProcessLogf(func(string, ...any) {}))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ref.Close() })
 	for _, n := range []*nvim.Nvim{v, ref} {
