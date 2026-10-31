@@ -171,8 +171,8 @@ struct SDUINodeView: View {
         case "split": SplitNodeView(node: node)
         case "scroll": ScrollNodeView(node: node)
         case "tabs": TabsNodeView(node: node)
-        case "list": ListNodeView(node: node)
-        case "tree": TreeNodeView(node: node)
+        case "list": OwnScroll { ListNodeView(node: node) }
+        case "tree": OwnScroll { TreeNodeView(node: node) }
         case "table": TableNodeView(node: node)
         case "sparkline": SparklineNodeView(node: node)
         case "text": TextNodeView(node: node)

@@ -53,6 +53,27 @@ struct ScrollNodeView: View {
     }
 }
 
+struct OwnScroll<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    @Environment(\.scrollProxy) private var scroll
+
+    var body: some View {
+        if scroll == nil {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    content
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .clipped()
+                .environment(\.scrollProxy, proxy)
+            }
+        } else {
+            content
+        }
+    }
+}
+
 private struct ScrollProxyKey: EnvironmentKey {
     static var defaultValue: ScrollViewProxy? { nil }
 }

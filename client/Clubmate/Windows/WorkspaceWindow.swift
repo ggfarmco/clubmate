@@ -347,10 +347,15 @@ private struct WorktreeTitleMenu: View {
     @State private var shown = false
     @Environment(\.theme) private var theme
 
+    private static let maxWidth: CGFloat = 360
+
     var body: some View {
         Button { shown.toggle() } label: {
             Text(title)
                 .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: Self.maxWidth)
                 .padding(theme.spacing.capsule)
                 .onHover { inside in
                     if inside { session.worktreeMenuOpened() }

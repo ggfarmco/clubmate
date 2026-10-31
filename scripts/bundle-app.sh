@@ -20,7 +20,7 @@ cp -R "$ROOT/bin/plugins" "$DEST/plugins"
 cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/"
 "$ROOT/scripts/vendor-tools.sh" "$APP/Contents/Resources"
 
-SIGN=(codesign --force --options runtime --sign -)
+SIGN=(codesign --force --options runtime --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}")
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 
 "${SIGN[@]}" \

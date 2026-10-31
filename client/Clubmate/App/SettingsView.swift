@@ -116,14 +116,17 @@ struct SettingsView: View {
     }
 }
 
-private enum SettingsTab: Hashable {
+private enum SettingsTab: String, Hashable {
     case general
     case plugins
     case devices
 
     static var initial: SettingsTab {
         #if DEBUG
-        DevicesPreview.state == "settings" ? .devices : .general
+        if DevicesPreview.state == "settings" { return .devices }
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "--settings-tab"), arguments.indices.contains(index + 1) else { return .general }
+        return SettingsTab(rawValue: arguments[index + 1]) ?? .general
         #else
         .general
         #endif
@@ -164,6 +167,7 @@ private struct PluginsSettings: View {
     }
 
     private func poll() async {
+        if plugins == nil { await load() }
         while active, !Task.isCancelled {
             await load()
             try? await Task.sleep(for: .seconds(2))

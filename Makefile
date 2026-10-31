@@ -5,6 +5,7 @@ LDFLAGS = -X clubmate/internal/buildinfo.Version=$(VERSION) -X clubmate/internal
 MACOS_MIN = 27.0
 GO_ENV = MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN) CGO_CFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)" CGO_LDFLAGS="-O2 -g -mmacosx-version-min=$(MACOS_MIN)"
 GO_BUILD = $(GO_ENV) go build -ldflags "$(LDFLAGS)"
+DEV_SIGN_IDENTITY ?= $(shell security find-identity -p codesigning -v 2>/dev/null | awk '/"Apple Development: / {print $$2; exit}')
 
 build:
 	rm -rf bin/plugins
@@ -43,7 +44,7 @@ ghostty:
 	scripts/build-ghostty.sh
 
 app: ghostty
-	cd client && xcodegen generate && xcodebuild -project Clubmate.xcodeproj -scheme Clubmate -configuration Debug -derivedDataPath ../build/DerivedData MARKETING_VERSION=$(VERSION) CLUBMATE_COMMIT=$(COMMIT) build
+	cd client && xcodegen generate && xcodebuild -project Clubmate.xcodeproj -scheme Clubmate -configuration Debug -derivedDataPath ../build/DerivedData MARKETING_VERSION=$(VERSION) CLUBMATE_COMMIT=$(COMMIT) $(if $(DEV_SIGN_IDENTITY),CODE_SIGN_IDENTITY=$(DEV_SIGN_IDENTITY)) build
 
 app-release: ghostty
 	cd client && xcodegen generate && xcodebuild -project Clubmate.xcodeproj -scheme Clubmate -configuration Release -derivedDataPath ../build/DerivedData MARKETING_VERSION=$(VERSION) CLUBMATE_COMMIT=$(COMMIT) CLUBMATE_FLAVOR=release build

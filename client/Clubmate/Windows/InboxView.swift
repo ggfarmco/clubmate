@@ -62,19 +62,34 @@ struct InboxView: View {
 
     private func header(_ notifications: Notifications) -> some View {
         HStack(spacing: theme.gutter) {
-            Text("Notifications").font(theme.title)
-            Spacer()
-            Picker("Kind", selection: $kind) {
-                Text("All").tag(NotificationKind?.none)
-                ForEach(NotificationKind.allCases, id: \.self) { kind in
-                    Text(kind.label).tag(Optional(kind))
+            Text("Notifications")
+                .font(theme.title)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Spacer(minLength: 0)
+            Menu {
+                Picker("Kind", selection: $kind) {
+                    Text("All").tag(NotificationKind?.none)
+                    ForEach(NotificationKind.allCases, id: \.self) { kind in
+                        Text(kind.label).tag(Optional(kind))
+                    }
                 }
+                .labelsHidden()
+                .pickerStyle(.inline)
+            } label: {
+                Text(kind?.label ?? "All").font(theme.ui)
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            .menuStyle(.borderlessButton)
             .fixedSize()
-            Button("Mark All Read") { notifications.handleAll() }
-                .disabled(notifications.hub.inbox.unhandled.isEmpty)
+            .help("Show kind")
+            .testMenu("inbox.kind", ["All"].map { LayoutMenuItem(title: $0) } + NotificationKind.allCases.map { LayoutMenuItem(title: $0.label) })
+            ViewThatFits(in: .horizontal) {
+                Button("Mark All Read") { notifications.handleAll() }
+                Button { notifications.handleAll() } label: { Image(systemName: "checkmark.circle") }
+                    .help("Mark All Read")
+                    .accessibilityLabel("Mark All Read")
+            }
+            .disabled(notifications.hub.inbox.unhandled.isEmpty)
         }
         .padding(theme.gutter)
     }

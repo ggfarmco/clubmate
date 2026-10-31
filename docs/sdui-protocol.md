@@ -70,6 +70,8 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 
 A window shows at most one `surface` node at a time in v1. The client keeps every terminal it has shown mounted until the session's attach exits or the window closes, so switching between sessions is instant. A second `surface` visible in the same window at once renders a placeholder.
 
+`list` and `tree` rows render lazily. Outside a `scroll` a `list` or `tree` scrolls itself and fills the height left by its siblings, so a long one never grows the window; a changed `selected` from the plugin scrolls to that row.
+
 `table` rows render lazily; wrap the table in a `scroll` to scroll them under a pinned header. Each row counts toward the 5000-node limit; cells are bounded by the row and column caps (at most 1000 × 32), and spark values (cell sparks and `sparkline` nodes) are capped at 100000 per tree. The client does not page or truncate: a plugin with more rows renders the first 1000 or fewer and adds a final muted `… N more` row itself. `selected` works like `tree`'s: a changed value from the plugin sets, moves or clears the highlight (and scrolls to it); clicking a row highlights it locally and sends `select`. `sparkline` draws `values` as a 60×16pt line (e.g. in a header); with `height` it fills the available width at that height in points (e.g. a detail chart).
 
 Agent chat nodes (the `agents` section):

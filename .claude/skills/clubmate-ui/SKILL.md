@@ -44,9 +44,9 @@ Compact, Zed/Ghostty feel; width is the scarce resource. Collapsed by default, e
 2. Stress inputs: 80+ items, the longest realistic name or path, an empty list, interface font +4.
 3. Look at it in an invisible test instance; it never takes focus or covers the user's windows, and other agents' instances don't interfere:
    - `scripts/test-app.sh start` (or `start <name> -- --sdui-gallery` for the gallery, nodes from `SDUI/GalleryFixture.json`); it opens this worktree as a workspace.
-   - `scripts/test-app.sh cm -- ui snapshot --out /tmp/clubmate-test-<name>/snapshots --size 640x800`, then again with `--size 900x800`. Read the `summary` first (`0 problems` or flagged SDUI nodes: `outside-window`, `wider-than-parent`, `overlaps-sibling`, `truncated`), then the png. Popovers and settings: `cm -- ui present inbox|worktree|switcher|settings` before the snapshot; menus are listed as text in the `w<id>.json`.
+   - `scripts/test-app.sh cm -- ui snapshot --out /tmp/clubmate-test-<name>/snapshots --size 640x800`, then again with `--size 900x800`. Read the `summary` first (`0 problems` or flagged SDUI nodes: `outside-window`, `wider-than-parent`, `overlaps-sibling`, `truncated`), then the png. Popovers and settings: `cm -- ui present inbox|worktree|switcher|settings` before the snapshot (`start <name> -- --settings-tab plugins|devices` opens Settings on that tab in Debug builds; `start <name> -- -interfaceFontSize '<real>16</real>'` sets the interface font); menus are listed as text in the `w<id>.json`.
    - Drive it with `cm -- ui event`, `cm -- command run`, or over MCP with `testapp_call`.
-   - `scripts/test-app.sh stop` afterwards.
+   - `scripts/test-app.sh stop` afterwards; it deletes `/tmp/clubmate-test-<name>`, so copy snapshots you report elsewhere first.
    Never use `screencapture`.
 4. If you could not look, write "visually unverified" in the report and say which of the above was skipped.
 

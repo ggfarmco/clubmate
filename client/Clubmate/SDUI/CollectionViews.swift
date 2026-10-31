@@ -70,9 +70,10 @@ struct ListNodeView: View {
     @State private var selected: String?
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.scrollProxy) private var scroll
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(node.items()) { item in
                 ItemRow(item: item, selected: item.id == selected) {
                     selected = item.id
@@ -80,13 +81,16 @@ struct ListNodeView: View {
                     dispatch(node, .select(item.id))
                 }
                 .itemMenu(item.menu) { dispatch.choose($0, item: item.id, in: node) }
+                .id(item.id)
             }
         }
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
         .onChange(of: node.string("selected"), initial: true) { _, value in
+            guard value != selected else { return }
             selected = value
+            if let value { scroll?.scrollTo(value, anchor: .center) }
         }
     }
 }
@@ -279,6 +283,7 @@ struct ItemRow<Leading: View>: View {
     @ViewBuilder let leading: () -> Leading
 
     @State private var hovering = false
+    @State private var detailWidth = CGFloat.infinity
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -303,6 +308,8 @@ struct ItemRow<Leading: View>: View {
                     .lineLimit(1)
                     .truncationMode(.label)
                     .help(detail)
+                    .opacity(detailWidth < theme.uiSize * 3 ? 0 : 1)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
             }
             if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accent)
