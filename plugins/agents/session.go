@@ -145,6 +145,7 @@ func (s *session) activity() string {
 			_ = json.Unmarshal(en.ToolCall, &f)
 			title = f.Title
 		case s.rec.Status == statusRunning && en.Kind == entryTool:
+			s.refreshLocked(en)
 			_ = json.Unmarshal(en.Tool["title"], &title)
 		default:
 			continue

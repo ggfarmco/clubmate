@@ -45,6 +45,7 @@ type step struct {
 	Match      string          `json:"match"`
 	Fail       string          `json:"fail"`
 	ErrorKind  string          `json:"errorKind"`
+	Session    string          `json:"session"`
 }
 
 const loginArg = "--fake-login"
@@ -224,9 +225,10 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 		if s.Match != "" && (len(prompt.Prompt) == 0 || !strings.Contains(prompt.Prompt[0].Text, s.Match)) {
 			continue
 		}
+		target := cmp.Or(s.Session, session)
 		switch {
 		case s.Update != nil:
-			a.update(session, s.Update)
+			a.update(target, s.Update)
 		case s.Burst > 0:
 			for i := range s.Burst {
 				a.update(session, map[string]any{"sessionUpdate": acp.UpdateToolCall, "toolCallId": "b" + strconv.Itoa(i), "title": "step " + strconv.Itoa(i), "kind": "read", "status": "completed"})
@@ -238,7 +240,7 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 			}
 			_ = json.Unmarshal(s.Permission, &p)
 			var res json.RawMessage
-			err := a.conn.Call(ctx, acp.MethodRequestPermission, acp.RequestPermissionRequest{SessionID: session, ToolCall: p.ToolCall, Options: p.Options}, &res)
+			err := a.conn.Call(ctx, acp.MethodRequestPermission, acp.RequestPermissionRequest{SessionID: target, ToolCall: p.ToolCall, Options: p.Options}, &res)
 			if err != nil {
 				a.record("permission_error", err.Error())
 				continue

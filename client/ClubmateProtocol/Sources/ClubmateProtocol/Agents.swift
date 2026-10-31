@@ -44,6 +44,7 @@ public enum ToolKind: String, FallbackEnum {
     case search
     case execute
     case think
+    case agent
     case fetch
     case switchMode = "switch_mode"
     case other
@@ -59,6 +60,7 @@ public enum ToolKind: String, FallbackEnum {
         case .search: "magnifyingglass"
         case .execute: "terminal"
         case .think: "brain"
+        case .agent: "sparkles"
         case .fetch: "globe"
         case .switchMode: "arrow.triangle.swap"
         case .other: "wrench.and.screwdriver"

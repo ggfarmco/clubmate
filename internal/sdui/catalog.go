@@ -70,7 +70,7 @@ var (
 
 	messageRoles     = []string{"user", "agent", "thought"}
 	planStatuses     = []string{"pending", "in_progress", "completed"}
-	toolKinds        = []string{"read", "edit", "delete", "move", "search", "execute", "think", "fetch", "switch_mode", "other"}
+	toolKinds        = []string{"read", "edit", "delete", "move", "search", "execute", "think", "agent", "fetch", "switch_mode", "other"}
 	toolStatuses     = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
 	toolFormats      = []string{"diff", "text", "terminal"}
 	permissionKinds  = []string{"allow_once", "allow_always", "reject_once", "reject_always"}

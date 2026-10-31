@@ -39,6 +39,8 @@ type transcriptState struct {
 	edited   bool
 	prompted bool
 	senders  []string
+
+	subagents map[string]*subagent
 }
 
 type transcriptView struct {
@@ -65,10 +67,13 @@ type entry struct {
 	Outcome  *acp.PermissionOutcome     `json:"outcome,omitempty"`
 	Notice   json.RawMessage            `json:"notice,omitempty"`
 	From     string                     `json:"from,omitempty"`
+	Subagent string                     `json:"subagent,omitempty"`
 
 	Compaction *compaction `json:"compaction,omitempty"`
 
 	node *nodeCache
+	sub  *subagent
+	stop bool
 }
 
 type turnInfo struct {
@@ -125,13 +130,15 @@ func (s *session) view(fromTurn int) transcriptView {
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
 	for _, en := range s.entries {
 		if en.Turn >= fromTurn {
+			s.refreshLocked(en)
 			if en.node == nil {
 				en.node = new(nodeCache)
 			}
 			c := *en
-			if en.Tool != nil && !s.running {
+			c.sub = nil
+			if en.Tool != nil && (en.sub == nil && !s.running || en.sub != nil && s.proc == nil) {
 				if closed, ok := closeTool(en.Tool); ok {
-					c.Tool, c.node = closed, nil
+					c.Tool, c.node, c.stop = closed, nil, false
 				}
 			}
 			if !s.running && c.Compaction != nil && c.Compaction.Status == compactionRunning {
@@ -213,6 +220,9 @@ func (s *session) update(params json.RawMessage) {
 	s.mu.Lock()
 	s.loadLocked()
 	e := s.envelope(s.actor(), kindUpdate, n.Update)
+	if n.SessionID != "" && s.rec.AgentSessionID != "" && n.SessionID != s.rec.AgentSessionID {
+		e.AgentSession = n.SessionID
+	}
 	var chunk acp.ContentChunk
 	var summary acp.CompactionSummaryChunk
 	_, chunked := chunkKinds[head.SessionUpdate]
@@ -246,8 +256,13 @@ func (s *session) apply(e envelope) {
 	}
 	switch e.Kind {
 	case kindUpdate:
+		if e.AgentSession != "" {
+			s.applySubagent(e.Turn, e.AgentSession, e.Payload)
+			return
+		}
 		s.applyUpdate(e.Turn, e.Payload)
 	case kindNew, kindResume:
+		s.loseSubagents()
 		var res acp.NewSessionResponse
 		if json.Unmarshal(e.Payload, &res) != nil {
 			return
@@ -298,6 +313,9 @@ func (s *session) apply(e envelope) {
 		if json.Unmarshal(e.Payload, &p) == nil && json.Unmarshal(p.Params, &req) == nil {
 			en := s.upsert(entryPermission, p.ID, e.Turn)
 			en.ToolCall, en.Options = req.ToolCall, req.Options
+			if sub := s.subagents[req.SessionID]; sub != nil {
+				en.Subagent = sub.name()
+			}
 		}
 	case kindAnswer:
 		var p answerPayload
@@ -391,6 +409,10 @@ func (s *session) applyUpdate(turn int, payload json.RawMessage) {
 		if json.Unmarshal(payload, &u) == nil && !s.rec.TitleSet && u.Title != nil && *u.Title != "" && !slices.Contains(s.senders, titleOf(*u.Title)) {
 			s.rec.Title = titleOf(*u.Title)
 		}
+	case acp.UpdateSubagent:
+		s.announceSubagent(nil, turn, payload)
+	case acp.UpdateSessionMessage:
+		s.sessionMessage(payload)
 	case acp.UpdateNotice:
 		s.nextID++
 		s.upsert(entryNotice, "notice-"+strconv.Itoa(s.nextID), turn).Notice = payload
@@ -423,7 +445,7 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 
 func (s *session) cancelTools(turn int) {
 	for _, en := range s.entries {
-		if en.Kind != entryTool || en.Turn != turn {
+		if en.Kind != entryTool || en.Turn != turn || en.sub != nil {
 			continue
 		}
 		if closed, ok := closeTool(en.Tool); ok {
@@ -491,5 +513,6 @@ func (s *session) tool(id string) (map[string]json.RawMessage, bool) {
 	if !ok {
 		return nil, false
 	}
+	s.refreshLocked(s.entries[i])
 	return maps.Clone(s.entries[i].Tool), true
 }

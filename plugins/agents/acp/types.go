@@ -36,6 +36,14 @@ const (
 	UpdateUsage             = "usage_update"
 	UpdateCompaction        = "compaction_update"
 	UpdateCompactionChunk   = "compaction_summary_chunk"
+	UpdateSubagent          = "subagent_update"
+	UpdateSessionMessage    = "session_message"
+	UpdateSessionMsgChunk   = "session_message_chunk"
+
+	SubagentRunning        = "running"
+	SubagentRequiresAction = "requires_action"
+	SubagentIdle           = "idle"
+	SubagentUnknown        = "unknown"
 
 	ConfigSelect         = "select"
 	ConfigBoolean        = "boolean"
@@ -73,6 +81,8 @@ type ClientCapabilities struct {
 	Terminal bool                      `json:"terminal"`
 	Session  ClientSessionCapabilities `json:"session"`
 	Auth     *AuthCapabilities         `json:"auth,omitempty"`
+
+	Subagents *Capability `json:"subagents,omitempty"`
 }
 
 type AuthCapabilities struct {
@@ -338,6 +348,32 @@ type UpdateHeader struct {
 type ContentChunk struct {
 	Content   ContentBlock `json:"content"`
 	MessageID string       `json:"messageId,omitempty"`
+}
+
+type SubagentUpdate struct {
+	SessionID   string         `json:"sessionId"`
+	Title       *string        `json:"title,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	State       *SubagentState `json:"state,omitempty"`
+
+	Capabilities *SubagentCapabilities `json:"capabilities,omitempty"`
+}
+
+type SubagentCapabilities struct {
+	Cancel *Capability `json:"cancel,omitempty"`
+}
+
+type SubagentState struct {
+	State      string `json:"state"`
+	StopReason string `json:"stopReason,omitempty"`
+	Error      *Error `json:"error,omitempty"`
+}
+
+type SessionMessage struct {
+	MessageID          string         `json:"messageId"`
+	SenderSessionID    string         `json:"senderSessionId,omitempty"`
+	RecipientSessionID string         `json:"recipientSessionId,omitempty"`
+	Content            []ContentBlock `json:"content"`
 }
 
 type ToolCallHeader struct {

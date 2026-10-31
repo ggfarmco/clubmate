@@ -61,13 +61,14 @@ type record struct {
 }
 
 type entry struct {
-	Kind    string                     `json:"kind"`
-	ID      string                     `json:"id"`
-	Turn    int                        `json:"turn"`
-	Text    string                     `json:"text"`
-	Tool    map[string]json.RawMessage `json:"tool"`
-	Outcome json.RawMessage            `json:"outcome"`
-	Notice  json.RawMessage            `json:"notice"`
+	Kind     string                     `json:"kind"`
+	ID       string                     `json:"id"`
+	Turn     int                        `json:"turn"`
+	Text     string                     `json:"text"`
+	Tool     map[string]json.RawMessage `json:"tool"`
+	Outcome  json.RawMessage            `json:"outcome"`
+	Notice   json.RawMessage            `json:"notice"`
+	Subagent string                     `json:"subagent"`
 }
 
 type transcript struct {

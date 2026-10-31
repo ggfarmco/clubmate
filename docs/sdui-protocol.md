@@ -65,7 +65,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | transcript | none | any | no |
 | message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]) | none | no |
 | plan | entries* (plan entry[]) | none | no |
-| toolCard | kind* (`read`\|`edit`\|`delete`\|`move`\|`search`\|`execute`\|`think`\|`fetch`\|`switch_mode`\|`other`), title* (string), status (`pending`\|`in_progress`\|`completed`\|`failed`\|`cancelled`), body (tool body), truncated (bool), standalone (bool), actions (card action[]) | none | yes |
+| toolCard | kind* (`read`\|`edit`\|`delete`\|`move`\|`search`\|`execute`\|`think`\|`agent`\|`fetch`\|`switch_mode`\|`other`), title* (string), status (`pending`\|`in_progress`\|`completed`\|`failed`\|`cancelled`), body (tool body), truncated (bool), standalone (bool), actions (card action[]) | none | yes |
 | permissionCard | request* (string), text* (string), options* (permission option[]), outcome (string), action | none | yes |
 | composer | placeholder, agent, mode (strings), modes (option[]), pickers (picker[]), commands (command[]), attach (`file`\|`selection`[]), attachments (attachment[]), running (bool) | none | yes |
 

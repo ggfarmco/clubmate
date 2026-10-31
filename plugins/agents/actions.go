@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 )
 
 const (
@@ -54,6 +55,7 @@ const (
 	actSendQueued      = "sendQueued"
 	actMerge           = "merge"
 	actStarter         = "starter"
+	actStopSubagent    = "stopSubagent"
 
 	handoffFromNode = "handoffFrom"
 	handoffToNode   = "handoffTo"
@@ -371,6 +373,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 			return err
 		}
 		return a.host.Focus(ctx, ev.WorkspaceID, editorSection, editorSlot)
+	case actStopSubagent:
+		tool, ok := strings.CutPrefix(node, "tool/")
+		if !ok {
+			return fmt.Errorf("%w: stopSubagent on %q", errUnknownAction, ev.NodeID)
+		}
+		return s.stopSubagent(tool)
 	case actRetry:
 		a.resume(s)
 		return nil
@@ -471,9 +479,11 @@ func (a *app) writeOutput(s *session, tool string) (string, error) {
 	}
 	f, kind, command := parseTool(raw)
 	body := toolBody(kind, command, rec.Worktree, f.Content)
-	if body == nil {
+	prompt, _ := f.RawInput["prompt"].(string)
+	if body == nil && prompt == "" {
 		return "", fmt.Errorf("%w: tool %q", errNoOutput, tool)
 	}
+	body = cmp.Or(body, &sdui.ToolBody{})
 	ext := map[string]string{"diff": "diff", "terminal": "log"}[body.Format]
 	name := rec.ID + "-" + tool + "." + cmp.Or(ext, "txt")
 	if filepath.Base(name) != name {
@@ -484,7 +494,11 @@ func (a *app) writeOutput(s *session, tool string) (string, error) {
 		return "", err
 	}
 	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte(body.Text), 0o600); err != nil {
+	text := body.Text
+	if prompt != "" {
+		text = strings.TrimRight(prompt+"\n\n"+text, "\n")
+	}
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		return "", err
 	}
 	return path, nil

@@ -54,6 +54,7 @@ type envelope struct {
 	TS            time.Time       `json:"ts"`
 	Kind          string          `json:"kind"`
 	Payload       json.RawMessage `json:"payload"`
+	AgentSession  string          `json:"agentSession,omitempty"`
 }
 
 type pendingChunk struct {
@@ -103,7 +104,7 @@ func (l *eventLog) chunk(e envelope, update, messageID, text string) {
 	if l.removed {
 		return
 	}
-	if p := l.pending; p != nil && (p.update != update || p.messageID != messageID || p.env.Turn != e.Turn) {
+	if p := l.pending; p != nil && (p.update != update || p.messageID != messageID || p.env.Turn != e.Turn || p.env.AgentSession != e.AgentSession) {
 		l.flushChunkLocked()
 	}
 	if l.pending == nil {

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"slices"
@@ -56,6 +58,7 @@ type agentProc struct {
 
 	mu       sync.Mutex
 	sessions map[string]*session
+	children map[string]*session
 	orphans  map[string][]json.RawMessage
 
 	quiet    atomic.Bool
@@ -93,7 +96,7 @@ func startProc(l launch, agent, root string, onExit func(p *agentProc, reason st
 		return nil, fmt.Errorf("start %s: %w", l.argv[0], err)
 	}
 	closeAll(stdinR, stdoutW, stderrW)
-	p := &agentProc{agent: agent, root: root, cmd: cmd, pgid: cmd.Process.Pid, stdin: stdinW, launch: l, mcp: l.mcp, onExit: onExit, onUsage: onUsage, sessions: map[string]*session{}, orphans: map[string][]json.RawMessage{}, exited: make(chan struct{})}
+	p := &agentProc{agent: agent, root: root, cmd: cmd, pgid: cmd.Process.Pid, stdin: stdinW, launch: l, mcp: l.mcp, onExit: onExit, onUsage: onUsage, sessions: map[string]*session{}, children: map[string]*session{}, orphans: map[string][]json.RawMessage{}, exited: make(chan struct{})}
 	stderrDone := make(chan struct{})
 	go func() {
 		defer close(stderrDone)
@@ -142,7 +145,7 @@ func (p *agentProc) wait(stdout, stderr *os.File, stderrDone chan struct{}) {
 func (p *agentProc) initialize(ctx context.Context) error {
 	req := acp.InitializeRequest{
 		ProtocolVersion:    acp.ProtocolVersion,
-		ClientCapabilities: acp.ClientCapabilities{Session: acp.ClientSessionCapabilities{Notices: &acp.Capability{}, Compaction: &acp.Capability{}, ConfigOptions: &acp.ConfigOptionsCapabilities{Boolean: &acp.Capability{}}}, Auth: &acp.AuthCapabilities{Terminal: true}},
+		ClientCapabilities: acp.ClientCapabilities{Session: acp.ClientSessionCapabilities{Notices: &acp.Capability{}, Compaction: &acp.Capability{}, ConfigOptions: &acp.ConfigOptionsCapabilities{Boolean: &acp.Capability{}}}, Auth: &acp.AuthCapabilities{Terminal: true}, Subagents: &acp.Capability{}},
 		ClientInfo:         &acp.Implementation{Name: clientName, Version: clientVersion},
 	}
 	var res acp.InitializeResponse
@@ -203,8 +206,11 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 		p.onUsage(n.Update)
 	}
 	p.mu.Lock()
-	s, ok := p.sessions[n.SessionID]
-	if !ok {
+	s := p.ownerLocked(n.SessionID)
+	var deliver []json.RawMessage
+	if s != nil {
+		deliver = p.adoptLocked(s, params)
+	} else {
 		queue := p.orphans[n.SessionID]
 		if len(queue) >= maxOrphans {
 			fmt.Fprintf(os.Stderr, "agents: %s: dropped an update for unknown session %.64s\n", p.agent, n.SessionID)
@@ -213,7 +219,7 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 		p.orphans[n.SessionID] = append(queue, params)
 	}
 	p.mu.Unlock()
-	if ok {
+	for _, params := range deliver {
 		s.update(params)
 	}
 }
@@ -227,9 +233,9 @@ func (p *agentProc) Request(ctx context.Context, id, method string, params json.
 		return nil, &acp.Error{Code: -32602, Message: err.Error()}
 	}
 	p.mu.Lock()
-	s, ok := p.sessions[req.SessionID]
+	s := p.ownerLocked(req.SessionID)
 	p.mu.Unlock()
-	if !ok {
+	if s == nil {
 		return acp.RequestPermissionResponse{Outcome: acp.PermissionOutcome{Outcome: acp.OutcomeCancelled}}, nil
 	}
 	return acp.RequestPermissionResponse{Outcome: s.requestPermission(ctx, id, params)}, nil
@@ -246,15 +252,42 @@ func (p *agentProc) register(agentSessionID string, s *session) {
 	pending := p.orphans[agentSessionID]
 	delete(p.orphans, agentSessionID)
 	for _, params := range pending {
-		s.update(params)
+		for _, adopted := range p.adoptLocked(s, params) {
+			s.update(adopted)
+		}
 	}
 }
 
 func (p *agentProc) unregister(agentSessionID string) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if s := p.sessions[agentSessionID]; s != nil {
+		maps.DeleteFunc(p.children, func(_ string, owner *session) bool { return owner == s })
+	}
 	delete(p.sessions, agentSessionID)
 	return len(p.sessions)
+}
+
+func (p *agentProc) ownerLocked(agentSessionID string) *session {
+	if s, ok := p.sessions[agentSessionID]; ok {
+		return s
+	}
+	return p.children[agentSessionID]
+}
+
+func (p *agentProc) adoptLocked(s *session, params json.RawMessage) []json.RawMessage {
+	out := []json.RawMessage{params}
+	child := subagentOf(params)
+	if child == "" || p.sessions[child] != nil {
+		return out
+	}
+	p.children[child] = s
+	pending := p.orphans[child]
+	delete(p.orphans, child)
+	for _, queued := range pending {
+		out = append(out, p.adoptLocked(s, queued)...)
+	}
+	return out
 }
 
 func (p *agentProc) attached() []*session {
@@ -323,6 +356,22 @@ func (r *ring) tail() string {
 		b = b[len(b)-stderrTailCap:]
 	}
 	return strings.TrimSpace(strings.ToValidUTF8(string(b), ""))
+}
+
+func subagentOf(params json.RawMessage) string {
+	if !bytes.Contains(params, []byte(acp.UpdateSubagent)) {
+		return ""
+	}
+	var n struct {
+		Update struct {
+			acp.UpdateHeader
+			acp.SubagentUpdate
+		} `json:"update"`
+	}
+	if json.Unmarshal(params, &n) != nil || n.Update.SessionUpdate != acp.UpdateSubagent {
+		return ""
+	}
+	return n.Update.SessionID
 }
 
 func closeAll(files ...*os.File) {

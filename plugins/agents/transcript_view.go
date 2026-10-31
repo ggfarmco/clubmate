@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	cardKinds    = []string{"read", "edit", "delete", "move", "search", "execute", "think", "fetch", "switch_mode", "other"}
+	cardKinds    = []string{"read", "edit", "delete", "move", "search", "execute", "think", "agent", "fetch", "switch_mode", "other"}
 	cardStatuses = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
 	oneLineKinds = []string{"read", "search"}
 	permVerbs    = map[string]string{"execute": "run", "edit": "edit", "delete": "delete", "move": "move", "read": "read", "fetch": "fetch"}
@@ -336,6 +336,9 @@ func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 		body.Text = text
 		p.Body, p.Truncated = body, cut
 	}
+	if en.stop {
+		p.Actions = append(p.Actions, sdui.CardAction{Action: actStopSubagent, Label: "Stop", Icon: "stop.circle"})
+	}
 	if path, line := location(f); path != "" && kind != "execute" {
 		value := map[string]any{"path": path}
 		if line > 0 {
@@ -346,7 +349,7 @@ func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 	if reviewable && slices.Contains(editKinds, kind) {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actReview, Label: "Diff", Icon: "plus.forwardslash.minus", Value: map[string]any{"turn": en.Turn}})
 	}
-	if scrolls || p.Truncated {
+	if _, prompt := f.RawInput["prompt"].(string); scrolls || p.Truncated || prompt {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actOpenOutput, Label: "Open output", Icon: "doc.text"})
 	}
 	if p.Truncated && !expanded {
@@ -491,13 +494,17 @@ func permissionCard(sc screen, en *entry) sdui.Node {
 	rec := sc.View.Session
 	var f toolFields
 	_ = json.Unmarshal(en.ToolCall, &f)
-	text := agentLabel(rec.Agent) + " asks for permission"
+	label := agentLabel(rec.Agent)
+	if en.Subagent != "" {
+		label += " (" + en.Subagent + ")"
+	}
+	text := label + " asks for permission"
 	if f.Title != "" {
 		verb, title := cmp.Or(permVerbs[f.Kind], "use"), shortPaths(f.Title, rec.Worktree)
 		if first, rest, ok := strings.Cut(title, " "); ok && slices.Contains(titleVerbs[f.Kind], first) {
 			verb, title = strings.ToLower(first), rest
 		}
-		text = agentLabel(rec.Agent) + " wants to " + verb + " " + title
+		text = label + " wants to " + verb + " " + title
 	}
 	options := make([]sdui.PermissionOption, 0, len(en.Options))
 	seen := map[string]bool{}

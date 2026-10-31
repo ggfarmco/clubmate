@@ -20,7 +20,7 @@ public struct ToolActionsSummary: Sendable, Equatable {
     public let running: String?
     public let failed: Int
 
-    private static let order: [ToolKind] = [.read, .search, .fetch, .execute, .edit, .delete, .move, .think, .switchMode, .other]
+    private static let order: [ToolKind] = [.read, .search, .fetch, .execute, .edit, .delete, .move, .think, .agent, .switchMode, .other]
 
     public init(_ cards: [SDUINode]) {
         var counts: [ToolKind: Int] = [:]
@@ -49,6 +49,7 @@ public struct ToolActionsSummary: Sendable, Equatable {
         case .delete: "deleted " + plural(count, "file", "files")
         case .move: "moved " + plural(count, "file", "files")
         case .think: plural(count, "thought", "thoughts")
+        case .agent: plural(count, "agent", "agents")
         case .switchMode: plural(count, "mode switch", "mode switches")
         case .other: plural(count, "other tool", "other tools")
         }
