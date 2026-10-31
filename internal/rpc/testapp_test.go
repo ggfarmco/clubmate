@@ -20,6 +20,7 @@ import (
 	"clubmate/internal/rpc"
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
 )
 
 func serveAt(t *testing.T, srv *rpc.Server, socket string) {
@@ -157,6 +158,7 @@ func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 		return len(st) == 1 && st[0].State == plugin.StateRunning
 	}, 5*time.Second)
 	p := h.CreateProject(t, "demo")
+	h.WaitSlot(t, p.ID, "alpha.main", func(n sdui.Node) bool { return n.Type == "text" })
 	tree := map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
 		map[string]any{"type": "list", "id": "files", "props": map[string]any{"items": []any{
 			map[string]any{"id": "a.go", "label": "a.go", "menu": []any{map[string]any{"action": "discard", "label": "Discard", "confirm": "Discard a.go?"}}},
