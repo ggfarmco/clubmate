@@ -25,6 +25,8 @@ build:
 	cp plugins/remote/plugin.json bin/plugins/remote/
 	$(GO_BUILD) -o bin/plugins/cron/cron ./plugins/cron
 	cp plugins/cron/plugin.json bin/plugins/cron/
+	$(GO_BUILD) -o bin/plugins/triggers/triggers ./plugins/triggers
+	cp plugins/triggers/plugin.json bin/plugins/triggers/
 	$(GO_BUILD) -o bin/plugins/backlog/backlog ./plugins/backlog
 	cp plugins/backlog/plugin.json bin/plugins/backlog/
 

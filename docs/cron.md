@@ -10,7 +10,7 @@ The `cron` plugin calls an agent-visible command on a schedule: a job is "call c
 | `name` | Short human name. |
 | `workspace` | The workspace the job belongs to and fires in. Jobs are dropped with their workspace. |
 | `schedule` | One of `cron` (+ `timezone`), `every`, `at` (see below). |
-| `command`, `args` | The command to call and its arguments. The command must be agent-visible and not a `cron.*` one; `args` (JSON text holding an object) are checked against its schema when the job is added or updated, so a typo fails at once, not at 9:00. |
+| `command`, `args` | The command to call and its arguments. The command must be agent-visible and neither a `cron.*` one nor a `triggers.*` one other than `triggers.emit`; `args` (JSON text holding an object) are checked against its schema when the job is added or updated, so a typo fails at once, not at 9:00. |
 | `enabled` | `false` while paused. |
 | `owner` | The agent session the job belongs to, if any (see [Owner](#owner)). |
 | `createdBy` | The agent session that added it; empty when added by the user or the CLI. |
@@ -92,6 +92,18 @@ cron.add {
   "command": "agents.new",
   "args": "{\"prompt\":\"/good-morning\"}",
   "cron": "0 9 * * *",
+  "owner": "none"
+}
+```
+
+Emit an event every night and let [triggers](triggers.md) react to it:
+
+```json
+cron.add {
+  "name": "Nightly",
+  "command": "triggers.emit",
+  "args": "{\"name\":\"nightly\"}",
+  "cron": "0 2 * * *",
   "owner": "none"
 }
 ```

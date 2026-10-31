@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 	"time"
+
+	"clubmate/plugins/internal/agentcall"
 )
 
 const (
@@ -95,14 +96,14 @@ func (a *app) fire(ctx context.Context, j *Job) Run {
 			}
 		}
 	}
-	if s, ok := findSession(sessions, j.Owner); j.Owner != "" && (!ok || s.Closed) {
+	if s, ok := agentcall.Find(sessions, j.Owner); j.Owner != "" && (!ok || s.Closed) {
 		r.Status, r.Reason = statusSkipped, reasonGone
 		return r
 	}
 	if j.Command == promptCommand {
 		var target promptTarget
 		if json.Unmarshal(j.Args, &target) == nil {
-			if s, ok := findSession(sessions, target.Session); ok && (s.Status == sessionRunning || s.Status == sessionWaiting) {
+			if s, ok := agentcall.Find(sessions, target.Session); ok && (s.Status == sessionRunning || s.Status == sessionWaiting) {
 				r.Status, r.Reason = statusSkipped, reasonBusy
 				return r
 			}
@@ -188,14 +189,6 @@ func (a *app) notifyPaused(ctx context.Context, j *Job) {
 	if err := a.host.Call(ctx, "notify.post", req, nil); err != nil {
 		logError(fmt.Errorf("notify paused job %s: %w", j.ID, err))
 	}
-}
-
-func findSession(sessions []agentSession, id string) (agentSession, bool) {
-	i := slices.IndexFunc(sessions, func(s agentSession) bool { return s.ID == id })
-	if i < 0 {
-		return agentSession{}, false
-	}
-	return sessions[i], true
 }
 
 func logError(err error) {

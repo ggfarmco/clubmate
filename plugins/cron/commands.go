@@ -11,13 +11,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"clubmate/internal/schema"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/agentcall"
 )
 
 const (
-	ownerNone  = "none"
-	corePlugin = "core"
+	ownerNone   = "none"
+	emitCommand = "triggers.emit"
 )
 
 var errUnknownCommand = errors.New("unknown command")
@@ -44,20 +44,7 @@ type listResult struct {
 	Jobs []*Job `json:"jobs"`
 }
 
-type target struct {
-	ID     string         `json:"id"`
-	Plugin string         `json:"plugin"`
-	Agent  bool           `json:"agent"`
-	Args   *schema.Object `json:"args"`
-}
-
-type agentSession struct {
-	ID            string `json:"id"`
-	Title         string `json:"title"`
-	ParentSession string `json:"parentSession"`
-	Status        string `json:"status"`
-	Closed        bool   `json:"closed"`
-}
+type agentSession = agentcall.Session
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	select {
@@ -334,50 +321,14 @@ func (a *app) parents(ctx context.Context, workspace string) map[string]string {
 	if err != nil {
 		return nil
 	}
-	parents := make(map[string]string, len(sessions))
-	for _, s := range sessions {
-		if s.ParentSession != "" {
-			parents[s.ID] = s.ParentSession
-		}
-	}
-	return parents
+	return agentcall.Parents(sessions)
 }
 
 func (a *app) validateTarget(ctx context.Context, command, args string) (json.RawMessage, error) {
-	if strings.HasPrefix(command, "cron.") {
+	if strings.HasPrefix(command, "cron.") || strings.HasPrefix(command, "triggers.") && command != emitCommand {
 		return nil, fmt.Errorf("command %q cannot be scheduled", command)
 	}
-	var cmds []target
-	if err := a.host.Call(ctx, "command.list", struct{}{}, &cmds); err != nil {
-		return nil, fmt.Errorf("list commands: %w", err)
-	}
-	i := slices.IndexFunc(cmds, func(c target) bool { return c.ID == command })
-	if i < 0 {
-		return nil, fmt.Errorf("%w %q", errUnknownCommand, command)
-	}
-	if !cmds[i].Agent {
-		return nil, fmt.Errorf("command %q is not agent-visible", command)
-	}
-	fields := map[string]json.RawMessage{}
-	if err := json.Unmarshal([]byte(args), &fields); err != nil {
-		return nil, fmt.Errorf("args: invalid JSON object: %w", err)
-	}
-	if fields == nil {
-		fields = map[string]json.RawMessage{}
-	}
-	raw, err := json.Marshal(fields)
-	if err != nil {
-		return nil, err
-	}
-	if err := schema.Validate(cmds[i].Args, raw); err != nil {
-		return nil, err
-	}
-	if cmds[i].Plugin == corePlugin || cmds[i].Args != nil {
-		if path := schema.Undeclared(cmds[i].Args, fields); path != "" {
-			return nil, fmt.Errorf("%s: not allowed in agent calls", path)
-		}
-	}
-	return raw, nil
+	return agentcall.ValidateTarget(ctx, a.host, command, args)
 }
 
 func allowed(cmd pluginsdk.CommandRun, j *Job, parents map[string]string) bool {
@@ -387,20 +338,7 @@ func allowed(cmd pluginsdk.CommandRun, j *Job, parents map[string]string) bool {
 	if cmd.Caller == "" {
 		return false
 	}
-	return descends(j.Owner, cmd.Caller, parents) || descends(j.CreatedBy, cmd.Caller, parents)
-}
-
-func descends(session, ancestor string, parents map[string]string) bool {
-	for range len(parents) + 1 {
-		if session == "" {
-			return false
-		}
-		if session == ancestor {
-			return true
-		}
-		session = parents[session]
-	}
-	return false
+	return agentcall.Descends(j.Owner, cmd.Caller, parents) || agentcall.Descends(j.CreatedBy, cmd.Caller, parents)
 }
 
 func schedule(args jobArgs, now time.Time) (Schedule, time.Time, error) {

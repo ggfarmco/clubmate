@@ -204,6 +204,7 @@ func TestAddRejectsInvalidTarget(t *testing.T) {
 		{"argless primitive", map[string]any{"command": "workspace.list", "args": `{"x":1}`}, "args.x: not allowed"},
 		{"invalid json", map[string]any{"args": "{"}, "args: invalid JSON"},
 		{"cron", map[string]any{"command": "cron.add", "args": "{}"}, `command "cron.add" cannot be scheduled`},
+		{"triggers", map[string]any{"command": "triggers.add", "args": "{}"}, `command "triggers.add" cannot be scheduled`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

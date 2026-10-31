@@ -1,0 +1,121 @@
+{
+  "id": "triggers",
+  "name": "Triggers",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["triggers"],
+  "contributes": {
+    "sections": [{"id": "triggers", "title": "Triggers", "icon": "bolt", "order": 36}],
+    "commands": [
+      {
+        "id": "triggers.add",
+        "title": "Add Trigger",
+        "hidden": true,
+        "agent": true,
+        "description": "Call an agent-visible command whenever a bus event of this workspace arrives, e.g. tell yourself when a child session ends its turn: on agents.turn, match {\"session\":\"<child id>\",\"status\":\"done\"}, command agents.prompt, args {\"session\":\"<your session id>\",\"text\":\"Child {{payload.session}} is {{payload.status}}\"}. Only events naming this workspace (in workspace, projectId, project.id or session.projectId) fire it. String values in args may hold {{topic}}, {{seq}}, {{payload}} and {{payload.<field.path>}}, filled from the event. The target command and its args are checked now. A trigger never runs twice at once; 10 runs within 1m or 3 errors in a row pause it. triggers.* and cron.* commands cannot be targets. Returns the trigger: {id, name, workspace, on, match?, command, args, enabled, owner?, createdBy?, failures?, lastError?}. Non-destructive.",
+        "args": {
+          "properties": {
+            "name": {"type": "string", "description": "Short human name of the trigger."},
+            "on": {"type": "string", "description": "Bus topic to listen to, e.g. agents.turn, or a prefix pattern, e.g. event.*; * alone is not allowed. triggers.emit {name} publishes event.<name>."},
+            "match": {"type": "string", "description": "Payload filter as JSON text (a string holding a JSON object): every key, a dotted path into the event payload, must equal its value; an array value matches any of its elements, e.g. {\"status\":[\"done\",\"error\"]}. Default: every event on the topic."},
+            "command": {"type": "string", "description": "Id of the agent-visible command to call, e.g. agents.prompt or agents.new."},
+            "args": {"type": "string", "default": "{}", "description": "Arguments of the command as JSON text, e.g. {\"session\":\"<id>\",\"text\":\"{{payload.session}} finished\"}; default {}."},
+            "owner": {"type": "string", "enum": ["self", "none"], "default": "self", "description": "self (default): the trigger belongs to your agent session, fires as you and is deleted when your session is closed. none: it outlives your session and fires with no caller. Triggers created by the user have no owner."}
+          },
+          "required": ["name", "on", "command"]
+        }
+      },
+      {
+        "id": "triggers.list",
+        "title": "List Triggers",
+        "hidden": true,
+        "agent": true,
+        "description": "List the workspace's triggers without their run history: {triggers: [{id, name, on, match?, command, args, enabled, owner?, createdBy?, failures?, lastError?}]}. Non-destructive."
+      },
+      {
+        "id": "triggers.show",
+        "title": "Show Trigger",
+        "hidden": true,
+        "agent": true,
+        "description": "Show one trigger with its last 20 runs: history [{at, topic, seq, status, reason?, result?}], status ok, error or skipped (busy, no app, previous run still running, owner gone, owner unknown, emitted by another agent session; skips are not failures). Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Trigger id (tr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "triggers.update",
+        "title": "Update Trigger",
+        "hidden": true,
+        "agent": true,
+        "description": "Change a trigger; only the given fields change; match \"\" or \"{}\" drops the filter. command and args are checked like in triggers.add. An agent may change only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Trigger id (tr_…)."},
+            "name": {"type": "string", "description": "New name."},
+            "on": {"type": "string", "description": "New topic or prefix pattern."},
+            "match": {"type": "string", "description": "New payload filter as JSON text; \"\" drops it."},
+            "command": {"type": "string", "description": "New agent-visible command id."},
+            "args": {"type": "string", "description": "New arguments as JSON text."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "triggers.pause",
+        "title": "Pause Trigger",
+        "hidden": true,
+        "agent": true,
+        "description": "Stop a trigger from firing until triggers.resume. An agent may pause only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Trigger id (tr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "triggers.resume",
+        "title": "Resume Trigger",
+        "hidden": true,
+        "agent": true,
+        "description": "Resume a paused trigger (also one paused by errors or the loop limit) and clear its failure count and last error. An agent may resume only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Trigger id (tr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "triggers.delete",
+        "title": "Delete Trigger",
+        "hidden": true,
+        "agent": true,
+        "description": "Delete a trigger. An agent may delete only triggers owned or created by itself or its child sessions. Non-destructive.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Trigger id (tr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "id": "triggers.emit",
+        "title": "Emit Event",
+        "hidden": true,
+        "agent": true,
+        "description": "Publish the bus event event.<name> in this workspace, with payload plus workspace set to this workspace and by set to your agent session; an owned trigger whose args use placeholders ignores events emitted by sessions other than its owner and the owner's descendants; triggers listening on it fire. Schedule it with cron.add to run triggers on a timer. Returns {topic, seq}. Non-destructive.",
+        "args": {
+          "properties": {
+            "name": {"type": "string", "description": "Event name: lowercase dot-separated words, e.g. nightly or build.done; the topic is event.<name>."},
+            "payload": {"type": "string", "default": "{}", "description": "Event payload as JSON text (a string holding a JSON object); its workspace field is always this workspace."}
+          },
+          "required": ["name"]
+        }
+      }
+    ]
+  }
+}

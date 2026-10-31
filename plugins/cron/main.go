@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/agentcall"
 )
 
 const (
@@ -256,7 +257,7 @@ func (a *app) reconcile(ctx context.Context, workspace string) {
 		if !ok || j.Owner != owner {
 			continue
 		}
-		if s, alive := findSession(sessions, owner); !alive || s.Closed {
+		if s, alive := agentcall.Find(sessions, owner); !alive || s.Closed {
 			logError(a.drop(ctx, j))
 		}
 	}
@@ -438,11 +439,7 @@ func (a *app) listProjects(ctx context.Context) ([]pluginsdk.Project, error) {
 }
 
 func (a *app) agentSessions(ctx context.Context, workspace string) ([]agentSession, error) {
-	var sessions []agentSession
-	if err := a.host.RunCommand(ctx, "agents.sessions", workspace, struct{}{}, &sessions); err != nil {
-		return nil, fmt.Errorf("agent sessions of %s: %w", workspace, err)
-	}
-	return sessions, nil
+	return agentcall.Sessions(ctx, a.host, workspace)
 }
 
 func (a *app) wake() {

@@ -24,7 +24,7 @@ SIGN=(codesign --force --options runtime --sign -)
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 
 "${SIGN[@]}" \
-  "$DEST/clubmate" "$DEST/clubmate-core" "$DEST/clubmate-session" "$DEST/plugins/terminals/terminals" "$DEST/plugins/editor-nvim/editor-nvim" "$DEST/plugins/git/git" "$DEST/plugins/processes/processes" "$DEST/plugins/search/search" "$DEST/plugins/agents/agents" "$DEST/plugins/remote/remote" "$DEST/plugins/cron/cron" "$DEST/plugins/backlog/backlog"
+  "$DEST/clubmate" "$DEST/clubmate-core" "$DEST/clubmate-session" "$DEST/plugins/terminals/terminals" "$DEST/plugins/editor-nvim/editor-nvim" "$DEST/plugins/git/git" "$DEST/plugins/processes/processes" "$DEST/plugins/search/search" "$DEST/plugins/agents/agents" "$DEST/plugins/remote/remote" "$DEST/plugins/cron/cron" "$DEST/plugins/triggers/triggers" "$DEST/plugins/backlog/backlog"
 "${SIGN[@]}" "$APP/Contents/Resources/tools/rg"
 ADHOC=(codesign --force --sign -)
 for parser in "$APP"/Contents/Resources/nvim/lib/nvim/parser/*.so; do
