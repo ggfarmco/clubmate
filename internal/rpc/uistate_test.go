@@ -1,6 +1,7 @@
 package rpc_test
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -30,10 +31,7 @@ func rpcCode(t *testing.T, err error) int64 {
 
 func TestLegacyProjectMethodsAndKey(t *testing.T) {
 	svc, b := testutil.NewServiceWithBus(t)
-	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
-	client := connectAs(t, rpc.NewServer(svc, b, rpc.WithKV(store)), rpc.Caller{})
+	client := connectAs(t, rpc.NewServer(svc, b), rpc.Caller{})
 	var p workspace.Workspace
 	require.NoError(t, client.Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &p))
 	var got workspace.Workspace
@@ -48,10 +46,7 @@ func TestLegacyProjectMethodsAndKey(t *testing.T) {
 
 func TestUIStateRoundTripAndDelete(t *testing.T) {
 	svc, b := testutil.NewServiceWithBus(t)
-	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
-	srv := rpc.NewServer(svc, b, rpc.WithKV(store))
+	srv := rpc.NewServer(svc, b)
 	client, plug := connectAs(t, srv, rpc.Caller{}), connectAs(t, srv, rpc.Caller{PluginID: "a"})
 	var p workspace.Workspace
 	require.NoError(t, client.Call(t.Context(), "workspace.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
@@ -93,17 +88,11 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 	require.NoError(t, client.Call(t.Context(), "workspace.delete", map[string]any{"id": p.ID}, nil))
 	err = client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, nil)
 	assert.EqualValues(t, -32004, rpcCode(t, err))
-	_, found, err := store.Get(t.Context(), "@client", p.ID)
-	require.NoError(t, err)
-	assert.False(t, found)
 }
 
 func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
 	svc, b := testutil.NewServiceWithBus(t)
-	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
-	srv := rpc.NewServer(svc, b, rpc.WithKV(store))
+	srv := rpc.NewServer(svc, b)
 	client := connectAs(t, srv, rpc.Caller{})
 	var p workspace.Workspace
 	require.NoError(t, client.Call(t.Context(), "workspace.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
@@ -135,4 +124,33 @@ func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
 
 	assert.EqualValues(t, -32602, rpcCode(t, patch("", 1)))
 	assert.EqualValues(t, -32602, rpcCode(t, patch("big", strings.Repeat("x", 64<<10))))
+}
+
+func TestMigrateUIStateMovesClientKV(t *testing.T) {
+	svc, b := testutil.NewServiceWithBus(t)
+	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { store.Close() })
+	srv := rpc.NewServer(svc, b, rpc.WithKV(store))
+	client := connectAs(t, srv, rpc.Caller{})
+	var moved, kept workspace.Workspace
+	require.NoError(t, client.Call(t.Context(), "workspace.create", map[string]any{"name": "moved"}, &moved))
+	require.NoError(t, client.Call(t.Context(), "workspace.create", map[string]any{"name": "kept"}, &kept))
+	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": kept.ID, "state": map[string]any{"section": "agents"}}, nil))
+	orphan := "prj_" + strings.Repeat("0", 16)
+	for id, state := range map[string]string{moved.ID: `{"section":"terminals"}`, kept.ID: `{"section":"stale"}`, orphan: `{}`} {
+		require.NoError(t, store.Set(t.Context(), "@client", id, json.RawMessage(state)))
+	}
+
+	require.NoError(t, srv.MigrateUIState(t.Context()))
+	require.NoError(t, srv.MigrateUIState(t.Context()))
+
+	for id, want := range map[string]string{moved.ID: "terminals", kept.ID: "agents"} {
+		var got uiStateResult
+		require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": id}, &got))
+		assert.Equal(t, map[string]any{"section": want}, got.State)
+	}
+	keys, err := store.List(t.Context(), "@client", "")
+	require.NoError(t, err)
+	assert.Empty(t, keys)
 }

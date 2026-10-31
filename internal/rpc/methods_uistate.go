@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/internal/workspace"
 	"clubmate/pkg/contract"
 )
 
@@ -45,7 +47,7 @@ func (s *Server) uiStateMethods() map[string]handlerFunc {
 			if err := s.checkUIStateClient(ctx, p.WorkspaceID); err != nil {
 				return uiStateResult{}, err
 			}
-			value, found, err := s.kv.Get(ctx, clientOwner, p.WorkspaceID)
+			value, found, err := s.svc.UIState(ctx, p.WorkspaceID)
 			if err != nil {
 				return uiStateResult{}, err
 			}
@@ -82,6 +84,22 @@ func (s *Server) uiStateMethods() map[string]handlerFunc {
 	}
 }
 
+func (s *Server) MigrateUIState(ctx context.Context) error {
+	if s.kv == nil {
+		return nil
+	}
+	keys, err := s.kv.List(ctx, clientOwner, "")
+	if err != nil {
+		return err
+	}
+	for _, workspaceID := range keys {
+		if err := s.migrateUIStateKey(ctx, workspaceID); err != nil {
+			return fmt.Errorf("migrate ui state %s: %w", workspaceID, err)
+		}
+	}
+	return nil
+}
+
 func (s *Server) setUIState(ctx context.Context, workspaceID string, state json.RawMessage) error {
 	s.uiStateMu.Lock()
 	defer s.uiStateMu.Unlock()
@@ -95,7 +113,7 @@ func (s *Server) setUIState(ctx context.Context, workspaceID string, state json.
 func (s *Server) patchUIState(ctx context.Context, workspaceID, key string, value json.RawMessage) error {
 	s.uiStateMu.Lock()
 	defer s.uiStateMu.Unlock()
-	saved, found, err := s.kv.Get(ctx, clientOwner, workspaceID)
+	saved, found, err := s.svc.UIState(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -122,7 +140,7 @@ func (s *Server) patchUIState(ctx context.Context, workspaceID, key string, valu
 }
 
 func (s *Server) writeUIState(ctx context.Context, workspaceID, previous string, state json.RawMessage) error {
-	if err := s.kv.Set(ctx, clientOwner, workspaceID, state); err != nil {
+	if err := s.svc.SetUIState(ctx, workspaceID, state); err != nil {
 		return err
 	}
 	if section := sectionOf(state); section != previous {
@@ -132,7 +150,7 @@ func (s *Server) writeUIState(ctx context.Context, workspaceID, previous string,
 }
 
 func (s *Server) savedSection(ctx context.Context, workspaceID string) (string, error) {
-	value, found, err := s.kv.Get(ctx, clientOwner, workspaceID)
+	value, found, err := s.svc.UIState(ctx, workspaceID)
 	if err != nil || !found {
 		return "", err
 	}
@@ -169,14 +187,29 @@ func (s *Server) checkUIStateClient(ctx context.Context, workspaceID string) err
 }
 
 func (s *Server) checkUIStateWorkspace(ctx context.Context, workspaceID string) error {
-	if s.kv == nil {
-		return errNoKV
-	}
 	if err := requireID(workspacePrefix, workspaceID); err != nil {
 		return err
 	}
 	_, err := s.svc.GetWorkspace(ctx, workspaceID)
 	return err
+}
+
+func (s *Server) migrateUIStateKey(ctx context.Context, workspaceID string) error {
+	value, found, err := s.kv.Get(ctx, clientOwner, workspaceID)
+	if err != nil {
+		return err
+	}
+	_, err = s.svc.GetWorkspace(ctx, workspaceID)
+	switch {
+	case errors.Is(err, workspace.ErrNotFound):
+	case err != nil:
+		return err
+	case found:
+		if err := s.svc.ImportUIState(ctx, workspaceID, value); err != nil {
+			return err
+		}
+	}
+	return s.kv.Delete(ctx, clientOwner, workspaceID)
 }
 
 func validateUIState(state json.RawMessage) error {
@@ -188,11 +221,4 @@ func validateUIState(state json.RawMessage) error {
 		return &jsonrpc2.Error{Code: codeInvalidParams, Message: "state must be a JSON object"}
 	}
 	return nil
-}
-
-func (s *Server) deleteUIState(ctx context.Context, workspaceID string) error {
-	if s.kv == nil {
-		return nil
-	}
-	return s.kv.Delete(ctx, clientOwner, workspaceID)
 }

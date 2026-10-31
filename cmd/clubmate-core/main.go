@@ -138,6 +138,9 @@ func run(logger *slog.Logger) error {
 	svc := core.NewService(store, session.NewManager(dirs, hostBin, session.WithPathDir(filepath.Dir(exe))), tracker, proc.Snapshot,
 		core.WithBus(eventBus), core.WithLogger(logger), core.WithExcludePIDs(func() []int { return sup.PIDs() }))
 	srv := rpc.NewServer(svc, eventBus, rpc.WithKV(pluginKV), rpc.WithLogger(logger), rpc.WithDirs(dirs))
+	if err := srv.MigrateUIState(context.Background()); err != nil {
+		logger.Error("migrate ui state", "err", err)
+	}
 	uiStore := sdui.NewStore()
 	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithBus(eventBus), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))))
 	srv.SetPluginList(func() any { return sup.Statuses() })

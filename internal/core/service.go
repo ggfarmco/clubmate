@@ -168,6 +168,18 @@ func (s *Service) GetWorkspace(ctx context.Context, id string) (workspace.Worksp
 	return s.workspaces.Get(ctx, id)
 }
 
+func (s *Service) UIState(ctx context.Context, id string) (json.RawMessage, bool, error) {
+	return s.workspaces.UIState(ctx, id)
+}
+
+func (s *Service) SetUIState(ctx context.Context, id string, value json.RawMessage) error {
+	return s.workspaces.SetUIState(ctx, id, value)
+}
+
+func (s *Service) ImportUIState(ctx context.Context, id string, value json.RawMessage) error {
+	return s.workspaces.ImportUIState(ctx, id, value)
+}
+
 func (s *Service) AddRepo(ctx context.Context, id, path string) (workspace.Workspace, error) {
 	p, err := s.workspaces.AddRepo(ctx, id, path)
 	if err != nil {

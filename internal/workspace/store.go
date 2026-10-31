@@ -341,6 +341,9 @@ func migrate(db *sql.DB) error {
 	if _, err := db.Exec(homeIndex); err != nil {
 		return fmt.Errorf("create home index: %w", err)
 	}
+	if _, err := db.Exec(uiStateSchema); err != nil {
+		return fmt.Errorf("create ui state table: %w", err)
+	}
 	return nil
 }
 

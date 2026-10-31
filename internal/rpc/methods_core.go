@@ -143,7 +143,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if u, err := s.uiState(); err == nil {
 				u.store.DropWorkspace(p.ID)
 			}
-			return empty{}, s.deleteUIState(ctx, p.ID)
+			return empty{}, nil
 		}),
 		"workspace.rename": method(func(ctx context.Context, p renameParams) (workspace.Workspace, error) {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
