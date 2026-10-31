@@ -274,7 +274,7 @@ func TestEventsStreamLiveAllowlistedTopics(t *testing.T) {
 	assert.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 	assert.Equal(t, ": connected", frame(t, r))
 	f.srv.hub.publish(pluginsdk.Event{Seq: 6, Topic: "ui.opened", Payload: json.RawMessage(`{}`)})
-	f.srv.hub.publish(pluginsdk.Event{Seq: 7, Topic: "agents.changed", Payload: json.RawMessage(`{"workspace":"prj_1","session":"s"}`)})
+	f.srv.hub.publish(pluginsdk.Event{Seq: 7, Topic: "agents.changed", Workspace: "prj_1", Payload: json.RawMessage(`{"workspace":"prj_1","session":"s"}`)})
 	assert.Equal(t, "id: 7\nevent: bus\ndata: {\"seq\":7,\"topic\":\"agents.changed\",\"workspace\":\"prj_1\",\"payload\":{\"workspace\":\"prj_1\",\"session\":\"s\"}}", frame(t, r))
 }
 

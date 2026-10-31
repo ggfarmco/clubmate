@@ -142,6 +142,7 @@ type transcriptArgs struct {
 	Session  string `json:"session"`
 	FromTurn int    `json:"fromTurn"`
 	Compact  bool   `json:"compact"`
+	Last     bool   `json:"last"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -289,6 +290,9 @@ func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 		return nil, err
 	}
 	v := s.view(args.FromTurn)
+	if args.Last {
+		v = v.lastTurn()
+	}
 	if cmd.Agent {
 		dropImageData(v.Entries)
 	}

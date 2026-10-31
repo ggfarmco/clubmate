@@ -74,20 +74,27 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
 }
 
 func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions []group, nodes []pluginsdk.ProcessNode) error {
+	cleared, err := a.draw(ctx, h, id, sessions, nodes)
+	if cleared {
+		err = errors.Join(err, h.StorageDelete(ctx, selectedKey(id)))
+	}
+	return err
+}
+
+func (a *app) draw(ctx context.Context, h *pluginsdk.Host, id string, sessions []group, nodes []pluginsdk.ProcessNode) (bool, error) {
 	a.renderMu.Lock()
 	defer a.renderMu.Unlock()
 	st, err := a.state(ctx, h, id)
 	if errors.Is(err, errWorkspaceDeleted) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	snap := a.snapshot(st)
+	cleared := false
 	if snap.session != "" && !slices.ContainsFunc(sessions, func(s group) bool { return s.ID == snap.session }) {
-		if err := a.clearSession(ctx, h, id, st, snap.session); err != nil {
-			return err
-		}
+		cleared = a.clearSession(st, snap.session)
 		snap = a.snapshot(st)
 	}
 	scope, totalKey, shown := "All", workspaceKey(id), nodes
@@ -97,7 +104,7 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	}
 	a.forgetGone(st, &snap, nodes, shown)
 	if err := a.showSidebar(ctx, h, id, st, snap.sidebar, sessions, snap.session); err != nil {
-		return err
+		return cleared, err
 	}
 	view, depth := mainView(viewModel{
 		nodes:     shown,
@@ -116,7 +123,7 @@ func (a *app) show(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	st.pidDepth = max(st.pidDepth, depth)
 	a.mu.Unlock()
 	_, err = h.Render(ctx, id, mainSlot, view)
-	return err
+	return cleared, err
 }
 
 func (a *app) showSidebar(ctx context.Context, h *pluginsdk.Host, id string, st *workspaceState, sent *sidebarInputs, sessions []group, selected string) error {
@@ -132,17 +139,14 @@ func (a *app) showSidebar(ctx context.Context, h *pluginsdk.Host, id string, st 
 	return nil
 }
 
-func (a *app) clearSession(ctx context.Context, h *pluginsdk.Host, workspaceID string, st *workspaceState, stale string) error {
+func (a *app) clearSession(st *workspaceState, stale string) bool {
 	a.mu.Lock()
-	cleared := st.session == stale
-	if cleared {
-		st.session, st.pid = "", 0
+	defer a.mu.Unlock()
+	if st.session != stale {
+		return false
 	}
-	a.mu.Unlock()
-	if !cleared {
-		return nil
-	}
-	return h.StorageDelete(ctx, selectedKey(workspaceID))
+	st.session, st.pid = "", 0
+	return true
 }
 
 func (a *app) forgetGone(st *workspaceState, snap *workspaceState, nodes, shown []pluginsdk.ProcessNode) {

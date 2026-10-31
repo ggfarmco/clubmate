@@ -36,11 +36,13 @@ struct ClubmateApp: App {
                 }
             }
             .environment(app)
+            .environment(app.windows)
+            .environment(app.actions)
             .modifier(SettingsTheme(settings: app.settings))
         }
         .defaultSize(width: 1100, height: 700)
         .windowToolbarStyle(.unifiedCompact)
-        .commands { WorkspaceCommands(app: app) }
+        .commands { WorkspaceCommands(app: app, windows: app.windows, actions: app.actions) }
 
         Settings {
             SettingsView(settings: app.settings)
@@ -116,6 +118,8 @@ private final class CloseKeyOwner {
 
 private struct WorkspaceCommands: Commands {
     let app: AppModel
+    let windows: WindowRouter
+    let actions: WorkspaceActions
 
     @FocusedValue(\.workspaceSession) private var session
     @FocusedValue(\.workspaceWindowID) private var windowID
@@ -125,7 +129,7 @@ private struct WorkspaceCommands: Commands {
     }
 
     private var active: String? {
-        windowID.flatMap(app.window)?.active
+        windowID.flatMap(windows.window)?.active
     }
 
     private var welcome: Bool {
@@ -141,32 +145,32 @@ private struct WorkspaceCommands: Commands {
             Button("About Clubmate") { showAbout() }
             Button("Check for Updates…") { app.updates.check() }
                 .disabled(!app.updates.canCheck)
-            Button("Install “\(CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor()))” Command…") { app.installCommandLineTool() }
+            Button("Install “\(CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor()))” Command…") { CLIInstaller.install() }
         }
         CommandGroup(replacing: .newItem) {
             Button("New") { newItem() }
                 .keyboardShortcut("n")
                 .disabled(store == nil && !welcome)
-            Button("New Home Terminal") { app.newHomeTerminal(in: windowID) }
+            Button("New Home Terminal") { actions.newHomeTerminal(in: windowID) }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
-            Button("Open Folder…") { app.openFolder(in: windowID) }
+            Button("Open Folder…") { actions.openFolder(in: windowID) }
                 .keyboardShortcut("o")
             Menu("Open Recent") {
                 ForEach(recents, id: \.id) { workspace in
-                    Button(workspace.name) { app.open(workspace.id, in: windowID) }
+                    Button(workspace.name) { windows.open(workspace.id, in: windowID) }
                 }
                 Divider()
                 Button("Clear Menu") { app.settings.recentsClearedAt = Date() }
                     .disabled(recents.isEmpty)
             }
             Divider()
-            Button("Add Folder to Workspace…") { active.map(app.addFolder) }
+            Button("Add Folder to Workspace…") { active.map(actions.addFolder) }
                 .disabled(active == nil)
-            Button("Rename Workspace…") { active.map(app.rename) }
+            Button("Rename Workspace…") { active.map(actions.rename) }
                 .disabled(active == nil)
             Button("Close Workspace") { closeWorkspace() }
                 .disabled(active == nil)
-            Button("Remove Workspace…") { active.map(app.remove) }
+            Button("Remove Workspace…") { active.map(actions.remove) }
                 .disabled(active == nil)
             Divider()
             Button("Close Session") {
@@ -194,16 +198,16 @@ private struct WorkspaceCommands: Commands {
                 .keyboardShortcut("0")
         }
         CommandGroup(after: .windowArrangement) {
-            Button("Next Workspace") { windowID.map(app.next) }
+            Button("Next Workspace") { windowID.map(windows.next) }
                 .keyboardShortcut(.rightArrow, modifiers: [.control, .command])
                 .disabled(!canSwitchWorkspace)
-            Button("Previous Workspace") { windowID.map(app.previous) }
+            Button("Previous Workspace") { windowID.map(windows.previous) }
                 .keyboardShortcut(.leftArrow, modifiers: [.control, .command])
                 .disabled(!canSwitchWorkspace)
-            Button("Workspace Switcher") { windowID.map(app.toggleSwitcher) }
+            Button("Workspace Switcher") { windowID.map(windows.toggleSwitcher) }
                 .keyboardShortcut("w", modifiers: [.control, .command])
                 .disabled(windowID == nil)
-            Button("Notifications") { windowID.map(app.toggleInbox) }
+            Button("Notifications") { windowID.map(windows.toggleInbox) }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
                 .disabled(windowID == nil)
         }
@@ -226,17 +230,17 @@ private struct WorkspaceCommands: Commands {
     }
 
     private var canSwitchWorkspace: Bool {
-        (windowID.flatMap(app.window)?.workspaces.count ?? 0) > 1
+        (windowID.flatMap(windows.window)?.workspaces.count ?? 0) > 1
     }
 
     private func newItem() {
-        guard store != nil else { return app.newHomeTerminal(in: windowID) }
+        guard store != nil else { return actions.newHomeTerminal(in: windowID) }
         run { .new(section: $0.selectedSection, commands: $1) }
     }
 
     private func closeWorkspace() {
         guard let windowID, let active else { return }
-        app.closeWorkspace(active, in: windowID)
+        windows.closeWorkspace(active, in: windowID)
     }
 
     private func closeTerminal() {

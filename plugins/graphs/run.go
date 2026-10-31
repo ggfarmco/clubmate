@@ -12,6 +12,7 @@ import (
 
 	"clubmate/pkg/id"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
@@ -61,14 +62,6 @@ type RunEdge struct {
 	Trigger string `json:"trigger"`
 }
 
-type commandRequest struct {
-	ID          string          `json:"id"`
-	WorkspaceID string          `json:"workspaceId"`
-	Args        json.RawMessage `json:"args,omitempty"`
-	Agent       bool            `json:"agent"`
-	Caller      string          `json:"caller,omitempty"`
-}
-
 type newArgs struct {
 	Title  string `json:"title"`
 	Branch string `json:"branch,omitempty"`
@@ -102,16 +95,12 @@ type triggerResult struct {
 	ID string `json:"id"`
 }
 
-type idArgs struct {
-	ID string `json:"id"`
-}
-
 type sessionArgs struct {
 	Session string `json:"session"`
 }
 
 type runner struct {
-	call func(ctx context.Context, req commandRequest) (json.RawMessage, error)
+	call func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
 	run  *Run
 }
 
@@ -203,7 +192,7 @@ func (x *runner) unwind(ctx context.Context) []error {
 		if e.Trigger == "" {
 			continue
 		}
-		if err := x.do(ctx, "triggers.delete", idArgs{ID: e.Trigger}, nil); err != nil && !isUnknownTrigger(err) {
+		if err := x.do(ctx, "triggers.delete", automation.IDArgs{ID: e.Trigger}, nil); err != nil && !isUnknownTrigger(err) {
 			errs = append(errs, fmt.Errorf("delete trigger %s: %w", e.Trigger, err))
 		}
 	}
@@ -215,7 +204,7 @@ func (x *runner) closeSessions(ctx context.Context) {
 		if n.Session == "" {
 			continue
 		}
-		req := commandRequest{ID: "agents.close", WorkspaceID: x.run.Workspace}
+		req := automation.CommandRequest{ID: "agents.close", WorkspaceID: x.run.Workspace}
 		req.Args, _ = json.Marshal(sessionArgs{Session: n.Session})
 		_, _ = x.call(ctx, req)
 	}
@@ -352,7 +341,7 @@ func (x *runner) do(ctx context.Context, command string, args, out any) error {
 	if err != nil {
 		return err
 	}
-	req := commandRequest{ID: command, WorkspaceID: x.run.Workspace, Args: raw, Agent: x.run.Agent, Caller: x.run.Caller}
+	req := automation.CommandRequest{ID: command, WorkspaceID: x.run.Workspace, Args: raw, Agent: x.run.Agent, Caller: x.run.Caller}
 	res, err := x.call(ctx, req)
 	if err != nil {
 		return err
@@ -361,6 +350,10 @@ func (x *runner) do(ctx context.Context, command string, args, out any) error {
 		return nil
 	}
 	return json.Unmarshal(res, out)
+}
+
+func (r *Run) StorageKey() (workspace, id string) {
+	return r.Workspace, r.ID
 }
 
 func (r *Run) node(id string) *RunNode {
@@ -406,8 +399,4 @@ func graphTitle(g *Graph) string {
 
 func isUnknownTrigger(err error) bool {
 	return strings.Contains(err.Error(), "unknown trigger")
-}
-
-func runKey(r *Run) string {
-	return runPrefix + r.Workspace + "/" + r.ID
 }

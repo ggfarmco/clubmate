@@ -9,7 +9,7 @@ extension WorkspaceWindow {
         }
         ToolbarSpacer(.flexible)
         ToolbarItem(placement: .primaryAction) {
-            Button { windowID.map(app.toggleInbox) } label: {
+            Button { windowID.map(windows.toggleInbox) } label: {
                 HStack(spacing: theme.spacing.s) {
                     Image(systemName: inboxTotal > 0 ? "bell.badge" : "bell")
                     UnreadBadge(count: inboxTotal)
@@ -22,11 +22,12 @@ extension WorkspaceWindow {
             .popover(isPresented: inboxShown, arrowEdge: .bottom) {
                 InboxView()
                     .environment(app)
+                    .environment(windows)
                     .environment(\.theme, theme)
             }
         }
         ToolbarItem(placement: .primaryAction) {
-            Button { windowID.map(app.toggleSwitcher) } label: {
+            Button { windowID.map(windows.toggleSwitcher) } label: {
                 HStack(spacing: theme.spacing.s) {
                     Text("▦ \(workspaceCount)")
                         .monospacedDigit()
@@ -42,7 +43,7 @@ extension WorkspaceWindow {
     }
 
     private var workspaceCount: Int {
-        windowID.flatMap { app.window($0)?.workspaces.count } ?? 0
+        windowID.flatMap { windows.window($0)?.workspaces.count } ?? 0
     }
 
     private var inboxTotal: Int {
@@ -50,13 +51,13 @@ extension WorkspaceWindow {
     }
 
     private var inboxShown: Binding<Bool> {
-        Binding { windowID != nil && app.inboxWindow == windowID } set: { shown in
-            if !shown, app.inboxWindow == windowID { app.hideInbox() }
+        Binding { windowID != nil && windows.inboxWindow == windowID } set: { shown in
+            if !shown, windows.inboxWindow == windowID { windows.hideInbox() }
         }
     }
 
     private var otherUnread: Int {
-        let workspaces = windowID.flatMap { app.window($0)?.workspaces } ?? []
+        let workspaces = windowID.flatMap { windows.window($0)?.workspaces } ?? []
         return workspaces.filter { $0 != active }.reduce(0) { $0 + app.notifications.unseen($1) }
     }
 }

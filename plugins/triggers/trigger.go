@@ -42,6 +42,10 @@ func (t *Trigger) Action() automation.Action {
 	}
 }
 
+func (t *Trigger) StorageKey() (workspace, id string) {
+	return t.Workspace, t.ID
+}
+
 func (t *Trigger) SetCommand(id string) {
 	t.Command = id
 }

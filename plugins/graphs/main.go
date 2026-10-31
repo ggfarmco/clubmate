@@ -16,29 +16,23 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
-	workspaceCreated = "workspace.created"
-	workspaceDeleted = "workspace.deleted"
-	reasonBudget     = "turn budget of %d reached"
-	reasonCaller     = "the session that ran it is closed"
-	reasonStopped    = "stopped"
-	reasonKickoff    = "start failed: %v"
-	reasonEnd        = "%s reported %s"
-	callTimeout      = 30 * time.Second
-	agentsTopics     = "agents.*"
-	workspaceTopics  = "workspace.*"
-	outcomeTopics    = eventPrefix + graphTopic + "*"
-	selectedPrefix   = "selected/"
+	reasonBudget    = "turn budget of %d reached"
+	reasonCaller    = "the session that ran it is closed"
+	reasonStopped   = "stopped"
+	reasonKickoff   = "start failed: %v"
+	reasonEnd       = "%s reported %s"
+	callTimeout     = 30 * time.Second
+	agentsTopics    = "agents.*"
+	workspaceTopics = "workspace.*"
+	outcomeTopics   = eventPrefix + graphTopic + "*"
+	selectedPrefix  = "selected/"
 )
 
 var errNotYours = errors.New("this run was not started by this agent session or its child sessions")
-
-type runStore interface {
-	save(ctx context.Context, r *Run) error
-	remove(ctx context.Context, r *Run) error
-}
 
 type app struct {
 	mu         sync.Mutex
@@ -47,11 +41,11 @@ type app struct {
 	dirty      map[string]bool
 	lastSeq    atomic.Int64
 	subs       map[string]string
-	store      runStore
+	store      automation.Storage[*Run]
 	host       *pluginsdk.Host
 	ready      chan struct{}
 	now        func() time.Time
-	runCommand func(ctx context.Context, req commandRequest) (json.RawMessage, error)
+	runCommand func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
 	sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
 	workspace  func(ctx context.Context, workspace string) (pluginsdk.Workspace, error)
 	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
@@ -87,8 +81,8 @@ func newApp() *app {
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.host = h
-	st := &store{h: h}
-	runs, err := st.load(ctx)
+	st := &automation.Store[Run, *Run]{Host: h, Prefix: runPrefix, Noun: "graph run", Log: logError}
+	runs, err := st.Load(ctx)
 	if err != nil {
 		return err
 	}
@@ -133,13 +127,13 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		}
 	case api.TopicReady:
 		a.renderAll(ctx)
-	case workspaceCreated:
+	case automation.TopicWorkspaceCreated:
 		var p contract.WorkspaceChanged
 		if decode(ev, &p) {
 			a.invalidate(p.Workspace)
 			a.flush(ctx)
 		}
-	case workspaceDeleted:
+	case automation.TopicWorkspaceDeleted:
 		var p contract.WorkspaceDeleted
 		if decode(ev, &p) {
 			a.dropWorkspace(ctx, p.Workspace)
@@ -203,7 +197,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	default:
 		return nil, fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
 	}
-	args, err := json.Marshal(idArgs{ID: id})
+	args, err := json.Marshal(automation.IDArgs{ID: id})
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +219,7 @@ func (a *app) countTurn(ctx context.Context, p api.Turn) {
 			r.stop(fmt.Sprintf(reasonBudget, r.MaxTurns), a.now())
 			spent = append(spent, cloneRun(r))
 		}
-		logError(a.store.save(ctx, r))
+		logError(a.store.Save(ctx, r))
 	}
 	a.mu.Unlock()
 	for _, r := range spent {
@@ -249,7 +243,7 @@ func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcome
 	}
 	r.stop(fmt.Sprintf(reasonEnd, nodeID, p.Outcome), a.now())
 	a.touch(r.Workspace)
-	logError(a.store.save(ctx, r))
+	logError(a.store.Save(ctx, r))
 	ended := cloneRun(r)
 	a.mu.Unlock()
 	x := &runner{call: a.runCommand, run: ended}
@@ -318,7 +312,7 @@ func (a *app) followHandoffs(ctx context.Context, workspace string) {
 		}
 		if changed {
 			a.touch(workspace)
-			logError(a.store.save(ctx, r))
+			logError(a.store.Save(ctx, r))
 			moved = append(moved, cloneRun(r))
 		}
 	}
@@ -356,7 +350,7 @@ func (a *app) checkCaller(ctx context.Context, p api.Changed) {
 	for _, r := range a.runs {
 		if r.Workspace == p.Workspace && r.Status == statusRunning && r.Caller == p.Session {
 			r.stop(reasonCaller, a.now())
-			logError(a.store.save(ctx, r))
+			logError(a.store.Save(ctx, r))
 		}
 	}
 }
@@ -375,7 +369,7 @@ func (a *app) dropWorkspace(ctx context.Context, workspace string) {
 	for id, r := range a.runs {
 		if r.Workspace == workspace {
 			delete(a.runs, id)
-			logError(a.store.remove(ctx, r))
+			logError(a.store.Remove(ctx, r))
 		}
 	}
 	delete(a.dirty, workspace)
@@ -513,14 +507,10 @@ func (a *app) workspaceRuns(workspace string) []*Run {
 	return runs
 }
 
-func (a *app) callCommand(ctx context.Context, req commandRequest) (json.RawMessage, error) {
+func (a *app) callCommand(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	var raw json.RawMessage
-	if err := a.host.Call(ctx, "command.run", req, &raw); err != nil {
-		return nil, err
-	}
-	return raw, nil
+	return automation.CallCommand(ctx, a.host, req)
 }
 
 func (a *app) agentSessions(ctx context.Context, workspace string) ([]api.Session, error) {

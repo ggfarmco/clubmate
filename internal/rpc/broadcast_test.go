@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -45,6 +46,17 @@ func TestBroadcastRefusalCarriesHandlerMessage(t *testing.T) {
 
 	require.ErrorIs(t, err, rpc.ErrPluginError)
 	assert.EqualError(t, err, "unsaved buffers: a.go")
+}
+
+func TestCommandRunPluginErrorCarriesPluginMethodAndMessage(t *testing.T) {
+	h, p := startHandlers(t, `"echoErrors":{"beta.other":"unsaved buffers: a.go"},`)
+
+	err := h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "beta.other", "workspaceId": p.ID}, nil)
+
+	remote, ok := errors.AsType[*rpc.RemoteError](err)
+	require.True(t, ok, "%v", err)
+	assert.Equal(t, "plugin beta command.run: unsaved buffers: a.go", remote.Message)
+	assert.JSONEq(t, `{"plugin":"beta","method":"command.run","message":"unsaved buffers: a.go"}`, string(remote.Data))
 }
 
 func startHandlers(t *testing.T, betaCanned string) (*testutil.PluginHarness, workspace.Workspace) {

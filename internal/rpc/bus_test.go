@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"runtime"
 	"strings"
@@ -76,6 +77,38 @@ func TestRPCBusSubscriptionReleasedWhenForwardingFails(t *testing.T) {
 	t.Cleanup(func() { client.Close() })
 	require.NoError(t, client.Call(t.Context(), "bus.subscribe", map[string]any{"pattern": "demo.*"}, nil))
 	testutil.Eventually(t, func() bool { return !strings.Contains(goroutines(), "bus.(*Subscription).backfill") }, 2*time.Second)
+}
+
+func TestRPCClientThatStopsReadingIsDisconnected(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	svc, b := testutil.NewServiceWithBusIn(t, dirs)
+	srv := rpc.NewServer(svc, b, rpc.WithDirs(dirs), rpc.WithWriteTimeout(200*time.Millisecond))
+	l, err := net.Listen("unix", dirs.CoreSocket())
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(ctx, l) }()
+	t.Cleanup(func() {
+		cancel()
+		assert.NoError(t, <-done)
+	})
+	nc, err := net.Dial("unix", dirs.CoreSocket())
+	require.NoError(t, err)
+	t.Cleanup(func() { nc.Close() })
+	_, err = nc.Write([]byte(`{"jsonrpc":"2.0","id":1,"method":"bus.subscribe","params":{"pattern":"demo.*"}}` + "\n"))
+	require.NoError(t, err)
+	payload, err := json.Marshal(map[string]string{"blob": strings.Repeat("x", 60<<10)})
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool { return strings.Contains(goroutines(), "rpc.forwardBus") }, 2*time.Second)
+	for range 32 {
+		_, err := b.Publish(t.Context(), "demo.big", "test", payload)
+		require.NoError(t, err)
+	}
+	time.Sleep(time.Second)
+	require.NoError(t, nc.SetReadDeadline(time.Now().Add(2*time.Second)))
+	_, err = io.Copy(io.Discard, nc)
+	require.NoError(t, err)
+	testutil.Eventually(t, func() bool { return !strings.Contains(goroutines(), "rpc.forwardBus") }, 2*time.Second)
 }
 
 func TestRPCReentrantCallsDoNotDeadlock(t *testing.T) {

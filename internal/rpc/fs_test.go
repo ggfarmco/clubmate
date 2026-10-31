@@ -91,11 +91,22 @@ func TestFSWatchNotifies(t *testing.T) {
 
 func TestFSWatchOverflow(t *testing.T) {
 	c, _, _, repo := watchRepo(t)
+	want := make(map[string]bool, 1500)
 	for i := range 1500 {
-		require.NoError(t, os.WriteFile(filepath.Join(repo, fmt.Sprintf("f%d.txt", i)), nil, 0o644))
+		f := filepath.Join(repo, fmt.Sprintf("f%d.txt", i))
+		require.NoError(t, os.WriteFile(f, nil, 0o644))
+		want[f] = true
 	}
-	ev := awaitFS(t, c, func(ev fsChanged) bool { return ev.Overflow })
-	assert.Empty(t, ev.Paths)
+	awaitFS(t, c, func(ev fsChanged) bool {
+		if ev.Overflow {
+			assert.Empty(t, ev.Paths)
+			return true
+		}
+		for _, p := range ev.Paths {
+			delete(want, p)
+		}
+		return len(want) == 0
+	})
 }
 
 func TestFSWatchWorktree(t *testing.T) {

@@ -71,12 +71,27 @@ public enum JSONValue: Codable, Sendable, Hashable {
         self == .null
     }
 
-    public func decode<T: Decodable>(_ type: T.Type, using decoder: JSONDecoder) throws -> T {
-        try decoder.decode(type, from: JSONEncoder().encode(self))
+    public func decode<T: Decodable>(_ type: T.Type) throws -> T {
+        try JSONDecoder.clubmate.decode(type, from: JSONEncoder().encode(self))
     }
 
     public static func encoding<T: Encodable>(_ value: T) throws -> JSONValue {
         try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
+    }
+}
+
+extension JSONDecoder {
+    public static var clubmate: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let text = try container.decode(String.self)
+            guard let date = Date.parseRFC3339(text) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "invalid date: \(text)")
+            }
+            return date
+        }
+        return decoder
     }
 }
 

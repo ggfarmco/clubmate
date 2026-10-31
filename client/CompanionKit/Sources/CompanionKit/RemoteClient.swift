@@ -99,7 +99,7 @@ public actor RemoteClient {
         let (data, response, host) = try await client.exchange(path: "/v1/pair", method: "POST", body: body, probe: true)
         switch response.statusCode {
         case 200:
-            guard let reply = try? JSONDecoder.companion.decode(PairReply.self, from: data) else { throw RemoteError.badResponse }
+            guard let reply = try? JSONDecoder.clubmate.decode(PairReply.self, from: data) else { throw RemoteError.badResponse }
             guard reply.computer.id == link.computerID else { throw RemoteError.pairingFailed(mismatchMessage) }
             let hosts = [host] + policy.filter(link.hosts).filter { $0 != host }
             return PairResult(token: reply.token, computer: Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now))
@@ -160,7 +160,7 @@ public actor RemoteClient {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 var parser = SSEParser()
-                let decoder = JSONDecoder.companion
+                let decoder = JSONDecoder.clubmate
                 var alive = false
                 do {
                     for try await chunk in chunks {

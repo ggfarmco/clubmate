@@ -4,7 +4,7 @@ import SwiftUI
 struct WorkspacePresenters: ViewModifier {
     @Binding var windowID: String?
 
-    @Environment(AppModel.self) private var app
+    @Environment(WindowRouter.self) private var windows
     @Environment(\.openSettings) private var openSettings
 
     func body(content: Content) -> some View {
@@ -15,16 +15,16 @@ struct WorkspacePresenters: ViewModifier {
     }
 
     private var inboxPresented: Binding<Bool> {
-        Binding { windowID != nil && app.inboxWindow == windowID } set: { shown in
-            guard let windowID, shown != (app.inboxWindow == windowID) else { return }
-            if shown { app.toggleInbox(in: windowID) } else { app.hideInbox() }
+        Binding { windowID != nil && windows.inboxWindow == windowID } set: { shown in
+            guard let windowID, shown != (windows.inboxWindow == windowID) else { return }
+            if shown { windows.toggleInbox(in: windowID) } else { windows.hideInbox() }
         }
     }
 
     private var switcherPresented: Binding<Bool> {
-        Binding { windowID != nil && app.switcherWindow == windowID } set: { shown in
-            guard let windowID, shown != (app.switcherWindow == windowID) else { return }
-            if shown { app.toggleSwitcher(in: windowID) } else { app.hideSwitcher() }
+        Binding { windowID != nil && windows.switcherWindow == windowID } set: { shown in
+            guard let windowID, shown != (windows.switcherWindow == windowID) else { return }
+            if shown { windows.toggleSwitcher(in: windowID) } else { windows.hideSwitcher() }
         }
     }
 

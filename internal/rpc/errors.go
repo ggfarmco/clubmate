@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -12,6 +13,7 @@ import (
 	"clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/contract"
 )
 
 const (
@@ -22,7 +24,7 @@ const (
 	codeNotTracked        = -32010
 	codeSessionRunning    = -32011
 	codePluginUnavailable = -32012
-	codePluginError       = -32013
+	codePluginError       = contract.CodePluginError
 	codeDenied            = -32014
 	codeRateLimited       = -32015
 )
@@ -43,12 +45,21 @@ var (
 type RemoteError struct {
 	Code    int
 	Message string
+	Data    json.RawMessage
 }
 
 type PluginError struct {
 	PluginID string
 	Method   string
 	Message  string
+}
+
+func NewRemoteError(e *jsonrpc2.Error) *RemoteError {
+	out := &RemoteError{Code: int(e.Code), Message: e.Message}
+	if e.Data != nil {
+		out.Data = *e.Data
+	}
+	return out
 }
 
 func (e *RemoteError) Error() string {
@@ -92,7 +103,11 @@ func toRPCError(err error) *jsonrpc2.Error {
 	if errors.As(err, &rpcErr) {
 		return rpcErr
 	}
-	return &jsonrpc2.Error{Code: errorCode(err), Message: err.Error()}
+	out := &jsonrpc2.Error{Code: errorCode(err), Message: err.Error()}
+	if pe, ok := errors.AsType[*PluginError](err); ok {
+		out.SetError(contract.PluginErrorData{Plugin: pe.PluginID, Method: pe.Method, Message: pe.Message})
+	}
+	return out
 }
 
 func errorCode(err error) int64 {

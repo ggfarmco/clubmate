@@ -49,7 +49,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 	err := c.conn.Call(ctx, method, params, result)
 	var rpcErr *jsonrpc2.Error
 	if errors.As(err, &rpcErr) {
-		return &RemoteError{Code: int(rpcErr.Code), Message: rpcErr.Message}
+		return NewRemoteError(rpcErr)
 	}
 	return err
 }

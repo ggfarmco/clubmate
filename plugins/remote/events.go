@@ -49,10 +49,6 @@ type wireEvent struct {
 	Payload   json.RawMessage `json:"payload"`
 }
 
-type workspacePayload struct {
-	Workspace string `json:"workspace"`
-}
-
 func newHub(changed func()) *hub {
 	return &hub{changed: changed, streams: map[*stream]struct{}{}}
 }
@@ -238,13 +234,11 @@ func resumePoint(r *http.Request) (int64, bool, error) {
 }
 
 func sseFrame(ev pluginsdk.Event) string {
-	var p workspacePayload
-	_ = json.Unmarshal(ev.Payload, &p)
 	payload := ev.Payload
 	if len(payload) == 0 {
 		payload = json.RawMessage("null")
 	}
-	data, _ := json.Marshal(wireEvent{Seq: ev.Seq, Topic: ev.Topic, Workspace: p.Workspace, Payload: payload})
+	data, _ := json.Marshal(wireEvent{Seq: ev.Seq, Topic: ev.Topic, Workspace: ev.Workspace, Payload: payload})
 	seq := strconv.FormatInt(ev.Seq, 10)
 	return "id: " + seq + "\nevent: bus\ndata: " + string(data) + "\n\n"
 }

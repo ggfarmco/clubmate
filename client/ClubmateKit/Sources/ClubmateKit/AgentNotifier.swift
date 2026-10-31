@@ -4,7 +4,7 @@ import ClubmateProtocol
 
 extension AgentSession {
     public static func list(_ sessions: JSONValue) -> [AgentSession] {
-        (sessions.arrayValue ?? []).compactMap { try? $0.decode(AgentSession.self, using: JSONDecoder()) }
+        (sessions.arrayValue ?? []).compactMap { try? $0.decode(AgentSession.self) }
     }
 }
 

@@ -13,9 +13,13 @@ type Storage[P any] interface {
 	Remove(ctx context.Context, p P) error
 }
 
+type Keyed interface {
+	StorageKey() (workspace, id string)
+}
+
 type Store[E any, P interface {
 	*E
-	Entry[P]
+	Keyed
 }] struct {
 	Host   *pluginsdk.Host
 	Prefix string
@@ -45,25 +49,34 @@ func (st *Store[E, P]) Load(ctx context.Context) ([]P, error) {
 
 func (st *Store[E, P]) Save(ctx context.Context, p P) error {
 	if err := st.Host.StorageSet(ctx, st.key(p), p); err != nil {
-		return fmt.Errorf("save %s %s: %w", st.Noun, p.Action().ID, err)
+		return fmt.Errorf("save %s %s: %w", st.Noun, keyID(p), err)
 	}
 	return nil
 }
 
 func (st *Store[E, P]) Remove(ctx context.Context, p P) error {
 	if err := st.Host.StorageDelete(ctx, st.key(p)); err != nil {
-		return fmt.Errorf("delete %s %s: %w", st.Noun, p.Action().ID, err)
+		return fmt.Errorf("delete %s %s: %w", st.Noun, keyID(p), err)
 	}
 	return nil
 }
 
+type commander interface {
+	Action() Action
+	SetCommand(id string)
+}
+
 func (st *Store[E, P]) migrate(ctx context.Context, p P) P {
-	command := p.Action().Command
+	c, ok := any(p).(commander)
+	if !ok {
+		return p
+	}
+	command := c.Action().Command
 	current := contract.CurrentCommand(command)
 	if current == command {
 		return p
 	}
-	p.SetCommand(current)
+	c.SetCommand(current)
 	if err := st.Save(ctx, p); err != nil {
 		st.Log(err)
 	}
@@ -71,6 +84,11 @@ func (st *Store[E, P]) migrate(ctx context.Context, p P) P {
 }
 
 func (st *Store[E, P]) key(p P) string {
-	act := p.Action()
-	return st.Prefix + act.Workspace + "/" + act.ID
+	workspace, id := p.StorageKey()
+	return st.Prefix + workspace + "/" + id
+}
+
+func keyID(k Keyed) string {
+	_, id := k.StorageKey()
+	return id
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -74,6 +75,9 @@ func gitError(out []byte, err error) error {
 }
 
 func rpcMessage(err error) string {
+	if pe, ok := pluginsdk.PluginErrorOf(err); ok {
+		return pe.Message
+	}
 	if rpcErr, ok := errors.AsType[*jsonrpc2.Error](err); ok {
 		return rpcErr.Message
 	}

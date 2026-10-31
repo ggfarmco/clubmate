@@ -7,6 +7,8 @@ struct SwitcherGridView: View {
     let windowID: String
 
     @Environment(AppModel.self) private var app
+    @Environment(WindowRouter.self) private var windows
+    @Environment(WorkspaceActions.self) private var actions
     @Environment(\.theme) private var theme
     @State private var highlight: Int?
 
@@ -15,13 +17,13 @@ struct SwitcherGridView: View {
     private static let padding: CGFloat = 24
 
     private var workspaces: [String] {
-        app.window(windowID)?.workspaces ?? []
+        windows.window(windowID)?.workspaces ?? []
     }
 
     private var current: Int {
         let count = workspaces.count
         if let highlight { return min(highlight, count) }
-        return app.window(windowID)?.active.flatMap(workspaces.firstIndex) ?? count
+        return windows.window(windowID)?.active.flatMap(workspaces.firstIndex) ?? count
     }
 
     var body: some View {
@@ -31,7 +33,7 @@ struct SwitcherGridView: View {
                 Color.black.opacity(0.4)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { app.hideSwitcher() }
+                    .onTapGesture { windows.hideSwitcher() }
                 ViewThatFits(in: .vertical) {
                     panel(columns: columns)
                     ScrollView { panel(columns: columns) }
@@ -80,7 +82,7 @@ struct SwitcherGridView: View {
                         .stroke(highlighted ? theme.accent : theme.border, lineWidth: highlighted ? 2 : 1)
                 )
             HStack(spacing: theme.spacing.m) {
-                if let workspace, workspace == app.window(windowID)?.active {
+                if let workspace, workspace == windows.window(windowID)?.active {
                     Circle().fill(theme.accent).frame(width: 6, height: 6)
                 }
                 Text(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open Folder…")
@@ -97,13 +99,13 @@ struct SwitcherGridView: View {
         .onTapGesture { choose(index) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open Folder…")
-        .accessibilityAddTraits(workspace != nil && workspace == app.window(windowID)?.active ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAddTraits(workspace != nil && workspace == windows.window(windowID)?.active ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { choose(index) }
     }
 
     @ViewBuilder private func preview(_ workspace: String?) -> some View {
         if let workspace {
-            let session = app.existingSession(for: workspace)
+            let session = app.sessions.existing(workspace)
             if let image = session?.thumbnail {
                 Image(nsImage: image)
                     .resizable()
@@ -146,16 +148,16 @@ struct SwitcherGridView: View {
         case .choose:
             choose(current)
         case .dismiss:
-            app.hideSwitcher()
+            windows.hideSwitcher()
         }
     }
 
     private func choose(_ index: Int) {
         guard workspaces.indices.contains(index) else {
-            app.hideSwitcher()
-            return app.openFolder(in: windowID)
+            windows.hideSwitcher()
+            return actions.openFolder(in: windowID)
         }
-        app.activateFromSwitcher(workspaces[index], in: windowID)
+        windows.activateFromSwitcher(workspaces[index], in: windowID)
     }
 }
 

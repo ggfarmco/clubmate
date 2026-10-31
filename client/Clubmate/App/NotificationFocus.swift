@@ -8,7 +8,7 @@ struct NotificationFocus {
     let windows: WindowRouter
     let sessions: SessionRegistry
 
-    private static let revealAttempts = 100
+    private static let revealTimeout: Duration = .seconds(10)
 
     var current: HubFocus {
         guard let window = windows.keyWindowID, windows.host(window)?.isKeyWindow == true,
@@ -29,17 +29,15 @@ struct NotificationFocus {
         windows.open(workspace)
         guard let session, let target = NotificationHub.reveal(workspace: workspace, session: session, owner: owner) else { return }
         Task { [sessions] in
-            for _ in 0..<Self.revealAttempts {
-                if let store = sessions.existing(workspace)?.store, store.connected {
-                    store.show(section: target.section)
-                    if let event = target.event, case .failure(let error) = await store.send(event) {
-                        sessions.existing(workspace)?.banner.show(error.message)
-                    }
-                    if target.focusMain { store.requestFocus(section: target.section, slot: "\(target.section).main") }
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(100))
+            let connected = await Observed.first(within: Self.revealTimeout) {
+                sessions.existing(workspace)?.store.flatMap { $0.connected ? $0 : nil }
             }
+            guard let store = connected else { return }
+            store.show(section: target.section)
+            if let event = target.event, case .failure(let error) = await store.send(event) {
+                sessions.existing(workspace)?.banner.show(error.message)
+            }
+            if target.focusMain { store.requestFocus(section: target.section, slot: "\(target.section).main") }
         }
     }
 }

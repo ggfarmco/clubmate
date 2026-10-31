@@ -22,35 +22,36 @@ final class ModelTests: XCTestCase {
         var inbox = Inbox()
         let base = Date(timeIntervalSince1970: 1_000)
         for index in 0..<205 {
-            inbox.add(InboxItem(id: "n\(index)", computerID: "m", workspace: "w", message: "", date: base.addingTimeInterval(TimeInterval(index))))
+            inbox.add(InboxItem(notificationID: "n\(index)", computerID: "m", workspace: "w", message: "", date: base.addingTimeInterval(TimeInterval(index))))
         }
-        XCTAssertFalse(inbox.add(InboxItem(id: "n204", computerID: "m", workspace: "w", message: "", date: base)))
+        XCTAssertFalse(inbox.add(InboxItem(notificationID: "n204", computerID: "m", workspace: "w", message: "", date: base)))
         XCTAssertEqual(inbox.items.count, 200)
-        XCTAssertEqual(inbox.items.first?.id, "n204")
-        XCTAssertEqual(inbox.items.last?.id, "n5")
+        XCTAssertEqual(inbox.items.first?.notificationID, "n204")
+        XCTAssertEqual(inbox.items.last?.notificationID, "n5")
         XCTAssertEqual(inbox.unread.count, 200)
     }
 
     func testInboxUnreadIsPerComputer() {
         var inbox = Inbox()
         let date = Date(timeIntervalSince1970: 1_000)
-        let old = InboxItem(id: "ntf_1", computerID: "old", workspace: "w", message: "", date: date)
-        let new = InboxItem(id: "ntf_1", computerID: "new", workspace: "w", message: "", date: date)
+        let old = InboxItem(notificationID: "ntf_1", computerID: "old", workspace: "w", message: "", date: date)
+        let new = InboxItem(notificationID: "ntf_1", computerID: "new", workspace: "w", message: "", date: date)
         XCTAssertTrue(inbox.add(old))
         XCTAssertTrue(inbox.add(new))
+        XCTAssertNotEqual(old.id, new.id)
 
         inbox.markRead(old)
         XCTAssertFalse(inbox.isUnread(old))
         XCTAssertTrue(inbox.isUnread(new))
 
         inbox.markRead(new)
-        inbox.add(InboxItem(id: "ntf_2", computerID: "old", workspace: "w", message: "", date: date))
-        inbox.add(InboxItem(id: "ntf_2", computerID: "new", workspace: "w", message: "", date: date))
+        inbox.add(InboxItem(notificationID: "ntf_2", computerID: "old", workspace: "w", message: "", date: date))
+        inbox.add(InboxItem(notificationID: "ntf_2", computerID: "new", workspace: "w", message: "", date: date))
         inbox.remove(computer: "old")
         XCTAssertEqual(inbox.unread, ["new|ntf_2"])
 
         for index in 0..<Inbox.capacity {
-            inbox.add(InboxItem(id: "ntf_x\(index)", computerID: "old", workspace: "w", message: "", date: date.addingTimeInterval(1)))
+            inbox.add(InboxItem(notificationID: "ntf_x\(index)", computerID: "old", workspace: "w", message: "", date: date.addingTimeInterval(1)))
         }
         XCTAssertEqual(inbox.unread.count, Inbox.capacity)
         XCTAssertFalse(inbox.unread.contains("new|ntf_2"))
@@ -62,14 +63,14 @@ final class ModelTests: XCTestCase {
             "message": .string("Need a decision"), "kind": .string("needs-input"), "agent": .bool(true), "ts": .string("2026-10-30T09:41:00.123456789Z"),
         ]))
         let item = try XCTUnwrap(InboxItem(event, computerID: "m", received: .distantPast))
-        XCTAssertEqual(item, InboxItem(id: "ntf_1", computerID: "m", workspace: "w", session: "agt_1", title: "Tests", message: "Need a decision", kind: .needsInput, viaAgent: true, date: item.date))
+        XCTAssertEqual(item, InboxItem(notificationID: "ntf_1", computerID: "m", workspace: "w", session: "agt_1", title: "Tests", message: "Need a decision", kind: .needsInput, viaAgent: true, date: item.date))
         XCTAssertEqual(item.date.timeIntervalSince1970, 1_793_353_260.123, accuracy: 0.0005)
     }
 
     func testLocalAlertOnlyForRecentActionableItems() throws {
         let now = Date(timeIntervalSince1970: 10_000)
         let item = { (kind: NotificationKind, age: TimeInterval) in
-            InboxItem(id: "ntf_1", computerID: "m", workspace: "w", session: "agt_1", message: "Need a decision", kind: kind, date: now.addingTimeInterval(-age))
+            InboxItem(notificationID: "ntf_1", computerID: "m", workspace: "w", session: "agt_1", message: "Need a decision", kind: kind, date: now.addingTimeInterval(-age))
         }
         let alert = try XCTUnwrap(LocalAlert(item(.permission, 5), computerName: "Mac Studio", now: now))
         XCTAssertEqual([alert.id, alert.title, alert.subtitle, alert.body, alert.session], ["m|ntf_1", "Permission needed", "Mac Studio", "Need a decision", "agt_1"])
@@ -105,12 +106,12 @@ final class ModelTests: XCTestCase {
 
         let second = CompanionModel(store: store, transport: transport, device: device, cursors: defaults, sleep: { _ in })
         let posted = Recorder<String>()
-        second.posted = { posted.add($0.id) }
+        second.posted = { posted.add($0.notificationID) }
         await second.catchUp(quiet: .milliseconds(50), timeout: .seconds(5))
 
         XCTAssertEqual(second.connection("mac1")?.state, .online)
         XCTAssertEqual(transport.requests.first { $0.url?.path == "/v1/events" && $0.value(forHTTPHeaderField: "Last-Event-ID") != nil }?.value(forHTTPHeaderField: "Last-Event-ID"), "7")
-        XCTAssertEqual(second.inbox.items.map(\.id), ["n8"])
+        XCTAssertEqual(second.inbox.items.map(\.notificationID), ["n8"])
         XCTAssertEqual(second.inbox.unread, [])
         XCTAssertEqual(posted.values, [])
         second.connection("mac1")?.stop()
@@ -145,7 +146,7 @@ final class ModelTests: XCTestCase {
         })
         let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "P", model: "iPhone"), sleep: { _ in })
         let posted = Recorder<String>()
-        model.posted = { posted.add($0.id) }
+        model.posted = { posted.add($0.notificationID) }
 
         model.start()
 

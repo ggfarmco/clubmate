@@ -19,11 +19,12 @@ const (
 )
 
 type Event struct {
-	Seq     int64           `json:"seq"`
-	Topic   string          `json:"topic"`
-	Source  string          `json:"source"`
-	Time    time.Time       `json:"time"`
-	Payload json.RawMessage `json:"payload"`
+	Seq       int64           `json:"seq"`
+	Topic     string          `json:"topic"`
+	Source    string          `json:"source"`
+	Time      time.Time       `json:"time"`
+	Workspace string          `json:"workspace,omitempty"`
+	Payload   json.RawMessage `json:"payload"`
 }
 
 type WorkspaceChanged struct {

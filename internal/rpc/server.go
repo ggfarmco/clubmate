@@ -28,6 +28,7 @@ const (
 	acceptBackoffMax = time.Second
 
 	notifyClientsTimeout = time.Second
+	clientWriteTimeout   = 10 * time.Second
 )
 
 type handlerFunc func(ctx context.Context, params *json.RawMessage) (any, error)
@@ -53,6 +54,12 @@ type Server struct {
 	clientSeq     uint64
 	notifyLimit   *notify.Limiter
 	testAppRoot   string
+	writeTimeout  time.Duration
+}
+
+type boundedConn struct {
+	net.Conn
+	timeout time.Duration
 }
 
 type client struct {
@@ -79,8 +86,12 @@ func WithLogger(l *slog.Logger) ServerOption {
 	return func(s *Server) { s.logger = l }
 }
 
+func WithWriteTimeout(d time.Duration) ServerOption {
+	return func(s *Server) { s.writeTimeout = d }
+}
+
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp"}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp", writeTimeout: clientWriteTimeout}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -134,7 +145,7 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 		}
 		backoff = 0
 		wg.Go(func() {
-			_, done := s.open(ctx, jsonrpc2.NewPlainObjectStream(nc), Caller{})
+			_, done := s.open(ctx, jsonrpc2.NewPlainObjectStream(boundedConn{Conn: nc, timeout: s.writeTimeout}), Caller{})
 			<-done
 		})
 	}
@@ -231,6 +242,17 @@ func (s *Server) handler() jsonrpc2.Handler {
 		}
 		return result, nil
 	}).SuppressErrClosed()
+}
+
+func (c boundedConn) Write(p []byte) (int, error) {
+	if err := c.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
+	n, err := c.Conn.Write(p)
+	if err != nil {
+		c.Conn.Close()
+	}
+	return n, err
 }
 
 func retryableAccept(err error) bool {

@@ -130,6 +130,20 @@ func (s *session) view(fromTurn int) transcriptView {
 	return v
 }
 
+func (v transcriptView) lastTurn() transcriptView {
+	last := 0
+	for _, en := range v.Entries {
+		last = max(last, en.Turn)
+	}
+	for _, t := range v.Turns {
+		last = max(last, t.Turn)
+	}
+	v.Modes, v.Configs, v.Commands = nil, nil, nil
+	v.Turns = slices.DeleteFunc(v.Turns, func(t turnInfo) bool { return t.Turn != last })
+	v.Entries = slices.DeleteFunc(v.Entries, func(en *entry) bool { return en.Turn != last })
+	return v
+}
+
 func dropImageData(entries []*entry) {
 	for _, en := range entries {
 		content := make([]json.RawMessage, 0, len(en.Content))

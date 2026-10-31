@@ -7,6 +7,8 @@ struct WorkspaceView: View {
     let windowID: String
 
     @Environment(AppModel.self) private var app
+    @Environment(WindowRouter.self) private var windows
+    @Environment(WorkspaceActions.self) private var actions
     @State private var focus = FocusRouter()
     @State private var rowWidth: CGFloat = 0
 
@@ -111,7 +113,7 @@ struct WorkspaceView: View {
     }
 
     private func paletteEntries() -> [PaletteEntry] {
-        let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.workspace($0)?.name ?? $0) }
+        let workspaces = (windows.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.workspace($0)?.name ?? $0) }
         let sections = app.settings.ordered(session.store?.sections ?? [])
         return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.workspaceID, worktrees: session.worktrees.worktrees)
     }
@@ -121,13 +123,13 @@ struct WorkspaceView: View {
         case .command(let id): session.runConfirmed(id, commands: app.commands)
         case .section(let id): session.store?.select(id)
         case .toggleSidebar: session.store?.toggleSidebar()
-        case .openFolder: app.openFolder(in: windowID)
-        case .newHomeTerminal: app.newHomeTerminal(in: windowID)
-        case .renameWorkspace: app.rename(session.workspaceID)
-        case .closeWorkspace: app.closeWorkspace(session.workspaceID, in: windowID)
-        case .removeWorkspace: app.remove(session.workspaceID)
-        case .moveWorkspaceToNewWindow: app.moveToNewWindow(session.workspaceID)
-        case .switchWorkspace(let id): app.activate(id, in: windowID)
+        case .openFolder: actions.openFolder(in: windowID)
+        case .newHomeTerminal: actions.newHomeTerminal(in: windowID)
+        case .renameWorkspace: actions.rename(session.workspaceID)
+        case .closeWorkspace: windows.closeWorkspace(session.workspaceID, in: windowID)
+        case .removeWorkspace: actions.remove(session.workspaceID)
+        case .moveWorkspaceToNewWindow: windows.moveToNewWindow(session.workspaceID)
+        case .switchWorkspace(let id): windows.activate(id, in: windowID)
         case .switchWorktree: session.chooseWorktree()
         case .newWorktree: session.newWorktree(chooseFolder: true)
         case .removeWorktree: session.chooseWorktreeToRemove()

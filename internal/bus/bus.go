@@ -116,7 +116,7 @@ func (b *Bus) Publish(ctx context.Context, topic, source string, payload json.Ra
 	if err != nil {
 		return Event{}, fmt.Errorf("event seq: %w", err)
 	}
-	e := Event{Seq: seq, Topic: topic, Source: source, Time: time.Unix(0, now).UTC(), Payload: payload}
+	e := Event{Seq: seq, Topic: topic, Source: source, Time: time.Unix(0, now).UTC(), Workspace: workspaceOf(payload), Payload: payload}
 	b.last = seq
 	b.fanoutLocked(e)
 	return e, nil
@@ -173,6 +173,7 @@ func (b *Bus) readRange(ctx context.Context, pattern string, after, upto int64, 
 		}
 		e.Time = time.Unix(0, nanos).UTC()
 		e.Payload = json.RawMessage(payload)
+		e.Workspace = workspaceOf(e.Payload)
 		events = append(events, e)
 	}
 	if err := rows.Err(); err != nil {
@@ -198,4 +199,15 @@ func normalizePayload(payload json.RawMessage) (json.RawMessage, error) {
 		return nil, ErrPayloadTooLarge
 	}
 	return json.RawMessage(buf.Bytes()), nil
+}
+
+func workspaceOf(payload json.RawMessage) string {
+	var p struct {
+		Workspace any `json:"workspace"`
+	}
+	if json.Unmarshal(payload, &p) != nil {
+		return ""
+	}
+	ws, _ := p.Workspace.(string)
+	return ws
 }

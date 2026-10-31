@@ -74,7 +74,11 @@ func (s *Server) testAppCall(ctx context.Context, p testAppCallParams) (json.Raw
 	if err := c.Call(ctx, p.Method, params, &res); err != nil {
 		var remote *RemoteError
 		if errors.As(err, &remote) {
-			return nil, &jsonrpc2.Error{Code: int64(remote.Code), Message: remote.Message}
+			out := &jsonrpc2.Error{Code: int64(remote.Code), Message: remote.Message}
+			if len(remote.Data) > 0 {
+				out.Data = &remote.Data
+			}
+			return nil, out
 		}
 		return nil, err
 	}

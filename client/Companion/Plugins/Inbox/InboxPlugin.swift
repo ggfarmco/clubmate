@@ -15,7 +15,7 @@ struct InboxPlugin: CompanionPluginUI {
 
     @MainActor
     func makeDetail(context: PluginContext, selection: String?) -> AnyView {
-        guard let selection, let item = context.model.inbox.items.first(where: { $0.id == selection && $0.computerID == context.connection.computer.id }) else {
+        guard let selection, let item = context.model.inbox.items.first(where: { $0.id == selection }) else {
             return AnyView(ContentUnavailableView("No Notification Selected", systemImage: "tray", description: Text("Notifications that point at a session open it in Agents.")))
         }
         return AnyView(InboxDetailView(item: item, workspace: context.connection.workspaces.first { $0.id == item.workspace }?.name))

@@ -36,7 +36,7 @@ final class AppModel {
 
     @ObservationIgnored private lazy var focus: NotificationFocus = NotificationFocus(windows: windows, sessions: sessions)
 
-    @ObservationIgnored private lazy var actions: WorkspaceActions = WorkspaceActions(supervisor: supervisor, windows: windows, sessions: sessions) { [weak self] id in
+    @ObservationIgnored private(set) lazy var actions: WorkspaceActions = WorkspaceActions(supervisor: supervisor, windows: windows, sessions: sessions) { [weak self] id in
         self?.workspace(id)
     }
 
@@ -61,7 +61,7 @@ final class AppModel {
             await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
         },
         focus: { [weak self] in self?.focus.current ?? HubFocus(appActive: false, workspace: nil) },
-        workspaces: { [weak self] in self?.openWorkspaces ?? [] },
+        workspaces: { [weak self] in self?.windows.openWorkspaces ?? [] },
         workspaceName: { [weak self] workspace in self?.workspace(workspace)?.name },
         reveal: { [weak self] workspace, session, owner in self?.focus.reveal(workspace, session: session, owner: owner) }
     )
@@ -102,38 +102,6 @@ final class AppModel {
     func retry() {
         supervisor.retry()
     }
-
-    var switcherWindow: String? { windows.switcherWindow }
-    var inboxWindow: String? { windows.inboxWindow }
-    var openWorkspaces: Set<String> { windows.openWorkspaces }
-    var keyWorkspace: (workspaceID: String?, window: NSWindow?) { windows.keyWorkspace }
-
-    func window(_ id: String) -> LayoutWindow? { windows.window(id) }
-    func claimWindow() -> String { windows.claimWindow() }
-    func windowShown(_ window: String) { windows.windowShown(window) }
-    func windowAttached(_ window: String, _ host: NSWindow) { windows.windowAttached(window, host) }
-    func windowBecameKey(_ window: String) { windows.windowBecameKey(window) }
-    func windowClosed(_ window: String) { windows.windowClosed(window) }
-    func open(_ workspaceID: String, in target: String? = nil) { windows.open(workspaceID, in: target) }
-    func activate(_ workspaceID: String, in window: String) { windows.activate(workspaceID, in: window) }
-    func activateFromSwitcher(_ workspaceID: String, in window: String) { windows.activateFromSwitcher(workspaceID, in: window) }
-    func next(in window: String) { windows.next(in: window) }
-    func previous(in window: String) { windows.previous(in: window) }
-    func closeWorkspace(_ workspaceID: String, in window: String) { windows.closeWorkspace(workspaceID, in: window) }
-    func moveToNewWindow(_ workspaceID: String) { windows.moveToNewWindow(workspaceID) }
-    func toggleSwitcher(in window: String) { windows.toggleSwitcher(in: window) }
-    func hideSwitcher() { windows.hideSwitcher() }
-    func toggleInbox(in window: String) { windows.toggleInbox(in: window) }
-    func hideInbox() { windows.hideInbox() }
-
-    func existingSession(for workspaceID: String) -> WorkspaceSession? { sessions.existing(workspaceID) }
-
-    func openFolder(in window: String?) { actions.openFolder(in: window) }
-    func newHomeTerminal(in window: String?) { actions.newHomeTerminal(in: window) }
-    func addFolder(to workspaceID: String) { actions.addFolder(to: workspaceID) }
-    func rename(_ workspaceID: String) { actions.rename(workspaceID) }
-    func remove(_ workspaceID: String) { actions.remove(workspaceID) }
-    func installCommandLineTool() { CLIInstaller.install() }
 
     private func touch(_ workspaceID: String) {
         notifications.focusChanged()
@@ -196,7 +164,7 @@ final class AppModel {
             windows.restore(store.workspaces)
             if let id = launchWorkspace {
                 launchWorkspace = nil
-                open(id)
+                windows.open(id)
             }
             return client
         } catch {
@@ -263,7 +231,7 @@ final class AppModel {
         let requests = client.workspaceOpenRequests()
         openRequests = Task { [weak self] in
             for await id in requests {
-                self?.open(id)
+                self?.windows.open(id)
             }
         }
         gitChanges?.cancel()

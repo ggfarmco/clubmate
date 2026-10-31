@@ -1,25 +1,34 @@
 import AppKit
 import Foundation
+import Observation
 
 import ClubmateKit
 
 @MainActor
-struct WorkspaceActions {
-    let supervisor: ConnectionSupervisor
-    let windows: WindowRouter
-    let sessions: SessionRegistry
-    let workspace: @MainActor (String) -> Workspace?
+@Observable
+final class WorkspaceActions {
+    private let supervisor: ConnectionSupervisor
+    private let windows: WindowRouter
+    private let sessions: SessionRegistry
+    private let workspace: @MainActor (String) -> Workspace?
+
+    init(supervisor: ConnectionSupervisor, windows: WindowRouter, sessions: SessionRegistry, workspace: @escaping @MainActor (String) -> Workspace?) {
+        self.supervisor = supervisor
+        self.windows = windows
+        self.sessions = sessions
+        self.workspace = workspace
+    }
 
     func openFolder(in window: String?) {
         guard let folders = Self.chooseFolders(prompt: "Open") else { return }
-        perform { client in
+        perform { [windows] client in
             let id = try await client.openFolders(folders)
             windows.open(id, in: window)
         }
     }
 
     func newHomeTerminal(in window: String?) {
-        perform { client in
+        perform { [windows, sessions] client in
             let id = try await client.homeWorkspace()
             windows.open(id, in: window)
             let session = sessions.existing(id)

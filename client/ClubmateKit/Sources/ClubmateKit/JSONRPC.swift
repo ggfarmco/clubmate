@@ -266,27 +266,3 @@ private struct Header: Decodable {
     let params: JSONValue?
     let error: ErrorBody?
 }
-
-extension JSONValue {
-    func decode<T: Decodable>(_ type: T.Type) throws -> T {
-        try decode(type, using: .clubmate)
-    }
-}
-
-extension JSONDecoder {
-    static var clubmate: JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let text = try container.decode(String.self)
-            if let date = try? Date(text, strategy: .iso8601.year().month().day().time(includingFractionalSeconds: true).timeZone(separator: .omitted)) {
-                return date
-            }
-            if let date = try? Date(text, strategy: .iso8601) {
-                return date
-            }
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "invalid date: \(text)")
-        }
-        return decoder
-    }
-}

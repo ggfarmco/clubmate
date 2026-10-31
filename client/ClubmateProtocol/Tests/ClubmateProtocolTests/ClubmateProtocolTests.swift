@@ -62,6 +62,22 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(bare.notifyEffective, .all)
     }
 
+    func testSharedDecoderReadsCoreTimestamps() throws {
+        struct Stamp: Decodable { let at: Date }
+        let shapes = [
+            "2026-10-30T09:41:00Z": 0.0,
+            "2026-10-30T09:41:00.5Z": 0.5,
+            "2026-10-30T09:41:00.123456789Z": 0.123,
+            "2026-10-30T12:41:00.123456789+03:00": 0.123,
+        ]
+        let base = try XCTUnwrap(Date.parseRFC3339("2026-10-30T09:41:00Z"))
+        for (text, offset) in shapes {
+            let value = JSONValue.object(["at": .string(text)])
+            XCTAssertEqual(try value.decode(Stamp.self).at.timeIntervalSince(base), offset, accuracy: 0.0005, text)
+        }
+        XCTAssertThrowsError(try JSONValue.object(["at": .string("yesterday")]).decode(Stamp.self))
+    }
+
     func testEnumsDecodeKnownValuesAndFallBackOnUnknown() throws {
         struct Wire: Decodable, Equatable {
             let session: AgentSessionStatus

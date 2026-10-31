@@ -378,11 +378,13 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Read a session's transcript from Clubmate's own log: {session, modes, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission or notice. Non-destructive.",
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission or notice. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
-            "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."}
+            "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."},
+            "last": {"type": "boolean", "description": "Only the last turn's entry in turns and its entries; modes, configOptions and commands are null."},
+            "compact": {"type": "boolean", "description": "Drop tool calls' rawOutput and the images in their content."}
           },
           "required": ["session"]
         }

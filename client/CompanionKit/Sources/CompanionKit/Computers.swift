@@ -50,7 +50,7 @@ public final class ComputerStore {
     public init(file: URL?, vault: any TokenVault) {
         self.file = file
         self.vault = vault
-        computers = file.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder.companion.decode([Computer].self, from: $0) } ?? []
+        computers = file.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder.clubmate.decode([Computer].self, from: $0) } ?? []
     }
 
     public func token(for id: String) -> String? {

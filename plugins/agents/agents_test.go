@@ -432,6 +432,33 @@ func TestStoppedTranscriptClosesOpenToolsAndCompactDropsRawOutput(t *testing.T) 
 	assert.JSONEq(t, `[{"type":"content","content":{"type":"text","text":"seen"}}]`, string(tools[0].Tool["content"]))
 }
 
+func TestTranscriptLastKeepsOnlyTheLastTurnWithoutCatalogs(t *testing.T) {
+	f := start(t, map[string]any{
+		"prompt":   []map[string]any{{"echo": true}},
+		"modes":    map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}}},
+		"commands": []map[string]string{{"name": "review", "description": "Review the diff"}},
+	})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	for _, text := range []string{"one", "two"} {
+		f.prompt(t, workspace, session, text)
+		f.waitStatus(t, workspace, session, "done")
+	}
+	require.NotEmpty(t, f.transcript(t, workspace, session).Modes)
+
+	var last transcript
+	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": session, "last": true}, &last))
+	require.Len(t, last.Turns, 1)
+	agent := ofKind(last.Entries, "agent")
+	require.Len(t, agent, 1)
+	assert.Equal(t, "two", agent[0].Text)
+	for _, en := range last.Entries {
+		assert.Equal(t, last.Turns[0].Turn, en.Turn)
+	}
+	assert.Empty(t, last.Modes)
+	assert.Empty(t, last.Commands)
+}
+
 func TestReaderNeverBlocks(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"burst": 5000}}})
 	workspace := f.workspace(t, newRepo(t))

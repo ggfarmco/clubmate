@@ -44,6 +44,10 @@ func (j *Job) Action() automation.Action {
 	}
 }
 
+func (j *Job) StorageKey() (workspace, id string) {
+	return j.Workspace, j.ID
+}
+
 func (j *Job) SetCommand(id string) {
 	j.Command = id
 }

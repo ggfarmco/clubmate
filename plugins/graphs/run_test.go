@@ -12,20 +12,21 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 )
 
 type memStore struct{}
 
-func (memStore) save(context.Context, *Run) error { return nil }
+func (memStore) Save(context.Context, *Run) error { return nil }
 
-func (memStore) remove(context.Context, *Run) error { return nil }
+func (memStore) Remove(context.Context, *Run) error { return nil }
 
 type fakeCore struct {
-	calls []commandRequest
+	calls []automation.CommandRequest
 	next  int
 }
 
-func (f *fakeCore) run(_ context.Context, req commandRequest) (json.RawMessage, error) {
+func (f *fakeCore) run(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 	f.calls = append(f.calls, req)
 	f.next++
 	switch req.ID {
@@ -179,7 +180,7 @@ func TestEndOutcomeFinishesRun(t *testing.T) {
 func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 	core := &fakeCore{}
 	a := testApp(t, core)
-	a.runCommand = func(ctx context.Context, req commandRequest) (json.RawMessage, error) {
+	a.runCommand = func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 		if req.ID == "triggers.add" && len(core.calls) == 3 {
 			core.calls = append(core.calls, req)
 			return nil, fmt.Errorf("boom")

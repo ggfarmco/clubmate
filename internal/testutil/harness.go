@@ -111,7 +111,7 @@ func (h *PluginHarness) PluginCall(t *testing.T, pluginID, method string, params
 	err := client.Call(t.Context(), method, params, nil)
 	var rpcErr *jsonrpc2.Error
 	if errors.As(err, &rpcErr) {
-		return &rpc.RemoteError{Code: int(rpcErr.Code), Message: rpcErr.Message}
+		return rpc.NewRemoteError(rpcErr)
 	}
 	return err
 }

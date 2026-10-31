@@ -6,6 +6,8 @@ struct WelcomeView: View {
     let windowID: String?
 
     @Environment(AppModel.self) private var app
+    @Environment(WindowRouter.self) private var windows
+    @Environment(WorkspaceActions.self) private var actions
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -34,8 +36,8 @@ struct WelcomeView: View {
                 .font(theme.title)
                 .foregroundStyle(theme.foreground)
             HStack(spacing: theme.gutter) {
-                WelcomeAction(title: "Open Folder…", icon: "folder", shortcut: "⌘O") { app.openFolder(in: windowID) }
-                WelcomeAction(title: "New Terminal", icon: "terminal", shortcut: "⇧⌘N") { app.newHomeTerminal(in: windowID) }
+                WelcomeAction(title: "Open Folder…", icon: "folder", shortcut: "⌘O") { actions.openFolder(in: windowID) }
+                WelcomeAction(title: "New Terminal", icon: "terminal", shortcut: "⇧⌘N") { actions.newHomeTerminal(in: windowID) }
             }
             if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: theme.gutter / 2) {
@@ -46,9 +48,9 @@ struct WelcomeView: View {
                         LazyVStack(spacing: 0) {
                             ForEach(recents, id: \.id) { workspace in
                                 RecentRow(workspace: workspace, open: open.contains(workspace.id)) {
-                                    app.open(workspace.id, in: windowID)
+                                    windows.open(workspace.id, in: windowID)
                                 } remove: {
-                                    app.remove(workspace.id)
+                                    actions.remove(workspace.id)
                                 }
                             }
                         }
@@ -68,7 +70,7 @@ struct WelcomeView: View {
     }
 
     private var open: Set<String> {
-        app.openWorkspaces
+        windows.openWorkspaces
     }
 }
 

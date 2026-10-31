@@ -6,7 +6,7 @@ import CompanionKit
 @MainActor
 final class AgentsTests: XCTestCase {
     func testDecodesSessionsFixtureIntoGroups() throws {
-        let sessions = try JSONDecoder.companion.decode([AgentSession].self, from: fixture("agents-sessions"))
+        let sessions = try JSONDecoder.clubmate.decode([AgentSession].self, from: fixture("agents-sessions"))
         XCTAssertEqual(sessions.map(\.status), [.waiting, .done, .closed])
         XCTAssertEqual(sessions[0].pending, ["permission-3"])
         XCTAssertEqual(sessions[0].createdAt, Date.parseRFC3339("2026-10-30T09:41:00Z"))
@@ -25,7 +25,7 @@ final class AgentsTests: XCTestCase {
           {"id":"loop-b","parentSession":"loop-a","status":"closed"}
         ]
         """#
-        let groups = AgentSession.grouped(try JSONDecoder.companion.decode([AgentSession].self, from: Data(json.utf8)))
+        let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
         XCTAssertEqual(groups.map(\.group), [.needsInput, .idle, .closed])
         XCTAssertEqual(groups[0].sessions.map(\.id), ["root"])
         XCTAssertEqual(groups[0].sessions[0].children.map(\.id), ["kid"])
@@ -43,7 +43,7 @@ final class AgentsTests: XCTestCase {
           {"id":"finished","status":"done"}
         ]
         """#
-        let sessions = try JSONDecoder.companion.decode([AgentSession].self, from: Data(json.utf8))
+        let sessions = try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8))
         XCTAssertEqual(sessions.map(\.displayStatus), [.running, .waiting, .done])
         XCTAssertEqual(sessions.map(\.statusLabel), ["Waiting for child sessions", "Child session waiting", "Done"])
         XCTAssertEqual(sessions.map(\.status), [.done, .idle, .done])
@@ -51,7 +51,7 @@ final class AgentsTests: XCTestCase {
 
     func testDecodesUserImages() throws {
         let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"}]}"#
-        let entry = try JSONDecoder.companion.decode(TranscriptEntry.self, from: Data(json.utf8))
+        let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
         XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2])]))
     }
 
@@ -61,7 +61,7 @@ final class AgentsTests: XCTestCase {
     }
 
     func testDecodesTranscriptFixture() throws {
-        let transcript = try JSONDecoder.companion.decode(AgentTranscript.self, from: fixture("agents-transcript"))
+        let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: fixture("agents-transcript"))
         XCTAssertEqual(transcript.modes.map(\.id), ["default", "plan"])
         guard transcript.entries.count == 7,
               case .user(let prompt, false, []) = transcript.entries[0].content,
@@ -86,7 +86,7 @@ final class AgentsTests: XCTestCase {
     }
 
     func testUnknownEntryKindBecomesOther() throws {
-        let transcript = try JSONDecoder.companion.decode(AgentTranscript.self, from: Data(#"{"session":{"id":"s","status":"brand-new"},"entries":[{"kind":"hologram","id":"h1","turn":1}]}"#.utf8))
+        let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: Data(#"{"session":{"id":"s","status":"brand-new"},"entries":[{"kind":"hologram","id":"h1","turn":1}]}"#.utf8))
         XCTAssertEqual(transcript.session.status, .other)
         XCTAssertEqual(transcript.entries.map(\.content), [.other("hologram")])
     }

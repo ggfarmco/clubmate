@@ -4,6 +4,7 @@ import ClubmateKit
 
 struct InboxView: View {
     @Environment(AppModel.self) private var app
+    @Environment(WindowRouter.self) private var windows
     @Environment(\.theme) private var theme
     @State private var kind: NotificationKind?
 
@@ -171,7 +172,7 @@ struct InboxView: View {
     }
 
     private func open(_ action: () -> Void) {
-        app.hideInbox()
+        windows.hideInbox()
         action()
     }
 

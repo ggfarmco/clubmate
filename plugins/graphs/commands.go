@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -11,6 +10,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/automation"
 )
 
 type runArgs struct {
@@ -92,7 +92,7 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 
 func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error) {
 	var args runArgs
-	if err := decodeArgs(cmd, &args); err != nil {
+	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
 	caller := ""
@@ -128,7 +128,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 		a.mu.Lock()
 		r.stop(fmt.Sprintf(reasonKickoff, err), a.now())
 		a.touch(r.Workspace)
-		logError(a.store.save(ctx, r))
+		logError(a.store.Save(ctx, r))
 		a.mu.Unlock()
 		logError(errors.Join(x.unwind(context.WithoutCancel(ctx))...))
 		return nil, err
@@ -139,8 +139,8 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 }
 
 func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, error) {
-	var args idArgs
-	if err := decodeArgs(cmd, &args); err != nil {
+	var args automation.IDArgs
+	if err := automation.Decode(cmd, &args); err != nil {
 		return shownRun{}, err
 	}
 	r, err := a.lookup(cmd.WorkspaceID, args.ID)
@@ -158,8 +158,8 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 }
 
 func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool) (*Run, error) {
-	var args idArgs
-	if err := decodeArgs(cmd, &args); err != nil {
+	var args automation.IDArgs
+	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
 	r, err := a.lookup(cmd.WorkspaceID, args.ID)
@@ -184,12 +184,12 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	if forget {
 		delete(a.runs, r.ID)
 		a.touch(r.Workspace)
-		return nil, a.store.remove(ctx, live)
+		return nil, a.store.Remove(ctx, live)
 	}
 	if live.Status == statusRunning {
 		live.stop(reasonStopped, a.now())
 		a.touch(r.Workspace)
-		if err := a.store.save(ctx, live); err != nil {
+		if err := a.store.Save(ctx, live); err != nil {
 			return nil, err
 		}
 	}
@@ -199,7 +199,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 func (a *app) put(ctx context.Context, r *Run) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if err := a.store.save(ctx, r); err != nil {
+	if err := a.store.Save(ctx, r); err != nil {
 		return err
 	}
 	a.runs[r.ID] = r
@@ -229,16 +229,6 @@ func nodeStatus(s api.Session, known bool) string {
 
 func unknownRun(id string) error {
 	return fmt.Errorf("unknown graph run %q", id)
-}
-
-func decodeArgs(cmd pluginsdk.CommandRun, v any) error {
-	if len(cmd.Args) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(cmd.Args, v); err != nil {
-		return fmt.Errorf("args: %w", err)
-	}
-	return nil
 }
 
 func cloneRun(r *Run) *Run {

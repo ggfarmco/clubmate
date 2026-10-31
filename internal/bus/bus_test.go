@@ -32,6 +32,23 @@ func TestPublishReadAndCursor(t *testing.T) {
 	assert.Equal(t, e1.Seq, cur)
 }
 
+func TestEventCarriesPayloadWorkspace(t *testing.T) {
+	b := openBus(t)
+	for payload, want := range map[string]string{
+		`{"workspace":"ws_1","x":1}`:  "ws_1",
+		`{"workspace":{"id":"ws_1"}}`: "",
+		`{"x":1}`:                     "",
+	} {
+		e, err := b.Publish(t.Context(), "demo.x", "core", json.RawMessage(payload))
+		require.NoError(t, err)
+		assert.Equal(t, want, e.Workspace, payload)
+		got, err := b.Read(t.Context(), "demo.x", e.Seq-1, 1)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, want, got[0].Workspace, payload)
+	}
+}
+
 func TestPublishRejectsBadInput(t *testing.T) {
 	b := openBus(t)
 	_, err := b.Publish(t.Context(), "Bad Topic", "core", nil)

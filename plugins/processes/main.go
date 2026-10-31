@@ -66,10 +66,6 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			return err
 		}
 	}
-	workspaces, err := h.ListWorkspaces(ctx)
-	if err != nil {
-		return err
-	}
 	a.mu.Lock()
 	for _, id := range present {
 		a.present[id] = true
@@ -77,9 +73,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.mu.Unlock()
 	for _, id := range present {
 		a.loadSection(ctx, h, id)
-	}
-	for _, p := range workspaces {
-		a.renderLogged(ctx, h, p.ID)
+		a.renderLogged(ctx, h, id)
 	}
 	go every(ctx, refreshInterval, func() { a.tick(ctx, h) })
 	go every(ctx, autoKillEvery, func() { a.autoKill(ctx, h) })
