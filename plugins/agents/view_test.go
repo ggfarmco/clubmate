@@ -124,8 +124,8 @@ func TestDoneAsksWhenLastAgentMessageIsQuestion(t *testing.T) {
 func TestSidebarNestsChildren(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{
-		{Rec: record{ID: "agt_c", Worktree: "/r/b", ParentSession: "agt_p", Agent: agentClaude, Status: statusDone, Asks: true, UpdatedAt: now}},
-		{Rec: record{ID: "agt_d", Worktree: "/r/a", ParentSession: "agt_p", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_c", Worktree: "/r/b", lineage: lineage{ParentSession: "agt_p"}, Agent: agentClaude, Status: statusDone, Asks: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_d", Worktree: "/r/a", lineage: lineage{ParentSession: "agt_p"}, Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 	}
 
@@ -176,7 +176,7 @@ func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
 }
 
 func TestChildHeaderAndAgentMessage(t *testing.T) {
-	v := transcriptView{Session: record{ID: "agt_c", Worktree: "/r", Agent: agentClaude, Status: statusDone, ParentSession: "agt_p"}}
+	v := transcriptView{Session: record{ID: "agt_c", Worktree: "/r", Agent: agentClaude, Status: statusDone, lineage: lineage{ParentSession: "agt_p"}}}
 	v.Entries = []*entry{{Kind: entryUser, ID: "prompt-1", Turn: 1, Text: "do it", From: "agt_p"}, {Kind: entryUser, ID: "prompt-2", Turn: 2, Text: "again", From: unknownCaller}}
 
 	tree := mainView(screen{View: v, Parent: "Orchestrator", FromTitles: map[string]string{"agt_p": "Orchestrator"}, Composer: "agt_c/composer/0"})

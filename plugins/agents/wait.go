@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"clubmate/plugins/agents/acp"
@@ -58,6 +59,11 @@ type turnPayload struct {
 	Status    string `json:"status"`
 	Asks      bool   `json:"asks"`
 	Reply     string `json:"reply"`
+}
+
+type waiters struct {
+	wakeMu sync.Mutex
+	woken  chan struct{}
 }
 
 func (a *app) wait(ctx context.Context, projectID, caller string, args waitArgs) (waitOutput, error) {
@@ -116,21 +122,21 @@ func waitTimeout(seconds int) time.Duration {
 	return time.Duration(min(seconds, maxWaitSeconds)) * time.Second
 }
 
-func (a *app) statusWake() <-chan struct{} {
-	a.wakeMu.Lock()
-	defer a.wakeMu.Unlock()
-	if a.woken == nil {
-		a.woken = make(chan struct{})
+func (w *waiters) statusWake() <-chan struct{} {
+	w.wakeMu.Lock()
+	defer w.wakeMu.Unlock()
+	if w.woken == nil {
+		w.woken = make(chan struct{})
 	}
-	return a.woken
+	return w.woken
 }
 
-func (a *app) wakeWaiters() {
-	a.wakeMu.Lock()
-	defer a.wakeMu.Unlock()
-	if a.woken != nil {
-		close(a.woken)
-		a.woken = nil
+func (w *waiters) wakeWaiters() {
+	w.wakeMu.Lock()
+	defer w.wakeMu.Unlock()
+	if w.woken != nil {
+		close(w.woken)
+		w.woken = nil
 	}
 }
 
@@ -187,10 +193,7 @@ func (s *session) permissionLocked() *waitPermission {
 		if en.Kind != entryPermission || s.perms[en.ID] == nil {
 			continue
 		}
-		var call struct {
-			Title string `json:"title"`
-			Kind  string `json:"kind"`
-		}
+		var call toolFields
 		_ = json.Unmarshal(en.ToolCall, &call)
 		return &waitPermission{Request: en.ID, Title: call.Title, Kind: call.Kind, Options: slices.Clone(en.Options)}
 	}

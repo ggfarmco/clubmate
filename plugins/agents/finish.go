@@ -20,9 +20,23 @@ const (
 	worktreeSessionsCmd = "git.worktree-sessions"
 	cleanupLimit        = 2 * time.Minute
 	cleanupFailed       = "Couldn't remove the merged worktree"
+
+	finishAskText         = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
+	mergeSteps            = "run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
+	finishMergeText       = "[Clubmate finish mode: merge] When the task is done, " + mergeSteps
+	mergeNowText          = "Merge this task into main now: commit your remaining work on the task branch, then " + mergeSteps
+	finishChildText       = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit on your branch, then merge your branch into %[1]s inside %[2]s (`git -C %[2]s merge --no-edit %[3]s`). If the merge fails because another merge holds index.lock, wait 5 s and retry it once. Don't merge if %[2]s has uncommitted changes; report why instead. If the merge conflicts, run `git -C %[2]s merge --abort` and report the conflicting files. Never merge into main, never remove worktrees or branches."
+	finishChildCommitText = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit your work and stop; if they fail or cannot run, report why. Don't merge anything, never merge into main, never remove worktrees or branches."
+	afkText               = "[Clubmate AFK mode] The user is away. Do as much as you can without them: don't ask questions and don't wait for answers; make reasonable decisions yourself and note each one. Split large work into child sessions (agents.new) and subagents. Keep going while there is work. At the end give one short report: what was done (commits), which decisions you made, and which questions are left for the user."
+	orchestratorText      = "[Clubmate orchestrator] Write to the user only questions from child sessions that need the user's answer. Don't repeat what you sent to which session, don't recap statuses of sessions that need nothing. Answer children's permission requests yourself with agents.permission. Never paraphrase the user's answer to a child: use agents.answer."
 )
 
-var defaultBranches = []string{"main", "master"}
+var (
+	errNotMergeable = errors.New("only an idle session with changes in its own task worktree can merge to main")
+	errMergeBusy    = errors.New("another agent session works in this worktree")
+	errMainDirty    = errors.New("the main checkout has uncommitted changes")
+	defaultBranches = []string{"main", "master"}
+)
 
 type childLayout struct {
 	primary   gitrepo.Worktree

@@ -45,16 +45,18 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 	first := promptArgs{Text: handoffBrief(s.view(0), args.Note), From: from}
 	a.closeSession(ctx, s, false)
 	next, err := a.launch(record{
-		Workspace:     old.Workspace,
-		Worktree:      old.Worktree,
-		Agent:         old.Agent,
-		ParentSession: old.ParentSession,
-		Advisor:       old.Advisor,
-		Notify:        old.Notify,
-		Fork:          old.Fork,
-		Title:         old.Title,
-		TitleSet:      old.TitleSet,
-		HandoffFrom:   old.ID,
+		Workspace: old.Workspace,
+		Worktree:  old.Worktree,
+		Agent:     old.Agent,
+		lineage: lineage{
+			ParentSession: old.ParentSession,
+			Advisor:       old.Advisor,
+			Fork:          old.Fork,
+			HandoffFrom:   old.ID,
+		},
+		Notify:   old.Notify,
+		Title:    old.Title,
+		TitleSet: old.TitleSet,
 	}, first, nil)
 	s.mu.Lock()
 	s.rec.HandoffTo = next.snapshot().ID
