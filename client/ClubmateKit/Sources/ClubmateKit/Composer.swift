@@ -130,7 +130,7 @@ public final class ComposerDrafts {
 
     public func focusedEmpty(session: String) -> Bool {
         guard let focused, Self.session(of: focused) == session else { return false }
-        return models[focused]?.text.isEmpty ?? true
+        return models[focused]?.text.isEmpty ?? false
     }
 
     public func model(for id: String) -> ComposerModel {

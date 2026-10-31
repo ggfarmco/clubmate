@@ -46,6 +46,8 @@ final class AgentsUITests: XCTestCase {
         let drafts = ComposerDrafts()
         XCTAssertFalse(drafts.focusedEmpty(session: "a"))
         drafts.focus("a/composer/1", true)
+        XCTAssertFalse(drafts.focusedEmpty(session: "a"))
+        _ = drafts.model(for: "a/composer/1")
         XCTAssertTrue(drafts.focusedEmpty(session: "a"))
         XCTAssertFalse(drafts.focusedEmpty(session: "b"))
         drafts.model(for: "a/composer/1").text = " "

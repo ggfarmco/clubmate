@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
@@ -50,7 +51,8 @@ struct PermissionCardNodeView: View {
         .padding(.bottom, theme.spacing.l)
         .keyMonitor(active: true) { event in
             let flags = event.modifierFlags
-            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, bare: bareKeys, kinds: options.map(\.kind)) else { return false }
+            let composing = (event.window?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true
+            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, bare: !composing && bareKeys, kinds: options.map(\.kind)) else { return false }
             choose(options[index])
             return true
         }
