@@ -164,9 +164,12 @@ func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 			map[string]any{"id": "a.go", "label": "a.go", "menu": []any{map[string]any{"action": "discard", "label": "Discard", "confirm": "Discard a.go?"}}},
 		}}},
 		map[string]any{"type": "button", "id": "kill", "props": map[string]any{"label": "Kill", "confirm": "Kill it?"}},
+		map[string]any{"type": "form", "id": "edit", "props": map[string]any{"action": "save"}, "children": []any{
+			map[string]any{"type": "button", "id": "go", "props": map[string]any{"label": "Save", "confirm": "Overwrite?"}},
+		}},
 	}}
 	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": "alpha.main", "tree": tree}))
-	for _, tc := range []struct{ node, action string }{{"files", "discard"}, {"ghost", "discard"}, {"kill", "kill"}} {
+	for _, tc := range []struct{ node, action string }{{"files", "discard"}, {"ghost", "discard"}, {"kill", "kill"}, {"edit", "save"}} {
 		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.main", "nodeId": tc.node, "action": tc.action, "value": "a.go", "agent": true}, nil)
 		require.Error(t, err, tc.node)
 		assert.Contains(t, err.Error(), fmt.Sprintf("action %q needs the user's confirmation", tc.action))

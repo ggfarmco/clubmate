@@ -172,41 +172,60 @@ func confirmGated(views []sdui.SlotView, slot, action string) bool {
 		if err := json.Unmarshal(raw, &tree); err != nil {
 			return true
 		}
-		return hasConfirm(tree, action)
+		gated := map[string]bool{}
+		collectGated(tree, "", gated)
+		return gated[action]
 	}
 	return true
 }
 
-func hasConfirm(v any, action string) bool {
+func collectGated(v any, form string, gated map[string]bool) {
 	switch v := v.(type) {
 	case map[string]any:
 		if c, _ := v["confirm"].(string); c != "" {
-			if a, _ := v["action"].(string); a == action {
-				return true
+			if a, _ := v["action"].(string); a != "" {
+				gated[a] = true
 			}
 		}
-		if props, ok := v["props"].(map[string]any); ok {
-			if c, _ := props["confirm"].(string); c != "" {
-				a, ok := props["action"].(string)
-				if !ok {
-					a, _ = v["id"].(string)
-				}
-				if a == action {
-					return true
-				}
+		props, _ := v["props"].(map[string]any)
+		kind, _ := v["type"].(string)
+		if kind == "form" {
+			form = "submit"
+			if a, _ := props["action"].(string); a != "" {
+				form = a
 			}
+		}
+		if c, _ := props["confirm"].(string); c != "" {
+			gateNode(kind, v, props, form, gated)
 		}
 		for _, child := range v {
-			if hasConfirm(child, action) {
-				return true
-			}
+			collectGated(child, form, gated)
 		}
 	case []any:
 		for _, child := range v {
-			if hasConfirm(child, action) {
-				return true
-			}
+			collectGated(child, form, gated)
 		}
 	}
-	return false
+}
+
+func gateNode(kind string, node, props map[string]any, form string, gated map[string]bool) {
+	if a, _ := props["action"].(string); a != "" {
+		gated[a] = true
+		return
+	}
+	id, _ := node["id"].(string)
+	gated[id] = true
+	switch kind {
+	case "select":
+		gated["select"] = true
+	case "toggle":
+		gated["toggle"] = true
+	case "folderField":
+		gated["pick"] = true
+	case "textField":
+		gated["submit"] = true
+	}
+	if form != "" && (kind == "button" || kind == "textField") {
+		gated[form] = true
+	}
 }
