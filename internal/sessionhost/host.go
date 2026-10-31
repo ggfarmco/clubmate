@@ -37,15 +37,14 @@ const (
 
 var ErrEmptyCommand = errors.New("sessionhost: empty command")
 
-var altScreenReset = []byte("\x1b[?1049h\x1b[2J\x1b[H")
-
 type host struct {
 	ptmx       *os.File
 	pgid       int
 	ring       *wire.Ring
-	alt        altScreen
+	term       termState
 	status     statusProbe
 	queries    chan struct{}
+	reports    chan struct{}
 	output     chan struct{}
 	maxPending int
 	mu         sync.Mutex
@@ -114,6 +113,7 @@ func Run(ctx context.Context, cfg Config) error {
 		clients:    map[*client]struct{}{},
 		output:     make(chan struct{}, 1),
 		queries:    make(chan struct{}, 1),
+		reports:    make(chan struct{}, 1),
 	}
 	code := h.serve(ctx, cmd, ln)
 	exitedAt := time.Now()
@@ -136,7 +136,7 @@ func (h *host) serve(ctx context.Context, cmd *exec.Cmd, ln net.Listener) int {
 	defer close(exited)
 	h.wg.Go(func() { h.acceptLoop(ln) })
 	h.wg.Go(func() { hangupOnCancel(ctx, cmd.Process.Pid, exited) })
-	go answerStatus(h.ptmx, h.queries, exited)
+	go h.reply(exited)
 	h.pump()
 	return waitExit(cmd)
 }
@@ -154,8 +154,8 @@ func (h *host) acceptLoop(ln net.Listener) {
 func (h *host) add(conn net.Conn) {
 	c := &client{conn: conn, wake: make(chan struct{}, 1)}
 	h.mu.Lock()
-	if h.alt.on && h.exit == nil {
-		c.pending = slices.Clone(altScreenReset)
+	if h.term.alt && h.exit == nil {
+		c.pending = h.term.prelude()
 		c.repaint = true
 	} else {
 		c.pending = h.ring.Bytes()
@@ -188,7 +188,13 @@ func (h *host) broadcast(p []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.ring.Write(p)
-	h.alt.feed(p)
+	h.term.feed(p, len(h.clients) == 0)
+	if h.term.takeSizeReport() {
+		select {
+		case h.reports <- struct{}{}:
+		default:
+		}
+	}
 	if h.status.feed(p) && len(h.clients) == 0 {
 		select {
 		case h.queries <- struct{}{}:
@@ -265,6 +271,9 @@ func (h *host) readLoop(c *client) {
 		case wire.FrameData:
 			h.ptmx.Write(f.Payload)
 		case wire.FrameResize:
+			if repaint {
+				h.replayQueries(c)
+			}
 			h.resize(f.Payload, repaint)
 			repaint = false
 		case wire.FrameSnapshot:
@@ -282,7 +291,7 @@ func (h *host) snapshot(c *client) {
 	delete(h.clients, c)
 	c.pending = nil
 	payload := []byte{0}
-	if h.alt.on {
+	if h.term.alt {
 		payload[0] = 1
 	} else {
 		ring := h.ring.Bytes()
@@ -334,7 +343,49 @@ func (h *host) setSize(cols, rows uint16) bool {
 		return false
 	}
 	unix.Kill(-h.foregroundPGID(), unix.SIGWINCH)
+	h.mu.Lock()
+	events := h.term.resizeEvents()
+	h.mu.Unlock()
+	if events {
+		h.reportSize(cols, rows)
+	}
 	return true
+}
+
+func (h *host) reply(done <-chan struct{}) {
+	for {
+		select {
+		case <-h.queries:
+			if _, err := h.ptmx.Write(statusOK); err != nil {
+				return
+			}
+		case <-h.reports:
+			if ws, err := pty.GetsizeFull(h.ptmx); err == nil {
+				h.reportSize(ws.Cols, ws.Rows)
+			}
+		case <-done:
+			return
+		}
+	}
+}
+
+func (h *host) reportSize(cols, rows uint16) {
+	fmt.Fprintf(h.ptmx, "\x1b[48;%d;%d;0;0t", rows, cols)
+}
+
+func (h *host) replayQueries(c *client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, ok := h.clients[c]; !ok {
+		return
+	}
+	if q := h.term.takeQueries(); len(q) > 0 {
+		c.pending = append(c.pending, q...)
+		select {
+		case c.wake <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func (h *host) foregroundPGID() int {

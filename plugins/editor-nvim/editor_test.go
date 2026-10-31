@@ -796,6 +796,9 @@ func TestLaunchSetsAppNameAndDistro(t *testing.T) {
 	require.NoError(t, os.Mkdir(tools, 0o700))
 	require.NoError(t, os.MkdirAll(filepath.Dir(distroInit), 0o700))
 	require.NoError(t, os.WriteFile(distroInit, []byte("vim.g.distro = 1"), 0o600))
+	terminfo := filepath.Join(res, "terminfo")
+	require.NoError(t, os.MkdirAll(filepath.Join(terminfo, "78"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(terminfo, "78", "xterm-ghostty"), nil, 0o600))
 	t.Setenv("CLUBMATE_RESOURCES", res)
 	t.Setenv("VIMRUNTIME", "/nonexistent")
 	t.Setenv("NVIM_APPNAME", "elsewhere")
@@ -807,6 +810,7 @@ func TestLaunchSetsAppNameAndDistro(t *testing.T) {
 	assert.False(t, strings.HasPrefix(eval[string](t, v, "$VIMRUNTIME"), "/nonexistent"))
 	assert.Equal(t, "clubmate-dev", eval[string](t, v, "$NVIM_APPNAME"))
 	assert.True(t, strings.HasSuffix(eval[string](t, v, "$PATH"), ":"+tools))
+	assert.Equal(t, []string{"xterm-ghostty", terminfo, "truecolor"}, eval[[]string](t, v, "[$TERM, $TERMINFO, $COLORTERM]"))
 }
 
 func TestBundledFallsBackToPath(t *testing.T) {

@@ -2,7 +2,6 @@ package sessionhost
 
 import (
 	"bytes"
-	"io"
 	"slices"
 )
 
@@ -24,17 +23,4 @@ func (s *statusProbe) feed(p []byte) bool {
 		s.tail = slices.Clone(edge[max(0, len(edge)-(len(statusQuery)-1)):])
 	}
 	return seen
-}
-
-func answerStatus(w io.Writer, queries, done <-chan struct{}) {
-	for {
-		select {
-		case <-queries:
-			if _, err := w.Write(statusOK); err != nil {
-				return
-			}
-		case <-done:
-			return
-		}
-	}
 }

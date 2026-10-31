@@ -183,6 +183,25 @@ func TestStatusQueryFloodDoesNotStallOutput(t *testing.T) {
 	testutil.Eventually(t, func() bool { _, err := os.Stat(mark); return err == nil }, waitTimeout)
 }
 
+func TestReattachRestoresModesAndReplaysDetachedQueries(t *testing.T) {
+	mark := filepath.Join(t.TempDir(), "queried")
+	cfg := testConfig(t, "sh", "-c", `stty -echo -icanon min 1; printf '\033[?1049h\033[?2004h\033[?2026$p\033[?u\033[c\033[5n'; head -c 4 >/dev/null; touch "$0"; exec sleep 30`, mark)
+	startHost(t, cfg)
+	testutil.Eventually(t, func() bool { _, err := os.Stat(mark); return err == nil }, waitTimeout)
+	c := dial(t, cfg.Socket)
+	c.resize(t, 100, 30)
+	c.waitOutput(t, "\x1b[?1049h\x1b[2J\x1b[H\x1b[?2004h\x1b[?2026$p\x1b[?u\x1b[c")
+}
+
+func TestResizeReportsInBandWhenChildAsks(t *testing.T) {
+	cfg := testConfig(t, "bash", "-c", `stty -echo -icanon; printf '\033[?2048h'; while read -r -d t r; do echo "got $r"; done`)
+	startHost(t, cfg)
+	c := dial(t, cfg.Socket)
+	c.waitOutput(t, "got \x1b[48;24;80;0;0\r\n")
+	c.resize(t, 100, 40)
+	c.waitOutput(t, "got \x1b[48;40;100;0;0\r\n")
+}
+
 func TestSessionHostExit(t *testing.T) {
 	cfg := testConfig(t, "sh", "-c", `read x; exit 7`)
 	done := startHost(t, cfg)

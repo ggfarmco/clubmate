@@ -9,6 +9,8 @@ import (
 	"clubmate/pkg/pluginsdk"
 )
 
+const ghosttyTerm = "xterm-ghostty"
+
 var scrubEnv = []string{"VIM", "VIMRUNTIME"}
 
 type launch struct {
@@ -21,8 +23,11 @@ type launch struct {
 
 func nvimLaunch() (launch, error) {
 	l := launch{
-		Env:   []string{"NVIM_APPNAME=" + appName()},
+		Env:   []string{"NVIM_APPNAME=" + appName(), "COLORTERM=truecolor"},
 		Unset: slices.Clone(scrubEnv),
+	}
+	if dir := terminfoDir(); dir != "" {
+		l.Env = append(l.Env, "TERM="+ghosttyTerm, "TERMINFO="+dir)
 	}
 	if file := themeFile(); file != "" {
 		if _, err := os.Stat(file); err == nil {
@@ -63,6 +68,18 @@ func distroInit() string {
 		return ""
 	}
 	return path
+}
+
+func terminfoDir() string {
+	dir := pluginsdk.ResourcesDir()
+	if dir == "" {
+		return ""
+	}
+	dir = filepath.Join(dir, "terminfo")
+	if info, err := os.Stat(filepath.Join(dir, "78", ghosttyTerm)); err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	return dir
 }
 
 func bundledNvim() string {
