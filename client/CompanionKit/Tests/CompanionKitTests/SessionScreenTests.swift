@@ -39,11 +39,12 @@ final class SessionScreenTests: XCTestCase {
 
     func testDockSaysWhatTheCardHides() throws {
         let json = #"""
-        [{"kind":"permission","id":"p1","toolCall":{"kind":"execute","rawInput":{"command":"a\nb\nc\nd\ne"}},"options":[]}]
+        [{"kind":"permission","id":"p1","toolCall":{"kind":"execute","rawInput":{"command":"a\rb\u2028c\nd\ne"}},"options":[]}]
         """#
         let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
         guard case .permission(let request) = entries[0].content else { return XCTFail("not a permission") }
         XCTAssertEqual(request.hiddenInDock, "2 more lines")
+        XCTAssertEqual(request.subject, "a\nb\nc\nd\ne")
     }
 
     func testAskingSubagentDocksTheLastQuestionAndDropsItFromTheMessage() throws {

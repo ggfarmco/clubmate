@@ -230,7 +230,7 @@ extension PermissionRequest {
     }
 
     public var subject: String {
-        toolCall.command ?? toolCall.displayTitle
+        (toolCall.command ?? toolCall.displayTitle).split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).joined(separator: "\n")
     }
 
     public static let dockCommandLines = 3

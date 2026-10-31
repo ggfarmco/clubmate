@@ -591,6 +591,7 @@ struct PermissionCard: View {
     @State private var failure: String?
     @State private var confirmingAlways = false
     @State private var showingAll = false
+    @State private var armed = false
 
     var body: some View {
         DockCard {
@@ -666,6 +667,10 @@ struct PermissionCard: View {
                 }
             }
         }
+        .task {
+            try? await Task.sleep(for: .milliseconds(600))
+            armed = true
+        }
         .sheet(isPresented: $showingAll) {
             NavigationStack {
                 ScrollView {
@@ -695,7 +700,7 @@ struct PermissionCard: View {
     }
 
     private var answerable: Bool {
-        enabled && chosen == nil
+        enabled && armed && chosen == nil
     }
 
     private var caption: String? {
