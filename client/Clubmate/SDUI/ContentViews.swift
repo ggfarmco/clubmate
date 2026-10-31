@@ -18,10 +18,23 @@ struct TextNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Text(node.string("text") ?? "")
-            .font(node.string("style") == "title" ? theme.title : theme.ui)
-            .foregroundStyle(node.string("style") == "muted" ? theme.muted : theme.foreground)
-            .padding(.horizontal, theme.gutter)
+        let text = node.string("text") ?? ""
+        if node.string("style") == "title" {
+            Text(text)
+                .font(theme.title)
+                .foregroundStyle(theme.foreground)
+                .lineLimit(1)
+                .truncationMode(.label)
+                .help(text)
+                .layoutPriority(1)
+                .padding(.horizontal, theme.gutter)
+        } else {
+            Text(text)
+                .font(theme.ui)
+                .foregroundStyle(node.string("style") == "muted" ? theme.muted : theme.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, theme.gutter)
+        }
     }
 }
 

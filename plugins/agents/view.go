@@ -108,6 +108,7 @@ func mainView(sc screen) sdui.Node {
 		children = append(children, sdui.HStack(sdui.MutedText("The session is closed; its transcript stays readable."), reopen))
 		return sdui.VStack(children...)
 	}
+	children = append(children, pendingPermissions(sc)...)
 	if len(sc.Queue) > 0 {
 		children = append(children, queueView(sc))
 	}
@@ -214,7 +215,7 @@ func composer(sc screen) sdui.Node {
 	rec := v.Session
 	modes := make([]sdui.Option, 0, len(v.Modes))
 	for _, m := range v.Modes {
-		modes = append(modes, sdui.Option{Value: m.ID, Label: cmp.Or(m.Name, m.ID)})
+		modes = append(modes, sdui.Option{Value: m.ID, Label: modeLabel(m)})
 	}
 	commands := make([]sdui.Command, 0, len(v.Commands))
 	for _, c := range v.Commands {
@@ -317,10 +318,21 @@ func configName(configs []acp.SessionConfigOption, category string) string {
 func modeName(modes []acp.SessionMode, id string) string {
 	for _, m := range modes {
 		if m.ID == id {
-			return cmp.Or(m.Name, m.ID)
+			return modeLabel(m)
 		}
 	}
 	return id
+}
+
+var modeLabels = map[string]string{
+	"default":           "Ask before edits",
+	"acceptEdits":       "Accept edits",
+	"plan":              "Plan",
+	"bypassPermissions": "Bypass permissions",
+}
+
+func modeLabel(m acp.SessionMode) string {
+	return cmp.Or(modeLabels[m.ID], m.Name, m.ID)
 }
 
 func turnActive(rec record) bool {

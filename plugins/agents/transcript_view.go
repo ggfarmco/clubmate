@@ -98,7 +98,7 @@ func transcript(sc screen) sdui.Node {
 			}
 		}
 		n, ok := entryNode(sc, en, shas[en.Turn])
-		if ok {
+		if ok && !pending(en) {
 			group = slices.Insert(group, 0, n)
 		}
 		cost := 0
@@ -120,6 +120,20 @@ func transcript(sc screen) sdui.Node {
 		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", label, "chevron.up"), actShowEarlier))
 	}
 	return sdui.Transcript(sid+"/transcript", nodes...)
+}
+
+func pending(en *entry) bool {
+	return en.Kind == entryPermission && en.Outcome == nil
+}
+
+func pendingPermissions(sc screen) []sdui.Node {
+	var nodes []sdui.Node
+	for _, en := range sc.View.Entries {
+		if pending(en) {
+			nodes = append(nodes, permissionCard(sc, en))
+		}
+	}
+	return nodes
 }
 
 func turnNumbers(v transcriptView) []int {

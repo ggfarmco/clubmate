@@ -9,6 +9,7 @@ struct CardButton: View {
 
     let label: String
     var icon: String?
+    var shortcut: String?
     var tone = Tone.plain
     var disabled = false
     let action: () -> Void
@@ -24,6 +25,10 @@ struct CardButton: View {
                 }
                 Text(label)
                     .lineLimit(1)
+                if let shortcut {
+                    Text(shortcut)
+                        .opacity(0.7)
+                }
             }
             .font(theme.uiSmall)
             .foregroundStyle(foreground)

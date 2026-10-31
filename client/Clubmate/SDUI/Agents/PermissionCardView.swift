@@ -9,8 +9,16 @@ struct PermissionCardNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        let outcome = node.string("outcome")
-        VStack(alignment: .leading, spacing: theme.spacing.l) {
+        if let outcome = node.string("outcome") {
+            answered(outcome)
+        } else {
+            pending
+        }
+    }
+
+    private var pending: some View {
+        let options = node.permissionOptions()
+        return VStack(alignment: .leading, spacing: theme.spacing.l) {
             HStack(alignment: .firstTextBaseline, spacing: theme.spacing.l) {
                 Image(systemName: "hand.raised.fill")
                     .foregroundStyle(theme.warning)
@@ -19,33 +27,53 @@ struct PermissionCardNodeView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: theme.spacing.m) {
-                ForEach(node.permissionOptions()) { option in
-                    CardButton(
-                        label: option.label,
-                        icon: outcome == option.id ? "checkmark" : nil,
-                        tone: tone(option, outcome: outcome),
-                        disabled: outcome != nil
-                    ) {
-                        dispatch(node, .permission(request: node.string("request") ?? "", option: option.id))
+            FlowLayout(spacing: theme.spacing.m) {
+                ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                    CardButton(label: option.label, shortcut: PermissionKeys.label(index), tone: tone(option)) {
+                        choose(option)
                     }
-                }
-                if PermissionOutcomeKind(outcome) == .cancelled {
-                    Text("Cancelled")
-                        .font(theme.uiSmall)
-                        .foregroundStyle(theme.muted)
                 }
             }
         }
         .font(theme.ui)
         .padding(theme.gutter + theme.spacing.s)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(theme.warning.opacity(outcome == nil ? 0.10 : 0.04)))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.warning.opacity(outcome == nil ? 0.6 : 0.25), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.toneBg(theme.warning)))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(theme.toneBorder(theme.warning), lineWidth: 1))
+        .padding(.horizontal, theme.gutter * 2)
+        .padding(.bottom, theme.spacing.l)
+        .keyMonitor(active: true) { event in
+            let flags = event.modifierFlags
+            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, count: options.count) else { return false }
+            choose(options[index])
+            return true
+        }
     }
 
-    private func tone(_ option: SDUIPermissionOption, outcome: String?) -> CardButton.Tone {
-        if let outcome { return outcome == option.id ? .primary : .plain }
+    private func answered(_ outcome: String) -> some View {
+        let chosen = node.permissionOptions().first { $0.id == outcome }
+        let cancelled = PermissionOutcomeKind(outcome) == .cancelled
+        let label = cancelled ? "Cancelled" : chosen?.label ?? outcome
+        let text = node.string("text") ?? ""
+        return HStack(spacing: theme.spacing.m) {
+            Image(systemName: chosen?.kind.rejects == true || cancelled ? "xmark" : "checkmark")
+                .font(theme.glyph)
+            Text("\(label) · \(text)")
+                .lineLimit(1)
+                .truncationMode(.label)
+                .help(text)
+        }
+        .font(theme.uiSmall)
+        .foregroundStyle(theme.muted)
+        .padding(.horizontal, theme.gutter)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func choose(_ option: SDUIPermissionOption) {
+        dispatch(node, .permission(request: node.string("request") ?? "", option: option.id))
+    }
+
+    private func tone(_ option: SDUIPermissionOption) -> CardButton.Tone {
         if option.kind == .allowOnce { return .primary }
         return option.kind.rejects ? .danger : .plain
     }
