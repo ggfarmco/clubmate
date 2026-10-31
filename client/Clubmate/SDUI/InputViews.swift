@@ -12,11 +12,11 @@ struct ButtonNodeView: View {
     @Environment(\.theme) private var theme
 
     private var variant: String? { node.string("variant") }
-    private var disabled: Bool { node.bool("disabled") == true }
-    private var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
+    private var disabled: Bool { press.disabled }
+    private var combo: KeyCombo? { press.combo }
 
     var body: some View {
-        Button(action: click) {
+        Button(action: press.click) {
             HStack(spacing: theme.spacing.m) {
                 if let icon = node.string("icon") {
                     Image(systemName: SymbolName.resolve(icon))
@@ -41,8 +41,10 @@ struct ButtonNodeView: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .onHover { hovering = $0 }
-        .keyMonitor(active: combo != nil && !disabled, handle: press)
+        .keyMonitor(active: combo != nil && !disabled, handle: press.handle)
     }
+
+    private var press: ButtonPress { ButtonPress(node: node, dispatch: dispatch, form: form) }
 
     private var foreground: Color {
         if disabled { return theme.faint }
@@ -69,8 +71,18 @@ struct ButtonNodeView: View {
         default: .clear
         }
     }
+}
 
-    private func press(_ event: NSEvent) -> Bool {
+@MainActor
+struct ButtonPress {
+    let node: SDUINode
+    let dispatch: SDUIDispatch
+    let form: FormState?
+
+    var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
+    var disabled: Bool { node.bool("disabled") == true }
+
+    func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
         guard let combo, combo.matches(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
         if combo.bare, event.window?.firstResponder is NSTextView { return false }
@@ -79,7 +91,7 @@ struct ButtonNodeView: View {
         return true
     }
 
-    private func click() {
+    func click() {
         guard let message = node.confirmation() else { return perform() }
         Task {
             if await Confirmation.ask(message, action: node.confirmActionTitle()) { perform() }

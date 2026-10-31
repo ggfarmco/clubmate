@@ -93,6 +93,20 @@
                   "type": "stack",
                   "props": {"direction": "vertical"},
                   "children": [
+                    {
+                      "type": "header",
+                      "id": "gallery-header",
+                      "props": {"title": "Nightly dependency audit for the whole monorepo", "icon": "clock", "badges": [{"text": "paused"}, {"text": "failed", "tone": "danger"}]},
+                      "children": [
+                        {"type": "button", "id": "gallery-header/run", "props": {"label": "Run now", "icon": "play.fill", "variant": "primary", "shortcut": "cmd+r"}},
+                        {"type": "button", "id": "gallery-header/pause", "props": {"label": "Resume", "icon": "play", "variant": "secondary", "shortcut": "p"}},
+                        {"type": "button", "id": "gallery-header/reveal", "props": {"label": "Show session", "icon": "sparkles", "variant": "ghost"}},
+                        {"type": "button", "id": "gallery-header/graph", "props": {"label": "Open graph", "variant": "ghost", "shortcut": "g"}},
+                        {"type": "button", "id": "gallery-header/duplicate", "props": {"label": "Duplicate", "variant": "secondary", "shortcut": "shift+d"}},
+                        {"type": "button", "id": "gallery-header/export", "props": {"label": "Export…", "variant": "ghost", "disabled": true}},
+                        {"type": "button", "id": "gallery-header/delete", "props": {"label": "Delete", "icon": "trash", "variant": "danger", "shortcut": "cmd+delete", "confirm": "Delete cron job “Nightly dependency audit”?"}}
+                      ]
+                    },
                     {"type": "text", "props": {"text": "Text styles", "style": "title"}},
                     {"type": "text", "props": {"text": "body: the quick brown fox", "style": "body"}},
                     {"type": "text", "props": {"text": "muted: secondary information", "style": "muted"}},

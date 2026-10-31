@@ -266,6 +266,13 @@ extension SDUINode {
         props["badges"]?.arrayValue?.compactMap(SDUIHeaderBadge.init) ?? []
     }
 
+    public func headerOverflow() -> (shown: [SDUIChild], more: [SDUIChild]) {
+        let all = identifiedChildren
+        let shown = Array(all.filter { $0.node.string("variant") != "danger" }.prefix(3))
+        let ids = Set(shown.map(\.id))
+        return (shown, all.filter { !ids.contains($0.id) })
+    }
+
     public func options() -> [SDUIOption] {
         props["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
     }

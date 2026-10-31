@@ -124,6 +124,7 @@ struct DiffNodeView: View {
 struct HeaderNodeView: View {
     let node: SDUINode
 
+    @State private var width: CGFloat = 0
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -155,15 +156,81 @@ struct HeaderNodeView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !node.children.isEmpty {
-                FlowLayout(spacing: theme.spacing.m) {
-                    SDUIChildren(node: node)
+                if width > 0 && width < 480 {
+                    overflowRow
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: theme.spacing.m) {
+                            SDUIChildren(node: node)
+                        }
+                        overflowRow
+                    }
                 }
             }
         }
         .padding(.horizontal, theme.gutter)
         .padding(.vertical, theme.spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+    }
+
+    private var overflowRow: some View {
+        let actions = node.headerOverflow()
+        return HStack(alignment: .top, spacing: theme.spacing.m) {
+            FlowLayout(spacing: theme.spacing.m) {
+                ForEach(actions.shown) { child in
+                    SDUINodeView(node: child.node)
+                }
+            }
+            .layoutPriority(1)
+            if !actions.more.isEmpty {
+                Spacer(minLength: 0)
+                HeaderMoreMenu(id: "\(node.id ?? "header").more", actions: actions.more.map(\.node))
+            }
+        }
+    }
+}
+
+private struct HeaderMoreMenu: View {
+    let id: String
+    let actions: [SDUINode]
+
+    @Environment(\.sduiDispatch) private var dispatch
+    @Environment(FormState.self) private var form: FormState?
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let presses = actions.map { ButtonPress(node: $0, dispatch: dispatch, form: form) }
+        Menu {
+            ForEach(Array(presses.enumerated()), id: \.offset) { _, press in
+                Button(role: press.node.string("variant") == "danger" ? .destructive : nil, action: press.click) {
+                    Text(title(press))
+                }
+                .disabled(press.disabled)
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(theme.ui)
+                .foregroundStyle(theme.text2)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(height: theme.control)
+        .environment(\.colorScheme, theme.isDark ? .dark : .light)
+        .help("More actions")
+        .background {
+            ForEach(Array(presses.enumerated()), id: \.offset) { _, press in
+                Color.clear.keyMonitor(active: press.combo != nil && !press.disabled, handle: press.handle)
+            }
+        }
+        .testMenu(id, presses.map { LayoutMenuItem(title: title($0), enabled: !$0.disabled, destructive: $0.node.string("variant") == "danger") })
+    }
+
+    private func title(_ press: ButtonPress) -> String {
+        let label = press.node.string("label") ?? ""
+        return press.combo.map { "\(label)    \($0.label)" } ?? label
     }
 }
 
