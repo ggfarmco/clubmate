@@ -172,6 +172,21 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
+    public func setMode(_ session: String, mode: String) async throws {
+        try await run("agents.mode", ["session": .string(session), "mode": .string(mode)])
+        await refreshSession(session)
+    }
+
+    public func setConfig(_ session: String, id: String, value: String) async throws {
+        try await run("agents.config", ["session": .string(session), "id": .string(id), "value": .string(value)])
+        await refreshSession(session)
+    }
+
+    public func setNotify(_ session: String, policy: NotificationPolicy) async throws {
+        try await run("agents.notify", ["session": .string(session), "policy": .string(policy.rawValue)])
+        await refreshSession(session)
+    }
+
     public func close(_ session: String) async throws {
         try await run("agents.close", ["session": .string(session)])
         await refreshSession(session)

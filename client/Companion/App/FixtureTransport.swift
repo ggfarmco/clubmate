@@ -84,7 +84,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.permission", "agents.new", "agents.close"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.permission", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")]), "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array([
@@ -152,6 +152,15 @@ actor FixtureServer {
         case "agents.close":
             update(session) { $0["status"] = .string("closed") }
             return .null
+        case "agents.mode":
+            update(session) { $0["mode"] = args["mode"] ?? .null }
+            return .null
+        case "agents.notify":
+            update(session) { $0["notify"] = args["policy"] == .string("all") ? nil : args["policy"] }
+            return .null
+        case "agents.config":
+            configure(session, id: args["id"]?.stringValue ?? "", value: args["value"]?.stringValue ?? "")
+            return .null
         case "agents.new":
             let id = String(format: "agt_%016x", sessions.count + 1)
             var record = sessions.first ?? [:]
@@ -169,6 +178,27 @@ actor FixtureServer {
             return .object(["session": .string(id), "worktree": record["worktree"] ?? .null])
         default:
             return .null
+        }
+    }
+
+    private func configure(_ session: String, id: String, value: String) {
+        switch id {
+        case "afk":
+            update(session) { $0["afk"] = .bool(value == "on") }
+        case "finish":
+            update(session) { $0["finish"] = .string(value) }
+        case "advisor":
+            transcripts[session]?["advisor"] = .string(value)
+            update(session) { _ in }
+        default:
+            guard case .array(var options) = transcripts[session]?["configOptions"] else { return }
+            for index in options.indices where options[index]["id"]?.stringValue == id {
+                guard case .object(var fields) = options[index] else { continue }
+                fields["currentValue"] = .string(value)
+                options[index] = .object(fields)
+            }
+            transcripts[session]?["configOptions"] = .array(options)
+            update(session) { _ in }
         }
     }
 

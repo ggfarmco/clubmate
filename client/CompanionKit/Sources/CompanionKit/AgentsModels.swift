@@ -122,19 +122,71 @@ public struct AgentTurn: Decodable, Sendable, Equatable {
     public let stopReason: String?
 }
 
+public struct AgentConfigOption: Decodable, Sendable, Equatable, Identifiable {
+    public struct Choice: Decodable, Sendable, Equatable, Hashable {
+        public let value: String
+        public let name: String
+        let options: [Choice]
+
+        enum CodingKeys: String, CodingKey {
+            case value, name, options
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            value = try c.decodeIfPresent(String.self, forKey: .value) ?? ""
+            name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+            options = try c.decodeIfPresent([Choice].self, forKey: .options) ?? []
+        }
+
+        public var label: String {
+            name.isEmpty ? value : name
+        }
+    }
+
+    public let id: String
+    public let name: String
+    public let category: String
+    public let type: String
+    public let currentValue: String
+    public let choices: [Choice]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, category, type, currentValue, options
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        category = try c.decodeIfPresent(String.self, forKey: .category) ?? ""
+        type = try c.decodeIfPresent(String.self, forKey: .type) ?? ""
+        currentValue = (try? c.decodeIfPresent(String.self, forKey: .currentValue)) ?? ""
+        choices = (try c.decodeIfPresent([Choice].self, forKey: .options) ?? []).flatMap { $0.options.isEmpty ? [$0] : $0.options }
+    }
+
+    public var pickable: Bool {
+        type == "select" && category != "mode"
+    }
+}
+
 public struct AgentTranscript: Decodable, Sendable, Equatable {
     public let session: AgentSession
     public let modes: [AgentMode]
+    public let configOptions: [AgentConfigOption]
+    public let advisor: String
     public let turns: [AgentTurn]
     public let entries: [TranscriptEntry]
 
     enum CodingKeys: String, CodingKey {
-        case session, modes, turns, entries
+        case session, modes, configOptions, advisor, turns, entries
     }
 
-    init(session: AgentSession, modes: [AgentMode], turns: [AgentTurn], entries: [TranscriptEntry]) {
+    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, turns: [AgentTurn], entries: [TranscriptEntry]) {
         self.session = session
         self.modes = modes
+        self.configOptions = configOptions
+        self.advisor = advisor
         self.turns = turns
         self.entries = entries
     }
@@ -144,13 +196,18 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     }
 
     public func merging(_ newer: AgentTranscript, fromTurn: Int) -> AgentTranscript {
-        AgentTranscript(session: newer.session, modes: newer.modes, turns: newer.turns, entries: entries.filter { $0.turn < fromTurn } + newer.entries)
+        AgentTranscript(
+            session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, turns: newer.turns,
+            entries: entries.filter { $0.turn < fromTurn } + newer.entries
+        )
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         session = try c.decode(AgentSession.self, forKey: .session)
         modes = (try? c.decodeIfPresent([AgentMode].self, forKey: .modes)) ?? []
+        configOptions = (try? c.decodeIfPresent([AgentConfigOption].self, forKey: .configOptions)) ?? []
+        advisor = (try? c.decodeIfPresent(String.self, forKey: .advisor)) ?? ""
         turns = (try? c.decodeIfPresent([AgentTurn].self, forKey: .turns)) ?? []
         entries = (try c.decodeIfPresent([TranscriptEntry].self, forKey: .entries)) ?? []
     }

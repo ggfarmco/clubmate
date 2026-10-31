@@ -100,6 +100,24 @@ final class AgentsTests: XCTestCase {
         XCTAssertNil(permission.outcome)
     }
 
+    func testConfigOptionsFlattenGroupedChoices() throws {
+        let json = #"""
+        {"session":{"id":"s"},"advisor":"opus","configOptions":[
+          {"id":"model","name":"Model","category":"model","type":"select","currentValue":"opus","options":[
+            {"group":"claude","name":"Claude","options":[{"value":"opus","name":"Opus"},{"value":"sonnet"}]},
+            {"value":"local","name":"Local"}
+          ]},
+          {"id":"mode","category":"mode","type":"select","currentValue":"plan"}
+        ]}
+        """#
+        let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: Data(json.utf8))
+        XCTAssertEqual(transcript.advisor, "opus")
+        XCTAssertEqual(transcript.configOptions.filter(\.pickable).map(\.id), ["model"])
+        XCTAssertEqual(transcript.configOptions[0].currentValue, "opus")
+        XCTAssertEqual(transcript.configOptions[0].choices.map(\.value), ["opus", "sonnet", "local"])
+        XCTAssertEqual(transcript.configOptions[0].choices.map(\.label), ["Opus", "sonnet", "Local"])
+    }
+
     func testUnknownEntryKindBecomesOther() throws {
         let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: Data(#"{"session":{"id":"s","status":"brand-new"},"entries":[{"kind":"hologram","id":"h1","turn":1}]}"#.utf8))
         XCTAssertEqual(transcript.session.status, .other)
@@ -127,6 +145,14 @@ final class AgentsTests: XCTestCase {
             "text": .string("look"),
             "attachments": .array([.object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string("AQ==")])]),
         ]))
+    }
+
+    func testSetConfigSendsTheSettingThenRefreshes() async throws {
+        let runner = CreateRunner()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        try await store.setConfig("s", id: "afk", value: "on")
+        XCTAssertEqual(runner.calls.map(\.id), ["agents.config", "agents.sessions"])
+        XCTAssertEqual(runner.calls[0].args, .object(["session": .string("s"), "id": .string("afk"), "value": .string("on")]))
     }
 }
 

@@ -41,6 +41,7 @@ type transcriptView struct {
 	Session  record                    `json:"session"`
 	Modes    []acp.SessionMode         `json:"modes"`
 	Configs  []acp.SessionConfigOption `json:"configOptions"`
+	Advisor  string                    `json:"advisor,omitempty"`
 	Commands []acp.AvailableCommand    `json:"commands"`
 	Turns    []turnInfo                `json:"turns"`
 	Entries  []*entry                  `json:"entries"`

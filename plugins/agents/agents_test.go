@@ -67,6 +67,7 @@ type entry struct {
 
 type transcript struct {
 	Session record `json:"session"`
+	Advisor string `json:"advisor"`
 	Modes   []struct {
 		ID string `json:"id"`
 	} `json:"modes"`
@@ -746,6 +747,7 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "advisor", "value": "opus"})
 	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "afk", "value": "on"})
 	pickers(first, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "on"})
+	assert.Equal(t, "opus", f.transcript(t, workspace, first).Advisor)
 
 	second := f.newSession(t, workspace)
 	pickers(second, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "off"})

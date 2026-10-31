@@ -23,7 +23,46 @@
       "name": "Plan Mode"
     }
   ],
-  "configOptions": null,
+  "configOptions": [
+    {
+      "id": "model",
+      "name": "Model",
+      "category": "model",
+      "type": "select",
+      "currentValue": "default",
+      "options": [
+        {
+          "value": "default",
+          "name": "Default"
+        },
+        {
+          "value": "opus",
+          "name": "Opus"
+        },
+        {
+          "value": "sonnet",
+          "name": "Sonnet"
+        }
+      ]
+    },
+    {
+      "id": "effort",
+      "name": "Effort",
+      "category": "thought_level",
+      "type": "select",
+      "currentValue": "high",
+      "options": [
+        {
+          "value": "low",
+          "name": "Low"
+        },
+        {
+          "value": "high",
+          "name": "High"
+        }
+      ]
+    }
+  ],
   "commands": null,
   "turns": [
     {

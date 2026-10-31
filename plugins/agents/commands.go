@@ -284,7 +284,7 @@ func (a *app) waitCommand(ctx context.Context, cmd pluginsdk.CommandRun, args wa
 	return a.wait(ctx, cmd.WorkspaceID, cmd.Caller, args)
 }
 
-func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, args transcriptArgs) (any, error) {
+func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, args transcriptArgs) (any, error) {
 	s, err := a.lookup(cmd.WorkspaceID, args.Session)
 	if err != nil {
 		return nil, err
@@ -292,6 +292,8 @@ func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 	v := s.view(args.FromTurn)
 	if args.Last {
 		v = v.lastTurn()
+	} else if v.Session.Agent == agentClaude {
+		v.Advisor = a.sessionAdvisor(ctx, v.Session)
 	}
 	if cmd.Agent || args.Compact {
 		dropImageData(v.Entries)

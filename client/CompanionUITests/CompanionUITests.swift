@@ -67,6 +67,19 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Got it'")).firstMatch.waitForExistence(timeout: 5))
     }
 
+    func testTurnOnAFKFromSessionSettings() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let settings = app.navigationBars.buttons["Session Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        let afk = app.switches["settings.afk"]
+        XCTAssertTrue(afk.waitForExistence(timeout: 5))
+        afk.switches.firstMatch.tap()
+        XCTAssertTrue(wait(for: afk, "value == '1'"))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH '· AFK'")).firstMatch.waitForExistence(timeout: 5))
+    }
+
     private func launch(open target: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target]

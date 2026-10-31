@@ -14,6 +14,7 @@ struct SessionDetailView: View {
     @State private var failure: String?
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var confirmingClose = false
+    @State private var showingSettings = false
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -86,6 +87,11 @@ struct SessionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(subtitle(session))
         .toolbar {
+            if session?.isClosed == false && context.connection.supports("agents.config") {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Session Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
                     Button("Refresh", systemImage: "arrow.clockwise") {
@@ -96,6 +102,9 @@ struct SessionDetailView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showingSettings) {
+            SessionSettingsView(store: store, sessionID: sessionID)
         }
         .confirmationDialog("Close this session?", isPresented: $confirmingClose, titleVisibility: .visible) {
             Button("Close Session", role: .destructive) {

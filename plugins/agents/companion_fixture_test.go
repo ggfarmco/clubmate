@@ -82,6 +82,10 @@ func companionScript(repo string) map[string]any {
 		{"optionId": "deny", "name": "Reject", "kind": "reject_once"},
 	}
 	return map[string]any{
+		"configs": []map[string]any{
+			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "opus", "name": "Opus"}, {"value": "sonnet", "name": "Sonnet"}}},
+			{"id": "effort", "name": "Effort", "category": "thought_level", "type": "select", "currentValue": "high", "options": []map[string]string{{"value": "low", "name": "Low"}, {"value": "high", "name": "High"}}},
+		},
 		"modes": map[string]any{
 			"currentModeId": "default",
 			"availableModes": []map[string]string{
