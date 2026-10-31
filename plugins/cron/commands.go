@@ -4,27 +4,16 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/automation"
 )
 
-const (
-	ownerNone   = "none"
-	emitCommand = "triggers.emit"
-)
-
-var errUnknownCommand = errors.New("unknown command")
-
-type idArgs struct {
-	ID string `json:"id"`
-}
+const emitCommand = "triggers.emit"
 
 type jobArgs struct {
 	ID       string `json:"id"`
@@ -56,9 +45,9 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 	case "cron.list":
 		return a.list(cmd), nil
 	case "cron.show":
-		return a.show(cmd)
+		return a.registry.Show(cmd)
 	}
-	defer a.flush(ctx)
+	defer a.registry.Flush(ctx)
 	switch cmd.ID {
 	case "cron.add":
 		return a.add(ctx, cmd)
@@ -73,12 +62,12 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 	case "cron.delete":
 		return nil, a.remove(ctx, cmd)
 	}
-	return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
+	return nil, fmt.Errorf("%w: %q", agentcall.ErrUnknownCommand, cmd.ID)
 }
 
 func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 	var args jobArgs
-	if err := decode(cmd, &args); err != nil {
+	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
 	s, next, err := schedule(args, a.now())
@@ -89,7 +78,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	caller := callerOf(cmd)
+	caller := automation.CallerOf(cmd)
 	j := &Job{
 		Name:      args.Name,
 		Workspace: cmd.ProjectID,
@@ -100,24 +89,24 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 		CreatedBy: caller,
 		NextRun:   next,
 	}
-	if args.Owner != ownerNone {
+	if args.Owner != automation.OwnerNone {
 		j.Owner = caller
 	}
 	j.Missed = cmp.Or(args.Missed, defaultMissed(j))
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for j.ID == "" || a.jobs[j.ID] != nil {
-		if j.ID, err = newJobID(); err != nil {
+		if j.ID, err = automation.NewID(idPrefix); err != nil {
 			return nil, err
 		}
 	}
-	if err := a.store.save(ctx, j); err != nil {
+	if err := a.store.Save(ctx, j); err != nil {
 		return nil, err
 	}
 	a.jobs[j.ID] = j
-	a.touch(j.Workspace)
+	a.registry.Touch(j.Workspace)
 	a.wake()
-	return clone(j), nil
+	return j.Clone(), nil
 }
 
 func (a *app) list(cmd pluginsdk.CommandRun) listResult {
@@ -131,32 +120,16 @@ func (a *app) list(cmd pluginsdk.CommandRun) listResult {
 			jobs = append(jobs, &c)
 		}
 	}
-	slices.SortFunc(jobs, func(x, y *Job) int {
-		return cmp.Or(cmp.Compare(x.Name, y.Name), cmp.Compare(x.ID, y.ID))
-	})
+	automation.Sort(jobs)
 	return listResult{Jobs: jobs}
-}
-
-func (a *app) show(cmd pluginsdk.CommandRun) (*Job, error) {
-	var args idArgs
-	if err := decode(cmd, &args); err != nil {
-		return nil, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	j, err := a.lookup(cmd, args.ID)
-	if err != nil {
-		return nil, err
-	}
-	return clone(j), nil
 }
 
 func (a *app) update(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 	var args jobArgs
-	if err := decode(cmd, &args); err != nil {
+	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
-	return a.mutate(ctx, cmd, args.ID, func(j *Job) error {
+	return a.registry.Mutate(ctx, cmd, args.ID, func(j *Job) error {
 		if args.Name != "" {
 			j.Name = args.Name
 		}
@@ -183,22 +156,22 @@ func (a *app) update(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error
 }
 
 func (a *app) pause(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
-	var args idArgs
-	if err := decode(cmd, &args); err != nil {
+	var args automation.IDArgs
+	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
-	return a.mutate(ctx, cmd, args.ID, func(j *Job) error {
+	return a.registry.Mutate(ctx, cmd, args.ID, func(j *Job) error {
 		j.Enabled = false
 		return nil
 	})
 }
 
 func (a *app) resume(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
-	var args idArgs
-	if err := decode(cmd, &args); err != nil {
+	var args automation.IDArgs
+	if err := automation.Decode(cmd, &args); err != nil {
 		return nil, err
 	}
-	return a.mutate(ctx, cmd, args.ID, func(j *Job) error {
+	return a.registry.Mutate(ctx, cmd, args.ID, func(j *Job) error {
 		next, ok := j.Schedule.Next(a.now())
 		if !ok {
 			return fmt.Errorf("job %s: schedule %s has no run after now", j.ID, j.Schedule.Describe())
@@ -212,17 +185,18 @@ func (a *app) resume(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error
 }
 
 func (a *app) runNow(ctx context.Context, cmd pluginsdk.CommandRun) (Run, error) {
-	var args idArgs
-	if err := decode(cmd, &args); err != nil {
+	var args automation.IDArgs
+	if err := automation.Decode(cmd, &args); err != nil {
 		return Run{}, err
 	}
-	j, err := a.snapshot(ctx, cmd, args.ID)
+	j, err := a.registry.Authorized(ctx, cmd, args.ID)
 	if err != nil {
 		return Run{}, err
 	}
+	j = j.Clone()
 	ctx = context.WithoutCancel(ctx)
 	if !a.claim(j.ID) {
-		r := Run{At: a.now(), Status: statusSkipped, Reason: reasonInFlight}
+		r := Run{At: a.now(), Status: automation.StatusSkipped, Reason: automation.ReasonInFlight}
 		return r, a.note(ctx, j.ID, r)
 	}
 	r := a.fire(ctx, j)
@@ -230,98 +204,26 @@ func (a *app) runNow(ctx context.Context, cmd pluginsdk.CommandRun) (Run, error)
 }
 
 func (a *app) remove(ctx context.Context, cmd pluginsdk.CommandRun) error {
-	var args idArgs
-	if err := decode(cmd, &args); err != nil {
+	var args automation.IDArgs
+	if err := automation.Decode(cmd, &args); err != nil {
 		return err
 	}
-	if _, err := a.authorized(ctx, cmd, args.ID); err != nil {
+	if _, err := a.registry.Authorized(ctx, cmd, args.ID); err != nil {
 		return err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	j, err := a.lookup(cmd, args.ID)
+	j, err := a.registry.Lookup(cmd, args.ID)
 	if err != nil {
 		return err
 	}
-	if err := a.store.remove(ctx, j); err != nil {
+	if err := a.store.Remove(ctx, j); err != nil {
 		return err
 	}
 	delete(a.jobs, j.ID)
-	a.touch(j.Workspace)
+	a.registry.Touch(j.Workspace)
 	a.wake()
 	return nil
-}
-
-func (a *app) mutate(ctx context.Context, cmd pluginsdk.CommandRun, id string, change func(*Job) error) (*Job, error) {
-	for {
-		j, err := a.authorized(ctx, cmd, id)
-		if err != nil {
-			return nil, err
-		}
-		updated := clone(j)
-		if err := change(updated); err != nil {
-			return nil, err
-		}
-		saved, err := a.replace(ctx, j, updated)
-		if err != nil {
-			return nil, err
-		}
-		if saved {
-			return clone(updated), nil
-		}
-	}
-}
-
-func (a *app) replace(ctx context.Context, current, updated *Job) (bool, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.jobs[updated.ID] != current {
-		return false, nil
-	}
-	if err := a.store.save(ctx, updated); err != nil {
-		return false, err
-	}
-	a.jobs[updated.ID] = updated
-	a.touch(updated.Workspace)
-	a.wake()
-	return true, nil
-}
-
-func (a *app) snapshot(ctx context.Context, cmd pluginsdk.CommandRun, id string) (*Job, error) {
-	j, err := a.authorized(ctx, cmd, id)
-	if err != nil {
-		return nil, err
-	}
-	return clone(j), nil
-}
-
-func (a *app) authorized(ctx context.Context, cmd pluginsdk.CommandRun, id string) (*Job, error) {
-	a.mu.Lock()
-	j, err := a.lookup(cmd, id)
-	a.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	if allowed(cmd, j, nil) || allowed(cmd, j, a.parents(ctx, j.Workspace)) {
-		return j, nil
-	}
-	return nil, fmt.Errorf("job %s belongs to another agent session", j.ID)
-}
-
-func (a *app) lookup(cmd pluginsdk.CommandRun, id string) (*Job, error) {
-	j, ok := a.jobs[id]
-	if !ok || j.Workspace != cmd.ProjectID {
-		return nil, fmt.Errorf("unknown job %q", id)
-	}
-	return j, nil
-}
-
-func (a *app) parents(ctx context.Context, workspace string) map[string]string {
-	sessions, err := a.sessions(ctx, workspace)
-	if err != nil {
-		return nil
-	}
-	return agentcall.Parents(sessions)
 }
 
 func (a *app) validateTarget(ctx context.Context, command, args string) (json.RawMessage, error) {
@@ -329,16 +231,6 @@ func (a *app) validateTarget(ctx context.Context, command, args string) (json.Ra
 		return nil, fmt.Errorf("command %q cannot be scheduled", command)
 	}
 	return agentcall.ValidateTarget(ctx, a.host, command, args)
-}
-
-func allowed(cmd pluginsdk.CommandRun, j *Job, parents map[string]string) bool {
-	if !cmd.Agent {
-		return true
-	}
-	if cmd.Caller == "" {
-		return false
-	}
-	return agentcall.Descends(j.Owner, cmd.Caller, parents) || agentcall.Descends(j.CreatedBy, cmd.Caller, parents)
 }
 
 func schedule(args jobArgs, now time.Time) (Schedule, time.Time, error) {
@@ -353,39 +245,9 @@ func schedule(args jobArgs, now time.Time) (Schedule, time.Time, error) {
 	return s, next, nil
 }
 
-func callerOf(cmd pluginsdk.CommandRun) string {
-	if cmd.Agent {
-		return cmd.Caller
-	}
-	return ""
-}
-
 func defaultMissed(j *Job) string {
 	if j.Owner != "" {
 		return missedSkip
 	}
 	return missedOnce
-}
-
-func clone(j *Job) *Job {
-	c := *j
-	c.History = slices.Clone(j.History)
-	return &c
-}
-
-func truncate(s string, n int) string {
-	if utf8.RuneCountInString(s) <= n {
-		return s
-	}
-	return string([]rune(s)[:n])
-}
-
-func decode(cmd pluginsdk.CommandRun, v any) error {
-	if len(cmd.Args) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(cmd.Args, v); err != nil {
-		return fmt.Errorf("%s args: %w", cmd.ID, err)
-	}
-	return nil
 }

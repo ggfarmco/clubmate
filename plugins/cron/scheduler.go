@@ -1,13 +1,14 @@
 package main
 
-import "time"
+import (
+	"time"
+
+	"clubmate/plugins/internal/automation"
+)
 
 const (
-	lateGrace   = time.Minute
-	maxHistory  = 20
-	maxFailures = 3
-	tick        = 30 * time.Second
-	maxResult   = 200
+	lateGrace = time.Minute
+	tick      = 30 * time.Second
 )
 
 type decision int
@@ -43,23 +44,11 @@ func advance(j *Job, now time.Time) (keep bool) {
 }
 
 func record(j *Job, r Run) (paused bool) {
-	j.History = append(j.History, r)
-	if extra := len(j.History) - maxHistory; extra > 0 {
-		j.History = j.History[extra:]
+	if !automation.Record(&j.History, &j.Failures, &j.LastError, r) {
+		return false
 	}
-	switch r.Status {
-	case statusOK:
-		j.Failures = 0
-		j.LastError = ""
-	case statusError:
-		j.Failures++
-		j.LastError = r.Reason
-		if j.Failures >= maxFailures {
-			j.Enabled = false
-			return true
-		}
-	}
-	return false
+	j.Enabled = false
+	return true
 }
 
 func wakeAfter(jobs []*Job, now time.Time) time.Duration {

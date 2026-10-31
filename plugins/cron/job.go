@@ -2,13 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 	"time"
-)
 
-const (
-	statusOK      = "ok"
-	statusError   = "error"
-	statusSkipped = "skipped"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
@@ -16,12 +13,7 @@ const (
 	missedSkip = "skip"
 )
 
-type Run struct {
-	At     time.Time `json:"at"`
-	Status string    `json:"status"`
-	Reason string    `json:"reason,omitempty"`
-	Result string    `json:"result,omitempty"`
-}
+type Run = automation.Run
 
 type Job struct {
 	ID        string          `json:"id"`
@@ -38,4 +30,22 @@ type Job struct {
 	Failures  int             `json:"failures,omitempty"`
 	LastError string          `json:"lastError,omitempty"`
 	History   []Run           `json:"history,omitempty"`
+}
+
+func (j *Job) Action() automation.Action {
+	return automation.Action{
+		ID:        j.ID,
+		Name:      j.Name,
+		Workspace: j.Workspace,
+		Command:   j.Command,
+		Args:      j.Args,
+		Owner:     j.Owner,
+		CreatedBy: j.CreatedBy,
+	}
+}
+
+func (j *Job) Clone() *Job {
+	c := *j
+	c.History = slices.Clone(j.History)
+	return &c
 }

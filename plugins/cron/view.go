@@ -2,11 +2,11 @@ package main
 
 import (
 	"cmp"
-	"slices"
 	"strconv"
 	"time"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
@@ -56,27 +56,11 @@ func mainView(j *Job, titles map[string]string) sdui.Node {
 }
 
 func ownerRow(j *Job, titles map[string]string) sdui.Node {
-	owner := sdui.Text("Owner: " + ownerLabel(j.Owner, titles))
+	owner := sdui.Text("Owner: " + automation.OwnerLabel(j.Owner, titles))
 	if _, ok := titles[j.Owner]; !ok {
 		return owner
 	}
 	return sdui.HStack(owner, sdui.WithAction(sdui.Button(j.ID+ownerNode, "Show Session", "sparkles"), actReveal))
-}
-
-func sortJobs(jobs []*Job) {
-	slices.SortFunc(jobs, func(x, y *Job) int {
-		return cmp.Or(cmp.Compare(x.Name, y.Name), cmp.Compare(x.ID, y.ID))
-	})
-}
-
-func resolveSelection(jobs []*Job, selected string) string {
-	if slices.ContainsFunc(jobs, func(j *Job) bool { return j.ID == selected }) {
-		return selected
-	}
-	if len(jobs) > 0 {
-		return jobs[0].ID
-	}
-	return ""
 }
 
 func jobDetail(j *Job, now time.Time) string {
@@ -106,7 +90,7 @@ func jobIcon(j *Job) string {
 }
 
 func jobBadge(j *Job) string {
-	if r, ok := lastRun(j); ok && r.Status == statusError {
+	if r, ok := automation.LastRun(j.History); ok && r.Status == automation.StatusError {
 		return badgeFailed
 	}
 	return ""
@@ -134,24 +118,17 @@ func stateLine(j *Job) string {
 	return "Paused: " + j.LastError
 }
 
-func ownerLabel(owner string, titles map[string]string) string {
-	if owner == "" {
-		return ownerNone
-	}
-	return cmp.Or(titles[owner], owner)
-}
-
 func historyView(j *Job) sdui.Node {
 	if len(j.History) == 0 {
 		return sdui.MutedText("No runs yet")
 	}
-	runs := newestFirst(j.History)
+	runs := automation.NewestFirst(j.History)
 	loc := jobLocation(j)
 	rows := make([]sdui.TableRow, 0, len(runs))
 	for i, r := range runs {
 		rows = append(rows, sdui.TableRow{ID: "r" + strconv.Itoa(i), Cells: []sdui.Cell{
 			{Text: r.At.In(loc).Format(whenLayout)},
-			{Text: r.Status, Tone: statusTone(r.Status)},
+			{Text: r.Status, Tone: automation.StatusTone(r.Status)},
 			{Text: cmp.Or(r.Reason, r.Result)},
 		}})
 	}
@@ -161,29 +138,6 @@ func historyView(j *Job) sdui.Node {
 		{ID: "detail", Title: "Reason / Result"},
 	}
 	return sdui.Scroll(sdui.Table(historyID, columns, rows, "", sdui.Sort{}))
-}
-
-func newestFirst(history []Run) []Run {
-	runs := slices.Clone(history)
-	slices.SortStableFunc(runs, func(x, y Run) int { return y.At.Compare(x.At) })
-	return runs
-}
-
-func lastRun(j *Job) (Run, bool) {
-	if len(j.History) == 0 {
-		return Run{}, false
-	}
-	return slices.MaxFunc(j.History, func(x, y Run) int { return x.At.Compare(y.At) }), true
-}
-
-func statusTone(status string) string {
-	switch status {
-	case statusOK:
-		return "ok"
-	case statusError:
-		return "danger"
-	}
-	return ""
 }
 
 func jobLocation(j *Job) *time.Location {

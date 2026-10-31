@@ -2,10 +2,10 @@ package main
 
 import (
 	"cmp"
-	"slices"
 	"strconv"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
@@ -44,19 +44,9 @@ func mainView(t *Trigger, titles map[string]string) sdui.Node {
 		sdui.Text("On: "+eventLine(t)),
 		sdui.MutedText(t.Command+" "+string(t.Args)),
 		sdui.Text(stateLine(t)),
-		sdui.Text("Owner: "+ownerLabel(t.Owner, titles)),
+		sdui.Text("Owner: "+automation.OwnerLabel(t.Owner, titles)),
 		historyView(t),
 	)
-}
-
-func resolveSelection(triggers []*Trigger, selected string) string {
-	if slices.ContainsFunc(triggers, func(t *Trigger) bool { return t.ID == selected }) {
-		return selected
-	}
-	if len(triggers) > 0 {
-		return triggers[0].ID
-	}
-	return ""
 }
 
 func eventLine(t *Trigger) string {
@@ -84,7 +74,7 @@ func triggerIcon(t *Trigger) string {
 }
 
 func triggerBadge(t *Trigger) string {
-	if r, ok := lastRun(t); ok && r.Status == statusError {
+	if r, ok := automation.LastRun(t.History); ok && r.Status == automation.StatusError {
 		return badgeFailed
 	}
 	return ""
@@ -111,25 +101,17 @@ func stateLine(t *Trigger) string {
 	return "Paused: " + t.LastError
 }
 
-func ownerLabel(owner string, titles map[string]string) string {
-	if owner == "" {
-		return ownerNone
-	}
-	return cmp.Or(titles[owner], owner)
-}
-
 func historyView(t *Trigger) sdui.Node {
 	if len(t.History) == 0 {
 		return sdui.MutedText("No runs yet")
 	}
-	runs := slices.Clone(t.History)
-	slices.SortStableFunc(runs, func(x, y Run) int { return y.At.Compare(x.At) })
+	runs := automation.NewestFirst(t.History)
 	rows := make([]sdui.TableRow, 0, len(runs))
 	for i, r := range runs {
 		rows = append(rows, sdui.TableRow{ID: "r" + strconv.Itoa(i), Cells: []sdui.Cell{
 			{Text: r.At.Local().Format(whenLayout)},
 			{Text: r.Topic},
-			{Text: r.Status, Tone: statusTone(r.Status)},
+			{Text: r.Status, Tone: automation.StatusTone(r.Status)},
 			{Text: cmp.Or(r.Reason, r.Result)},
 		}})
 	}
@@ -140,21 +122,4 @@ func historyView(t *Trigger) sdui.Node {
 		{ID: "detail", Title: "Reason / Result"},
 	}
 	return sdui.Scroll(sdui.Table(historyID, columns, rows, "", sdui.Sort{}))
-}
-
-func lastRun(t *Trigger) (Run, bool) {
-	if len(t.History) == 0 {
-		return Run{}, false
-	}
-	return slices.MaxFunc(t.History, func(x, y Run) int { return x.At.Compare(y.At) }), true
-}
-
-func statusTone(status string) string {
-	switch status {
-	case statusOK:
-		return "ok"
-	case statusError:
-		return "danger"
-	}
-	return ""
 }

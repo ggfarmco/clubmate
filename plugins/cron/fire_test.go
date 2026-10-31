@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/automation"
 )
 
 type memStore struct {
@@ -23,14 +24,14 @@ type memStore struct {
 	jobs map[string]bool
 }
 
-func (m *memStore) save(_ context.Context, j *Job) error {
+func (m *memStore) Save(_ context.Context, j *Job) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.jobs[j.ID] = true
 	return nil
 }
 
-func (m *memStore) remove(_ context.Context, j *Job) error {
+func (m *memStore) Remove(_ context.Context, j *Job) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.jobs, j.ID)
@@ -43,7 +44,7 @@ func (m *memStore) has(id string) bool {
 	return m.jobs[id]
 }
 
-func testApp(now *time.Time, run func(context.Context, commandRequest) (json.RawMessage, error), jobs ...*Job) (*app, *memStore) {
+func testApp(now *time.Time, run func(context.Context, automation.CommandRequest) (json.RawMessage, error), jobs ...*Job) (*app, *memStore) {
 	a := newApp()
 	st := &memStore{jobs: map[string]bool{}}
 	a.store = st
@@ -57,8 +58,8 @@ func testApp(now *time.Time, run func(context.Context, commandRequest) (json.Raw
 	return a, st
 }
 
-func blockingRun(calls *atomic.Int32, started, release chan struct{}) func(context.Context, commandRequest) (json.RawMessage, error) {
-	return func(context.Context, commandRequest) (json.RawMessage, error) {
+func blockingRun(calls *atomic.Int32, started, release chan struct{}) func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+	return func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
 		calls.Add(1)
 		started <- struct{}{}
 		<-release
@@ -92,8 +93,8 @@ func TestFireClassifiesErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got commandRequest
-			a, _ := testApp(&now, func(_ context.Context, req commandRequest) (json.RawMessage, error) {
+			var got automation.CommandRequest
+			a, _ := testApp(&now, func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 				got = req
 				return json.RawMessage(tt.raw), tt.err
 			})
@@ -159,7 +160,7 @@ func TestPruneDropsJobsOfDeletedWorkspaces(t *testing.T) {
 		return []pluginsdk.Project{{ID: "prj_live"}}, nil
 	}
 
-	a.prune(t.Context())
+	a.registry.Prune(t.Context())
 
 	assert.ElementsMatch(t, []string{"cj_live", "cj_app"}, slices.Collect(maps.Keys(a.jobs)))
 	assert.False(t, st.has("cj_gone"))
@@ -176,7 +177,7 @@ func TestReconcileDropsJobsOfGoneOwners(t *testing.T) {
 		return []agentSession{{ID: "agt_closed", Closed: true}, {ID: "agt_live"}}, nil
 	}
 
-	a.reconcileAll(t.Context())
+	a.registry.ReconcileAll(t.Context())
 
 	assert.ElementsMatch(t, []string{"cj_live", "cj_free"}, slices.Collect(maps.Keys(a.jobs)))
 	assert.False(t, st.has("cj_closed"))
@@ -187,7 +188,7 @@ func TestSkippedOneShotRetries(t *testing.T) {
 	now := time.Date(2026, 10, 30, 15, 0, 0, 0, time.UTC)
 	status := "running"
 	var calls atomic.Int32
-	a, st := testApp(&now, func(context.Context, commandRequest) (json.RawMessage, error) {
+	a, st := testApp(&now, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
 		calls.Add(1)
 		return json.RawMessage(`{}`), nil
 	}, &Job{ID: "cj_1", Command: "agents.prompt", Args: json.RawMessage(`{"session":"agt_1"}`), Enabled: true, Schedule: Schedule{At: now}, Missed: "skip", NextRun: now})

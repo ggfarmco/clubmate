@@ -4,22 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/automation"
 )
 
 const (
-	agentsChanged  = "agents.changed"
-	agentsReady    = "agents.ready"
-	projectCreated = "project.created"
-	projectDeleted = "project.deleted"
-	changeStatus   = "status"
-	changeDeleted  = "deleted"
+	jobPrefix = "job/"
+	idPrefix  = "cj_"
 )
 
 var uiCommands = map[string]string{
@@ -29,46 +25,18 @@ var uiCommands = map[string]string{
 	"delete": "cron.delete",
 }
 
-type commandRequest struct {
-	ID        string          `json:"id"`
-	ProjectID string          `json:"projectId"`
-	Args      json.RawMessage `json:"args,omitempty"`
-	Agent     bool            `json:"agent"`
-	Caller    string          `json:"caller,omitempty"`
-}
-
-type jobStore interface {
-	save(ctx context.Context, j *Job) error
-	remove(ctx context.Context, j *Job) error
-}
-
-type changedPayload struct {
-	Workspace string `json:"workspace"`
-	Session   string `json:"session"`
-	Kind      string `json:"kind"`
-}
-
-type createdPayload struct {
-	Project pluginsdk.Project `json:"project"`
-}
-
-type deletedPayload struct {
-	ID string `json:"id"`
-}
-
 type app struct {
 	mu         sync.Mutex
-	renderMu   sync.Mutex
 	jobs       map[string]*Job
-	dirty      map[string]bool
 	inFlight   map[string]bool
 	runs       sync.WaitGroup
-	store      jobStore
+	registry   *automation.Registry[*Job]
+	store      automation.Storage[*Job]
 	host       *pluginsdk.Host
 	ready      chan struct{}
 	poke       chan struct{}
 	now        func() time.Time
-	runCommand func(ctx context.Context, req commandRequest) (json.RawMessage, error)
+	runCommand func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
 	sessions   func(ctx context.Context, workspace string) ([]agentSession, error)
 	projects   func(ctx context.Context) ([]pluginsdk.Project, error)
 	render     func(ctx context.Context, workspace string) error
@@ -83,7 +51,6 @@ func newApp() *app {
 	a := &app{
 		jobs:     map[string]*Job{},
 		inFlight: map[string]bool{},
-		dirty:    map[string]bool{},
 		ready:    make(chan struct{}),
 		poke:     make(chan struct{}, 1),
 		now:      time.Now,
@@ -92,13 +59,25 @@ func newApp() *app {
 	a.sessions = a.agentSessions
 	a.projects = a.listProjects
 	a.render = a.renderWorkspace
+	a.registry = &automation.Registry[*Job]{
+		Mu:       &a.mu,
+		Items:    a.jobs,
+		Noun:     "job",
+		Sessions: func(ctx context.Context, ws string) ([]agentSession, error) { return a.sessions(ctx, ws) },
+		Projects: func(ctx context.Context) ([]pluginsdk.Project, error) { return a.projects(ctx) },
+		Render:   func(ctx context.Context, ws string) error { return a.render(ctx, ws) },
+		Save:     func(ctx context.Context, j *Job) error { return a.store.Save(ctx, j) },
+		Drop:     a.drop,
+		Changed:  a.wake,
+		Log:      logError,
+	}
 	return a
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.host = h
-	st := &store{h: h}
-	jobs, err := st.load(ctx)
+	st := &automation.Store[Job, *Job]{Host: h, Prefix: jobPrefix, Noun: "job", Log: logError}
+	jobs, err := st.Load(ctx)
 	if err != nil {
 		return err
 	}
@@ -112,16 +91,17 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, topic := range []string{agentsChanged, agentsReady, projectCreated, projectDeleted} {
+	topics := []string{automation.TopicAgentsChanged, automation.TopicAgentsReady, automation.TopicProjectCreated, automation.TopicProjectDeleted}
+	for _, topic := range topics {
 		if _, err := h.Subscribe(ctx, topic, ready.Seq); err != nil {
 			return err
 		}
 	}
 	close(a.ready)
-	a.prune(ctx)
+	a.registry.Prune(ctx)
 	go a.loop(ctx)
-	a.reconcileAll(ctx)
-	a.renderAll(ctx)
+	a.registry.ReconcileAll(ctx)
+	a.registry.RenderAll(ctx)
 	return nil
 }
 
@@ -136,7 +116,7 @@ func (a *app) loop(ctx context.Context) {
 		case <-a.poke:
 		}
 		timer.Reset(a.tick(ctx))
-		a.flush(ctx)
+		a.registry.Flush(ctx)
 	}
 }
 
@@ -146,36 +126,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	case <-ctx.Done():
 		return
 	}
-	switch ev.Topic {
-	case agentsChanged:
-		var p changedPayload
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
-			logError(fmt.Errorf("decode %s: %w", ev.Topic, err))
-			return
-		}
-		if (p.Kind == changeStatus || p.Kind == changeDeleted) && a.owns(p.Session) {
-			a.reconcile(ctx, p.Workspace)
-			a.flush(ctx)
-		}
-	case agentsReady:
-		a.reconcileAll(ctx)
-		a.renderAll(ctx)
-	case projectCreated:
-		var p createdPayload
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
-			logError(fmt.Errorf("decode %s: %w", ev.Topic, err))
-			return
-		}
-		a.invalidate(p.Project.ID)
-		a.flush(ctx)
-	case projectDeleted:
-		var p deletedPayload
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
-			logError(fmt.Errorf("decode %s: %w", ev.Topic, err))
-			return
-		}
-		a.dropWorkspace(ctx, p.ID)
-	}
+	a.registry.BusEvent(ctx, ev)
 }
 
 func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
@@ -195,18 +146,18 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, fmt.Errorf("%s value: %w", ev.Action, err)
 	}
 	if ev.Action == "select" {
-		if err := a.host.StorageSet(ctx, selectedKey(ev.ProjectID), id); err != nil {
+		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.ProjectID), id); err != nil {
 			return nil, err
 		}
-		a.invalidate(ev.ProjectID)
-		a.flush(ctx)
+		a.registry.Invalidate(ev.ProjectID)
+		a.registry.Flush(ctx)
 		return nil, nil
 	}
 	cmdID, ok := uiCommands[ev.Action]
 	if !ok {
-		return nil, fmt.Errorf("%w: action %q", errUnknownCommand, ev.Action)
+		return nil, fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
 	}
-	args, err := json.Marshal(idArgs{ID: id})
+	args, err := json.Marshal(automation.IDArgs{ID: id})
 	if err != nil {
 		return nil, err
 	}
@@ -236,169 +187,13 @@ func (a *app) revealOwner(ctx context.Context, workspace, id string) error {
 	return agentcall.Reveal(ctx, a.host, workspace, owner)
 }
 
-func (a *app) reconcileAll(ctx context.Context) {
-	a.mu.Lock()
-	workspaces := map[string]bool{}
-	for _, j := range a.jobs {
-		if j.Owner != "" {
-			workspaces[j.Workspace] = true
-		}
-	}
-	a.mu.Unlock()
-	for ws := range workspaces {
-		a.reconcile(ctx, ws)
-	}
-}
-
-func (a *app) reconcile(ctx context.Context, workspace string) {
-	a.mu.Lock()
-	owned := map[string]string{}
-	for id, j := range a.jobs {
-		if j.Workspace == workspace && j.Owner != "" {
-			owned[id] = j.Owner
-		}
-	}
-	a.mu.Unlock()
-	if len(owned) == 0 {
-		return
-	}
-	sessions, err := a.sessions(ctx, workspace)
-	if err != nil {
-		logError(err)
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for id, owner := range owned {
-		j, ok := a.jobs[id]
-		if !ok || j.Owner != owner {
-			continue
-		}
-		if s, alive := agentcall.Find(sessions, owner); !alive || s.Closed {
-			logError(a.drop(ctx, j))
-		}
-	}
-}
-
-func (a *app) prune(ctx context.Context) {
-	a.mu.Lock()
-	placed := map[string]string{}
-	for id, j := range a.jobs {
-		if j.Workspace != "" {
-			placed[id] = j.Workspace
-		}
-	}
-	a.mu.Unlock()
-	if len(placed) == 0 {
-		return
-	}
-	projects, err := a.projects(ctx)
-	if err != nil {
-		logError(fmt.Errorf("prune jobs of deleted workspaces: %w", err))
-		return
-	}
-	live := map[string]bool{}
-	for _, p := range projects {
-		live[p.ID] = true
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for id, workspace := range placed {
-		if j, ok := a.jobs[id]; ok && !live[workspace] {
-			logError(a.drop(ctx, j))
-			delete(a.dirty, workspace)
-		}
-	}
-}
-
-func (a *app) dropWorkspace(ctx context.Context, workspace string) {
-	projects, err := a.projects(ctx)
-	if err != nil {
-		logError(fmt.Errorf("check deleted project %s: %w", workspace, err))
-		return
-	}
-	if slices.ContainsFunc(projects, func(p pluginsdk.Project) bool { return p.ID == workspace }) {
-		logError(fmt.Errorf("ignore %s for live project %s", projectDeleted, workspace))
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, j := range a.jobs {
-		if j.Workspace == workspace {
-			logError(a.drop(ctx, j))
-		}
-	}
-	delete(a.dirty, workspace)
-}
-
-func (a *app) owns(session string) bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, j := range a.jobs {
-		if session != "" && j.Owner == session {
-			return true
-		}
-	}
-	return false
-}
-
-func (a *app) renderAll(ctx context.Context) {
-	projects, err := a.projects(ctx)
-	if err != nil {
-		logError(fmt.Errorf("render cron sections: %w", err))
-		return
-	}
-	ids := make([]string, 0, len(projects))
-	for _, p := range projects {
-		ids = append(ids, p.ID)
-	}
-	a.invalidate(ids...)
-	a.flush(ctx)
-}
-
-func (a *app) invalidate(workspaces ...string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, ws := range workspaces {
-		a.touch(ws)
-	}
-}
-
-func (a *app) touch(workspace string) {
-	if workspace != "" {
-		a.dirty[workspace] = true
-	}
-}
-
-func (a *app) flush(ctx context.Context) {
-	a.renderMu.Lock()
-	defer a.renderMu.Unlock()
-	a.mu.Lock()
-	dirty := a.dirty
-	a.dirty = map[string]bool{}
-	a.mu.Unlock()
-	for ws := range dirty {
-		logError(a.render(ctx, ws))
-	}
-}
-
 func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
-	var selected string
-	if _, err := a.host.StorageGet(ctx, selectedKey(workspace), &selected); err != nil {
+	jobs := a.registry.InWorkspace(workspace)
+	current, selected, err := automation.Selection(ctx, a.host, workspace, jobs)
+	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	jobs := a.workspaceJobs(workspace)
-	titles := a.titles(ctx, workspace, jobs)
-	if resolved := resolveSelection(jobs, selected); resolved != selected {
-		if err := a.persistSelection(ctx, workspace, resolved); err != nil {
-			return fmt.Errorf("render %s: %w", workspace, err)
-		}
-		selected = resolved
-	}
-	var current *Job
-	if i := slices.IndexFunc(jobs, func(j *Job) bool { return j.ID == selected }); i >= 0 {
-		current = jobs[i]
-	}
+	titles := a.registry.Titles(ctx, workspace, jobs)
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(jobs, titles, selected, a.now())); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
@@ -408,47 +203,8 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	return nil
 }
 
-func (a *app) workspaceJobs(workspace string) []*Job {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	var jobs []*Job
-	for _, j := range a.jobs {
-		if j.Workspace == workspace {
-			jobs = append(jobs, clone(j))
-		}
-	}
-	sortJobs(jobs)
-	return jobs
-}
-
-func (a *app) titles(ctx context.Context, workspace string, jobs []*Job) map[string]string {
-	if !slices.ContainsFunc(jobs, func(j *Job) bool { return j.Owner != "" }) {
-		return nil
-	}
-	sessions, err := a.sessions(ctx, workspace)
-	if err != nil {
-		return nil
-	}
-	titles := make(map[string]string, len(sessions))
-	for _, s := range sessions {
-		titles[s.ID] = s.Title
-	}
-	return titles
-}
-
-func (a *app) persistSelection(ctx context.Context, workspace, id string) error {
-	if id == "" {
-		return a.host.StorageDelete(ctx, selectedKey(workspace))
-	}
-	return a.host.StorageSet(ctx, selectedKey(workspace), id)
-}
-
-func (a *app) callCommand(ctx context.Context, req commandRequest) (json.RawMessage, error) {
-	var raw json.RawMessage
-	if err := a.host.Call(ctx, "command.run", req, &raw); err != nil {
-		return nil, err
-	}
-	return raw, nil
+func (a *app) callCommand(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+	return automation.CallCommand(ctx, a.host, req)
 }
 
 func (a *app) listProjects(ctx context.Context) ([]pluginsdk.Project, error) {
@@ -464,8 +220,4 @@ func (a *app) wake() {
 	case a.poke <- struct{}{}:
 	default:
 	}
-}
-
-func selectedKey(workspace string) string {
-	return "selected/" + workspace
 }

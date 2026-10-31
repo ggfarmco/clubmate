@@ -2,38 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
-	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/automation"
 )
 
-const (
-	promptCommand  = "agents.prompt"
-	sessionRunning = "running"
-	sessionWaiting = "waiting"
-	noApprover     = "no app to approve"
-	reasonBusy     = "busy"
-	reasonNoApp    = "no app"
-	reasonMissed   = "missed"
-	reasonInFlight = "previous run still running"
-	reasonGone     = "owner gone"
-	reasonUnknown  = "owner unknown"
-)
-
-type promptTarget struct {
-	Session string `json:"session"`
-}
-
-type notifyRequest struct {
-	ProjectID string `json:"projectId"`
-	Title     string `json:"title"`
-	Message   string `json:"message"`
-	Kind      string `json:"kind"`
-}
+const reasonMissed = "missed"
 
 func (a *app) tick(ctx context.Context) time.Duration {
 	now := a.now()
@@ -45,26 +21,26 @@ func (a *app) tick(ctx context.Context) time.Duration {
 		if d == wait || busy && j.Schedule.OneShot() {
 			continue
 		}
-		updated := clone(j)
+		updated := j.Clone()
 		start := false
 		switch {
 		case d == skipMissed:
-			record(updated, Run{At: now, Status: statusSkipped, Reason: reasonMissed})
+			record(updated, Run{At: now, Status: automation.StatusSkipped, Reason: reasonMissed})
 		case busy:
-			record(updated, Run{At: now, Status: statusSkipped, Reason: reasonInFlight})
+			record(updated, Run{At: now, Status: automation.StatusSkipped, Reason: automation.ReasonInFlight})
 		default:
 			start = true
 		}
 		keep := advance(updated, now)
 		if start && !keep {
-			if err := a.store.remove(ctx, updated); err != nil {
+			if err := a.store.Remove(ctx, updated); err != nil {
 				logError(err)
 				continue
 			}
 		}
 		if start {
 			a.inFlight[id] = true
-			job, spent := clone(updated), !keep
+			job, spent := updated.Clone(), !keep
 			a.runs.Go(func() { logError(a.settle(ctx, id, a.fire(ctx, job), spent)) })
 		}
 		switch {
@@ -84,41 +60,7 @@ func (a *app) tick(ctx context.Context) time.Duration {
 }
 
 func (a *app) fire(ctx context.Context, j *Job) Run {
-	r := Run{At: a.now()}
-	var sessions []agentSession
-	if j.Owner != "" || j.Command == promptCommand {
-		var err error
-		if sessions, err = a.sessions(ctx, j.Workspace); err != nil {
-			logError(err)
-			if j.Owner != "" {
-				r.Status, r.Reason = statusSkipped, reasonUnknown
-				return r
-			}
-		}
-	}
-	if s, ok := agentcall.Find(sessions, j.Owner); j.Owner != "" && (!ok || s.Closed) {
-		r.Status, r.Reason = statusSkipped, reasonGone
-		return r
-	}
-	if j.Command == promptCommand {
-		var target promptTarget
-		if json.Unmarshal(j.Args, &target) == nil {
-			if s, ok := agentcall.Find(sessions, target.Session); ok && (s.Status == sessionRunning || s.Status == sessionWaiting) {
-				r.Status, r.Reason = statusSkipped, reasonBusy
-				return r
-			}
-		}
-	}
-	raw, err := a.runCommand(ctx, commandRequest{ID: j.Command, ProjectID: j.Workspace, Args: j.Args, Agent: true, Caller: j.Owner})
-	switch {
-	case err == nil:
-		r.Status, r.Result = statusOK, truncate(string(raw), maxResult)
-	case strings.Contains(err.Error(), noApprover):
-		r.Status, r.Reason = statusSkipped, reasonNoApp
-	default:
-		r.Status, r.Reason = statusError, err.Error()
-	}
-	return r
+	return a.executor().Fire(ctx, j.Action(), Run{At: a.now()})
 }
 
 func (a *app) claim(id string) bool {
@@ -137,9 +79,9 @@ func (a *app) settle(ctx context.Context, id string, r Run, spent bool) error {
 	j, paused, err := a.recordLocked(ctx, id, r, spent)
 	a.mu.Unlock()
 	a.wake()
-	a.flush(ctx)
+	a.registry.Flush(ctx)
 	if paused {
-		a.notifyPaused(ctx, j)
+		a.registry.NotifyPaused(ctx, a.host, "Cron job paused", j.Action(), j.LastError)
 	}
 	return err
 }
@@ -156,39 +98,36 @@ func (a *app) recordLocked(ctx context.Context, id string, r Run, spent bool) (*
 	if !ok {
 		return nil, false, nil
 	}
-	updated := clone(current)
+	updated := current.Clone()
 	paused := record(updated, r)
 	if _, more := updated.Schedule.Next(r.At); spent && !more {
-		if r.Status != statusSkipped {
+		if r.Status != automation.StatusSkipped {
 			return updated, paused, a.drop(ctx, updated)
 		}
 		updated.NextRun = a.now().Add(tick)
 	}
-	if err := a.store.save(ctx, updated); err != nil {
+	if err := a.store.Save(ctx, updated); err != nil {
 		return nil, false, err
 	}
 	a.jobs[id] = updated
-	a.touch(updated.Workspace)
+	a.registry.Touch(updated.Workspace)
 	return updated, paused, nil
 }
 
 func (a *app) put(ctx context.Context, j *Job) error {
 	a.jobs[j.ID] = j
-	a.touch(j.Workspace)
-	return a.store.save(ctx, j)
+	a.registry.Touch(j.Workspace)
+	return a.store.Save(ctx, j)
 }
 
 func (a *app) drop(ctx context.Context, j *Job) error {
 	delete(a.jobs, j.ID)
-	a.touch(j.Workspace)
-	return a.store.remove(ctx, j)
+	a.registry.Touch(j.Workspace)
+	return a.store.Remove(ctx, j)
 }
 
-func (a *app) notifyPaused(ctx context.Context, j *Job) {
-	req := notifyRequest{ProjectID: j.Workspace, Title: "Cron job paused", Message: j.Name + ": " + j.LastError, Kind: "stuck"}
-	if err := a.host.Call(ctx, "notify.post", req, nil); err != nil {
-		logError(fmt.Errorf("notify paused job %s: %w", j.ID, err))
-	}
+func (a *app) executor() automation.Executor {
+	return automation.Executor{Sessions: a.sessions, RunCommand: a.runCommand, Log: logError}
 }
 
 func logError(err error) {

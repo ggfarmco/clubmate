@@ -11,15 +11,16 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/automation"
 )
 
 type memStore struct{}
 
-func (memStore) save(context.Context, *Trigger) error { return nil }
+func (memStore) Save(context.Context, *Trigger) error { return nil }
 
-func (memStore) remove(context.Context, *Trigger) error { return nil }
+func (memStore) Remove(context.Context, *Trigger) error { return nil }
 
-func testApp(t *testing.T, run func(context.Context, commandRequest) (json.RawMessage, error)) (*app, *[]string) {
+func testApp(t *testing.T, run func(context.Context, automation.CommandRequest) (json.RawMessage, error)) (*app, *[]string) {
 	t.Helper()
 	a := newApp()
 	a.store = memStore{}
@@ -38,8 +39,8 @@ func ping(seq int64) pluginsdk.Event {
 }
 
 func TestDispatchSkipsWhileRunning(t *testing.T) {
-	started, release := make(chan commandRequest, 1), make(chan struct{})
-	a, _ := testApp(t, func(_ context.Context, req commandRequest) (json.RawMessage, error) {
+	started, release := make(chan automation.CommandRequest, 1), make(chan struct{})
+	a, _ := testApp(t, func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 		started <- req
 		<-release
 		return json.RawMessage(`{}`), nil
@@ -52,12 +53,12 @@ func TestDispatchSkipsWhileRunning(t *testing.T) {
 	a.runs.Wait()
 	h := a.triggers["tr_1"].History
 	require.Len(t, h, 2)
-	assert.Equal(t, Run{At: h[0].At, Topic: "event.ping", Seq: 2, Status: statusSkipped, Reason: reasonInFlight}, h[0])
-	assert.Equal(t, statusOK, h[1].Status)
+	assert.Equal(t, Run{At: h[0].At, Topic: "event.ping", Seq: 2, Status: automation.StatusSkipped, Reason: automation.ReasonInFlight}, h[0])
+	assert.Equal(t, automation.StatusOK, h[1].Status)
 }
 
 func TestDispatchPausesALoop(t *testing.T) {
-	a, notified := testApp(t, func(context.Context, commandRequest) (json.RawMessage, error) {
+	a, notified := testApp(t, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
 		return json.RawMessage(`{}`), nil
 	})
 	for i := range maxFires + 1 {
@@ -74,14 +75,14 @@ func TestDispatchPausesALoop(t *testing.T) {
 }
 
 func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
-	var sent []commandRequest
-	a, _ := testApp(t, func(_ context.Context, req commandRequest) (json.RawMessage, error) {
+	var sent []automation.CommandRequest
+	a, _ := testApp(t, func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 		sent = append(sent, req)
 		return json.RawMessage(`{}`), nil
 	})
-	a.triggers["tr_1"].Command = promptCommand
+	a.triggers["tr_1"].Command = automation.PromptCommand
 	a.triggers["tr_1"].Args = json.RawMessage(`{"session":"agt_o","text":"{{payload.n}}"}`)
-	status := sessionRunning
+	status := "running"
 	a.sessions = func(context.Context, string) ([]agentcall.Session, error) {
 		return []agentcall.Session{{ID: "agt_o", Status: status}}, nil
 	}
@@ -99,8 +100,8 @@ func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
 	assert.JSONEq(t, `{"session":"agt_o","text":"x"}`, string(sent[0].Args))
 	h := a.triggers["tr_1"].History
 	require.Len(t, h, 2)
-	assert.Equal(t, reasonBusy, h[0].Reason)
-	assert.Equal(t, Run{At: h[1].At, Topic: "event.ping", Seq: 1, Status: statusOK, Result: "{}"}, h[1])
+	assert.Equal(t, automation.ReasonBusy, h[0].Reason)
+	assert.Equal(t, Run{At: h[1].At, Topic: "event.ping", Seq: 1, Status: automation.StatusOK, Result: "{}"}, h[1])
 }
 
 func TestForeignEmitterSkipsOwnedTemplatedTrigger(t *testing.T) {
