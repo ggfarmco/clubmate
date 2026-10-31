@@ -41,6 +41,11 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2])]))
     }
 
+    func testPromptTextNotesVideoFrames() {
+        let video = ComposerAttachment.video(frames: [Data([1]), Data([2])], times: [1.5, 4.5], duration: 6)
+        XCTAssertEqual(ComposerAttachment.promptText("why", [.photo(Data([0])), video]), "why\n\n[Video, 6.0 s — 2 frames in order at 1.5 s, 4.5 s]")
+    }
+
     func testDecodesTranscriptFixture() throws {
         let transcript = try JSONDecoder.companion.decode(AgentTranscript.self, from: fixture("agents-transcript"))
         XCTAssertEqual(transcript.modes.map(\.id), ["default", "plan"])

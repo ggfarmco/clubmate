@@ -43,14 +43,28 @@ struct UserBubble: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            ForEach(Array(images.enumerated()), id: \.offset) { _, data in
-                if let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 240, maxHeight: 240)
-                        .clipShape(.rect(cornerRadius: 16))
+            if images.count == 1, let image = UIImage(data: images[0]) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 240, maxHeight: 240)
+                    .clipShape(.rect(cornerRadius: 16))
+            } else if images.count > 1 {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(images.enumerated()), id: \.offset) { _, data in
+                            if let image = UIImage(data: data) {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 140, height: 140)
+                                    .clipShape(.rect(cornerRadius: 12))
+                            }
+                        }
+                    }
                 }
+                .scrollIndicators(.hidden)
+                .defaultScrollAnchor(.trailing)
             }
             if !text.isEmpty {
                 Text(Markdown.inline(text))

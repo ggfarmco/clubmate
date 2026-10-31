@@ -8,7 +8,7 @@ struct SessionDetailView: View {
     let store: AgentsStore
     let sessionID: String
     @State private var draft = ""
-    @State private var images: [Data] = []
+    @State private var attachments: [ComposerAttachment] = []
     @State private var sending = false
     @State private var sent = 0
     @State private var failure: String?
@@ -53,7 +53,7 @@ struct SessionDetailView: View {
             if let session {
                 ComposerView(
                     draft: $draft,
-                    images: $images,
+                    attachments: $attachments,
                     session: session,
                     enabled: context.connection.state == .online,
                     sending: sending,
@@ -108,14 +108,14 @@ struct SessionDetailView: View {
 
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let attached = images
+        let attached = attachments
         guard !text.isEmpty || !attached.isEmpty else { return }
         sending = true
         Task {
             do {
-                try await store.send(text, images: attached, to: sessionID)
+                try await store.send(text, attachments: attached, to: sessionID)
                 draft = ""
-                images = []
+                attachments = []
                 sent += 1
             } catch {
                 failure = Self.message(error)
@@ -150,7 +150,7 @@ struct SessionDetailView: View {
 
 struct ComposerView: View {
     @Binding var draft: String
-    @Binding var images: [Data]
+    @Binding var attachments: [ComposerAttachment]
     let session: AgentSession
     let enabled: Bool
     let sending: Bool
@@ -158,9 +158,10 @@ struct ComposerView: View {
     let stop: () -> Void
     @FocusState private var focused: Bool
     @State private var picked: [PhotosPickerItem] = []
+    @State private var importing = 0
 
     private var empty: Bool {
-        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && images.isEmpty
+        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty
     }
 
     var body: some View {
@@ -175,25 +176,25 @@ struct ComposerView: View {
         } else {
             GlassEffectContainer(spacing: 10) {
                 VStack(alignment: .leading, spacing: 8) {
-                    if !images.isEmpty {
-                        AttachedImagesRow(images: $images)
+                    if !attachments.isEmpty || importing > 0 {
+                        AttachmentsRow(attachments: $attachments, importing: importing)
                     }
                     HStack(alignment: .bottom, spacing: 10) {
-                        PhotosPicker(selection: $picked, maxSelectionCount: 4, matching: .images) {
+                        PhotosPicker(selection: $picked, maxSelectionCount: 4, matching: .any(of: [.images, .videos])) {
                             Image(systemName: "photo.on.rectangle")
                                 .font(.body.weight(.semibold))
                                 .frame(width: 30, height: 30)
                         }
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
-                        .accessibilityLabel("Attach Photos")
+                        .accessibilityLabel("Attach Photos or Videos")
                         TextField(session.isTurnActive ? "Queue a message" : "Message \(session.agentName)", text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .focused($focused)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
                             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
-                        if session.isTurnActive && draft.isEmpty && images.isEmpty {
+                        if session.isTurnActive && draft.isEmpty && attachments.isEmpty && importing == 0 {
                             Button(action: stop) {
                                 Image(systemName: "stop.fill")
                                     .font(.body.weight(.semibold))
@@ -215,7 +216,7 @@ struct ComposerView: View {
                             }
                             .buttonStyle(.glassProminent)
                             .buttonBorderShape(.circle)
-                            .disabled(empty || sending)
+                            .disabled(empty || sending || importing > 0)
                             .accessibilityLabel("Send")
                         }
                     }
@@ -224,11 +225,13 @@ struct ComposerView: View {
             .onChange(of: picked) { _, items in
                 guard !items.isEmpty else { return }
                 picked = []
+                importing += items.count
                 Task {
                     for item in items {
-                        if let data = try? await item.loadTransferable(type: Data.self), let jpeg = PhotoEncoder.jpeg(data) {
-                            images.append(jpeg)
+                        if let attachment = await ComposerMedia.load(item) {
+                            attachments.append(attachment)
                         }
+                        importing -= 1
                     }
                 }
             }
@@ -237,48 +240,5 @@ struct ComposerView: View {
             .padding(.bottom, 8)
             .frame(maxWidth: 820)
         }
-    }
-}
-
-struct AttachedImagesRow: View {
-    @Binding var images: [Data]
-
-    var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(Array(images.enumerated()), id: \.offset) { _, data in
-                    if let image = UIImage(data: data) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 64, height: 64)
-                            .clipShape(.rect(cornerRadius: 12))
-                            .overlay(alignment: .topTrailing) {
-                                Button("Remove", systemImage: "xmark.circle.fill") { images.removeAll { $0 == data } }
-                                    .labelStyle(.iconOnly)
-                                    .symbolRenderingMode(.palette)
-                                    .foregroundStyle(.white, .black.opacity(0.6))
-                                    .padding(4)
-                            }
-                    }
-                }
-            }
-            .padding(.horizontal, 4)
-        }
-        .scrollIndicators(.hidden)
-    }
-}
-
-enum PhotoEncoder {
-    static let maxSide: CGFloat = 1568
-
-    static func jpeg(_ data: Data) -> Data? {
-        guard let image = UIImage(data: data) else { return nil }
-        let scale = min(1, maxSide / max(image.size.width, image.size.height))
-        let size = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
-        return resized.jpegData(compressionQuality: 0.8)
     }
 }

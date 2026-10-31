@@ -93,8 +93,9 @@ public final class AgentsStore {
         }
     }
 
-    public func send(_ text: String, images: [Data] = [], to session: String) async throws {
-        var args: [String: JSONValue] = ["session": .string(session), "text": .string(text)]
+    public func send(_ text: String, attachments: [ComposerAttachment] = [], to session: String) async throws {
+        let images = attachments.flatMap(\.images)
+        var args: [String: JSONValue] = ["session": .string(session), "text": .string(ComposerAttachment.promptText(text, attachments))]
         if !images.isEmpty {
             args["attachments"] = .array(images.map { .object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string($0.base64EncodedString())]) })
         }
