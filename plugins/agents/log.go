@@ -32,6 +32,7 @@ const (
 	kindPermission = "session/request_permission"
 	kindAnswer     = "permission"
 	kindCheckpoint = "checkpoint"
+	kindCommits    = "commits"
 	kindTurnEnd    = "turn_end"
 	kindError      = "error"
 

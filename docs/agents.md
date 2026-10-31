@@ -18,6 +18,7 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 - Child agent sessions (no approval): `agents.new` starts a session, optionally in a new worktree `.worktrees/<branch>` made from the caller's worktree without switching the workspace, and sends it a first `prompt` (`notify` sets its notification policy); `agents.prompt` sends any session a follow-up (added to the running turn when the agent supports steering, else queued); `agents.cancel` stops a running turn; `agents.permission` answers a permission request, but only of sessions the calling agent session started (directly or through its children); `agents.wait` waits without polling until one of the listed sessions stops running (done, waiting for permission, asking a question, error or closed), up to 300 s per call, and returns their status with the pending permission's options; it also returns early with the user's queued messages to the calling session.
 - Failed turns: a turn the agent ends with an internal error (`-32603`, e.g. Claude Code's "ended the turn without returning results for tool calls" when the advisor tool is rate-limited) is retried once, 3 s later, within the same turn: the transcript shows a notice and a Clubmate message asking the agent to continue. A second failure leaves the session in error, as any other error does.
 - Handoffs: `agents.handoff session=… note=…` continues a session that is not running in a fresh one (same worktree, agent, parent, advisor and notification policy), seeded with a brief from Clubmate's log (the task, the last prompt and reply, the last turn's stop reason and checkpoint, and how to read the full transcript) followed by `note`; the old session is closed but can be reopened, and each links to the other. Agents may hand off only sessions they started. In the app, a session's menu has "Hand Off to New Session", and a session whose agent cannot resume offers "Hand off to a new session".
+- Attribution: `agents.blame path=…` (or `commit=…`) tells which agent session, turn and prompt made a file's lines or a commit; see [History and attribution](#history-and-attribution).
 - Reminders and schedules: `cron.add` calls a command later or repeatedly, e.g. `agents.prompt` to your own session every minute to check your children; the job is deleted with your session unless `owner: "none"`. See [cron](cron.md).
 - Reacting to events: `triggers.add` calls a command when a bus event arrives, e.g. `agents.prompt` to yourself when a child's `agents.turn` ends; `triggers.emit` publishes your own `event.<name>`, which `cron.add` can schedule. See [triggers](triggers.md).
 - Answers on your behalf (asks you first): `agents.answer session=… text=…` shows you the text and, once you allow it, sends it to the session as your own message.
@@ -71,9 +72,35 @@ clubmate agent wait agt_123 agt_456 --timeout 300              # agents.wait
 clubmate agent output agt_123 --from-turn 2                    # agents.transcript
 clubmate agent sessions                                        # agents.sessions
 clubmate agent cancel agt_123                                  # agents.cancel
+clubmate agent blame src/main.go -L 10,40                       # agents.blame; or a commit: clubmate agent blame HEAD~2
 ```
 
 A reviewer is a child in your own worktree: `clubmate agent spawn "Review git diff main..HEAD read-only: report bugs, change nothing"` (or `agents_new` without `branch` over MCP), `wait` for it, `tell` it one round of follow-ups, then fix what it found yourself.
+
+## History and attribution
+
+A turn is the unit of history. Before each prompt Clubmate pins a checkpoint of the worktree at `refs/clubmate/cp/<session>/<turn>` (its parent is `HEAD` at turn start). When the turn ends, the commits it added to the current branch get a git note in `refs/notes/clubmate`:
+
+```
+Clubmate-Session: agt_4c67f4de54b9ae47
+Clubmate-Turn: 3
+Clubmate-Agent: claude
+Clubmate-Title: Fix the flaky test
+Clubmate-Prompt: <first line of the turn's prompt>
+Clubmate-Checkpoint: <checkpoint sha>
+```
+
+The turn's commits are those reachable from `HEAD` but not from its start or from any other branch (local or remote), so rebasing onto `main`, merging `main` or fast-forwarding a child's branch claims nothing that is already elsewhere; a squash or merge commit belongs to the turn that made it. A commit keeps its first note. The transcript lists them per turn (`turns[].commits`).
+
+Read them with `git log --notes=clubmate`, `agents.blame` or `clubmate agent blame <file|commit> [-L a,b]` (git blame of the file, only line ranges whose commit has a note).
+
+Limits:
+- `git merge --squash` into `main` makes a new commit, noted with the session that ran the squash (the orchestrator), not the child whose branch it was; the child's notes stay on its branch commits.
+- Commits the user makes in the same worktree during an agent's turn, or pulls into its branch from that branch's remote, are noted with that turn.
+- Rebase and amend drop the notes unless the repo sets `git config notes.rewriteRef refs/notes/clubmate`; Clubmate doesn't set it.
+- Notes are local; push `refs/notes/clubmate` to share them, but they carry each session's title and the first line of its prompts, so check them before pushing.
+
+Not built yet: line-level attribution from checkpoint diffs minus the user's nvim edits, exported as [Agent Trace](https://agent-trace.dev/) records; resuming a session on another machine (needs the agent's own session store there, plus the checkpoint and note refs).
 
 ## MCP (Claude Code and other MCP clients)
 

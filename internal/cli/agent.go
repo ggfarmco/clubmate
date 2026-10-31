@@ -1,10 +1,16 @@
 package cli
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
+
+var errLineRange = errors.New("-L takes <start>[,<end>]")
 
 func (a *app) agentCmd() *cobra.Command {
 	var projectID string
@@ -16,7 +22,7 @@ func (a *app) agentCmd() *cobra.Command {
 		asAgent(params)
 		return a.callAndPrint(cmd.Context(), "command.run", params)
 	}
-	cmd.AddCommand(a.agentSpawnCmd(run), a.agentTellCmd(run), a.agentWaitCmd(run), a.agentOutputCmd(run), a.agentSessionsCmd(run), a.agentCancelCmd(run))
+	cmd.AddCommand(a.agentSpawnCmd(run), a.agentTellCmd(run), a.agentWaitCmd(run), a.agentOutputCmd(run), a.agentSessionsCmd(run), a.agentCancelCmd(run), a.agentBlameCmd(run))
 	return cmd
 }
 
@@ -114,6 +120,56 @@ func (a *app) agentCancelCmd(run agentRun) *cobra.Command {
 			return run(cmd, "agents.cancel", map[string]any{"session": positional[0]})
 		},
 	}
+}
+
+func (a *app) agentBlameCmd(run agentRun) *cobra.Command {
+	var lines string
+	cmd := &cobra.Command{
+		Use:   "blame <file|commit>",
+		Short: "Show which agent session, turn and prompt made a file's lines or a commit (agents.blame)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, positional []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			args := map[string]any{"cwd": cwd}
+			if _, err := os.Stat(positional[0]); err != nil {
+				args["commit"] = positional[0]
+				return run(cmd, "agents.blame", args)
+			}
+			args["path"] = filepath.Join(cwd, positional[0])
+			if filepath.IsAbs(positional[0]) {
+				args["path"] = positional[0]
+			}
+			if lines != "" {
+				start, end, err := lineRange(lines)
+				if err != nil {
+					return err
+				}
+				args["startLine"], args["endLine"] = start, end
+			}
+			return run(cmd, "agents.blame", args)
+		},
+	}
+	cmd.Flags().StringVarP(&lines, "lines", "L", "", "line range <start>[,<end>], 1-based")
+	return cmd
+}
+
+func lineRange(s string) (int, int, error) {
+	from, to, _ := strings.Cut(s, ",")
+	start, err := strconv.Atoi(from)
+	if err != nil || start < 1 {
+		return 0, 0, errLineRange
+	}
+	if to == "" {
+		return start, 0, nil
+	}
+	end, err := strconv.Atoi(to)
+	if err != nil || end < start {
+		return 0, 0, errLineRange
+	}
+	return start, end, nil
 }
 
 func asAgent(params map[string]any) {

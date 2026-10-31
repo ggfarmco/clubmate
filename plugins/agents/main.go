@@ -395,6 +395,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return s.view(args.FromTurn), nil
+	case "agents.blame":
+		return a.blameCommand(ctx, cmd)
 	case "agents.handoff":
 		var args handoffArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -1053,8 +1055,12 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		go p.stop()
 		return
 	}
+	commits := a.attributeTurn(rec, turn, sha, args.Text)
 	s.mu.Lock()
 	s.log.flush()
+	if len(commits) > 0 {
+		s.recordLocked(actorClubmate, kindCommits, commitsPayload{Turn: turn, Commits: commits})
+	}
 	s.running = false
 	edited := s.edited
 	var next promptArgs

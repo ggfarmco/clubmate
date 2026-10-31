@@ -104,9 +104,10 @@ type entry struct {
 }
 
 type turnInfo struct {
-	Turn          int    `json:"turn"`
-	CheckpointSha string `json:"checkpointSha"`
-	StopReason    string `json:"stopReason,omitempty"`
+	Turn          int      `json:"turn"`
+	CheckpointSha string   `json:"checkpointSha"`
+	StopReason    string   `json:"stopReason,omitempty"`
+	Commits       []string `json:"commits,omitempty"`
 }
 
 type transcriptView struct {
@@ -336,6 +337,11 @@ func (s *session) apply(e envelope) {
 		var p checkpointPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			s.turnInfo(p.Turn).CheckpointSha = p.Sha
+		}
+	case kindCommits:
+		var p commitsPayload
+		if json.Unmarshal(e.Payload, &p) == nil {
+			s.turnInfo(p.Turn).Commits = p.Commits
 		}
 	case kindPrompt:
 		s.applyPrompt(e)

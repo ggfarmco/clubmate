@@ -267,13 +267,52 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Read a session's transcript from Clubmate's own log: {session, modes, commands, turns:[{turn, checkpointSha, stopReason}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission or notice. Non-destructive.",
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission or notice. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},
             "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."}
           },
           "required": ["session"]
+        }
+      },
+      {
+        "id": "agents.blame",
+        "title": "Agent Blame",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Which agent session, turn and prompt made a commit or a file's lines. At the end of each turn Clubmate notes the commits the turn added to the current branch (not reachable from any other branch) in git notes refs/notes/clubmate (git log --notes=clubmate shows them). With path: git blame of the file, returns the line ranges whose commit has a note. With commit: that commit's note, or none. Returns {attributions:[{commit, startLine?, endLine?, session, turn, agent, title, prompt, checkpoint}]}. Non-destructive.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "File, absolute or relative to cwd."},
+            "commit": {"type": "string", "description": "Commit (any revision) instead of a file."},
+            "cwd": {"type": "string", "description": "Absolute directory for a relative path or a commit; defaults to the calling agent session's worktree."},
+            "startLine": {"type": "integer", "description": "First line to blame, 1-based; defaults to the whole file."},
+            "endLine": {"type": "integer", "description": "Last line to blame; defaults to the end of the file."}
+          }
+        },
+        "result": {
+          "properties": {
+            "attributions": {
+              "type": "array",
+              "description": "Attributed commits or line ranges.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "commit": {"type": "string", "description": "Commit sha."},
+                  "startLine": {"type": "integer", "description": "First line of the range (path only)."},
+                  "endLine": {"type": "integer", "description": "Last line of the range (path only)."},
+                  "session": {"type": "string", "description": "Agent session id."},
+                  "turn": {"type": "integer", "description": "Turn of the session."},
+                  "agent": {"type": "string", "description": "Agent."},
+                  "title": {"type": "string", "description": "Session title at that turn."},
+                  "prompt": {"type": "string", "description": "First line of the turn's prompt."},
+                  "checkpoint": {"type": "string", "description": "Checkpoint taken before the turn."}
+                }
+              }
+            }
+          }
         }
       }
     ]
