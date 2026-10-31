@@ -100,7 +100,7 @@ public final class AgentsStore {
                     let fromTurn = loaded?.lastTurn ?? 0
                     var args: [String: JSONValue] = ["session": .string(session), "compact": .bool(true)]
                     if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
-                    let fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args)).decode(AgentTranscript.self)
+                    let fetched = try await Self.transcript(from: runner.command("agents.transcript", workspace: workspace, args: .object(args)))
                     transcripts[session] = fromTurn > 0 ? loaded?.merging(fetched, fromTurn: fromTurn) ?? fetched : fetched
                     transcriptErrors[session] = nil
                     return
@@ -114,7 +114,7 @@ public final class AgentsStore {
     }
 
     private func follow(_ session: String) async {
-        await loadTranscript(session, incremental: true)
+        await load(session)
         while !Task.isCancelled {
             do {
                 try await sleep(Self.followInterval)
@@ -122,9 +122,18 @@ public final class AgentsStore {
                 return
             }
             guard sessions.first(where: { $0.id == session })?.status == .running else { continue }
-            await loadTranscript(session, incremental: true)
+            await load(session)
             if let status = transcripts[session]?.session.status, status != .running { await refresh() }
         }
+    }
+
+    private func load(_ session: String) async {
+        await Task { await loadTranscript(session, incremental: true) }.value
+    }
+
+    @concurrent
+    private nonisolated static func transcript(from value: JSONValue) async throws -> AgentTranscript {
+        try value.decode(AgentTranscript.self)
     }
 
     public func send(_ text: String, attachments: [ComposerAttachment] = [], to session: String) async throws {

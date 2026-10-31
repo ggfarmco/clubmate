@@ -293,9 +293,7 @@ func (a *app) transcriptCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 		dropImageData(v.Entries)
 	}
 	if args.Compact {
-		for _, en := range v.Entries {
-			delete(en.Tool, "rawOutput")
-		}
+		compactTools(v.Entries)
 	}
 	return v, nil
 }

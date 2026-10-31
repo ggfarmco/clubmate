@@ -147,6 +147,32 @@ func dropImageData(entries []*entry) {
 	}
 }
 
+func compactTools(entries []*entry) {
+	for _, en := range entries {
+		if en.Tool == nil {
+			continue
+		}
+		delete(en.Tool, "rawOutput")
+		var items []json.RawMessage
+		if json.Unmarshal(en.Tool["content"], &items) != nil {
+			continue
+		}
+		kept := make([]json.RawMessage, 0, len(items))
+		for _, raw := range items {
+			var item struct {
+				Content acp.ContentBlock `json:"content"`
+			}
+			if json.Unmarshal(raw, &item) == nil && item.Content.Type == "image" {
+				continue
+			}
+			kept = append(kept, raw)
+		}
+		if len(kept) < len(items) {
+			en.Tool["content"], _ = json.Marshal(kept)
+		}
+	}
+}
+
 func (s *session) update(params json.RawMessage) {
 	var n acp.SessionNotification
 	if json.Unmarshal(params, &n) != nil || len(n.Update) == 0 {

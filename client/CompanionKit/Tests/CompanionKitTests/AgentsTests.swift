@@ -173,6 +173,17 @@ final class TranscriptRefreshTests: XCTestCase {
         store.unwatch("s")
     }
 
+    func testReopeningASessionWhileItsLoadIsInFlightStillLoadsIt() async throws {
+        let runner = SlowRunner()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.watch("s")
+        try await waitUntil { runner.started == 1 }
+        store.unwatch("s")
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        store.unwatch("s")
+    }
+
     func testFollowsARunningSessionUntilItsTurnEnds() async throws {
         let running = #"{"session":{"id":"s","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
         let done = #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"agent","id":"a1","turn":1,"text":"answer"}]}"#
@@ -204,5 +215,17 @@ final class ScriptedRunner: CommandRunner {
         }
         self.args.append(args ?? .null)
         return try JSONDecoder().decode(JSONValue.self, from: Data(replies.removeFirst().utf8))
+    }
+}
+
+@MainActor
+final class SlowRunner: CommandRunner {
+    private(set) var started = 0
+
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        guard id == "agents.transcript" else { return .array([]) }
+        started += 1
+        try await Task.sleep(for: .milliseconds(50))
+        return try JSONDecoder().decode(JSONValue.self, from: Data(#"{"session":{"id":"s","status":"done"},"entries":[]}"#.utf8))
     }
 }
