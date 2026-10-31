@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clubmate audit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 2400px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · design review</div>
+<h1>1 · Audit</h1>
+<p class="lead">27 problems, ranked by impact: broken layouts and contrast first, then the decisions the user makes most often, then consistency and polish. The last column says who fixes it.</p>
+<div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; font-size: 14px">
+<span style="display: flex; gap: 8px; align-items: center"><span class="tag a">a</span>theme token or renderer change in the client</span>
+<span style="display: flex; gap: 8px; align-items: center"><span class="tag c">c</span>plugin-side content change</span>
+<span style="display: flex; gap: 8px; align-items: center"><span class="tag b">b</span>new SDUI prop or node (rare)</span></div>
+</div>
+<table>
+<thead>
+<tr><th style="width: 64px">#</th><th style="width: 150px">Screen</th><th style="width: 330px">Problem</th><th style="width: 270px">Why it matters</th><th>Fix</th><th style="width: 70px">Type</th></tr>
+</thead>
+<tbody>
+<tr><td class="n"><span class="tag p0">P0</span><br>1</td><td>Agents · 640</td><td>Header title wraps and overlaps “Thinking”; meta wraps into two lines.</td><td>Broken layout at the width the app is used most (half a screen).</td><td>Header is one line: title truncates at the tail; below 800pt the meta drops to its own caption line in flow. Header height is measured, never fixed.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag p0">P0</span><br>2</td><td>Agents · 640</td><td>Permission card buttons are cut off by the composer.</td><td>The agent is blocked on exactly the control you can't reach.</td><td>A pending permission docks above the composer until answered; the transcript scrolls under it. <code>⌥1</code> Allow · <code>⌥2</code> Always · <code>⌥3</code> Reject work even with a draft in the composer; bare <code>1/2/3</code> only when it's empty. <code>⎋</code> still stops the turn.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag p0">P0</span><br>3</td><td>All · light themes</td><td><code>muted</code> = fg 55% gives 2.5:1 on Catppuccin Latte and 4.4:1 on Kanagawa.</td><td>Times, paths and meta become unreadable on light themes.</td><td>Text levels are computed per theme: the lowest fg ratio that reaches 4.5:1 (text-2) or 3:1 (muted) on surface-1. Tone inks are nudged toward fg the same way.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>4</td><td>Agents</td><td>Permission buttons are tiny chips; Reject is red text; the card has no keyboard handling at all — click only.</td><td>The screen's main decision has the smallest targets and no visible keys.</td><td>Buttons 24pt high, Allow is the primary fill, Reject a danger outline, key hints inside each button.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>5</td><td>Cron · Triggers · Backlog</td><td>Detail panes are text dumps or raw forms: no header, no properties, no actions. Pause and Run live only in context menus.</td><td>Actions are invisible, and nothing tells you what the keyboard can do.</td><td>One Detail pattern: header (icon · title · state) · property list · action bar with shortcuts. Every <code>menu</code> action also appears in the bar.</td><td><span class="tag a">a</span> <span class="tag b">b</span> <span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>6</td><td>Agents</td><td>Composer footer holds model, mode, options, attach, hint, Stop and a grey “Queue”. The mode reads only “Default”.</td><td>Seven controls and no clear primary; Queue looks disabled while it isn't; “Default” says nothing about what the mode does.</td><td>Footer = [agent · mode ⌄] [options] [attach] … [hint] [primary]. Mode by meaning: Ask before edits · Plan · Accept edits. Stop moves to the header (<code>⎋</code>). The primary label follows state: Send or Queue.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>7</td><td>Window</td><td>Title bar pills are white system capsules; the bell count is red.</td><td>The loudest thing on screen is chrome, and red reads as “error”.</td><td>Pills on surface-2 with a hairline border, in the terminal font. The count is warning-toned when something needs you, neutral otherwise.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>8</td><td>Cron</td><td>The action is shown as <code>agents.new {"prompt":…}</code>.</td><td>It reads like debug output, while the prompt is the actual content.</td><td>Show “Start agent” and the prompt as quoted text; raw JSON behind “Show JSON”.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>9</td><td>Triggers · Graphs</td><td>Ids as names: <code>review-loop gr_a4841f…</code> three times.</td><td>The rows are indistinguishable and the id means nothing to a person.</td><td>Name what it does: “Review loop: Coder done → Reviewer”. Ids live in “Copy id”.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>10</td><td>Agents sidebar</td><td>“Needs you” repeats sessions that are also listed below.</td><td>Same item twice; four rows of a narrow sidebar spent on duplicates.</td><td>One tree. Rows that need you carry the warning icon; a filter row (All · Needs you · Running) and the rail dot replace the section.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>11</td><td>Agents sidebar</td><td>Titles cut at ~16 chars; the “Review loop ·” prefix eats width; the worktree row shows <code>/Users/…</code>.</td><td>You can't tell sessions apart, which is the sidebar's only job.</td><td>Nest graph sessions under their graph. Worktree row = branch name only. Sidebar 248pt.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>12</td><td>Processes</td><td>COMMAND truncates the tail — the binary and its args.</td><td>The useful part is what gets cut.</td><td>Paths truncate in the middle (first segment + last two). Needs a column prop <code>truncate: head | middle | tail</code>.</td><td><span class="tag b">b</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>13</td><td>Code + chat</td><td>Session picker and title repeat the same name; the title wraps.</td><td>Two of the panel's first three lines say the same thing.</td><td>Panel header = one picker row (it is the title) + New.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>14</td><td>Code + chat</td><td>Empty transcript is blank space.</td><td>No hint of what the panel can do or what it can see.</td><td>Empty state: context chip (current file:line) and three starter prompts with keys.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>15</td><td>Backlog</td><td>Title is a plain box, “Save” is plain text, Status/Priority selects are low-contrast, Start/Done/Delete look like text. Status and priority appear twice: header badges and selects.</td><td>Editing a task feels unfinished, the actions are easy to miss, and the same value shown twice invites “which one is true?”.</td><td>Detail pattern: <code>#2</code> + title as heading (⏎ to edit), autosave with a “Saved” caption, one select each for status and priority, Start agent as the primary.</td><td><span class="tag a">a</span> <span class="tag b">b</span> <span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>16</td><td>Backlog sidebar</td><td>Priority badges take the title's width and change colour between list (blue “high”) and header (amber “high”); “low” gets a badge too. “New task…” and “+ Add” do the same job. The selected row is an outline, unlike the fill in Agents.</td><td>Titles cut at ~12 chars; tone stops meaning anything; two looks for “selected”.</td><td>Priority as a glyph before the title (<code>!!</code> high, <code>↓</code> low, nothing for normal); <code>#n</code> as muted detail; one “New task…” field (⏎ adds to Todo); the standard selection fill.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>17</td><td>Graphs</td><td>Meta is pinned to the far right edge.</td><td>The eye travels 1,500pt to pair a node with its status.</td><td>Meta follows the label as <code>detail</code>; the status badge sits in a column at most 160pt from the label.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>18</td><td>Approval sheet</td><td>“Allow” is a red pill; the script is an unformatted dump.</td><td>Danger colour on the affirmative inverts meaning, and the risk isn't stated.</td><td>Deny is the default button; Allow is neutral with <code>⌘⏎</code>; one risk line; the script in a numbered code view.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>19</td><td>Processes</td><td>Empty gap above the charts; the toolbar mixes a destructive button, a toggle and stats.</td><td>Half the pane is empty, and a destructive action sits next to stats.</td><td>Totals become a compact header strip; Auto-kill moves to options; “Kill orphans” is a danger outline, disabled at 0.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>20</td><td>Code</td><td>App status bar duplicates nvim's statusline.</td><td>Two status lines, one redundant.</td><td>In Code the status bar carries app state only (agents, connection).</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>21</td><td>Terminals</td><td>“running” on every row.</td><td>Labelling the normal state is noise.</td><td>Detail only for exceptions: <code>exit 1</code>, bell, idle 10m.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>22</td><td>Graphs · empty</td><td>Instruction floats mid-sidebar; main says “Select a graph run”.</td><td>The empty state is the onboarding, and it teaches nothing.</td><td>Empty pattern in main: icon, one sentence, primary action, the file path as code. <code>empty</code> is text-only today.</td><td><span class="tag b">b</span> <span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>23</td><td>Palette ⌘K</td><td>Right column mixes command ids and shortcuts; one flat, unordered list; Title Case unlike the rest of the app.</td><td>That column is scanned for keys; a dozen ungrouped commands make ⌘K a scroll, not a jump.</td><td>Right column = keycaps only; the id shows muted on the selected row; groups by plugin with section labels; sentence case everywhere.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>24</td><td>Worktree picker</td><td>Cursor and current (✓) look alike.</td><td>Two different “selected” looks in one list.</td><td>Cursor = selection fill; current = accent dot + “current”; add dirty / ahead markers.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>25</td><td>Window</td><td>Two fonts: SF in pills, Settings and alerts; mono everywhere else.</td><td>Two visual voices in one window.</td><td>The main window uses the terminal font everywhere; native sheets keep SF (open question 1).</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>26</td><td>Status bar</td><td><code>● connected  Agents</code></td><td>A full-width row that says almost nothing.</td><td>Left: core state · agents running / waiting. Right: key hints for the focused pane.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>27</td><td>Notifications popover</td><td>Emoji as kind icons (✋ 💬 ⚠ ✓).</td><td>Emoji clash with SF Symbols and ignore the theme.</td><td>SF Symbols in tone colours; unread = accent dot.</td><td><span class="tag a">a</span></td></tr>
+</tbody>
+</table>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":2400}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

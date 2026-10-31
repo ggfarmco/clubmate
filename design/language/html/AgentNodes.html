@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Components: agent nodes and chrome</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+
+
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+
+</head><body>
+
+<div class="doc" style="width: 1480px; min-height: 2000px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · design language</div>
+<h1>4b · Components — agent nodes &amp; chrome</h1>
+<p class="lead">The transcript is read top to bottom, fast. Flat by default; a surface only where the agent asks or changes something. Shown in Kanagawa.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>message · thought · markdown</h2>
+<ul class="muted" style="font-size: 14px">
+<li><b>user</b>: surface-1 block, accent <code>›</code>, radius l — the only tinted message, so turns are easy to find</li>
+<li><b>agent</b>: flat body text; markdown renders lists, code, bold; no avatar, no name</li>
+<li><b>thought</b>: one collapsed muted row with duration; expands to text-2</li>
+<li>max reading width 820pt; transcript bottom-anchored</li>
+<li>loading = a muted “…” row with elapsed time; error = danger-ink row + Retry</li>
+</ul>
+</div>
+<div class="cm th-kanagawa" style="border-radius: 10px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; gap: 10px; padding: 8px 12px; background: var(--s1); border-radius: 8px"><span class="ac-i b">›</span><p>Rate-limit <code>notify.post</code> per workspace. Keep the global cap.</p></div>
+<div class="row mut" style="padding-left: 0"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span>Thought for 4s</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><p>Added a per-workspace <b>token bucket</b> in front of <code>bus.Publish</code>:</p><ul style="margin: 0; padding-left: 18px"><li>10 burst, refill 1/s</li><li><code>cm notify</code> exits 1 when limited</li></ul></div>
+<div class="row mut" style="padding-left: 0"><span>…</span><span>working · 12s</span></div>
+<div class="row" style="padding-left: 0"><svg class="i er-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m6 6 4 4M10 6l-4 4"/></svg><span class="er-i">Agent stopped: connection lost</span><button class="btn sm">Retry<span class="kbd">⌘R</span></button></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>plan · toolCard · diff</h2>
+<ul class="muted" style="font-size: 14px">
+<li><b>plan</b>: card; caption “Plan · n of m”; done = muted + check (no strikethrough); current = bold + accent icon; pending = text-2</li>
+<li><b>toolCard</b> groups consecutive calls into one row: “3 actions · read 1 · search 1 · edit 1”; expanded rows show verb · target · result</li>
+<li>success is silent; only running (spinner) and failed (danger row, output inline) get marks</li>
+<li><b>diff</b>: card header = path (middle-truncated) + Open/Full diff with keys; gutter numbers faint; ± lines tone 13%</li>
+</ul>
+</div>
+<div class="cm th-kanagawa" style="border-radius: 10px; padding: 16px 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div class="card" style="padding: 6px 4px">
+<div style="display: flex; justify-content: space-between; padding: 0 8px 2px" class="cap mut"><span>Plan</span><span>2 of 4</span></div>
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Read notify.go</span></div>
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Add a token bucket</span></div>
+<div class="row"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="l b">Cover the burst case</span></div>
+<div class="row"><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><span class="l t2">Run go test</span></div>
+</div>
+<div style="display: flex; flex-direction: column">
+<div class="row" style="padding-left: 0"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><span>4 actions</span><span class="mut ell">read 1 · run 2 · edit 1</span></div>
+<div class="row" style="padding-left: 18px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="mut" style="width: 44px">Read</span><span class="l">notify.go</span><span class="d cap">0.1s</span></div>
+<div class="row" style="padding-left: 18px"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1.5px solid var(--bd2); border-top-color: var(--ac)"></span><span class="mut" style="width: 44px">Run</span><span class="l">go vet ./...</span><span class="d cap">3s</span></div>
+<div class="row" style="padding-left: 18px; background: var(--er-bg)"><svg class="i er-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m6 6 4 4M10 6l-4 4"/></svg><span class="mut" style="width: 44px">Run</span><span class="l">go test ./internal/notify</span><span class="d cap er-i">exit 1</span></div>
+<div class="cap" style="margin-left: 40px; padding: 4px 8px; background: var(--bg); border: 1px solid var(--bd); border-radius: 5px; white-space: pre"><span class="er-i">--- FAIL: TestBurst (0.00s)</span>
+    notify_test.go:41: 11th post allowed</div>
+</div>
+<div class="card" style="overflow: hidden; grid-column: 1 / -1">
+<div style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 10px; border-bottom: 1px solid var(--bd)"><span class="cap mut ell" style="flex: 1">internal/notify/notify.go <span class="ok-i">+3</span> <span class="er-i">−1</span></span><button class="btn sm gh">Open in nvim<span class="kbd">⌘O</span></button><button class="btn sm gh">Full diff<span class="kbd">⌘D</span></button></div>
+<div class="diff" style="padding: 4px 0; background: var(--bg)">
+<div class="dl hunk"><span></span><span></span><span>@@ -14,3 +14,5 @@ func (s *Service) Post</span></div>
+<div class="dl del"><span>15</span><span>−</span><span>    return s.bus.Publish(ctx, Topic, n)</span></div>
+<div class="dl add"><span>15</span><span>+</span><span>    if !s.limiter.Allow(n.Project, s.clock()) {</span></div>
+<div class="dl add"><span>16</span><span>+</span><span>        return ErrRateLimited</span></div>
+<div class="dl add"><span>17</span><span>+</span><span>    }</span></div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>permissionCard</h2>
+<ul class="muted" style="font-size: 14px">
+<li>warning-border card, 7% warning tint; shield icon; one-line reason</li>
+<li>the command in a sunken mono block — exactly what will run</li>
+<li>Allow (primary) · Always allow · Reject (danger outline), tone from the option's <code>kind</code></li>
+<li>keys: <code>⌥1 ⌥2 ⌥3</code> in button order, always, without touching the draft; bare <code>1/2/3</code> or <code>y/n</code> only when the composer is empty or the card has focus; <code>⎋</code> stops the turn and does not reject</li>
+<li>pending: <b>docked above the composer</b>, never scrolled away</li>
+<li>answered: collapses to one muted row in the transcript</li>
+</ul>
+</div>
+<div class="cm th-kanagawa" style="border-radius: 10px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<section class="card" aria-label="Permission request" style="padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; border-color: var(--wa-bd); background: color-mix(in srgb, var(--wa) 7%, var(--bg))">
+<div style="display: flex; align-items: center; gap: 8px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg><span class="b">Run a command?</span><span class="mut cap">go test isn't in this workspace's allow list</span></div>
+<div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 5px; padding: 2px 10px">go test ./internal/notify/...</div>
+<div class="abar"><button class="btn pri">Allow<span class="kbd">⌥1</span></button><button class="btn">Always allow<span class="kbd">⌥2</span></button><button class="btn dg">Reject<span class="kbd">⌥3</span></button></div>
+</section>
+<div class="row mut" style="padding-left: 0"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/></svg><span>Allowed always · go test ./internal/notify/...</span><span class="d cap">13:20</span></div>
+<div class="row mut" style="padding-left: 0"><svg class="i er-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/></svg><span>Rejected · rm -rf build/</span><span class="d cap">13:02</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>composer</h2>
+<ul class="muted" style="font-size: 14px">
+<li>card; min 2 text lines, grows to 40% of the pane</li>
+<li>footer: [agent · mode ⌄] [options] [attach] · · · [hint] [primary]</li>
+<li>primary follows state: <b>Send</b> (idle) → <b>Queue</b> (agent busy or waiting); disabled only when empty</li>
+<li>Stop lives in the pane header (⎋), never next to Send</li>
+<li>the mode menu names the behaviour — Ask before edits · Plan · Accept edits — never a bare “Default”</li>
+<li>focus: accent border + halo; error: danger caption above the footer</li>
+</ul>
+</div>
+<div class="cm th-kanagawa" style="border-radius: 10px; padding: 16px 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">idle · empty</span>
+<div class="card"><div class="faint" style="padding: 8px 12px; min-height: 44px">Ask Claude…</div><div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px"><button class="btn sm gh">Claude · Ask before edits</button><span style="flex: 1"></span><button class="btn sm pri dis" disabled>Send<span class="kbd">⌘⏎</span></button></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">focused · typing</span>
+<div class="card" style="border-color: var(--ac); box-shadow: 0 0 0 3px var(--ac-bg)"><div style="padding: 8px 12px; min-height: 44px">Also add a test for the global cap|</div><div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px"><button class="btn sm gh">Claude · Ask before edits</button><span style="flex: 1"></span><button class="btn sm pri">Send<span class="kbd">⌘⏎</span></button></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">agent busy</span>
+<div class="card"><div style="padding: 8px 12px; min-height: 44px">Also add a test for the global cap</div><div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px"><button class="btn sm gh">Claude · Ask before edits</button><span style="flex: 1"></span><span class="mut cap">will queue</span><button class="btn sm">Queue<span class="kbd">⌘⏎</span></button></div></div></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>app chrome</h2>
+<ul class="muted" style="font-size: 14px">
+<li><b>title pills</b>: surface-2 + border, radius m, terminal font; workspace / branch ⌄ is one pill</li>
+<li><b>rail</b> 40pt; item 30pt; active = fg + hover fill + 2pt accent bar; attention = 6pt warning dot</li>
+<li><b>status bar</b> 22pt, caption: core · agents · waiting … focused-pane keys · ⌘K</li>
+<li><b>palette</b>: surface-3 popover; single-line rows grouped by plugin; right column = keycaps only; the command id shows muted on the selected row; sentence case</li>
+<li><b>notifications</b>: two-line rows, SF-style glyph in tone, unread accent dot; groups “Waiting for you” / “Earlier”</li>
+</ul>
+</div>
+<div class="cm th-kanagawa" style="border-radius: 10px; padding: 16px 20px; display: grid; grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start">
+<div class="rail" style="border-radius: 8px; border: 1px solid var(--bd); padding: 6px 0; width: 44px">
+<button class="ri" aria-label="Code"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri on" aria-label="Agents"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg></button>
+<button class="ri" aria-label="Cron, attention"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="bdg"></span></button>
+<button class="ri" style="background: var(--hov); color: var(--fg)" aria-label="Graphs, hover"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div class="tb" style="border-radius: 8px; border: 1px solid var(--bd); height: 38px">
+<button class="pill"><span>design-brief</span><span class="faint">/</span><span>docs/design-brief</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+</div>
+<div class="sb" style="border-radius: 8px; border: 1px solid var(--bd); height: 22px"><span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span><span>3 agents · <span class="wa-i">3 need you</span></span><span style="flex: 1"></span><span>j/k · ⏎ · ⌘K</span></div>
+<div class="sb" style="border-radius: 8px; border: 1px solid var(--bd); height: 22px"><span style="display: flex; align-items: center; gap: 6px" class="er-i"><span class="dot"></span>core disconnected — retrying in 3s</span><span style="flex: 1"></span><span>⌘R reconnect</span></div>
+<div class="pop" style="padding: 6px">
+<div class="field" style="border: 0; background: transparent; height: 30px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg><span class="phd">Type a command</span></div>
+<div class="hr" style="margin: 4px 0"></div>
+<div class="sec">Backlog</div>
+<div class="row sel"><span class="l">New backlog task <span class="cap mut">backlog.new</span></span></div>
+<div class="sec">Editor</div>
+<div class="row"><span class="l">Reveal file in Finder</span></div>
+<div class="row"><span class="l">Restart Neovim</span></div>
+<div class="sec">Go to</div>
+<div class="row"><span class="l">Code</span><span class="kbd">⌘1</span></div>
+<div class="row"><span class="l">Terminals</span><span class="kbd">⌘2</span></div>
+</div>
+</div>
+<div class="pop" style="padding: 6px 4px">
+<div style="display: flex; align-items: center; gap: 6px; padding: 2px 6px 6px"><span class="ttl" style="flex: 1">Notifications</span><button class="btn sm gh">All<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button><button class="btn sm gh">Mark all read</button></div>
+<div class="sec">Waiting for you · 3</div>
+<div class="row two hov"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 3px"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/></svg><span class="l" style="display: flex; flex-direction: column"><span class="ell">Claude wants to run go test</span><span class="cap mut ell">design-brief · Rate-limit…</span></span><span class="d cap">2m</span><span class="dot ac-i" style="margin-top: 6px"></span></div>
+<div class="row two"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 3px"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg><span class="l" style="display: flex; flex-direction: column"><span class="ell">Coder asks which cap to keep</span><span class="cap mut ell">design-brief · Review loop</span></span><span class="d cap">9m</span><span class="dot ac-i" style="margin-top: 6px"></span></div>
+<div class="sec">Earlier</div>
+<div class="row two"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 3px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l" style="display: flex; flex-direction: column"><span class="ell t2">Bump ghostty finished</span><span class="cap mut ell">design-brief · main</span></span><span class="d cap">2h</span></div>
+</div>
+</div>
+</div>
+</div>
+</body></html>

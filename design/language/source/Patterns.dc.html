@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clubmate patterns</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 2000px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · design language</div>
+<h1>5 · Patterns</h1>
+<p class="lead">Four patterns cover every plugin view in the brief: the detail view, empty states, truncation, and how a window narrower than 800pt degrades. Plus one focus model for all of them.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 40px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div class="cm th-{{theme}}" style="border-radius: 10px; overflow: hidden; border: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px 24px 14px; border-bottom: 1px solid var(--bd); position: relative">
+<span class="badge ac" style="position: absolute; left: 4px; top: 20px">1</span>
+<div style="display: flex; align-items: center; gap: 10px"><svg class="i s16 t2" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="h">Nightly dependency audit</span><span class="badge">active</span><span class="badge wa">missed 1 run</span></div>
+<div class="abar" style="padding-left: 26px; position: relative"><span class="badge ac" style="position: absolute; left: -20px; top: 4px">2</span><button class="btn pri">Run now<span class="kbd">⌘R</span></button><button class="btn">Pause<span class="kbd">P</span></button><button class="btn gh">Edit<span class="kbd">E</span></button><span style="flex: 1"></span><button class="btn dg sm">Delete<span class="kbd">⌘⌫</span></button></div>
+</div>
+<div style="padding: 16px 24px 20px 50px; display: flex; flex-direction: column; gap: 20px; position: relative">
+<span class="badge ac" style="position: absolute; left: 4px; top: 18px">3</span>
+<div class="props">
+<span class="k">Schedule</span><div class="v"><span>Every day at 03:00</span><code class="mut">0 3 * * *</code></div>
+<span class="k">Next run</span><div class="v"><span>Sun, Nov 1 · 03:00</span><span class="mut">in 13 h</span></div>
+<span class="k">Worktree</span><div class="v">main</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; position: relative"><span class="badge ac" style="position: absolute; left: -46px; top: 0">4</span><span class="mut cap">Does</span><div style="padding: 8px 12px; background: var(--s1); border: 1px solid var(--bd); border-radius: 6px">Run govulncheck and open backlog tasks for findings.</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px; position: relative"><span class="badge ac" style="position: absolute; left: -46px; top: 0">5</span><span class="mut cap">Runs</span><div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px dashed var(--bd2); border-radius: 6px"><span class="t2" style="flex: 1">No runs yet.</span><button class="btn sm">Run now<span class="kbd">⌘R</span></button></div></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<h2>Detail view</h2>
+<p class="muted" style="font-size: 14px">Cron, Triggers, Backlog, Graph runs and anything a plugin adds later. Built from existing nodes plus one new <code>header</code> node (see handoff).</p>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px">
+<li><b>Header</b> — kind icon · title in <code>heading</code> (wraps to two lines max, then tail-truncates) · state badges. The normal state gets a neutral badge; only attention gets a tone.</li>
+<li><b>Action bar</b> — primary first, then secondary, then ghost; destructive last and pushed right. Every action shows its key. Below 800pt: primary + two, the rest in “…”.</li>
+<li><b>Properties</b> — <code>form</code> grid. Human value first, machine value second in muted code (<code>0 3 * * *</code>).</li>
+<li><b>Sections</b> — caption label, flat content. Quoted user text (a prompt) sits in a surface-1 block; JSON only behind “Show as JSON”.</li>
+<li><b>History / runs</b> — a list; when empty, a dashed in-place empty with the action that fills it.</li>
+</ol>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px"><h2>Empty states</h2><p class="muted" style="font-size: 14px">Never “Select an X”. If something exists, show the most recent item. If nothing exists, teach in one sentence and offer the one action that fixes it.</p></div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<span class="cap mut">in a sidebar list</span>
+<div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 8px 0">
+<div class="sec">Triggers</div>
+<div class="row mut"><span class="l">None yet</span><span class="kbd">⌘N</span></div>
+</div>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<span class="cap mut">a whole pane</span>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 18px; border: 1px solid var(--bd); border-radius: 6px">
+<span style="display: flex; align-items: center; gap: 8px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="b">No graph runs yet</span></span>
+<span class="t2">Graphs chain agents: when one finishes, the next starts.</span>
+<span class="cap mut"><code>.clubmate/graphs/&lt;name&gt;.json</code></span>
+<span><button class="btn pri sm">Run a graph<span class="kbd">⌘R</span></button></span>
+</div>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<span class="cap mut">inside a detail section</span>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed var(--bd2); border-radius: 6px"><span class="t2" style="flex: 1">No runs yet.</span><button class="btn sm">Run now<span class="kbd">⌘R</span></button></div>
+<span class="cap mut" style="margin-top: 6px">a filter with no matches</span>
+<div class="row mut" style="padding-left: 0"><span class="l">No match for “flaky”</span><span class="kbd">⎋ clear</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Truncation</h2>
+<p class="muted" style="font-size: 14px">Keep the end that tells items apart. The full value is always in the tooltip and on ⌘C.</p>
+<table>
+<thead><tr><th>Kind</th><th>Rule</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>titles, names</td><td>tail</td><td class="mono">Rate-limit notifications per wo…</td></tr>
+<tr><td>file paths</td><td>middle: first segment + last two</td><td class="mono">/Users/cali/…/build/clubmate-core</td></tr>
+<tr><td>commands</td><td>middle, keep executable + args</td><td class="mono">…/cm-plugin-agents --stdio</td></tr>
+<tr><td>folder fields</td><td>head</td><td class="mono">…/ggfarmco/clubmate</td></tr>
+<tr><td>branches</td><td>middle, keep prefix</td><td class="mono">refactor/…-rename</td></tr>
+<tr><td>ids, hashes</td><td>not shown</td><td>“Copy id” in the menu</td></tr>
+<tr><td>numbers, times</td><td>never truncate</td><td>column gives way first</td></tr>
+</tbody>
+</table>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Narrow windows</h2>
+<p class="muted" style="font-size: 14px">One breakpoint does most of the work: below 800pt the sidebar becomes an overlay and every pane gets a one-line breadcrumb.</p>
+<table>
+<thead><tr><th style="width: 130px">Width</th><th>Layout</th></tr></thead>
+<tbody>
+<tr><td class="mono">≥ 1100</td><td>rail · sidebar 248 · main · optional side panel 392</td></tr>
+<tr><td class="mono">800–1100</td><td>side panel becomes a bottom split (Code chat) or closes; sidebar 220</td></tr>
+<tr><td class="mono">&lt; 800</td><td>sidebar → overlay on ⌘B; detail gets “‹ Section / position” breadcrumb + j/k; header meta drops to its own line; property key column 88</td></tr>
+<tr><td class="mono">&lt; 800</td><td>action bar: primary + two, rest under “…”; graph diagram → node list; tables drop columns in order HISTORY, TIME, MEM</td></tr>
+<tr><td class="mono">&lt; 800</td><td>title bar drops the window-count pill; status bar keeps core · waiting · ⌘K</td></tr>
+<tr><td class="mono">any</td><td>nothing overlaps: headers are measured, pending permission docks above the composer</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Focus model</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li>Exactly one pane has focus. Its selected row shows the accent fill and bar; the other panes show <b>selected · idle</b> (fg 9%, no bar). You always know where j/k will go.</li>
+<li>When the keyboard cursor differs from the selection (multi-select, vim visual), the cursor gets the 1.5pt focus ring.</li>
+<li>Move between panes with <code>⌃h</code> / <code>⌃l</code> (or ⌘[ ⌘]); <code>⎋</code> goes up one level (detail → list → rail).</li>
+<li>Controls get focus in reading order; the primary button is focused by default when a card asks something.</li>
+</ul>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">unfocused pane</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row"><span class="l">Poll CI for main</span></div><div class="row seli"><span class="l">Nightly audit</span></div><div class="row"><span class="l">Weekly grooming</span></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">focused pane</span><div class="side" style="border: 1px solid var(--ac-bd); border-radius: 6px; padding: 4px 0"><div class="row"><span class="l">Poll CI for main</span></div><div class="row sel"><span class="l">Nightly audit</span></div><div class="row foc"><span class="l">Weekly grooming</span></div></div></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"kanagawa"},"$preview":{"width":1480,"height":2000}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'kanagawa' };
+}
+}
+</script>
+</body>
+</html>

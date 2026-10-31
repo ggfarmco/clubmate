@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Icon Composer layers</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#2f8a45}a:hover{color:#11482a}
+</style>
+</helmet>
+<div style="width: 1560px; height: 440px; box-sizing: border-box; padding: 48px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 32px; background: #f7f7f8; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', sans-serif; color: #1c1c1e">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="width: 264px; height: 264px; border-radius: 16px; overflow: hidden; background: repeating-conic-gradient(#e2e2e6 0% 25%, #ffffff 0% 50%) 0 0 / 24px 24px"><img src="/_blob/a252c04bb2cf53a354b494672444fa54" alt="Layer 1: background" style="width: 264px; height: 264px; display: block"></div>
+<figcaption style="font-size: 14px; color: #55555b">1 · background</figcaption>
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="width: 264px; height: 264px; border-radius: 16px; overflow: hidden; background: repeating-conic-gradient(#e2e2e6 0% 25%, #ffffff 0% 50%) 0 0 / 24px 24px"><img src="/_blob/d529e4b54d69fee41313da451274515b" alt="Layer 2: calabash with rim and yerba" style="width: 264px; height: 264px; display: block"></div>
+<figcaption style="font-size: 14px; color: #55555b">2 · calabash, rim, yerba</figcaption>
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="width: 264px; height: 264px; border-radius: 16px; overflow: hidden; background: repeating-conic-gradient(#e2e2e6 0% 25%, #ffffff 0% 50%) 0 0 / 24px 24px"><img src="/_blob/46463d0d10600dab6b6d2cf034e49eab" alt="Layer 3: bombilla" style="width: 264px; height: 264px; display: block"></div>
+<figcaption style="font-size: 14px; color: #55555b">3 · bombilla</figcaption>
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="width: 264px; height: 264px; border-radius: 16px; overflow: hidden; background: repeating-conic-gradient(#e2e2e6 0% 25%, #ffffff 0% 50%) 0 0 / 24px 24px"><img src="/_blob/4d7afc68f46eb21aa3a019be9b20f0f3" alt="Layer 4: burned prompt glyph" style="width: 264px; height: 264px; display: block"></div>
+<figcaption style="font-size: 14px; color: #55555b">4 · &gt;_ burn</figcaption>
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="width: 264px; height: 264px; border-radius: 60px; overflow: hidden; position: relative">
+<img src="/_blob/a252c04bb2cf53a354b494672444fa54" alt="" style="position: absolute; inset: 0; width: 264px; height: 264px">
+<img src="/_blob/d529e4b54d69fee41313da451274515b" alt="" style="position: absolute; inset: 0; width: 264px; height: 264px">
+<img src="/_blob/46463d0d10600dab6b6d2cf034e49eab" alt="" style="position: absolute; inset: 0; width: 264px; height: 264px">
+<img src="/_blob/4d7afc68f46eb21aa3a019be9b20f0f3" alt="All four layers stacked" style="position: absolute; inset: 0; width: 264px; height: 264px">
+</div>
+<figcaption style="font-size: 14px; color: #55555b">stacked, masked</figcaption>
+</figure>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1560,"height":440}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

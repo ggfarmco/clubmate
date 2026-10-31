@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trigger, 640</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 640px; height: 800px; overflow: hidden">
+<div class="win">
+
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" style="flex: 0 1 auto; min-width: 0"><span class="ell">design-brief</span><span class="faint">/</span><span class="ell">docs/design-brief</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+</header>
+
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri" aria-label="Agents ⌘3, 3 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+<button class="ri on" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button>
+<button class="ri" aria-label="Graphs ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button>
+</nav>
+
+<main class="main">
+<div style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border-bottom: 1px solid var(--bd); background: var(--s1); flex: none">
+<button class="btn sm gh"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>Triggers</button>
+<span class="faint">/</span>
+<span class="mut cap ell">from graph Review loop · 3</span>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="Previous k"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 10 8 5.5l4.5 4.5"/></svg></button>
+<button class="btn ico sm gh" aria-label="Next j"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 14px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: flex-start; gap: 8px">
+<svg class="i s16 t2" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 3px"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg>
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0">
+<h1 class="h" style="margin: 0">Review loop: Coder done → Reviewer</h1>
+<div style="display: flex; gap: 6px; align-items: center"><span class="badge">active</span><span class="mut cap">created by graph Review loop</span></div>
+</div>
+</div>
+<div class="abar">
+<button class="btn">Run now<span class="kbd">⌘R</span></button>
+<button class="btn">Pause<span class="kbd">P</span></button>
+<button class="btn gh">Open graph<span class="kbd">G</span></button>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="More: Copy id, Delete ⌘⌫"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button>
+</div>
+</div>
+
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 16px 16px 0; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mut cap">When</span>
+<div style="display: flex; align-items: center; gap: 8px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span>an agent turn finishes</span></div>
+<div class="props" style="grid-template-columns: 88px minmax(0, 1fr); column-gap: 12px; padding-left: 22px">
+<span class="k">status</span><div class="v"><span class="badge ok">done</span></div>
+<span class="k">session</span><div class="v ell">Review loop · Coder</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mut cap">Then</span>
+<div style="display: flex; align-items: center; gap: 8px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span>start an agent as <span class="b">Reviewer</span></span></div>
+<div style="margin-left: 22px; padding: 8px 12px; background: var(--s1); border: 1px solid var(--bd); border-radius: 6px">Review the last commit.</div>
+<div class="row mut" style="padding-left: 22px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg><span>Show as JSON</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span class="mut cap">Runs</span>
+<div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px dashed var(--bd2); border-radius: 6px">
+<span class="t2" style="flex: 1">Fires when Coder finishes its first turn.</span>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>5 triggers</span>
+<span style="flex: 1"></span>
+<span>⌘K</span>
+</footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"latte"},"$preview":{"width":640,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'latte' };
+}
+}
+</script>
+</body>
+</html>

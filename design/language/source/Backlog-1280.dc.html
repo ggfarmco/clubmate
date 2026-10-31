@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Backlog task, 1280</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 1280px; height: 800px; overflow: hidden">
+<div class="win">
+
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill"><span>design-brief</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>docs/design-brief</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+<button class="pill" aria-label="Windows: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri" aria-label="Agents ⌘3, 3 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri on" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+<button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button>
+<button class="ri" aria-label="Graphs ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button>
+</nav>
+
+<aside class="side" aria-label="Backlog">
+<div class="phead">
+<span class="ttl">Backlog</span>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="Filter /"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg></button>
+</div>
+<div style="padding: 8px 8px 2px; flex: none">
+<label class="field" for="bl-new"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg><span class="phd" style="flex: 1">New task…</span><span class="kbd">⌘N</span></label>
+<input id="bl-new" aria-label="New task title" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+</div>
+<div style="display: flex; flex-direction: column; padding: 2px 4px">
+<div class="sec"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg><span style="flex: 1">Todo</span><span>4</span></div>
+<div class="row"><span class="wa-i b" style="width: 14px; flex: none">!!</span><span class="l">Composer: s…</span><span class="d cap">#1</span></div>
+<div class="row sel"><span class="wa-i b" style="width: 14px; flex: none">!!</span><span class="l">Switcher grid: keep the selection when a workspace closes</span><span class="d cap">#2</span></div>
+<div class="row"><span style="width: 14px; flex: none"></span><span class="l">Inbox: group noti…</span><span class="d cap">#3</span></div>
+<div class="row"><span style="width: 14px; flex: none"></span><span class="l">Processes: sparkl…</span><span class="d cap">#4</span></div>
+<div class="sec"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 10a4 4 0 1 1 5 0v1.5h-5Z"/><path d="M6 13.5h4"/></svg><span style="flex: 1">Idea</span><span>2</span></div>
+<div class="row"><span style="width: 14px; flex: none"></span><span class="l">Code: open the ch…</span><span class="d cap">#7</span></div>
+<div class="row"><span class="faint" style="width: 14px; flex: none">↓</span><span class="l">Light theme…</span><span class="d cap">#5</span></div>
+<div class="sec"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 10A5 5 0 0 1 6 3.5a5 5 0 1 0 6.5 6.5Z"/></svg><span style="flex: 1">Not now</span><span>1</span></div>
+<div class="row"><span class="faint" style="width: 14px; flex: none">↓</span><span class="l t2">Export a ses…</span><span class="d cap">#6</span></div>
+</div>
+</aside>
+
+<main class="main">
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 20px 28px 16px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: flex-start; gap: 10px; min-width: 0">
+<span class="mut h" style="font-weight: 400">#2</span>
+<h1 class="h" style="margin: 0; flex: 1; min-width: 0">Switcher grid: keep the selection when a workspace closes</h1>
+<span class="mut cap" style="display: flex; align-items: center; gap: 4px; margin-top: 3px"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>Saved</span>
+</div>
+<div class="abar" style="padding-left: 34px">
+<button class="btn pri"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg>Start agent<span class="kbd">⌘⏎</span></button>
+<button class="btn"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>Done<span class="kbd">D</span></button>
+<span style="flex: 1"></span>
+<button class="btn dg sm">Delete<span class="kbd">⌘⌫</span></button>
+</div>
+</div>
+
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 16px 28px 0 62px; display: flex; flex-direction: column; gap: 22px; max-width: 920px">
+<div class="props">
+<label class="k" for="bl-status">Status</label>
+<div class="v"><button id="bl-status" class="field" style="width: 160px; justify-content: space-between"><span style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg>Todo</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button><span class="mut cap">S</span></div>
+<label class="k" for="bl-prio">Priority</label>
+<div class="v"><button id="bl-prio" class="field" style="width: 160px; justify-content: space-between"><span><span class="wa-i b">!!</span> High</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button><span class="mut cap">1 high · 2 normal · 3 low</span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label class="mut cap" for="bl-desc">Description</label>
+<div class="field foc" style="height: 140px; align-items: flex-start; padding: 8px 10px"><span class="phd">Description — markdown, @ to link a file</span></div>
+<textarea id="bl-desc" aria-label="Description" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1"></textarea>
+</div>
+</div>
+</main>
+</div>
+
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>3 agents · <span class="wa-i">3 need you</span></span>
+<span style="flex: 1"></span>
+<span>j/k task · ⏎ edit title · ⌘⏎ start agent</span>
+<span>⌘K commands</span>
+</footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"kanagawa"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'kanagawa' };
+}
+}
+</script>
+</body>
+</html>

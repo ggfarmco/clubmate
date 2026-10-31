@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Processes, 640</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+
+</head><body>
+
+<div class="cm th-latte" style="width: 640px; height: 800px; overflow: hidden">
+<div class="win">
+
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" style="flex: 0 1 auto; min-width: 0"><span class="ell">design-brief</span><span class="faint">/</span><span class="ell">docs/design-brief</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+</header>
+
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri" aria-label="Agents ⌘3, 3 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri on" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+<button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button>
+<button class="ri" aria-label="Graphs ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button>
+</nav>
+
+<main class="main">
+<div style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 8px; border-bottom: 1px solid var(--bd); flex: none">
+<button class="btn sm gh"><span class="ttl">All</span><span class="mut">5</span><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<label class="field" for="proc6-filter" style="width: 150px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg><span class="phd" style="flex: 1">Filter</span><span class="kbd">/</span></label>
+<input id="proc6-filter" aria-label="Filter processes" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="btn ico sm gh" aria-label="Options: kill orphans, auto-kill"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 16px; padding: 8px 12px; border-bottom: 1px solid var(--bd); flex: none">
+<span class="cap"><span class="mut">CPU</span> <span class="b">0.4%</span></span>
+<svg viewBox="0 0 120 20" preserveAspectRatio="none" style="width: 120px; height: 20px" aria-label="CPU over 10 minutes"><polyline points="0,19 60,19 72,14 76,4 80,18 120,19" style="fill: none; stroke: var(--ac); stroke-width: 1.5"/></svg>
+<span class="cap"><span class="mut">MEM</span> <span class="b">54 MB</span></span>
+<svg viewBox="0 0 120 20" preserveAspectRatio="none" style="width: 120px; height: 20px" aria-label="Memory over 10 minutes"><polyline points="0,16 68,16 72,11 92,11 96,7 120,7" style="fill: none; stroke: var(--ac); stroke-width: 1.5"/></svg>
+</div>
+
+<div role="table" aria-label="Processes" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 4px 6px">
+<div role="row" class="row cap mut" style="display: grid; grid-template-columns: 52px 48px 56px minmax(0, 1fr); height: 24px"><span role="columnheader">PID</span><span role="columnheader" style="text-align: right; padding-right: 8px; color: var(--fg)">CPU⌄</span><span role="columnheader" style="text-align: right; padding-right: 8px">MEM</span><span role="columnheader">COMMAND</span></div>
+<div class="sec"><span>Clubmate core</span></div>
+<div role="row" class="row" style="display: grid; grid-template-columns: 52px 48px 56px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>316</span><span style="text-align: right; padding-right: 8px">0.0</span><span style="text-align: right; padding-right: 8px">10 MB</span><span class="ell">…/build/clubmate-core serve</span></div>
+<div role="row" class="row sel" style="display: grid; grid-template-columns: 52px 48px 56px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>└ 324</span><span style="text-align: right; padding-right: 8px">0.4</span><span style="text-align: right; padding-right: 8px">27 MB</span><span class="ell">…/build/cm-plugin-agents --stdio</span></div>
+<div class="sec"><span class="ell">Claude · Rate-limit notifications…</span></div>
+<div role="row" class="row" style="display: grid; grid-template-columns: 52px 48px 56px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>3552</span><span style="text-align: right; padding-right: 8px">0.0</span><span style="text-align: right; padding-right: 8px">7 MB</span><span class="ell">/tmp/…/fakeagent</span></div>
+<div class="sec"><span>Terminals</span></div>
+<div role="row" class="row" style="display: grid; grid-template-columns: 52px 48px 56px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>1655</span><span style="text-align: right; padding-right: 8px">0.0</span><span style="text-align: right; padding-right: 8px">5 MB</span><span class="ell">/bin/zsh -l <span class="mut">· T1</span></span></div>
+<div role="row" class="row" style="display: grid; grid-template-columns: 52px 48px 56px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>1596</span><span style="text-align: right; padding-right: 8px">0.0</span><span style="text-align: right; padding-right: 8px">5 MB</span><span class="ell">/bin/zsh -l <span class="mut">· T2</span></span></div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--bd); background: var(--s1); flex: none">
+<span class="ell" style="flex: 1"><span class="b">324</span> <span class="mut">cm-plugin-agents</span></span>
+<button class="btn sm gh">Copy<span class="kbd">⌘C</span></button>
+<button class="btn sm dg">Kill<span class="kbd">K</span></button>
+</div>
+</main>
+</div>
+
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>0 orphans</span>
+<span style="flex: 1"></span>
+<span>⌘K</span>
+</footer>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Clubmate handoff and open questions</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+
+
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+
+</head><body>
+
+<div class="doc" style="width: 1200px; min-height: 2000px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · design language</div>
+<h1>6 · Handoff &amp; open questions</h1>
+<p class="lead">Most of this is client-side: tokens and renderers. Plugins mostly need better words. Four SDUI additions, each named below with the problem it removes.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; align-items: center; gap: 10px"><span class="tag a">a</span><h2>Theme tokens &amp; renderers — Theme.swift and the node renderers</h2></div>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 4px">
+<li>Add surface-1/2/3, text-2, faint, border-strong, hover, pressed, selected-idle, focus ring, tone-bg/border/ink, on-accent. Compute text-2, muted and tone inks per theme against contrast targets.</li>
+<li>Selection: accent 20% + bar (was fg 6%). Add the unfocused-pane variant.</li>
+<li>Type: add <code>heading</code> (u + 4); count glyph max(9, u − 2). Spacing: xl, xxl, section. Radius scale. Control height 2u. Rail 40.</li>
+<li>Button renderer: 24pt, keycap inside, loading label, focus ring; variants, disabled and shortcut arrive with the (b) props below.</li>
+<li>Field/select/toggle renderers: sunken bg, border-strong, focus halo, error caption.</li>
+<li>Transcript: user message tint, thought row, plan without strikethrough, tool group summary, silent success, failed rows inline.</li>
+<li>permissionCard: docks above the composer while pending; new keyboard handling — <code>⌥1 ⌥2 ⌥3</code> in button order, always, without touching the draft; bare <code>1/2/3</code> or <code>y/n</code> when the composer is empty or the card has focus; <code>⎋</code> stops the turn, never rejects. Collapses to a row when answered.</li>
+<li>Composer: one footer layout; primary follows state; Stop moves to the pane header (<code>⎋</code>); the mode menu reads Ask before edits · Plan · Accept edits, never a bare “Default” — same label in the session header.</li>
+<li>Pane header: measured height, single-line title, meta moves to a second line below 800pt.</li>
+<li>Window chrome: themed title pills in the terminal font, warning count, status bar content, rail attention dot.</li>
+<li>Palette: right column = keycaps only. Notifications: SF Symbols in tones, two-line rows.</li>
+<li>Below 800pt: sidebar overlay on ⌘B, breadcrumb row, action overflow menu.</li>
+<li>Fallback theme: Mate dark / light instead of Kanagawa.</li>
+</ul>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; align-items: center; gap: 10px"><span class="tag c">c</span><h2>Plugin content</h2></div>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 4px">
+<li><b>agents</b>: one tree grouped by worktree (branch name only); graph sessions nested under their graph; filter row instead of the “Needs you” section; badge only for waiting / failed.</li>
+<li><b>cron</b>: header + action bar + properties; schedule in words with the cron expression muted; prompt as text, JSON behind a disclosure; runs list with an empty state.</li>
+<li><b>triggers</b>: names that say what happens (“Review loop: Coder done → Reviewer”); When / Then sections; ids only in “Copy id”.</li>
+<li><b>backlog</b>: detail pattern; priority as a glyph before the title; autosave; Start agent as the primary.</li>
+<li><b>processes</b>: group rows by owner; totals as a header strip; auto-kill into options; selected-row action strip.</li>
+<li><b>graphs</b>: run header with turn progress; node list with state next to the label; diagram at ≥ 800pt; teaching empty state.</li>
+<li><b>terminals</b>: drop “running”; show exit codes, bells, idle time.</li>
+<li><b>code chat</b>: one picker row as the header; empty state with context chip and three starters.</li>
+</ul>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; align-items: center; gap: 10px"><span class="tag b">b</span><h2>New SDUI props / nodes — four, deliberately</h2></div>
+<table>
+<thead><tr><th style="width: 260px">Addition</th><th>Why it can't be (a) or (c)</th><th style="width: 200px">Used by</th></tr></thead>
+<tbody>
+<tr><td class="mono">header { icon, title, badges[], actions[], meta }</td><td>The detail pattern needs header + action bar to behave identically (wrapping, overflow menu below 800pt, key hints). A stack of text + buttons can't carry that contract, and the 640 overlap bug came from exactly this.</td><td>cron, triggers, backlog, graphs, agents</td></tr>
+<tr><td class="mono">button { variant: primary | secondary | ghost | danger, disabled, shortcut }</td><td>Today a button has only label, icon, confirm and action. The renderer can't guess which button is primary or destructive, can't show disabled, and keys must be printed from data. Reuse the vocabulary permissionCard already has in its option <code>kind</code>.</td><td>every plugin</td></tr>
+<tr><td class="mono">table column { truncate, align, priority }</td><td>Middle-truncated paths, right-aligned numbers, and which column drops first when narrow are per column, not per table.</td><td>processes, future tables</td></tr>
+<tr><td class="mono">empty { icon, title, action, hint }</td><td>Today <code>empty</code> is text only. The teaching empty state needs an icon, a title, one action and a code hint in fixed places.</td><td>graphs, triggers, backlog</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<h2>Suggested order</h2>
+<ol style="margin: 0; padding-left: 20px; font-size: 15px; display: flex; flex-direction: column; gap: 4px">
+<li>Contrast-computed text levels + new surface/state tokens (fixes P0 #3, unblocks everything else).</li>
+<li>Pane header measuring + permission docking and its keys (P0 #1, #2).</li>
+<li><code>button</code> / <code>empty</code> protocol props, then the button and field renderers.</li>
+<li><code>header</code> node, then cron → triggers → backlog onto the detail pattern.</li>
+<li>Agents sidebar content, chrome pills, status bar.</li>
+</ol>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div class="eyebrow">Decided</div>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px">
+<li><b>Mode label.</b> “Default” is the session mode (Default · Plan Mode · Accept Edits). Show it by meaning — Ask before edits · Plan · Accept edits — in the header and the composer menu.</li>
+<li><b>Permission keys.</b> <code>⌥1 ⌥2 ⌥3</code> in button order, always; bare <code>1/2/3</code> or <code>y/n</code> only with an empty composer or a focused card; <code>⎋</code> stops the turn and doesn't reject.</li>
+<li><b>Protocol.</b> <code>button</code> is label / icon / confirm / action; <code>empty</code> is text. Both extensions go through (b).</li>
+</ul>
+<div class="eyebrow">Open questions</div>
+<ol style="margin: 0; padding-left: 20px; font-size: 15px; display: flex; flex-direction: column; gap: 10px">
+<li><b>Settings window.</b> Keep it a native SwiftUI form (system font, system look) or move it into the main window as an SDUI pane in the terminal font? I lean native for the window, but themed and grouped like the detail pattern.</li>
+<li><b>Which light themes do your users run?</b> I tested Catppuccin Latte. Worth running the token formulas against two or three real Ghostty configs before locking the ratios.</li>
+<li><b>Fallback theme.</b> OK to replace Kanagawa with Mate dark / light?</li>
+<li><b>Notify on “done”?</b> I kept done notifications in “Earlier” without a badge. Should they notify at all, or only waiting and failed?</li>
+<li><b>Task numbers.</b> Is <code>#n</code> a stable handle people type (e.g. in <code>cm</code> commands)? I kept it as muted detail in the list and next to the title; if nobody types it, it can go from the list.</li>
+<li><b>Does Start agent use the description as the prompt?</b> If yes, the description field should say so; if not, what does the new session start with?</li>
+</ol>
+</div>
+</div>
+</body></html>

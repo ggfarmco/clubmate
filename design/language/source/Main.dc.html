@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clubmate — app icon</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#2f8a45}a:hover{color:#11482a}
+</style>
+</helmet>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; display: grid; grid-template-columns: 680px 1fr; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', sans-serif; color: #1c1c1e; background: {{stage}}">
+<div style="display: flex; align-items: center; justify-content: center">
+<img src="/_blob/fff5775ac4794d78a395265a17a2dc6c" alt="Clubmate app icon, 1024 px" style="width: 600px; height: 600px; display: block">
+</div>
+<div style="display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 48px 48px 48px 0">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em">Clubmate</h1>
+<p style="margin: 0; font-size: 15px; color: #55555b">macOS app icon · 1024 master, simplified 16–64 px variant</p>
+</div>
+<div style="border-radius: 18px; background: #ececee; padding: 24px; display: flex; align-items: flex-end; gap: 28px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/4b558c00d99e720abb43561cf5b737fb" alt="128 px" style="width: 128px; height: 128px; display: block"><span style="font-size: 12px; color: #55555b">128</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/2b637e30732b4db21a7382d8d2b5bc26" alt="64 px" style="width: 64px; height: 64px; display: block"><span style="font-size: 12px; color: #55555b">64</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/26f5d4438ee97894cb122df9a2ac460b" alt="32 px" style="width: 32px; height: 32px; display: block"><span style="font-size: 12px; color: #55555b">32</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/a895125653354521932debaa3189d5a5" alt="16 px" style="width: 16px; height: 16px; display: block"><span style="font-size: 12px; color: #55555b">16</span></div>
+</div>
+<div style="border-radius: 18px; background: #1e1e20; padding: 24px; display: flex; align-items: flex-end; gap: 28px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/4b558c00d99e720abb43561cf5b737fb" alt="128 px on dark" style="width: 128px; height: 128px; display: block"><span style="font-size: 12px; color: #b4b4ba">128</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/2b637e30732b4db21a7382d8d2b5bc26" alt="64 px on dark" style="width: 64px; height: 64px; display: block"><span style="font-size: 12px; color: #b4b4ba">64</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/26f5d4438ee97894cb122df9a2ac460b" alt="32 px on dark" style="width: 32px; height: 32px; display: block"><span style="font-size: 12px; color: #b4b4ba">32</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px"><img src="/_blob/a895125653354521932debaa3189d5a5" alt="16 px on dark" style="width: 16px; height: 16px; display: block"><span style="font-size: 12px; color: #b4b4ba">16</span></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"stage":{"editor":"color","default":"#f7f7f8"},"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+renderVals() {
+return { stage: this.props.stage ?? '#f7f7f8' };
+}
+}
+</script>
+</body>
+</html>

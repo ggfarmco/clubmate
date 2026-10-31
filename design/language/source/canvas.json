@@ -1,0 +1,208 @@
+{
+"v": 3,
+"createdOnFiles": {
+"v": 1,
+"at": "2026-10-30T23:30:00Z"
+},
+"title": "Clubmate icon",
+"launch": {
+"view": "canvas"
+},
+"pages": [],
+"boards": {
+"Main.dc.html": {
+"x": 0,
+"y": 0,
+"w": 1200,
+"h": 760,
+"title": "Clubmate — app icon"
+},
+"Layers.dc.html": {
+"x": 0,
+"y": 880,
+"w": 1560,
+"h": 440,
+"title": "Icon Composer layers"
+},
+"Audit.dc.html": {
+"x": 0,
+"y": 1700,
+"w": 1480,
+"h": 2400,
+"title": "1 · Audit"
+},
+"Principles.dc.html": {
+"x": 1560,
+"y": 1700,
+"w": 1000,
+"h": 2400,
+"title": "2 · Principles & brand"
+},
+"Tokens.dc.html": {
+"x": 2640,
+"y": 1700,
+"w": 1480,
+"h": 2400,
+"title": "3 · Tokens"
+},
+"Components.dc.html": {
+"x": 0,
+"y": 4440,
+"w": 1480,
+"h": 2000,
+"title": "4a · Components — rows & controls"
+},
+"AgentNodes.dc.html": {
+"x": 1560,
+"y": 4440,
+"w": 1480,
+"h": 2000,
+"title": "4b · Components — agent nodes & chrome"
+},
+"Patterns.dc.html": {
+"x": 3120,
+"y": 4440,
+"w": 1480,
+"h": 2000,
+"title": "5 · Patterns"
+},
+"Handoff.dc.html": {
+"x": 4680,
+"y": 4440,
+"w": 1200,
+"h": 2000,
+"title": "6 · Handoff & open questions"
+},
+"Agents-1280.dc.html": {
+"x": 0,
+"y": 6960,
+"w": 1280,
+"h": 800,
+"title": "Agents · 1280 · dark"
+},
+"Code-1280.dc.html": {
+"x": 1360,
+"y": 6960,
+"w": 1280,
+"h": 800,
+"title": "Code + chat · 1280 · dark"
+},
+"Backlog-1280.dc.html": {
+"x": 2720,
+"y": 6960,
+"w": 1280,
+"h": 800,
+"title": "Backlog task · 1280 · dark"
+},
+"Cron-1280.dc.html": {
+"x": 4080,
+"y": 6960,
+"w": 1280,
+"h": 800,
+"title": "Cron job · 1280 · dark"
+},
+"Processes-1280.dc.html": {
+"x": 5440,
+"y": 6960,
+"w": 1280,
+"h": 800,
+"title": "Processes · 1280 · dark"
+},
+"Graphs-1280.dc.html": {
+"x": 6800,
+"y": 6960,
+"w": 1280,
+"h": 800,
+"title": "Graph run · 1280 · dark"
+},
+"Agents-640.dc.html": {
+"x": 0,
+"y": 7880,
+"w": 640,
+"h": 800,
+"title": "Agents · 640 · light"
+},
+"Code-640.dc.html": {
+"x": 1360,
+"y": 7880,
+"w": 640,
+"h": 800,
+"title": "Code + chat · 640 · light"
+},
+"Backlog-640.dc.html": {
+"x": 2720,
+"y": 7880,
+"w": 640,
+"h": 800,
+"title": "Backlog task · 640 · light"
+},
+"Triggers-640.dc.html": {
+"x": 4080,
+"y": 7880,
+"w": 640,
+"h": 800,
+"title": "Trigger · 640 · light"
+},
+"Processes-640.dc.html": {
+"x": 5440,
+"y": 7880,
+"w": 640,
+"h": 800,
+"title": "Processes · 640 · light"
+},
+"Graphs-640.dc.html": {
+"x": 6800,
+"y": 7880,
+"w": 640,
+"h": 800,
+"title": "Graph run · 640 · light"
+}
+},
+"order": [
+"Main.dc.html",
+"Layers.dc.html",
+"Audit.dc.html",
+"Principles.dc.html",
+"Tokens.dc.html",
+"Components.dc.html",
+"AgentNodes.dc.html",
+"Patterns.dc.html",
+"Handoff.dc.html",
+"Agents-1280.dc.html",
+"Code-1280.dc.html",
+"Backlog-1280.dc.html",
+"Cron-1280.dc.html",
+"Processes-1280.dc.html",
+"Graphs-1280.dc.html",
+"Agents-640.dc.html",
+"Code-640.dc.html",
+"Backlog-640.dc.html",
+"Triggers-640.dc.html",
+"Processes-640.dc.html",
+"Graphs-640.dc.html"
+],
+"notes": {
+"t_lang": {
+"x": 0,
+"y": 1420,
+"text": "Clubmate design language — review & system",
+"kind": "title1",
+"maxW": 4120
+},
+"t_comp": {
+"x": 0,
+"y": 4180,
+"text": "Components, patterns, handoff",
+"kind": "title1",
+"maxW": 5880
+},
+"t_mock": {
+"x": 0,
+"y": 6700,
+"text": "Mockups — 1280 in Kanagawa (dark), 640 in Catppuccin Latte (light); theme is a Tweak on every board",
+"kind": "title1",
+"maxW": 8080
+}
+},
+"designSystems": []
+}

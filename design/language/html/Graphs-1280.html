@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Graph run, 1280</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+
+</head><body>
+
+<div class="cm th-kanagawa" style="width: 1280px; height: 800px; overflow: hidden">
+<div class="win">
+
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill"><span>design-brief</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>docs/design-brief</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+<button class="pill" aria-label="Windows: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+
+<div class="body" style="grid-template-columns: 40px 248px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections">
+<button class="ri" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri" aria-label="Agents ⌘3, 3 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+<button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button>
+<button class="ri on" aria-label="Graphs ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button>
+</nav>
+
+<aside class="side" aria-label="Graphs">
+<div class="phead">
+<span class="ttl">Graphs</span>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="Run a graph ⌘R"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg></button>
+</div>
+<div style="display: flex; flex-direction: column; padding: 2px 4px">
+<div class="sec"><span style="flex: 1">Runs</span><span>2</span></div>
+<div class="row sel"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">Review loop</span><span class="d cap">31m</span></div>
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5.5 8.2 1.8 1.8 3.3-3.6"/></svg><span class="l mut">Release checklist</span><span class="d cap">1d</span></div>
+<div class="sec" style="margin-top: 6px"><span style="flex: 1">Definitions · .clubmate/graphs</span></div>
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="l">review-loop</span><span class="d cap">2 nodes</span></div>
+<div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg><span class="l">release</span><span class="d cap">4 nodes</span></div>
+</div>
+</aside>
+
+<main class="main">
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 20px 28px 16px; border-bottom: 1px solid var(--bd); flex: none">
+<div style="display: flex; align-items: center; gap: 10px; min-width: 0">
+<svg class="i s16 t2" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg>
+<h1 class="h" style="margin: 0">Review loop</h1>
+<span class="badge">running · turn 1 of 12</span>
+<span class="badge wa">Coder needs you</span>
+</div>
+<div class="abar" style="padding-left: 26px">
+<button class="btn pri">Open Coder<span class="kbd">⏎</span></button>
+<button class="btn">Stop run<span class="kbd">⌘.</span></button>
+<button class="btn gh">Edit definition<span class="kbd">E</span></button>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="More: Copy run id, Restart"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"/><circle cx="8" cy="8" r=".8"/><circle cx="12.5" cy="8" r=".8"/></svg></button>
+</div>
+</div>
+
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 18px 28px 0 54px; display: flex; flex-direction: column; gap: 22px">
+<div class="props" style="max-width: 860px">
+<span class="k">Input</span><div class="v">Rate-limit notifications per workspace</div>
+<span class="k">Started</span><div class="v"><span>13:14</span><span class="mut">31 min ago</span></div>
+<span class="k">Turns</span><div class="v"><span style="display: block; width: 160px; height: 4px; border-radius: 2px; background: var(--bd)"><span style="display: block; width: 13px; height: 4px; border-radius: 2px; background: var(--ac)"></span></span><span class="t2">1 of 12</span></div>
+<span class="k">Definition</span><div class="v"><code>.clubmate/graphs/review-loop.json</code></div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 0; padding: 22px 24px; background: var(--s1); border: 1px solid var(--bd); border-radius: 8px; max-width: 860px">
+<span class="mut cap" style="width: 48px">start</span>
+<span style="width: 24px; height: 1px; background: var(--bd2)"></span>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; width: 210px; border-radius: 8px; border: 1.5px solid var(--wa-bd); background: var(--bg)">
+<span style="display: flex; align-items: center; gap: 6px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="b">Coder</span></span>
+<span class="cap wa-i">waiting for you · permission</span>
+</div>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 0 6px; min-width: 160px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span class="cap mut" style="text-align: center">on done · on error</span><div style="display: flex; align-items: center"><span style="flex: 1; height: 1px; background: var(--bd2)"></span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="display: flex; align-items: center"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg><span style="flex: 1; height: 1px; background: var(--bd2)"></span></div><span class="cap mut" style="text-align: center">on outcome “changes”</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; width: 210px; border-radius: 8px; border: 1px solid var(--bd2); background: var(--bg)">
+<span style="display: flex; align-items: center; gap: 6px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><span class="b">Reviewer</span></span>
+<span class="cap mut">idle · runs after Coder</span>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; max-width: 860px">
+<div class="row cap mut" style="display: grid; grid-template-columns: 220px 200px minmax(0, 1fr); height: 24px"><span>NODE</span><span>STATE</span><span>SESSION</span></div>
+<div class="row foc" style="display: grid; grid-template-columns: 220px 200px minmax(0, 1fr)"><span style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg>Coder</span><span class="wa-i">waiting for you</span><span class="ell t2">Rate-limit notifications per workspace</span></div>
+<div class="row" style="display: grid; grid-template-columns: 220px 200px minmax(0, 1fr)"><span class="mut" style="padding-left: 40px">→ Reviewer</span><span class="mut">on done</span><span></span></div>
+<div class="row" style="display: grid; grid-template-columns: 220px 200px minmax(0, 1fr)"><span class="mut" style="padding-left: 40px">→ Reviewer</span><span class="mut">on error</span><span></span></div>
+<div class="row" style="display: grid; grid-template-columns: 220px 200px minmax(0, 1fr)"><span style="display: flex; align-items: center; gap: 6px"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg>Reviewer</span><span class="mut">idle</span><span class="faint">not started</span></div>
+<div class="row" style="display: grid; grid-template-columns: 220px 200px minmax(0, 1fr)"><span class="mut" style="padding-left: 40px">→ Coder</span><span class="mut">on outcome “changes”</span><span></span></div>
+</div>
+</div>
+</main>
+</div>
+
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>1 run · <span class="wa-i">1 waiting</span></span>
+<span style="flex: 1"></span>
+<span>j/k node · ⏎ open session · ⌘. stop</span>
+<span>⌘K commands</span>
+</footer>
+</div>
+</div>
+</body></html>

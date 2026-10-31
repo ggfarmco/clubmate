@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Clubmate principles and brand</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+
+
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+
+</head><body>
+
+<div class="doc" style="width: 1000px; min-height: 2400px; padding: 64px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · design language</div>
+<h1>2 · Principles</h1>
+<p class="lead">Six rules for settling arguments. When a plugin view and a principle disagree, the principle wins; when two principles disagree, the earlier one wins.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 0">
+<div class="rule"></div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 16px; padding: 24px 0; border-bottom: 1px solid #DAD8CF">
+<div class="mono" style="font-size: 28px; line-height: 32px; color: #2B6E39">1</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>The palette is borrowed; the proportions are ours.</h3>
+<p>No hex values in the UI. Every colour is a role: fg, bg or a tone at a fixed ratio, computed once per theme. If something looks wrong in one theme, fix the ratio for every theme, never the theme.</p>
+<p class="muted" style="font-size: 14px">Decides: “can this plugin use orange?” — No. It can ask for <code>tone: warning</code>.</p>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 16px; padding: 24px 0; border-bottom: 1px solid #DAD8CF">
+<div class="mono" style="font-size: 28px; line-height: 32px; color: #2B6E39">2</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>One line per thing.</h3>
+<p>Rows are one <code>rowHeight</code> tall. Space separates groups, never items. A second line is allowed only where you compare items by more than their name: notifications, and properties in a detail view.</p>
+<p class="muted" style="font-size: 14px">Decides: “should session rows show a preview line?” — No. Show state as an icon, put the rest in the detail.</p>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 16px; padding: 24px 0; border-bottom: 1px solid #DAD8CF">
+<div class="mono" style="font-size: 28px; line-height: 32px; color: #2B6E39">3</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Colour is state, never decoration.</h3>
+<p><b>accent</b> = focus, selection, the one primary action. <b>warning</b> = needs you. <b>danger</b> = failed or destructive. <b>success</b> = finished, shown once, then fades to muted. Everything else is fg at a text level.</p>
+<p class="muted" style="font-size: 14px">Decides: “should the running agent be green?” — No. Running is normal; only waiting, failed and done-unseen get a tone.</p>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 16px; padding: 24px 0; border-bottom: 1px solid #DAD8CF">
+<div class="mono" style="font-size: 28px; line-height: 32px; color: #2B6E39">4</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Cards are for things that ask or change.</h3>
+<p>A plan, a diff, a permission request and the composer get a surface. Lists, properties, messages and settings stay flat on the pane. If you are reaching for a card to group things, use a section label instead.</p>
+<p class="muted" style="font-size: 14px">Decides: “should cron properties sit in a card?” — No. Flat property list; the card budget is spent on what needs a decision.</p>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 16px; padding: 24px 0; border-bottom: 1px solid #DAD8CF">
+<div class="mono" style="font-size: 28px; line-height: 32px; color: #2B6E39">5</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Every action is visible once and has a key.</h3>
+<p>If an action is in a context menu, it is also in the pane's action bar or the palette, with its shortcut printed next to it. Focus is always visible: a ring on the focused pane's cursor row, selection fill everywhere else.</p>
+<p class="muted" style="font-size: 14px">Decides: “Pause lives in the right-click menu, is that enough?” — No. Action bar, <code>P</code>.</p>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 16px; padding: 24px 0; border-bottom: 1px solid #DAD8CF">
+<div class="mono" style="font-size: 28px; line-height: 32px; color: #2B6E39">6</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>Names over ids; keep the end that differs.</h3>
+<p>Show what a person named or what the thing does; ids go in “Copy id”. Truncate titles at the tail, paths in the middle, commands keeping the executable and the last args.</p>
+<p class="muted" style="font-size: 14px">Decides: “the trigger has no name” — the plugin writes one: “Review loop: Coder done → Reviewer”.</p>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 14px; padding-top: 16px">
+<div class="eyebrow">Brand</div>
+<h2>Where the mate green belongs</h2>
+<p class="lead">Not inside a themed window. The user picked their colours in Ghostty; a second green would compete with their success tone and make “done” ambiguous. The brand lives where the theme doesn't.</p>
+</div>
+<div style="display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: start">
+<img src="assets/icon_128x128.png" alt="Clubmate app icon" style="width: 200px; height: 200px; display: block">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="color: #2B6E39">Yes</h3>
+<ul>
+<li>App icon, Dock, About window</li>
+<li>First run and onboarding: the one screen with no Ghostty theme yet</li>
+<li>The <b>Mate</b> fallback theme, used when no Ghostty config is found (replaces Kanagawa)</li>
+<li>Website, docs, release notes</li>
+<li>Monochrome gourd mark in empty states, drawn in muted fg, not green</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="color: #8A2E26">No</h3>
+<ul>
+<li>Accent, selection or focus colour when a user theme is active</li>
+<li>Success or “connected” indicators</li>
+<li>Title bar, rail or status bar tint</li>
+<li>Gradients anywhere in the window</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h3>The Mate fallback theme</h3>
+<p class="muted" style="font-size: 14px; max-width: 820px">Derived from the icon: calabash cream, yerba lime, teal for success so it never reads as the accent. It goes through the same role formulas as any Ghostty theme.</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div class="cm th-mate" style="border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span class="b">Mate · dark</span><span class="mut cap">fallback when no Ghostty config</span></div>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--bg); border: 1px solid var(--bd2)"></div><span class="cap mut">bg #151B17</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--fg)"></div><span class="cap mut">fg #E3E3D3</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--ac)"></div><span class="cap mut">accent #A6D85B</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--ok)"></div><span class="cap mut">success #4FB3A0</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--wa)"></div><span class="cap mut">warning #E3B65C</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--er)"></div><span class="cap mut">danger #E07161</span></div>
+</div>
+<div class="side" style="border-radius: 8px; border: 1px solid var(--bd); padding: 4px 0">
+<div class="row"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">Rate-limit notifications per workspace</span><span class="badge wa">needs you</span></div>
+<div class="row sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg><span class="l">Fix flaky switcher test</span><span class="d cap">running</span></div>
+<div class="row"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Bump ghostty to 1.2</span><span class="d cap">2h</span></div>
+</div>
+</div>
+<div class="cm th-matelight" style="border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #DAD8CF">
+<div style="display: flex; justify-content: space-between; align-items: center"><span class="b">Mate · light</span><span class="mut cap">same roles, light ground</span></div>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--bg); border: 1px solid var(--bd2)"></div><span class="cap mut">bg #F6F1E6</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--fg)"></div><span class="cap mut">fg #2B2A22</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--ac)"></div><span class="cap mut">accent #3E8A2E</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--ok)"></div><span class="cap mut">success #1F7F70</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--wa)"></div><span class="cap mut">warning #B5761E</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="height: 36px; border-radius: 6px; background: var(--er)"></div><span class="cap mut">danger #C2413A</span></div>
+</div>
+<div class="side" style="border-radius: 8px; border: 1px solid var(--bd); padding: 4px 0">
+<div class="row"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">Rate-limit notifications per workspace</span><span class="badge wa">needs you</span></div>
+<div class="row sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg><span class="l">Fix flaky switcher test</span><span class="d cap">running</span></div>
+<div class="row"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Bump ghostty to 1.2</span><span class="d cap">2h</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</body></html>

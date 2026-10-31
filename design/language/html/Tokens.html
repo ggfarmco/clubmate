@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Clubmate tokens</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+
+
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+
+</head><body>
+
+<div class="doc" style="width: 1480px; min-height: 2400px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · design language</div>
+<h1>3 · Tokens</h1>
+<p class="lead">Ghostty gives us bg, fg and four tones. Theme.swift computes three numbers per theme (text ratios that pass contrast, and tone inks); everything else is a fixed ratio. Sizes are multiples of <code>u</code> = uiSize (12pt by default), rounded to whole points.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Colour roles</h2>
+<table>
+<thead><tr><th style="width: 190px">Role</th><th style="width: 290px">Formula</th><th style="width: 210px">Kanagawa · dark</th><th style="width: 210px">Catppuccin Latte · light</th><th>Used for</th><th style="width: 90px">Status</th></tr></thead>
+<tbody>
+<tr><td colspan="6" class="mono muted" style="padding-top: 18px">Surfaces — elevation = a step toward fg</td></tr>
+<tr><td class="mono">surface-0</td><td class="mono">bg</td><td><div class="cm th-kanagawa" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--bg); border: 1px solid var(--bd)"></div></div></td><td><div class="cm th-latte" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--bg); border: 1px solid var(--bd)"></div></div></td><td>editor, terminal, transcript, detail panes</td><td><span class="tag">existing</span></td></tr>
+<tr><td class="mono">surface-1</td><td class="mono">mix(fg 4%, bg)</td><td><div class="cm th-kanagawa" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--s1); border: 1px solid var(--bd)"></div></div></td><td><div class="cm th-latte" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--s1); border: 1px solid var(--bd)"></div></div></td><td>title bar, rail, sidebar, status bar</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">surface-2</td><td class="mono">mix(fg 7%, bg)</td><td><div class="cm th-kanagawa" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--s2); border: 1px solid var(--bd)"></div></div></td><td><div class="cm th-latte" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--s2); border: 1px solid var(--bd)"></div></div></td><td>cards (plan, tool, permission), composer, buttons, pills</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">surface-3</td><td class="mono">mix(fg 11%, bg) + shadow</td><td><div class="cm th-kanagawa" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--s3); box-shadow: var(--sh)"></div></div></td><td><div class="cm th-latte" style="padding: 6px; border-radius: 6px"><div style="height: 26px; border-radius: 5px; background: var(--s3); box-shadow: var(--sh)"></div></div></td><td>palette, popovers, menus — anything floating</td><td><span class="tag a">new</span></td></tr>
+
+<tr><td colspan="6" class="mono muted" style="padding-top: 18px">Text — ratios computed per theme so they pass contrast</td></tr>
+<tr><td class="mono">text</td><td class="mono">fg</td><td><div class="cm th-kanagawa" style="padding: 6px 10px; border-radius: 6px">Rate-limit notifications</div></td><td><div class="cm th-latte" style="padding: 6px 10px; border-radius: 6px">Rate-limit notifications</div></td><td>labels, content</td><td><span class="tag">existing</span></td></tr>
+<tr><td class="mono">text-2</td><td class="mono">fg at the lowest ratio ≥ 4.5:1 on surface-1 · ≈80% dark / 92% light</td><td><div class="cm th-kanagawa t2" style="padding: 6px 10px; border-radius: 6px">every day at 03:00</div></td><td><div class="cm th-latte t2" style="padding: 6px 10px; border-radius: 6px">every day at 03:00</div></td><td>property values, secondary labels, body of notifications</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">muted</td><td class="mono">fg at the lowest ratio ≥ 3:1 · ≈62% / 78% (was a fixed 55%)</td><td><div class="cm th-kanagawa mut" style="padding: 6px 10px; border-radius: 6px">2m ago · design-brief</div></td><td><div class="cm th-latte mut" style="padding: 6px 10px; border-radius: 6px">2m ago · design-brief</div></td><td>row detail, timestamps, section labels, hints, keycaps</td><td><span class="tag b">changed</span></td></tr>
+<tr><td class="mono">faint</td><td class="mono">fg 42% / 52%</td><td><div class="cm th-kanagawa faint" style="padding: 6px 10px; border-radius: 6px">Ask Claude…</div></td><td><div class="cm th-latte faint" style="padding: 6px 10px; border-radius: 6px">Ask Claude…</div></td><td>placeholders, disabled, line numbers — never information you need</td><td><span class="tag a">new</span></td></tr>
+
+<tr><td colspan="6" class="mono muted" style="padding-top: 18px">Lines</td></tr>
+<tr><td class="mono">border</td><td class="mono">fg 12%</td><td><div class="cm th-kanagawa" style="padding: 12px 10px; border-radius: 6px"><div style="height: 1px; background: var(--bd)"></div></div></td><td><div class="cm th-latte" style="padding: 12px 10px; border-radius: 6px"><div style="height: 1px; background: var(--bd)"></div></div></td><td>pane dividers, card outlines, table rules</td><td><span class="tag b">10→12%</span></td></tr>
+<tr><td class="mono">border-strong</td><td class="mono">fg 22%</td><td><div class="cm th-kanagawa" style="padding: 6px 10px; border-radius: 6px; display: flex; gap: 8px"><span class="field" style="width: 120px"><span class="phd">field</span></span><span class="kbd">⌘K</span></div></td><td><div class="cm th-latte" style="padding: 6px 10px; border-radius: 6px; display: flex; gap: 8px"><span class="field" style="width: 120px"><span class="phd">field</span></span><span class="kbd">⌘K</span></div></td><td>fields, buttons, keycaps, toggles off</td><td><span class="tag a">new</span></td></tr>
+
+<tr><td colspan="6" class="mono muted" style="padding-top: 18px">Interaction states — overlays, so they work on any surface</td></tr>
+<tr><td class="mono">hover</td><td class="mono">fg 6% overlay</td><td><div class="cm th-kanagawa side" style="padding: 4px; border-radius: 6px"><div class="row hov"><span class="l">Fix flaky switcher test</span></div></div></td><td><div class="cm th-latte side" style="padding: 4px; border-radius: 6px"><div class="row hov"><span class="l">Fix flaky switcher test</span></div></div></td><td>pointer over a row or ghost button</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">selected</td><td class="mono">accent 20% overlay + 2pt accent bar</td><td><div class="cm th-kanagawa side" style="padding: 4px; border-radius: 6px"><div class="row sel"><span class="l">Fix flaky switcher test</span></div></div></td><td><div class="cm th-latte side" style="padding: 4px; border-radius: 6px"><div class="row sel"><span class="l">Fix flaky switcher test</span></div></div></td><td>selected row in the focused pane</td><td><span class="tag b">was fg 6%</span></td></tr>
+<tr><td class="mono">selected · idle</td><td class="mono">fg 9% overlay, no bar</td><td><div class="cm th-kanagawa side" style="padding: 4px; border-radius: 6px"><div class="row seli"><span class="l">Fix flaky switcher test</span></div></div></td><td><div class="cm th-latte side" style="padding: 4px; border-radius: 6px"><div class="row seli"><span class="l">Fix flaky switcher test</span></div></div></td><td>selection in a pane that doesn't have focus — tells you where keys go</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">focus ring</td><td class="mono">accent 1.5pt inset (rows) · 2pt gap + 1.5pt ring (controls)</td><td><div class="cm th-kanagawa side" style="padding: 4px; border-radius: 6px; display: flex; gap: 8px; align-items: center"><div class="row foc" style="flex: 1"><span class="l">j/k cursor</span></div><span class="btn sm foc">Allow</span></div></td><td><div class="cm th-latte side" style="padding: 4px; border-radius: 6px; display: flex; gap: 8px; align-items: center"><div class="row foc" style="flex: 1"><span class="l">j/k cursor</span></div><span class="btn sm foc">Allow</span></div></td><td>keyboard cursor when it differs from selection; focused control</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">pressed</td><td class="mono">fg 11% overlay</td><td><div class="cm th-kanagawa side" style="padding: 4px; border-radius: 6px"><div class="row" style="background: var(--prs)"><span class="l">mouse down</span></div></div></td><td><div class="cm th-latte side" style="padding: 4px; border-radius: 6px"><div class="row" style="background: var(--prs)"><span class="l">mouse down</span></div></div></td><td>active press, open menu trigger</td><td><span class="tag a">new</span></td></tr>
+
+<tr><td colspan="6" class="mono muted" style="padding-top: 18px">Tones — accent · success · warning · danger</td></tr>
+<tr><td class="mono">tone-bg</td><td class="mono">tone 15% overlay</td><td><div class="cm th-kanagawa" style="padding: 6px; border-radius: 6px; display: flex; gap: 4px; flex-wrap: wrap"><span class="badge ac">accent</span><span class="badge ok">done</span><span class="badge wa">needs you</span><span class="badge er">failed</span></div></td><td><div class="cm th-latte" style="padding: 6px; border-radius: 6px; display: flex; gap: 4px; flex-wrap: wrap"><span class="badge ac">accent</span><span class="badge ok">done</span><span class="badge wa">needs you</span><span class="badge er">failed</span></div></td><td>badges, permission card fill, diff lines</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">tone-ink</td><td class="mono">tone moved toward fg until ≥ 4.5:1 on bg</td><td><div class="cm th-kanagawa" style="padding: 6px 10px; border-radius: 6px; display: flex; gap: 10px"><span class="ac-i">ac</span><span class="ok-i">ok</span><span class="wa-i">warn</span><span class="er-i">err</span></div></td><td><div class="cm th-latte" style="padding: 6px 10px; border-radius: 6px; display: flex; gap: 10px"><span class="ac-i">ac</span><span class="ok-i">ok</span><span class="wa-i">warn</span><span class="er-i">err</span></div></td><td>tone text and icons. Latte warning #DF8E1D (2.4:1) becomes #8F5F14 (4.7:1)</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">tone-border</td><td class="mono">tone 45–50%</td><td><div class="cm th-kanagawa" style="padding: 6px; border-radius: 6px; display: flex; gap: 6px"><span class="btn sm dg">Reject</span><span style="flex: 1; border-radius: 5px; border: 1px solid var(--wa-bd); background: var(--wa-bg)"></span></div></td><td><div class="cm th-latte" style="padding: 6px; border-radius: 6px; display: flex; gap: 6px"><span class="btn sm dg">Reject</span><span style="flex: 1; border-radius: 5px; border: 1px solid var(--wa-bd); background: var(--wa-bg)"></span></div></td><td>permission card outline, danger buttons</td><td><span class="tag a">new</span></td></tr>
+<tr><td class="mono">on-accent</td><td class="mono">bg or white, whichever passes 4.5:1 on accent</td><td><div class="cm th-kanagawa" style="padding: 6px; border-radius: 6px"><span class="btn sm pri">Allow</span></div></td><td><div class="cm th-latte" style="padding: 6px; border-radius: 6px"><span class="btn sm pri">Allow</span></div></td><td>text on the one primary button per pane</td><td><span class="tag a">new</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Type scale</h2>
+<p class="muted" style="font-size: 14px">One family: the terminal font. Hierarchy comes from weight and the text levels, not from size.</p>
+<table>
+<thead><tr><th>Token</th><th>Size</th><th>Sample at u = 12</th></tr></thead>
+<tbody>
+<tr><td class="mono">caption</td><td class="mono">u − 1 · 400 · line 16</td><td><div class="cm th-kanagawa mut cap" style="padding: 4px 8px; border-radius: 5px">2m ago · design-brief</div></td></tr>
+<tr><td class="mono">body</td><td class="mono">u · 400 · line = row</td><td><div class="cm th-kanagawa" style="padding: 4px 8px; border-radius: 5px">Run go test ./internal/notify</div></td></tr>
+<tr><td class="mono">strong</td><td class="mono">u · 600</td><td><div class="cm th-kanagawa b" style="padding: 4px 8px; border-radius: 5px">Cover the burst case with a test</div></td></tr>
+<tr><td class="mono">title</td><td class="mono">u + 1 · 600</td><td><div class="cm th-kanagawa ttl" style="padding: 4px 8px; border-radius: 5px">Rate-limit notifications</div></td></tr>
+<tr><td class="mono">heading <span class="tag a">new</span></td><td class="mono">u + 4 · 600 · line 22</td><td><div class="cm th-kanagawa h" style="padding: 4px 8px; border-radius: 5px">Nightly dependency audit</div></td></tr>
+<tr><td class="mono">count <span class="tag b">changed</span></td><td class="mono">max(9, u − 2) · 600 (was u − 4)</td><td><div class="cm th-kanagawa" style="padding: 4px 8px; border-radius: 5px; display: flex; gap: 6px"><span class="count">3</span><span class="count n">12</span></div></td></tr>
+</tbody>
+</table>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Space, radius, size</h2>
+<p class="muted" style="font-size: 14px">Existing names kept; two spacing steps and the radius scale are new. Values at u = 12.</p>
+<table>
+<thead><tr><th>Token</th><th>Formula</th><th>pt</th><th></th></tr></thead>
+<tbody>
+<tr><td class="mono">xs · s · m · l</td><td class="mono">u/6 · u/3 · u/2 · 2u/3</td><td class="mono">2 · 4 · 6 · 8</td><td><div style="display: flex; gap: 6px; align-items: end"><span style="width: 2px; height: 12px; background: #2B6E39"></span><span style="width: 4px; height: 12px; background: #2B6E39"></span><span style="width: 6px; height: 12px; background: #2B6E39"></span><span style="width: 8px; height: 12px; background: #2B6E39"></span></div></td></tr>
+<tr><td class="mono">xl · xxl <span class="tag a">new</span></td><td class="mono">u · 4u/3</td><td class="mono">12 · 16</td><td><div style="display: flex; gap: 6px"><span style="width: 12px; height: 12px; background: #2B6E39"></span><span style="width: 16px; height: 12px; background: #2B6E39"></span></div></td></tr>
+<tr><td class="mono">section <span class="tag a">new</span></td><td class="mono">2u</td><td class="mono">24</td><td><span style="display: block; width: 24px; height: 12px; background: #2B6E39"></span></td></tr>
+<tr><td class="mono">radius s · m · l · xl</td><td class="mono">u/4 · 5u/12 · 2u/3 · 5u/6</td><td class="mono">3 · 5 · 8 · 10</td><td class="muted" style="font-size: 13px">keycap, badge · button, field · card · popover</td></tr>
+<tr><td class="mono">rowHeight</td><td class="mono">round(5u/3)</td><td class="mono">20</td><td class="muted" style="font-size: 13px">list, tree, table, body line</td></tr>
+<tr><td class="mono">rowHeight2 <span class="tag a">new</span></td><td class="mono">3u</td><td class="mono">36</td><td class="muted" style="font-size: 13px">notifications</td></tr>
+<tr><td class="mono">control <span class="tag a">new</span></td><td class="mono">2u</td><td class="mono">24</td><td class="muted" style="font-size: 13px">buttons, fields, selects, pills</td></tr>
+<tr><td class="mono">header <span class="tag a">new</span></td><td class="mono">round(8u/3)</td><td class="mono">32</td><td class="muted" style="font-size: 13px">pane header bar (measured, may grow)</td></tr>
+<tr><td class="mono">rail · indent</td><td class="mono">10u/3 · u</td><td class="mono">40 · 12</td><td class="muted" style="font-size: 13px">rail 36 → 40 to fit a 30pt hit area</td></tr>
+<tr><td class="mono">sidebar</td><td class="mono">default 248, min 200, max 320</td><td class="mono">—</td><td class="muted" style="font-size: 13px">resizable; collapses below 760pt window</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2>Same formulas, four palettes</h2>
+<p class="muted" style="font-size: 14px">The test every token change must pass: nothing below is hand-tuned per theme except the three computed values.</p>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<div class="cm th-kanagawa" style="border-radius: 10px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="side" style="padding: 6px 0; border-right: 0"><div class="sec">Kanagawa</div><div class="row"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">Rate-limit notifi…</span><span class="badge wa">you</span></div><div class="row sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg><span class="l">Fix flaky switcher</span></div><div class="row"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Bump ghostty</span><span class="d cap">2h</span></div></div>
+<div style="padding: 10px; display: flex; gap: 6px; border-top: 1px solid var(--bd)"><span class="btn sm pri">Allow</span><span class="btn sm">Always</span><span class="btn sm dg">Reject</span></div>
+</div>
+<div class="cm th-onedark" style="border-radius: 10px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="side" style="padding: 6px 0; border-right: 0"><div class="sec">One Dark</div><div class="row"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">Rate-limit notifi…</span><span class="badge wa">you</span></div><div class="row sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg><span class="l">Fix flaky switcher</span></div><div class="row"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Bump ghostty</span><span class="d cap">2h</span></div></div>
+<div style="padding: 10px; display: flex; gap: 6px; border-top: 1px solid var(--bd)"><span class="btn sm pri">Allow</span><span class="btn sm">Always</span><span class="btn sm dg">Reject</span></div>
+</div>
+<div class="cm th-latte" style="border-radius: 10px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="side" style="padding: 6px 0; border-right: 0"><div class="sec">Catppuccin Latte</div><div class="row"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">Rate-limit notifi…</span><span class="badge wa">you</span></div><div class="row sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg><span class="l">Fix flaky switcher</span></div><div class="row"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Bump ghostty</span><span class="d cap">2h</span></div></div>
+<div style="padding: 10px; display: flex; gap: 6px; border-top: 1px solid var(--bd)"><span class="btn sm pri">Allow</span><span class="btn sm">Always</span><span class="btn sm dg">Reject</span></div>
+</div>
+<div class="cm th-matelight" style="border-radius: 10px; overflow: hidden; border: 1px solid #DAD8CF">
+<div class="side" style="padding: 6px 0; border-right: 0"><div class="sec">Mate · light</div><div class="row"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">Rate-limit notifi…</span><span class="badge wa">you</span></div><div class="row sel"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5Z"/></svg><span class="l">Fix flaky switcher</span></div><div class="row"><svg class="i ok-i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l mut">Bump ghostty</span><span class="d cap">2h</span></div></div>
+<div style="padding: 10px; display: flex; gap: 6px; border-top: 1px solid var(--bd)"><span class="btn sm pri">Allow</span><span class="btn sm">Always</span><span class="btn sm dg">Reject</span></div>
+</div>
+</div>
+</div>
+</div>
+</body></html>

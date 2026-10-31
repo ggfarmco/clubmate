@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Components: rows and controls</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 2000px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · design language</div>
+<h1>4a · Components — rows &amp; controls</h1>
+<p class="lead">One renderer per node type. Sizes in <code>u</code>; colours are roles from the token sheet. State columns are the same everywhere: default · hover · selected · focused (keyboard) · disabled · loading · error. Shown in <span class="th-name">{{themeLabel}}</span> — switch it in Tweaks.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>list · tree row</h2>
+<ul class="muted" style="font-size: 14px">
+<li>height rowHeight; padding-inline l; gap m; icon 14</li>
+<li>label tail-truncates; one <code>detail</code> max, muted, never truncates</li>
+<li>badge only for a state that needs attention</li>
+<li>indent u per level; chevron 12 in the indent, not after it</li>
+<li>j/k move, h/l fold, ⏎ open, ⌘⌫ delete, menu key = <code>menu</code></li>
+</ul>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 16px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-content: start">
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">default</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="l">Poll CI for main</span><span class="d cap">5m</span></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">hover</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row hov"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="l">Poll CI for main</span><span class="d cap">5m</span></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">selected</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row sel"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="l">Poll CI for main</span><span class="d cap">5m</span></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">focused</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row foc"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg><span class="l">Poll CI for main</span><span class="d cap">5m</span></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">disabled</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row dis"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><span class="l">Weekly grooming</span><span class="d cap faint">paused</span></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">loading</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row"><span style="width: 14px; height: 14px; border-radius: 7px; border: 1.5px solid var(--bd2); border-top-color: var(--ac)"></span><span class="l"><span style="display: block; width: 80%; height: 8px; border-radius: 4px; background: var(--prs)"></span></span></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap mut">error</span><div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0"><div class="row"><svg class="i er-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m6 6 4 4M10 6l-4 4"/></svg><span class="l">Migrate storage</span><span class="d cap er-i">exit 1</span></div></div></div>
+<div style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 6px">
+<div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0">
+<div class="sec"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><span style="flex: 1">section label · count</span><span>3</span></div>
+<div class="row"><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg><span class="l">parent · level 0</span><span class="d cap">turn 1/12</span></div>
+<div class="row" style="padding-left: 26px"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="l">child · level 1</span><span class="badge wa">needs you</span></div>
+</div>
+<div class="side" style="border: 1px solid var(--bd); border-radius: 6px; padding: 4px 0">
+<div class="row two"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 3px"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/></svg><span class="l" style="display: flex; flex-direction: column"><span>Claude wants to run go test</span><span class="cap mut">design-brief · agents</span></span><span class="d cap">2m</span><span class="dot ac-i" style="margin-top: 6px"></span></div>
+<div class="row two"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 3px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="l" style="display: flex; flex-direction: column"><span class="t2">Bump ghostty finished</span><span class="cap mut">design-brief · agents</span></span><span class="d cap">2h</span></div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>table</h2>
+<ul class="muted" style="font-size: 14px">
+<li>header: caption, muted; the sorted column in fg with ⌄</li>
+<li>numbers right-aligned, tabular figures</li>
+<li>column <code>truncate</code>: tail (default), middle (paths), head</li>
+<li>group rows use the section label, not a coloured band</li>
+<li>selected row gets the bottom action strip</li>
+</ul>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 12px; display: flex; flex-direction: column">
+<div class="row cap mut" style="display: grid; grid-template-columns: 70px 70px 80px minmax(0, 1fr); height: 24px"><span>PID</span><span style="text-align: right; padding-right: 12px; color: var(--fg)">CPU ⌄</span><span style="text-align: right; padding-right: 12px">MEM</span><span>COMMAND · truncate middle</span></div>
+<div class="row" style="display: grid; grid-template-columns: 70px 70px 80px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>316</span><span style="text-align: right; padding-right: 12px">0.0</span><span style="text-align: right; padding-right: 12px">10 MB</span><span class="ell">/Users/cali/…/design-brief/build/clubmate-core serve</span></div>
+<div class="row sel" style="display: grid; grid-template-columns: 70px 70px 80px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>324</span><span style="text-align: right; padding-right: 12px">0.4</span><span style="text-align: right; padding-right: 12px">27 MB</span><span class="ell">/Users/cali/…/design-brief/build/cm-plugin-agents --stdio</span></div>
+<div class="row" style="display: grid; grid-template-columns: 70px 70px 80px minmax(0, 1fr); font-variant-numeric: tabular-nums"><span>3552</span><span style="text-align: right; padding-right: 12px">0.0</span><span style="text-align: right; padding-right: 12px">7 MB</span><span class="ell">/tmp/design-brief-tools/fakeagent</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>badge</h2>
+<ul class="muted" style="font-size: 14px">
+<li>height 16, radius 8, caption size</li>
+<li>tone-bg + tone-ink; neutral = hover overlay + text-2</li>
+<li>lowercase, two words max, one per row</li>
+<li>never for the normal state (“running”, “active” only in detail headers)</li>
+<li><code>count</code>: warning fill when it means “needs you”, neutral otherwise</li>
+</ul>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; align-content: center">
+<span class="badge">neutral</span><span class="badge ac">accent</span><span class="badge ok">done</span><span class="badge wa">needs you</span><span class="badge er">failed</span>
+<span style="width: 24px"></span>
+<span class="count">3</span><span class="count n">12</span>
+<span style="width: 24px"></span>
+<span class="kbd">⌘K</span><span class="kbd">⏎</span><span class="kbd">⌥⏎</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>button</h2>
+<ul class="muted" style="font-size: 14px">
+<li>control height 2u (24), small 20, icon-only square</li>
+<li><b>primary</b>: accent fill, on-accent text — one per pane</li>
+<li><b>secondary</b>: surface-2 + border-strong</li>
+<li><b>ghost</b>: text-2, fill only on hover — toolbars, headers</li>
+<li><b>danger</b>: danger outline; filled only inside a confirm</li>
+<li>shortcut printed inside as a keycap; icon-only buttons put it in the tooltip</li>
+<li>loading keeps the width, label becomes the progress verb</li>
+</ul>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 16px; display: grid; grid-template-columns: 90px repeat(6, minmax(0, 1fr)); gap: 10px 12px; align-items: center">
+<span></span><span class="cap mut">default</span><span class="cap mut">hover</span><span class="cap mut">focused</span><span class="cap mut">disabled</span><span class="cap mut">loading</span><span class="cap mut">pressed</span>
+<span class="cap mut">primary</span><span><button class="btn pri">Allow<span class="kbd">⏎</span></button></span><span><button class="btn pri hov">Allow<span class="kbd">⏎</span></button></span><span><button class="btn pri foc">Allow<span class="kbd">⏎</span></button></span><span><button class="btn pri dis" disabled>Send<span class="kbd">⌘⏎</span></button></span><span><button class="btn pri" style="opacity: .85">Running…</button></span><span><button class="btn pri" style="background: color-mix(in srgb, var(--ac) 80%, var(--bg))">Allow<span class="kbd">⏎</span></button></span>
+<span class="cap mut">secondary</span><span><button class="btn">Pause<span class="kbd">P</span></button></span><span><button class="btn hov">Pause<span class="kbd">P</span></button></span><span><button class="btn foc">Pause<span class="kbd">P</span></button></span><span><button class="btn dis" disabled>Pause<span class="kbd">P</span></button></span><span><button class="btn">Pausing…</button></span><span><button class="btn" style="background: var(--s3)">Pause<span class="kbd">P</span></button></span>
+<span class="cap mut">ghost</span><span><button class="btn gh">Edit<span class="kbd">E</span></button></span><span><button class="btn gh" style="background: var(--hov)">Edit<span class="kbd">E</span></button></span><span><button class="btn gh foc">Edit<span class="kbd">E</span></button></span><span><button class="btn gh dis" disabled>Edit<span class="kbd">E</span></button></span><span><button class="btn gh">Saving…</button></span><span><button class="btn gh" style="background: var(--prs)">Edit<span class="kbd">E</span></button></span>
+<span class="cap mut">danger</span><span><button class="btn dg">Reject<span class="kbd">⎋</span></button></span><span><button class="btn dg" style="background: var(--er-bg)">Reject<span class="kbd">⎋</span></button></span><span><button class="btn dg foc">Reject<span class="kbd">⎋</span></button></span><span><button class="btn dg dis" disabled>Kill orphans</button></span><span><button class="btn dg">Killing…</button></span><span><button class="btn dg" style="background: color-mix(in srgb, var(--er) 25%, transparent)">Reject<span class="kbd">⎋</span></button></span>
+<span class="cap mut">icon · small</span><span style="display: flex; gap: 6px"><button class="btn ico sm gh" aria-label="New"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button><button class="btn sm">Open<span class="kbd">O</span></button></span><span></span><span></span><span></span><span></span><span></span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>textField · select · toggle · folderField</h2>
+<ul class="muted" style="font-size: 14px">
+<li>control height; bg (sunken, not raised) + border-strong; radius m</li>
+<li>focus: accent border + 3pt accent-bg halo</li>
+<li>error: danger border + one caption line under it in tone-ink</li>
+<li>select = field with ⌄; opens a native menu; number keys pick</li>
+<li>folderField shows the path head-truncated (the end is the folder)</li>
+<li>toggle 26×16; label on the left, toggle at the row's end</li>
+</ul>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 12px; align-items: start">
+<span class="cap mut">default</span><span class="cap mut">focused</span><span class="cap mut">filled</span><span class="cap mut">disabled</span><span class="cap mut">error</span>
+<span class="field"><span class="phd">Task title</span></span>
+<span class="field foc"><span>Rate-limit|</span></span>
+<span class="field"><span class="ell">Rate-limit notifications</span></span>
+<span class="field" style="opacity: .45"><span class="phd">Task title</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px"><span class="field err"><span>0 3 * *</span></span><span class="cap er-i">needs 5 fields</span></span>
+<span class="field" style="justify-content: space-between">Todo<svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span>
+<span class="field foc" style="justify-content: space-between">Todo<svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span>
+<span class="field" style="justify-content: space-between"><span><span class="wa-i b">!!</span> High</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span>
+<span class="field" style="justify-content: space-between; opacity: .45">Todo<svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span>
+<span></span>
+<span style="display: flex; align-items: center; justify-content: space-between; height: 24px">Auto-kill<span class="tog"></span></span>
+<span style="display: flex; align-items: center; justify-content: space-between; height: 24px; box-shadow: 0 0 0 1.5px var(--ac); border-radius: 5px; padding: 0 4px">Auto-kill<span class="tog"></span></span>
+<span style="display: flex; align-items: center; justify-content: space-between; height: 24px">Auto-kill<span class="tog on"></span></span>
+<span style="display: flex; align-items: center; justify-content: space-between; height: 24px; opacity: .45">Auto-kill<span class="tog on"></span></span>
+<span></span>
+<span class="field"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg><span class="ell" style="direction: rtl; text-align: left">~/develop/norimori/ggfarmco/clubmate</span></span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>form · empty</h2>
+<ul class="muted" style="font-size: 14px">
+<li>form = two-column property grid: muted key 120 (88 below 800pt), value column</li>
+<li>read-only values are plain text; editable ones are fields — never both looks for one value</li>
+<li>autosave; a “Saved” caption replaces the Save button</li>
+<li>empty = icon 16 · one sentence · one action · optional code hint; aligned to the content column, not floating mid-pane</li>
+</ul>
+</div>
+<div class="cm th-{{theme}}" style="border-radius: 10px; padding: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div class="props">
+<span class="k">Schedule</span><div class="v"><span>Every day at 03:00</span><code class="mut">0 3 * * *</code></div>
+<span class="k">Status</span><div class="v"><span class="field" style="width: 140px; justify-content: space-between">Todo<svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></span></div>
+<span class="k">Worktree</span><div class="v">main</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px dashed var(--bd2); border-radius: 6px">
+<span style="display: flex; align-items: center; gap: 8px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="b">No graph runs yet</span></span>
+<span class="t2">Graphs chain agents: when one finishes, the next starts.</span>
+<span class="mut cap">Definitions live in <code>.clubmate/graphs/&lt;name&gt;.json</code></span>
+<span><button class="btn pri sm">Run a graph<span class="kbd">⌘R</span></button></span>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"kanagawa"},"$preview":{"width":1480,"height":2000}}'>
+class Component extends DCLogic {
+renderVals() {
+const t = this.props.theme ?? 'kanagawa';
+const names = { kanagawa: 'Kanagawa', onedark: 'One Dark', latte: 'Catppuccin Latte', mate: 'Mate dark', matelight: 'Mate light' };
+return { theme: t, themeLabel: names[t] || t };
+}
+}
+</script>
+</body>
+</html>

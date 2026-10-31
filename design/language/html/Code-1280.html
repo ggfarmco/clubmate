@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Code with chat, 1280</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+
+</head><body>
+
+<div class="cm th-kanagawa" style="width: 1280px; height: 800px; overflow: hidden">
+<div class="win">
+
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill"><span>design-brief</span><span class="faint">/</span><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-4 2.5-7 4.5"/></svg><span>docs/design-brief</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+<button class="pill" aria-label="Windows: 1"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M5.5 1.5h7a2 2 0 0 1 2 2v7"/></svg><span class="t2">1</span></button>
+</header>
+
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr) 392px">
+<nav class="rail" aria-label="Sections">
+<button class="ri on" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri" aria-label="Agents ⌘3, 3 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+<button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button>
+<button class="ri" aria-label="Graphs ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button>
+</nav>
+
+<section aria-label="Neovim" style="display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg)">
+<div style="flex: 1; min-height: 0; overflow: hidden; padding-top: 6px; white-space: pre; font-size: 13px; line-height: 20px">
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">14</span><span><span class="ac-i">func</span> <span class="ok-i">ValidKind</span>(kind <span class="wa-i">string</span>) <span class="wa-i">bool</span> {</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">13</span><span>    <span class="ac-i">return</span> slices.<span class="ok-i">Contains</span>(Kinds, kind)</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">12</span><span>}</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">11</span><span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">10</span><span><span class="ac-i">func</span> <span class="ok-i">Clip</span>(s <span class="wa-i">string</span>, limit <span class="wa-i">int</span>) <span class="wa-i">string</span> {</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">9</span><span>    s = strings.<span class="ok-i">TrimSpace</span>(s)</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">8</span><span>    runes := []<span class="wa-i">rune</span>(s)</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">7</span><span>    <span class="ac-i">if</span> <span class="ok-i">len</span>(runes) &lt;= limit {</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">6</span><span>        <span class="ac-i">return</span> s</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">5</span><span>    }</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">4</span><span>    <span class="ac-i">return</span> strings.<span class="ok-i">TrimSpace</span>(<span class="wa-i">string</span>(runes[:limit-1])) + ellipsis</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">3</span><span>}</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">2</span><span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">1</span><span><span class="ac-i">type</span> <span class="wa-i">Limiter</span> <span class="ac-i">struct</span> {</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); background: var(--hov)"><span class="wa-i" style="text-align: right; padding-right: 12px">40</span><span>    perKey <span class="wa-i">int</span>     <span class="faint">You, 1 day ago · feat(notify): notify.post core method</span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">1</span><span>    total  <span class="wa-i">int</span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">2</span><span>    window time.<span class="wa-i">Duration</span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">3</span><span>    mu     sync.<span class="wa-i">Mutex</span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">4</span><span>    seen   <span class="ac-i">map</span>[<span class="wa-i">string</span>][]time.<span class="wa-i">Time</span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">5</span><span>    all    []time.<span class="wa-i">Time</span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">6</span><span>}</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">7</span><span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">8</span><span><span class="ac-i">func</span> (l *<span class="wa-i">Limiter</span>) <span class="ok-i">Allow</span>(key <span class="wa-i">string</span>, now time.<span class="wa-i">Time</span>) <span class="wa-i">bool</span> {</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">9</span><span>    l.mu.<span class="ok-i">Lock</span>()</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">10</span><span>    <span class="ac-i">defer</span> l.mu.<span class="ok-i">Unlock</span>()</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">11</span><span>    cutoff := now.<span class="ok-i">Add</span>(-l.window)</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">12</span><span>    expired := <span class="ac-i">func</span>(t time.<span class="wa-i">Time</span>) <span class="wa-i">bool</span> { <span class="ac-i">return</span> !t.<span class="ok-i">After</span>(cutoff) }</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">13</span><span>    l.all = slices.<span class="ok-i">DeleteFunc</span>(l.all, expired)</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">14</span><span>    recent := slices.<span class="ok-i">DeleteFunc</span>(l.seen[key], expired)</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">15</span><span>    <span class="ac-i">if</span> <span class="ok-i">len</span>(recent) &gt;= l.perKey || <span class="ok-i">len</span>(l.all) &gt;= l.total {</span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">16</span><span>        <span class="ac-i">return</span> <span class="wa-i">false</span></span></div>
+<div style="display: grid; grid-template-columns: 48px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 12px">17</span><span>    }</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 0; height: 22px; flex: none; font-size: 12px; background: var(--s1); white-space: nowrap; overflow: hidden">
+<span style="background: var(--ac); color: var(--on-ac); padding: 0 10px; font-weight: 600; height: 22px; line-height: 22px">NORMAL</span>
+<span style="padding: 0 10px" class="t2">docs/design-brief</span>
+<span style="padding: 0 10px">internal/notify/notify.go</span>
+<span style="flex: 1"></span>
+<span class="mut" style="padding: 0 10px">go</span>
+<span class="mut" style="padding: 0 10px">62%</span>
+<span style="padding: 0 10px; background: var(--s3)">40:1</span>
+</div>
+<div class="mut" style="height: 20px; flex: none; padding: 0 10px; font-size: 12px">"internal/notify/notify.go" 118L, 3021B</div>
+</section>
+
+<aside aria-label="Chat" style="display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--bd); background: var(--bg)">
+<div class="phead" style="padding: 0 6px 0 6px; background: var(--s1)">
+<button class="btn sm gh" style="flex: 0 1 auto; min-width: 0"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><span class="ell">Review loop · Reviewer</span><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="New chat ⌘N"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+<button class="btn ico sm gh" aria-label="Hide chat ⌘J"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M10 2.5v11"/></svg></button>
+</div>
+<div style="flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 24px 20px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span class="b">Reviewer is idle</span>
+<p class="t2">It sees the file and selection you're on. Ask anything, or start from one of these.</p>
+</div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap">
+<span class="badge" style="background: var(--s2); border: 1px solid var(--bd)"><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5Z"/><path d="M9 1.5V5h3.5"/></svg>notify.go:40</span>
+<span class="badge" style="background: var(--s2); border: 1px solid var(--bd)">Limiter</span>
+</div>
+<div style="display: flex; flex-direction: column; margin: 0 -8px">
+<button class="row hov" style="border: 0; background: var(--hov); text-align: left; width: 100%"><span class="l">Explain Limiter.Allow</span><span class="kbd">1</span></button>
+<button class="row" style="border: 0; background: transparent; text-align: left; width: 100%"><span class="l">Review the last commit</span><span class="kbd">2</span></button>
+<button class="row" style="border: 0; background: transparent; text-align: left; width: 100%"><span class="l">Write a test for the burst case</span><span class="kbd">3</span></button>
+</div>
+</div>
+<div style="padding: 0 12px 12px; flex: none">
+<div class="card" style="display: flex; flex-direction: column; border-color: var(--ac); box-shadow: 0 0 0 3px var(--ac-bg)">
+<label for="chat-1280" class="faint" style="padding: 8px 12px 0; min-height: 44px">Ask Claude, @ to attach, / for commands</label>
+<textarea id="chat-1280" aria-label="Message Claude" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1"></textarea>
+<div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px 6px">
+<button class="btn sm gh">Claude · Ask before edits<svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<button class="btn ico sm gh" aria-label="Options"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M2.5 11.5h11"/><circle cx="6" cy="4.5" r="1.6" style="fill: var(--s2)"/><circle cx="10" cy="11.5" r="1.6" style="fill: var(--s2)"/></svg></button>
+<span style="flex: 1"></span>
+<button class="btn sm pri dis" disabled>Send<span class="kbd">⌘⏎</span></button>
+</div>
+</div>
+</div>
+</aside>
+</div>
+
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span>3 agents · <span class="wa-i">3 need you</span></span>
+<span style="flex: 1"></span>
+<span>⌘J chat · ⌘L focus chat</span>
+<span>⌘K commands</span>
+</footer>
+</div>
+</div>
+</body></html>

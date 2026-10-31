@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Code with chat, 640</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 640px; height: 800px; overflow: hidden">
+<div class="win">
+
+<header class="tb">
+<div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div>
+<button class="pill" style="flex: 0 1 auto; min-width: 0"><span class="ell">design-brief</span><span class="faint">/</span><span class="ell">docs/design-brief</span><svg class="i s12 mut" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="pill" aria-label="Notifications: 3 need you"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11Z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg><span class="count">3</span></button>
+</header>
+
+<div class="body" style="grid-template-columns: 40px minmax(0, 1fr)">
+<nav class="rail" aria-label="Sections">
+<button class="ri on" aria-label="Code ⌘1"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></button>
+<button class="ri" aria-label="Terminals ⌘2"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg></button>
+<button class="ri" aria-label="Agents ⌘3, 3 need you"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><span class="bdg"></span></button>
+<button class="ri" aria-label="Backlog ⌘4"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="m1.8 4 1.2 1.2L5 3M7.5 4h7M7.5 8.5h7M7.5 13h7"/><circle cx="3.3" cy="8.5" r="1.3"/><circle cx="3.3" cy="13" r="1.3"/></svg></button>
+<button class="ri" aria-label="Processes ⌘5"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></svg></button>
+<button class="ri" aria-label="Cron ⌘6"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+<button class="ri" aria-label="Triggers ⌘7"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z"/></svg></button>
+<button class="ri" aria-label="Graphs ⌘8"><svg class="i s16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg></button>
+</nav>
+
+<div style="display: grid; grid-template-rows: minmax(0, 1fr) 360px; min-width: 0; min-height: 0">
+<section aria-label="Neovim" style="display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg)">
+<div style="flex: 1; min-height: 0; overflow: hidden; padding-top: 4px; white-space: pre; font-size: 12px; line-height: 19px">
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">1</span><span><span class="ac-i">type</span> <span class="wa-i">Limiter</span> <span class="ac-i">struct</span> {</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr); background: var(--hov)"><span class="wa-i" style="text-align: right; padding-right: 10px">40</span><span>    perKey <span class="wa-i">int</span></span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">1</span><span>    total  <span class="wa-i">int</span></span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">2</span><span>    window time.<span class="wa-i">Duration</span></span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">3</span><span>    mu     sync.<span class="wa-i">Mutex</span></span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">4</span><span>    seen   <span class="ac-i">map</span>[<span class="wa-i">string</span>][]time.<span class="wa-i">Time</span></span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">5</span><span>    all    []time.<span class="wa-i">Time</span></span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">6</span><span>}</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">7</span><span></span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">8</span><span><span class="ac-i">func</span> (l *<span class="wa-i">Limiter</span>) <span class="ok-i">Allow</span>(key <span class="wa-i">string</span>, now time.<span class="wa-i">Time</span>) <span class="wa-i">bool</span> {</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">9</span><span>    l.mu.<span class="ok-i">Lock</span>()</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">10</span><span>    <span class="ac-i">defer</span> l.mu.<span class="ok-i">Unlock</span>()</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">11</span><span>    cutoff := now.<span class="ok-i">Add</span>(-l.window)</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">12</span><span>    expired := <span class="ac-i">func</span>(t time.<span class="wa-i">Time</span>) <span class="wa-i">bool</span> { <span class="ac-i">return</span> !t.<span class="ok-i">After</span>(cutoff) }</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">13</span><span>    l.all = slices.<span class="ok-i">DeleteFunc</span>(l.all, expired)</span></div>
+<div style="display: grid; grid-template-columns: 36px minmax(0, 1fr)"><span class="faint" style="text-align: right; padding-right: 10px">14</span><span>    recent := slices.<span class="ok-i">DeleteFunc</span>(l.seen[key], expired)</span></div>
+</div>
+<div style="display: flex; align-items: center; height: 20px; flex: none; font-size: 11px; background: var(--s1); white-space: nowrap; overflow: hidden">
+<span style="background: var(--ac); color: var(--on-ac); padding: 0 8px; font-weight: 600; height: 20px; line-height: 20px">N</span>
+<span style="padding: 0 8px" class="ell">internal/notify/notify.go</span>
+<span style="flex: 1"></span>
+<span style="padding: 0 8px; background: var(--s3)">40:1</span>
+</div>
+</section>
+
+<section aria-label="Chat" style="display: flex; flex-direction: column; min-width: 0; min-height: 0; border-top: 1px solid var(--bd2); background: var(--bg)">
+<div class="phead" style="padding: 0 6px; background: var(--s1)">
+<button class="btn sm gh" style="flex: 0 1 auto; min-width: 0"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="ell">Review loop · Reviewer</span><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="Move chat to the side ⌘⇧J"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M10 2.5v11"/></svg></button>
+<button class="btn ico sm gh" aria-label="Hide chat ⌘J"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; padding: 10px 16px">
+<div style="display: flex; gap: 10px; padding: 6px 10px; background: var(--s1); border-radius: 8px"><span class="ac-i b">›</span><p>Why does <code>Allow</code> take <code>now</code> instead of calling <code>time.Now()</code>?</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<p>So tests can drive the clock. <code>TestBurst</code> can post 11 notifications at the same instant and check that the 11th is refused, without sleeping.</p>
+<p class="t2">The service passes <code>s.clock()</code>, which is <code>time.Now</code> in production.</p>
+</div>
+</div>
+<div style="padding: 0 12px 10px; flex: none">
+<div class="card" style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 12px">
+<label for="chat-640" class="faint" style="flex: 1">Ask a follow-up…</label>
+<input id="chat-640" aria-label="Message Claude" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="btn ico sm gh" aria-label="Options"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M2.5 11.5h11"/><circle cx="6" cy="4.5" r="1.6" style="fill: var(--s2)"/><circle cx="10" cy="11.5" r="1.6" style="fill: var(--s2)"/></svg></button>
+<button class="btn sm pri dis" disabled>Send<span class="kbd">⌘⏎</span></button>
+</div>
+</div>
+</section>
+</div>
+</div>
+
+<footer class="sb">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot faint"></span>core</span>
+<span class="wa-i">3 need you</span>
+<span style="flex: 1"></span>
+<span>⌘J chat</span>
+</footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"latte"},"$preview":{"width":640,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'latte' };
+}
+}
+</script>
+</body>
+</html>
