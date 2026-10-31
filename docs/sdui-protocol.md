@@ -19,7 +19,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 
 `items` and `options` accept `null` as an empty list.
 
-- item (`tabs`, `list`): `{id*, label*, detail, icon, badge, menu}`, strings except `menu`, ids unique and non-empty. `menu` is a list of menu entries (`list` and `tree` show them as the row's context menu).
+- item (`tabs`, `list`): `{id*, label*, detail, icon, badge, menu, truncate}`, strings except `menu`, ids unique and non-empty. `menu` is a list of menu entries (`list` and `tree` show them as the row's context menu). `truncate` is where `list` and `tree` cut a long label: `tail` (default), `middle` (branches, paths; keeps the prefix and the end) or `head`; the full label is the row's tooltip. `tabs` ignore it.
 - menu entry (item `menu`): `{action*, label*, confirm}`: choosing it sends `action` with the item id as value; with `confirm` the client asks first.
 - tree item (`tree`): item fields plus `tone` (`neutral`, `accent`, `success`, `warning` or `danger`; colours the icon), `muted` (bool), `hasChildren` (bool), `expanded` (bool) and `children` (tree items).
 - option (`select`): `{value*, label*}`.

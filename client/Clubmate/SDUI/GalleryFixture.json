@@ -33,6 +33,7 @@
                 ]
               },
               {"id": "internal", "label": "internal", "icon": "folder", "hasChildren": true, "expanded": false},
+              {"id": "wt-long", "label": "feat/agents-sidebar-worktree-groups-middle-truncation", "icon": "arrow.triangle.branch", "truncate": "middle"},
               {"id": "readme", "label": "README.md", "icon": "doc.richtext", "badge": "M"},
               {"id": "agt-run", "label": "Мобильное приложение для управления агентами", "icon": "circle.dotted", "tone": "accent", "detail": "4 min · Read view.go"},
               {"id": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "Waiting for permission · go test"},

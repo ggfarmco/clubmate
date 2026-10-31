@@ -388,6 +388,15 @@ final class StoresTests: XCTestCase {
         XCTAssertNil(SDUINode(type: "sparkline", props: ["values": .array([]), "max": .number(1)]).sparklineHeight())
     }
 
+    func testItemTruncateDecodes() {
+        let tree = SDUINode(type: "tree", props: ["items": .array([
+            .object(["id": .string("wt"), "label": .string("feat/long"), "truncate": .string("middle")]),
+            .object(["id": .string("s"), "label": .string("Session")]),
+        ])])
+
+        XCTAssertEqual(tree.treeItems().map(\.item.truncate), [.middle, .tail])
+    }
+
     func testTableColumnsDropByPriority() {
         let columns = [
             SDUIColumn(id: "pid", title: "PID", align: .left, width: 60),

@@ -1,5 +1,11 @@
 import Foundation
 
+public enum SDUITruncate: String, Sendable {
+    case tail
+    case middle
+    case head
+}
+
 public struct SDUIItem: Sendable, Equatable, Identifiable {
     public let id: String
     public let label: String
@@ -7,6 +13,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
     public let icon: String?
     public let badge: String?
     public let menu: [SDUIMenuEntry]
+    public let truncate: SDUITruncate
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
@@ -16,6 +23,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
         icon = fields["icon"]?.stringValue
         badge = fields["badge"]?.stringValue
         menu = fields["menu"]?.arrayValue?.compactMap(SDUIMenuEntry.init) ?? []
+        truncate = fields["truncate"]?.stringValue.flatMap(SDUITruncate.init) ?? .tail
     }
 }
 
@@ -89,22 +97,16 @@ public struct SDUIColumn: Sendable, Equatable, Identifiable {
         case right
     }
 
-    public enum Truncate: String, Sendable {
-        case tail
-        case middle
-        case head
-    }
-
     public static let minFlexibleWidth: Double = 200
 
     public let id: String
     public let title: String
     public let align: Align
     public let width: Double?
-    public let truncate: Truncate
+    public let truncate: SDUITruncate
     public let priority: Int
 
-    public init(id: String, title: String, align: Align, width: Double?, truncate: Truncate = .tail, priority: Int = 0) {
+    public init(id: String, title: String, align: Align, width: Double?, truncate: SDUITruncate = .tail, priority: Int = 0) {
         self.id = id
         self.title = title
         self.align = align
@@ -121,7 +123,7 @@ public struct SDUIColumn: Sendable, Equatable, Identifiable {
             title: title,
             align: fields["align"]?.stringValue.flatMap(Align.init) ?? .left,
             width: width > 0 ? width : nil,
-            truncate: fields["truncate"]?.stringValue.flatMap(Truncate.init) ?? .tail,
+            truncate: fields["truncate"]?.stringValue.flatMap(SDUITruncate.init) ?? .tail,
             priority: max(Int(fields["priority"]?.numberValue ?? 0), 0)
         )
     }

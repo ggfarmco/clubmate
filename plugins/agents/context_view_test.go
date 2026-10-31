@@ -51,7 +51,7 @@ func TestContextViewReplacesTranscriptAndFollowsTreeEvents(t *testing.T) {
 	require.Len(t, ctxTree, 1)
 	assert.Equal(t, "agt_1/context", ctxTree[0].ID)
 	groups := ctxTree[0].Props["items"].([]sdui.TreeItem)
-	assert.Equal(t, sdui.TreeItem{ID: "i:/r/CLAUDE.md", Label: "CLAUDE.md", Detail: "project"}, groups[0].Children[0])
+	assert.Equal(t, sdui.TreeItem{ID: "i:/r/CLAUDE.md", Label: "CLAUDE.md", Detail: "project", Truncate: "middle"}, groups[0].Children[0])
 	assert.Equal(t, "1 of 2 used", groups[1].Detail)
 	assert.Empty(t, groups[1].Children)
 	assert.Equal(t, "agents only when asked", nodesOf(tree, "markdown")[0].Props["text"])

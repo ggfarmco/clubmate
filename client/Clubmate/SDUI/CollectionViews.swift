@@ -300,7 +300,7 @@ struct ItemRow<Leading: View>: View {
             Text(item.label)
                 .foregroundStyle(muted ? theme.muted : theme.foreground)
                 .lineLimit(1)
-                .truncationMode(.label)
+                .truncationMode(Text.TruncationMode(item.truncate))
                 .help(item.label)
                 .layoutPriority(1)
             Spacer(minLength: theme.gutter)

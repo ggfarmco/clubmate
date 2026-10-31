@@ -49,6 +49,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	require.Len(t, groups, 3)
 	assert.Equal(t, []string{"Needs you · 2", "a", "feat/auth"}, []string{groups[0].Label, groups[1].Label, groups[2].Label})
 	assert.Empty(t, groups[2].Detail)
+	assert.Equal(t, []string{"", "middle", "middle"}, []string{groups[0].Truncate, groups[1].Truncate, groups[2].Truncate})
 	needs, a, b := groups[0].Children, groups[1].Children, groups[2].Children
 	require.Len(t, needs, 2)
 	require.Len(t, a, 2)

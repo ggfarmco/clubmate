@@ -42,16 +42,17 @@ type contextGroup struct {
 }
 
 type contextItem struct {
-	id     string
-	label  string
-	detail string
-	icon   string
-	tone   string
-	muted  bool
-	title  string
-	meta   string
-	body   string
-	note   string
+	id       string
+	label    string
+	detail   string
+	icon     string
+	tone     string
+	muted    bool
+	truncate string
+	title    string
+	meta     string
+	body     string
+	note     string
 }
 
 func contextButton(sc screen) (sdui.Node, bool) {
@@ -90,7 +91,7 @@ func contextView(sc screen) sdui.Node {
 		gi := sdui.TreeItem{ID: ctxGroup + g.id, Label: g.label, Icon: g.icon, Detail: groupDetail(g), HasChildren: len(g.items) > 0, Expanded: open}
 		for _, it := range g.items {
 			if open {
-				gi.Children = append(gi.Children, sdui.TreeItem{ID: it.id, Label: it.label, Detail: it.detail, Icon: it.icon, Tone: it.tone, Muted: it.muted})
+				gi.Children = append(gi.Children, sdui.TreeItem{ID: it.id, Label: it.label, Detail: it.detail, Icon: it.icon, Tone: it.tone, Muted: it.muted, Truncate: it.truncate})
 			}
 			if it.id == selected {
 				body = itemBody(it)
@@ -120,7 +121,7 @@ func contextGroups(c contextScreen) []contextGroup {
 			kind += " · nested"
 		}
 		path := displayPath(f.Path, c.Worktree)
-		instructions.items = append(instructions.items, contextItem{id: "i:" + f.Path, label: path, detail: kind, title: path, meta: f.Path, body: f.Content})
+		instructions.items = append(instructions.items, contextItem{id: "i:" + f.Path, label: path, detail: kind, truncate: "middle", title: path, meta: f.Path, body: f.Content})
 	}
 	mcp := contextGroup{id: "mcp", label: "MCP servers", icon: "server.rack"}
 	for _, e := range d.MCP {

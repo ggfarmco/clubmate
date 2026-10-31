@@ -140,7 +140,9 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			folded, ok := collapsed[key]
 			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), statusIcons[statusClosed], b.closed, ok && !folded))
 		}
-		groups = append(groups, groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt]))
+		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt])
+		group.Truncate = "middle"
+		groups = append(groups, group)
 	}
 	if !slices.ContainsFunc(needs, func(item sdui.TreeItem) bool { return item.ID == selected }) {
 		selected = strings.TrimPrefix(selected, needsPrefix)

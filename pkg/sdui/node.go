@@ -8,12 +8,13 @@ type Node struct {
 }
 
 type Item struct {
-	ID     string      `json:"id"`
-	Label  string      `json:"label"`
-	Detail string      `json:"detail,omitempty"`
-	Icon   string      `json:"icon,omitempty"`
-	Badge  string      `json:"badge,omitempty"`
-	Menu   []MenuEntry `json:"menu,omitempty"`
+	ID       string      `json:"id"`
+	Label    string      `json:"label"`
+	Detail   string      `json:"detail,omitempty"`
+	Icon     string      `json:"icon,omitempty"`
+	Badge    string      `json:"badge,omitempty"`
+	Menu     []MenuEntry `json:"menu,omitempty"`
+	Truncate string      `json:"truncate,omitempty"`
 }
 
 type MenuEntry struct {
@@ -34,6 +35,7 @@ type TreeItem struct {
 	HasChildren bool        `json:"hasChildren,omitempty"`
 	Expanded    bool        `json:"expanded,omitempty"`
 	Children    []TreeItem  `json:"children,omitempty"`
+	Truncate    string      `json:"truncate,omitempty"`
 }
 
 type Option struct {

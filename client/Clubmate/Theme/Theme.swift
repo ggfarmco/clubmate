@@ -169,4 +169,12 @@ extension EnvironmentValues {
 extension Text.TruncationMode {
     static let label: Self = .tail
     static let path: Self = .head
+
+    init(_ truncate: SDUITruncate) {
+        switch truncate {
+        case .tail: self = .label
+        case .middle: self = .middle
+        case .head: self = .head
+        }
+    }
 }

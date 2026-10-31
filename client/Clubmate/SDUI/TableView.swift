@@ -134,7 +134,7 @@ private struct TableRowView: View {
 
 private struct TableCellView: View {
     let cell: SDUICell
-    let truncate: SDUIColumn.Truncate
+    let truncate: SDUITruncate
     let muted: Bool
 
     @Environment(\.theme) private var theme
@@ -148,18 +148,10 @@ private struct TableCellView: View {
             if !cell.text.isEmpty {
                 Text(cell.text)
                     .lineLimit(1)
-                    .truncationMode(truncationMode)
+                    .truncationMode(Text.TruncationMode(truncate))
                     .foregroundStyle(textColor(tone))
                     .help(cell.text)
             }
-        }
-    }
-
-    private var truncationMode: Text.TruncationMode {
-        switch truncate {
-        case .tail: .label
-        case .middle: .middle
-        case .head: .head
         }
     }
 
