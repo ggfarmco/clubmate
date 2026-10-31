@@ -91,8 +91,8 @@ func TestRegisteredRootSurvivesStaleSnapshot(t *testing.T) {
 	assert.True(t, testutil.Alive(child))
 }
 
-func TestDeadRootLeavesKillableOrphans(t *testing.T) {
-	svc, _, projectID := rootService(t)
+func endedRootLeftover(t *testing.T, svc *core.Service, projectID string) int {
+	t.Helper()
 	cmd := exec.Command("/bin/sh", "-c", "sleep 300 & wait")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	require.NoError(t, cmd.Start())
@@ -118,6 +118,12 @@ func TestDeadRootLeavesKillableOrphans(t *testing.T) {
 		require.NoError(t, err)
 		return slices.ContainsFunc(nodes, func(n proc.Node) bool { return n.Process.PID == leftover && n.Orphan && n.SessionID == root.ID })
 	}, 5*time.Second)
+	return leftover
+}
+
+func TestDeadRootLeavesKillableOrphans(t *testing.T) {
+	svc, _, projectID := rootService(t)
+	leftover := endedRootLeftover(t, svc, projectID)
 	roots := svc.ProcessRoots(projectID)
 	require.Len(t, roots, 1)
 	assert.True(t, roots[0].Ended)
@@ -131,6 +137,14 @@ func TestDeadRootLeavesKillableOrphans(t *testing.T) {
 		require.NoError(t, err)
 		return len(svc.ProcessRoots(projectID)) == 0
 	}, 5*time.Second)
+}
+
+func TestDeleteProjectKillsEndedRootLeftovers(t *testing.T) {
+	svc, _, projectID := rootService(t)
+	leftover := endedRootLeftover(t, svc, projectID)
+
+	require.NoError(t, svc.DeleteProject(t.Context(), projectID))
+	testutil.Eventually(t, func() bool { return !testutil.Alive(leftover) }, 5*time.Second)
 }
 
 func TestRootLifecycle(t *testing.T) {

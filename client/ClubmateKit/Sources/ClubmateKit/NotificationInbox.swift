@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 public struct InboxEntry: Sendable, Equatable, Codable, Identifiable {
     public let note: HubNotification
@@ -120,6 +121,30 @@ public struct NotificationInbox: Sendable, Equatable, Codable {
     public func save(to url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(self).write(to: url, options: .atomic)
+    }
+
+    public static func resumePoint(lastSeq: Int64, read: Result<JSONValue, any Error>) -> Int64 {
+        guard lastSeq > 0 else { return .max }
+        guard case .success(let events) = read else { return lastSeq }
+        guard case .number(let seq)? = events.arrayValue?.first?.objectValue?["seq"], Int64(seq) == lastSeq else { return .max }
+        return lastSeq
+    }
+}
+
+public final class InboxWriter: Sendable {
+    private let url: URL
+    private let written = Mutex<UInt64>(0)
+
+    public init(url: URL) {
+        self.url = url
+    }
+
+    public func save(_ inbox: NotificationInbox, generation: UInt64) {
+        written.withLock { last in
+            guard generation > last else { return }
+            last = generation
+            try? inbox.save(to: url)
+        }
     }
 }
 

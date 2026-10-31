@@ -165,8 +165,16 @@ func (s *Service) alive(r *rootRecord) bool {
 	return err == nil && start.Equal(r.start)
 }
 
-func sessionNodes(nodes []proc.Node) []proc.Node {
-	return slices.DeleteFunc(nodes, func(n proc.Node) bool { return id.Valid(RootIDPrefix, n.SessionID) })
+func (s *Service) withoutLiveRoots(nodes []proc.Node) []proc.Node {
+	s.rootsMu.Lock()
+	live := make(map[string]bool, len(s.roots))
+	for _, r := range s.roots {
+		if !r.Ended {
+			live[r.ID] = true
+		}
+	}
+	s.rootsMu.Unlock()
+	return slices.DeleteFunc(nodes, func(n proc.Node) bool { return live[n.SessionID] })
 }
 
 func ownedBy(procs []proc.Process, ownerPID, pid int) (proc.Process, bool) {

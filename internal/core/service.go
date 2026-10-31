@@ -221,7 +221,7 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := proc.KillTree(ctx, nodeTargets(sessionNodes(nodes)), s.killGrace); err != nil {
+	if _, err := proc.KillTree(ctx, nodeTargets(s.withoutLiveRoots(nodes)), s.killGrace); err != nil {
 		return fmt.Errorf("kill project %s: %w", id, err)
 	}
 	sessions, err := s.sessions.List(ctx, session.ListFilter{ProjectID: id})

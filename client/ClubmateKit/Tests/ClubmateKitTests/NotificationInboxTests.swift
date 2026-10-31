@@ -88,6 +88,26 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(restored.bellCount, 1)
     }
 
+    func testWriterKeepsTheNewestGeneration() {
+        let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "notifications.json")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        var final = NotificationInbox()
+        final.record(seq: 2)
+        var stale = NotificationInbox()
+        stale.record(seq: 1)
+        let writer = InboxWriter(url: url)
+        writer.save(final, generation: 2)
+        writer.save(stale, generation: 1)
+        XCTAssertEqual(NotificationInbox.load(from: url).lastSeq, 2)
+    }
+
+    func testResumesFromLastSeqUnlessTheBusLostIt() {
+        let found: JSONValue = .array([.object(["seq": .number(7)])])
+        XCTAssertEqual(NotificationInbox.resumePoint(lastSeq: 7, read: .success(found)), 7)
+        XCTAssertEqual(NotificationInbox.resumePoint(lastSeq: 7, read: .failure(ClubmateError.timeout)), 7)
+        XCTAssertEqual(NotificationInbox.resumePoint(lastSeq: 7, read: .success(.array([]))), .max)
+    }
+
     func testLoadSkipsBadEntries() throws {
         var inbox = NotificationInbox()
         inbox.add(note("good"), at: now, handled: false, now: now)

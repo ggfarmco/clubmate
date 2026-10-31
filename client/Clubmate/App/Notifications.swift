@@ -21,8 +21,9 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var checks: Task<Void, Never>?
     @ObservationIgnored private var saving: Task<Void, Never>?
+    @ObservationIgnored private var generation: UInt64 = 0
     @ObservationIgnored private var asked = false
-    @ObservationIgnored private let store: URL
+    @ObservationIgnored private let writer: InboxWriter
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let focus: @MainActor () -> HubFocus
     @ObservationIgnored private let workspaces: @MainActor () -> Set<String>
@@ -40,7 +41,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         var inbox = NotificationInbox.load(from: store)
         inbox.prune(now: Date())
         hub = NotificationHub(inbox: inbox)
-        self.store = store
+        writer = InboxWriter(url: store)
         self.run = run
         self.focus = focus
         self.workspaces = workspaces
@@ -142,10 +143,14 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private static func resumePoint(_ client: CoreClient, lastSeq: Int64) async -> Int64 {
-        guard lastSeq > 0,
-              let events = try? await client.call(method: "bus.read", params: .object(["pattern": .string(HubNotification.topic), "after": .number(Double(lastSeq - 1)), "limit": .number(1)])),
-              case .number(let seq)? = events.arrayValue?.first?.objectValue?["seq"], Int64(seq) == lastSeq else { return .max }
-        return lastSeq
+        guard lastSeq > 0 else { return .max }
+        let read: Result<JSONValue, any Error>
+        do {
+            read = .success(try await client.call(method: "bus.read", params: .object(["pattern": .string(HubNotification.topic), "after": .number(Double(lastSeq - 1)), "limit": .number(1)])))
+        } catch {
+            read = .failure(error)
+        }
+        return NotificationInbox.resumePoint(lastSeq: lastSeq, read: read)
     }
 
     func openSystemSettings() {
@@ -244,17 +249,20 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     private func changed() {
         updateBadge()
         saving?.cancel()
+        generation += 1
         let inbox = hub.inbox
-        let store = store
+        let generation = generation
+        let writer = writer
         saving = Task {
             guard (try? await Task.sleep(for: Self.saveDelay)) != nil else { return }
-            await Task.detached { try? inbox.save(to: store) }.value
+            await Task.detached { writer.save(inbox, generation: generation) }.value
         }
     }
 
     func flush() {
         saving?.cancel()
-        try? hub.inbox.save(to: store)
+        generation += 1
+        writer.save(hub.inbox, generation: generation)
     }
 
     private func updateBadge() {

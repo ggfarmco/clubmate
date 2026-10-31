@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -35,7 +37,15 @@ const (
 	pluginStopTimeout = 15 * time.Second
 )
 
+const usage = `usage: clubmate-core [-version]
+
+Runs the Clubmate core. The app and "clubmate core start" launch it.
+`
+
 func main() {
+	if code, run := parseArgs(os.Args[1:], os.Stdout, os.Stderr); !run {
+		os.Exit(code)
+	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	err := run(logger)
 	if errors.Is(err, paths.ErrCoreRunning) {
@@ -46,6 +56,28 @@ func main() {
 		logger.Error("clubmate-core failed", "err", err)
 		os.Exit(1)
 	}
+}
+
+func parseArgs(args []string, stdout, stderr io.Writer) (int, bool) {
+	fs := flag.NewFlagSet("clubmate-core", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	version := fs.Bool("version", false, "print the version and exit")
+	err := fs.Parse(args)
+	switch {
+	case errors.Is(err, flag.ErrHelp):
+		fmt.Fprint(stdout, usage)
+		return 0, false
+	case err != nil:
+		fmt.Fprintf(stderr, "clubmate-core: %v\n%s", err, usage)
+		return 2, false
+	case fs.NArg() > 0:
+		fmt.Fprintf(stderr, "clubmate-core: unexpected argument %q\n%s", fs.Arg(0), usage)
+		return 2, false
+	case *version:
+		fmt.Fprintln(stdout, buildinfo.String())
+		return 0, false
+	}
+	return 0, true
 }
 
 func run(logger *slog.Logger) error {
