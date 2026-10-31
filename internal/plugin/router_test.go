@@ -39,7 +39,7 @@ func TestUIRenderEventAndOwnership(t *testing.T) {
 	testutil.Eventually(t, func() bool {
 		var views []internalsdui.SlotView
 		_ = c.Call(t.Context(), "ui.get", map[string]string{"projectId": p.ID}, &views)
-		return len(views) == 1 && views[0].Tree.Type == "text"
+		return len(views) == 1 && treeType(t, views[0]) == "text"
 	}, 5*time.Second)
 	var res map[string]any
 	require.NoError(t, c.Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "echo.main", "nodeId": "x", "action": "say", "value": "hi"}, &res))
@@ -64,12 +64,12 @@ func TestClearOwnerOnPluginCrash(t *testing.T) {
 	}, 5*time.Second)
 	var sub subscription
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": p.ID}, &sub))
-	assert.Equal(t, "text", nextView(t, c, sub.Subscription).Tree.Type)
+	assert.Equal(t, "text", treeType(t, nextView(t, c, sub.Subscription)))
 	require.NoError(t, syscall.Kill(h.Sup.PIDs()[0], syscall.SIGKILL))
 	cleared := nextView(t, c, sub.Subscription)
 	assert.Equal(t, "echo.main", cleared.Slot)
-	assert.Equal(t, "empty", cleared.Tree.Type)
-	assert.Equal(t, "text", nextView(t, c, sub.Subscription).Tree.Type)
+	assert.Equal(t, "empty", treeType(t, cleared))
+	assert.Equal(t, "text", treeType(t, nextView(t, c, sub.Subscription)))
 }
 
 func TestPluginErrorsAreRewrapped(t *testing.T) {
@@ -195,6 +195,13 @@ func nextView(t *testing.T, c *rpc.Client, sid string) internalsdui.SlotView {
 		t.Fatal("no ui.updated notification")
 		return internalsdui.SlotView{}
 	}
+}
+
+func treeType(t *testing.T, v internalsdui.SlotView) string {
+	t.Helper()
+	n, err := v.Node()
+	require.NoError(t, err)
+	return n.Type
 }
 
 func goroutines() string {

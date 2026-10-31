@@ -293,6 +293,9 @@ func normalize(props map[string]any) (map[string]any, error) {
 	if len(props) == 0 {
 		return nil, nil
 	}
+	if jsonNative(props) {
+		return props, nil
+	}
 	raw, err := json.Marshal(props)
 	if err != nil {
 		return nil, err
@@ -302,6 +305,30 @@ func normalize(props map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func jsonNative(v any) bool {
+	switch v := v.(type) {
+	case nil, string, bool:
+		return true
+	case float64:
+		return !math.IsNaN(v) && !math.IsInf(v, 0)
+	case []any:
+		for _, e := range v {
+			if !jsonNative(e) {
+				return false
+			}
+		}
+		return true
+	case map[string]any:
+		for _, e := range v {
+			if !jsonNative(e) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func invalid(path, format string, args ...any) error {

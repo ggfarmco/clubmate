@@ -133,8 +133,11 @@ func (h *PluginHarness) WaitSlot(t *testing.T, projectID, slot string, cond func
 			return false
 		}
 		for _, v := range views {
-			if v.Slot == slot && cond(v.Tree) {
-				found = v.Tree
+			if v.Slot != slot {
+				continue
+			}
+			if n, err := v.Node(); err == nil && cond(n) {
+				found = n
 				return true
 			}
 		}

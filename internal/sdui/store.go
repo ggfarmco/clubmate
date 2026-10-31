@@ -2,7 +2,9 @@ package sdui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -10,19 +12,14 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-const subscriptionBuffer = 64
-
-var (
-	ErrSlowSubscriber = errors.New("slow subscriber dropped")
-	ErrUnknownProject = errors.New("unknown project")
-)
+var ErrUnknownProject = errors.New("unknown project")
 
 type SlotView struct {
-	ProjectID string    `json:"projectId"`
-	Slot      string    `json:"slot"`
-	Owner     string    `json:"owner"`
-	Rev       int64     `json:"rev"`
-	Tree      sdui.Node `json:"tree"`
+	ProjectID string          `json:"projectId"`
+	Slot      string          `json:"slot"`
+	Owner     string          `json:"owner"`
+	Rev       int64           `json:"rev"`
+	Tree      json.RawMessage `json:"tree"`
 }
 
 type slotKey struct {
@@ -34,6 +31,7 @@ type Store struct {
 	slots map[slotKey]SlotView
 	revs  map[slotKey]int64
 	subs  map[*Subscription]struct{}
+	empty json.RawMessage
 
 	dropped map[string]struct{}
 }
@@ -41,9 +39,9 @@ type Store struct {
 type Subscription struct {
 	store   *Store
 	project string
-	out     chan SlotView
+	ready   chan struct{}
+	pending []SlotView
 	ended   bool
-	err     error
 }
 
 func NewStore() *Store {
@@ -51,6 +49,7 @@ func NewStore() *Store {
 		slots: map[slotKey]SlotView{},
 		revs:  map[slotKey]int64{},
 		subs:  map[*Subscription]struct{}{},
+		empty: json.RawMessage(`{"type":"empty","props":{"text":""}}`),
 
 		dropped: map[string]struct{}{},
 	}
@@ -59,6 +58,10 @@ func NewStore() *Store {
 func (s *Store) Render(ctx context.Context, projectID, slot, owner string, n sdui.Node) (int64, error) {
 	if err := Validate(n); err != nil {
 		return 0, err
+	}
+	tree, err := json.Marshal(n)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -70,7 +73,7 @@ func (s *Store) Render(ctx context.Context, projectID, slot, owner string, n sdu
 	}
 	key := slotKey{projectID, slot}
 	s.revs[key]++
-	view := SlotView{ProjectID: projectID, Slot: slot, Owner: owner, Rev: s.revs[key], Tree: n}
+	view := SlotView{ProjectID: projectID, Slot: slot, Owner: owner, Rev: s.revs[key], Tree: tree}
 	s.slots[key] = view
 	s.notifyLocked(view)
 	return view.Rev, nil
@@ -93,6 +96,50 @@ func (s *Store) DropProject(projectID string) {
 	s.clear(func(key slotKey, _ SlotView) bool { return key.project == projectID })
 }
 
+func (s *Store) Subscribe(projectID string) (*Subscription, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sub := &Subscription{store: s, project: projectID, ready: make(chan struct{}, 1)}
+	s.subs[sub] = struct{}{}
+	for _, view := range s.viewsLocked(projectID) {
+		sub.pushLocked(view)
+	}
+	return sub, nil
+}
+
+func (v SlotView) Node() (sdui.Node, error) {
+	var n sdui.Node
+	err := json.Unmarshal(v.Tree, &n)
+	return n, err
+}
+
+func (sub *Subscription) Ready() <-chan struct{} {
+	return sub.ready
+}
+
+func (sub *Subscription) Take() ([]SlotView, bool) {
+	sub.store.mu.Lock()
+	defer sub.store.mu.Unlock()
+	if sub.ended {
+		return nil, false
+	}
+	views := sub.pending
+	sub.pending = nil
+	return views, true
+}
+
+func (sub *Subscription) Close() {
+	sub.store.mu.Lock()
+	defer sub.store.mu.Unlock()
+	if sub.ended {
+		return
+	}
+	sub.ended = true
+	sub.pending = nil
+	delete(sub.store.subs, sub)
+	close(sub.ready)
+}
+
 func (s *Store) clear(match func(slotKey, SlotView) bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -108,7 +155,7 @@ func (s *Store) clear(match func(slotKey, SlotView) bool) {
 			Slot:      key.slot,
 			Owner:     view.Owner,
 			Rev:       s.revs[key],
-			Tree:      sdui.Empty(""),
+			Tree:      s.empty,
 		})
 	}
 	slices.SortFunc(cleared, func(a, b SlotView) int {
@@ -117,35 +164,6 @@ func (s *Store) clear(match func(slotKey, SlotView) bool) {
 	for _, view := range cleared {
 		s.notifyLocked(view)
 	}
-}
-
-func (s *Store) Subscribe(projectID string) (*Subscription, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	sub := &Subscription{store: s, project: projectID, out: make(chan SlotView, subscriptionBuffer)}
-	s.subs[sub] = struct{}{}
-	for _, view := range s.viewsLocked(projectID) {
-		if !sub.sendLocked(view) {
-			break
-		}
-	}
-	return sub, nil
-}
-
-func (sub *Subscription) C() <-chan SlotView {
-	return sub.out
-}
-
-func (sub *Subscription) Err() error {
-	sub.store.mu.Lock()
-	defer sub.store.mu.Unlock()
-	return sub.err
-}
-
-func (sub *Subscription) Close() {
-	sub.store.mu.Lock()
-	defer sub.store.mu.Unlock()
-	sub.endLocked(nil)
 }
 
 func (s *Store) viewsLocked(projectID string) []SlotView {
@@ -162,27 +180,16 @@ func (s *Store) viewsLocked(projectID string) []SlotView {
 func (s *Store) notifyLocked(view SlotView) {
 	for sub := range s.subs {
 		if sub.project == view.ProjectID {
-			sub.sendLocked(view)
+			sub.pushLocked(view)
 		}
 	}
 }
 
-func (sub *Subscription) sendLocked(view SlotView) bool {
+func (sub *Subscription) pushLocked(view SlotView) {
+	sub.pending = slices.DeleteFunc(sub.pending, func(v SlotView) bool { return v.Slot == view.Slot })
+	sub.pending = append(sub.pending, view)
 	select {
-	case sub.out <- view:
-		return true
+	case sub.ready <- struct{}{}:
 	default:
-		sub.endLocked(ErrSlowSubscriber)
-		return false
 	}
-}
-
-func (sub *Subscription) endLocked(err error) {
-	if sub.ended {
-		return
-	}
-	sub.ended = true
-	sub.err = err
-	delete(sub.store.subs, sub)
-	close(sub.out)
 }

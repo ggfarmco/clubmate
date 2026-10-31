@@ -2,6 +2,7 @@ package sdui_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func TestStoreKeepsPreviousTreeOnInvalidRender(t *testing.T) {
 	views := s.Get(prj)
 	require.Len(t, views, 1)
 	assert.Equal(t, rev, views[0].Rev)
-	assert.Equal(t, "empty", views[0].Tree.Type)
+	assert.Equal(t, "empty", node(t, views[0]).Type)
 }
 
 func TestStoreRejectsRenderFromCancelledCaller(t *testing.T) {
@@ -54,10 +55,10 @@ func TestSubscribeDeliversCurrentThenUpdates(t *testing.T) {
 	sub, err := s.Subscribe(prj)
 	require.NoError(t, err)
 	t.Cleanup(sub.Close)
-	assert.Equal(t, "old", recv(t, sub).Tree.Props["text"])
+	assert.Equal(t, "old", node(t, recv(t, sub)).Props["text"])
 	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("new"))
 	got := recv(t, sub)
-	assert.Equal(t, "new", got.Tree.Props["text"])
+	assert.Equal(t, "new", node(t, got).Props["text"])
 	assert.EqualValues(t, 2, got.Rev)
 }
 
@@ -68,14 +69,12 @@ func TestClearOwnerRemovesSlotsAndNotifies(t *testing.T) {
 	_, _ = s.Render(t.Context(), prj, "b.main", "b", sdui.Empty("x"))
 	sub, _ := s.Subscribe(prj)
 	t.Cleanup(sub.Close)
-	for range 2 {
-		recv(t, sub)
-	}
+	require.Len(t, recvAll(t, sub), 2)
 	s.ClearOwner("a")
 	got := recv(t, sub)
 	assert.Equal(t, "a.main", got.Slot)
 	assert.EqualValues(t, 2, got.Rev)
-	assert.Equal(t, sdui.Empty(""), got.Tree)
+	assert.Equal(t, sdui.Empty(""), node(t, got))
 	assert.Len(t, s.Get(prj), 1)
 	assert.Empty(t, s.Get("prj_other"))
 }
@@ -91,7 +90,7 @@ func TestDropProjectRemovesSlotsAndNotifies(t *testing.T) {
 	got := recv(t, sub)
 	assert.Equal(t, "a.main", got.Slot)
 	assert.EqualValues(t, 2, got.Rev)
-	assert.Equal(t, sdui.Empty(""), got.Tree)
+	assert.Equal(t, sdui.Empty(""), node(t, got))
 	assert.Empty(t, s.Get(prj))
 	assert.Len(t, s.Get("prj_other"), 1)
 }
@@ -103,26 +102,31 @@ func TestRenderAfterDropRejected(t *testing.T) {
 	assert.ErrorIs(t, err, internalsdui.ErrUnknownProject)
 }
 
-func TestSlowSubscriberIsDropped(t *testing.T) {
+func TestUndrainedSubscriberKeepsLatestViewPerSlot(t *testing.T) {
 	s := internalsdui.NewStore()
 	sub, _ := s.Subscribe(prj)
-	for range 200 {
-		_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
+	t.Cleanup(sub.Close)
+	for i := range 200 {
+		_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty(strconv.Itoa(i)))
+		_, _ = s.Render(t.Context(), prj, "a.sidebar", "a", sdui.Empty(strconv.Itoa(i)))
 	}
-	for range sub.C() {
-	}
-	assert.ErrorIs(t, sub.Err(), internalsdui.ErrSlowSubscriber)
-	sub.Close()
+	views := recvAll(t, sub)
+	require.Len(t, views, 2)
+	assert.Equal(t, []string{"a.main", "a.sidebar"}, []string{views[0].Slot, views[1].Slot})
+	assert.EqualValues(t, 200, views[1].Rev)
+	assert.Equal(t, "199", node(t, views[1]).Props["text"])
 }
 
-func TestCloseIsIdempotentAndClosesChannel(t *testing.T) {
+func TestCloseIsIdempotentAndEndsSubscription(t *testing.T) {
 	s := internalsdui.NewStore()
+	_, _ = s.Render(t.Context(), prj, "a.main", "a", sdui.Empty("x"))
 	sub, _ := s.Subscribe(prj)
 	sub.Close()
 	sub.Close()
-	_, ok := <-sub.C()
+	for range sub.Ready() {
+	}
+	_, ok := sub.Take()
 	assert.False(t, ok)
-	assert.NoError(t, sub.Err())
 }
 
 func TestSectionsOrderOwnerAndSlots(t *testing.T) {
@@ -167,12 +171,27 @@ func TestSectionsKeepOnlyValidHosts(t *testing.T) {
 
 func recv(t *testing.T, sub *internalsdui.Subscription) internalsdui.SlotView {
 	t.Helper()
+	views := recvAll(t, sub)
+	require.Len(t, views, 1)
+	return views[0]
+}
+
+func recvAll(t *testing.T, sub *internalsdui.Subscription) []internalsdui.SlotView {
+	t.Helper()
 	select {
-	case v, ok := <-sub.C():
-		require.True(t, ok, "subscription closed: %v", sub.Err())
-		return v
+	case <-sub.Ready():
+		views, ok := sub.Take()
+		require.True(t, ok, "subscription closed")
+		return views
 	case <-time.After(2 * time.Second):
 		t.Fatal("no view within 2s")
-		return internalsdui.SlotView{}
+		return nil
 	}
+}
+
+func node(t *testing.T, v internalsdui.SlotView) sdui.Node {
+	t.Helper()
+	n, err := v.Node()
+	require.NoError(t, err)
+	return n
 }

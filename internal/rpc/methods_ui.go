@@ -19,7 +19,6 @@ import (
 
 const (
 	notifyUIUpdated = "ui.updated"
-	notifyUIClosed  = "ui.closed"
 	notifyUIFocus   = "ui.focus"
 )
 
@@ -406,13 +405,15 @@ func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription)
 			select {
 			case <-done:
 				return
-			case view, ok := <-sub.C():
+			case <-sub.Ready():
+				views, ok := sub.Take()
 				if !ok {
-					notifyDropped(ctx, conn, notifyUIClosed, sid, sub.Err())
 					return
 				}
-				if err := conn.Notify(ctx, notifyUIUpdated, uiUpdatedParams{Subscription: sid, View: view}); err != nil {
-					return
+				for _, view := range views {
+					if err := conn.Notify(ctx, notifyUIUpdated, uiUpdatedParams{Subscription: sid, View: view}); err != nil {
+						return
+					}
 				}
 			}
 		}

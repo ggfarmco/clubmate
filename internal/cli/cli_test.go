@@ -515,3 +515,12 @@ func TestDiagnosticsWithoutCore(t *testing.T) {
 	assert.NotEmpty(t, info["coreError"])
 	assert.Contains(t, files["README.txt"], "core unreachable")
 }
+
+func TestDebugPprofWritesProfile(t *testing.T) {
+	startCore(t)
+	out := filepath.Join(t.TempDir(), "heap.pprof")
+	assert.Equal(t, out+"\n", string(run(t, "debug", "pprof", "heap", "-o", out)))
+	data, err := os.ReadFile(out)
+	require.NoError(t, err)
+	assert.Equal(t, []byte{0x1f, 0x8b}, data[:2])
+}

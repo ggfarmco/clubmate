@@ -164,12 +164,8 @@ func confirmGated(views []sdui.SlotView, slot, action string) bool {
 		if v.Slot != slot {
 			continue
 		}
-		raw, err := json.Marshal(v.Tree)
-		if err != nil {
-			return true
-		}
 		var tree any
-		if err := json.Unmarshal(raw, &tree); err != nil {
+		if err := json.Unmarshal(v.Tree, &tree); err != nil {
 			return true
 		}
 		gated := map[string]bool{}

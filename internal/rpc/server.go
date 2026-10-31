@@ -91,6 +91,7 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.uiMethods())
 	maps.Copy(s.methods, s.fsMethods())
 	maps.Copy(s.methods, s.diagnosticsMethods())
+	maps.Copy(s.methods, s.debugMethods())
 	maps.Copy(s.methods, s.notifyMethods())
 	maps.Copy(s.methods, s.processMethods())
 	maps.Copy(s.methods, s.testModeMethods())

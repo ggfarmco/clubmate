@@ -162,6 +162,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | workspace.worktree.set | `{id, repo, path}` | project |
 | workspace.worktree.check | `{id}` | project |
 | diagnostics.collect | `{projectId?, appVersion?, extra?}` (not for plugin callers) | `{path, files: [{name, bytes}]}` |
+| debug.pprof | `{profile, debug?, seconds?, gc?}` (not for plugin callers) | `{profile, data}` (see [debugging.md](debugging.md)) |
 | plugin.list | none | `[{id, state, pid, restarts, lastError, manifest}]` sorted by id |
 | plugin.restart | `{id}` (not for plugin callers) | `{}` |
 | process.tree | `{projectId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
@@ -298,9 +299,8 @@ The app's Help ▸ Collect Diagnostics… first shows a sheet listing the files 
 
 ## Notifications
 
-- `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the project are replayed first.
+- `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the project are replayed first. A subscriber is never dropped for falling behind: while the core waits to write to a slow connection, a newer render of a slot replaces the one still pending for that slot, so a slow client skips intermediate revs and gets the latest view of each slot.
 - `ui.focus` `{subscription, section, slot, field}`: the client should show `section`, and `slot` when non-empty, for that subscription's project. `field` is present (true) only when the caller passed it: the client puts keyboard focus into the first `textField` of that sidebar instead of its list or tree. A focus to a hidden sidebar shows it first.
-- `ui.closed` `{subscription, error}`: the subscription ended with an error (for example it fell behind); resubscribe and replace local state.
 
 ## File watching
 

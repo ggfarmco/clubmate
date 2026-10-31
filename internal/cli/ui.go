@@ -66,10 +66,18 @@ func (a *app) uiDumpCmd() *cobra.Command {
 			if err := a.call(cmd.Context(), "ui.get", map[string]string{"projectId": projectID}, &views); err != nil {
 				return err
 			}
+			trees := make([]sdui.Node, 0, len(views))
+			for _, v := range views {
+				n, err := v.Node()
+				if err != nil {
+					return fmt.Errorf("decode %s tree: %w", v.Slot, err)
+				}
+				trees = append(trees, n)
+			}
 			return a.render(views, func(w io.Writer) {
-				for _, v := range views {
+				for i, v := range views {
 					fmt.Fprintf(w, "%s rev=%d owner=%s\n", v.Slot, v.Rev, v.Owner)
-					writeOutline(w, v.Tree, 1)
+					writeOutline(w, trees[i], 1)
 				}
 			})
 		},
