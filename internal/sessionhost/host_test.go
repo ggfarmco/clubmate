@@ -64,6 +64,22 @@ func TestMetaHasProto(t *testing.T) {
 	assert.Contains(t, string(data), `"proto":1`)
 }
 
+func TestMetaRecordsOutputAndBell(t *testing.T) {
+	cfg := testConfig(t, "sh", "-c", `printf '\033]0;title\007'; sleep 2; printf 'done\007'; exec cat`)
+	startHost(t, cfg)
+	var m sessionhost.Meta
+	testutil.Eventually(t, func() bool {
+		m, _ = sessionhost.ReadMeta(cfg.MetaPath)
+		return m.OutputAt != nil
+	}, waitTimeout)
+	assert.Nil(t, m.BellAt)
+	testutil.Eventually(t, func() bool {
+		m, _ = sessionhost.ReadMeta(cfg.MetaPath)
+		return m.BellAt != nil
+	}, 2*waitTimeout)
+	assert.Nil(t, m.ExitCode)
+}
+
 func TestSessionHostReplacesInheritedMarkers(t *testing.T) {
 	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
 	cfg := testConfig(t, os.Args[0], "-test.run=^TestHelperSleep$")

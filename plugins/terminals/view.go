@@ -3,22 +3,27 @@ package main
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
+
+const idleAfter = time.Minute
 
 type terminal struct {
 	ID       string
 	Title    string
 	State    contract.SessionState
 	ExitCode *int
+	OutputAt *time.Time
+	Bell     bool
 }
 
-func sidebarView(terminals []terminal, selected string) sdui.Node {
+func sidebarView(terminals []terminal, selected string, now time.Time) sdui.Node {
 	items := make([]sdui.Item, 0, len(terminals))
 	for _, t := range terminals {
-		items = append(items, sdui.Item{ID: t.ID, Label: t.Title, Detail: detail(t), Badge: badge(t)})
+		items = append(items, sdui.Item{ID: t.ID, Label: t.Title, Detail: detail(t, now), Badge: badge(t)})
 	}
 	var body sdui.Node
 	if len(items) == 0 {
@@ -58,21 +63,46 @@ func resolveSelection(terminals []terminal, selected string) string {
 	return ""
 }
 
-func detail(t terminal) string {
-	if t.State == contract.SessionStateRunning {
-		return "running"
+func detail(t terminal, now time.Time) string {
+	switch t.State {
+	case contract.SessionStateRunning:
+		if t.OutputAt == nil || now.Sub(*t.OutputAt) < idleAfter {
+			return ""
+		}
+		return "idle " + elapsed(now.Sub(*t.OutputAt))
+	case contract.SessionStateExited:
+		if failed(t) {
+			return ""
+		}
+		return "exited"
 	}
-	if t.State == contract.SessionStateExited && t.ExitCode != nil {
-		return fmt.Sprintf("exited (%d)", *t.ExitCode)
-	}
-	return string(t.State)
+	return ""
 }
 
 func badge(t terminal) string {
-	if t.State == contract.SessionStateRunning {
-		return ""
+	switch {
+	case t.State == contract.SessionStateLost:
+		return "lost"
+	case failed(t):
+		return fmt.Sprintf("exit %d", *t.ExitCode)
+	case t.State == contract.SessionStateRunning && t.Bell:
+		return "bell"
 	}
-	return "exited"
+	return ""
+}
+
+func failed(t terminal) bool {
+	return t.State == contract.SessionStateExited && t.ExitCode != nil && *t.ExitCode != 0
+}
+
+func elapsed(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d/time.Minute))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d/time.Hour))
+	}
+	return fmt.Sprintf("%dd", int(d/(24*time.Hour)))
 }
 
 func exitedText(t terminal) string {

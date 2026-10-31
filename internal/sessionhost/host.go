@@ -27,6 +27,8 @@ const (
 	maxPendingBytes   = 4 << 20
 	maxFramePayload   = 1 << 20
 	readBufSize       = 32 << 10
+	persistEvery      = time.Second
+	outputGrain       = 10 * time.Second
 	initialCols       = 80
 	initialRows       = 24
 	exitFlushTimeout  = 2 * time.Second
@@ -44,6 +46,9 @@ type host struct {
 	pgid       int
 	ring       *wire.Ring
 	term       termState
+	bell       bellScanner
+	outputAt   time.Time
+	bellAt     time.Time
 	status     statusProbe
 	queries    chan struct{}
 	reports    chan struct{}
@@ -117,7 +122,8 @@ func Run(ctx context.Context, cfg Config) error {
 		queries:    make(chan struct{}, 1),
 		reports:    make(chan struct{}, 1),
 	}
-	code := h.serve(ctx, cmd, ln)
+	code := h.serve(ctx, cmd, ln, cfg.MetaPath, meta)
+	meta = h.stamp(meta)
 	exitedAt := time.Now()
 	meta.ExitCode, meta.ExitedAt = &code, &exitedAt
 	metaErr := WriteMeta(cfg.MetaPath, meta)
@@ -133,14 +139,74 @@ func StripMarkers(env []string) []string {
 	return slices.DeleteFunc(env, isMarker)
 }
 
-func (h *host) serve(ctx context.Context, cmd *exec.Cmd, ln net.Listener) int {
+func (h *host) serve(ctx context.Context, cmd *exec.Cmd, ln net.Listener, metaPath string, meta Meta) int {
 	exited := make(chan struct{})
-	defer close(exited)
+	persisted := make(chan struct{})
 	h.wg.Go(func() { h.acceptLoop(ln) })
 	h.wg.Go(func() { hangupOnCancel(ctx, cmd.Process.Pid, exited) })
 	go h.reply(exited)
+	go func() {
+		defer close(persisted)
+		h.persist(metaPath, meta, exited)
+	}()
 	h.pump()
-	return waitExit(cmd)
+	code := waitExit(cmd)
+	close(exited)
+	<-persisted
+	return code
+}
+
+func (h *host) persist(path string, meta Meta, done <-chan struct{}) {
+	tick := time.NewTicker(persistEvery)
+	defer tick.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-tick.C:
+		}
+		next := h.stamp(meta)
+		if !activityChanged(meta, next) {
+			continue
+		}
+		if err := WriteMeta(path, next); err != nil {
+			fmt.Fprintln(os.Stderr, "clubmate-session:", err)
+			continue
+		}
+		meta = next
+	}
+}
+
+func (h *host) stamp(meta Meta) Meta {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	meta.OutputAt = timePtr(h.outputAt)
+	meta.BellAt = timePtr(h.bellAt)
+	return meta
+}
+
+func activityChanged(old, next Meta) bool {
+	if !timeEqual(old.BellAt, next.BellAt) {
+		return true
+	}
+	if next.OutputAt == nil {
+		return false
+	}
+	return old.OutputAt == nil || next.OutputAt.Sub(*old.OutputAt) >= outputGrain
+}
+
+func timePtr(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+func timeEqual(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
 }
 
 func (h *host) acceptLoop(ln net.Listener) {
@@ -191,6 +257,10 @@ func (h *host) broadcast(p []byte) {
 	defer h.mu.Unlock()
 	h.ring.Write(p)
 	h.term.feed(p, len(h.clients) == 0)
+	h.outputAt = time.Now()
+	if h.bell.feed(p) {
+		h.bellAt = h.outputAt
+	}
 	if h.term.takeSizeReport() {
 		select {
 		case h.reports <- struct{}{}:

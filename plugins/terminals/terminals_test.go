@@ -141,6 +141,46 @@ func TestTerminalBusy(t *testing.T) {
 	testutil.Eventually(t, busy(true, "sleep"), 5*time.Second)
 }
 
+func TestBellBadgeClearsOnSelect(t *testing.T) {
+	h := newHarness(t)
+	p := h.CreateWorkspace(t, "demo")
+	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return contains(n, "empty") })
+	c := h.Client(t)
+	var ids []string
+	for range 2 {
+		require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID}, nil))
+		ids = append(ids, h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool {
+			return n.Type == "surface" && (len(ids) == 0 || n.Props["sessionId"] != ids[0])
+		}).Props["sessionId"].(string))
+	}
+	t.Cleanup(func() {
+		for _, sid := range ids {
+			_ = c.Call(context.Background(), "command.run", map[string]any{"id": "terminals.close", "workspaceId": p.ID, "args": map[string]string{"sessionId": sid}}, nil)
+			h.WaitSessionGone(t, sid)
+		}
+	})
+	conn, err := net.Dial("unix", h.Dirs.SessionSocket(ids[0]))
+	require.NoError(t, err)
+	defer conn.Close()
+	require.NoError(t, wire.WriteFrame(conn, wire.Frame{Type: wire.FrameData, Payload: []byte("printf '\\a'\n")}))
+	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return badgeOf(n, ids[0]) == "bell" })
+	h.Event(t, p.ID, "terminals.sidebar", "terminals", "select", ids[0])
+	h.WaitSlot(t, p.ID, "terminals.sidebar", func(n sdui.Node) bool { return badgeOf(n, ids[0]) == "" })
+}
+
+func badgeOf(n sdui.Node, id string) string {
+	for _, c := range n.Children {
+		items, _ := c.Props["items"].([]any)
+		for _, it := range items {
+			if m, _ := it.(map[string]any); m["id"] == id {
+				badge, _ := m["badge"].(string)
+				return badge
+			}
+		}
+	}
+	return ""
+}
+
 func newHarness(t *testing.T) *testutil.PluginHarness {
 	t.Helper()
 	return testutil.NewPluginHarness(t, testutil.BuildPluginDir(t, "clubmate/plugins/terminals", "plugins/terminals/plugin.json"))

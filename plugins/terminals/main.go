@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 )
 
 const (
@@ -21,6 +24,7 @@ const (
 	sectionID    = "terminals"
 	titlePrefix  = "Terminal "
 	defaultShell = "/bin/zsh"
+	refreshEvery = 2 * time.Second
 )
 
 var errUnknownAction = errors.New("unknown action")
@@ -39,12 +43,20 @@ type busyResult struct {
 }
 
 type app struct {
-	mu    sync.Mutex
-	known map[string]string
+	mu       sync.Mutex
+	known    map[string]string
+	seen     map[string]time.Time
+	rendered map[string]views
+}
+
+type views struct {
+	sidebar sdui.Node
+	main    sdui.Node
+	running bool
 }
 
 func main() {
-	a := &app{known: map[string]string{}}
+	a := &app{known: map[string]string{}, seen: map[string]time.Time{}, rendered: map[string]views{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent})
 }
 
@@ -67,8 +79,44 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, "workspace.*", ready.Seq); err != nil {
 		return err
 	}
-	_, err = h.Subscribe(ctx, "session.*", ready.Seq)
-	return err
+	if _, err := h.Subscribe(ctx, "session.*", ready.Seq); err != nil {
+		return err
+	}
+	go every(ctx, refreshEvery, func() { a.refresh(ctx, h) })
+	return nil
+}
+
+func (a *app) refresh(ctx context.Context, h *pluginsdk.Host) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, workspaceID := range a.polled() {
+		if err := a.render(ctx, h, workspaceID); err != nil && ctx.Err() == nil {
+			fmt.Fprintln(os.Stderr, "terminals: refresh:", err)
+		}
+	}
+}
+
+func (a *app) polled() []string {
+	var ids []string
+	for workspaceID, v := range a.rendered {
+		if v.running {
+			ids = append(ids, workspaceID)
+		}
+	}
+	return ids
+}
+
+func every(ctx context.Context, interval time.Duration, run func()) {
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+		run()
+	}
 }
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
@@ -149,6 +197,11 @@ func (a *app) eventWorkspace(ev pluginsdk.Event) (string, error) {
 		var created contract.WorkspaceChanged
 		err := json.Unmarshal(ev.Payload, &created)
 		return created.Workspace, err
+	case contract.TopicWorkspaceDeleted:
+		var deleted contract.WorkspaceDeleted
+		err := json.Unmarshal(ev.Payload, &deleted)
+		delete(a.rendered, deleted.Workspace)
+		return "", err
 	case contract.TopicSessionExited:
 		var exited contract.SessionExited
 		if err := json.Unmarshal(ev.Payload, &exited); err != nil {
@@ -245,7 +298,11 @@ func (a *app) removeSession(ctx context.Context, h *pluginsdk.Host, s pluginsdk.
 			return err
 		}
 	}
-	return h.RemoveSession(ctx, s.ID)
+	if err := h.RemoveSession(ctx, s.ID); err != nil {
+		return err
+	}
+	delete(a.seen, s.ID)
+	return h.StorageDelete(ctx, bellKey(s.ID))
 }
 
 func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, workspaceID, title, cwd string) error {
@@ -273,7 +330,7 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, workspaceID string)
 	terminals := make([]terminal, 0, len(sessions))
 	for _, s := range sessions {
 		a.known[s.ID] = workspaceID
-		terminals = append(terminals, terminal{ID: s.ID, Title: s.Title, State: s.State, ExitCode: s.ExitCode})
+		terminals = append(terminals, terminal{ID: s.ID, Title: s.Title, State: s.State, ExitCode: s.ExitCode, OutputAt: s.OutputAt})
 	}
 	resolved := resolveSelection(terminals, selected)
 	if resolved != selected {
@@ -282,11 +339,52 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, workspaceID string)
 		}
 		selected = resolved
 	}
-	if _, err := h.Render(ctx, workspaceID, sidebarSlot, sidebarView(terminals, selected)); err != nil {
-		return err
+	for i, s := range sessions {
+		if terminals[i].Bell, err = a.unseenBell(ctx, h, s, s.ID == selected); err != nil {
+			return err
+		}
 	}
-	_, err = h.Render(ctx, workspaceID, mainSlot, mainView(terminals, selected))
-	return err
+	running := slices.ContainsFunc(terminals, func(t terminal) bool { return t.State == contract.SessionStateRunning })
+	return a.show(ctx, h, workspaceID, views{sidebar: sidebarView(terminals, selected, time.Now()), main: mainView(terminals, selected), running: running})
+}
+
+func (a *app) unseenBell(ctx context.Context, h *pluginsdk.Host, s pluginsdk.Session, selected bool) (bool, error) {
+	if s.BellAt == nil {
+		return false, nil
+	}
+	seen, ok := a.seen[s.ID]
+	if !ok {
+		if _, err := h.StorageGet(ctx, bellKey(s.ID), &seen); err != nil {
+			return false, err
+		}
+		a.seen[s.ID] = seen
+	}
+	if !s.BellAt.After(seen) {
+		return false, nil
+	}
+	if !selected {
+		return true, nil
+	}
+	a.seen[s.ID] = *s.BellAt
+	return false, h.StorageSet(ctx, bellKey(s.ID), *s.BellAt)
+}
+
+func (a *app) show(ctx context.Context, h *pluginsdk.Host, workspaceID string, v views) error {
+	last, ok := a.rendered[workspaceID]
+	if !ok || !reflect.DeepEqual(last.sidebar, v.sidebar) {
+		if _, err := h.Render(ctx, workspaceID, sidebarSlot, v.sidebar); err != nil {
+			return err
+		}
+		last.sidebar = v.sidebar
+		a.rendered[workspaceID] = last
+	}
+	if !ok || !reflect.DeepEqual(last.main, v.main) {
+		if _, err := h.Render(ctx, workspaceID, mainSlot, v.main); err != nil {
+			return err
+		}
+	}
+	a.rendered[workspaceID] = v
+	return nil
 }
 
 func (a *app) persistSelection(ctx context.Context, h *pluginsdk.Host, workspaceID, id string) error {
@@ -367,4 +465,8 @@ func shell() string {
 
 func selectedKey(workspaceID string) string {
 	return "selected/" + workspaceID
+}
+
+func bellKey(sessionID string) string {
+	return "bellSeen/" + sessionID
 }
