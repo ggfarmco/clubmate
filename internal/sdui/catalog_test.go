@@ -79,7 +79,7 @@ func TestValidateAgentNodes(t *testing.T) {
 		n.Props = props
 		return n
 	}
-	attachments := []sdui.Attachment{{Kind: "file", Path: "a.go"}, {ID: "s1", Kind: "selection", Path: "b.go", StartLine: 12, EndLine: 40}}
+	attachments := []sdui.Attachment{{Kind: "file", Path: "a.go"}, {ID: "s1", Kind: "selection", Path: "b.go", StartLine: 12, EndLine: 40}, {Kind: "image", Path: "image"}}
 	nodes := map[string]sdui.Node{
 		"transcript": sdui.Transcript("t", sdui.Message("agent", "**hi**", nil)),
 		"message":    sdui.Message("user", "fix it", attachments),

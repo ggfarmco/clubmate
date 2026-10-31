@@ -65,7 +65,8 @@ var (
 	toolStatuses     = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
 	toolFormats      = []string{"diff", "text", "terminal"}
 	permissionKinds  = []string{"allow_once", "allow_always", "reject_once", "reject_always"}
-	attachmentKinds  = []string{"file", "selection"}
+	attachSources    = []string{"file", "selection"}
+	attachmentKinds  = []string{"file", "selection", "image"}
 	attachmentFields = map[string]propCheck{"id": uniqueItemID, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
@@ -182,7 +183,7 @@ var (
 		"composer": {
 			props: map[string]propCheck{
 				"placeholder": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
-				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachmentKinds)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool,
+				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool,
 			},
 			children:    noChildren,
 			interactive: true,
