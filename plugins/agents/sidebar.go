@@ -216,11 +216,18 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
-		Detail: strings.Join(nonEmpty(notifyLabels[row.Notify], activity(row, now)), " · "),
+		Detail: strings.Join(nonEmpty(afkDetail(rec), notifyLabels[row.Notify], activity(row, now)), " · "),
 		Icon:   statusIcons[display],
 		Tone:   statusTones[display],
 		Menu:   menu,
 	}
+}
+
+func afkDetail(rec record) string {
+	if rec.AFK {
+		return afkLabel
+	}
+	return ""
 }
 
 func needsYou(rec record) bool {

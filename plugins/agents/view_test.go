@@ -385,7 +385,7 @@ func TestRenderThrottle(t *testing.T) {
 	assert.Equal(t, before+1, lastRender)
 }
 
-func TestConfigPickersAndModelEffortInHeader(t *testing.T) {
+func TestConfigPickers(t *testing.T) {
 	var configs []acp.SessionConfigOption
 	require.NoError(t, json.Unmarshal([]byte(`[
 		{"id":"mode","name":"Mode","category":"mode","type":"select","currentValue":"plan","options":[{"value":"plan","name":"Plan"}]},
@@ -396,7 +396,6 @@ func TestConfigPickersAndModelEffortInHeader(t *testing.T) {
 	tree := mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus", Branch: "feat/a"})
 	require.NoError(t, internalsdui.Validate(tree))
 
-	assert.Equal(t, "Claude · ⑂ feat/a · Opus 5.5 · High effort", nodesOf(tree, "text")[1].Props["text"])
 	got := nodesOf(tree, "composer")[0].Props["pickers"].([]sdui.Picker)
 	require.Len(t, got, 5)
 	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
@@ -471,11 +470,12 @@ func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 	now := time.Now()
 	for _, tc := range []struct {
 		children, icon, tone, detail string
+		afk                          bool
 	}{
-		{statusRunning, "circle.dotted", "", "Waiting for child sessions"},
-		{statusWaiting, "exclamationmark.circle", "warning", "Child session waiting"},
+		{statusRunning, "circle.dotted", "", "AFK · Waiting for child sessions", true},
+		{statusWaiting, "exclamationmark.circle", "warning", "Child session waiting", false},
 	} {
-		rows := []sessionRow{{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}, Children: tc.children}}
+		rows := []sessionRow{{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now, AFK: tc.afk}, Children: tc.children}}
 		tree := sidebarView(rows, "", nil, now, false)
 		require.NoError(t, internalsdui.Validate(tree))
 
@@ -486,8 +486,8 @@ func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 	}
 }
 
-func TestHeaderShowsWaitingForChildren(t *testing.T) {
-	v := transcriptView{Session: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone}}
+func TestHeaderShowsAFKAndWaitingForChildren(t *testing.T) {
+	v := transcriptView{Session: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, AFK: true}}
 
 	tree := mainView(screen{View: v, Children: statusRunning, Composer: "agt_p/composer/0"})
 	require.NoError(t, internalsdui.Validate(tree))
@@ -496,7 +496,7 @@ func TestHeaderShowsWaitingForChildren(t *testing.T) {
 	for _, n := range nodesOf(tree, "text") {
 		texts = append(texts, n.Props["text"].(string))
 	}
-	assert.Contains(t, texts, "Claude · ⑂ a · Waiting for child sessions")
+	assert.Contains(t, texts, "AFK · Waiting for child sessions")
 }
 
 func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
@@ -523,7 +523,6 @@ func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
 	assert.Len(t, nodesOf(tree, "permissionCard"), 3)
 	got := docked.Props["options"].([]sdui.PermissionOption)
 	assert.Equal(t, []string{"allow", "always", "deny"}, []string{got[0].ID, got[1].ID, got[2].ID})
-	assert.Contains(t, nodesOf(tree.Children[0], "text")[1].Props["text"], "Ask before edits")
 	assert.Equal(t, "Ask before edits", nodesOf(tree, "composer")[0].Props["modes"].([]sdui.Option)[0].Label)
 }
 

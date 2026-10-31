@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,6 +27,7 @@ const (
 
 	advisorHelp = "Advisor model for new sessions in this worktree"
 	finishHelp  = "What the agent does once the task is done"
+	afkLabel    = "AFK"
 	afkHelp     = "Away mode: the agent works without asking you and reports when done; child sessions follow it"
 )
 
@@ -148,22 +148,16 @@ func codeView(recs []record, bound string, sc *screen) sdui.Node {
 func header(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
-	meta := []string{agentLabel(rec.Agent), "⑂ " + cmp.Or(sc.Branch, filepath.Base(rec.Worktree))}
-	if name := modeName(sc.View.Modes, rec.Mode); name != "" {
-		meta = append(meta, name)
-	}
-	if name := configName(sc.View.Configs, acp.CategoryModel); name != "" {
-		meta = append(meta, name)
-	}
-	if name := effortName(sc.View.Configs); name != "" {
-		meta = append(meta, name)
+	var meta []string
+	if rec.AFK {
+		meta = append(meta, afkLabel)
 	}
 	if display, ok := childDisplay[sc.Children]; ok {
 		meta = append(meta, statusLabels[display])
 	}
-	row := []sdui.Node{
-		{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}},
-		sdui.MutedText(strings.Join(meta, " · ")),
+	row := []sdui.Node{{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}}}
+	if len(meta) > 0 {
+		row = append(row, sdui.MutedText(strings.Join(meta, " · ")))
 	}
 	if sc.Parent != "" {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
@@ -302,37 +296,6 @@ func pickers(sc screen) []sdui.Picker {
 		sdui.Picker{ID: finishID, Title: "Finish", Help: finishHelp, Value: cmp.Or(sc.View.Session.Finish, finishAsk), Options: finish},
 		sdui.Picker{ID: afkID, Title: "AFK", Help: afkHelp, Value: afkValue, Options: afk},
 	)
-}
-
-func effortName(configs []acp.SessionConfigOption) string {
-	name := configName(configs, acp.CategoryThoughtLevel)
-	i := slices.IndexFunc(configs, func(o acp.SessionConfigOption) bool { return o.Category == acp.CategoryThoughtLevel })
-	if name == "" || configs[i].Name == "" {
-		return name
-	}
-	return name + " " + strings.ToLower(configs[i].Name)
-}
-
-func configName(configs []acp.SessionConfigOption, category string) string {
-	for _, o := range configs {
-		if o.Category != category {
-			continue
-		}
-		if c, ok := o.Choice(o.Current()); ok {
-			return cmp.Or(c.Name, c.Value)
-		}
-		return o.Current()
-	}
-	return ""
-}
-
-func modeName(modes []acp.SessionMode, id string) string {
-	for _, m := range modes {
-		if m.ID == id {
-			return modeLabel(m)
-		}
-	}
-	return id
 }
 
 var modeLabels = map[string]string{
