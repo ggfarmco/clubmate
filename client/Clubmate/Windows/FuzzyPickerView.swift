@@ -25,7 +25,7 @@ struct FuzzyPickerList: View {
             .padding(.horizontal, theme.gutter)
             theme.border.frame(height: 1)
             results
-                .padding(.vertical, 4)
+                .padding(.vertical, theme.spacing.s)
         }
         .onAppear { model.update("") }
         .onDisappear { model.cancel() }
@@ -125,7 +125,7 @@ extension View {
                     .frame(width: 480)
                     .modifier(PickerChrome())
                     .id(ObjectIdentifier(request.model))
-                    .padding(.top, 48)
+                    .padding(.top, Theme.fallback.spacing.overlay)
             }
         }
     }

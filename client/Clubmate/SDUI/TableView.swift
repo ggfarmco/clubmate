@@ -57,7 +57,7 @@ private struct TableHeader: View {
             ForEach(columns) { column in
                 let active = sort?.column == column.id
                 Button { tap(column) } label: {
-                    HStack(spacing: 3) {
+                    HStack(spacing: theme.spacing.xs) {
                         Text(column.title)
                             .lineLimit(1)
                         if active, let sort {
@@ -107,7 +107,7 @@ private struct TableRowView: View {
                         BarShape(fraction: bar)
                             .fill(pair.1.toneColor(theme) ?? theme.accent)
                             .opacity(0.3)
-                            .padding(.vertical, 3)
+                            .padding(.vertical, theme.spacing.xs)
                     }
                 }
             }
@@ -135,7 +135,7 @@ private struct TableCellView: View {
 
     var body: some View {
         let tone = cell.toneColor(theme)
-        HStack(spacing: 4) {
+        HStack(spacing: theme.spacing.s) {
             if let spark = cell.spark {
                 SparklineView(spark: spark, color: tone)
             }

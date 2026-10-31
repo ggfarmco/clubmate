@@ -23,7 +23,7 @@ struct FilePickerView: View {
             .padding(.horizontal, theme.gutter)
             theme.border.frame(height: 1)
             results
-                .padding(.vertical, 4)
+                .padding(.vertical, theme.spacing.s)
             if let footer {
                 theme.border.frame(height: 1)
                 Text(footer)
@@ -128,7 +128,7 @@ extension View {
             if let session, session.overlay == .pickFile, let model = session.filePicker {
                 FilePickerView(model: model) { [weak session] in session?.close(.pickFile) }
                     .id(ObjectIdentifier(model))
-                    .padding(.top, 48)
+                    .padding(.top, Theme.fallback.spacing.overlay)
             }
         }
     }

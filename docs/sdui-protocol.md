@@ -87,7 +87,7 @@ Input fields are uncontrolled: `value`/`values` on `textField`, `folderField`, `
 
 ## Slots
 
-A slot is named `<section>.sidebar`, `<section>.main` or `<section>.status`, or `<section>.<name>` for a name the section declares in `slots`. A section is registered by a plugin, which owns all of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project, unless the section has `scope: "app"`.
+A slot is named `<section>.sidebar`, `<section>.main` or `<section>.status`, or `<section>.<name>` for a name the section declares in `slots`. A section is registered by a plugin, which owns all of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per project, unless the section has `scope: "app"`. The client insets a `<section>.main` tree from the top edge, unless its root is a `surface`.
 
 A manifest section may declare extra slots with `slots`: names matching `^[a-z][a-z0-9-]{0,31}$`, unique, and not `sidebar`, `main` or `status` (otherwise manifest load fails). `{"id": "alpha", "slots": ["extra"]}` adds the slot `alpha.extra`. Extra slots belong to the section like its own (owner, scope, `ui.event` routing); views cannot claim them, and the client decides where to show them. `ui.render` and `ui.event` on an undeclared `<section>.<name>` fail with invalid params. `ui.sections` lists them as `slots` (omitted when empty).
 

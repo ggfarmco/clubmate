@@ -47,7 +47,7 @@ struct WorkspaceWindow: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { windowID.map(app.toggleSwitcher) } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: theme.spacing.s) {
                             Text("▦ \(workspaceCount)")
                                 .monospacedDigit()
                             UnreadBadge(count: otherUnread)

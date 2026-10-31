@@ -28,8 +28,10 @@ struct Theme: Sendable {
         let s: CGFloat = 4
         let m: CGFloat = 6
         let l: CGFloat = 8
+        let overlay: CGFloat = 48
         let capsule = EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 10)
         let chip = EdgeInsets(top: 2, leading: 7, bottom: 2, trailing: 7)
+        let badge = EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6)
         let field = EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 6)
     }
 

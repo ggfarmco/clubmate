@@ -13,7 +13,7 @@ struct ButtonNodeView: View {
 
     var body: some View {
         Button(action: click) {
-            HStack(spacing: 5) {
+            HStack(spacing: theme.spacing.m) {
                 if let icon = node.string("icon") {
                     Image(systemName: SymbolName.resolve(icon))
                 }
@@ -128,9 +128,9 @@ struct FolderFieldNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: theme.spacing.xs) {
             Button(action: pick) {
-                HStack(spacing: 5) {
+                HStack(spacing: theme.spacing.m) {
                     Image(systemName: "folder")
                     Text(node.string("label") ?? "")
                 }
@@ -281,7 +281,7 @@ struct SelectNodeView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .padding(.horizontal, 6)
+        .padding(.horizontal, theme.spacing.m)
         .frame(height: theme.rowHeight)
         .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.border, lineWidth: 1))
         .padding(.horizontal, theme.gutter)

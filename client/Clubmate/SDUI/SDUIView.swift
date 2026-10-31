@@ -138,9 +138,15 @@ struct SDUIView: View {
     let send: UIEventSink
 
     @Environment(EventBanner.self) private var banner: EventBanner?
+    @Environment(\.theme) private var theme
+
+    private var topInset: CGFloat {
+        slot.hasSuffix(".main") && node.type != "surface" ? theme.gutter : 0
+    }
 
     var body: some View {
         SDUINodeView(node: node)
+            .padding(.top, topInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .environment(\.sduiDispatch, SDUIDispatch(slot: slot, projectID: projectID, sink: send, banner: banner))
             .environment(\.composerDrafts, drafts)

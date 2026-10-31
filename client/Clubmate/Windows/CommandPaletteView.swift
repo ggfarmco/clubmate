@@ -37,7 +37,7 @@ struct CommandPaletteView: View {
                         .frame(height: theme.rowHeight + 2)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, theme.spacing.s)
         }
         .frame(width: 480)
         .background(theme.background)
@@ -235,7 +235,7 @@ extension View {
         overlay(alignment: .top) {
             if let session, session.overlay == .palette {
                 CommandPaletteView(entries: entries(), run: run) { session.close(.palette) }
-                    .padding(.top, 48)
+                    .padding(.top, Theme.fallback.spacing.overlay)
             }
         }
     }

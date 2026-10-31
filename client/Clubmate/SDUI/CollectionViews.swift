@@ -40,7 +40,7 @@ struct TabButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
+            HStack(spacing: theme.spacing.m) {
                 if let icon {
                     Image(systemName: SymbolName.resolve(icon))
                 }
@@ -281,7 +281,7 @@ struct ItemRow<Leading: View>: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: theme.spacing.m) {
             leading()
             if let icon = item.icon, !icon.isEmpty {
                 Image(systemName: SymbolName.resolve(icon))
@@ -293,12 +293,15 @@ struct ItemRow<Leading: View>: View {
                 .lineLimit(1)
                 .truncationMode(.label)
                 .help(item.label)
+                .layoutPriority(1)
             Spacer(minLength: theme.gutter)
             if let detail = item.detail {
                 Text(detail)
                     .font(theme.uiSmall)
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
+                    .truncationMode(.label)
+                    .help(detail)
             }
             if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accent)

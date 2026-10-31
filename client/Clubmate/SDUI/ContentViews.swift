@@ -46,8 +46,7 @@ struct BadgeLabel: View {
         Text(text)
             .font(theme.uiSmall)
             .foregroundStyle(tone)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
+            .padding(theme.spacing.badge)
             .background(Capsule().fill(tone.opacity(0.18)))
     }
 }

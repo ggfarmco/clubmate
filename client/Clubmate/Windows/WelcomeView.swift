@@ -114,7 +114,7 @@ private struct RecentRow: View {
 
     var body: some View {
         HStack(spacing: theme.gutter) {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: theme.spacing.xs) {
                 Text(project.name)
                     .font(theme.ui)
                     .foregroundStyle(theme.foreground)

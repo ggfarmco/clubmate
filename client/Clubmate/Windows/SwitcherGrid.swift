@@ -71,7 +71,7 @@ struct SwitcherGridView: View {
     private func tile(_ index: Int) -> some View {
         let workspace = workspaces.indices.contains(index) ? workspaces[index] : nil
         let highlighted = index == current
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: theme.spacing.m) {
             preview(workspace)
                 .frame(width: Self.tile.width, height: Self.tile.height)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -79,7 +79,7 @@ struct SwitcherGridView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(highlighted ? theme.accent : theme.border, lineWidth: highlighted ? 2 : 1)
                 )
-            HStack(spacing: 6) {
+            HStack(spacing: theme.spacing.m) {
                 if let workspace, workspace == app.window(windowID)?.active {
                     Circle().fill(theme.accent).frame(width: 6, height: 6)
                 }
