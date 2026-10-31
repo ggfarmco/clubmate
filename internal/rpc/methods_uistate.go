@@ -24,6 +24,12 @@ type uiStateSetParams struct {
 	State     json.RawMessage `json:"state"`
 }
 
+type uiStatePatchParams struct {
+	ProjectID string          `json:"projectId"`
+	Key       string          `json:"key"`
+	Value     json.RawMessage `json:"value"`
+}
+
 type uiStateResult struct {
 	State json.RawMessage `json:"state"`
 }
@@ -61,6 +67,15 @@ func (s *Server) uiStateMethods() map[string]handlerFunc {
 			}
 			return empty{}, s.setUIState(ctx, p.ProjectID, p.State)
 		}),
+		"ui.state.patch": method(func(ctx context.Context, p uiStatePatchParams) (empty, error) {
+			if err := s.checkUIStateClient(ctx, p.ProjectID); err != nil {
+				return empty{}, err
+			}
+			if p.Key == "" {
+				return empty{}, &jsonrpc2.Error{Code: codeInvalidParams, Message: "key is required"}
+			}
+			return empty{}, s.patchUIState(ctx, p.ProjectID, p.Key, p.Value)
+		}),
 		"ui.state.section": method(func(ctx context.Context, p uiStateGetParams) (uiSectionResult, error) {
 			if err := s.checkUIStateProject(ctx, p.ProjectID); err != nil {
 				return uiSectionResult{}, err
@@ -78,6 +93,39 @@ func (s *Server) setUIState(ctx context.Context, projectID string, state json.Ra
 	if err != nil {
 		return err
 	}
+	return s.writeUIState(ctx, projectID, previous, state)
+}
+
+func (s *Server) patchUIState(ctx context.Context, projectID, key string, value json.RawMessage) error {
+	s.uiStateMu.Lock()
+	defer s.uiStateMu.Unlock()
+	saved, found, err := s.kv.Get(ctx, clientOwner, projectID)
+	if err != nil {
+		return err
+	}
+	state := map[string]json.RawMessage{}
+	if found {
+		if err := json.Unmarshal(saved, &state); err != nil || state == nil {
+			state = map[string]json.RawMessage{}
+		}
+	}
+	previous := sectionOf(saved)
+	if trimmed := bytes.TrimSpace(value); len(trimmed) == 0 || string(trimmed) == "null" {
+		delete(state, key)
+	} else {
+		state[key] = value
+	}
+	merged, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	if err := validateUIState(merged); err != nil {
+		return err
+	}
+	return s.writeUIState(ctx, projectID, previous, merged)
+}
+
+func (s *Server) writeUIState(ctx context.Context, projectID, previous string, state json.RawMessage) error {
 	if err := s.kv.Set(ctx, clientOwner, projectID, state); err != nil {
 		return err
 	}

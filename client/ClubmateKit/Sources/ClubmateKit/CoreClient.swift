@@ -164,6 +164,10 @@ public final class CoreClient {
         let _: NoParams = try await connection.call("ui.state.set", StateSetParams(projectId: projectID, state: state))
     }
 
+    public func uiStatePatch(projectID: String, key: String, value: JSONValue) async throws {
+        let _: NoParams = try await connection.call("ui.state.patch", StatePatchParams(projectId: projectID, key: key, value: value))
+    }
+
     public func busSubscribe(pattern: String, after: Int64 = 0) async throws -> String {
         let result: SubscriptionParams = try await connection.call("bus.subscribe", BusSubscribeParams(pattern: pattern, after: after))
         return result.subscription
@@ -311,6 +315,12 @@ private struct StateResult: Decodable, Sendable {
 private struct StateSetParams: Encodable, Sendable {
     let projectId: String
     let state: JSONValue
+}
+
+private struct StatePatchParams: Encodable, Sendable {
+    let projectId: String
+    let key: String
+    let value: JSONValue
 }
 
 private struct BusSubscribeParams: Encodable, Sendable {

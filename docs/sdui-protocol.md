@@ -360,7 +360,7 @@ The core publishes `ui.opened` `{projectId}` on the durable bus when a project's
 
 ## Visible section
 
-Clients keep per-project UI state with `ui.state.get` / `ui.state.set` `{projectId, state}` (client callers only). Its `section` field is the section the project's window shows: the app has one window per project and writes `section` when it opens the project and on every switch. When a `ui.state.set` changes `section`, the core publishes `ui.section` `{projectId, section}` on the durable bus. Plugins read the current value with `ui.state.section` (`pluginsdk.Host.SelectedSection`).
+Clients keep per-project UI state with `ui.state.get` / `ui.state.set` `{projectId, state}` (client callers only). `ui.state.patch` `{projectId, key, value}` sets one top-level key atomically in the core, so concurrent writers to the same project do not drop each other's keys; a `null` value deletes the key. Its `section` field is the section the project's window shows: the app has one window per project and writes `section` when it opens the project and on every switch. When a `ui.state.set` or `ui.state.patch` changes `section`, the core publishes `ui.section` `{projectId, section}` on the durable bus. Plugins read the current value with `ui.state.section` (`pluginsdk.Host.SelectedSection`).
 
 `processes` uses it to skip work nobody sees: its 1 Hz refresh keeps recording history for every present project but renders only projects whose section is `processes` or unknown (`""`). On `ui.section` to `processes` it renders at once.
 

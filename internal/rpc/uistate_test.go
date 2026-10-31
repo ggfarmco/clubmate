@@ -2,7 +2,9 @@ package rpc_test
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -76,4 +78,43 @@ func TestUIStateRoundTripAndDelete(t *testing.T) {
 	_, found, err := store.Get(t.Context(), "@client", p.ID)
 	require.NoError(t, err)
 	assert.False(t, found)
+}
+
+func TestUIStatePatchMergesConcurrentKeys(t *testing.T) {
+	svc, b := testutil.NewServiceWithBus(t)
+	store, err := kv.Open(filepath.Join(t.TempDir(), "plugins.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { store.Close() })
+	srv := rpc.NewServer(svc, b, rpc.WithKV(store))
+	client := connectAs(t, srv, rpc.Caller{})
+	var p project.Project
+	require.NoError(t, client.Call(t.Context(), "project.create", map[string]any{"name": "demo", "repos": []string{t.TempDir()}}, &p))
+	patch := func(key string, value any) error {
+		return client.Call(t.Context(), "ui.state.patch", map[string]any{"projectId": p.ID, "key": key, "value": value}, nil)
+	}
+
+	want := map[string]any{"section": "terminals"}
+	var wg sync.WaitGroup
+	for i := range 20 {
+		key := "k" + strconv.Itoa(i)
+		want[key] = float64(i)
+		wg.Go(func() { assert.NoError(t, patch(key, i)) })
+	}
+	wg.Go(func() { assert.NoError(t, patch("section", "terminals")) })
+	wg.Wait()
+	var got uiStateResult
+	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, &got))
+	assert.Equal(t, want, got.State)
+	events, err := b.Read(t.Context(), "ui.section", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.JSONEq(t, `{"projectId":"`+p.ID+`","section":"terminals"}`, string(events[0].Payload))
+
+	require.NoError(t, patch("k0", nil))
+	var deleted uiStateResult
+	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"projectId": p.ID}, &deleted))
+	assert.NotContains(t, deleted.State, "k0")
+
+	assert.EqualValues(t, -32602, rpcCode(t, patch("", 1)))
+	assert.EqualValues(t, -32602, rpcCode(t, patch("big", strings.Repeat("x", 64<<10))))
 }

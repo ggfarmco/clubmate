@@ -295,14 +295,8 @@ public final class ProjectUIStore {
         let previous = saving
         saving = Task {
             await previous?.value
-            try? await mergeState(key, value)
+            try? await client.uiStatePatch(projectID: projectID, key: key, value: value)
         }
-    }
-
-    private func mergeState(_ key: String, _ value: JSONValue) async throws {
-        var state = try await client.uiStateGet(projectID: projectID)?.objectValue ?? [:]
-        state[key] = value
-        try await client.uiStateSet(projectID: projectID, state: .object(state))
     }
 }
 

@@ -65,6 +65,25 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testConcurrentStoresKeepEachOthersKeys() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let first = ProjectUIStore(client: client, projectID: project.id)
+        let second = ProjectUIStore(client: client, projectID: project.id)
+        try await first.start()
+        try await second.start()
+        for width in 1...20 {
+            first.sidebarWidth = Double(width)
+            second.sidebarHidden["s\(width)"] = true
+        }
+        await first.stop()
+        await second.stop()
+        let state = try await client.uiStateGet(projectID: project.id)?.objectValue
+        XCTAssertEqual(state?["sidebarWidth"], .number(20))
+        XCTAssertEqual(state?["sidebarHidden"]?.objectValue?.count, 20)
+        await client.close()
+    }
+
     func testFreshWorkspaceOpensFirstSectionInUserOrder() async throws {
         let client = try await startCore()
         let project = try await client.createProject(name: "demo")
