@@ -9,12 +9,12 @@ extension AppModel {
     func collectDiagnostics() {
         guard let client = supervisor.client else {
             let tool = CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor())
-            return Self.alert("Clubmate is not connected to its core. Run “\(tool) diagnostics” in a terminal to collect its logs.")
+            return AppAlert.warning("Clubmate is not connected to its core. Run “\(tool) diagnostics” in a terminal to collect its logs.")
         }
         let (projectID, window) = keyWorkspace
         let banner = projectID.flatMap(existingSession)?.banner
         let report: (String) -> Void = { message in
-            guard let banner else { return Self.alert(message) }
+            guard let banner else { return AppAlert.warning(message) }
             banner.show(message)
         }
         Task {

@@ -50,6 +50,28 @@ final class WindowLayoutTests: XCTestCase {
         XCTAssertEqual(layout.window(w2)?.workspaces, ["c"])
     }
 
+    func testClaimReusesFirstUnshownWindow() throws {
+        let layout = WindowLayout(defaults: try makeDefaults())
+        let w1 = layout.newWindow()
+        let w2 = layout.newWindow()
+        XCTAssertEqual(layout.claim(excluding: [w1]), w2)
+        let fresh = layout.claim(excluding: [w1, w2])
+        XCTAssertEqual(layout.windows.map(\.id), [w1, w2, fresh])
+    }
+
+    func testActiveWorkspacePrefersKeyWindowThenFirstActive() throws {
+        let layout = WindowLayout(defaults: try makeDefaults())
+        XCTAssertNil(layout.activeWorkspace(preferring: nil))
+        let empty = layout.newWindow()
+        let w1 = layout.newWindow()
+        let w2 = layout.newWindow()
+        layout.open("a", preferring: w1)
+        layout.open("b", preferring: w2)
+        XCTAssertEqual(layout.activeWorkspace(preferring: w2), "b")
+        XCTAssertEqual(layout.activeWorkspace(preferring: empty), "a")
+        XCTAssertEqual(layout.activeWorkspace(preferring: nil), "a")
+    }
+
     func testRemoveActivatesNeighbour() throws {
         let layout = WindowLayout(defaults: try makeDefaults())
         let w = layout.newWindow()

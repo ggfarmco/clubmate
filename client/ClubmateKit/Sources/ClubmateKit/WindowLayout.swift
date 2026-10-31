@@ -41,6 +41,18 @@ public final class WindowLayout {
         windows.first { $0.id == id }
     }
 
+    public var workspaces: Set<String> {
+        Set(windows.flatMap(\.workspaces))
+    }
+
+    public func activeWorkspace(preferring window: String?) -> String? {
+        window.flatMap { self.window($0)?.active } ?? windows.lazy.compactMap(\.active).first
+    }
+
+    public func claim(excluding shown: Set<String>) -> String {
+        windows.first { !shown.contains($0.id) }?.id ?? newWindow()
+    }
+
     @discardableResult
     public func newWindow() -> String {
         let window = LayoutWindow()
