@@ -25,13 +25,15 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let error: String?
     public let pending: [String]
     public let notifyEffective: NotificationPolicy
+    public let childStatus: AgentSessionStatus?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
         parentSession: String? = nil, advisor: String? = nil, fork: String? = nil, handoffFrom: String? = nil, handoffTo: String? = nil, importedFrom: String? = nil,
         title: String = "", titleSet: Bool = false, status: AgentSessionStatus = .other, mode: String = "", finish: AgentFinish = .ask, afk: Bool = false,
         createdAt: Date = .distantPast, updatedAt: Date? = nil, asks: Bool = false,
-        notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all
+        notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
+        childStatus: AgentSessionStatus? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -57,13 +59,14 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.error = error
         self.pending = pending
         self.notifyEffective = notifyEffective
+        self.childStatus = childStatus
     }
 
     public var isClosed: Bool { status == .closed }
 
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
-        case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective
+        case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
     }
 
     public init(from decoder: any Decoder) throws {
@@ -97,7 +100,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             notify: try optional(.notify).map(NotificationPolicy.init),
             error: try optional(.error),
             pending: try c.decodeIfPresent([String].self, forKey: .pending) ?? [],
-            notifyEffective: try c.decodeIfPresent(NotificationPolicy.self, forKey: .notifyEffective) ?? .all
+            notifyEffective: try c.decodeIfPresent(NotificationPolicy.self, forKey: .notifyEffective) ?? .all,
+            childStatus: try c.decodeIfPresent(AgentSessionStatus.self, forKey: .childStatus)
         )
     }
 
@@ -129,5 +133,6 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(error, forKey: .error)
         try c.encode(pending, forKey: .pending)
         try c.encode(notifyEffective, forKey: .notifyEffective)
+        try c.encodeIfPresent(childStatus, forKey: .childStatus)
     }
 }

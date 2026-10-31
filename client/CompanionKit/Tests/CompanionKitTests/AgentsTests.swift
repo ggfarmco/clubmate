@@ -35,6 +35,20 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(groups[2].sessions[0].children.map(\.id), ["loop-b"])
     }
 
+    func testParentWithActiveChildrenShowsAsWorking() throws {
+        let json = #"""
+        [
+          {"id":"orchestrator","status":"done","childStatus":"running"},
+          {"id":"blocked","status":"idle","childStatus":"waiting"},
+          {"id":"finished","status":"done"}
+        ]
+        """#
+        let sessions = try JSONDecoder.companion.decode([AgentSession].self, from: Data(json.utf8))
+        XCTAssertEqual(sessions.map(\.displayStatus), [.running, .waiting, .done])
+        XCTAssertEqual(sessions.map(\.statusLabel), ["Waiting for child sessions", "Child session waiting", "Done"])
+        XCTAssertEqual(sessions.map(\.status), [.done, .idle, .done])
+    }
+
     func testDecodesUserImages() throws {
         let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"}]}"#
         let entry = try JSONDecoder.companion.decode(TranscriptEntry.self, from: Data(json.utf8))

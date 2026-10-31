@@ -46,13 +46,13 @@ final class ClubmateProtocolTests: XCTestCase {
     }
 
     func testAgentSessionDecodesSessionInfoAndBareRecord() throws {
-        let info = #"{"id":"agt_1","workspace":"prj_1","worktree":"/src/shop","agent":"claude","agentSessionId":"c-1","parentSession":"agt_0","title":"Fix","titleSet":true,"status":"waiting","mode":"plan","finish":"merge","afk":true,"createdAt":"2026-10-30T09:41:00.123456789Z","updatedAt":"2026-10-30T09:42:00Z","closed":false,"asks":true,"notify":"muted","error":"boom","pending":["permission-1"],"notifyEffective":"needs-input"}"#
+        let info = #"{"id":"agt_1","workspace":"prj_1","worktree":"/src/shop","agent":"claude","agentSessionId":"c-1","parentSession":"agt_0","title":"Fix","titleSet":true,"status":"waiting","mode":"plan","finish":"merge","afk":true,"createdAt":"2026-10-30T09:41:00.123456789Z","updatedAt":"2026-10-30T09:42:00Z","closed":false,"asks":true,"notify":"muted","error":"boom","pending":["permission-1"],"notifyEffective":"needs-input","childStatus":"running"}"#
         let session = try JSONDecoder().decode(AgentSession.self, from: Data(info.utf8))
         XCTAssertEqual(session, AgentSession(
             id: "agt_1", workspace: "prj_1", worktree: "/src/shop", agent: "claude", agentSessionId: "c-1", parentSession: "agt_0",
             title: "Fix", titleSet: true, status: .waiting, mode: "plan", finish: .merge, afk: true,
             createdAt: try XCTUnwrap(Date.parseRFC3339("2026-10-30T09:41:00.123Z")), updatedAt: try XCTUnwrap(Date.parseRFC3339("2026-10-30T09:42:00Z")),
-            asks: true, notify: .muted, error: "boom", pending: ["permission-1"], notifyEffective: .needsInput
+            asks: true, notify: .muted, error: "boom", pending: ["permission-1"], notifyEffective: .needsInput, childStatus: .running
         ))
         XCTAssertEqual(try JSONDecoder().decode(AgentSession.self, from: JSONEncoder().encode(session)), session)
 

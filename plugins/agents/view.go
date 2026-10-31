@@ -66,6 +66,7 @@ type screen struct {
 	Changes     bool
 	Advisor     string
 	Parent      string
+	Children    string
 	FromTitles  map[string]string
 }
 
@@ -147,6 +148,9 @@ func header(sc screen) sdui.Node {
 	}
 	if name := effortName(sc.View.Configs); name != "" {
 		meta = append(meta, name)
+	}
+	if display, ok := childDisplay[sc.Children]; ok {
+		meta = append(meta, statusLabels[display])
 	}
 	row := []sdui.Node{
 		{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}},

@@ -449,3 +449,50 @@ func TestDropImageData(t *testing.T) {
 	dropImageData(entries)
 	assert.JSONEq(t, `{"type":"image","mimeType":"image/jpeg"}`, string(entries[0].Content[1]))
 }
+
+func TestChildStatusesAggregateActiveDescendants(t *testing.T) {
+	recs := []record{
+		{ID: "agt_p", Status: statusDone},
+		{ID: "agt_c", Status: statusIdle, lineage: lineage{ParentSession: "agt_p"}},
+		{ID: "agt_g", Status: statusRunning, lineage: lineage{ParentSession: "agt_c"}},
+		{ID: "agt_w", Status: statusWaiting, lineage: lineage{ParentSession: "agt_p"}},
+		{ID: "agt_q", Status: statusDone, Asks: true},
+		{ID: "agt_r", Status: statusRunning, lineage: lineage{ParentSession: "agt_q"}},
+		{ID: "agt_x", Status: statusError},
+		{ID: "agt_y", Status: statusRunning, lineage: lineage{ParentSession: "agt_x"}},
+	}
+
+	assert.Equal(t, map[string]string{"agt_p": statusWaiting, "agt_c": statusRunning}, childStatuses(recs))
+}
+
+func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
+	now := time.Now()
+	for _, tc := range []struct {
+		children, icon, tone, detail string
+	}{
+		{statusRunning, "circle.dotted", "accent", "Waiting for child sessions"},
+		{statusWaiting, "exclamationmark.circle", "warning", "Child session waiting"},
+	} {
+		rows := []sessionRow{{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}, Children: tc.children}}
+		tree := sidebarView(rows, "", nil, now, false)
+		require.NoError(t, internalsdui.Validate(tree))
+
+		groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+		require.Len(t, groups, 1, tc.children)
+		item := groups[0].Children[0]
+		assert.Equal(t, []string{tc.icon, tc.tone, tc.detail}, []string{item.Icon, item.Tone, item.Detail}, tc.children)
+	}
+}
+
+func TestHeaderShowsWaitingForChildren(t *testing.T) {
+	v := transcriptView{Session: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone}}
+
+	tree := mainView(screen{View: v, Children: statusRunning, Composer: "agt_p/composer/0"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	var texts []string
+	for _, n := range nodesOf(tree, "text") {
+		texts = append(texts, n.Props["text"].(string))
+	}
+	assert.Contains(t, texts, "Claude · ⑂ a · Waiting for child sessions")
+}

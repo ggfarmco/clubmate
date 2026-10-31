@@ -22,28 +22,38 @@ const (
 	noSessions    = "No agent sessions"
 	deleteConfirm = "Delete this agent session, its transcript and its checkpoints?"
 	deleteTree    = "Delete this agent session and its %d child sessions, their transcripts and checkpoints?"
+
+	childrenRunning = "childrenRunning"
+	childrenWaiting = "childrenWaiting"
 )
 
 var (
 	statusIcons = map[string]string{
-		statusRunning: "circle.dotted",
-		statusWaiting: "exclamationmark.circle.fill",
-		statusDone:    "checkmark.circle",
-		statusIdle:    "circle",
-		statusError:   "xmark.octagon",
-		statusClosed:  "archivebox",
+		statusRunning:   "circle.dotted",
+		statusWaiting:   "exclamationmark.circle.fill",
+		statusDone:      "checkmark.circle",
+		statusIdle:      "circle",
+		statusError:     "xmark.octagon",
+		statusClosed:    "archivebox",
+		childrenRunning: "circle.dotted",
+		childrenWaiting: "exclamationmark.circle",
 	}
 	statusTones = map[string]string{
-		statusRunning: "accent",
-		statusWaiting: "warning",
-		statusDone:    "success",
-		statusError:   "danger",
+		statusRunning:   "accent",
+		statusWaiting:   "warning",
+		statusDone:      "success",
+		statusError:     "danger",
+		childrenRunning: "accent",
+		childrenWaiting: "warning",
 	}
 	statusLabels = map[string]string{
-		statusRunning: "Running",
-		statusWaiting: "Waiting for permission",
-		statusError:   "Error",
+		statusRunning:   "Running",
+		statusWaiting:   "Waiting for permission",
+		statusError:     "Error",
+		childrenRunning: "Waiting for child sessions",
+		childrenWaiting: "Child session waiting",
 	}
+	childDisplay = map[string]string{statusRunning: childrenRunning, statusWaiting: childrenWaiting}
 	notifyLabels = map[string]string{notifyNeedsInput: "Input only", notifyMuted: "Muted"}
 	notifyMenu   = []notifyChoice{
 		{action: actNotifyAll, policy: notifyAll, label: "Notify About Everything"},
@@ -57,6 +67,7 @@ type sessionRow struct {
 	Activity string
 	Started  time.Time
 	Notify   string
+	Children string
 }
 
 type notifyChoice struct {
@@ -196,12 +207,13 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 		menu = append(menu, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
 	}
 	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})
+	display := cmp.Or(childDisplay[row.Children], rec.Status)
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
 		Detail: strings.Join(nonEmpty(notifyLabels[row.Notify], activity(row, now)), " · "),
-		Icon:   statusIcons[rec.Status],
-		Tone:   statusTones[rec.Status],
+		Icon:   statusIcons[display],
+		Tone:   statusTones[display],
 		Menu:   menu,
 	}
 }
@@ -212,6 +224,9 @@ func needsYou(rec record) bool {
 
 func activity(row sessionRow, now time.Time) string {
 	rec := row.Rec
+	if display, ok := childDisplay[row.Children]; ok {
+		return statusLabels[display]
+	}
 	label := cmp.Or(statusLabels[rec.Status], rec.Status)
 	switch rec.Status {
 	case statusRunning:

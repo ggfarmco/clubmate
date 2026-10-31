@@ -1621,6 +1621,39 @@ func TestDeleteParentDeletesChildren(t *testing.T) {
 	}
 }
 
+func TestDoneParentShowsRunningChildren(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 1500}}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "orchestrate")
+	f.waitStatus(t, workspace, parent, "done")
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "slow"}).Session
+	f.waitStatus(t, workspace, kid, "running")
+	childStatus := func() map[string]string {
+		var list []struct {
+			ID          string `json:"id"`
+			Status      string `json:"status"`
+			ChildStatus string `json:"childStatus"`
+		}
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+		out := map[string]string{}
+		for _, s := range list {
+			out[s.ID] = s.Status + "/" + s.ChildStatus
+		}
+		return out
+	}
+
+	assert.Equal(t, map[string]string{parent: "done/running", kid: "running/"}, childStatus())
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		require.NoError(t, err)
+		return strings.Contains(string(raw), "Waiting for child sessions")
+	})
+
+	f.waitStatus(t, workspace, kid, "done")
+	assert.Equal(t, map[string]string{parent: "done/", kid: "done/"}, childStatus())
+}
+
 func TestCloseParentClosesChildren(t *testing.T) {
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))

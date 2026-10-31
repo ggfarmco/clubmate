@@ -62,6 +62,7 @@ type sessionInfo struct {
 	Pending         []string `json:"pending,omitempty"`
 	NotifyEffective string   `json:"notifyEffective"`
 	Closed          bool     `json:"closed"`
+	ChildStatus     string   `json:"childStatus,omitempty"`
 }
 
 type storedRecord struct {

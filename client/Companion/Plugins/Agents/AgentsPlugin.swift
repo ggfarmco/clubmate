@@ -258,16 +258,17 @@ struct StatusIcon: View {
     var body: some View {
         Image(systemName: symbol)
             .foregroundStyle(color)
-            .symbolEffect(.rotate, isActive: session.status == .running)
+            .symbolEffect(.rotate, isActive: session.displayStatus == .running)
             .frame(width: 22)
-            .accessibilityLabel(session.status.label)
+            .accessibilityLabel(session.statusLabel)
     }
 
     private var symbol: String {
         if session.status == .waiting || !session.pending.isEmpty { return "hand.raised.circle.fill" }
         if session.asks { return "questionmark.bubble.fill" }
-        switch session.status {
+        switch session.displayStatus {
         case .running: return "circle.dotted"
+        case .waiting: return "hand.raised.circle"
         case .done: return "checkmark.circle.fill"
         case .error: return "xmark.octagon.fill"
         case .closed: return "archivebox"
@@ -278,8 +279,9 @@ struct StatusIcon: View {
     private var color: Color {
         if session.status == .waiting || !session.pending.isEmpty { return .orange }
         if session.asks { return .blue }
-        switch session.status {
+        switch session.displayStatus {
         case .running: return .accentColor
+        case .waiting: return .orange
         case .done: return .green
         case .error: return .red
         default: return .secondary

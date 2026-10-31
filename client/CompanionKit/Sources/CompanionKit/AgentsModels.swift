@@ -33,6 +33,18 @@ extension AgentSession {
         agent == "claude" ? "Claude" : agent.capitalized
     }
 
+    public var displayStatus: AgentSessionStatus {
+        childStatus ?? status
+    }
+
+    public var statusLabel: String {
+        switch childStatus {
+        case .running: "Waiting for child sessions"
+        case .waiting: "Child session waiting"
+        default: status.label
+        }
+    }
+
     public var isTurnActive: Bool {
         status == .running || status == .waiting
     }

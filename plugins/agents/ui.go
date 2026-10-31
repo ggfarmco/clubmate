@@ -195,6 +195,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		return nil
 	}
 	recs := a.list(workspaceID)
+	children := childStatuses(recs)
 	slices.Reverse(recs)
 	recs = recs[:min(len(recs), maxSidebarRows)]
 	selected, err := a.resolveSelected(ctx, workspaceID, recs)
@@ -203,7 +204,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	rows := make([]sessionRow, 0, len(recs))
 	for _, rec := range recs {
-		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec)}
+		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID]}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
 			row.Started = s.turnStart()
@@ -395,6 +396,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		Changes:     changes,
 		Advisor:     advisor,
 		Parent:      parent,
+		Children:    childStatuses(a.list(workspaceID))[sid],
 		FromTitles:  fromTitles,
 	}
 }

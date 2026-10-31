@@ -68,3 +68,43 @@ func (a *app) ancestry(rec record) iter.Seq[record] {
 		}
 	}
 }
+
+func childStatuses(recs []record) map[string]string {
+	kids := map[string][]record{}
+	for _, rec := range recs {
+		if rec.ParentSession != "" {
+			kids[rec.ParentSession] = append(kids[rec.ParentSession], rec)
+		}
+	}
+	out := map[string]string{}
+	for _, rec := range recs {
+		if rec.Status != statusDone && rec.Status != statusIdle || needsYou(rec) {
+			continue
+		}
+		if st := activeDescendant(rec.ID, kids, map[string]bool{}); st != "" {
+			out[rec.ID] = st
+		}
+	}
+	return out
+}
+
+func activeDescendant(id string, kids map[string][]record, seen map[string]bool) string {
+	seen[id] = true
+	found := ""
+	for _, kid := range kids[id] {
+		if !seen[kid.ID] {
+			found = moreUrgent(found, moreUrgent(kid.Status, activeDescendant(kid.ID, kids, seen)))
+		}
+	}
+	return found
+}
+
+func moreUrgent(a, b string) string {
+	switch {
+	case a == statusWaiting || b == statusWaiting:
+		return statusWaiting
+	case a == statusRunning || b == statusRunning:
+		return statusRunning
+	}
+	return ""
+}
