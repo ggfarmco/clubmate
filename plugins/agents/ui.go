@@ -68,6 +68,7 @@ type projectUI struct {
 	restored  bool
 	collapsed map[string]bool
 	folds     bool
+	branch    bool
 	sessions  map[string]*sessionUI
 }
 
@@ -383,12 +384,13 @@ func (a *app) render(ctx context.Context, projectID string) error {
 	}
 	a.uiMu.Lock()
 	collapsed := maps.Clone(p.collapsed)
+	branchOpen := p.branch
 	row := selected
 	if p.row == needsPrefix+selected {
 		row = p.row
 	}
 	a.uiMu.Unlock()
-	if err := a.push(ctx, p, projectID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now())); err != nil {
+	if err := a.push(ctx, p, projectID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now(), branchOpen)); err != nil {
 		return err
 	}
 	main := sdui.Empty(pickSession)
@@ -591,8 +593,12 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	if rerr := a.render(ctx, ev.ProjectID); err == nil {
 		err = rerr
 	}
-	if err == nil && ev.Action == actNew {
+	switch {
+	case err != nil:
+	case ev.Action == actNew || ev.Action == actNewBranch:
 		err = h.Focus(ctx, ev.ProjectID, sectionID, mainSlot)
+	case ev.Action == actShowBranch:
+		err = h.FocusField(ctx, ev.ProjectID, sectionID)
 	}
 	return nil, err
 }
@@ -604,6 +610,30 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err != nil {
 			return err
 		}
+		return a.selectSession(ctx, ev.ProjectID, res.Session)
+	case actShowBranch, actHideBranch:
+		p := a.projectState(ev.ProjectID)
+		a.uiMu.Lock()
+		p.branch = ev.Action == actShowBranch
+		a.uiMu.Unlock()
+		return nil
+	case actNewBranch:
+		var args newArgs
+		if err := decode(ev.Value, &args); err != nil {
+			return err
+		}
+		branch := strings.TrimSpace(args.Branch)
+		if branch == "" {
+			return errNoBranch
+		}
+		res, err := a.newSession(ctx, a.host, ev.ProjectID, "", newArgs{Branch: branch})
+		if err != nil {
+			return err
+		}
+		p := a.projectState(ev.ProjectID)
+		a.uiMu.Lock()
+		p.branch = false
+		a.uiMu.Unlock()
 		return a.selectSession(ctx, ev.ProjectID, res.Session)
 	case actSelect:
 		var id string
@@ -793,6 +823,8 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return nil
 	case actSendQueued:
 		return a.submit(s, nil)
+	case actMerge:
+		return a.mergeToMain(ctx, ev.ProjectID, s)
 	}
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }

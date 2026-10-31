@@ -42,7 +42,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "agt_2", nil, now)
+	tree := sidebarView(rows, "agt_2", nil, now, false)
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -77,7 +77,7 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 		{Rec: record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "", map[string]bool{closedKey + "/r/a": false}, now)
+	tree := sidebarView(rows, "", map[string]bool{closedKey + "/r/a": false}, now, false)
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -93,7 +93,7 @@ func TestSidebarNeedsSelectionFallsBackWhenAnswered(t *testing.T) {
 	now := time.Now()
 	selectedIn := func(status string) any {
 		rows := []sessionRow{{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: status, UpdatedAt: now}}}
-		return nodesOf(sidebarView(rows, needsPrefix+"agt_1", nil, now), "tree")[0].Props["selected"]
+		return nodesOf(sidebarView(rows, needsPrefix+"agt_1", nil, now, false), "tree")[0].Props["selected"]
 	}
 	assert.Equal(t, needsPrefix+"agt_1", selectedIn(statusWaiting))
 	assert.Equal(t, "agt_1", selectedIn(statusRunning))
@@ -129,12 +129,12 @@ func TestSidebarNestsChildren(t *testing.T) {
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 	}
 
-	folded := nodesOf(sidebarView(rows, "", map[string]bool{}, now), "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
+	folded := nodesOf(sidebarView(rows, "", map[string]bool{}, now, false), "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
 	assert.True(t, folded.HasChildren)
 	assert.False(t, folded.Expanded)
 	assert.Empty(t, folded.Children)
 
-	tree := sidebarView(rows, "agt_c", map[string]bool{"s:agt_p": false}, now)
+	tree := sidebarView(rows, "agt_c", map[string]bool{"s:agt_p": false}, now, false)
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -403,4 +403,20 @@ func TestConfigPickersAndModelEffortInHeader(t *testing.T) {
 	v.Session.ParentSession = "agt_0"
 	child := nodesOf(mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus"}), "composer")[0].Props["pickers"].([]sdui.Picker)
 	assert.Equal(t, "Advisor", child[len(child)-1].Title)
+}
+
+func TestMergeableGates(t *testing.T) {
+	ok := record{Worktree: "/r/.worktrees/feat/x", Status: statusDone, Finish: finishAsk}
+	assert.True(t, mergeable(ok, true))
+	assert.False(t, mergeable(ok, false))
+	for _, change := range []func(*record){
+		func(r *record) { r.Worktree = "/r" },
+		func(r *record) { r.ParentSession = "agt_p" },
+		func(r *record) { r.Status = statusRunning },
+		func(r *record) { r.Finish = finishMerge },
+	} {
+		rec := ok
+		change(&rec)
+		assert.False(t, mergeable(rec, true), "%+v", rec)
+	}
 }

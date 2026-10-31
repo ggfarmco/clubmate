@@ -42,6 +42,8 @@ An agent session calling these tools is the parent of the sessions it starts wit
 
 A child in its own worktree merges its finished, tested work into its parent's branch in the parent's worktree, never into `main`; a child sharing its parent's worktree, or whose parent is on the default branch, only commits and the parent merges. Children never remove worktrees or branches: once a child's turn ends with its branch merged into the parent's branch and its worktree clean and unused, Clubmate closes the child (it stays listed as Closed) and removes its worktree and branch itself, without asking. A session that has children is told to write to you only the children's questions that need your answer, to answer their permission requests itself with `agents.permission`, and to pass your answers on with `agents.answer` rather than paraphrasing them.
 
+From the Agents sidebar you can run a task in its own worktree end to end: press "New in worktree…", type a branch name and press Start (or Return) to start a session in a new `.worktrees/<branch>` made from the workspace's worktree (as `agents.new` with `branch`). When its turn is done, "Review changes" in the session header opens the diff, and, with Finish set to Ask, "Merge to main" (after a confirm) tells the agent to run the tests and, if they pass, squash its branch into `main` as one commit and remove its worktree and branch, the same steps as Finish "Merge to main". Clubmate refuses the merge while the session runs, while another agent session works in that worktree, or when the main checkout has uncommitted changes.
+
 Agent mode is a cooperative guard for well-behaved agents, not a security boundary: any program running as your user can reach Clubmate directly.
 
 ## CLI

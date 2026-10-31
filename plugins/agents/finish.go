@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -28,6 +29,13 @@ type childLayout struct {
 	own       gitrepo.Worktree
 	parent    gitrepo.Worktree
 	onDefault bool
+}
+
+type taskTree struct {
+	trees     []gitrepo.Worktree
+	primary   gitrepo.Worktree
+	own       gitrepo.Worktree
+	isDefault func(string) bool
 }
 
 type worktreeSession struct {
@@ -62,27 +70,62 @@ func (a *app) layout(ctx context.Context, rec record) *childLayout {
 	if parent == nil {
 		return nil
 	}
-	f, err := gitrepo.OpenFolder(ctx, rec.Worktree)
+	t := openTaskTree(ctx, rec.Worktree)
+	if t == nil {
+		return nil
+	}
+	p := gitrepo.Longest(t.trees, gitrepo.Canonical(parent.snapshot().Worktree))
+	if p == nil || p.Branch == "" || t.own.Real == p.Real {
+		return nil
+	}
+	return &childLayout{primary: t.primary, own: t.own, parent: *p, onDefault: t.isDefault(p.Branch)}
+}
+
+func openTaskTree(ctx context.Context, worktree string) *taskTree {
+	f, err := gitrepo.OpenFolder(ctx, worktree)
 	if err != nil {
 		return nil
 	}
 	primary, own := f.Trees[0], f.Checkout
-	p := gitrepo.Longest(f.Trees, gitrepo.Canonical(parent.snapshot().Worktree))
-	switch {
-	case p == nil, own.Branch == "", p.Branch == "", own.Real == p.Real, own.Real == primary.Real:
-		return nil
-	case !strings.HasPrefix(own.Real, filepath.Join(primary.Real, worktreesDir)+string(filepath.Separator)):
+	if own.Branch == "" || own.Real == primary.Real || !strings.HasPrefix(own.Real, filepath.Join(primary.Real, worktreesDir)+string(filepath.Separator)) {
 		return nil
 	}
 	base, _ := gitrepo.DefaultBase(ctx, primary.Path)
 	_, remoteBase, _ := strings.Cut(base, "/")
-	isDefault := func(branch string) bool {
+	t := &taskTree{trees: f.Trees, primary: primary, own: own, isDefault: func(branch string) bool {
 		return branch == base || branch == remoteBase || slices.Contains(defaultBranches, branch)
-	}
-	if isDefault(own.Branch) {
+	}}
+	if t.isDefault(own.Branch) {
 		return nil
 	}
-	return &childLayout{primary: primary, own: own, parent: *p, onDefault: isDefault(p.Branch)}
+	return t
+}
+
+func mergeable(rec record, changes bool) bool {
+	inTask := strings.Contains(filepath.Clean(rec.Worktree)+string(filepath.Separator), string(filepath.Separator)+worktreesDir+string(filepath.Separator))
+	return changes && inTask && rec.ParentSession == "" && rec.Status == statusDone && cmp.Or(rec.Finish, finishAsk) == finishAsk
+}
+
+func (a *app) mergeToMain(ctx context.Context, projectID string, s *session) error {
+	rec := s.snapshot()
+	if !mergeable(rec, s.hasChanges()) {
+		return errNotMergeable
+	}
+	t := openTaskTree(ctx, rec.Worktree)
+	switch {
+	case t == nil:
+		return errNotMergeable
+	case a.othersIn(rec.ID, t.own.Real):
+		return errMergeBusy
+	}
+	status, err := gitrepo.Run(ctx, t.primary.Path, "status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if len(strings.TrimSpace(string(status))) > 0 {
+		return errMainDirty
+	}
+	return a.prompt(projectID, promptArgs{Session: rec.ID, Text: mergeNowText})
 }
 
 func (a *app) cleanupChild(s *session) {

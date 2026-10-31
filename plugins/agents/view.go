@@ -60,6 +60,10 @@ const (
 	actNotifyAll       = "notifyAll"
 	actNotifyNeeds     = "notifyNeedsInput"
 	actNotifyMuted     = "notifyMuted"
+	actNewBranch       = "newBranch"
+	actMerge           = "merge"
+	actShowBranch      = "showBranch"
+	actHideBranch      = "hideBranch"
 
 	groupPrefix    = "wt:"
 	expandPrefix   = "s:"
@@ -79,7 +83,10 @@ const (
 	finishHelp     = "What the agent does once the task is done"
 
 	finishAskText         = "[Clubmate finish mode: ask] When the task is done, don't merge into main or remove worktrees and branches on your own; ask the user first unless they already asked for it."
-	finishMergeText       = "[Clubmate finish mode: merge] When the task is done, run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
+	mergeSteps            = "run the project's tests. If they all pass, squash the task branch into main as one commit without asking (`git merge --squash`, one commit message, no merge commit), then remove the worktree created for the task and force-delete the squashed branch (`git branch -D`); never remove the primary checkout, and on main itself just commit. Never remove a worktree that has uncommitted changes or a running process. If tests fail or cannot run, don't merge; report why."
+	finishMergeText       = "[Clubmate finish mode: merge] When the task is done, " + mergeSteps
+	mergeNowText          = "Merge this task into main now: commit your remaining work on the task branch, then " + mergeSteps
+	mergeConfirm          = "Ask the agent to run the tests, squash its branch into main as one commit and remove its worktree and branch?"
 	finishChildText       = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit on your branch, then merge your branch into %[1]s inside %[2]s (`git -C %[2]s merge --no-edit %[3]s`). If the merge fails because another merge holds index.lock, wait 5 s and retry it once. Don't merge if %[2]s has uncommitted changes; report why instead. If the merge conflicts, run `git -C %[2]s merge --abort` and report the conflicting files. Never merge into main, never remove worktrees or branches."
 	finishChildCommitText = "[Clubmate finish mode: child] When the task is done, run the project's tests. If they all pass, commit your work and stop; if they fail or cannot run, report why. Don't merge anything, never merge into main, never remove worktrees or branches."
 	orchestratorText      = "[Clubmate orchestrator] Write to the user only questions from child sessions that need the user's answer. Don't repeat what you sent to which session, don't recap statuses of sessions that need nothing. Answer children's permission requests yourself with agents.permission. Never paraphrase the user's answer to a child: use agents.answer."
@@ -214,10 +221,16 @@ func agentLabel(agent string) string {
 	return agent
 }
 
-func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time) sdui.Node {
-	newButton := sdui.WithAction(sdui.Button("new", "New", "plus"), actNew)
+func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, branchOpen bool) sdui.Node {
+	top := sdui.HStack(sdui.WithAction(sdui.Button("new", "New", "plus"), actNew), sdui.WithAction(sdui.Button("branch", "New in worktree…", "arrow.triangle.branch"), actShowBranch))
+	if branchOpen {
+		top = sdui.WithAction(sdui.Form(actNewBranch,
+			sdui.TextField("branch", "", "branch…"),
+			sdui.HStack(sdui.Button("start", "Start", "arrow.triangle.branch"), sdui.WithAction(sdui.Button("cancel", "Cancel", "xmark"), actHideBranch)),
+		), actNewBranch)
+	}
 	if len(rows) == 0 {
-		return sdui.VStack(newButton, sdui.Empty(noSessions))
+		return sdui.VStack(top, sdui.Empty(noSessions))
 	}
 	byID := make(map[string]bool, len(rows))
 	for _, row := range rows {
@@ -274,7 +287,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	if !slices.ContainsFunc(needs, func(item sdui.TreeItem) bool { return item.ID == selected }) {
 		selected = strings.TrimPrefix(selected, needsPrefix)
 	}
-	return sdui.VStack(newButton, sdui.Tree("sessions", groups, selected))
+	return sdui.VStack(top, sdui.Tree("sessions", groups, selected))
 }
 
 func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool) sdui.TreeItem {
@@ -481,6 +494,9 @@ func header(sc screen) sdui.Node {
 	}
 	if sc.Changes {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
+	}
+	if mergeable(rec, sc.Changes) {
+		row = append(row, sdui.WithConfirm(sdui.WithAction(sdui.Button(sid+"/merge", "Merge to main", "arrow.triangle.merge"), actMerge), mergeConfirm))
 	}
 	if turnActive(rec) {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop))

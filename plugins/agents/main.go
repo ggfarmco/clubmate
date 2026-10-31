@@ -70,7 +70,11 @@ var (
 	errNotDescendant = errors.New("the session was not started by this agent")
 	errNotGit        = errors.New("the worktree is not in a git folder of the workspace")
 	errBadBranch     = errors.New("not a valid branch name")
+	errNoBranch      = errors.New("type a branch name for the new worktree")
 	errChildLimit    = fmt.Errorf("a session may run at most %d child sessions at once", maxChildren)
+	errNotMergeable  = errors.New("only an idle session with changes in its own task worktree can merge to main")
+	errMergeBusy     = errors.New("another agent session works in this worktree")
+	errMainDirty     = errors.New("the main checkout has uncommitted changes")
 )
 
 type sessionArgs struct {

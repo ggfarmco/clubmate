@@ -1761,3 +1761,38 @@ func TestAsksUser(t *testing.T) {
 	f.restartPlugin(t, project)
 	assert.True(t, f.session(t, project, session).Asks)
 }
+
+func TestNewInWorktreeThenMergeToMain(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
+	repo := newRepo(t)
+	project := f.project(t, repo)
+	tree := filepath.Join(repo, ".worktrees", "t1")
+
+	f.h.Event(t, project, "agents.sidebar", "branch", "showBranch", nil)
+	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 1 })
+	f.h.Event(t, project, "agents.sidebar", "newBranch", "newBranch", map[string]string{"branch": " t1 "})
+	var list []record
+	require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+	require.Len(t, list, 1)
+	session := list[0].ID
+	assert.Equal(t, tree, list[0].Worktree)
+	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 0 })
+	f.prompt(t, project, session, "work")
+	f.waitStatus(t, project, session, "done")
+	write(t, filepath.Join(tree, "new.txt"), "x\n")
+	f.h.Event(t, project, "agents.sidebar", session, "select", session)
+	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
+		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == session+"/merge" })
+	})
+
+	write(t, filepath.Join(repo, "dirty.txt"), "x\n")
+	merge := map[string]any{"projectId": project, "slot": "agents.main", "nodeId": session + "/merge", "action": "merge", "value": nil}
+	require.ErrorContains(t, f.h.Client(t).Call(t.Context(), "ui.event", merge, nil), "uncommitted changes")
+	require.NoError(t, os.Remove(filepath.Join(repo, "dirty.txt")))
+
+	f.h.Event(t, project, "agents.main", session+"/merge", "merge", nil)
+	id := f.session(t, project, session).AgentSessionID
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool {
+		return strings.Contains(string(c.Params), id) && strings.Contains(promptText(t, c), "Merge this task into main now")
+	})
+}
