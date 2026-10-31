@@ -17,7 +17,7 @@ final class WorktreesTests: XCTestCase {
         testCore = core
         let client = try await CoreClient.connect(paths: core.paths)
         var changed: [String] = []
-        let follower = Task { await WorktreeModel.follow(client) { changed.append($0) } }
+        let follower = Task { await WorktreeModel.follow(client) { changed.append($0.workspace) } }
         defer { follower.cancel() }
 
         try await waitUntil {
@@ -46,7 +46,7 @@ final class WorktreesTests: XCTestCase {
     func testLoadRetriesUntilTheGitPluginIsUp() async throws {
         let core = FakeGitCore()
         core.failures = 1
-        let model = WorktreeModel(run: core.run, workspace: { nil }, confirm: { _, _ in false }, report: { XCTFail("unexpected banner: \($0)") }, retryDelays: [.milliseconds(1)])
+        let model = WorktreeModel(run: core.run, confirm: { _, _ in false }, report: { XCTFail("unexpected banner: \($0)") }, retryDelays: [.milliseconds(1)])
 
         await model.load(retrying: true)
 
@@ -56,8 +56,7 @@ final class WorktreesTests: XCTestCase {
 
     func testSwitcherGroupsBranchesAfterWorktreesAndPickDispatches() async throws {
         let core = FakeGitCore()
-        var banners: [String] = []
-        let model = WorktreeModel(run: core.run, workspace: { nil }, confirm: { _, _ in false }, report: { banners.append($0) })
+        let model = makeModel(core)
         await model.menuOpened()
 
         let picker = FuzzyPickerModel(placeholder: "", debounce: .zero, source: model.switcherSource)
@@ -75,7 +74,6 @@ final class WorktreesTests: XCTestCase {
         XCTAssertEqual(core.calls.filter { $0.id == "git.worktree-switch" }.map(\.args), [
             .object(["repo": .string("/r"), "path": .string("/r/.worktrees/feat")]),
         ])
-        XCTAssertEqual(banners, ["Warning: you are leaving 1 commit behind"])
     }
 
     func testMenuOpenedReloadsList() async throws {
@@ -89,62 +87,56 @@ final class WorktreesTests: XCTestCase {
         XCTAssertEqual(model.worktrees.map(\.path), ["/r", "/r/.worktrees/feat", "/r/.worktrees/new"])
     }
 
-    func testRemoveConfirmsThenForcesOnUnsaved() async throws {
-        let core = FakeGitCore(unsaved: true)
+    func testRemoveAsksThePluginsPromptThenRunsItsCommand() async throws {
+        let core = FakeGitCore()
         var asked: [String] = []
         let model = makeModel(core) { message, detail in
             asked.append([message, detail].joined(separator: "|"))
             return true
         }
-        await model.load()
 
         await model.remove(repo: "/r", path: "/r/.worktrees/feat")
 
-        XCTAssertEqual(asked, [
-            "Remove worktree feat? Its branch is kept.|Terminals still in it: zsh, server",
-            "Worktree feat has unsaved buffers: a.go. Remove it and discard the changes?|",
-        ])
+        XCTAssertEqual(asked, ["Remove worktree feat? Its branch is kept.|Terminals still in it: zsh"])
         XCTAssertEqual(core.calls.filter { $0.id == "git.worktree-remove" }.map(\.args), [
             .object(["repo": .string("/r"), "path": .string("/r/.worktrees/feat")]),
-            .object(["repo": .string("/r"), "path": .string("/r/.worktrees/feat"), "force": .bool(true)]),
         ])
 
         let declined = FakeGitCore()
-        let cautious = makeModel(declined) { _, _ in false }
-        await cautious.load()
-        await cautious.remove(repo: "/r", path: "/r/.worktrees/feat")
+        await makeModel(declined).remove(repo: "/r", path: "/r/.worktrees/feat")
         XCTAssertFalse(declined.calls.contains { $0.id == "git.worktree-remove" })
     }
 
-    func testMissingBannerOnceBackToFolderCheckout() async throws {
+    func testOutcomeReportsMessageAsksConfirmAndReloads() async throws {
         let core = FakeGitCore()
-        let folder = "/r/.worktrees/x"
-        core.trees = [
-            FakeGitCore.tree(repo: folder, path: "/r", main: true),
-            FakeGitCore.tree(repo: folder, path: folder, current: true),
-        ]
         var banners: [String] = []
-        let workspace = try decodeWorkspace(repo: folder, missing: ["/r/.worktrees/gone"])
-        let model = WorktreeModel(run: core.run, workspace: { workspace }, confirm: { _, _ in false }, report: { banners.append($0) })
+        var asked: [String] = []
+        let model = WorktreeModel(run: core.run, confirm: { message, _ in
+            asked.append(message)
+            return true
+        }, report: { banners.append($0) })
+        let force: JSONValue = .object(["repo": .string("/r"), "path": .string("/r/.worktrees/feat"), "force": .bool(true)])
 
-        await model.load()
-        await model.load()
+        await model.receive(BusEvent(seq: 1, topic: WorktreeModel.outcomeTopic, source: "plugin:git", payload: .object(["workspace": .string("p"), "message": .string("Worktree gone no longer exists — back on main")])))
+        await model.receive(BusEvent(seq: 2, topic: WorktreeModel.outcomeTopic, source: "cli", payload: .object(["workspace": .string("p"), "message": .string("forged")])))
+        await model.receive(BusEvent(seq: 3, topic: WorktreeModel.outcomeTopic, source: "plugin:git", payload: .object([
+            "workspace": .string("p"),
+            "confirm": .object(["title": .string("Kill?"), "command": .string("terminals.kill"), "args": .object([:])]),
+        ])))
+        await model.receive(BusEvent(seq: 4, topic: WorktreeModel.outcomeTopic, source: "plugin:git", payload: .object([
+            "workspace": .string("p"),
+            "confirm": .object(["title": .string("Discard?"), "command": .string("git.worktree-remove"), "args": force]),
+        ])))
 
         XCTAssertEqual(banners, ["Worktree gone no longer exists — back on main"])
-        XCTAssertEqual(core.calls.filter { $0.id == "git.worktree-switch" }.map(\.args), [
-            .object(["repo": .string(folder), "path": .string(folder)]),
-        ])
+        XCTAssertEqual(asked, ["Discard?"])
+        XCTAssertEqual(core.calls.map(\.id), ["git.worktrees", "git.worktrees", "git.worktrees", "git.worktree-remove", "git.worktrees"])
+        XCTAssertEqual(core.calls[3].args, force)
+        XCTAssertFalse(model.worktrees.isEmpty)
     }
 
     private func makeModel(_ core: FakeGitCore, confirm: @escaping @MainActor (String, String) async -> Bool = { _, _ in false }) -> WorktreeModel {
-        WorktreeModel(run: core.run, workspace: { nil }, confirm: confirm, report: { XCTFail("unexpected banner: \($0)") })
-    }
-
-    private func decodeWorkspace(repo: String, missing: [String]) throws -> Workspace {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let paths = missing.map { "\"\($0)\"" }.joined(separator: ",")
-        return try decoder.decode(Workspace.self, from: Data(#"{"id":"p","name":"r","repos":["\#(repo)"],"missing":[\#(paths)],"createdAt":"2026-01-01T00:00:00Z"}"#.utf8))
+        WorktreeModel(run: core.run, confirm: confirm, report: { XCTFail("unexpected banner: \($0)") })
     }
 }
 
@@ -153,11 +145,6 @@ private final class FakeGitCore {
     private(set) var calls: [CommandInvocation] = []
     var trees = [tree(repo: "/r", path: "/r", main: true, current: true), tree(repo: "/r", path: "/r/.worktrees/feat")]
     var failures = 0
-    private let unsaved: Bool
-
-    init(unsaved: Bool = false) {
-        self.unsaved = unsaved
-    }
 
     func run(_ invocation: CommandInvocation) async -> Result<JSONValue, ClubmateError> {
         calls.append(invocation)
@@ -169,10 +156,10 @@ private final class FakeGitCore {
                 return .failure(.rpc(code: -32000, message: "plugin not running"))
             }
             return .success(.array(trees))
-        case "git.worktree-sessions":
-            return .success(.array([
-                .object(["id": .string("s1"), "title": .string("zsh")]),
-                .object(["id": .string("s2"), "title": .string("server")]),
+        case "git.worktree-remove-prompt":
+            return .success(.object([
+                "title": .string("Remove worktree feat? Its branch is kept."), "detail": .string("Terminals still in it: zsh"),
+                "command": .string("git.worktree-remove"), "args": .object(["repo": args["repo"] ?? .null, "path": args["path"] ?? .null]),
             ]))
         case "git.branches":
             return .success(.array([
@@ -180,16 +167,6 @@ private final class FakeGitCore {
                 .object(["repo": .string("/r"), "name": .string("origin/fetch"), "remote": .bool(true)]),
                 .object(["repo": .string("/r"), "name": .string("old")]),
             ]))
-        case "git.branch-switch":
-            return .success(.object(["id": .string("op-3")]))
-        case "git.worktree-remove":
-            return .success(.object(["id": .string(args["force"] == nil ? "op-1" : "op-2")]))
-        case "git.worktree-op-status" where unsaved && args["id"] == .string("op-1"):
-            return .success(.object(["done": .bool(true), "error": .string("plugin editor-nvim command.run: unsaved buffers: a.go")]))
-        case "git.worktree-op-status" where args["id"] == .string("op-3"):
-            return .success(.object(["done": .bool(true), "notice": .string("Warning: you are leaving 1 commit behind")]))
-        case "git.worktree-op-status":
-            return .success(.object(["done": .bool(true)]))
         default:
             return .success(.null)
         }

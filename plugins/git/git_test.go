@@ -25,7 +25,6 @@ import (
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
-	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
@@ -129,6 +128,20 @@ type sessionEntry struct {
 	Title string `json:"title"`
 }
 
+type outcomeEntry struct {
+	Workspace string       `json:"workspace"`
+	ID        string       `json:"id"`
+	Message   string       `json:"message"`
+	Confirm   *promptEntry `json:"confirm"`
+}
+
+type promptEntry struct {
+	Title   string          `json:"title"`
+	Detail  string          `json:"detail"`
+	Command string          `json:"command"`
+	Args    json.RawMessage `json:"args"`
+}
+
 func committedRepo(t *testing.T) string {
 	t.Helper()
 	repo := newRepo(t, "a.go")
@@ -184,6 +197,26 @@ func waitOp(t *testing.T, h *testutil.PluginHarness, id, op string) opResult {
 		require.True(t, time.Now().Before(deadline), "operation %s did not finish", op)
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+func outcomes(t *testing.T, h *testutil.PluginHarness) []outcomeEntry {
+	t.Helper()
+	events, err := h.Bus.Read(t.Context(), "git.outcome", 0, 1000)
+	require.NoError(t, err)
+	out := make([]outcomeEntry, 0, len(events))
+	for _, ev := range events {
+		var o outcomeEntry
+		require.NoError(t, json.Unmarshal(ev.Payload, &o))
+		out = append(out, o)
+	}
+	return out
+}
+
+func outcomeOf(t *testing.T, h *testutil.PluginHarness, op string) outcomeEntry {
+	t.Helper()
+	i := slices.IndexFunc(outcomes(t, h), func(o outcomeEntry) bool { return o.ID == op })
+	require.GreaterOrEqual(t, i, 0, "no git.outcome for %s", op)
+	return outcomes(t, h)[i]
 }
 
 func TestWorktreeList(t *testing.T) {
@@ -248,6 +281,13 @@ func TestNewWorktreeWithoutSwitch(t *testing.T) {
 	child := filepath.Join(repo, ".worktrees", "child")
 	assert.Equal(t, opResult{Done: true, Path: child}, res)
 	assert.Equal(t, repo, firstRoot(t, h, id))
+
+	var started struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "git.worktree-new", "projectId": id, "agent": true, "args": map[string]any{"branch": "agent", "switch": false}}, &started))
+	assert.Empty(t, waitOp(t, h, id, started.ID).Error)
+	assert.Len(t, outcomes(t, h), 1)
 }
 
 func TestNewWorktreeFromOtherWorktree(t *testing.T) {
@@ -325,7 +365,14 @@ func TestRemoveWorktreeRefusals(t *testing.T) {
 	require.NoError(t, runCommand(t, h, id, "git.worktree-sessions", map[string]string{"path": feat}, &users))
 	assert.Contains(t, users, terminal)
 	assert.NotContains(t, users, editor)
+	var prompt promptEntry
+	require.NoError(t, runCommand(t, h, id, "git.worktree-remove-prompt", map[string]string{"path": feat}, &prompt))
+	assert.Equal(t, "Remove worktree feat? Its branch is kept.", prompt.Title)
+	assert.Equal(t, "Terminals still in it: terminals", prompt.Detail)
+	assert.Equal(t, "git.worktree-remove", prompt.Command)
+	assert.JSONEq(t, fmt.Sprintf(`{"repo":%q,"path":%q}`, repo, feat), string(prompt.Args))
 
+	assert.ErrorContains(t, runCommand(t, h, id, "git.worktree-remove-prompt", map[string]string{"path": repo}, nil), "cannot remove the main checkout")
 	_, err := startOp(t, h, id, "git.worktree-remove", map[string]string{"path": repo})
 	assert.ErrorContains(t, err, "cannot remove the main checkout")
 	assert.Equal(t, "worktree has uncommitted changes", awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": dirty}).Error)
@@ -382,26 +429,19 @@ func TestRemoveWorktree(t *testing.T) {
 func TestRemovedWorktreeFallsBack(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")
-	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	git(t, repo, "worktree", "add", "-q", "-b", "feature", feat)
 	h, id := open(t, repo)
 	require.NoError(t, runCommand(t, h, id, "git.worktree-switch", map[string]string{"path": feat}, nil))
 	require.Equal(t, feat, firstRoot(t, h, id))
-	sub, err := h.Bus.Subscribe("workspace.updated", math.MaxInt64)
+
+	require.NoError(t, os.RemoveAll(feat))
+
+	testutil.Eventually(t, func() bool { return len(outcomes(t, h)) > 0 }, 10*time.Second)
+	assert.Equal(t, []outcomeEntry{{Workspace: id, Message: "Worktree feature no longer exists — back on main"}}, outcomes(t, h))
+	p, err := h.Svc.GetWorkspace(t.Context(), id)
 	require.NoError(t, err)
-	t.Cleanup(sub.Close)
-
-	git(t, repo, "worktree", "remove", feat)
-
-	select {
-	case ev := <-sub.C():
-		var payload contract.WorkspaceChanged
-		require.NoError(t, json.Unmarshal(ev.Payload, &payload))
-		assert.Equal(t, []string{repo}, payload.Info.Roots)
-		assert.Equal(t, []string{feat}, payload.Info.Missing)
-	case <-time.After(10 * time.Second):
-		t.Fatal("no workspace.updated after the worktree was removed")
-	}
-	assert.Equal(t, repo, firstRoot(t, h, id))
+	assert.Equal(t, []string{repo}, p.Roots)
+	assert.Empty(t, p.Missing)
 }
 
 func TestInPlaceSwitchPublishesChanged(t *testing.T) {
@@ -536,16 +576,19 @@ func TestBranchSwitch(t *testing.T) {
 
 	git(t, repo, "checkout", "-q", "--detach")
 	git(t, repo, "commit", "-q", "--allow-empty", "-m", "lost")
-	res := awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
+	op, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
+	require.NoError(t, err)
+	res := waitOp(t, h, id, op)
 	require.Empty(t, res.Error)
 	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
 	assert.Contains(t, res.Notice, "you are leaving 1 commit behind")
+	assert.Equal(t, res.Notice, outcomeOf(t, h, op).Message)
 
 	require.Empty(t, awaitOp(t, h, id, "git.branch-switch", map[string]string{"branch": "wt"}).Error)
 	assert.Equal(t, wt, firstRoot(t, h, id))
 	assert.Equal(t, "remote-only", git(t, repo, "branch", "--show-current"))
 
-	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "-x"})
+	_, err = startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "-x"})
 	assert.ErrorContains(t, err, "not a valid branch name")
 }
 
@@ -710,17 +753,29 @@ func TestWorktreeTeardownFailureStillRemoves(t *testing.T) {
 func TestWorktreeRemoveRefusalStopsBeforeVacating(t *testing.T) {
 	repo := committedRepo(t)
 	feat := filepath.Join(repo, ".worktrees", "feat")
-	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	git(t, repo, "worktree", "add", "-q", "-b", "feature", feat)
 	editor := strings.Replace(stopEditorManifest, `"echoResults"`, `"echoErrors":{"editor-nvim.stop-root":"unsaved buffers: a.go"},"echoResults"`, 1)
 	h, id := open(t, repo, testutil.EchoPluginDirAs(t, editor, agentsManifest))
 	testutil.Eventually(t, func() bool {
 		return !slices.ContainsFunc(h.Sup.Statuses(), func(s plugin.Status) bool { return s.State != "running" })
 	}, readyWait)
 
-	res := awaitOp(t, h, id, "git.worktree-remove", map[string]any{"path": feat, "force": true})
-	assert.Equal(t, opResult{Done: true, Error: "unsaved buffers: a.go"}, res)
+	op, err := startOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat})
+	require.NoError(t, err)
+	assert.Equal(t, opResult{Done: true, Error: "unsaved buffers: a.go"}, waitOp(t, h, id, op))
+	asked := outcomeOf(t, h, op)
+	assert.Empty(t, asked.Message)
+	require.NotNil(t, asked.Confirm)
+	assert.Equal(t, "Worktree feature has unsaved buffers: a.go. Remove it and discard the changes?", asked.Confirm.Title)
+	assert.Equal(t, "git.worktree-remove", asked.Confirm.Command)
+	assert.JSONEq(t, fmt.Sprintf(`{"repo":%q,"path":%q,"force":true}`, repo, feat), string(asked.Confirm.Args))
+
+	op, err = startOp(t, h, id, "git.worktree-remove", asked.Confirm.Args)
+	require.NoError(t, err)
+	assert.Equal(t, opResult{Done: true, Error: "unsaved buffers: a.go"}, waitOp(t, h, id, op))
+	assert.Equal(t, outcomeEntry{Workspace: id, ID: op, Message: "unsaved buffers: a.go"}, outcomeOf(t, h, op))
 	assert.DirExists(t, feat)
-	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"root":%q,"force":true}`, feat, feat), string(commandArgs(t, h, "editor-nvim.stop-root")[0]))
+	assert.JSONEq(t, fmt.Sprintf(`{"path":%q,"root":%q,"force":true}`, feat, feat), string(commandArgs(t, h, "editor-nvim.stop-root")[1]))
 	assert.Empty(t, commandArgs(t, h, "agents.stop-root"))
-	assert.Len(t, commandArgs(t, h, "editor-nvim.release-root"), 1)
+	assert.Len(t, commandArgs(t, h, "editor-nvim.release-root"), 2)
 }

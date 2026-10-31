@@ -432,7 +432,7 @@ final class StoresTests: XCTestCase {
          {"id":"git","title":"Git","icon":"","order":15,"scope":"workspace","plugin":"git","host":"editor-nvim"},
          {"id":"terminals","title":"Terminals","icon":"terminal","order":20,"scope":"workspace","plugin":"terminals"}]
         """#.utf8))
-        let worktrees = WorktreeModel(run: { _ in .success(.array([.object(["repo": .string("/r"), "path": .string("/r"), "main": .bool(true)])])) }, workspace: { nil }, confirm: { _, _ in false }, report: { _ in })
+        let worktrees = WorktreeModel(run: { _ in .success(.array([.object(["repo": .string("/r"), "path": .string("/r"), "main": .bool(true)])])) }, confirm: { _, _ in false }, report: { _ in })
         await worktrees.load()
 
         let entries = CommandPalette.entries(commands: commands, sections: sections, sidebar: true, worktrees: worktrees.worktrees)

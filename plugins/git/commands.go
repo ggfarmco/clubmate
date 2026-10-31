@@ -20,6 +20,7 @@ var (
 		"git.worktree-remove":    worktreeRemoveCommand,
 		"git.worktree-op-status": opStatusCommand,
 		"git.worktree-sessions":  worktreeSessionsCommand,
+		removePromptCommand:      worktreeRemovePromptCommand,
 	}
 )
 
@@ -30,6 +31,7 @@ type call struct {
 	workspaceID string
 	state       *state
 	args        worktreeArgs
+	ui          bool
 }
 
 type worktreeArgs struct {
@@ -66,6 +68,19 @@ type opStarted struct {
 	ID string `json:"id"`
 }
 
+type prompt struct {
+	Title   string     `json:"title"`
+	Detail  string     `json:"detail,omitempty"`
+	Command string     `json:"command"`
+	Args    removeArgs `json:"args"`
+}
+
+type removeArgs struct {
+	Repo  string `json:"repo"`
+	Path  string `json:"path"`
+	Force bool   `json:"force,omitempty"`
+}
+
 type opStatus struct {
 	Done   bool   `json:"done"`
 	Error  string `json:"error,omitempty"`
@@ -82,7 +97,7 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", errUnknownCommand, cmd.ID)
 	}
-	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s}
+	c := call{h: h, workspaceID: cmd.WorkspaceID, state: s, ui: !cmd.Agent && cmd.Via == ""}
 	if len(cmd.Args) > 0 {
 		if err := json.Unmarshal(cmd.Args, &c.args); err != nil {
 			return nil, fmt.Errorf("%s args: %w", cmd.ID, err)
@@ -121,4 +136,8 @@ func opStatusCommand(ctx context.Context, a *app, c call) (any, error) {
 
 func worktreeSessionsCommand(ctx context.Context, _ *app, c call) (any, error) {
 	return worktreeSessions(ctx, c.h, c.workspaceID, c.args.Path)
+}
+
+func worktreeRemovePromptCommand(ctx context.Context, _ *app, c call) (any, error) {
+	return removePrompt(ctx, c.h, c.workspaceID, c.args)
 }

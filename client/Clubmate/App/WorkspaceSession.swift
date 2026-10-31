@@ -32,7 +32,6 @@ final class WorkspaceSession {
     @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private(set) lazy var worktrees = WorktreeModel(
         run: storeRun,
-        workspace: { [weak self] in self?.lookup() },
         confirm: { message, detail in await Confirmation.ask(message, detail: detail, action: "Remove", destructive: true) },
         report: { [weak self] message in self?.banner.show(message) }
     )

@@ -17,9 +17,16 @@ import (
 )
 
 const (
-	worktreesDir   = ".worktrees"
-	sessionRunning = "running"
-	cleanupTimeout = time.Minute
+	worktreesDir        = ".worktrees"
+	sessionRunning      = "running"
+	cleanupTimeout      = time.Minute
+	removeCommand       = "git.worktree-remove"
+	removePromptCommand = "git.worktree-remove-prompt"
+	unsavedMarker       = "unsaved buffers: "
+	removeTitle         = "Remove worktree %s? Its branch is kept."
+	terminalsDetail     = "Terminals still in it: "
+	unsavedTitle        = "Worktree %s has %s. Remove it and discard the changes?"
+	missingText         = "Worktree %s no longer exists — back on main"
 )
 
 var (
@@ -28,6 +35,7 @@ var (
 	errDirtyWorktree   = errors.New("worktree has uncommitted changes")
 	errRelativePath    = errors.New("path must be absolute")
 	errSymlinkedFolder = errors.New("worktrees folder must not be a symlink")
+	errNoMissingFolder = errors.New("no git folder holds the missing worktree")
 )
 
 func listWorktrees(ctx context.Context, h *pluginsdk.Host, workspaceID string) ([]worktreeInfo, error) {
@@ -156,20 +164,30 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, workspaceID string, args
 	}, nil
 }
 
+func removePrompt(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (prompt, error) {
+	f, t, err := removable(ctx, h, workspaceID, args)
+	if err != nil {
+		return prompt{}, err
+	}
+	sessions, err := worktreeSessions(ctx, h, workspaceID, t.Path)
+	if err != nil {
+		return prompt{}, err
+	}
+	out := prompt{Title: fmt.Sprintf(removeTitle, f.treeName(ctx, t)), Command: removeCommand, Args: removeArgs{Repo: f.Repo, Path: t.Path}}
+	if len(sessions) > 0 {
+		titles := make([]string, 0, len(sessions))
+		for _, s := range sessions {
+			titles = append(titles, s.Title)
+		}
+		out.Detail = terminalsDetail + strings.Join(titles, ", ")
+	}
+	return out, nil
+}
+
 func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (opFunc, error) {
-	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
+	f, t, err := removable(ctx, h, workspaceID, args)
 	if err != nil {
 		return nil, err
-	}
-	t, err := f.member(args.Path)
-	if err != nil {
-		return nil, err
-	}
-	switch t.Real {
-	case f.Trees[0].Real:
-		return nil, errMainCheckout
-	case f.Checkout.Real:
-		return nil, errFolderCheckout
 	}
 	k := hooks{h: h, workspaceID: workspaceID, primary: f.Trees[0].Path}
 	users := consumers{h: h, workspaceID: workspaceID}
@@ -193,7 +211,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 			logError("release "+root, users.released(context.WithoutCancel(ctx), t.Path, root))
 		}()
 		if err := users.removing(ctx, t.Path, root, args.Force); err != nil {
-			return "", err
+			return "", forceable(ctx, f, t, args, err)
 		}
 		logError("vacate "+t.Path, users.vacating(ctx, t.Path, root))
 		if skipped, err := k.run(ctx, t.Path, teardownScript); err != nil {
@@ -213,6 +231,45 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 		}
 		return "", err
 	}, nil
+}
+
+func fallBack(ctx context.Context, h *pluginsdk.Host, workspaceID, missing string) error {
+	var home, first *folder
+	var lost string
+	count := 0
+	target := gitrepo.Canonical(missing)
+	err := eachFolder(ctx, h, workspaceID, func(f *folder) error {
+		count++
+		if first == nil {
+			first = f
+		}
+		owner := gitrepo.Longest(f.Trees, target)
+		if home != nil || owner == nil {
+			return nil
+		}
+		home = f
+		if owner.Real != f.Trees[0].Real {
+			lost = f.treeName(ctx, *owner)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if home == nil && count == 1 {
+		home = first
+	}
+	if home == nil {
+		return fmt.Errorf("%w: %s", errNoMissingFolder, missing)
+	}
+	if lost == "" {
+		lost = filepath.Base(missing)
+	}
+	if _, err := h.SetWorktree(ctx, workspaceID, home.Repo, ""); err != nil {
+		return err
+	}
+	_, err = h.Publish(ctx, outcomeTopic, outcomeEvent{Workspace: workspaceID, Message: fmt.Sprintf(missingText, lost)})
+	return err
 }
 
 func worktreeDir(primary, branch string) (string, error) {
@@ -281,4 +338,31 @@ func removeFailed(ctx context.Context, repo, dir string, cause error) error {
 	defer cancel()
 	_, err := mutate(ctx, repo, "worktree", "remove", "--force", dir)
 	return errors.Join(cause, err)
+}
+
+func removable(ctx context.Context, h *pluginsdk.Host, workspaceID string, args worktreeArgs) (*folder, gitrepo.Worktree, error) {
+	f, err := gitFolder(ctx, h, workspaceID, args.Repo)
+	if err != nil {
+		return nil, gitrepo.Worktree{}, err
+	}
+	t, err := f.member(args.Path)
+	if err != nil {
+		return nil, gitrepo.Worktree{}, err
+	}
+	switch t.Real {
+	case f.Trees[0].Real:
+		return nil, gitrepo.Worktree{}, errMainCheckout
+	case f.Checkout.Real:
+		return nil, gitrepo.Worktree{}, errFolderCheckout
+	}
+	return f, t, nil
+}
+
+func forceable(ctx context.Context, f *folder, t gitrepo.Worktree, args worktreeArgs, err error) error {
+	_, rest, ok := strings.Cut(err.Error(), unsavedMarker)
+	if args.Force || !ok {
+		return err
+	}
+	title := fmt.Sprintf(unsavedTitle, f.treeName(ctx, t), unsavedMarker+rest)
+	return &confirmError{err: err, prompt: prompt{Title: title, Command: removeCommand, Args: removeArgs{Repo: f.Repo, Path: t.Path, Force: true}}}
 }

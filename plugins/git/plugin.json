@@ -40,7 +40,7 @@
         "hidden": true,
         "agent": false,
         "destructive": true,
-        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Refuses at once when a git.worktree.switching handler refuses (the editor does while the folder's Neovim has unsaved buffers). Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome, whose notice carries git's warning about commits left behind a detached HEAD.",
+        "description": "Start switching the current worktree of a folder to a branch: a branch checked out in a worktree switches the folder to that worktree; a local branch runs git switch; a remote-tracking branch switches to its local branch, or creates it with git switch --track. Refuses at once when a git.worktree.switching handler refuses (the editor does while the folder's Neovim has unsaved buffers). Git's refusal (local changes, conflicts) is the operation's error and changes nothing. Returns {id}; poll git.worktree-op-status for the outcome, whose notice carries git's warning about commits left behind a detached HEAD. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -54,7 +54,7 @@
         "title": "New Worktree",
         "hidden": true,
         "agent": true,
-        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Then copies the files listed in .clubmate/worktree-include and runs .clubmate/setup.sh once the user trusts it; a failing setup.sh removes the worktree and fails the operation. Returns {id}; poll git.worktree-op-status for the outcome. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
+        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Then copies the files listed in .clubmate/worktree-include and runs .clubmate/setup.sh once the user trusts it; a failing setup.sh removes the worktree and fails the operation. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -92,12 +92,26 @@
         }
       },
       {
+        "id": "git.worktree-remove-prompt",
+        "title": "Worktree Remove Prompt",
+        "hidden": true,
+        "agent": false,
+        "description": "The question the app asks before removing a linked worktree: refuses the main checkout and the folder's own checkout like git.worktree-remove, and lists the running terminals inside it as git.worktree-sessions does. Returns {title, detail?, command, args}; on approval the app runs command with args.",
+        "args": {
+          "properties": {
+            "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
+            "path": {"type": "string", "description": "Worktree root, as listed by git.worktrees."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
         "id": "git.worktree-remove",
         "title": "Remove Worktree",
         "hidden": true,
         "agent": true,
         "destructive": true,
-        "description": "Start removing a linked git worktree: runs the git.worktree.removing handlers (the editor stops its Neovim; any refusal is the operation's error) and then the git.worktree.vacating ones (agent sessions close), runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
+        "description": "Start removing a linked git worktree: runs the git.worktree.removing handlers (the editor stops its Neovim; any refusal is the operation's error) and then the git.worktree.vacating ones (agent sessions close), runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. When a removing handler refused with unsaved buffers and force was not set, confirm asks to retry with force.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},

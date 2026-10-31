@@ -88,6 +88,17 @@ func (f *folder) currentTree() gitrepo.Worktree {
 	return f.Checkout
 }
 
+func (f *folder) treeName(ctx context.Context, t gitrepo.Worktree) string {
+	if t.Branch != "" || t.Head == "" {
+		return t.Branch
+	}
+	out, err := run(ctx, f.Checkout.Path, "rev-parse", "--short", t.Head)
+	if err != nil {
+		return t.Head
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func (f *folder) shortHeads(ctx context.Context) (map[string]string, error) {
 	heads := map[string]string{}
 	for _, t := range f.Trees {

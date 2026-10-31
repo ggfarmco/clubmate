@@ -48,6 +48,21 @@ public struct WorktreeGroup: Equatable, Sendable, Identifiable {
     public var name: String { URL(fileURLWithPath: repo).lastPathComponent }
 }
 
+public struct WorktreePrompt: Equatable, Sendable {
+    public let title: String
+    public let detail: String
+    public let command: String
+    public let args: JSONValue
+
+    init?(_ value: JSONValue) {
+        guard let fields = value.objectValue, let title = fields["title"]?.stringValue, let command = fields["command"]?.stringValue else { return nil }
+        self.title = title
+        self.command = command
+        detail = fields["detail"]?.stringValue ?? ""
+        args = fields["args"] ?? .object([:])
+    }
+}
+
 @MainActor
 @Observable
 public final class WorktreeModel {
@@ -55,15 +70,16 @@ public final class WorktreeModel {
     public static let switchCommand = "git.worktree-switch"
     public static let newCommand = "git.worktree-new"
     public static let removeCommand = "git.worktree-remove"
-    public static let statusCommand = "git.worktree-op-status"
-    public static let sessionsCommand = "git.worktree-sessions"
+    public static let removePromptCommand = "git.worktree-remove-prompt"
     public static let branchesCommand = "git.branches"
     public static let branchSwitchCommand = "git.branch-switch"
     public static let changedTopic = "git.changed"
+    public static let outcomeTopic = "git.outcome"
     public static let worktreesSection = "Worktrees"
     public static let branchesSection = "Branches"
+    static let topics = "git.*"
+    static let source = "plugin:git"
     static let maxBranchRows = 200
-    static let statusRetries = 3
     public static let defaultRetryDelays: [Duration] = [.milliseconds(250), .milliseconds(500), .seconds(1), .seconds(2), .seconds(4)]
 
     public typealias Run = @MainActor (CommandInvocation) async -> Result<JSONValue, ClubmateError>
@@ -72,22 +88,18 @@ public final class WorktreeModel {
     public private(set) var branches: [Branch] = []
 
     @ObservationIgnored private let run: Run
-    @ObservationIgnored private let workspace: @MainActor () -> Workspace?
     @ObservationIgnored private let confirm: @MainActor (String, String) async -> Bool
     @ObservationIgnored private let report: @MainActor (String) -> Void
     @ObservationIgnored private let retryDelays: [Duration]
-    @ObservationIgnored private var announced: Set<String> = []
     @ObservationIgnored private var generation = 0
 
     public init(
         run: @escaping Run,
-        workspace: @escaping @MainActor () -> Workspace?,
         confirm: @escaping @MainActor (String, String) async -> Bool,
         report: @escaping @MainActor (String) -> Void,
         retryDelays: [Duration] = WorktreeModel.defaultRetryDelays
     ) {
         self.run = run
-        self.workspace = workspace
         self.confirm = confirm
         self.report = report
         self.retryDelays = retryDelays
@@ -137,9 +149,7 @@ public final class WorktreeModel {
             return await switchTo(repo: tree.repo, path: tree.path)
         }
         guard let branch = branches.first(where: { $0.id == item.id }) else { return }
-        let args: [String: JSONValue] = ["repo": .string(branch.repo), "branch": .string(branch.name)]
-        if let failure = await perform(CommandInvocation(id: Self.branchSwitchCommand, args: .object(args))) { report(failure) }
-        await menuOpened()
+        await send(Self.branchSwitchCommand, .object(["repo": .string(branch.repo), "branch": .string(branch.name)]))
     }
 
     public func worktree(id: String) -> Worktree? {
@@ -159,18 +169,6 @@ public final class WorktreeModel {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, mine == generation else { return }
         }
-        guard mine == generation, let workspace = workspace() else { return }
-        var switched = false
-        for path in workspace.missing where !announced.contains(path) {
-            announced.insert(path)
-            let owner = worktrees.filter { Self.within(path, $0.path) }.max { $0.path.count < $1.path.count }
-            let lost = owner.flatMap { $0.main ? nil : $0 }
-            report("Worktree \(lost?.name ?? Self.folderName(path)) no longer exists — back on main")
-            guard let repo = owner?.repo ?? soleRepo, let home = checkout(of: repo) else { continue }
-            await send(Self.switchCommand, ["repo": .string(home.repo), "path": .string(home.path)])
-            switched = true
-        }
-        if switched { await fetch() }
     }
 
     public func menuOpened() async {
@@ -186,7 +184,7 @@ public final class WorktreeModel {
 
     public func switchTo(repo: String, path: String) async {
         guard let tree = tree(repo: repo, path: path), !tree.current else { return }
-        await send(Self.switchCommand, ["repo": .string(tree.repo), "path": .string(tree.path)])
+        await send(Self.switchCommand, .object(["repo": .string(tree.repo), "path": .string(tree.path)]))
         await load()
     }
 
@@ -195,44 +193,35 @@ public final class WorktreeModel {
         guard !branch.isEmpty else { return }
         var args: [String: JSONValue] = ["branch": .string(branch)]
         if let repo { args["repo"] = .string(repo) }
-        if let failure = await perform(CommandInvocation(id: Self.newCommand, args: .object(args))) { report(failure) }
-        await load()
+        await send(Self.newCommand, .object(args))
     }
 
     public func remove(repo: String, path: String) async {
-        guard let tree = tree(repo: repo, path: path), !tree.main else { return }
-        let titles: [String]
-        switch await run(CommandInvocation(id: Self.sessionsCommand, args: .object(["path": .string(tree.path)]))) {
+        switch await run(CommandInvocation(id: Self.removePromptCommand, args: .object(["repo": .string(repo), "path": .string(path)]))) {
         case .success(let value):
-            titles = (value.arrayValue ?? []).compactMap { $0.objectValue?["title"]?.stringValue }
+            guard let prompt = WorktreePrompt(value) else { return }
+            await ask(prompt)
         case .failure(let failure):
-            return report(failure.commandText)
+            report(failure.commandText)
         }
-        let detail = titles.isEmpty ? "" : "Terminals still in it: \(titles.joined(separator: ", "))"
-        guard await confirm("Remove worktree \(tree.name)? Its branch is kept.", detail) else { return }
-        var args: [String: JSONValue] = ["repo": .string(tree.repo), "path": .string(tree.path)]
-        var failure = await perform(CommandInvocation(id: Self.removeCommand, args: .object(args)))
-        if let message = failure, let marker = message.range(of: NvimRestart.unsavedMarker) {
-            guard await confirm("Worktree \(tree.name) has \(message[marker.lowerBound...]). Remove it and discard the changes?", "") else { return }
-            args["force"] = .bool(true)
-            failure = await perform(CommandInvocation(id: Self.removeCommand, args: .object(args)))
+    }
+
+    public func receive(_ event: BusEvent) async {
+        if event.topic == Self.outcomeTopic, event.source == Self.source {
+            let fields = event.payload.objectValue ?? [:]
+            if let message = fields["message"]?.stringValue, !message.isEmpty { report(message) }
+            if let prompt = fields["confirm"].flatMap(WorktreePrompt.init) { await ask(prompt) }
         }
-        if let failure { report(failure) }
         await load()
+    }
+
+    private func ask(_ prompt: WorktreePrompt) async {
+        guard prompt.command == Self.removeCommand, await confirm(prompt.title, prompt.detail) else { return }
+        await send(prompt.command, prompt.args)
     }
 
     private func tree(repo: String, path: String) -> Worktree? {
         worktrees.first { $0.repo == repo && $0.path == path }
-    }
-
-    private func checkout(of repo: String) -> Worktree? {
-        worktrees.filter { $0.repo == repo && Self.within(repo, $0.path) }.max { $0.path.count < $1.path.count }
-            ?? worktrees.first { $0.repo == repo && $0.current }
-    }
-
-    private var soleRepo: String? {
-        let repos = Set(worktrees.map(\.repo))
-        return repos.count == 1 ? repos.first : nil
     }
 
     @discardableResult
@@ -242,52 +231,16 @@ public final class WorktreeModel {
         return true
     }
 
-    private func send(_ id: String, _ args: [String: JSONValue]) async {
-        if case .failure(let failure) = await run(CommandInvocation(id: id, args: .object(args))) {
+    private func send(_ id: String, _ args: JSONValue) async {
+        if case .failure(let failure) = await run(CommandInvocation(id: id, args: args)) {
             report(failure.commandText)
         }
     }
 
-    private func perform(_ invocation: CommandInvocation) async -> String? {
-        let id: String
-        switch await run(invocation) {
-        case .success(let value):
-            guard let started = value.objectValue?["id"]?.stringValue else { return "unexpected reply from \(invocation.id)" }
-            id = started
-        case .failure(let failure):
-            return failure.commandText
+    public static func follow(_ client: CoreClient, received: @escaping @MainActor (BusEvent) async -> Void) async {
+        guard let events = try? await client.busEvents(pattern: topics) else { return }
+        for await event in events where !event.workspace.isEmpty && [changedTopic, outcomeTopic].contains(event.topic) {
+            await received(event)
         }
-        var retries = 0
-        while !Task.isCancelled {
-            switch await run(CommandInvocation(id: Self.statusCommand, args: .object(["id": .string(id)]))) {
-            case .success(let value):
-                retries = 0
-                let fields = value.objectValue ?? [:]
-                guard fields["done"]?.boolValue == true else { continue }
-                if let notice = fields["notice"]?.stringValue, !notice.isEmpty { report(notice) }
-                return fields["error"]?.stringValue.map(ClubmateError.commandText)
-            case .failure(let failure) where failure.isTransient && retries < Self.statusRetries:
-                retries += 1
-                try? await Task.sleep(for: .milliseconds(200 * retries))
-            case .failure(let failure):
-                return failure.commandText
-            }
-        }
-        return nil
-    }
-
-    public static func follow(_ client: CoreClient, changed: @escaping @MainActor (String) async -> Void) async {
-        guard let events = try? await client.busEvents(pattern: changedTopic) else { return }
-        for await event in events where !event.workspace.isEmpty {
-            await changed(event.workspace)
-        }
-    }
-
-    private static func within(_ path: String, _ dir: String) -> Bool {
-        path == dir || path.hasPrefix(dir.hasSuffix("/") ? dir : dir + "/")
-    }
-
-    private static func folderName(_ path: String) -> String {
-        URL(fileURLWithPath: path).lastPathComponent
     }
 }

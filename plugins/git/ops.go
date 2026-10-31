@@ -16,6 +16,7 @@ const (
 	opPollWait    = time.Second
 	keptOps       = 64
 	opPrefix      = "wt"
+	outcomeTopic  = "git.outcome"
 )
 
 var (
@@ -34,6 +35,18 @@ type operation struct {
 	path      string
 	notice    string
 	err       error
+}
+
+type outcomeEvent struct {
+	Workspace string  `json:"workspace"`
+	ID        string  `json:"id,omitempty"`
+	Message   string  `json:"message,omitempty"`
+	Confirm   *prompt `json:"confirm,omitempty"`
+}
+
+type confirmError struct {
+	err    error
+	prompt prompt
 }
 
 type opTable struct {
@@ -57,6 +70,10 @@ func (a *app) startOp(ctx context.Context, c call, prepare prepareFunc) (opStart
 		defer cancel()
 		path, err := run(ctx, func(text string) { o.notice = text })
 		c.state.release()
+		if c.ui {
+			_, perr := c.h.Publish(ctx, outcomeTopic, opOutcome(c.workspaceID, o.id, o.notice, err))
+			logError("publish "+outcomeTopic, perr)
+		}
 		o.finish(path, err)
 		a.schedule(c.h, c.workspaceID, c.state, 0)
 	}()
@@ -112,4 +129,23 @@ func (t *opTable) status(ctx context.Context, workspaceID, id string) (opStatus,
 func (o *operation) finish(path string, err error) {
 	o.path, o.err = path, err
 	close(o.done)
+}
+
+func (e *confirmError) Error() string {
+	return e.err.Error()
+}
+
+func (e *confirmError) Unwrap() error {
+	return e.err
+}
+
+func opOutcome(workspaceID, opID, notice string, err error) outcomeEvent {
+	out := outcomeEvent{Workspace: workspaceID, ID: opID, Message: notice}
+	switch ce, ok := errors.AsType[*confirmError](err); {
+	case ok:
+		out.Message, out.Confirm = "", &ce.prompt
+	case err != nil:
+		out.Message = err.Error()
+	}
+	return out
 }

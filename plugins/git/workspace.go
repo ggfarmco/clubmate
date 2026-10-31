@@ -188,14 +188,20 @@ func (a *app) checkMissing(ctx context.Context, h *pluginsdk.Host, id string, s 
 		return
 	}
 	s.mu.Lock()
-	skip := s.busy || slices.Equal(s.missing, p.Missing)
-	if !skip {
-		s.missing = p.Missing
+	if s.busy {
+		s.mu.Unlock()
+		return
 	}
+	fresh := slices.DeleteFunc(slices.Clone(p.Missing), func(m string) bool { return slices.Contains(s.missing, m) })
+	s.missing = p.Missing
+	s.busy = len(fresh) > 0
 	s.mu.Unlock()
-	if !skip && len(p.Missing) > 0 {
-		_, err = h.CheckWorktrees(ctx, id)
-		logError("check worktrees "+id, err)
+	if len(fresh) == 0 {
+		return
+	}
+	defer s.release()
+	for _, m := range fresh {
+		logError("fall back "+id, fallBack(ctx, h, id, m))
 	}
 }
 
