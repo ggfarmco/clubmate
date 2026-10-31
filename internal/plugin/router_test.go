@@ -106,6 +106,11 @@ func TestRoutingToStoppedPluginIsUnavailable(t *testing.T) {
 	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "backoff" }, 5*time.Second)
 	err = c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "projectId": p.ID, "args": map[string]any{"text": "hi"}}, nil)
 	assert.ErrorIs(t, err, rpc.ErrPluginUnavailable)
+	var cmds []rpc.Command
+	require.NoError(t, c.Call(t.Context(), "command.list", struct{}{}, &cmds))
+	for _, cmd := range cmds {
+		assert.Equal(t, cmd.Plugin == "core", cmd.Running, cmd.ID)
+	}
 }
 
 func TestSubscriptionIDsAreScopedByKind(t *testing.T) {

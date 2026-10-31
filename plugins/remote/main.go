@@ -31,6 +31,7 @@ const (
 var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoPairHost     = errors.New("pairing needs a Tailscale address")
+	errBadPort        = errors.New("port must be between 1 and 65535")
 )
 
 type app struct {
@@ -71,6 +72,10 @@ type deviceView struct {
 
 type enableArgs struct {
 	Enabled bool `json:"enabled"`
+}
+
+type portArgs struct {
+	Port int `json:"port"`
 }
 
 type revokeArgs struct {
@@ -135,6 +140,15 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		if err := a.setEnabled(ctx, args.Enabled); err != nil {
+			return nil, err
+		}
+		return a.status(), nil
+	case "remote.setPort":
+		var args portArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if err := a.setPort(ctx, args.Port); err != nil {
 			return nil, err
 		}
 		return a.status(), nil
@@ -226,6 +240,33 @@ func (a *app) setEnabledLocked(ctx context.Context, enabled bool) error {
 	a.mu.Lock()
 	a.enabled = enabled
 	a.mu.Unlock()
+	a.changed()
+	return nil
+}
+
+func (a *app) setPort(ctx context.Context, port int) error {
+	if port < 1 || port > math.MaxUint16 {
+		return errBadPort
+	}
+	a.enableMu.Lock()
+	defer a.enableMu.Unlock()
+	a.mu.Lock()
+	was, enabled := a.port, a.enabled
+	a.mu.Unlock()
+	if was == port {
+		return nil
+	}
+	if err := a.host.StorageSet(ctx, portKey, port); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.port = port
+	a.mu.Unlock()
+	if enabled {
+		a.srv.pairing.cancel()
+		a.srv.hub.closeAll()
+		a.ln.restart(port)
+	}
 	a.changed()
 	return nil
 }

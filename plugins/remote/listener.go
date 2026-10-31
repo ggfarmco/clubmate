@@ -56,6 +56,11 @@ func (l *listeners) start(port int) bool {
 	return l.refreshLocked()
 }
 
+func (l *listeners) restart(port int) bool {
+	l.stop()
+	return l.start(port)
+}
+
 func (l *listeners) refresh() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()

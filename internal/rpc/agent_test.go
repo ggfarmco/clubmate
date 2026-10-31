@@ -280,6 +280,7 @@ func TestAppScopeCommandRunsWithoutProject(t *testing.T) {
 	cmds := pluginCommands(t, h)
 	require.Len(t, cmds, 2)
 	assert.True(t, cmds[0].Remote)
+	assert.True(t, cmds[0].Running)
 	assert.Equal(t, "app", cmds[0].Scope)
 	assert.False(t, cmds[1].Remote)
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": ""}, nil))

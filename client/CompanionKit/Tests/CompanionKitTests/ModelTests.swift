@@ -41,6 +41,17 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(item.date.timeIntervalSince1970, 1_793_353_260.123, accuracy: 0.0005)
     }
 
+    func testLocalAlertOnlyForRecentActionableItems() throws {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let item = { (kind: NotificationKind, age: TimeInterval) in
+            InboxItem(id: "ntf_1", computerID: "m", workspace: "w", session: "agt_1", message: "Need a decision", kind: kind, date: now.addingTimeInterval(-age))
+        }
+        let alert = try XCTUnwrap(LocalAlert(item(.permission, 5), computerName: "Mac Studio", now: now))
+        XCTAssertEqual([alert.id, alert.title, alert.subtitle, alert.body, alert.session], ["m|ntf_1", "Permission needed", "Mac Studio", "Need a decision", "agt_1"])
+        XCTAssertNil(LocalAlert(item(.info, 5), computerName: "", now: now))
+        XCTAssertNil(LocalAlert(item(.permission, LocalAlert.window), computerName: "", now: now))
+    }
+
     @MainActor
     func testComputerStoreKeepsTokensInVault() throws {
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")

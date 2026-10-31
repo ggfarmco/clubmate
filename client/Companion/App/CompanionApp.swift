@@ -8,6 +8,7 @@ struct CompanionApp: App {
     @State private var model: CompanionModel
     @State private var navigation = AppNavigation()
     @State private var pairing = PairingFlow()
+    @State private var notifier = LocalNotifier()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -34,7 +35,9 @@ struct CompanionApp: App {
                     guard PairingLink.isPairingURL(url) else { return }
                     pairing.received(url.absoluteString, from: .link, model: model, navigation: navigation)
                 }
+                .onChange(of: pairing.paired) { _, _ in notifier.requestAuthorization() }
                 .task {
+                    notifier.attach(model: model, navigation: navigation)
                     model.start()
                     #if DEBUG
                     await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing)
@@ -42,7 +45,15 @@ struct CompanionApp: App {
                 }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.reconnectAll() }
+            switch phase {
+            case .active:
+                notifier.endBackground()
+                model.reconnectAll()
+            case .background:
+                notifier.enteredBackground()
+            default:
+                break
+            }
         }
     }
 }

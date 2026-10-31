@@ -7,6 +7,7 @@ public final class CompanionModel {
     public private(set) var computers: [Computer] = []
     public private(set) var connections: [String: ComputerConnection] = [:]
     public var inbox = Inbox()
+    @ObservationIgnored public var posted: (@MainActor (InboxItem) -> Void)?
 
     @ObservationIgnored public let device: DeviceIdentity
     @ObservationIgnored public let policy: HostPolicy
@@ -88,8 +89,8 @@ public final class CompanionModel {
     }
 
     private func route(_ signal: ConnectionSignal, from computer: String) {
-        if case .event(let event) = signal, let item = InboxItem(event, computerID: computer, received: .now) {
-            inbox.add(item)
+        if case .event(let event) = signal, let item = InboxItem(event, computerID: computer, received: .now), inbox.add(item) {
+            posted?(item)
         }
         for (key, store) in agents where key.hasPrefix(computer + "|") {
             store.handle(signal)

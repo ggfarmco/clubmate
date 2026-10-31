@@ -48,7 +48,7 @@ func (r *Router) Commands() []rpc.Command {
 	var out []rpc.Command
 	for _, st := range r.sup.Statuses() {
 		for _, c := range st.Manifest.Contributes.Commands {
-			out = append(out, command(st.ID, c))
+			out = append(out, command(st, c))
 		}
 	}
 	return out
@@ -75,34 +75,30 @@ func (r *Router) Capabilities() map[string]string {
 }
 
 func (r *Router) capabilities() map[string]rpc.Command {
-	type provider struct {
-		cmd     rpc.Command
-		running bool
-	}
-	providers := map[string][]provider{}
+	providers := map[string][]rpc.Command{}
 	for _, st := range r.sup.loaded() {
 		for _, c := range st.Manifest.Contributes.Commands {
 			for _, name := range c.Provides {
-				providers[name] = append(providers[name], provider{cmd: command(st.ID, c), running: st.State == StateRunning})
+				providers[name] = append(providers[name], command(st, c))
 			}
 		}
 	}
 	out := make(map[string]rpc.Command, len(providers))
-	for name, ps := range providers {
-		chosen := ps[0]
-		for _, p := range ps {
-			if p.running {
-				chosen = p
+	for name, cs := range providers {
+		chosen := cs[0]
+		for _, c := range cs {
+			if c.Running {
+				chosen = c
 				break
 			}
 		}
-		out[name] = chosen.cmd
-		if len(ps) > 1 {
-			ids := make([]string, 0, len(ps))
-			for _, p := range ps {
-				ids = append(ids, p.cmd.ID)
+		out[name] = chosen
+		if len(cs) > 1 {
+			ids := make([]string, 0, len(cs))
+			for _, c := range cs {
+				ids = append(ids, c.ID)
 			}
-			r.warnOnce(fmt.Sprintf("capability %s provided by %s; using %s", name, strings.Join(ids, " and "), chosen.cmd.ID))
+			r.warnOnce(fmt.Sprintf("capability %s provided by %s; using %s", name, strings.Join(ids, " and "), chosen.ID))
 		}
 	}
 	return out
@@ -118,18 +114,19 @@ func (r *Router) warnOnce(msg string) {
 	r.sup.logger.Warn(msg)
 }
 
-func command(pluginID string, c CommandDef) rpc.Command {
+func command(st Status, c CommandDef) rpc.Command {
 	return rpc.Command{
 		ID:          c.ID,
 		Title:       c.Title,
 		Description: c.Description,
-		Plugin:      pluginID,
+		Plugin:      st.ID,
 		Hidden:      c.Hidden,
 		Confirm:     c.Confirm,
 		Args:        c.Args,
 		Result:      c.Result,
 		Agent:       c.Agent,
 		Remote:      c.Remote,
+		Running:     st.State == StateRunning,
 		Scope:       c.Scope,
 		Destructive: c.Destructive,
 		Provides:    c.Provides,

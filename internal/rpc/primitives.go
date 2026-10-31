@@ -177,7 +177,9 @@ func PrimitiveCommands() []Command {
 func primitiveCommands() []Command {
 	out := make([]Command, 0, len(primitives))
 	for _, p := range primitives {
-		out = append(out, p.cmd)
+		c := p.cmd
+		c.Running = true
+		out = append(out, c)
 	}
 	slices.SortFunc(out, func(a, b Command) int { return strings.Compare(a.ID, b.ID) })
 	return out

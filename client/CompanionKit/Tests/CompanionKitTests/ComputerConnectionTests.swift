@@ -106,4 +106,29 @@ final class ComputerConnectionTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1)
         XCTAssertEqual(delays.values, [])
     }
+
+    func testRevokedCommandForgetsHelloAndWorkspaces() async throws {
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            case "hello": (FakeTransport.result(helloJSON), 200)
+            default: (Data(), 401)
+            }
+        }, stream: { _ in
+            (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                held.add($0)
+            })
+        })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online && connection.hello != nil }
+
+        _ = try? await connection.command("agents.sessions", workspace: "w", args: nil)
+
+        XCTAssertEqual(connection.state, .unauthorized)
+        XCTAssertNil(connection.hello)
+        XCTAssertEqual(connection.workspaces, [])
+    }
 }

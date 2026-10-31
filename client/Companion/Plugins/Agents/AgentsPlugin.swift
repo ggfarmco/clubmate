@@ -15,6 +15,9 @@ struct AgentsPlugin: CompanionPluginUI {
 
     @MainActor
     func makeDetail(context: PluginContext, selection: String?) -> AnyView {
+        if context.connection.state == .unauthorized {
+            return AnyView(ConnectionUnavailableView(connection: context.connection))
+        }
         guard let selection, let store = Self.store(context) else {
             return AnyView(ContentUnavailableView("No Session Selected", systemImage: "sparkles", description: Text("Pick a session to read its transcript and reply.")))
         }

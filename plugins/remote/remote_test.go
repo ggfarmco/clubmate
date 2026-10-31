@@ -262,6 +262,22 @@ func TestRevokeClosesStreamsAndToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, f.rpcStatus(t, token))
 }
 
+func TestRestartMovesListenersToTheNewPort(t *testing.T) {
+	loopback := netip.MustParseAddr("127.0.0.1")
+	l := newListeners(http.NotFoundHandler(), "", func() ([]netip.Addr, error) { return []netip.Addr{loopback}, nil })
+	t.Cleanup(l.stop)
+	before, after := freePort(t), freePort(t)
+	require.True(t, l.start(before))
+
+	require.True(t, l.restart(after))
+
+	st := l.state()
+	assert.Equal(t, []string{netip.AddrPortFrom(loopback, uint16(after)).String()}, st.listening)
+	assert.Equal(t, after, st.port)
+	_, err := net.Dial("tcp", netip.AddrPortFrom(loopback, uint16(before)).String())
+	assert.Error(t, err)
+}
+
 func TestTailnetAddrs(t *testing.T) {
 	addrs := []net.Addr{
 		ipNet("192.168.1.5"),
@@ -395,12 +411,20 @@ func frame(t *testing.T, r *bufio.Reader) string {
 	}
 }
 
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
 func ipNet(s string) *net.IPNet {
 	return &net.IPNet{IP: net.ParseIP(s), Mask: net.CIDRMask(32, 32)}
 }
 
 func (b *fakeBackend) Commands(context.Context) ([]commandInfo, error) {
-	return []commandInfo{{ID: "agents.sessions", Remote: true}, {ID: "agents.delete"}}, nil
+	return []commandInfo{{ID: "agents.sessions", Remote: true, Running: true}, {ID: "agents.delete", Running: true}, {ID: "agents.stopped", Remote: true}}, nil
 }
 
 func (b *fakeBackend) Run(_ context.Context, id, workspace string, args json.RawMessage) (json.RawMessage, error) {

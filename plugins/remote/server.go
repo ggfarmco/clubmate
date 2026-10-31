@@ -261,7 +261,7 @@ func (s *server) remoteCommands(ctx context.Context) ([]string, error) {
 	}
 	out := make([]string, 0, len(all))
 	for _, c := range all {
-		if c.Remote {
+		if c.Remote && c.Running {
 			out = append(out, c.ID)
 		}
 	}

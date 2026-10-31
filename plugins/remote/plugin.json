@@ -27,6 +27,21 @@
         }
       },
       {
+        "id": "remote.setPort",
+        "title": "Set Companion Port",
+        "hidden": true,
+        "scope": "app",
+        "destructive": true,
+        "confirm": "Change the companion port? Paired devices stay offline until you pair them again.",
+        "description": "Change the TCP port companion access listens on (default 47621); restarts listening, drops open streams and the active pairing code. Paired devices keep the old port and must pair again. Ignored while CLUBMATE_REMOTE_LISTEN is set. Returns the status.",
+        "args": {
+          "properties": {
+            "port": {"type": "integer", "description": "TCP port, 1-65535."}
+          },
+          "required": ["port"]
+        }
+      },
+      {
         "id": "remote.pair",
         "title": "Pair Device",
         "hidden": true,

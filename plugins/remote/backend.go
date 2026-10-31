@@ -23,8 +23,9 @@ type kvStore interface {
 }
 
 type commandInfo struct {
-	ID     string `json:"id"`
-	Remote bool   `json:"remote"`
+	ID      string `json:"id"`
+	Remote  bool   `json:"remote"`
+	Running bool   `json:"running"`
 }
 
 type hostBackend struct {

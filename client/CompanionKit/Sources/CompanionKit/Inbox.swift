@@ -108,3 +108,27 @@ public struct Inbox: Sendable, Equatable {
         unread = unread.filter { id in items.contains { $0.id == id } }
     }
 }
+
+public struct LocalAlert: Sendable, Equatable {
+    public static let window: TimeInterval = 600
+    public static let kinds: Set<NotificationKind> = [.needsInput, .permission, .stuck, .done]
+
+    public let id: String
+    public let title: String
+    public let subtitle: String
+    public let body: String
+    public let computerID: String
+    public let workspace: String
+    public let session: String?
+
+    public init?(_ item: InboxItem, computerName: String, now: Date) {
+        guard Self.kinds.contains(item.kind), now.timeIntervalSince(item.date) < Self.window else { return nil }
+        id = item.computerID + "|" + item.id
+        title = item.title.isEmpty ? item.kind.label : item.title
+        subtitle = computerName
+        body = item.message
+        computerID = item.computerID
+        workspace = item.workspace
+        session = item.session
+    }
+}

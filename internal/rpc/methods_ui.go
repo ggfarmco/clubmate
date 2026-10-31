@@ -48,6 +48,7 @@ type Command struct {
 	Result      *schema.Object `json:"result,omitempty"`
 	Agent       bool           `json:"agent"`
 	Remote      bool           `json:"remote"`
+	Running     bool           `json:"running"`
 	Scope       string         `json:"scope,omitempty"`
 	Destructive bool           `json:"destructive"`
 	Provides    []string       `json:"provides,omitempty"`

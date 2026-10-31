@@ -145,7 +145,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.state.section | `{projectId}` | `{section}`, the section saved in the project's UI state (`""` when unset) |
 | fs.watch | `{projectId}` | `{watch}` |
 | fs.unwatch | `{watch}` | `{}` |
-| command.list | none | `[{id, title, description, plugin, hidden, confirm, args?, result?, agent, destructive, provides?}]` |
+| command.list | none | `[{id, title, description, plugin, hidden, confirm, args?, result?, agent, remote, running, scope?, destructive, provides?, timeout?}]`; `running` is false while the owning plugin is not running (always true for core commands) |
 | command.run | `{id, projectId, args, agent}` | plugin-defined JSON, or the primitive's result |
 | command.capabilities | none | `{capabilities: {name: commandId}}` |
 | ui.focus | `{projectId, section, slot, field}` | `{delivered}` |

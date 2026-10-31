@@ -141,6 +141,8 @@ public final class ComputerConnection: CommandRunner {
 
     private func revoke() {
         state = .unauthorized
+        hello = nil
+        workspaces = []
         task?.cancel()
         task = nil
     }
