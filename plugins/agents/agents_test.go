@@ -43,6 +43,7 @@ type record struct {
 	ParentSession  string   `json:"parentSession"`
 	HandoffFrom    string   `json:"handoffFrom"`
 	HandoffTo      string   `json:"handoffTo"`
+	ImportedFrom   string   `json:"importedFrom"`
 	Notify         string   `json:"notify"`
 	Advisor        string   `json:"advisor"`
 	Status         string   `json:"status"`
@@ -1136,6 +1137,43 @@ func TestHandoff(t *testing.T) {
 	closed := f.waitStatus(t, project, old, "closed")
 	assert.Equal(t, out.Session, closed.HandoffTo)
 	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.HasSuffix(promptText(t, c), "finish it") })
+	assert.Contains(t, promptText(t, sent), "Last reply (turn 1):\nhalf done")
+}
+
+func TestExportImportContinuesInAnotherClone(t *testing.T) {
+	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
+	f := start(t, map[string]any{"prompt": []map[string]any{reply}})
+	repo := newRepo(t)
+	from := f.project(t, repo)
+	old := f.newSession(t, from)
+	f.prompt(t, from, old, "fix refunds")
+	f.waitStatus(t, from, old, "done")
+	dir := filepath.Join(t.TempDir(), "bundle")
+	require.NoError(t, f.run(t, from, "agents.export", map[string]any{"session": old, "dir": dir}, nil))
+
+	clone := filepath.Join(t.TempDir(), "clone")
+	git(t, repo, "clone", "-q", repo, clone)
+	clone, err := filepath.EvalSymlinks(clone)
+	require.NoError(t, err)
+	to := f.project(t, clone)
+	var out struct {
+		Session  string `json:"session"`
+		Imported string `json:"imported"`
+		Worktree string `json:"worktree"`
+	}
+	require.NoError(t, f.run(t, to, "agents.import", map[string]any{"dir": dir, "note": "finish it"}, &out))
+
+	refs := "refs/clubmate/cp/" + old + "/"
+	assert.Equal(t, git(t, repo, "for-each-ref", refs), git(t, clone, "for-each-ref", refs))
+	assert.Equal(t, clone, out.Worktree)
+	copied := f.session(t, to, out.Imported)
+	assert.Equal(t, old, copied.ImportedFrom)
+	assert.Equal(t, out.Session, copied.HandoffTo)
+	assert.True(t, copied.Closed)
+	assert.Equal(t, out.Imported, f.session(t, to, out.Session).HandoffFrom)
+	assert.Equal(t, "fix refunds", ofKind(f.transcript(t, to, out.Imported).Entries, "user")[0].Text)
+	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.HasSuffix(promptText(t, c), "finish it") })
+	assert.Contains(t, promptText(t, sent), "agents.transcript session="+out.Imported)
 	assert.Contains(t, promptText(t, sent), "Last reply (turn 1):\nhalf done")
 }
 

@@ -70,12 +70,7 @@ func (a *app) blameCommand(ctx context.Context, cmd pluginsdk.CommandRun) (blame
 	if (args.Path == "") == (args.Commit == "") {
 		return blameResult{}, errBlameTarget
 	}
-	dir := args.Cwd
-	if dir == "" && cmd.Caller != "" {
-		if s, err := a.lookup(cmd.ProjectID, cmd.Caller); err == nil {
-			dir = s.snapshot().Worktree
-		}
-	}
+	dir := a.callerDir(cmd, args.Cwd)
 	if args.Path != "" && filepath.IsAbs(args.Path) {
 		ranges, err := blame(ctx, args.Path, args.StartLine, args.EndLine)
 		return blameResult{Attributions: ranges}, err
@@ -92,6 +87,15 @@ func (a *app) blameCommand(ctx context.Context, cmd pluginsdk.CommandRun) (blame
 		return blameResult{}, err
 	}
 	return blameResult{Attributions: []attribution{at}}, nil
+}
+
+func (a *app) callerDir(cmd pluginsdk.CommandRun, cwd string) string {
+	if cwd == "" && cmd.Caller != "" {
+		if s, err := a.lookup(cmd.ProjectID, cmd.Caller); err == nil {
+			return s.snapshot().Worktree
+		}
+	}
+	return cwd
 }
 
 func (a *app) attributeTurn(rec record, turn int, checkpointSha, prompt string) []string {

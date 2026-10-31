@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const bundleExt = ".clubmate-session"
+
 var errLineRange = errors.New("-L takes <start>[,<end>]")
 
 func (a *app) agentCmd() *cobra.Command {
@@ -22,7 +24,7 @@ func (a *app) agentCmd() *cobra.Command {
 		asAgent(params)
 		return a.callAndPrint(cmd.Context(), "command.run", params)
 	}
-	cmd.AddCommand(a.agentSpawnCmd(run), a.agentTellCmd(run), a.agentWaitCmd(run), a.agentOutputCmd(run), a.agentSessionsCmd(run), a.agentCancelCmd(run), a.agentBlameCmd(run))
+	cmd.AddCommand(a.agentSpawnCmd(run), a.agentTellCmd(run), a.agentWaitCmd(run), a.agentOutputCmd(run), a.agentSessionsCmd(run), a.agentCancelCmd(run), a.agentBlameCmd(run), a.agentTraceCmd(run), a.agentExportCmd(run), a.agentImportCmd(run))
 	return cmd
 }
 
@@ -153,6 +155,69 @@ func (a *app) agentBlameCmd(run agentRun) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&lines, "lines", "L", "", "line range <start>[,<end>], 1-based")
+	return cmd
+}
+
+func (a *app) agentTraceCmd(run agentRun) *cobra.Command {
+	return &cobra.Command{
+		Use:   "trace [commit|range]",
+		Short: "Print Agent Trace records of a commit or a range a..b: who wrote each changed line (agents.trace)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, positional []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			args := map[string]any{"cwd": cwd}
+			if len(positional) == 1 {
+				args["rev"] = positional[0]
+			}
+			return run(cmd, "agents.trace", args)
+		},
+	}
+}
+
+func (a *app) agentExportCmd(run agentRun) *cobra.Command {
+	return &cobra.Command{
+		Use:   "export <session> [dir]",
+		Short: "Write a session bundle to continue it elsewhere; default dir ./<session>" + bundleExt + " (agents.export)",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, positional []string) error {
+			dir, err := filepath.Abs(positional[0] + bundleExt)
+			if len(positional) == 2 {
+				dir, err = filepath.Abs(positional[1])
+			}
+			if err != nil {
+				return err
+			}
+			return run(cmd, "agents.export", map[string]any{"session": positional[0], "dir": dir})
+		},
+	}
+}
+
+func (a *app) agentImportCmd(run agentRun) *cobra.Command {
+	var branch, note string
+	cmd := &cobra.Command{
+		Use:   "import <dir>",
+		Short: "Continue an exported session here in a new session, in a new worktree with --branch (agents.import)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, positional []string) error {
+			dir, err := filepath.Abs(positional[0])
+			if err != nil {
+				return err
+			}
+			args := map[string]any{"dir": dir}
+			if branch != "" {
+				args["branch"] = branch
+			}
+			if note != "" {
+				args["note"] = note
+			}
+			return run(cmd, "agents.import", args)
+		},
+	}
+	cmd.Flags().StringVar(&branch, "branch", "", "branch for a new worktree .worktrees/<branch>; default the caller's worktree")
+	cmd.Flags().StringVar(&note, "note", "", "what the new session should do next")
 	return cmd
 }
 

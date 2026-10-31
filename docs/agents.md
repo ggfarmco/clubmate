@@ -18,7 +18,8 @@ Agents running in Clubmate terminals (Claude Code, Codex, scripts) can drive Clu
 - Child agent sessions (no approval): `agents.new` starts a session, optionally in a new worktree `.worktrees/<branch>` made from the caller's worktree without switching the workspace, and sends it a first `prompt` (`notify` sets its notification policy); `agents.prompt` sends any session a follow-up (added to the running turn when the agent supports steering, else queued); `agents.cancel` stops a running turn; `agents.permission` answers a permission request, but only of sessions the calling agent session started (directly or through its children); `agents.wait` waits without polling until one of the listed sessions stops running (done, waiting for permission, asking a question, error or closed), up to 300 s per call, and returns their status with the pending permission's options; it also returns early with the user's queued messages to the calling session.
 - Failed turns: a turn the agent ends with an internal error (`-32603`, e.g. Claude Code's "ended the turn without returning results for tool calls" when the advisor tool is rate-limited) is retried once, 3 s later, within the same turn: the transcript shows a notice and a Clubmate message asking the agent to continue. A second failure leaves the session in error, as any other error does.
 - Handoffs: `agents.handoff session=… note=…` continues a session that is not running in a fresh one (same worktree, agent, parent, advisor and notification policy), seeded with a brief from Clubmate's log (the task, the last prompt and reply, the last turn's stop reason and checkpoint, and how to read the full transcript) followed by `note`; the old session is closed but can be reopened, and each links to the other. Agents may hand off only sessions they started. In the app, a session's menu has "Hand Off to New Session", and a session whose agent cannot resume offers "Hand off to a new session".
-- Attribution: `agents.blame path=…` (or `commit=…`) tells which agent session, turn and prompt made a file's lines or a commit; see [History and attribution](#history-and-attribution).
+- Attribution: `agents.blame path=…` (or `commit=…`) tells which agent session, turn and prompt made a file's lines or a commit; `agents.trace rev=…` exports a commit's or a range's changed lines as [Agent Trace](https://agent-trace.dev/) records; see [History and attribution](#history-and-attribution).
+- Moving a session: `agents.export session=… dir=…` writes a session bundle, `agents.import dir=…` continues it in another worktree or workspace; see [Resuming elsewhere](#resuming-elsewhere).
 - Reminders and schedules: `cron.add` calls a command later or repeatedly, e.g. `agents.prompt` to your own session every minute to check your children; the job is deleted with your session unless `owner: "none"`. See [cron](cron.md).
 - Reacting to events: `triggers.add` calls a command when a bus event arrives, e.g. `agents.prompt` to yourself when a child's `agents.turn` ends; `triggers.emit` publishes your own `event.<name>`, which `cron.add` can schedule. See [triggers](triggers.md).
 - Agent graphs: `graphs.run graph=… input=…` starts a team of child sessions from `.clubmate/graphs/<graph>.json` (one session per role, one trigger per edge) and the Graphs section shows the run; `graphs.list`, `graphs.show`, `graphs.stop`. See [agent graphs](agent-graphs.md).
@@ -74,13 +75,16 @@ clubmate agent output agt_123 --from-turn 2                    # agents.transcri
 clubmate agent sessions                                        # agents.sessions
 clubmate agent cancel agt_123                                  # agents.cancel
 clubmate agent blame src/main.go -L 10,40                       # agents.blame; or a commit: clubmate agent blame HEAD~2
+clubmate agent trace main..HEAD                                # agents.trace; default HEAD
+clubmate agent export agt_123                                  # agents.export into ./agt_123.clubmate-session
+clubmate agent import agt_123.clubmate-session --branch more   # agents.import; without --branch it continues in your worktree
 ```
 
 A reviewer is a child in your own worktree: `clubmate agent spawn "Review git diff main..HEAD read-only: report bugs, change nothing"` (or `agents_new` without `branch` over MCP), `wait` for it, `tell` it one round of follow-ups, then fix what it found yourself.
 
 ## History and attribution
 
-A turn is the unit of history. Before each prompt Clubmate pins a checkpoint of the worktree at `refs/clubmate/cp/<session>/<turn>` (its parent is `HEAD` at turn start). When the turn ends, the commits it added to the current branch get a git note in `refs/notes/clubmate`:
+A turn is the unit of history. Before each prompt Clubmate pins a checkpoint of the worktree at `refs/clubmate/cp/<session>/<turn>` (its parent is `HEAD` at turn start), and when the turn ends another one at `refs/clubmate/cp/<session>/<turn>.end`; both carry a `Clubmate-Worktree: <path>` trailer. When the turn ends, the commits it added to the current branch get a git note in `refs/notes/clubmate`:
 
 ```
 Clubmate-Session: agt_4c67f4de54b9ae47
@@ -101,7 +105,23 @@ Limits:
 - Rebase and amend drop the notes unless the repo sets `git config notes.rewriteRef refs/notes/clubmate`; Clubmate doesn't set it.
 - Notes are local; push `refs/notes/clubmate` to share them, but they carry each session's title and the first line of its prompts, so check them before pushing.
 
-Not built yet: line-level attribution from checkpoint diffs minus the user's nvim edits, exported as [Agent Trace](https://agent-trace.dev/) records; resuming a session on another machine (needs the agent's own session store there, plus the checkpoint and note refs).
+### Agent Trace
+
+`agents.trace rev=<commit|a..b>` (`clubmate agent trace`) returns one [Agent Trace](https://agent-trace.dev/) record (version `0.1`; the spec's own example says `0.1.0`, its schema allows only `major.minor`) per non-merge commit, oldest first, at most 200. Each changed file lists its changed lines grouped by contributor:
+
+- `ai`, with `url` `clubmate://session/<id>#turn=<n>`: written during that agent turn;
+- `human`: changed while no agent turn ran in the worktree;
+- `unknown`: Clubmate can't tell (a turn still running, or one from before end-of-turn checkpoints existed, two turns running at once, or a commit with no Clubmate history at all).
+
+How: Clubmate replays the commit's parent, the checkpoints of the commit's worktree whose parent is that commit (plus the checkpoint named in the commit's note), and the commit itself as a throwaway chain of commits, then runs `git blame` on the changed lines. A line is credited to the step that introduced it: the step into `<turn>.end` is the turn, the step into a turn's start checkpoint happened between turns, and the last step belongs to the commit's noted turn (or is human when the commit has no note). The record `id` is derived from the commit, so exporting twice gives the same record.
+
+Limits: edits the user makes in nvim while a turn runs count as the turn's; two sessions working in one worktree at once make their overlap `unknown`; a squash commit is credited to the session that ran the squash; `model_id` and `content_hash` are not filled.
+
+### Resuming elsewhere
+
+Built (one machine): `agents.export session=… dir=…` (`clubmate agent export <session> [dir]`) writes a bundle directory: `session.json` (the record), `log.jsonl` (Clubmate's log) and `refs.bundle` (a git bundle of the session's checkpoint refs and the notes of the commits its turns made, without commits already on a branch, remote or tag; other sessions' notes stay out). It refuses a running session and an existing `dir`. `agents.import dir=… [branch=…] [note=…]` (`clubmate agent import <dir>`) fetches the checkpoint refs into the repository (never overwriting existing ones) and adds the bundle's notes that name the imported session and one of its checkpoints, on commits the repository has and that have no note yet, adds a closed copy of the session with the original transcript (`importedFrom`), and starts a new session in the caller's worktree (or a new `.worktrees/<branch>`) whose first prompt is the handoff brief of the copy. The copy and the new session link like a handoff. This works across worktrees, workspaces and clones on the same Mac; the bundle's checkpoints need their parent commits in the target repository (fetch the session's branch first).
+
+Design (not built): continuing the agent's own conversation instead of a brief. Claude Code keeps it in `~/.claude/projects/<encoded cwd>/<agentSessionId>.jsonl`; the bundle would carry that file (found by globbing for the id), import would place it under the target cwd's project directory and `session/resume` with the old `agentSessionId`, falling back to the brief when resume fails. On another machine the same bundle works once the branch is pushed and fetched; a relay or shared store for bundles belongs with the mobile companion work.
 
 ## MCP (Claude Code and other MCP clients)
 

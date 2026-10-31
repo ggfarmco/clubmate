@@ -12,7 +12,11 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
-const checkpointRefs = "refs/clubmate/cp/"
+const (
+	checkpointRefs  = "refs/clubmate/cp/"
+	endSuffix       = ".end"
+	worktreeTrailer = "Clubmate-Worktree"
+)
 
 var checkpointIdentity = []string{
 	"GIT_AUTHOR_NAME=Clubmate",
@@ -22,14 +26,27 @@ var checkpointIdentity = []string{
 }
 
 func checkpoint(ctx context.Context, root, session string, turn int) (string, error) {
-	if _, ok := gitrepo.RepoRoot(root); !ok {
+	return pin(ctx, root, checkpointRef(session, turn), fmt.Sprintf("clubmate checkpoint %s turn %d", session, turn))
+}
+
+func endCheckpoint(ctx context.Context, root, session string, turn int) (string, error) {
+	return pin(ctx, root, checkpointRef(session, turn)+endSuffix, fmt.Sprintf("clubmate turn end %s turn %d", session, turn))
+}
+
+func checkpointRef(session string, turn int) string {
+	return checkpointRefs + session + "/" + strconv.Itoa(turn)
+}
+
+func pin(ctx context.Context, root, ref, title string) (string, error) {
+	top, ok := gitrepo.RepoRoot(root)
+	if !ok {
 		return "", nil
 	}
 	tree, head, err := snapshot(ctx, root)
 	if err != nil {
 		return "", err
 	}
-	args := []string{"commit-tree", tree, "-m", fmt.Sprintf("clubmate checkpoint %s turn %d", session, turn)}
+	args := []string{"commit-tree", tree, "-m", title, "-m", worktreeTrailer + ": " + top}
 	if head != "" {
 		args = append(args, "-p", head)
 	}
@@ -37,7 +54,7 @@ func checkpoint(ctx context.Context, root, session string, turn int) (string, er
 	if err != nil {
 		return "", err
 	}
-	if _, err := gitOutput(ctx, root, nil, "update-ref", checkpointRefs+session+"/"+strconv.Itoa(turn), sha); err != nil {
+	if _, err := gitOutput(ctx, root, nil, "update-ref", ref, sha); err != nil {
 		return "", err
 	}
 	return sha, nil

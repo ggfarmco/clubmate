@@ -172,6 +172,63 @@
         }
       },
       {
+        "id": "agents.trace",
+        "title": "Agent Trace",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Agent Trace (agent-trace.dev, version 0.1) records for a commit or a range: per changed file, the changed lines grouped by who wrote them. Lines written during an agent turn are contributor ai with url clubmate://session/<id>#turn=<n>; lines changed outside agent turns are human; lines Clubmate cannot place (a turn still running or one from before end-of-turn snapshots, several turns at once, or a commit with no Clubmate history) are unknown. Built from the turn checkpoints refs/clubmate/cp/<session>/<turn> and <turn>.end of the commit's worktree and the commit's note in refs/notes/clubmate. Merge commits are skipped. Returns {records:[{version, id, timestamp, vcs:{type, revision}, tool:{name, version}, files:[{path, conversations:[{url?, contributor:{type}, ranges:[{start_line, end_line}]}]}]}]}. Non-destructive.",
+        "args": {
+          "properties": {
+            "rev": {"type": "string", "description": "A commit, or a range with .. (at most 200 commits, oldest first); defaults to HEAD."},
+            "cwd": {"type": "string", "description": "Absolute directory inside the repository; defaults to the calling agent session's worktree."}
+          }
+        }
+      },
+      {
+        "id": "agents.export",
+        "title": "Export Agent Session",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Write a session bundle into a new directory: session.json (the session record), log.jsonl (Clubmate's log of the session) and refs.bundle (a git bundle of the session's checkpoint refs and the notes of the commits its turns made, without commits already on a branch, remote or tag). Fails while a turn is running or when dir exists. Import it with agents.import. Returns {dir}.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "dir": {"type": "string", "description": "Absolute path of the directory to create."}
+          },
+          "required": ["session", "dir"]
+        },
+        "result": {
+          "properties": {
+            "dir": {"type": "string", "description": "The bundle directory."}
+          }
+        }
+      },
+      {
+        "id": "agents.import",
+        "title": "Import Agent Session",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Continue an exported session (agents.export) in this workspace: fetches its checkpoint refs and notes into the repository, adds a closed copy of the session with its transcript (importedFrom: the original id), and starts a new session (like agents.new: the caller's worktree, or a new worktree with branch) whose first prompt is a handoff brief of the copy followed by note. The copy and the new session link to each other (handoffTo, handoffFrom). Returns {session, imported, worktree}.",
+        "args": {
+          "properties": {
+            "dir": {"type": "string", "description": "Absolute path of the bundle directory."},
+            "branch": {"type": "string", "description": "Continue in a new worktree .worktrees/<branch>."},
+            "note": {"type": "string", "description": "What the new session should do next; defaults to picking up where the old one left off."}
+          },
+          "required": ["dir"]
+        },
+        "result": {
+          "properties": {
+            "session": {"type": "string", "description": "The new session's id."},
+            "imported": {"type": "string", "description": "The closed copy's id."},
+            "worktree": {"type": "string", "description": "The new session's worktree."}
+          }
+        }
+      },
+      {
         "id": "agents.close",
         "title": "Close Agent Session",
         "hidden": true,

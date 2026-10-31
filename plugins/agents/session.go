@@ -69,6 +69,7 @@ type record struct {
 	Fork           string    `json:"fork,omitempty"`
 	HandoffFrom    string    `json:"handoffFrom,omitempty"`
 	HandoffTo      string    `json:"handoffTo,omitempty"`
+	ImportedFrom   string    `json:"importedFrom,omitempty"`
 	Title          string    `json:"title"`
 	TitleSet       bool      `json:"titleSet,omitempty"`
 	Status         string    `json:"status"`

@@ -407,6 +407,34 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return s.view(args.FromTurn), nil
 	case "agents.blame":
 		return a.blameCommand(ctx, cmd)
+	case "agents.trace":
+		return a.traceCommand(ctx, cmd)
+	case "agents.export":
+		var args exportArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		s, err := a.lookup(cmd.ProjectID, args.Session)
+		if err != nil {
+			return nil, err
+		}
+		return exportResult{Dir: args.Dir}, a.export(ctx, s, args.Dir)
+	case "agents.import":
+		var args importArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		res, err := a.importSession(ctx, h, cmd.ProjectID, origin(cmd), args)
+		if err != nil {
+			return nil, err
+		}
+		if !cmd.Agent {
+			if err := a.selectSession(ctx, cmd.ProjectID, res.Session); err != nil {
+				return nil, err
+			}
+		}
+		a.kick(cmd.ProjectID)
+		return res, nil
 	case "agents.handoff":
 		var args handoffArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -497,14 +525,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from
 	if agent != agentClaude {
 		return newResult{}, fmt.Errorf("%w: %s", errUnknownAgent, agent)
 	}
-	p, err := h.GetProject(ctx, projectID)
-	if err != nil {
-		return newResult{}, err
-	}
-	if p.Home {
-		return newResult{}, errHome
-	}
-	root, _, err := workRoot(p)
+	p, root, err := projectRoot(ctx, h, projectID)
 	if err != nil {
 		return newResult{}, err
 	}
@@ -530,6 +551,18 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from
 		return newResult{}, err
 	}
 	return newResult{Session: s.rec.ID, Worktree: root, parent: rec.ParentSession}, nil
+}
+
+func projectRoot(ctx context.Context, h *pluginsdk.Host, projectID string) (pluginsdk.Project, string, error) {
+	p, err := h.GetProject(ctx, projectID)
+	if err != nil {
+		return pluginsdk.Project{}, "", err
+	}
+	if p.Home {
+		return pluginsdk.Project{}, "", errHome
+	}
+	root, _, err := workRoot(p)
+	return p, root, err
 }
 
 func (a *app) spawn(rec record, first promptArgs, ready *setup) (*session, error) {
@@ -1067,6 +1100,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		go p.stop()
 		return
 	}
+	a.endSnapshot(s, rec, turn, sha)
 	commits := a.attributeTurn(rec, turn, sha, args.Text)
 	s.mu.Lock()
 	s.log.flush()

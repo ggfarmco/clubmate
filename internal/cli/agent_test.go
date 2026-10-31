@@ -38,6 +38,9 @@ func TestAgentSubcommandsRunAgentsCommands(t *testing.T) {
 		"cancel":       {[]string{"cancel", "agt_1"}, map[string]any{"session": "agt_1"}},
 		"blame file":   {[]string{"blame", "agent.go", "-L", "2,5"}, map[string]any{"cwd": cwd, "path": filepath.Join(cwd, "agent.go"), "startLine": 2.0, "endLine": 5.0}},
 		"blame commit": {[]string{"blame", "HEAD~1"}, map[string]any{"cwd": cwd, "commit": "HEAD~1"}},
+		"trace range":  {[]string{"trace", "main..HEAD"}, map[string]any{"cwd": cwd, "rev": "main..HEAD"}},
+		"export":       {[]string{"export", "agt_1"}, map[string]any{"session": "agt_1", "dir": filepath.Join(cwd, "agt_1.clubmate-session")}},
+		"import":       {[]string{"import", "b", "--branch", "x"}, map[string]any{"dir": filepath.Join(cwd, "b"), "branch": "x"}},
 	}
 	for name, tc := range tests {
 		var out struct {
