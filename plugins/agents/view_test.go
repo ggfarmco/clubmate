@@ -78,7 +78,11 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 	assert.True(t, closed.Expanded)
 	require.Len(t, closed.Children, 1)
 	assert.Equal(t, "agt_2", closed.Children[0].ID)
-	assert.Len(t, closed.Children[0].Menu, 1)
+	var actions []string
+	for _, m := range closed.Children[0].Menu {
+		actions = append(actions, m.Action)
+	}
+	assert.Equal(t, []string{actHandoff, actDelete}, actions)
 }
 
 func TestSidebarNeedsSelectionFallsBackWhenAnswered(t *testing.T) {

@@ -62,6 +62,8 @@ type record struct {
 	ParentSession  string    `json:"parentSession,omitempty"`
 	Advisor        string    `json:"advisor,omitempty"`
 	Fork           string    `json:"fork,omitempty"`
+	HandoffFrom    string    `json:"handoffFrom,omitempty"`
+	HandoffTo      string    `json:"handoffTo,omitempty"`
 	Title          string    `json:"title"`
 	TitleSet       bool      `json:"titleSet,omitempty"`
 	Status         string    `json:"status"`

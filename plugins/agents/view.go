@@ -53,6 +53,10 @@ const (
 	actUnqueue         = "unqueue"
 	actSendQueued      = "sendQueued"
 	actSelectParent    = "selectParent"
+	actHandoff         = "handoff"
+	actOpenHandoff     = "openHandoff"
+	handoffFromNode    = "handoffFrom"
+	handoffToNode      = "handoffTo"
 
 	groupPrefix    = "wt:"
 	expandPrefix   = "s:"
@@ -316,6 +320,9 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	if !rec.Closed {
 		menu = slices.Insert(menu, 0, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
 	}
+	if !turnActive(rec) && rec.HandoffTo == "" {
+		menu = slices.Insert(menu, 0, sdui.MenuEntry{Action: actHandoff, Label: "Hand Off to New Session"})
+	}
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
@@ -388,6 +395,11 @@ func mainView(sc screen) sdui.Node {
 		return sdui.VStack(children...)
 	}
 	children = append(children, transcript(sc))
+	if rec.Closed && rec.HandoffTo != "" {
+		next := sdui.WithAction(sdui.Button(sid+"/"+handoffToNode, "Open new session", "arrow.turn.down.right"), actOpenHandoff)
+		children = append(children, sdui.HStack(sdui.MutedText("The session was handed off to a new session."), next))
+		return sdui.VStack(children...)
+	}
 	if rec.Closed {
 		reopen := sdui.WithAction(sdui.Button(sid+"/reopen", "Reopen", "arrow.clockwise"), actRetry)
 		if sc.Continue {
@@ -444,6 +456,9 @@ func header(sc screen) sdui.Node {
 	if sc.Parent != "" {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
 	}
+	if rec.HandoffFrom != "" {
+		row = append(row, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
+	}
 	if sc.Changes {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
 	}
@@ -467,7 +482,7 @@ func header(sc screen) sdui.Node {
 }
 
 func continueButton(sid string) sdui.Node {
-	return sdui.WithAction(sdui.Button(sid+"/continue", "Continue in a new session", "arrow.turn.down.right"), actContinue)
+	return sdui.WithAction(sdui.Button(sid+"/continue", "Hand off to a new session", "arrow.turn.down.right"), actContinue)
 }
 
 func transcript(sc screen) sdui.Node {

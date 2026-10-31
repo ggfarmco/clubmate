@@ -40,6 +40,8 @@ type record struct {
 	AgentSessionID string   `json:"agentSessionId"`
 	Title          string   `json:"title"`
 	ParentSession  string   `json:"parentSession"`
+	HandoffFrom    string   `json:"handoffFrom"`
+	HandoffTo      string   `json:"handoffTo"`
 	Advisor        string   `json:"advisor"`
 	Status         string   `json:"status"`
 	Mode           string   `json:"mode"`
@@ -215,7 +217,10 @@ func (f *fixture) calls(t *testing.T, method string) []fakeCall {
 	}
 	require.NoError(t, err)
 	var out []fakeCall
-	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.Lines(string(data)) {
+		if !strings.HasSuffix(line, "\n") {
+			break
+		}
 		var c fakeCall
 		require.NoError(t, json.Unmarshal([]byte(line), &c))
 		if c.Method == method {
@@ -1021,7 +1026,7 @@ func TestBackgroundSessionKeepsMainUnrendered(t *testing.T) {
 	assert.Greater(t, f.rev(t, project, "agents.sidebar"), sidebar)
 }
 
-func TestContinueInNewSession(t *testing.T) {
+func TestContinueHandsOff(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{})
 	project := f.project(t, repo)
@@ -1043,7 +1048,31 @@ func TestContinueInNewSession(t *testing.T) {
 	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool {
 		return len(cardsOf(n, "transcript")) == 1 && cardsOf(n, "transcript")[0].ID == fresh.ID+"/transcript"
 	})
-	assert.True(t, f.session(t, project, old).Closed)
+	assert.Equal(t, old, fresh.HandoffFrom)
+	assert.Equal(t, fresh.ID, f.session(t, project, old).HandoffTo)
+}
+
+func TestHandoff(t *testing.T) {
+	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 800}, reply}})
+	project := f.project(t, newRepo(t))
+	old := f.newSession(t, project)
+	f.prompt(t, project, old, "fix refunds")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+
+	args := map[string]any{"session": old, "note": "finish it"}
+	require.ErrorContains(t, f.run(t, project, "agents.handoff", args, nil), "stop the session's running turn before handing it off")
+	f.waitStatus(t, project, old, "done")
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, project, "agents.handoff", args, &out))
+
+	assert.Equal(t, old, f.session(t, project, out.Session).HandoffFrom)
+	closed := f.waitStatus(t, project, old, "closed")
+	assert.Equal(t, out.Session, closed.HandoffTo)
+	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.HasSuffix(promptText(t, c), "finish it") })
+	assert.Contains(t, promptText(t, sent), "Last reply (turn 1):\nhalf done")
 }
 
 func promptText(t *testing.T, c fakeCall) string {

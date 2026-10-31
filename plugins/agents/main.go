@@ -368,6 +368,28 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return s.view(args.FromTurn), nil
+	case "agents.handoff":
+		var args handoffArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		s, err := a.lookup(cmd.ProjectID, args.Session)
+		if err != nil {
+			return nil, err
+		}
+		if cmd.Agent && !a.descendantOf(args.Session, cmd.Caller) {
+			return nil, errNotDescendant
+		}
+		next, err := a.handoff(ctx, s, args, origin(cmd))
+		if err != nil {
+			return nil, err
+		}
+		if !cmd.Agent {
+			if err := a.selectSession(ctx, cmd.ProjectID, next.snapshot().ID); err != nil {
+				return nil, err
+			}
+		}
+		return handoffResult{Session: next.snapshot().ID}, nil
 	}
 	var args sessionArgs
 	if err := decode(cmd.Args, &args); err != nil {
@@ -472,14 +494,26 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from
 func (a *app) spawn(rec record, first promptArgs, ready *setup) (*session, error) {
 	a.spawnMu.Lock()
 	defer a.spawnMu.Unlock()
-	if rec.ParentSession != "" {
-		if parent := a.session(rec.ParentSession); parent == nil || parent.snapshot().Closed {
-			return nil, errClosed
-		}
-		if a.runningChildren(rec.ParentSession) >= maxChildren {
-			return nil, errChildLimit
-		}
+	if err := a.canSpawnLocked(rec.ParentSession); err != nil {
+		return nil, err
 	}
+	return a.launch(rec, first, ready)
+}
+
+func (a *app) canSpawnLocked(parent string) error {
+	if parent == "" {
+		return nil
+	}
+	if p := a.session(parent); p == nil || p.snapshot().Closed {
+		return errClosed
+	}
+	if a.runningChildren(parent) >= maxChildren {
+		return errChildLimit
+	}
+	return nil
+}
+
+func (a *app) launch(rec record, first promptArgs, ready *setup) (*session, error) {
 	s := a.createSession(rec, ready)
 	if first.Text == "" {
 		return s, nil

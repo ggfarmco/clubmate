@@ -421,6 +421,12 @@ func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n 
 
 func (a *app) screen(projectID string, s *session) screen {
 	v := s.view(0)
+	if a.session(v.Session.HandoffFrom) == nil {
+		v.Session.HandoffFrom = ""
+	}
+	if a.session(v.Session.HandoffTo) == nil {
+		v.Session.HandoffTo = ""
+	}
 	queue := s.queued()
 	pending := s.pendingIDs()
 	detached := s.detached()
@@ -631,7 +637,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			key = wt
 		}
 		return a.setCollapsed(ctx, ev.ProjectID, map[string]bool{key: ev.Action == actCollapse})
-	case actClose, actDelete:
+	case actClose, actDelete, actHandoff:
 		var id string
 		if err := json.Unmarshal(ev.Value, &id); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
@@ -640,8 +646,11 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if err != nil {
 			return err
 		}
-		if ev.Action == actDelete {
+		switch ev.Action {
+		case actDelete:
 			return a.deleteTree(ctx, s)
+		case actHandoff:
+			return a.handoffAndSelect(ctx, ev.ProjectID, s)
 		}
 		a.closeTree(ctx, s)
 		return nil
@@ -750,9 +759,17 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		a.resume(s)
 		return nil
 	case actContinue:
+		return a.handoffAndSelect(ctx, ev.ProjectID, s)
+	case actOpenHandoff:
 		rec := s.snapshot()
-		next := a.createSession(record{Workspace: ev.ProjectID, Worktree: rec.Worktree, Agent: rec.Agent, ParentSession: rec.ParentSession, Advisor: rec.Advisor, Fork: rec.Fork}, nil)
-		return a.selectSession(ctx, ev.ProjectID, next.rec.ID)
+		target := rec.HandoffTo
+		if node == handoffFromNode {
+			target = rec.HandoffFrom
+		}
+		if a.session(target) == nil {
+			return nil
+		}
+		return a.selectSession(ctx, ev.ProjectID, target)
 	case actSignIn:
 		return a.signIn(ctx, ev.ProjectID, s, st)
 	case actUnqueue:
@@ -766,6 +783,14 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.submit(s, nil)
 	}
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+}
+
+func (a *app) handoffAndSelect(ctx context.Context, projectID string, s *session) error {
+	next, err := a.handoff(ctx, s, handoffArgs{}, "")
+	if err != nil {
+		return err
+	}
+	return a.selectSession(ctx, projectID, next.snapshot().ID)
 }
 
 func (a *app) addAttachment(st *sessionUI, att attachment) {

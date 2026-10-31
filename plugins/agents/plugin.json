@@ -135,6 +135,26 @@
         }
       },
       {
+        "id": "agents.handoff",
+        "title": "Hand Off Agent Session",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Continue a session that is not running in a new session: same worktree, agent, parent and advisor, first prompt a brief built from Clubmate's log (the task, the last prompt, the last reply, the last turn's stop reason and checkpoint, and how to read the full transcript) followed by note. The old session is closed (it can be reopened) and both link to each other (handoffTo, handoffFrom). Fails while a turn is running. Agents may hand off only sessions they started (directly or through their children). Returns {session}.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id to hand off."},
+            "note": {"type": "string", "description": "What the new session should do next; defaults to picking up where the old one left off."}
+          },
+          "required": ["session"]
+        },
+        "result": {
+          "properties": {
+            "session": {"type": "string", "description": "The new session's id."}
+          }
+        }
+      },
+      {
         "id": "agents.close",
         "title": "Close Agent Session",
         "hidden": true,
