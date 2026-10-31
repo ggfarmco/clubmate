@@ -350,7 +350,8 @@ final class AppModel {
         let window = keyWindowID.flatMap { hosts.object(forKey: $0 as NSString) } ?? layout.windows.lazy.compactMap { self.hosts.object(forKey: $0.id as NSString) }.first
         let attention = NSApp.requestUserAttention(.criticalRequest)
         defer { NSApp.cancelUserAttentionRequest(attention) }
-        return await Confirmation.ask(request.message, detail: request.detail, action: "Allow", cancel: "Deny", destructive: true, window: window, expiry: expiry)
+        let font = GhosttyApp.shared.theme.nsFont(size: settings.interfaceFontSize, bold: false)
+        return await Confirmation.ask(request, font: font, window: window, expiry: expiry)
     }
 
     private func restoreWindows(_ listed: [Project]) {

@@ -23,6 +23,8 @@ type confirmRequest struct {
 	Workspace string          `json:"workspace"`
 	Command   string          `json:"command"`
 	Args      json.RawMessage `json:"args"`
+	Body      string          `json:"body"`
+	Plugin    bool            `json:"plugin"`
 	TimeoutMs int64           `json:"timeoutMs"`
 	Session   *struct {
 		ID        string `json:"id"`
@@ -289,15 +291,16 @@ func TestAppScopeCommandRunsWithoutProject(t *testing.T) {
 
 func TestPluginApprove(t *testing.T) {
 	h, p := startAlpha(t, `{"id":"alpha.x","title":"X"}`)
-	approve := func(command string) error {
-		return h.PluginCall(t, "alpha", "ui.approve", map[string]any{"projectId": p.ID, "title": "Run setup", "command": command, "args": map[string]string{"sha256": "abc"}})
+	approve := func(command, body string) error {
+		return h.PluginCall(t, "alpha", "ui.approve", map[string]any{"projectId": p.ID, "title": "Run setup", "command": command, "args": map[string]string{"sha256": "abc"}, "body": body})
 	}
-	assert.ErrorContains(t, approve("beta.run"), "want a alpha. command")
+	assert.ErrorContains(t, approve("beta.run", ""), "want a alpha. command")
+	assert.ErrorContains(t, approve("alpha.run", strings.Repeat("x", 64<<10+1)), "body: longer than 65536 characters")
 	a := newApprover(t, h)
 	done := make(chan error, 1)
-	go func() { done <- approve("alpha.run") }()
+	go func() { done <- approve("alpha.run", "echo hi\n") }()
 	asked := <-a.asked
-	assert.Equal(t, [3]string{"Run setup", "demo", "alpha.run"}, [3]string{asked.Title, asked.Workspace, asked.Command})
+	assert.Equal(t, confirmRequest{Title: "Run setup", Workspace: "demo", Command: "alpha.run", Args: asked.Args, Body: "echo hi\n", Plugin: true, TimeoutMs: 60000}, asked)
 	assert.JSONEq(t, `{"sha256":"abc"}`, string(asked.Args))
 	a.reply <- true
 	require.NoError(t, <-done)

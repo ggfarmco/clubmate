@@ -20,6 +20,7 @@ const (
 	approvalTimeout   = 60 * time.Second
 	approvalMaxFields = 10
 	approvalMaxValue  = 200
+	approvalMaxBody   = 64 << 10
 	approvalMaxInt    = 1 << 53
 
 	callUIConfirm = "ui.confirm"
@@ -39,6 +40,8 @@ type confirmParams struct {
 	Workspace string          `json:"workspace"`
 	Command   string          `json:"command"`
 	Args      json.RawMessage `json:"args"`
+	Body      string          `json:"body,omitempty"`
+	Plugin    bool            `json:"plugin,omitempty"`
 	TimeoutMs int64           `json:"timeoutMs"`
 	Session   *confirmSession `json:"session,omitempty"`
 }
@@ -67,6 +70,7 @@ type approveParams struct {
 	Title     string            `json:"title"`
 	Command   string            `json:"command"`
 	Args      map[string]string `json:"args"`
+	Body      string            `json:"body"`
 }
 
 func (s *Server) uiApprove(ctx context.Context, p approveParams) (empty, error) {
@@ -88,6 +92,9 @@ func (s *Server) uiApprove(ctx context.Context, p approveParams) (empty, error) 
 			return empty{}, invalidParams(fmt.Sprintf("args.%s: longer than %d characters", name, approvalMaxValue))
 		}
 	}
+	if utf8.RuneCountInString(p.Body) > approvalMaxBody {
+		return empty{}, invalidParams(fmt.Sprintf("body: longer than %d characters", approvalMaxBody))
+	}
 	workspace, err := s.workspaceName(ctx, p.ProjectID)
 	if err != nil {
 		return empty{}, err
@@ -96,7 +103,7 @@ func (s *Server) uiApprove(ctx context.Context, p approveParams) (empty, error) 
 	if err != nil {
 		return empty{}, err
 	}
-	return empty{}, s.confirm(ctx, p.ProjectID, confirmParams{Title: p.Title, Workspace: workspace, Command: p.Command, Args: args})
+	return empty{}, s.confirm(ctx, p.ProjectID, confirmParams{Title: p.Title, Workspace: workspace, Command: p.Command, Args: args, Body: p.Body, Plugin: true})
 }
 
 func (s *Server) workspaceName(ctx context.Context, projectID string) (string, error) {

@@ -2,6 +2,7 @@ import Foundation
 
 public struct ConfirmRequest: Decodable, Sendable, Equatable {
     static let textLimit = 200
+    static let bodyLimit = 64 << 10
     static let fieldLimit = 10
     static let tooLong = "args too long to display"
     static let timedOut = "approval timed out"
@@ -11,14 +12,18 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
     public let workspace: String
     public let command: String
     public let args: JSONValue
+    public let body: String?
+    public let plugin: Bool?
     public let timeoutMs: Int?
     public let session: ConfirmSession?
 
-    public init(title: String, workspace: String, command: String, args: JSONValue, timeoutMs: Int? = nil, session: ConfirmSession? = nil) {
+    public init(title: String, workspace: String, command: String, args: JSONValue, body: String? = nil, plugin: Bool? = nil, timeoutMs: Int? = nil, session: ConfirmSession? = nil) {
         self.title = title
         self.workspace = workspace
         self.command = command
         self.args = args
+        self.body = body
+        self.plugin = plugin
         self.timeoutMs = timeoutMs
         self.session = session
     }
@@ -29,6 +34,7 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
 
     public var message: String {
         let title = Self.capped(title)
+        if plugin == true { return "\(title)?" }
         return "Allow agent to \(title.prefix(1).lowercased() + title.dropFirst())?"
     }
 
@@ -50,7 +56,12 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         return lines.joined(separator: "\n")
     }
 
+    public var displayBody: String? {
+        body.map { Self.clean($0, lines: true) }
+    }
+
     public var fitsDisplay: Bool {
+        guard (body?.unicodeScalars.count ?? 0) <= Self.bodyLimit else { return false }
         guard let fields = args.objectValue else { return true }
         return fields.count <= Self.fieldLimit && fields.values.allSatisfy { Self.rendered($0).count <= Self.textLimit }
     }
@@ -76,10 +87,11 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
         return out.count > textLimit ? String(out.prefix(textLimit)) + "…" : out
     }
 
-    static func clean(_ text: String) -> String {
+    static func clean(_ text: String, lines: Bool = false) -> String {
         var out = ""
         for scalar in text.unicodeScalars {
             switch scalar {
+            case "\n" where lines, "\t" where lines: out.unicodeScalars.append(scalar)
             case "\n": out += "\\n"
             case "\r": out += "\\r"
             case "\t": out += "\\t"

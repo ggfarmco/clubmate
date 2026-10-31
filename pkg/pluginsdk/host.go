@@ -233,8 +233,8 @@ func (h *Host) Render(ctx context.Context, projectID, slot string, n sdui.Node) 
 	return out.Rev, err
 }
 
-func (h *Host) Approve(ctx context.Context, projectID, title, command string, args map[string]string) error {
-	return h.Call(ctx, "ui.approve", approveParams{ProjectID: projectID, Title: title, Command: command, Args: args}, nil)
+func (h *Host) Approve(ctx context.Context, projectID, title, command string, args map[string]string, body string) error {
+	return h.Call(ctx, "ui.approve", approveParams{ProjectID: projectID, Title: title, Command: command, Args: args, Body: body}, nil)
 }
 
 func (h *Host) StorageGet(ctx context.Context, key string, out any) (bool, error) {
@@ -332,6 +332,7 @@ type approveParams struct {
 	Title     string            `json:"title"`
 	Command   string            `json:"command"`
 	Args      map[string]string `json:"args"`
+	Body      string            `json:"body,omitempty"`
 }
 
 type projectParams struct {

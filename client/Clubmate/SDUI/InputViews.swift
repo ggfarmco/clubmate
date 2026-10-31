@@ -45,10 +45,17 @@ struct ButtonNodeView: View {
 
 @MainActor
 enum Confirmation {
-    static func ask(_ message: String, detail: String = "", action: String, cancel: String = "Cancel", destructive: Bool = false, window: NSWindow? = nil, expiry: ConfirmExpiry? = nil) async -> Bool {
+    private static let bodySize = NSSize(width: 560, height: 300)
+
+    static func ask(_ request: ConfirmRequest, font: NSFont, window: NSWindow?, expiry: ConfirmExpiry?) async -> Bool {
+        await ask(request.message, detail: request.detail, body: request.displayBody, font: font, action: "Allow", cancel: "Deny", destructive: true, window: window, expiry: expiry)
+    }
+
+    static func ask(_ message: String, detail: String = "", body: String? = nil, font: NSFont = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular), action: String, cancel: String = "Cancel", destructive: Bool = false, window: NSWindow? = nil, expiry: ConfirmExpiry? = nil) async -> Bool {
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail
+        if let body { alert.accessoryView = bodyView(body, font: font) }
         let confirm = alert.addButton(withTitle: action)
         let dismiss = alert.addButton(withTitle: cancel)
         if destructive {
@@ -71,6 +78,26 @@ enum Confirmation {
         }
         expiry?.onExpire { [weak window] in window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn) }
         return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
+    }
+
+    private static func bodyView(_ text: String, font: NSFont) -> NSView {
+        let scroll = NSScrollView(frame: NSRect(origin: .zero, size: bodySize))
+        scroll.borderType = .bezelBorder
+        scroll.hasVerticalScroller = true
+        let view = NSTextView(usingTextLayoutManager: false)
+        view.frame = NSRect(origin: .zero, size: scroll.contentSize)
+        view.autoresizingMask = .width
+        view.isEditable = false
+        view.isSelectable = false
+        view.isRichText = false
+        view.font = font
+        view.minSize = NSSize(width: 0, height: scroll.contentSize.height)
+        view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        view.isVerticallyResizable = true
+        view.textContainer?.widthTracksTextView = true
+        scroll.documentView = view
+        view.string = text
+        return scroll
     }
 }
 

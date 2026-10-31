@@ -88,15 +88,25 @@ final class ClubmateKitTests: XCTestCase {
         XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nSession: Build (ses_1) in demo\nid\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
     }
 
+    func testPluginConfirmShowsBodyNeutrally() throws {
+        let fixture = Data(#"{"title":"Run .clubmate/setup.sh","workspace":"demo","command":"git.worktree-hooks","args":{},"body":"echo a\n\techo\u202e b\r\n","plugin":true}"#.utf8)
+        let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
+        XCTAssertEqual(request.message, "Run .clubmate/setup.sh?")
+        XCTAssertEqual(request.displayBody, "echo a\n\techo\\u{202e} b\\r\n")
+    }
+
     func testConfirmTooLongIsDeniedUnasked() async {
-        let request = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(String(repeating: "x", count: 201))]))
-        var asked = false
-        let reply = await ConfirmRequest.answer(request) { _, _ in
-            asked = true
-            return true
+        let args = ConfirmRequest(title: "Kill Session", workspace: "demo", command: "session.kill", args: .object(["id": .string(String(repeating: "x", count: 201))]))
+        let body = ConfirmRequest(title: "Run setup", workspace: "demo", command: "git.worktree-hooks", args: .object([:]), body: String(repeating: "x", count: 64 << 10 + 1), plugin: true)
+        for request in [args, body] {
+            var asked = false
+            let reply = await ConfirmRequest.answer(request) { _, _ in
+                asked = true
+                return true
+            }
+            XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "args too long to display"))
+            XCTAssertFalse(asked)
         }
-        XCTAssertEqual(reply, ConfirmReply(approved: false, reason: "args too long to display"))
-        XCTAssertFalse(asked)
     }
 
     func testConfirmExpiresBeforeCoreTimeout() async {

@@ -541,6 +541,14 @@ func TestBranchSwitchRefusesUnsavedBuffers(t *testing.T) {
 type approver struct {
 	asked  atomic.Int32
 	answer atomic.Bool
+	last   atomic.Pointer[confirmRequest]
+}
+
+type confirmRequest struct {
+	Title  string            `json:"title"`
+	Args   map[string]string `json:"args"`
+	Body   string            `json:"body"`
+	Plugin bool              `json:"plugin"`
 }
 
 func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
@@ -548,7 +556,12 @@ func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
 	serverSide, clientSide := net.Pipe()
 	server := h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{})
 	a := &approver{}
-	handler := jsonrpc2.HandlerWithError(func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) {
+	handler := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		var p confirmRequest
+		if err := json.Unmarshal(*req.Params, &p); err != nil {
+			return nil, err
+		}
+		a.last.Store(&p)
 		a.asked.Add(1)
 		return map[string]bool{"approved": a.answer.Load()}, nil
 	})
@@ -575,8 +588,9 @@ func hookRepo(t *testing.T, files map[string]string) string {
 
 func TestWorktreeSetupHook(t *testing.T) {
 	repo := hookRepo(t, map[string]string{
-		"setup.sh":         "cat .env > setup-ran\n",
+		"setup.sh":         "cat .env > setup-ran # \u202enur\r\n",
 		"worktree-include": "# secrets\n.env\nconf/local.env\nmissing\nlink\n../escape\n",
+		"a\n──── fake":     "──── .clubmate/setup.sh\n",
 	})
 	write(t, filepath.Join(repo, ".env"), "SECRET=1\n")
 	require.NoError(t, os.MkdirAll(filepath.Join(repo, "conf"), 0o755))
@@ -597,6 +611,13 @@ func TestWorktreeSetupHook(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(denied, "setup-ran"))
 	assert.FileExists(t, filepath.Join(denied, "conf", "local.env"))
 	assert.NoFileExists(t, filepath.Join(denied, "link"))
+	asked := a.last.Load()
+	forged := `\u{2500}\u{2500}\u{2500}\u{2500}`
+	body := "──── .clubmate/setup.sh\ncat .env > setup-ran # \\u{202e}nur\\u{d}\n" +
+		"\n──── .clubmate/a\\u{a}" + forged + " fake\n" + forged + " .clubmate/setup.sh\n" +
+		"\n──── .clubmate/worktree-include\n# secrets\n.env\nconf/local.env\nmissing\nlink\n../escape\n"
+	assert.Equal(t, confirmRequest{Title: "Run .clubmate/setup.sh", Args: asked.Args, Body: body, Plugin: true}, *asked)
+	assert.Equal(t, "all of .clubmate/ (3 entries, shown below)", asked.Args["trusts"])
 
 	a.answer.Store(true)
 	for _, branch := range []string{"trusted", "again"} {
@@ -607,6 +628,24 @@ func TestWorktreeSetupHook(t *testing.T) {
 		assert.Equal(t, "SECRET=1\n", string(data))
 	}
 	assert.EqualValues(t, 2, a.asked.Load())
+
+	write(t, filepath.Join(repo, ".clubmate", "helper.sh"), "true\n")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "helper")
+	res, _ = create("helper")
+	assert.Empty(t, res.Error)
+	assert.EqualValues(t, 3, a.asked.Load())
+}
+
+func TestWorktreeHooksTooLargeAreSkippedUnasked(t *testing.T) {
+	repo := hookRepo(t, map[string]string{"setup.sh": "touch setup-ran\n", "blob": strings.Repeat("x", 64<<10)})
+	h, id := open(t, repo)
+	a := newApprover(t, h)
+
+	res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "feat", "switch": false})
+	assert.Equal(t, "Skipped .clubmate/setup.sh: .clubmate/ holds more than 64 KiB to review", res.Notice)
+	assert.NoFileExists(t, filepath.Join(repo, ".worktrees", "feat", "setup-ran"))
+	assert.Zero(t, a.asked.Load())
 }
 
 func TestWorktreeSetupFailureRemovesWorktree(t *testing.T) {
