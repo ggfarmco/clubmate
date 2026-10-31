@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,9 @@ const (
 
 	baseInstructions = "Tools drive the Clubmate app: workspaces, sessions (terminals), the editor and plugin actions. Destructive tools wait for the user's approval in the app."
 )
+
+//go:embed clubmate.md
+var guide string
 
 var (
 	ErrNoCore = errors.New("Clubmate isn't running")
@@ -184,10 +188,11 @@ func (s *Server) handle(ctx context.Context, line []byte) {
 }
 
 func (s *Server) instructions() string {
-	if _, err := os.Stat(s.NvimGuide); s.NvimGuide == "" || err != nil {
-		return baseInstructions
+	text := baseInstructions
+	if _, err := os.Stat(s.NvimGuide); s.NvimGuide != "" && err == nil {
+		text += " To customise Clubmate's Neovim, read " + s.NvimGuide + " first."
 	}
-	return baseInstructions + " To customise Clubmate's Neovim, read " + s.NvimGuide + " first."
+	return text + "\n\n" + guide
 }
 
 func (s *Server) dispatch(ctx context.Context, req request) (any, error) {

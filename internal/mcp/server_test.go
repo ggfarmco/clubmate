@@ -225,6 +225,10 @@ func TestInstructionsPointAtNvimGuide(t *testing.T) {
 	assert.Contains(t, instructions(t, guide), "To customise Clubmate's Neovim, read "+guide+" first.")
 }
 
+func TestInstructionsAskToParallelize(t *testing.T) {
+	assert.Contains(t, instructions(t, ""), "`agents_new` with a `branch`")
+}
+
 func TestInstructionsWithoutGuide(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "SKILL.md")
 	assert.Equal(t, instructions(t, ""), instructions(t, missing))
