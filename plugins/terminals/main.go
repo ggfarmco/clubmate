@@ -90,7 +90,7 @@ func (a *app) refresh(ctx context.Context, h *pluginsdk.Host) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, workspaceID := range a.polled() {
-		if err := a.render(ctx, h, workspaceID); err != nil && ctx.Err() == nil {
+		if err := a.renderChanged(ctx, h, workspaceID, true); err != nil && ctx.Err() == nil {
 			fmt.Fprintln(os.Stderr, "terminals: refresh:", err)
 		}
 	}
@@ -319,6 +319,10 @@ func (a *app) spawn(ctx context.Context, h *pluginsdk.Host, workspaceID, title, 
 }
 
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, workspaceID string) error {
+	return a.renderChanged(ctx, h, workspaceID, false)
+}
+
+func (a *app) renderChanged(ctx context.Context, h *pluginsdk.Host, workspaceID string, changedOnly bool) error {
 	sessions, err := h.ListSessions(ctx, workspaceID, true)
 	if err != nil {
 		return err
@@ -345,7 +349,7 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, workspaceID string)
 		}
 	}
 	running := slices.ContainsFunc(terminals, func(t terminal) bool { return t.State == contract.SessionStateRunning })
-	return a.show(ctx, h, workspaceID, views{sidebar: sidebarView(terminals, selected, time.Now()), main: mainView(terminals, selected), running: running})
+	return a.show(ctx, h, workspaceID, views{sidebar: sidebarView(terminals, selected, time.Now()), main: mainView(terminals, selected), running: running}, changedOnly)
 }
 
 func (a *app) unseenBell(ctx context.Context, h *pluginsdk.Host, s pluginsdk.Session, selected bool) (bool, error) {
@@ -369,8 +373,9 @@ func (a *app) unseenBell(ctx context.Context, h *pluginsdk.Host, s pluginsdk.Ses
 	return false, h.StorageSet(ctx, bellKey(s.ID), *s.BellAt)
 }
 
-func (a *app) show(ctx context.Context, h *pluginsdk.Host, workspaceID string, v views) error {
+func (a *app) show(ctx context.Context, h *pluginsdk.Host, workspaceID string, v views, changedOnly bool) error {
 	last, ok := a.rendered[workspaceID]
+	ok = ok && changedOnly
 	if !ok || !reflect.DeepEqual(last.sidebar, v.sidebar) {
 		if _, err := h.Render(ctx, workspaceID, sidebarSlot, v.sidebar); err != nil {
 			return err
