@@ -12,8 +12,8 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌘W | Close terminal session, or the window when no terminal is focused | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⇧⌘W | Close Session | `ClubmateApp.swift` |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
-| ⌘B, ⌃⌘S | Toggle Sidebar; in Code, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceWindow.swift` |
-| ⌘= (⌘+), ⌘-, ⌘0 | Terminal font size up, down, reset | `ClubmateApp.swift`, `WorkspaceWindow.swift` |
+| ⌘B, ⌃⌘S | Toggle Sidebar; in Code, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
+| ⌘= (⌘+), ⌘-, ⌘0 | Terminal font size up, down, reset | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |

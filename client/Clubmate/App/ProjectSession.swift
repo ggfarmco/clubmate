@@ -140,6 +140,26 @@ final class ProjectSession {
         }
     }
 
+    func runConfirmed(_ id: String, commands: [Command]) {
+        let message = commands.first { $0.id == id }?.confirm ?? ""
+        guard !message.isEmpty else { return run(command: id) }
+        Task {
+            if await Confirmation.ask(message, action: "Run") { run(command: id) }
+        }
+    }
+
+    private func run(command id: String) {
+        guard id == NvimRestart.command, let store else { return run(CommandInvocation(id: id)) }
+        let name = lookup()?.name ?? projectID
+        let banner = banner
+        Task {
+            let outcome = await NvimRestart.run(workspace: name, run: { await store.run($0) }) { message in
+                await Confirmation.ask(message, action: "Restart", destructive: true)
+            }
+            if case .failed(let message) = outcome { banner.show(message) }
+        }
+    }
+
     func closeTerminal(_ close: CommandInvocation) {
         guard let store else { return }
         Task {
