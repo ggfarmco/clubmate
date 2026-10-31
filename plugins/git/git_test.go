@@ -84,7 +84,8 @@ func waitReady(t *testing.T, h *testutil.PluginHarness) {
 	t.Helper()
 	testutil.Eventually(t, func() bool {
 		events, err := h.Bus.Read(t.Context(), "git.ready", 0, 1)
-		return err == nil && len(events) > 0
+		_, running := h.Sup.Conn("git")
+		return err == nil && len(events) > 0 && running
 	}, readyWait)
 }
 

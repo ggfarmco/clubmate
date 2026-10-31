@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/neovim/go-client/nvim"
@@ -170,7 +171,7 @@ var (
 	errRPCTimeout    = errors.New("nvim rpc timed out")
 	errNvimBlocked   = errors.New("Neovim is waiting for input — press Enter in the editor")
 	errDisconnected  = errors.New("nvim disconnected")
-	errSocketTimeout = errors.New("nvim socket did not appear")
+	errSocketTimeout = errors.New("nvim socket not accepting connections")
 	errSocketTooLong = errors.New("nvim socket path too long")
 	errNoRuntimeDir  = errors.New("plugin runtime dir is not set")
 	errNoChannelID   = errors.New("nvim returned no channel id")
@@ -207,12 +208,9 @@ func legacySocketPath(runtimeDir, projectID string) string {
 }
 
 func connect(ctx context.Context, sock string, onEvent func(nvimEvent)) (*client, error) {
-	if err := waitSocket(ctx, sock); err != nil {
-		return nil, err
-	}
-	v, err := nvim.Dial(sock, nvim.DialContext(ctx), nvim.DialServe(false), nvim.DialLogf(logf))
+	v, err := dial(ctx, sock)
 	if err != nil {
-		return nil, fmt.Errorf("dial nvim: %w", err)
+		return nil, err
 	}
 	c := &client{v: v, done: make(chan struct{})}
 	if err := v.RegisterHandler(notifyMethod, func(ev nvimEvent) { onEvent(ev) }); err != nil {
@@ -230,20 +228,24 @@ func connect(ctx context.Context, sock string, onEvent func(nvimEvent)) (*client
 	return c, nil
 }
 
-func waitSocket(ctx context.Context, sock string) error {
+func dial(ctx context.Context, sock string) (*nvim.Nvim, error) {
 	deadline := time.NewTimer(socketWait)
 	defer deadline.Stop()
 	tick := time.NewTicker(socketPoll)
 	defer tick.Stop()
 	for {
-		if _, err := os.Stat(sock); err == nil {
-			return nil
+		v, err := nvim.Dial(sock, nvim.DialContext(ctx), nvim.DialServe(false), nvim.DialLogf(logf))
+		if err == nil {
+			return v, nil
+		}
+		if !errors.Is(err, syscall.ENOENT) && !errors.Is(err, syscall.ECONNREFUSED) {
+			return nil, fmt.Errorf("dial nvim: %w", err)
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		case <-deadline.C:
-			return fmt.Errorf("%w: %s", errSocketTimeout, sock)
+			return nil, fmt.Errorf("%w: %s: %w", errSocketTimeout, sock, err)
 		case <-tick.C:
 		}
 	}

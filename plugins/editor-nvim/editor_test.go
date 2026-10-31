@@ -730,12 +730,12 @@ func (e *editor) killAll(t *testing.T) {
 
 func dial(t *testing.T, sock string) *nvim.Nvim {
 	t.Helper()
+	var v *nvim.Nvim
 	testutil.Eventually(t, func() bool {
-		_, err := os.Stat(sock)
+		var err error
+		v, err = nvim.Dial(sock, nvim.DialLogf(func(string, ...any) {}))
 		return err == nil
 	}, 5*time.Second)
-	v, err := nvim.Dial(sock, nvim.DialLogf(func(string, ...any) {}))
-	require.NoError(t, err)
 	t.Cleanup(func() { _ = v.Close() })
 	return v
 }
