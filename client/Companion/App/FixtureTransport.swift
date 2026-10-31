@@ -43,6 +43,7 @@ actor FixtureServer {
             fields["createdAt"] = stamp
             fields["updatedAt"] = stamp
             if index == 2 { fields["title"] = .string("Bump dependencies") }
+            if index == 1 { fields["afk"] = .bool(true) }
             sessions.append(fields)
         }
         var transcripts: [String: [String: JSONValue]] = [:]

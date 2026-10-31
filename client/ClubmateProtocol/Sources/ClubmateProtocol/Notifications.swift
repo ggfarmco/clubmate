@@ -28,10 +28,12 @@ public enum NotificationKind: String, Sendable, Hashable, CaseIterable, Codable 
     }
 }
 
-public enum NotificationPolicy: String, Sendable, Hashable {
+public enum NotificationPolicy: String, FallbackEnum {
     case all
     case needsInput = "needs-input"
     case muted
+
+    public static let fallback = Self.all
 
     public init(session: String, in sessions: JSONValue) {
         self = sessions.arrayValue?.first { $0["id"]?.stringValue == session }?["notifyEffective"]?.stringValue.flatMap(Self.init(rawValue:)) ?? .all

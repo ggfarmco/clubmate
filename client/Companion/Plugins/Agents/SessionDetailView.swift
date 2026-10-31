@@ -103,7 +103,7 @@ struct SessionDetailView: View {
 
     private func subtitle(_ session: AgentSession?) -> String {
         guard let session else { return "" }
-        return [session.agentName, session.worktreeName, session.status.label].joined(separator: " · ")
+        return ([session.agentName, session.worktreeName, session.status.label] + (session.afk ? ["AFK"] : [])).joined(separator: " · ")
     }
 
     private func send() {

@@ -24,7 +24,7 @@ struct InboxPlugin: CompanionPluginUI {
     @MainActor
     func badge(context: PluginContext) -> Int {
         let inbox = context.model.inbox
-        return inbox.items.filter { $0.computerID == context.connection.computer.id && inbox.unread.contains($0.id) }.count
+        return inbox.items.filter { $0.computerID == context.connection.computer.id && inbox.isUnread($0) }.count
     }
 }
 
@@ -38,7 +38,7 @@ struct InboxListView: View {
                 Button {
                     open(item)
                 } label: {
-                    InboxRow(item: item, unread: context.model.inbox.unread.contains(item.id), workspace: context.connection.workspaces.first { $0.id == item.workspace }?.name)
+                    InboxRow(item: item, unread: context.model.inbox.isUnread(item), workspace: context.connection.workspaces.first { $0.id == item.workspace }?.name)
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(context.navigation.detail == item.id ? Color.accentColor.opacity(0.15) : nil)
@@ -65,7 +65,7 @@ struct InboxListView: View {
     }
 
     private func open(_ item: InboxItem) {
-        context.model.inbox.markRead(item.id)
+        context.model.inbox.markRead(item)
         if let session = item.session {
             context.navigation.workspaces[item.computerID] = item.workspace
             context.navigation.open(computer: item.computerID, plugin: AgentsPluginInfo.id, detail: session)

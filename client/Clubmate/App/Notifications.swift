@@ -178,12 +178,12 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     private func checkAgents(_ workspace: String, session: String?) async {
         guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session),
               case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
-        let sessions = AgentSessionState.list(listed).filter { session == nil || $0.session == session }
+        let sessions = AgentSession.list(listed).filter { session == nil || $0.id == session }
         hub.waiting.update(workspace: workspace, session: session, sessions: sessions)
         let current = focus()
-        for alert in notifier.pending(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.session) }) where !notifier.isPosted(alert) {
+        for alert in notifier.pending(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.id) }) where !notifier.isPosted(alert) {
             let note = HubNotification(alert)
-            guard accept(note, policy: sessions.first { $0.session == alert.session }?.policy ?? .all) else { continue }
+            guard accept(note, policy: sessions.first { $0.id == alert.session }?.notifyEffective ?? .all) else { continue }
             notifier.markPosted(alert)
             await deliver(note)
         }

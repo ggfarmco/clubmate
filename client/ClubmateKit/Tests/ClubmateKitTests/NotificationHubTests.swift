@@ -64,7 +64,7 @@ final class NotificationHubTests: XCTestCase {
             .object(["id": .string("agt_2"), "workspace": .string("w"), "notifyEffective": .string("muted")]),
             .object(["id": .string("agt_3"), "workspace": .string("w")]),
         ])
-        XCTAssertEqual(AgentSessionState.list(listed).map(\.policy), [.needsInput, .muted, .all])
+        XCTAssertEqual(AgentSession.list(listed).map(\.notifyEffective), [.needsInput, .muted, .all])
 
         let away = HubFocus(appActive: false, workspace: nil)
         let note = { (id: String, kind: NotificationKind) in HubNotification(id: id, workspace: "w", session: "agt_1", message: "m", kind: kind, viaAgent: true) }
@@ -79,8 +79,8 @@ final class NotificationHubTests: XCTestCase {
 
     func testAgentPermissionPostsOncePerRequestWhenHidden() {
         var notifier = AgentNotifier()
-        let waiting = AgentSessionState(workspace: "w", session: "agt_1", agent: "claude", title: "Fix", status: .waiting, requests: ["permission-1"])
-        let running = AgentSessionState(workspace: "w", session: "agt_2", agent: "claude", title: "Run", status: .running, requests: ["permission-9"])
+        let waiting = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "Fix", status: .waiting, pending: ["permission-1"])
+        let running = AgentSession(id: "agt_2", workspace: "w", agent: "claude", title: "Run", status: .running, pending: ["permission-9"])
 
         XCTAssertEqual(notifier.pending([running], shown: { _ in false }), [])
         XCTAssertEqual(notifier.pending([waiting], shown: { _ in true }), [])
@@ -92,8 +92,7 @@ final class NotificationHubTests: XCTestCase {
         notifier.markPosted(alerts[0])
         XCTAssertEqual(notifier.pending([waiting], shown: { _ in false }), [])
 
-        var next = waiting
-        next.requests = ["permission-1", "permission-2"]
+        let next = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "Fix", status: .waiting, pending: ["permission-1", "permission-2"])
         XCTAssertEqual(notifier.pending([next], shown: { _ in false }).map(\.request), ["permission-2"])
     }
 }

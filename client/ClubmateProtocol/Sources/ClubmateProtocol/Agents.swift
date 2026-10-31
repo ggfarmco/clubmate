@@ -118,3 +118,31 @@ public enum PermissionKind: String, FallbackEnum {
         self == .rejectOnce || self == .rejectAlways
     }
 }
+
+public enum AgentFinish: String, FallbackEnum {
+    case ask
+    case merge
+
+    public static let fallback = Self.ask
+}
+
+public enum PermissionOutcomeKind: String, FallbackEnum {
+    case selected
+    case cancelled
+    case other
+
+    public static let fallback = Self.other
+}
+
+public enum TranscriptEntryKind: String, FallbackEnum {
+    case user
+    case agent
+    case thought
+    case tool
+    case plan
+    case permission
+    case notice
+    case other
+
+    public static let fallback = Self.other
+}

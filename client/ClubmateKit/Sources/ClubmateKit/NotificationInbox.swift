@@ -157,9 +157,9 @@ public struct AgentWaiting: Sendable, Equatable {
         alerts.contains { Self.scope($0, workspace, session) }
     }
 
-    public mutating func update(workspace: String, session: String?, sessions: [AgentSessionState]) {
+    public mutating func update(workspace: String, session: String?, sessions: [AgentSession]) {
         alerts.removeAll { Self.scope($0, workspace, session) }
-        alerts += AgentNotifier.requests(sessions.filter { $0.workspace == workspace && (session == nil || $0.session == session) })
+        alerts += AgentNotifier.requests(sessions.filter { $0.workspace == workspace && (session == nil || $0.id == session) })
     }
 
     public mutating func remove(workspace: String, session: String) {

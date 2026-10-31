@@ -39,7 +39,7 @@ final class NotificationInboxTests: XCTestCase {
 
     func testPinsWaitingPermissionsCountedOnceWithTheirEntry() {
         var hub = NotificationHub()
-        let state = AgentSessionState(workspace: "w", session: "agt_1", agent: "claude", title: "Fix", status: .waiting, requests: ["p1"])
+        let state = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "Fix", status: .waiting, pending: ["p1"])
         hub.waiting.update(workspace: "w", session: nil, sessions: [state])
         XCTAssertTrue(hub.receive(HubNotification(AgentNotifier.requests([state])[0]), focus: HubFocus(appActive: false, workspace: nil), now: now))
         XCTAssertTrue(hub.receive(note("ask", kind: .needsInput), focus: HubFocus(appActive: false, workspace: nil), now: now))
@@ -48,8 +48,7 @@ final class NotificationInboxTests: XCTestCase {
 
         hub.inbox.handle("agt_1/p1")
         XCTAssertEqual(hub.bellCount, 2)
-        var answered = state
-        answered.requests = []
+        let answered = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "Fix", status: .waiting)
         hub.waiting.update(workspace: "w", session: "agt_1", sessions: [answered])
         XCTAssertEqual(hub.pinned.map(\.id), ["ask"])
         XCTAssertEqual(hub.bellCount, 1)
@@ -58,11 +57,11 @@ final class NotificationInboxTests: XCTestCase {
     func testWaitingDropsDeletedSessionsAndClosedWorkspaces() {
         var waiting = AgentWaiting()
         let sessions = [
-            AgentSessionState(workspace: "w", session: "agt_1", agent: "claude", title: "", status: .waiting, requests: ["p1"]),
-            AgentSessionState(workspace: "w", session: "agt_2", agent: "claude", title: "", status: .waiting, requests: ["p2"]),
+            AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["p1"]),
+            AgentSession(id: "agt_2", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["p2"]),
         ]
         waiting.update(workspace: "w", session: nil, sessions: sessions)
-        waiting.update(workspace: "v", session: nil, sessions: [AgentSessionState(workspace: "v", session: "agt_3", agent: "", title: "", status: .waiting, requests: ["p3"])])
+        waiting.update(workspace: "v", session: nil, sessions: [AgentSession(id: "agt_3", workspace: "v", agent: "", title: "", status: .waiting, pending: ["p3"])])
         XCTAssertTrue(waiting.has(workspace: "w", session: "agt_2"))
         waiting.remove(workspace: "w", session: "agt_2")
         waiting.keep(["w"])

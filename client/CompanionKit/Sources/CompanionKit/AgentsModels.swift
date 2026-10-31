@@ -20,44 +20,7 @@ public enum SessionGroup: String, Sendable, CaseIterable, Identifiable {
     }
 }
 
-public struct AgentSession: Decodable, Sendable, Equatable, Identifiable, Hashable {
-    public let id: String
-    public let workspace: String
-    public let worktree: String
-    public let agent: String
-    public let parentSession: String?
-    public let title: String
-    public let status: AgentSessionStatus
-    public let mode: String
-    public let createdAt: Date
-    public let updatedAt: Date
-    public let closed: Bool
-    public let asks: Bool
-    public let error: String?
-    public let pending: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case id, workspace, worktree, agent, parentSession, title, status, mode, createdAt, updatedAt, closed, asks, error, pending
-    }
-
-    public init(from decoder: any Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        workspace = try c.decodeIfPresent(String.self, forKey: .workspace) ?? ""
-        worktree = try c.decodeIfPresent(String.self, forKey: .worktree) ?? ""
-        agent = try c.decodeIfPresent(String.self, forKey: .agent) ?? ""
-        parentSession = try c.decodeIfPresent(String.self, forKey: .parentSession)
-        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
-        status = try c.decodeIfPresent(AgentSessionStatus.self, forKey: .status) ?? .other
-        mode = try c.decodeIfPresent(String.self, forKey: .mode) ?? ""
-        createdAt = (try? c.decodeIfPresent(Date.self, forKey: .createdAt)) ?? .distantPast
-        updatedAt = (try? c.decodeIfPresent(Date.self, forKey: .updatedAt)) ?? createdAt
-        closed = try c.decodeIfPresent(Bool.self, forKey: .closed) ?? false
-        asks = try c.decodeIfPresent(Bool.self, forKey: .asks) ?? false
-        error = try c.decodeIfPresent(String.self, forKey: .error).flatMap { $0.isEmpty ? nil : $0 }
-        pending = try c.decodeIfPresent([String].self, forKey: .pending) ?? []
-    }
-
+extension AgentSession {
     public var displayTitle: String {
         title.isEmpty ? "New Session" : title
     }
@@ -157,37 +120,37 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? ""
+        let raw = try c.decodeIfPresent(String.self, forKey: .kind) ?? ""
         entryID = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
-        id = kind + "/" + entryID
+        id = raw + "/" + entryID
         turn = try c.decodeIfPresent(Int.self, forKey: .turn) ?? 0
         let text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
-        switch kind {
-        case "user":
+        switch TranscriptEntryKind(raw) {
+        case .user:
             let blocks = (try? c.decodeIfPresent([JSONValue].self, forKey: .content)) ?? []
             let images = blocks.compactMap { $0["type"]?.stringValue == "image" ? $0["data"]?.stringValue.flatMap { Data(base64Encoded: $0) } : nil }
             content = .user(text: text, fromAgent: !(try c.decodeIfPresent(String.self, forKey: .from) ?? "").isEmpty, images: images)
-        case "agent":
+        case .agent:
             content = .agent(text)
-        case "thought":
+        case .thought:
             content = .thought(text)
-        case "tool":
+        case .tool:
             content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null))
-        case "plan":
+        case .plan:
             let plan = (try? c.decodeIfPresent(JSONValue.self, forKey: .plan)) ?? .null
             content = .plan((plan["entries"]?.arrayValue ?? []).map(PlanItem.init))
-        case "permission":
+        case .permission:
             content = .permission(PermissionRequest(
                 id: entryID,
                 toolCall: ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .toolCall)) ?? .null),
                 options: (try? c.decodeIfPresent([PermissionOption].self, forKey: .options)) ?? [],
                 outcome: try? c.decodeIfPresent(PermissionOutcome.self, forKey: .outcome)
             ))
-        case "notice":
+        case .notice:
             let notice = (try? c.decodeIfPresent(JSONValue.self, forKey: .notice)) ?? .null
             content = .notice(Notice(title: notice["title"]?.stringValue ?? "", description: notice["description"]?.stringValue ?? ""))
-        default:
-            content = .other(kind)
+        case .other:
+            content = .other(raw)
         }
     }
 }
@@ -266,7 +229,7 @@ public struct PermissionOption: Decodable, Sendable, Equatable, Identifiable {
 }
 
 public struct PermissionOutcome: Decodable, Sendable, Equatable {
-    public let outcome: String
+    public let outcome: PermissionOutcomeKind
     public let optionId: String?
 }
 
@@ -278,7 +241,7 @@ public struct PermissionRequest: Sendable, Equatable {
 
     public var answer: String? {
         guard let outcome else { return nil }
-        if outcome.outcome == "cancelled" { return "Cancelled" }
+        if outcome.outcome == .cancelled { return "Cancelled" }
         return options.first { $0.optionId == outcome.optionId }?.name ?? outcome.optionId
     }
 }

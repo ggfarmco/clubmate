@@ -156,10 +156,15 @@ struct SessionRow: View {
                 }
             }
             Spacer(minLength: 4)
-            if !session.pending.isEmpty {
-                Tag(text: session.pending.count == 1 ? "Permission" : "\(session.pending.count) Permissions", color: .orange)
-            } else if session.asks {
-                Tag(text: "Question", color: .blue)
+            HStack(spacing: 4) {
+                if session.afk {
+                    Tag(text: "AFK", color: .purple)
+                }
+                if !session.pending.isEmpty {
+                    Tag(text: session.pending.count == 1 ? "Permission" : "\(session.pending.count) Permissions", color: .orange)
+                } else if session.asks {
+                    Tag(text: "Question", color: .blue)
+                }
             }
         }
         .padding(.vertical, 2)

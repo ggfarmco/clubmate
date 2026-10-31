@@ -2,38 +2,9 @@ import Foundation
 
 import ClubmateProtocol
 
-public struct AgentSessionState: Sendable, Equatable {
-    public let workspace: String
-    public let session: String
-    public let agent: String
-    public let title: String
-    public let status: AgentSessionStatus
-    public var requests: [String]
-    public let policy: NotificationPolicy
-
-    public init(workspace: String, session: String, agent: String, title: String, status: AgentSessionStatus, requests: [String], policy: NotificationPolicy = .all) {
-        self.workspace = workspace
-        self.session = session
-        self.agent = agent
-        self.title = title
-        self.status = status
-        self.requests = requests
-        self.policy = policy
-    }
-
-    public static func list(_ sessions: JSONValue) -> [AgentSessionState] {
-        (sessions.arrayValue ?? []).compactMap { value in
-            guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let workspace = fields["workspace"]?.stringValue else { return nil }
-            return AgentSessionState(
-                workspace: workspace,
-                session: id,
-                agent: fields["agent"]?.stringValue ?? "",
-                title: fields["title"]?.stringValue ?? "",
-                status: AgentSessionStatus(fields["status"]?.stringValue),
-                requests: fields["pending"]?.arrayValue?.compactMap(\.stringValue) ?? [],
-                policy: fields["notifyEffective"]?.stringValue.flatMap(NotificationPolicy.init(rawValue:)) ?? .all
-            )
-        }
+extension AgentSession {
+    public static func list(_ sessions: JSONValue) -> [AgentSession] {
+        (sessions.arrayValue ?? []).compactMap { try? $0.decode(AgentSession.self, using: JSONDecoder()) }
     }
 }
 
@@ -56,12 +27,12 @@ public struct AgentNotifier: Sendable {
 
     public init() {}
 
-    public static func requests(_ sessions: [AgentSessionState]) -> [AgentAlert] {
+    public static func requests(_ sessions: [AgentSession]) -> [AgentAlert] {
         sessions.filter { $0.status == .waiting }.flatMap { session in
-            session.requests.map { request in
+            session.pending.map { request in
                 AgentAlert(
                     workspace: session.workspace,
-                    session: session.session,
+                    session: session.id,
                     request: request,
                     title: "\(session.agent.isEmpty ? "Agent" : session.agent.capitalized) is waiting for permission",
                     body: session.title.isEmpty ? "New session" : session.title
@@ -70,7 +41,7 @@ public struct AgentNotifier: Sendable {
         }
     }
 
-    public func pending(_ sessions: [AgentSessionState], shown: (AgentSessionState) -> Bool) -> [AgentAlert] {
+    public func pending(_ sessions: [AgentSession], shown: (AgentSession) -> Bool) -> [AgentAlert] {
         Self.requests(sessions.filter { !shown($0) }).filter { !isPosted($0) }
     }
 

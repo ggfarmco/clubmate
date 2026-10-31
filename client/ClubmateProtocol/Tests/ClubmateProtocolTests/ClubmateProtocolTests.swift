@@ -45,6 +45,23 @@ final class ClubmateProtocolTests: XCTestCase {
         ])
     }
 
+    func testAgentSessionDecodesSessionInfoAndBareRecord() throws {
+        let info = #"{"id":"agt_1","workspace":"prj_1","worktree":"/src/shop","agent":"claude","agentSessionId":"c-1","parentSession":"agt_0","title":"Fix","titleSet":true,"status":"waiting","mode":"plan","finish":"merge","afk":true,"createdAt":"2026-10-30T09:41:00.123456789Z","updatedAt":"2026-10-30T09:42:00Z","closed":false,"asks":true,"notify":"muted","error":"boom","pending":["permission-1"],"notifyEffective":"needs-input"}"#
+        let session = try JSONDecoder().decode(AgentSession.self, from: Data(info.utf8))
+        XCTAssertEqual(session, AgentSession(
+            id: "agt_1", workspace: "prj_1", worktree: "/src/shop", agent: "claude", agentSessionId: "c-1", parentSession: "agt_0",
+            title: "Fix", titleSet: true, status: .waiting, mode: "plan", finish: .merge, afk: true,
+            createdAt: try XCTUnwrap(Date.parseRFC3339("2026-10-30T09:41:00.123Z")), updatedAt: try XCTUnwrap(Date.parseRFC3339("2026-10-30T09:42:00Z")),
+            asks: true, notify: .muted, error: "boom", pending: ["permission-1"], notifyEffective: .needsInput
+        ))
+        XCTAssertEqual(try JSONDecoder().decode(AgentSession.self, from: JSONEncoder().encode(session)), session)
+
+        let bare = try JSONDecoder().decode(AgentSession.self, from: Data(#"{"id":"agt_2","createdAt":"2026-10-30T09:41:00Z","error":""}"#.utf8))
+        XCTAssertEqual(bare, AgentSession(id: "agt_2", createdAt: try XCTUnwrap(Date.parseRFC3339("2026-10-30T09:41:00Z"))))
+        XCTAssertEqual(bare.finish, .ask)
+        XCTAssertEqual(bare.notifyEffective, .all)
+    }
+
     func testEnumsDecodeKnownValuesAndFallBackOnUnknown() throws {
         struct Wire: Decodable, Equatable {
             let session: AgentSessionStatus
@@ -53,12 +70,16 @@ final class ClubmateProtocolTests: XCTestCase {
             let plan: PlanStatus
             let role: MessageRole
             let permission: PermissionKind
+            let outcome: PermissionOutcomeKind
+            let entry: TranscriptEntryKind
+            let finish: AgentFinish
+            let notify: NotificationPolicy
         }
         let decode = { (json: String) in try JSONDecoder().decode([Wire].self, from: Data(json.utf8)) }
 
-        XCTAssertEqual(try decode(#"[{"session":"waiting","kind":"switch_mode","status":"in_progress","plan":"completed","role":"thought","permission":"allow_once"},{"session":"zombie","kind":"teleport","status":42,"plan":"blocked","role":"system","permission":"maybe"}]"#), [
-            Wire(session: .waiting, kind: .switchMode, status: .inProgress, plan: .completed, role: .thought, permission: .allowOnce),
-            Wire(session: .other, kind: .other, status: .other, plan: .pending, role: .agent, permission: .other),
+        XCTAssertEqual(try decode(#"[{"session":"waiting","kind":"switch_mode","status":"in_progress","plan":"completed","role":"thought","permission":"allow_once","outcome":"cancelled","entry":"permission","finish":"merge","notify":"muted"},{"session":"zombie","kind":"teleport","status":42,"plan":"blocked","role":"system","permission":"maybe","outcome":"timeout","entry":"diff","finish":"pr","notify":"loud"}]"#), [
+            Wire(session: .waiting, kind: .switchMode, status: .inProgress, plan: .completed, role: .thought, permission: .allowOnce, outcome: .cancelled, entry: .permission, finish: .merge, notify: .muted),
+            Wire(session: .other, kind: .other, status: .other, plan: .pending, role: .agent, permission: .other, outcome: .other, entry: .other, finish: .ask, notify: .all),
         ])
     }
 }

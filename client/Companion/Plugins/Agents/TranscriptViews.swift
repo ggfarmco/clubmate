@@ -353,7 +353,7 @@ struct PermissionCard: View {
                         .foregroundStyle(.red)
                 }
             } else {
-                Label(request.answer ?? "No longer pending", systemImage: request.outcome?.outcome == "selected" ? "checkmark.circle" : "clock.badge.xmark")
+                Label(request.answer ?? "No longer pending", systemImage: request.outcome?.outcome == .selected ? "checkmark.circle" : "clock.badge.xmark")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

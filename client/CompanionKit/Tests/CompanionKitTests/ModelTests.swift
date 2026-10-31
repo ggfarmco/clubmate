@@ -31,6 +31,31 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(inbox.unread.count, 200)
     }
 
+    func testInboxUnreadIsPerComputer() {
+        var inbox = Inbox()
+        let date = Date(timeIntervalSince1970: 1_000)
+        let old = InboxItem(id: "ntf_1", computerID: "old", workspace: "w", message: "", date: date)
+        let new = InboxItem(id: "ntf_1", computerID: "new", workspace: "w", message: "", date: date)
+        XCTAssertTrue(inbox.add(old))
+        XCTAssertTrue(inbox.add(new))
+
+        inbox.markRead(old)
+        XCTAssertFalse(inbox.isUnread(old))
+        XCTAssertTrue(inbox.isUnread(new))
+
+        inbox.markRead(new)
+        inbox.add(InboxItem(id: "ntf_2", computerID: "old", workspace: "w", message: "", date: date))
+        inbox.add(InboxItem(id: "ntf_2", computerID: "new", workspace: "w", message: "", date: date))
+        inbox.remove(computer: "old")
+        XCTAssertEqual(inbox.unread, ["new|ntf_2"])
+
+        for index in 0..<Inbox.capacity {
+            inbox.add(InboxItem(id: "ntf_x\(index)", computerID: "old", workspace: "w", message: "", date: date.addingTimeInterval(1)))
+        }
+        XCTAssertEqual(inbox.unread.count, Inbox.capacity)
+        XCTAssertFalse(inbox.unread.contains("new|ntf_2"))
+    }
+
     func testInboxItemFromNotifyEvent() throws {
         let event = BusEvent(seq: 3, topic: "notify.posted", workspace: "w", payload: .object([
             "id": .string("ntf_1"), "workspace": .string("w"), "session": .string("agt_1"), "title": .string("Tests"),
@@ -126,7 +151,7 @@ final class ModelTests: XCTestCase {
 
         try await waitUntil { model.inbox.items.count == 2 }
         XCTAssertEqual(posted.values, ["n1"])
-        XCTAssertEqual(model.inbox.unread, ["n1"])
+        XCTAssertEqual(model.inbox.unread, ["m|n1"])
         try model.remove("m")
     }
 }

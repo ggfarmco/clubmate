@@ -136,7 +136,7 @@ public final class CompanionModel {
         if allowed {
             posted?(item)
         } else {
-            inbox.markRead(item.id)
+            inbox.markRead(item)
         }
     }
 
