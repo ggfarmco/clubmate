@@ -20,6 +20,8 @@ const (
 	afkOff      = "off"
 )
 
+var afkValues = map[string]bool{afkOn: true, "true": true, afkOff: false, "false": false}
+
 var (
 	errNotLive      = errors.New("the session's agent is not running")
 	errUnknownMode  = errors.New("unknown mode")
@@ -71,10 +73,11 @@ func (a *app) setConfig(ctx context.Context, workspaceID string, args configArgs
 	case finishID:
 		return a.setFinish(s, args.Value)
 	case afkID:
-		if args.Value != afkOn && args.Value != afkOff {
+		on, known := afkValues[args.Value]
+		if !known {
 			return fmt.Errorf("%w: %s=%s", errUnknownValue, afkID, args.Value)
 		}
-		a.setAFK(s, args.Value == afkOn)
+		a.setAFK(s, on)
 		return nil
 	}
 	s.mu.Lock()

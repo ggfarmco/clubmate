@@ -194,6 +194,10 @@ public struct AgentUsage: Decodable, Sendable, Equatable {
         size > 0 ? Int((Double(used) * 100 / Double(size)).rounded()) : 0
     }
 
+    public var nearlyFull: Bool {
+        percent >= 80
+    }
+
     public var contextLabel: String {
         "\(percent)% context"
     }

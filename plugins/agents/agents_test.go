@@ -760,16 +760,16 @@ func TestConfigOptionsAndAdvisor(t *testing.T) {
 			return assert.ObjectsAreEqual(want, got)
 		})
 	}
-	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": "", "finish": "ask", "afk": "off"}), "composer")[0].ID
+	composer := cardsOf(pickers(first, map[string]string{"model": "default", "advisor": "", "finish": "ask", "afk": "false"}), "composer")[0].ID
 
 	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "model", "value": "opus"})
 	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "advisor", "value": "opus"})
-	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "afk", "value": "on"})
-	pickers(first, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "on"})
+	f.h.Event(t, workspace, "agents.main", composer, "config", map[string]string{"id": "afk", "value": "true"})
+	pickers(first, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "true"})
 	assert.Equal(t, "opus", f.transcript(t, workspace, first).Advisor)
 
 	second := f.newSession(t, workspace)
-	pickers(second, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "off"})
+	pickers(second, map[string]string{"model": "opus", "advisor": "opus", "finish": "ask", "afk": "false"})
 	sets := f.calls(t, "session/set_config_option")
 	require.Len(t, sets, 2)
 	assert.JSONEq(t, `{"sessionId":"`+f.session(t, workspace, second).AgentSessionID+`","configId":"model","value":"opus"}`, string(sets[1].Params))

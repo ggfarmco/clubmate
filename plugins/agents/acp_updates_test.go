@@ -12,7 +12,7 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-func TestUsageKeepsLatestAndCostInTranscriptHeaderAndLog(t *testing.T) {
+func TestUsageKeepsLatestAndCostAndWarnsInHeader(t *testing.T) {
 	usage := func(used int, cost any) map[string]any {
 		u := map[string]any{"sessionUpdate": "usage_update", "used": used, "size": 200000}
 		if cost != nil {
@@ -23,7 +23,7 @@ func TestUsageKeepsLatestAndCostInTranscriptHeaderAndLog(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{
 		usage(20000, map[string]any{"amount": 0.5, "currency": "USD"}),
 		usage(60000, nil),
-		usage(84000, nil),
+		usage(168000, nil),
 	}})
 	workspace := f.workspace(t, newRepo(t))
 	session := f.newSession(t, workspace)
@@ -40,11 +40,12 @@ func TestUsageKeepsLatestAndCostInTranscriptHeaderAndLog(t *testing.T) {
 		} `json:"usage"`
 	}
 	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": session}, &got))
-	assert.Equal(t, 84000, got.Usage.Used)
+	assert.Equal(t, 168000, got.Usage.Used)
 	assert.Equal(t, 200000, got.Usage.Size)
 	assert.InDelta(t, 0.5, got.Usage.Cost.Amount, 0.001)
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
-		return slices.ContainsFunc(cardsOf(n, "text"), func(x sdui.Node) bool { return x.Props["text"] == "42% context · $0.50" })
+		warned := slices.ContainsFunc(cardsOf(n, "badge"), func(x sdui.Node) bool { return x.Props["text"] == "84% context" && x.Props["tone"] == "warning" })
+		return warned && slices.ContainsFunc(cardsOf(n, "text"), func(x sdui.Node) bool { return x.Props["text"] == "$0.50" })
 	})
 	assert.Len(t, updates(t, f.logLines(t, session), "usage_update"), 1)
 }
@@ -88,6 +89,7 @@ func TestCompactionIsOneEntryWithItsSummary(t *testing.T) {
 	})
 	i := slices.IndexFunc(cardsOf(card, "toolCard"), func(x sdui.Node) bool { return x.ID == session+"/compaction/c1" })
 	assert.Equal(t, "Context compacted", cardsOf(card, "toolCard")[i].Props["title"])
+	assert.Equal(t, true, cardsOf(card, "toolCard")[i].Props["standalone"])
 	assert.Len(t, updates(t, f.logLines(t, session), "compaction_summary_chunk"), 1)
 }
 

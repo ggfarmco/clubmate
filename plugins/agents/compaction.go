@@ -82,7 +82,7 @@ func compactionCard(id string, en *entry) sdui.Node {
 	if !ok {
 		status, title = compactionCompleted, compactionTitles[compactionCompleted]
 	}
-	p := sdui.ToolCardProps{Kind: "think", Title: title, Status: status}
+	p := sdui.ToolCardProps{Kind: "think", Title: title, Status: status, Standalone: true}
 	if text := strings.TrimSpace(strings.Join(nonEmpty(en.Compaction.Error, en.Text), "\n\n")); text != "" {
 		p.Body = &sdui.ToolBody{Format: "text", Text: text}
 	}

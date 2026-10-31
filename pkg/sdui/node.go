@@ -105,12 +105,13 @@ type CardAction struct {
 }
 
 type ToolCardProps struct {
-	Kind      string
-	Title     string
-	Status    string
-	Body      *ToolBody
-	Truncated bool
-	Actions   []CardAction
+	Kind       string
+	Title      string
+	Status     string
+	Body       *ToolBody
+	Truncated  bool
+	Standalone bool
+	Actions    []CardAction
 }
 
 type PermissionOption struct {
@@ -312,6 +313,9 @@ func ToolCard(id string, p ToolCardProps) Node {
 	}
 	if p.Truncated {
 		props["truncated"] = true
+	}
+	if p.Standalone {
+		props["standalone"] = true
 	}
 	if len(p.Actions) > 0 {
 		props["actions"] = p.Actions

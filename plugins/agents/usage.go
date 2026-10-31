@@ -22,6 +22,8 @@ const (
 	rateLimitMetaKey = "_claude/rateLimit"
 	windowFiveHour   = "five_hour"
 	windowSevenDay   = "seven_day"
+
+	contextWarnPercent = 80
 )
 
 var usageWindows = []string{windowFiveHour, windowSevenDay}
@@ -149,15 +151,16 @@ func (a *app) usageCommand(context.Context, pluginsdk.CommandRun) (any, error) {
 	return a.usage.snapshot(), nil
 }
 
-func usageMeta(u *acp.UsageUpdate) []string {
+func usageParts(u *acp.UsageUpdate) (string, string, bool) {
 	if u == nil || u.Size <= 0 {
-		return nil
+		return "", "", false
 	}
-	out := []string{strconv.Itoa(int(math.Round(float64(u.Used)*100/float64(u.Size)))) + "% context"}
+	fill := int(math.Round(float64(u.Used) * 100 / float64(u.Size)))
+	var cost string
 	if u.Cost != nil && u.Cost.Amount > 0 {
-		out = append(out, formatCost(*u.Cost))
+		cost = formatCost(*u.Cost)
 	}
-	return out
+	return strconv.Itoa(fill) + "% context", cost, fill >= contextWarnPercent
 }
 
 func formatCost(c acp.Cost) string {

@@ -64,7 +64,10 @@ struct SessionSettingsView: View {
                     }
                     if let usage = transcript?.usage {
                         Section("Usage") {
-                            LabeledContent("Context", value: "\(usage.percent)% · \(usage.tokensLabel)")
+                            LabeledContent("Context") {
+                                Text("\(usage.percent)% · \(usage.tokensLabel)")
+                                    .foregroundStyle(usage.nearlyFull ? Color.warningInk : .secondary)
+                            }
                             if let cost = usage.costLabel {
                                 LabeledContent("Cost", value: cost)
                             }

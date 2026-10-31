@@ -83,6 +83,10 @@ final class AgentsUITests: XCTestCase {
             .object(["id": .string("finish"), "title": .string("Finish"), "value": .string("merge"), "options": .array([option("ask", "Ask"), option("merge", "Merge to main")])]),
         ])])
         XCTAssertEqual(SDUIPicker.summary(merging.pickers()), "Merge to main")
+        let toggles = SDUINode(type: "composer", props: ["pickers": .array(["fast", "ultracode", "afk"].map { id in
+            .object(["id": .string(id), "title": .string(id), "value": .string(id == "ultracode" ? "false" : "true"), "options": .array([]), "toggle": .bool(true)])
+        })])
+        XCTAssertEqual(SDUIPicker.summary(toggles.pickers()), "fast")
 }
 
     func testTranscriptGroupsAdjacentToolCards() {
@@ -96,11 +100,13 @@ final class AgentsUITests: XCTestCase {
             card("t3"),
             card("t4", "failed"),
             card("t5"), card("t6", "in_progress"), card("t7"),
+            SDUINode(type: "toolCard", id: "c1", props: ["kind": .string("think"), "standalone": .bool(true)]),
+            card("t8"),
         ])
 
         let items = transcript.transcriptItems()
 
-        XCTAssertEqual(items.map(\.id), ["m1", "t1/actions", "p1", "t3/actions"])
+        XCTAssertEqual(items.map(\.id), ["m1", "t1/actions", "p1", "t3/actions", "c1", "t8"])
         guard case let .actions(_, cards) = items[3] else { return XCTFail() }
         XCTAssertEqual(cards.map(\.id), ["t3", "t4", "t5", "t6", "t7"])
     }

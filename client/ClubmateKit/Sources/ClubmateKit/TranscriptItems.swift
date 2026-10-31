@@ -150,6 +150,11 @@ extension SDUINode {
             run = []
         }
         for child in identifiedChildren {
+            if child.node.type == "toolCard", child.node.bool("standalone") == true {
+                flush()
+                items.append(.action(child))
+                continue
+            }
             if child.node.type == "toolCard" {
                 run.append(child)
                 continue

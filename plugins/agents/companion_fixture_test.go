@@ -76,11 +76,12 @@ func companionScript(repo string) map[string]any {
 		return map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": text}}
 	}
 	permission := permissionScript()
-	permission["toolCall"] = map[string]any{"toolCallId": "run1", "title": "go test ./...", "kind": "execute", "rawInput": map[string]any{"command": "go test ./..."}}
+	permission["toolCall"] = map[string]any{"toolCallId": "run1", "title": "go test ./...", "kind": "execute", "rawInput": map[string]any{"command": "go test ./...", "description": "Run the shop tests"}}
 	permission["options"] = []map[string]string{
 		{"optionId": "allow_always", "name": "Always Allow", "kind": "allow_always"},
 		{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
 		{"optionId": "deny", "name": "Reject", "kind": "reject_once"},
+		{"optionId": "deny_always", "name": "Reject Always", "kind": "reject_always"},
 	}
 	return map[string]any{
 		"configs": []map[string]any{

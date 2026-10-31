@@ -519,7 +519,7 @@ func TestConfigPickers(t *testing.T) {
 	require.Len(t, got, 5)
 	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
 	assert.Equal(t, []string{"Effort", "Advisor", "Finish", "AFK"}, []string{got[1].Title, got[2].Title, got[3].Title, got[4].Title})
-	assert.Equal(t, []string{"opus", "ask", "off"}, []string{got[2].Value, got[3].Value, got[4].Value})
+	assert.Equal(t, []string{"opus", "ask", "false"}, []string{got[2].Value, got[3].Value, got[4].Value})
 
 	v.Session.ParentSession = "agt_0"
 	child := nodesOf(mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus"}), "composer")[0].Props["pickers"].([]sdui.Picker)

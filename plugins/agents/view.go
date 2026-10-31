@@ -43,10 +43,6 @@ var (
 		{value: "opus", label: "Opus"},
 		{value: "sonnet", label: "Sonnet"},
 	}
-	afkChoices = []advisorChoice{
-		{value: afkOff, label: "Off"},
-		{value: afkOn, label: "On"},
-	}
 	toggleOptions = []sdui.Option{{Value: "true", Label: "On"}, {Value: "false", Label: "Off"}}
 	finishChoices = []advisorChoice{
 		{value: finishAsk, label: "Ask"},
@@ -213,8 +209,15 @@ func header(sc screen) sdui.Node {
 	if display, ok := childDisplay[sc.Children]; ok {
 		meta = append(meta, statusLabels[display])
 	}
-	meta = append(meta, usageMeta(sc.View.Usage)...)
+	fill, cost, full := usageParts(sc.View.Usage)
+	if !full {
+		meta = append(meta, nonEmpty(fill)...)
+	}
+	meta = append(meta, nonEmpty(cost)...)
 	row := []sdui.Node{{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}}}
+	if full {
+		row = append(row, sdui.Badge(fill, "warning"))
+	}
 	if len(meta) > 0 {
 		row = append(row, sdui.MutedText(strings.Join(meta, " · ")))
 	}
@@ -353,17 +356,9 @@ func pickers(sc screen) []sdui.Picker {
 	for _, c := range finishChoices {
 		finish = append(finish, sdui.Option{Value: c.value, Label: c.label})
 	}
-	afk := make([]sdui.Option, 0, len(afkChoices))
-	for _, c := range afkChoices {
-		afk = append(afk, sdui.Option{Value: c.value, Label: c.label})
-	}
-	afkValue := afkOff
-	if sc.View.Session.AFK {
-		afkValue = afkOn
-	}
 	return append(out,
 		sdui.Picker{ID: finishID, Title: "Finish", Help: finishHelp, Value: cmp.Or(sc.View.Session.Finish, finishAsk), Options: finish},
-		sdui.Picker{ID: afkID, Title: "AFK", Help: afkHelp, Value: afkValue, Options: afk},
+		sdui.Picker{ID: afkID, Title: afkLabel, Help: afkHelp, Value: strconv.FormatBool(sc.View.Session.AFK), Options: toggleOptions, Toggle: true},
 	)
 }
 

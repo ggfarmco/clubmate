@@ -189,7 +189,7 @@ var (
 			required: []string{"kind", "title"},
 			props: map[string]propCheck{
 				"kind": oneOf(toolKinds), "title": isString, "status": oneOf(toolStatuses), "body": toolBodyCheck,
-				"truncated": isBool, "actions": listOf(cardActionCheck),
+				"truncated": isBool, "standalone": isBool, "actions": listOf(cardActionCheck),
 			},
 			children:    noChildren,
 			interactive: true,
