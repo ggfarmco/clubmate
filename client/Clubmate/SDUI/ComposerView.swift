@@ -66,6 +66,8 @@ struct ComposerNodeView: View {
         .keyMonitor(active: focused, handle: handle)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
+        .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }
+        .onDisappear { drafts.focus(node.id ?? "", false) }
         .onChange(of: router?.pending, initial: true) {
             guard let focusSlot, router?.take(focusSlot) == true else { return }
             focused = true

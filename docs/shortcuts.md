@@ -90,6 +90,8 @@ A pending request is docked above the composer.
 | Keys | Action |
 |---|---|
 | ⌥1 … ⌥9 | Choose the request's option in button order (printed on each button; Allow first); works while the prompt has a draft and leaves it untouched. "Always" options have no key and need a click |
+| 1 … 9 | The same without ⌥, only while the session's prompt is focused and empty or the request card has focus (click it); typed into a prompt with a draft, the digit goes into the draft |
+| y / n | Allow once / Reject once, under the same condition as bare digits |
 
 Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift`.
 

@@ -5,8 +5,10 @@ import ClubmateKit
 struct PermissionCardNodeView: View {
     let node: SDUINode
 
+    @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
+    @Environment(\.composerDrafts) private var drafts
 
     var body: some View {
         if let outcome = node.string("outcome") {
@@ -39,15 +41,25 @@ struct PermissionCardNodeView: View {
         .padding(theme.gutter + theme.spacing.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.toneBg(theme.warning)))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(theme.toneBorder(theme.warning), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(focused ? theme.accent : theme.toneBorder(theme.warning), lineWidth: focused ? theme.focusRing : 1))
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .onTapGesture { focused = true }
         .padding(.horizontal, theme.gutter * 2)
         .padding(.bottom, theme.spacing.l)
         .keyMonitor(active: true) { event in
             let flags = event.modifierFlags
-            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, kinds: options.map(\.kind)) else { return false }
+            guard let index = PermissionKeys.option(characters: event.charactersIgnoringModifiers, option: flags.contains(.option), otherModifiers: !flags.intersection([.command, .control, .shift]).isEmpty, bare: bareKeys, kinds: options.map(\.kind)) else { return false }
             choose(options[index])
             return true
         }
+    }
+
+    private var bareKeys: Bool {
+        guard !focused else { return true }
+        guard let drafts, let id = node.id else { return false }
+        return drafts.focusedEmpty(session: ComposerDrafts.session(of: id))
     }
 
     private func answered(_ outcome: String) -> some View {

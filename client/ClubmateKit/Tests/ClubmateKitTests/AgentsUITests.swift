@@ -42,6 +42,19 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(drafts.model(for: "b/composer/0").text, "next prompt")
     }
 
+    func testFocusedEmptyComposerIsPerSession() {
+        let drafts = ComposerDrafts()
+        XCTAssertFalse(drafts.focusedEmpty(session: "a"))
+        drafts.focus("a/composer/1", true)
+        XCTAssertTrue(drafts.focusedEmpty(session: "a"))
+        XCTAssertFalse(drafts.focusedEmpty(session: "b"))
+        drafts.model(for: "a/composer/1").text = " "
+        XCTAssertFalse(drafts.focusedEmpty(session: "a"))
+        drafts.focus("a/composer/1", false)
+        drafts.model(for: "a/composer/1").text = ""
+        XCTAssertFalse(drafts.focusedEmpty(session: "a"))
+    }
+
     func testAgentEventMapping() {
         let card = SDUINode(type: "permissionCard", id: "s/permission/p1")
         let custom = SDUINode(type: "permissionCard", id: "s/permission/p2", props: ["action": .string("answer")])

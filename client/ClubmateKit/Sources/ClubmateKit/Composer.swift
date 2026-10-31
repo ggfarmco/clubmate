@@ -112,8 +112,26 @@ public final class ComposerModel {
 @MainActor
 public final class ComposerDrafts {
     private var models: [String: ComposerModel] = [:]
+    public private(set) var focused: String?
 
     public init() {}
+
+    public static func session(of id: String) -> String {
+        String(id.prefix { $0 != "/" })
+    }
+
+    public func focus(_ id: String, _ on: Bool) {
+        if on {
+            focused = id
+        } else if focused == id {
+            focused = nil
+        }
+    }
+
+    public func focusedEmpty(session: String) -> Bool {
+        guard let focused, Self.session(of: focused) == session else { return false }
+        return models[focused]?.text.isEmpty ?? true
+    }
 
     public func model(for id: String) -> ComposerModel {
         if let model = models[id] { return model }
