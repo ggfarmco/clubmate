@@ -11,10 +11,19 @@ private struct FilePickerKey: EnvironmentKey {
     static let defaultValue: FilePicker? = nil
 }
 
+private struct ComposerFocusSlotKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
 extension EnvironmentValues {
     var filePicker: FilePicker? {
         get { self[FilePickerKey.self] }
         set { self[FilePickerKey.self] = newValue }
+    }
+
+    var composerFocusSlot: String? {
+        get { self[ComposerFocusSlotKey.self] }
+        set { self[ComposerFocusSlotKey.self] = newValue }
     }
 }
 
@@ -36,6 +45,8 @@ struct ComposerNodeView: View {
     @Environment(\.filePicker) private var filePicker
     @Environment(\.theme) private var theme
     @Environment(\.composerDrafts) private var shared
+    @Environment(\.composerFocusSlot) private var focusSlot
+    @Environment(\.focusRouter) private var router
     @State private var local = ComposerDrafts()
 
     private var drafts: ComposerDrafts { shared ?? local }
@@ -55,6 +66,10 @@ struct ComposerNodeView: View {
         .keyMonitor(active: focused, handle: handle)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
+        .onChange(of: router?.pending, initial: true) {
+            guard let focusSlot, router?.take(focusSlot) == true else { return }
+            focused = true
+        }
         .onAppear {
             guard let session = ComposerFocus.afterSend, session == ComposerFocus.session(of: node.id) else { return }
             ComposerFocus.afterSend = nil

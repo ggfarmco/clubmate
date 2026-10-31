@@ -23,6 +23,7 @@ final class NotificationHubTests: XCTestCase {
         var hub = NotificationHub()
         let agent = HubNotification(id: "a", workspace: "w", session: "agt_1", message: "hi", kind: .permission)
         XCTAssertFalse(hub.receive(agent, focus: HubFocus(appActive: true, workspace: "w", sidebar: agents)))
+        XCTAssertFalse(hub.receive(HubNotification(id: "p", workspace: "w", session: "agt_2", message: "hi"), focus: HubFocus(appActive: true, workspace: "w", panel: SDUINode(type: "composer", id: "agt_2/composer/0"))))
         XCTAssertFalse(hub.receive(HubNotification(id: "x", workspace: "w", message: "hi"), focus: HubFocus(appActive: true, workspace: "w")))
     }
 

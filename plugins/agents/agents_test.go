@@ -963,6 +963,46 @@ func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
 	}
 }
 
+func TestCodePanelFollowsWorktree(t *testing.T) {
+	f := start(t, map[string]any{}, testutil.EchoPluginDirAs(t, codeManifest))
+	repo := newRepo(t)
+	project := f.project(t, repo)
+	first := f.newSession(t, project)
+	shows := func(sid string) func(sdui.Node) bool {
+		return func(n sdui.Node) bool {
+			composers := cardsOf(n, "composer")
+			return len(composers) == 1 && strings.HasPrefix(composers[0].ID, sid+"/")
+		}
+	}
+	f.h.WaitSlot(t, project, "editor-nvim.sidebar", shows(first))
+
+	var other struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.run(t, project, "agents.new", map[string]any{"branch": "side"}, &other))
+	f.h.WaitSlot(t, project, "agents.sidebar", func(n sdui.Node) bool { return strings.Contains(string(rawTree(t, n)), other.Session) })
+	panel := f.h.WaitSlot(t, project, "editor-nvim.sidebar", shows(first))
+	assert.NotContains(t, string(rawTree(t, panel)), other.Session)
+
+	c := f.h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"projectId": project}, nil))
+	f.h.Event(t, project, "editor-nvim.sidebar", "code/new", "codeNew", nil)
+	waitFocus(t, c, "editor-nvim", "editor-nvim.sidebar")
+	panel = f.h.WaitSlot(t, project, "editor-nvim.sidebar", func(n sdui.Node) bool { return !shows(first)(n) && len(cardsOf(n, "composer")) == 1 })
+	second := strings.SplitN(cardsOf(panel, "composer")[0].ID, "/", 2)[0]
+	assert.NotEqual(t, other.Session, second)
+
+	f.h.Event(t, project, "editor-nvim.sidebar", "code/session", "codeSelect", first)
+	f.h.WaitSlot(t, project, "editor-nvim.sidebar", shows(first))
+}
+
+func rawTree(t *testing.T, n sdui.Node) []byte {
+	t.Helper()
+	raw, err := json.Marshal(n)
+	require.NoError(t, err)
+	return raw
+}
+
 func TestSignInReattaches(t *testing.T) {
 	authFile := filepath.Join(t.TempDir(), "authed")
 	f := start(t, map[string]any{"authFile": authFile})

@@ -157,11 +157,12 @@ private struct WorkspaceView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
     @State private var focus = FocusRouter()
+    @State private var rowWidth: CGFloat = 0
 
     private var visibleTrees: [SDUINode?] {
         let store = session.store
         let section = store?.selectedSection
-        return [section.flatMap { store?.slots["\($0).sidebar"]?.tree }, section.flatMap { store?.mainTree($0) }]
+        return [section.flatMap { store?.slots["\($0).sidebar"]?.tree }, section.flatMap { store?.mainTree($0) }, chatShown ? store?.slots[CodeSection.chatSlot]?.tree : nil]
     }
 
     var body: some View {
@@ -177,7 +178,9 @@ private struct WorkspaceView: View {
             .focusedSceneValue(\.projectSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }
-                if request.slot.hasSuffix(Self.sidebarSuffix) {
+                if request.slot == CodeSection.chatSlot {
+                    app.showChat(in: windowID)
+                } else if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
                 focus.request(request.field ? request.slot + SidebarField.suffix : request.slot)
@@ -203,6 +206,19 @@ private struct WorkspaceView: View {
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
+            .onChange(of: chatToggled) { _, shown in
+                guard let store = session.store, store.selectedSection == CodeSection.id, store.slots[CodeSection.chatSlot] != nil else { return }
+                focus.request(shown ? CodeSection.chatSlot : "\(CodeSection.id).main")
+            }
+    }
+
+    private var chatToggled: Bool {
+        app.window(windowID)?.chatShown == true
+    }
+
+    private var chatShown: Bool {
+        guard let store = session.store, store.selectedSection == CodeSection.id, store.slots[CodeSection.chatSlot] != nil else { return false }
+        return chatToggled
     }
 
     private static let sidebarSuffix = ".sidebar"
@@ -247,10 +263,16 @@ private struct WorkspaceView: View {
                     if let sidebar, side == .right {
                         SidebarPane(store: store, slot: sidebar, side: .right)
                     }
+                    if chatShown {
+                        ChatPane(store: store, saved: app.window(windowID)?.chatWidth, limit: rowWidth > 0 ? rowWidth / 2 : 640) { [app, windowID] width in
+                            app.setChatWidth(width, in: windowID)
+                        }
+                    }
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
                 .background {
                     Group {
-                        Button("Toggle Sidebar") { store.toggleSidebar() }
+                        Button("Toggle Sidebar") { app.toggleSidebar(store, in: windowID) }
                             .keyboardShortcut("s", modifiers: [.command, .control])
                         Button("Increase Font Size") { app.stepTerminalFont(1) }
                             .keyboardShortcut("+")
@@ -298,14 +320,14 @@ private struct WorkspaceView: View {
     private func paletteEntries() -> [PaletteEntry] {
         let workspaces = (app.window(windowID)?.workspaces ?? []).map { PaletteWorkspace(id: $0, name: app.project($0)?.name ?? $0) }
         let sections = app.settings.ordered(session.store?.sections ?? [])
-        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
+        return CommandPalette.entries(commands: app.commands, sections: sections, sidebar: true, chat: session.store?.togglesChat == true, workspaces: workspaces, active: session.projectID, worktrees: session.worktrees.worktrees)
     }
 
     private func perform(_ action: PaletteAction) {
         switch action {
         case .command(let id): confirm(id)
         case .section(let id): session.store?.select(id)
-        case .toggleSidebar: session.store?.toggleSidebar()
+        case .toggleSidebar: app.toggleSidebar(session.store, in: windowID)
         case .openFolder: app.openFolder(in: windowID)
         case .newHomeTerminal: app.newHomeTerminal(in: windowID)
         case .renameWorkspace: app.rename(session.projectID)
@@ -487,25 +509,54 @@ private struct SidebarPane: View {
     let slot: String
     let side: SidebarSide
 
+    var body: some View {
+        ResizablePane(side: side, saved: store.sidebarWidth.map { CGFloat($0) } ?? 220, range: 160...400) { [store] width in
+            store.sidebarWidth = width
+        } content: {
+            SlotPane(store: store, slot: slot)
+                .environment(\.sidebarSlot, slot)
+                .environment(\.sidebarHasField, store.slots[slot]?.tree.hasTextField ?? false)
+        }
+    }
+}
+
+private struct ChatPane: View {
+    let store: ProjectUIStore
+    let saved: Double?
+    let limit: CGFloat
+    let commit: (Double) -> Void
+
+    private static let minWidth: CGFloat = 280
+
+    var body: some View {
+        ResizablePane(side: .right, saved: saved.map { CGFloat($0) } ?? 380, range: Self.minWidth...max(Self.minWidth, limit), commit: commit) {
+            SlotPane(store: store, slot: CodeSection.chatSlot)
+                .environment(\.composerFocusSlot, CodeSection.chatSlot)
+        }
+    }
+}
+
+private struct ResizablePane<Content: View>: View {
+    let side: SidebarSide
+    let saved: CGFloat
+    let range: ClosedRange<CGFloat>
+    let commit: (Double) -> Void
+    @ViewBuilder let content: Content
+
     @Environment(\.theme) private var theme
     @State private var dragStart: CGFloat?
     @State private var dragWidth: CGFloat?
     @State private var hovering = false
 
-    private static let range: ClosedRange<CGFloat> = 160...400
-
     private var width: CGFloat {
-        let saved = store.sidebarWidth.map { CGFloat($0) } ?? 220
-        return min(max(dragWidth ?? saved, Self.range.lowerBound), Self.range.upperBound)
+        min(max(dragWidth ?? saved, range.lowerBound), range.upperBound)
     }
 
     var body: some View {
         HStack(spacing: 0) {
             if side == .right { handle }
-            SlotPane(store: store, slot: slot)
+            content
                 .frame(width: width)
-                .environment(\.sidebarSlot, slot)
-                .environment(\.sidebarHasField, store.slots[slot]?.tree.hasTextField ?? false)
             if side == .left { handle }
         }
     }
@@ -529,10 +580,10 @@ private struct SidebarPane: View {
                 let start = dragStart ?? width
                 dragStart = start
                 let delta = side == .left ? drag.translation.width : -drag.translation.width
-                dragWidth = min(max(start + delta, Self.range.lowerBound), Self.range.upperBound)
+                dragWidth = min(max(start + delta, range.lowerBound), range.upperBound)
             }
             .onEnded { _ in
-                if let dragWidth { store.sidebarWidth = Double(dragWidth) }
+                if let dragWidth { commit(Double(dragWidth)) }
                 dragStart = nil
                 dragWidth = nil
             }

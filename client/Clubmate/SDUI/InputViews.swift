@@ -302,17 +302,15 @@ struct SelectNodeView: View {
 
     private var options: [SDUIOption] { node.options() }
 
+    private var label: String { options.first { $0.value == value }?.label ?? value }
+
     var body: some View {
-        Menu {
-            ForEach(options) { option in
-                Button(option.label) { choose(option.value) }
-            }
-        } label: {
-            Text(options.first { $0.value == value }?.label ?? value)
-                .font(theme.ui)
+        ViewThatFits(in: .horizontal) {
+            menu
+                .fixedSize()
+            menu
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
+        .help(label)
         .testMenu("\(node.id ?? "select").menu", options.map { LayoutMenuItem(title: $0.label) })
         .padding(.horizontal, theme.spacing.m)
         .frame(height: theme.rowHeight)
@@ -325,6 +323,20 @@ struct SelectNodeView: View {
             guard let id = node.id else { return }
             form?.values[id] = .string(current)
         }
+    }
+
+    private var menu: some View {
+        Menu {
+            ForEach(options) { option in
+                Button(option.label) { choose(option.value) }
+            }
+        } label: {
+            Text(label)
+                .font(theme.ui)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .menuStyle(.borderlessButton)
     }
 
     private func choose(_ option: String) {

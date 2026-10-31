@@ -401,6 +401,7 @@ final class StoresTests: XCTestCase {
             [.command("editor-nvim.terminal"), .section("editor-nvim"), .section("terminals"), .toggleSidebar, .openFolder, .newHomeTerminal, .switchWorktree, .newWorktree]
         )
         XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle Sidebar" })
+        XCTAssertEqual(CommandPalette.entries(commands: [], sections: [], sidebar: true, chat: true).first { $0.id == PaletteAction.toggleSidebar.entryID }?.title, "Toggle Chat")
     }
 
     func testPaletteWorkspaceEntries() {

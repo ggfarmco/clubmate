@@ -139,6 +139,10 @@ public final class ProjectUIStore {
         return "\(selectedSection).sidebar"
     }
 
+    public var togglesChat: Bool {
+        selectedSection == CodeSection.id && slots[CodeSection.chatSlot] != nil
+    }
+
     public func toggleSidebar() {
         guard let selectedSection, selectedSection != CodeSection.id else { return }
         sidebarHidden[selectedSection] = sidebarHidden[selectedSection] == true ? nil : true

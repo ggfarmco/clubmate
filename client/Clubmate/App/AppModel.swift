@@ -92,6 +92,20 @@ final class AppModel {
         layout.window(id)
     }
 
+    func toggleSidebar(_ store: ProjectUIStore?, in window: String?) {
+        guard let store else { return }
+        guard store.togglesChat else { return store.toggleSidebar() }
+        if let window { layout.toggleChat(in: window) }
+    }
+
+    func showChat(in window: String) {
+        layout.showChat(in: window)
+    }
+
+    func setChatWidth(_ width: Double, in window: String) {
+        layout.setChatWidth(width, in: window)
+    }
+
     var openWorkspaces: Set<String> {
         Set(layout.windows.flatMap(\.workspaces))
     }
@@ -167,11 +181,13 @@ final class AppModel {
               let active = layout.window(window)?.active else { return HubFocus(appActive: NSApp.isActive, workspace: nil) }
         let store = sessions[active]?.store
         let section = store?.selectedSection
+        let code = section == CodeSection.id
         return HubFocus(
             appActive: NSApp.isActive,
             workspace: active,
-            sidebar: section.flatMap { store?.slots["\($0).sidebar"]?.tree },
-            main: section.flatMap { store?.mainTree($0) }
+            sidebar: code ? nil : section.flatMap { store?.slots["\($0).sidebar"]?.tree },
+            main: section.flatMap { store?.mainTree($0) },
+            panel: code && layout.window(window)?.chatShown == true ? store?.slots[CodeSection.chatSlot]?.tree : nil
         )
     }
 

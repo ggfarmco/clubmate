@@ -83,14 +83,14 @@ public enum PaletteAction: Hashable, Sendable {
 }
 
 extension CommandPalette {
-    public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool, workspaces: [PaletteWorkspace] = [], active: String? = nil, worktrees: [Worktree] = []) -> [PaletteEntry] {
+    public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool, chat: Bool = false, workspaces: [PaletteWorkspace] = [], active: String? = nil, worktrees: [Worktree] = []) -> [PaletteEntry] {
         let commandEntries = commands.filter { !$0.hidden }.map {
             PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: $0.id)
         }
         let sectionEntries = SectionHosting.rail(sections).enumerated().map { index, section in
             PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
-        let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: "Toggle Sidebar", detail: "⌘B")] : []
+        let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: chat ? "Toggle Chat" : "Toggle Sidebar", detail: "⌘B")] : []
         return commandEntries + sectionEntries + sidebarEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
     }
 

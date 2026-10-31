@@ -6,6 +6,7 @@
   "command": ["agents"],
   "contributes": {
     "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25}],
+    "views": [{"slot": "editor-nvim.sidebar"}],
     "commands": [
       {
         "id": "agents.new",

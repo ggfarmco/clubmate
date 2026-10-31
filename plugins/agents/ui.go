@@ -18,6 +18,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 	renderTimeout  = 10 * time.Second
 	selectedKey    = "selected/"
 	collapsedKey   = "collapsed/"
+	codeKey        = "code/"
 	selectionCmd   = "editor-nvim.selection"
 	openCmd        = "editor.open"
 	editorSection  = "editor-nvim"
@@ -70,6 +72,8 @@ type projectUI struct {
 	folds     bool
 	branch    bool
 	sessions  map[string]*sessionUI
+	code      map[string]string
+	codeRead  bool
 }
 
 type clock interface {
@@ -354,10 +358,12 @@ func (a *app) render(ctx context.Context, projectID string) error {
 		return err
 	}
 	if project.Home {
-		if err := a.push(ctx, p, projectID, sidebarSlot, sdui.Empty(errHome.Error())); err != nil {
-			return err
+		for _, slot := range a.slots() {
+			if err := a.push(ctx, p, projectID, slot, sdui.Empty(errHome.Error())); err != nil {
+				return err
+			}
 		}
-		return a.push(ctx, p, projectID, mainSlot, sdui.Empty(errHome.Error()))
+		return nil
 	}
 	recs := a.list(projectID)
 	slices.Reverse(recs)
@@ -402,7 +408,106 @@ func (a *app) render(ctx context.Context, projectID string) error {
 		sc.Advisor = a.sessionAdvisor(ctx, sc.View.Session)
 		main = mainView(sc)
 	}
-	return a.push(ctx, p, projectID, mainSlot, main)
+	if err := a.push(ctx, p, projectID, mainSlot, main); err != nil {
+		return err
+	}
+	return a.renderCode(ctx, p, project, recs)
+}
+
+func (a *app) slots() []string {
+	if a.codePanel {
+		return []string{sidebarSlot, mainSlot, codeSlot}
+	}
+	return []string{sidebarSlot, mainSlot}
+}
+
+func (a *app) renderCode(ctx context.Context, p *projectUI, project pluginsdk.Project, recs []record) error {
+	if !a.codePanel {
+		return nil
+	}
+	root, _, err := workRoot(project)
+	if err != nil {
+		return a.push(ctx, p, project.ID, codeSlot, sdui.Empty(err.Error()))
+	}
+	bound, err := a.codeSession(ctx, project.ID, root)
+	if err != nil {
+		return err
+	}
+	canonical := gitrepo.Canonical(root)
+	here := slices.DeleteFunc(slices.Clone(recs), func(r record) bool {
+		return r.Worktree != root && gitrepo.Canonical(r.Worktree) != canonical
+	})
+	if a.session(bound) == nil || !slices.ContainsFunc(recs, func(r record) bool { return r.ID == bound }) {
+		bound = ""
+		if i := slices.IndexFunc(here, func(r record) bool { return !r.Closed }); i >= 0 {
+			bound = here[i].ID
+		}
+	}
+	var sc *screen
+	if s := a.session(bound); s != nil {
+		if s.claimChangesCheck() {
+			go a.refreshChanges(s)
+		}
+		v := a.screen(project.ID, s)
+		v.Advisor = a.sessionAdvisor(ctx, v.View.Session)
+		sc = &v
+	}
+	return a.push(ctx, p, project.ID, codeSlot, codeView(here, bound, sc))
+}
+
+func (a *app) codeSessions(ctx context.Context, projectID string) (map[string]string, error) {
+	p := a.projectState(projectID)
+	a.uiMu.Lock()
+	read, code := p.codeRead, maps.Clone(p.code)
+	a.uiMu.Unlock()
+	if read {
+		return code, nil
+	}
+	if _, err := a.host.StorageGet(ctx, codeKey+projectID, &code); err != nil {
+		return nil, err
+	}
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	if !p.codeRead {
+		p.code, p.codeRead = code, true
+	}
+	return maps.Clone(p.code), nil
+}
+
+func (a *app) codeSession(ctx context.Context, projectID, root string) (string, error) {
+	code, err := a.codeSessions(ctx, projectID)
+	return code[root], err
+}
+
+func (a *app) bindCode(ctx context.Context, projectID, sid string) error {
+	project, err := a.host.GetProject(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	root, _, err := workRoot(project)
+	if err != nil {
+		return err
+	}
+	code, err := a.codeSessions(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if code == nil {
+		code = map[string]string{}
+	}
+	code[root] = sid
+	p := a.projectState(projectID)
+	a.uiMu.Lock()
+	p.code = maps.Clone(code)
+	a.uiMu.Unlock()
+	return a.host.StorageSet(ctx, codeKey+projectID, code)
+}
+
+func (a *app) show(ctx context.Context, ev pluginsdk.UIEvent, sid string) error {
+	if ev.Slot == codeSlot {
+		return a.bindCode(ctx, ev.ProjectID, sid)
+	}
+	return a.selectSession(ctx, ev.ProjectID, sid)
 }
 
 func (a *app) push(ctx context.Context, p *projectUI, projectID, slot string, n sdui.Node) error {
@@ -607,6 +712,8 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case err != nil:
 	case ev.Action == actNew || ev.Action == actNewBranch:
 		err = h.Focus(ctx, ev.ProjectID, sectionID, mainSlot)
+	case ev.Action == actCodeNew:
+		err = h.Focus(ctx, ev.ProjectID, editorSection, codeSlot)
 	case ev.Action == actShowBranch:
 		err = h.FocusField(ctx, ev.ProjectID, sectionID)
 	}
@@ -621,6 +728,21 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		return a.selectSession(ctx, ev.ProjectID, res.Session)
+	case actCodeNew:
+		res, err := a.newSession(ctx, a.host, ev.ProjectID, "", newArgs{})
+		if err != nil {
+			return err
+		}
+		return a.bindCode(ctx, ev.ProjectID, res.Session)
+	case actCodeSelect:
+		var id string
+		if err := json.Unmarshal(ev.Value, &id); err != nil {
+			return fmt.Errorf("codeSelect value: %w", err)
+		}
+		if _, err := a.lookup(ev.ProjectID, id); err != nil {
+			return err
+		}
+		return a.bindCode(ctx, ev.ProjectID, id)
 	case actShowBranch, actHideBranch:
 		p := a.projectState(ev.ProjectID)
 		a.uiMu.Lock()
@@ -690,7 +812,7 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		case actDelete:
 			return a.deleteTree(ctx, s)
 		case actHandoff:
-			return a.handoffAndSelect(ctx, ev.ProjectID, s)
+			return a.handoffAndSelect(ctx, ev, s)
 		}
 		a.closeTree(ctx, s)
 		return nil
@@ -733,7 +855,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if a.session(parent) == nil {
 			return nil
 		}
-		return a.selectSession(ctx, ev.ProjectID, parent)
+		return a.show(ctx, ev, parent)
 	case actPermission:
 		var v permissionValue
 		if err := decode(ev.Value, &v); err != nil {
@@ -811,7 +933,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		a.resume(s)
 		return nil
 	case actContinue:
-		return a.handoffAndSelect(ctx, ev.ProjectID, s)
+		return a.handoffAndSelect(ctx, ev, s)
 	case actOpenHandoff:
 		rec := s.snapshot()
 		target := rec.HandoffTo
@@ -821,7 +943,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if a.session(target) == nil {
 			return nil
 		}
-		return a.selectSession(ctx, ev.ProjectID, target)
+		return a.show(ctx, ev, target)
 	case actSignIn:
 		return a.signIn(ctx, ev.ProjectID, s, st)
 	case actUnqueue:
@@ -839,12 +961,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 	return fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
-func (a *app) handoffAndSelect(ctx context.Context, projectID string, s *session) error {
+func (a *app) handoffAndSelect(ctx context.Context, ev pluginsdk.UIEvent, s *session) error {
 	next, err := a.handoff(ctx, s, handoffArgs{}, "")
 	if err != nil {
 		return err
 	}
-	return a.selectSession(ctx, projectID, next.snapshot().ID)
+	return a.show(ctx, ev, next.snapshot().ID)
 }
 
 func (a *app) addAttachment(st *sessionUI, att attachment) {

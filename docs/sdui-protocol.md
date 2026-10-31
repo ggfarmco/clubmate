@@ -122,6 +122,8 @@ A plugin may claim a slot of another plugin's section with `contributes.views`:
 
 The claiming plugin becomes the owner of that slot instead of the section owner: only it may `ui.render` the slot and `ui.event` for it is routed to it. Slot syntax is validated at manifest load. A view on a section that no plugin registers is ignored and logged. When two plugins claim one slot, the later manifest in discovery order loses its claim and the conflict is logged.
 
+The agents plugin claims `editor-nvim.sidebar` for its chat panel: an agent session of the workspace's current worktree (the one picked there or with New, else the newest open one) with the same transcript and composer as the Agents section. The client shows that slot not as a tree sidebar but as a resizable panel on the right edge of Code, at most half the window wide; ⌘B and ⌃⌘S toggle it, and its visibility and width are kept per window. `ui.focus` to `editor-nvim.sidebar` opens the panel and focuses its composer.
+
 ## Revisions
 
 Every slot (per project) has a revision counter that starts at 1 and increases by 1 on each render. When a plugin stops or crashes, its slots are cleared: the counter increments and the tree becomes `empty` with empty text. The cleared slot is removed from the store: the `empty` view (rev + 1) is delivered only to live subscribers, and later `ui.get` or subscribe replays omit the slot. Clients render that view like any other update (an empty pane) and do not get the slot back from `ui.get` after a reconnect.

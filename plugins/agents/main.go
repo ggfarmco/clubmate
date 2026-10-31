@@ -179,6 +179,10 @@ type deletedPayload struct {
 	ID string `json:"id"`
 }
 
+type sectionRef struct {
+	ID string `json:"id"`
+}
+
 type app struct {
 	host     *pluginsdk.Host
 	stateDir string
@@ -192,6 +196,7 @@ type app struct {
 	signIns      map[string]string
 	nodeProblem  string
 	installing   bool
+	codePanel    bool
 	goneProjects map[string]bool
 	resumable    map[string]bool
 	steers       map[string]bool
@@ -236,6 +241,11 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.notes = newNotifier(h)
 	a.groups = newGroups(a.stateDir)
 	a.groups.reap(orphanMarkers())
+	var sections []sectionRef
+	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
+		return err
+	}
+	a.codePanel = slices.ContainsFunc(sections, func(s sectionRef) bool { return s.ID == editorSection })
 	keys, err := h.StorageList(ctx, sessionKey)
 	if err != nil {
 		return err

@@ -182,7 +182,7 @@ private struct ProjectCommands: Commands {
             Button("Command Palette") { shortcut(.palette) }
                 .keyboardShortcut("k")
                 .disabled(session == nil)
-            Button("Toggle Sidebar") { store?.toggleSidebar() }
+            Button(store?.togglesChat == true ? "Toggle Chat" : "Toggle Sidebar") { app.toggleSidebar(store, in: windowID) }
                 .keyboardShortcut("b")
                 .disabled(store == nil)
             Divider()

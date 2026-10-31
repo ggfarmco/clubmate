@@ -146,12 +146,14 @@ public struct HubFocus: Sendable, Equatable {
     public let workspace: String?
     public let sidebar: SDUINode?
     public let main: SDUINode?
+    public let panel: SDUINode?
 
-    public init(appActive: Bool, workspace: String?, sidebar: SDUINode? = nil, main: SDUINode? = nil) {
+    public init(appActive: Bool, workspace: String?, sidebar: SDUINode? = nil, main: SDUINode? = nil, panel: SDUINode? = nil) {
         self.appActive = appActive
         self.workspace = workspace
         self.sidebar = sidebar
         self.main = main
+        self.panel = panel
     }
 
     public var front: String? {
@@ -165,6 +167,7 @@ public struct HubFocus: Sendable, Equatable {
             || sidebar?.showsSurface(session) == true
             || main?.contains(idPrefix: session + "/") == true
             || sidebar?.selects(session) == true
+            || panel?.contains(idPrefix: session + "/") == true
     }
 }
 

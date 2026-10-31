@@ -5,6 +5,8 @@ public struct LayoutWindow: Codable, Equatable, Sendable {
     public var id: String
     public var workspaces: [String]
     public var active: String?
+    public var chatShown: Bool?
+    public var chatWidth: Double?
 
     public init(id: String = UUID().uuidString, workspaces: [String] = [], active: String? = nil) {
         self.id = id
@@ -98,6 +100,24 @@ public final class WindowLayout {
         windows.append(window)
         save()
         return window.id
+    }
+
+    public func toggleChat(in window: String) {
+        guard let index = windows.firstIndex(where: { $0.id == window }) else { return }
+        windows[index].chatShown = windows[index].chatShown == true ? nil : true
+        save()
+    }
+
+    public func showChat(in window: String) {
+        guard let index = windows.firstIndex(where: { $0.id == window }), windows[index].chatShown != true else { return }
+        windows[index].chatShown = true
+        save()
+    }
+
+    public func setChatWidth(_ width: Double, in window: String) {
+        guard let index = windows.firstIndex(where: { $0.id == window }) else { return }
+        windows[index].chatWidth = width
+        save()
     }
 
     public func closeWindow(_ id: String) {

@@ -23,6 +23,22 @@ final class WindowLayoutTests: XCTestCase {
         XCTAssertEqual(WindowLayout(defaults: defaults).windows, layout.windows)
     }
 
+    func testChatStatePersistsPerWindow() throws {
+        let defaults = try makeDefaults()
+        defaults.set(Data(#"[{"id":"w1","workspaces":["a"],"active":"a"},{"id":"w2","workspaces":[]}]"#.utf8), forKey: "windowLayout")
+        let layout = WindowLayout(defaults: defaults)
+        XCTAssertEqual(layout.window("w1")?.workspaces, ["a"])
+        XCTAssertNil(layout.window("w1")?.chatShown)
+        layout.toggleChat(in: "w1")
+        layout.setChatWidth(420, in: "w1")
+        let reloaded = WindowLayout(defaults: defaults)
+        XCTAssertEqual(reloaded.window("w1")?.chatShown, true)
+        XCTAssertEqual(reloaded.window("w1")?.chatWidth, 420)
+        XCTAssertNil(reloaded.window("w2")?.chatShown)
+        reloaded.toggleChat(in: "w1")
+        XCTAssertNil(reloaded.window("w1")?.chatShown)
+    }
+
     func testOpenTargetsKeyWindowOrExisting() throws {
         let layout = WindowLayout(defaults: try makeDefaults())
         let w1 = layout.newWindow()

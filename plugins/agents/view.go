@@ -21,6 +21,7 @@ const (
 	sidebarSlot = "agents.sidebar"
 	mainSlot    = "agents.main"
 	sectionID   = "agents"
+	codeSlot    = "editor-nvim.sidebar"
 
 	windowStep    = 20
 	bodyLines     = 200
@@ -64,6 +65,8 @@ const (
 	actMerge           = "merge"
 	actShowBranch      = "showBranch"
 	actHideBranch      = "hideBranch"
+	actCodeSelect      = "codeSelect"
+	actCodeNew         = "codeNew"
 
 	groupPrefix    = "wt:"
 	expandPrefix   = "s:"
@@ -75,6 +78,10 @@ const (
 	deleteTree     = "Delete this agent session and its %d child sessions, their transcripts and checkpoints?"
 	noSessions     = "No agent sessions"
 	pickSession    = "Start an agent session with + New"
+	noCodeSession  = "No agent session in this worktree"
+	codeSelectNode = "code/session"
+	codeNewNode    = "code/new"
+	maxCodeOptions = 50
 	installingNote = "Installing %s adapter…"
 	queuedNote     = "Queued, sent when the turn ends"
 	heldNote       = "Queued, not sent"
@@ -447,6 +454,28 @@ func mainView(sc screen) sdui.Node {
 		children = append(children, queueView(sc))
 	}
 	return sdui.VStack(append(children, composer(sc))...)
+}
+
+func codeView(recs []record, bound string, sc *screen) sdui.Node {
+	var opts []sdui.Option
+	for _, rec := range recs {
+		if len(opts) < maxCodeOptions && (!rec.Closed || rec.ID == bound) {
+			opts = append(opts, sdui.Option{Value: rec.ID, Label: cmp.Or(rec.Title, "New session")})
+		}
+	}
+	if sc != nil && !slices.ContainsFunc(opts, func(o sdui.Option) bool { return o.Value == bound }) {
+		opts = append(opts, sdui.Option{Value: bound, Label: cmp.Or(sc.View.Session.Title, "New session")})
+	}
+	var bar []sdui.Node
+	if len(opts) > 0 {
+		bar = append(bar, sdui.WithAction(sdui.Select(codeSelectNode, opts, bound), actCodeSelect))
+	}
+	bar = append(bar, sdui.WithAction(sdui.Button(codeNewNode, "New", "plus"), actCodeNew))
+	body := sdui.Empty(noCodeSession)
+	if sc != nil {
+		body = mainView(*sc)
+	}
+	return sdui.VStack(sdui.HStack(bar...), body)
 }
 
 func queueView(sc screen) sdui.Node {
