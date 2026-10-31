@@ -74,6 +74,7 @@ struct ButtonNodeView: View {
         let flags = event.modifierFlags
         guard let combo, combo.matches(keyCode: event.keyCode, command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift)) else { return false }
         if combo.bare, event.window?.firstResponder is NSTextView { return false }
+        if NSApp.mainMenu.map({ MenuKeys.claims($0, event) }) == true { return false }
         click()
         return true
     }
@@ -431,5 +432,20 @@ private struct FieldChrome: ViewModifier {
             .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
             .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.accent : theme.borderStrong, lineWidth: 1))
             .background(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.toneBg(theme.accent) : .clear, lineWidth: 6))
+    }
+}
+
+@MainActor
+enum MenuKeys {
+    static func claims(_ menu: NSMenu, _ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        return menu.items.contains { item in
+            if let sub = item.submenu, claims(sub, event) { return true }
+            guard !item.keyEquivalent.isEmpty else { return false }
+            var mask = item.keyEquivalentModifierMask.intersection([.command, .control, .option, .shift])
+            if item.keyEquivalent != item.keyEquivalent.lowercased() { mask.insert(.shift) }
+            return item.keyEquivalent.lowercased() == key && mask == flags
+        }
     }
 }

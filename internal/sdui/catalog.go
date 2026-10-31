@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 
 	"clubmate/pkg/id"
 	"clubmate/pkg/sdui"
@@ -57,7 +58,9 @@ var (
 	directions = []string{"vertical", "horizontal"}
 	textStyles = []string{"body", "muted", "title", "mono"}
 	variants   = []string{"primary", "secondary", "ghost", "danger"}
-	badgeTones = []string{"neutral", "accent", "success", "warning", "danger"}
+
+	reservedKeys = []string{"esc", "return", "tab"}
+	badgeTones   = []string{"neutral", "accent", "success", "warning", "danger"}
 
 	itemFields = map[string]propCheck{
 		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString, "menu": listOf(menuEntryCheck),
@@ -376,6 +379,9 @@ func shortcutCheck(_ *validator, v any) error {
 	s, ok := v.(string)
 	if !ok || !shortcutPattern.MatchString(s) {
 		return fmt.Errorf("must be a key combo like cmd+r, opt+1 or p")
+	}
+	if key := s[strings.LastIndex(s, "+")+1:]; slices.Contains(reservedKeys, key) {
+		return fmt.Errorf("%s is reserved for the app", key)
 	}
 	return nil
 }
