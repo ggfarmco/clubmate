@@ -71,7 +71,7 @@ func (s *Server) fsWatch(ctx context.Context, p workspaceParams) (watchParams, e
 	quit := make(chan struct{})
 	stop := func() {}
 	if len(roots) > 0 {
-		stop, err = fswatch.Watch(roots, gitRoots, func(paths []string, overflow bool) {
+		stop, err = fswatch.Watch(roots, gitRoots, s.fsOverflow, func(paths []string, overflow bool) {
 			select {
 			case changes <- fsChange{paths: paths, overflow: overflow}:
 			case <-quit:

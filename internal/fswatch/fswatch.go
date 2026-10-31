@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	latency      = 200 * time.Millisecond
-	overflowOver = 1000
-	gitDir       = "/.git/"
-	lossy        = fsevents.MustScanSubDirs | fsevents.KernelDropped | fsevents.UserDropped
+	OverflowOver = 1000
+
+	latency = 200 * time.Millisecond
+	gitDir  = "/.git/"
+	lossy   = fsevents.MustScanSubDirs | fsevents.KernelDropped | fsevents.UserDropped
 )
 
 func Keep(path string) bool {
@@ -41,7 +42,7 @@ func keeper(gitRoots []string) func(string) bool {
 	}
 }
 
-func Watch(roots, gitRoots []string, fn func(paths []string, overflow bool)) (func(), error) {
+func Watch(roots, gitRoots []string, overflowOver int, fn func(paths []string, overflow bool)) (func(), error) {
 	es := &fsevents.EventStream{
 		Paths:   roots,
 		Latency: latency,
@@ -56,7 +57,7 @@ func Watch(roots, gitRoots []string, fn func(paths []string, overflow bool)) (fu
 	go func() {
 		defer close(finished)
 		keep := keeper(gitRoots)
-		pending := newPending(keep)
+		pending := newPending(keep, overflowOver)
 		var flush <-chan time.Time
 		for {
 			select {
@@ -91,14 +92,15 @@ func Watch(roots, gitRoots []string, fn func(paths []string, overflow bool)) (fu
 }
 
 type pending struct {
-	keep     func(string) bool
-	seen     map[string]struct{}
-	paths    []string
-	overflow bool
+	keep         func(string) bool
+	overflowOver int
+	seen         map[string]struct{}
+	paths        []string
+	overflow     bool
 }
 
-func newPending(keep func(string) bool) *pending {
-	return &pending{keep: keep, seen: map[string]struct{}{}}
+func newPending(keep func(string) bool, overflowOver int) *pending {
+	return &pending{keep: keep, overflowOver: overflowOver, seen: map[string]struct{}{}}
 }
 
 func (p *pending) empty() bool {
@@ -119,7 +121,7 @@ func (p *pending) add(batch []fsevents.Event) {
 		}
 		p.seen[ev.Path] = struct{}{}
 		p.paths = append(p.paths, ev.Path)
-		if len(p.paths) > overflowOver {
+		if len(p.paths) > p.overflowOver {
 			p.setOverflow()
 		}
 	}
@@ -137,5 +139,5 @@ func (p *pending) emit(fn func(paths []string, overflow bool)) {
 	} else if len(p.paths) > 0 {
 		fn(p.paths, false)
 	}
-	*p = *newPending(p.keep)
+	*p = *newPending(p.keep, p.overflowOver)
 }

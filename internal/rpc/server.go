@@ -17,6 +17,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/core"
+	"clubmate/internal/fswatch"
 	"clubmate/internal/kv"
 	"clubmate/internal/notify"
 	"clubmate/internal/paths"
@@ -58,6 +59,7 @@ type Server struct {
 	browserURLs   map[browserTabKey]string
 	browserURLsMu sync.Mutex
 	writeTimeout  time.Duration
+	fsOverflow    int
 }
 
 type boundedConn struct {
@@ -94,7 +96,7 @@ func WithWriteTimeout(d time.Duration) ServerOption {
 }
 
 func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
-	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp", writeTimeout: clientWriteTimeout}
+	s := &Server{svc: svc, bus: b, clients: map[*jsonrpc2.Conn]*client{}, started: time.Now(), logger: slog.New(slog.DiscardHandler), notifyLimit: notify.NewLimiter(notifyRateMax, notifyRateTotal, notifyRateWindow), testAppRoot: "/tmp", writeTimeout: clientWriteTimeout, fsOverflow: fswatch.OverflowOver}
 	for _, opt := range opts {
 		opt(s)
 	}

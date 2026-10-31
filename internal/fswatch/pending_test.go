@@ -9,8 +9,8 @@ import (
 )
 
 func TestPendingOverflow(t *testing.T) {
-	many := make([]fsevents.Event, 0, overflowOver+1)
-	for i := range overflowOver + 1 {
+	many := make([]fsevents.Event, 0, OverflowOver+1)
+	for i := range OverflowOver + 1 {
 		many = append(many, fsevents.Event{Path: "repo/f" + strconv.Itoa(i)})
 	}
 	tests := []struct {
@@ -22,7 +22,7 @@ func TestPendingOverflow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := newPending(Keep)
+			p := newPending(Keep, OverflowOver)
 			p.add(tt.batch)
 			var gotPaths []string
 			var gotOverflow bool
