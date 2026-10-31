@@ -16,15 +16,17 @@ public final class ConnectionSupervisor {
 
     @ObservationIgnored private let connect: @MainActor () async throws -> CoreClient
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
-    @ObservationIgnored private var stores: [ObjectIdentifier: ProjectUIStore] = [:]
+    @ObservationIgnored private let stores: @MainActor () -> [ProjectUIStore]
     @ObservationIgnored private var started = false
     @ObservationIgnored private var running = false
 
     public init(
         connect: @escaping @MainActor () async throws -> CoreClient,
+        stores: @escaping @MainActor () -> [ProjectUIStore] = { [] },
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.connect = connect
+        self.stores = stores
         self.sleep = sleep
     }
 
@@ -39,15 +41,9 @@ public final class ConnectionSupervisor {
         supervise()
     }
 
-    public func register(_ store: ProjectUIStore) {
-        stores[ObjectIdentifier(store)] = store
-        if phase == .ready, let client {
-            Task { await attach(store, client) }
-        }
-    }
-
-    public func unregister(_ store: ProjectUIStore) {
-        stores[ObjectIdentifier(store)] = nil
+    public func attach(_ store: ProjectUIStore) {
+        guard phase == .ready, let client else { return }
+        Task { await attach(store, client) }
     }
 
     private func supervise() {
@@ -105,7 +101,7 @@ public final class ConnectionSupervisor {
     }
 
     private func attach(_ store: ProjectUIStore, _ client: CoreClient) async {
-        guard stores[ObjectIdentifier(store)] != nil else { return }
+        guard stores().contains(where: { $0 === store }) else { return }
         await store.attach(client)
     }
 
@@ -113,7 +109,7 @@ public final class ConnectionSupervisor {
         self.client = client
         phase = .ready
         await withTaskGroup(of: Void.self) { group in
-            for store in stores.values {
+            for store in stores() {
                 group.addTask { await self.attach(store, client) }
             }
         }

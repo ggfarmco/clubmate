@@ -67,20 +67,6 @@ final class WindowRouter {
         keyWindowID.flatMap(host) ?? layout.windows.lazy.compactMap { self.host($0.id) }.first
     }
 
-    func toggleSidebar(_ store: ProjectUIStore?, in window: String?) {
-        guard let store else { return }
-        guard store.togglesChat else { return store.toggleSidebar() }
-        if let window { layout.toggleChat(in: window) }
-    }
-
-    func showChat(in window: String) {
-        layout.showChat(in: window)
-    }
-
-    func setChatWidth(_ width: Double, in window: String) {
-        layout.setChatWidth(width, in: window)
-    }
-
     func claimWindow() -> String {
         let id = layout.claim(excluding: shownWindows)
         shownWindows.insert(id)

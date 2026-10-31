@@ -13,7 +13,7 @@ struct WorkspaceView: View {
     private var visibleTrees: [SDUINode?] {
         let store = session.store
         let section = store?.selectedSection
-        return [section.flatMap { store?.slots["\($0).sidebar"]?.tree }, section.flatMap { store?.mainTree($0) }, chatShown ? store?.slots[CodeSection.chatSlot]?.tree : nil]
+        return [section.flatMap { store?.slots["\($0).sidebar"]?.tree }, section.flatMap { store?.mainTree($0) }, store?.chatShown == true ? store?.slots[CodeSection.chatSlot]?.tree : nil]
     }
 
     var body: some View {
@@ -30,9 +30,7 @@ struct WorkspaceView: View {
             .focusedSceneValue(\.projectSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }
-                if request.slot == CodeSection.chatSlot {
-                    app.showChat(in: windowID)
-                } else if request.slot.hasSuffix(Self.sidebarSuffix) {
+                if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
                 focus.request(request.field ? request.slot + SidebarField.suffix : request.slot)
@@ -58,19 +56,15 @@ struct WorkspaceView: View {
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
-            .onChange(of: chatToggled) { _, shown in
-                guard let store = session.store, store.selectedSection == CodeSection.id, store.slots[CodeSection.chatSlot] != nil else { return }
+            .onChange(of: chatShown) { old, shown in
+                guard old != nil, let shown else { return }
                 focus.request(shown ? CodeSection.chatSlot : "\(CodeSection.id).main")
             }
     }
 
-    private var chatToggled: Bool {
-        app.window(windowID)?.chatShown == true
-    }
-
-    private var chatShown: Bool {
-        guard let store = session.store, store.selectedSection == CodeSection.id, store.slots[CodeSection.chatSlot] != nil else { return false }
-        return chatToggled
+    private var chatShown: Bool? {
+        guard let store = session.store, store.togglesChat else { return nil }
+        return store.chatShown
     }
 
     private static let sidebarSuffix = ".sidebar"
@@ -92,7 +86,7 @@ struct WorkspaceView: View {
 
     @ViewBuilder private var content: some View {
         if let store = session.store, let section = store.selectedSection {
-            WorkspaceLayout(store: store, section: section, windowID: windowID, chatShown: chatShown, rowWidth: $rowWidth)
+            WorkspaceLayout(store: store, section: section, rowWidth: $rowWidth)
         } else {
             EmptyNodeView(text: placeholder)
         }
@@ -126,7 +120,7 @@ struct WorkspaceView: View {
         switch action {
         case .command(let id): session.runConfirmed(id, commands: app.commands)
         case .section(let id): session.store?.select(id)
-        case .toggleSidebar: app.toggleSidebar(session.store, in: windowID)
+        case .toggleSidebar: session.store?.toggleSidebar()
         case .openFolder: app.openFolder(in: windowID)
         case .newHomeTerminal: app.newHomeTerminal(in: windowID)
         case .renameWorkspace: app.rename(session.projectID)

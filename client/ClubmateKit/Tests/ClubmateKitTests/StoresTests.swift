@@ -164,7 +164,30 @@ final class StoresTests: XCTestCase {
         store.toggleSidebar()
         XCTAssertEqual(store.sidebarHidden, ["terminals": true])
         XCTAssertNil(store.sidebarSlot)
+        store.revealSidebar(CodeSection.id)
+        XCTAssertEqual(store.sidebarHidden, ["terminals": true, CodeSection.id: false])
+        XCTAssertNil(store.sidebarSlot)
         await store.stop()
+        await client.close()
+    }
+
+    func testLegacyChatMovesIntoUIStateOnce() async throws {
+        let client = try await startCore()
+        let project = try await client.createProject(name: "demo")
+        let first = ProjectUIStore(client: client, projectID: project.id, legacyChat: LegacyChat(shown: true, width: 420))
+        try await first.start()
+        XCTAssertEqual(first.sidebarHidden, [CodeSection.id: false])
+        XCTAssertEqual(first.chatWidth, 420)
+        await first.stop()
+        let state = try await client.uiStateGet(projectID: project.id)
+        XCTAssertEqual(state?.objectValue?["sidebarHidden"], .object([CodeSection.id: .bool(false)]))
+        XCTAssertEqual(state?.objectValue?["chatWidth"], .number(420))
+
+        let second = ProjectUIStore(client: client, projectID: project.id, legacyChat: LegacyChat(shown: false, width: 300))
+        try await second.start()
+        XCTAssertEqual(second.sidebarHidden, [CodeSection.id: false])
+        XCTAssertEqual(second.chatWidth, 420)
+        await second.stop()
         await client.close()
     }
 

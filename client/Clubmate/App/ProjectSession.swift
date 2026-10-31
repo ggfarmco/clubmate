@@ -29,6 +29,7 @@ final class ProjectSession {
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: ProjectUIStore?
     @ObservationIgnored private let lookup: @MainActor () -> Project?
+    @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private(set) lazy var worktrees = WorktreeModel(
         run: storeRun,
         project: { [weak self] in self?.lookup() },
@@ -36,8 +37,9 @@ final class ProjectSession {
         report: { [weak self] message in self?.banner.show(message) }
     )
 
-    init(projectID: String, project: @escaping @MainActor () -> Project?) {
+    init(projectID: String, legacyChat: LegacyChat? = nil, project: @escaping @MainActor () -> Project?) {
         self.projectID = projectID
+        self.legacyChat = legacyChat
         lookup = project
     }
 
@@ -124,11 +126,12 @@ final class ProjectSession {
         }
     }
 
-    func adopt(_ client: CoreClient, _ supervisor: ConnectionSupervisor, _ settings: AppSettings) {
-        guard store == nil else { return }
-        let store = ProjectUIStore(client: client, projectID: projectID) { [weak settings] in settings?.ordered($0) ?? $0 }
+    func adopt(_ client: CoreClient, _ settings: AppSettings) -> ProjectUIStore? {
+        guard store == nil else { return nil }
+        let store = ProjectUIStore(client: client, projectID: projectID, legacyChat: legacyChat) { [weak settings] in settings?.ordered($0) ?? $0 }
+        legacyChat = nil
         self.store = store
-        supervisor.register(store)
+        return store
     }
 
     func run(_ invocation: CommandInvocation?) {
@@ -173,10 +176,8 @@ final class ProjectSession {
         }
     }
 
-    func close(_ supervisor: ConnectionSupervisor) async {
+    func close() async {
         deck.closeAll()
-        guard let store else { return }
-        supervisor.unregister(store)
-        await store.stop()
+        await store?.stop()
     }
 }

@@ -65,7 +65,7 @@ final class AppModel {
 
     init() {
         let link = ModelLink()
-        supervisor = ConnectionSupervisor { try await link.connect() }
+        supervisor = ConnectionSupervisor(connect: { try await link.connect() }, stores: { link.model?.sessions.stores ?? [] })
         updates = Updates(supervisor: supervisor)
         link.model = self
         trackClient()
@@ -104,9 +104,6 @@ final class AppModel {
     var keyWorkspace: (projectID: String?, window: NSWindow?) { windows.keyWorkspace }
 
     func window(_ id: String) -> LayoutWindow? { windows.window(id) }
-    func toggleSidebar(_ store: ProjectUIStore?, in window: String?) { windows.toggleSidebar(store, in: window) }
-    func showChat(in window: String) { windows.showChat(in: window) }
-    func setChatWidth(_ width: Double, in window: String) { windows.setChatWidth(width, in: window) }
     func claimWindow() -> String { windows.claimWindow() }
     func windowShown(_ window: String) { windows.windowShown(window) }
     func windowAttached(_ window: String, _ host: NSWindow) { windows.windowAttached(window, host) }

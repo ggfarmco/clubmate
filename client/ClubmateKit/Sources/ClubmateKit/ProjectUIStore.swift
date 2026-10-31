@@ -30,6 +30,12 @@ public final class ProjectUIStore {
             updateState("sidebarHidden", .object(sidebarHidden.mapValues { .bool($0) }))
         }
     }
+    public var chatWidth: Double? {
+        didSet {
+            guard !restoring, chatWidth != oldValue, let chatWidth else { return }
+            updateState("chatWidth", .number(chatWidth))
+        }
+    }
 
     @ObservationIgnored private var client: CoreClient
     @ObservationIgnored private var subscription: String?
@@ -42,11 +48,18 @@ public final class ProjectUIStore {
     @ObservationIgnored private var restoring = false
     @ObservationIgnored private var focusSerial = 0
     @ObservationIgnored private var requestedSection: String?
+    @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private let order: @MainActor ([SectionInfo]) -> [SectionInfo]
 
-    public init(client: CoreClient, projectID: String, order: @escaping @MainActor ([SectionInfo]) -> [SectionInfo] = { $0 }) {
+    public init(
+        client: CoreClient,
+        projectID: String,
+        legacyChat: LegacyChat? = nil,
+        order: @escaping @MainActor ([SectionInfo]) -> [SectionInfo] = { $0 }
+    ) {
         self.client = client
         self.projectID = projectID
+        self.legacyChat = legacyChat
         self.order = order
     }
 
@@ -135,7 +148,7 @@ public final class ProjectUIStore {
     }
 
     public var sidebarSlot: String? {
-        guard let selectedSection, selectedSection != CodeSection.id, sidebarHidden[selectedSection] != true else { return nil }
+        guard let selectedSection, selectedSection != CodeSection.id, !isSidebarHidden(selectedSection) else { return nil }
         return "\(selectedSection).sidebar"
     }
 
@@ -143,13 +156,29 @@ public final class ProjectUIStore {
         selectedSection == CodeSection.id && slots[CodeSection.chatSlot] != nil
     }
 
+    public var chatShown: Bool {
+        togglesChat && !isSidebarHidden(CodeSection.id)
+    }
+
     public func toggleSidebar() {
-        guard let selectedSection, selectedSection != CodeSection.id else { return }
-        sidebarHidden[selectedSection] = sidebarHidden[selectedSection] == true ? nil : true
+        guard let selectedSection, selectedSection != CodeSection.id || togglesChat else { return }
+        setSidebarHidden(selectedSection, !isSidebarHidden(selectedSection))
     }
 
     public func revealSidebar(_ section: String) {
-        sidebarHidden[section] = nil
+        setSidebarHidden(section, false)
+    }
+
+    private func isSidebarHidden(_ section: String) -> Bool {
+        sidebarHidden[section] ?? Self.hiddenByDefault(section)
+    }
+
+    private func setSidebarHidden(_ section: String, _ hidden: Bool) {
+        sidebarHidden[section] = hidden == Self.hiddenByDefault(section) ? nil : hidden
+    }
+
+    private static func hiddenByDefault(_ section: String) -> Bool {
+        section == CodeSection.id
     }
 
     public func send(_ event: UIEvent) async -> Result<JSONValue, ClubmateError> {
@@ -286,8 +315,17 @@ public final class ProjectUIStore {
         if let section = saved["section"]?.stringValue { select(section) }
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
+        chatWidth = saved["chatWidth"]?.numberValue
         restoring = false
+        adoptLegacyChat()
         if let selectedSection, saved["section"]?.stringValue != selectedSection { updateState("section", .string(selectedSection)) }
+    }
+
+    private func adoptLegacyChat() {
+        guard let legacy = legacyChat else { return }
+        legacyChat = nil
+        if legacy.shown, sidebarHidden[CodeSection.id] == nil { revealSidebar(CodeSection.id) }
+        if chatWidth == nil, let width = legacy.width { chatWidth = width }
     }
 
     private func updateState(_ key: String, _ value: JSONValue) {

@@ -21,30 +21,37 @@ final class SessionRegistry {
         sessions[projectID]
     }
 
+    var stores: [ProjectUIStore] {
+        sessions.values.compactMap(\.store)
+    }
+
     func sync(_ layout: WindowLayout) {
         for workspace in layout.workspaces where sessions[workspace] == nil {
-            _ = session(for: workspace)
+            open(workspace, legacyChat: layout.takeLegacyChat(workspace))
         }
         for (workspace, session) in sessions where SurfaceDeckPolicy.shouldCloseDeck(workspace: workspace, layout: layout) {
             sessions[workspace] = nil
             session.deck.closeAll()
-            Task { await session.close(supervisor) }
+            Task { await session.close() }
         }
     }
 
     func adopt(_ client: CoreClient) {
         for session in sessions.values {
-            session.adopt(client, supervisor, settings)
+            adopt(session, client)
         }
     }
 
-    private func session(for projectID: String) -> ProjectSession {
-        if let existing = sessions[projectID] { return existing }
-        let session = ProjectSession(projectID: projectID) { [project] in project(projectID) }
+    private func open(_ projectID: String, legacyChat: LegacyChat?) {
+        let session = ProjectSession(projectID: projectID, legacyChat: legacyChat) { [project] in project(projectID) }
         session.deck.fontSize = settings.terminalFontSize
         sessions[projectID] = session
-        if let client = supervisor.client { session.adopt(client, supervisor, settings) }
-        return session
+        if let client = supervisor.client { adopt(session, client) }
+    }
+
+    private func adopt(_ session: ProjectSession, _ client: CoreClient) {
+        guard let store = session.adopt(client, settings) else { return }
+        supervisor.attach(store)
     }
 
     private func trackTerminalFontSize() {

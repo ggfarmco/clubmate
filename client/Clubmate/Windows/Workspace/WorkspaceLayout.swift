@@ -5,8 +5,6 @@ import ClubmateKit
 struct WorkspaceLayout: View {
     let store: ProjectUIStore
     let section: String
-    let windowID: String
-    let chatShown: Bool
     @Binding var rowWidth: CGFloat
 
     @Environment(AppModel.self) private var app
@@ -36,16 +34,16 @@ struct WorkspaceLayout: View {
                 if let sidebar, side == .right {
                     SidebarPane(store: store, slot: sidebar, side: .right)
                 }
-                if chatShown {
-                    ChatPane(store: store, saved: app.window(windowID)?.chatWidth, limit: rowWidth > 0 ? rowWidth / 2 : 640) { [app, windowID] width in
-                        app.setChatWidth(width, in: windowID)
+                if store.chatShown {
+                    ChatPane(store: store, saved: store.chatWidth, limit: rowWidth > 0 ? rowWidth / 2 : 640) { [store] width in
+                        store.chatWidth = width
                     }
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
             .background {
                 Group {
-                    Button("Toggle Sidebar") { app.toggleSidebar(store, in: windowID) }
+                    Button("Toggle Sidebar") { store.toggleSidebar() }
                         .keyboardShortcut("s", modifiers: [.command, .control])
                     Button("Increase Font Size") { app.stepTerminalFont(1) }
                         .keyboardShortcut("+")

@@ -5,14 +5,28 @@ public struct LayoutWindow: Codable, Equatable, Sendable {
     public var id: String
     public var workspaces: [String]
     public var active: String?
-    public var chatShown: Bool?
-    public var chatWidth: Double?
 
     public init(id: String = UUID().uuidString, workspaces: [String] = [], active: String? = nil) {
         self.id = id
         self.workspaces = workspaces
         self.active = active
     }
+}
+
+public struct LegacyChat: Equatable, Sendable {
+    public let shown: Bool
+    public let width: Double?
+
+    public init(shown: Bool, width: Double?) {
+        self.shown = shown
+        self.width = width
+    }
+}
+
+private struct LegacyChatWindow: Decodable {
+    let workspaces: [String]
+    let chatShown: Bool?
+    let chatWidth: Double?
 }
 
 @MainActor
@@ -22,12 +36,14 @@ public final class WindowLayout {
     @ObservationIgnored private let key: String
     @ObservationIgnored private var isTerminating = false
     public private(set) var windows: [LayoutWindow]
+    @ObservationIgnored public private(set) var legacyChat: [String: LegacyChat] = [:]
 
     public init(defaults: UserDefaults = .standard, key: String = "windowLayout") {
         self.defaults = defaults
         self.key = key
         if let data = defaults.data(forKey: key), let saved = try? JSONDecoder().decode([LayoutWindow].self, from: data) {
             windows = saved
+            liftLegacyChat(from: data)
         } else if let legacy = defaults.stringArray(forKey: "openProjects") {
             windows = legacy.isEmpty ? [] : [LayoutWindow(workspaces: legacy, active: legacy.last)]
             defaults.removeObject(forKey: "openProjects")
@@ -114,24 +130,6 @@ public final class WindowLayout {
         return window.id
     }
 
-    public func toggleChat(in window: String) {
-        guard let index = windows.firstIndex(where: { $0.id == window }) else { return }
-        windows[index].chatShown = windows[index].chatShown == true ? nil : true
-        save()
-    }
-
-    public func showChat(in window: String) {
-        guard let index = windows.firstIndex(where: { $0.id == window }), windows[index].chatShown != true else { return }
-        windows[index].chatShown = true
-        save()
-    }
-
-    public func setChatWidth(_ width: Double, in window: String) {
-        guard let index = windows.firstIndex(where: { $0.id == window }) else { return }
-        windows[index].chatWidth = width
-        save()
-    }
-
     public func closeWindow(_ id: String) {
         windows.removeAll { $0.id == id }
         save()
@@ -149,6 +147,21 @@ public final class WindowLayout {
 
     public func terminating() {
         isTerminating = true
+    }
+
+    public func takeLegacyChat(_ ws: String) -> LegacyChat? {
+        legacyChat.removeValue(forKey: ws)
+    }
+
+    private func liftLegacyChat(from data: Data) {
+        let legacy = ((try? JSONDecoder().decode([LegacyChatWindow].self, from: data)) ?? []).filter { $0.chatShown != nil || $0.chatWidth != nil }
+        guard !legacy.isEmpty else { return }
+        for window in legacy {
+            for ws in window.workspaces {
+                legacyChat[ws] = LegacyChat(shown: window.chatShown == true, width: window.chatWidth)
+            }
+        }
+        save()
     }
 
     private func appendWindow() -> Int {

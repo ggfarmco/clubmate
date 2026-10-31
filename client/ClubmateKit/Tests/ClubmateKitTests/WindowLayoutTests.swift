@@ -23,20 +23,15 @@ final class WindowLayoutTests: XCTestCase {
         XCTAssertEqual(WindowLayout(defaults: defaults).windows, layout.windows)
     }
 
-    func testChatStatePersistsPerWindow() throws {
+    func testLayoutLiftsChatStateOutOfDefaults() throws {
         let defaults = try makeDefaults()
-        defaults.set(Data(#"[{"id":"w1","workspaces":["a"],"active":"a"},{"id":"w2","workspaces":[]}]"#.utf8), forKey: "windowLayout")
+        defaults.set(Data(#"[{"id":"w1","workspaces":["a","b"],"active":"a","chatShown":true,"chatWidth":420},{"id":"w2","workspaces":["c"]}]"#.utf8), forKey: "windowLayout")
         let layout = WindowLayout(defaults: defaults)
-        XCTAssertEqual(layout.window("w1")?.workspaces, ["a"])
-        XCTAssertNil(layout.window("w1")?.chatShown)
-        layout.toggleChat(in: "w1")
-        layout.setChatWidth(420, in: "w1")
-        let reloaded = WindowLayout(defaults: defaults)
-        XCTAssertEqual(reloaded.window("w1")?.chatShown, true)
-        XCTAssertEqual(reloaded.window("w1")?.chatWidth, 420)
-        XCTAssertNil(reloaded.window("w2")?.chatShown)
-        reloaded.toggleChat(in: "w1")
-        XCTAssertNil(reloaded.window("w1")?.chatShown)
+        XCTAssertEqual(layout.window("w1")?.workspaces, ["a", "b"])
+        XCTAssertEqual(layout.legacyChat, ["a": LegacyChat(shown: true, width: 420), "b": LegacyChat(shown: true, width: 420)])
+        let saved = try XCTUnwrap(defaults.data(forKey: "windowLayout"))
+        XCTAssertFalse(String(decoding: saved, as: UTF8.self).contains("chat"))
+        XCTAssertEqual(WindowLayout(defaults: defaults).legacyChat, [:])
     }
 
     func testOpenTargetsKeyWindowOrExisting() throws {
