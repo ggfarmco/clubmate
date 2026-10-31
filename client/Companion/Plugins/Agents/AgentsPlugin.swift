@@ -80,7 +80,8 @@ struct SessionListView: View {
     let context: PluginContext
     let store: AgentsStore
     @Binding var creating: Bool
-    @State private var toggled: Set<String> = []
+    @State private var expanded: Set<String> = []
+    @State private var closedExpanded = false
 
     var body: some View {
         List(selection: Binding(get: { context.navigation.detail }, set: { id in
@@ -93,12 +94,29 @@ struct SessionListView: View {
                 }
             }
             ForEach(store.groups, id: \.group) { group in
-                Section {
-                    ForEach(group.sessions) { node in
-                        SessionTreeRow(node: node, depth: 0, toggled: $toggled)
+                if group.group == .closed {
+                    Section(isExpanded: $closedExpanded) {
+                        rows(group.sessions)
+                    } header: {
+                        Button {
+                            withAnimation { closedExpanded.toggle() }
+                        } label: {
+                            HStack {
+                                Text("\(group.group.title) · \(group.sessions.count)")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .rotationEffect(.degrees(closedExpanded ? 90 : 0))
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
                     }
-                } header: {
-                    Text(group.group.title)
+                } else {
+                    Section {
+                        rows(group.sessions)
+                    } header: {
+                        Text(group.group.title)
+                    }
                 }
             }
         }
@@ -125,12 +143,18 @@ struct SessionListView: View {
             }
         }
     }
+
+    private func rows(_ nodes: [SessionNode]) -> some View {
+        ForEach(nodes) { node in
+            SessionTreeRow(node: node, depth: 0, expanded: $expanded)
+        }
+    }
 }
 
 struct SessionTreeRow: View {
     let node: SessionNode
     let depth: Int
-    @Binding var toggled: Set<String>
+    @Binding var expanded: Set<String>
 
     var body: some View {
         HStack(spacing: 8) {
@@ -149,21 +173,17 @@ struct SessionTreeRow: View {
         .tag(node.id)
         if isExpanded {
             ForEach(node.children) { child in
-                SessionTreeRow(node: child, depth: depth + 1, toggled: $toggled)
+                SessionTreeRow(node: child, depth: depth + 1, expanded: $expanded)
             }
         }
     }
 
-    private var opened: Bool {
-        node.children.contains { $0.group == .needsInput || $0.group == .running }
-    }
-
     private var isExpanded: Bool {
-        opened != toggled.contains(node.id)
+        expanded.contains(node.id)
     }
 
     private func toggle() {
-        if toggled.contains(node.id) { toggled.remove(node.id) } else { toggled.insert(node.id) }
+        if expanded.contains(node.id) { expanded.remove(node.id) } else { expanded.insert(node.id) }
     }
 }
 
