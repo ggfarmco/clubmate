@@ -54,6 +54,23 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(hub.bellCount, 1)
     }
 
+    func testDropsAnsweredPermissionEntriesOfItsWorkspaceOnly() {
+        var hub = NotificationHub()
+        let away = HubFocus(appActive: false, workspace: nil)
+        let asking = [
+            AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["p1"]),
+            AgentSession(id: "agt_2", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["p2"]),
+            AgentSession(id: "agt_3", workspace: "v", agent: "claude", title: "", status: .waiting, pending: ["p3"]),
+        ]
+        for alert in AgentNotifier.requests(asking) {
+            XCTAssertTrue(hub.receive(HubNotification(alert), focus: away, now: now))
+        }
+        XCTAssertTrue(hub.receive(HubNotification(id: "bus", workspace: "w", session: "agt_1", message: "?", kind: .permission, viaAgent: true), focus: away, now: now))
+
+        XCTAssertEqual(hub.dropResolved(workspace: "w", session: nil, sessions: [asking[1]]), ["agt_1/p1"])
+        XCTAssertEqual(Set(hub.inbox.entries.map(\.id)), ["agt_2/p2", "agt_3/p3", "bus"])
+    }
+
     func testWaitingDropsDeletedSessionsAndClosedWorkspaces() {
         var waiting = AgentWaiting()
         let sessions = [

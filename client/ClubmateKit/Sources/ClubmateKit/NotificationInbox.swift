@@ -75,6 +75,12 @@ public struct NotificationInbox: Sendable, Equatable, Codable {
         update { focus.shows(workspace: $0.note.workspace, session: $0.note.session) }
     }
 
+    public mutating func remove(where matches: (InboxEntry) -> Bool) -> [String] {
+        let removed = entries.filter(matches).map(\.id)
+        entries.removeAll(where: matches)
+        return removed
+    }
+
     public mutating func markSeen(workspace: String) {
         for index in entries.indices where entries[index].note.workspace == workspace {
             entries[index].seen = true

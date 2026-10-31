@@ -143,8 +143,10 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func keepOpen(_ workspaces: Set<String>) {
+        let added = workspaces.subtracting(agents.keys)
         hub.waiting.keep(workspaces)
         agents = agents.filter { workspaces.contains($0.key) }
+        if !added.isEmpty { checkOpenWorkspaces() }
     }
 
     func tally(_ workspace: String) async {
@@ -154,6 +156,14 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func agentDeleted(_ workspace: String, _ session: String) {
         hub.waiting.remove(workspace: workspace, session: session)
+        withdraw(hub.dropResolved(workspace: workspace, session: session, sessions: []))
+    }
+
+    private func withdraw(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        changed()
+        guard !TestMode.current else { return }
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids)
     }
 
     private static func resumePoint(_ client: CoreClient, lastSeq: Int64) async -> Int64 {
@@ -187,6 +197,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         guard case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
         let all = AgentSession.list(listed)
         agents[workspace] = AgentTally(all)
+        withdraw(hub.dropResolved(workspace: workspace, session: session, sessions: all))
         guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session) else { return }
         let sessions = all.filter { session == nil || $0.id == session }
         hub.waiting.update(workspace: workspace, session: session, sessions: sessions)
