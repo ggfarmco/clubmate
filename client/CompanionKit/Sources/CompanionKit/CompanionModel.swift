@@ -4,8 +4,6 @@ import Observation
 @MainActor
 @Observable
 public final class CompanionModel {
-    public static let agentSessionPrefix = "agt_"
-
     public private(set) var computers: [Computer] = []
     public private(set) var connections: [String: ComputerConnection] = [:]
     public var inbox = Inbox()
@@ -143,8 +141,8 @@ public final class CompanionModel {
     }
 
     private func policy(_ item: InboxItem) async -> NotificationPolicy {
-        guard let session = item.session, session.hasPrefix(Self.agentSessionPrefix), let connection = connections[item.computerID],
-              let sessions = try? await connection.command(NotificationPolicy.sessionsCommand, workspace: item.workspace, args: nil) else { return .all }
+        guard let session = item.session, AgentSessionID.matches(session), let connection = connections[item.computerID],
+              let sessions = try? await connection.command(AgentCommand.sessions, workspace: item.workspace, args: nil) else { return .all }
         return NotificationPolicy(session: session, in: sessions)
     }
 }

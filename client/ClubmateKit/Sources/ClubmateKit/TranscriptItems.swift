@@ -1,5 +1,7 @@
 import Foundation
 
+import ClubmateProtocol
+
 public enum TranscriptItem: Sendable, Equatable, Identifiable {
     case node(SDUIChild)
     case action(SDUIChild)
@@ -18,38 +20,37 @@ public struct ToolActionsSummary: Sendable, Equatable {
     public let running: String?
     public let failed: Int
 
-    private static let order = ["read", "search", "fetch", "execute", "edit", "delete", "move", "think", "switch_mode", "other"]
+    private static let order: [ToolKind] = [.read, .search, .fetch, .execute, .edit, .delete, .move, .think, .switchMode, .other]
 
     public init(_ cards: [SDUINode]) {
-        var counts: [String: Int] = [:]
+        var counts: [ToolKind: Int] = [:]
         for card in cards {
-            let kind = card.string("kind").flatMap { Self.order.contains($0) ? $0 : nil } ?? "other"
-            counts[kind, default: 0] += 1
+            counts[card.toolKind, default: 0] += 1
         }
         let parts = counts
             .sorted { $0.value != $1.value ? $0.value > $1.value : Self.rank($0.key) < Self.rank($1.key) }
             .map { Self.phrase($0.key, $0.value) }
         text = "\(Self.plural(cards.count, "action", "actions")): " + parts.joined(separator: ", ")
-        running = cards.last { ["pending", "in_progress"].contains($0.string("status")) }.map { ToolLineTitle($0).text }
-        failed = cards.filter { $0.string("status") == "failed" }.count
+        running = cards.last { $0.toolStatus.isOpen }.map { ToolLineTitle($0).text }
+        failed = cards.filter { $0.toolStatus == .failed }.count
     }
 
-    private static func rank(_ kind: String) -> Int {
+    private static func rank(_ kind: ToolKind) -> Int {
         order.firstIndex(of: kind) ?? order.count
     }
 
-    private static func phrase(_ kind: String, _ count: Int) -> String {
+    private static func phrase(_ kind: ToolKind, _ count: Int) -> String {
         switch kind {
-        case "read": "read " + plural(count, "file", "files")
-        case "search": plural(count, "search", "searches")
-        case "fetch": plural(count, "fetch", "fetches")
-        case "execute": plural(count, "command", "commands")
-        case "edit": "edited " + plural(count, "file", "files")
-        case "delete": "deleted " + plural(count, "file", "files")
-        case "move": "moved " + plural(count, "file", "files")
-        case "think": plural(count, "thought", "thoughts")
-        case "switch_mode": plural(count, "mode switch", "mode switches")
-        default: plural(count, "other tool", "other tools")
+        case .read: "read " + plural(count, "file", "files")
+        case .search: plural(count, "search", "searches")
+        case .fetch: plural(count, "fetch", "fetches")
+        case .execute: plural(count, "command", "commands")
+        case .edit: "edited " + plural(count, "file", "files")
+        case .delete: "deleted " + plural(count, "file", "files")
+        case .move: "moved " + plural(count, "file", "files")
+        case .think: plural(count, "thought", "thoughts")
+        case .switchMode: plural(count, "mode switch", "mode switches")
+        case .other: plural(count, "other tool", "other tools")
         }
     }
 
@@ -64,8 +65,9 @@ public struct ToolLineTitle: Sendable, Equatable {
 
     public init(_ card: SDUINode) {
         let title = card.string("title") ?? ""
-        let paths = ["edit", "delete", "move"].contains(card.string("kind")) ? Self.paths(in: title) : []
-        let shown = Array(paths.prefix(card.string("kind") == "move" ? 2 : 1))
+        let kind = card.toolKind
+        let paths = kind.touchesFiles ? Self.paths(in: title) : []
+        let shown = Array(paths.prefix(kind == .move ? 2 : 1))
         guard !shown.isEmpty else {
             text = title
             help = nil

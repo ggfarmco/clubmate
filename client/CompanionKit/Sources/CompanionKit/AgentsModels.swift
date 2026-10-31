@@ -1,30 +1,6 @@
 import Foundation
 
-public enum SessionStatus: String, Sendable, Equatable, Decodable {
-    case running
-    case waiting
-    case done
-    case idle
-    case error
-    case closed
-    case other
-
-    public init(from decoder: any Decoder) throws {
-        self = SessionStatus(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .other
-    }
-
-    public var label: String {
-        switch self {
-        case .running: "Running"
-        case .waiting: "Waiting for permission"
-        case .done: "Done"
-        case .idle: "Idle"
-        case .error: "Error"
-        case .closed: "Closed"
-        case .other: "Unknown"
-        }
-    }
-}
+import ClubmateProtocol
 
 public enum SessionGroup: String, Sendable, CaseIterable, Identifiable {
     case needsInput
@@ -51,7 +27,7 @@ public struct AgentSession: Decodable, Sendable, Equatable, Identifiable, Hashab
     public let agent: String
     public let parentSession: String?
     public let title: String
-    public let status: SessionStatus
+    public let status: AgentSessionStatus
     public let mode: String
     public let createdAt: Date
     public let updatedAt: Date
@@ -72,7 +48,7 @@ public struct AgentSession: Decodable, Sendable, Equatable, Identifiable, Hashab
         agent = try c.decodeIfPresent(String.self, forKey: .agent) ?? ""
         parentSession = try c.decodeIfPresent(String.self, forKey: .parentSession)
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
-        status = try c.decodeIfPresent(SessionStatus.self, forKey: .status) ?? .other
+        status = try c.decodeIfPresent(AgentSessionStatus.self, forKey: .status) ?? .other
         mode = try c.decodeIfPresent(String.self, forKey: .mode) ?? ""
         createdAt = (try? c.decodeIfPresent(Date.self, forKey: .createdAt)) ?? .distantPast
         updatedAt = (try? c.decodeIfPresent(Date.self, forKey: .updatedAt)) ?? createdAt
@@ -233,8 +209,8 @@ public struct ToolCall: Sendable, Equatable {
 
     public let id: String
     public let title: String
-    public let kind: String
-    public let status: String
+    public let kind: ToolKind
+    public let status: ToolStatus
     public let diffs: [FileDiff]
     public let output: String
     public let paths: [String]
@@ -243,8 +219,8 @@ public struct ToolCall: Sendable, Equatable {
     public init(id: String, fields: JSONValue) {
         self.id = id
         title = fields["title"]?.stringValue ?? ""
-        kind = fields["kind"]?.stringValue ?? "other"
-        status = fields["status"]?.stringValue ?? ""
+        kind = ToolKind(fields["kind"]?.stringValue)
+        status = fields["status"]?.stringValue.flatMap { $0.isEmpty ? nil : ToolStatus($0) } ?? .pending
         let content = fields["content"]?.arrayValue ?? []
         diffs = content.compactMap { item in
             guard item["type"]?.stringValue == "diff", let path = item["path"]?.stringValue else { return nil }
@@ -257,41 +233,10 @@ public struct ToolCall: Sendable, Equatable {
 
     public var displayTitle: String {
         let plain = title.replacingOccurrences(of: "`", with: "")
-        if ["edit", "delete", "move", "read"].contains(kind), let path = diffs.first?.path ?? paths.first, plain.contains(path) {
+        if kind.touchesFiles || kind == .read, let path = diffs.first?.path ?? paths.first, plain.contains(path) {
             return plain.replacingOccurrences(of: path, with: path.split(separator: "/").last.map(String.init) ?? path)
         }
-        return plain.isEmpty ? kind.capitalized : plain
-    }
-
-    public var symbol: String {
-        switch kind {
-        case "read": "doc.text"
-        case "edit": "pencil"
-        case "delete": "trash"
-        case "move": "arrow.right.doc.on.clipboard"
-        case "search": "magnifyingglass"
-        case "execute": "terminal"
-        case "think": "brain"
-        case "fetch": "globe"
-        case "switch_mode": "arrow.triangle.swap"
-        default: "wrench.and.screwdriver"
-        }
-    }
-
-    public var phase: Phase {
-        switch status {
-        case "completed": .completed
-        case "failed": .failed
-        case "cancelled": .cancelled
-        default: .running
-        }
-    }
-
-    public enum Phase: Sendable, Equatable {
-        case running
-        case completed
-        case failed
-        case cancelled
+        return plain.isEmpty ? kind.rawValue.capitalized : plain
     }
 
     public var changes: (added: Int, removed: Int) {
@@ -302,12 +247,12 @@ public struct ToolCall: Sendable, Equatable {
 
 public struct PlanItem: Sendable, Equatable {
     public let content: String
-    public let status: String
+    public let status: PlanStatus
     public let priority: String
 
     init(_ value: JSONValue) {
         content = value["content"]?.stringValue ?? ""
-        status = value["status"]?.stringValue ?? "pending"
+        status = PlanStatus(value["status"]?.stringValue)
         priority = value["priority"]?.stringValue ?? ""
     }
 }
@@ -315,13 +260,9 @@ public struct PlanItem: Sendable, Equatable {
 public struct PermissionOption: Decodable, Sendable, Equatable, Identifiable {
     public let optionId: String
     public let name: String
-    public let kind: String
+    public let kind: PermissionKind
 
     public var id: String { optionId }
-
-    public var isAllow: Bool {
-        kind.hasPrefix("allow")
-    }
 }
 
 public struct PermissionOutcome: Decodable, Sendable, Equatable {

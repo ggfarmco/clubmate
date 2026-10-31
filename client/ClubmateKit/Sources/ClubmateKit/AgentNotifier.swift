@@ -1,15 +1,17 @@
 import Foundation
 
+import ClubmateProtocol
+
 public struct AgentSessionState: Sendable, Equatable {
     public let workspace: String
     public let session: String
     public let agent: String
     public let title: String
-    public let status: String
+    public let status: AgentSessionStatus
     public var requests: [String]
     public let policy: NotificationPolicy
 
-    public init(workspace: String, session: String, agent: String, title: String, status: String, requests: [String], policy: NotificationPolicy = .all) {
+    public init(workspace: String, session: String, agent: String, title: String, status: AgentSessionStatus, requests: [String], policy: NotificationPolicy = .all) {
         self.workspace = workspace
         self.session = session
         self.agent = agent
@@ -27,7 +29,7 @@ public struct AgentSessionState: Sendable, Equatable {
                 session: id,
                 agent: fields["agent"]?.stringValue ?? "",
                 title: fields["title"]?.stringValue ?? "",
-                status: fields["status"]?.stringValue ?? "",
+                status: AgentSessionStatus(fields["status"]?.stringValue),
                 requests: fields["pending"]?.arrayValue?.compactMap(\.stringValue) ?? [],
                 policy: fields["notifyEffective"]?.stringValue.flatMap(NotificationPolicy.init(rawValue:)) ?? .all
             )
@@ -49,16 +51,13 @@ public struct AgentNotifier: Sendable {
     public static let section = "agents"
     public static let sidebarSlot = "agents.sidebar"
     public static let sessionsNode = "sessions"
-    public static let changedTopic = "agents.changed"
-    public static let sessionsCommand = "agents.sessions"
-    public static let waiting = "waiting"
 
     private var posted: Set<String> = []
 
     public init() {}
 
     public static func requests(_ sessions: [AgentSessionState]) -> [AgentAlert] {
-        sessions.filter { $0.status == waiting }.flatMap { session in
+        sessions.filter { $0.status == .waiting }.flatMap { session in
             session.requests.map { request in
                 AgentAlert(
                     workspace: session.workspace,

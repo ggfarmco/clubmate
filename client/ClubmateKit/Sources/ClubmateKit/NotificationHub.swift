@@ -1,54 +1,12 @@
 import Foundation
 
-public enum NotificationKind: String, Sendable, CaseIterable, Codable {
-    case needsInput = "needs-input"
-    case permission
-    case done
-    case stuck
-    case info
-
-    public var label: String {
-        switch self {
-        case .needsInput: "Needs input"
-        case .permission: "Permission needed"
-        case .done: "Done"
-        case .stuck: "Stuck"
-        case .info: "Info"
-        }
-    }
-
-    public var symbol: String {
-        switch self {
-        case .needsInput: "questionmark.bubble"
-        case .permission: "hand.raised"
-        case .done: "checkmark.circle"
-        case .stuck: "exclamationmark.triangle"
-        case .info: "info.circle"
-        }
-    }
-}
-
-public enum NotificationPolicy: String, Sendable, Equatable {
-    case all
-    case needsInput = "needs-input"
-    case muted
-
-    public func allows(_ kind: NotificationKind) -> Bool {
-        switch self {
-        case .all: true
-        case .needsInput: kind == .needsInput || kind == .permission
-        case .muted: false
-        }
-    }
-}
+import ClubmateProtocol
 
 public struct HubNotification: Sendable, Equatable, Codable {
     public enum Source: Sendable, Equatable, Codable {
         case bus
         case agentsSection
     }
-
-    public static let topic = "notify.posted"
 
     public let id: String
     public let workspace: String
@@ -79,31 +37,22 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     public static func posted(_ payload: JSONValue) -> HubNotification? {
-        guard let fields = payload.objectValue, let id = fields["id"]?.stringValue, let workspace = fields["workspace"]?.stringValue,
-              let message = fields["message"]?.stringValue else { return nil }
-        let nonEmpty = { (key: String) in fields[key]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } }
+        guard let posted = NotifyPosted(payload), let workspace = posted.workspace else { return nil }
         return HubNotification(
-            id: id,
+            id: posted.id,
             workspace: workspace,
-            session: nonEmpty("session"),
-            owner: nonEmpty("owner"),
-            title: fields["title"]?.stringValue ?? "",
-            message: message,
-            kind: fields["kind"]?.stringValue.flatMap(NotificationKind.init(rawValue:)) ?? .info,
-            viaAgent: fields["agent"] == .bool(true),
-            date: fields["ts"]?.stringValue.flatMap(Self.parseDate)
+            session: posted.session,
+            owner: posted.owner,
+            title: posted.title,
+            message: posted.message,
+            kind: posted.kind,
+            viaAgent: posted.viaAgent,
+            date: posted.date
         )
     }
 
-    static func parseDate(_ text: String) -> Date? {
-        let millis = text.replacingOccurrences(of: #"\.(\d{1,3})\d*"#, with: ".$1", options: .regularExpression)
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fractional.date(from: millis) ?? ISO8601DateFormatter().date(from: millis)
-    }
-
     public var isAgentSession: Bool {
-        session?.hasPrefix(NotificationHub.agentSessionPrefix) == true
+        session.map(AgentSessionID.matches) == true
     }
 
     public var what: String {
@@ -118,7 +67,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     static func sessionLabel(session: String, owner: String?) -> String {
-        if session.hasPrefix(NotificationHub.agentSessionPrefix) || owner == AgentNotifier.section { return "Agent" }
+        if AgentSessionID.matches(session) || owner == AgentNotifier.section { return "Agent" }
         switch owner {
         case TerminalsSection.id: return "Terminal"
         case CodeSection.id: return "Editor"
@@ -231,7 +180,7 @@ public struct NotificationHub: Sendable {
     }
 
     public static func reveal(workspace: String, session: String, owner: String?) -> HubReveal? {
-        let section = owner ?? (session.hasPrefix(agentSessionPrefix) ? AgentNotifier.section : nil)
+        let section = owner ?? (AgentSessionID.matches(session) ? AgentNotifier.section : nil)
         switch section {
         case nil:
             return nil
@@ -243,8 +192,6 @@ public struct NotificationHub: Sendable {
             return HubReveal(section: section, event: nil, focusMain: true)
         }
     }
-
-    static let agentSessionPrefix = "agt_"
 }
 
 public enum ClaudeHooks {

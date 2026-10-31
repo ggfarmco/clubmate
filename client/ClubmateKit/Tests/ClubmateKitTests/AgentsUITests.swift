@@ -4,32 +4,6 @@ import ClubmateKit
 
 @MainActor
 final class AgentsUITests: XCTestCase {
-    func testMarkdownBlocks() {
-        let source = "# Title\n\nSome *text*\nmore\n- one\n  - two\n3. third\n\n```go\nfunc main() {\n\n}\n```\nafter"
-
-        XCTAssertEqual(Markdown.blocks(source), [
-            .heading(level: 1, text: "Title"),
-            .paragraph("Some *text*\nmore"),
-            .list([
-                MarkdownListItem(marker: "•", depth: 0, text: "one"),
-                MarkdownListItem(marker: "•", depth: 1, text: "two"),
-                MarkdownListItem(marker: "3.", depth: 0, text: "third"),
-            ]),
-            .code(language: "go", text: "func main() {\n\n}"),
-            .paragraph("after"),
-        ])
-        XCTAssertEqual(Markdown.blocks("```\nstreaming"), [.code(language: "", text: "streaming")])
-    }
-
-    func testMarkdownLinksOnlyOpenWebAndMail() throws {
-        for allowed in ["https://example.com", "HTTP://example.com/a", "mailto:a@b.c"] {
-            XCTAssertTrue(MarkdownLinkPolicy.allows(try XCTUnwrap(URL(string: allowed))), allowed)
-        }
-        for denied in ["file:///etc/passwd", "x-callback-url://run", "clubmate://open", "javascript:alert(1)", "relative/path"] {
-            XCTAssertFalse(MarkdownLinkPolicy.allows(try XCTUnwrap(URL(string: denied))), denied)
-        }
-    }
-
     func testComposerKeys() throws {
         let model = ComposerModel()
         model.commands = ["review", "compact", "context"].map { ComposerCommand(name: $0, description: "", hint: "") }

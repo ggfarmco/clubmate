@@ -78,14 +78,18 @@ struct MarkdownView: View {
                         .font(level <= 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
                 case .paragraph(let text):
                     Text(Markdown.inline(text))
-                case .bullet(let marker, let depth, let text):
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(marker)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                        Text(Markdown.inline(text))
+                case .list(let items):
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(item.marker)
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                Text(Markdown.inline(item.text))
+                            }
+                            .padding(.leading, CGFloat(item.depth) * 16)
+                        }
                     }
-                    .padding(.leading, CGFloat(depth) * 16)
                 case .quote(let text):
                     Text(Markdown.inline(text))
                         .foregroundStyle(.secondary)
@@ -139,11 +143,11 @@ struct ToolRow: View {
                 withAnimation(.snappy) { expanded.toggle() }
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: tool.symbol)
+                    Image(systemName: tool.kind.symbol)
                         .foregroundStyle(.secondary)
                         .frame(width: 20)
                     Text(tool.displayTitle)
-                        .font(tool.kind == "execute" ? .callout.monospaced() : .callout)
+                        .font(tool.kind == .execute ? .callout.monospaced() : .callout)
                         .lineLimit(1)
                         .foregroundStyle(.primary)
                     Spacer(minLength: 6)
@@ -155,7 +159,7 @@ struct ToolRow: View {
                         }
                         .font(.caption.monospacedDigit().weight(.medium))
                     }
-                    ToolStatus(phase: tool.phase)
+                    ToolStatusIcon(status: tool.status)
                     if hasDetails {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
@@ -189,12 +193,12 @@ struct ToolRow: View {
     }
 }
 
-struct ToolStatus: View {
-    let phase: ToolCall.Phase
+struct ToolStatusIcon: View {
+    let status: ToolStatus
 
     var body: some View {
-        switch phase {
-        case .running:
+        switch status {
+        case .pending, .inProgress:
             ProgressView().controlSize(.small)
         case .completed:
             Image(systemName: "checkmark").foregroundStyle(.green).font(.caption.weight(.bold))
@@ -202,6 +206,8 @@ struct ToolStatus: View {
             Image(systemName: "xmark").foregroundStyle(.red).font(.caption.weight(.bold))
         case .cancelled:
             Image(systemName: "slash.circle").foregroundStyle(.secondary).font(.caption)
+        case .other:
+            EmptyView()
         }
     }
 }
@@ -258,7 +264,7 @@ struct DiffView: View {
         switch kind {
         case .added: "+"
         case .removed: "−"
-        case .context: " "
+        case .hunk, .context: " "
         }
     }
 
@@ -266,6 +272,7 @@ struct DiffView: View {
         switch kind {
         case .added: .green
         case .removed: .red
+        case .hunk: .accentColor
         case .context: .secondary
         }
     }
@@ -283,8 +290,8 @@ struct PlanCard: View {
                     Image(systemName: symbol(item.status))
                         .foregroundStyle(color(item.status))
                     Text(item.content)
-                        .strikethrough(item.status == "completed", color: .secondary)
-                        .foregroundStyle(item.status == "completed" ? .secondary : .primary)
+                        .strikethrough(item.status == .completed, color: .secondary)
+                        .foregroundStyle(item.status == .completed ? .secondary : .primary)
                 }
                 .font(.callout)
             }
@@ -294,19 +301,19 @@ struct PlanCard: View {
         .background(.fill.quaternary, in: .rect(cornerRadius: 16))
     }
 
-    private func symbol(_ status: String) -> String {
+    private func symbol(_ status: PlanStatus) -> String {
         switch status {
-        case "completed": "checkmark.circle.fill"
-        case "in_progress": "circle.dotted.circle"
-        default: "circle"
+        case .completed: "checkmark.circle.fill"
+        case .inProgress: "play.circle"
+        case .pending: "circle"
         }
     }
 
-    private func color(_ status: String) -> Color {
+    private func color(_ status: PlanStatus) -> Color {
         switch status {
-        case "completed": .green
-        case "in_progress": .accentColor
-        default: .secondary
+        case .completed: .green
+        case .inProgress: .accentColor
+        case .pending: .secondary
         }
     }
 }
@@ -324,7 +331,7 @@ struct PermissionCard: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(pending ? .orange : .secondary)
             HStack(spacing: 10) {
-                Image(systemName: request.toolCall.symbol)
+                Image(systemName: request.toolCall.kind.symbol)
                     .foregroundStyle(.secondary)
                 Text(request.toolCall.displayTitle)
                     .font(.body.weight(.medium))
@@ -367,10 +374,10 @@ struct PermissionCard: View {
     @ViewBuilder
     private var buttons: some View {
         ForEach(request.options) { option in
-            if option.isAllow {
+            if option.kind.allows {
                 Button(option.name) { pick(option) }
                     .buttonStyle(.glassProminent)
-                    .tint(option.kind == "allow_once" ? .accentColor : .green)
+                    .tint(option.kind == .allowOnce ? .accentColor : .green)
             } else {
                 Button(option.name, role: .destructive) { pick(option) }
                     .buttonStyle(.glass)

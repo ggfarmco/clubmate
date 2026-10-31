@@ -60,7 +60,7 @@ final class ModelTests: XCTestCase {
         let transport = FakeTransport(reply: { request in
             switch FakeTransport.rpc(request) {
             case "workspaces": return (FakeTransport.result(workspacesJSON), 200)
-            case NotificationPolicy.sessionsCommand:
+            case AgentCommand.sessions:
                 try await Task.sleep(for: .milliseconds(300))
                 return (FakeTransport.result(#"[{"id":"agt_2","notifyEffective":"muted"}]"#), 200)
             default: return (FakeTransport.result(helloJSON), 200)
@@ -111,7 +111,7 @@ final class ModelTests: XCTestCase {
         let transport = FakeTransport(reply: { request in
             switch FakeTransport.rpc(request) {
             case "workspaces": (FakeTransport.result(workspacesJSON), 200)
-            case NotificationPolicy.sessionsCommand: (FakeTransport.result(sessions), 200)
+            case AgentCommand.sessions: (FakeTransport.result(sessions), 200)
             default: (FakeTransport.result(helloJSON), 200)
             }
         }, stream: { _ in

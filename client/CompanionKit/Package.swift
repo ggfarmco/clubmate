@@ -7,8 +7,11 @@ let package = Package(
     products: [
         .library(name: "CompanionKit", targets: ["CompanionKit"])
     ],
+    dependencies: [
+        .package(path: "../ClubmateProtocol")
+    ],
     targets: [
-        .target(name: "CompanionKit"),
+        .target(name: "CompanionKit", dependencies: ["ClubmateProtocol"]),
         .testTarget(name: "CompanionKitTests", dependencies: ["CompanionKit"], resources: [.copy("Fixtures")]),
     ]
 )

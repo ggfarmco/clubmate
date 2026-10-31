@@ -27,7 +27,7 @@ public struct PluginRegistry {
 
 public enum AgentsPluginInfo {
     public static let id = "agents"
-    public static let requiredCommands = ["agents.sessions", "agents.transcript", "agents.prompt"]
+    public static let requiredCommands = [AgentCommand.sessions, AgentCommand.transcript, AgentCommand.prompt]
 }
 
 public enum InboxPluginInfo {

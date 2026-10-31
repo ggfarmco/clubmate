@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MarkdownListItem: Equatable, Sendable {
+public struct MarkdownListItem: Sendable, Hashable {
     public let marker: String
     public let depth: Int
     public let text: String
@@ -12,10 +12,11 @@ public struct MarkdownListItem: Equatable, Sendable {
     }
 }
 
-public enum MarkdownBlock: Equatable, Sendable {
+public enum MarkdownBlock: Sendable, Hashable {
     case heading(level: Int, text: String)
     case paragraph(String)
     case list([MarkdownListItem])
+    case quote(String)
     case code(language: String, text: String)
 }
 
@@ -24,13 +25,16 @@ public enum Markdown {
         var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []
         var items: [MarkdownListItem] = []
+        var quote: [String] = []
         var fence: (marker: String, language: String, lines: [String])?
 
         func flush() {
             if !paragraph.isEmpty { blocks.append(.paragraph(paragraph.joined(separator: "\n"))) }
             if !items.isEmpty { blocks.append(.list(items)) }
+            if !quote.isEmpty { blocks.append(.quote(quote.joined(separator: "\n"))) }
             paragraph = []
             items = []
+            quote = []
         }
 
         for line in source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
@@ -44,6 +48,7 @@ public enum Markdown {
                 continue
             }
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if !quote.isEmpty, !trimmed.hasPrefix(">") { flush() }
             if let marker = fenceMarker(trimmed) {
                 flush()
                 fence = (marker, String(trimmed.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces), [])
@@ -52,6 +57,9 @@ public enum Markdown {
             } else if let heading = heading(trimmed) {
                 flush()
                 blocks.append(heading)
+            } else if trimmed.hasPrefix(">") {
+                if quote.isEmpty { flush() }
+                quote.append(trimmed.dropFirst().trimmingCharacters(in: .whitespaces))
             } else if let item = listItem(line) {
                 if !paragraph.isEmpty {
                     blocks.append(.paragraph(paragraph.joined(separator: "\n")))

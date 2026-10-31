@@ -1,56 +1,8 @@
 import Foundation
 
-public enum NotificationKind: String, Sendable, Equatable, CaseIterable {
-    case needsInput = "needs-input"
-    case permission
-    case done
-    case stuck
-    case info
-
-    public var label: String {
-        switch self {
-        case .needsInput: "Needs input"
-        case .permission: "Permission needed"
-        case .done: "Done"
-        case .stuck: "Stuck"
-        case .info: "Info"
-        }
-    }
-
-    public var symbol: String {
-        switch self {
-        case .needsInput: "questionmark.bubble.fill"
-        case .permission: "hand.raised.fill"
-        case .done: "checkmark.circle.fill"
-        case .stuck: "exclamationmark.triangle.fill"
-        case .info: "info.circle.fill"
-        }
-    }
-}
-
-public enum NotificationPolicy: String, Sendable, Equatable {
-    case all
-    case needsInput = "needs-input"
-    case muted
-
-    public static let sessionsCommand = "agents.sessions"
-
-    public init(session: String, in sessions: JSONValue) {
-        self = sessions.arrayValue?.first { $0["id"]?.stringValue == session }?["notifyEffective"]?.stringValue.flatMap(Self.init(rawValue:)) ?? .all
-    }
-
-    public func allows(_ kind: NotificationKind) -> Bool {
-        switch self {
-        case .all: true
-        case .needsInput: kind == .needsInput || kind == .permission
-        case .muted: false
-        }
-    }
-}
+import ClubmateProtocol
 
 public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
-    public static let topic = "notify.posted"
-
     public let id: String
     public let computerID: String
     public let workspace: String
@@ -74,18 +26,17 @@ public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
     }
 
     public init?(_ event: BusEvent, computerID: String, received: Date) {
-        guard event.topic == Self.topic, let id = event.payload["id"]?.stringValue, let message = event.payload["message"]?.stringValue else { return nil }
-        let nonEmpty = { (key: String) in event.payload[key]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } }
+        guard event.topic == Topic.notifyPosted, let posted = NotifyPosted(event.payload) else { return nil }
         self.init(
-            id: id,
+            id: posted.id,
             computerID: computerID,
-            workspace: nonEmpty("workspace") ?? event.workspace,
-            session: nonEmpty("session"),
-            title: nonEmpty("title") ?? "",
-            message: message,
-            kind: nonEmpty("kind").flatMap(NotificationKind.init(rawValue:)) ?? .info,
-            viaAgent: event.payload["agent"] == .bool(true),
-            date: nonEmpty("ts").flatMap(Date.parseRFC3339) ?? received
+            workspace: posted.workspace ?? event.workspace,
+            session: posted.session,
+            title: posted.title,
+            message: posted.message,
+            kind: posted.kind,
+            viaAgent: posted.viaAgent,
+            date: posted.date ?? received
         )
     }
 }

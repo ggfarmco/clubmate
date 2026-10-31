@@ -1,5 +1,5 @@
-public struct DiffLine: Equatable, Sendable {
-    public enum Kind: Sendable {
+public struct DiffLine: Sendable, Hashable {
+    public enum Kind: Sendable, Hashable {
         case added
         case removed
         case hunk

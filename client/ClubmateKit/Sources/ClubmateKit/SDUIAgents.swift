@@ -1,5 +1,7 @@
 import Foundation
 
+import ClubmateProtocol
+
 public struct SDUIAttachment: Sendable, Equatable, Identifiable {
     public let key: String?
     public let kind: String
@@ -27,19 +29,13 @@ public struct SDUIAttachment: Sendable, Equatable, Identifiable {
 }
 
 public struct SDUIPlanEntry: Sendable, Equatable {
-    public enum Status: String, Sendable {
-        case pending
-        case inProgress = "in_progress"
-        case completed
-    }
-
     public let content: String
-    public let status: Status
+    public let status: PlanStatus
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let content = fields["content"]?.stringValue else { return nil }
         self.content = content
-        status = fields["status"]?.stringValue.flatMap(Status.init) ?? .pending
+        status = PlanStatus(fields["status"]?.stringValue)
     }
 }
 
@@ -91,16 +87,13 @@ public struct SDUICardAction: Sendable, Equatable, Identifiable {
 public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
     public let id: String
     public let label: String
-    public let kind: String?
-
-    public var allows: Bool { kind?.hasPrefix("allow") == true }
-    public var rejects: Bool { kind?.hasPrefix("reject") == true }
+    public let kind: PermissionKind
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
         self.id = id
         self.label = label
-        kind = fields["kind"]?.stringValue
+        kind = PermissionKind(fields["kind"]?.stringValue)
     }
 }
 
@@ -138,6 +131,18 @@ public struct SDUIPicker: Sendable, Equatable, Identifiable {
 }
 
 extension SDUINode {
+    public var toolKind: ToolKind {
+        ToolKind(string("kind"))
+    }
+
+    public var toolStatus: ToolStatus {
+        ToolStatus(string("status"))
+    }
+
+    public var messageRole: MessageRole {
+        MessageRole(string("role"))
+    }
+
     public func attachments() -> [SDUIAttachment] {
         props["attachments"]?.arrayValue?.compactMap(SDUIAttachment.init) ?? []
     }

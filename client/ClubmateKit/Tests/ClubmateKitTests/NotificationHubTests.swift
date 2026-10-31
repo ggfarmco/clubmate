@@ -79,8 +79,8 @@ final class NotificationHubTests: XCTestCase {
 
     func testAgentPermissionPostsOncePerRequestWhenHidden() {
         var notifier = AgentNotifier()
-        let waiting = AgentSessionState(workspace: "w", session: "agt_1", agent: "claude", title: "Fix", status: "waiting", requests: ["permission-1"])
-        let running = AgentSessionState(workspace: "w", session: "agt_2", agent: "claude", title: "Run", status: "running", requests: ["permission-9"])
+        let waiting = AgentSessionState(workspace: "w", session: "agt_1", agent: "claude", title: "Fix", status: .waiting, requests: ["permission-1"])
+        let running = AgentSessionState(workspace: "w", session: "agt_2", agent: "claude", title: "Run", status: .running, requests: ["permission-9"])
 
         XCTAssertEqual(notifier.pending([running], shown: { _ in false }), [])
         XCTAssertEqual(notifier.pending([waiting], shown: { _ in true }), [])

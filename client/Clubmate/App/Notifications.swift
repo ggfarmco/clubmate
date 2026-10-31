@@ -77,8 +77,8 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         listener = Task { [weak self] in
             let after = await Self.resumePoint(client, lastSeq: lastSeq)
             if after == .max { self?.hub.inbox.forgetSeq() }
-            guard let agents = try? await client.busSubscribe(pattern: AgentNotifier.changedTopic, after: .max),
-                  let posted = try? await client.busSubscribe(pattern: HubNotification.topic, after: after) else { return }
+            guard let agents = try? await client.busSubscribe(pattern: Topic.agentsChanged, after: .max),
+                  let posted = try? await client.busSubscribe(pattern: Topic.notifyPosted, after: after) else { return }
             self?.checkOpenWorkspaces()
             for await notification in stream where notification.method == "bus.event" {
                 guard let params = notification.params.objectValue, let event = params["event"]?.objectValue, let payload = event["payload"] else { continue }
@@ -146,7 +146,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         guard lastSeq > 0 else { return .max }
         let read: Result<JSONValue, any Error>
         do {
-            read = .success(try await client.call(method: "bus.read", params: .object(["pattern": .string(HubNotification.topic), "after": .number(Double(lastSeq - 1)), "limit": .number(1)])))
+            read = .success(try await client.call(method: "bus.read", params: .object(["pattern": .string(Topic.notifyPosted), "after": .number(Double(lastSeq - 1)), "limit": .number(1)])))
         } catch {
             read = .failure(error)
         }
@@ -177,7 +177,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func checkAgents(_ workspace: String, session: String?) async {
         guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session),
-              case .success(let listed) = await run(workspace, CommandInvocation(id: AgentNotifier.sessionsCommand)) else { return }
+              case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
         let sessions = AgentSessionState.list(listed).filter { session == nil || $0.session == session }
         hub.waiting.update(workspace: workspace, session: session, sessions: sessions)
         let current = focus()
@@ -196,8 +196,8 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func policy(_ note: HubNotification) async -> NotificationPolicy {
         guard note.isAgentSession, let session = note.session,
-              case .success(let listed) = await run(note.workspace, CommandInvocation(id: AgentNotifier.sessionsCommand)) else { return .all }
-        return AgentSessionState.list(listed).first { $0.session == session }?.policy ?? .all
+              case .success(let listed) = await run(note.workspace, CommandInvocation(id: AgentCommand.sessions)) else { return .all }
+        return NotificationPolicy(session: session, in: listed)
     }
 
     private func accept(_ note: HubNotification, policy: NotificationPolicy) -> Bool {

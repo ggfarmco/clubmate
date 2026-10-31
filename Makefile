@@ -54,7 +54,10 @@ app-release: ghostty
 run-app:
 	open "build/DerivedData/Build/Products/Debug/Clubmate Dev.app"
 
-kit-test:
+protocol-test:
+	cd client/ClubmateProtocol && swift test
+
+kit-test: protocol-test
 	cd client/ClubmateKit && swift test
 
 nvim-distro:
@@ -73,4 +76,4 @@ companion-kit-test:
 companion:
 	cd client && xcodegen generate --spec companion.yml && xcodebuild -project Companion.xcodeproj -scheme Companion -sdk iphonesimulator -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual build
 
-.PHONY: build run-core test lint ghostty app app-release run-app kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion
+.PHONY: build run-core test lint ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion

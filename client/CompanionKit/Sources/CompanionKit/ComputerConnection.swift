@@ -30,7 +30,6 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
-    public static let pluginChangedTopic = "plugin.changed"
 
     public private(set) var computer: Computer
     public private(set) var state: State = .offline(nil)
@@ -118,7 +117,7 @@ public final class ComputerConnection: CommandRunner {
                         emit(.online)
                     case .event(let event):
                         lastEventID = event.seq
-                        if event.topic == Self.pluginChangedTopic, let fresh = try? await client.hello() {
+                        if event.topic == Topic.pluginChanged, let fresh = try? await client.hello() {
                             if Task.isCancelled { return }
                             self.hello = fresh
                         }

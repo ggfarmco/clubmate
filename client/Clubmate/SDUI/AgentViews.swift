@@ -220,7 +220,7 @@ private struct ToolActionLine: View, Equatable {
                     }
                 }
                 Spacer(minLength: theme.gutter)
-                ToolStatusView(status: node.string("status"))
+                ToolStatusView(status: node.toolStatus)
             }
             .help(title.help ?? fullTitle)
             if expanded, expandable {
@@ -250,7 +250,7 @@ private struct ToolActionLine: View, Equatable {
     }
 
     private var kindIcon: some View {
-        Image(systemName: ToolCardNodeView.icon(node.string("kind")))
+        Image(systemName: node.toolKind.symbol)
             .foregroundStyle(theme.muted)
             .frame(width: theme.indent + theme.spacing.s)
             .accessibilityHidden(true)
@@ -259,7 +259,7 @@ private struct ToolActionLine: View, Equatable {
     private func heading(_ text: String, changes: (added: Int, removed: Int)?) -> some View {
         HStack(spacing: theme.spacing.s) {
             Text(text)
-                .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
+                .foregroundStyle(node.toolStatus == .cancelled ? theme.muted : theme.foreground)
                 .lineLimit(expanded ? 3 : 1)
                 .truncationMode(.label)
             if let changes {
@@ -300,8 +300,8 @@ struct MessageNodeView: View, Equatable {
 
     var body: some View {
         let text = node.string("text") ?? ""
-        switch node.string("role") {
-        case "user":
+        switch node.messageRole {
+        case .user:
             HStack(spacing: 0) {
                 Spacer(minLength: theme.gutter * 8)
                 VStack(alignment: .leading, spacing: theme.spacing.s) {
@@ -318,9 +318,9 @@ struct MessageNodeView: View, Equatable {
                 .padding(.vertical, theme.gutter)
                 .background(UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10, bottomTrailingRadius: 3, topTrailingRadius: 10).fill(theme.foreground.opacity(0.06)))
             }
-        case "thought":
+        case .thought:
             ThoughtView(text: text)
-        default:
+        case .agent:
             MarkdownText(text: text)
                 .equatable()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -400,7 +400,7 @@ struct PlanNodeView: View {
         .agentCard()
     }
 
-    private func icon(_ status: SDUIPlanEntry.Status) -> String {
+    private func icon(_ status: PlanStatus) -> String {
         switch status {
         case .completed: "checkmark.circle.fill"
         case .inProgress: "play.circle"
@@ -414,23 +414,23 @@ struct ToolCardNodeView: View {
 
     @Environment(\.theme) private var theme
 
-    private var oneLine: Bool { ["read", "search"].contains(node.string("kind")) }
+    private var oneLine: Bool { node.toolKind == .read || node.toolKind == .search }
 
     var body: some View {
         let toolBody = oneLine ? nil : node.toolBody()
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: theme.spacing.l) {
-                Image(systemName: Self.icon(node.string("kind")))
+                Image(systemName: node.toolKind.symbol)
                     .foregroundStyle(theme.muted)
                     .frame(width: theme.indent + theme.spacing.s)
                 Text(node.string("title") ?? "")
-                    .foregroundStyle(node.string("status") == "cancelled" ? theme.muted : theme.foreground)
+                    .foregroundStyle(node.toolStatus == .cancelled ? theme.muted : theme.foreground)
                     .lineLimit(oneLine ? 1 : 3)
                     .truncationMode(.label)
                     .textSelection(.enabled)
                 Spacer(minLength: theme.gutter)
                 if oneLine { ToolCardButtons(node: node) }
-                ToolStatusView(status: node.string("status"))
+                ToolStatusView(status: node.toolStatus)
             }
             .padding(.horizontal, theme.gutter + theme.spacing.s)
             .padding(.vertical, theme.spacing.m)
@@ -454,21 +454,6 @@ struct ToolCardNodeView: View {
         .font(theme.ui)
         .frame(maxWidth: .infinity, alignment: .leading)
         .agentCard()
-    }
-
-    static func icon(_ kind: String?) -> String {
-        switch kind {
-        case "read": "doc.text"
-        case "edit": "pencil"
-        case "delete": "trash"
-        case "move": "arrow.left.arrow.right"
-        case "search": "magnifyingglass"
-        case "execute": "terminal"
-        case "think": "brain"
-        case "fetch": "globe"
-        case "switch_mode": "arrow.triangle.swap"
-        default: "wrench.and.screwdriver"
-        }
     }
 }
 
@@ -499,27 +484,27 @@ private struct TruncatedNote: View {
 }
 
 private struct ToolStatusView: View {
-    let status: String?
+    let status: ToolStatus
 
     @Environment(\.theme) private var theme
 
     var body: some View {
         switch status {
-        case "pending", "in_progress":
+        case .pending, .inProgress:
             ProgressView().controlSize(.mini)
-        case "failed":
+        case .failed:
             Label("Failed", systemImage: "xmark.circle.fill")
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.danger)
-        case "cancelled":
+        case .cancelled:
             Text("Cancelled")
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.muted)
-        case "completed":
+        case .completed:
             Image(systemName: "checkmark")
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.success)
-        default:
+        case .other:
             EmptyView()
         }
     }
@@ -614,8 +599,8 @@ struct PermissionCardNodeView: View {
 
     private func tone(_ option: SDUIPermissionOption, outcome: String?) -> CardButton.Tone {
         if let outcome { return outcome == option.id ? .primary : .plain }
-        if option.kind == "allow_once" { return .primary }
-        return option.rejects ? .danger : .plain
+        if option.kind == .allowOnce { return .primary }
+        return option.kind.rejects ? .danger : .plain
     }
 }
 

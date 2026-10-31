@@ -67,6 +67,15 @@ struct MarkdownText: View, Equatable {
                     .padding(.leading, CGFloat(item.depth) * theme.indent)
                 }
             }
+        case .quote(let text):
+            Text(theme.inlineMarkdown(text))
+                .foregroundStyle(theme.muted)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, theme.gutter)
+                .overlay(alignment: .leading) {
+                    theme.border.frame(width: 2)
+                }
         case .code(let language, let text):
             CodeBlock(language: language, text: text)
         }

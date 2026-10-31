@@ -4,8 +4,6 @@ import Observation
 @MainActor
 @Observable
 public final class AgentsStore {
-    public static let changedTopic = "agents.changed"
-
     public let workspace: String
     public private(set) var sessions: [AgentSession] = []
     public private(set) var transcripts: [String: AgentTranscript] = [:]
@@ -38,7 +36,7 @@ public final class AgentsStore {
         switch signal {
         case .online:
             Task { await refreshAll() }
-        case .event(let event) where event.topic == Self.changedTopic:
+        case .event(let event) where event.topic == Topic.agentsChanged:
             let target = event.payload["workspace"]?.stringValue ?? event.workspace
             guard target.isEmpty || target == workspace else { return }
             Task { await refresh() }
@@ -61,7 +59,7 @@ public final class AgentsStore {
         await coalesced("sessions") { [weak self] in
             guard let self, let runner else { return }
             do {
-                sessions = try await runner.command("agents.sessions", workspace: workspace, args: nil).decode([AgentSession].self)
+                sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil).decode([AgentSession].self)
                 error = nil
             } catch {
                 self.error = Self.message(error)
