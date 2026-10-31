@@ -431,7 +431,10 @@ func header(sc screen) sdui.Node {
 	if name := modeName(sc.View.Modes, rec.Mode); name != "" {
 		meta = append(meta, name)
 	}
-	if name := modelName(sc.View.Configs); name != "" {
+	if name := configName(sc.View.Configs, acp.CategoryModel); name != "" {
+		meta = append(meta, name)
+	}
+	if name := effortName(sc.View.Configs); name != "" {
 		meta = append(meta, name)
 	}
 	row := []sdui.Node{
@@ -602,7 +605,7 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		n.ID = sid + "/plan/" + strconv.Itoa(en.Turn)
 		return n, true
 	case entryTool:
-		return toolCard(sid+"/tool/"+en.ID, en, sc.Expanded[en.ID], sha != ""), true
+		return toolCard(sid+"/tool/"+en.ID, root, en, sc.Expanded[en.ID], sha != ""), true
 	case entryPermission:
 		return permissionCard(sc, en), true
 	case entryNotice:
@@ -615,7 +618,7 @@ func entryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	return sdui.Node{}, false
 }
 
-func toolCard(id string, en *entry, expanded, reviewable bool) sdui.Node {
+func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 	var f toolFields
 	for name, dst := range map[string]any{"title": &f.Title, "kind": &f.Kind, "status": &f.Status, "content": &f.Content, "locations": &f.Locations, "rawInput": &f.RawInput} {
 		if raw, ok := en.Tool[name]; ok {
@@ -634,8 +637,8 @@ func toolCard(id string, en *entry, expanded, reviewable bool) sdui.Node {
 		status = ""
 	}
 	command, _ := f.RawInput["command"].(string)
-	p := sdui.ToolCardProps{Kind: kind, Title: cmp.Or(f.Title, command, kind), Status: status}
-	body := toolBody(kind, command, f.Content)
+	p := sdui.ToolCardProps{Kind: kind, Title: cmp.Or(shortPaths(f.Title, root), command, kind), Status: status}
+	body := toolBody(kind, command, root, f.Content)
 	if body != nil && !slices.Contains(oneLineKinds, kind) {
 		text, cut := truncateBody(body.Text, expanded)
 		body.Text = text
@@ -657,12 +660,12 @@ func toolCard(id string, en *entry, expanded, reviewable bool) sdui.Node {
 	return sdui.ToolCard(id, p)
 }
 
-func toolBody(kind, command string, content []toolContent) *sdui.ToolBody {
+func toolBody(kind, command, root string, content []toolContent) *sdui.ToolBody {
 	var diffs, texts []string
 	for _, c := range content {
 		switch c.Type {
 		case "diff":
-			diffs = append(diffs, unifiedDiff(c.Path, c.OldText, c.NewText))
+			diffs = append(diffs, unifiedDiff(relPath(c.Path, root), c.OldText, c.NewText))
 		case "content":
 			if c.Content.Type == "text" && c.Content.Text != "" {
 				texts = append(texts, c.Content.Text)
@@ -795,7 +798,7 @@ func permissionCard(sc screen, en *entry) sdui.Node {
 	_ = json.Unmarshal(en.ToolCall, &f)
 	text := agentLabel(rec.Agent) + " asks for permission"
 	if f.Title != "" {
-		verb, title := cmp.Or(permVerbs[f.Kind], "use"), f.Title
+		verb, title := cmp.Or(permVerbs[f.Kind], "use"), shortPaths(f.Title, rec.Worktree)
 		if first, rest, ok := strings.Cut(title, " "); ok && slices.Contains(titleVerbs[f.Kind], first) {
 			verb, title = strings.ToLower(first), rest
 		}
@@ -885,6 +888,13 @@ func relPath(path, root string) string {
 	return path
 }
 
+func shortPaths(text, root string) string {
+	if root == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, strings.TrimSuffix(root, "/")+"/", "")
+}
+
 func composer(sc screen) sdui.Node {
 	v := sc.View
 	rec := v.Session
@@ -957,9 +967,18 @@ func pickers(sc screen) []sdui.Picker {
 	return append(out, sdui.Picker{ID: finishID, Title: "Finish", Help: finishHelp, Value: cmp.Or(sc.View.Session.Finish, finishAsk), Options: finish})
 }
 
-func modelName(configs []acp.SessionConfigOption) string {
+func effortName(configs []acp.SessionConfigOption) string {
+	name := configName(configs, acp.CategoryThoughtLevel)
+	i := slices.IndexFunc(configs, func(o acp.SessionConfigOption) bool { return o.Category == acp.CategoryThoughtLevel })
+	if name == "" || configs[i].Name == "" {
+		return name
+	}
+	return name + " " + strings.ToLower(configs[i].Name)
+}
+
+func configName(configs []acp.SessionConfigOption, category string) string {
 	for _, o := range configs {
-		if o.Category != acp.CategoryModel {
+		if o.Category != category {
 			continue
 		}
 		if c, ok := o.Choice(o.Current()); ok {

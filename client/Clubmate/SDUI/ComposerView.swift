@@ -118,6 +118,7 @@ struct ComposerNodeView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Remove")
+                .accessibilityLabel("Remove \(attachment.label)")
             }
         }
         .font(theme.uiSmall)
@@ -284,6 +285,7 @@ struct ComposerNodeView: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Attach")
+            .accessibilityLabel("Attach")
         }
     }
 

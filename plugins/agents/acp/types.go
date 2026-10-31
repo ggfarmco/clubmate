@@ -31,9 +31,10 @@ const (
 	UpdateSessionInfo       = "session_info_update"
 	UpdateNotice            = "notice"
 
-	ConfigSelect  = "select"
-	CategoryMode  = "mode"
-	CategoryModel = "model"
+	ConfigSelect         = "select"
+	CategoryMode         = "mode"
+	CategoryModel        = "model"
+	CategoryThoughtLevel = "thought_level"
 
 	StopEndTurn   = "end_turn"
 	StopCancelled = "cancelled"

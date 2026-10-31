@@ -105,6 +105,7 @@ private struct CodeBlock: View {
                 }
                 .buttonStyle(.plain)
                 .help("Copy")
+                .accessibilityLabel(copied ? "Copied" : "Copy")
             }
             .padding(theme.spacing.m)
         }

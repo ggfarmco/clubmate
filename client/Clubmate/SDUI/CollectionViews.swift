@@ -261,6 +261,7 @@ struct Disclosure: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(expanded ? "Collapse" : "Expand")
         } else {
             Color.clear.frame(width: theme.indent)
         }

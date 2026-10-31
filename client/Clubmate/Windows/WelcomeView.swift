@@ -139,6 +139,7 @@ private struct RecentRow: View {
                 }
                 .buttonStyle(.plain)
                 .help("Remove Workspace…")
+                .accessibilityLabel("Remove Workspace…")
             }
         }
         .padding(.horizontal, theme.gutter)

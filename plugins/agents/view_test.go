@@ -278,6 +278,29 @@ func TestHugeToolOutputRendersTruncated(t *testing.T) {
 	assert.LessOrEqual(t, len(full), expandedBytes)
 }
 
+func TestToolPathsRelativeToWorktree(t *testing.T) {
+	tool := map[string]json.RawMessage{
+		"title":   rawJSON(t, "Edit `/r/a/pkg/x.go`"),
+		"kind":    rawJSON(t, "edit"),
+		"status":  rawJSON(t, "completed"),
+		"content": rawJSON(t, []map[string]any{{"type": "diff", "path": "/r/a/pkg/x.go", "oldText": "one\n", "newText": "two\n"}}),
+	}
+	v := transcriptView{
+		Session: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusWaiting},
+		Entries: []*entry{
+			{Kind: entryTool, ID: "call-1", Turn: 1, Tool: tool},
+			{Kind: entryPermission, ID: "perm-1", Turn: 1, ToolCall: rawJSON(t, map[string]string{"title": "Edit `/r/a/pkg/x.go`", "kind": "edit"})},
+		},
+	}
+	tree := mainView(screen{View: v, Composer: "agt_1/composer/0"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	card := nodesOf(tree, "toolCard")[0]
+	assert.Equal(t, "Edit `pkg/x.go`", card.Props["title"])
+	assert.True(t, strings.HasPrefix(card.Props["body"].(sdui.ToolBody).Text, "--- a/pkg/x.go\n+++ b/pkg/x.go\n"))
+	assert.Equal(t, "Claude wants to edit `pkg/x.go`", nodesOf(tree, "permissionCard")[0].Props["text"])
+}
+
 type fakeClock struct {
 	mu     sync.Mutex
 	now    time.Time
@@ -351,7 +374,7 @@ func TestRenderThrottle(t *testing.T) {
 	assert.Equal(t, before+1, lastRender)
 }
 
-func TestConfigPickersAndModelInHeader(t *testing.T) {
+func TestConfigPickersAndModelEffortInHeader(t *testing.T) {
 	var configs []acp.SessionConfigOption
 	require.NoError(t, json.Unmarshal([]byte(`[
 		{"id":"mode","name":"Mode","category":"mode","type":"select","currentValue":"plan","options":[{"value":"plan","name":"Plan"}]},
@@ -362,7 +385,7 @@ func TestConfigPickersAndModelInHeader(t *testing.T) {
 	tree := mainView(screen{View: v, Composer: "agt_1/composer/0", Advisor: "opus"})
 	require.NoError(t, internalsdui.Validate(tree))
 
-	assert.Equal(t, "Claude · ⑂ a · Opus 5.5", nodesOf(tree, "text")[1].Props["text"])
+	assert.Equal(t, "Claude · ⑂ a · Opus 5.5 · High effort", nodesOf(tree, "text")[1].Props["text"])
 	got := nodesOf(tree, "composer")[0].Props["pickers"].([]sdui.Picker)
 	require.Len(t, got, 4)
 	assert.Equal(t, sdui.Picker{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "sonnet", Label: "Sonnet 5"}, {Value: "opus", Label: "Opus 5.5"}}}, got[0])
