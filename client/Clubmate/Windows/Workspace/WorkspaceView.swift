@@ -12,10 +12,10 @@ struct WorkspaceView: View {
     @State private var focus = FocusRouter()
     @State private var rowWidth: CGFloat = 0
 
-    private var visibleTrees: [SDUINode?] {
+    private var visibleRevs: [Int64?] {
         let store = session.store
         let section = store?.selectedSection
-        return [section.flatMap { store?.slots["\($0).sidebar"]?.tree }, section.flatMap { store?.mainTree($0) }, store?.chatShown == true ? store?.slots[CodeSection.chatSlot]?.tree : nil]
+        return [section.flatMap { store?.slots["\($0).sidebar"]?.rev }, section.flatMap { store?.slots["\($0).main"]?.rev }, store?.chatShown == true ? store?.slots[CodeSection.chatSlot]?.rev : nil]
     }
 
     var body: some View {
@@ -45,7 +45,10 @@ struct WorkspaceView: View {
             .onChange(of: app.workspace(session.workspaceID)) {
                 Task { await session.worktrees.load(retrying: true) }
             }
-            .onChange(of: visibleTrees) {
+            .onChange(of: session.store?.selectedSection) {
+                app.notifications.focusChanged()
+            }
+            .onChange(of: visibleRevs) {
                 app.notifications.focusChanged()
             }
             .onChange(of: autoNewKey, initial: true) { old, new in

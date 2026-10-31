@@ -9,9 +9,10 @@ struct SlotPane: View {
 
     var body: some View {
         if let view = store.slots[slot] {
-            SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, drafts: store.drafts) { [store] event in
+            SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store] event in
                 await store.send(event)
             }
+            .equatable()
         } else {
             EmptyNodeView(text: "")
         }

@@ -24,7 +24,7 @@ struct StackNodeView: View {
                 SDUINodeView(node: key)
                     .frame(width: keyWidth, alignment: .leading)
                 ForEach(node.identifiedChildren.dropFirst()) { child in
-                    SDUINodeView(node: child.node)
+                    SDUINodeView(node: child.node).equatable()
                 }
             }
             .environment(\.formKeyWidth, nil)
@@ -50,6 +50,7 @@ struct SplitNodeView: View {
     private var panes: some View {
         ForEach(node.identifiedChildren) { child in
             SDUINodeView(node: child.node)
+                .equatable()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }

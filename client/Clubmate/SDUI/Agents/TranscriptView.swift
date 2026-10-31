@@ -17,7 +17,7 @@ struct TranscriptNodeView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: theme.gutter + theme.spacing.s) {
                 ForEach(items) { item in
-                    TranscriptItemView(item: item)
+                    TranscriptItemView(item: item).equatable()
                 }
             }
             .padding(.horizontal, theme.gutter * 2)
@@ -28,7 +28,7 @@ struct TranscriptNodeView: View {
         .onScrollGeometryChange(for: TranscriptScroll.self) { geometry in
             TranscriptScroll(offset: geometry.contentOffset.y, pinned: geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - slack)
         } action: { _, scroll in
-            pinned = scroll.pinned
+            if pinned != scroll.pinned { pinned = scroll.pinned }
             if let id = node.id { TranscriptScroll.saved[id] = scroll }
         }
         .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
@@ -67,12 +67,16 @@ struct TranscriptNodeView: View {
     }
 }
 
-private struct TranscriptItemView: View {
+private struct TranscriptItemView: View, Equatable {
     let item: TranscriptItem
+
+    nonisolated static func == (lhs: TranscriptItemView, rhs: TranscriptItemView) -> Bool {
+        lhs.item == rhs.item
+    }
 
     var body: some View {
         switch item {
-        case let .node(child): SDUINodeView(node: child.node)
+        case let .node(child): SDUINodeView(node: child.node).equatable()
         case let .action(child): ToolActionLine(id: child.id, node: child.node, expanded: ToolExpansion.shared.state.isExpanded(card: child.id)).equatable()
         case let .actions(_, cards): ToolActionsView(cards: cards)
         }

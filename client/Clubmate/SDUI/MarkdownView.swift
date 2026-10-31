@@ -67,48 +67,78 @@ private enum MarkdownSection {
     }
 }
 
+@MainActor
+private enum ProseCache {
+    struct Key: Hashable {
+        let block: MarkdownBlock
+        let first: Bool
+        let muted: Bool
+        let theme: String
+    }
+
+    private static let limit = 2048
+    private static var pieces: [Key: NSAttributedString] = [:]
+
+    static func piece(_ key: Key, make: () -> NSAttributedString) -> NSAttributedString {
+        if let piece = pieces[key] { return piece }
+        if pieces.count >= limit { pieces.removeAll() }
+        let piece = make()
+        pieces[key] = piece
+        return piece
+    }
+}
+
 extension Theme {
+    @MainActor
     func prose(_ blocks: [MarkdownBlock], muted: Bool) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let body = nsFont(size: uiSize, bold: false)
-        let color = NSColor(muted ? self.muted : foreground)
+        let theme = [fontFamily ?? "", "\(uiSize)", foregroundHex, backgroundHex].joined(separator: "\u{1}")
         for (index, block) in blocks.enumerated() {
-            let gap = index == 0 ? 0 : spacing.l
             if index > 0 { result.append(NSAttributedString(string: "\n", attributes: [.font: body])) }
-            switch block {
-            case .heading(let level, let text):
-                let font = level <= 2 ? nsFont(size: uiSize + 1, bold: true) : nsFont(size: uiSize, bold: true)
-                result.append(paragraph(text, font: font, color: color, indent: 0, before: gap))
-            case .paragraph(let text):
-                result.append(paragraph(text, font: body, color: color, indent: 0, before: gap))
-            case .list(let items):
-                for (number, item) in items.enumerated() {
-                    if number > 0 { result.append(NSAttributedString(string: "\n", attributes: [.font: body])) }
-                    let lead = CGFloat(item.depth) * indent
-                    let hang = lead + (item.marker as NSString).size(withAttributes: [.font: body]).width + spacing.m
-                    let line = paragraph(item.text, font: body, color: color, indent: hang, before: number == 0 ? gap : spacing.xs)
-                    let first = paragraphStyle(lead: lead, hang: hang, before: number == 0 ? gap : spacing.xs)
-                    first.tabStops = [NSTextTab(textAlignment: .natural, location: hang)]
-                    let marker = NSMutableAttributedString(string: item.marker + "\t", attributes: [.font: body, .foregroundColor: NSColor(self.muted)])
-                    marker.append(line)
-                    let head = (marker.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))
-                    marker.addAttribute(.paragraphStyle, value: first, range: head)
-                    result.append(marker)
-                }
-            case .quote(let text):
-                let quote = NSMutableAttributedString(attributedString: paragraph(text, font: body, color: NSColor(self.muted), indent: 0, before: gap))
-                let range = NSRange(location: 0, length: quote.length)
-                quote.enumerateAttribute(.paragraphStyle, in: range) { value, range, _ in
-                    guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
-                    style.firstLineHeadIndent = gutter
-                    style.headIndent = gutter
-                    quote.addAttribute(.paragraphStyle, value: style, range: range)
-                }
-                quote.addAttribute(.quoteBar, value: NSColor(border), range: range)
-                result.append(quote)
-            case .code:
-                break
+            let key = ProseCache.Key(block: block, first: index == 0, muted: muted, theme: theme)
+            result.append(ProseCache.piece(key) { prose(block, gap: index == 0 ? 0 : spacing.l, muted: muted) })
+        }
+        return result
+    }
+
+    private func prose(_ block: MarkdownBlock, gap: CGFloat, muted: Bool) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let body = nsFont(size: uiSize, bold: false)
+        let color = NSColor(muted ? self.muted : foreground)
+        switch block {
+        case .heading(let level, let text):
+            let font = level <= 2 ? nsFont(size: uiSize + 1, bold: true) : nsFont(size: uiSize, bold: true)
+            result.append(paragraph(text, font: font, color: color, indent: 0, before: gap))
+        case .paragraph(let text):
+            result.append(paragraph(text, font: body, color: color, indent: 0, before: gap))
+        case .list(let items):
+            for (number, item) in items.enumerated() {
+                if number > 0 { result.append(NSAttributedString(string: "\n", attributes: [.font: body])) }
+                let lead = CGFloat(item.depth) * indent
+                let hang = lead + (item.marker as NSString).size(withAttributes: [.font: body]).width + spacing.m
+                let line = paragraph(item.text, font: body, color: color, indent: hang, before: number == 0 ? gap : spacing.xs)
+                let first = paragraphStyle(lead: lead, hang: hang, before: number == 0 ? gap : spacing.xs)
+                first.tabStops = [NSTextTab(textAlignment: .natural, location: hang)]
+                let marker = NSMutableAttributedString(string: item.marker + "\t", attributes: [.font: body, .foregroundColor: NSColor(self.muted)])
+                marker.append(line)
+                let head = (marker.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))
+                marker.addAttribute(.paragraphStyle, value: first, range: head)
+                result.append(marker)
             }
+        case .quote(let text):
+            let quote = NSMutableAttributedString(attributedString: paragraph(text, font: body, color: NSColor(self.muted), indent: 0, before: gap))
+            let range = NSRange(location: 0, length: quote.length)
+            quote.enumerateAttribute(.paragraphStyle, in: range) { value, range, _ in
+                guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
+                style.firstLineHeadIndent = gutter
+                style.headIndent = gutter
+                quote.addAttribute(.paragraphStyle, value: style, range: range)
+            }
+            quote.addAttribute(.quoteBar, value: NSColor(border), range: range)
+            result.append(quote)
+        case .code:
+            break
         }
         return result
     }

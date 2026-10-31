@@ -112,9 +112,11 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func focusChanged() {
-        let before = hub.inbox
-        hub.focused(focus())
-        if hub.inbox != before { changed() }
+        var next = hub
+        next.focused(focus())
+        guard next.inbox != hub.inbox else { return }
+        hub = next
+        changed()
     }
 
     func handle(_ id: String) {

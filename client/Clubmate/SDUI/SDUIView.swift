@@ -5,11 +5,15 @@ import ClubmateKit
 
 typealias UIEventSink = @Sendable (UIEvent) async -> Result<JSONValue, ClubmateError>
 
-struct SDUIDispatch: Sendable {
+struct SDUIDispatch: Sendable, Equatable {
     var slot = ""
     var workspaceID = ""
     var sink: UIEventSink = { _ in .success(.null) }
     var banner: EventBanner?
+
+    nonisolated static func == (lhs: SDUIDispatch, rhs: SDUIDispatch) -> Bool {
+        lhs.slot == rhs.slot && lhs.workspaceID == rhs.workspaceID && lhs.banner === rhs.banner
+    }
 
     @MainActor
     func callAsFunction(_ node: SDUINode, _ trigger: UIAction.Trigger, done: (@MainActor (Bool) -> Void)? = nil) {
@@ -130,12 +134,17 @@ extension EnvironmentValues {
     }
 }
 
-struct SDUIView: View {
+struct SDUIView: View, Equatable {
     let node: SDUINode
     let slot: String
     let workspaceID: String
+    var rev: Int64 = 0
     var drafts = ComposerDrafts()
     let send: UIEventSink
+
+    nonisolated static func == (lhs: SDUIView, rhs: SDUIView) -> Bool {
+        lhs.rev == rhs.rev && lhs.drafts === rhs.drafts && lhs.slot == rhs.slot && lhs.workspaceID == rhs.workspaceID && lhs.node == rhs.node
+    }
 
     @Environment(EventBanner.self) private var banner: EventBanner?
     @Environment(\.theme) private var theme
@@ -154,8 +163,12 @@ struct SDUIView: View {
     }
 }
 
-struct SDUINodeView: View {
+struct SDUINodeView: View, Equatable {
     let node: SDUINode
+
+    nonisolated static func == (lhs: SDUINodeView, rhs: SDUINodeView) -> Bool {
+        lhs.node == rhs.node
+    }
 
     var body: some View {
         if TestMode.current {
@@ -206,7 +219,7 @@ struct SDUIChildren: View {
 
     var body: some View {
         ForEach(node.identifiedChildren) { child in
-            SDUINodeView(node: child.node)
+            SDUINodeView(node: child.node).equatable()
         }
     }
 }
