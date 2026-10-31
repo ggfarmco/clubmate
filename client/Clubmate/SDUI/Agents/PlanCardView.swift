@@ -8,16 +8,18 @@ struct PlanNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
+        let entries = node.planEntries()
         VStack(alignment: .leading, spacing: theme.spacing.s) {
-            CardHeading(text: "Plan")
-            ForEach(Array(node.planEntries().enumerated()), id: \.offset) { _, entry in
+            Text(caption(entries))
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+            ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
                 HStack(alignment: .firstTextBaseline, spacing: theme.spacing.l) {
                     Image(systemName: icon(entry.status))
-                        .foregroundStyle(entry.status == .inProgress ? theme.accentInk : theme.muted)
+                        .foregroundStyle(iconStyle(entry.status))
                     Text(entry.content)
-                        .strikethrough(entry.status == .completed)
                         .fontWeight(entry.status == .inProgress ? .semibold : .regular)
-                        .foregroundStyle(entry.status == .completed ? theme.muted : theme.foreground)
+                        .foregroundStyle(textStyle(entry.status))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -28,23 +30,32 @@ struct PlanNodeView: View {
         .agentCard()
     }
 
+    private func caption(_ entries: [SDUIPlanEntry]) -> String {
+        guard !entries.isEmpty else { return "Plan" }
+        return "Plan · \(entries.count { $0.status == .completed }) of \(entries.count)"
+    }
+
     private func icon(_ status: PlanStatus) -> String {
         switch status {
-        case .completed: "checkmark.circle.fill"
+        case .completed: "checkmark"
         case .inProgress: "play.circle"
         case .pending: "circle"
         }
     }
-}
 
-private struct CardHeading: View {
-    let text: String
+    private func iconStyle(_ status: PlanStatus) -> Color {
+        switch status {
+        case .completed: theme.muted
+        case .inProgress: theme.accentInk
+        case .pending: theme.faint
+        }
+    }
 
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        Text(text.uppercased())
-            .font(theme.uiSmall.weight(.semibold))
-            .foregroundStyle(theme.muted)
+    private func textStyle(_ status: PlanStatus) -> Color {
+        switch status {
+        case .completed: theme.muted
+        case .inProgress: theme.foreground
+        case .pending: theme.text2
+        }
     }
 }

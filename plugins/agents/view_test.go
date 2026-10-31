@@ -278,6 +278,47 @@ func TestTranscriptWindowAndShowEarlier(t *testing.T) {
 	assert.Equal(t, "agt_1/msg/agent/m26", shifted["a26"])
 }
 
+func TestPlanOnly(t *testing.T) {
+	for text, want := range map[string]bool{
+		"## Plan\n\n1. Read\n2. Edit\n":             true,
+		"**Plan:**\n- [ ] Read\n  - nested\n- Edit": true,
+		"1) Read\n2) Edit":                          true,
+		"Plan\n":                                    true,
+		"I'll do this:\n\n1. Read\n2. Edit":         false,
+		"## Plan for the fix\n1. Read":              false,
+		"1. Read\n\nThen I'll run the tests.":       false,
+		"- Read\n## Plan":                           false,
+	} {
+		assert.Equal(t, want, planOnly(text), text)
+	}
+}
+
+func TestPlanOnlyMessageFoldsIntoFollowingPlan(t *testing.T) {
+	plan := rawJSON(t, map[string]any{"sessionUpdate": "plan", "entries": []map[string]string{{"content": "Read", "status": "completed"}, {"content": "Edit", "status": "pending"}}})
+	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}}
+	v.Entries = []*entry{
+		{Kind: entryUser, ID: "prompt-1", Turn: 1, Text: "go"},
+		{Kind: entryAgent, ID: "m1", Turn: 1, Text: "## Plan\n1. Read\n2. Edit"},
+		{Kind: entryPlan, ID: "plan-1", Turn: 1, Plan: plan},
+		{Kind: entryAgent, ID: "m2", Turn: 1, Text: "1. Read\n2. Edit"},
+		{Kind: entryUser, ID: "prompt-2", Turn: 2, Text: "again"},
+		{Kind: entryAgent, ID: "m3", Turn: 2, Text: "1. Read\n2. Edit"},
+		{Kind: entryThought, ID: "t3", Turn: 2, Text: "hm"},
+		{Kind: entryPlan, ID: "plan-2", Turn: 2, Plan: plan},
+	}
+	tree := mainView(screen{View: v, Composer: "agt_1/composer/0"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	var agent []string
+	for _, m := range nodesOf(tree, "message") {
+		if m.Props["role"] == entryAgent {
+			agent = append(agent, m.ID)
+		}
+	}
+	assert.Equal(t, []string{"agt_1/msg/agent/m2", "agt_1/msg/agent/m3"}, agent)
+	assert.Len(t, nodesOf(tree, "plan"), 2)
+}
+
 func TestInstallingNotice(t *testing.T) {
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusIdle}}
 	tree := mainView(screen{View: v, Installing: true, Composer: "agt_1/composer/0"})

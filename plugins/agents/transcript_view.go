@@ -36,6 +36,8 @@ var (
 	titleVerbs   = map[string][]string{"execute": {"Run"}, "edit": {"Write", "Edit"}, "delete": {"Delete"}, "move": {"Move"}, "read": {"Read"}, "fetch": {"Fetch"}}
 	selectionRe  = regexp.MustCompile(`^(.+):(\d+)-(\d+)\n`)
 	fragmentRe   = regexp.MustCompile(`^L(\d+)-(\d+)$`)
+	planHeadRe   = regexp.MustCompile(`(?i)^(#{1,6}\s+)?[*_]{0,2}plan[*_]{0,2}:?[*_]{0,2}$`)
+	planStepRe   = regexp.MustCompile(`^\s*([-*+]|\d+[.)])\s+\S`)
 )
 
 type nodeCache struct {
@@ -119,7 +121,7 @@ func transcript(sc screen) sdui.Node {
 			note = stopNote(stops[en.Turn])
 		}
 		b := entryNode(sc, en, shas[en.Turn])
-		b.shown = b.shown && !pending(sc, en)
+		b.shown = b.shown && !pending(sc, en) && !foldsIntoPlan(shown, i)
 		cost := 0
 		if note != "" {
 			cost++
@@ -148,6 +150,27 @@ func transcript(sc screen) sdui.Node {
 		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", label, "chevron.up"), actShowEarlier))
 	}
 	return sdui.Transcript(sid+"/transcript", nodes...)
+}
+
+func foldsIntoPlan(shown []*entry, i int) bool {
+	if i+1 >= len(shown) || shown[i].Kind != entryAgent || shown[i+1].Kind != entryPlan {
+		return false
+	}
+	var p planUpdate
+	return json.Unmarshal(shown[i+1].Plan, &p) == nil && len(p.Entries) > 0 && planOnly(shown[i].Text)
+}
+
+func planOnly(text string) bool {
+	for i, line := range strings.Split(strings.TrimSpace(text), "\n") {
+		line = strings.TrimRight(line, " \t")
+		switch {
+		case line == "", planStepRe.MatchString(line):
+		case i == 0 && planHeadRe.MatchString(line):
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func pending(sc screen, en *entry) bool {
