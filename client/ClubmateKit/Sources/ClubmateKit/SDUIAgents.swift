@@ -103,6 +103,11 @@ public struct SDUIPicker: Sendable, Equatable, Identifiable {
     public let help: String?
     public let value: String
     public let options: [SDUIOption]
+    public let toggle: Bool
+
+    public var isOn: Bool {
+        value == "true"
+    }
 
     public var current: String {
         options.first { $0.value == value }?.label ?? value
@@ -117,7 +122,8 @@ public struct SDUIPicker: Sendable, Equatable, Identifiable {
         let model = pickers.first { $0.title == nil }?.current.replacingOccurrences(of: " (recommended)", with: "")
         let effort = pickers.first { $0.id == "effort" }?.current
         let finish = pickers.first { $0.id == "finish" && $0.value == AgentFinishMode.merge.rawValue }?.current
-        return [model, effort, finish].compactMap { $0 }.joined(separator: " · ")
+        let toggles = pickers.filter { $0.toggle && $0.isOn }.map { $0.title ?? $0.id }
+        return ([model, effort, finish].compactMap { $0 } + toggles).joined(separator: " · ")
     }
 
     init?(_ json: JSONValue) {
@@ -127,6 +133,7 @@ public struct SDUIPicker: Sendable, Equatable, Identifiable {
         help = fields["help"]?.stringValue
         self.value = value
         options = fields["options"]?.arrayValue?.compactMap(SDUIOption.init) ?? []
+        toggle = fields["toggle"]?.boolValue ?? false
     }
 }
 

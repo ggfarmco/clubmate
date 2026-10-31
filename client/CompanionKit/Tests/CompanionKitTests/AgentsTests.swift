@@ -81,15 +81,22 @@ final class AgentsTests: XCTestCase {
     func testDecodesTranscriptFixture() throws {
         let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: fixture("agents-transcript"))
         XCTAssertEqual(transcript.modes.map(\.id), ["default", "plan"])
-        guard transcript.entries.count == 7,
+        guard transcript.entries.count == 8,
               case .user(let prompt, false, []) = transcript.entries[0].content,
               case .thought = transcript.entries[1].content,
               case .agent(let markdown) = transcript.entries[2].content,
               case .plan(let plan) = transcript.entries[3].content,
               case .tool(let read) = transcript.entries[4].content,
               case .tool(let edit) = transcript.entries[5].content,
-              case .permission(let permission) = transcript.entries[6].content
+              case .compaction(let compaction) = transcript.entries[6].content,
+              case .permission(let permission) = transcript.entries[7].content
         else { return XCTFail("unexpected entries \(transcript.entries.map(\.id))") }
+        XCTAssertEqual(compaction.title, "Context compacted")
+        XCTAssertFalse(compaction.summary.isEmpty)
+        XCTAssertEqual(transcript.usage?.contextLabel, "42% context")
+        XCTAssertEqual(transcript.usage?.tokensLabel, "84k of 200k tokens")
+        XCTAssertEqual(transcript.usage?.costLabel, "$0.84")
+        XCTAssertEqual(transcript.configOptions.filter(\.isToggle).map(\.currentValue), ["true"])
         XCTAssertEqual(prompt, "Refactor the cart total into its own function")
         XCTAssertEqual(Markdown.blocks(markdown).first, .heading(level: 2, text: "Plan"))
         XCTAssertEqual(plan.map(\.status), [.completed, .inProgress, .pending])

@@ -17,6 +17,7 @@ const (
 	entryPlan       = "plan"
 	entryPermission = "permission"
 	entryNotice     = "notice"
+	entryCompaction = "compaction"
 )
 
 var (
@@ -31,6 +32,7 @@ type transcriptState struct {
 	commands []acp.AvailableCommand
 	modes    []acp.SessionMode
 	configs  []acp.SessionConfigOption
+	usage    *acp.UsageUpdate
 	turns    []turnInfo
 	turn     int
 	nextID   int
@@ -44,6 +46,7 @@ type transcriptView struct {
 	Modes    []acp.SessionMode         `json:"modes"`
 	Configs  []acp.SessionConfigOption `json:"configOptions"`
 	Advisor  string                    `json:"advisor,omitempty"`
+	Usage    *acp.UsageUpdate          `json:"usage,omitempty"`
 	Commands []acp.AvailableCommand    `json:"commands"`
 	Turns    []turnInfo                `json:"turns"`
 	Entries  []*entry                  `json:"entries"`
@@ -62,6 +65,8 @@ type entry struct {
 	Outcome  *acp.PermissionOutcome     `json:"outcome,omitempty"`
 	Notice   json.RawMessage            `json:"notice,omitempty"`
 	From     string                     `json:"from,omitempty"`
+
+	Compaction *compaction `json:"compaction,omitempty"`
 
 	node *nodeCache
 }
@@ -117,7 +122,7 @@ func (s *session) view(fromTurn int) transcriptView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
-	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
+	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
 	for _, en := range s.entries {
 		if en.Turn >= fromTurn {
 			if en.node == nil {
@@ -128,6 +133,9 @@ func (s *session) view(fromTurn int) transcriptView {
 				if closed, ok := closeTool(en.Tool); ok {
 					c.Tool, c.node = closed, nil
 				}
+			}
+			if !s.running && c.Compaction != nil && c.Compaction.Status == compactionRunning {
+				c.Compaction, c.node = &compaction{Status: compactionCancelled}, nil
 			}
 			v.Entries = append(v.Entries, &c)
 		}
@@ -206,9 +214,16 @@ func (s *session) update(params json.RawMessage) {
 	s.loadLocked()
 	e := s.envelope(s.actor(), kindUpdate, n.Update)
 	var chunk acp.ContentChunk
-	if _, ok := chunkKinds[head.SessionUpdate]; ok && json.Unmarshal(n.Update, &chunk) == nil && chunk.Content.Type == "text" {
+	var summary acp.CompactionSummaryChunk
+	_, chunked := chunkKinds[head.SessionUpdate]
+	switch {
+	case chunked && json.Unmarshal(n.Update, &chunk) == nil && chunk.Content.Type == "text":
 		s.log.chunk(e, head.SessionUpdate, chunk.MessageID, chunk.Content.Text)
-	} else {
+	case head.SessionUpdate == acp.UpdateCompactionChunk && json.Unmarshal(n.Update, &summary) == nil && summary.Content.Type == "text":
+		s.log.chunk(e, head.SessionUpdate, summary.CompactionID, summary.Content.Text)
+	case head.SessionUpdate == acp.UpdateUsage:
+		s.log.latest(e)
+	default:
 		s.log.write(e)
 	}
 	title, mode := s.rec.Title, s.rec.Mode
@@ -301,8 +316,7 @@ func (s *session) applyConfig(p configPayload) {
 	}
 	for i, o := range s.configs {
 		if o.ID == p.ConfigID {
-			raw, _ := json.Marshal(p.Value)
-			s.configs[i].CurrentValue = raw
+			s.configs[i].CurrentValue = o.Encode(p.Value)
 		}
 	}
 }
@@ -380,6 +394,10 @@ func (s *session) applyUpdate(turn int, payload json.RawMessage) {
 	case acp.UpdateNotice:
 		s.nextID++
 		s.upsert(entryNotice, "notice-"+strconv.Itoa(s.nextID), turn).Notice = payload
+	case acp.UpdateUsage:
+		s.applyUsage(payload)
+	case acp.UpdateCompaction, acp.UpdateCompactionChunk:
+		s.applyCompaction(head.SessionUpdate, turn, payload)
 	}
 }
 

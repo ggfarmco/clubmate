@@ -131,6 +131,7 @@ type Picker struct {
 	Help    string   `json:"help,omitempty"`
 	Value   string   `json:"value"`
 	Options []Option `json:"options"`
+	Toggle  bool     `json:"toggle,omitempty"`
 }
 
 type ComposerProps struct {

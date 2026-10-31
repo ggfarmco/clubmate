@@ -200,10 +200,10 @@ func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.Sessio
 		if value == "" || value == o.Current() {
 			continue
 		}
-		if _, ok := o.Choice(value); !ok {
+		if !o.Valid(value) {
 			continue
 		}
-		next, err := a.sendConfig(ctx, s, o.ID, value)
+		next, err := a.sendConfig(ctx, s, o, value)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "agents: restore config:", err)
 			continue

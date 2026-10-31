@@ -79,39 +79,39 @@ func (a *app) setConfig(ctx context.Context, workspaceID string, args configArgs
 	}
 	s.mu.Lock()
 	i := slices.IndexFunc(s.configs, func(o acp.SessionConfigOption) bool { return o.ID == args.ID && pickable(o) })
-	var known bool
+	var option acp.SessionConfigOption
 	if i >= 0 {
-		_, known = s.configs[i].Choice(args.Value)
+		option = s.configs[i]
 	}
 	worktree := s.rec.Worktree
 	s.mu.Unlock()
-	if !known {
+	if i < 0 || !option.Valid(args.Value) {
 		return fmt.Errorf("%w: %s=%s", errUnknownValue, args.ID, args.Value)
 	}
-	if _, err := a.sendConfig(ctx, s, args.ID, args.Value); err != nil {
+	if _, err := a.sendConfig(ctx, s, option, args.Value); err != nil {
 		return err
 	}
 	return a.host.StorageSet(ctx, configStorageKey(args.ID, worktree), args.Value)
 }
 
-func (a *app) sendConfig(ctx context.Context, s *session, id, value string) ([]acp.SessionConfigOption, error) {
+func (a *app) sendConfig(ctx context.Context, s *session, option acp.SessionConfigOption, value string) ([]acp.SessionConfigOption, error) {
 	p, agentID, err := a.liveProc(s)
 	if err != nil {
 		return nil, err
 	}
 	var res acp.SetSessionConfigOptionResponse
-	if err := p.conn.Call(ctx, acp.MethodSessionSetConfig, acp.SetSessionConfigOptionRequest{SessionID: agentID, ConfigID: id, Value: value}, &res); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionSetConfig, option.Request(agentID, value), &res); err != nil {
 		return nil, fmt.Errorf("session/set_config_option: %w", err)
 	}
 	s.mu.Lock()
-	s.recordLocked(actorUser, kindSetConfig, configPayload{ConfigID: id, Value: value, ConfigOptions: res.ConfigOptions})
+	s.recordLocked(actorUser, kindSetConfig, configPayload{ConfigID: option.ID, Value: value, ConfigOptions: res.ConfigOptions})
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	return res.ConfigOptions, nil
 }
 
 func pickable(o acp.SessionConfigOption) bool {
-	return o.Type == acp.ConfigSelect && o.Category != acp.CategoryMode
+	return (o.Type == acp.ConfigSelect || o.Type == acp.ConfigBoolean) && o.Category != acp.CategoryMode
 }
 
 func (a *app) setAdvisor(ctx context.Context, s *session, value string) error {

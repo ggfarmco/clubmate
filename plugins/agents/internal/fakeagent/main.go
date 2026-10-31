@@ -197,7 +197,7 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 	return nil, acp.MethodNotFound(method)
 }
 
-func (a *agent) setConfig(id, value string) []acp.SessionConfigOption {
+func (a *agent) setConfig(id string, value any) []acp.SessionConfigOption {
 	out := slices.Clone(a.script.Configs)
 	raw, _ := json.Marshal(value)
 	for i, o := range out {

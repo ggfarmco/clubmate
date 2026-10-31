@@ -267,14 +267,21 @@ struct ComposerNodeView: View {
         if !pickers.isEmpty {
             Menu {
                 ForEach(pickers) { picker in
-                    Menu(picker.title ?? "Model") {
-                        ForEach(picker.options) { option in
-                            Toggle(option.label, isOn: Binding(get: { option.value == picker.value }, set: { _ in
-                                dispatch(node, .named("config", .object(["id": .string(picker.id), "value": .string(option.value)])))
-                            }))
+                    if picker.toggle {
+                        Toggle(picker.title ?? picker.id, isOn: Binding(get: { picker.isOn }, set: { on in
+                            dispatch(node, .named("config", .object(["id": .string(picker.id), "value": .string(on ? "true" : "false")])))
+                        }))
+                        .help(picker.help ?? picker.label)
+                    } else {
+                        Menu(picker.title ?? "Model") {
+                            ForEach(picker.options) { option in
+                                Toggle(option.label, isOn: Binding(get: { option.value == picker.value }, set: { _ in
+                                    dispatch(node, .named("config", .object(["id": .string(picker.id), "value": .string(option.value)])))
+                                }))
+                            }
                         }
+                        .help(picker.help ?? picker.label)
                     }
-                    .help(picker.help ?? picker.label)
                 }
             } label: {
                 Text("\(Image(systemName: "slider.horizontal.3")) \(SDUIPicker.summary(pickers).isEmpty ? "Options" : SDUIPicker.summary(pickers))")
@@ -283,7 +290,11 @@ struct ComposerNodeView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help(pickers.map(\.label).joined(separator: "\n"))
-            .testMenu("\(node.id ?? "composer").options", pickers.map { picker in LayoutMenuItem(title: picker.title ?? "Model", children: picker.options.map { LayoutMenuItem(title: ($0.value == picker.value ? "✓ " : "") + $0.label) }) })
+            .testMenu("\(node.id ?? "composer").options", pickers.map { picker in
+                picker.toggle
+                    ? LayoutMenuItem(title: (picker.isOn ? "✓ " : "") + (picker.title ?? picker.id))
+                    : LayoutMenuItem(title: picker.title ?? "Model", children: picker.options.map { LayoutMenuItem(title: ($0.value == picker.value ? "✓ " : "") + $0.label) })
+            })
         }
     }
 

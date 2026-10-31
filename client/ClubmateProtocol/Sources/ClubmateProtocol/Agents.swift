@@ -142,6 +142,7 @@ public enum TranscriptEntryKind: String, FallbackEnum {
     case plan
     case permission
     case notice
+    case compaction
     case other
 
     public static let fallback = Self.other

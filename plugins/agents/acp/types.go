@@ -1,6 +1,9 @@
 package acp
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strconv"
+)
 
 const (
 	ProtocolVersion = 1
@@ -30,8 +33,12 @@ const (
 	UpdateConfigOption      = "config_option_update"
 	UpdateSessionInfo       = "session_info_update"
 	UpdateNotice            = "notice"
+	UpdateUsage             = "usage_update"
+	UpdateCompaction        = "compaction_update"
+	UpdateCompactionChunk   = "compaction_summary_chunk"
 
 	ConfigSelect         = "select"
+	ConfigBoolean        = "boolean"
 	CategoryMode         = "mode"
 	CategoryModel        = "model"
 	CategoryThoughtLevel = "thought_level"
@@ -86,7 +93,13 @@ type FileSystemCapabilities struct {
 }
 
 type ClientSessionCapabilities struct {
-	Notices *Capability `json:"notices,omitempty"`
+	Notices       *Capability                `json:"notices,omitempty"`
+	Compaction    *Capability                `json:"compaction,omitempty"`
+	ConfigOptions *ConfigOptionsCapabilities `json:"configOptions,omitempty"`
+}
+
+type ConfigOptionsCapabilities struct {
+	Boolean *Capability `json:"boolean,omitempty"`
 }
 
 type InitializeResponse struct {
@@ -240,7 +253,8 @@ type SessionConfigChoice struct {
 type SetSessionConfigOptionRequest struct {
 	SessionID string `json:"sessionId"`
 	ConfigID  string `json:"configId"`
-	Value     string `json:"value"`
+	Type      string `json:"type,omitempty"`
+	Value     any    `json:"value"`
 }
 
 type SetSessionConfigOptionResponse struct {
@@ -249,6 +263,29 @@ type SetSessionConfigOptionResponse struct {
 
 type ConfigOptionUpdate struct {
 	ConfigOptions []SessionConfigOption `json:"configOptions"`
+}
+
+type UsageUpdate struct {
+	Used int   `json:"used"`
+	Size int   `json:"size"`
+	Cost *Cost `json:"cost,omitempty"`
+}
+
+type Cost struct {
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
+}
+
+type CompactionUpdate struct {
+	CompactionID string         `json:"compactionId"`
+	Status       string         `json:"status"`
+	Summary      []ContentBlock `json:"summary,omitempty"`
+	Error        string         `json:"error,omitempty"`
+}
+
+type CompactionSummaryChunk struct {
+	CompactionID string       `json:"compactionId"`
+	Content      ContentBlock `json:"content"`
 }
 
 type SessionRequest struct {
@@ -353,9 +390,42 @@ type RequestPermissionResponse struct {
 }
 
 func (o SessionConfigOption) Current() string {
+	if o.Type == ConfigBoolean {
+		var on bool
+		_ = json.Unmarshal(o.CurrentValue, &on)
+		return strconv.FormatBool(on)
+	}
 	var v string
 	_ = json.Unmarshal(o.CurrentValue, &v)
 	return v
+}
+
+func (o SessionConfigOption) Valid(value string) bool {
+	if o.Type == ConfigBoolean {
+		return value == "true" || value == "false"
+	}
+	_, ok := o.Choice(value)
+	return ok
+}
+
+func (o SessionConfigOption) Request(sessionID, value string) SetSessionConfigOptionRequest {
+	req := SetSessionConfigOptionRequest{SessionID: sessionID, ConfigID: o.ID, Value: o.wireValue(value)}
+	if o.Type == ConfigBoolean {
+		req.Type = ConfigBoolean
+	}
+	return req
+}
+
+func (o SessionConfigOption) Encode(value string) json.RawMessage {
+	raw, _ := json.Marshal(o.wireValue(value))
+	return raw
+}
+
+func (o SessionConfigOption) wireValue(value string) any {
+	if o.Type == ConfigBoolean {
+		return value == "true"
+	}
+	return value
 }
 
 func (o SessionConfigOption) Choices() []SessionConfigChoice {

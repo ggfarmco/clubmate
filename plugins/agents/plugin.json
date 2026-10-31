@@ -188,7 +188,7 @@
           "properties": {
             "session": {"type": "string", "description": "Session id."},
             "id": {"type": "string", "description": "Option id from the transcript's configOptions, or advisor."},
-            "value": {"type": "string", "description": "Option value."}
+            "value": {"type": "string", "description": "Option value; true or false for a boolean option."}
           },
           "required": ["session", "id", "value"]
         }

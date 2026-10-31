@@ -291,6 +291,8 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 		return toolCard(sid+"/tool/"+en.ID, root, en, sc.Expanded[en.ID], sha != ""), true
 	case entryPermission:
 		return permissionCard(sc, en), true
+	case entryCompaction:
+		return compactionCard(sid+"/compaction/"+en.ID, en), true
 	case entryNotice:
 		var n noticeUpdate
 		if json.Unmarshal(en.Notice, &n) != nil || n.Title == "" && n.Description == "" {

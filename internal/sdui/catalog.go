@@ -532,7 +532,7 @@ func permissionOptionCheck(c *validator, v any) error {
 
 func pickerCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "value", "options"}, map[string]propCheck{
-		"id": isString, "title": isString, "help": isString, "value": isString, "options": listOf(optionCheck),
+		"id": isString, "title": isString, "help": isString, "value": isString, "options": listOf(optionCheck), "toggle": isBool,
 	})(c, v)
 }
 

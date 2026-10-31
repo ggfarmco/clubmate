@@ -47,6 +47,7 @@ var (
 		{value: afkOff, label: "Off"},
 		{value: afkOn, label: "On"},
 	}
+	toggleOptions = []sdui.Option{{Value: "true", Label: "On"}, {Value: "false", Label: "Off"}}
 	finishChoices = []advisorChoice{
 		{value: finishAsk, label: "Ask"},
 		{value: finishMerge, label: "Merge to main"},
@@ -212,6 +213,7 @@ func header(sc screen) sdui.Node {
 	if display, ok := childDisplay[sc.Children]; ok {
 		meta = append(meta, statusLabels[display])
 	}
+	meta = append(meta, usageMeta(sc.View.Usage)...)
 	row := []sdui.Node{{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}}}
 	if len(meta) > 0 {
 		row = append(row, sdui.MutedText(strings.Join(meta, " · ")))
@@ -319,6 +321,10 @@ func pickers(sc screen) []sdui.Picker {
 	var out []sdui.Picker
 	for _, o := range sc.View.Configs {
 		if !pickable(o) {
+			continue
+		}
+		if o.Type == acp.ConfigBoolean {
+			out = append(out, sdui.Picker{ID: o.ID, Title: o.Name, Help: cmp.Or(o.Description, o.Name), Value: o.Current(), Options: toggleOptions, Toggle: true})
 			continue
 		}
 		choices := o.Choices()

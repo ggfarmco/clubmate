@@ -61,8 +61,23 @@
           "name": "High"
         }
       ]
+    },
+    {
+      "id": "fast",
+      "name": "Fast mode",
+      "category": "model_config",
+      "type": "boolean",
+      "currentValue": true
     }
   ],
+  "usage": {
+    "used": 84000,
+    "size": 200000,
+    "cost": {
+      "amount": 0.84,
+      "currency": "USD"
+    }
+  },
   "commands": null,
   "turns": [
     {
@@ -159,6 +174,15 @@
         "status": "completed",
         "title": "Edit `/Users/me/src/shop/cart.go`",
         "toolCallId": "edit1"
+      }
+    },
+    {
+      "kind": "compaction",
+      "id": "compact1",
+      "turn": 1,
+      "text": "The user asked to move the cart total into cartTotal; cart.go is edited and a test is next.",
+      "compaction": {
+        "status": "completed"
       }
     },
     {

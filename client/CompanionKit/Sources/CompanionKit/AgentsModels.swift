@@ -161,12 +161,55 @@ public struct AgentConfigOption: Decodable, Sendable, Equatable, Identifiable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         category = try c.decodeIfPresent(String.self, forKey: .category) ?? ""
         type = try c.decodeIfPresent(String.self, forKey: .type) ?? ""
-        currentValue = (try? c.decodeIfPresent(String.self, forKey: .currentValue)) ?? ""
+        if let text = try? c.decodeIfPresent(String.self, forKey: .currentValue) {
+            currentValue = text
+        } else if let on = try? c.decodeIfPresent(Bool.self, forKey: .currentValue) {
+            currentValue = String(on)
+        } else {
+            currentValue = ""
+        }
         choices = (try c.decodeIfPresent([Choice].self, forKey: .options) ?? []).flatMap { $0.options.isEmpty ? [$0] : $0.options }
     }
 
     public var pickable: Bool {
-        type == "select" && category != "mode"
+        (type == "select" || isToggle) && category != "mode"
+    }
+
+    public var isToggle: Bool {
+        type == "boolean"
+    }
+}
+
+public struct AgentUsage: Decodable, Sendable, Equatable {
+    public struct Cost: Decodable, Sendable, Equatable {
+        public let amount: Double
+        public let currency: String
+    }
+
+    public let used: Int
+    public let size: Int
+    public let cost: Cost?
+
+    public var percent: Int {
+        size > 0 ? Int((Double(used) * 100 / Double(size)).rounded()) : 0
+    }
+
+    public var contextLabel: String {
+        "\(percent)% context"
+    }
+
+    public var tokensLabel: String {
+        "\(Self.tokens(used)) of \(Self.tokens(size)) tokens"
+    }
+
+    public var costLabel: String? {
+        guard let cost, cost.amount > 0 else { return nil }
+        let amount = String(format: "%.2f", cost.amount)
+        return cost.currency.isEmpty || cost.currency == "USD" ? "$" + amount : amount + " " + cost.currency
+    }
+
+    static func tokens(_ n: Int) -> String {
+        n >= 1000 ? "\(Int((Double(n) / 1000).rounded()))k" : String(n)
     }
 }
 
@@ -175,18 +218,20 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     public let modes: [AgentMode]
     public let configOptions: [AgentConfigOption]
     public let advisor: String
+    public let usage: AgentUsage?
     public let turns: [AgentTurn]
     public let entries: [TranscriptEntry]
 
     enum CodingKeys: String, CodingKey {
-        case session, modes, configOptions, advisor, turns, entries
+        case session, modes, configOptions, advisor, usage, turns, entries
     }
 
-    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, turns: [AgentTurn], entries: [TranscriptEntry]) {
+    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry]) {
         self.session = session
         self.modes = modes
         self.configOptions = configOptions
         self.advisor = advisor
+        self.usage = usage
         self.turns = turns
         self.entries = entries
     }
@@ -197,7 +242,7 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
 
     public func merging(_ newer: AgentTranscript, fromTurn: Int) -> AgentTranscript {
         AgentTranscript(
-            session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, turns: newer.turns,
+            session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
             entries: entries.filter { $0.turn < fromTurn } + newer.entries
         )
     }
@@ -208,6 +253,7 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         modes = (try? c.decodeIfPresent([AgentMode].self, forKey: .modes)) ?? []
         configOptions = (try? c.decodeIfPresent([AgentConfigOption].self, forKey: .configOptions)) ?? []
         advisor = (try? c.decodeIfPresent(String.self, forKey: .advisor)) ?? ""
+        usage = try? c.decodeIfPresent(AgentUsage.self, forKey: .usage)
         turns = (try? c.decodeIfPresent([AgentTurn].self, forKey: .turns)) ?? []
         entries = (try c.decodeIfPresent([TranscriptEntry].self, forKey: .entries)) ?? []
     }
@@ -222,6 +268,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case plan([PlanItem])
         case permission(PermissionRequest)
         case notice(Notice)
+        case compaction(Compaction)
         case other(String)
     }
 
@@ -231,7 +278,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let content: Content
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, text, content, tool, plan, toolCall, options, outcome, notice, from
+        case kind, id, turn, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -278,6 +325,9 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .notice:
             let notice = (try? c.decodeIfPresent(JSONValue.self, forKey: .notice)) ?? .null
             content = .notice(Notice(title: notice["title"]?.stringValue ?? "", description: notice["description"]?.stringValue ?? ""))
+        case .compaction:
+            let state = (try? c.decodeIfPresent(JSONValue.self, forKey: .compaction)) ?? .null
+            content = .compaction(Compaction(status: state["status"]?.stringValue ?? "", summary: text, error: state["error"]?.stringValue ?? ""))
         case .other:
             content = .other(raw)
         }
@@ -386,4 +436,19 @@ public struct PermissionRequest: Sendable, Equatable {
 public struct Notice: Sendable, Equatable {
     public let title: String
     public let description: String
+}
+
+public struct Compaction: Sendable, Equatable {
+    public let status: String
+    public let summary: String
+    public let error: String
+
+    public var title: String {
+        switch status {
+        case "in_progress": "Compacting context…"
+        case "failed": "Context compaction failed"
+        case "cancelled": "Context compaction cancelled"
+        default: "Context compacted"
+        }
+    }
 }

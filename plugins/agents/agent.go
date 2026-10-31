@@ -142,7 +142,7 @@ func (p *agentProc) wait(stdout, stderr *os.File, stderrDone chan struct{}) {
 func (p *agentProc) initialize(ctx context.Context) error {
 	req := acp.InitializeRequest{
 		ProtocolVersion:    acp.ProtocolVersion,
-		ClientCapabilities: acp.ClientCapabilities{Session: acp.ClientSessionCapabilities{Notices: &acp.Capability{}}, Auth: &acp.AuthCapabilities{Terminal: true}},
+		ClientCapabilities: acp.ClientCapabilities{Session: acp.ClientSessionCapabilities{Notices: &acp.Capability{}, Compaction: &acp.Capability{}, ConfigOptions: &acp.ConfigOptionsCapabilities{Boolean: &acp.Capability{}}}, Auth: &acp.AuthCapabilities{Terminal: true}},
 		ClientInfo:         &acp.Implementation{Name: clientName, Version: clientVersion},
 	}
 	var res acp.InitializeResponse

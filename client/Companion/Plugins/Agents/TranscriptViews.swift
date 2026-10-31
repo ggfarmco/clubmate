@@ -25,6 +25,8 @@ struct EntryView: View {
             }
         case .notice(let notice):
             NoticeView(notice: notice)
+        case .compaction(let compaction):
+            CompactionView(compaction: compaction)
         case .other:
             EmptyView()
         }
@@ -158,6 +160,37 @@ struct ThoughtView: View {
                 .foregroundStyle(.secondary)
         }
         .tint(.secondary)
+    }
+}
+
+struct CompactionView: View {
+    let compaction: Compaction
+    @State private var expanded = false
+
+    private var detail: String {
+        [compaction.error, compaction.summary].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
+    var body: some View {
+        let label = Label(compaction.title, systemImage: "arrow.down.right.and.arrow.up.left")
+            .font(.callout)
+            .foregroundStyle(compaction.status == "failed" ? .red : .secondary)
+        if detail.isEmpty {
+            label
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            DisclosureGroup(isExpanded: $expanded) {
+                Text(detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+            } label: {
+                label
+            }
+            .tint(.secondary)
+        }
     }
 }
 

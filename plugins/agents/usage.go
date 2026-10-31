@@ -8,10 +8,12 @@ import (
 	"maps"
 	"math"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
 )
 
@@ -145,4 +147,23 @@ func percent(fraction float64) int {
 
 func (a *app) usageCommand(context.Context, pluginsdk.CommandRun) (any, error) {
 	return a.usage.snapshot(), nil
+}
+
+func usageMeta(u *acp.UsageUpdate) []string {
+	if u == nil || u.Size <= 0 {
+		return nil
+	}
+	out := []string{strconv.Itoa(int(math.Round(float64(u.Used)*100/float64(u.Size)))) + "% context"}
+	if u.Cost != nil && u.Cost.Amount > 0 {
+		out = append(out, formatCost(*u.Cost))
+	}
+	return out
+}
+
+func formatCost(c acp.Cost) string {
+	amount := strconv.FormatFloat(c.Amount, 'f', 2, 64)
+	if c.Currency == "" || c.Currency == "USD" {
+		return "$" + amount
+	}
+	return amount + " " + c.Currency
 }

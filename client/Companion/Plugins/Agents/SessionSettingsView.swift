@@ -43,14 +43,30 @@ struct SessionSettingsView: View {
                                 }
                             }
                             ForEach(configs) { option in
-                                Picker(option.name.isEmpty ? option.id : option.name, selection: choice("config/" + option.id, option.currentValue) { try await store.setConfig(sessionID, id: option.id, value: $0) }) {
-                                    ForEach(option.choices, id: \.value) { Text($0.label).tag($0.value) }
+                                if option.isToggle {
+                                    Toggle(option.name.isEmpty ? option.id : option.name, isOn: Binding(
+                                        get: { (overrides["config/" + option.id] ?? option.currentValue) == "true" },
+                                        set: { apply("config/" + option.id, $0 ? "true" : "false") { try await store.setConfig(sessionID, id: option.id, value: $0) } }
+                                    ))
+                                    .accessibilityIdentifier("settings.config." + option.id)
+                                } else {
+                                    Picker(option.name.isEmpty ? option.id : option.name, selection: choice("config/" + option.id, option.currentValue) { try await store.setConfig(sessionID, id: option.id, value: $0) }) {
+                                        ForEach(option.choices, id: \.value) { Text($0.label).tag($0.value) }
+                                    }
                                 }
                             }
                             if claude {
                                 Picker("Advisor", selection: choice("advisor", transcript.advisor) { try await store.setConfig(sessionID, id: "advisor", value: $0) }) {
                                     ForEach(Self.advisors, id: \.0) { Text($0.1).tag($0.0) }
                                 }
+                            }
+                        }
+                    }
+                    if let usage = transcript?.usage {
+                        Section("Usage") {
+                            LabeledContent("Context", value: "\(usage.percent)% · \(usage.tokensLabel)")
+                            if let cost = usage.costLabel {
+                                LabeledContent("Cost", value: cost)
                             }
                         }
                     }

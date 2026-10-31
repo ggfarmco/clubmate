@@ -131,7 +131,8 @@ struct SessionDetailView: View {
 
     private func subtitle(_ session: AgentSession?) -> String {
         guard let session else { return "" }
-        return ([session.agentName, session.worktreeName, session.status.label] + (session.afk ? ["AFK"] : [])).joined(separator: " · ")
+        let usage = store.transcripts[sessionID]?.usage.map { [$0.contextLabel] } ?? []
+        return ([session.agentName, session.worktreeName, session.status.label] + (session.afk ? ["AFK"] : []) + usage).joined(separator: " · ")
     }
 
     private func send() {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"clubmate/plugins/agents/acp"
 )
 
 const (
@@ -36,6 +39,8 @@ const (
 	actorUser     = "user"
 	actorClubmate = "clubmate"
 )
+
+var chunkIDFields = map[string]string{acp.UpdateCompactionChunk: "compactionId"}
 
 type envelope struct {
 	Workspace     string          `json:"workspace"`
@@ -65,6 +70,7 @@ type eventLog struct {
 	seq     int64
 	pending *pendingChunk
 	timer   *time.Timer
+	last    *envelope
 	removed bool
 }
 
@@ -83,6 +89,14 @@ func (l *eventLog) write(e envelope) {
 	l.appendLocked(e)
 }
 
+func (l *eventLog) latest(e envelope) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.removed {
+		l.last = &e
+	}
+}
+
 func (l *eventLog) chunk(e envelope, update, messageID, text string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -90,7 +104,7 @@ func (l *eventLog) chunk(e envelope, update, messageID, text string) {
 		return
 	}
 	if p := l.pending; p != nil && (p.update != update || p.messageID != messageID || p.env.Turn != e.Turn) {
-		l.flushLocked()
+		l.flushChunkLocked()
 	}
 	if l.pending == nil {
 		e.TS = time.Now().UTC()
@@ -99,7 +113,7 @@ func (l *eventLog) chunk(e envelope, update, messageID, text string) {
 	}
 	l.pending.text.WriteString(text)
 	if l.pending.text.Len() >= coalesceLimit {
-		l.flushLocked()
+		l.flushChunkLocked()
 	}
 }
 
@@ -110,6 +124,14 @@ func (l *eventLog) flush() {
 }
 
 func (l *eventLog) flushLocked() {
+	l.flushChunkLocked()
+	if last := l.last; last != nil {
+		l.last = nil
+		l.appendLocked(*last)
+	}
+}
+
+func (l *eventLog) flushChunkLocked() {
 	p := l.pending
 	if p == nil {
 		return
@@ -118,7 +140,7 @@ func (l *eventLog) flushLocked() {
 	l.timer.Stop()
 	payload := map[string]any{"sessionUpdate": p.update, "content": map[string]string{"type": "text", "text": p.text.String()}}
 	if p.messageID != "" {
-		payload["messageId"] = p.messageID
+		payload[cmp.Or(chunkIDFields[p.update], "messageId")] = p.messageID
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

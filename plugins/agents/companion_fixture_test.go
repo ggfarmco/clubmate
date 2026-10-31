@@ -26,6 +26,7 @@ const (
 	refactorPrompt   = "Refactor the cart total into its own function"
 	explainPrompt    = "Explain the checkout flow"
 	agentMarkdown    = "## Plan\n\nI'll move the total into `cartTotal` and keep **behaviour** the same:\n\n1. Extract the loop\n2. Add a test\n\n```go\nfunc cartTotal(items []Item) int {\n\treturn sum(items)\n}\n```\n"
+	compactSummary   = "The user asked to move the cart total into cartTotal; cart.go is edited and a test is next."
 	explainMarkdown  = "Checkout runs in three steps: *validate*, *reserve*, *charge*.\n\nShould I add retries to the charge step?"
 )
 
@@ -85,6 +86,7 @@ func companionScript(repo string) map[string]any {
 		"configs": []map[string]any{
 			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "opus", "name": "Opus"}, {"value": "sonnet", "name": "Sonnet"}}},
 			{"id": "effort", "name": "Effort", "category": "thought_level", "type": "select", "currentValue": "high", "options": []map[string]string{{"value": "low", "name": "Low"}, {"value": "high", "name": "High"}}},
+			{"id": "fast", "name": "Fast mode", "category": "model_config", "type": "boolean", "currentValue": true},
 		},
 		"modes": map[string]any{
 			"currentModeId": "default",
@@ -108,6 +110,8 @@ func companionScript(repo string) map[string]any {
 				"locations": []map[string]any{{"path": path, "line": 1}},
 			}),
 			step(refactorPrompt, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "edit1", "status": "completed"}),
+			step(refactorPrompt, map[string]any{"sessionUpdate": "compaction_update", "compactionId": "compact1", "status": "completed", "summary": []map[string]any{{"type": "text", "text": compactSummary}}}),
+			step(refactorPrompt, map[string]any{"sessionUpdate": "usage_update", "used": 84000, "size": 200000, "cost": map[string]any{"amount": 0.84, "currency": "USD"}}),
 			{"match": refactorPrompt, "permission": permission},
 			step(explainPrompt, chunk("agent_message_chunk", explainMarkdown)),
 		},
