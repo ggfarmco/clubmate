@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -287,6 +288,28 @@ func TestHugeToolOutputRendersTruncated(t *testing.T) {
 	full := card(map[string]bool{"call-1": true}).Props["body"].(sdui.ToolBody).Text
 	assert.Greater(t, len(full), bodyBytes)
 	assert.LessOrEqual(t, len(full), expandedBytes)
+}
+
+func TestOpenOutputOnlyWhenBodyWouldScroll(t *testing.T) {
+	execute := func(lines int) map[string]json.RawMessage {
+		return map[string]json.RawMessage{
+			"kind":    rawJSON(t, "execute"),
+			"status":  rawJSON(t, "completed"),
+			"content": rawJSON(t, []map[string]any{{"type": "content", "content": map[string]string{"type": "text", "text": strings.Repeat("line\n", lines)}}}),
+		}
+	}
+	v := transcriptView{
+		Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone},
+		Entries: []*entry{{Kind: entryTool, ID: "short", Turn: 1, Tool: execute(scrollLines)}, {Kind: entryTool, ID: "long", Turn: 1, Tool: execute(scrollLines + 1)}},
+	}
+	cards := nodesOf(mainView(screen{View: v, Composer: "agt_1/composer/0"}), "toolCard")
+	require.Len(t, cards, 2)
+	opens := func(c sdui.Node) bool {
+		actions, _ := c.Props["actions"].([]sdui.CardAction)
+		return slices.ContainsFunc(actions, func(a sdui.CardAction) bool { return a.Action == actOpenOutput })
+	}
+	assert.False(t, opens(cards[0]))
+	assert.True(t, opens(cards[1]))
 }
 
 func TestToolPathsRelativeToWorktree(t *testing.T) {

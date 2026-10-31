@@ -1,10 +1,13 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,6 +45,7 @@ const (
 	actReview          = "review"
 	actShowEarlier     = "showEarlier"
 	actShowAll         = "showAll"
+	actOpenOutput      = "openOutput"
 	actRetry           = "retry"
 	actContinue        = "continue"
 	actOpenHandoff     = "openHandoff"
@@ -57,6 +61,8 @@ const (
 	selectionCmd = "editor-nvim.selection"
 	openCmd      = "editor.open"
 	diffviewCmd  = "editor-nvim.diffview"
+
+	outputDir = "output"
 )
 
 var (
@@ -64,6 +70,7 @@ var (
 	errNoBranch      = errors.New("type a branch name for the new worktree")
 	errNoSelection   = errors.New("no selection in the editor")
 	errNoCheckpoint  = errors.New("no checkpoint to review yet")
+	errNoOutput      = errors.New("tool has no output")
 )
 
 type textValue struct {
@@ -351,6 +358,19 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		st.expanded[tool] = true
 		a.uiMu.Unlock()
 		return nil
+	case actOpenOutput:
+		tool, ok := strings.CutPrefix(node, "tool/")
+		if !ok {
+			return fmt.Errorf("%w: openOutput on %q", errUnknownAction, ev.NodeID)
+		}
+		path, err := a.writeOutput(s, tool)
+		if err != nil {
+			return err
+		}
+		if err := a.host.RunCommand(ctx, openCmd, ev.WorkspaceID, pathValue{Path: path}, nil); err != nil {
+			return err
+		}
+		return a.host.Focus(ctx, ev.WorkspaceID, editorSection, editorSlot)
 	case actRetry:
 		a.resume(s)
 		return nil
@@ -441,6 +461,33 @@ func (a *app) send(workspaceID string, s *session, st *sessionUI, text string) e
 	st.gen++
 	a.uiMu.Unlock()
 	return nil
+}
+
+func (a *app) writeOutput(s *session, tool string) (string, error) {
+	rec := s.snapshot()
+	raw, ok := s.tool(tool)
+	if !ok {
+		return "", fmt.Errorf("%w: tool %q", errNoOutput, tool)
+	}
+	f, kind, command := parseTool(raw)
+	body := toolBody(kind, command, rec.Worktree, f.Content)
+	if body == nil {
+		return "", fmt.Errorf("%w: tool %q", errNoOutput, tool)
+	}
+	ext := map[string]string{"diff": "diff", "terminal": "log"}[body.Format]
+	name := rec.ID + "-" + tool + "." + cmp.Or(ext, "txt")
+	if filepath.Base(name) != name {
+		return "", fmt.Errorf("%w: tool %q", errNoOutput, tool)
+	}
+	dir := filepath.Join(a.stateDir, outputDir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(body.Text), 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func (a *app) review(ctx context.Context, workspaceID string, s *session, turn int) error {

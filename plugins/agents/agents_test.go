@@ -1065,6 +1065,29 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 	waitFocus(t, c, "editor-nvim", "editor-nvim.main")
 }
 
+func TestOpenOutputWritesFullOutputAndOpensIt(t *testing.T) {
+	output := strings.Repeat("line\n", 300)
+	run := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "x1", "title": "make", "kind": "execute", "status": "completed", "content": []map[string]any{{"type": "content", "content": map[string]string{"type": "text", "text": output}}}}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"update": run}}}, testutil.EchoPluginDirAs(t, codeManifest))
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "run it")
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "toolCard")) == 1 })
+	card := cardsOf(main, "toolCard")[0]
+	c := f.h.Client(t)
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
+
+	f.h.Event(t, workspace, "agents.main", card.ID, "openOutput", nil)
+
+	var args struct{ Path string }
+	require.NoError(t, json.Unmarshal(echoed(t, f, "editor-nvim.open"), &args))
+	assert.Equal(t, session+"-x1.log", filepath.Base(args.Path))
+	got, err := os.ReadFile(args.Path)
+	require.NoError(t, err)
+	assert.Equal(t, output, string(got))
+	waitFocus(t, c, "editor-nvim", "editor-nvim.main")
+}
+
 func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))

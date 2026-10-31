@@ -20,6 +20,7 @@ import (
 const (
 	windowStep    = 20
 	bodyLines     = 200
+	scrollLines   = 24
 	bodyBytes     = 64 << 10
 	expandedBytes = 1 << 20
 	nodeBudget    = 4000
@@ -258,10 +259,10 @@ func (c *cardCache) get(key cardKey, build func() sdui.Node) sdui.Node {
 	return c.node
 }
 
-func buildToolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
+func parseTool(tool map[string]json.RawMessage) (toolFields, string, string) {
 	var f toolFields
 	for name, dst := range map[string]any{"title": &f.Title, "kind": &f.Kind, "status": &f.Status, "content": &f.Content, "locations": &f.Locations, "rawInput": &f.RawInput} {
-		if raw, ok := en.Tool[name]; ok {
+		if raw, ok := tool[name]; ok {
 			_ = json.Unmarshal(raw, dst)
 		}
 	}
@@ -269,6 +270,12 @@ func buildToolCard(id, root string, en *entry, expanded, reviewable bool) sdui.N
 	if !slices.Contains(cardKinds, kind) {
 		kind = "other"
 	}
+	command, _ := f.RawInput["command"].(string)
+	return f, kind, command
+}
+
+func buildToolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
+	f, kind, command := parseTool(en.Tool)
 	status := f.Status
 	if status == "" {
 		status = "pending"
@@ -276,10 +283,11 @@ func buildToolCard(id, root string, en *entry, expanded, reviewable bool) sdui.N
 	if !slices.Contains(cardStatuses, status) {
 		status = ""
 	}
-	command, _ := f.RawInput["command"].(string)
 	p := sdui.ToolCardProps{Kind: kind, Title: cmp.Or(shortPaths(f.Title, root), command, kind), Status: status}
 	body := toolBody(kind, command, root, f.Content)
+	scrolls := false
 	if body != nil && !slices.Contains(oneLineKinds, kind) {
+		scrolls = strings.Count(strings.TrimRight(body.Text, "\n"), "\n") >= scrollLines
 		text, cut := truncateBody(body.Text, expanded)
 		body.Text = text
 		p.Body, p.Truncated = body, cut
@@ -293,6 +301,9 @@ func buildToolCard(id, root string, en *entry, expanded, reviewable bool) sdui.N
 	}
 	if reviewable && slices.Contains(editKinds, kind) {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actReview, Label: "Diff", Icon: "plus.forwardslash.minus", Value: map[string]any{"turn": en.Turn}})
+	}
+	if scrolls || p.Truncated {
+		p.Actions = append(p.Actions, sdui.CardAction{Action: actOpenOutput, Label: "Open output", Icon: "doc.text"})
 	}
 	if p.Truncated && !expanded {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actShowAll, Label: "Show all", Icon: "arrow.down.right.and.arrow.up.left"})

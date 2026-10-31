@@ -62,11 +62,9 @@ private struct UserMessageText: View {
         if let id, let long = LongMessage(text) {
             let expanded = MessageExpansion.shared.expanded.contains(id)
             if expanded {
-                ScrollView {
+                CappedScroll {
                     MarkdownText(text: text).equatable()
                 }
-                .frame(maxHeight: theme.rowHeight * 24)
-                .clipped()
             } else {
                 MarkdownText(text: long.preview).equatable()
             }

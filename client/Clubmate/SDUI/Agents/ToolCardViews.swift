@@ -113,19 +113,21 @@ struct ToolBodyView: View, Equatable {
     }
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(toolBody.lines.enumerated()), id: \.offset) { _, line in
-                Text(line.text.isEmpty ? " " : line.text)
-                    .foregroundStyle(color(line.kind))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, theme.gutter + theme.spacing.s)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(tint(line.kind), ignoresSafeAreaEdges: [])
+        CappedScroll {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(toolBody.lines.enumerated()), id: \.offset) { _, line in
+                    Text(line.text.isEmpty ? " " : line.text)
+                        .foregroundStyle(color(line.kind))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, theme.gutter + theme.spacing.s)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(tint(line.kind), ignoresSafeAreaEdges: [])
+                }
             }
+            .font(theme.ui.monospaced())
+            .textSelection(.enabled)
+            .padding(.vertical, theme.spacing.m)
         }
-        .font(theme.ui.monospaced())
-        .textSelection(.enabled)
-        .padding(.vertical, theme.spacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.surface2, ignoresSafeAreaEdges: [])
     }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"maps"
 	"slices"
 	"strconv"
 
@@ -464,4 +465,15 @@ func (s *session) turnInfo(n int) *turnInfo {
 
 func key(kind, id string) string {
 	return kind + "/" + id
+}
+
+func (s *session) tool(id string) (map[string]json.RawMessage, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	i, ok := s.index[key(entryTool, id)]
+	if !ok {
+		return nil, false
+	}
+	return maps.Clone(s.entries[i].Tool), true
 }
