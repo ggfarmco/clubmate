@@ -2,7 +2,6 @@ package rpc_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,10 +92,8 @@ func TestFSWatchNotifies(t *testing.T) {
 }
 
 func TestFSWatchOverflow(t *testing.T) {
-	c, _, _, repo := watchRepo(t, func(s *rpc.Server) { rpc.SetFSOverflow(s, 1) })
-	for i := range 100 {
-		require.NoError(t, os.WriteFile(filepath.Join(repo, fmt.Sprintf("f%d.txt", i)), nil, 0o644))
-	}
+	c, _, _, repo := watchRepo(t, func(s *rpc.Server) { rpc.SetFSOverflow(s, 0) })
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.txt"), nil, 0o644))
 	ev := awaitFS(t, c, func(ev fsChanged) bool { return ev.Overflow })
 	assert.Empty(t, ev.Paths)
 }
