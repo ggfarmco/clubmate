@@ -35,7 +35,7 @@ final class CompanionUITests: XCTestCase {
         let app = launch(open: "sidebar")
         let macs = app.navigationBars["Macs"]
         XCTAssertTrue(macs.waitForExistence(timeout: 10))
-        for (row, title, swipe) in [("Agents", "shop", false), ("Agents", "shop", true), ("Inbox", "Inbox", false)] {
+        for (row, title, swipe) in [("shop", "shop", false), ("shop", "shop", true), ("Inbox", "Inbox", false)] {
             app.staticTexts[row].tap()
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
             if swipe {
@@ -50,7 +50,7 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
-    func testSendAndStopInExistingSession() {
+    func testSendQueuesAndStopAsksOnceFromTheMenu() {
         let app = launch(open: "agents/agt_0000000000000002")
         let composer = app.textFields["composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 10))
@@ -58,26 +58,40 @@ final class CompanionUITests: XCTestCase {
         composer.typeText("Add retries")
         app.buttons["Send"].tap()
         XCTAssertTrue(app.staticTexts["Add retries"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Queue"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["More"].tap()
+        app.buttons["Stop…"].tap()
         let stop = app.buttons["Stop"]
         XCTAssertTrue(stop.waitForExistence(timeout: 5))
         stop.tap()
         XCTAssertTrue(app.buttons["Send"].waitForExistence(timeout: 5))
-        XCTAssertFalse(stop.exists)
         XCTAssertFalse(app.staticTexts["Working…"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Got it'")).firstMatch.waitForExistence(timeout: 5))
     }
 
+    func testAlwaysAllowConfirmsInASheetThenCollapsesToARow() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let always = app.buttons["Always allow…"]
+        XCTAssertTrue(always.waitForExistence(timeout: 10))
+        always.tap()
+        XCTAssertTrue(app.staticTexts["Always allow this command?"].waitForExistence(timeout: 5))
+        app.buttons["Always allow"].tap()
+        XCTAssertTrue(app.staticTexts["Always allowed · go test ./..."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Allow once"].exists)
+    }
+
     func testTurnOnAFKFromSessionSettings() {
         let app = launch(open: "agents/agt_0000000000000001")
-        let settings = app.navigationBars.buttons["Session Settings"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 10))
-        settings.tap()
+        let more = app.navigationBars.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
+        app.buttons["Session Settings"].tap()
         let afk = app.switches["settings.afk"]
         XCTAssertTrue(afk.waitForExistence(timeout: 5))
         afk.switches.firstMatch.tap()
         XCTAssertTrue(wait(for: afk, "value == '1'"))
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH '· AFK'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '· AFK'")).firstMatch.waitForExistence(timeout: 5))
     }
 
     private func launch(open target: String) -> XCUIApplication {

@@ -106,7 +106,7 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(edit.diffs.first?.lines, [DiffLine(text: "func total(items []Item) int {", kind: .removed), DiffLine(text: "func cartTotal(items []Item) int {", kind: .added)])
         XCTAssertEqual(permission.id, "permission-3")
         XCTAssertEqual(permission.toolCall.command, "go test ./...")
-        XCTAssertEqual(permission.options.map(\.optionId), ["allow", "allow_always", "deny"])
+        XCTAssertEqual(permission.options.map(\.optionId), ["allow", "allow_always", "deny", "deny_always"])
         XCTAssertNil(permission.outcome)
     }
 

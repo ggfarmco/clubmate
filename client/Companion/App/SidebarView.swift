@@ -193,7 +193,7 @@ struct WorkspaceRow: View {
     }
 
     private func activityText(_ activity: WorkspaceActivity) -> Text {
-        let waiting = Text(activity.waitingText ?? "").foregroundStyle(SessionPalette.needsYouInk)
+        let waiting = Text(activity.waitingText ?? "").foregroundStyle(Color.warningInk)
         let separator = Text(activity.waitingText != nil && activity.restText != nil ? " · " : "")
         return Text("\(waiting)\(separator)\(activity.restText ?? "")")
     }

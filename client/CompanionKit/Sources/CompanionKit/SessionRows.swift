@@ -76,27 +76,27 @@ extension AgentSession {
         switch glyph {
         case .permission:
             guard let summary = pendingSummary, summary.kind == .permission, !summary.text.isEmpty else {
-                return SessionStateLine(text: "Waiting for you", tone: .needsYou, age: age(updatedAt))
+                return SessionStateLine(text: SessionState.waitingForYou.label, tone: .needsYou, age: age(updatedAt))
             }
             if summary.isCommand {
                 return SessionStateLine(lead: "Wants to run", text: summary.text, mono: true, tone: .primary, age: age(summary.at))
             }
             return SessionStateLine(lead: "Wants:", text: summary.text, tone: .primary, age: age(summary.at))
         case .question:
-            guard let question = askedQuestion else { return SessionStateLine(text: "Asking you", tone: .needsYou) }
+            guard let question = askedQuestion else { return SessionStateLine(text: SessionState.askingYou.label, tone: .needsYou) }
             return SessionStateLine(lead: "Asks:", text: question, tone: .primary)
         case .childWaiting:
             let count = max(waitingChildren, 1)
             return SessionStateLine(text: count == 1 ? "1 subagent waiting" : "\(count) subagents waiting")
         case .running:
             if status != .running { return SessionStateLine(text: "Waiting for subagents") }
-            return SessionStateLine(text: "Running", age: age(turnStartedAt ?? updatedAt))
+            return SessionStateLine(text: SessionState.running.label, age: age(turnStartedAt ?? updatedAt))
         case .stopped:
-            return SessionStateLine(text: "Stopped · error", tone: .danger)
+            return SessionStateLine(text: SessionState.stopped.label + " · error", tone: .danger)
         case .done:
-            return SessionStateLine(text: "Done", age: age(updatedAt))
+            return SessionStateLine(text: SessionState.done.label, age: age(updatedAt))
         case .closed:
-            return SessionStateLine(text: "Closed", age: age(updatedAt))
+            return SessionStateLine(text: SessionState.closed.label, age: age(updatedAt))
         }
     }
 }
@@ -166,7 +166,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
         if let command { return "Run \(command)?" }
         switch session.glyph {
         case .question:
-            return session.askedQuestion ?? "Asking you"
+            return session.askedQuestion ?? SessionState.askingYou.label
         default:
             guard let text = session.pendingSummary?.text, !text.isEmpty else { return "Waiting for your permission" }
             return text + "?"

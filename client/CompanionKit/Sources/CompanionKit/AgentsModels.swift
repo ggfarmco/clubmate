@@ -357,6 +357,7 @@ public struct ToolCall: Sendable, Equatable {
     public let output: String
     public let paths: [String]
     public let command: String?
+    public let intent: String?
 
     public init(id: String, fields: JSONValue) {
         self.id = id
@@ -371,6 +372,7 @@ public struct ToolCall: Sendable, Equatable {
         output = content.compactMap { $0["type"]?.stringValue == "content" ? $0["content"]?["text"]?.stringValue : nil }.joined(separator: "\n")
         paths = (fields["locations"]?.arrayValue ?? []).compactMap { $0["path"]?.stringValue }
         command = fields["rawInput"]?["command"]?.stringValue
+        intent = fields["rawInput"]?["description"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
     }
 
     public var displayTitle: String {

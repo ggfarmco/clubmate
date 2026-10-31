@@ -184,7 +184,7 @@ struct StateLineText: View {
     let line: SessionStateLine
 
     var body: some View {
-        let lead = Text(line.lead.map { $0 + " " } ?? "").foregroundStyle(SessionPalette.needsYouInk)
+        let lead = Text(line.lead.map { $0 + " " } ?? "").foregroundStyle(Color.warningInk)
         let text = Text(line.text).monospaced(line.mono).foregroundStyle(color)
         let age = Text(line.age.map { " · " + $0 } ?? "").foregroundStyle(.secondary)
         Text("\(lead)\(text)\(age)")
@@ -194,8 +194,8 @@ struct StateLineText: View {
         switch line.tone {
         case .primary: .primary
         case .secondary: .secondary
-        case .needsYou: SessionPalette.needsYouInk
-        case .danger: SessionPalette.dangerInk
+        case .needsYou: Color.warningInk
+        case .danger: Color.dangerInk
         }
     }
 }
@@ -227,39 +227,25 @@ struct SessionGlyphView: View {
 
     private var foreground: Color {
         switch glyph {
-        case .permission, .question: SessionPalette.onNeedsYou
-        case .childWaiting: SessionPalette.needsYouInk
+        case .permission, .question: Color.onWarning
+        case .childWaiting: Color.warningInk
         case .running: .accentColor
-        case .stopped: SessionPalette.dangerInk
+        case .stopped: Color.dangerInk
         case .done, .closed: .secondary
         }
     }
 
     private var background: Color {
         switch glyph {
-        case .permission, .question: SessionPalette.needsYouFill
-        case .childWaiting: SessionPalette.needsYouFill.opacity(0.18)
+        case .permission, .question: Color.warning
+        case .childWaiting: Color.warning.opacity(0.18)
         case .running: Color.accentColor.opacity(0.18)
-        case .stopped: SessionPalette.dangerInk.opacity(0.18)
+        case .stopped: Color.dangerInk.opacity(0.18)
         case .done, .closed: Color(.tertiarySystemFill)
         }
     }
 }
 
-enum SessionPalette {
-    static let needsYouFill = dynamic(dark: 0xF2B84B, light: 0xB5761E)
-    static let needsYouInk = dynamic(dark: 0xF2B84B, light: 0x8A5810)
-    static let onNeedsYou = dynamic(dark: 0x1A1200, light: 0xFFFFFF)
-    static let dangerInk = dynamic(dark: 0xFF7A6E, light: 0xB23A33)
-
-    private static func dynamic(dark: UInt32, light: UInt32) -> Color {
-        Color(UIColor { $0.userInterfaceStyle == .dark ? rgb(dark) : rgb(light) })
-    }
-
-    private static func rgb(_ hex: UInt32) -> UIColor {
-        UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
-    }
-}
 
 struct Tag: View {
     let text: String
@@ -349,8 +335,7 @@ struct NewSessionView: View {
                     session: nil,
                     enabled: context.connection.state == .online,
                     sending: sending,
-                    send: send,
-                    stop: {}
+                    send: send
                 )
             }
             .navigationTitle("New Session")

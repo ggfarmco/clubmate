@@ -14,6 +14,7 @@ struct SessionDetailView: View {
     @State private var failure: String?
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var confirmingClose = false
+    @State private var confirmingStop = false
     @State private var showingSettings = false
     @FocusState private var composerFocused: Bool
 
@@ -21,13 +22,12 @@ struct SessionDetailView: View {
         let transcript = store.transcripts[sessionID]
         let entries = store.entries(sessionID)
         let session = store.session(sessionID)
+        let screen = SessionScreen(entries: entries, session: session)
+        let online = context.connection.state == .online
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                ForEach(entries) { entry in
-                    EntryView(entry: entry, session: session) { request, option in
-                        try await answer(request: request, option: option)
-                    }
-                    .opacity(entry.isOutgoing ? 0.6 : 1)
+                ForEach(screen.rows) { row in
+                    RowView(row: row)
                 }
                 if session?.status == .running {
                     HStack(spacing: 8) {
@@ -46,6 +46,8 @@ struct SessionDetailView: View {
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .background(Color(.systemGroupedBackground))
         .overlay {
             if transcript == nil, let failure = store.transcriptErrors[sessionID] {
                 ContentUnavailableView {
@@ -63,11 +65,27 @@ struct SessionDetailView: View {
         }
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 if transcript != nil, let failure = store.transcriptErrors[sessionID] {
                     RefreshFailedBanner(message: failure) {
                         Task { await store.loadTranscript(sessionID, incremental: true) }
                     }
+                }
+                if let session, !session.isClosed, let dock = screen.dock {
+                    Group {
+                        switch dock {
+                        case .permission(let request, let more):
+                            PermissionCard(request: request, more: more, agentName: session.agentName, place: session.worktreeName, enabled: online) { option in
+                                try await answer(request: request.id, option: option)
+                            }
+                            .id(request.id)
+                        case .question(let question):
+                            QuestionCard(question: question, agentName: session.agentName, subagent: session.parentSession != nil)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: 820)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 if let session {
                     ComposerView(
@@ -75,25 +93,30 @@ struct SessionDetailView: View {
                         attachments: $attachments,
                         focused: $composerFocused,
                         session: session,
-                        enabled: context.connection.state == .online,
+                        enabled: online,
                         sending: sending,
-                        send: send,
-                        stop: stop
+                        send: send
                     )
                 }
             }
+            .animation(.snappy, value: screen.dock)
         }
         .navigationTitle(session?.displayTitle ?? "Session")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationSubtitle(subtitle(session))
         .toolbar {
-            if session?.isClosed == false && context.connection.supports("agents.config") {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Session Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
+            ToolbarItem(placement: .principal) {
+                if let session {
+                    SessionHeader(session: session, usage: store.transcripts[sessionID]?.usage?.contextLabel)
                 }
             }
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
+                    if session?.isTurnActive == true {
+                        Button("Stop…", systemImage: "stop.circle") { confirmingStop = true }
+                    }
+                    if session?.isClosed == false && context.connection.supports("agents.config") {
+                        Button("Session Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
+                    }
                     Button("Refresh", systemImage: "arrow.clockwise") {
                         Task { await store.loadTranscript(sessionID) }
                     }
@@ -105,6 +128,13 @@ struct SessionDetailView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SessionSettingsView(store: store, sessionID: sessionID)
+        }
+        .confirmationDialog("Stop \(session?.agentName ?? "the agent")?", isPresented: $confirmingStop, titleVisibility: .visible) {
+            Button("Stop", role: .destructive) {
+                perform { try await store.cancel(sessionID) }
+            }
+        } message: {
+            Text("The current turn ends now. The session stays open for your next message.")
         }
         .confirmationDialog("Close this session?", isPresented: $confirmingClose, titleVisibility: .visible) {
             Button("Close Session", role: .destructive) {
@@ -122,17 +152,15 @@ struct SessionDetailView: View {
         .onChange(of: entries.count) { _, _ in
             withAnimation { position.scrollTo(edge: .bottom) }
         }
+        .task(id: screen.dock) {
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation { position.scrollTo(edge: .bottom) }
+        }
         .task(id: sessionID) {
             store.watch(sessionID)
             try? await Task.sleep(for: .seconds(31_536_000))
             store.unwatch(sessionID)
         }
-    }
-
-    private func subtitle(_ session: AgentSession?) -> String {
-        guard let session else { return "" }
-        let usage = store.transcripts[sessionID]?.usage.map { [$0.contextLabel] } ?? []
-        return ([session.agentName, session.worktreeName, session.status.label] + (session.afk ? ["AFK"] : []) + usage).joined(separator: " · ")
     }
 
     private func send() {
@@ -156,10 +184,6 @@ struct SessionDetailView: View {
         }
     }
 
-    private func stop() {
-        perform { try await store.cancel(sessionID) }
-    }
-
     private func answer(request: String, option: String) async throws {
         try await store.answer(sessionID, request: request, option: option)
         sent += 1
@@ -177,6 +201,27 @@ struct SessionDetailView: View {
 
     private static func message(_ error: any Error) -> String {
         (error as? RemoteError)?.message ?? error.localizedDescription
+    }
+}
+
+struct SessionHeader: View {
+    let session: AgentSession
+    var usage: String?
+
+    var body: some View {
+        let state = session.state
+        let detail = ([session.headerDetail] + (usage.map { [$0] } ?? [])).filter { !$0.isEmpty }.joined(separator: " · ")
+        VStack(spacing: 1) {
+            Text(session.displayTitle)
+                .font(.headline)
+                .lineLimit(1)
+            (Text(state.label).foregroundStyle(state.needsYou ? Color.warning : .secondary)
+                + Text(detail.isEmpty ? "" : " · " + detail).foregroundStyle(.secondary))
+                .font(.footnote)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: 260)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -214,7 +259,6 @@ struct ComposerView: View {
     let enabled: Bool
     let sending: Bool
     let send: () -> Void
-    let stop: () -> Void
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
 
@@ -222,13 +266,8 @@ struct ComposerView: View {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty
     }
 
-    private var turnActive: Bool {
-        session?.isTurnActive == true
-    }
-
     private var placeholder: String {
-        guard let session else { return "What should the agent do?" }
-        return session.isTurnActive ? "Queue a message" : "Message \(session.agentName)"
+        session?.composerPlaceholder ?? "What should the agent do?"
     }
 
     var body: some View {
@@ -263,31 +302,27 @@ struct ComposerView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
                             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
-                        if turnActive && draft.isEmpty && attachments.isEmpty && importing == 0 {
-                            Button(action: stop) {
-                                Image(systemName: "stop.fill")
-                                    .font(.body.weight(.semibold))
-                                    .frame(width: 30, height: 30)
-                            }
-                            .buttonStyle(.glass)
-                            .buttonBorderShape(.circle)
-                            .accessibilityLabel("Stop")
-                        } else {
-                            Button(action: submit) {
-                                Group {
-                                    if sending {
-                                        ProgressView()
-                                    } else {
-                                        Image(systemName: "arrow.up").font(.body.weight(.bold))
-                                    }
+                        Button(action: submit) {
+                            Group {
+                                if sending {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "arrow.up").font(.body.weight(.bold))
                                 }
-                                .frame(width: 30, height: 30)
                             }
-                            .buttonStyle(.glassProminent)
-                            .buttonBorderShape(.circle)
-                            .disabled(empty || sending || importing > 0)
-                            .accessibilityLabel("Send")
+                            .frame(width: 30, height: 30)
                         }
+                        .buttonStyle(.glassProminent)
+                        .buttonBorderShape(.circle)
+                        .disabled(empty || sending || importing > 0)
+                        .accessibilityLabel(session?.sendLabel ?? "Send")
+                    }
+                    if let caption = session?.composerCaption {
+                        Text(caption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .padding(.leading, 4)
                     }
                 }
             }

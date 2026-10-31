@@ -2,17 +2,38 @@ import SwiftUI
 
 import CompanionKit
 
+
+struct RowView: View {
+    let row: TranscriptRow
+
+    var body: some View {
+        switch row {
+        case .entry(let entry):
+            EntryView(entry: entry)
+                .opacity(entry.isOutgoing ? 0.6 : 1)
+        case .agent(_, let blocks):
+            MarkdownView(blocks: blocks)
+        case .tools(_, let group):
+            if group.calls.count == 1 {
+                ToolRow(tool: group.calls[0])
+            } else {
+                ToolGroupRow(group: group)
+            }
+        case .answered(let request):
+            AnsweredRow(request: request)
+        }
+    }
+}
+
 struct EntryView: View {
     let entry: TranscriptEntry
-    let session: AgentSession?
-    let answer: @MainActor (String, String) async throws -> Void
 
     var body: some View {
         switch entry.content {
         case .user(let text, let fromAgent, let images):
             UserBubble(text: text, fromAgent: fromAgent, images: images)
         case .agent(let text):
-            MarkdownView(text: text)
+            MarkdownView(blocks: Markdown.blocks(text))
         case .thought(let text):
             ThoughtView(text: text)
         case .tool(let tool):
@@ -20,9 +41,7 @@ struct EntryView: View {
         case .plan(let items):
             PlanCard(items: items)
         case .permission(let request):
-            PermissionCard(request: request, pending: session?.pending.contains(request.id) ?? false) { option in
-                try await answer(request.id, option)
-            }
+            AnsweredRow(request: request)
         case .notice(let notice):
             NoticeView(notice: notice)
         case .compaction(let compaction):
@@ -87,8 +106,8 @@ struct UserBubble: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .foregroundStyle(fromAgent ? Color.primary : Color.white)
-                    .background(fromAgent ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.tint), in: .rect(cornerRadius: 20))
+                    .foregroundStyle(.primary)
+                    .background(Color.surface2, in: .rect(cornerRadius: 20))
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -97,11 +116,19 @@ struct UserBubble: View {
 }
 
 struct MarkdownView: View {
-    let text: String
+    let blocks: [MarkdownBlock]
+
+    init(blocks: [MarkdownBlock]) {
+        self.blocks = blocks
+    }
+
+    init(text: String) {
+        blocks = Markdown.blocks(text)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(Array(Markdown.blocks(text).enumerated()), id: \.offset) { _, block in
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .heading(let level, let text):
                     Text(Markdown.inline(text))
@@ -131,9 +158,9 @@ struct MarkdownView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         Text(text)
                             .font(.callout.monospaced())
-                            .padding(12)
+                            .padding(14)
                     }
-                    .background(.fill.tertiary, in: .rect(cornerRadius: 12))
+                    .background(Color.surface1, in: .rect(cornerRadius: 16))
                 }
             }
         }
@@ -147,19 +174,30 @@ struct ThoughtView: View {
     @State private var expanded = false
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            Text(text)
-                .font(.callout)
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.snappy) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Text("Thought")
+                }
+                .font(.footnote)
                 .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 4)
-        } label: {
-            Label("Thinking", systemImage: "brain")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .frame(minHeight: 32)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                Text(text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .tint(.secondary)
     }
 }
 
@@ -196,7 +234,32 @@ struct CompactionView: View {
 
 struct ToolRow: View {
     let tool: ToolCall
-    @State private var expanded = false
+    @State private var expanded: Bool
+
+    init(tool: ToolCall) {
+        self.tool = tool
+        _expanded = State(initialValue: tool.status == .failed)
+    }
+
+    var body: some View {
+        ToolLine(tool: tool, expanded: $expanded)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Color.surface1, in: .rect(cornerRadius: 20))
+            .overlay {
+                if tool.status == .failed {
+                    RoundedRectangle(cornerRadius: 20).strokeBorder(Color.danger.opacity(0.5), lineWidth: 1)
+                }
+            }
+            .onChange(of: tool.status) { _, status in
+                if status == .failed { expanded = true }
+            }
+    }
+}
+
+struct ToolLine: View {
+    let tool: ToolCall
+    @Binding var expanded: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -210,15 +273,10 @@ struct ToolRow: View {
                     Text(tool.displayTitle)
                         .font(tool.kind == .execute ? .callout.monospaced() : .callout)
                         .lineLimit(1)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(tool.status == .failed ? Color.danger : .primary)
                     Spacer(minLength: 6)
                     if !tool.diffs.isEmpty {
-                        let changes = tool.changes
-                        HStack(spacing: 4) {
-                            Text("+\(changes.added)").foregroundStyle(.green)
-                            Text("−\(changes.removed)").foregroundStyle(.red)
-                        }
-                        .font(.caption.monospacedDigit().weight(.medium))
+                        ChangeCounts(changes: tool.changes)
                     }
                     ToolStatusIcon(status: tool.status)
                     if hasDetails {
@@ -228,6 +286,7 @@ struct ToolRow: View {
                             .rotationEffect(.degrees(expanded ? 90 : 0))
                     }
                 }
+                .frame(minHeight: 28)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
@@ -244,13 +303,100 @@ struct ToolRow: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.fill.quaternary, in: .rect(cornerRadius: 14))
     }
 
     private var hasDetails: Bool {
         !tool.diffs.isEmpty || !tool.output.isEmpty || tool.command != nil
+    }
+}
+
+struct ToolGroupRow: View {
+    let group: ToolGroup
+    @State private var expanded: Bool
+    @State private var open: Set<String> = []
+
+    init(group: ToolGroup) {
+        self.group = group
+        _expanded = State(initialValue: group.failed)
+        _open = State(initialValue: Set(group.calls.filter { $0.status == .failed }.map(\.id)))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.snappy) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: group.symbol)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(group.title)
+                            .font(.callout)
+                            .foregroundStyle(group.failed ? Color.danger : .primary)
+                        if !expanded {
+                            HStack(spacing: 4) {
+                                Text(group.detail)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .layoutPriority(-1)
+                                if group.changes.added + group.changes.removed > 0 {
+                                    ChangeCounts(changes: group.changes)
+                                }
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 6)
+                    if group.running {
+                        ProgressView().controlSize(.small)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }
+                .frame(minHeight: 36)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(group.title): \(group.detail)")
+            if expanded {
+                ForEach(group.calls, id: \.id) { call in
+                    ToolLine(tool: call, expanded: Binding(
+                        get: { open.contains(call.id) },
+                        set: { if $0 { open.insert(call.id) } else { open.remove(call.id) } }
+                    ))
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.surface1, in: .rect(cornerRadius: 20))
+        .overlay {
+            if group.failed {
+                RoundedRectangle(cornerRadius: 20).strokeBorder(Color.danger.opacity(0.5), lineWidth: 1)
+            }
+        }
+        .onChange(of: group.calls.filter { $0.status == .failed }.map(\.id)) { _, failed in
+            guard !failed.isEmpty else { return }
+            expanded = true
+            open.formUnion(failed)
+        }
+    }
+}
+
+struct ChangeCounts: View {
+    let changes: (added: Int, removed: Int)
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("+\(changes.added)").foregroundStyle(Color.success)
+            Text("−\(changes.removed)").foregroundStyle(Color.danger)
+        }
+        .font(.footnote.monospacedDigit().weight(.medium))
+        .fixedSize()
     }
 }
 
@@ -262,9 +408,9 @@ struct ToolStatusIcon: View {
         case .pending, .inProgress:
             ProgressView().controlSize(.small)
         case .completed:
-            Image(systemName: "checkmark").foregroundStyle(.green).font(.caption.weight(.bold))
+            Image(systemName: "checkmark").foregroundStyle(.secondary).font(.caption.weight(.bold))
         case .failed:
-            Image(systemName: "xmark").foregroundStyle(.red).font(.caption.weight(.bold))
+            Image(systemName: "xmark").foregroundStyle(Color.danger).font(.caption.weight(.bold))
         case .cancelled:
             Image(systemName: "slash.circle").foregroundStyle(.secondary).font(.caption)
         case .other:
@@ -275,22 +421,25 @@ struct ToolStatusIcon: View {
 
 struct CodeBlock: View {
     let text: String
+    var lines = 40
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             Text(text)
-                .font(.caption.monospaced())
-                .lineLimit(40)
+                .font(.callout.monospaced())
+                .lineLimit(lines)
                 .textSelection(.enabled)
-                .padding(10)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 10))
+        .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
     }
 }
 
 struct DiffView: View {
     let diff: ToolCall.FileDiff
+    var limit = 400
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -301,7 +450,7 @@ struct DiffView: View {
                 .padding(.vertical, 6)
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(diff.lines.prefix(400).enumerated()), id: \.offset) { _, line in
+                    ForEach(Array(diff.lines.prefix(limit).enumerated()), id: \.offset) { _, line in
                         HStack(spacing: 6) {
                             Text(sign(line.kind))
                                 .foregroundStyle(color(line.kind))
@@ -318,7 +467,7 @@ struct DiffView: View {
             }
             .padding(.bottom, 6)
         }
-        .background(.background.secondary, in: .rect(cornerRadius: 10))
+        .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
     }
 
     private func sign(_ kind: DiffLine.Kind) -> String {
@@ -331,8 +480,8 @@ struct DiffView: View {
 
     private func color(_ kind: DiffLine.Kind) -> Color {
         switch kind {
-        case .added: .green
-        case .removed: .red
+        case .added: Color.success
+        case .removed: Color.danger
         case .hunk: .accentColor
         case .context: .secondary
         }
@@ -343,28 +492,34 @@ struct PlanCard: View {
     let items: [PlanItem]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Plan", systemImage: "list.bullet.clipboard")
-                .font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Plan")
+                Spacer()
+                Text("\(items.filter { $0.status == .completed }.count) of \(items.count)")
+                    .monospacedDigit()
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Image(systemName: symbol(item.status))
                         .foregroundStyle(color(item.status))
+                        .frame(width: 20)
                     Text(item.content)
-                        .strikethrough(item.status == .completed, color: .secondary)
-                        .foregroundStyle(item.status == .completed ? .secondary : .primary)
+                        .fontWeight(item.status == .inProgress ? .semibold : .regular)
+                        .foregroundStyle(item.status == .inProgress ? .primary : .secondary)
                 }
-                .font(.callout)
             }
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.fill.quaternary, in: .rect(cornerRadius: 16))
+        .background(Color.surface1, in: .rect(cornerRadius: 20))
     }
 
     private func symbol(_ status: PlanStatus) -> String {
         switch status {
-        case .completed: "checkmark.circle.fill"
+        case .completed: "checkmark"
         case .inProgress: "play.circle"
         case .pending: "circle"
         }
@@ -372,82 +527,183 @@ struct PlanCard: View {
 
     private func color(_ status: PlanStatus) -> Color {
         switch status {
-        case .completed: .green
+        case .completed: .secondary
         case .inProgress: .accentColor
-        case .pending: .secondary
+        case .pending: Color(.tertiaryLabel)
         }
+    }
+}
+
+struct AnsweredRow: View {
+    let request: PermissionRequest
+
+    var body: some View {
+        Label {
+            (Text(request.verdict + " · ") + Text(request.subject).font(.footnote.monospaced()))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .accessibilityLabel(request.summary)
+        } icon: {
+            Image(systemName: request.allowed ? "checkmark" : request.outcome == nil ? "clock" : "xmark")
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct DockCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.surface1)
+                    .overlay(RoundedRectangle(cornerRadius: 20).fill(Color.warning.opacity(0.10)))
+            }
+            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.warning.opacity(0.55), lineWidth: 1))
+    }
+}
+
+struct DockBadge: View {
+    let symbol: String
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.footnote.weight(.bold))
+            .foregroundStyle(Color.onAccent)
+            .frame(width: 28, height: 28)
+            .background(Color.warning, in: .circle)
     }
 }
 
 struct PermissionCard: View {
     let request: PermissionRequest
-    let pending: Bool
+    let more: Int
+    let agentName: String
+    let place: String
+    let enabled: Bool
     let choose: @MainActor (String) async throws -> Void
     @State private var chosen: String?
     @State private var failure: String?
+    @State private var confirmingAlways = false
+    @State private var showingAll = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(pending ? "Permission Needed" : "Permission", systemImage: "hand.raised.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(pending ? .orange : .secondary)
-            HStack(spacing: 10) {
-                Image(systemName: request.toolCall.kind.symbol)
-                    .foregroundStyle(.secondary)
-                Text(request.toolCall.displayTitle)
-                    .font(.body.weight(.medium))
-            }
-            if let command = request.toolCall.command, command != request.toolCall.displayTitle {
-                CodeBlock(text: command)
-            }
-            ForEach(Array(request.toolCall.diffs.enumerated()), id: \.offset) { _, diff in
-                DiffView(diff: diff)
-            }
-            if pending {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) { buttons }
-                    VStack(alignment: .leading, spacing: 8) { buttons }
+        DockCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    DockBadge(symbol: "hand.raised.fill")
+                    Text(request.question)
+                        .font(.title3.weight(.semibold))
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    if let never = request.option(.rejectAlways) {
+                        Menu {
+                            Button("Reject and don't ask again", systemImage: "hand.raised.slash", role: .destructive) { pick(never) }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44, height: 44)
+                                .contentShape(.rect)
+                        }
+                        .tint(.secondary)
+                        .accessibilityLabel("More Answers")
+                        .disabled(!answerable)
+                    }
                 }
+                CodeBlock(text: request.subject, lines: PermissionRequest.dockCommandLines)
+                ForEach(Array(request.toolCall.diffs.prefix(1).enumerated()), id: \.offset) { _, diff in
+                    DiffView(diff: diff, limit: PermissionRequest.dockDiffLines)
+                }
+                if let hidden = request.hiddenInDock {
+                    Button { showingAll = true } label: {
+                        Label("Hidden: \(hidden) · Show all", systemImage: "eye")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.warning)
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if let caption = caption {
+                    Text(caption)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                VStack(spacing: 10) {
+                    if let once = request.option(.allowOnce) {
+                        Button { pick(once) } label: {
+                            Text("Allow once")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .foregroundStyle(Color.onAccent)
+                                .background(Color.accentColor, in: .capsule)
+                                .contentShape(.capsule)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    HStack(spacing: 10) {
+                        if request.option(.allowAlways) != nil {
+                            PlainCapsule(title: "Always allow…", tint: .primary) { confirmingAlways = true }
+                        }
+                        if let reject = request.option(.rejectOnce) {
+                            PlainCapsule(title: "Reject", tint: Color.danger) { pick(reject) }
+                        }
+                    }
+                }
+                .disabled(!answerable)
+                .opacity(enabled ? 1 : 0.5)
                 if let failure {
                     Label(failure, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.danger)
                 }
-            } else {
-                Label(request.answer ?? "No longer pending", systemImage: request.outcome?.outcome == .selected ? "checkmark.circle" : "clock.badge.xmark")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(pending ? AnyShapeStyle(Color.orange.opacity(0.10)) : AnyShapeStyle(.fill.quaternary))
+        .sheet(isPresented: $showingAll) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        CodeBlock(text: request.subject, lines: Int.max)
+                        ForEach(Array(request.toolCall.diffs.enumerated()), id: \.offset) { _, diff in
+                            DiffView(diff: diff, limit: Int.max)
+                        }
+                    }
+                    .padding()
+                }
+                .navigationTitle(request.question)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingAll = false }
+                    }
+                }
+            }
         }
-        .overlay {
-            if pending {
-                RoundedRectangle(cornerRadius: 18).strokeBorder(.orange.opacity(0.4), lineWidth: 1)
+        .sheet(isPresented: $confirmingAlways) {
+            AlwaysAllowSheet(request: request, agentName: agentName, place: place) {
+                confirmingAlways = false
+                if let always = request.option(.allowAlways) { pick(always) }
             }
         }
     }
 
-    @ViewBuilder
-    private var buttons: some View {
-        ForEach(request.options) { option in
-            if option.kind == .allowOnce {
-                Button(option.name) { pick(option) }
-                    .buttonStyle(.glassProminent)
-                    .tint(.accentColor)
-            } else if option.kind.allows {
-                Button(option.name) { pick(option) }
-                    .buttonStyle(.glass)
-            } else {
-                Button(option.name, role: .destructive) { pick(option) }
-                    .buttonStyle(.glass)
-            }
-        }
-        .disabled(chosen != nil)
+    private var answerable: Bool {
+        enabled && chosen == nil
+    }
+
+    private var caption: String? {
+        if !enabled { return "Can't answer while the Mac is offline" }
+        let intent = (request.toolCall.intent ?? (request.toolCall.displayTitle != request.subject ? request.toolCall.displayTitle : nil)).map { "\(agentName) says: \($0)" }
+        let rest = more > 0 ? (more == 1 ? "1 more request waiting" : "\(more) more requests waiting") : nil
+        let parts = [intent, rest].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func pick(_ option: PermissionOption) {
@@ -461,6 +717,97 @@ struct PermissionCard: View {
                 chosen = nil
             }
         }
+    }
+}
+
+struct PlainCapsule: View {
+    let title: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(tint)
+                .background(Color.surface2, in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct AlwaysAllowSheet: View {
+    let request: PermissionRequest
+    let agentName: String
+    let place: String
+    let confirm: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var height: CGFloat = 360
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(request.alwaysTitle)
+                .font(.title3.weight(.semibold))
+            Text(scope)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            CodeBlock(text: request.alwaysRule, lines: 4)
+            VStack(spacing: 6) {
+                PlainCapsule(title: "Always allow", tint: .primary, action: confirm)
+                Button { dismiss() } label: {
+                    Text("Cancel")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(24)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .presentationDetents([.height(height)])
+        .presentationDragIndicator(.hidden)
+    }
+
+    private var scope: AttributedString {
+        let place = place.isEmpty ? "this workspace" : "**\(place)**"
+        let what = request.toolCall.kind == .execute ? "run matching commands" : "do this"
+        return Markdown.inline("\(agentName) will \(what) in \(place) without asking, on this Mac, until you remove the rule.")
+    }
+}
+
+struct QuestionCard: View {
+    let question: String
+    let agentName: String
+    let subagent: Bool
+
+    var body: some View {
+        DockCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    DockBadge(symbol: "questionmark.bubble.fill")
+                    Text("\(agentName) is asking")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.warning)
+                }
+                if !question.isEmpty {
+                    Text(Markdown.inline(question))
+                        .font(.title3.weight(.semibold))
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(subagent ? "Paused until you answer. Your reply resumes the subagent." : "Paused until you answer.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

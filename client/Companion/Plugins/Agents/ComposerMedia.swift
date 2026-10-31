@@ -17,7 +17,7 @@ struct AttachmentsRow: View {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 64, height: 64)
+                            .frame(width: 56, height: 56)
                             .clipShape(.rect(cornerRadius: 12))
                             .overlay(alignment: .bottomLeading) {
                                 if case .video(_, _, let duration) = attachment {
@@ -39,7 +39,7 @@ struct AttachmentsRow: View {
                 }
                 ForEach(0..<importing, id: \.self) { _ in
                     ProgressView()
-                        .frame(width: 64, height: 64)
+                        .frame(width: 56, height: 56)
                         .background(.fill.secondary, in: .rect(cornerRadius: 12))
                 }
             }

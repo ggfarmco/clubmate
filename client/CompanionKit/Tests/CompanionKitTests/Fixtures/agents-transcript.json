@@ -192,7 +192,8 @@
       "toolCall": {
         "kind": "execute",
         "rawInput": {
-          "command": "go test ./..."
+          "command": "go test ./...",
+          "description": "Run the shop tests"
         },
         "title": "go test ./...",
         "toolCallId": "run1"
@@ -212,6 +213,11 @@
           "optionId": "deny",
           "name": "Reject",
           "kind": "reject_once"
+        },
+        {
+          "optionId": "deny_always",
+          "name": "Reject Always",
+          "kind": "reject_always"
         }
       ]
     }
