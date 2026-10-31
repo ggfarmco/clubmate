@@ -72,34 +72,40 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     func adopt(_ client: CoreClient) {
         listener?.cancel()
-        let stream = client.subscribeNotifications()
         let lastSeq = hub.inbox.lastSeq
         listener = Task { [weak self] in
             let after = await Self.resumePoint(client, lastSeq: lastSeq)
             if after == .max { self?.hub.inbox.forgetSeq() }
-            guard let agents = try? await client.busSubscribe(pattern: Topic.agentsChanged, after: .max),
-                  let posted = try? await client.busSubscribe(pattern: Topic.notifyPosted, after: after) else { return }
+            guard let agents = try? await client.busEvents(pattern: Topic.agentsChanged),
+                  let posted = try? await client.busEvents(pattern: Topic.notifyPosted, after: after) else { return }
             self?.checkOpenWorkspaces()
-            for await notification in stream where notification.method == "bus.event" {
-                guard let params = notification.params.objectValue, let event = params["event"]?.objectValue, let payload = event["payload"] else { continue }
-                switch params["subscription"]?.stringValue {
-                case posted:
-                    self?.advance(event["seq"])
-                    if let note = HubNotification.posted(payload) { await self?.post(note) }
-                case agents:
-                    guard let fields = payload.objectValue, let workspace = fields["workspace"]?.stringValue else { continue }
-                    switch fields["kind"]?.stringValue {
-                    case "status":
-                        await self?.checkAgents(workspace, session: fields["session"]?.stringValue)
-                    case "deleted":
-                        if let session = fields["session"]?.stringValue { self?.agentDeleted(workspace, session) }
-                    default:
-                        continue
-                    }
-                default:
-                    continue
+            let agentChanges = Task { [weak self] in
+                for await event in agents {
+                    await self?.agentsChanged(event)
                 }
             }
+            for await event in posted {
+                await self?.posted(event)
+            }
+            agentChanges.cancel()
+        }
+    }
+
+    private func posted(_ event: BusEvent) async {
+        hub.inbox.record(seq: Int64(event.seq))
+        changed()
+        if let note = HubNotification.posted(event.payload) { await post(note) }
+    }
+
+    private func agentsChanged(_ event: BusEvent) async {
+        guard !event.workspace.isEmpty, let fields = event.payload.objectValue else { return }
+        switch fields["kind"]?.stringValue {
+        case "status":
+            await checkAgents(event.workspace, session: fields["session"]?.stringValue)
+        case "deleted":
+            if let session = fields["session"]?.stringValue { agentDeleted(event.workspace, session) }
+        default:
+            break
         }
     }
 
@@ -156,12 +162,6 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     func openSystemSettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(Bundle.main.bundleIdentifier ?? "")") else { return }
         NSWorkspace.shared.open(url)
-    }
-
-    private func advance(_ seq: JSONValue?) {
-        guard case .number(let value) = seq else { return }
-        hub.inbox.record(seq: Int64(value))
-        changed()
     }
 
     private func checkOpenWorkspaces() {

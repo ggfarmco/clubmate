@@ -17,6 +17,7 @@ final class AppModel {
 
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var gitChanges: Task<Void, Never>?
+    @ObservationIgnored private var pluginChanges: Task<Void, Never>?
     private var launchProject = launchProjectID(CommandLine.arguments)
     @ObservationIgnored private var presence: [String: ProjectPresence] = [:]
     @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
@@ -269,6 +270,19 @@ final class AppModel {
                 await self?.sessions.existing(workspace)?.worktrees.load()
             }
         }
+        pluginChanges?.cancel()
+        pluginChanges = Task { [weak self] in
+            guard let events = try? await client.busEvents(pattern: Topic.pluginChanged) else { return }
+            await self?.reloadCommands(client)
+            for await _ in events {
+                await self?.reloadCommands(client)
+            }
+        }
+    }
+
+    private func reloadCommands(_ client: CoreClient) async {
+        guard let commands = try? await client.commandList(), !Task.isCancelled, commands != self.commands else { return }
+        self.commands = commands
     }
 }
 

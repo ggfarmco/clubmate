@@ -6,6 +6,11 @@ import Foundation
 public struct RPCNotification: Sendable, Equatable {
     public let method: String
     public let params: JSONValue
+
+    public init(method: String, params: JSONValue) {
+        self.method = method
+        self.params = params
+    }
 }
 
 public struct RPCRequest: Sendable, Equatable {
@@ -190,20 +195,36 @@ public actor RPCConnection {
 }
 
 private func readLines(fd: Int32, into sink: AsyncStream<Data>.Continuation) {
-    var buffer = Data()
+    var lines = LineBuffer()
     var chunk = [UInt8](repeating: 0, count: 64 * 1024)
     while true {
         let n = chunk.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
         if n < 0, errno == EINTR { continue }
         if n <= 0 { break }
-        buffer.append(contentsOf: chunk[0..<n])
-        while let newline = buffer.firstIndex(of: 0x0A) {
-            let line = buffer[buffer.startIndex..<newline]
-            buffer.removeSubrange(buffer.startIndex...newline)
-            if !line.isEmpty { sink.yield(Data(line)) }
-        }
+        chunk.withUnsafeBytes { lines.feed(UnsafeRawBufferPointer(rebasing: $0[0..<n])) { sink.yield($0) } }
     }
     sink.finish()
+}
+
+public struct LineBuffer: Sendable {
+    private var pending = Data()
+
+    public init() {}
+
+    public mutating func feed(_ bytes: UnsafeRawBufferPointer, _ emit: (Data) -> Void) {
+        guard let base = bytes.baseAddress else { return }
+        var start = 0
+        while start < bytes.count, let found = memchr(base + start, 0x0A, bytes.count - start) {
+            let end = base.distance(to: UnsafeRawPointer(found))
+            pending.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[start..<end]))
+            if !pending.isEmpty {
+                emit(pending)
+                pending = Data()
+            }
+            start = end + 1
+        }
+        pending.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[start...]))
+    }
 }
 
 private struct Request<P: Encodable>: Encodable {

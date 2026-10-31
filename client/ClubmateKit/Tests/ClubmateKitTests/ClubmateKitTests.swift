@@ -50,6 +50,31 @@ final class ClubmateKitTests: XCTestCase {
         await client.close()
     }
 
+    func testBusEventsAreTyped() async throws {
+        let client = try await startCore()
+        let events = try await client.busEvents(pattern: "demo.*")
+        try core?.cli("bus", "publish", "demo.x", #"{"workspace":"w1"}"#)
+        let event = await first(events, within: .seconds(3))
+        XCTAssertEqual(event?.topic, "demo.x")
+        XCTAssertEqual(event?.workspace, "w1")
+        await client.close()
+    }
+
+    func testBusFeedResumesAfterLastDeliveredEvent() {
+        let event = { (sub: String, seq: Int) in RPCNotification(method: "bus.event", params: .object(["subscription": .string(sub), "event": .object(["seq": .number(Double(seq)), "topic": .string("t")])])) }
+        let closed = { (sub: String) in RPCNotification(method: "bus.closed", params: .object(["subscription": .string(sub), "error": .string("slow")])) }
+        var fresh = BusFeed(subscription: "s1", after: .max)
+        XCTAssertEqual(fresh.receive(closed("s1")), .closed(after: .max))
+
+        var feed = BusFeed(subscription: "s1", after: 3)
+        XCTAssertEqual(feed.receive(event("other", 9)), .ignored)
+        XCTAssertEqual(feed.receive(event("s1", 5)), .event(BusEvent(seq: 5, topic: "t", payload: .null)))
+        XCTAssertEqual(feed.receive(closed("s1")), .closed(after: 5))
+        feed.resubscribed("s2")
+        XCTAssertEqual(feed.receive(event("s1", 6)), .ignored)
+        XCTAssertEqual(feed.receive(event("s2", 6)), .event(BusEvent(seq: 6, topic: "t", payload: .null)))
+    }
+
     func testCoreStopIsSurfaced() async throws {
         let client = try await startCore()
         let stream = client.subscribeNotifications()

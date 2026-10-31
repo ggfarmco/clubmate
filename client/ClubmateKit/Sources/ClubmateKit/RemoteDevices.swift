@@ -208,26 +208,12 @@ public final class RemoteDevicesModel {
     }
 
     public func follow(_ client: CoreClient) async {
-        let stream = client.subscribeNotifications()
-        guard var subscription = try? await client.busSubscribe(pattern: Self.topic, after: .max) else {
-            await load()
-            return
-        }
+        let events = try? await client.busEvents(pattern: Self.topic)
         await load()
-        for await notification in stream {
-            guard notification.params.objectValue?["subscription"]?.stringValue == subscription else { continue }
-            switch notification.method {
-            case "bus.event":
-                await load()
-            case "bus.closed":
-                guard let next = try? await client.busSubscribe(pattern: Self.topic, after: .max) else { return }
-                subscription = next
-                await load()
-            default:
-                continue
-            }
+        guard let events else { return }
+        for await _ in events {
+            await load()
         }
-        Task { [subscription] in try? await client.busUnsubscribe(subscription) }
     }
 
     public func setEnabled(_ enabled: Bool) async {

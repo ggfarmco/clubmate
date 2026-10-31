@@ -94,6 +94,7 @@ public struct Command: Codable, Sendable, Equatable {
     public let plugin: String
     public let hidden: Bool
     public let confirm: String
+    public let running: Bool
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -102,6 +103,7 @@ public struct Command: Codable, Sendable, Equatable {
         plugin = try container.decode(String.self, forKey: .plugin)
         hidden = try container.decode(Bool.self, forKey: .hidden)
         confirm = try container.decodeIfPresent(String.self, forKey: .confirm) ?? ""
+        running = try container.decodeIfPresent(Bool.self, forKey: .running) ?? true
     }
 }
 

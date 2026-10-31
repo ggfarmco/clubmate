@@ -7,7 +7,6 @@ public final class ProjectsStore {
     public private(set) var projects: [Project] = []
 
     @ObservationIgnored private let client: CoreClient
-    @ObservationIgnored private var subscription: String?
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
 
@@ -18,14 +17,17 @@ public final class ProjectsStore {
     public func start() async throws {
         guard listener == nil else { return }
         let generation = self.generation
-        let stream = client.subscribeNotifications()
-        listener = Task { [weak self] in
-            for await notification in stream {
-                await self?.receive(notification)
-            }
-        }
         do {
-            try await subscribe()
+            let events = try await client.busEvents(pattern: "project.*")
+            guard generation == self.generation else { return }
+            listener = Task { [weak self] in
+                for await _ in events {
+                    try? await self?.load()
+                }
+            }
+            let projects = try await client.listProjects()
+            guard generation == self.generation else { return }
+            self.projects = projects
         } catch {
             if generation == self.generation { halt() }
             throw error
@@ -33,11 +35,13 @@ public final class ProjectsStore {
     }
 
     public func stop() async {
-        let subscription = self.subscription
         halt()
-        if let subscription {
-            try? await client.busUnsubscribe(subscription)
-        }
+    }
+
+    private func halt() {
+        generation += 1
+        listener?.cancel()
+        listener = nil
     }
 
     public func load() async throws {
@@ -49,46 +53,6 @@ public final class ProjectsStore {
         try await load()
         return project
     }
-
-    private func subscribe() async throws {
-        let generation = self.generation
-        let subscription = try await client.busSubscribe(pattern: "project.*", after: .max)
-        guard generation == self.generation else {
-            try? await client.busUnsubscribe(subscription)
-            return
-        }
-        self.subscription = subscription
-        let projects = try await client.listProjects()
-        guard generation == self.generation else { return }
-        self.projects = projects
-    }
-
-    private func halt() {
-        generation += 1
-        listener?.cancel()
-        listener = nil
-        subscription = nil
-    }
-
-    private func receive(_ notification: RPCNotification) async {
-        guard let subscription,
-              let params = try? notification.params.decode(BusNotification.self),
-              params.subscription == subscription
-        else { return }
-        switch notification.method {
-        case "bus.event":
-            try? await load()
-        case "bus.closed":
-            self.subscription = nil
-            try? await subscribe()
-        default:
-            break
-        }
-    }
-}
-
-private struct BusNotification: Decodable {
-    let subscription: String
 }
 
 public struct ProjectPresence: Sendable, Equatable {

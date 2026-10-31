@@ -277,22 +277,10 @@ public final class WorktreeModel {
     }
 
     public static func follow(_ client: CoreClient, changed: @escaping @MainActor (String) async -> Void) async {
-        let stream = client.subscribeNotifications()
-        guard var subscription = try? await client.busSubscribe(pattern: changedTopic, after: .max) else { return }
-        for await notification in stream {
-            guard let params = notification.params.objectValue, params["subscription"]?.stringValue == subscription else { continue }
-            switch notification.method {
-            case "bus.event":
-                guard let workspace = params["event"]?.objectValue?["payload"]?.objectValue?["workspace"]?.stringValue else { continue }
-                await changed(workspace)
-            case "bus.closed":
-                guard let next = try? await client.busSubscribe(pattern: changedTopic, after: .max) else { return }
-                subscription = next
-            default:
-                continue
-            }
+        guard let events = try? await client.busEvents(pattern: changedTopic) else { return }
+        for await event in events where !event.workspace.isEmpty {
+            await changed(event.workspace)
         }
-        Task { [subscription] in try? await client.busUnsubscribe(subscription) }
     }
 
     private static func within(_ path: String, _ dir: String) -> Bool {

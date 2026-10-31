@@ -401,7 +401,8 @@ final class StoresTests: XCTestCase {
     func testPaletteEntries() async throws {
         let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
         [{"id":"editor-nvim.terminal","title":"Open Terminal Here","plugin":"editor-nvim","hidden":false},
-         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true}]
+         {"id":"editor-nvim.open","title":"Open File","plugin":"editor-nvim","hidden":true},
+         {"id":"git.stage","title":"Stage","plugin":"git","hidden":false,"running":false}]
         """#.utf8))
         let sections = try JSONDecoder().decode([SectionInfo].self, from: Data(#"""
         [{"id":"editor-nvim","title":"Code","icon":"","order":10,"scope":"project","plugin":"editor-nvim"},

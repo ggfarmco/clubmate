@@ -173,6 +173,7 @@ private struct WorkspaceView: View {
             .environment(\.filePicker, FilePicker { [session] target in session.pickFile(target) })
             .eventBanner(session.banner)
             .commandPalette(session, entries: paletteEntries, run: perform)
+            .testPresenter("palette", palettePresented)
             .filePicker(session)
             .fuzzyPicker(session)
             .focusedSceneValue(\.projectSession, session)
@@ -314,6 +315,12 @@ private struct WorkspaceView: View {
         case .connecting: .connecting
         case .reconnecting(let attempt): .reconnecting(attempt: attempt)
         case .failed(let message): .failed(message)
+        }
+    }
+
+    private var palettePresented: Binding<Bool> {
+        Binding { [session] in session.overlay == .palette } set: { [session] shown in
+            if shown { session.overlay = .palette } else { session.close(.palette) }
         }
     }
 

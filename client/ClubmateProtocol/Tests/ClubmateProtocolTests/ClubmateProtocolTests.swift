@@ -82,4 +82,14 @@ final class ClubmateProtocolTests: XCTestCase {
             Wire(session: .other, kind: .other, status: .other, plan: .pending, role: .agent, permission: .other, outcome: .other, entry: .other, finish: .ask, notify: .all),
         ])
     }
+
+    func testBusEventDecodesCoreAndRemoteEnvelopes() throws {
+        let decode = { (json: String) in try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8)) }
+
+        XCTAssertEqual(try decode(#"{"seq":7,"topic":"worktree.changed","source":"plugin:git","time":"2026-10-31T10:00:00Z","payload":{"workspace":"w1"}}"#),
+                       BusEvent(seq: 7, topic: "worktree.changed", workspace: "w1", payload: .object(["workspace": .string("w1")])))
+        XCTAssertEqual(try decode(#"{"seq":3,"topic":"notify.posted","workspace":"w2","payload":{"workspace":"other"}}"#),
+                       BusEvent(seq: 3, topic: "notify.posted", workspace: "w2", payload: .object(["workspace": .string("other")])))
+        XCTAssertEqual(try decode(#"{"seq":4,"topic":"plugin.changed"}"#), BusEvent(seq: 4, topic: "plugin.changed", payload: .null))
+    }
 }
