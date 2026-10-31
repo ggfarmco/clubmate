@@ -565,7 +565,11 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 	open := map[string]bool{}
 	seen := map[string]bool{sid: true}
 	for s := a.session(sid); s != nil; {
-		parent := s.snapshot().ParentSession
+		rec := s.snapshot()
+		if rec.Run != nil {
+			open[runGroupKey(a.runScope(rec), rec.Run.ID)] = false
+		}
+		parent := rec.ParentSession
 		if parent == "" || seen[parent] {
 			break
 		}
@@ -574,6 +578,16 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 		s = a.session(parent)
 	}
 	return a.setCollapsed(ctx, workspaceID, open)
+}
+
+func (a *app) runScope(rec record) string {
+	switch {
+	case a.session(rec.ParentSession) != nil:
+		return rec.ParentSession
+	case rec.closed() && rec.ParentSession == "":
+		return closedKey + rec.Worktree
+	}
+	return rec.Worktree
 }
 
 func (a *app) reveal(ctx context.Context, workspaceID, sid string) error {

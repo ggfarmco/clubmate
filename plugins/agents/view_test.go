@@ -15,6 +15,7 @@ import (
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
+	"clubmate/plugins/agents/api"
 )
 
 func nodesOf(n sdui.Node, typ string) []sdui.Node {
@@ -148,6 +149,40 @@ func TestSidebarNestsChildren(t *testing.T) {
 	assert.Equal(t, "a", groups[0].Label)
 	require.Len(t, parent.Children, 2)
 	assert.Equal(t, []string{"agt_c", "agt_d"}, []string{parent.Children[0].ID, parent.Children[1].ID})
+}
+
+func TestSidebarNestsGraphRunSessions(t *testing.T) {
+	now := time.Now()
+	run := &api.Run{ID: "gr_1", Title: "Review loop"}
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_r", Worktree: "/r/a", Run: run, Title: "Review loop · Reviewer", Status: statusIdle, CreatedAt: now, UpdatedAt: now}},
+		{Rec: record{ID: "agt_x", Worktree: "/r/a", Title: "Solo", Status: statusDone, UpdatedAt: now}},
+		{Rec: record{ID: "agt_c", Worktree: "/r/a", Run: run, Title: "Review loop · Coder", Status: statusWaiting, CreatedAt: now.Add(-time.Second)}},
+		{Rec: record{ID: "agt_k", Worktree: "/r/a", lineage: lineage{ParentSession: "agt_p"}, Run: &api.Run{ID: "gr_2", Title: "Fix"}, Title: "Fix · Tester", Status: statusRunning}},
+		{Rec: record{ID: "agt_p", Worktree: "/r/a", Title: "Boss", Status: statusDone, UpdatedAt: now}},
+	}
+	tree := sidebarView(rows, "", map[string]bool{"s:agt_p": false}, now, false)
+	require.NoError(t, internalsdui.Validate(tree))
+
+	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+	wt := groups[len(groups)-1].Children
+	require.Len(t, wt, 3)
+	loop := wt[0]
+	assert.Equal(t, groupPrefix+runGroupKey("/r/a", "gr_1"), loop.ID)
+	assert.Equal(t, []string{"Review loop", "Coder needs you", graphIcon}, []string{loop.Label, loop.Detail, loop.Icon})
+	assert.True(t, loop.Expanded)
+	require.Len(t, loop.Children, 2)
+	assert.Equal(t, []string{"Coder", "Reviewer"}, []string{loop.Children[0].Label, loop.Children[1].Label})
+	assert.Equal(t, []string{"agt_x", "agt_p"}, []string{wt[1].ID, wt[2].ID})
+
+	fix := wt[2].Children
+	require.Len(t, fix, 1)
+	assert.Equal(t, groupPrefix+runGroupKey("agt_p", "gr_2"), fix[0].ID)
+	assert.Equal(t, statusLabels[statusRunning], fix[0].Detail)
+	assert.Equal(t, "Tester", fix[0].Children[0].Label)
+
+	folded := nodesOf(sidebarView(rows, "", map[string]bool{runGroupKey("/r/a", "gr_1"): true}, now, false), "tree")[0].Props["items"].([]sdui.TreeItem)
+	assert.Empty(t, folded[len(folded)-1].Children[0].Children)
 }
 
 func TestRunningActivityElapsed(t *testing.T) {

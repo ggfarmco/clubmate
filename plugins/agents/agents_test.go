@@ -1102,6 +1102,39 @@ func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {
 	waitFocus(t, c, "agents", "agents.main")
 }
 
+func TestRevealOpensTheGraphRunRow(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	var out struct{ Session, Worktree string }
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"title": "Loop · Coder", "run": "gr_1", "runTitle": "Loop"}, &out))
+	row := "wt:run:" + out.Worktree + "/gr_1"
+	runRow := func(n sdui.Node) (sdui.TreeItem, bool) {
+		trees := cardsOf(n, "tree")
+		if len(trees) == 0 {
+			return sdui.TreeItem{}, false
+		}
+		raw, err := json.Marshal(trees[0].Props["items"])
+		require.NoError(t, err)
+		var groups []sdui.TreeItem
+		require.NoError(t, json.Unmarshal(raw, &groups))
+		for _, g := range groups {
+			if i := slices.IndexFunc(g.Children, func(item sdui.TreeItem) bool { return item.ID == row }); i >= 0 {
+				return g.Children[i], true
+			}
+		}
+		return sdui.TreeItem{}, false
+	}
+
+	f.h.Event(t, workspace, "agents.sidebar", "sessions", "collapse", row)
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { item, ok := runRow(n); return ok && !item.Expanded })
+	require.NoError(t, f.run(t, workspace, "agents.reveal", map[string]any{"session": out.Session}, nil))
+
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		item, ok := runRow(n)
+		return ok && item.Expanded && len(item.Children) == 1 && item.Children[0].Label == "Coder"
+	})
+}
+
 func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
 	t.Helper()
 	deadline := time.After(wait)

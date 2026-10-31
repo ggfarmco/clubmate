@@ -90,6 +90,10 @@ func TestRunInstantiatesGraph(t *testing.T) {
 	assert.Equal(t, []RunNode{{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"}, {ID: "reviewer", Role: "Reviewer", Session: "agt_2"}}, r.Nodes)
 	assert.Equal(t, "tr_4", r.Edges[1].Trigger)
 
+	var node newArgs
+	require.NoError(t, json.Unmarshal(core.calls[1].Args, &node))
+	assert.Equal(t, []string{r.ID, r.Title}, []string{node.Run, node.RunTitle})
+
 	var done, outcome triggerArgs
 	require.NoError(t, json.Unmarshal(core.calls[2].Args, &done))
 	require.NoError(t, json.Unmarshal(core.calls[3].Args, &outcome))

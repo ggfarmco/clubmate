@@ -63,8 +63,10 @@ type RunEdge struct {
 }
 
 type newArgs struct {
-	Title  string `json:"title"`
-	Branch string `json:"branch,omitempty"`
+	Title    string `json:"title"`
+	Branch   string `json:"branch,omitempty"`
+	Run      string `json:"run"`
+	RunTitle string `json:"runTitle"`
 }
 
 type newResult struct {
@@ -135,7 +137,7 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 
 func (x *runner) start(ctx context.Context, g *Graph) error {
 	for i, n := range g.Nodes {
-		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch)}
+		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph)}
 		var out newResult
 		if err := x.do(ctx, "agents.new", args, &out); err != nil {
 			return fmt.Errorf("start node %s: %w", n.ID, err)

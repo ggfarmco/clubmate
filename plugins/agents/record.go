@@ -43,6 +43,7 @@ type record struct {
 	Agent          string `json:"agent"`
 	AgentSessionID string `json:"agentSessionId"`
 	lineage
+	Run       *api.Run  `json:"run,omitempty"`
 	Title     string    `json:"title"`
 	TitleSet  bool      `json:"titleSet,omitempty"`
 	Status    string    `json:"status"`

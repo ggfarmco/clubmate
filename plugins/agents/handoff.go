@@ -55,6 +55,7 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 			Fork:          old.Fork,
 			HandoffFrom:   old.ID,
 		},
+		Run:      old.Run,
 		Notify:   old.Notify,
 		Title:    old.Title,
 		TitleSet: old.TitleSet,

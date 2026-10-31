@@ -56,11 +56,13 @@ type sessionArgs struct {
 }
 
 type newArgs struct {
-	Agent  string `json:"agent"`
-	Branch string `json:"branch"`
-	Prompt string `json:"prompt"`
-	Title  string `json:"title"`
-	Notify string `json:"notify"`
+	Agent    string `json:"agent"`
+	Branch   string `json:"branch"`
+	Prompt   string `json:"prompt"`
+	Title    string `json:"title"`
+	Notify   string `json:"notify"`
+	Run      string `json:"run"`
+	RunTitle string `json:"runTitle"`
 }
 
 type newResult struct {

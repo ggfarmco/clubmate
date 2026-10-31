@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -18,6 +19,9 @@ const (
 	needsPrefix  = "needs:"
 	needsKey     = "needs"
 	closedKey    = "closed:"
+	runPrefix    = "run:"
+	graphIcon    = "point.3.connected.trianglepath.dotted"
+	graphRun     = "Graph run"
 
 	noSessions    = "No agent sessions"
 	deleteConfirm = "Delete this agent session, its transcript and its checkpoints?"
@@ -100,7 +104,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	type bucket struct {
 		label        string
-		open, closed []sdui.TreeItem
+		open, closed []sessionRow
 	}
 	var order []string
 	buckets := map[string]*bucket{}
@@ -113,15 +117,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			buckets[wt] = b
 			order = append(order, wt)
 		}
-		item := nestedItem(row, kids, collapsed, now, map[string]bool{})
 		child := row.Rec.ParentSession != ""
 		if row.Rec.closed() && !child {
-			b.closed = append(b.closed, item)
+			b.closed = append(b.closed, row)
 			continue
 		}
-		b.open = append(b.open, item)
+		b.open = append(b.open, row)
 		if !child && needsYou(row.Rec) {
-			item = sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
+			item := sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
 			item.ID = needsPrefix + item.ID
 			needs = append(needs, item)
 		}
@@ -134,11 +137,12 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	for _, wt := range order {
 		b := buckets[wt]
-		children := b.open
+		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{})
 		if len(b.closed) > 0 {
 			key := closedKey + wt
 			folded, ok := collapsed[key]
-			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), statusIcons[statusClosed], b.closed, ok && !folded))
+			closed := runItems(b.closed, key, kids, collapsed, now, map[string]bool{})
+			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), statusIcons[statusClosed], closed, ok && !folded))
 		}
 		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt])
 		group.Truncate = "middle"
@@ -167,11 +171,82 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 	folded, ok := collapsed[expandPrefix+row.Rec.ID]
 	item.Expanded = ok && !folded
 	if item.Expanded {
-		for _, kid := range children {
-			item.Children = append(item.Children, nestedItem(kid, kids, collapsed, now, path))
-		}
+		item.Children = runItems(children, row.Rec.ID, kids, collapsed, now, path)
 	}
 	return item
+}
+
+func runItems(rows []sessionRow, scope string, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool) []sdui.TreeItem {
+	type entry struct {
+		row  sessionRow
+		run  *api.Run
+		rows []sessionRow
+	}
+	var entries []*entry
+	byRun := map[string]*entry{}
+	for _, row := range rows {
+		r := row.Rec.Run
+		if r == nil {
+			entries = append(entries, &entry{row: row})
+			continue
+		}
+		e, ok := byRun[r.ID]
+		if !ok {
+			e = &entry{run: r}
+			byRun[r.ID] = e
+			entries = append(entries, e)
+		}
+		e.rows = append(e.rows, row)
+	}
+	items := make([]sdui.TreeItem, 0, len(entries))
+	for _, e := range entries {
+		if e.run == nil {
+			items = append(items, nestedItem(e.row, kids, collapsed, now, path))
+			continue
+		}
+		slices.SortStableFunc(e.rows, func(x, y sessionRow) int { return x.Rec.CreatedAt.Compare(y.Rec.CreatedAt) })
+		nodes := make([]sdui.TreeItem, 0, len(e.rows))
+		for _, row := range e.rows {
+			item := nestedItem(row, kids, collapsed, now, path)
+			item.Label = nodeLabel(row.Rec)
+			nodes = append(nodes, item)
+		}
+		key := runGroupKey(scope, e.run.ID)
+		run := groupItem(key, cmp.Or(e.run.Title, graphRun), graphIcon, nodes, !collapsed[key])
+		run.Detail = runActivity(e.rows, now)
+		items = append(items, run)
+	}
+	return items
+}
+
+func runGroupKey(scope, run string) string {
+	return runPrefix + scope + "/" + run
+}
+
+func nodeLabel(rec record) string {
+	label := cmp.Or(rec.Title, "New session")
+	if rec.Run == nil || rec.Run.Title == "" {
+		return label
+	}
+	return cmp.Or(strings.TrimPrefix(label, rec.Run.Title+" · "), label)
+}
+
+func runActivity(rows []sessionRow, now time.Time) string {
+	var running bool
+	var latest time.Time
+	for _, row := range rows {
+		if needsYou(row.Rec) {
+			return nodeLabel(row.Rec) + " needs you"
+		}
+		running = running || row.Rec.Status == statusRunning || row.Children != ""
+		if row.Rec.UpdatedAt.After(latest) {
+			latest = row.Rec.UpdatedAt
+		}
+	}
+	if running {
+		return statusLabels[statusRunning]
+	}
+	return ago(latest, now)
 }
 
 func groupItem(key, label, icon string, children []sdui.TreeItem, expanded bool) sdui.TreeItem {

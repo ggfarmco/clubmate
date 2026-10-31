@@ -27,6 +27,11 @@ type Session struct {
 	Status        string `json:"status"`
 }
 
+type Run struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
 type Turn struct {
 	Workspace string `json:"workspace"`
 	Session   string `json:"session"`
