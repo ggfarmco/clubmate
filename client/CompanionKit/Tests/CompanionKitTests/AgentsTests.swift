@@ -35,6 +35,21 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(groups[2].sessions[0].children.map(\.id), ["loop-b"])
     }
 
+    func testClosedParentStaysClosedUnlessAChildIsActive() throws {
+        let json = #"""
+        [
+          {"id":"archived","status":"closed"},
+          {"id":"leftover","parentSession":"archived","status":"done"},
+          {"id":"closing","status":"closed"},
+          {"id":"busy","parentSession":"closing","status":"running"}
+        ]
+        """#
+        let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
+        XCTAssertEqual(groups.map(\.group), [.running, .closed])
+        XCTAssertEqual(groups[0].sessions.map(\.id), ["closing"])
+        XCTAssertEqual(groups[1].sessions.map(\.id), ["archived"])
+    }
+
     func testParentWithActiveChildrenShowsAsWorking() throws {
         let json = #"""
         [

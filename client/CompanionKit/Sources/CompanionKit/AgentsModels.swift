@@ -98,7 +98,7 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
         for kid in kids[session.id] ?? [] where !seen.contains(kid.id) {
             children.append(build(kid, kids: kids, seen: &seen))
         }
-        let groups = Set(children.map(\.group) + [session.group])
+        let groups = Set(children.map(\.group).filter { $0 == .needsInput || $0 == .running } + [session.group])
         return SessionNode(
             session: session,
             children: children.sorted(by: newerFirst),
