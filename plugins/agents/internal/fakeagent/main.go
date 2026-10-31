@@ -44,6 +44,7 @@ type step struct {
 	Echo       bool            `json:"echo"`
 	Match      string          `json:"match"`
 	Fail       string          `json:"fail"`
+	ErrorKind  string          `json:"errorKind"`
 }
 
 const loginArg = "--fake-login"
@@ -263,7 +264,11 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 		case s.Sleep > 0:
 			time.Sleep(time.Duration(s.Sleep) * time.Millisecond)
 		case s.Fail != "":
-			return &acp.Error{Code: acp.CodeInternal, Message: s.Fail}
+			rpcErr := &acp.Error{Code: acp.CodeInternal, Message: s.Fail}
+			if s.ErrorKind != "" {
+				rpcErr.Data, _ = json.Marshal(acp.ErrorData{ErrorKind: s.ErrorKind})
+			}
+			return rpcErr
 		}
 	}
 	return nil

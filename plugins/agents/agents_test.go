@@ -63,6 +63,7 @@ type entry struct {
 	Text    string                     `json:"text"`
 	Tool    map[string]json.RawMessage `json:"tool"`
 	Outcome json.RawMessage            `json:"outcome"`
+	Notice  json.RawMessage            `json:"notice"`
 }
 
 type transcript struct {

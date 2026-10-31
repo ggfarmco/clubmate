@@ -269,6 +269,10 @@ type PromptResponse struct {
 	StopReason string `json:"stopReason"`
 }
 
+type ErrorData struct {
+	ErrorKind string `json:"errorKind"`
+}
+
 type ContentBlock struct {
 	Type     string                `json:"type"`
 	Text     string                `json:"text,omitempty"`

@@ -20,7 +20,7 @@ func TestNetworkErrorRetriedInOrchestration(t *testing.T) {
 		wake    string
 	}{
 		{"retry succeeds without waking the parent", "1500ms", []map[string]any{{"match": "build it", "fail": noResponse}}, 2, "done"},
-		{"parent is woken once retries run out", "10ms", []map[string]any{{"match": "build it", "fail": noResponse}, {"match": "network error", "fail": noResponse}}, 9, "error"},
+		{"parent is woken once retries run out", "10ms", []map[string]any{{"match": "build it", "fail": noResponse}, {"match": "Your turn ended with an error", "fail": noResponse}}, 9, "error"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

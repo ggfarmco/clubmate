@@ -206,6 +206,13 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		go p.stop()
 		return 0, promptArgs{}
 	}
+	status := ""
+	if err != nil {
+		status = failureStatus(err)
+		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
+			status = authErr.Error()
+		}
+	}
 	a.endSnapshot(s, rec, turn, sha)
 	commits := a.attributeTurn(rec, turn, sha, args.Text)
 	s.mu.Lock()
@@ -222,7 +229,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 	case err != nil:
 		s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{Error: err.Error()})
-		s.setStatusLocked(statusError, err.Error())
+		s.setStatusLocked(statusError, status)
 	case !s.cancelRequested && res.StopReason != acp.StopCancelled && len(s.queue) > 0:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
 		next, _ = s.dequeueLocked()
@@ -262,7 +269,7 @@ func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, b
 	if !ok || rpcErr.Code != acp.CodeInternal {
 		return acp.PromptRequest{}, false
 	}
-	if _, net := networkError(err); net {
+	if f, typed := classifyFailure(err); typed && f.kind != failureInternal {
 		return acp.PromptRequest{}, false
 	}
 	reason := firstLine(rpcErr.Message)
