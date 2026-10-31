@@ -152,10 +152,10 @@ func tableColumns(depth int) []sdui.Column {
 	return []sdui.Column{
 		{ID: colPID, Title: "PID", Width: pidWidth + indent*float64(depth)},
 		{ID: colCPU, Title: "CPU%", Align: "right", Width: 64},
-		{ID: colMem, Title: "MEM", Align: "right", Width: 72},
-		{ID: colTime, Title: "TIME", Align: "right", Width: 72},
-		{ID: colHistory, Title: "HISTORY", Width: 72},
-		{ID: colCommand, Title: "COMMAND"},
+		{ID: colMem, Title: "MEM", Align: "right", Width: 72, Priority: 1},
+		{ID: colTime, Title: "TIME", Align: "right", Width: 72, Priority: 2},
+		{ID: colHistory, Title: "HISTORY", Width: 72, Priority: 3},
+		{ID: colCommand, Title: "COMMAND", Truncate: "middle"},
 	}
 }
 

@@ -173,7 +173,7 @@ func TestValidateItemLimits(t *testing.T) {
 }
 
 func TestTableValidation(t *testing.T) {
-	columns := []sdui.Column{{ID: "name", Title: "Name"}, {ID: "cpu", Title: "CPU", Align: "right", Width: 60}, {ID: "hist", Title: "History"}}
+	columns := []sdui.Column{{ID: "name", Title: "Name", Truncate: "middle"}, {ID: "cpu", Title: "CPU", Align: "right", Width: 60, Priority: 1}, {ID: "hist", Title: "History", Priority: 2}}
 	half := 0.5
 	over := 1.5
 	row := func(id string, bar *float64, spark *sdui.Spark) sdui.TableRow {
@@ -205,6 +205,8 @@ func TestTableValidation(t *testing.T) {
 		{"bar over 1", sdui.Table("t", columns, []sdui.TableRow{row("a", &over, nil)}, "", sdui.Sort{}), false},
 		{"too many rows", sdui.Table("t", columns, rows(1001, 0), "", sdui.Sort{}), false},
 		{"too many columns", sdui.Table("t", wide, nil, "", sdui.Sort{}), false},
+		{"unknown truncate", sdui.Table("t", []sdui.Column{{ID: "a", Title: "A", Truncate: "start"}}, nil, "", sdui.Sort{}), false},
+		{"negative priority", sdui.Table("t", []sdui.Column{{ID: "a", Title: "A", Priority: -1}}, nil, "", sdui.Sort{}), false},
 		{"unknown sort column", sdui.Table("t", columns, nil, "", sdui.Sort{Column: "mem"}), false},
 		{"spark too long", sdui.Table("t", columns, []sdui.TableRow{row("a", nil, &sdui.Spark{Values: make([]float64, 901), Max: 1})}, "", sdui.Sort{}), false},
 		{"spark zero max", sdui.Table("t", columns, []sdui.TableRow{row("a", nil, &sdui.Spark{Values: []float64{1}})}, "", sdui.Sort{}), false},

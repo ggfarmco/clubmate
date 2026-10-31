@@ -356,7 +356,7 @@ final class StoresTests: XCTestCase {
     func testTableDecodes() throws {
         let json = """
         {"type": "table", "id": "procs", "props": {
-          "columns": [{"id": "name", "title": "Name"}, {"id": "cpu", "title": "CPU", "align": "right", "width": 60}],
+          "columns": [{"id": "name", "title": "Name", "truncate": "middle"}, {"id": "cpu", "title": "CPU", "align": "right", "width": 60, "priority": 2}],
           "rows": [{"id": "42", "depth": 1, "hasChildren": true, "expanded": true, "muted": true, "cells": [
             {"text": "nvim", "spark": {"values": [1, 3], "max": 4}},
             {"text": "35%", "bar": 0.35, "tone": "warn"}
@@ -368,8 +368,8 @@ final class StoresTests: XCTestCase {
         let table = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
 
         XCTAssertEqual(table.columns(), [
-            SDUIColumn(id: "name", title: "Name", align: .left, width: nil),
-            SDUIColumn(id: "cpu", title: "CPU", align: .right, width: 60),
+            SDUIColumn(id: "name", title: "Name", align: .left, width: nil, truncate: .middle),
+            SDUIColumn(id: "cpu", title: "CPU", align: .right, width: 60, priority: 2),
         ])
         XCTAssertEqual(table.tableRows(), [
             SDUITableRow(id: "42", depth: 1, hasChildren: true, expanded: true, muted: true, cells: [
@@ -386,6 +386,21 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(sized.spark(), SDUISpark(values: [1, 3], max: 4))
         XCTAssertEqual(sized.sparklineHeight(), 64)
         XCTAssertNil(SDUINode(type: "sparkline", props: ["values": .array([]), "max": .number(1)]).sparklineHeight())
+    }
+
+    func testTableColumnsDropByPriority() {
+        let columns = [
+            SDUIColumn(id: "pid", title: "PID", align: .left, width: 60),
+            SDUIColumn(id: "mem", title: "MEM", align: .right, width: 80, priority: 1),
+            SDUIColumn(id: "hist", title: "HISTORY", align: .left, width: 80, priority: 2),
+            SDUIColumn(id: "cmd", title: "COMMAND", align: .left, width: nil),
+        ]
+        let all = 60 + 80 + 80 + SDUIColumn.minFlexibleWidth + 3 * 10
+
+        XCTAssertEqual(SDUIColumn.visible(columns, width: 0, gutter: 10), [0, 1, 2, 3])
+        XCTAssertEqual(SDUIColumn.visible(columns, width: all, gutter: 10), [0, 1, 2, 3])
+        XCTAssertEqual(SDUIColumn.visible(columns, width: all - 1, gutter: 10), [0, 1, 3])
+        XCTAssertEqual(SDUIColumn.visible(columns, width: 100, gutter: 10), [0, 3])
     }
 
     func testTableSortToggle() {

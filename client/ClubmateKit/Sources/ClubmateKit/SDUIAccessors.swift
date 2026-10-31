@@ -89,22 +89,54 @@ public struct SDUIColumn: Sendable, Equatable, Identifiable {
         case right
     }
 
+    public enum Truncate: String, Sendable {
+        case tail
+        case middle
+        case head
+    }
+
+    public static let minFlexibleWidth: Double = 200
+
     public let id: String
     public let title: String
     public let align: Align
     public let width: Double?
+    public let truncate: Truncate
+    public let priority: Int
 
-    public init(id: String, title: String, align: Align, width: Double?) {
+    public init(id: String, title: String, align: Align, width: Double?, truncate: Truncate = .tail, priority: Int = 0) {
         self.id = id
         self.title = title
         self.align = align
         self.width = width
+        self.truncate = truncate
+        self.priority = priority
     }
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let title = fields["title"]?.stringValue else { return nil }
         let width = fields["width"]?.numberValue ?? 0
-        self.init(id: id, title: title, align: fields["align"]?.stringValue.flatMap(Align.init) ?? .left, width: width > 0 ? width : nil)
+        self.init(
+            id: id,
+            title: title,
+            align: fields["align"]?.stringValue.flatMap(Align.init) ?? .left,
+            width: width > 0 ? width : nil,
+            truncate: fields["truncate"]?.stringValue.flatMap(Truncate.init) ?? .tail,
+            priority: max(Int(fields["priority"]?.numberValue ?? 0), 0)
+        )
+    }
+
+    public static func visible(_ columns: [SDUIColumn], width: Double, gutter: Double) -> [Int] {
+        var shown = Array(columns.indices)
+        guard width > 0 else { return shown }
+        func needed() -> Double {
+            let spacing = gutter * Double(max(shown.count - 1, 0))
+            return shown.reduce(spacing) { $0 + (columns[$1].width ?? minFlexibleWidth) }
+        }
+        while needed() > width, let drop = shown.filter({ columns[$0].priority > 0 }).max(by: { columns[$0].priority < columns[$1].priority }) {
+            shown.removeAll { $0 == drop }
+        }
+        return shown
     }
 }
 

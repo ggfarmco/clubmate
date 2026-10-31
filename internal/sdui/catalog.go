@@ -78,16 +78,18 @@ var (
 	attachmentFields = map[string]propCheck{"id": uniqueItemID, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
-	columnAligns = []string{"left", "right"}
-	cellTones    = []string{"", "ok", "warn", "danger"}
+	columnAligns    = []string{"left", "right"}
+	columnTruncates = []string{"tail", "middle", "head"}
+	cellTones       = []string{"", "ok", "warn", "danger"}
 
-	anyNumber   = number(func(float64) bool { return true }, "a number")
-	unitNumber  = number(func(n float64) bool { return n >= 0 && n <= 1 }, "a number within 0…1")
-	nonNegative = number(func(n float64) bool { return n >= 0 }, "a non-negative number")
-	positive    = number(func(n float64) bool { return n > 0 }, "a positive number")
-	linesNumber = number(func(n float64) bool { return n >= minLines && n <= maxLines && n == math.Trunc(n) }, fmt.Sprintf("an integer within %d…%d", minLines, maxLines))
-	countNumber = number(func(n float64) bool { return n >= 0 && n == math.Trunc(n) }, "a non-negative integer")
-	depthNumber = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
+	anyNumber      = number(func(float64) bool { return true }, "a number")
+	unitNumber     = number(func(n float64) bool { return n >= 0 && n <= 1 }, "a number within 0…1")
+	nonNegative    = number(func(n float64) bool { return n >= 0 }, "a non-negative number")
+	positive       = number(func(n float64) bool { return n > 0 }, "a positive number")
+	linesNumber    = number(func(n float64) bool { return n >= minLines && n <= maxLines && n == math.Trunc(n) }, fmt.Sprintf("an integer within %d…%d", minLines, maxLines))
+	countNumber    = number(func(n float64) bool { return n >= 0 && n == math.Trunc(n) }, "a non-negative integer")
+	priorityNumber = number(func(n float64) bool { return n >= 0 && n <= maxTableColumns && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxTableColumns))
+	depthNumber    = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
 
 	sparkValues = maxLen(maxSparkValues, sparkBudget(arrayOf(anyNumber)))
 	sparkFields = map[string]propCheck{"values": sparkValues, "max": positive}
@@ -579,6 +581,7 @@ func treeItemCheck(c *validator, v any) error {
 func columnCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "title"}, map[string]propCheck{
 		"id": uniqueItemID, "title": isString, "align": oneOf(columnAligns), "width": nonNegative,
+		"truncate": oneOf(columnTruncates), "priority": priorityNumber,
 	})(c, v)
 }
 

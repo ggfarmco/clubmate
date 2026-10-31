@@ -7,11 +7,14 @@ struct TableNodeView: View {
 
     @State private var selected: String?
     @State private var sort: SDUISort?
+    @State private var width: CGFloat = 0
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
+    @Environment(\.theme) private var theme
 
     var body: some View {
-        let columns = node.columns()
+        let all = node.columns()
+        let columns = SDUIColumn.visible(all, width: Double(width - 2 * theme.gutter), gutter: Double(theme.gutter)).map { (index: $0, column: all[$0]) }
         let rows = node.tableRows()
         let tree = rows.contains { $0.hasChildren || $0.depth > 0 }
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
@@ -26,7 +29,7 @@ struct TableNodeView: View {
                     .id(row.id)
                 }
             } header: {
-                TableHeader(columns: columns, sort: sort) { column in
+                TableHeader(columns: columns.map(\.column), sort: sort) { column in
                     let next = SDUISort.next(clicking: column, current: sort)
                     sort = next
                     dispatch(node, .sort(column: next.column, desc: next.desc))
@@ -34,6 +37,7 @@ struct TableNodeView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onChange(of: node.tableSort(), initial: true) { _, value in
             sort = value
         }
@@ -72,7 +76,7 @@ private struct TableHeader: View {
                 .buttonStyle(.plain)
             }
         }
-        .font(theme.uiSmall)
+        .font(theme.uiSmall.monospacedDigit())
         .padding(.horizontal, theme.gutter)
         .frame(height: theme.rowHeight)
         .background(theme.background, ignoresSafeAreaEdges: [])
@@ -82,7 +86,7 @@ private struct TableHeader: View {
 
 private struct TableRowView: View {
     let row: SDUITableRow
-    let columns: [SDUIColumn]
+    let columns: [(index: Int, column: SDUIColumn)]
     let tree: Bool
     let selected: Bool
     let select: () -> Void
@@ -93,26 +97,27 @@ private struct TableRowView: View {
 
     var body: some View {
         HStack(spacing: theme.gutter) {
-            ForEach(Array(zip(columns, row.cells).enumerated()), id: \.offset) { index, pair in
+            ForEach(Array(columns.enumerated()), id: \.element.column.id) { position, entry in
+                let cell = entry.index < row.cells.count ? row.cells[entry.index] : SDUICell(text: "", bar: nil, tone: nil, spark: nil)
                 HStack(spacing: 0) {
-                    if index == 0 && tree {
+                    if position == 0 && tree {
                         Disclosure(hasChildren: row.hasChildren, expanded: row.expanded, toggle: toggle)
                             .padding(.leading, CGFloat(row.depth) * theme.indent)
                     }
-                    TableCellView(cell: pair.1, muted: row.muted)
+                    TableCellView(cell: cell, truncate: entry.column.truncate, muted: row.muted)
                 }
-                .tableColumn(pair.0)
+                .tableColumn(entry.column)
                 .background(alignment: .leading) {
-                    if let bar = pair.1.bar {
+                    if let bar = cell.bar {
                         BarShape(fraction: bar)
-                            .fill(pair.1.toneColor(theme) ?? theme.accent)
+                            .fill(cell.toneColor(theme) ?? theme.accent)
                             .opacity(0.3)
                             .padding(.vertical, theme.spacing.xs)
                     }
                 }
             }
         }
-        .font(theme.ui)
+        .font(theme.ui.monospacedDigit())
         .padding(.horizontal, theme.gutter)
         .frame(height: theme.rowHeight)
         .background(background, ignoresSafeAreaEdges: [])
@@ -129,6 +134,7 @@ private struct TableRowView: View {
 
 private struct TableCellView: View {
     let cell: SDUICell
+    let truncate: SDUIColumn.Truncate
     let muted: Bool
 
     @Environment(\.theme) private var theme
@@ -142,9 +148,18 @@ private struct TableCellView: View {
             if !cell.text.isEmpty {
                 Text(cell.text)
                     .lineLimit(1)
-                    .truncationMode(.label)
+                    .truncationMode(truncationMode)
                     .foregroundStyle(textColor(tone))
+                    .help(cell.text)
             }
+        }
+    }
+
+    private var truncationMode: Text.TruncationMode {
+        switch truncate {
+        case .tail: .label
+        case .middle: .middle
+        case .head: .head
         }
     }
 

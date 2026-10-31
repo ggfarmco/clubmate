@@ -42,10 +42,12 @@ type Option struct {
 }
 
 type Column struct {
-	ID    string  `json:"id"`
-	Title string  `json:"title"`
-	Align string  `json:"align,omitempty"`
-	Width float64 `json:"width,omitempty"`
+	ID       string  `json:"id"`
+	Title    string  `json:"title"`
+	Align    string  `json:"align,omitempty"`
+	Width    float64 `json:"width,omitempty"`
+	Truncate string  `json:"truncate,omitempty"`
+	Priority int     `json:"priority,omitempty"`
 }
 
 type TableRow struct {

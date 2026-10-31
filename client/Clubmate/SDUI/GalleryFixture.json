@@ -131,17 +131,17 @@
                       "id": "procs",
                       "props": {
                         "columns": [
-                          {"id": "name", "title": "Process"},
+                          {"id": "name", "title": "Process", "truncate": "middle"},
                           {"id": "cpu", "title": "CPU", "align": "right", "width": 70},
-                          {"id": "mem", "title": "MEM", "align": "right", "width": 70},
-                          {"id": "hist", "title": "History", "width": 70}
+                          {"id": "mem", "title": "MEM", "align": "right", "width": 70, "priority": 1},
+                          {"id": "hist", "title": "History", "width": 70, "priority": 2}
                         ],
                         "rows": [
                           {"id": "101", "hasChildren": true, "expanded": true, "cells": [
                             {"text": "zsh"}, {"text": "1.2%", "bar": 0.012}, {"text": "8 MB"}, {"spark": {"values": [1, 2, 1, 1, 2], "max": 100}}
                           ]},
                           {"id": "102", "depth": 1, "cells": [
-                            {"text": "make test"}, {"text": "88%", "bar": 0.88, "tone": "danger"}, {"text": "640 MB", "tone": "warn"}, {"spark": {"values": [40, 70, 88, 92, 88], "max": 100}, "tone": "danger"}
+                            {"text": "/Users/me/src/clubmate/build/cm-plugin-agents --stdio --workspace main"}, {"text": "88%", "bar": 0.88, "tone": "danger"}, {"text": "640 MB", "tone": "warn"}, {"spark": {"values": [40, 70, 88, 92, 88], "max": 100}, "tone": "danger"}
                           ]},
                           {"id": "103", "hasChildren": true, "cells": [
                             {"text": "nvim"}, {"text": "4.0%", "bar": 0.04, "tone": "ok"}, {"text": "120 MB"}, {"spark": {"values": [3, 5, 4, 4, 4], "max": 100}}
