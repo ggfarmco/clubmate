@@ -112,8 +112,8 @@ struct ComposerNodeView: View {
                 }
         }
         .padding(theme.gutter)
-        .background(RoundedRectangle(cornerRadius: 8).fill(theme.foreground.opacity(0.04)))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(focused ? theme.accent.opacity(0.6) : theme.border, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.surface2))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(focused ? theme.accent : theme.border, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
     }
@@ -187,7 +187,7 @@ struct ComposerNodeView: View {
         .foregroundStyle(theme.foreground)
         .padding(.horizontal, theme.gutter)
         .frame(maxHeight: .infinity)
-        .background(highlighted ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+        .background(highlighted ? theme.selected : .clear, ignoresSafeAreaEdges: [])
         .overlay(alignment: .leading) {
             if highlighted { theme.accent.frame(width: 2) }
         }

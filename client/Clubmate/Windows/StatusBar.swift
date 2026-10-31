@@ -21,20 +21,21 @@ struct StatusBar<Trailing: View>: View {
             if case .failed = connection {
                 Button("Retry", action: retry)
                     .buttonStyle(.plain)
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(theme.accentInk)
             }
             Text(section).foregroundStyle(theme.muted)
             Spacer(minLength: 0)
             trailing
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
-                .frame(height: 20)
+                .frame(height: 22)
                 .clipped()
         }
         .font(theme.uiSmall)
         .lineLimit(1)
         .padding(.horizontal, theme.gutter)
-        .frame(height: 20)
+        .frame(height: 22)
+        .background(theme.surface1, ignoresSafeAreaEdges: [])
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
     }
 

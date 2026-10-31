@@ -122,8 +122,8 @@ private struct TableRowView: View {
     }
 
     private var background: Color {
-        if selected { return theme.accent.opacity(0.25) }
-        return hovering ? theme.foreground.opacity(0.05) : .clear
+        if selected { return theme.selected }
+        return hovering ? theme.hover : .clear
     }
 }
 

@@ -8,7 +8,7 @@ extension Theme {
         var content = Markdown.inline(text)
         for run in content.runs where run.inlinePresentationIntent?.contains(.code) == true {
             content[run.range].font = ui
-            content[run.range].backgroundColor = foreground.opacity(0.1)
+            content[run.range].backgroundColor = pressed
         }
         return content
     }
@@ -122,7 +122,7 @@ extension Theme {
             if intent.contains(.stronglyEmphasized) { runFont = NSFontManager.shared.convert(runFont, toHaveTrait: .boldFontMask) }
             if intent.contains(.emphasized) { runFont = NSFontManager.shared.convert(runFont, toHaveTrait: .italicFontMask) }
             var attributes: [NSAttributedString.Key: Any] = [.font: runFont, .foregroundColor: color, .paragraphStyle: paragraphStyle(lead: indent, hang: indent, before: 0)]
-            if intent.contains(.code) { attributes[.backgroundColor] = NSColor(foreground.opacity(0.1)) }
+            if intent.contains(.code) { attributes[.backgroundColor] = NSColor(pressed) }
             if intent.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
             if let link = run.link, MarkdownLinkPolicy.allows(link) { attributes[.link] = link }
             result.append(NSAttributedString(string: String(source[run.range].characters), attributes: attributes))
@@ -213,7 +213,7 @@ private struct CodeBlock: View {
                 .padding(theme.gutter)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 6).fill(theme.foreground.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.surface2))
         .overlay(alignment: .topTrailing) {
             HStack(spacing: theme.spacing.s) {
                 if !language.isEmpty {

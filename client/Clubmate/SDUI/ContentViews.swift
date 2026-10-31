@@ -31,23 +31,23 @@ struct BadgeNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        BadgeLabel(text: node.string("text") ?? "", tone: theme.tone(node.string("tone")) ?? theme.muted)
+        BadgeLabel(text: node.string("text") ?? "", tone: theme.tone(node.string("tone")))
             .padding(.horizontal, theme.gutter)
     }
 }
 
 struct BadgeLabel: View {
     let text: String
-    let tone: Color
+    let tone: Color?
 
     @Environment(\.theme) private var theme
 
     var body: some View {
         Text(text)
             .font(theme.uiSmall)
-            .foregroundStyle(tone)
+            .foregroundStyle(tone ?? theme.text2)
             .padding(theme.spacing.badge)
-            .background(Capsule().fill(tone.opacity(0.18)))
+            .background(Capsule().fill(tone.map(theme.toneBg) ?? theme.hover))
     }
 }
 
@@ -102,7 +102,7 @@ struct DiffNodeView: View {
         switch kind {
         case .added: theme.success
         case .removed: theme.danger
-        case .hunk: theme.accent
+        case .hunk: theme.accentInk
         case .context: theme.foreground
         }
     }

@@ -23,13 +23,16 @@ struct SidebarPane: View {
     let slot: String
     let side: SidebarSide
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
-        ResizablePane(side: side, saved: store.sidebarWidth.map { CGFloat($0) } ?? 220, range: 160...400) { [store] width in
+        ResizablePane(side: side, saved: store.sidebarWidth.map { CGFloat($0) } ?? 248, range: 200...320) { [store] width in
             store.sidebarWidth = width
         } content: {
             SlotPane(store: store, slot: slot)
                 .environment(\.sidebarSlot, slot)
                 .environment(\.sidebarHasField, store.slots[slot]?.tree.hasTextField ?? false)
+                .background(theme.surface1, ignoresSafeAreaEdges: [])
         }
     }
 }

@@ -39,14 +39,17 @@ Neighbouring code may be the bug (the `/` command popup was an uncapped `VStack`
 - **ScrollView inside a stack**: `.clipped()`.
 - **Row of controls**: fits at 640pt. `ViewThatFits(in: .horizontal)` with one row, then a wrapped `FlowLayout`; container `.frame(minWidth: 0, maxWidth: .infinity)`; no fixed `minWidth` on fields.
 - **Label**: `.lineLimit(1)`, `.truncationMode(.label)` (`.path` for a file path; both in `Theme/Theme.swift`), `.help(full)`; the identifying part gets `.layoutPriority(1)`.
-- **Selected row**: today `theme.foreground.opacity(0.06)` background plus a 2pt `theme.accent` leading bar; the target `selected` / `selected-idle` roles land as one token change (see the table above).
+- **Selected row**: `theme.selected` plus a 2pt `theme.accent` leading bar in the focused pane, `theme.selectedIdle` without a bar elsewhere (`ItemRow(active:)`); hover `theme.hover`; a keyboard cursor apart from the selection gets a `theme.focusRing` stroke.
 - **State that must survive** re-renders and section switches (drafts, expansion, chosen tab): a ClubmateKit store keyed by a stable node id, not `@State`. In `Equatable` views every render input is in `==`; themed parts live in a child view with its own `@Environment(\.theme)`.
 - **Text body in an `NSAlert`**: an `NSTextView` accessory with `isSelectable = false`; a selectable one becomes first responder and AppKit scrolls it to the middle of the document on open.
 - **Keyboard**: every action reachable by keyboard; focusable things are real `Button`s; key changes update `docs/shortcuts.md`.
 
 ## Theme tokens, never literals
 
-`@Environment(\.theme)`: colours `foreground muted border accent success warning danger`; fonts `ui uiSmall title glyph` (they scale with the interface font size, `.system(size:)` does not); sizes `rowHeight gutter indent`; `spacing.xs s m l capsule chip field`.
+`@Environment(\.theme)`, computed once per theme (`Theme.init` from `RGB`, contrast math in ClubmateKit `ThemeContrast`):
+- colours: `background foreground accent`; `success warning danger` are already inks (≥ 4.5:1 on bg), `accentInk` for accent text and icons, `tone(_:)` returns inks; surfaces `surface1` (rail, sidebar, status bar) `surface2` (cards, composer, buttons) `surface3` (popovers, palette); text `text2 muted faint`; lines `border borderStrong`; states `hover pressed selected selectedIdle`, `focusRing` width; `toneBg(_:) toneBorder(_:)`; `onAccent` for text on an accent fill.
+- fonts `ui uiSmall strong title heading count glyph` (they scale with the interface font size, `.system(size:)` does not).
+- sizes `rowHeight rowHeight2 control header rail gutter indent`; `spacing.xs s m l xl xxl section overlay capsule chip badge field`; `radius.s m l xl`.
 
 ## Design defaults
 

@@ -57,7 +57,7 @@ struct BannerLabel: View {
             .padding(.horizontal, theme.gutter * 1.5)
             .padding(.vertical, theme.gutter * 0.75)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.danger.opacity(0.25))
+            .background(theme.toneBg(theme.danger))
             .background(theme.background)
             .overlay(alignment: edge) { theme.border.frame(height: 1) }
     }

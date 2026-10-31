@@ -21,9 +21,9 @@ struct Rail: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(width: 36)
+        .frame(width: theme.rail)
         .frame(maxHeight: .infinity)
-        .background(theme.background, ignoresSafeAreaEdges: [])
+        .background(theme.surface1, ignoresSafeAreaEdges: [])
         .contentShape(Rectangle())
         .contextMenu {
             Button("Reset Order") { resetOrder?() }
@@ -52,7 +52,7 @@ private struct RailButton: View {
         Button(action: action) {
             icon
                 .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
-                .frame(width: 36, height: 36)
+                .frame(width: theme.rail, height: 36)
                 .background(background, ignoresSafeAreaEdges: [])
                 .overlay(alignment: .leading) {
                     if selected { theme.accent.frame(width: 2) }
@@ -79,8 +79,8 @@ private struct RailButton: View {
     }
 
     private var background: Color {
-        if targeted { return theme.accent.opacity(0.18) }
-        return selected ? theme.foreground.opacity(0.06) : .clear
+        if targeted { return theme.selected }
+        return selected || hovering ? theme.hover : .clear
     }
 }
 

@@ -129,7 +129,7 @@ private struct RecentRow: View {
             if open {
                 Text("open")
                     .font(theme.uiSmall)
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(theme.accentInk)
             }
             if hovering {
                 Button(action: remove) {
@@ -144,7 +144,7 @@ private struct RecentRow: View {
         }
         .padding(.horizontal, theme.gutter)
         .padding(.vertical, theme.gutter / 2)
-        .background(RoundedRectangle(cornerRadius: 4).fill(hovering ? theme.foreground.opacity(0.08) : .clear))
+        .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering ? theme.hover : .clear))
         .contentShape(Rectangle())
         .onTapGesture(perform: select)
         .onHover { hovering = $0 }

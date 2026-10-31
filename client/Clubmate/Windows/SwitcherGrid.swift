@@ -36,9 +36,9 @@ struct SwitcherGridView: View {
                     panel(columns: columns)
                     ScrollView { panel(columns: columns) }
                 }
-                .background(theme.background)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.foreground.opacity(0.18), lineWidth: 1))
+                .background(theme.surface3)
+                .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
+                .overlay(RoundedRectangle(cornerRadius: theme.radius.xl).stroke(theme.borderStrong, lineWidth: 1))
                 .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
                 .padding(Self.padding)
             }
@@ -117,7 +117,7 @@ struct SwitcherGridView: View {
                 .font(.system(size: 28, weight: .light))
                 .foregroundStyle(theme.muted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(theme.foreground.opacity(0.03))
+                .background(theme.surface1)
         }
     }
 
@@ -136,7 +136,7 @@ struct SwitcherGridView: View {
         }
         .foregroundStyle(theme.muted)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.foreground.opacity(0.03))
+        .background(theme.surface1)
     }
 
     private func handle(_ key: SwitcherKey, columns: Int) {

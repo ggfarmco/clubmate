@@ -13,7 +13,7 @@ struct PlanNodeView: View {
             ForEach(Array(node.planEntries().enumerated()), id: \.offset) { _, entry in
                 HStack(alignment: .firstTextBaseline, spacing: theme.spacing.l) {
                     Image(systemName: icon(entry.status))
-                        .foregroundStyle(entry.status == .inProgress ? theme.accent : theme.muted)
+                        .foregroundStyle(entry.status == .inProgress ? theme.accentInk : theme.muted)
                     Text(entry.content)
                         .strikethrough(entry.status == .completed)
                         .fontWeight(entry.status == .inProgress ? .semibold : .regular)

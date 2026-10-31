@@ -35,9 +35,9 @@ struct FilePickerView: View {
             }
         }
         .frame(width: 560)
-        .background(theme.background)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.foreground.opacity(0.18), lineWidth: 1))
+        .background(theme.surface3)
+        .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.xl).stroke(theme.borderStrong, lineWidth: 1))
         .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
         .onAppear { model.update("") }
         .onDisappear { model.cancel() }
@@ -102,7 +102,7 @@ struct FilePickerView: View {
         .lineLimit(1)
         .padding(.horizontal, theme.gutter * 1.5)
         .frame(height: theme.rowHeight + 2)
-        .background(selected ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+        .background(selected ? theme.selected : .clear, ignoresSafeAreaEdges: [])
         .overlay(alignment: .leading) {
             if selected { theme.accent.frame(width: 2) }
         }
@@ -112,7 +112,7 @@ struct FilePickerView: View {
     private func highlighted(_ runs: [HighlightRun], base: Color) -> AttributedString {
         runs.reduce(into: AttributedString()) { text, run in
             var part = AttributedString(run.text)
-            part.foregroundColor = run.matched ? theme.accent : base
+            part.foregroundColor = run.matched ? theme.accentInk : base
             text += part
         }
     }

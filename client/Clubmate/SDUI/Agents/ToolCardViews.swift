@@ -127,22 +127,22 @@ struct ToolBodyView: View, Equatable {
         .textSelection(.enabled)
         .padding(.vertical, theme.spacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.foreground.opacity(0.04), ignoresSafeAreaEdges: [])
+        .background(theme.surface2, ignoresSafeAreaEdges: [])
     }
 
     private func color(_ kind: DiffLine.Kind) -> Color {
         switch kind {
         case .added: theme.success
         case .removed: theme.danger
-        case .hunk: theme.accent
+        case .hunk: theme.accentInk
         case .context: theme.foreground
         }
     }
 
     private func tint(_ kind: DiffLine.Kind) -> Color {
         switch kind {
-        case .added: theme.success.opacity(0.12)
-        case .removed: theme.danger.opacity(0.12)
+        case .added: theme.toneBg(theme.success)
+        case .removed: theme.toneBg(theme.danger)
         default: .clear
         }
     }

@@ -83,7 +83,7 @@ struct FuzzyPickerList: View {
         HStack(spacing: theme.gutter) {
             Image(systemName: "checkmark")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(theme.accent)
+                .foregroundStyle(theme.accentInk)
                 .opacity(item.checked ? 1 : 0)
                 .frame(width: 10)
             Text(item.label)
@@ -98,7 +98,7 @@ struct FuzzyPickerList: View {
         .lineLimit(1)
         .padding(.horizontal, theme.gutter * 1.5)
         .frame(height: theme.rowHeight + 2)
-        .background(selected ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+        .background(selected ? theme.selected : .clear, ignoresSafeAreaEdges: [])
         .overlay(alignment: .leading) {
             if selected { theme.accent.frame(width: 2) }
         }
@@ -136,9 +136,9 @@ private struct PickerChrome: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(theme.background)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.foreground.opacity(0.18), lineWidth: 1))
+            .background(theme.surface3)
+            .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.xl).stroke(theme.borderStrong, lineWidth: 1))
             .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
     }
 }

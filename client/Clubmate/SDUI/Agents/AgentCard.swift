@@ -28,8 +28,8 @@ struct CardButton: View {
             .font(theme.uiSmall)
             .foregroundStyle(foreground)
             .padding(theme.spacing.chip)
-            .background(RoundedRectangle(cornerRadius: 5).fill(fill))
-            .overlay(RoundedRectangle(cornerRadius: 5).stroke(tone == .primary ? .clear : theme.border, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(fill))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(stroke, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -40,16 +40,24 @@ struct CardButton: View {
 
     private var foreground: Color {
         switch tone {
-        case .primary: theme.background
+        case .primary: theme.onAccent
         case .danger: theme.danger
         case .plain: theme.foreground
+        }
+    }
+
+    private var stroke: Color {
+        switch tone {
+        case .primary: .clear
+        case .danger: theme.toneBorder(theme.danger)
+        case .plain: theme.borderStrong
         }
     }
 
     private var fill: Color {
         switch tone {
         case .primary: theme.accent.opacity(hovering && !disabled ? 0.85 : 1)
-        default: theme.foreground.opacity(hovering && !disabled ? 0.08 : 0.03)
+        default: hovering && !disabled ? theme.pressed : theme.surface2
         }
     }
 }
@@ -65,8 +73,8 @@ private struct AgentCard: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(RoundedRectangle(cornerRadius: 8).fill(theme.foreground.opacity(0.03)))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.border, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.surface2))
+            .clipShape(RoundedRectangle(cornerRadius: theme.radius.l))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(theme.border, lineWidth: 1))
     }
 }

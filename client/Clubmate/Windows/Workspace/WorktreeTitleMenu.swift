@@ -97,7 +97,7 @@ private struct SwitcherAction: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, theme.gutter * 1.5)
                 .frame(height: theme.rowHeight + 2)
-                .background(hovering ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+                .background(hovering ? theme.hover : .clear, ignoresSafeAreaEdges: [])
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

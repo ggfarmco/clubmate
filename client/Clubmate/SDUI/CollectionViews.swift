@@ -46,14 +46,14 @@ struct TabButton: View {
                 }
                 Text(label)
                 if let badge {
-                    BadgeLabel(text: badge, tone: theme.muted)
+                    BadgeLabel(text: badge, tone: nil)
                 }
             }
             .font(theme.ui)
             .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
             .padding(.horizontal, theme.gutter * 1.5)
             .frame(maxHeight: .infinity)
-            .background(selected ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+            .background(selected ? theme.hover : .clear, ignoresSafeAreaEdges: [])
             .overlay(alignment: .bottom) {
                 if selected { theme.accent.frame(height: 1) }
             }
@@ -75,7 +75,7 @@ struct ListNodeView: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(node.items()) { item in
-                ItemRow(item: item, selected: item.id == selected) {
+                ItemRow(item: item, selected: item.id == selected, active: focused) {
                     selected = item.id
                     focused = true
                     dispatch(node, .select(item.id))
@@ -176,7 +176,7 @@ struct TreeNodeView: View {
     }
 
     private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, cursor: cursor, muted: row.item.muted, tone: row.item.tone, depth: row.depth, action: action) {
+        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, tone: row.item.tone, depth: row.depth, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -230,6 +230,7 @@ private struct StickyHeaders<Header: View>: View {
 
     @State private var offset: CGFloat = 0
     @Environment(\.theme) private var theme
+    @Environment(\.sidebarSlot) private var sidebarSlot
 
     var body: some View {
         Color.clear
@@ -240,7 +241,7 @@ private struct StickyHeaders<Header: View>: View {
                     VStack(spacing: 0) {
                         ForEach(ids.indices, id: \.self) { header(ids[$0]) }
                     }
-                    .background(theme.background, ignoresSafeAreaEdges: [])
+                    .background(sidebarSlot == nil ? theme.background : theme.surface1, ignoresSafeAreaEdges: [])
                     .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
                     .offset(y: offset)
                 }
@@ -275,6 +276,7 @@ struct Disclosure: View {
 struct ItemRow<Leading: View>: View {
     let item: SDUIItem
     let selected: Bool
+    var active = true
     var cursor = false
     var muted = false
     var tone: String?
@@ -312,7 +314,7 @@ struct ItemRow<Leading: View>: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
             }
             if let badge = item.badge {
-                BadgeLabel(text: badge, tone: theme.accent)
+                BadgeLabel(text: badge, tone: theme.accentInk)
                     .fixedSize()
             }
         }
@@ -323,7 +325,10 @@ struct ItemRow<Leading: View>: View {
         .background(alignment: .leading) { guides }
         .background(background, ignoresSafeAreaEdges: [])
         .overlay {
-            if cursor { Rectangle().strokeBorder(theme.accent, lineWidth: 1) }
+            if cursor && !selected { Rectangle().strokeBorder(theme.accent, lineWidth: theme.focusRing) }
+        }
+        .overlay(alignment: .leading) {
+            if selected && active { theme.accent.frame(width: 2) }
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
@@ -339,8 +344,8 @@ struct ItemRow<Leading: View>: View {
     }
 
     private var background: Color {
-        if selected { return theme.accent.opacity(0.25) }
-        return hovering ? theme.foreground.opacity(0.05) : .clear
+        if selected { return active ? theme.selected : theme.selectedIdle }
+        return hovering ? theme.hover : .clear
     }
 }
 
@@ -369,7 +374,7 @@ private struct ItemMenu: ViewModifier {
 }
 
 extension ItemRow where Leading == EmptyView {
-    init(item: SDUIItem, selected: Bool, action: @escaping () -> Void) {
-        self.init(item: item, selected: selected, action: action) { EmptyView() }
+    init(item: SDUIItem, selected: Bool, active: Bool, action: @escaping () -> Void) {
+        self.init(item: item, selected: selected, active: active, action: action) { EmptyView() }
     }
 }

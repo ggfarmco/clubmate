@@ -40,9 +40,9 @@ struct CommandPaletteView: View {
             .padding(.vertical, theme.spacing.s)
         }
         .frame(width: 480)
-        .background(theme.background)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.foreground.opacity(0.18), lineWidth: 1))
+        .background(theme.surface3)
+        .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.xl).stroke(theme.borderStrong, lineWidth: 1))
         .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
         .onChange(of: query) { selection = 0 }
     }
@@ -60,7 +60,7 @@ struct CommandPaletteView: View {
         .lineLimit(1)
         .padding(.horizontal, theme.gutter * 1.5)
         .frame(height: theme.rowHeight + 2)
-        .background(selected ? theme.foreground.opacity(0.06) : .clear, ignoresSafeAreaEdges: [])
+        .background(selected ? theme.selected : .clear, ignoresSafeAreaEdges: [])
         .overlay(alignment: .leading) {
             if selected { theme.accent.frame(width: 2) }
         }

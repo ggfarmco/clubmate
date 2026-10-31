@@ -23,7 +23,7 @@ struct ButtonNodeView: View {
             .foregroundStyle(theme.foreground)
             .padding(.horizontal, theme.gutter)
             .frame(height: theme.rowHeight)
-            .background(RoundedRectangle(cornerRadius: 3).fill(hovering ? theme.foreground.opacity(0.08) : .clear))
+            .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(hovering ? theme.hover : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -187,7 +187,7 @@ struct FolderFieldNodeView: View {
                 .foregroundStyle(theme.foreground)
                 .padding(.horizontal, theme.gutter)
                 .frame(height: theme.rowHeight)
-                .background(RoundedRectangle(cornerRadius: 3).fill(hovering ? theme.foreground.opacity(0.08) : .clear))
+                .background(RoundedRectangle(cornerRadius: theme.radius.s).fill(hovering ? theme.hover : .clear))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

@@ -79,4 +79,4 @@ One family, the terminal font; hierarchy from weight and text level, not size.
 
 ## Status
 
-Not in `Theme.swift` yet: surface-1/2/3, text-2, faint, border-strong, hover, pressed, selected-idle, focus ring, tone-bg/border/ink, on-accent, heading, xl/xxl/section, radius scale, rowHeight2, control, header; selection is still fg 6%; rail is 36; the fallback theme is still Kanagawa (target: Mate dark/light). The order of work is on the `Handoff` board.
+Every token in the tables above exists in `Theme.swift` (Swift names: `surface1 text2 borderStrong selectedIdle toneBg accentInk onAccent rowHeight2 …`), the renderers use them, and the fallback theme is Mate dark/light. Diff lines use `toneBg` (15%), not the board's 13%. Still to do, in the `Handoff` order: pane header and permission docking, the four SDUI additions with the button and field renderers, the detail pattern, the Agents sidebar, title bar pills and status bar content.
