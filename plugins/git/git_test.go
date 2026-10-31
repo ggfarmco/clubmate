@@ -1,31 +1,38 @@
 package main_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/sourcegraph/jsonrpc2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/bus"
+	"clubmate/internal/plugin"
+	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
 )
 
 const (
-	editorSlot     = "editor-nvim.main"
-	editorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true},{"id":"editor-nvim.unsaved","title":"Unsaved","hidden":true}]}}`
-	readyWait      = 15 * time.Second
-	agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.stop-root","title":"Stop Worktree Agents","hidden":true}]},"echoResults":{"agents.stop-root":{}}}`
+	editorSlot         = "editor-nvim.main"
+	editorManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","order":10}],"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true},{"id":"editor-nvim.unsaved","title":"Unsaved","hidden":true}]}}`
+	readyWait          = 15 * time.Second
+	stopEditorManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop Root","hidden":true},{"id":"editor-nvim.release-root","title":"Release Root","hidden":true}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
+	agentsManifest     = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.stop-root","title":"Stop Worktree Agents","hidden":true}]},"echoResults":{"agents.stop-root":{}}}`
 )
 
 func TestMain(m *testing.M) {
@@ -529,4 +536,101 @@ func TestBranchSwitchRefusesUnsavedBuffers(t *testing.T) {
 	_, err := startOp(t, h, id, "git.branch-switch", map[string]string{"branch": "origin/remote-only"})
 	assert.ErrorContains(t, err, "Save or discard unsaved changes first: a.go")
 	assert.Equal(t, "main", git(t, repo, "branch", "--show-current"))
+}
+
+type approver struct {
+	asked  atomic.Int32
+	answer atomic.Bool
+}
+
+func newApprover(t *testing.T, h *testutil.PluginHarness) *approver {
+	t.Helper()
+	serverSide, clientSide := net.Pipe()
+	server := h.Srv.ServeConn(context.Background(), jsonrpc2.NewPlainObjectStream(serverSide), rpc.Caller{})
+	a := &approver{}
+	handler := jsonrpc2.HandlerWithError(func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) {
+		a.asked.Add(1)
+		return map[string]bool{"approved": a.answer.Load()}, nil
+	})
+	conn := jsonrpc2.NewConn(context.Background(), jsonrpc2.NewPlainObjectStream(clientSide), jsonrpc2.AsyncHandler(handler))
+	t.Cleanup(func() {
+		conn.Close()
+		server.Close()
+	})
+	require.NoError(t, conn.Call(t.Context(), "client.register", map[string]any{"handles": []string{"ui.confirm"}}, nil))
+	return a
+}
+
+func hookRepo(t *testing.T, files map[string]string) string {
+	t.Helper()
+	repo := committedRepo(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".clubmate"), 0o755))
+	for name, content := range files {
+		write(t, filepath.Join(repo, ".clubmate", name), content)
+	}
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-qm", "hooks")
+	return repo
+}
+
+func TestWorktreeSetupHook(t *testing.T) {
+	repo := hookRepo(t, map[string]string{
+		"setup.sh":         "cat .env > setup-ran\n",
+		"worktree-include": "# secrets\n.env\nconf/local.env\nmissing\nlink\n../escape\n",
+	})
+	write(t, filepath.Join(repo, ".env"), "SECRET=1\n")
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, "conf"), 0o755))
+	write(t, filepath.Join(repo, "conf", "local.env"), "LOCAL=1\n")
+	require.NoError(t, os.Symlink(filepath.Join(repo, ".env"), filepath.Join(repo, "link")))
+	h, id := open(t, repo)
+	a := newApprover(t, h)
+	create := func(branch string) (opResult, string) {
+		res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": branch, "switch": false})
+		return res, filepath.Join(repo, ".worktrees", branch)
+	}
+
+	res, denied := create("denied")
+	assert.Empty(t, res.Error)
+	assert.Contains(t, res.Notice, "Skipped .clubmate/setup.sh: denied by user")
+	assert.Contains(t, res.Notice, `"../escape" is not a path inside the repo`)
+	assert.Contains(t, res.Notice, "link: not a regular file")
+	assert.NoFileExists(t, filepath.Join(denied, "setup-ran"))
+	assert.FileExists(t, filepath.Join(denied, "conf", "local.env"))
+	assert.NoFileExists(t, filepath.Join(denied, "link"))
+
+	a.answer.Store(true)
+	for _, branch := range []string{"trusted", "again"} {
+		res, dir := create(branch)
+		assert.Empty(t, res.Error)
+		data, err := os.ReadFile(filepath.Join(dir, "setup-ran"))
+		require.NoError(t, err)
+		assert.Equal(t, "SECRET=1\n", string(data))
+	}
+	assert.EqualValues(t, 2, a.asked.Load())
+}
+
+func TestWorktreeSetupFailureRemovesWorktree(t *testing.T) {
+	repo := hookRepo(t, map[string]string{"setup.sh": "echo boom; exit 3\n"})
+	h, id := open(t, repo)
+	newApprover(t, h).answer.Store(true)
+
+	res := awaitOp(t, h, id, "git.worktree-new", map[string]any{"branch": "feat", "switch": false})
+	assert.Contains(t, res.Error, ".clubmate/setup.sh failed: exit status 3: boom")
+	assert.NoDirExists(t, filepath.Join(repo, ".worktrees", "feat"))
+	git(t, repo, "rev-parse", "--verify", "-q", "feat")
+}
+
+func TestWorktreeTeardownFailureStillRemoves(t *testing.T) {
+	repo := hookRepo(t, map[string]string{"teardown.sh": "echo bye; exit 1\n"})
+	feat := filepath.Join(repo, ".worktrees", "feat")
+	git(t, repo, "worktree", "add", "-q", "-b", "feat", feat)
+	h, id := open(t, repo, testutil.EchoPluginDirAs(t, stopEditorManifest, agentsManifest))
+	testutil.Eventually(t, func() bool {
+		return !slices.ContainsFunc(h.Sup.Statuses(), func(s plugin.Status) bool { return s.State != "running" })
+	}, readyWait)
+	newApprover(t, h).answer.Store(true)
+
+	res := awaitOp(t, h, id, "git.worktree-remove", map[string]string{"path": feat})
+	assert.Equal(t, opResult{Done: true, Notice: ".clubmate/teardown.sh failed: exit status 1: bye"}, res)
+	assert.NoDirExists(t, feat)
 }

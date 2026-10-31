@@ -285,3 +285,19 @@ func TestAppScopeCommandRunsWithoutProject(t *testing.T) {
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.say", "projectId": ""}, nil))
 	assert.ErrorIs(t, c.Call(t.Context(), "command.run", map[string]any{"id": "alpha.other", "projectId": ""}, nil), rpc.ErrInvalidParams)
 }
+
+func TestPluginApprove(t *testing.T) {
+	h, p := startAlpha(t, `{"id":"alpha.x","title":"X"}`)
+	approve := func(command string) error {
+		return h.PluginCall(t, "alpha", "ui.approve", map[string]any{"projectId": p.ID, "title": "Run setup", "command": command, "args": map[string]string{"sha256": "abc"}})
+	}
+	assert.ErrorContains(t, approve("beta.run"), "want a alpha. command")
+	a := newApprover(t, h)
+	done := make(chan error, 1)
+	go func() { done <- approve("alpha.run") }()
+	asked := <-a.asked
+	assert.Equal(t, [3]string{"Run setup", "demo", "alpha.run"}, [3]string{asked.Title, asked.Workspace, asked.Command})
+	assert.JSONEq(t, `{"sha256":"abc"}`, string(asked.Args))
+	a.reply <- true
+	require.NoError(t, <-done)
+}

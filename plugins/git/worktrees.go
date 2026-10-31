@@ -467,24 +467,39 @@ func prepareNew(ctx context.Context, h *pluginsdk.Host, projectID string, args w
 	if err != nil {
 		return nil, err
 	}
-	base := currentHead
+	base, source := currentHead, cur.Path
 	if args.From != "" {
 		from, err := f.member(args.From)
 		if err != nil {
 			return nil, err
 		}
-		base = from.Head
+		base, source = from.Head, from.Path
 	}
+	k := hooks{h: h, projectID: projectID, primary: primary.Path}
 	add := []string{"worktree", "add", "-b", args.Branch, dir, base}
 	if hasRef(ctx, cur.Path, "refs/heads/"+args.Branch) {
 		add = []string{"worktree", "add", dir, args.Branch}
 	}
-	return func(ctx context.Context, _ func(string)) (string, error) {
+	return func(ctx context.Context, note func(string)) (string, error) {
 		if _, err := mutate(ctx, cur.Path, add...); err != nil {
 			return "", err
 		}
 		if err := excludeWorktrees(ctx, primary.Path); err != nil {
 			return "", err
+		}
+		var notes []string
+		if err := copyIncluded(source, dir); err != nil {
+			notes = append(notes, err.Error())
+		}
+		skipped, err := k.run(ctx, dir, setupScript)
+		if err != nil {
+			return "", removeFailed(ctx, cur.Path, dir, err)
+		}
+		if skipped != "" {
+			notes = append(notes, skipped)
+		}
+		if len(notes) > 0 {
+			note(strings.Join(notes, "\n"))
 		}
 		g, err := gitFolder(ctx, h, projectID, f.Repo)
 		if err != nil {
@@ -545,7 +560,8 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 	case f.Checkout.Real:
 		return nil, errFolderCheckout
 	}
-	return func(ctx context.Context, _ func(string)) (string, error) {
+	k := hooks{h: h, projectID: projectID, primary: f.Trees[0].Path}
+	return func(ctx context.Context, note func(string)) (string, error) {
 		status, err := run(ctx, t.Path, "status", "--porcelain")
 		if err != nil {
 			return "", err
@@ -568,6 +584,11 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, projectID string, arg
 			return "", err
 		}
 		logError("stop agents in "+t.Path, h.RunCommand(ctx, agentsStopCommand, projectID, stopRootArgs{Root: t.Path}, nil))
+		if skipped, err := k.run(ctx, t.Path, teardownScript); err != nil {
+			note(err.Error())
+		} else if skipped != "" {
+			note(skipped)
+		}
 		if _, err := mutate(ctx, f.Checkout.Path, "worktree", "remove", t.Path); err != nil {
 			return "", err
 		}

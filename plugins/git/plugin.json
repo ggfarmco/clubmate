@@ -54,7 +54,7 @@
         "title": "New Worktree",
         "hidden": true,
         "agent": true,
-        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Returns {id}; poll git.worktree-op-status for the outcome. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
+        "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Then copies the files listed in .clubmate/worktree-include and runs .clubmate/setup.sh once the user trusts it; a failing setup.sh removes the worktree and fails the operation. Returns {id}; poll git.worktree-op-status for the outcome. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},
@@ -97,7 +97,7 @@
         "hidden": true,
         "agent": true,
         "destructive": true,
-        "description": "Start removing a linked git worktree: stops its Neovim and agent sessions, runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
+        "description": "Start removing a linked git worktree: stops its Neovim and agent sessions, runs .clubmate/teardown.sh once the user trusts it (a failure is only a notice), runs git worktree remove and, when it was current, switches the folder back to its own checkout. Never removes the main checkout, a worktree with uncommitted changes, or the branch. Returns {id}; poll git.worktree-op-status for the outcome.",
         "args": {
           "properties": {
             "repo": {"type": "string", "description": "Workspace folder; defaults to the first git folder."},

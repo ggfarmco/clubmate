@@ -233,6 +233,10 @@ func (h *Host) Render(ctx context.Context, projectID, slot string, n sdui.Node) 
 	return out.Rev, err
 }
 
+func (h *Host) Approve(ctx context.Context, projectID, title, command string, args map[string]string) error {
+	return h.Call(ctx, "ui.approve", approveParams{ProjectID: projectID, Title: title, Command: command, Args: args}, nil)
+}
+
 func (h *Host) StorageGet(ctx context.Context, key string, out any) (bool, error) {
 	var res storageGetResult
 	if err := h.Call(ctx, "storage.get", storageKeyParams{Key: key}, &res); err != nil {
@@ -321,6 +325,13 @@ type renderParams struct {
 	ProjectID string    `json:"projectId"`
 	Slot      string    `json:"slot"`
 	Tree      sdui.Node `json:"tree"`
+}
+
+type approveParams struct {
+	ProjectID string            `json:"projectId"`
+	Title     string            `json:"title"`
+	Command   string            `json:"command"`
+	Args      map[string]string `json:"args"`
 }
 
 type projectParams struct {

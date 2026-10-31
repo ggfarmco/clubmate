@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -61,41 +62,93 @@ func (deniedError) Is(target error) bool {
 	return target == ErrDenied
 }
 
-func (s *Server) approve(ctx context.Context, c Command, projectID, sessionKey string, raw json.RawMessage) (json.RawMessage, error) {
-	workspace := ""
-	if projectID != "" {
-		p, err := s.svc.GetProject(ctx, projectID)
-		if err != nil {
-			return nil, err
+type approveParams struct {
+	ProjectID string            `json:"projectId"`
+	Title     string            `json:"title"`
+	Command   string            `json:"command"`
+	Args      map[string]string `json:"args"`
+}
+
+func (s *Server) uiApprove(ctx context.Context, p approveParams) (empty, error) {
+	caller := CallerFrom(ctx)
+	if !caller.IsPlugin() {
+		return empty{}, invalidParams("ui.approve requires a plugin caller")
+	}
+	if p.Title == "" || utf8.RuneCountInString(p.Title) > approvalMaxValue {
+		return empty{}, invalidParams(fmt.Sprintf("title: want 1 to %d characters", approvalMaxValue))
+	}
+	if !strings.HasPrefix(p.Command, caller.PluginID+".") {
+		return empty{}, invalidParams(fmt.Sprintf("command: want a %s. command", caller.PluginID))
+	}
+	if len(p.Args) > approvalMaxFields {
+		return empty{}, invalidParams(fmt.Sprintf("args: more than %d fields", approvalMaxFields))
+	}
+	for name, v := range p.Args {
+		if utf8.RuneCountInString(v) > approvalMaxValue {
+			return empty{}, invalidParams(fmt.Sprintf("args.%s: longer than %d characters", name, approvalMaxValue))
 		}
-		workspace = p.Name
+	}
+	workspace, err := s.workspaceName(ctx, p.ProjectID)
+	if err != nil {
+		return empty{}, err
+	}
+	args, err := json.Marshal(p.Args)
+	if err != nil {
+		return empty{}, err
+	}
+	return empty{}, s.confirm(ctx, p.ProjectID, confirmParams{Title: p.Title, Workspace: workspace, Command: p.Command, Args: args})
+}
+
+func (s *Server) workspaceName(ctx context.Context, projectID string) (string, error) {
+	if projectID == "" {
+		return "", nil
+	}
+	p, err := s.svc.GetProject(ctx, projectID)
+	if err != nil {
+		return "", err
+	}
+	return p.Name, nil
+}
+
+func (s *Server) approve(ctx context.Context, c Command, projectID, sessionKey string, raw json.RawMessage) (json.RawMessage, error) {
+	workspace, err := s.workspaceName(ctx, projectID)
+	if err != nil {
+		return nil, err
 	}
 	args, err := approvableArgs(c, raw)
 	if err != nil {
 		return nil, err
 	}
+	params := confirmParams{Title: c.Title, Workspace: workspace, Command: c.ID, Args: args, Session: s.targetSession(ctx, sessionKey, args)}
+	if err := s.confirm(ctx, projectID, params); err != nil {
+		return nil, err
+	}
+	return args, nil
+}
+
+func (s *Server) confirm(ctx context.Context, projectID string, params confirmParams) error {
 	conn, release, err := s.approver(projectID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer release()
 	ctx, cancel := context.WithTimeout(ctx, approvalTimeout)
 	defer cancel()
-	params := confirmParams{Title: c.Title, Workspace: workspace, Command: c.ID, Args: args, TimeoutMs: approvalTimeout.Milliseconds(), Session: s.targetSession(ctx, sessionKey, args)}
+	params.TimeoutMs = approvalTimeout.Milliseconds()
 	var res confirmResult
 	if err := conn.Call(ctx, callUIConfirm, params, &res); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, errApprovalTimeout
+			return errApprovalTimeout
 		}
-		return nil, errNoApprover
+		return errNoApprover
 	}
 	if !res.Approved && res.Reason != "" {
-		return nil, deniedError(res.Reason)
+		return deniedError(res.Reason)
 	}
 	if !res.Approved {
-		return nil, errDeniedByUser
+		return errDeniedByUser
 	}
-	return args, nil
+	return nil
 }
 
 func (s *Server) targetSession(ctx context.Context, key string, args json.RawMessage) *confirmSession {

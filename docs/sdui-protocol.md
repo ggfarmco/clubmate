@@ -140,6 +140,7 @@ Clients keep the highest `rev` per `(projectId, slot)` and ignore views with a l
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{projectId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{projectId, slot, tree}` (plugin callers only) | `{rev}` |
+| ui.approve | `{projectId, title, command, args}` (plugin callers only) | `{}` once the user allows it, else a denied error |
 | ui.presence | none | `[projectId]`, projects that currently have UI subscribers |
 | ui.state.section | `{projectId}` | `{section}`, the section saved in the project's UI state (`""` when unset) |
 | fs.watch | `{projectId}` | `{watch}` |
@@ -222,6 +223,8 @@ Projects are shown to users as workspaces; `clubmate project …` is an alias of
 `ui.focus` is open to any caller. It is invalid params when the project does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`, or `field` is true with a `slot` other than `<section>.sidebar`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that project (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusField` to focus the sidebar's text field.
 
 `ui.render` is invalid params for a project that has been deleted.
+
+`ui.approve` shows the app's agent-approval dialog for a plugin's own action and waits up to 60 s. `command` must start with `<plugin id>.`, `title` is 1 to 200 characters, `args` is at most 10 string fields of at most 200 characters each, shown as detail lines. Denial, timeout, a busy dialog or no running app fail with the same denied errors as approvals of agent commands.
 
 `command.run` routes a plugin command with `via` set to the calling connection's plugin id (`""` for the app and the CLI); the core overwrites any `via` the caller sent, so a plugin can trust it.
 

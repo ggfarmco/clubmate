@@ -131,6 +131,7 @@ func (s *Server) uiMethods() map[string]handlerFunc {
 		"ui.presence":          method(s.uiPresence),
 		"ui.focus":             method(s.uiFocus),
 		"ui.render":            method(s.uiRender),
+		"ui.approve":           method(s.uiApprove),
 		"ui.event":             method(s.uiEvent),
 		"command.list":         method(s.commandList),
 		"command.run":          method(s.commandRun),
