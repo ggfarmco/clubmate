@@ -41,6 +41,8 @@ Each agent session of the Agents section has a notification policy: **All** (def
 - The strictest policy among the session and its parent sessions applies, so muting an orchestrator mutes its children too.
 - Set it from the session's context menu in the Agents sidebar (**Notify About Everything**, **Notify Only When It Needs Input**, **Mute Notifications**; the current one is left out), with `agents.notify session=… policy=all|needs-input|muted`, or with `notify` when starting a session with `agents.new`. An agent may set it for its own session and the sessions it started.
 - `agents.sessions` lists each session's own `notify` (omitted for All) and the applied `notifyEffective`.
+- The Agents sidebar shows a policy other than All at the start of the session's row detail: `Muted · …` or `Input only · …` (the applied one, so children of a muted session show `Muted` too).
+- The phone companion applies the same policy: a held-back notification is added to its inbox as read and gets no local notification.
 - Notifications about terminals and editor sessions are not affected.
 
 ## Inbox

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 
 const (
 	promptCommand  = "agents.prompt"
+	turnTopic      = "agents.turn"
+	sessionField   = "session"
 	sessionRunning = "running"
 	sessionWaiting = "waiting"
 	noApprover     = "no app to approve"
@@ -33,6 +36,17 @@ const (
 
 var reasonLoop = "fired " + strconv.Itoa(maxFires) + " times in " + fireWindow.String() + "; paused to stop a loop"
 
+type pendingRun struct {
+	trigger *Trigger
+	ev      pluginsdk.Event
+	refire  bool
+}
+
+type heldEvent struct {
+	session string
+	ev      pluginsdk.Event
+}
+
 type promptTarget struct {
 	Session string `json:"session"`
 }
@@ -47,21 +61,18 @@ type notifyRequest struct {
 func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 	payload := decodePayload(ev.Payload)
 	now := a.now()
-	var started, tripped []*Trigger
-	a.mu.Lock()
-	for id, t := range a.triggers {
-		if !t.Enabled || !matches(t, ev.Topic, payload) {
-			continue
-		}
+	var runs []pendingRun
+	var tripped []*Trigger
+	admit := func(t *Trigger, ev pluginsdk.Event, refire bool) {
 		r := Run{At: now, Topic: ev.Topic, Seq: ev.Seq, Status: statusSkipped, Reason: reasonInFlight}
 		switch {
-		case a.inFlight[id]:
-		case a.overLimit(id, now):
+		case a.inFlight[t.ID]:
+		case a.overLimit(t.ID, now):
 			r.Status, r.Reason = statusError, reasonLoop
 		default:
-			a.inFlight[id] = true
-			started = append(started, clone(t))
-			continue
+			a.inFlight[t.ID] = true
+			runs = append(runs, pendingRun{trigger: clone(t), ev: ev, refire: refire})
+			return
 		}
 		updated := clone(t)
 		if record(updated, r) || r.Reason == reasonLoop {
@@ -70,15 +81,53 @@ func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 		}
 		logError(a.put(ctx, updated))
 	}
+	a.mu.Lock()
+	for id, h := range a.releaseLocked(ev.Topic, payload) {
+		t, ok := a.triggers[id]
+		switch {
+		case !ok || !t.Enabled:
+		case a.inFlight[id]:
+			a.held[id] = h
+		default:
+			admit(t, h.ev, true)
+		}
+	}
+	for _, t := range a.triggers {
+		if t.Enabled && matches(t, ev.Topic, payload) {
+			admit(t, ev, false)
+		}
+	}
 	a.mu.Unlock()
 	ctx = context.WithoutCancel(ctx)
-	for _, t := range started {
-		a.runs.Go(func() { logError(a.settle(ctx, t.ID, a.fire(ctx, t, ev))) })
+	for _, r := range runs {
+		a.runs.Go(func() { logError(a.settle(ctx, r.trigger.ID, a.fire(ctx, r.trigger, r.ev), r.refire)) })
 	}
 	for _, t := range tripped {
 		a.notify(ctx, t)
 	}
 	a.flush(ctx)
+}
+
+func (a *app) releaseLocked(topic string, payload any) map[string]heldEvent {
+	if topic != turnTopic {
+		return nil
+	}
+	v, _ := lookup(payload, sessionField)
+	session, _ := v.(string)
+	released := map[string]heldEvent{}
+	for id, h := range a.held {
+		if h.session == session {
+			released[id] = h
+			delete(a.held, id)
+		}
+	}
+	return released
+}
+
+func (a *app) unhold(session string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	maps.DeleteFunc(a.held, func(_ string, h heldEvent) bool { return h.session == session })
 }
 
 func (a *app) overLimit(id string, now time.Time) bool {
@@ -126,6 +175,9 @@ func (a *app) fire(ctx context.Context, t *Trigger, ev pluginsdk.Event) Run {
 		var target promptTarget
 		if json.Unmarshal(args, &target) == nil {
 			if s, ok := agentcall.Find(sessions, target.Session); ok && (s.Status == sessionRunning || s.Status == sessionWaiting) {
+				a.mu.Lock()
+				a.held[t.ID] = heldEvent{session: target.Session, ev: ev}
+				a.mu.Unlock()
 				r.Status, r.Reason = statusSkipped, reasonBusy
 				return r
 			}
@@ -152,11 +204,11 @@ func foreign(t *Trigger, ev pluginsdk.Event, sessions []agentcall.Session) bool 
 	return session != "" && !agentcall.Descends(session, t.Owner, agentcall.Parents(sessions))
 }
 
-func (a *app) settle(ctx context.Context, id string, r Run) error {
+func (a *app) settle(ctx context.Context, id string, r Run, refire bool) error {
 	a.mu.Lock()
 	delete(a.inFlight, id)
 	current, ok := a.triggers[id]
-	if !ok {
+	if !ok || refire && r.Reason == reasonBusy {
 		a.mu.Unlock()
 		return nil
 	}

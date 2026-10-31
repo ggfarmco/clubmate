@@ -28,6 +28,26 @@ public enum NotificationKind: String, Sendable, Equatable, CaseIterable {
     }
 }
 
+public enum NotificationPolicy: String, Sendable, Equatable {
+    case all
+    case needsInput = "needs-input"
+    case muted
+
+    public static let sessionsCommand = "agents.sessions"
+
+    public init(session: String, in sessions: JSONValue) {
+        self = sessions.arrayValue?.first { $0["id"]?.stringValue == session }?["notifyEffective"]?.stringValue.flatMap(Self.init(rawValue:)) ?? .all
+    }
+
+    public func allows(_ kind: NotificationKind) -> Bool {
+        switch self {
+        case .all: true
+        case .needsInput: kind == .needsInput || kind == .permission
+        case .muted: false
+        }
+    }
+}
+
 public struct InboxItem: Sendable, Equatable, Identifiable, Hashable {
     public static let topic = "notify.posted"
 

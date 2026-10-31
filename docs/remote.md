@@ -74,6 +74,7 @@ The Companion app talks plain HTTP to the Mac's `remote` plugin. Its `Info.plist
 
 There is no push yet. The app posts **local** notifications from its own event stream:
 - When a `notify.posted` event arrives and the app is not active, it shows a notification for kinds `needs-input`, `permission`, `stuck` and `done` (not `info`) posted less than 10 minutes ago. The identifier is `<computer id>|<notification id>`, so a replayed event does not alert twice. Tapping it opens the session (or the Inbox when the notification has no session).
+- A notification about an agent session first asks `agents.sessions` for the session's applied notification policy (`notifyEffective`); one the policy holds back goes into the Inbox as read and shows no notification (see [per-session policy](notifications.md#per-session-policy)).
 - The app asks for notification permission after the first pairing (or at launch when a Mac is already paired).
 - Limit: iOS suspends the app shortly after it goes to the background. The app asks for background time (about 30 s) to keep the stream open; after that the stream is gone and nothing arrives until the app is opened again, when `Last-Event-ID` replays the missed events into the Inbox. So this covers "switched to another app for a moment", not "phone in the pocket".
 

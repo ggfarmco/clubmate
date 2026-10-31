@@ -38,7 +38,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Activity: "go test"},
-		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}},
+		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}, Notify: notifyMuted},
 		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, Closed: true, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
 	}
@@ -58,7 +58,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	assert.False(t, a[1].Expanded)
 	assert.Empty(t, a[1].Children)
 	assert.Equal(t, "Waiting for permission · go test", a[0].Detail)
-	assert.Equal(t, "12 min ago", b[0].Detail)
+	assert.Equal(t, "Muted · 12 min ago", b[0].Detail)
 	assert.Equal(t, []string{"warning", "success"}, []string{a[0].Tone, b[0].Tone})
 	assert.Equal(t, []string{actNotifyNeeds, actNotifyMuted, actClose, actDelete}, menuActions(a[0].Menu))
 }

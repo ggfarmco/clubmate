@@ -73,6 +73,36 @@ func TestDispatchPausesALoop(t *testing.T) {
 	assert.Equal(t, []string{reasonLoop}, *notified)
 }
 
+func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
+	var sent []commandRequest
+	a, _ := testApp(t, func(_ context.Context, req commandRequest) (json.RawMessage, error) {
+		sent = append(sent, req)
+		return json.RawMessage(`{}`), nil
+	})
+	a.triggers["tr_1"].Command = promptCommand
+	a.triggers["tr_1"].Args = json.RawMessage(`{"session":"agt_o","text":"{{payload.n}}"}`)
+	status := sessionRunning
+	a.sessions = func(context.Context, string) ([]agentcall.Session, error) {
+		return []agentcall.Session{{ID: "agt_o", Status: status}}, nil
+	}
+	turnEnd := pluginsdk.Event{Seq: 9, Topic: turnTopic, Payload: json.RawMessage(`{"workspace":"ws1","session":"agt_o"}`)}
+
+	a.dispatch(t.Context(), ping(1))
+	a.runs.Wait()
+	a.dispatch(t.Context(), turnEnd)
+	a.runs.Wait()
+	status = "done"
+	a.dispatch(t.Context(), turnEnd)
+	a.runs.Wait()
+
+	require.Len(t, sent, 1)
+	assert.JSONEq(t, `{"session":"agt_o","text":"x"}`, string(sent[0].Args))
+	h := a.triggers["tr_1"].History
+	require.Len(t, h, 2)
+	assert.Equal(t, reasonBusy, h[0].Reason)
+	assert.Equal(t, Run{At: h[1].At, Topic: "event.ping", Seq: 1, Status: statusOK, Result: "{}"}, h[1])
+}
+
 func TestForeignEmitterSkipsOwnedTemplatedTrigger(t *testing.T) {
 	sessions := []agentcall.Session{{ID: "agt_owner"}, {ID: "agt_child", ParentSession: "agt_owner"}, {ID: "agt_other"}}
 	templated := &Trigger{Owner: "agt_owner", Args: json.RawMessage(`{"session":"{{payload.session}}"}`)}

@@ -4,6 +4,8 @@ import Observation
 @MainActor
 @Observable
 public final class CompanionModel {
+    public static let agentSessionPrefix = "agt_"
+
     public private(set) var computers: [Computer] = []
     public private(set) var connections: [String: ComputerConnection] = [:]
     public var inbox = Inbox()
@@ -89,11 +91,27 @@ public final class CompanionModel {
     }
 
     private func route(_ signal: ConnectionSignal, from computer: String) {
-        if case .event(let event) = signal, let item = InboxItem(event, computerID: computer, received: .now), inbox.add(item) {
-            posted?(item)
+        if case .event(let event) = signal, let item = InboxItem(event, computerID: computer, received: .now) {
+            Task { await receive(item) }
         }
         for (key, store) in agents where key.hasPrefix(computer + "|") {
             store.handle(signal)
         }
+    }
+
+    private func receive(_ item: InboxItem) async {
+        let allowed = await policy(item).allows(item.kind)
+        guard inbox.add(item) else { return }
+        if allowed {
+            posted?(item)
+        } else {
+            inbox.markRead(item.id)
+        }
+    }
+
+    private func policy(_ item: InboxItem) async -> NotificationPolicy {
+        guard let session = item.session, session.hasPrefix(Self.agentSessionPrefix), let connection = connections[item.computerID],
+              let sessions = try? await connection.command(NotificationPolicy.sessionsCommand, workspace: item.workspace, args: nil) else { return .all }
+        return NotificationPolicy(session: session, in: sessions)
     }
 }

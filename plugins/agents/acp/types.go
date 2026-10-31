@@ -43,6 +43,7 @@ const (
 	OutcomeCancelled = "cancelled"
 
 	CodeAuthRequired = -32000
+	CodeInternal     = -32603
 	AuthTerminal     = "terminal"
 )
 

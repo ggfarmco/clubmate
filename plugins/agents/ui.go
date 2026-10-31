@@ -368,7 +368,7 @@ func (a *app) render(ctx context.Context, projectID string) error {
 	}
 	rows := make([]sessionRow, 0, len(recs))
 	for _, rec := range recs {
-		row := sessionRow{Rec: rec}
+		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec)}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
 			row.Started = s.turnStart()

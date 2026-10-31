@@ -63,4 +63,31 @@ final class ModelTests: XCTestCase {
         try store.remove("m")
         XCTAssertNil(vault.token(for: "m"))
     }
+
+    @MainActor
+    func testInboxHoldsBackWhatTheSessionPolicyExcludes() async throws {
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        try store.save(Computer(id: "m", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")
+        let sessions = #"[{"id":"agt_1","notifyEffective":"all"},{"id":"agt_2","notifyEffective":"muted"}]"#
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            case NotificationPolicy.sessionsCommand: (FakeTransport.result(sessions), 200)
+            default: (FakeTransport.result(helloJSON), 200)
+            }
+        }, stream: { _ in
+            let wire = (1...2).map { "id: \($0)\nevent: bus\ndata: {\"seq\":\($0),\"topic\":\"notify.posted\",\"workspace\":\"w\",\"payload\":{\"id\":\"n\($0)\",\"session\":\"agt_\($0)\",\"message\":\"m\",\"kind\":\"done\"}}\n\n" }.joined()
+            return (200, AsyncThrowingStream { $0.yield(Data((": connected\n\n" + wire).utf8)) })
+        })
+        let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "P", model: "iPhone"), sleep: { _ in })
+        let posted = Recorder<String>()
+        model.posted = { posted.add($0.id) }
+
+        model.start()
+
+        try await waitUntil { model.inbox.items.count == 2 }
+        XCTAssertEqual(posted.values, ["n1"])
+        XCTAssertEqual(model.inbox.unread, ["n1"])
+        try model.remove("m")
+    }
 }

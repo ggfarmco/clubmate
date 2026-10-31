@@ -130,7 +130,8 @@ var (
 		{value: finishAsk, label: "Ask"},
 		{value: finishMerge, label: "Merge to main"},
 	}
-	notifyMenu = []notifyChoice{
+	notifyLabels = map[string]string{notifyNeedsInput: "Input only", notifyMuted: "Muted"}
+	notifyMenu   = []notifyChoice{
 		{action: actNotifyAll, policy: notifyAll, label: "Notify About Everything"},
 		{action: actNotifyNeeds, policy: notifyNeedsInput, label: "Notify Only When It Needs Input"},
 		{action: actNotifyMuted, policy: notifyMuted, label: "Mute Notifications"},
@@ -152,6 +153,7 @@ type sessionRow struct {
 	Rec      record
 	Activity string
 	Started  time.Time
+	Notify   string
 }
 
 type pendingAttachment struct {
@@ -359,7 +361,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
-		Detail: activity(row, now),
+		Detail: strings.Join(nonEmpty(notifyLabels[row.Notify], activity(row, now)), " · "),
 		Icon:   statusIcons[rec.Status],
 		Tone:   statusTones[rec.Status],
 		Menu:   menu,

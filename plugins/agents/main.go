@@ -49,6 +49,9 @@ const (
 	worktreeOpCmd   = "git.worktree-op-status"
 	worktreesDir    = ".worktrees"
 	maxChildren     = 8
+	retryDelay      = 3 * time.Second
+	retryNotice     = "The turn failed; retrying once"
+	retryFormat     = "[Clubmate] Your previous reply ended with an error (%s). Continue the task from where you stopped."
 	unknownCaller   = "unknown"
 	fromFormat      = "[From Clubmate agent session \"%s\" (%s), not from the user]\n\n"
 	fromUnknown     = "[From another agent session, not from the user]\n\n"
@@ -1042,6 +1045,10 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	}
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
+	if retry, ok := a.retryTurn(s, rec, err); ok {
+		res = acp.PromptResponse{}
+		err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, retry, &res)
+	}
 	if errors.Is(err, acp.ErrClosed) {
 		go p.stop()
 		return
@@ -1087,6 +1094,27 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 		a.cleanupChild(s)
 		a.closeVanishedChildren(s)
 	}
+}
+
+func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, bool) {
+	rpcErr, ok := errors.AsType[*acp.Error](err)
+	if !ok || rpcErr.Code != acp.CodeInternal {
+		return acp.PromptRequest{}, false
+	}
+	reason := firstLine(rpcErr.Message)
+	s.notice(retryNotice, reason)
+	time.Sleep(retryDelay)
+	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: []acp.ContentBlock{{Type: "text", Text: fmt.Sprintf(retryFormat, reason)}}}
+	s.mu.Lock()
+	ok = !s.cancelRequested && !s.rec.Closed && !s.deleted
+	if ok {
+		s.recordLocked(actorClubmate, kindPrompt, promptPayload{PromptRequest: req, Steered: true})
+	}
+	s.mu.Unlock()
+	if ok {
+		s.changed(changeUpdate, true)
+	}
+	return req, ok
 }
 
 func (a *app) checktime(rec record) {

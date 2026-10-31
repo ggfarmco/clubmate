@@ -62,6 +62,7 @@ type app struct {
 	triggers   map[string]*Trigger
 	dirty      map[string]bool
 	inFlight   map[string]bool
+	held       map[string]heldEvent
 	fired      map[string][]time.Time
 	runs       sync.WaitGroup
 	lastSeq    atomic.Int64
@@ -86,6 +87,7 @@ func newApp() *app {
 		triggers: map[string]*Trigger{},
 		dirty:    map[string]bool{},
 		inFlight: map[string]bool{},
+		held:     map[string]heldEvent{},
 		fired:    map[string][]time.Time{},
 		ready:    make(chan struct{}),
 		now:      time.Now,
@@ -140,6 +142,9 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			logError(fmt.Errorf("decode %s: %w", ev.Topic, err))
 			return
+		}
+		if p.Kind == changeDeleted {
+			a.unhold(p.Session)
 		}
 		if (p.Kind == changeStatus || p.Kind == changeDeleted) && a.owns(p.Session) {
 			a.reconcile(ctx, p.Workspace)
@@ -312,6 +317,7 @@ func (a *app) owns(session string) bool {
 func (a *app) drop(ctx context.Context, t *Trigger) error {
 	delete(a.triggers, t.ID)
 	delete(a.fired, t.ID)
+	delete(a.held, t.ID)
 	a.touch(t.Workspace)
 	return a.store.remove(ctx, t)
 }

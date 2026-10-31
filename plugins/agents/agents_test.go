@@ -1119,6 +1119,32 @@ func TestQueuedPromptsSentAsNextTurn(t *testing.T) {
 	f.h.WaitSlot(t, project, "agents.main", func(n sdui.Node) bool { return len(buttonsWith(n, "unqueue")) == 0 })
 }
 
+func TestInternalErrorRetriesTurnOnce(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "boom", "fail": "no results for tool calls"}}})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+
+	f.prompt(t, project, session, "boom")
+
+	f.waitStatus(t, project, session, "done")
+	prompts := f.calls(t, "session/prompt")
+	require.Len(t, prompts, 2)
+	assert.Contains(t, promptText(t, prompts[1]), "no results for tool calls")
+	assert.Len(t, f.transcript(t, project, session).Turns, 1)
+}
+
+func TestInternalErrorAfterRetryFailsTurn(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"fail": "no results for tool calls"}}})
+	project := f.project(t, newRepo(t))
+	session := f.newSession(t, project)
+
+	f.prompt(t, project, session, "boom")
+
+	got := f.waitStatus(t, project, session, "error")
+	assert.Len(t, f.calls(t, "session/prompt"), 2)
+	assert.Contains(t, got.Error, "no results for tool calls")
+}
+
 func TestCancelKeepsQueue(t *testing.T) {
 	f, project, session := startQueued(t, "two")
 

@@ -15,7 +15,6 @@ import (
 
 const (
 	writeTimeout       = 30 * time.Second
-	codeInternal       = -32603
 	codeMethodNotFound = -32601
 )
 
@@ -231,7 +230,7 @@ func (c *Conn) serve(m message) {
 	if err != nil {
 		var rpcErr *Error
 		if !errors.As(err, &rpcErr) {
-			rpcErr = &Error{Code: codeInternal, Message: err.Error()}
+			rpcErr = &Error{Code: CodeInternal, Message: err.Error()}
 		}
 		reply.Error = rpcErr
 	} else if reply.Result = mustRaw(result); reply.Result == nil {

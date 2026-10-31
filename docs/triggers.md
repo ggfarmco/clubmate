@@ -50,7 +50,7 @@ A run is skipped, never counted as a failure, with one of these reasons:
 | Reason | When |
 |---|---|
 | `previous run still running` | The trigger's previous run has not returned yet; the event is dropped, not queued. |
-| `busy` | An `agents.prompt` trigger whose target session is running or waiting for permission. |
+| `busy` | An `agents.prompt` trigger whose target session is running or waiting for permission. The trigger holds the event (only the latest one, in memory, so not across a restart) and runs again with it when the target's turn ends (`agents.turn`); a run that finds the target busy again keeps holding it without a new history entry. |
 | `no app` | The command needs an approval and no app is open to ask. |
 | `owner gone` | The trigger's owner session is closed or deleted; the trigger is about to be deleted with it. |
 | `owner unknown` | The agents plugin can't be asked whether the owner session is open. |

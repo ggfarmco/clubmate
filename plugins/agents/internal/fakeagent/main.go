@@ -40,6 +40,7 @@ type step struct {
 	Sleep      int             `json:"sleep"`
 	Echo       bool            `json:"echo"`
 	Match      string          `json:"match"`
+	Fail       string          `json:"fail"`
 }
 
 const loginArg = "--fake-login"
@@ -156,7 +157,10 @@ func (a *agent) Request(ctx context.Context, _, method string, params json.RawMe
 		defer a.turns.Add(-1)
 		var prompt acp.PromptRequest
 		_ = json.Unmarshal(params, &prompt)
-		a.run(ctx, prompt, a.script.Prompt)
+		if err := a.run(ctx, prompt, a.script.Prompt); err != nil {
+			a.record("prompt_error", err.Error())
+			return nil, err
+		}
 		go a.run(context.Background(), prompt, a.script.After)
 		res := acp.PromptResponse{StopReason: acp.StopEndTurn}
 		if a.cancelled.Load() {
@@ -210,7 +214,7 @@ func (a *agent) update(session string, update any) {
 	_ = a.conn.Notify(acp.MethodSessionUpdate, map[string]any{"sessionId": session, "update": update})
 }
 
-func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step) {
+func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step) error {
 	session := prompt.SessionID
 	for _, s := range steps {
 		if s.Match != "" && (len(prompt.Prompt) == 0 || !strings.Contains(prompt.Prompt[0].Text, s.Match)) {
@@ -249,6 +253,9 @@ func (a *agent) run(ctx context.Context, prompt acp.PromptRequest, steps []step)
 			a.update(session, map[string]any{"sessionUpdate": acp.UpdateAgentMessageChunk, "content": prompt.Prompt[0]})
 		case s.Sleep > 0:
 			time.Sleep(time.Duration(s.Sleep) * time.Millisecond)
+		case s.Fail != "":
+			return &acp.Error{Code: acp.CodeInternal, Message: s.Fail}
 		}
 	}
+	return nil
 }
