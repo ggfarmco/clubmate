@@ -28,6 +28,7 @@ var (
 
 	idPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
 	slotPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+	nounPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*(\.[a-z][a-z0-9]*(-[a-z0-9]+)*)?$`)
 	fixedSlots  = []string{"sidebar", "main", "status"}
 
 	reservedIDs = []string{"core", "session", "workspace", "process", "ui", "diagnostics"}
@@ -169,6 +170,9 @@ func (m Manifest) validate() error {
 		return err
 	}
 	for _, c := range m.Contributes.Commands {
+		if name, ok := strings.CutPrefix(c.ID, m.ID+"."); !ok || !nounPattern.MatchString(name) {
+			return invalid(m.Dir, "command id %q must be %s.<noun>[.<verb>] in kebab-case", c.ID, m.ID)
+		}
 		if err := schema.Check(c.Args); err != nil {
 			return invalid(m.Dir, "command %q args: %v", c.ID, err)
 		}

@@ -42,6 +42,10 @@ func (t *Trigger) Action() automation.Action {
 	}
 }
 
+func (t *Trigger) SetCommand(id string) {
+	t.Command = id
+}
+
 func (t *Trigger) Clone() *Trigger {
 	c := *t
 	c.History = slices.Clone(t.History)

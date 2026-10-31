@@ -143,7 +143,7 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return a.status(), nil
-	case "remote.setPort":
+	case "remote.set-port":
 		var args portArgs
 		if err := decodeArgs(cmd.Args, &args); err != nil {
 			return nil, err
@@ -154,7 +154,7 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return a.status(), nil
 	case "remote.pair":
 		return a.pair(ctx)
-	case "remote.cancelPair":
+	case "remote.cancel-pair":
 		a.srv.pairing.cancel()
 		return nil, nil
 	case "remote.devices":

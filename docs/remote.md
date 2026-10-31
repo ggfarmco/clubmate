@@ -13,13 +13,13 @@ clubmate command run remote.pair
 clubmate command run remote.status
 clubmate command run remote.devices
 clubmate command run remote.revoke device=<id>
-clubmate command run remote.setPort port=<port>
+clubmate command run remote.set-port port=<port>
 ```
 
 ## Network
 - Plain HTTP/1.1 on the Mac's Tailscale addresses only. Never `0.0.0.0` or LAN addresses.
 - The addresses come from Tailscale itself (`Self.TailscaleIPs` of `tailscale status --json`, the app's bundled CLI or `tailscale` on `PATH`). Without the CLI, it falls back to `utun*` interface addresses in `100.64.0.0/10` or `fd7a:115c:a1e0::/48` (`100.64.0.0/10` is shared CGNAT space, so the interface filter alone is not trusted). Either way only addresses in those ranges are used.
-- Port `47621` by default (plugin storage key `port`); `remote.setPort {port}` changes it. A paired phone keeps the port from its pairing link, so after a change every paired device stays offline until it pairs again. The port is ignored while `CLUBMATE_REMOTE_LISTEN` is set.
+- Port `47621` by default (plugin storage key `port`); `remote.set-port {port}` changes it. A paired phone keeps the port from its pairing link, so after a change every paired device stays offline until it pairs again. The port is ignored while `CLUBMATE_REMOTE_LISTEN` is set.
 - Addresses are rescanned every 30 s, so Tailscale may come up after Clubmate.
 - The QR link lists hosts in order: MagicDNS name (from `tailscale status --json`, optional), IPv4, IPv6.
 - `CLUBMATE_REMOTE_LISTEN=host:port` (env of the core, inherited by the plugin) replaces the tailnet scan with that one address, e.g. `127.0.0.1:47621` for the iOS simulator or tests. A wildcard host (`:47621`, `0.0.0.0`, `::`) is refused.
@@ -49,9 +49,9 @@ All hidden, app-scoped (`"scope": "app"`), never agent or remote. Call `command.
 |---|---|---|
 | `remote.status` | – | `{enabled, port, listening: ["100.x.y.z:47621"], hosts: ["mac.tailnet.ts.net", "100.x.y.z"], error}` |
 | `remote.enable` | `{enabled}` | status |
-| `remote.setPort` | `{port}` (1–65535) | status; restarts listening, closes open streams, drops the active pairing code; destructive, confirm "Change the companion port? Paired devices stay offline until you pair them again." |
+| `remote.set-port` | `{port}` (1–65535) | status; restarts listening, closes open streams, drops the active pairing code; destructive, confirm "Change the companion port? Paired devices stay offline until you pair them again." |
 | `remote.pair` | – | `{link, code, expiresAt}` (RFC 3339); enables remote access; fails without issuing a code when there is no address to listen on (e.g. Tailscale is down) |
-| `remote.cancelPair` | – | `null` |
+| `remote.cancel-pair` | – | `null` |
 | `remote.devices` | – | `[{id, name, model, pairedAt, lastSeen, connected}]`, newest first |
 | `remote.revoke` | `{device}` | `null`; destructive, confirm "Revoke this device's access to Clubmate?" |
 

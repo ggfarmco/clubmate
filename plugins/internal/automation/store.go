@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -36,7 +37,7 @@ func (st *Store[E, P]) Load(ctx context.Context) ([]P, error) {
 			continue
 		}
 		if found {
-			items = append(items, &item)
+			items = append(items, st.migrate(ctx, &item))
 		}
 	}
 	return items, nil
@@ -54,6 +55,19 @@ func (st *Store[E, P]) Remove(ctx context.Context, p P) error {
 		return fmt.Errorf("delete %s %s: %w", st.Noun, p.Action().ID, err)
 	}
 	return nil
+}
+
+func (st *Store[E, P]) migrate(ctx context.Context, p P) P {
+	command := p.Action().Command
+	current := contract.CurrentCommand(command)
+	if current == command {
+		return p
+	}
+	p.SetCommand(current)
+	if err := st.Save(ctx, p); err != nil {
+		st.Log(err)
+	}
+	return p
 }
 
 func (st *Store[E, P]) key(p P) string {

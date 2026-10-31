@@ -234,7 +234,7 @@ public final class RemoteDevicesModel {
     public func done() async {
         guard pairing != nil else { return }
         close()
-        _ = await run(CommandInvocation(id: "remote.cancelPair", args: .object([:])))
+        _ = await run(CommandInvocation(id: "remote.cancel-pair", args: .object([:])))
     }
 
     public func revoke(_ device: RemoteDevice) async {

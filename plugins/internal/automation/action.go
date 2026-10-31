@@ -37,6 +37,7 @@ type Action struct {
 type Entry[P any] interface {
 	comparable
 	Action() Action
+	SetCommand(id string)
 	Clone() P
 }
 

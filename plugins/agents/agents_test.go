@@ -710,7 +710,7 @@ func TestFinishMode(t *testing.T) {
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
 	first := f.newSession(t, workspace)
-	require.NoError(t, f.run(t, workspace, "agents.finishDefault", map[string]any{"value": "merge"}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.finish-default", map[string]any{"value": "merge"}, nil))
 	second := f.newSession(t, workspace)
 	assert.Equal(t, []string{"ask", "merge"}, []string{f.session(t, workspace, first).Finish, f.session(t, workspace, second).Finish})
 
@@ -732,7 +732,7 @@ func TestFinishMode(t *testing.T) {
 func TestAFKMode(t *testing.T) {
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))
-	require.NoError(t, f.run(t, workspace, "agents.afkDefault", map[string]any{"on": true}, nil))
+	require.NoError(t, f.run(t, workspace, "agents.afk-default", map[string]any{"on": true}, nil))
 	parent, other := f.newSession(t, workspace), f.newSession(t, workspace)
 	assert.True(t, f.session(t, workspace, parent).AFK)
 	assert.ErrorContains(t, f.runAs(t, workspace, other, "agents.afk", map[string]any{"session": parent, "on": false}, nil), "the session was not started by this agent")

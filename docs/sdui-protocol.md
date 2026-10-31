@@ -177,6 +177,8 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 
 `SlotView` is `{workspaceId, slot, owner, rev, tree}`.
 
+A manifest command id is `<plugin id>.<noun>` or `<plugin id>.<noun>.<verb>`, each part lowercase kebab-case (`git.worktree-new`, `remote.set-port`; core primitives follow it too, e.g. `workspace.worktree.set`); any other id fails manifest load with `command id "<id>" must be <plugin id>.<noun>[.<verb>] in kebab-case`. Its MCP tool name replaces `.` and `-` with `_`.
+
 A command with `"hidden": true` in its manifest entry is still listed and runnable; clients leave it out of the command palette.
 
 A command with a non-empty `"confirm"` string in its manifest entry is listed with that text (`""` when absent); the client asks for confirmation with it before running the command.
@@ -372,9 +374,10 @@ Clients keep per-workspace UI state with `ui.state.get` / `ui.state.set` `{works
 
 ## Deprecated names
 
-Until v0.0.18 the core still accepts the names it used before the Project → Workspace rename; nothing new should use them.
+Until v0.0.18 the core still accepts the names it used before the Project → Workspace rename and the command id rule; nothing new should use them.
 
 - Methods `project.create`, `project.list`, `project.get`, `project.delete`, `project.rename` call their `workspace.*` namesakes; `project.addRepo` calls `workspace.folder.add` and `project.open` calls `workspace.show`.
+- Command ids renamed to kebab-case: `agents.afkDefault` → `agents.afk-default`, `agents.finishDefault` → `agents.finish-default`, `remote.setPort` → `remote.set-port`, `remote.cancelPair` → `remote.cancel-pair`. `command.run` and `clubmate mcp` tool calls (`remote_setPort` etc.) accept the old names; `command.list` lists only the new ones. Cron jobs and triggers stored with an old `command` are rewritten to the new name when their plugin loads them.
 - A top-level `projectId` in the params of any method, and in a `sessions/<id>.json` written by an older session host, is read as `workspaceId` (an explicit `workspaceId` wins). Results, notifications and bus payloads carry only the new names.
 - Beside `workspace.created`, `workspace.updated` and `workspace.deleted` the core publishes `project.created` and `project.updated` `{project}` and `project.deleted` `{id}`, so saved triggers and older plugins keep working.
 - Sessions and agents get `CLUBMATE_PROJECT_ID` next to `CLUBMATE_WORKSPACE_ID`, and the CLI reads it when the new one is unset. `--project` is an alias of `--workspace`, `clubmate project …` of `clubmate workspace …`.

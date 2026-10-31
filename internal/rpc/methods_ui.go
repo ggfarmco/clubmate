@@ -14,6 +14,7 @@ import (
 	"clubmate/internal/schema"
 	"clubmate/internal/sdui"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/contract"
 	pkgsdui "clubmate/pkg/sdui"
 )
 
@@ -305,6 +306,7 @@ func (s *Server) commandRun(ctx context.Context, p commandRunParams) (json.RawMe
 	if err != nil {
 		return nil, err
 	}
+	p.ID = contract.CurrentCommand(p.ID)
 	prim, isPrimitive := primitives[p.ID]
 	c := prim.cmd
 	if !isPrimitive {

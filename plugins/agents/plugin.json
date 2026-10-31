@@ -94,7 +94,7 @@
         }
       },
       {
-        "id": "agents.afkDefault",
+        "id": "agents.afk-default",
         "title": "Default AFK Mode",
         "hidden": true,
         "description": "Get whether new top-level sessions start in AFK mode, or set it when on is given. Child sessions follow their parent.",
@@ -313,7 +313,7 @@
         }
       },
       {
-        "id": "agents.finishDefault",
+        "id": "agents.finish-default",
         "title": "Default Finish Mode",
         "hidden": true,
         "description": "Get the finish mode new sessions start with, or set it when value is given: ask (ask before merging) or merge (merge into main and clean up once tests pass).",

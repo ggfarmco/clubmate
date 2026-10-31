@@ -44,6 +44,10 @@ func (j *Job) Action() automation.Action {
 	}
 }
 
+func (j *Job) SetCommand(id string) {
+	j.Command = id
+}
+
 func (j *Job) Clone() *Job {
 	c := *j
 	c.History = slices.Clone(j.History)

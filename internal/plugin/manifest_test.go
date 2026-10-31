@@ -98,3 +98,31 @@ func TestLoadRejectsCommandTimeoutOutOfRange(t *testing.T) {
 	_, err := plugin.Load(dir)
 	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
 }
+
+func TestLoadChecksCommandIDStyle(t *testing.T) {
+	tests := []struct {
+		id string
+		ok bool
+	}{
+		{id: "beta.worktree-new", ok: true},
+		{id: "beta.worktree.set", ok: true},
+		{id: "beta.setPort"},
+		{id: "beta.a.b.c"},
+		{id: "beta.kill--orphans"},
+		{id: "beta"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+			writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"`+tt.id+`","title":"Go"}]}}`)
+			_, err := plugin.Load(dir)
+			if tt.ok {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, plugin.ErrInvalidManifest)
+			assert.ErrorContains(t, err, `command id "`+tt.id+`" must be beta.<noun>[.<verb>] in kebab-case`)
+		})
+	}
+}

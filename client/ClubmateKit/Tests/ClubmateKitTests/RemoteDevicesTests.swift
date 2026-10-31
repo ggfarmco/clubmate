@@ -103,7 +103,7 @@ final class RemoteDevicesTests: XCTestCase {
         await model.done()
 
         XCTAssertNil(model.pairing)
-        XCTAssertEqual(fake.calls.last, CommandInvocation(id: "remote.cancelPair", args: .object([:])))
+        XCTAssertEqual(fake.calls.last, CommandInvocation(id: "remote.cancel-pair", args: .object([:])))
     }
 
     func testEnableUpdatesStatus() async throws {

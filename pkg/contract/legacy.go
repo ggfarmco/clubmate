@@ -3,6 +3,7 @@ package contract
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"os"
 )
 
@@ -44,4 +45,22 @@ func WorkspaceFromEnv() string {
 		return id
 	}
 	return os.Getenv(LegacyWorkspaceEnv)
+}
+
+var legacyCommands = map[string]string{
+	"agents.afkDefault":    "agents.afk-default",
+	"agents.finishDefault": "agents.finish-default",
+	"remote.setPort":       "remote.set-port",
+	"remote.cancelPair":    "remote.cancel-pair",
+}
+
+func CurrentCommand(id string) string {
+	if current, ok := legacyCommands[id]; ok {
+		return current
+	}
+	return id
+}
+
+func LegacyCommands() map[string]string {
+	return maps.Clone(legacyCommands)
 }

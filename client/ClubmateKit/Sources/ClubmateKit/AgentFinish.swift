@@ -16,7 +16,7 @@ public enum AgentFinishMode: String, Sendable, CaseIterable {
 @MainActor
 @Observable
 public final class AgentFinishModel {
-    public static let command = "agents.finishDefault"
+    public static let command = "agents.finish-default"
 
     public typealias Run = @MainActor (String?, CommandInvocation) async -> Result<JSONValue, ClubmateError>
 

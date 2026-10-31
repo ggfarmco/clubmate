@@ -230,3 +230,15 @@ func TestInstructionsWithoutGuide(t *testing.T) {
 	assert.Equal(t, instructions(t, ""), instructions(t, missing))
 	assert.NotContains(t, instructions(t, missing), "Neovim")
 }
+
+func TestLegacyToolNameCallsCurrentCommand(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, `{"id":"remote","name":"remote","version":"0.1.0","protocol":1,"command":["echo"],"echoResults":{"remote.cancel-pair":"current"},"contributes":{"commands":[{"id":"remote.cancel-pair","title":"Cancel Pairing","agent":true,"scope":"app"}]}}`))
+	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
+	h.Client(t)
+	p := start(t, func(ctx context.Context) (mcp.Core, error) { return rpc.Dial(ctx, h.Dirs.CoreSocket()) }, "")
+	res := p.call(t, 1, "tools/call", map[string]any{"name": "remote_cancelPair", "arguments": map[string]any{}})
+	require.Nil(t, res.Error)
+	require.False(t, res.Result.IsError, res.Result.Content)
+	assert.Equal(t, `"current"`, res.Result.Content[0].Text)
+}

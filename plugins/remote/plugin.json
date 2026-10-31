@@ -27,7 +27,7 @@
         }
       },
       {
-        "id": "remote.setPort",
+        "id": "remote.set-port",
         "title": "Set Companion Port",
         "hidden": true,
         "scope": "app",
@@ -49,7 +49,7 @@
         "description": "Turn companion access on and issue a one-time pairing code (5 minutes, replaces the previous one): {link, code, expiresAt}."
       },
       {
-        "id": "remote.cancelPair",
+        "id": "remote.cancel-pair",
         "title": "Cancel Pairing",
         "hidden": true,
         "scope": "app",
