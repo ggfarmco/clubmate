@@ -15,7 +15,8 @@
     "asks": false,
     "pending": [
       "permission-3"
-    ]
+    ],
+    "notifyEffective": "all"
   },
   {
     "id": "agt_0000000000000002",
@@ -30,7 +31,8 @@
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
     "closed": false,
-    "asks": true
+    "asks": true,
+    "notifyEffective": "all"
   },
   {
     "id": "agt_0000000000000003",
@@ -45,6 +47,7 @@
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
     "closed": true,
-    "asks": false
+    "asks": false,
+    "notifyEffective": "all"
   }
 ]

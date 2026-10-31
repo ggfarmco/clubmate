@@ -183,19 +183,25 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         let current = focus()
         for alert in notifier.pending(sessions, shown: { current.shows(workspace: $0.workspace, session: $0.session) }) where !notifier.isPosted(alert) {
             let note = HubNotification(alert)
-            guard accept(note) else { continue }
+            guard accept(note, policy: sessions.first { $0.session == alert.session }?.policy ?? .all) else { continue }
             notifier.markPosted(alert)
             await deliver(note)
         }
     }
 
     private func post(_ note: HubNotification) async {
-        guard accept(note) else { return }
+        guard accept(note, policy: await policy(note)) else { return }
         await deliver(note)
     }
 
-    private func accept(_ note: HubNotification) -> Bool {
-        let banner = hub.receive(note, focus: focus())
+    private func policy(_ note: HubNotification) async -> NotificationPolicy {
+        guard note.isAgentSession, let session = note.session,
+              case .success(let listed) = await run(note.workspace, CommandInvocation(id: AgentNotifier.sessionsCommand)) else { return .all }
+        return AgentSessionState.list(listed).first { $0.session == session }?.policy ?? .all
+    }
+
+    private func accept(_ note: HubNotification, policy: NotificationPolicy) -> Bool {
+        let banner = hub.receive(note, focus: focus(), policy: policy)
         changed()
         return banner
     }

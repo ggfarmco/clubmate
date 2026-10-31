@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"clubmate/internal/testutil"
 )
 
 const (
@@ -50,6 +52,7 @@ func TestCompanionFixtures(t *testing.T) {
 	f.waitStatus(t, project, asking, "done")
 
 	closed := f.newSession(t, project)
+	testutil.Eventually(t, func() bool { return f.session(t, project, closed).Mode != "" }, wait)
 	require.NoError(t, f.run(t, project, "agents.close", map[string]any{"session": closed}, nil))
 	f.waitStatus(t, project, closed, "closed")
 

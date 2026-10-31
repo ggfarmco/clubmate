@@ -57,6 +57,9 @@ const (
 	actOpenHandoff     = "openHandoff"
 	handoffFromNode    = "handoffFrom"
 	handoffToNode      = "handoffTo"
+	actNotifyAll       = "notifyAll"
+	actNotifyNeeds     = "notifyNeedsInput"
+	actNotifyMuted     = "notifyMuted"
 
 	groupPrefix    = "wt:"
 	expandPrefix   = "s:"
@@ -120,11 +123,22 @@ var (
 		{value: finishAsk, label: "Ask"},
 		{value: finishMerge, label: "Merge to main"},
 	}
+	notifyMenu = []notifyChoice{
+		{action: actNotifyAll, policy: notifyAll, label: "Notify About Everything"},
+		{action: actNotifyNeeds, policy: notifyNeedsInput, label: "Notify Only When It Needs Input"},
+		{action: actNotifyMuted, policy: notifyMuted, label: "Mute Notifications"},
+	}
 )
 
 type advisorChoice struct {
 	value string
 	label string
+}
+
+type notifyChoice struct {
+	action string
+	policy string
+	label  string
 }
 
 type sessionRow struct {
@@ -316,13 +330,19 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 	if descendants > 0 {
 		confirm = fmt.Sprintf(deleteTree, descendants)
 	}
-	menu := []sdui.MenuEntry{{Action: actDelete, Label: "Delete Session", Confirm: confirm}}
-	if !rec.Closed {
-		menu = slices.Insert(menu, 0, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
-	}
+	var menu []sdui.MenuEntry
 	if !turnActive(rec) && rec.HandoffTo == "" {
-		menu = slices.Insert(menu, 0, sdui.MenuEntry{Action: actHandoff, Label: "Hand Off to New Session"})
+		menu = append(menu, sdui.MenuEntry{Action: actHandoff, Label: "Hand Off to New Session"})
 	}
+	for _, n := range notifyMenu {
+		if n.policy != cmp.Or(rec.Notify, notifyAll) {
+			menu = append(menu, sdui.MenuEntry{Action: n.action, Label: n.label})
+		}
+	}
+	if !rec.Closed {
+		menu = append(menu, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
+	}
+	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),

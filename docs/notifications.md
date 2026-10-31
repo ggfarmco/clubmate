@@ -28,9 +28,20 @@ Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`
 - macOS asks for notification permission the first time one is shown.
 - Agents: a session waiting for permission is posted through the same path as kind `permission`, once per request. A `needs-input` or `permission` post that names an agent session (`agt_…`, e.g. from Claude's hooks inside the Agents section) is dropped, because that path already covers it; `done` and the other kinds are shown (skipped while that session is on screen, a click opens it).
 - A notification an agent posted through MCP says "via agent" under the title.
+- Agent sessions have a notification policy; see [Per-session policy](#per-session-policy).
 - Every notification is unseen and unhandled unless its session was on screen when it arrived (then it is listed as handled).
   - Seen: the switcher (⌃⌘W) shows each workspace's unseen count next to it and on its button for the other workspaces of a window, and the Dock icon shows the total. A workspace's notifications become seen when its window becomes key with the app active.
   - Handled: the bell counts what is unhandled plus the waiting agent permission requests (each request once). A notification becomes handled when you click it (in the inbox or the banner), with Mark All Read, or when its session is on screen (for one without a session, when its workspace is in front).
+
+## Per-session policy
+
+Each agent session of the Agents section has a notification policy: **All** (default) shows every notification, **Needs input** only `needs-input` and `permission` ones (questions and permission requests), **Muted** none.
+
+- A notification the policy holds back gets no banner and no sound; it is listed in the inbox history as read, so it counts neither on the bell nor on the Dock icon and is not pinned. Pending agent permission requests stay pinned in "Waiting for you" and counted on the bell whatever the policy.
+- The strictest policy among the session and its parent sessions applies, so muting an orchestrator mutes its children too.
+- Set it from the session's context menu in the Agents sidebar (**Notify About Everything**, **Notify Only When It Needs Input**, **Mute Notifications**; the current one is left out), with `agents.notify session=… policy=all|needs-input|muted`, or with `notify` when starting a session with `agents.new`. An agent may set it for its own session and the sessions it started.
+- `agents.sessions` lists each session's own `notify` (omitted for All) and the applied `notifyEffective`.
+- Notifications about terminals and editor sessions are not affected.
 
 ## Inbox
 

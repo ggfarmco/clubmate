@@ -7,14 +7,16 @@ public struct AgentSessionState: Sendable, Equatable {
     public let title: String
     public let status: String
     public var requests: [String]
+    public let policy: NotificationPolicy
 
-    public init(workspace: String, session: String, agent: String, title: String, status: String, requests: [String]) {
+    public init(workspace: String, session: String, agent: String, title: String, status: String, requests: [String], policy: NotificationPolicy = .all) {
         self.workspace = workspace
         self.session = session
         self.agent = agent
         self.title = title
         self.status = status
         self.requests = requests
+        self.policy = policy
     }
 
     public static func list(_ sessions: JSONValue) -> [AgentSessionState] {
@@ -26,7 +28,8 @@ public struct AgentSessionState: Sendable, Equatable {
                 agent: fields["agent"]?.stringValue ?? "",
                 title: fields["title"]?.stringValue ?? "",
                 status: fields["status"]?.stringValue ?? "",
-                requests: fields["pending"]?.arrayValue?.compactMap(\.stringValue) ?? []
+                requests: fields["pending"]?.arrayValue?.compactMap(\.stringValue) ?? [],
+                policy: fields["notifyEffective"]?.stringValue.flatMap(NotificationPolicy.init(rawValue:)) ?? .all
             )
         }
     }

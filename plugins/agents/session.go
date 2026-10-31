@@ -39,6 +39,10 @@ const (
 	changeCreated = "created"
 	changeDeleted = "deleted"
 
+	notifyAll        = "all"
+	notifyNeedsInput = "needs-input"
+	notifyMuted      = "muted"
+
 	sessionPrefix = "agt"
 	titleRunes    = 80
 )
@@ -51,6 +55,7 @@ var (
 	chunkKinds       = map[string]string{acp.UpdateUserMessageChunk: entryUser, acp.UpdateAgentMessageChunk: entryAgent, acp.UpdateAgentThoughtChunk: entryThought}
 	editKinds        = []string{"edit", "delete", "move"}
 	openToolStatuses = []string{"", "pending", "in_progress"}
+	notifyPolicies   = []string{notifyAll, notifyNeedsInput, notifyMuted}
 )
 
 type record struct {
@@ -73,12 +78,14 @@ type record struct {
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Closed         bool      `json:"closed"`
 	Asks           bool      `json:"asks"`
+	Notify         string    `json:"notify,omitempty"`
 	Error          string    `json:"error,omitempty"`
 }
 
 type sessionInfo struct {
 	record
-	Pending []string `json:"pending,omitempty"`
+	Pending         []string `json:"pending,omitempty"`
+	NotifyEffective string   `json:"notifyEffective"`
 }
 
 type entry struct {

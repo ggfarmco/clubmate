@@ -28,6 +28,20 @@ public enum NotificationKind: String, Sendable, CaseIterable, Codable {
     }
 }
 
+public enum NotificationPolicy: String, Sendable, Equatable {
+    case all
+    case needsInput = "needs-input"
+    case muted
+
+    public func allows(_ kind: NotificationKind) -> Bool {
+        switch self {
+        case .all: true
+        case .needsInput: kind == .needsInput || kind == .permission
+        case .muted: false
+        }
+    }
+}
+
 public struct HubNotification: Sendable, Equatable, Codable {
     public enum Source: Sendable, Equatable, Codable {
         case bus
@@ -186,9 +200,13 @@ public struct NotificationHub: Sendable {
         inbox.pinned(waiting: waiting.alerts)
     }
 
-    public mutating func receive(_ notification: HubNotification, focus: HubFocus, now: Date = Date()) -> Bool {
+    public mutating func receive(_ notification: HubNotification, focus: HubFocus, policy: NotificationPolicy = .all, now: Date = Date()) -> Bool {
         if notification.coveredByAgentsSection { return false }
         let date = notification.date ?? now
+        guard policy.allows(notification.kind) else {
+            if notification.source == .bus { inbox.add(notification, at: date, handled: true, now: now) }
+            return false
+        }
         guard now.timeIntervalSince(date) <= Self.liveWindow else {
             inbox.add(notification, at: date, handled: false, now: now)
             return false

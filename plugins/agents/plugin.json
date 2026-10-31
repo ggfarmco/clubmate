@@ -19,7 +19,8 @@
             "agent": {"type": "string", "enum": ["claude"], "default": "claude", "description": "Agent to run."},
             "branch": {"type": "string", "description": "Branch for a new worktree to run the session in; omit to run in the caller's worktree (or the workspace's first git folder)."},
             "prompt": {"type": "string", "description": "First prompt; omit to start the session idle."},
-            "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."}
+            "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."},
+            "notify": {"type": "string", "enum": ["all", "needs-input", "muted"], "default": "all", "description": "Notification policy of the session: all notifications, only needs-input and permission ones, or none. A session's children are limited by it too."}
           }
         },
         "result": {
@@ -57,6 +58,21 @@
             }
           },
           "required": ["session", "text"]
+        }
+      },
+      {
+        "id": "agents.notify",
+        "title": "Set Notification Policy",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Set which notifications of an agent session the user gets: all (default), needs-input (only questions and permission requests) or muted (none; they are listed as read in the inbox). The strictest policy among the session and its ancestors applies, so muting a parent mutes its children. An agent may set it for itself and the sessions it started.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "policy": {"type": "string", "enum": ["all", "needs-input", "muted"], "description": "Notification policy."}
+          },
+          "required": ["session", "policy"]
         }
       },
       {

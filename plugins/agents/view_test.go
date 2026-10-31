@@ -60,7 +60,15 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	assert.Equal(t, "Waiting for permission · go test", a[0].Detail)
 	assert.Equal(t, "12 min ago", b[0].Detail)
 	assert.Equal(t, []string{"warning", "success"}, []string{a[0].Tone, b[0].Tone})
-	assert.Equal(t, []string{actClose, actDelete}, []string{a[0].Menu[0].Action, a[0].Menu[1].Action})
+	assert.Equal(t, []string{actNotifyNeeds, actNotifyMuted, actClose, actDelete}, menuActions(a[0].Menu))
+}
+
+func menuActions(menu []sdui.MenuEntry) []string {
+	out := make([]string, len(menu))
+	for i, m := range menu {
+		out[i] = m.Action
+	}
+	return out
 }
 
 func TestSidebarExpandedClosedGroup(t *testing.T) {
@@ -78,11 +86,7 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 	assert.True(t, closed.Expanded)
 	require.Len(t, closed.Children, 1)
 	assert.Equal(t, "agt_2", closed.Children[0].ID)
-	var actions []string
-	for _, m := range closed.Children[0].Menu {
-		actions = append(actions, m.Action)
-	}
-	assert.Equal(t, []string{actHandoff, actDelete}, actions)
+	assert.Equal(t, []string{actHandoff, actNotifyNeeds, actNotifyMuted, actDelete}, menuActions(closed.Children[0].Menu))
 }
 
 func TestSidebarNeedsSelectionFallsBackWhenAnswered(t *testing.T) {

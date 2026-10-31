@@ -50,6 +50,7 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 		Agent:         old.Agent,
 		ParentSession: old.ParentSession,
 		Advisor:       old.Advisor,
+		Notify:        old.Notify,
 		Fork:          old.Fork,
 		Title:         old.Title,
 		TitleSet:      old.TitleSet,

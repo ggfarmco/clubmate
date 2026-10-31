@@ -57,6 +57,25 @@ final class NotificationHubTests: XCTestCase {
         XCTAssertEqual(hub.unseen("w"), 2)
     }
 
+    func testSessionPolicyLimitsBannersAndKeepsSkippedAsRead() {
+        let listed: JSONValue = .array([
+            .object(["id": .string("agt_1"), "workspace": .string("w"), "notifyEffective": .string("needs-input")]),
+            .object(["id": .string("agt_2"), "workspace": .string("w"), "notifyEffective": .string("muted")]),
+            .object(["id": .string("agt_3"), "workspace": .string("w")]),
+        ])
+        XCTAssertEqual(AgentSessionState.list(listed).map(\.policy), [.needsInput, .muted, .all])
+
+        let away = HubFocus(appActive: false, workspace: nil)
+        let note = { (id: String, kind: NotificationKind) in HubNotification(id: id, workspace: "w", session: "agt_1", message: "m", kind: kind, viaAgent: true) }
+        var hub = NotificationHub()
+        XCTAssertTrue(hub.receive(note("all-done", .done), focus: away, policy: .all))
+        XCTAssertFalse(hub.receive(note("needs-done", .done), focus: away, policy: .needsInput))
+        XCTAssertTrue(hub.receive(note("needs-ask", .needsInput), focus: away, policy: .needsInput))
+        XCTAssertFalse(hub.receive(note("muted-ask", .needsInput), focus: away, policy: .muted))
+        XCTAssertEqual(hub.inbox.entries.count, 4)
+        XCTAssertEqual(hub.inbox.unhandled, ["all-done", "needs-ask"])
+    }
+
     func testAgentPermissionPostsOncePerRequestWhenHidden() {
         var notifier = AgentNotifier()
         let waiting = AgentSessionState(workspace: "w", session: "agt_1", agent: "claude", title: "Fix", status: "waiting", requests: ["permission-1"])

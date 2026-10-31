@@ -42,6 +42,7 @@ type record struct {
 	ParentSession  string   `json:"parentSession"`
 	HandoffFrom    string   `json:"handoffFrom"`
 	HandoffTo      string   `json:"handoffTo"`
+	Notify         string   `json:"notify"`
 	Advisor        string   `json:"advisor"`
 	Status         string   `json:"status"`
 	Mode           string   `json:"mode"`
@@ -1063,12 +1064,15 @@ func TestHandoff(t *testing.T) {
 	args := map[string]any{"session": old, "note": "finish it"}
 	require.ErrorContains(t, f.run(t, project, "agents.handoff", args, nil), "stop the session's running turn before handing it off")
 	f.waitStatus(t, project, old, "done")
+	require.NoError(t, f.run(t, project, "agents.notify", map[string]any{"session": old, "policy": "muted"}, nil))
 	var out struct {
 		Session string `json:"session"`
 	}
 	require.NoError(t, f.run(t, project, "agents.handoff", args, &out))
 
-	assert.Equal(t, old, f.session(t, project, out.Session).HandoffFrom)
+	next := f.session(t, project, out.Session)
+	assert.Equal(t, old, next.HandoffFrom)
+	assert.Equal(t, "muted", next.Notify)
 	closed := f.waitStatus(t, project, old, "closed")
 	assert.Equal(t, out.Session, closed.HandoffTo)
 	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.HasSuffix(promptText(t, c), "finish it") })
@@ -1458,6 +1462,34 @@ func TestAnswerIsUserTurn(t *testing.T) {
 	actor, from := promptEvent(t, f.logLines(t, kid))
 	assert.Equal(t, "user", actor)
 	assert.Empty(t, from)
+}
+
+func TestNotifyPolicy(t *testing.T) {
+	f := start(t, nil)
+	project := f.project(t, newRepo(t))
+	parent := f.newSession(t, project)
+	kid := f.newChild(t, project, parent, map[string]any{"notify": "needs-input"}).Session
+	policies := func() map[string][2]string {
+		var list []struct {
+			ID              string `json:"id"`
+			Notify          string `json:"notify"`
+			NotifyEffective string `json:"notifyEffective"`
+		}
+		require.NoError(t, f.run(t, project, "agents.sessions", map[string]any{}, &list))
+		out := map[string][2]string{}
+		for _, s := range list {
+			out[s.ID] = [2]string{s.Notify, s.NotifyEffective}
+		}
+		return out
+	}
+
+	assert.Equal(t, map[string][2]string{parent: {"", "all"}, kid: {"needs-input", "needs-input"}}, policies())
+	assert.ErrorContains(t, f.runAs(t, project, kid, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil), "the session was not started by this agent")
+	require.NoError(t, f.runAs(t, project, parent, "agents.notify", map[string]any{"session": parent, "policy": "muted"}, nil))
+	assert.Equal(t, map[string][2]string{parent: {"muted", "muted"}, kid: {"needs-input", "muted"}}, policies())
+
+	f.h.Event(t, project, "agents.sidebar", "sessions", "notifyAll", parent)
+	assert.Equal(t, map[string][2]string{parent: {"", "all"}, kid: {"needs-input", "needs-input"}}, policies())
 }
 
 func startWithGit(t *testing.T, dirs ...string) (*fixture, string, string, string) {

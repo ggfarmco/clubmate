@@ -654,6 +654,18 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		}
 		a.closeTree(ctx, s)
 		return nil
+	case actNotifyAll, actNotifyNeeds, actNotifyMuted:
+		var id string
+		if err := json.Unmarshal(ev.Value, &id); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		s, err := a.lookup(ev.ProjectID, strings.TrimPrefix(id, needsPrefix))
+		if err != nil {
+			return err
+		}
+		i := slices.IndexFunc(notifyMenu, func(n notifyChoice) bool { return n.action == ev.Action })
+		a.setNotify(s, notifyMenu[i].policy)
+		return nil
 	}
 	sid, rest, _ := strings.Cut(ev.NodeID, "/")
 	s, err := a.lookup(ev.ProjectID, sid)

@@ -82,6 +82,12 @@ type newArgs struct {
 	Branch string `json:"branch"`
 	Prompt string `json:"prompt"`
 	Title  string `json:"title"`
+	Notify string `json:"notify"`
+}
+
+type notifyArgs struct {
+	Session string `json:"session"`
+	Policy  string `json:"policy"`
 }
 
 type attachment struct {
@@ -337,6 +343,20 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.setConfig(ctx, cmd.ProjectID, args)
 	case "agents.sessions":
 		return a.infos(cmd.ProjectID), nil
+	case "agents.notify":
+		var args notifyArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		s, err := a.lookup(cmd.ProjectID, args.Session)
+		if err != nil {
+			return nil, err
+		}
+		if cmd.Agent && args.Session != cmd.Caller && !a.descendantOf(args.Session, cmd.Caller) {
+			return nil, errNotDescendant
+		}
+		a.setNotify(s, args.Policy)
+		return nil, nil
 	case "agents.finishDefault":
 		var args finishArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -467,7 +487,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, projectID, from
 	if err != nil {
 		return newResult{}, err
 	}
-	rec := record{Workspace: projectID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != ""}
+	rec := record{Workspace: projectID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify)}
 	if parent, err := a.lookup(projectID, from); err == nil {
 		prec := parent.snapshot()
 		rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree
@@ -665,7 +685,7 @@ func (a *app) infos(projectID string) []sessionInfo {
 	recs := a.list(projectID)
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
-		info := sessionInfo{record: rec}
+		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec)}
 		if s := a.session(rec.ID); s != nil {
 			info.Pending = s.pending()
 			info.Asks = s.asks()
@@ -673,6 +693,37 @@ func (a *app) infos(projectID string) []sessionInfo {
 		out = append(out, info)
 	}
 	return out
+}
+
+func storedNotify(policy string) string {
+	if policy == notifyAll {
+		return ""
+	}
+	return policy
+}
+
+func (a *app) setNotify(s *session, policy string) {
+	s.mu.Lock()
+	s.rec.Notify = storedNotify(policy)
+	workspace := s.rec.Workspace
+	s.mu.Unlock()
+	s.changed(changeUpdate, true)
+	a.kick(workspace)
+}
+
+func (a *app) effectiveNotify(rec record) string {
+	rank := 0
+	seen := map[string]bool{}
+	for !seen[rec.ID] {
+		seen[rec.ID] = true
+		rank = max(rank, slices.Index(notifyPolicies, cmp.Or(rec.Notify, notifyAll)))
+		parent := a.session(rec.ParentSession)
+		if parent == nil {
+			break
+		}
+		rec = parent.snapshot()
+	}
+	return notifyPolicies[rank]
 }
 
 func (a *app) attachInBackground(s *session) {
