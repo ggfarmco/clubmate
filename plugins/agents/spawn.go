@@ -92,15 +92,17 @@ func workspaceRoot(ctx context.Context, h *pluginsdk.Host, workspaceID string) (
 }
 
 func workRoot(p pluginsdk.Workspace) (string, []string, error) {
-	if len(p.Roots) == 0 {
+	roots := p.Roots()
+	if len(roots) == 0 {
 		return "", nil, errNoFolder
 	}
-	i := slices.IndexFunc(p.Roots, func(r string) bool {
+	i := slices.IndexFunc(roots, func(r string) bool {
 		_, ok := gitrepo.RepoRoot(r)
 		return ok
 	})
 	i = max(i, 0)
-	return p.Roots[i], slices.Delete(slices.Clone(p.Roots), i, i+1), nil
+	root := roots[i]
+	return root, slices.Delete(roots, i, i+1), nil
 }
 
 func (a *app) spawn(rec record, first promptArgs, ready *setup) (*session, error) {
@@ -152,7 +154,7 @@ func planWorktree(ctx context.Context, p pluginsdk.Workspace, base, branch strin
 	if !ok {
 		return worktreeNewArgs{}, "", errNotGit
 	}
-	for _, repo := range p.Repos {
+	for _, repo := range p.Paths() {
 		f, err := gitrepo.OpenFolder(ctx, repo)
 		if err != nil {
 			continue

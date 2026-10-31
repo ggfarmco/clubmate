@@ -37,7 +37,7 @@ func TestTerminalsLifecycle(t *testing.T) {
 	h.Event(t, p.ID, "terminals.main", "close", "close", nil)
 	h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "empty" })
 	h.WaitSessionGone(t, sid)
-	other := p.Repos[1]
+	other := p.Folders[1].Path
 	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "terminals.new", "workspaceId": p.ID, "args": map[string]string{"cwd": other}}, nil))
 	main = h.WaitSlot(t, p.ID, "terminals.main", func(n sdui.Node) bool { return n.Type == "surface" })
 	assert.Equal(t, other, h.GetSession(t, main.Props["sessionId"].(string)).Cwd)

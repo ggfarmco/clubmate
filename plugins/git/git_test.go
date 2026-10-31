@@ -25,6 +25,7 @@ import (
 	"clubmate/internal/rpc"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/sdui"
 )
 
@@ -166,7 +167,7 @@ func firstRoot(t *testing.T, h *testutil.PluginHarness, id string) string {
 	t.Helper()
 	p, err := h.Svc.GetWorkspace(t.Context(), id)
 	require.NoError(t, err)
-	return p.Roots[0]
+	return p.Folders[0].Root()
 }
 
 func startOp(t *testing.T, h *testutil.PluginHarness, id, command string, args any) (string, error) {
@@ -440,8 +441,7 @@ func TestRemovedWorktreeFallsBack(t *testing.T) {
 	assert.Equal(t, []outcomeEntry{{Workspace: id, Message: "Worktree feature no longer exists — back on main"}}, outcomes(t, h))
 	p, err := h.Svc.GetWorkspace(t.Context(), id)
 	require.NoError(t, err)
-	assert.Equal(t, []string{repo}, p.Roots)
-	assert.Empty(t, p.Missing)
+	assert.Equal(t, []contract.Folder{{Path: repo}}, p.Folders)
 }
 
 func TestInPlaceSwitchPublishesChanged(t *testing.T) {

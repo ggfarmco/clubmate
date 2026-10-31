@@ -41,14 +41,13 @@ func TestWorktreeSelection(t *testing.T) {
 	require.ErrorIs(t, err, rpc.ErrNotFound)
 	var got workspace.Workspace
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "workspace.worktree.set", "args": args}, &got))
-	assert.Equal(t, []string{a, b2}, got.Roots)
-	assert.Equal(t, []string{a, b}, got.Repos)
+	assert.Equal(t, []workspace.Folder{{Path: a}, {Path: b, Worktree: b2}}, got.Folders)
 	evs, err := h.Bus.Read(t.Context(), "workspace.updated", 0, 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, evs)
 	var payload contract.WorkspaceChanged
 	require.NoError(t, json.Unmarshal(evs[len(evs)-1].Payload, &payload))
-	assert.Equal(t, []string{a, b2}, payload.Info.Roots)
+	assert.Equal(t, []string{a, b2}, payload.Info.Roots())
 	assert.Equal(t, a, cwd())
 
 	_, err = set(a, a2)
@@ -57,7 +56,7 @@ func TestWorktreeSelection(t *testing.T) {
 
 	got, err = set(a, "")
 	require.NoError(t, err)
-	assert.Equal(t, []string{a, b2}, got.Roots)
+	assert.Equal(t, []string{a, b2}, got.Roots())
 
 	_, err = set(t.TempDir(), b2)
 	require.ErrorIs(t, err, rpc.ErrInvalidParams)

@@ -170,12 +170,13 @@ func (a *app) listing(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Worksp
 	}
 	a.mu.Unlock()
 	ws.mu.Lock()
-	if !slices.Equal(ws.folders, p.Roots) || !ws.watched(a) {
+	roots := p.Roots()
+	if !slices.Equal(ws.folders, roots) || !ws.watched(a) {
 		if err := a.rewatch(ctx, h, p.ID, ws); err != nil {
 			ws.mu.Unlock()
 			return nil, err
 		}
-		ws.folders, ws.list = slices.Clone(p.Roots), nil
+		ws.folders, ws.list = roots, nil
 	}
 	list, done := ws.list, a.revalidate(ctx, ws)
 	ws.mu.Unlock()

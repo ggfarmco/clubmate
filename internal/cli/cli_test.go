@@ -413,7 +413,7 @@ func TestFolderShorthand(t *testing.T) {
 	var list []workspace.Workspace
 	require.NoError(t, json.Unmarshal(run(t, "workspace", "list", "--json"), &list))
 	require.Len(t, list, 1)
-	assert.Equal(t, []string{dir}, list[0].Repos)
+	assert.Equal(t, []string{dir}, list[0].Paths())
 	assert.Equal(t, []string{list[0].ID}, launched)
 
 	root.SetArgs([]string{"sesion"})

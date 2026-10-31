@@ -110,26 +110,26 @@ final class StoresTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let workspaces = try decoder.decode([Workspace].self, from: Data(#"""
-        [{"id":"a","name":"never","repos":[],"createdAt":"2026-01-03T00:00:00Z"},
-         {"id":"b","name":"old","repos":[],"createdAt":"2026-01-01T00:00:00Z","home":false,"lastOpenedAt":"2026-02-01T00:00:00Z"},
-         {"id":"c","name":"~","repos":[],"createdAt":"2026-01-01T00:00:00Z","home":true,"lastOpenedAt":"2026-03-01T00:00:00Z"},
-         {"id":"d","name":"new","repos":[],"createdAt":"2026-01-02T00:00:00Z","home":false,"lastOpenedAt":"2026-02-02T00:00:00Z"}]
+        [{"id":"a","name":"never","folders":[],"createdAt":"2026-01-03T00:00:00Z"},
+         {"id":"b","name":"old","folders":[],"createdAt":"2026-01-01T00:00:00Z","home":false,"lastOpenedAt":"2026-02-01T00:00:00Z"},
+         {"id":"c","name":"~","folders":[],"createdAt":"2026-01-01T00:00:00Z","home":true,"lastOpenedAt":"2026-03-01T00:00:00Z"},
+         {"id":"d","name":"new","folders":[],"createdAt":"2026-01-02T00:00:00Z","home":false,"lastOpenedAt":"2026-02-02T00:00:00Z"}]
         """#.utf8))
 
         XCTAssertEqual(Workspace.recents(workspaces).map(\.id), ["d", "b", "a"])
         XCTAssertEqual(Workspace.recents(workspaces, hiddenBefore: try Date("2026-02-01T12:00:00Z", strategy: .iso8601)).map(\.id), ["d"])
     }
 
-    func testWorkspaceRootsDefaultToRepos() throws {
+    func testWorkspaceFoldersDecode() throws {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let workspaces = try decoder.decode([Workspace].self, from: Data(#"""
-        [{"id":"a","name":"old","repos":["/a"],"createdAt":"2026-01-01T00:00:00Z"},
-         {"id":"b","name":"new","repos":["/a"],"roots":["/a2"],"missing":["/gone"],"createdAt":"2026-01-01T00:00:00Z"}]
+        let workspace = try decoder.decode(Workspace.self, from: Data(#"""
+        {"id":"a","name":"demo","folders":[{"path":"/a"},{"path":"/b","worktree":"/b2"},{"path":"/c","worktree":"/gone","missing":true}],"createdAt":"2026-01-01T00:00:00Z"}
         """#.utf8))
 
-        XCTAssertEqual(workspaces.map(\.roots), [["/a"], ["/a2"]])
-        XCTAssertEqual(workspaces.map(\.missing), [[], ["/gone"]])
+        XCTAssertEqual(workspace.folders.map(\.path), ["/a", "/b", "/c"])
+        XCTAssertEqual(workspace.folders.map(\.worktree), [nil, "/b2", "/gone"])
+        XCTAssertEqual(workspace.folders.map(\.missing), [false, false, true])
     }
 
     func testSidebarHiddenPersists() async throws {

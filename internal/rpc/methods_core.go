@@ -111,27 +111,23 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 		}),
 		"core.shutdown": method(s.shutdownCore),
 		"workspace.create": method(func(ctx context.Context, p createWorkspaceParams) (workspace.Workspace, error) {
-			return encodeWorkspace(svc.CreateWorkspace(ctx, p.Name, p.Repos))
+			return svc.CreateWorkspace(ctx, p.Name, p.Repos)
 		}),
 		"workspace.list": method(func(ctx context.Context, _ empty) ([]workspace.Workspace, error) {
 			list, err := svc.ListWorkspaces(ctx)
-			for i := range list {
-				list[i].Repos = nonNil(list[i].Repos)
-				list[i].Roots = nonNil(list[i].Roots)
-			}
 			return nonNil(list), err
 		}),
 		"workspace.get": method(func(ctx context.Context, p idParams) (workspace.Workspace, error) {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return workspace.Workspace{}, err
 			}
-			return encodeWorkspace(svc.GetWorkspace(ctx, p.ID))
+			return svc.GetWorkspace(ctx, p.ID)
 		}),
 		"workspace.folder.add": method(func(ctx context.Context, p addRepoParams) (workspace.Workspace, error) {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return workspace.Workspace{}, err
 			}
-			return encodeWorkspace(svc.AddRepo(ctx, p.ID, p.Path))
+			return svc.AddRepo(ctx, p.ID, p.Path)
 		}),
 		"workspace.delete": method(func(ctx context.Context, p idParams) (empty, error) {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
@@ -149,7 +145,7 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return workspace.Workspace{}, err
 			}
-			return encodeWorkspace(svc.RenameWorkspace(ctx, p.ID, p.Name))
+			return svc.RenameWorkspace(ctx, p.ID, p.Name)
 		}),
 		"workspace.show": method(s.workspaceShow),
 		"workspace.open": method(s.workspaceOpen),
@@ -164,13 +160,13 @@ func (s *Server) coreMethods() map[string]handlerFunc {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return workspace.Workspace{}, err
 			}
-			return encodeWorkspace(svc.SetWorktree(ctx, p.ID, p.Repo, p.Path))
+			return svc.SetWorktree(ctx, p.ID, p.Repo, p.Path)
 		}),
 		"workspace.worktree.check": method(func(ctx context.Context, p idParams) (workspace.Workspace, error) {
 			if err := requireID(workspacePrefix, p.ID); err != nil {
 				return workspace.Workspace{}, err
 			}
-			return encodeWorkspace(svc.CheckWorktrees(ctx, p.ID))
+			return svc.CheckWorktrees(ctx, p.ID)
 		}),
 		"client.register": method(s.clientRegister),
 		"session.create": method(func(ctx context.Context, p session.CreateRequest) (session.Session, error) {
@@ -261,12 +257,6 @@ func optionalID(prefix, s string) error {
 		return nil
 	}
 	return requireID(prefix, s)
-}
-
-func encodeWorkspace(p workspace.Workspace, err error) (workspace.Workspace, error) {
-	p.Repos = nonNil(p.Repos)
-	p.Roots = nonNil(p.Roots)
-	return p, err
 }
 
 func (s *Server) shutdownCore(ctx context.Context, _ empty) (empty, error) {

@@ -132,7 +132,7 @@ func (a *app) deleteRefs(ctx context.Context, rec record) error {
 		return nil
 	}
 	var errs []error
-	for _, repo := range p.Repos {
+	for _, repo := range p.Paths() {
 		errs = append(errs, deleteCheckpoints(ctx, repo, rec.ID))
 	}
 	return errors.Join(errs...)

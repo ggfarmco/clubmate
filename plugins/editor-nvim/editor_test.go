@@ -373,7 +373,7 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 	e.run(t, "diffview", map[string]any{"cwd": wt, "rev": sha}, nil)
 	p, err := e.h.Svc.GetWorkspace(t.Context(), e.workspaceID)
 	require.NoError(t, err)
-	assert.Equal(t, wt, p.Roots[0])
+	assert.Equal(t, wt, p.Folders[0].Root())
 	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
@@ -419,7 +419,7 @@ func TestOpenRoutesToOwningWorktree(t *testing.T) {
 	require.NoError(t, e.open(t, path, 1))
 	p, err := e.h.Svc.GetWorkspace(t.Context(), e.workspaceID)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(wt, "sub"), p.Roots[0])
+	assert.Equal(t, filepath.Join(wt, "sub"), p.Folders[0].Root())
 	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
 		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
 	})
@@ -446,7 +446,7 @@ func TestOpenIgnoresForeignWorktreeList(t *testing.T) {
 	require.NoError(t, e.open(t, path, 1))
 	p, err := e.h.Svc.GetWorkspace(t.Context(), e.workspaceID)
 	require.NoError(t, err)
-	assert.Equal(t, e.repo, p.Roots[0])
+	assert.Equal(t, e.repo, p.Folders[0].Root())
 }
 
 func TestStopRootRefusesUnsaved(t *testing.T) {

@@ -45,7 +45,7 @@ func TestHomeWorkspace(t *testing.T) {
 	assert.Equal(t, p.ID, again.ID)
 	assert.True(t, again.Home)
 	assert.Equal(t, "~", again.Name)
-	assert.Equal(t, []string{home}, again.Repos)
+	assert.Equal(t, []string{home}, again.Paths())
 	all, err := svc.ListWorkspaces(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, all, 1)

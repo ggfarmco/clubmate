@@ -56,11 +56,22 @@ public struct SectionInfo: Codable, Sendable, Equatable {
 }
 
 public struct Workspace: Codable, Sendable, Equatable {
+    public struct Folder: Codable, Sendable, Equatable {
+        public let path: String
+        public let worktree: String?
+        public let missing: Bool
+
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            path = try container.decode(String.self, forKey: .path)
+            worktree = try container.decodeIfPresent(String.self, forKey: .worktree)
+            missing = try container.decodeIfPresent(Bool.self, forKey: .missing) ?? false
+        }
+    }
+
     public let id: String
     public let name: String
-    public let repos: [String]
-    public let roots: [String]
-    public let missing: [String]
+    public let folders: [Folder]
     public let createdAt: Date
     public let home: Bool
     public let lastOpenedAt: Date?
@@ -69,9 +80,7 @@ public struct Workspace: Codable, Sendable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
-        repos = try container.decode([String].self, forKey: .repos)
-        roots = try container.decodeIfPresent([String].self, forKey: .roots) ?? repos
-        missing = try container.decodeIfPresent([String].self, forKey: .missing) ?? []
+        folders = try container.decodeIfPresent([Folder].self, forKey: .folders) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         home = try container.decodeIfPresent(Bool.self, forKey: .home) ?? false
         lastOpenedAt = try container.decodeIfPresent(Date.self, forKey: .lastOpenedAt)

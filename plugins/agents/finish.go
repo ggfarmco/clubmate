@@ -237,7 +237,7 @@ func (a *app) folderOf(ctx context.Context, workspaceID, path string) (string, e
 	if err != nil {
 		return "", err
 	}
-	for _, repo := range p.Repos {
+	for _, repo := range p.Paths() {
 		f, err := gitrepo.OpenFolder(ctx, repo)
 		if err != nil {
 			continue

@@ -12,6 +12,7 @@ import (
 
 type (
 	Workspace   = contract.Workspace
+	Folder      = contract.Folder
 	Session     = contract.TerminalSession
 	ProcessInfo = contract.ProcessInfo
 	ProcessNode = contract.ProcessNode

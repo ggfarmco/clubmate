@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
+
+	"clubmate/pkg/pluginsdk"
 )
 
 const (
@@ -97,9 +99,10 @@ type helloResult struct {
 }
 
 type workspaceInfo struct {
-	ID    string   `json:"id"`
-	Name  string   `json:"name"`
-	Roots []string `json:"roots"`
+	ID      string             `json:"id"`
+	Name    string             `json:"name"`
+	Folders []pluginsdk.Folder `json:"folders"`
+	Roots   []string           `json:"roots"`
 }
 
 type authedHandler func(w http.ResponseWriter, r *http.Request, d device)
@@ -227,11 +230,11 @@ func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
 	}
 	out := make([]workspaceInfo, 0, len(workspaces))
 	for _, p := range workspaces {
-		roots := p.Roots
-		if roots == nil {
-			roots = []string{}
+		folders := p.Folders
+		if folders == nil {
+			folders = []pluginsdk.Folder{}
 		}
-		out = append(out, workspaceInfo{ID: p.ID, Name: p.Name, Roots: roots})
+		out = append(out, workspaceInfo{ID: p.ID, Name: p.Name, Folders: folders, Roots: p.Roots()})
 	}
 	return out, nil
 }

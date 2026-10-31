@@ -130,8 +130,8 @@ func (a *app) sync(ctx context.Context, h *pluginsdk.Host, id string, s *state) 
 	if err != nil {
 		return err
 	}
-	repos := make([]string, 0, len(p.Roots))
-	for _, r := range p.Roots {
+	repos := make([]string, 0, len(p.Folders))
+	for _, r := range p.Roots() {
 		repos = append(repos, resolve(r))
 	}
 	var gitDirs []string
@@ -192,8 +192,9 @@ func (a *app) checkMissing(ctx context.Context, h *pluginsdk.Host, id string, s 
 		s.mu.Unlock()
 		return
 	}
-	fresh := slices.DeleteFunc(slices.Clone(p.Missing), func(m string) bool { return slices.Contains(s.missing, m) })
-	s.missing = p.Missing
+	missing := p.MissingWorktrees()
+	fresh := slices.DeleteFunc(slices.Clone(missing), func(m string) bool { return slices.Contains(s.missing, m) })
+	s.missing = missing
 	s.busy = len(fresh) > 0
 	s.mu.Unlock()
 	if len(fresh) == 0 {

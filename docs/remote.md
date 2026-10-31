@@ -38,7 +38,7 @@ All bodies are JSON. Authenticated endpoints need `Authorization: Bearer <token>
 - `POST /v1/pair` (no auth) `{"code","device":{"id","name","model"}}` → `{"token","computer":{"id","name"}}`; a wrong, expired or used code → `403 pairing_failed`; a malformed body → `400 invalid_params`.
 - `POST /v1/rpc` `{"method","params"}` → `200 {"result":...}` or `200 {"error":{"code","message"}}` (`not_allowed`, `invalid_params`, `failed`):
   - `hello` → `{computer, version, commands, topics}`; `commands` = registered commands with `"remote": true` whose plugin is running (`command.list` carries `running`). The phone reads `hello` on each connection and again on every `plugin.changed` event, so a plugin that starts or stops later is reflected live.
-  - `workspaces` → `[{id, name, roots}]`.
+  - `workspaces` → `[{id, name, folders, roots}]` (`folders` as in `workspace.list`; `roots` is deprecated and kept for Companion builds that predate `folders`).
   - `command {id, workspace, args}` → the command's result verbatim; ids missing from `hello.commands` (non-remote or plugin not running) fail with `not_allowed`.
 - `GET /v1/events` (SSE): starts with a `: connected` comment, then `id: <seq>\nevent: bus\ndata: {"seq","topic","workspace","payload"}` for `agents.changed`, `notify.posted` and `plugin.changed` (`{id, running}`, published by the core when a plugin starts or stops running), and `: ping` every 15 s. `Last-Event-ID` (or `?after=<seq>`) replays later events from the bus first; without it, or when it is above the bus head (the Mac's event store was reset), the stream starts live and the phone takes the next event's seq as its cursor. Events only say "something changed"; the phone refetches with `command`.
 

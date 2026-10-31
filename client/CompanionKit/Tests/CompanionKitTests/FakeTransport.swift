@@ -60,7 +60,7 @@ final class Recorder<Value: Sendable>: Sendable {
 }
 
 let helloJSON = #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.13","commands":["agents.sessions","agents.transcript","agents.prompt"],"topics":["agents.changed","notify.posted"]}"#
-let workspacesJSON = #"[{"id":"prj_00000000000000f1","name":"shop","roots":["/Users/me/src/shop"]}]"#
+let workspacesJSON = #"[{"id":"prj_00000000000000f1","name":"shop","folders":[{"path":"/Users/me/src/shop"}]}]"#
 
 func fixture(_ name: String) throws -> Data {
     try Data(contentsOf: Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures")!)

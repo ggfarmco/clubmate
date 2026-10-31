@@ -30,7 +30,7 @@ func TestSwitchHoldsBusyGateWhileSettingWorktree(t *testing.T) {
 	var s state
 	busyDuringSet := make(chan bool, 1)
 	h := fakeCore(t, func(req *jsonrpc2.Request) (any, error) {
-		p := pluginsdk.Workspace{ID: "p", Repos: []string{repo}, Roots: []string{repo}}
+		p := pluginsdk.Workspace{ID: "p", Folders: []pluginsdk.Folder{{Path: repo}}}
 		if req.Method == "workspace.worktree.set" {
 			busyDuringSet <- !s.claim()
 		}

@@ -395,10 +395,7 @@ func (a *app) graphDirs(ctx context.Context, workspace string, agent bool, calle
 	if err != nil {
 		return nil, err
 	}
-	if len(p.Roots) > 0 {
-		return p.Roots, nil
-	}
-	return p.Repos, nil
+	return p.Roots(), nil
 }
 
 func (a *app) authorize(ctx context.Context, cmd pluginsdk.CommandRun, r *Run) error {

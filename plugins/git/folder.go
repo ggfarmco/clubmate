@@ -29,8 +29,8 @@ func gitFolder(ctx context.Context, h *pluginsdk.Host, workspaceID, repo string)
 	if p.Home {
 		return nil, errHomeWorktrees
 	}
-	for i, r := range p.Repos {
-		if repo != "" && r != repo {
+	for i, r := range p.Folders {
+		if repo != "" && r.Path != repo {
 			continue
 		}
 		f, err := openFolder(ctx, p, i)
@@ -55,7 +55,7 @@ func eachFolder(ctx context.Context, h *pluginsdk.Host, workspaceID string, fn f
 	if p.Home {
 		return nil
 	}
-	for i := range p.Repos {
+	for i := range p.Folders {
 		f, err := openFolder(ctx, p, i)
 		if errors.Is(err, gitrepo.ErrNotRepo) {
 			continue
@@ -115,13 +115,9 @@ func (f *folder) shortHeads(ctx context.Context) (map[string]string, error) {
 }
 
 func openFolder(ctx context.Context, p pluginsdk.Workspace, i int) (*folder, error) {
-	f, err := gitrepo.OpenFolder(ctx, p.Repos[i])
+	f, err := gitrepo.OpenFolder(ctx, p.Folders[i].Path)
 	if err != nil {
 		return nil, gitError(nil, err)
 	}
-	root := p.Repos[i]
-	if i < len(p.Roots) {
-		root = p.Roots[i]
-	}
-	return &folder{Folder: f, root: root}, nil
+	return &folder{Folder: f, root: p.Folders[i].Root()}, nil
 }

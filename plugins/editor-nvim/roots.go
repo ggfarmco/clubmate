@@ -34,13 +34,13 @@ func (a *app) target(ctx context.Context, h *pluginsdk.Host, workspaceID, path s
 	}
 	folder, root, switched := owner(ctx, p, path)
 	if switched {
-		if p, err = h.SetWorktree(ctx, workspaceID, p.Repos[folder], root); err != nil {
+		if p, err = h.SetWorktree(ctx, workspaceID, p.Folders[folder].Path, root); err != nil {
 			return nil, err
 		}
 	}
 	want := ""
-	if folder >= 0 && folder < len(p.Roots) {
-		want = p.Roots[folder]
+	if folder >= 0 && folder < len(p.Folders) {
+		want = p.Folders[folder].Root()
 	}
 	e, moved, err := a.selectRoot(p, want)
 	if e == nil || err != nil {
@@ -119,16 +119,17 @@ func (a *app) workspaceFolders(workspaceID string) []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	p := a.workspaces[workspaceID]
-	return slices.Concat(p.Repos, p.Roots)
+	return slices.Concat(p.Paths(), p.Roots())
 }
 
 func changedRoot(prev, p pluginsdk.Workspace) string {
-	if !slices.Equal(prev.Repos, p.Repos) || len(prev.Roots) != len(p.Roots) {
+	if !slices.Equal(prev.Paths(), p.Paths()) {
 		return ""
 	}
 	changed := ""
-	for i, r := range p.Roots {
-		if r == prev.Roots[i] {
+	for i, f := range p.Folders {
+		r := f.Root()
+		if r == prev.Folders[i].Root() {
 			continue
 		}
 		if changed != "" {
@@ -141,7 +142,7 @@ func changedRoot(prev, p pluginsdk.Workspace) string {
 
 func existingRoots(p pluginsdk.Workspace) []string {
 	var out []string
-	for _, r := range p.Roots {
+	for _, r := range p.Roots() {
 		if info, err := os.Stat(r); err == nil && info.IsDir() {
 			out = append(out, r)
 		}
@@ -161,8 +162,8 @@ func owner(ctx context.Context, p pluginsdk.Workspace, path string) (int, string
 		return -1, "", false
 	}
 	target := gitrepo.Canonical(filepath.Clean(path))
-	for i, repo := range p.Repos {
-		f, err := gitrepo.OpenFolder(ctx, repo)
+	for i, folder := range p.Folders {
+		f, err := gitrepo.OpenFolder(ctx, folder.Path)
 		if errors.Is(err, gitrepo.ErrNotRepo) {
 			continue
 		}
@@ -178,12 +179,12 @@ func owner(ctx context.Context, p pluginsdk.Workspace, path string) (int, string
 		if !gitrepo.Within(target, mapped) {
 			continue
 		}
-		if i < len(p.Roots) && gitrepo.Canonical(p.Roots[i]) == mapped {
+		if gitrepo.Canonical(folder.Root()) == mapped {
 			return i, "", false
 		}
 		return i, f.Selection(*owning), true
 	}
-	return containing(p.Roots, target), "", false
+	return containing(p.Roots(), target), "", false
 }
 
 func containing(roots []string, target string) int {

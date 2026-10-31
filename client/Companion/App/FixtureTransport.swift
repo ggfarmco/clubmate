@@ -87,8 +87,8 @@ actor FixtureServer {
             return (200, Self.json(["result": .object(["computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")]), "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array([
-                .object(["id": .string(Self.workspace), "name": .string("shop"), "roots": .array([.string("/Users/me/src/shop")])]),
-                .object(["id": .string("prj_00000000000000f2"), "name": .string("clubmate"), "roots": .array([.string("/Users/me/src/clubmate")])]),
+                .object(["id": .string(Self.workspace), "name": .string("shop"), "folders": .array([.object(["path": .string("/Users/me/src/shop")])])]),
+                .object(["id": .string("prj_00000000000000f2"), "name": .string("clubmate"), "folders": .array([.object(["path": .string("/Users/me/src/clubmate")])])]),
             ])]))
         case "command":
             return (200, Self.json(["result": command(params["id"]?.stringValue ?? "", workspace: params["workspace"]?.stringValue ?? "", args: params["args"] ?? .null)]))

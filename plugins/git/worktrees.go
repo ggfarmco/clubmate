@@ -226,7 +226,7 @@ func prepareRemove(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 		if err != nil {
 			return "", err
 		}
-		if slices.ContainsFunc(p.Missing, func(m string) bool { return gitrepo.Canonical(m) == g.Mapped(t) }) {
+		if slices.ContainsFunc(p.MissingWorktrees(), func(m string) bool { return gitrepo.Canonical(m) == g.Mapped(t) }) {
 			_, err = h.SetWorktree(ctx, workspaceID, f.Repo, "")
 		}
 		return "", err

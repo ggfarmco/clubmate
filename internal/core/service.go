@@ -203,7 +203,7 @@ func (s *Service) CheckWorktrees(ctx context.Context, id string) (workspace.Work
 	if err != nil {
 		return workspace.Workspace{}, err
 	}
-	if len(p.Missing) > 0 {
+	if len(p.MissingWorktrees()) > 0 {
 		s.publishWorkspace(ctx, contract.TopicWorkspaceUpdated, p)
 	}
 	return p, nil
@@ -505,8 +505,8 @@ func startedAfter(p proc.Process, startedAt time.Time) bool {
 }
 
 func defaultCwd(p workspace.Workspace) (string, error) {
-	if len(p.Roots) > 0 {
-		return p.Roots[0], nil
+	if len(p.Folders) > 0 {
+		return p.Folders[0].Root(), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

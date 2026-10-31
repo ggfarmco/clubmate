@@ -151,6 +151,6 @@ private struct RecentRow: View {
     }
 
     private var folders: String {
-        workspace.repos.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
+        workspace.folders.map { ($0.path as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
     }
 }

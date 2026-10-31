@@ -52,7 +52,7 @@ func (a *app) workspaceListCmd() *cobra.Command {
 				table(w, func(tw *tabwriter.Writer) {
 					fmt.Fprintln(tw, "ID\tNAME\tLAST OPENED\tFOLDERS")
 					for _, p := range list {
-						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", p.ID, p.Name, lastOpened(p), strings.Join(p.Repos, ","))
+						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", p.ID, p.Name, lastOpened(p), strings.Join(p.Paths(), ","))
 					}
 				})
 			})
@@ -152,7 +152,7 @@ func (a *app) workspaceAddFolderCmd() *cobra.Command {
 			if err := a.call(cmd.Context(), "workspace.folder.add", map[string]string{"id": args[0], "path": dir}, &p); err != nil {
 				return err
 			}
-			return a.render(p, func(w io.Writer) { fmt.Fprintln(w, strings.Join(p.Repos, "\n")) })
+			return a.render(p, func(w io.Writer) { fmt.Fprintln(w, strings.Join(p.Paths(), "\n")) })
 		},
 	}
 }

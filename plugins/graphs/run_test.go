@@ -56,7 +56,7 @@ func testApp(t *testing.T, core *fakeCore) *app {
 		return []api.Session{{ID: "agt_boss", Worktree: "testdata"}}, nil
 	}
 	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
-		return pluginsdk.Workspace{ID: "ws1", Roots: []string{"testdata"}}, nil
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: "testdata"}}}, nil
 	}
 	close(a.ready)
 	return a
@@ -197,7 +197,7 @@ func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 func TestListWithoutGraphsOrRuns(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
-		return pluginsdk.Workspace{ID: "ws1", Roots: []string{t.TempDir()}}, nil
+		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: t.TempDir()}}}, nil
 	}
 	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.list", WorkspaceID: "ws1"})
 	require.NoError(t, err)

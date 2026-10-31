@@ -49,12 +49,10 @@ public struct Hello: Codable, Sendable, Equatable {
 public struct Workspace: Codable, Sendable, Equatable, Identifiable, Hashable {
     public let id: String
     public let name: String
-    public let roots: [String]
 
-    public init(id: String, name: String, roots: [String]) {
+    public init(id: String, name: String) {
         self.id = id
         self.name = name
-        self.roots = roots
     }
 }
 

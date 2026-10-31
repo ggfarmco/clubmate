@@ -51,7 +51,7 @@ func (a *app) fsChanged(_ context.Context, h *pluginsdk.Host, ev pluginsdk.FSCha
 }
 
 func (a *app) watch(ctx context.Context, h *pluginsdk.Host, p pluginsdk.Workspace) {
-	folders := slices.Concat(p.Repos, p.Roots)
+	folders := slices.Concat(p.Paths(), p.Roots())
 	a.watchMu.Lock()
 	defer a.watchMu.Unlock()
 	old, ok := a.watches[p.ID]

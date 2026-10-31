@@ -1532,7 +1532,7 @@ func TestAgentNewCreatesChildInOwnWorktree(t *testing.T) {
 	assert.Equal(t, "plan", got.Mode)
 	p, err := f.h.Svc.GetWorkspace(t.Context(), workspace)
 	require.NoError(t, err)
-	assert.Equal(t, []string{repo}, p.Roots)
+	assert.Equal(t, []string{repo}, p.Roots())
 	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(string(c.Params), got.AgentSessionID) })
 	assert.Equal(t, `[From Clubmate agent session "orchestrate" (`+parent+`), not from the user]`+"\n\nhi", promptText(t, sent))
 	f.waitCall(t, "session/set_config_option", func(c fakeCall) bool {

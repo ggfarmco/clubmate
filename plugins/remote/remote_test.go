@@ -258,6 +258,15 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
 }
 
+func TestWorkspacesListFoldersAndLegacyRoots(t *testing.T) {
+	f := newFixture(t)
+	token := f.pair(t, "phone")
+
+	_, got := f.call(t, token, "workspaces", nil)
+
+	assert.JSONEq(t, `[{"id":"prj_1","name":"demo","folders":[{"path":"/tmp/demo","worktree":"/tmp/demo-wt"}],"roots":["/tmp/demo-wt"]}]`, string(got.Result))
+}
+
 func TestEventsStreamLiveAllowlistedTopics(t *testing.T) {
 	f := newFixture(t)
 	res, r := f.openEvents(t, f.pair(t, "phone"), "")
@@ -484,7 +493,7 @@ func (b *fakeBackend) Run(_ context.Context, id, workspace string, args json.Raw
 }
 
 func (b *fakeBackend) Workspaces(context.Context) ([]pluginsdk.Workspace, error) {
-	return []pluginsdk.Workspace{{ID: "prj_1", Name: "demo", Roots: []string{"/tmp/demo"}}}, nil
+	return []pluginsdk.Workspace{{ID: "prj_1", Name: "demo", Folders: []pluginsdk.Folder{{Path: "/tmp/demo", Worktree: "/tmp/demo-wt"}}}}, nil
 }
 
 func (b *fakeBackend) Events(_ context.Context, after int64) ([]pluginsdk.Event, error) {

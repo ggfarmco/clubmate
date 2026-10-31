@@ -12,6 +12,19 @@ const (
 	WorkspaceIDKey       = "workspaceId"
 )
 
+func (w Workspace) MarshalJSON() ([]byte, error) {
+	type plain Workspace
+	if w.Folders == nil {
+		w.Folders = []Folder{}
+	}
+	return json.Marshal(struct {
+		plain
+		Repos   []string `json:"repos"`
+		Roots   []string `json:"roots"`
+		Missing []string `json:"missing,omitempty"`
+	}{plain: plain(w), Repos: w.Paths(), Roots: w.Roots(), Missing: w.MissingWorktrees()})
+}
+
 func UpgradeLegacyKeys(raw []byte) []byte {
 	if !bytes.Contains(raw, []byte(`"`+LegacyWorkspaceIDKey+`"`)) {
 		return raw

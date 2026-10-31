@@ -61,7 +61,10 @@ var addedColumns = []struct{ name, def string }{
 	{name: "last_opened_at", def: "INTEGER NOT NULL DEFAULT 0"},
 }
 
-type Workspace = contract.Workspace
+type (
+	Workspace = contract.Workspace
+	Folder    = contract.Folder
+)
 
 type Store struct {
 	db *sql.DB
@@ -216,8 +219,10 @@ func (s *Store) create(ctx context.Context, name string, repos []string, home bo
 	if err := tx.Commit(); err != nil {
 		return Workspace{}, fmt.Errorf("commit: %w", err)
 	}
-	p.Repos = repos
-	p.Roots = slices.Clone(repos)
+	p.Folders = make([]Folder, 0, len(repos))
+	for _, repo := range repos {
+		p.Folders = append(p.Folders, Folder{Path: repo})
+	}
 	return p, nil
 }
 
@@ -285,7 +290,7 @@ func (s *Store) SetWorktree(ctx context.Context, id, repo, path string) (Workspa
 	if err != nil {
 		return Workspace{}, err
 	}
-	if !slices.Contains(p.Repos, repo) {
+	if !slices.ContainsFunc(p.Folders, func(f Folder) bool { return f.Path == repo }) {
 		return Workspace{}, ErrNotFolder
 	}
 	if path == "" || filepath.Clean(path) == repo {
@@ -388,20 +393,10 @@ func (s *Store) loadFolders(ctx context.Context, p *Workspace) error {
 	if err != nil {
 		return err
 	}
-	p.Repos = repos
-	p.Roots = make([]string, 0, len(repos))
-	p.Missing = nil
+	p.Folders = make([]Folder, 0, len(repos))
 	for _, repo := range repos {
-		path, ok := selected[repo]
-		switch {
-		case !ok:
-			p.Roots = append(p.Roots, repo)
-		case isDir(path):
-			p.Roots = append(p.Roots, path)
-		default:
-			p.Roots = append(p.Roots, repo)
-			p.Missing = append(p.Missing, path)
-		}
+		path := selected[repo]
+		p.Folders = append(p.Folders, Folder{Path: repo, Worktree: path, Missing: path != "" && !isDir(path)})
 	}
 	return nil
 }

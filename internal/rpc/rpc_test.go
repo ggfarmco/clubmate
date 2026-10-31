@@ -67,7 +67,7 @@ func TestRPCEmptyListsEncodeAsArrays(t *testing.T) {
 	}
 	var p json.RawMessage
 	require.NoError(t, c.Call(t.Context(), "workspace.create", map[string]any{"name": "bare"}, &p))
-	assert.Contains(t, string(p), `"repos":[]`)
+	assert.Contains(t, string(p), `"folders":[]`)
 }
 
 func TestRPCSessionCreateUsesCamelCaseParams(t *testing.T) {

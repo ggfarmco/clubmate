@@ -11,6 +11,7 @@ import (
 	"clubmate/internal/buildinfo"
 	"clubmate/internal/diagnostics"
 	"clubmate/internal/session"
+	"clubmate/internal/workspace"
 )
 
 const diagnosticsExtraMax = 10 << 20
@@ -27,11 +28,9 @@ type diagnosticsParams struct {
 }
 
 type diagnosticsWorkspace struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Repos   []string `json:"repos"`
-	Roots   []string `json:"roots"`
-	Missing []string `json:"missing"`
+	ID      string             `json:"id"`
+	Name    string             `json:"name"`
+	Folders []workspace.Folder `json:"folders"`
 }
 
 type diagnosticsSession struct {
@@ -142,7 +141,7 @@ func (s *Server) diagnosticsWorkspaces(ctx context.Context) ([]diagnosticsWorksp
 	}
 	out := make([]diagnosticsWorkspace, 0, len(list))
 	for _, p := range list {
-		out = append(out, diagnosticsWorkspace{ID: p.ID, Name: p.Name, Repos: nonNil(p.Repos), Roots: nonNil(p.Roots), Missing: nonNil(p.Missing)})
+		out = append(out, diagnosticsWorkspace{ID: p.ID, Name: p.Name, Folders: nonNil(p.Folders)})
 	}
 	return out, nil
 }
