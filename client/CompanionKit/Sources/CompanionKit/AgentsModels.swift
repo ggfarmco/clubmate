@@ -44,12 +44,59 @@ extension AgentSession {
         return .idle
     }
 
-    public static func grouped(_ sessions: [AgentSession]) -> [(group: SessionGroup, sessions: [AgentSession])] {
-        let buckets = Dictionary(grouping: sessions, by: \.group)
+    public static func grouped(_ sessions: [AgentSession]) -> [(group: SessionGroup, sessions: [SessionNode])] {
+        let ids = Set(sessions.map(\.id))
+        var kids: [String: [AgentSession]] = [:]
+        var roots: [AgentSession] = []
+        for session in sessions {
+            if let parent = session.parentSession, parent != session.id, ids.contains(parent) {
+                kids[parent, default: []].append(session)
+            } else {
+                roots.append(session)
+            }
+        }
+        var seen: Set<String> = []
+        var trees = roots.map { SessionNode.build($0, kids: kids, seen: &seen) }
+        for session in sessions where !seen.contains(session.id) {
+            trees.append(SessionNode.build(session, kids: kids, seen: &seen))
+        }
+        let buckets = Dictionary(grouping: trees, by: \.group)
         return SessionGroup.allCases.compactMap { group in
             guard let list = buckets[group], !list.isEmpty else { return nil }
-            return (group, list.sorted { $0.updatedAt != $1.updatedAt ? $0.updatedAt > $1.updatedAt : $0.id < $1.id })
+            return (group, list.sorted(by: SessionNode.newerFirst))
         }
+    }
+}
+
+public struct SessionNode: Sendable, Equatable, Identifiable {
+    public let session: AgentSession
+    public let children: [SessionNode]
+    public let group: SessionGroup
+    public let updatedAt: Date
+
+    public var id: String { session.id }
+
+    public var descendants: Int {
+        children.reduce(children.count) { $0 + $1.descendants }
+    }
+
+    static func build(_ session: AgentSession, kids: [String: [AgentSession]], seen: inout Set<String>) -> SessionNode {
+        seen.insert(session.id)
+        var children: [SessionNode] = []
+        for kid in kids[session.id] ?? [] where !seen.contains(kid.id) {
+            children.append(build(kid, kids: kids, seen: &seen))
+        }
+        let groups = Set(children.map(\.group) + [session.group])
+        return SessionNode(
+            session: session,
+            children: children.sorted(by: newerFirst),
+            group: SessionGroup.allCases.first(where: groups.contains) ?? session.group,
+            updatedAt: children.map(\.updatedAt).reduce(session.updatedAt, max)
+        )
+    }
+
+    static func newerFirst(_ a: SessionNode, _ b: SessionNode) -> Bool {
+        a.updatedAt != b.updatedAt ? a.updatedAt > b.updatedAt : a.id < b.id
     }
 }
 

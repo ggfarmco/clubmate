@@ -44,6 +44,7 @@ actor FixtureServer {
             fields["updatedAt"] = stamp
             if index == 2 { fields["title"] = .string("Bump dependencies") }
             if index == 1 { fields["afk"] = .bool(true) }
+            if index == 1, let parent = list.first?["id"] { fields["parentSession"] = parent }
             sessions.append(fields)
         }
         var transcripts: [String: [String: JSONValue]] = [:]

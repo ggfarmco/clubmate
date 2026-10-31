@@ -14,6 +14,27 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(AgentSession.grouped(sessions)[0].sessions.map(\.id).sorted(), ["agt_0000000000000001", "agt_0000000000000002"])
     }
 
+    func testGroupsChildrenUnderParentsInTheMostUrgentSection() throws {
+        let json = #"""
+        [
+          {"id":"root","status":"done","updatedAt":"2026-10-30T09:00:00Z"},
+          {"id":"kid","parentSession":"root","status":"waiting","updatedAt":"2026-10-30T08:00:00Z"},
+          {"id":"grandkid","parentSession":"kid","status":"done","updatedAt":"2026-10-30T07:00:00Z"},
+          {"id":"orphan","parentSession":"gone","status":"done","updatedAt":"2026-10-30T10:00:00Z"},
+          {"id":"loop-a","parentSession":"loop-b","status":"closed","closed":true},
+          {"id":"loop-b","parentSession":"loop-a","status":"closed","closed":true}
+        ]
+        """#
+        let groups = AgentSession.grouped(try JSONDecoder.companion.decode([AgentSession].self, from: Data(json.utf8)))
+        XCTAssertEqual(groups.map(\.group), [.needsInput, .idle, .closed])
+        XCTAssertEqual(groups[0].sessions.map(\.id), ["root"])
+        XCTAssertEqual(groups[0].sessions[0].children.map(\.id), ["kid"])
+        XCTAssertEqual(groups[0].sessions[0].children[0].children.map(\.id), ["grandkid"])
+        XCTAssertEqual(groups[1].sessions.map(\.id), ["orphan"])
+        XCTAssertEqual(groups[2].sessions.map(\.id), ["loop-a"])
+        XCTAssertEqual(groups[2].sessions[0].children.map(\.id), ["loop-b"])
+    }
+
     func testDecodesUserImages() throws {
         let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"}]}"#
         let entry = try JSONDecoder.companion.decode(TranscriptEntry.self, from: Data(json.utf8))

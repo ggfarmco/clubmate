@@ -20,7 +20,7 @@ public final class AgentsStore {
         self.runner = runner
     }
 
-    public var groups: [(group: SessionGroup, sessions: [AgentSession])] {
+    public var groups: [(group: SessionGroup, sessions: [SessionNode])] {
         AgentSession.grouped(sessions)
     }
 

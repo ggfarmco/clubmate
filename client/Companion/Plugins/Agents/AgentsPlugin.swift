@@ -80,6 +80,7 @@ struct SessionListView: View {
     let context: PluginContext
     let store: AgentsStore
     @Binding var creating: Bool
+    @State private var toggled: Set<String> = []
 
     var body: some View {
         List(selection: Binding(get: { context.navigation.detail }, set: { id in
@@ -93,9 +94,8 @@ struct SessionListView: View {
             }
             ForEach(store.groups, id: \.group) { group in
                 Section {
-                    ForEach(group.sessions) { session in
-                        SessionRow(session: session)
-                            .tag(session.id)
+                    ForEach(group.sessions) { node in
+                        SessionTreeRow(node: node, depth: 0, toggled: $toggled)
                     }
                 } header: {
                     Text(group.group.title)
@@ -127,8 +127,50 @@ struct SessionListView: View {
     }
 }
 
+struct SessionTreeRow: View {
+    let node: SessionNode
+    let depth: Int
+    @Binding var toggled: Set<String>
+
+    var body: some View {
+        HStack(spacing: 8) {
+            SessionRow(session: node.session, nested: depth > 0, descendants: node.descendants)
+            if !node.children.isEmpty {
+                Button(isExpanded ? "Collapse" : "Expand", systemImage: "chevron.right") {
+                    withAnimation { toggle() }
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.leading, CGFloat(depth) * 20)
+        .tag(node.id)
+        if isExpanded {
+            ForEach(node.children) { child in
+                SessionTreeRow(node: child, depth: depth + 1, toggled: $toggled)
+            }
+        }
+    }
+
+    private var opened: Bool {
+        node.children.contains { $0.group == .needsInput || $0.group == .running }
+    }
+
+    private var isExpanded: Bool {
+        opened != toggled.contains(node.id)
+    }
+
+    private func toggle() {
+        if toggled.contains(node.id) { toggled.remove(node.id) } else { toggled.insert(node.id) }
+    }
+}
+
 struct SessionRow: View {
     let session: AgentSession
+    var nested = false
+    var descendants = 0
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -138,12 +180,16 @@ struct SessionRow: View {
                     .font(.body.weight(.medium))
                     .lineLimit(2)
                 HStack(spacing: 4) {
-                    if session.parentSession != nil {
+                    if session.parentSession != nil && !nested {
                         Image(systemName: "arrow.turn.down.right")
                     }
                     Text(session.worktreeName)
                     Text("·")
                     Text(session.updatedAt.formatted(.relative(presentation: .named)))
+                    if descendants > 0 {
+                        Text("·")
+                        Text("\(Image(systemName: "arrow.triangle.branch")) \(descendants)")
+                    }
                 }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
