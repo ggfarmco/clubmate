@@ -110,7 +110,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for t.ID == "" || a.triggers[t.ID] != nil {
-		t.ID = id.Short(idPrefix)
+		t.ID = id.New(idPrefix)
 	}
 	if err := a.put(ctx, t); err != nil {
 		delete(a.triggers, t.ID)

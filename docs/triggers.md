@@ -6,7 +6,7 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 
 | Field | Meaning |
 |---|---|
-| `id` | `tr_<8 hex>`. |
+| `id` | `tr_<16 hex>`. |
 | `name` | Short human name. |
 | `workspace` | The workspace the trigger belongs to and fires in. Triggers are dropped with their workspace. |
 | `on` | The bus topic to listen to, e.g. `agents.turn`, or a prefix pattern, e.g. `event.*` (matches `event.a`, `event.a.b`). `*` alone is refused. |

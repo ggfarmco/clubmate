@@ -98,7 +98,7 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for j.ID == "" || a.jobs[j.ID] != nil {
-		j.ID = id.Short(idPrefix)
+		j.ID = id.New(idPrefix)
 	}
 	if err := a.store.Save(ctx, j); err != nil {
 		return nil, err

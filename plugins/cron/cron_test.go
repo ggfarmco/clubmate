@@ -153,6 +153,7 @@ func TestAddListRunDelete(t *testing.T) {
 	f := newFixture(t)
 	var added job
 	require.NoError(t, f.run(t, "cron.add", ping(nil), &added))
+	assert.Regexp(t, `^cj_[0-9a-f]{16}$`, added.ID)
 	jobs := f.list(t)
 	require.Len(t, jobs, 1)
 	assert.Equal(t, added.ID, jobs[0].ID)
@@ -178,6 +179,28 @@ func TestAddListRunDelete(t *testing.T) {
 	_, found, err = f.h.KV.Get(t.Context(), "cron", key)
 	require.NoError(t, err)
 	assert.False(t, found)
+}
+
+func TestLegacyShortIDLoads(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	h := testutil.NewHarness(t)
+	project := h.CreateProject(t, "demo").ID
+	legacy := "cj_0123abcd"
+	raw, err := json.Marshal(map[string]any{
+		"id": legacy, "name": "ping", "workspace": project, "command": "notify.post",
+		"args": json.RawMessage(`{"message":"hi"}`), "enabled": true, "missed": "skip",
+		"schedule": map[string]string{"every": "1h"}, "nextRun": time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.NoError(t, h.KV.Set(t.Context(), "cron", "job/"+project+"/"+legacy, raw))
+	h.Start(t, cronDir(t))
+	f := ready(t, &fixture{h: h, project: project})
+
+	var r run
+	require.NoError(t, f.run(t, "cron.run", map[string]any{"id": legacy}, &r))
+	assert.Equal(t, "ok", r.Status, r.Reason)
+	require.NoError(t, f.run(t, "cron.delete", map[string]any{"id": legacy}, nil))
+	assert.Empty(t, f.list(t))
 }
 
 func TestSectionFollowsUIActions(t *testing.T) {

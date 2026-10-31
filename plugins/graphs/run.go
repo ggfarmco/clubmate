@@ -122,7 +122,7 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 		return nil, fmt.Errorf("input: at most %d KiB", maxInput>>10)
 	}
 	r := &Run{
-		ID:        id.Short(runIDPrefix),
+		ID:        id.New(runIDPrefix),
 		Graph:     g.Name,
 		Title:     graphTitle(g),
 		Workspace: workspace,

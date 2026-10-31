@@ -10,7 +10,6 @@ import (
 
 func TestNewFormat(t *testing.T) {
 	assert.Regexp(t, `^prj_[0-9a-f]{16}$`, id.New("prj"))
-	assert.Regexp(t, `^cj_[0-9a-f]{8}$`, id.Short("cj"))
 }
 
 func TestValid(t *testing.T) {
@@ -19,6 +18,7 @@ func TestValid(t *testing.T) {
 		want bool
 	}{
 		{"ses_0123456789abcdef", true},
+		{"ses_0123abcd", true},
 		{"prj_0123456789abcdef", false},
 		{"ses_0123456789ABCDEF", false},
 		{"ses_0123456789abcde", false},

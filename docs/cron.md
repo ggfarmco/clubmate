@@ -6,7 +6,7 @@ The `cron` plugin calls an agent-visible command on a schedule: a job is "call c
 
 | Field | Meaning |
 |---|---|
-| `id` | `cj_<8 hex>`. |
+| `id` | `cj_<16 hex>`. |
 | `name` | Short human name. |
 | `workspace` | The workspace the job belongs to and fires in. Jobs are dropped with their workspace. |
 | `schedule` | One of `cron` (+ `timezone`), `every`, `at` (see below). |

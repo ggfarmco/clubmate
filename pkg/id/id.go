@@ -7,21 +7,21 @@ import (
 )
 
 const (
-	hexLen      = 16
-	shortHexLen = 8
+	hexLen       = 16
+	legacyHexLen = 8
 )
 
 func New(prefix string) string {
-	return generate(prefix, hexLen)
-}
-
-func Short(prefix string) string {
-	return generate(prefix, shortHexLen)
+	b := make([]byte, hexLen/2)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return prefix + "_" + hex.EncodeToString(b)
 }
 
 func Valid(prefix, s string) bool {
 	rest, ok := strings.CutPrefix(s, prefix+"_")
-	if !ok || len(rest) != hexLen {
+	if !ok || len(rest) != hexLen && len(rest) != legacyHexLen {
 		return false
 	}
 	for _, c := range rest {
@@ -30,12 +30,4 @@ func Valid(prefix, s string) bool {
 		}
 	}
 	return true
-}
-
-func generate(prefix string, n int) string {
-	b := make([]byte, n/2)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return prefix + "_" + hex.EncodeToString(b)
 }
