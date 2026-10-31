@@ -16,7 +16,6 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/internal/sdui"
-	pkgsdui "clubmate/pkg/sdui"
 )
 
 const (
@@ -160,34 +159,29 @@ func privateDir(dir string) error {
 	return nil
 }
 
-func confirmGated(views []sdui.SlotView, slot, nodeID, action string) bool {
+func confirmGated(views []sdui.SlotView, slot, action string) bool {
 	for _, v := range views {
-		if v.Slot == slot {
-			if n, ok := findNode(v.Tree, nodeID); ok {
-				return hasConfirm(n.Props, action)
-			}
+		if v.Slot != slot {
+			continue
 		}
-	}
-	return false
-}
-
-func findNode(n pkgsdui.Node, id string) (pkgsdui.Node, bool) {
-	if n.ID == id {
-		return n, true
-	}
-	for _, c := range n.Children {
-		if found, ok := findNode(c, id); ok {
-			return found, true
+		raw, err := json.Marshal(v.Tree)
+		if err != nil {
+			return true
 		}
+		var tree any
+		if err := json.Unmarshal(raw, &tree); err != nil {
+			return true
+		}
+		return hasConfirm(tree, action)
 	}
-	return pkgsdui.Node{}, false
+	return true
 }
 
 func hasConfirm(v any, action string) bool {
 	switch v := v.(type) {
 	case map[string]any:
 		if c, _ := v["confirm"].(string); c != "" {
-			if a, ok := v["action"].(string); !ok || a == action {
+			if a, _ := v["action"].(string); a == action {
 				return true
 			}
 		}

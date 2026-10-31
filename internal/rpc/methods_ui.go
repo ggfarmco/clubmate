@@ -276,7 +276,7 @@ func (s *Server) uiEvent(ctx context.Context, p uiEventParams) (json.RawMessage,
 	if err := s.requireSlotScope(ctx, u, p.Slot, p.ProjectID); err != nil {
 		return nil, err
 	}
-	if p.Agent && confirmGated(u.store.Get(p.ProjectID), p.Slot, p.NodeID, p.Action) {
+	if p.Agent && confirmGated(u.store.Get(p.ProjectID), p.Slot, p.Action) {
 		return nil, &jsonrpc2.Error{Code: codeDenied, Message: fmt.Sprintf("action %q needs the user's confirmation", p.Action)}
 	}
 	raw, err := json.Marshal(p)

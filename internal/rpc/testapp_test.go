@@ -160,7 +160,9 @@ func TestAgentUIEventRefusesConfirmedAction(t *testing.T) {
 		map[string]any{"id": "a.go", "label": "a.go", "menu": []any{map[string]any{"action": "discard", "label": "Discard", "confirm": "Discard a.go?"}}},
 	}}}
 	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"projectId": p.ID, "slot": "alpha.main", "tree": tree}))
-	err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.main", "nodeId": "files", "action": "discard", "value": "a.go", "agent": true}, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `action "discard" needs the user's confirmation`)
+	for _, node := range []string{"files", "ghost"} {
+		err := h.Client(t).Call(t.Context(), "ui.event", map[string]any{"projectId": p.ID, "slot": "alpha.main", "nodeId": node, "action": "discard", "value": "a.go", "agent": true}, nil)
+		require.Error(t, err, node)
+		assert.Contains(t, err.Error(), `action "discard" needs the user's confirmation`)
+	}
 }
