@@ -7,46 +7,83 @@ struct ButtonNodeView: View {
     let node: SDUINode
 
     @State private var hovering = false
+    @State private var keyboardFocus = false
+    @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
 
     private var variant: String? { node.string("variant") }
     private var disabled: Bool { press.disabled }
+    private var loading: String? { press.loading }
     private var combo: KeyCombo? { press.combo }
 
     var body: some View {
-        Button(action: press.click) {
-            HStack(spacing: theme.spacing.m) {
-                if let icon = node.string("icon") {
-                    Image(systemName: SymbolName.resolve(icon))
-                }
-                Text(node.string("label") ?? "")
-                    .lineLimit(1)
-                if let combo {
-                    Text(combo.label)
-                        .font(theme.uiSmall)
-                        .foregroundStyle(variant == "primary" ? theme.onAccent : theme.muted)
-                }
+        Button(action: press.click) { chrome }
+            .buttonStyle(.plain)
+            .disabled(disabled && loading == nil)
+            .focusable(!disabled, interactions: .activate)
+            .focusEffectDisabled()
+            .focused($focused)
+            .onChange(of: focused) { _, now in
+                keyboardFocus = now && !Self.mouseEvents.contains(NSApp.currentEvent?.type ?? .keyDown)
             }
-            .font(theme.ui)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, theme.gutter)
-            .frame(height: variant == nil ? theme.rowHeight : theme.control)
-            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(fill))
-            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering && !disabled ? theme.hover : .clear))
-            .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(stroke, lineWidth: 1))
-            .contentShape(Rectangle())
+            .onKeyPress(keys: [.space, .return]) { _ in
+                press.click()
+                return .handled
+            }
+            .onHover { hovering = $0 }
+            .keyMonitor(active: combo != nil && !disabled, handle: press.handle)
+    }
+
+    private var chrome: some View {
+        ZStack {
+            label
+                .opacity(loading == nil ? 1 : 0)
+            if let loading {
+                Text(loading)
+                    .lineLimit(1)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(disabled)
-        .onHover { hovering = $0 }
-        .keyMonitor(active: combo != nil && !disabled, handle: press.handle)
+        .font(theme.ui)
+        .foregroundStyle(foreground)
+        .padding(.horizontal, theme.gutter)
+        .frame(height: variant == nil ? theme.rowHeight : theme.control)
+        .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(fill))
+        .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering && !disabled ? theme.hover : .clear))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(stroke, lineWidth: 1))
+        .overlay {
+            if keyboardFocus && focused {
+                RoundedRectangle(cornerRadius: theme.radius.m + Self.ringGap)
+                    .stroke(theme.accent, lineWidth: theme.focusRing)
+                    .padding(-Self.ringGap)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private static let ringGap: CGFloat = 2
+    private static let mouseEvents: Set<NSEvent.EventType> = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp]
+
+    private var label: some View {
+        HStack(spacing: theme.spacing.m) {
+            if let icon = node.string("icon") {
+                Image(systemName: SymbolName.resolve(icon))
+            }
+            Text(node.string("label") ?? "")
+                .lineLimit(1)
+            if let combo {
+                Text(combo.label)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(variant == "primary" ? theme.onAccent : theme.muted)
+            }
+        }
     }
 
     private var press: ButtonPress { ButtonPress(node: node, dispatch: dispatch, form: form) }
 
     private var foreground: Color {
+        if loading != nil { return variant == "primary" ? theme.onAccent : theme.text2 }
         if disabled { return theme.faint }
         switch variant {
         case "primary": return theme.onAccent
@@ -58,7 +95,7 @@ struct ButtonNodeView: View {
 
     private var fill: Color {
         switch variant {
-        case "primary": disabled ? theme.selectedIdle : theme.accent
+        case "primary": disabled && loading == nil ? theme.selectedIdle : theme.accent
         case "secondary": theme.surface2
         default: .clear
         }
@@ -80,7 +117,8 @@ struct ButtonPress {
     let form: FormState?
 
     var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
-    var disabled: Bool { node.bool("disabled") == true }
+    var loading: String? { node.string("loading").flatMap { $0.isEmpty ? nil : $0 } }
+    var disabled: Bool { node.bool("disabled") == true || loading != nil }
 
     func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
@@ -92,6 +130,7 @@ struct ButtonPress {
     }
 
     func click() {
+        guard !disabled else { return }
         guard let message = node.confirmation() else { return perform() }
         Task {
             if await Confirmation.ask(message, action: node.confirmActionTitle()) { perform() }
@@ -314,7 +353,7 @@ struct TextFieldNodeView: View {
             .padding(.horizontal, theme.spacing.m)
             .padding(.vertical, lines == nil ? 0 : theme.spacing.s)
             .frame(minWidth: 160, minHeight: theme.control, alignment: lines == nil ? .center : .topLeading)
-            .fieldChrome(focused: focused)
+            .fieldChrome(focused: focused, error: node.string("error"))
             .padding(.horizontal, theme.gutter)
             .onSubmit(submit)
             .onChange(of: focused) { _, now in
@@ -412,7 +451,7 @@ struct SelectNodeView: View {
         .testMenu("\(node.id ?? "select").menu", options.map { LayoutMenuItem(title: $0.label) })
         .padding(.horizontal, theme.spacing.m)
         .frame(height: theme.control)
-        .fieldChrome(focused: false)
+        .fieldChrome(focused: false, error: node.string("error"))
         .padding(.horizontal, theme.gutter)
         .onChange(of: node.string("value"), initial: true) { _, current in
             value = current ?? options.first?.value ?? ""
@@ -447,21 +486,33 @@ struct SelectNodeView: View {
 }
 
 extension View {
-    func fieldChrome(focused: Bool) -> some View {
-        modifier(FieldChrome(focused: focused))
+    func fieldChrome(focused: Bool, error: String? = nil) -> some View {
+        modifier(FieldChrome(focused: focused, error: error.flatMap { $0.isEmpty ? nil : $0 }))
     }
 }
 
 private struct FieldChrome: ViewModifier {
     let focused: Bool
+    let error: String?
 
     @Environment(\.theme) private var theme
 
     func body(content: Content) -> some View {
-        content
-            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
-            .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.accent : theme.borderStrong, lineWidth: 1))
-            .background(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.toneBg(theme.accent) : .clear, lineWidth: 6))
+        let tone = error == nil ? theme.accent : theme.danger
+        VStack(alignment: .leading, spacing: theme.spacing.xs) {
+            content
+                .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
+                .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused || error != nil ? tone : theme.borderStrong, lineWidth: 1))
+                .background(RoundedRectangle(cornerRadius: theme.radius.m).stroke(focused ? theme.toneBg(tone) : .clear, lineWidth: 6))
+            if let error {
+                Text(error)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.danger)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(error)
+            }
+        }
     }
 }
 

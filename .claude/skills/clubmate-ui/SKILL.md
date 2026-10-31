@@ -17,7 +17,7 @@ It is a target; the code is partway there. Scope each change:
 |---|---|
 | A plugin view or one screen | Apply the principles and patterns (detail view, empty states, truncation, names over ids, badges only for attention, one primary action, keys printed) with today's tokens. |
 | A token or a node renderer (selection, surfaces, text levels, button look) | Its own change in `Theme.swift` and the renderer, for every view at once, with the formula from the token table. Never in one view only, never as a side effect of a feature. |
-| A new SDUI prop or node | Only the four the language names (`header`, `button` variant/disabled/shortcut, table column truncate/align/priority, `empty` icon/title/action/hint), each its own change with `pkg/sdui`, `docs/sdui-protocol.md`, the renderer and the gallery fixture. Anything else: build it from existing nodes, or ask. |
+| A new SDUI prop or node | Only the ones the language names (`header`, `button` variant/disabled/shortcut/loading, field `error`, table column truncate/align/priority, `empty` icon/title/action/hint), each its own change with `pkg/sdui`, `docs/sdui-protocol.md`, the renderer and the gallery fixture. Anything else: build it from existing nodes, or ask. |
 | A key the boards propose | `docs/shortcuts.md` is the source of truth; a board key that clashes with it is a question for the user, not a rebind. |
 
 ## Copy these, not the nearest neighbour

@@ -129,7 +129,7 @@ func parseAction(action string) (string, string) {
 	return verb, strings.ReplaceAll(value, "-", "_")
 }
 
-func mainView(t *Task, owners map[string]string, hasTasks bool) sdui.Node {
+func mainView(t *Task, owners map[string]string, hasTasks bool, titleError string) sdui.Node {
 	switch {
 	case t == nil && hasTasks:
 		return sdui.Empty("Select a task")
@@ -158,14 +158,18 @@ func mainView(t *Task, owners map[string]string, hasTasks bool) sdui.Node {
 	if t.Note != "" {
 		nodes = append(nodes, sdui.MutedText(t.Note))
 	}
-	fields := []sdui.Node{sdui.HStack(sdui.MutedText("Title"), sdui.TextField("title", t.Title, "Title"))}
+	title, saved := sdui.TextField("title", t.Title, "Title"), sdui.Button("save", "Saved", "checkmark")
+	if titleError != "" {
+		title, saved = sdui.WithError(title, titleError), sdui.Button("save", "Not saved", "")
+	}
+	fields := []sdui.Node{sdui.HStack(sdui.MutedText("Title"), title)}
 	if t.Status != statusInProgress {
 		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
 	}
 	fields = append(fields,
 		sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, nil), t.Priority)),
 		sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)),
-		sdui.WithShortcut(sdui.WithVariant(sdui.Button("save", "Saved", "checkmark"), sdui.VariantGhost), "cmd+s"),
+		sdui.WithShortcut(sdui.WithVariant(saved, sdui.VariantGhost), "cmd+s"),
 	)
 	form := sdui.VStack(sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID))))
 	form.ID = fmt.Sprintf("task-%d", t.ID)

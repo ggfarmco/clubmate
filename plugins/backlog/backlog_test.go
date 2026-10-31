@@ -257,6 +257,22 @@ func TestAddFromSidebar(t *testing.T) {
 	assert.Equal(t, "agt_a", got.ClaimedBy)
 }
 
+func TestEmptyTitleIsAFieldError(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.add("Keep me", nil)
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", "1")
+
+	e.h.Event(t, e.p, "backlog.main", "edit", "save.1", map[string]any{"title": " ", "priority": "high"})
+
+	e.h.WaitSlot(t, e.p, "backlog.main", func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		return err == nil && strings.Contains(string(raw), `"error":"Title must not be empty"`)
+	})
+	got := e.must(e.user("backlog.get", map[string]any{"id": 1}))
+	assert.Equal(t, "Keep me", got.Title)
+}
+
 func TestShowSessionRevealsTheClaimer(t *testing.T) {
 	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
 	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))

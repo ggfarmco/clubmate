@@ -192,11 +192,34 @@
                       ]
                     },
                     {
+                      "type": "stack",
+                      "props": {"direction": "horizontal"},
+                      "children": [
+                        {"type": "button", "id": "saving", "props": {"label": "Save changes", "icon": "checkmark", "variant": "primary", "shortcut": "cmd+s", "loading": "Saving…"}},
+                        {"type": "button", "id": "running", "props": {"label": "Run now", "variant": "secondary", "loading": "Running…"}},
+                        {"type": "button", "id": "deleting", "props": {"label": "Delete", "icon": "trash", "variant": "danger", "loading": "Deleting…"}}
+                      ]
+                    },
+                    {
                       "type": "form",
                       "id": "settings-form",
                       "props": {"action": "settings.save", "autosave": true},
                       "children": [
+                        {
+                          "type": "select",
+                          "id": "shell",
+                          "props": {
+                            "value": "zsh",
+                            "error": "zsh is not installed",
+                            "options": [
+                              {"value": "zsh", "label": "zsh"},
+                              {"value": "bash", "label": "bash"},
+                              {"value": "fish", "label": "fish"}
+                            ]
+                          }
+                        },
                         {"type": "textField", "id": "name", "props": {"value": "clubmate", "placeholder": "Workspace name"}},
+                        {"type": "textField", "id": "branch", "props": {"value": "", "placeholder": "Branch", "error": "Branch name is empty"}},
                         {
                           "type": "stack",
                           "props": {"direction": "horizontal"},
@@ -204,18 +227,6 @@
                             {"type": "toggle", "id": "autostart", "props": {"value": true}},
                             {"type": "text", "props": {"text": "start sessions on open"}}
                           ]
-                        },
-                        {
-                          "type": "select",
-                          "id": "shell",
-                          "props": {
-                            "value": "zsh",
-                            "options": [
-                              {"value": "zsh", "label": "zsh"},
-                              {"value": "bash", "label": "bash"},
-                              {"value": "fish", "label": "fish"}
-                            ]
-                          }
                         },
                         {
                           "type": "stack",

@@ -143,12 +143,12 @@ var (
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString},
 			children:    noChildren,
 			interactive: true,
 		},
 		"textField": {
-			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "action": actionCheck},
+			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -161,7 +161,7 @@ var (
 		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck}, children: noChildren, interactive: true},
 		"select": {
 			required:    []string{"options"},
-			props:       map[string]propCheck{"options": listOf(optionCheck), "value": isString, "action": actionCheck},
+			props:       map[string]propCheck{"options": listOf(optionCheck), "value": isString, "error": isString, "action": actionCheck},
 			children:    noChildren,
 			interactive: true,
 		},

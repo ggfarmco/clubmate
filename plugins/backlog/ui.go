@@ -23,11 +23,17 @@ const kindDeleted = "deleted"
 var errUnknownAction = errors.New("unknown action")
 
 type workspaceUI struct {
-	render    sync.Mutex
-	selected  int
-	collapsed map[string]bool
-	formRev   int
-	sent      map[string][32]byte
+	render     sync.Mutex
+	selected   int
+	collapsed  map[string]bool
+	formRev    int
+	sent       map[string][32]byte
+	titleError fieldError
+}
+
+type fieldError struct {
+	task int
+	text string
 }
 
 func (b *backlog) workspace(workspaceID string) *workspaceUI {
@@ -118,7 +124,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		return err
 	}
 	b.mu.Lock()
-	selected, collapsed, rev := w.selected, maps.Clone(w.collapsed), w.formRev
+	selected, collapsed, rev, titleError := w.selected, maps.Clone(w.collapsed), w.formRev, w.titleError
 	b.mu.Unlock()
 	var current *Task
 	for i := range tasks {
@@ -134,7 +140,10 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, owners, selectedID, collapsed, rev)); err != nil {
 		return err
 	}
-	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0))
+	if titleError.task != selected {
+		titleError.text = ""
+	}
+	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0, titleError.text))
 }
 
 func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot string, n sdui.Node) error {
@@ -220,6 +229,13 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		args.ID = id
 		args.Note, args.Owner, args.keepClaim = nil, "", true
 		_, err = b.updateCmd(ctx, user, args)
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		w.titleError = fieldError{}
+		if errors.Is(err, errTitleEmpty) || errors.Is(err, errTitleLine) || errors.Is(err, errTitleLong) {
+			w.titleError = fieldError{task: id, text: caption(err)}
+			return nil
+		}
 		return err
 	case ev.Slot == mainSlot:
 		return b.taskAction(ctx, ev.WorkspaceID, w, ev.Action, b.selected(w))
@@ -249,6 +265,11 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		return nil
 	}
 	return b.taskAction(ctx, ev.WorkspaceID, w, ev.Action, id)
+}
+
+func caption(err error) string {
+	text := err.Error()
+	return strings.ToUpper(text[:1]) + text[1:]
 }
 
 func (b *backlog) selected(w *workspaceUI) int {

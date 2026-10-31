@@ -229,7 +229,7 @@ private struct HeaderMoreMenu: View {
     }
 
     private func title(_ press: ButtonPress) -> String {
-        let label = press.node.string("label") ?? ""
+        let label = press.loading ?? press.node.string("label") ?? ""
         return press.combo.map { "\(label)    \($0.label)" } ?? label
     }
 }

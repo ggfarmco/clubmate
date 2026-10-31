@@ -388,6 +388,14 @@ func WithDisabled(n Node) Node {
 	return withProp(n, "disabled", true)
 }
 
+func WithLoading(n Node, verb string) Node {
+	return withProp(n, "loading", verb)
+}
+
+func WithError(n Node, caption string) Node {
+	return withProp(n, "error", caption)
+}
+
 func WithAutosave(n Node) Node {
 	return withProp(n, "autosave", true)
 }

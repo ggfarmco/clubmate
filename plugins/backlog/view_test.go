@@ -48,9 +48,9 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 }
 
 func TestMainOmitsStatusWhileInProgress(t *testing.T) {
-	_, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "user"}, nil, true), "status")
+	_, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "user"}, nil, true, ""), "status")
 	assert.False(t, ok)
-	status, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true), "status")
+	status, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true, ""), "status")
 	require.True(t, ok)
 	for _, o := range status.Props["options"].([]sdui.Option) {
 		assert.NotEqual(t, statusInProgress, o.Value)
@@ -58,18 +58,18 @@ func TestMainOmitsStatusWhileInProgress(t *testing.T) {
 }
 
 func TestMainEmptyState(t *testing.T) {
-	assert.Equal(t, "No tasks yet — add one on the left", mainView(nil, nil, false).Props["text"])
-	assert.Equal(t, "Select a task", mainView(nil, nil, true).Props["text"])
+	assert.Equal(t, "No tasks yet — add one on the left", mainView(nil, nil, false, "").Props["text"])
+	assert.Equal(t, "Select a task", mainView(nil, nil, true, "").Props["text"])
 }
 
 func TestMainDeleteConfirms(t *testing.T) {
-	del, ok := findNode(mainView(&Task{ID: 7, Title: "a", Status: statusDone, Priority: priorityNormal}, nil, true), "delete")
+	del, ok := findNode(mainView(&Task{ID: 7, Title: "a", Status: statusDone, Priority: priorityNormal}, nil, true, ""), "delete")
 	require.True(t, ok)
 	assert.Equal(t, "Delete task #7?", del.Props["confirm"])
 }
 
 func TestMainFormAutosaves(t *testing.T) {
-	main := mainView(&Task{ID: 7, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true)
+	main := mainView(&Task{ID: 7, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true, "")
 	form, ok := findNode(main, "edit")
 	require.True(t, ok)
 	assert.Equal(t, true, form.Props["autosave"])
