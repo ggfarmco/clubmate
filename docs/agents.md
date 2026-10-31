@@ -55,6 +55,8 @@ AFK mode is for when you step away. Turn it on with the AFK picker of a top-leve
 
 From the Agents sidebar you can run a task in its own worktree end to end: press "New in worktree…", type a branch name and press Start (or Return) to start a session in a new `.worktrees/<branch>` made from the workspace's worktree (as `agents.new` with `branch`). When its turn is done, "Review changes" in the session header opens the diff, and, with Finish set to Ask, "Merge to main" (after a confirm) tells the agent to run the tests and, if they pass, squash its branch into `main` as one commit and remove its worktree and branch, the same steps as Finish "Merge to main". Clubmate refuses the merge while the session runs, while another agent session works in that worktree, or when the main checkout has uncommitted changes.
 
+The status bar shows how much of the Claude subscription is used: `5h 42% ↻19:03 · 7d 81% ↻Wed`, the 5-hour and weekly limits with their reset times, in the warning colour once Claude warns about a limit and in the danger colour once it is reached. The numbers come from the rate-limit reports Claude attaches to agent replies, so they appear after the first reply of an agent session, are kept across restarts, and miss usage from Claude outside Clubmate until the next reply; a limit disappears once its reset time passes. The tooltip names when they were last updated; `agents.usage` returns them.
+
 Agent mode is a cooperative guard for well-behaved agents, not a security boundary: any program running as your user can reach Clubmate directly.
 
 ## CLI

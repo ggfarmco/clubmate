@@ -8,6 +8,7 @@ const (
 	TopicTurn    = "agents.turn"
 	TopicChanged = "agents.changed"
 	TopicReady   = "agents.ready"
+	TopicUsage   = "agents.usage"
 
 	ChangeCreated = "created"
 	ChangeStatus  = "status"

@@ -52,6 +52,7 @@ type agentProc struct {
 	launch   launch
 	mcp      []acp.McpServer
 	onExit   func(p *agentProc, reason string)
+	onUsage  func(json.RawMessage)
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -67,7 +68,7 @@ type ring struct {
 	buf []byte
 }
 
-func startProc(l launch, agent, root string, onExit func(p *agentProc, reason string)) (*agentProc, error) {
+func startProc(l launch, agent, root string, onExit func(p *agentProc, reason string), onUsage func(json.RawMessage)) (*agentProc, error) {
 	stdinR, stdinW, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -92,7 +93,7 @@ func startProc(l launch, agent, root string, onExit func(p *agentProc, reason st
 		return nil, fmt.Errorf("start %s: %w", l.argv[0], err)
 	}
 	closeAll(stdinR, stdoutW, stderrW)
-	p := &agentProc{agent: agent, root: root, cmd: cmd, pgid: cmd.Process.Pid, stdin: stdinW, launch: l, mcp: l.mcp, onExit: onExit, sessions: map[string]*session{}, orphans: map[string][]json.RawMessage{}, exited: make(chan struct{})}
+	p := &agentProc{agent: agent, root: root, cmd: cmd, pgid: cmd.Process.Pid, stdin: stdinW, launch: l, mcp: l.mcp, onExit: onExit, onUsage: onUsage, sessions: map[string]*session{}, orphans: map[string][]json.RawMessage{}, exited: make(chan struct{})}
 	stderrDone := make(chan struct{})
 	go func() {
 		defer close(stderrDone)
@@ -197,6 +198,9 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 	var n acp.SessionNotification
 	if json.Unmarshal(params, &n) != nil {
 		return
+	}
+	if p.onUsage != nil {
+		p.onUsage(n.Update)
 	}
 	p.mu.Lock()
 	s, ok := p.sessions[n.SessionID]

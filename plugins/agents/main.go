@@ -37,6 +37,7 @@ type app struct {
 	notes     *notifier
 	groups    *groups
 	codePanel bool
+	usage     usageTracker
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
@@ -85,6 +86,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	a.groups.reap(orphanMarkers())
 	var sections []sectionRef
 	if err := h.Call(ctx, "ui.sections", nil, &sections); err != nil {
+		return err
+	}
+	if err := a.usage.load(ctx, h); err != nil {
 		return err
 	}
 	a.codePanel = slices.ContainsFunc(sections, func(s sectionRef) bool { return s.ID == editorSection })

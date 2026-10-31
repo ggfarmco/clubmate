@@ -18,6 +18,7 @@ final class AppModel {
     @ObservationIgnored private var openRequests: Task<Void, Never>?
     @ObservationIgnored private var gitChanges: Task<Void, Never>?
     @ObservationIgnored private var pluginChanges: Task<Void, Never>?
+    @ObservationIgnored private var usageChanges: Task<Void, Never>?
     private var launchWorkspace = launchWorkspaceID(CommandLine.arguments)
     @ObservationIgnored private var presence: [String: WorkspacePresence] = [:]
     @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
@@ -49,6 +50,10 @@ final class AppModel {
         },
         confirm: { message in await Confirmation.ask(message, action: "Revoke", destructive: true) }
     )
+
+    @ObservationIgnored private(set) lazy var usage = SubscriptionUsageModel { [weak self] invocation in
+        await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
+    }
 
     @ObservationIgnored private(set) lazy var notifications = Notifications(
         store: ClubmatePaths.resolve().state.appending(path: "notifications.json"),
@@ -268,12 +273,18 @@ final class AppModel {
                 Task { await worktrees.receive(event) }
             }
         }
+        usageChanges?.cancel()
+        usageChanges = Task { [weak self] in
+            guard let usage = self?.usage else { return }
+            await usage.follow(client)
+        }
         pluginChanges?.cancel()
         pluginChanges = Task { [weak self] in
             guard let events = try? await client.busEvents(pattern: Topic.pluginChanged) else { return }
             await self?.reloadCommands(client)
             for await _ in events {
                 await self?.reloadCommands(client)
+                await self?.usage.load()
             }
         }
     }

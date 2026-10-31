@@ -54,7 +54,7 @@ struct WorkspaceLayout: View {
             }
             .frame(maxHeight: .infinity)
             .clipped()
-            StatusBar(connection: connection, section: store.sections.first { $0.id == section }?.title ?? section) { [app] in
+            StatusBar(connection: connection, section: store.sections.first { $0.id == section }?.title ?? section, usage: app.usage.usage) { [app] in
                 app.retry()
             } trailing: {
                 if store.slots["\(section).status"] != nil {

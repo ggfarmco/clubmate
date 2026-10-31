@@ -28,6 +28,7 @@ var (
 		"agents.finish-default": withArgs((*app).finishDefaultCommand),
 		"agents.afk":            withArgs((*app).afkCommand),
 		"agents.afk-default":    withArgs((*app).afkDefaultCommand),
+		"agents.usage":          (*app).usageCommand,
 		"agents.stop-root":      withArgs((*app).stopRootCommand),
 		"agents.wait":           withArgs((*app).waitCommand),
 		"agents.transcript":     withArgs((*app).transcriptCommand),

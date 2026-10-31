@@ -94,6 +94,13 @@
         }
       },
       {
+        "id": "agents.usage",
+        "title": "Subscription Usage",
+        "hidden": true,
+        "scope": "app",
+        "description": "Latest Claude subscription usage seen in agent replies: {windows: {five_hour, seven_day: {used, resetsAt, status}}, updatedAt}. used is a percentage, resetsAt and updatedAt are unix seconds, status is allowed, allowed_warning or rejected. A window is missing until an agent reply reports it; agents.usage is published on the bus with the same payload whenever it changes."
+      },
+      {
         "id": "agents.afk-default",
         "title": "Default AFK Mode",
         "hidden": true,

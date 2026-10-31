@@ -71,7 +71,7 @@ func (a *app) startProc(ctx context.Context, agent, workspace, root string) (*ag
 	if err != nil {
 		return nil, err
 	}
-	p, err := startProc(l, agent, root, a.procExited)
+	p, err := startProc(l, agent, root, a.procExited, a.usage.observe)
 	if err != nil {
 		return nil, err
 	}
