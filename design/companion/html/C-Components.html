@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion components</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/m.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+
+</head><body>
+
+<div class="doc" style="width: 1400px; min-height: 2340px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate companion · design language</div>
+<h1>C3 · Companion components</h1>
+<p class="lead">Phone specs for each node. Panels are 393pt wide and follow the Theme tweak (cdark).</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 320px 393px 393px; gap: 32px; padding-top: 24px; border-top: 1.5px solid #1B1D1C; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>Session row · status</h2>
+<ul class="muted" style="font-size: 14px">
+<li>28pt status glyph; filled amber only when it needs you</li>
+<li>Title up to two lines, then one state line that says what it wants</li>
+<li>Subagents nest under the parent, indented to the title, with “Subagent · AFK”</li>
+<li>No pills; no ids; child count replaced by the nested rows</li>
+<li>Min height 52pt; whole row is the hit area</li>
+</ul>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px 0">
+<div class="ig">
+<div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="ell">Refactor the cart total</span><span class="cap ell"><span class="wa-i">Wants to run</span> <span class="mono" style="font-size: 12px">go test ./…</span></span></div></div>
+<div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg></span><div class="cbody"><span class="ell">Explain the checkout flow</span><span class="cap ell"><span class="wa-i">Asks:</span><span class="t2"> Add retries…?</span></span></div></div>
+<div class="c"><span class="st ac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><div class="cbody"><span class="ell">Add stock reservation expiry</span><span class="cap mut">Running · 4 min</span></div></div>
+<div class="c"><span class="st er"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m5 5 6 6M11 5l-6 6"/></svg></span><div class="cbody"><span class="ell">Migrate cart storage</span><span class="cap er-i">Stopped · error</span></div></div>
+<div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></span><div class="cbody"><span class="ell t2">Bump Go to 1.25</span><span class="cap mut">Done · 1 h</span></div></div>
+</div>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px 0">
+<div class="hdr" style="padding-top: 0">Subagent nesting</div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4v5M8 11.5v.1"/></svg></span><div class="cbody"><span class="w6">Refactor the cart total into its own function</span><span class="cap mut">1 subagent waiting</span></div></div>
+<div class="c" style="align-items: flex-start; padding-left: 56px"><span class="st wa" style="width: 24px; height: 24px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg></span><div class="cbody"><span class="cap mut">Subagent · AFK</span><span class="ell">Explain the checkout flow</span></div></div>
+</div>
+<div class="hdr">Closed · 3 <span style="font-weight: 400" class="cap">collapsed by default</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 320px 393px 393px; gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>Transcript nodes</h2>
+<ul class="muted" style="font-size: 14px">
+<li><b>user</b>: right-aligned bubble on surface-2 — not the accent</li>
+<li><b>agent</b>: flat body text, markdown; code in a surface-1 block, mono, horizontal scroll</li>
+<li><b>thought</b>: one collapsed caption row with duration</li>
+<li><b>plan</b>: one card; done = check + muted, current = accent + semibold, next = secondary. A prose plan followed by a plan entry folds in</li>
+<li><b>tool group</b>: consecutive calls = one row; tap to expand; failures expand themselves</li>
+<li><b>diff</b>: three lines inline, “Full diff” opens a sheet</li>
+</ul>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px; display: grid; gap: 12px">
+<div class="ub" style="justify-self: end">Refactor the cart total</div>
+<div class="cap mut">› Thought for 3 s</div>
+<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span>.</p>
+<div class="cc" style="padding: 10px 14px">
+<div class="cap mut" style="display: flex; justify-content: space-between; padding-bottom: 4px"><span>Plan</span><span>1 of 3</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="sub mut">Extract cartTotal</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div>
+</div>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px; display: grid; gap: 12px">
+<div class="cc" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 10px"><span class="sub" style="flex: 1">2 actions</span><span class="cap mut">collapse ⌃</span></div>
+<div class="sub">Read <span class="mono" style="font-size: 13px">cart.go</span></div>
+<div class="sub">Edit <span class="mono" style="font-size: 13px">cart.go</span> <span class="ok-i">+1</span> <span class="er-i">−1</span></div>
+<div class="mono" style="font-size: 12px; line-height: 18px; background: var(--bg); border-radius: 10px; padding: 6px 0; white-space: pre; overflow: hidden"><div style="background: color-mix(in srgb, var(--er) 14%, transparent); padding: 0 10px"><span class="er-i">−</span> total := 0; for … { total += it.Price }</div><div style="background: color-mix(in srgb, var(--ok) 14%, transparent); padding: 0 10px"><span class="ok-i">+</span> total := cartTotal(items)</div></div>
+<span class="cap ac-i">Full diff</span>
+</div>
+<div class="cc" style="padding: 12px 14px; display: flex; gap: 10px; align-items: center; border: 1px solid var(--er-bd)"><span class="st er" style="width: 24px; height: 24px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 13px; height: 13px"><path d="m5 5 6 6M11 5l-6 6"/></svg></span><div style="flex: 1; display: flex; flex-direction: column"><span class="sub">Run <span class="mono" style="font-size: 13px">go vet ./...</span></span><span class="cap er-i">exit 1 · expanded automatically</span></div></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 320px 393px 393px; gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>Permission request</h2>
+<ul class="muted" style="font-size: 14px">
+<li>Order is fixed: <b>Allow once</b> (filled, full width, row 1) · <b>Always allow…</b> (plain) · <b>Reject</b> (plain, danger ink) — row 2</li>
+<li>The exact command in mono; the reason in one caption line</li>
+<li>“Always allow…” never acts directly: a sheet shows the rule it will store and asks again; the confirm button is plain, Cancel is bold</li>
+<li>reject_always lives in that card's ••• (“Reject and don't ask again”), never as a fourth button</li>
+<li>Answered: collapses to one muted row in the transcript</li>
+</ul>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px; display: grid; gap: 12px">
+<section class="cc" aria-label="Permission request" style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<div style="display: flex; align-items: center; gap: 10px"><span class="w6" style="flex: 1">Run a command?</span><span class="cap mut">•••</span></div>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg)">go test ./...</div>
+<button class="cb pri full">Allow once</button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px"><button class="cb plain sm">Always allow…</button><button class="cb dgt sm">Reject</button></div>
+</section>
+<div class="cap mut" style="display: flex; align-items: center; gap: 8px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="m3.5 8.5 3 3 6-7"/></svg>Allowed once · <span class="mono" style="font-size: 12px">go test ./...</span> · 09:42</div>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 330px; background: var(--scrim)">
+<div class="cc" style="border-radius: 28px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<span class="t20">Always allow this command?</span>
+<p class="sub t2">Claude will run matching commands in <b>shop</b> without asking, on this Mac, until you remove the rule.</p>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg); font-size: 13px">Bash(go test:*)</div>
+<button class="cb plain full">Always allow</button>
+<button class="cb full" style="background: transparent; color: var(--fg)">Cancel</button>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 320px 393px 393px; gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>Question · composer</h2>
+<ul class="muted" style="font-size: 14px">
+<li>A question docks above the composer like a permission: amber border, the question in Title 3, what answering does</li>
+<li>Composer: [attach] [field] [send]. The right slot is always Send / Queue — never Stop</li>
+<li>Agent running: placeholder “Queue a message”, send icon queues; Stop is in ••• and confirms</li>
+<li>Attachments (photos, video frames) as 56pt thumbnails above the field, each removable</li>
+</ul>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px; display: grid; gap: 12px">
+<section class="cc" aria-label="Question" style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<span class="cap wa-i w6">Claude is asking</span>
+<p class="w6" style="font-size: 19px; line-height: 25px">Should I add retries to the charge step?</p>
+<span class="cap mut">Paused until you answer.</span>
+</section>
+<div class="cmp"><span class="gbtn glass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></span><span class="fld glass">Answer Claude…</span><span class="gbtn" style="background: var(--ac); color: var(--on-ac); opacity: .35"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></span></div>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px; display: grid; gap: 12px">
+<span class="cap mut">Agent running, with attachments</span>
+<div style="display: flex; gap: 8px"><div style="width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, var(--s3), var(--s2)); position: relative"><span style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 10px; background: var(--s3); font-size: 12px; display: flex; align-items: center; justify-content: center">×</span></div><div style="width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, var(--s2), var(--s3)); display: flex; align-items: center; justify-content: center"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M5.5 3.5v9l7-4.5Z"/></svg></div></div>
+<div class="cmp"><span class="gbtn glass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></span><span class="fld glass" style="color: var(--fg)">Also cover the empty cart</span><span class="gbtn" style="background: var(--ac); color: var(--on-ac)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></span></div>
+<span class="cap mut">Sends after the current turn · Stop is in •••</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 320px 393px 393px; gap: 32px; padding-top: 24px; border-top: 1px solid #DAD8CF; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2>Inbox · empty · offline</h2>
+<ul class="muted" style="font-size: 14px">
+<li>Inbox groups: Waiting for you, Earlier. Unread dot only on unseen actionable items</li>
+<li>Rows: kind glyph · title · time / body / workspace · session</li>
+<li>Empty states teach in one sentence and give the one action</li>
+<li>Offline Mac: data dims, “as of 18:20”; answer buttons disabled with the reason — never act on a stale request</li>
+</ul>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px 0; display: flex; flex-direction: column; gap: 14px">
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg></span><div class="cbody"><span style="display: flex; justify-content: space-between"><span class="w6">Question</span><span class="cap mut">30 s</span></span><span class="sub t2">Should I add retries to the charge step?</span><span class="cap mut">shop · Explain the checkout flow</span></div><span class="unread" style="margin-top: 7px"></span></div>
+<div class="c" style="align-items: flex-start"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg></span><div class="cbody"><span style="display: flex; justify-content: space-between"><span class="t2">Build finished</span><span class="cap mut">10 min</span></span><span class="sub mut">make test passed in 42 s</span></div></div>
+</div>
+<div style="margin: 0 16px; padding: 22px; border-radius: 22px; border: 1.5px dashed var(--bd2); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center">
+<svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 28px; height: 28px"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/></svg>
+<span class="w6">No Macs yet</span>
+<span class="sub t2">Open Clubmate on your Mac, then Settings › Devices › Pair a phone.</span>
+<button class="cb pri sm">Scan pairing code</button>
+</div>
+</div>
+<div class="cm comp th-cdark" style="border-radius: 24px; padding: 16px; display: grid; gap: 12px">
+<div style="display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 16px; background: var(--s2)"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M2 6.5a9 9 0 0 1 12 0M4.5 9a5 5 0 0 1 7 0M7 11.5a1.5 1.5 0 0 1 2 0"/><path d="m2 2 12 12"/></svg><div style="flex: 1; display: flex; flex-direction: column"><span class="sub">Mac Studio is offline</span><span class="cap mut">As of 18:20 · reconnects over Tailscale</span></div></div>
+<section class="cc" style="display: flex; flex-direction: column; gap: 10px; padding: 14px; opacity: .6">
+<span class="w6">Run a command?</span>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg)">go test ./...</div>
+<button class="cb pri full" disabled style="opacity: .45">Allow once</button>
+<span class="cap mut" style="text-align: center">Can't answer while the Mac is offline</span>
+</section>
+</div>
+</div>
+</div>
+</body></html>

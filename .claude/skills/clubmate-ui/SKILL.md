@@ -1,6 +1,6 @@
 ---
 name: clubmate-ui
-description: Use when adding or changing any SwiftUI/AppKit view in client/Clubmate, an SDUI node renderer, or the SDUI tree a plugin renders (plugins/*/view.go, pkg/sdui) — lists, popups, pickers, menus, control rows, labels, cards, detail panes, empty states, badges, colours, theme tokens, focus or keyboard handling, UI state — or when the user sends a screenshot of something in the app that looks broken or asks for a design or UX change.
+description: Use when adding or changing any SwiftUI/AppKit view in client/Clubmate or client/Companion (iPhone, iPad), an SDUI node renderer, or the SDUI tree a plugin renders (plugins/*/view.go, pkg/sdui) — lists, popups, pickers, menus, control rows, labels, cards, detail panes, empty states, badges, colours, theme tokens, focus or keyboard handling, UI state — or when the user sends a screenshot of something in the app that looks broken or asks for a design or UX change.
 ---
 
 # Building Clubmate UI
@@ -10,6 +10,8 @@ Every UI complaint so far was a screenshot of code that compiled fine: a list gr
 ## Design language: read it first
 
 Clubmate has a design language: `references/design-language.md` (principles, colour roles, type and spacing, one spec per node type, patterns, the SDUI additions it needs). The boards it was distilled from are in `design/language/` (`png/` or `html/`); before you change a screen, open its mockup there (`Agents-1280`, `Agents-640`, `Code-*`, `Backlog-*`, `Cron-1280`, `Triggers-640`, `Graphs-*`, `Processes-*`) and build toward it. Where this file and the design language disagree, the design language wins.
+
+The iPhone/iPad companion (`client/Companion`) follows the same principles with phone metrics, the Mate green accent and its own component specs: `references/companion.md` (boards in `design/companion/`). Look at a companion change in the simulator with fixtures (`design/companion-brief/README.md`).
 
 It is a target; the code is partway there. Scope each change:
 

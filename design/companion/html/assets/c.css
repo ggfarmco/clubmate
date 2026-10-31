@@ -1,0 +1,75 @@
+/* Clubmate Companion (iOS 26 / iPadOS) — layer on top of cm.css.
+   No terminal theme on the phone: system appearance + the Mate brand as accent. */
+.th-cdark{--bg:#000000;--fg:#FFFFFF;--ac:#A6D85B;--ok:#4FB3A0;--wa:#F2B84B;--er:#FF6B5E;
+  --t2r:74%;--t3r:58%;--t4r:36%;--ac-i:#A6D85B;--ok-i:#5CC2AE;--wa-i:#F2B84B;--er-i:#FF7A6E;--on-ac:#0E1A08;
+  --sh:0 8px 24px rgba(0,0,0,.55);--scrim:rgba(0,0,0,.5)}
+.th-clight{--bg:#F2F2F7;--fg:#000000;--ac:#357A27;--ok:#1F7F70;--wa:#B5761E;--er:#C93A30;
+  --t2r:74%;--t3r:56%;--t4r:32%;--ac-i:#357A27;--ok-i:#1A6E61;--wa-i:#8A5810;--er-i:#B23A33;--on-ac:#FFFFFF;
+  --sh:0 8px 24px rgba(0,0,0,.10);--scrim:rgba(0,0,0,.2)}
+/* system surfaces instead of fg-mix steps */
+.cm.comp.th-cdark{--s1:#1C1C1E;--s2:#2C2C2E;--s3:#3A3A3C;--bd:rgba(255,255,255,.12);--bd2:rgba(255,255,255,.2)}
+.cm.comp.th-clight{--s1:#FFFFFF;--s2:#E9E9EE;--s3:#DCDCE1;--bd:rgba(60,60,67,.18);--bd2:rgba(60,60,67,.3)}
+
+.cm.comp{font-family:-apple-system,'SF Pro Text','Inter',system-ui,sans-serif;font-size:17px;line-height:22px;letter-spacing:-.2px;position:relative;overflow:hidden}
+.comp .mono{font-family:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;font-size:14px;line-height:20px;letter-spacing:0}
+.comp .sub{font-size:15px;line-height:20px}
+.comp .cap{font-size:13px;line-height:18px}
+.comp .foot{font-size:12px;line-height:16px}
+.comp .big{font-size:34px;line-height:41px;font-weight:700;letter-spacing:.2px}
+.comp .t20{font-size:20px;line-height:25px;font-weight:600}
+.comp .w6{font-weight:600}
+.comp p{margin:0}
+
+/* Liquid Glass chrome */
+.comp .glass{background:color-mix(in srgb,var(--s1) 72%,transparent);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--bd);box-shadow:0 4px 16px rgba(0,0,0,.16)}
+.comp .gbtn{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--fg);flex:none;padding:0}
+.comp .gbtn svg.i{width:22px;height:22px;stroke-width:1.7}
+.comp .gpill{display:flex;align-items:center;height:44px;border-radius:22px;padding:0 4px;flex:none}
+.comp .gpill>button{width:44px;height:44px;border:0;background:none;color:var(--fg);display:flex;align-items:center;justify-content:center}
+.comp .gpill svg.i{width:22px;height:22px;stroke-width:1.7}
+.comp .top{position:absolute;top:59px;left:16px;right:16px;height:44px;display:flex;align-items:center;gap:8px;z-index:5}
+.comp .top .t{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center}
+.comp .top .t .tt{font-size:15px;line-height:20px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp .top .t .ts{font-size:12px;line-height:16px;color:var(--t3);white-space:nowrap}
+.comp .edge{position:absolute;left:0;right:0;top:0;height:118px;background:linear-gradient(var(--bg) 70%,transparent);z-index:4;pointer-events:none}
+
+/* lists */
+.comp .hdr{display:flex;align-items:center;justify-content:space-between;padding:22px 20px 8px;font-size:15px;line-height:20px;font-weight:600;color:var(--t3)}
+.comp .ig{margin:0 16px;border-radius:22px;background:var(--s1);overflow:hidden}
+.comp .c{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 16px;position:relative}
+.comp .c+.c::before{content:'';position:absolute;top:0;left:56px;right:0;height:1px;background:var(--bd)}
+.comp .c .cbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.comp .c .chev{color:var(--t4);width:14px;height:14px;flex:none}
+.comp .c .val{color:var(--t3);flex:none}
+
+/* status glyph: one shape per status, tone only where it needs you */
+.comp .st{width:28px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex:none}
+.comp .st svg.i{width:16px;height:16px;stroke-width:1.8}
+.comp .st.wa{background:var(--wa);color:#1A1300}
+.comp .st.ac{background:var(--ac-bg);color:var(--ac-i)}
+.comp .st.er{background:var(--er-bg);color:var(--er-i)}
+.comp .st.n{background:var(--s2);color:var(--t3)}
+.comp .unread{width:9px;height:9px;border-radius:5px;background:var(--ac);flex:none}
+
+/* buttons: capsules */
+.comp .cb{display:flex;align-items:center;justify-content:center;gap:8px;height:50px;border-radius:25px;border:0;font-size:17px;font-weight:600;padding:0 20px;white-space:nowrap}
+.comp .cb.pri{background:var(--ac);color:var(--on-ac)}
+.comp .cb.plain{background:var(--s2);color:var(--fg)}
+.comp .cb.dgt{background:var(--s2);color:var(--er-i)}
+.comp .cb.sm{height:44px;border-radius:22px;font-size:16px;padding:0 16px}
+.comp .cb.full{width:100%}
+
+/* transcript */
+.comp .ub{align-self:flex-end;max-width:80%;background:var(--s2);border-radius:20px 20px 6px 20px;padding:10px 14px}
+.comp .cc{background:var(--s1);border-radius:20px;padding:12px 14px}
+.comp .code{background:var(--s1);border-radius:16px;padding:12px 14px;white-space:pre;overflow:hidden}
+
+/* bottom composer */
+.comp .bar{position:absolute;left:0;right:0;bottom:0;padding:10px 16px 34px;display:flex;flex-direction:column;gap:10px;z-index:5;background:linear-gradient(transparent,var(--bg) 26%)}
+.comp .cmp{display:flex;align-items:center;gap:10px}
+.comp .fld{flex:1;height:44px;border-radius:22px;display:flex;align-items:center;padding:0 16px;color:var(--t4);min-width:0}
+
+/* split view (iPad / Fold open) */
+.comp .col{position:relative;min-width:0;min-height:0;overflow:hidden}
+.comp .colhd{display:flex;align-items:center;gap:8px;height:52px;padding:0 12px;flex:none}
+.comp .sel{background:var(--ac-bg)}

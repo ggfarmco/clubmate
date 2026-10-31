@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: session waiting for permission</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+<link rel="stylesheet" href="/_blob/7df5c25b2aedc6ec882e4f5493f98846">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="edge"></div>
+<div class="top">
+<button class="gbtn glass" aria-label="Back to shop"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t"><span class="tt">Refactor the cart total into its own function</span><span class="ts"><span class="wa-i">Waiting for you</span> · shop</span></div>
+<button class="gbtn glass" aria-label="More: stop, mode, open on Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+
+<div style="position: absolute; left: 0; right: 0; top: 118px; bottom: 336px; overflow: hidden; display: grid; align-content: end; gap: 12px; padding: 0 16px 8px">
+<div class="ub" style="justify-self: end">Refactor the cart total into its own function</div>
+<div class="cap mut" style="display: flex; align-items: center; gap: 4px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 12px; height: 12px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>Thought for 3 s</div>
+<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span> and keep the behaviour the same.</p>
+<div class="code mono" style="font-size: 13px; line-height: 19px; overflow: visible">func cartTotal(items []Item) int {
+    return sum(items)
+}</div>
+<div class="cc" style="padding: 10px 14px">
+<div class="cap mut" style="display: flex; justify-content: space-between; padding-bottom: 4px"><span>Plan</span><span>1 of 3</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="sub mut">Extract cartTotal</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div>
+</div>
+<div class="cc" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">2 actions</span><span class="cap mut ell">read cart.go · edit cart.go <span class="ok-i">+1</span> <span class="er-i">−1</span></span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+
+<div class="bar">
+<section class="cc" aria-label="Permission request" style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="w6">Run a command?</span></div>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg)">go test ./...</div>
+<span class="cap mut">go test isn't in this workspace's allow list.</span>
+<button class="cb pri full">Allow once</button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<button class="cb plain sm">Always allow…</button>
+<button class="cb dgt sm">Reject</button>
+</div>
+</section>
+<div class="cmp">
+<button class="gbtn glass" aria-label="Attach a photo or video"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><circle cx="5.5" cy="6.5" r="1.2"/><path d="m1.5 11.5 4-3.5 3 2.5 2-1.5 4 3"/></svg></button>
+<label class="fld glass" for="cp-msg">Queue a message</label>
+<input id="cp-msg" aria-label="Queue a message" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gbtn" aria-label="Queue message" disabled style="background: var(--ac); color: var(--on-ac); opacity: .35"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion adaptation</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+<link rel="stylesheet" href="/_blob/7df5c25b2aedc6ec882e4f5493f98846">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; min-height: 2140px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate companion · design language</div>
+<h1>C2 · Companion adaptation</h1>
+<p class="lead">Same product, different hands. The principles and node specs carry over from the Mac; what changes is the metrics, the palette source and the navigation. One layout system serves iPhone, iPad and the Fold, keyed on width, not on the device.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 40px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Accent decision</div>
+<h2>Mate green becomes the companion accent</h2>
+<p style="font-size: 15px">On the Mac the brand stays out because the user picked their colours in Ghostty. The phone has no such theme — it follows the system — so this is the one window where the brand can live. Indigo is the system's default and says nothing about Clubmate.</p>
+<ul style="font-size: 15px">
+<li><b>accent</b> = Mate green: the one primary action, selection, unread dot</li>
+<li><b>success</b> moves to teal so “done” never reads as the accent — and is mostly muted anyway</li>
+<li><b>warning</b> = amber: needs you (permission, question)</li>
+<li><b>danger</b> = red: failed, stuck, Reject</li>
+<li>Surfaces and text levels are the system's — no Mate cream backgrounds; native first</li>
+<li>Light accent darkened from #3E8A2E to <b>#357A27</b> so white text on it passes 4.5:1</li>
+</ul>
+</div>
+<table>
+<thead><tr><th style="width: 150px">Role</th><th>Dark</th><th>Light</th><th style="width: 260px">Used for</th></tr></thead>
+<tbody>
+<tr><td class="mono">background</td><td><div class="cm comp th-cdark" style="padding: 6px; border-radius: 8px"><div style="height: 28px; border-radius: 6px; background: var(--bg); border: 1px solid var(--bd)"></div><span class="foot mut">systemBackground #000</span></div></td><td><div class="cm comp th-clight" style="padding: 6px; border-radius: 8px"><div style="height: 28px; border-radius: 6px; background: var(--bg); border: 1px solid var(--bd)"></div><span class="foot mut">systemGroupedBackground #F2F2F7</span></div></td><td>screens, transcript</td></tr>
+<tr><td class="mono">surface-1</td><td><div class="cm comp th-cdark" style="padding: 6px; border-radius: 8px"><div style="height: 28px; border-radius: 6px; background: var(--s1)"></div><span class="foot mut">#1C1C1E</span></div></td><td><div class="cm comp th-clight" style="padding: 6px; border-radius: 8px"><div style="height: 28px; border-radius: 6px; background: var(--s1)"></div><span class="foot mut">#FFFFFF</span></div></td><td>list groups, cards, glass base</td></tr>
+<tr><td class="mono">surface-2</td><td><div class="cm comp th-cdark" style="padding: 6px; border-radius: 8px"><div style="height: 28px; border-radius: 6px; background: var(--s2)"></div><span class="foot mut">#2C2C2E</span></div></td><td><div class="cm comp th-clight" style="padding: 6px; border-radius: 8px"><div style="height: 28px; border-radius: 6px; background: var(--s2)"></div><span class="foot mut">#E9E9EE</span></div></td><td>user bubble, plain buttons, chips</td></tr>
+<tr><td class="mono">accent</td><td><div class="cm comp th-cdark" style="padding: 6px; border-radius: 8px; display: flex; gap: 8px; align-items: center"><button class="cb pri sm" style="height: 32px; font-size: 14px">Allow once</button><span class="ac-i w6 cap">#A6D85B</span></div></td><td><div class="cm comp th-clight" style="padding: 6px; border-radius: 8px; display: flex; gap: 8px; align-items: center"><button class="cb pri sm" style="height: 32px; font-size: 14px">Allow once</button><span class="ac-i w6 cap">#357A27</span></div></td><td>the one primary action, selection, unread</td></tr>
+<tr><td class="mono">warning</td><td><div class="cm comp th-cdark" style="padding: 6px; border-radius: 8px; display: flex; gap: 8px; align-items: center"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4v5M8 11.5v.1"/></svg></span><span class="wa-i cap">Waiting for you</span></div></td><td><div class="cm comp th-clight" style="padding: 6px; border-radius: 8px; display: flex; gap: 8px; align-items: center"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4v5M8 11.5v.1"/></svg></span><span class="wa-i cap">Waiting for you</span></div></td><td>needs you: permission, question</td></tr>
+<tr><td class="mono">danger</td><td><div class="cm comp th-cdark" style="padding: 6px; border-radius: 8px; display: flex; gap: 8px; align-items: center"><span class="st er"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m5 5 6 6M11 5l-6 6"/></svg></span><span class="er-i cap">Reject · Stuck</span></div></td><td><div class="cm comp th-clight" style="padding: 6px; border-radius: 8px; display: flex; gap: 8px; align-items: center"><span class="st er"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="m5 5 6 6M11 5l-6 6"/></svg></span><span class="er-i cap">Reject · Stuck</span></div></td><td>failed, stuck, destructive</td></tr>
+<tr><td class="mono">success</td><td><div class="cm comp th-cdark" style="padding: 6px; border-radius: 8px"><span class="ok-i cap">+12 lines · teal #4FB3A0</span></div></td><td><div class="cm comp th-clight" style="padding: 6px; border-radius: 8px"><span class="ok-i cap">+12 lines · teal #1F7F70</span></div></td><td>diff additions only; done is muted grey</td></tr>
+<tr><td class="mono">text</td><td><div class="cm comp th-cdark" style="padding: 6px 10px; border-radius: 8px; display: flex; flex-direction: column"><span>label</span><span class="t2">secondary</span><span class="mut">tertiary</span></div></td><td><div class="cm comp th-clight" style="padding: 6px 10px; border-radius: 8px; display: flex; flex-direction: column"><span>label</span><span class="t2">secondary</span><span class="mut">tertiary</span></div></td><td>system label levels</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>Carried over from the Mac</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li><b>Colour is state.</b> Amber only for “needs you”, red for failed, the accent for the one thing to tap. Running is not green.</li>
+<li><b>Cards are for things that ask or change.</b> Permission, question, plan, tool group, code. Messages and lists stay flat.</li>
+<li><b>Names over ids; keep the end that differs.</b> Commands keep the executable; paths truncate in the middle.</li>
+<li><b>Permanent permission is never the default.</b> Allow once first and filled; Always allow plain and confirmed.</li>
+<li><b>Node specs:</b> message, thought, plan (no strikethrough), tool group, diff, permission request, composer — same structure and ordering as the Mac renderers.</li>
+<li><b>Status vocabulary:</b> Waiting for you · Asking you · Running · Stopped · Done · Closed.</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2>What changes on a phone</h2>
+<table>
+<tbody>
+<tr><td style="width: 150px">Touch</td><td>44pt minimum hit area; buttons are capsules 50pt (primary) / 44pt (secondary); ≥ 10pt between opposite choices</td></tr>
+<tr><td>Type</td><td>Dynamic Type: Large Title 34 · Title 3 20 · Body 17 · Subheadline 15 · Footnote 13 · Caption 12. SF Mono at body − 3 for commands, paths, code</td></tr>
+<tr><td>Density</td><td>A row = title (up to two lines) + one state line. No previews.</td></tr>
+<tr><td>Space, radius</td><td>16pt margins; 22pt above a section; list groups radius 22, cards 20, code 16 — concentric with the device corners</td></tr>
+<tr><td>Navigation</td><td>NavigationSplitView everywhere: collapses to a stack on compact width. Header = back · title · one ••• menu</td></tr>
+<tr><td>Reach</td><td>Everything that answers lives in the bottom 40%: docked request card + composer. The header only navigates.</td></tr>
+<tr><td>Gestures</td><td>Swipe only for harmless actions (mark read). Never swipe to allow, reject or stop.</td></tr>
+<tr><td>Keys</td><td>Hardware keyboard on iPad / Fold: ⌥1 ⌥2 ⌥3 answer, ⌘⏎ send — same as the Mac.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 14px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<h2>One layout, three devices</h2>
+<p class="muted" style="font-size: 14px">Breakpoints by available width, so Split View, Stage Manager and the Fold's two states all follow from the same rule. Fold sizes come from leaks (≈5.5″ cover, ≈7.8″ ~4:3 inner) — verify once Apple publishes them.</p>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+<div class="panel" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+<span class="mono muted">compact · &lt; 600pt</span>
+<h3>One column, a stack</h3>
+<div style="display: flex; gap: 6px; height: 120px"><div style="flex: 1; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">Macs → shop → session</div></div>
+<p class="muted" style="font-size: 14px">iPhone, Fold folded, iPad Slide Over. The iPhone mockups.</p>
+</div>
+<div class="panel" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+<span class="mono muted">regular · 600–1000pt</span>
+<h3>Two columns</h3>
+<div style="display: flex; gap: 6px; height: 120px"><div style="width: 36%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">sessions</div><div style="flex: 1; border-radius: 10px; background: #D9EAD9; display: flex; align-items: center; justify-content: center; font-size: 13px">session</div></div>
+<p class="muted" style="font-size: 14px">Fold open, iPad portrait, iPad split screen. Macs move into a toolbar menu / sidebar toggle.</p>
+</div>
+<div class="panel" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+<span class="mono muted">wide · &gt; 1000pt</span>
+<h3>Three columns</h3>
+<div style="display: flex; gap: 6px; height: 120px"><div style="width: 22%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">Macs</div><div style="width: 28%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">sessions</div><div style="flex: 1; border-radius: 10px; background: #D9EAD9; display: flex; align-items: center; justify-content: center; font-size: 13px">session</div></div>
+<p class="muted" style="font-size: 14px">iPad landscape. Permission buttons go into one row (Allow once first, Reject at the far end).</p>
+</div>
+</div>
+<ul style="font-size: 15px">
+<li>Folding or unfolding keeps the open session; the column state is restored, not the scroll position of a list you didn't see.</li>
+<li>A request arriving while you're in another session shows as a banner at the top of the detail column, not a modal.</li>
+</ul>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":2140}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

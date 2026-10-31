@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: workspace sessions</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+<link rel="stylesheet" href="/_blob/7df5c25b2aedc6ec882e4f5493f98846">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="top">
+<button class="gbtn glass" aria-label="Back to Macs"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<span style="flex: 1"></span>
+<div class="gpill glass"><button aria-label="Files"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></button><button aria-label="New session"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.5 2.5H3a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5V7.5"/><path d="m13 2.5-5.5 5.5-.5 2 2-.5L14.5 4Z"/></svg></button></div>
+</div>
+<div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<h1 class="big" style="margin: 0; padding: 0 20px">shop</h1>
+<div class="cap mut" style="padding: 2px 20px 0">Mac Studio · online</div>
+
+<div class="hdr"><span>Needs you</span><span class="cap">2</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st wa" style="margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">Refactor the cart total into its own function</span><span class="cap ell"><span class="wa-i">Wants to run</span> <span class="mono" style="font-size: 12px">go test ./…</span><span class="mut"> · 2 min</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 6px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c" style="align-items: flex-start; padding-left: 56px"><span class="st wa" style="width: 24px; height: 24px; margin-top: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/><path d="M6.6 6a1.5 1.5 0 1 1 2 1.4c-.4.2-.6.5-.6.9M8 9.6v.1"/></svg></span><div class="cbody"><span class="cap mut">Subagent · AFK</span><span class="w6 ell">Explain the checkout flow</span><span class="cap ell"><span class="wa-i">Asks:</span><span class="t2"> Add retries to the charge step?</span></span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true" style="margin-top: 6px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+
+<div class="hdr"><span>Running</span><span class="cap">1</span></div>
+<div class="ig">
+<div class="c"><span class="st ac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><div class="cbody"><span class="ell">Add stock reservation expiry</span><span class="cap mut ell">Editing reserve.go · 4 min</span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+
+<div class="hdr" style="padding-top: 26px"><span>Closed · 1</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

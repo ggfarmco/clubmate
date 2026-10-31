@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: session asking a question</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+<link rel="stylesheet" href="/_blob/7df5c25b2aedc6ec882e4f5493f98846">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="edge"></div>
+<div class="top">
+<button class="gbtn glass" aria-label="Back to shop"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<div class="t"><span class="tt">Explain the checkout flow</span><span class="ts"><span class="wa-i">Asking you</span> · subagent · AFK</span></div>
+<button class="gbtn glass" aria-label="More: open parent session, stop, mode"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</div>
+
+<div style="position: absolute; left: 0; right: 0; top: 118px; bottom: 258px; overflow: hidden; display: grid; align-content: end; gap: 12px; padding: 0 16px 8px">
+<button class="cc" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 0; color: var(--fg); text-align: left"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M10 3 5 8l5 5"/></svg><span style="flex: 1; display: flex; flex-direction: column; min-width: 0"><span class="cap mut">Started by</span><span class="sub ell">Refactor the cart total into its own function</span></span></button>
+<div class="ub" style="justify-self: end">Explain the checkout flow</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<p>Checkout runs in three steps: <i>validate</i>, <i>reserve</i>, <i>charge</i>.</p>
+<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px">
+<li><b>validate</b> checks the cart</li>
+<li><b>reserve</b> holds stock for 10 minutes</li>
+<li><b>charge</b> calls the payment provider</li>
+</ul>
+</div>
+</div>
+
+<div class="bar">
+<section class="cc" aria-label="Question from Claude" style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/><path d="M6.6 6a1.5 1.5 0 1 1 2 1.4c-.4.2-.6.5-.6.9M8 9.6v.1"/></svg></span><span class="cap wa-i w6">Claude is asking</span></div>
+<p class="w6" style="font-size: 19px; line-height: 25px">Should I add retries to the charge step?</p>
+<span class="cap mut">Paused until you answer. Your reply resumes the subagent.</span>
+</section>
+<div class="cmp">
+<button class="gbtn glass" aria-label="Attach a photo or video"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><circle cx="5.5" cy="6.5" r="1.2"/><path d="m1.5 11.5 4-3.5 3 2.5 2-1.5 4 3"/></svg></button>
+<label class="fld glass" for="cq-msg" style="color: var(--fg); border-color: var(--ac); box-shadow: 0 0 0 3px var(--ac-bg)">Yes, 3 tries with backoff|</label>
+<input id="cq-msg" aria-label="Answer Claude" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gbtn" aria-label="Send answer" style="background: var(--ac); color: var(--on-ac)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

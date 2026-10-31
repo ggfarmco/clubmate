@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion audit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; min-height: 1720px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate companion · review</div>
+<h1>C1 · Companion audit</h1>
+<p class="lead">18 problems from the simulator shots, ranked. Anything that lets a tap do what the user didn't mean comes first. The structure itself — Macs → workspace → session, the inbox, glass controls, large titles — works and stays.</p>
+<div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; font-size: 14px">
+<span style="display: flex; gap: 8px; align-items: center"><span class="tag a">a</span>companion-only SwiftUI</span>
+<span style="display: flex; gap: 8px; align-items: center"><span class="tag b">b</span>needs data the companion doesn't get today</span>
+<span style="display: flex; gap: 8px; align-items: center"><span class="tag c">c</span>shared with the Mac renderers</span>
+</div>
+</div>
+<table>
+<thead><tr><th style="width: 64px">#</th><th style="width: 140px">Screen</th><th style="width: 300px">Problem</th><th style="width: 250px">Why it matters</th><th>Fix</th><th style="width: 70px">Type</th></tr></thead>
+<tbody>
+<tr><td class="n"><span class="tag p0">P0</span><br>1</td><td>Permission</td><td>“Always Allow” is first and the most prominent (filled green). Fixed after the shots, but the order still needs a final rule.</td><td>The easiest tap on the screen grants a permanent rule — the worst possible mis-tap.</td><td>“Allow once” is the only filled button, full width, on its own row. “Always allow…” is plain, second row, and opens a confirm sheet that shows the exact rule it adds. Never the default, never swipeable.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag p0">P0</span><br>2</td><td>Session composer</td><td>While the agent runs, the right-hand button of the composer is Stop — where Send lives on every other screen.</td><td>Habit: type, tap the right button. Here that stops the agent mid-run.</td><td>The right slot is always Send / Queue (disabled when empty). Stop moves to the ••• menu (iPhone) or a header button (iPad), and asks once.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag p0">P0</span><br>3</td><td>Permission</td><td>Allow, Always Allow and Reject sit in one row of similar pills with tight gaps.</td><td>Neighbouring choices with opposite meaning are one thumb-width apart.</td><td>Allow once alone on row one (50pt). Row two: Always allow… and Reject, split, 10pt gap, 44pt high.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>4</td><td>Question (AFK)</td><td>The question is just the last line of prose; nothing says the run is paused. Header reads “Done · AFK”.</td><td>The user may not notice they're blocking a subagent, or answer something else.</td><td>Docked “Claude is asking” card with the question; header and list say “Asking you”; composer placeholder “Answer Claude…”.</td><td><span class="tag a">a</span> <span class="tag b">b</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>5</td><td>Session</td><td>The glass header covers the start of the transcript (“Thinking” shows under it).</td><td>The first lines can't be read, and taps there hit the header.</td><td>Content inset by the header height, with a short edge fade; scroll-to-top stops below the header.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>6</td><td>Session</td><td>The pending permission is inline in the transcript and scrolls with it.</td><td>Opened from a notification, the thing to answer may be off screen.</td><td>A pending request or question docks above the composer until answered; then it collapses into one transcript row.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>7</td><td>Macs</td><td>Counts (“Agents 2”, “Inbox 3”) don't say what needs me; the online dot is the only state.</td><td>Job one — see what needs me — takes two taps per Mac.</td><td>A “Needs you” section on top, across all Macs, listing the actual requests. Per-workspace rows say “2 waiting”. Offline Macs show “offline since 18:20” and dim.</td><td><span class="tag a">a</span> <span class="tag b">b</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>8</td><td>Workspace</td><td>Orange “Permission” pill and hand icon say the same thing; the pill takes the title's width.</td><td>Noise; titles wrap early.</td><td>Status glyph only. The sub-line says what it wants: “Wants to run <code>go test ./…</code>”, “Asks: …”.</td><td><span class="tag a">a</span> <span class="tag b">b</span></td></tr>
+<tr><td class="n"><span class="tag">P1</span><br>9</td><td>Workspace</td><td><code>⑂ 1</code> child count is cryptic.</td><td>A waiting subagent hides inside its parent.</td><td>Children nest under the parent row, labelled “Subagent · AFK”, each with its own state.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>10</td><td>Session</td><td>The plan appears twice: a markdown “Plan” list and the plan card.</td><td>Double reading on a small screen.</td><td>The plan card is the only plan. A message that is just a plan, followed by a plan entry, folds into the card.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>11</td><td>Session</td><td>Done plan steps are struck through.</td><td>Hard to read; the Mac spec dropped it.</td><td>Check mark + muted text.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>12</td><td>Session</td><td>Every tool call is its own card.</td><td>Chrome pushes the conversation and the request off screen.</td><td>Consecutive calls group into one row: “2 actions · read cart.go · edit cart.go +1 −1”; tap to expand; diffs inside.</td><td><span class="tag c">c</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>13</td><td>Session</td><td>User bubble filled with the accent (indigo).</td><td>Accent should mean “act here”; a filled bubble competes with Allow.</td><td>Neutral bubble on surface-2, same as the Mac's tinted user message.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>14</td><td>Inbox</td><td>No “Waiting for you” / “Earlier” grouping; “Opens the session” on every row.</td><td>Requests mix with history; the meta line is filler.</td><td>Two groups; meta = workspace · session; permission rows show the command.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P2</span><br>15</td><td>Inbox</td><td>Every row has an unread dot, including “Build finished”; done is a green check.</td><td>The dot stops meaning anything; green competes with the accent.</td><td>Dot only on unseen items that need action; done in muted grey.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>16</td><td>Session header</td><td>“Claude · shop · Done · AFK” mixes state with names.</td><td>State is what you scan for.</td><td>State first, toned only when it needs you: “<b>Asking you</b> · subagent · AFK”.</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>17</td><td>All</td><td>System indigo accent; the brand appears nowhere.</td><td>The companion is the one place without a user theme — the brand can live here.</td><td>Mate green accent, tones remapped (see C2).</td><td><span class="tag a">a</span></td></tr>
+<tr><td class="n"><span class="tag">P3</span><br>18</td><td>iPad · Fold</td><td>No large-width layout in the shots.</td><td>On iPad and an open Fold the phone stack wastes the screen.</td><td>NavigationSplitView: three columns on iPad, two on an open Fold; folded = the iPhone layout.</td><td><span class="tag a">a</span></td></tr>
+</tbody>
+</table>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":1720}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

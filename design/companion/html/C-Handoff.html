@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion handoff</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/m.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+
+</head><body>
+
+<div class="doc" style="width: 1200px; min-height: 1780px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate companion · handoff</div>
+<h1>C4 · Handoff &amp; open questions</h1>
+<p class="lead">Most of it is SwiftUI in the companion. Six things need data the companion doesn't get today; five rules are shared with the Mac renderers so both apps behave the same.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; align-items: center; gap: 10px"><span class="tag b">b</span><h2>Needs data the companion doesn't get today</h2></div>
+<table>
+<thead><tr><th style="width: 280px">Change</th><th>Data needed from the <code>remote</code> plugin</th></tr></thead>
+<tbody>
+<tr><td>Rows say what a session wants (“Wants to run <code>go test ./…</code>”, “Asks: …”)</td><td>A <code>pending</code> summary on each session in the list payload: kind (permission | question), short text (command or question), created-at — without loading the transcript</td></tr>
+<tr><td>“Needs you” across all Macs on the first screen</td><td>The same <code>pending</code> list per Mac, or one call that returns pending items for all workspaces</td></tr>
+<tr><td>Docked question card</td><td>An explicit “asking” marker with the question text, rather than inferring it from the last agent message</td></tr>
+<tr><td>Always-allow confirm sheet</td><td>The exact rule the Mac will store for <code>allow_always</code> (e.g. <code>Bash(go test:*)</code>) and its scope (workspace, Mac)</td></tr>
+<tr><td>Offline Mac: “as of 18:20”, answers disabled</td><td>Last-seen timestamp per Mac, and a request's validity (still pending on the Mac?) checked before an answer is sent</td></tr>
+<tr><td>Requests answered elsewhere disappear</td><td>A “resolved” event when a request is answered on the Mac or another device, to remove the card and the notification</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; align-items: center; gap: 10px"><span class="tag c">c</span><h2>Shared with the Mac renderers</h2></div>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li><b>Permission ordering:</b> allow_once first and primary; allow_always plain and confirmed; reject_once plain; reject_always behind “more”. One rule in the shared model, both apps render from it.</li>
+<li><b>Plan:</b> no strikethrough; a prose plan followed by a plan entry folds into the card.</li>
+<li><b>Tool groups:</b> consecutive calls collapse into one summary row; failures expand.</li>
+<li><b>User message:</b> neutral surface, not the accent.</li>
+<li><b>Status vocabulary:</b> Waiting for you · Asking you · Running · Stopped · Done · Closed — the same words in list rows, headers and notifications.</li>
+</ul>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; align-items: center; gap: 10px"><span class="tag a">a</span><h2>Companion-only SwiftUI</h2></div>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li>Accent → Mate green (#A6D85B dark / #357A27 light); success → teal; warning amber; danger red. System surfaces and label levels.</li>
+<li>Permission card: Allow once full width on row 1; Always allow… + Reject on row 2; confirm sheet for Always.</li>
+<li>Composer: right slot always Send / Queue; Stop into ••• with one confirm (header button on iPad).</li>
+<li>Pending request / question docked above the composer; transcript inset below the glass header.</li>
+<li>Macs screen: “Needs you” on top; per-workspace “2 waiting”; offline Macs dimmed.</li>
+<li>Workspace list: status glyph + state line, no pills; subagents nested.</li>
+<li>Inbox: Waiting for you / Earlier; dots only on unseen actionable items.</li>
+<li>NavigationSplitView with width breakpoints: stack &lt; 600pt, two columns 600–1000pt (Fold open, iPad portrait), three above (iPad landscape).</li>
+<li>No swipe actions that allow, reject or stop. Hardware keys ⌥1 ⌥2 ⌥3, ⌘⏎ on iPad / Fold.</li>
+</ul>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div class="eyebrow">Open questions</div>
+<ol style="margin: 0; padding-left: 20px; font-size: 15px; display: flex; flex-direction: column; gap: 10px">
+<li><b>Palette source.</b> Earlier you picked “sync from the Mac”; this brief says the phone follows the system. I went with system surfaces + Mate accent. Worth an optional “Use my Mac's terminal colours” switch later?</li>
+<li><b>Fold metrics.</b> Layouts are keyed on width, so the Fold should just work; the open-state board assumes ≈4:3. Re-check against Apple's numbers once they're published, especially the cover screen width.</li>
+<li><b>Always allow from a notification.</b> Proposal: notifications offer Allow once and Reject only; Always needs the app (and the confirm sheet). Agree?</li>
+<li><b>Stop.</b> One confirm, or a long press? I chose a confirm in the ••• menu — slower, but it can't happen by accident.</li>
+<li><b>Nesting depth.</b> Can subagents have subagents? The list nests one level; deeper chains would need a breadcrumb.</li>
+<li><b>Earlier exploration.</b> The tab-bar boards (M-*) above are kept for reference only. OK to delete them?</li>
+</ol>
+</div>
+</div>
+</body></html>
