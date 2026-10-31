@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 import CompanionKit
@@ -7,6 +8,7 @@ struct SessionDetailView: View {
     let store: AgentsStore
     let sessionID: String
     @State private var draft = ""
+    @State private var images: [Data] = []
     @State private var sending = false
     @State private var sent = 0
     @State private var failure: String?
@@ -51,6 +53,7 @@ struct SessionDetailView: View {
             if let session {
                 ComposerView(
                     draft: $draft,
+                    images: $images,
                     session: session,
                     enabled: context.connection.state == .online,
                     sending: sending,
@@ -105,12 +108,14 @@ struct SessionDetailView: View {
 
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        let attached = images
+        guard !text.isEmpty || !attached.isEmpty else { return }
         sending = true
         Task {
             do {
-                try await store.send(text, to: sessionID)
+                try await store.send(text, images: attached, to: sessionID)
                 draft = ""
+                images = []
                 sent += 1
             } catch {
                 failure = Self.message(error)
@@ -145,12 +150,18 @@ struct SessionDetailView: View {
 
 struct ComposerView: View {
     @Binding var draft: String
+    @Binding var images: [Data]
     let session: AgentSession
     let enabled: Bool
     let sending: Bool
     let send: () -> Void
     let stop: () -> Void
     @FocusState private var focused: Bool
+    @State private var picked: [PhotosPickerItem] = []
+
+    private var empty: Bool {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && images.isEmpty
+    }
 
     var body: some View {
         if session.closed {
@@ -163,37 +174,61 @@ struct ComposerView: View {
                 .padding(.bottom, 8)
         } else {
             GlassEffectContainer(spacing: 10) {
-                HStack(alignment: .bottom, spacing: 10) {
-                    TextField(session.isTurnActive ? "Queue a message" : "Message \(session.agentName)", text: $draft, axis: .vertical)
-                        .lineLimit(1...6)
-                        .focused($focused)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 11)
-                        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
-                    if session.isTurnActive && draft.isEmpty {
-                        Button(action: stop) {
-                            Image(systemName: "stop.fill")
+                VStack(alignment: .leading, spacing: 8) {
+                    if !images.isEmpty {
+                        AttachedImagesRow(images: $images)
+                    }
+                    HStack(alignment: .bottom, spacing: 10) {
+                        PhotosPicker(selection: $picked, maxSelectionCount: 4, matching: .images) {
+                            Image(systemName: "photo.on.rectangle")
                                 .font(.body.weight(.semibold))
                                 .frame(width: 30, height: 30)
                         }
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
-                        .accessibilityLabel("Stop")
-                    } else {
-                        Button(action: send) {
-                            Group {
-                                if sending {
-                                    ProgressView()
-                                } else {
-                                    Image(systemName: "arrow.up").font(.body.weight(.bold))
-                                }
+                        .accessibilityLabel("Attach Photos")
+                        TextField(session.isTurnActive ? "Queue a message" : "Message \(session.agentName)", text: $draft, axis: .vertical)
+                            .lineLimit(1...6)
+                            .focused($focused)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
+                        if session.isTurnActive && draft.isEmpty && images.isEmpty {
+                            Button(action: stop) {
+                                Image(systemName: "stop.fill")
+                                    .font(.body.weight(.semibold))
+                                    .frame(width: 30, height: 30)
                             }
-                            .frame(width: 30, height: 30)
+                            .buttonStyle(.glass)
+                            .buttonBorderShape(.circle)
+                            .accessibilityLabel("Stop")
+                        } else {
+                            Button(action: send) {
+                                Group {
+                                    if sending {
+                                        ProgressView()
+                                    } else {
+                                        Image(systemName: "arrow.up").font(.body.weight(.bold))
+                                    }
+                                }
+                                .frame(width: 30, height: 30)
+                            }
+                            .buttonStyle(.glassProminent)
+                            .buttonBorderShape(.circle)
+                            .disabled(empty || sending)
+                            .accessibilityLabel("Send")
                         }
-                        .buttonStyle(.glassProminent)
-                        .buttonBorderShape(.circle)
-                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sending)
-                        .accessibilityLabel("Send")
+                    }
+                }
+            }
+            .onChange(of: picked) { _, items in
+                guard !items.isEmpty else { return }
+                picked = []
+                Task {
+                    for item in items {
+                        if let data = try? await item.loadTransferable(type: Data.self), let jpeg = PhotoEncoder.jpeg(data) {
+                            images.append(jpeg)
+                        }
                     }
                 }
             }
@@ -202,5 +237,48 @@ struct ComposerView: View {
             .padding(.bottom, 8)
             .frame(maxWidth: 820)
         }
+    }
+}
+
+struct AttachedImagesRow: View {
+    @Binding var images: [Data]
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(Array(images.enumerated()), id: \.offset) { _, data in
+                    if let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 64, height: 64)
+                            .clipShape(.rect(cornerRadius: 12))
+                            .overlay(alignment: .topTrailing) {
+                                Button("Remove", systemImage: "xmark.circle.fill") { images.removeAll { $0 == data } }
+                                    .labelStyle(.iconOnly)
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(.white, .black.opacity(0.6))
+                                    .padding(4)
+                            }
+                    }
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+        .scrollIndicators(.hidden)
+    }
+}
+
+enum PhotoEncoder {
+    static let maxSide: CGFloat = 1568
+
+    static func jpeg(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let scale = min(1, maxSide / max(image.size.width, image.size.height))
+        let size = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        return resized.jpegData(compressionQuality: 0.8)
     }
 }

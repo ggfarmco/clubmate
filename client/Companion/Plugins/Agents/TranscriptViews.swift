@@ -9,8 +9,8 @@ struct EntryView: View {
 
     var body: some View {
         switch entry.content {
-        case .user(let text, let fromAgent):
-            UserBubble(text: text, fromAgent: fromAgent)
+        case .user(let text, let fromAgent, let images):
+            UserBubble(text: text, fromAgent: fromAgent, images: images)
         case .agent(let text):
             MarkdownView(text: text)
         case .thought(let text):
@@ -34,6 +34,7 @@ struct EntryView: View {
 struct UserBubble: View {
     let text: String
     let fromAgent: Bool
+    let images: [Data]
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
@@ -42,12 +43,23 @@ struct UserBubble: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text(Markdown.inline(text))
-                .textSelection(.enabled)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .foregroundStyle(fromAgent ? Color.primary : Color.white)
-                .background(fromAgent ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.tint), in: .rect(cornerRadius: 20))
+            ForEach(Array(images.enumerated()), id: \.offset) { _, data in
+                if let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 240, maxHeight: 240)
+                        .clipShape(.rect(cornerRadius: 16))
+                }
+            }
+            if !text.isEmpty {
+                Text(Markdown.inline(text))
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .foregroundStyle(fromAgent ? Color.primary : Color.white)
+                    .background(fromAgent ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.tint), in: .rect(cornerRadius: 20))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.leading, 48)

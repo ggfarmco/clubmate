@@ -44,17 +44,19 @@
             "text": {"type": "string", "description": "Prompt text."},
             "attachments": {
               "type": "array",
-              "description": "Files and selections: {kind: \"file\", path} or {kind: \"selection\", path, startLine, endLine, text}.",
+              "description": "Files, selections and images: {kind: \"file\", path}, {kind: \"selection\", path, startLine, endLine, text} or {kind: \"image\", mimeType, data} with base64 data.",
               "items": {
                 "type": "object",
                 "properties": {
-                  "kind": {"type": "string", "enum": ["file", "selection"], "description": "Attachment kind."},
+                  "kind": {"type": "string", "enum": ["file", "selection", "image"], "description": "Attachment kind."},
                   "path": {"type": "string", "description": "File path, absolute or relative to the session's worktree."},
                   "startLine": {"type": "integer", "description": "First selected line, 1-based."},
                   "endLine": {"type": "integer", "description": "Last selected line, 1-based."},
-                  "text": {"type": "string", "description": "Selected text."}
+                  "text": {"type": "string", "description": "Selected text."},
+                  "mimeType": {"type": "string", "description": "Image type, e.g. image/jpeg."},
+                  "data": {"type": "string", "description": "Base64 image bytes."}
                 },
-                "required": ["kind", "path"]
+                "required": ["kind"]
               }
             }
           },

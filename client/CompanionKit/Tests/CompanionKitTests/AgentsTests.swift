@@ -14,11 +14,17 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(AgentSession.grouped(sessions)[0].sessions.map(\.id).sorted(), ["agt_0000000000000001", "agt_0000000000000002"])
     }
 
+    func testDecodesUserImages() throws {
+        let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"}]}"#
+        let entry = try JSONDecoder.companion.decode(TranscriptEntry.self, from: Data(json.utf8))
+        XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2])]))
+    }
+
     func testDecodesTranscriptFixture() throws {
         let transcript = try JSONDecoder.companion.decode(AgentTranscript.self, from: fixture("agents-transcript"))
         XCTAssertEqual(transcript.modes.map(\.id), ["default", "plan"])
         guard transcript.entries.count == 7,
-              case .user(let prompt, false) = transcript.entries[0].content,
+              case .user(let prompt, false, []) = transcript.entries[0].content,
               case .thought = transcript.entries[1].content,
               case .agent(let markdown) = transcript.entries[2].content,
               case .plan(let plan) = transcript.entries[3].content,

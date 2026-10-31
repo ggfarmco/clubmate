@@ -95,8 +95,12 @@ public final class AgentsStore {
         }
     }
 
-    public func send(_ text: String, to session: String) async throws {
-        try await run("agents.prompt", ["session": .string(session), "text": .string(text)])
+    public func send(_ text: String, images: [Data] = [], to session: String) async throws {
+        var args: [String: JSONValue] = ["session": .string(session), "text": .string(text)]
+        if !images.isEmpty {
+            args["attachments"] = .array(images.map { .object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string($0.base64EncodedString())]) })
+        }
+        try await run("agents.prompt", args)
         await refreshSession(session)
     }
 

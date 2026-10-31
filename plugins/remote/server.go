@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	maxBodyBytes      = 1 << 20
+	maxBodyBytes      = 16 << 20
 	maxDeviceField    = 128
 	requestTimeout    = 2 * time.Minute
 	readHeaderTimeout = 10 * time.Second

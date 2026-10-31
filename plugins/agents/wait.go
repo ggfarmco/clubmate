@@ -143,7 +143,7 @@ func (s *session) takeUserPrompts() *waitMessage {
 	var attachments []attachment
 	taken := false
 	s.queue = slices.DeleteFunc(s.queue, func(q queuedPrompt) bool {
-		if q.From != "" {
+		if q.From != "" || slices.ContainsFunc(q.Attachments, func(a attachment) bool { return a.Kind == "image" }) {
 			return false
 		}
 		if strings.TrimSpace(q.Text) != "" {

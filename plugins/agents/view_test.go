@@ -420,3 +420,17 @@ func TestMergeableGates(t *testing.T) {
 		assert.False(t, mergeable(rec, true), "%+v", rec)
 	}
 }
+
+func TestPromptBlocksImage(t *testing.T) {
+	args := promptArgs{Text: "look", Attachments: []attachment{{Kind: "image", MimeType: "image/jpeg", Data: "AAAA"}}}
+	assert.Equal(t, []acp.ContentBlock{{Type: "text", Text: "look"}, {Type: "image", Data: "AAAA", MimeType: "image/jpeg"}}, promptBlocks(args, "/r", acp.PromptCapabilities{Image: true}))
+	assert.Equal(t, []acp.ContentBlock{{Type: "text", Text: "look"}, {Type: "text", Text: imageOmitted}}, promptBlocks(args, "/r", acp.PromptCapabilities{}))
+	args.Text = ""
+	assert.Equal(t, []acp.ContentBlock{{Type: "image", Data: "AAAA", MimeType: "image/jpeg"}}, sendable(promptBlocks(args, "/r", acp.PromptCapabilities{Image: true})))
+}
+
+func TestDropImageData(t *testing.T) {
+	entries := []*entry{{Kind: entryUser, Content: []json.RawMessage{rawJSON(t, acp.ContentBlock{Type: "text", Text: "see"}), rawJSON(t, acp.ContentBlock{Type: "image", Data: "AAAA", MimeType: "image/jpeg"})}}}
+	dropImageData(entries)
+	assert.JSONEq(t, `{"type":"image","mimeType":"image/jpeg"}`, string(entries[0].Content[1]))
+}

@@ -160,7 +160,7 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
 
 public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public enum Content: Sendable, Equatable {
-        case user(text: String, fromAgent: Bool)
+        case user(text: String, fromAgent: Bool, images: [Data])
         case agent(String)
         case thought(String)
         case tool(ToolCall)
@@ -176,7 +176,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let content: Content
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, text, tool, plan, toolCall, options, outcome, notice, from
+        case kind, id, turn, text, content, tool, plan, toolCall, options, outcome, notice, from
     }
 
     public init(from decoder: any Decoder) throws {
@@ -188,7 +188,9 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         let text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         switch kind {
         case "user":
-            content = .user(text: text, fromAgent: !(try c.decodeIfPresent(String.self, forKey: .from) ?? "").isEmpty)
+            let blocks = (try? c.decodeIfPresent([JSONValue].self, forKey: .content)) ?? []
+            let images = blocks.compactMap { $0["type"]?.stringValue == "image" ? $0["data"]?.stringValue.flatMap { Data(base64Encoded: $0) } : nil }
+            content = .user(text: text, fromAgent: !(try c.decodeIfPresent(String.self, forKey: .from) ?? "").isEmpty, images: images)
         case "agent":
             content = .agent(text)
         case "thought":

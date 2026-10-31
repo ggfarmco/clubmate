@@ -274,6 +274,8 @@ type ContentBlock struct {
 	Text     string                `json:"text,omitempty"`
 	URI      string                `json:"uri,omitempty"`
 	Name     string                `json:"name,omitempty"`
+	Data     string                `json:"data,omitempty"`
+	MimeType string                `json:"mimeType,omitempty"`
 	Resource *TextResourceContents `json:"resource,omitempty"`
 }
 

@@ -30,7 +30,7 @@ clubmate command run remote.setPort port=<port>
 - Device token: `cmt_` + base64url of 32 random bytes. Only its hex SHA-256 is stored (plugin storage `devices`); comparisons are constant-time. Tokens and codes are never logged.
 - Pairing the same device id again replaces its old token. Revoking a device closes its event streams; its next request gets 401.
 - A paired device acts as you: it can run every command whose manifest has `"remote": true` (the agents commands: sessions, transcript, prompt, cancel, permission, new, close, mode, config) and answer any pending permission. Commands run through core `command.run` with `agent: false` and no caller; the core marks them `via: "remote"`.
-- Request bodies are limited to 1 MiB; the server has header/read/idle timeouts and per-write deadlines.
+- Request bodies are limited to 16 MiB (room for photos attached to prompts); the server has header/read/idle timeouts and per-write deadlines.
 
 ## Wire contract (v1)
 All bodies are JSON. Authenticated endpoints need `Authorization: Bearer <token>`; a missing, unknown or revoked token gets `401 {"error":{"code":"unauthorized","message":"..."}}`.

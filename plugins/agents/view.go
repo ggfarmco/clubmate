@@ -934,6 +934,8 @@ func promptAttachments(content []json.RawMessage, root string) []sdui.Attachment
 				end, _ := strconv.Atoi(m[3])
 				out = append(out, sdui.Attachment{Kind: "selection", Path: relPath(m[1], root), StartLine: start, EndLine: end})
 			}
+		case "image":
+			out = append(out, sdui.Attachment{Kind: "image", Path: "image"})
 		case "resource_link":
 			if path, _, _ := fileURI(b.URI); path != "" {
 				out = append(out, sdui.Attachment{Kind: "file", Path: relPath(path, root)})

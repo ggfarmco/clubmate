@@ -10,6 +10,7 @@ public struct SDUIAttachment: Sendable, Equatable, Identifiable {
     public var id: String { key ?? "\(kind):\(path):\(startLine ?? 0)-\(endLine ?? 0)" }
 
     public var label: String {
+        if kind == "image" { return "Image" }
         guard kind == "selection", let startLine else { return "@ \(path)" }
         guard let endLine, endLine != startLine else { return "\(path) · line \(startLine)" }
         return "\(path) · lines \(startLine)–\(endLine)"

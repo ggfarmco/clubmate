@@ -47,6 +47,7 @@ const (
 	refsTimeout     = 30 * time.Second
 	checkpointLimit = 2 * time.Minute
 	embedLimit      = 1 << 20
+	imageOmitted    = "[An image was attached, but this agent does not accept images.]"
 	stopRootWait    = 4 * time.Second
 	worktreeLimit   = 10 * time.Minute
 	worktreeNewCmd  = "git.worktree-new"
@@ -107,6 +108,8 @@ type attachment struct {
 	StartLine int    `json:"startLine"`
 	EndLine   int    `json:"endLine"`
 	Text      string `json:"text"`
+	MimeType  string `json:"mimeType,omitempty"`
+	Data      string `json:"data,omitempty"`
 }
 
 type promptArgs struct {
@@ -445,7 +448,11 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		if err != nil {
 			return nil, err
 		}
-		return s.view(args.FromTurn), nil
+		v := s.view(args.FromTurn)
+		if cmd.Agent {
+			dropImageData(v.Entries)
+		}
+		return v, nil
 	case "agents.blame":
 		return a.blameCommand(ctx, cmd)
 	case "agents.trace":
@@ -1094,11 +1101,12 @@ func (a *app) submit(s *session, args *promptArgs) error {
 }
 
 func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool {
-	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)
+	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)
 	req := acp.NewSteerRequest(rec.AgentSessionID, slices.Clone(blocks))
 	if args.From != "" {
 		req.Prompt[0].Text = a.fromPrefix(args.From) + req.Prompt[0].Text
 	}
+	req.Prompt = sendable(req.Prompt)
 	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 	defer cancel()
 	var res acp.SteerResponse
@@ -1152,7 +1160,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	if a.abandon(s, args) {
 		return
 	}
-	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities.EmbeddedContext)}
+	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)}
 	s.mu.Lock()
 	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: req, From: args.From})
 	s.mu.Unlock()
@@ -1163,6 +1171,7 @@ func (a *app) runTurn(s *session, turn int, args promptArgs) {
 	if args.From != "" {
 		req.Prompt[0].Text = a.fromPrefix(args.From) + req.Prompt[0].Text
 	}
+	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
 	if retry, ok := a.retryTurn(s, rec, err); ok {
@@ -1294,7 +1303,7 @@ func (a *app) fromPrefix(id string) string {
 	return fmt.Sprintf(fromFormat, title, id)
 }
 
-func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBlock {
+func promptBlocks(args promptArgs, root string, caps acp.PromptCapabilities) []acp.ContentBlock {
 	blocks := []acp.ContentBlock{{Type: "text", Text: args.Text}}
 	for _, att := range args.Attachments {
 		path := att.Path
@@ -1303,8 +1312,14 @@ func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBloc
 		}
 		uri := (&url.URL{Scheme: "file", Path: path}).String()
 		switch att.Kind {
+		case "image":
+			if caps.Image {
+				blocks = append(blocks, acp.ContentBlock{Type: "image", Data: att.Data, MimeType: att.MimeType})
+				continue
+			}
+			blocks = append(blocks, acp.ContentBlock{Type: "text", Text: imageOmitted})
 		case "file":
-			if embedded {
+			if caps.EmbeddedContext {
 				if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Size() <= embedLimit {
 					if data, err := os.ReadFile(path); err == nil {
 						blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri, Text: strings.ToValidUTF8(string(data), "")}})
@@ -1315,7 +1330,7 @@ func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBloc
 			blocks = append(blocks, acp.ContentBlock{Type: "resource_link", URI: uri, Name: filepath.Base(path)})
 		case "selection":
 			lines := strconv.Itoa(att.StartLine) + "-" + strconv.Itoa(att.EndLine)
-			if embedded {
+			if caps.EmbeddedContext {
 				blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri + "#L" + lines, Text: att.Text}})
 				continue
 			}
@@ -1323,6 +1338,27 @@ func promptBlocks(args promptArgs, root string, embedded bool) []acp.ContentBloc
 		}
 	}
 	return blocks
+}
+
+func sendable(blocks []acp.ContentBlock) []acp.ContentBlock {
+	return slices.DeleteFunc(slices.Clone(blocks), func(b acp.ContentBlock) bool { return b.Type == "text" && b.Text == "" })
+}
+
+func dropImageData(entries []*entry) {
+	for _, en := range entries {
+		content := make([]json.RawMessage, 0, len(en.Content))
+		for _, raw := range en.Content {
+			var b acp.ContentBlock
+			if json.Unmarshal(raw, &b) == nil && b.Type == "image" {
+				b.Data = ""
+				if stripped, err := json.Marshal(b); err == nil {
+					raw = stripped
+				}
+			}
+			content = append(content, raw)
+		}
+		en.Content = content
+	}
 }
 
 func (a *app) cancel(s *session) {
