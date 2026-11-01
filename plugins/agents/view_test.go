@@ -673,6 +673,10 @@ func TestCodePanelHeaderAndStarters(t *testing.T) {
 	for _, n := range nodesOf(tree, "text") {
 		assert.NotEqual(t, "Reviewer", n.Props["text"])
 	}
+	row := tree.Children[0].Children[0].Children
+	assert.Equal(t, []string{"icon", "select"}, []string{row[0].Type, row[1].Type})
+	assert.Equal(t, "circle", row[0].Props["name"])
+	assert.Equal(t, true, row[len(row)-1].Props["iconOnly"])
 	assert.Len(t, nodesOf(tree, "select"), 1)
 	assert.Equal(t, "notify.go", nodesOf(tree, "badge")[0].Props["text"])
 	var starts []string

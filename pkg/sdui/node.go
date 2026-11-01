@@ -393,6 +393,10 @@ func WithShortcut(n Node, combo string) Node {
 	return withProp(n, "shortcut", combo)
 }
 
+func WithIconOnly(n Node) Node {
+	return withProp(n, "iconOnly", true)
+}
+
 func WithDisabled(n Node) Node {
 	return withProp(n, "disabled", true)
 }

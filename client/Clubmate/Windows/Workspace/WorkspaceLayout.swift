@@ -13,6 +13,8 @@ struct WorkspaceLayout: View {
     var body: some View {
         let side = app.settings.sidebarSide
         let sidebar = store.sidebarSlot
+        let stacked = store.chatShown && CodeSection.stacksChat(width: Double(rowWidth))
+        let content = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 Rail(
@@ -27,17 +29,19 @@ struct WorkspaceLayout: View {
                 if let sidebar, side == .left {
                     SidebarPane(store: store, slot: sidebar, side: .left)
                 }
-                SlotPane(store: store, slot: "\(section).main")
-                    .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID))
-                    .overlay(alignment: .top) {
-                        if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
+                content {
+                    SlotPane(store: store, slot: "\(section).main")
+                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID))
+                        .overlay(alignment: .top) {
+                            if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
+                        }
+                    if let sidebar, side == .right {
+                        SidebarPane(store: store, slot: sidebar, side: .right)
                     }
-                if let sidebar, side == .right {
-                    SidebarPane(store: store, slot: sidebar, side: .right)
-                }
-                if store.chatShown {
-                    ChatPane(store: store, saved: store.chatWidth, limit: rowWidth > 0 ? rowWidth / 2 : 640) { [store] width in
-                        store.chatWidth = width
+                    if store.chatShown {
+                        ChatPane(store: store, stacked: stacked, saved: store.chatWidth, limit: rowWidth > 0 ? rowWidth / 2 : 640) { [store] width in
+                            store.chatWidth = width
+                        }
                     }
                 }
             }

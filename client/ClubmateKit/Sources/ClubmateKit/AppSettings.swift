@@ -9,6 +9,11 @@ public enum SidebarSide: String, Sendable, CaseIterable {
 public enum CodeSection {
     public static let id = "editor-nvim"
     public static let chatSlot = "editor-nvim.sidebar"
+    public static let stackedBelow: Double = 1100
+
+    public static func stacksChat(width: Double) -> Bool {
+        width > 0 && width < stackedBelow
+    }
 }
 
 @MainActor

@@ -27,6 +27,10 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertNil(cleared.terminalFontSize)
     }
 
+    func testCodeChatStacksUnderTheEditorBelow1100() {
+        XCTAssertEqual([0, 900, 1099, 1100, 1280].map(CodeSection.stacksChat), [false, true, true, false, false])
+    }
+
     func testSectionOrderKeepsUnknownSectionsAtDefaultPosition() {
         XCTAssertEqual(SectionOrder.apply(["d", "gone", "a", "c"], to: ["a", "b", "c", "d", "e"]), ["d", "e", "a", "b", "c"])
     }

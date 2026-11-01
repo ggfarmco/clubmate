@@ -34,6 +34,16 @@ struct ButtonNodeView: View {
             }
             .onHover { hovering = $0 }
             .keyMonitor(active: combo != nil && !disabled, handle: press.handle)
+            .help(iconOnly ? tooltip : "")
+            .accessibilityLabel(node.string("label") ?? "")
+    }
+
+    private var iconOnly: Bool { node.bool("iconOnly") == true && node.string("icon") != nil }
+
+    private var height: CGFloat { variant == nil ? theme.rowHeight : theme.control }
+
+    private var tooltip: String {
+        [node.string("label") ?? "", combo?.label ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     private var chrome: some View {
@@ -47,8 +57,8 @@ struct ButtonNodeView: View {
         }
         .font(theme.ui)
         .foregroundStyle(foreground)
-        .padding(.horizontal, theme.gutter)
-        .frame(height: variant == nil ? theme.rowHeight : theme.control)
+        .padding(.horizontal, iconOnly ? 0 : theme.gutter)
+        .frame(width: iconOnly ? height : nil, height: height)
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(fill))
         .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering && !disabled ? theme.hover : .clear))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(stroke, lineWidth: 1))
@@ -70,9 +80,11 @@ struct ButtonNodeView: View {
             if let icon = node.string("icon") {
                 Image(systemName: SymbolName.resolve(icon))
             }
-            Text(node.string("label") ?? "")
-                .lineLimit(1)
-            if let combo {
+            if !iconOnly {
+                Text(node.string("label") ?? "")
+                    .lineLimit(1)
+            }
+            if let combo, !iconOnly {
                 Text(combo.label)
                     .font(theme.uiSmall)
                     .foregroundStyle(variant == "primary" ? theme.onAccent : theme.muted)

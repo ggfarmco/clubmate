@@ -141,10 +141,11 @@ func mainView(sc screen) sdui.Node {
 }
 
 func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {
-	add := sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, "New", "plus"), actCodeNew), "ghost")
 	if sc == nil {
+		add := sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, "New", "plus"), actCodeNew), "ghost")
 		return sdui.EmptyState(noCodeSession, sdui.EmptyProps{Title: noCodeTitle, Action: &add})
 	}
+	add := sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, "New session", "plus"), actCodeNew), "ghost"))
 	var opts []sdui.Option
 	for _, rec := range recs {
 		if len(opts) < maxCodeOptions && (!rec.closed() || rec.ID == bound) {
@@ -188,7 +189,7 @@ func starterView(sc screen) sdui.Node {
 		sdui.MutedText(starterNote),
 	)}
 	if sc.Code.File != "" {
-		nodes = append(nodes, sdui.HStack(sdui.Badge(filepath.Base(sc.Code.File), "")))
+		nodes = append(nodes, sdui.HStack(sdui.Icon("doc"), sdui.Badge(filepath.Base(sc.Code.File), "")))
 	}
 	var buttons []sdui.Node
 	for i, s := range starters(sc.Code.File) {
@@ -222,7 +223,7 @@ func header(sc screen) sdui.Node {
 		row = append(row, sdui.MutedText(strings.Join(meta, " · ")))
 	}
 	if sc.Code != nil {
-		row = []sdui.Node{sc.Code.Picker}
+		row = []sdui.Node{sdui.Icon(cmp.Or(statusIcons[cmp.Or(childDisplay[sc.Children], rec.Status)], statusIcons[statusIdle])), sc.Code.Picker}
 	}
 	if sc.Parent != "" {
 		row = append(row, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))

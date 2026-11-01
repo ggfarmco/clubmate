@@ -40,17 +40,32 @@ struct SidebarPane: View {
 
 struct ChatPane: View {
     let store: WorkspaceUIStore
+    let stacked: Bool
     let saved: Double?
     let limit: CGFloat
     let commit: (Double) -> Void
 
+    @Environment(\.theme) private var theme
+
     private static let minWidth: CGFloat = 280
 
     var body: some View {
-        ResizablePane(side: .right, saved: saved.map { CGFloat($0) } ?? 380, range: Self.minWidth...max(Self.minWidth, limit), commit: commit) {
-            SlotPane(store: store, slot: CodeSection.chatSlot)
-                .environment(\.composerFocusSlot, CodeSection.chatSlot)
+        if stacked {
+            VStack(spacing: 0) {
+                theme.border.frame(height: 1)
+                slot
+            }
+            .frame(maxHeight: .infinity)
+        } else {
+            ResizablePane(side: .right, saved: saved.map { CGFloat($0) } ?? 380, range: Self.minWidth...max(Self.minWidth, limit), commit: commit) {
+                slot
+            }
         }
+    }
+
+    private var slot: some View {
+        SlotPane(store: store, slot: CodeSection.chatSlot)
+            .environment(\.composerFocusSlot, CodeSection.chatSlot)
     }
 }
 

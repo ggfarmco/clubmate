@@ -188,7 +188,8 @@
                         {"type": "button", "id": "pause", "props": {"label": "Pause", "variant": "secondary", "shortcut": "p"}},
                         {"type": "button", "id": "edit", "props": {"label": "Edit", "variant": "ghost", "shortcut": "e"}},
                         {"type": "button", "id": "delete", "props": {"label": "Delete", "variant": "danger", "confirm": "Delete?"}},
-                        {"type": "button", "id": "off", "props": {"label": "Disabled", "variant": "secondary", "disabled": true}}
+                        {"type": "button", "id": "off", "props": {"label": "Disabled", "variant": "secondary", "disabled": true}},
+                        {"type": "button", "id": "icon-only", "props": {"label": "New session", "icon": "plus", "variant": "ghost", "iconOnly": true}}
                       ]
                     },
                     {

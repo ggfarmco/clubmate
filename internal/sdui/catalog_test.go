@@ -59,7 +59,7 @@ func TestValidate(t *testing.T) {
 		{"textField lines too large", sdui.WithLines(sdui.TextField("f", "", ""), 51), false},
 		{"textField lines not a number", sdui.Node{Type: "textField", ID: "f", Props: map[string]any{"lines": "x"}}, false},
 		{"select", sdui.Select("s", []sdui.Option{{Value: "a", Label: "A"}}, "a"), true},
-		{"button variant, shortcut, disabled", sdui.WithDisabled(sdui.WithShortcut(sdui.WithVariant(sdui.Button("b", "Run", ""), sdui.VariantPrimary), "cmd+shift+r")), true},
+		{"button variant, shortcut, disabled, icon only", sdui.WithIconOnly(sdui.WithDisabled(sdui.WithShortcut(sdui.WithVariant(sdui.Button("b", "Run", ""), sdui.VariantPrimary), "cmd+shift+r"))), true},
 		{"button loading", sdui.WithLoading(sdui.Button("b", "Save", ""), "Saving…"), true},
 		{"field errors", sdui.Form("f", sdui.WithError(sdui.TextField("t", "", ""), "Title is empty"), sdui.WithError(sdui.Select("s", nil, ""), "Pick one")), true},
 		{"button bad variant", sdui.WithVariant(sdui.Button("b", "Run", ""), "loud"), false},
