@@ -68,7 +68,7 @@ func (a *app) busReadCmd() *cobra.Command {
 	var opts busReadOptions
 	cmd := &cobra.Command{
 		Use:   "read <pattern>",
-		Short: "Read events matching a pattern (topic, prefix.* or *)",
+		Short: "Read events matching a pattern (topic, prefix.*, a comma-separated list of those, or *)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.busRead(cmd.Context(), args[0], opts)

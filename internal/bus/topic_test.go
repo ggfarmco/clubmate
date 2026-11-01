@@ -19,6 +19,8 @@ func TestMatch(t *testing.T) {
 		{"session.*", "sessions.created", false},
 		{"*", "anything.here", true},
 		{"session", "session.created", false},
+		{"a.b,session.*", "session.created", true},
+		{"a.b,c.d", "c.e", false},
 	}
 	for _, tt := range tests {
 		assert.Equal(t, tt.want, bus.Match(tt.pattern, tt.topic), tt.pattern+" "+tt.topic)
@@ -36,6 +38,9 @@ func TestValidPattern(t *testing.T) {
 		{"*.a", false},
 		{"a.*.b", false},
 		{"A", false},
+		{"a.b,c.*", true},
+		{"a.b,*", false},
+		{"a.b,", false},
 	}
 	for _, tt := range tests {
 		assert.Equal(t, tt.want, bus.ValidPattern(tt.pattern), tt.pattern)

@@ -111,6 +111,30 @@ func TestManagerListFiltersByWorkspace(t *testing.T) {
 	assert.Empty(t, other)
 }
 
+func TestManagerListSeesMetaRewritesAndRemovals(t *testing.T) {
+	dirs := testutil.ShortDirs(t)
+	m := session.NewManager(dirs, "unused")
+	sid, code := id.New("ses"), 0
+	write := func(title string) {
+		require.NoError(t, sessionhost.WriteMeta(dirs.SessionMeta(sid), sessionhost.Meta{ID: sid, Title: title, ExitCode: &code}))
+	}
+	titles := func() []string {
+		list, err := m.List(t.Context(), session.ListFilter{})
+		require.NoError(t, err)
+		var out []string
+		for _, s := range list {
+			out = append(out, s.Title)
+		}
+		return out
+	}
+	write("a")
+	assert.Equal(t, []string{"a"}, titles())
+	write("b")
+	assert.Equal(t, []string{"b"}, titles())
+	require.NoError(t, os.Remove(dirs.SessionMeta(sid)))
+	assert.Empty(t, titles())
+}
+
 func TestManagerUnsignalableHostIsLost(t *testing.T) {
 	dirs := testutil.ShortDirs(t)
 	sid := id.New("ses")

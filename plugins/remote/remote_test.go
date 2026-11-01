@@ -41,10 +41,12 @@ type topicLog struct {
 }
 
 type fakeBackend struct {
-	mu     sync.Mutex
-	runs   []runCall
-	events []pluginsdk.Event
-	lists  int
+	mu          sync.Mutex
+	runs        []runCall
+	events      []pluginsdk.Event
+	lists       int
+	headEntered chan struct{}
+	headRelease chan struct{}
 }
 
 type runCall struct {
@@ -463,6 +465,30 @@ func TestEventsCursorAheadOfBusStartsLive(t *testing.T) {
 	assert.True(t, strings.HasPrefix(frame(t, r), "id: 4\n"))
 }
 
+func TestEventsBurstPastBufferCatchesUpWithoutDropping(t *testing.T) {
+	f := newFixture(t)
+	f.backend.headEntered, f.backend.headRelease = make(chan struct{}), make(chan struct{})
+	_, r := f.openEvents(t, f.pair(t, "phone"), "100000")
+	assert.Equal(t, ": connected", frame(t, r))
+	<-f.backend.headEntered
+	publish := func(seq int) {
+		ev := pluginsdk.Event{Seq: int64(seq), Topic: "agents.changed", Payload: json.RawMessage(`{}`)}
+		f.backend.mu.Lock()
+		f.backend.events = append(f.backend.events, ev)
+		f.backend.mu.Unlock()
+		f.srv.hub.publish(ev)
+	}
+	burst := streamBuffer + 50
+	for seq := 1; seq <= burst; seq++ {
+		publish(seq)
+	}
+	close(f.backend.headRelease)
+	publish(burst + 1)
+	for seq := 1; seq <= burst+1; seq++ {
+		require.True(t, strings.HasPrefix(frame(t, r), "id: "+strconv.Itoa(seq)+"\n"), "seq %d", seq)
+	}
+}
+
 func TestRevokeClosesStreamsAndToken(t *testing.T) {
 	f := newFixture(t)
 	token := f.pair(t, "phone")
@@ -674,6 +700,10 @@ func (b *fakeBackend) Events(_ context.Context, after int64) ([]pluginsdk.Event,
 }
 
 func (b *fakeBackend) Head(context.Context) (int64, error) {
+	if b.headRelease != nil {
+		b.headEntered <- struct{}{}
+		<-b.headRelease
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	var head int64

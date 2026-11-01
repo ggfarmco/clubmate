@@ -67,7 +67,7 @@ func (b hostBackend) Workspaces(ctx context.Context) ([]pluginsdk.Workspace, err
 
 func (b hostBackend) Events(ctx context.Context, after int64) ([]pluginsdk.Event, error) {
 	var out []pluginsdk.Event
-	err := b.host.Call(ctx, "bus.read", busReadParams{Pattern: "*", After: after, Limit: busPageSize}, &out)
+	err := b.host.Call(ctx, "bus.read", busReadParams{Pattern: busPattern, After: after, Limit: busPageSize}, &out)
 	return out, err
 }
 

@@ -9,7 +9,7 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 | `id` | `tr_<16 hex>`. |
 | `name` | Short human name. |
 | `workspace` | The workspace the trigger belongs to and fires in. Triggers are dropped with their workspace. |
-| `on` | The bus topic to listen to, e.g. `agents.turn`, or a prefix pattern, e.g. `event.*` (matches `event.a`, `event.a.b`). `*` alone is refused. |
+| `on` | The bus topic to listen to, e.g. `agents.turn`, or a prefix pattern, e.g. `event.*` (matches `event.a`, `event.a.b`), or a comma-separated list of those, e.g. `agents.turn,event.*`. `*` alone is refused. |
 | `match` | Optional payload filter (see [Filter](#filter)). |
 | `command`, `args` | The command to call and its arguments. The command must be agent-visible and not a `triggers.*` or `cron.*` one; `args` (JSON text holding an object) are checked against its schema when the trigger is added or updated. String values may hold placeholders (see [Placeholders](#placeholders)). |
 | `enabled` | `false` while paused. |

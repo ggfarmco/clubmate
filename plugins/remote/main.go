@@ -27,7 +27,6 @@ const (
 	enabledKey   = "enabled"
 	portKey      = "port"
 	titleBarKey  = "titleBarColour"
-	busPattern   = "*"
 )
 
 var (

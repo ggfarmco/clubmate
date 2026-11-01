@@ -116,7 +116,7 @@ private struct TranscriptScroll: Equatable {
     let offset: CGFloat
     let pinned: Bool
 
-    @MainActor static var saved: [String: TranscriptScroll] = [:]
+    @MainActor static var saved = RecentCache<String, TranscriptScroll>(limit: 32)
 }
 
 @MainActor

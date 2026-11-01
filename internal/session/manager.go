@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -68,6 +70,20 @@ type Manager struct {
 	hostBin         string
 	pathDir         string
 	snapshotTimeout time.Duration
+
+	metaMu sync.Mutex
+	metas  map[string]cachedMeta
+}
+
+type metaStamp struct {
+	ino     uint64
+	modTime int64
+	size    int64
+}
+
+type cachedMeta struct {
+	stamp metaStamp
+	meta  sessionhost.Meta
 }
 
 type Option func(*Manager)
@@ -82,7 +98,7 @@ func WithPathDir(dir string) Option {
 }
 
 func NewManager(dirs paths.Dirs, hostBin string, opts ...Option) *Manager {
-	m := &Manager{dirs: dirs, hostBin: hostBin, snapshotTimeout: snapshotTimeout}
+	m := &Manager{dirs: dirs, hostBin: hostBin, snapshotTimeout: snapshotTimeout, metas: map[string]cachedMeta{}}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -124,14 +140,18 @@ func (m *Manager) List(_ context.Context, f ListFilter) ([]Session, error) {
 		return nil, fmt.Errorf("read sessions dir: %w", err)
 	}
 	var sessions []Session
+	listed := make(map[string]struct{}, len(entries))
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
 			continue
 		}
-		s, err := readSession(filepath.Join(m.dirs.SessionsDir(), e.Name()))
+		path := filepath.Join(m.dirs.SessionsDir(), e.Name())
+		listed[path] = struct{}{}
+		meta, err := m.cachedMeta(path, e)
 		if err != nil {
 			continue
 		}
+		s := sessionOf(path, meta)
 		if f.WorkspaceID != "" && s.WorkspaceID != f.WorkspaceID {
 			continue
 		}
@@ -140,8 +160,44 @@ func (m *Manager) List(_ context.Context, f ListFilter) ([]Session, error) {
 		}
 		sessions = append(sessions, s)
 	}
+	m.pruneMetas(listed)
 	sort.Slice(sessions, func(i, j int) bool { return sessions[i].StartedAt.Before(sessions[j].StartedAt) })
 	return sessions, nil
+}
+
+func (m *Manager) cachedMeta(path string, e fs.DirEntry) (sessionhost.Meta, error) {
+	info, err := e.Info()
+	if err != nil {
+		return sessionhost.Meta{}, err
+	}
+	stamp := metaStamp{modTime: info.ModTime().UnixNano(), size: info.Size()}
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		stamp.ino = st.Ino
+	}
+	m.metaMu.Lock()
+	c, ok := m.metas[path]
+	m.metaMu.Unlock()
+	if ok && c.stamp == stamp {
+		return c.meta, nil
+	}
+	meta, err := sessionhost.ReadMeta(path)
+	if err != nil {
+		return sessionhost.Meta{}, err
+	}
+	m.metaMu.Lock()
+	m.metas[path] = cachedMeta{stamp: stamp, meta: meta}
+	m.metaMu.Unlock()
+	return meta, nil
+}
+
+func (m *Manager) pruneMetas(listed map[string]struct{}) {
+	m.metaMu.Lock()
+	defer m.metaMu.Unlock()
+	for path := range m.metas {
+		if _, ok := listed[path]; !ok {
+			delete(m.metas, path)
+		}
+	}
 }
 
 func (m *Manager) Get(_ context.Context, sid string) (Session, error) {
@@ -255,17 +311,21 @@ func readSession(path string) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
+	return sessionOf(path, meta), nil
+}
+
+func sessionOf(path string, meta sessionhost.Meta) Session {
 	if meta.ExitCode != nil {
-		return fromMeta(meta, StateExited), nil
+		return fromMeta(meta, StateExited)
 	}
 	if hostAlive(meta) {
-		return fromMeta(meta, StateRunning), nil
+		return fromMeta(meta, StateRunning)
 	}
 	again, err := sessionhost.ReadMeta(path)
 	if err != nil || again.ExitCode == nil {
-		return fromMeta(meta, StateLost), nil
+		return fromMeta(meta, StateLost)
 	}
-	return fromMeta(again, StateExited), nil
+	return fromMeta(again, StateExited)
 }
 
 func fromMeta(meta sessionhost.Meta, state State) Session {

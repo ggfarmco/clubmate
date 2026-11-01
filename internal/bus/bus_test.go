@@ -69,6 +69,22 @@ func TestSubscribeBackfillThenLive(t *testing.T) {
 	assert.Equal(t, []int64{first.Seq, second.Seq}, []int64{recv(t, sub).Seq, recv(t, sub).Seq})
 }
 
+func TestSubscribeToTopicList(t *testing.T) {
+	b := openBus(t)
+	for _, topic := range []string{"a.x", "b.y", "c.z"} {
+		_, err := b.Publish(t.Context(), topic, "x", nil)
+		require.NoError(t, err)
+	}
+	sub, err := b.Subscribe("a.x,c.*", 0)
+	require.NoError(t, err)
+	t.Cleanup(sub.Close)
+	assert.Equal(t, "a.x", recv(t, sub).Topic)
+	assert.Equal(t, "c.z", recv(t, sub).Topic)
+	_, _ = b.Publish(t.Context(), "b.q", "x", nil)
+	_, _ = b.Publish(t.Context(), "c.w", "x", nil)
+	assert.Equal(t, "c.w", recv(t, sub).Topic)
+}
+
 func TestSubscribeLargeBackfillDuringPublishHasNoGapsOrDuplicates(t *testing.T) {
 	b := openBus(t)
 	for range 300 {

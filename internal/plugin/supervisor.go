@@ -294,6 +294,7 @@ func (s *Supervisor) attempt(ctx context.Context, m Manifest, restart <-chan str
 	case <-restart:
 	default:
 	}
+	defer s.changed(m.ID, false)
 	s.update(m.ID, func(inst *instance) { inst.status.State = StateStarting })
 	p, err := s.spawn(m)
 	if err != nil {
@@ -365,7 +366,6 @@ func (s *Supervisor) serve(ctx context.Context, m Manifest, p *process, restart 
 	})
 	s.logger.Info("plugin running", "id", m.ID, "pid", p.cmd.Process.Pid)
 	s.changed(m.ID, true)
-	defer s.changed(m.ID, false)
 	select {
 	case <-ctx.Done():
 		s.shutdown(m.ID, p)

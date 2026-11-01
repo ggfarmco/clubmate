@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ const (
 
 var (
 	forwardedTopics = []string{"agents.changed", "backlog.changed", "docs.changed", "docs.opened", "notify.posted", "plugin.changed", "remote.identity"}
+	busPattern      = strings.Join(forwardedTopics, ",")
 
 	errBadCursor = errors.New("invalid Last-Event-ID or after")
 )
@@ -38,10 +40,12 @@ type hub struct {
 }
 
 type stream struct {
-	device string
-	events chan pluginsdk.Event
-	done   chan struct{}
-	once   sync.Once
+	device  string
+	events  chan pluginsdk.Event
+	lagged  chan struct{}
+	lagging bool
+	done    chan struct{}
+	once    sync.Once
 }
 
 type wireEvent struct {
@@ -56,7 +60,7 @@ func newHub(changed func()) *hub {
 }
 
 func (h *hub) open(device string, valid func() bool) (*stream, bool) {
-	st := &stream{device: device, events: make(chan pluginsdk.Event, streamBuffer), done: make(chan struct{})}
+	st := &stream{device: device, events: make(chan pluginsdk.Event, streamBuffer), lagged: make(chan struct{}, 1), done: make(chan struct{})}
 	h.mu.Lock()
 	if !valid() {
 		h.mu.Unlock()
@@ -89,12 +93,25 @@ func (h *hub) publish(ev pluginsdk.Event) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for st := range h.streams {
+		if st.lagging {
+			continue
+		}
 		select {
 		case st.events <- ev:
 		default:
-			st.stop()
+			st.lagging = true
+			select {
+			case st.lagged <- struct{}{}:
+			default:
+			}
 		}
 	}
+}
+
+func (h *hub) caughtUp(st *stream) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	st.lagging = false
 }
 
 func (h *hub) revoke(device string) {
@@ -176,6 +193,10 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 			return
 		case <-st.done:
 			return
+		case <-st.lagged:
+			if seen, err = s.catchUp(r.Context(), rc, w, st, seen); err != nil {
+				return
+			}
 		case ev := <-st.events:
 			if ev.Seq <= seen {
 				continue
@@ -183,10 +204,29 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 			if !s.send(rc, w, sseFrame(ev)) {
 				return
 			}
+			seen = ev.Seq
 		case <-ping.C:
 			if !valid() || !s.send(rc, w, ": ping\n\n") {
 				return
 			}
+		}
+	}
+}
+
+func (s *server) catchUp(ctx context.Context, rc *http.ResponseController, w io.Writer, st *stream, seen int64) (int64, error) {
+	for {
+		select {
+		case ev := <-st.events:
+			if ev.Seq <= seen {
+				continue
+			}
+			if !s.send(rc, w, sseFrame(ev)) {
+				return seen, errStreamClosed
+			}
+			seen = ev.Seq
+		default:
+			s.hub.caughtUp(st)
+			return s.backfill(ctx, rc, w, seen)
 		}
 	}
 }

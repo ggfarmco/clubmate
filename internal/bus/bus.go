@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -158,7 +159,14 @@ func (b *Bus) Cursor(ctx context.Context, consumer string) (int64, error) {
 }
 
 func (b *Bus) readRange(ctx context.Context, pattern string, after, upto int64, limit int) ([]Event, error) {
-	rows, err := b.db.QueryContext(ctx, `SELECT seq, topic, source, time, payload FROM events WHERE seq > ? AND seq <= ? AND topic GLOB ? ORDER BY seq LIMIT ?`, after, upto, pattern, limit)
+	globs := strings.Split(pattern, listSep)
+	args := []any{after, upto}
+	for _, g := range globs {
+		args = append(args, g)
+	}
+	args = append(args, limit)
+	query := `SELECT seq, topic, source, time, payload FROM events WHERE seq > ? AND seq <= ? AND (` + strings.Repeat("topic GLOB ? OR ", len(globs)-1) + `topic GLOB ?) ORDER BY seq LIMIT ?`
+	rows, err := b.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("read events: %w", err)
 	}

@@ -165,14 +165,19 @@ private struct PluginsSettings: View {
             }
         }
         .formStyle(.grouped)
-        .task(id: PollKey(client: supervisor.client.map(ObjectIdentifier.init), active: active)) { await poll() }
+        .task(id: FollowKey(client: supervisor.client.map(ObjectIdentifier.init), active: active)) { await follow() }
     }
 
-    private func poll() async {
-        if plugins == nil { await load() }
-        while active, !Task.isCancelled {
+    private func follow() async {
+        guard active, let client = supervisor.client else {
+            if plugins == nil { await load() }
+            return
+        }
+        let events = try? await client.busEvents(pattern: Topic.pluginChanged)
+        await load()
+        guard let events else { return }
+        for await _ in events {
             await load()
-            try? await Task.sleep(for: .seconds(2))
         }
     }
 
@@ -206,7 +211,7 @@ private struct PluginsSettings: View {
     }
 }
 
-private struct PollKey: Equatable {
+private struct FollowKey: Equatable {
     let client: ObjectIdentifier?
     let active: Bool
 }

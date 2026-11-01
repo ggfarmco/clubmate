@@ -48,8 +48,18 @@ func TestSupervisorCreatesPluginRuntimeDir(t *testing.T) {
 func TestSupervisorGivesUpOnCrashLoop(t *testing.T) {
 	t.Setenv("ECHO_CRASH", "1")
 	h := testutil.NewHarness(t, plugin.WithBackoff(10*time.Millisecond, 50*time.Millisecond), plugin.WithCrashLimit(5, time.Minute))
+	sub, err := h.Bus.Subscribe(plugin.ChangedTopic, 0)
+	require.NoError(t, err)
+	t.Cleanup(sub.Close)
 	h.Start(t, testutil.EchoPluginDir(t))
-	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "failed" }, 5*time.Second)
+	for range 5 {
+		select {
+		case <-sub.C():
+		case <-time.After(5 * time.Second):
+			t.Fatal("no plugin.changed after a crash")
+		}
+	}
+	assert.Equal(t, "failed", h.Sup.Statuses()[0].State)
 	assert.Equal(t, 5, h.Sup.Statuses()[0].Restarts)
 }
 
