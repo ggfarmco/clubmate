@@ -21,7 +21,7 @@
             "command": {"type": "string", "description": "Id of the agent-visible command to call, e.g. agents.prompt or agents.new."},
             "args": {"type": "string", "default": "{}", "description": "Arguments of the command as JSON text, e.g. {\"session\":\"<id>\",\"text\":\"{{payload.session}} finished\"}; default {}."},
             "owner": {"type": "string", "enum": ["self", "none"], "default": "self", "description": "self (default): the trigger belongs to your agent session, fires as you and is deleted when your session is closed. none: it outlives your session and fires with no caller. Triggers created by the user have no owner."},
-            "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the trigger is an edge of; the Graphs plugin sets it. The Triggers section groups the run's triggers under the run and offers Open graph instead of Delete."},
+            "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the trigger is an edge of; only the Graphs plugin can set it; from any other caller it is ignored. The Triggers section groups the run's triggers under the run and offers Open graph instead of Delete."},
             "runTitle": {"type": "string", "description": "Title of that run, shown on the group row and as \"created by graph <title>\"."}
           },
           "required": ["name", "on", "command"]

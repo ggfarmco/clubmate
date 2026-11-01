@@ -123,3 +123,21 @@ func firstIcon(n sdui.Node) string {
 	icon, _ := item["icon"].(string)
 	return icon
 }
+
+func TestAddIgnoresRunFromOtherCallers(t *testing.T) {
+	f := newFixture(t)
+	var added struct {
+		Run      string `json:"run"`
+		RunTitle string `json:"runTitle"`
+	}
+	require.NoError(t, f.run(t, "triggers.add", map[string]any{
+		"name":     "fake edge",
+		"on":       "event.ping",
+		"command":  "notify.post",
+		"args":     `{"message":"hi"}`,
+		"run":      "agt_0000000000000001",
+		"runTitle": "Spoofed",
+	}, &added))
+	assert.Empty(t, added.Run)
+	assert.Empty(t, added.RunTitle)
+}

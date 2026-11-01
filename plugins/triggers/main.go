@@ -196,10 +196,13 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	}
 	titles := a.registry.Titles(ctx, workspace, triggers)
 	for _, t := range triggers {
-		if t.Run != "" && t.RunTitle != "" {
-			if titles == nil {
-				titles = map[string]string{}
-			}
+		if t.Run == "" || t.RunTitle == "" {
+			continue
+		}
+		if titles == nil {
+			titles = map[string]string{}
+		}
+		if _, ok := titles[t.Run]; !ok {
 			titles[t.Run] = t.RunTitle
 		}
 	}

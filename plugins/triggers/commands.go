@@ -96,6 +96,9 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 		return nil, err
 	}
 	caller := automation.CallerOf(cmd)
+	if cmd.Via != graphsPlugin {
+		args.Run, args.RunTitle = "", ""
+	}
 	t := &Trigger{
 		Name:      args.Name,
 		Workspace: cmd.WorkspaceID,
