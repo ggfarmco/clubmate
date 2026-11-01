@@ -40,6 +40,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | G | Open the graph run that created the trigger | triggers |
 | D | Mark the task done | backlog |
 | ⌘S | Save the task now (the form also autosaves) | backlog |
+| ↩ | Edit the task title (title focused); while editing ↩ saves it, Esc cancels | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |
 | ⇧K | Kill the selected process and its children (confirmed) | processes |
 | ⇧⌘R | Reveal the selected process's executable in Finder | processes |

@@ -62,7 +62,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | select | options* (option[]), value (string), error (string), action | none | yes |
 | form | action, autosave (bool) | any | yes |
 | surface | sessionId* (`ses_` id) | none | no |
-| header | title* (string), icon (string), meta (string), badges (`[{text*, tone}]`), status (session state), agent, branch, mode (strings) | 0-9: `button`, at most one `textField` | no |
+| header | title* (string), icon (string), meta (string), badges (`[{text*, tone}]`), status (session state), agent, branch, mode (strings), field (non-empty string, a form field id), error (string) | 0-9: `button`, at most one `textField` | no |
 | empty | text* (string), title (string), icon (string), hint (string) | 0-1 `button` | no |
 | transcript | none | any | no |
 | message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]), from (string), seconds (int ≥ 0) | none | no |
@@ -105,6 +105,8 @@ Agent chat nodes (the `agents` section):
 `textField.error` and `select.error` (one short sentence, `Title is empty`) draw the field with a danger border and the text as one caption line under it. Unlike `value` it is not an initial value: the field shows whatever the latest render says, so the plugin drops the prop once the input is valid.
 
 `header` heads a detail pane: the `icon`, the `title` (heading size, two lines at most, then cut with a tooltip), the `badges` (toned like `badge`; leave the normal state untoned), an optional muted `meta` line and its children as the action bar on one row: a `textField` child (a filter) comes first, at most 220pt wide, and never moves into the menu, then the `button`s. When they don't fit, or the header is under 480pt wide, the first three non-`danger` buttons stay and the rest (`danger` ones included) move into a "…" menu at the right end; their shortcuts keep working, and the menu shows them after the label. It draws a rule under itself. An agent session's header (the `agents` section) also sets `status` (one of `running`, `waiting`, `asks`, `done`, `idle`, `error`, `closed`, `childrenRunning`, `childrenWaiting`; glyph, word and tone per [Agents § Status](agents.md#status)), `agent`, `branch` and `mode`: the client draws the status glyph (`icon`) in the status's tone before the title and "Claude · docs/design-brief · Ask before edits" (agent · branch · mode, muted, cut in the middle) after it, the badges ("waiting for you" in warning while the session needs you) at the trailing end and the `stop` button (the child with action `stop`) last on that row with its ⎋ hint, out of the action bar. Under 640pt the agent · branch · mode line goes under the title and Stop is icon-only. `meta` follows on its own line.
+
+`header.field` makes the title editable in place inside a `form`: the title is that form field (keyed by `field`, value the `title` text without a prefix). A click on the title, or ⏎ while it has focus, turns it into a text field; ⏎ or leaving the field commits, ⎋ cancels. A committed change submits an `autosave` form at once; in a form without `autosave` ⏎ submits it and leaving the field only keeps the value for the next submit. Until the plugin sends a new `title` the header shows the committed text. `header.error` (one short sentence) is drawn as a danger caption under the title, and the edit field gets a danger border; drop it once the title is valid. Outside a `form` both are ignored. Buttons in such a header are inside the form, so give each its own `action`, or it submits the form.
 
 Inside a `form`, a horizontal `stack` whose first child is a muted `text` is a property row: that text is the key column (120pt, 88pt when the form is narrower than 480pt) and the rest is the value. An empty muted text continues the row above.
 
@@ -471,7 +473,7 @@ A plugin's `session.create` (`pluginsdk.Host.CreateSession`) also takes `env`, e
 
 ## Forms
 
-A `form` collects the values of the `textField`, `folderField`, `toggle` and `select` nodes among its descendants (nested forms collect their own fields), keyed by the field node `id`. The value is the field's current text, bool, option value or (`folderField`) string[] of chosen paths; fields that disappear from the tree are dropped.
+A `form` collects the values of the `textField`, `folderField`, `toggle` and `select` nodes and the title of a `header` with `field` among its descendants (nested forms collect their own fields), keyed by the field node `id`. The value is the field's current text, bool, option value or (`folderField`) string[] of chosen paths; fields that disappear from the tree are dropped.
 
 - A `button` without an `action` prop inside a form submits the form: the form sends `props.action ?? "submit"` with the collected object as `value` and the form's `id` as `nodeId`.
 - Return in a `textField` without an `action` prop submits the form the same way.

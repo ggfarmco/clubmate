@@ -76,6 +76,8 @@ func TestValidate(t *testing.T) {
 		{"header bad badge tone", sdui.Header("x", sdui.HeaderProps{Badges: []sdui.HeaderBadge{{Text: "a", Tone: "pink"}}}), false},
 		{"header with a text child", sdui.Header("x", sdui.HeaderProps{}, sdui.Text("a")), false},
 		{"header with a live filter field", sdui.Header("x", sdui.HeaderProps{}, sdui.WithLive(sdui.TextField("q", "", "Filter")), sdui.WithCopy(sdui.Button("c", "Copy", ""), "ls -la")), true},
+		{"header editing its title in a form", sdui.Form("f", sdui.Header("Fix login", sdui.HeaderProps{Field: "title", Error: "Title is empty"})), true},
+		{"header with an empty field", sdui.Node{Type: "header", Props: map[string]any{"title": "x", "field": ""}}, false},
 		{"header with two text fields", sdui.Header("x", sdui.HeaderProps{}, sdui.TextField("a", "", ""), sdui.TextField("b", "", "")), false},
 		{"button reserved shortcut", sdui.WithShortcut(sdui.Button("b", "Run", ""), "shift+return"), false},
 		{"empty state with action", sdui.EmptyState("Nothing yet.", sdui.EmptyProps{Title: "No runs", Icon: "clock", Hint: "cm cron add", Action: &sdui.Node{Type: "button", ID: "run", Props: map[string]any{"label": "Run"}}}), true},

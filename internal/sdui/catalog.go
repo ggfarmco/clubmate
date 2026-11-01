@@ -183,6 +183,7 @@ var (
 			props: map[string]propCheck{
 				"title": isString, "icon": isString, "meta": isString, "badges": listOf(headerBadgeCheck),
 				"status": oneOf(sessionStatuses), "agent": isString, "branch": isString, "mode": isString,
+				"field": nonEmptyString, "error": isString,
 			},
 			children: childRule{min: 0, max: 9, only: []string{"button", "textField"}, once: []string{"textField"}},
 		},
@@ -389,6 +390,13 @@ func invalid(path, format string, args ...any) error {
 func isString(_ *validator, v any) error {
 	if _, ok := v.(string); !ok {
 		return errors.New("must be a string")
+	}
+	return nil
+}
+
+func nonEmptyString(_ *validator, v any) error {
+	if s, ok := v.(string); !ok || s == "" {
+		return errors.New("must be a non-empty string")
 	}
 	return nil
 }

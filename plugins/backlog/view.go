@@ -131,40 +131,37 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 	case t == nil:
 		return sdui.Empty(noTasks)
 	}
-	nodes := []sdui.Node{sdui.Header(fmt.Sprintf("#%d %s", t.ID, t.Title), sdui.HeaderProps{Icon: statusIcons[t.Status]}, actions(t)...)}
+	meta := []string{fmt.Sprintf("#%d", t.ID)}
 	if t.Status == statusInProgress {
-		line := "In progress by " + labelOf(owners, t.ClaimedBy)
+		meta[0] += " · In progress by " + labelOf(owners, t.ClaimedBy)
 		if !t.ClaimedAt.IsZero() {
-			line += " since " + t.ClaimedAt.Local().Format("Jan 2 15:04")
+			meta[0] += " since " + t.ClaimedAt.Local().Format("Jan 2 15:04")
 		}
-		claimer := sdui.MutedText(line)
-		if strings.HasPrefix(t.ClaimedBy, sessionPfx) {
-			claimer = sdui.HStack(claimer, sdui.WithAction(sdui.Button("claimer", "Show Session", "sparkles"), actReveal))
-		}
-		nodes = append(nodes, claimer)
 	}
 	if t.LastClaimedBy != "" {
-		nodes = append(nodes, sdui.MutedText("Last claimed by "+labelOf(owners, t.LastClaimedBy)))
+		meta = append(meta, "Last claimed by "+labelOf(owners, t.LastClaimedBy))
 	}
 	if t.Note != "" {
-		nodes = append(nodes, sdui.MutedText(t.Note))
+		meta = append(meta, t.Note)
 	}
+	saved := sdui.Button("save", "Saved", "checkmark")
+	if titleError != "" {
+		saved = sdui.Button("save", "Not saved", "")
+	}
+	header := sdui.Header(t.Title, sdui.HeaderProps{Icon: statusIcons[t.Status], Meta: strings.Join(meta, "\n"), Field: "title", Error: titleError}, actions(t)...)
+	header.ID = "heading"
+	fields := []sdui.Node{header}
 	described := t.Description != "" && !editing
 	if described {
-		nodes = append(nodes, sdui.Document("doc", sdui.DocumentProps{HTML: describe(t.Description), Rev: descriptionRev(t.Description), Size: sdui.SizeFit}))
+		fields = append(fields, sdui.Document("doc", sdui.DocumentProps{HTML: describe(t.Description), Rev: descriptionRev(t.Description), Size: sdui.SizeFit}))
 	}
 	if t.Description != "" {
 		label := "Done editing"
 		if described {
 			label = "Edit description"
 		}
-		nodes = append(nodes, sdui.HStack(sdui.WithVariant(sdui.Button(actDescribe, label, "pencil"), sdui.VariantGhost)))
+		fields = append(fields, sdui.HStack(sdui.WithVariant(sdui.WithAction(sdui.Button(actDescribe, label, "pencil"), actDescribe), sdui.VariantGhost)))
 	}
-	title, saved := sdui.TextField("title", t.Title, "Title"), sdui.Button("save", "Saved", "checkmark")
-	if titleError != "" {
-		title, saved = sdui.WithError(title, titleError), sdui.Button("save", "Not saved", "")
-	}
-	fields := []sdui.Node{sdui.HStack(sdui.MutedText("Title"), title)}
 	if t.Status != statusInProgress {
 		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
 	}
@@ -175,8 +172,7 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 	fields = append(fields, sdui.WithShortcut(sdui.WithVariant(saved, sdui.VariantGhost), "cmd+s"))
 	form := sdui.VStack(sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID))))
 	form.ID = fmt.Sprintf("task-%d", t.ID)
-	nodes = append(nodes, form)
-	return sdui.Scroll(sdui.VStack(nodes...))
+	return sdui.Scroll(form)
 }
 
 func describe(desc string) string {
@@ -193,17 +189,23 @@ func descriptionRev(desc string) int {
 }
 
 func actions(t *Task) []sdui.Node {
+	button := func(id, label, icon, variant string) sdui.Node {
+		return sdui.WithVariant(sdui.WithAction(sdui.Button(id, label, icon), id), variant)
+	}
 	var buttons []sdui.Node
 	switch t.Status {
 	case statusTodo, statusIdea:
-		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.Button("start", "Start agent", "play.fill"), sdui.VariantPrimary), "cmd+return"))
+		buttons = append(buttons, sdui.WithShortcut(button("start", "Start agent", "play.fill", sdui.VariantPrimary), "cmd+return"))
 	case statusInProgress:
-		buttons = append(buttons, sdui.WithVariant(sdui.Button("release", "Release", "arrow.uturn.backward"), sdui.VariantSecondary))
+		buttons = append(buttons, button("release", "Release", "arrow.uturn.backward", sdui.VariantSecondary))
+		if strings.HasPrefix(t.ClaimedBy, sessionPfx) {
+			buttons = append(buttons, sdui.WithVariant(sdui.WithAction(sdui.Button("claimer", "Show Session", "sparkles"), actReveal), sdui.VariantGhost))
+		}
 	}
 	if t.Status != statusDone {
-		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.Button("done", "Done", "checkmark"), sdui.VariantSecondary), "d"))
+		buttons = append(buttons, sdui.WithShortcut(button("done", "Done", "checkmark", sdui.VariantSecondary), "d"))
 	}
-	buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithConfirm(sdui.Button("delete", "Delete", "trash"), deleteConfirm(t.ID)), sdui.VariantDanger), "cmd+delete"))
+	buttons = append(buttons, sdui.WithShortcut(sdui.WithConfirm(button("delete", "Delete", "trash", sdui.VariantDanger), deleteConfirm(t.ID)), "cmd+delete"))
 	return buttons
 }
 

@@ -179,6 +179,7 @@ struct HeaderNodeView: View {
     @State private var width: CGFloat = 0
     @Environment(\.theme) private var theme
     @Environment(\.headerTrailingInset) private var trailingInset
+    @Environment(FormState.self) private var form: FormState?
 
     private static let inlineCaptionWidth: CGFloat = 640
 
@@ -192,14 +193,19 @@ struct HeaderNodeView: View {
                     Image(systemName: SymbolName.resolve(icon))
                         .foregroundStyle(theme.tone(node.headerStatusTone) ?? theme.muted)
                 }
-                Text(title)
-                    .font(theme.heading)
-                    .foregroundStyle(theme.foreground)
-                    .lineLimit(2)
-                    .truncationMode(.label)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .help(title)
-                    .layoutPriority(1)
+                if let field = node.string("field"), form != nil {
+                    HeaderTitleField(title: title, field: field, error: node.string("error").flatMap { $0.isEmpty ? nil : $0 })
+                        .layoutPriority(1)
+                } else {
+                    Text(title)
+                        .font(theme.heading)
+                        .foregroundStyle(theme.foreground)
+                        .lineLimit(2)
+                        .truncationMode(.label)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .help(title)
+                        .layoutPriority(1)
+                }
                 if inline, let caption = sessionCaption {
                     captionText(caption)
                 }
@@ -320,6 +326,127 @@ struct HeaderNodeView: View {
                 Spacer(minLength: 0)
                 HeaderMoreMenu(id: "\(node.id ?? "header").more", actions: actions.more.map(\.node))
             }
+        }
+    }
+}
+
+private struct HeaderTitleField: View {
+    let title: String
+    let field: String
+    let error: String?
+
+    @State private var editing = false
+    @State private var text = ""
+    @State private var committed: String?
+    @State private var hovering = false
+    @State private var keyboardFocus = false
+    @FocusState private var focused: Bool
+    @FocusState private var fieldFocused: Bool
+    @Environment(FormState.self) private var form: FormState?
+    @Environment(\.theme) private var theme
+
+    private static let placeholder = "Title"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.xs) {
+            if editing {
+                TextField("", text: $text, prompt: Text(Self.placeholder).foregroundStyle(theme.muted))
+                    .textFieldStyle(.plain)
+                    .font(theme.heading)
+                    .foregroundStyle(theme.foreground)
+                    .padding(.horizontal, theme.spacing.m)
+                    .frame(maxWidth: .infinity, minHeight: theme.control)
+                    .fieldChrome(focused: fieldFocused, error: error)
+                    .focused($fieldFocused)
+                    .onSubmit { commit(refocus: true) }
+                    .onExitCommand(perform: cancel)
+                    .onChange(of: fieldFocused) { _, now in
+                        if !now { commit(refocus: false) }
+                    }
+                    .onAppear { DispatchQueue.main.async { fieldFocused = true } }
+            } else {
+                Button(action: edit) { label }
+                    .buttonStyle(.plain)
+                    .focusable()
+                    .focusEffectDisabled()
+                    .focused($focused)
+                    .onChange(of: focused) { _, now in
+                        keyboardFocus = now && !ButtonNodeView.mouseEvents.contains(NSApp.currentEvent?.type ?? .keyDown)
+                    }
+                    .onKeyPress(keys: [.return]) { _ in
+                        edit()
+                        return .handled
+                    }
+                    .onHover { hovering = $0 }
+                    .accessibilityLabel(shown)
+                    .accessibilityHint("Edit title")
+                if let error {
+                    Text(error)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.danger)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(error)
+                }
+            }
+        }
+        .onChange(of: title, initial: true) { _, value in
+            committed = nil
+            if !editing { form?.values[field] = .string(value) }
+        }
+    }
+
+    private var shown: String { committed ?? title }
+
+    private var label: some View {
+        Text(shown.isEmpty ? Self.placeholder : shown)
+            .font(theme.heading)
+            .foregroundStyle(shown.isEmpty ? theme.muted : theme.foreground)
+            .lineLimit(2)
+            .truncationMode(.label)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(shown)
+            .background {
+                RoundedRectangle(cornerRadius: theme.radius.s)
+                    .fill(hovering ? theme.hover : .clear)
+                    .padding(.horizontal, -theme.spacing.xs)
+            }
+            .overlay {
+                if keyboardFocus && focused {
+                    RoundedRectangle(cornerRadius: theme.radius.s + ButtonNodeView.ringGap)
+                        .stroke(theme.accent, lineWidth: theme.focusRing)
+                        .padding(.horizontal, -theme.spacing.xs - ButtonNodeView.ringGap)
+                        .padding(.vertical, -ButtonNodeView.ringGap)
+                }
+            }
+            .contentShape(Rectangle())
+    }
+
+    private func edit() {
+        text = shown
+        editing = true
+    }
+
+    private func cancel() {
+        editing = false
+        refocus()
+    }
+
+    private func refocus() {
+        DispatchQueue.main.async { focused = true }
+    }
+
+    private func commit(refocus: Bool) {
+        guard editing else { return }
+        editing = false
+        if refocus { self.refocus() }
+        guard text != shown else { return }
+        committed = text
+        form?.values[field] = .string(text)
+        if form?.autosave == true {
+            form?.edited()
+        } else if refocus {
+            form?.submit()
         }
     }
 }

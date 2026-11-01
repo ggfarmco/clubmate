@@ -60,6 +60,7 @@ public enum UIForm {
         func visit(_ children: [SDUINode]) {
             for child in children where child.type != "form" {
                 if fieldTypes.contains(child.type), let id = child.id { ids.insert(id) }
+                if child.type == "header", let field = child.string("field"), !field.isEmpty { ids.insert(field) }
                 visit(child.children)
             }
         }

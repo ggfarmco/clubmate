@@ -464,6 +464,13 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(UIForm.collect(values, in: form), .object(["name": .string("demo"), "repos": .array([.string("/a"), .string("/b")])]))
     }
 
+    func testHeaderTitleFieldInForm() {
+        let form = SDUINode(type: "form", id: "f", children: [
+            SDUINode(type: "header", props: ["title": .string("Fix login"), "field": .string("title")]),
+        ])
+        XCTAssertEqual(UIForm.collect(["title": .string("Fix sign-in")], in: form), .object(["title": .string("Fix sign-in")]))
+    }
+
     func testFormSaveStaysSavingUntilTheLastSubmitIsAnswered() {
         var save = UIFormSave()
         save.edited()

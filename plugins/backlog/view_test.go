@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -83,9 +82,24 @@ func TestMainFormAutosaves(t *testing.T) {
 func TestMainNamesClosedClaimer(t *testing.T) {
 	owners := map[string]string{"agt_b": ownerLabel("agt_b", "Refactor", true)}
 	main := mainView(&Task{ID: 4, Title: "Old", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_b"}, owners, true, "", false)
-	raw, err := json.Marshal(main)
-	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"In progress by Refactor (closed)"`)
+	header, ok := findNode(main, "heading")
+	require.True(t, ok)
+	assert.Equal(t, "#4 · In progress by Refactor (closed)", header.Props["meta"])
+}
+
+func TestMainHeaderIsTheTitleField(t *testing.T) {
+	main := mainView(&Task{ID: 7, Title: "Fix login", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_a"}, nil, true, "Title must not be empty", false)
+	form, ok := findNode(main, "edit")
+	require.True(t, ok)
+	header, ok := findNode(form, "heading")
+	require.True(t, ok)
+	assert.Equal(t, "Fix login", header.Props["title"])
+	assert.Equal(t, "title", header.Props["field"])
+	assert.Equal(t, "Title must not be empty", header.Props["error"])
+	require.NotEmpty(t, header.Children)
+	for _, b := range header.Children {
+		assert.NotEmpty(t, b.Props["action"], b.ID)
+	}
 }
 
 func TestMainDescriptionIsADocumentUntilEdited(t *testing.T) {

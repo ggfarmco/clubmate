@@ -254,6 +254,31 @@
                     },
                     {
                       "type": "form",
+                      "id": "task-form",
+                      "props": {"action": "save.2", "autosave": true},
+                      "children": [
+                        {
+                          "type": "header",
+                          "id": "task-heading",
+                          "props": {"title": "Switcher grid: keep the selection when a workspace closes", "icon": "circle", "meta": "#2", "field": "title", "error": "Title must not be empty"},
+                          "children": [
+                            {"type": "button", "id": "task-start", "props": {"label": "Start agent", "icon": "play.fill", "variant": "primary", "shortcut": "cmd+return", "action": "start"}},
+                            {"type": "button", "id": "task-done", "props": {"label": "Done", "icon": "checkmark", "variant": "secondary", "action": "done"}},
+                            {"type": "button", "id": "task-delete", "props": {"label": "Delete", "icon": "trash", "variant": "danger", "action": "delete", "confirm": "Delete task #2?"}}
+                          ]
+                        },
+                        {
+                          "type": "stack",
+                          "props": {"direction": "horizontal"},
+                          "children": [
+                            {"type": "text", "props": {"text": "Priority", "style": "muted"}},
+                            {"type": "select", "id": "task-priority", "props": {"value": "high", "options": [{"value": "high", "label": "High"}, {"value": "normal", "label": "Normal"}]}}
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "form",
                       "id": "settings-form",
                       "props": {"action": "settings.save", "autosave": true},
                       "children": [

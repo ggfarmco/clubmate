@@ -312,11 +312,13 @@ type HeaderProps struct {
 	Agent  string
 	Branch string
 	Mode   string
+	Field  string
+	Error  string
 }
 
 func Header(title string, p HeaderProps, actions ...Node) Node {
 	props := withOptional(withOptional(map[string]any{"title": title}, "icon", p.Icon), "meta", p.Meta)
-	for _, kv := range [][2]string{{"status", p.Status}, {"agent", p.Agent}, {"branch", p.Branch}, {"mode", p.Mode}} {
+	for _, kv := range [][2]string{{"status", p.Status}, {"agent", p.Agent}, {"branch", p.Branch}, {"mode", p.Mode}, {"field", p.Field}, {"error", p.Error}} {
 		props = withOptional(props, kv[0], kv[1])
 	}
 	if len(p.Badges) > 0 {
