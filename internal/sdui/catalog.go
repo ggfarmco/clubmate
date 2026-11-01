@@ -147,7 +147,7 @@ var (
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"document": {
 			required:    []string{"html"},
-			props:       map[string]propCheck{"html": isString, "path": isString, "rev": countNumber, "size": oneOf(documentSizes)},
+			props:       map[string]propCheck{"html": isString, "path": isString, "rev": countNumber, "size": oneOf(documentSizes), "anchor": isString},
 			children:    noChildren,
 			interactive: true,
 		},

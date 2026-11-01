@@ -45,6 +45,7 @@ const (
 	actAttachSelection = "attachSelection"
 	actDetach          = "detach"
 	actOpenLocation    = "openLocation"
+	actOpenDoc         = "openDoc"
 	actReview          = "review"
 	actShowEarlier     = "showEarlier"
 	actShowAll         = "showAll"
@@ -64,6 +65,7 @@ const (
 
 	selectionCmd = "editor-nvim.selection"
 	openCmd      = "editor.open"
+	docsOpenCmd  = "docs.open"
 	diffviewCmd  = "editor-nvim.diffview"
 
 	outputDir = "output"
@@ -99,6 +101,11 @@ type configValue struct {
 type pathValue struct {
 	Path string `json:"path"`
 	Line int    `json:"line,omitempty"`
+}
+
+type docsOpenArgs struct {
+	Path    string `json:"path"`
+	Session string `json:"session"`
 }
 
 type idValue struct {
@@ -360,6 +367,12 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 			return err
 		}
 		return a.host.Focus(ctx, ev.WorkspaceID, editorSection, editorSlot)
+	case actOpenDoc:
+		var path string
+		if err := decode(ev.Value, &path); err != nil {
+			return err
+		}
+		return a.host.RunCommand(ctx, docsOpenCmd, ev.WorkspaceID, docsOpenArgs{Path: path, Session: sid}, nil)
 	case actReview:
 		var v turnValue
 		if err := decode(ev.Value, &v); err != nil {

@@ -366,6 +366,9 @@ func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 	if en.Stoppable {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actStopSubagent, Label: "Stop", Icon: "stop.circle"})
 	}
+	if en.Doc != "" {
+		p.Actions = append(p.Actions, sdui.CardAction{Action: actOpenDoc, Label: "Open", Icon: "doc.richtext", Value: en.Doc})
+	}
 	if path, line := location(f); path != "" && kind != "execute" {
 		value := map[string]any{"path": path}
 		if line > 0 {

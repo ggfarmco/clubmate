@@ -3,6 +3,7 @@ public enum Topic {
     public static let agentsChanged = "agents.changed"
     public static let backlogChanged = "backlog.changed"
     public static let docsChanged = "docs.changed"
+    public static let docsOpened = "docs.opened"
     public static let sessionRemoved = "session.removed"
     public static let pluginChanged = "plugin.changed"
 }

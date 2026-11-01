@@ -83,6 +83,24 @@ map("n", "<leader>cp", function()
   vim.notify(path)
 end, { desc = "Copy file path" })
 
+local function open_doc()
+  local file = vim.api.nvim_buf_get_name(0)
+  local ext = file:lower():match("%.(%w+)$")
+  if ext ~= "md" and ext ~= "markdown" and ext ~= "mmd" then
+    vim.notify("Not a Markdown or mermaid file", vim.log.levels.WARN)
+    return
+  end
+  local m = package.loaded["clubmate"]
+  if type(m) ~= "table" or not m.chan then
+    vim.notify("Not running in Clubmate", vim.log.levels.WARN)
+    return
+  end
+  vim.rpcnotify(m.chan, "clubmate", { event = "docOpen", file = file })
+end
+
+vim.api.nvim_create_user_command("ClubmateDocOpen", open_doc, { desc = "Open doc in viewer" })
+map("n", "<leader>mp", open_doc, { desc = "Open doc in viewer" })
+
 map("n", "<leader>cb", "<cmd>!go build ./...<cr>", { desc = "Go build" })
 map("n", "<leader>cc", "<cmd>!go test -c ./...<cr>", { desc = "Go test compile" })
 map("n", "<leader>ci", function()

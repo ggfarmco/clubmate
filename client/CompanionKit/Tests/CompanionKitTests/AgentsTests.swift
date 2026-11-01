@@ -81,15 +81,16 @@ final class AgentsTests: XCTestCase {
     func testDecodesTranscriptFixture() throws {
         let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: fixture("agents-transcript"))
         XCTAssertEqual(transcript.modes.map(\.id), ["default", "plan"])
-        guard transcript.entries.count == 9,
+        guard transcript.entries.count == 10,
               case .user(let prompt, false, [], []) = transcript.entries[0].content,
               case .thought = transcript.entries[1].content,
               case .agent(let markdown) = transcript.entries[2].content,
               case .plan(let plan) = transcript.entries[3].content,
               case .tool(let read) = transcript.entries[4].content,
               case .tool(let edit) = transcript.entries[5].content,
-              case .compaction(let compaction) = transcript.entries[7].content,
-              case .permission(let permission) = transcript.entries[8].content
+              case .tool(let write) = transcript.entries[6].content,
+              case .compaction(let compaction) = transcript.entries[8].content,
+              case .permission(let permission) = transcript.entries[9].content
         else { return XCTFail("unexpected entries \(transcript.entries.map(\.id))") }
         XCTAssertEqual(compaction.title, "Context compacted")
         XCTAssertFalse(compaction.summary.isEmpty)
@@ -103,6 +104,8 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(read.displayTitle, "Read cart.go")
         XCTAssertEqual(edit.displayTitle, "Edit cart.go")
         XCTAssertEqual(edit.status, .completed)
+        XCTAssertNil(edit.doc)
+        XCTAssertEqual(write.doc, "/Users/me/src/shop/docs/checkout-retries.md")
         XCTAssertEqual(edit.diffs.first?.lines, [DiffLine(text: "func total(items []Item) int {", kind: .removed), DiffLine(text: "func cartTotal(items []Item) int {", kind: .added)])
         XCTAssertEqual(permission.id, "permission-3")
         XCTAssertEqual(permission.toolCall.command, "go test ./...")
@@ -239,6 +242,20 @@ final class TranscriptRefreshTests: XCTestCase {
         XCTAssertEqual(transcript.entries[2].content, .agent("full answer"))
         XCTAssertEqual(transcript.session.status, .running)
         store.unwatch("s")
+    }
+
+    func testOpenedBannerOnlyForShownSession() {
+        let store = AgentsStore(workspace: "w", runner: SlowRunner())
+        store.watch("shown")
+        let opened = { (session: String) in
+            BusEvent(seq: 1, topic: "docs.opened", payload: .object(["workspace": .string("w"), "session": .string(session), "path": .string("/r/\(session).md")]))
+        }
+        store.handle(.event(opened("other")))
+        store.handle(.event(opened("shown")))
+        XCTAssertEqual(store.openedDocs, ["shown": "/r/shown.md"])
+        store.dismissOpenedDoc("shown")
+        XCTAssertEqual(store.openedDocs, [:])
+        store.unwatch("shown")
     }
 
     func testChangeSendsTheCursorAndMergesTheDeltaByEntry() async throws {

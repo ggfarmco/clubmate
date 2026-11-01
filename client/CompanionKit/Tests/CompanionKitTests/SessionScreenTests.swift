@@ -17,8 +17,8 @@ final class SessionScreenTests: XCTestCase {
         else { return XCTFail("unexpected screen \(screen)") }
         XCTAssertEqual(blocks.first, .paragraph("I'll move the total into `cartTotal` and keep **behaviour** the same."))
         XCTAssertFalse(blocks.contains { if case .list = $0 { true } else { false } })
-        XCTAssertEqual(tools.title, "2 actions")
-        XCTAssertEqual(tools.detail, "read cart.go · edit cart.go")
+        XCTAssertEqual(tools.title, "3 actions")
+        XCTAssertEqual(tools.detail, "read cart.go · edit cart.go · write checkout-retries.md")
         XCTAssertEqual(subagent.calls.map(\.stoppable), [true])
         XCTAssertEqual(request.id, "permission-3")
         XCTAssertEqual(request.question, "Run a command?")

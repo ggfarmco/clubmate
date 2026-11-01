@@ -244,14 +244,15 @@ const (
 )
 
 type DocumentProps struct {
-	HTML string
-	Path string
-	Rev  int
-	Size string
+	HTML   string
+	Path   string
+	Rev    int
+	Size   string
+	Anchor string
 }
 
 func Document(id string, p DocumentProps) Node {
-	props := withOptional(withOptional(map[string]any{"html": p.HTML}, "path", p.Path), "size", p.Size)
+	props := withOptional(withOptional(withOptional(map[string]any{"html": p.HTML}, "path", p.Path), "size", p.Size), "anchor", p.Anchor)
 	if p.Rev != 0 {
 		props["rev"] = p.Rev
 	}

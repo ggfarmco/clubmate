@@ -29,7 +29,11 @@ final class DocumentController: NSObject, WKNavigationDelegate {
         webView.allowsLinkPreview = false
         webView.allowsBackForwardNavigationGestures = false
         #if os(macOS)
-        webView.setValue(false, forKey: "drawsBackground")
+        if ["setDrawsBackground:", "_setDrawsBackground:"].contains(where: { webView.responds(to: NSSelectorFromString($0)) }) {
+            webView.setValue(false, forKey: "drawsBackground")
+        } else {
+            webView.underPageBackgroundColor = .clear
+        }
         #else
         webView.isOpaque = false
         webView.backgroundColor = .clear
@@ -61,15 +65,21 @@ final class DocumentController: NSObject, WKNavigationDelegate {
         while let next = wanted, next != shown {
             let previous = shown
             shown = next
-            if previous == nil || previous?.size != next.size || DocumentPage.update(old: previous?.content, new: next.content) == .load {
+            let change = DocumentPage.update(old: previous?.content, new: next.content)
+            if previous == nil || previous?.size != next.size || change == .load {
                 await load(next)
                 continue
             }
             if previous?.theme != next.theme {
                 await call("return await window.clubmate.setTheme(css)", ["css": next.theme.css])
             }
-            if DocumentPage.update(old: previous?.content, new: next.content) == .replaceBody {
+            switch change {
+            case .replaceBody:
                 await call("return await window.clubmate.setBody(html)", ["html": next.content.html])
+            case .scroll:
+                await scroll(to: next.content.anchor)
+            case .load, .none:
+                break
             }
         }
         work = nil
@@ -82,6 +92,12 @@ final class DocumentController: NSObject, WKNavigationDelegate {
             webView.loadHTMLString(DocumentPage.html(request.content, theme: request.theme, size: request.size), baseURL: DocumentScheme.base)
         }
         await call("return await window.clubmate.ready", [:])
+        await scroll(to: request.content.anchor)
+    }
+
+    private func scroll(to anchor: String?) async {
+        guard let anchor else { return }
+        await call("return window.clubmate.scrollTo(anchor)", ["anchor": anchor])
     }
 
     private func call(_ script: String, _ arguments: [String: Any]) async {

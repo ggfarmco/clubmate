@@ -184,6 +184,26 @@
     },
     {
       "kind": "tool",
+      "id": "write1",
+      "turn": 1,
+      "tool": {
+        "content": [
+          {
+            "newText": "# Checkout retries\n",
+            "path": "/Users/me/src/shop/docs/checkout-retries.md",
+            "type": "diff"
+          }
+        ],
+        "kind": "edit",
+        "status": "completed",
+        "title": "Write `/Users/me/src/shop/docs/checkout-retries.md`",
+        "toolCallId": "write1"
+      },
+      "at": "2026-10-30T09:41:00Z",
+      "doc": "/Users/me/src/shop/docs/checkout-retries.md"
+    },
+    {
+      "kind": "tool",
       "id": "sub-1",
       "turn": 1,
       "tool": {
@@ -290,5 +310,5 @@
       "at": "2026-10-30T09:41:00Z"
     }
   ],
-  "cursor": "epoch.9"
+  "cursor": "epoch.10"
 }

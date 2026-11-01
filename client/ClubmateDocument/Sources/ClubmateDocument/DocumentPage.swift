@@ -4,11 +4,13 @@ public struct DocumentContent: Equatable, Sendable {
     public let path: String
     public let html: String
     public let rev: Int
+    public let anchor: String?
 
-    public init(path: String, html: String, rev: Int) {
+    public init(path: String, html: String, rev: Int, anchor: String? = nil) {
         self.path = path
         self.html = html
         self.rev = rev
+        self.anchor = anchor
     }
 }
 
@@ -21,6 +23,7 @@ enum DocumentPage {
     enum Update: Equatable {
         case load
         case replaceBody
+        case scroll
         case none
     }
 
@@ -28,7 +31,8 @@ enum DocumentPage {
 
     static func update(old: DocumentContent?, new: DocumentContent) -> Update {
         guard let old, old.path == new.path else { return .load }
-        return old.rev == new.rev ? .none : .replaceBody
+        if old.rev != new.rev { return .replaceBody }
+        return new.anchor != nil && new.anchor != old.anchor ? .scroll : .none
     }
 
     static func html(_ content: DocumentContent, theme: DocumentTheme, size: DocumentSize) -> String {

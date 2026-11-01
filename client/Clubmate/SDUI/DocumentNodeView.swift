@@ -11,7 +11,7 @@ struct DocumentNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
 
     private var content: DocumentContent {
-        DocumentContent(path: node.string("path") ?? "", html: node.string("html") ?? "", rev: Int(node.props["rev"]?.numberValue ?? 0))
+        DocumentContent(path: node.string("path") ?? "", html: node.string("html") ?? "", rev: Int(node.props["rev"]?.numberValue ?? 0), anchor: node.string("anchor"))
     }
 
     var body: some View {

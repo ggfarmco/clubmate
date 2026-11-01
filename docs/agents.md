@@ -113,6 +113,12 @@ What the agents plugin renders uses names, not ids or command names: a session i
 
 Tool calls are folded on the Mac and the phone: consecutive calls are one actions row, and a call's output opens only when you click or tap it. A failed call is folded too: on the Mac its card says Failed and the actions row "N failed", on the phone its title is in the danger colour and its card or group gets a danger border. A user message longer than 40 lines or 4000 characters shows its first 12 lines with "Show all N lines"; opened, it scrolls inside a capped box, since one row that tall leaves the transcript scrolled past its end, blank. Nothing in the transcript opens itself. The design boards say failures expand; that is overruled. A change to this rule lands in both clients in the same commit.
 
+## Docs in the transcript
+
+A tool call is a doc when its status is `completed` and either its kind is `edit` (Write, Edit, MultiEdit) and one of its `locations` or `diff` paths ends in `.md`, `.markdown` or `.mmd` (case-insensitive), or it has a `resource_link` whose `file://` URI does. The agents plugin decides this once and sends the first such path, absolute against the session's worktree, as the entry's `doc` field in `agents.transcript`; a failed, cancelled or still running call, a delete or move, and a call on other files have none. The Mac card gets an Open action (before Open in nvim) and the phone's tool row an Open button; both show the doc in the [docs viewer](docs-viewer.md) — the Mac through `openDoc` on `agents.main`, which runs `docs.open {path, session}`, the phone with `docs.read`. Like the rest of a call, Open is inside the folded actions row until you open it. Neither client checks the path itself.
+
+When an agent opens a doc with `docs_open`, the phone shows "Opened <file name>" with an Open button above the composer of that session's screen, for 8 s or until tapped; on any other screen it shows nothing.
+
 ## CLI
 
 Inside a Clubmate terminal, `clubmate` is on `PATH` and `$CLUBMATE_WORKSPACE_ID` names the current workspace.

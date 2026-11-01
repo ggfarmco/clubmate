@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"clubmate/pkg/sdui"
 )
 
 func TestReplayedEntriesCarryTheirLogTimes(t *testing.T) {
@@ -73,4 +75,35 @@ func TestViewSinceReturnsOnlyEntriesChangedAfterTheCursor(t *testing.T) {
 
 	_, ok := parseCursor("other" + cursorSep + "1")
 	assert.False(t, ok)
+}
+
+func TestDocOnlyForCompletedDocTools(t *testing.T) {
+	tool := func(update, id, status string, rest string) string {
+		return `{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"` + update + `","toolCallId":"` + id + `","kind":"edit","status":"` + status + `"` + rest + `}}`
+	}
+	diff := func(path string) string {
+		return `,"content":[{"type":"diff","path":"` + path + `","newText":"x"}]`
+	}
+	lines := []string{
+		tool("tool_call", "doc", "pending", diff("/r/docs/a.md")),
+		tool("tool_call_update", "doc", "completed", ""),
+		tool("tool_call", "code", "completed", diff("/r/main.go")),
+		tool("tool_call", "failed", "failed", diff("/r/a.md")),
+		tool("tool_call", "relative", "completed", `,"locations":[{"path":"main.go"},{"path":"docs/b.md"}]`),
+		`{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"tool_call","toolCallId":"link","kind":"other","status":"completed","content":[{"type":"content","content":{"type":"resource_link","uri":"file:///r/plan.mmd","name":"plan.mmd"}}]}}`,
+	}
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	s := newSession(record{Worktree: "/w"}, newEventLog(path), false, func(string, bool) {})
+
+	docs := map[string]string{}
+	for _, en := range s.view(0).Entries {
+		docs[en.ID] = en.Doc
+	}
+	assert.Equal(t, map[string]string{"doc": "/r/docs/a.md", "code": "", "failed": "", "relative": "/w/docs/b.md", "link": "/r/plan.mmd"}, docs)
+
+	actions, _ := toolCard("c", "/r", s.view(0).Entries[0], false, false).Props["actions"].([]sdui.CardAction)
+	require.Len(t, actions, 2)
+	assert.Equal(t, sdui.CardAction{Action: actOpenDoc, Label: "Open", Icon: "doc.richtext", Value: "/r/docs/a.md"}, actions[0])
+	assert.Equal(t, actOpenLocation, actions[1].Action)
 }

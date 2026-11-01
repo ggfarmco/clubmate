@@ -41,6 +41,7 @@ return {
         { "<leader>b", group = "Buffer" },
         { "<leader>n", group = "New", icon = { icon = "", color = "azure" } },
         { "<leader>r", group = "Review", icon = { icon = "", color = "yellow" } },
+        { "<leader>m", group = "Markdown", icon = { icon = "󰍔", color = "blue" } },
       },
     },
   }),

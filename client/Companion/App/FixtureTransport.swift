@@ -194,7 +194,7 @@ actor FixtureServer {
         switch request["method"]?.stringValue {
         case "hello":
             let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read"].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("notify.posted")])])]))
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
                 .object(["id": .string(item.id), "name": .string(item.name), "folders": .array([.object(["path": .string("/Users/me/src/" + item.name)])])])
@@ -465,6 +465,12 @@ actor FixtureServer {
             publish("notify.posted", ["id": .string("ntf_p1"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run terraform plan in infra."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 240)])
         }
         guard mac.id == FixtureMac.studio.id else { return }
+        if UserDefaults.standard.bool(forKey: "docOpened"), let session = sessions.first?["id"] {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                publish("docs.opened", ["workspace": .string(workspace), "session": session, "path": .string("/Users/me/src/shop/docs/checkout-retries.md")])
+            }
+        }
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null
         publish("notify.posted", ["id": .string("ntf_0"), "workspace": .string(workspace), "title": .string("Stuck"), "message": .string("No output for 15 minutes"), "kind": .string("stuck"), "ts": Self.stamp(ago: 3600)])
         publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])

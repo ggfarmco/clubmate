@@ -15,6 +15,8 @@ import (
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
+
+	"clubmate/pkg/docext"
 )
 
 const (
@@ -55,11 +57,7 @@ func Render(src []byte, opts Options) Doc {
 }
 
 func DocExt(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".md", ".markdown", ".mmd":
-		return true
-	}
-	return false
+	return docext.Is(path)
 }
 
 type state struct {

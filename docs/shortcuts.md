@@ -9,7 +9,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
-| ⌘W | Close terminal session, or the window when no terminal is focused | `ClubmateApp.swift` (`CloseKeyOwner`) |
+| ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⇧⌘W | Close Session | `ClubmateApp.swift` |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Code, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
@@ -19,6 +19,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
 | Esc | Close the popup a plugin shows over the workspace (e.g. a doc), in the panel or its popped-out window; focus goes back to where it was | `PopupPanel.swift`, `PopupWindow.swift` |
+| ⌘W | Close the popup over the workspace while it has focus, instead of the terminal or window | `PopupPanel.swift` |
 | ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
@@ -188,6 +189,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Buffer | Esc | Clear the search highlight | `lua/clubmate/keymaps.lua` |
 | Buffer | ,q | Close the quickfix list | `lua/clubmate/keymaps.lua` |
 | Buffer | v / s (quickfix) | Open the entry in a vertical, horizontal split | `lua/clubmate/autocmds.lua` |
+| Docs | ,mp (or `:ClubmateDocOpen`) | Open the current Markdown/mermaid file in the docs viewer | `lua/clubmate/keymaps.lua` |
 | Folding | Space | Toggle the fold under the cursor | `lua/clubmate/keymaps.lua` |
 | Folding | zV | Close all folds, or open all when none is open | `lua/clubmate/keymaps.lua` |
 | Windows | ⌃H / ⌃J / ⌃K / ⌃L | Move to the left, lower, upper, right window | `lua/clubmate/keymaps.lua` |
@@ -198,7 +200,7 @@ Paths are relative to `nvim-distro/`.
 
 ## Ergonomics notes
 
-- ⌘W does two different things depending on focus: terminal or window.
+- ⌘W does three different things depending on focus: popup, terminal or window.
 - Toggle Sidebar has two bindings (⌘B and ⌃⌘S). Consider dropping one.
 - ↩ and o in a tree differ only on items with children (↩ toggles, o selects). Consider merging them.
 - nvim: `gr` (rename) waits for `timeoutlen` before firing, because nvim 0.12's built-in `grn`/`grr`/`gri`/`gra` start with it.

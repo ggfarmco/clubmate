@@ -100,7 +100,8 @@ struct PopupPanel: View {
             }
         }
         .keyMonitor(active: active) { event in
-            guard event.keyCode == Self.escape, event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock).isEmpty else { return false }
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock)
+            guard (event.keyCode == Self.escape && modifiers.isEmpty) || (event.charactersIgnoringModifiers?.lowercased() == "w" && modifiers == .command) else { return false }
             perform(.close)
             return true
         }

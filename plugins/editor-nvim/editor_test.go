@@ -988,6 +988,32 @@ func TestImportEventStartsSession(t *testing.T) {
 	testutil.Eventually(t, func() bool { return len(agentCalls(t, e)) == 1 }, 5*time.Second)
 }
 
+func TestDocOpenEventCallsDocsOpen(t *testing.T) {
+	e := startEditorIn(t, setup{plugins: []string{fakeDocs(t)}})
+	v := dial(t, e.sock)
+	require.NoError(t, v.ExecLua(`vim.rpcnotify(require("clubmate").chan, "clubmate", { event = "docOpen", file = "/r/a.md" })`, nil))
+	testutil.Eventually(t, func() bool {
+		calls := echoCalls[docsOpen](t, e, "docs.open")
+		return len(calls) == 1 && calls[0].Path == "/r/a.md"
+	}, 5*time.Second)
+}
+
+func TestDocOpenFailureShowsInStatus(t *testing.T) {
+	e := startEditor(t)
+	v := dial(t, e.sock)
+	require.NoError(t, v.ExecLua(`vim.rpcnotify(require("clubmate").chan, "clubmate", { event = "docOpen", file = "/r/a.md" })`, nil))
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed") })
+}
+
+type docsOpen struct {
+	Path string `json:"path"`
+}
+
+func fakeDocs(t *testing.T) string {
+	t.Helper()
+	return testutil.EchoPluginDirAs(t, `{"id":"docs","name":"Docs","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"docs.open","title":"Open Doc","hidden":true}]}}`)
+}
+
 type agentsNew struct {
 	Prompt string `json:"prompt"`
 	Title  string `json:"title"`
@@ -1029,16 +1055,21 @@ func fakeAgents(t *testing.T) string {
 
 func agentCalls(t *testing.T, e *editor) []agentsNew {
 	t.Helper()
+	return echoCalls[agentsNew](t, e, "agents.new")
+}
+
+func echoCalls[T any](t *testing.T, e *editor, id string) []T {
+	t.Helper()
 	events, err := e.h.Bus.Read(t.Context(), "echo.command", 0, 100)
 	require.NoError(t, err)
-	var out []agentsNew
+	var out []T
 	for _, ev := range events {
 		var call struct {
-			ID   string    `json:"id"`
-			Args agentsNew `json:"args"`
+			ID   string `json:"id"`
+			Args T      `json:"args"`
 		}
 		require.NoError(t, json.Unmarshal(ev.Payload, &call))
-		if call.ID == "agents.new" {
+		if call.ID == id {
 			out = append(out, call.Args)
 		}
 	}

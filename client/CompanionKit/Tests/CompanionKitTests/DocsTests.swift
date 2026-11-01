@@ -16,6 +16,17 @@ final class DocsTests: XCTestCase {
         XCTAssertEqual(store.stack.map(\.path), ["/r/a.md"])
     }
 
+    func testOpenKeepsTheAnchorOnThePage() async {
+        let server = DocsServer()
+        let store = DocsStore(connection: server.connection, workspace: "w")
+        await store.open("/r/b.md#intro")
+        XCTAssertEqual(server.reads, ["/r/b.md"])
+        XCTAssertEqual(store.stack.last?.anchor, "intro")
+        await store.open("/r/b.md#usage")
+        XCTAssertEqual(server.reads, ["/r/b.md"])
+        XCTAssertEqual(store.stack.map(\.anchor), ["usage"])
+    }
+
     func testChangedRefetchesOnlyTheOpenPathAtAHigherRev() async throws {
         let server = DocsServer()
         let store = DocsStore(connection: server.connection, workspace: "w")

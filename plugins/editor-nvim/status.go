@@ -14,6 +14,7 @@ import (
 const (
 	branchTimeout  = 2 * time.Second
 	openErrorEvent = "open_error"
+	docOpenEvent   = "docOpen"
 	openErrorMax   = 80
 	fileTopic      = "editor-nvim.file"
 )
@@ -40,6 +41,10 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 		go a.importFromEditor(h, e)
 		return
 	}
+	if ev.Event == docOpenEvent {
+		go a.openDoc(h, e, ev.File)
+		return
+	}
 	branch, refresh := "", ev.Event == "BufEnter" || ev.Event == "DirChanged"
 	if refresh {
 		branch = gitBranch(ctx, branchDir(ev.File, e.root))
@@ -50,6 +55,13 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 		if _, err := h.Publish(ctx, fileTopic, fileEvent{Workspace: e.id, Root: e.root, Path: ev.File}); err != nil {
 			logError("publish file", err)
 		}
+	}
+}
+
+func (a *app) openDoc(h *pluginsdk.Host, e *editor, path string) {
+	if err := h.RunCommand(context.Background(), "docs.open", e.id, map[string]string{"path": path}, nil); err != nil {
+		e.setOpenError(shortError(err.Error()))
+		a.scheduleStatus(h, e)
 	}
 }
 

@@ -7,6 +7,7 @@ struct SessionDetailView: View {
     let context: PluginContext
     let store: AgentsStore
     let sessionID: String
+    @Environment(AppNavigation.self) private var navigation
     @State private var draft = ""
     @State private var attachments: [ComposerAttachment] = []
     @State private var sending = false
@@ -68,6 +69,7 @@ struct SessionDetailView: View {
                 .frame(maxWidth: .infinity)
                 .background(Color(.systemGroupedBackground))
         }
+        .environment(\.openDoc, docOpener)
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
@@ -91,6 +93,7 @@ struct SessionDetailView: View {
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
+                docBanner
                 if transcript != nil, let failure = store.transcriptErrors[sessionID] {
                     RefreshFailedBanner(message: failure) {
                         Task { await store.loadTranscript(sessionID, incremental: true) }
@@ -139,6 +142,7 @@ struct SessionDetailView: View {
                 }
             }
             .animation(.snappy, value: screen.dock)
+            .animation(.snappy, value: store.openedDocs[sessionID])
         }
         .navigationTitle(session?.displayTitle ?? "Session")
         .navigationBarTitleDisplayMode(.inline)
@@ -203,6 +207,31 @@ struct SessionDetailView: View {
             try? await Task.sleep(for: .seconds(31_536_000))
             store.unwatch(sessionID)
         }
+    }
+
+    @ViewBuilder private var docBanner: some View {
+        if let path = store.openedDocs[sessionID] {
+            DocOpenedBanner(name: URL(filePath: path).lastPathComponent) {
+                open(doc: path)
+            } dismiss: {
+                withAnimation { store.dismissOpenedDoc(sessionID) }
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .task(id: path) {
+                try? await Task.sleep(for: .seconds(8))
+                withAnimation { store.dismissOpenedDoc(sessionID) }
+            }
+        }
+    }
+
+    private var docOpener: (@MainActor (String) -> Void)? {
+        guard context.connection.supports(DocsCommand.read) else { return nil }
+        return { path in open(doc: path) }
+    }
+
+    private func open(doc path: String) {
+        store.dismissOpenedDoc(sessionID)
+        navigation.openDoc(computer: context.connection.computer.id, workspace: store.workspace, path: path)
     }
 
     private func send() {
@@ -311,6 +340,38 @@ struct AnsweredElsewhereBanner: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .glassEffect(in: .capsule)
+    }
+}
+
+struct DocOpenedBanner: View {
+    let name: String
+    let open: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: dismiss) {
+                Label {
+                    Text("Opened \(name)").lineLimit(1).truncationMode(.middle)
+                } icon: {
+                    Image(systemName: "doc.richtext")
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Dismisses")
+            Button("Open", action: open)
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.glass)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .glassEffect(in: .rect(cornerRadius: 18))
+        .padding(.horizontal, 12)
+        .frame(maxWidth: 820)
     }
 }
 

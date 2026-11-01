@@ -307,12 +307,14 @@ struct SubagentStop {
 
 extension EnvironmentValues {
     @Entry var subagentStop: SubagentStop?
+    @Entry var openDoc: (@MainActor (String) -> Void)?
 }
 
 struct ToolLine: View {
     let tool: ToolCall
     @Binding var expanded: Bool
     @Environment(\.subagentStop) private var stop
+    @Environment(\.openDoc) private var openDoc
     @State private var stopping = false
     @State private var confirmingStop = false
 
@@ -371,6 +373,10 @@ struct ToolLine: View {
                 }
             } message: {
                 Text("Only this subagent stops. The session keeps running.")
+            }
+            if let doc = tool.doc, let openDoc {
+                PlainCapsule(title: "Open", tint: .primary) { openDoc(doc) }
+                    .accessibilityLabel("Open \(URL(filePath: doc).lastPathComponent)")
             }
             if expanded {
                 ForEach(Array(tool.diffs.enumerated()), id: \.offset) { _, diff in

@@ -60,9 +60,11 @@ func TestOpenBackClose(t *testing.T) {
 
 	e.event("openDoc", b+"#intro")
 	e.assertDoc(b, 1, true)
+	assert.Equal(t, "intro", e.anchor())
 
 	e.event("back", nil)
 	e.assertDoc(a, 1, false)
+	assert.Nil(t, e.anchor())
 
 	e.event("close", nil)
 	assert.Equal(t, "empty", e.core.last().Type)
@@ -141,10 +143,11 @@ func TestAgentOpenPublishesOpened(t *testing.T) {
 	e.core.sessions = []map[string]string{{"id": "agt_a", "worktree": tree}}
 	spec := e.doc(filepath.Join(".worktrees", "feat", "spec.md"), "# Spec")
 
-	_, err := e.run(pluginsdk.CommandRun{ID: "docs.open", Agent: true, Caller: "agt_a", Args: e.args(map[string]any{"path": "spec.md"})})
+	_, err := e.run(pluginsdk.CommandRun{ID: "docs.open", Agent: true, Caller: "agt_a", Args: e.args(map[string]any{"path": "spec.md#intro"})})
 	require.NoError(t, err)
 
 	e.assertDoc(spec, 1, false)
+	assert.Equal(t, "intro", e.anchor())
 	assert.Equal(t, published{Topic: "docs.opened", Payload: map[string]any{"workspace": "ws", "session": "agt_a", "path": spec}}, e.core.lastPublished())
 }
 
@@ -204,6 +207,12 @@ func (e *env) assertDoc(path string, rev int, back bool) {
 	header := find(last, func(n sdui.Node) bool { return n.Type == "header" })
 	require.NotNil(e.t, header)
 	assert.Equal(e.t, filepath.Base(path), header.Props["title"])
+}
+
+func (e *env) anchor() any {
+	doc := find(e.core.last(), func(n sdui.Node) bool { return n.Type == "document" })
+	require.NotNil(e.t, doc)
+	return doc.Props["anchor"]
 }
 
 func (c *fakeCore) connect(t *testing.T) *pluginsdk.Host {

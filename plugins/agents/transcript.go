@@ -3,11 +3,14 @@ package main
 import (
 	"encoding/json"
 	"maps"
+	"net/url"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"clubmate/pkg/docext"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 )
@@ -90,6 +93,7 @@ type entry struct {
 	AnsweredAt  time.Time                `json:"answeredAt,omitzero"`
 
 	Compaction *compaction `json:"compaction,omitempty"`
+	Doc        string      `json:"doc,omitempty"`
 
 	node   *nodeCache
 	sub    *subagent
@@ -506,6 +510,43 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 	if json.Unmarshal(en.Tool["kind"], &kind) == nil && slices.Contains(editKinds, kind) {
 		s.edited = true
 	}
+	en.Doc = s.docOf(en.Tool)
+}
+
+func (s *session) docOf(tool map[string]json.RawMessage) string {
+	var status string
+	if json.Unmarshal(tool["status"], &status) != nil || status != "completed" {
+		return ""
+	}
+	f, _, _ := parseTool(tool)
+	var paths []string
+	if f.Kind == "edit" {
+		for _, l := range f.Locations {
+			paths = append(paths, l.Path)
+		}
+		for _, c := range f.Content {
+			if c.Type == "diff" {
+				paths = append(paths, c.Path)
+			}
+		}
+	}
+	for _, c := range f.Content {
+		if c.Type != "content" || c.Content.Type != "resource_link" {
+			continue
+		}
+		if u, err := url.Parse(c.Content.URI); err == nil && u.Scheme == "file" {
+			paths = append(paths, u.Path)
+		}
+	}
+	for _, p := range paths {
+		if p != "" && docext.Is(p) {
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(s.rec.Worktree, p)
+			}
+			return p
+		}
+	}
+	return ""
 }
 
 func dropUnkeptToolFields(fields map[string]json.RawMessage) {

@@ -31,6 +31,7 @@ const (
 	diffviewManifest = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.diffview","title":"Diffview","hidden":true}]},"echoResults":{"editor-nvim.diffview":{}}}`
 	editorManifest   = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.checktime","title":"Checktime","hidden":true}]},"echoResults":{"editor-nvim.checktime":{}}}`
 	codeManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"editor-nvim","title":"Code","icon":"code","order":10}],"commands":[{"id":"editor-nvim.open","provides":["editor.open"],"title":"Open File","hidden":true}]},"echoResults":{"editor-nvim.open":{}}}`
+	docsManifest     = `{"id":"docs","name":"Docs","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"docs.open","title":"Open Doc","hidden":true}]},"echoResults":{"docs.open":{}}}`
 	stopManifest     = `{"id":"editor-nvim","name":"Code","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"editor-nvim.stop-root","title":"Stop","hidden":true,"handles":["git.worktree.removing"]},{"id":"editor-nvim.release-root","title":"Release","hidden":true,"handles":["git.worktree.released"]}]},"echoResults":{"editor-nvim.stop-root":{},"editor-nvim.release-root":{}}}`
 )
 
@@ -1099,6 +1100,21 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 
 	assert.JSONEq(t, `{"path":"`+path+`","line":1}`, string(echoed(t, f, "editor-nvim.open")))
 	waitFocus(t, c, "editor-nvim", "editor-nvim.main")
+}
+
+func TestOpenDocRunsDocsOpenForTheSession(t *testing.T) {
+	repo := newRepo(t)
+	path := filepath.Join(repo, "a.md")
+	edit := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "w1", "title": "Write a.md", "kind": "edit", "status": "completed", "locations": []map[string]any{{"path": path}}}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"update": edit}}}, testutil.EchoPluginDirAs(t, docsManifest))
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "write it")
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "toolCard")) == 1 })
+
+	f.h.Event(t, workspace, "agents.main", cardsOf(main, "toolCard")[0].ID, "openDoc", path)
+
+	assert.JSONEq(t, `{"path":"`+path+`","session":"`+session+`"}`, string(echoed(t, f, "docs.open")))
 }
 
 func TestOpenOutputWritesFullOutputAndOpensIt(t *testing.T) {

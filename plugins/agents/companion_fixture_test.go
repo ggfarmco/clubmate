@@ -70,6 +70,7 @@ func TestCompanionFixtures(t *testing.T) {
 
 func companionScript(repo string) map[string]any {
 	path := filepath.Join(repo, "cart.go")
+	doc := filepath.Join(repo, "docs", "checkout-retries.md")
 	step := func(match string, update map[string]any) map[string]any {
 		return map[string]any{"match": match, "update": update}
 	}
@@ -114,6 +115,10 @@ func companionScript(repo string) map[string]any {
 				"locations": []map[string]any{{"path": path, "line": 1}},
 			}),
 			step(refactorPrompt, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "edit1", "status": "completed"}),
+			step(refactorPrompt, map[string]any{
+				"sessionUpdate": "tool_call", "toolCallId": "write1", "title": "Write `" + doc + "`", "kind": "edit", "status": "completed",
+				"content": []map[string]any{{"type": "diff", "path": doc, "newText": "# Checkout retries\n"}},
+			}),
 			step(refactorPrompt, subagent),
 			{"match": refactorPrompt, "session": "sub-1", "update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "sub-read1", "title": "Read cart_test.go", "kind": "read", "status": "in_progress"}},
 			step(refactorPrompt, map[string]any{"sessionUpdate": "compaction_update", "compactionId": "compact1", "status": "completed", "summary": []map[string]any{{"type": "text", "text": compactSummary}}}),

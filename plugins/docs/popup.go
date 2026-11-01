@@ -32,9 +32,14 @@ type docState struct {
 	rev int
 }
 
+type entry struct {
+	path   string
+	anchor string
+}
+
 type space struct {
 	mu      sync.Mutex
-	stack   []string
+	stack   []entry
 	reads   []string
 	docs    map[string]*docState
 	watch   string
@@ -84,9 +89,7 @@ func (d *docs) openDoc(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEv
 	if err != nil {
 		return err
 	}
-	if i := strings.LastIndexByte(path, '#'); i >= 0 && !strings.ContainsRune(path[i:], filepath.Separator) {
-		path = path[:i]
-	}
+	path, anchor := splitAnchor(path)
 	ws, err := h.GetWorkspace(ctx, ev.WorkspaceID)
 	if err != nil {
 		return err
@@ -99,9 +102,10 @@ func (d *docs) openDoc(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEv
 	s := d.space(ev.WorkspaceID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.stack) == 0 || s.stack[len(s.stack)-1] != abs {
-		s.stack = append(s.stack, abs)
+	if len(s.stack) == 0 || s.top() != abs {
+		s.stack = append(s.stack, entry{path: abs})
 	}
+	s.stack[len(s.stack)-1].anchor = anchor
 	s.track(abs)
 	if err := d.ensureWatch(ctx, h, ev.WorkspaceID, s); err != nil {
 		return err
@@ -182,7 +186,7 @@ func (d *docs) flush(workspaceID string) {
 			continue
 		}
 		st.rev++
-		if len(s.stack) > 0 && s.stack[len(s.stack)-1] == path {
+		if len(s.stack) > 0 && s.top() == path {
 			logError("render "+path, s.present(ctx, d.h, workspaceID, allow))
 		}
 		_, err := d.h.Publish(ctx, changedTopic, changedEvent{Workspace: workspaceID, Path: path, Rev: st.rev})
@@ -234,7 +238,7 @@ func (s *space) read(path string) {
 
 func (s *space) prune() {
 	for path := range s.docs {
-		if !slices.Contains(s.stack, path) && !slices.Contains(s.reads, path) {
+		if !slices.ContainsFunc(s.stack, func(e entry) bool { return e.path == path }) && !slices.Contains(s.reads, path) {
 			delete(s.docs, path)
 			delete(s.pending, path)
 		}
@@ -242,7 +246,7 @@ func (s *space) prune() {
 }
 
 func (s *space) present(ctx context.Context, h *pluginsdk.Host, workspaceID string, allow func(string) bool) error {
-	_, src, err := load(s.stack[len(s.stack)-1], allow)
+	_, src, err := load(s.top(), allow)
 	if err != nil && !errors.Is(err, errNotFound) {
 		return err
 	}
@@ -250,14 +254,26 @@ func (s *space) present(ctx context.Context, h *pluginsdk.Host, workspaceID stri
 }
 
 func (s *space) viewOf(src []byte, loadErr error, allow func(string) bool) popupState {
-	path := s.stack[len(s.stack)-1]
+	top := s.stack[len(s.stack)-1]
+	path := top.path
 	st := s.track(path)
-	v := popupState{path: path, rev: st.rev, back: len(s.stack) > 1, gone: loadErr != nil}
+	v := popupState{path: path, anchor: top.anchor, rev: st.rev, back: len(s.stack) > 1, gone: loadErr != nil}
 	if !v.gone {
 		v.html = docrender.Render(src, docrender.Options{Path: path, Allowed: allow}).HTML
 	}
 	v.title = filepath.Base(path)
 	return v
+}
+
+func (s *space) top() string {
+	return s.stack[len(s.stack)-1].path
+}
+
+func splitAnchor(path string) (string, string) {
+	if i := strings.LastIndexByte(path, '#'); i >= 0 && docrender.DocExt(path[:i]) {
+		return path[:i], path[i+1:]
+	}
+	return path, ""
 }
 
 func show(ctx context.Context, h *pluginsdk.Host, workspaceID string, v popupState) error {

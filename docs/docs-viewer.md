@@ -6,13 +6,17 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered in 
 
 | Command | Args | Agent | Remote | Result |
 |---|---|---|---|---|
-| `docs.open` | `{path, session?}` | yes (MCP `docs_open`) | no | `{path}`; shows the doc in the workspace's popup and focuses it |
+| `docs.open` | `{path, session?}` (`path` may end in `#anchor`) | yes (MCP `docs_open`) | no | `{path}`; shows the doc in the workspace's popup and focuses it |
 | `docs.read` | `{path}` | no | yes | `{path, title, html, rev}` |
 | `docs.close` | none | no | no | renders the popup `empty` |
 
 - A relative `path` in `docs.open` is resolved against the worktree of `session` (default the calling agent session, from `agents.sessions` field `worktree`), else the selected worktree of the workspace's first folder. In `docs.read` it is resolved against that folder.
 - `path` in a result is absolute with symlinks resolved; `title` is the first `# heading`, else the file name without extension.
 - Errors are exactly `not in workspace`, `not a document`, `too large` and `not found`.
+
+## From nvim
+
+`,mp` or `:ClubmateDocOpen` in the bundled nvim sends the event `docOpen` with the buffer's path to editor-nvim, which runs `docs.open {path}` in its workspace. Only a buffer whose name ends in `.md`, `.markdown` or `.mmd` (any case) sends it; any other or an unnamed buffer shows `Not a Markdown or mermaid file` in nvim. The buffer is not saved first: the viewer shows the file on disk. A failed `docs.open` shows as `open failed` in the editor status, like a failed open.
 
 ## Scope
 
@@ -30,9 +34,11 @@ Images: `png jpg jpeg gif webp svg` whose first bytes match the type, at most 2 
 
 The plugin declares section `docs` with `rail: false` and slot `popup`, so it has no rail entry and only `docs.popup` shows.
 
-- The tree is a vertical `stack` of a `header` (the file name, since the doc's own `# heading` is the first line of the page; a ghost icon-only `button` id `back`, action `back`, icon `chevron.left`, only while the back stack has more than one doc) and a `document` id `doc` (`path`, `rev`, `size: fill`).
+- The tree is a vertical `stack` of a `header` (the file name, since the doc's own `# heading` is the first line of the page; a ghost icon-only `button` id `back`, action `back`, icon `chevron.left`, only while the back stack has more than one doc) and a `document` id `doc` (`path`, `rev`, `size: fill`, `anchor` when the doc was opened at one).
+- Esc and ⌘W close the popup while it has focus; ⌘W does not reach the terminal or window under it.
 - `docs.open` replaces the back stack with the doc and calls `ui.focus` on `docs.popup`. From an agent it also publishes `docs.opened`.
-- Events on `docs.popup`: `openDoc` (value the path, `#anchor` dropped) pushes the doc, `back` pops, `close` clears the stack and renders `empty`; `openFile` opens the file in the editor.
+- A `#anchor` is split off a path only when the part before it is a doc (`a.md#intro`; `notes#1.md` stays a file name). Each back stack entry keeps its anchor: the doc loads at that heading, or at the top when no element has that id; a live reload keeps the scroll position.
+- Events on `docs.popup`: `openDoc` (value the path with an optional `#anchor`) pushes the doc, or for the doc already on top only moves to the anchor, `back` pops, `close` clears the stack and renders `empty`; `openFile` opens the file in the editor.
 - When the open file is deleted or renamed away, the popup keeps its header and shows `File no longer exists` with the path as hint; it shows the doc again when the file comes back.
 
 ## Live reload
@@ -48,6 +54,12 @@ While a workspace has a doc open in the popup or read by `docs.read` (the last 1
 
 Both are forwarded to paired phones by `remote` (see [remote](remote.md)).
 
+## Entry points
+
+- an agent calls `docs_open`
+- Open on a transcript card or tool row whose entry has `doc` (Mac and phone, see [agents](agents.md#docs-in-the-transcript))
+- on the phone, the "Opened <file name>" banner shown for `docs.opened` on that session's screen
+
 ## Phone
 
-The Companion opens a doc as a full-screen sheet (`AppNavigation.openDoc(computer:workspace:path:)`, presented from `RootView`) that reads it with `docs.read` and draws the HTML with the shared `ClubmateDocument` web view in the system theme. `DocsStore` keeps its own back stack: a `clubmate-doc:` link reads and pushes, Back pops (only shown with two or more pages), `http(s)` opens in Safari, `clubmate-file:` does nothing. A `docs.changed` for the page on top with a higher `rev` reads it again and swaps the body in place; one for a page under it is read again when Back shows that page. A failed read keeps the stack and shows the plugin's error (`not in workspace`, …) under the page, or in place of it when nothing is open yet.
+The Companion opens a doc as a full-screen sheet (`AppNavigation.openDoc(computer:workspace:path:)`, presented from `RootView`) that reads it with `docs.read` and draws the HTML with the shared `ClubmateDocument` web view in the system theme. `DocsStore` keeps its own back stack: a `clubmate-doc:` link reads and pushes (keeping its `#anchor`, or only moving to the anchor when it points into the page on top), Back pops (only shown with two or more pages), `http(s)` opens in Safari, `clubmate-file:` does nothing. A `docs.changed` for the page on top with a higher `rev` reads it again and swaps the body in place; one for a page under it is read again when Back shows that page. A failed read keeps the stack and shows the plugin's error (`not in workspace`, …) under the page, or in place of it when nothing is open yet.

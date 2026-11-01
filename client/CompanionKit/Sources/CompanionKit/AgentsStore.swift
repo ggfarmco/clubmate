@@ -20,6 +20,7 @@ public final class AgentsStore {
     public private(set) var loaded = false
     public private(set) var error: String?
     public private(set) var transcriptErrors: [String: String] = [:]
+    public private(set) var openedDocs: [String: String] = [:]
     public var expanded: Set<String> = []
     private var outgoing: [String: [Outgoing]] = [:]
 
@@ -73,9 +74,17 @@ public final class AgentsStore {
             if let session = event.payload["session"]?.stringValue, watched[session] != nil {
                 Task { await loadTranscript(session, incremental: true) }
             }
+        case .event(let event) where event.topic == Topic.docsOpened:
+            let target = event.payload["workspace"]?.stringValue ?? event.workspace
+            guard target.isEmpty || target == workspace, let session = event.payload["session"]?.stringValue, watched[session] != nil, let path = event.payload["path"]?.stringValue else { return }
+            openedDocs[session] = path
         case .event:
             break
         }
+    }
+
+    public func dismissOpenedDoc(_ session: String) {
+        openedDocs[session] = nil
     }
 
     public func refreshAll() async {

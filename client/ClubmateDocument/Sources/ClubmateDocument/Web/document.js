@@ -127,7 +127,17 @@
     return setBody(body);
   };
 
+  const scrollTo = (anchor) => {
+    let decoded = anchor;
+    try {
+      decoded = decodeURIComponent(anchor);
+    } catch {}
+    const target = document.getElementById(anchor) ?? document.getElementById(decoded);
+    target?.scrollIntoView({ block: 'start' });
+    return target != null;
+  };
+
   new ResizeObserver(height).observe(doc);
   configure();
-  window.clubmate = { setBody, setTheme, ready: setBody(body) };
+  window.clubmate = { setBody, setTheme, scrollTo, ready: setBody(body) };
 })();

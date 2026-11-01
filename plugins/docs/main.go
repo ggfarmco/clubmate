@@ -131,13 +131,14 @@ func (d *docs) open(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comman
 	}
 	session := cmp.Or(args.Session, cmd.Caller)
 	allow := workspaceScope(ctx, ws, d.uploads)
-	abs, src, err := load(d.absolute(ctx, h, ws, session, args.Path), allow)
+	path, anchor := splitAnchor(args.Path)
+	abs, src, err := load(d.absolute(ctx, h, ws, session, path), allow)
 	if err != nil {
 		return nil, err
 	}
 	s := d.space(ws.ID)
 	s.mu.Lock()
-	s.stack = []string{abs}
+	s.stack = []entry{{path: abs, anchor: anchor}}
 	s.prune()
 	err = d.ensureWatch(ctx, h, ws.ID, s)
 	if err == nil {

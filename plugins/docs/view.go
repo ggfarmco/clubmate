@@ -7,12 +7,13 @@ import (
 const goneText = "File no longer exists"
 
 type popupState struct {
-	title string
-	path  string
-	html  string
-	rev   int
-	gone  bool
-	back  bool
+	title  string
+	path   string
+	anchor string
+	html   string
+	rev    int
+	gone   bool
+	back   bool
 }
 
 func popupView(s popupState) sdui.Node {
@@ -25,5 +26,5 @@ func popupView(s popupState) sdui.Node {
 	if s.gone {
 		return sdui.VStack(header, sdui.EmptyState(goneText, sdui.EmptyProps{Icon: "doc.questionmark", Hint: s.path}))
 	}
-	return sdui.VStack(header, sdui.Document("doc", sdui.DocumentProps{HTML: s.html, Path: s.path, Rev: s.rev, Size: "fill"}))
+	return sdui.VStack(header, sdui.Document("doc", sdui.DocumentProps{HTML: s.html, Path: s.path, Rev: s.rev, Size: "fill", Anchor: s.anchor}))
 }

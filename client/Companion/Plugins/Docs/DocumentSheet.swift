@@ -82,7 +82,7 @@ private struct DocumentScreen: View {
     @ViewBuilder
     private var content: some View {
         if let page = store.stack.last {
-            DocumentWebView(content: DocumentContent(path: page.path, html: page.html, rev: page.rev), theme: .system(dark: scheme == .dark), size: .fill, onLink: follow)
+            DocumentWebView(content: DocumentContent(path: page.path, html: page.html, rev: page.rev, anchor: page.anchor), theme: .system(dark: scheme == .dark), size: .fill, onLink: follow)
                 .ignoresSafeArea(.container, edges: .bottom)
         } else if let error = store.error {
             ContentUnavailableView("Can't Open Document", systemImage: "doc.questionmark", description: Text(error))
@@ -93,8 +93,8 @@ private struct DocumentScreen: View {
 
     private func follow(_ link: DocumentLink) {
         switch link {
-        case .doc(let path, _):
-            Task { await store.open(path) }
+        case .doc(let path, let anchor):
+            Task { await store.open(anchor.map { "\(path)#\($0)" } ?? path) }
         case .external(let url):
             openURL(url)
         case .file, .anchor, .ignore:

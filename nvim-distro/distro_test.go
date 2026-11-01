@@ -756,6 +756,26 @@ return { Notify = vim.notify == Snacks.notifier.notify, Select = vim.ui.select =
 	assert.True(t, got.Select)
 }
 
+func TestDocOpenOnlyForDocs(t *testing.T) {
+	v := startDistro(t, opts{})
+	got := make(chan string, 4)
+	require.NoError(t, v.RegisterHandler("clubmate", func(ev map[string]any) { got <- fmt.Sprint(ev["event"], " ", ev["file"]) }))
+	require.NoError(t, v.ExecLua(`package.loaded["clubmate"] = { chan = ... }`, nil, v.ChannelID()))
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, v.Command("ClubmateDocOpen"))
+	for _, name := range []string{"a.go", "b.MD"} {
+		require.NoError(t, v.Command("edit "+filepath.Join(dir, name)))
+		require.NoError(t, v.Command("ClubmateDocOpen"))
+	}
+	select {
+	case ev := <-got:
+		assert.Equal(t, "docOpen "+filepath.Join(dir, "b.MD"), ev)
+	case <-time.After(5 * time.Second):
+		t.Fatal("no docOpen notification")
+	}
+}
+
 func TestBundledAppSmoke(t *testing.T) {
 	if os.Getenv("CLUBMATE_TEST_BUNDLE") == "" {
 		t.Skip("CLUBMATE_TEST_BUNDLE is not set; scripts/bundle-app.sh runs this against the built app")

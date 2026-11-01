@@ -198,6 +198,25 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(wait(for: app.navigationBars["Checkout retries"], "exists == false"))
     }
 
+    func testDocOpensFromTheBannerAndAToolRow() {
+        let app = launch(open: "agents/agt_0000000000000001", ["-docOpened", "YES"])
+        let banner = app.buttons["Opened checkout-retries.md"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 10))
+        add(screenshot(app, "doc-banner"))
+        app.buttons["Open"].tap()
+        XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(wait(for: banner, "exists == false"))
+        let group = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '3 actions'")).firstMatch
+        reveal(group, in: app)
+        group.tap()
+        let open = app.buttons["Open checkout-retries.md"]
+        reveal(open, in: app)
+        add(screenshot(app, "doc-tool-row"))
+        open.tap()
+        XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra

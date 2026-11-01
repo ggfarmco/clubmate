@@ -29,6 +29,21 @@ final class DocumentTests: XCTestCase {
         XCTAssertEqual(DocumentPage.update(old: a1, new: a2), .replaceBody)
         XCTAssertEqual(DocumentPage.update(old: a1, new: a1), .none)
         XCTAssertEqual(DocumentPage.update(old: a1, new: b1), .load)
+        let a1Intro = DocumentContent(path: "/r/a.md", html: "<p>1</p>", rev: 1, anchor: "intro")
+        XCTAssertEqual(DocumentPage.update(old: a1, new: a1Intro), .scroll)
+        XCTAssertEqual(DocumentPage.update(old: a1Intro, new: a1), .none)
+    }
+
+    func testLoadScrollsToAnchorWhenItExists() async throws {
+        let long = (1...200).map { "<p>line \($0)</p>" }.joined()
+        for (anchor, scrolled) in [("sec2", true), ("missing", false)] {
+            let page = DocumentController()
+            page.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+            page.show(DocumentContent(path: "/r/a.md", html: long + "<h2 id=\"sec2\">Two</h2>" + long, rev: 1, anchor: anchor), theme: .mate(dark: true), size: .fill)
+            await page.settled()
+            let y = try await page.webView.callAsyncJavaScript("return window.scrollY", contentWorld: .page) as? Double ?? 0
+            XCTAssertEqual(y > 0, scrolled, anchor)
+        }
     }
 
     func testTemplateHasStrictCSPAndNoRemoteURL() throws {
