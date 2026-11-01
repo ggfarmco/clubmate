@@ -116,6 +116,19 @@ final class RemoteDevicesTests: XCTestCase {
         XCTAssertEqual(model.status?.state, .off)
     }
 
+    func testSetColourDecodesIdentity() async throws {
+        let fake = FakeRemote()
+        let model = fake.model()
+
+        await model.setColour("magenta")
+
+        XCTAssertEqual(fake.calls, [CommandInvocation(id: "remote.set-colour", args: .object(["colour": .string("magenta")]))])
+        XCTAssertEqual(model.status?.computer, RemoteComputer(id: "c1", name: "Mac Studio", colour: "magenta"))
+        XCTAssertEqual(model.status?.otherMacs, [RemoteOtherMac(name: "MacBook Pro", colour: "blue", devices: ["iPhone"])])
+        XCTAssertEqual(model.status?.titleBarColour, false)
+        XCTAssertEqual(model.status?.titleDot, true)
+    }
+
     func testRevokeNeedsConfirmation() async throws {
         let fake = FakeRemote()
         let model = fake.model()
@@ -194,6 +207,7 @@ private final class FakeRemote {
         case "remote.status": return .success(json(status))
         case "remote.devices": return .success(json(devices))
         case "remote.enable": return .success(json(#"{"enabled":false,"port":47621,"listening":[],"hosts":[],"error":""}"#))
+        case "remote.set-colour": return .success(json(#"{"enabled":true,"computer":{"id":"c1","name":"Mac Studio","colour":"magenta"},"titleBarColour":false,"otherMacs":[{"name":"MacBook Pro","colour":"blue","devices":["iPhone"]}],"titleDot":true}"#))
         case "remote.pair": return .success(json(#"{"link":"clubmate://pair?v=1&c=ABC&n=Mac","code":"ABC","expiresAt":"2026-10-30T10:05:00Z"}"#))
         default: return .success(.null)
         }

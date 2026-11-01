@@ -17,6 +17,13 @@ struct DevicesSettings: View {
             case .unavailable(let detail):
                 unavailable(detail)
             case .ready:
+                if let status = model.status, let computer = status.computer {
+                    ThisMacSection(status: status, computer: computer, busy: model.busy) { colour in
+                        Task { await model.setColour(colour) }
+                    } setTitleBar: { enabled in
+                        Task { await model.setTitleBarColour(enabled) }
+                    }
+                }
                 status
                 devices
             }
@@ -34,11 +41,7 @@ struct DevicesSettings: View {
 
     private func follow() async {
         guard active else { return }
-        if let client {
-            await model.follow(client)
-        } else {
-            await model.load()
-        }
+        await model.load()
     }
 
     private func unavailable(_ detail: String) -> some View {
@@ -120,6 +123,157 @@ struct DevicesSettings: View {
         case .failed: .red
         case .off: .secondary
         }
+    }
+}
+
+private struct ThisMacSection: View {
+    let status: RemoteStatus
+    let computer: RemoteComputer
+    let busy: Bool
+    let setColour: (String) -> Void
+    let setTitleBar: (Bool) -> Void
+
+    @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Section("This Mac") {
+            LabeledContent("Name") {
+                Text(computer.name)
+                    .lineLimit(1)
+                    .truncationMode(.label)
+                    .help(computer.name)
+                    .textSelection(.enabled)
+            }
+            VStack(alignment: .leading, spacing: theme.spacing.m) {
+                LabeledContent("Colour") {
+                    HStack(spacing: theme.spacing.m) {
+                        ForEach(Theme.identities, id: \.self) { token in
+                            Swatch(token: token, selected: token == selected, takenBy: takenBy(token), busy: busy) { setColour(token) }
+                        }
+                    }
+                }
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Toggle(isOn: Binding { status.titleBarColour } set: { setTitleBar($0) }) {
+                Text("Title bar")
+                Text(status.titleBarColour && !status.titleDot ? "Show the colour in the workspace pill once a phone has another Mac paired" : "Show the colour in the workspace pill")
+            }
+            .disabled(busy)
+            preview
+        }
+    }
+
+    private var selected: String? {
+        computer.colour.isEmpty ? nil : Theme.identities.contains(computer.colour) ? computer.colour : "graphite"
+    }
+
+    private func takenBy(_ token: String) -> [String] {
+        status.otherMacs.filter { (Theme.identities.contains($0.colour) ? $0.colour : "graphite") == token }.map(\.name)
+    }
+
+    private var caption: String {
+        let shown = "Shown next to “\(computer.name)” on your iPhone and iPad."
+        let own = selected.map { "\(Theme.identityName($0)). \(shown)" } ?? "No colour yet. \(shown)"
+        let others = Theme.identities.compactMap { token -> String? in
+            let names = takenBy(token)
+            guard !names.isEmpty else { return nil }
+            return "\(Theme.identityName(token).lowercased()) is \(names.formatted(.list(type: .and)))"
+        }
+        guard !others.isEmpty else { return own }
+        let line = others.joined(separator: ", ")
+        return own + "\n" + line.prefix(1).uppercased() + line.dropFirst() + " (marked •)."
+    }
+
+    private var preview: some View {
+        Grid(alignment: .leading, horizontalSpacing: theme.spacing.xl, verticalSpacing: theme.spacing.l) {
+            GridRow {
+                Text("Mac").foregroundStyle(.secondary)
+                TitlePill {
+                    if status.titleBarColour { MacDot(colour: selected, dark: colorScheme == .dark) }
+                    Text("clubmate")
+                        .lineLimit(1)
+                    Text("/").foregroundStyle(theme.faint)
+                    Image(systemName: "arrow.triangle.branch").foregroundStyle(theme.muted)
+                    Text("main").foregroundStyle(theme.foreground)
+                }
+                .fixedSize()
+            }
+            GridRow {
+                Text("iPhone").foregroundStyle(.secondary)
+                HStack(spacing: theme.spacing.m) {
+                    MacDot(colour: selected, dark: colorScheme == .dark)
+                    Text("\(computer.name) · clubmate · Run go test ./...?")
+                        .lineLimit(1)
+                        .truncationMode(.label)
+                }
+                .font(theme.ui)
+                .foregroundStyle(theme.foreground)
+                .padding(.horizontal, theme.spacing.l)
+                .frame(height: theme.control)
+                .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.background))
+            }
+        }
+        .font(.caption)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Preview")
+    }
+}
+
+private struct Swatch: View {
+    let token: String
+    let selected: Bool
+    let takenBy: [String]
+    let busy: Bool
+    let choose: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private static let side: CGFloat = 18
+
+    var body: some View {
+        Button(action: choose) {
+            Circle()
+                .fill(colour)
+                .frame(width: Self.side, height: Self.side)
+                .overlay {
+                    if selected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: Self.side / 2, weight: .bold))
+                            .foregroundStyle(.background)
+                    }
+                }
+                .padding(3)
+                .overlay {
+                    if selected { Circle().stroke(colour, lineWidth: 2) }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if !takenBy.isEmpty {
+                        Circle()
+                            .fill(.secondary)
+                            .frame(width: 7, height: 7)
+                            .overlay(Circle().stroke(.background, lineWidth: 1.5))
+                    }
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .help(help)
+        .accessibilityLabel(help)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var colour: Color {
+        Theme.identity(token, dark: colorScheme == .dark)
+    }
+
+    private var help: String {
+        let name = Theme.identityName(token)
+        return takenBy.isEmpty ? name : "\(name) — \(takenBy.formatted(.list(type: .and)))"
     }
 }
 

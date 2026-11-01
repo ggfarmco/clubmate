@@ -14,19 +14,30 @@ enum DevicesPreview {
     @MainActor
     static func model(_ state: String) -> RemoteDevicesModel {
         let now = Date()
-        let replies = replies(state, now: now)
+        let identity = Identity()
         return RemoteDevicesModel(
             run: { invocation in
                 if state == "unavailable" { return .failure(.rpc(code: -32000, message: #"unknown command: "\#(invocation.id)""#)) }
-                guard let text = replies[invocation.id] else { return .success(.null) }
+                if let colour = invocation.args["colour"]?.stringValue { identity.colour = colour }
+                if let enabled = invocation.args["enabled"]?.boolValue, invocation.id == "remote.set-title-bar-colour" { identity.titleBar = enabled }
+                guard let text = replies(state, now: now, identity: identity)[invocation.id] else { return .success(.null) }
                 return .success((try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))) ?? .null)
             },
             confirm: { message in await Confirmation.ask(message, action: "Revoke", destructive: true) }
         )
     }
 
-    private static func replies(_ state: String, now: Date) -> [String: String] {
-        let listening = #"{"enabled":true,"port":47621,"listening":["100.101.1.2:47621","[fd7a:115c:a1e0::1]:47621"],"hosts":["mac-studio.tail1234.ts.net","100.101.1.2","fd7a:115c:a1e0::1"],"error":""}"#
+    @MainActor
+    private final class Identity {
+        var colour = "blue"
+        var titleBar = true
+    }
+
+    @MainActor
+    private static func replies(_ state: String, now: Date, identity: Identity) -> [String: String] {
+        let others = #"[{"name":"MacBook Pro","colour":"magenta","devices":["Vadim’s iPhone"]},{"name":"MacBook Air","colour":"graphite","devices":["Vadim’s iPhone"]}]"#
+        let fields = #""computer":{"id":"cmp_3f9a1c","name":"Mac Studio","colour":"\#(identity.colour)"},"titleBarColour":\#(identity.titleBar),"otherMacs":\#(others),"titleDot":\#(identity.titleBar)"#
+        let listening = #"{"enabled":true,"port":47621,"listening":["100.101.1.2:47621","[fd7a:115c:a1e0::1]:47621"],"hosts":["mac-studio.tail1234.ts.net","100.101.1.2","fd7a:115c:a1e0::1"],"error":"",\#(fields)}"#
         let noTailscale = #"{"enabled":true,"port":47621,"listening":[],"hosts":[],"error":"no Tailscale address on this Mac"}"#
         let expires = now.addingTimeInterval(state == "expired" ? -1 : 287).formatted(.iso8601)
         let link = "clubmate://pair?v=1&c=K7Q2M4XJ9P3RT6WZB5N8C2D4F6H8J2L4&h=mac-studio.tail1234.ts.net&h=100.101.1.2&h=fd7a:115c:a1e0::1&p=47621&id=cmp_3f9a1c&n=Vadim%E2%80%99s%20Mac%20Studio&e=\(Int(now.timeIntervalSince1970) + 287)"
@@ -36,6 +47,8 @@ enum DevicesPreview {
             "remote.devices": devices(state, now: now),
             "remote.enable": listening,
             "remote.pair": pair,
+            "remote.set-colour": listening,
+            "remote.set-title-bar-colour": listening,
         ]
     }
 

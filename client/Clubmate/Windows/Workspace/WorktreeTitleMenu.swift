@@ -5,6 +5,7 @@ import ClubmateKit
 struct WorktreeTitleMenu: View {
     let session: WorkspaceSession
     let workspace: String
+    let remote: RemoteStatus?
 
     @State private var shown = false
     @Environment(\.theme) private var theme
@@ -14,6 +15,10 @@ struct WorktreeTitleMenu: View {
     var body: some View {
         Button { shown.toggle() } label: {
             TitlePill(pressed: shown) {
+                if let remote, remote.titleDot {
+                    MacDot(colour: remote.computer?.colour)
+                        .help(remote.computer.map { "\($0.name) · \(Theme.identityName($0.colour))" } ?? "")
+                }
                 Text(workspace)
                     .lineLimit(1)
                     .truncationMode(.tail)

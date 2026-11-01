@@ -21,6 +21,7 @@ final class AppModel {
     @ObservationIgnored private var pluginChanges: Task<Void, Never>?
     @ObservationIgnored private var browserClosing: [Task<Void, Never>] = []
     @ObservationIgnored private var usageChanges: Task<Void, Never>?
+    @ObservationIgnored private var remoteChanges: Task<Void, Never>?
     private var launchWorkspace = launchWorkspaceID(CommandLine.arguments)
     @ObservationIgnored private var presence: [String: WorkspacePresence] = [:]
     @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
@@ -46,12 +47,7 @@ final class AppModel {
         await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
     }
 
-    @ObservationIgnored private(set) lazy var remoteDevices = RemoteDevicesModel(
-        run: { [weak self] invocation in
-            await self?.runCommand(invocation, in: self?.defaultWorkspace ?? "") ?? .failure(.notRunning)
-        },
-        confirm: { message in await Confirmation.ask(message, action: "Revoke", destructive: true) }
-    )
+    @ObservationIgnored private(set) lazy var remoteDevices = makeRemoteDevices()
 
     @ObservationIgnored private(set) lazy var usage = SubscriptionUsageModel { [weak self] invocation in
         await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
@@ -271,6 +267,11 @@ final class AppModel {
             guard let usage = self?.usage else { return }
             await usage.follow(client)
         }
+        remoteChanges?.cancel()
+        remoteChanges = Task { [weak self] in
+            guard let remote = self?.remoteDevices else { return }
+            await remote.follow(client)
+        }
         pluginChanges?.cancel()
         pluginChanges = Task { [weak self] in
             guard let events = try? await client.busEvents(pattern: Topic.pluginChanged) else { return }
@@ -278,6 +279,7 @@ final class AppModel {
             for await _ in events {
                 await self?.reloadCommands(client)
                 await self?.usage.load()
+                await self?.remoteDevices.load()
             }
         }
         browserClosing.forEach { $0.cancel() }
@@ -297,6 +299,18 @@ final class AppModel {
             if let title = sessions.arrayValue?.first(where: { $0["id"]?.stringValue == owner })?["title"]?.stringValue { return title }
         }
         return nil
+    }
+
+    private func makeRemoteDevices() -> RemoteDevicesModel {
+        #if DEBUG
+        if CommandLine.arguments.contains("--remote-fixture") { return DevicesPreview.model("devices") }
+        #endif
+        return RemoteDevicesModel(
+            run: { [weak self] invocation in
+                await self?.runCommand(invocation, in: self?.defaultWorkspace ?? "") ?? .failure(.notRunning)
+            },
+            confirm: { message in await Confirmation.ask(message, action: "Revoke", destructive: true) }
+        )
     }
 
     private func reloadCommands(_ client: CoreClient) async {

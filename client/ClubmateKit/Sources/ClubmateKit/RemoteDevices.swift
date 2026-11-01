@@ -17,13 +17,21 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     public let listening: [String]
     public let hosts: [String]
     public let error: String
+    public let computer: RemoteComputer?
+    public let titleBarColour: Bool
+    public let otherMacs: [RemoteOtherMac]
+    public let titleDot: Bool
 
-    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String) {
+    public init(enabled: Bool, port: Int, listening: [String], hosts: [String], error: String, computer: RemoteComputer? = nil, titleBarColour: Bool = true, otherMacs: [RemoteOtherMac] = [], titleDot: Bool = false) {
         self.enabled = enabled
         self.port = port
         self.listening = listening
         self.hosts = hosts
         self.error = error
+        self.computer = computer
+        self.titleBarColour = titleBarColour
+        self.otherMacs = otherMacs
+        self.titleDot = titleDot
     }
 
     public init(from decoder: any Decoder) throws {
@@ -33,10 +41,14 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
         listening = try container.decodeIfPresent([String].self, forKey: .listening) ?? []
         hosts = try container.decodeIfPresent([String].self, forKey: .hosts) ?? []
         error = try container.decodeIfPresent(String.self, forKey: .error) ?? ""
+        computer = try container.decodeIfPresent(RemoteComputer.self, forKey: .computer)
+        titleBarColour = try container.decodeIfPresent(Bool.self, forKey: .titleBarColour) ?? true
+        otherMacs = try container.decodeIfPresent([RemoteOtherMac].self, forKey: .otherMacs) ?? []
+        titleDot = try container.decodeIfPresent(Bool.self, forKey: .titleDot) ?? false
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, port, listening, hosts, error
+        case enabled, port, listening, hosts, error, computer, titleBarColour, otherMacs, titleDot
     }
 
     public var state: State {
@@ -57,6 +69,52 @@ public struct RemoteStatus: Decodable, Sendable, Equatable {
     private var address: String {
         guard let host = hosts.first else { return listening.first ?? "" }
         return host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)"
+    }
+}
+
+public struct RemoteComputer: Decodable, Sendable, Equatable {
+    public let id: String
+    public let name: String
+    public let colour: String
+
+    public init(id: String, name: String, colour: String) {
+        self.id = id
+        self.name = name
+        self.colour = colour
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? ""
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        colour = try container.decodeIfPresent(String.self, forKey: .colour) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, colour
+    }
+}
+
+public struct RemoteOtherMac: Decodable, Sendable, Equatable {
+    public let name: String
+    public let colour: String
+    public let devices: [String]
+
+    public init(name: String, colour: String, devices: [String]) {
+        self.name = name
+        self.colour = colour
+        self.devices = devices
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        colour = try container.decodeIfPresent(String.self, forKey: .colour) ?? ""
+        devices = try container.decodeIfPresent([String].self, forKey: .devices) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, colour, devices
     }
 }
 
@@ -218,6 +276,14 @@ public final class RemoteDevicesModel {
 
     public func setEnabled(_ enabled: Bool) async {
         await act { self.status = try await self.call("remote.enable", ["enabled": .bool(enabled)]) }
+    }
+
+    public func setColour(_ colour: String) async {
+        await act { self.status = try await self.call("remote.set-colour", ["colour": .string(colour)]) }
+    }
+
+    public func setTitleBarColour(_ enabled: Bool) async {
+        await act { self.status = try await self.call("remote.set-title-bar-colour", ["enabled": .bool(enabled)]) }
     }
 
     public func pair() async {

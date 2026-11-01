@@ -4,7 +4,7 @@ extension WorkspaceWindow {
     @ToolbarContentBuilder var toolbarItems: some ToolbarContent {
         if let worktreeSession {
             ToolbarItem(placement: .navigation) {
-                WorktreeTitleMenu(session: worktreeSession, workspace: workspaceName)
+                WorktreeTitleMenu(session: worktreeSession, workspace: workspaceName, remote: app.remoteDevices.status)
             }
             .sharedBackgroundVisibility(.hidden)
         }

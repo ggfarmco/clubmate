@@ -117,6 +117,28 @@ struct Theme: Sendable {
         }
     }
 
+    static let identities = ["sky", "blue", "indigo", "purple", "magenta", "graphite"]
+
+    func identity(_ token: String?) -> Color {
+        Self.identity(token, dark: isDark)
+    }
+
+    static func identity(_ token: String?, dark isDark: Bool) -> Color {
+        let hex: UInt32 = switch token {
+        case "sky": isDark ? 0x5AC8FA : 0x0A78A8
+        case "blue": isDark ? 0x3D8BFF : 0x1F62D0
+        case "indigo": isDark ? 0x8582FF : 0x5450D6
+        case "purple": isDark ? 0xBF7AF0 : 0x8540BF
+        case "magenta": isDark ? 0xF06FC8 : 0xB02E8C
+        default: isDark ? 0xA1A1A6 : 0x636369
+        }
+        return Color(RGB(hex: hex))
+    }
+
+    static func identityName(_ token: String?) -> String {
+        (token.flatMap { identities.contains($0) ? $0 : nil } ?? "graphite").capitalized
+    }
+
     func scaled(_ size: Double) -> Theme {
         var theme = self
         theme.uiSize = size
@@ -138,8 +160,8 @@ struct Theme: Sendable {
 
     static func mate(dark: Bool) -> Theme {
         dark
-            ? Theme(background: RGB(hex: 0x151B17), foreground: RGB(hex: 0xE3E3D3), accent: RGB(hex: 0xA6D85B), success: RGB(hex: 0x4FB3A0), warning: RGB(hex: 0xE3B65C), danger: RGB(hex: 0xE07161), fontFamily: nil)
-            : Theme(background: RGB(hex: 0xF6F1E6), foreground: RGB(hex: 0x2B2A22), accent: RGB(hex: 0x3E8A2E), success: RGB(hex: 0x1F7F70), warning: RGB(hex: 0xB5761E), danger: RGB(hex: 0xC2413A), fontFamily: nil)
+            ? Theme(background: RGB(hex: 0x151B17), foreground: RGB(hex: 0xE3E3D3), accent: RGB(hex: 0xA6D85B), success: RGB(hex: 0x4FB3A0), warning: RGB(hex: 0xF2B84B), danger: RGB(hex: 0xFF6B5E), fontFamily: nil)
+            : Theme(background: RGB(hex: 0xF6F1E6), foreground: RGB(hex: 0x2B2A22), accent: RGB(hex: 0x357A27), success: RGB(hex: 0x1F7F70), warning: RGB(hex: 0xB5761E), danger: RGB(hex: 0xC93A30), fontFamily: nil)
     }
 }
 
@@ -176,5 +198,20 @@ extension Text.TruncationMode {
         case .middle: self = .middle
         case .head: self = .head
         }
+    }
+}
+
+struct MacDot: View {
+    let colour: String?
+    var size: CGFloat = 8
+    var dark: Bool?
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Circle()
+            .fill(dark.map { Theme.identity(colour, dark: $0) } ?? theme.identity(colour))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }

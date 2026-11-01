@@ -21,11 +21,12 @@ struct SettingsView: View {
             PluginsSettings(supervisor: app.supervisor, active: appearsActive && tab == .plugins)
                 .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
                 .tag(SettingsTab.plugins)
-            DevicesSettings(model: app.remoteDevices, client: app.supervisor.client, active: tab == .devices)
-                .tabItem { Label("Devices", systemImage: "iphone") }
-                .tag(SettingsTab.devices)
+            DevicesSettings(model: app.remoteDevices, client: app.supervisor.client, active: tab == .remote)
+                .tabItem { Label("Remote", systemImage: "iphone") }
+                .tag(SettingsTab.remote)
         }
         .frame(width: 460, height: 560)
+        .onAppear { if tab == .general { tab = .initial } }
     }
 
     private var general: some View {
@@ -119,14 +120,15 @@ struct SettingsView: View {
 private enum SettingsTab: String, Hashable {
     case general
     case plugins
-    case devices
+    case remote
 
     static var initial: SettingsTab {
         #if DEBUG
-        if DevicesPreview.state == "settings" { return .devices }
+        if DevicesPreview.state == "settings" { return .remote }
         let arguments = CommandLine.arguments
         guard let index = arguments.firstIndex(of: "--settings-tab"), arguments.indices.contains(index + 1) else { return .general }
-        return SettingsTab(rawValue: arguments[index + 1]) ?? .general
+        let name = arguments[index + 1]
+        return SettingsTab(rawValue: name == "devices" ? "remote" : name) ?? .general
         #else
         .general
         #endif
