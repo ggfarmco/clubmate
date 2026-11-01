@@ -88,7 +88,7 @@ A node with `outcomes` is told to call the clubmate tool `triggers_emit {name: "
 
 All but `graphs.reveal` are agent-visible, and all are non-destructive. `graphs.run` runs in three steps, in this order because `triggers.add` checks its target session exists:
 
-1. `agents.new` every node, idle (title `<graph title> · <role>`, `run` and `runTitle`, so the Agents sidebar lists the node sessions under one run row: the run title with `<Role> needs you`, `Running` or the last change as its detail, each node labelled by its role; selecting a node, also through the run's Open, unfolds the row).
+1. `agents.new` every node, idle (title `<graph title> · <role>`, `run`, `runTitle` and `runAfter` (the edges into the node: `{role, on, outcome}` of each, for the Code chat's "runs after Coder"), so the Agents sidebar lists the node sessions under one run row: the run title with `<Role> needs you`, `Running` or the last change as its detail, each node labelled by its role; selecting a node, also through the run's Open, unfolds the row).
 2. `triggers.add` every edge.
 3. `agents.prompt` every start node.
 

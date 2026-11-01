@@ -28,6 +28,7 @@ struct TranscriptNodeView: View {
         }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(node.bool("center") == true ? .center : .bottom, for: .alignment)
         .onScrollGeometryChange(for: TranscriptScroll.self) { geometry in
             TranscriptScroll(offset: geometry.contentOffset.y, pinned: geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - slack)
         } action: { _, scroll in

@@ -56,7 +56,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	}
 	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify)}
 	if args.Run != "" {
-		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle}
+		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
 	}
 	if parent, err := a.lookup(workspaceID, from); err == nil {
 		prec := parent.snapshot()

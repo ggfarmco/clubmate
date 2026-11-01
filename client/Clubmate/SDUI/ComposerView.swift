@@ -53,6 +53,7 @@ struct ComposerNodeView: View {
     private var model: ComposerModel { drafts.model(for: node.id ?? "") }
     private var running: Bool { node.bool("running") == true }
     private var queues: Bool { running && node.bool("steers") != true }
+    private var disabled: Bool { node.bool("disabled") == true }
     private var pane: FocusedPane { .composer(running: running, queues: queues) }
 
     var body: some View {
@@ -64,18 +65,18 @@ struct ComposerNodeView: View {
         .padding(.horizontal, theme.gutter * 2)
         .padding(.vertical, theme.gutter + theme.spacing.s)
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
-        .keyMonitor(active: focused, handle: handle)
+        .keyMonitor(active: focused && !disabled, handle: handle)
         .reportsFocus(pane, focused)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
         .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }
         .onDisappear { drafts.focus(node.id ?? "", false) }
         .onChange(of: router?.pending, initial: true) {
-            guard let focusSlot, router?.take(focusSlot) == true else { return }
+            guard let focusSlot, router?.take(focusSlot) == true, !disabled else { return }
             focused = true
         }
         .onAppear {
-            guard let session = ComposerFocus.afterSend, session == ComposerFocus.session(of: node.id) else { return }
+            guard let session = ComposerFocus.afterSend, session == ComposerFocus.session(of: node.id), !disabled else { return }
             ComposerFocus.afterSend = nil
             focused = true
         }
@@ -104,6 +105,7 @@ struct ComposerNodeView: View {
                         .foregroundStyle(theme.foreground)
                         .scrollContentBackground(.hidden)
                         .focused($focused)
+                        .disabled(disabled)
                 }
                 .overlay(alignment: .topLeading) {
                     if model.text.isEmpty {
@@ -119,7 +121,7 @@ struct ComposerNodeView: View {
         .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.surface2))
         .overlay(RoundedRectangle(cornerRadius: theme.radius.l).stroke(focused ? theme.accent : theme.border, lineWidth: 1))
         .contentShape(Rectangle())
-        .onTapGesture { focused = true }
+        .onTapGesture { if !disabled { focused = true } }
     }
 
     private func chip(_ attachment: SDUIAttachment) -> some View {
@@ -224,6 +226,18 @@ struct ComposerNodeView: View {
     }
 
     @ViewBuilder private var settings: some View {
+        if disabled {
+            let modes = node.modes()
+            let mode = modes.first { $0.value == node.string("mode") }?.label ?? node.string("mode")
+            Text([node.string("agent"), mode].compactMap { $0 }.joined(separator: " · "))
+                .foregroundStyle(theme.muted)
+                .lineLimit(1)
+        } else {
+            enabledSettings
+        }
+    }
+
+    @ViewBuilder private var enabledSettings: some View {
         if let agent = node.string("agent") {
             Text(agent)
                 .foregroundStyle(theme.foreground)
@@ -248,7 +262,7 @@ struct ComposerNodeView: View {
     }
 
     private var hint: some View {
-        Text(node.string("hint") ?? pane.hints ?? "")
+        Text(disabled ? "" : node.string("hint") ?? pane.hints ?? "")
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
             .lineLimit(1)
@@ -256,7 +270,7 @@ struct ComposerNodeView: View {
     }
 
     @ViewBuilder private var actions: some View {
-        CardButton(label: queues ? "Queue" : "Send", icon: "paperplane.fill", tone: node.bool("docked") == true ? .plain : .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+        CardButton(label: queues ? "Queue" : "Send", icon: "paperplane.fill", tone: node.bool("docked") == true ? .plain : .primary, disabled: disabled || model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
             if case .send(let text) = model.handle(.send) { send(text) }
         }
     }

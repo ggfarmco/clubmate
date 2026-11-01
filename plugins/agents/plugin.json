@@ -23,7 +23,19 @@
             "title": {"type": "string", "description": "Session title; defaults to the first line of the first prompt."},
             "notify": {"type": "string", "enum": ["all", "needs-input", "muted"], "default": "all", "description": "Notification policy of the session: all notifications, only needs-input and permission ones, or none. A session's children are limited by it too."},
             "run": {"type": "string", "description": "Id of the agent graph run (gr_…) the session is a node of; the Graphs plugin sets it. The Agents sidebar lists the run's sessions under one run row, each labelled without the \"<run title> · \" prefix of its title."},
-            "runTitle": {"type": "string", "description": "Title of that run, shown on the run row."}
+            "runTitle": {"type": "string", "description": "Title of that run, shown on the run row."},
+            "runAfter": {
+              "type": "array",
+              "description": "The run's edges into this node, so the Code chat can say when an unstarted step runs (\"when Coder finishes its turn\"); the Graphs plugin sets it.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {"type": "string", "description": "Role of the node the edge comes from."},
+                  "on": {"type": "string", "enum": ["done", "error", "asks", "outcome"], "description": "What fires the edge."},
+                  "outcome": {"type": "string", "description": "The outcome name for on outcome."}
+                }
+              }
+            }
           }
         },
         "result": {
@@ -401,7 +413,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks (a child session's asks is for the session that started it); every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title, after?: [{role, on, outcome?}]}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks (a child session's asks is for the session that started it); every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
         "args": {
           "properties": {
             "session": {

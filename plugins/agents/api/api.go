@@ -32,8 +32,15 @@ type Session struct {
 }
 
 type Run struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
+	ID    string     `json:"id"`
+	Title string     `json:"title"`
+	After []RunAfter `json:"after,omitempty"`
+}
+
+type RunAfter struct {
+	Role    string `json:"role"`
+	On      string `json:"on"`
+	Outcome string `json:"outcome,omitempty"`
 }
 
 type Turn struct {

@@ -163,6 +163,7 @@ type ComposerProps struct {
 	Running     bool
 	Steers      bool
 	Docked      bool
+	Disabled    bool
 }
 
 func VStack(children ...Node) Node {
@@ -347,6 +348,10 @@ func Transcript(id string, children ...Node) Node {
 	return Node{Type: "transcript", ID: id, Children: children}
 }
 
+func CenteredTranscript(id string, children ...Node) Node {
+	return Node{Type: "transcript", ID: id, Props: map[string]any{"center": true}, Children: children}
+}
+
 func Message(role, text string, attachments []Attachment) Node {
 	props := map[string]any{"role": role, "text": text}
 	if len(attachments) > 0 {
@@ -417,6 +422,9 @@ func Composer(id string, p ComposerProps) Node {
 	}
 	if p.Docked {
 		props["docked"] = true
+	}
+	if p.Disabled {
+		props["disabled"] = true
 	}
 	return Node{Type: "composer", ID: id, Props: props}
 }

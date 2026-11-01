@@ -12,6 +12,7 @@ struct CardButton: View {
     var shortcut: String?
     var tone = Tone.plain
     var disabled = false
+    var isDefault = false
     let action: () -> Void
 
     @State private var hovering = false
@@ -24,6 +25,7 @@ struct CardButton: View {
                     Image(systemName: SymbolName.resolve(icon))
                 }
                 Text(label)
+                    .fontWeight(isDefault ? .semibold : nil)
                     .lineLimit(1)
                 if let shortcut {
                     Text(shortcut)

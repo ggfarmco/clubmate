@@ -32,6 +32,14 @@ func nodesOf(n sdui.Node, typ string) []sdui.Node {
 	return out
 }
 
+func texts(n sdui.Node) []string {
+	var out []string
+	for _, t := range nodesOf(n, "text") {
+		out = append(out, t.Props["text"].(string))
+	}
+	return out
+}
+
 func rawJSON(t *testing.T, v any) json.RawMessage {
 	t.Helper()
 	raw, err := json.Marshal(v)
@@ -690,16 +698,15 @@ func TestToolCardFollowsToolUpdates(t *testing.T) {
 }
 
 func TestCodePanelHeaderAndStarters(t *testing.T) {
-	rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Reviewer", Status: statusIdle}
-	idle := screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0"}
+	rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusIdle}
+	idle := screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0", Branch: "docs/design-brief"}
 	tree := codeView([]record{rec}, "agt_1", &idle, "/r/a/internal/notify/notify.go")
 	require.NoError(t, internalsdui.Validate(tree))
 
-	for _, n := range nodesOf(tree, "text") {
-		assert.NotEqual(t, "Reviewer", n.Props["text"])
-	}
+	assert.Subset(t, texts(tree), []string{"New chat in docs/design-brief", starterNote})
 	row := tree.Children[0].Children[0].Children
 	assert.Equal(t, []string{"icon", "select"}, []string{row[0].Type, row[1].Type})
+	assert.Equal(t, []sdui.Option{{Value: "agt_1", Label: "New chat"}}, row[1].Props["options"])
 	assert.Equal(t, "circle", row[0].Props["name"])
 	assert.Equal(t, true, row[len(row)-1].Props["iconOnly"])
 	assert.Len(t, nodesOf(tree, "select"), 1)
@@ -715,14 +722,20 @@ func TestCodePanelHeaderAndStarters(t *testing.T) {
 }
 
 func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
-	run := &api.Run{ID: "gr_1", Title: "Review loop"}
-	coder := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Coder", Status: statusWaiting, Run: run, CreatedAt: time.Unix(1, 0)}
-	reviewer := record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Reviewer", Status: statusIdle, Run: run, CreatedAt: time.Unix(2, 0)}
+	coderRun := &api.Run{ID: "gr_1", Title: "Review loop", After: []api.RunAfter{{Role: "Reviewer", On: "outcome", Outcome: "changes"}}}
+	reviewerRun := &api.Run{ID: "gr_1", Title: "Review loop", After: []api.RunAfter{{Role: "Coder", On: "done"}, {Role: "Coder", On: "error"}}}
+	coder := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Coder", Status: statusWaiting, Run: coderRun, CreatedAt: time.Unix(1, 0)}
+	reviewer := record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Reviewer", Status: statusIdle, Run: reviewerRun, CreatedAt: time.Unix(2, 0)}
 	sc := screen{View: transcriptView{Session: reviewer}, Composer: "agt_2/composer/0"}
 	tree := codeView([]record{coder, reviewer}, "agt_2", &sc, "")
 	require.NoError(t, internalsdui.Validate(tree))
 
-	assert.Empty(t, nodesOf(tree, "composer"))
+	composer := nodesOf(tree, "composer")
+	require.Len(t, composer, 1)
+	assert.Equal(t, []any{true, "Reviewer runs as part of Review loop"}, []any{composer[0].Props["disabled"], composer[0].Props["placeholder"]})
+	assert.Equal(t, graphIcon, tree.Children[0].Children[0].Children[0].Props["name"])
+	assert.Equal(t, true, nodesOf(tree, "transcript")[0].Props["center"])
+	assert.Contains(t, texts(tree), "It starts on its own when Coder finishes its turn or stops with an error, and gets Coder's result. You can write here once it has run.")
 	tones := map[string]any{}
 	for _, n := range append(nodesOf(tree, "text"), nodesOf(tree, "icon")...) {
 		tones[cmp.Or(n.Props["text"], n.Props["name"]).(string)] = n.Props["tone"]
@@ -730,13 +743,18 @@ func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
 	assert.Contains(t, tones, "Reviewer is a step of Review loop")
 	assert.Equal(t, "warning", tones["waiting for you"])
 	assert.Equal(t, "warning", tones[statusIcons[statusWaiting]])
-	assert.Contains(t, tones, "not started")
+	assert.Contains(t, tones, "not started · runs after Coder")
 	assert.Empty(t, nodesOf(tree, "badge"))
 	var actions []string
 	for _, b := range nodesOf(tree, "button") {
 		actions = append(actions, b.Props["action"].(string))
 	}
 	assert.Subset(t, actions, []string{actOpenGraphs, actCodeNew})
+}
+
+func TestStepNoteNamesEveryIncomingEdge(t *testing.T) {
+	after := []api.RunAfter{{Role: "Reviewer", On: "outcome", Outcome: "changes"}, {Role: "Tester", On: "asks"}}
+	assert.Equal(t, "It starts on its own when Reviewer says changes or Tester asks a question, and gets their result. You can write here once it has run.", stepNoteFor(after))
 }
 
 func TestDefaultCodeSessionSkipsGraphSteps(t *testing.T) {
@@ -766,13 +784,27 @@ func TestEntryNodeCachedUntilEntryChanges(t *testing.T) {
 	assert.Equal(t, "Hello, world", message().Props["text"])
 }
 
-func TestSidebarFailedSessionReadsStopped(t *testing.T) {
-	rows := []sessionRow{{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusError, Error: "exit status 1\nmore"}}}
-	tree := sidebarView(rows, "", nil, time.Now(), false, "")
-	require.NoError(t, internalsdui.Validate(tree))
+func TestFailedSessionReadsInWords(t *testing.T) {
+	cases := []struct {
+		err, detail, badge, line string
+	}{
+		{"acp error -32603: exit status 1", "exit 1", "Stopped · exit 1", "Claude exited with status 1."},
+		{"acp error -32603: Internal error: socket hang up", "Stopped", "Stopped · error", "Claude stopped: socket hang up"},
+		{"Claude is temporarily overloaded.\nmore", "Stopped", "Stopped · error", "Claude is temporarily overloaded."},
+		{"", "Stopped", "Stopped · error", "Claude stopped with an error."},
+	}
+	for _, tc := range cases {
+		rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusError, Error: tc.err}
+		tree := sidebarView([]sessionRow{{Rec: rec}}, "", nil, time.Now(), false, "")
+		require.NoError(t, internalsdui.Validate(tree))
+		item := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
+		assert.Equal(t, []string{"xmark.circle", "danger", tc.detail}, []string{item.Icon, item.Tone, item.Detail}, tc.err)
 
-	item := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
-	assert.Equal(t, []string{"xmark.circle", "danger", "Stopped · exit status 1"}, []string{item.Icon, item.Tone, item.Detail})
+		main := mainView(screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0"})
+		require.NoError(t, internalsdui.Validate(main))
+		assert.Equal(t, []sdui.HeaderBadge{{Text: tc.badge, Tone: "danger"}}, nodesOf(main, "header")[0].Props["badges"], tc.err)
+		assert.Contains(t, texts(main), tc.line, tc.err)
+	}
 }
 
 func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {

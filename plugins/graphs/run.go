@@ -63,10 +63,11 @@ type RunEdge struct {
 }
 
 type newArgs struct {
-	Title    string `json:"title"`
-	Branch   string `json:"branch,omitempty"`
-	Run      string `json:"run"`
-	RunTitle string `json:"runTitle"`
+	Title    string         `json:"title"`
+	Branch   string         `json:"branch,omitempty"`
+	Run      string         `json:"run"`
+	RunTitle string         `json:"runTitle"`
+	RunAfter []api.RunAfter `json:"runAfter,omitempty"`
 }
 
 type newResult struct {
@@ -139,7 +140,7 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 
 func (x *runner) start(ctx context.Context, g *Graph) error {
 	for i, n := range g.Nodes {
-		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph)}
+		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
 		var out newResult
 		if err := x.do(ctx, "agents.new", args, &out); err != nil {
 			return fmt.Errorf("start node %s: %w", n.ID, err)
@@ -258,6 +259,16 @@ func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 		Run:      x.run.ID,
 		RunTitle: cmp.Or(x.run.Title, x.run.Graph),
 	}, nil
+}
+
+func (g *Graph) after(id string) []api.RunAfter {
+	var out []api.RunAfter
+	for _, e := range g.Edges {
+		if from := g.node(e.From); e.To == id && from != nil {
+			out = append(out, api.RunAfter{Role: from.label(), On: e.On, Outcome: e.Outcome})
+		}
+	}
+	return out
 }
 
 func edgeVerb(e Edge) string {

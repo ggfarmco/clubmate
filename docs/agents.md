@@ -80,10 +80,12 @@ One map for both clients: the glyph (SF Symbol), the word and the tone of each s
 | `asks` (done, its last message asks you) | `exclamationmark.circle` | "asking" | warning |
 | `done` | `checkmark.circle` | age ("2 h ago") | none (secondary ink) |
 | `idle` (no turn yet) | `circle` | "idle" | none |
-| `error` (the turn failed) | `xmark.circle` | "Stopped · <first line of the error>", "Stopped · error" without one | danger |
+| `error` (the turn failed) | `xmark.circle` | "exit 1" when the error carries the agent's exit status, else "Stopped"; the session header badge reads "Stopped · exit 1" or "Stopped · error" | danger |
 | `closed` | `archivebox` | "Closed" | none |
 | `childrenRunning` (done or idle, a child runs) | `play.circle` | "Waiting for child sessions" | accent |
 | `childrenWaiting` (done or idle, a child waits) | `exclamationmark.circle` | "Child session waiting" | warning |
+
+A failed session's header shows the error in words under the title: "Claude exited with status 1." for an exit status, "Claude stopped: <message>" for an untyped agent error (the `acp error <code>` prefix dropped), a typed failure's own sentence ("Claude is temporarily overloaded."); `error` in `agents.sessions` keeps the raw text.
 
 Waiting is amber (warning) everywhere: sidebar, Graphs, header badge ("waiting for you"), phone. A failed turn is `error`, never `done`. An untyped internal error is retried once in the same turn ("The turn failed; retrying once"); only when the retry fails too does the session end in `error`, so a turn that recovers on the retry is `done`.
 

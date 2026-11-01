@@ -20,7 +20,7 @@ const (
 	codeSelectNode = "code/session"
 	codeNewNode    = "code/new"
 	starterPrefix  = "starter/"
-	starterNote    = "Ask anything, @ to attach a file, or start from one of these."
+	starterNote    = "It sees the file and selection you're on. Ask anything, or start from one of these."
 	maxCodeOptions = 50
 	commandRunes   = 300
 	composerHint   = "/ for commands, @ for files"
@@ -148,20 +148,20 @@ func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {
 		add := sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, "New", "plus"), actCodeNew), "ghost")
 		return sdui.EmptyState(noCodeSession, sdui.EmptyProps{Title: noCodeTitle, Action: &add})
 	}
-	add := sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, "New session", "plus"), actCodeNew), "ghost"))
+	add := sdui.WithIconOnly(sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode, newChat, "plus"), actCodeNew), "ghost"))
 	var opts []sdui.Option
 	for _, rec := range recs {
 		if len(opts) < maxCodeOptions && (!rec.closed() || rec.ID == bound) {
-			opts = append(opts, sdui.Option{Value: rec.ID, Label: cmp.Or(rec.Title, "New session")})
+			opts = append(opts, sdui.Option{Value: rec.ID, Label: cmp.Or(rec.Title, newChat)})
 		}
 	}
 	if !slices.ContainsFunc(opts, func(o sdui.Option) bool { return o.Value == bound }) {
-		opts = append(opts, sdui.Option{Value: bound, Label: cmp.Or(sc.View.Session.Title, "New session")})
+		opts = append(opts, sdui.Option{Value: bound, Label: cmp.Or(sc.View.Session.Title, newChat)})
 	}
 	v := *sc
 	v.Code = &codePanel{Picker: sdui.WithAction(sdui.Select(codeSelectNode, opts, bound), actCodeSelect), New: add, File: file}
 	if unstartedStep(v) {
-		return sdui.VStack(header(v), stepView(v, recs))
+		return sdui.VStack(header(v), stepView(v, recs), stepComposer(v))
 	}
 	return mainView(v)
 }
@@ -169,6 +169,13 @@ func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {
 func startable(sc screen) bool {
 	rec := sc.View.Session
 	return sc.Code != nil && len(sc.View.Entries) == 0 && len(sc.Queue) == 0 && !rec.closed() && rec.Status != statusError && !turnActive(rec)
+}
+
+func newChatTitle(branch string) string {
+	if branch == "" {
+		return newChat
+	}
+	return newChat + " in " + branch
 }
 
 func starters(file string) []starter {
@@ -191,7 +198,7 @@ func starterView(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
 	nodes := []sdui.Node{sdui.VStack(
-		sdui.Node{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, agentLabel(rec.Agent)) + " is idle", "style": "title"}},
+		sdui.Node{Type: "text", Props: map[string]any{"text": newChatTitle(sc.Branch), "style": "title"}},
 		sdui.MutedText(starterNote),
 	)}
 	if sc.Code.File != "" {
@@ -202,7 +209,7 @@ func starterView(sc screen) sdui.Node {
 		n := strconv.Itoa(i + 1)
 		buttons = append(buttons, sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+starterPrefix+n, s.label, ""), actStarter), "ghost"))
 	}
-	return sdui.Transcript(sid+"/transcript", append(nodes, sdui.VStack(buttons...))...)
+	return sdui.CenteredTranscript(sid+"/transcript", append(nodes, sdui.VStack(buttons...))...)
 }
 
 func header(sc screen) sdui.Node {
@@ -241,12 +248,19 @@ func header(sc screen) sdui.Node {
 	}
 	var top sdui.Node
 	if sc.Code != nil {
-		row := append([]sdui.Node{sdui.Icon(cmp.Or(statusIcons[display], statusIcons[statusIdle])), sc.Code.Picker}, buttons...)
+		icon := cmp.Or(statusIcons[display], statusIcons[statusIdle])
+		if unstartedStep(sc) {
+			icon = graphIcon
+		}
+		row := append([]sdui.Node{sdui.Icon(icon), sc.Code.Picker}, buttons...)
 		top = sdui.HStack(append(row, sc.Code.New)...)
 	} else {
 		var badges []sdui.HeaderBadge
 		if needsYou(rec) {
 			badges = append(badges, sdui.HeaderBadge{Text: waitingBadge, Tone: statusTones[statusWaiting]})
+		}
+		if rec.Status == statusError {
+			badges = append(badges, sdui.HeaderBadge{Text: statusLabels[statusError] + " · " + cmp.Or(failureWord(rec.Error), stoppedDetail), Tone: statusTones[statusError]})
 		}
 		if full {
 			badges = append(badges, sdui.HeaderBadge{Text: fill, Tone: "warning"})
@@ -265,7 +279,7 @@ func header(sc screen) sdui.Node {
 	if rec.Status != statusError {
 		return sdui.VStack(children...)
 	}
-	problem := []sdui.Node{sdui.MutedText(cmp.Or(firstLine(rec.Error), "The agent failed"))}
+	problem := []sdui.Node{sdui.MutedText(failureLine(agentLabel(rec.Agent), rec.Error))}
 	switch {
 	case sc.NeedsAuth:
 		problem = append(problem, sdui.WithAction(sdui.Button(sid+"/signin", "Sign in", "person.badge.key"), actSignIn))
@@ -309,10 +323,6 @@ func queueView(sc screen) sdui.Node {
 func composer(sc screen) sdui.Node {
 	v := sc.View
 	rec := v.Session
-	modes := make([]sdui.Option, 0, len(v.Modes))
-	for _, m := range v.Modes {
-		modes = append(modes, sdui.Option{Value: m.ID, Label: modeLabel(m)})
-	}
 	commands := make([]sdui.Command, 0, len(v.Commands))
 	for _, c := range v.Commands {
 		var input struct {
@@ -329,7 +339,7 @@ func composer(sc screen) sdui.Node {
 		Placeholder: composerPlaceholder(sc),
 		Hint:        composerHint,
 		Agent:       agentLabel(rec.Agent),
-		Modes:       modes,
+		Modes:       modeOptions(v),
 		Mode:        rec.Mode,
 		Pickers:     pickers(sc),
 		Commands:    commands,
@@ -339,6 +349,14 @@ func composer(sc screen) sdui.Node {
 		Steers:      sc.Steers,
 		Docked:      docked(sc),
 	})
+}
+
+func modeOptions(v transcriptView) []sdui.Option {
+	modes := make([]sdui.Option, 0, len(v.Modes))
+	for _, m := range v.Modes {
+		modes = append(modes, sdui.Option{Value: m.ID, Label: modeLabel(m)})
+	}
+	return modes
 }
 
 func composerPlaceholder(sc screen) string {

@@ -193,7 +193,7 @@ var (
 			children: childRule{min: 0, max: 1, only: []string{"button"}},
 		},
 
-		"transcript": {children: anyChildren},
+		"transcript": {props: map[string]propCheck{"center": isBool}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
 			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber},
@@ -222,7 +222,7 @@ var (
 		"composer": {
 			props: map[string]propCheck{
 				"placeholder": isString, "hint": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
-				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool,
+				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool, "disabled": isBool,
 			},
 			children:    noChildren,
 			interactive: true,

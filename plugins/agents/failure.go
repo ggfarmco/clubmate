@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -51,6 +52,9 @@ const (
 )
 
 var (
+	exitStatusRe = regexp.MustCompile(`exit status (-?\d+)`)
+	acpErrorRe   = regexp.MustCompile(`^acp error -?\d+: `)
+
 	textKinds = []textKind{
 		{text: "No response from API", kind: failureNetwork},
 		{text: "Connection refused", kind: failureNetwork},
@@ -154,4 +158,22 @@ func policyFailure(kind, detail string) turnFailure {
 	f := failurePolicies[kind]
 	f.kind, f.detail = kind, detail
 	return f
+}
+
+func failureWord(text string) string {
+	if m := exitStatusRe.FindStringSubmatch(text); m != nil {
+		return "exit " + m[1]
+	}
+	return ""
+}
+
+func failureLine(agent, text string) string {
+	line := firstLine(text)
+	if m := exitStatusRe.FindStringSubmatch(line); m != nil {
+		return agent + " exited with status " + m[1] + "."
+	}
+	if loc := acpErrorRe.FindStringIndex(line); loc != nil {
+		return agent + " stopped: " + strings.TrimPrefix(line[loc[1]:], internalErrorPrefix)
+	}
+	return cmp.Or(line, agent+" stopped with an error.")
 }

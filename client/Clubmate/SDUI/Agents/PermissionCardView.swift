@@ -207,7 +207,7 @@ private struct AlwaysAllowConfirm: View {
                         .layoutPriority(-1)
                 }
                 Spacer(minLength: theme.gutter)
-                CardButton(label: "Cancel", shortcut: "⎋", action: cancel)
+                CardButton(label: "Cancel", shortcut: "⎋", isDefault: true, action: cancel)
                 CardButton(label: confirmLabel, shortcut: shortcut, action: confirm)
             }
         }

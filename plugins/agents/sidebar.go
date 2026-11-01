@@ -430,7 +430,7 @@ func activity(row sessionRow, now time.Time) string {
 		}
 		return cmp.Or(strings.Join(nonEmpty(append(parts, row.Activity)...), " · "), label)
 	case statusError:
-		return label + " · " + cmp.Or(firstLine(rec.Error), stoppedDetail)
+		return cmp.Or(failureWord(rec.Error), label)
 	}
 	return ago(rec.UpdatedAt, now)
 }

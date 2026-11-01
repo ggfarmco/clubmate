@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -65,13 +66,14 @@ type subagentArgs struct {
 }
 
 type newArgs struct {
-	Agent    string `json:"agent"`
-	Branch   string `json:"branch"`
-	Prompt   string `json:"prompt"`
-	Title    string `json:"title"`
-	Notify   string `json:"notify"`
-	Run      string `json:"run"`
-	RunTitle string `json:"runTitle"`
+	Agent    string         `json:"agent"`
+	Branch   string         `json:"branch"`
+	Prompt   string         `json:"prompt"`
+	Title    string         `json:"title"`
+	Notify   string         `json:"notify"`
+	Run      string         `json:"run"`
+	RunTitle string         `json:"runTitle"`
+	RunAfter []api.RunAfter `json:"runAfter"`
 }
 
 type newResult struct {
