@@ -210,11 +210,10 @@ func header(sc screen) sdui.Node {
 	if display, ok := childDisplay[sc.Children]; ok {
 		meta = append(meta, statusLabels[display])
 	}
-	fill, cost, full := usageParts(sc.View.Usage)
+	fill, full := usageParts(sc.View.Usage)
 	if !full {
 		meta = append(meta, nonEmpty(fill)...)
 	}
-	meta = append(meta, nonEmpty(cost)...)
 	row := []sdui.Node{{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}}}
 	if full {
 		row = append(row, sdui.Badge(fill, "warning"))

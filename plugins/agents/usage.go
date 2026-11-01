@@ -151,22 +151,10 @@ func (a *app) usageCommand(context.Context, pluginsdk.CommandRun) (any, error) {
 	return a.usage.snapshot(), nil
 }
 
-func usageParts(u *acp.UsageUpdate) (string, string, bool) {
+func usageParts(u *acp.UsageUpdate) (string, bool) {
 	if u == nil || u.Size <= 0 {
-		return "", "", false
+		return "", false
 	}
 	fill := int(math.Round(float64(u.Used) * 100 / float64(u.Size)))
-	var cost string
-	if u.Cost != nil && u.Cost.Amount > 0 {
-		cost = formatCost(*u.Cost)
-	}
-	return strconv.Itoa(fill) + "% context", cost, fill >= contextWarnPercent
-}
-
-func formatCost(c acp.Cost) string {
-	amount := strconv.FormatFloat(c.Amount, 'f', 2, 64)
-	if c.Currency == "" || c.Currency == "USD" {
-		return "$" + amount
-	}
-	return amount + " " + c.Currency
+	return strconv.Itoa(fill) + "% context", fill >= contextWarnPercent
 }
