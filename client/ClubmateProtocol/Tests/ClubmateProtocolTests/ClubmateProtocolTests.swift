@@ -4,6 +4,18 @@ import XCTest
 import ClubmateProtocol
 
 final class ClubmateProtocolTests: XCTestCase {
+    func testLongMessagePreview() throws {
+        XCTAssertNil(LongMessage(String(repeating: "line\n", count: 39)))
+
+        let pasted = try XCTUnwrap(LongMessage((1...922).map { "line \($0)" }.joined(separator: "\n") + "\n"))
+        XCTAssertEqual(pasted.lines, 922)
+        XCTAssertEqual(pasted.preview, (1...12).map { "line \($0)" }.joined(separator: "\n"))
+
+        let oneLine = try XCTUnwrap(LongMessage(String(repeating: "x", count: 5000)))
+        XCTAssertEqual(oneLine.lines, 1)
+        XCTAssertEqual(oneLine.preview.count, 1200)
+    }
+
     func testMarkdownBlocks() {
         let source = "# Title\n\nSome *text*\nmore\n- one\n  - two\n3. third\n> quoted\n> twice\nafter quote\n\n```go\nfunc main() {\n\n}\n```\nafter"
 

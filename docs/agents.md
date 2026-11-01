@@ -75,7 +75,7 @@ A session needs you when a permission or a question is pending (status `waiting`
 
 ## Transcript folding
 
-Tool calls are folded on the Mac and the phone: consecutive calls are one actions row, and a call's output opens only when you click or tap it. A failed call is folded too: on the Mac its card says Failed and the actions row "N failed", on the phone its title is in the danger colour and its card or group gets a danger border. Nothing in the transcript opens itself. The design boards say failures expand; that is overruled. A change to this rule lands in both clients in the same commit.
+Tool calls are folded on the Mac and the phone: consecutive calls are one actions row, and a call's output opens only when you click or tap it. A failed call is folded too: on the Mac its card says Failed and the actions row "N failed", on the phone its title is in the danger colour and its card or group gets a danger border. A user message longer than 40 lines or 4000 characters shows its first 12 lines with "Show all N lines"; opened, it scrolls inside a capped box, since one row that tall leaves the transcript scrolled past its end, blank. Nothing in the transcript opens itself. The design boards say failures expand; that is overruled. A change to this rule lands in both clients in the same commit.
 
 ## CLI
 

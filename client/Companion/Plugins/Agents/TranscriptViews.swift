@@ -116,8 +116,7 @@ struct UserBubble: View {
                 .defaultScrollAnchor(.trailing)
             }
             if !text.isEmpty {
-                Text(Markdown.inline(text))
-                    .textSelection(.enabled)
+                UserText(text: text)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .foregroundStyle(.primary)
@@ -126,6 +125,42 @@ struct UserBubble: View {
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.leading, 48)
+    }
+}
+
+private struct UserText: View {
+    let text: String
+    @State private var expanded = false
+
+    var body: some View {
+        if let long = LongMessage(text) {
+            VStack(alignment: .leading, spacing: 8) {
+                if expanded {
+                    ScrollView {
+                        Text(Markdown.inline(text))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 480)
+                } else {
+                    Text(Markdown.inline(long.preview))
+                        .textSelection(.enabled)
+                }
+                Button {
+                    Motion.disclose { expanded.toggle() }
+                } label: {
+                    Text(expanded ? "Show less" : long.lines > LongMessage.previewLines ? "Show all \(long.lines) lines" : "Show all")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(minHeight: 32)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        } else {
+            Text(Markdown.inline(text))
+                .textSelection(.enabled)
+        }
     }
 }
 

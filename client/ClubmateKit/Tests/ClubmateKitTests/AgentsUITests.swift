@@ -157,18 +157,6 @@ final class AgentsUITests: XCTestCase {
         XCTAssertTrue(state.isExpanded(group: ["s/tool/d", "s/tool/e"]))
     }
 
-    func testLongMessagePreview() throws {
-        XCTAssertNil(LongMessage(String(repeating: "line\n", count: 39)))
-
-        let pasted = try XCTUnwrap(LongMessage((1...922).map { "line \($0)" }.joined(separator: "\n") + "\n"))
-        XCTAssertEqual(pasted.lines, 922)
-        XCTAssertEqual(pasted.preview, (1...12).map { "line \($0)" }.joined(separator: "\n"))
-
-        let oneLine = try XCTUnwrap(LongMessage(String(repeating: "x", count: 5000)))
-        XCTAssertEqual(oneLine.lines, 1)
-        XCTAssertEqual(oneLine.preview.count, 1200)
-    }
-
     func testFlowRowsWrapOnlyWhenTheNextChipDoesNotFit() {
         let sizes = [CGSize(width: 60, height: 16), CGSize(width: 80, height: 16), CGSize(width: 70, height: 18), CGSize(width: 250, height: 16)]
         let origins = FlowRows.origins(sizes: sizes, width: 200, spacing: 4)
