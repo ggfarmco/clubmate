@@ -201,7 +201,9 @@ func (s *server) authed(next authedHandler) http.HandlerFunc {
 }
 
 func (s *server) rpc(w http.ResponseWriter, r *http.Request, d device) {
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(requestTimeout))
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Now().Add(requestTimeout))
+	_ = rc.SetWriteDeadline(time.Now().Add(requestTimeout))
 	var req rpcRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusOK, errorBody{Error: apiError{Code: codeInvalidParams, Message: "invalid request body"}})
