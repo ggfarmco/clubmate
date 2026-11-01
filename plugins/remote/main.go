@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -101,7 +102,7 @@ type revokeArgs struct {
 
 func main() {
 	a := &app{ready: make(chan struct{})}
-	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, BusClosed: a.busClosed, Shutdown: a.shutdown})
+	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, BusClosed: a.busClosed, UIUpdated: a.uiUpdated, Shutdown: a.shutdown})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
@@ -136,7 +137,11 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		hub:      newHub(a.changed),
 		identity: a.ident,
 		changed:  a.changed,
+		watching: a.watching,
 		ping:     pingInterval,
+	}
+	if err := a.srv.clearWatching(ctx); err != nil {
+		logf("clear watching: %v", err)
 	}
 	a.ln = newListeners(a.srv.handler(), os.Getenv(listenEnv), a.scanAddrs)
 	if enabled {
@@ -232,6 +237,15 @@ func (a *app) busClosed(ctx context.Context, h *pluginsdk.Host, sub string, caus
 	}
 	logf("bus subscription closed: %v", cause)
 	a.subscribe(ctx, h, resumeAfter(after))
+}
+
+func (a *app) uiUpdated(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.UIUpdate) {
+	select {
+	case <-a.ready:
+	default:
+		return
+	}
+	a.srv.uiUpdated(ev.View)
 }
 
 func (a *app) shutdown(context.Context, *pluginsdk.Host) {
@@ -447,6 +461,10 @@ func (a *app) dnsName() string {
 
 func (a *app) changed() {
 	a.publish(changedTopic, struct{}{})
+}
+
+func (a *app) watching(w contract.RemoteWatching) {
+	a.publish(contract.TopicRemoteWatching, w)
 }
 
 func (a *app) publish(topic string, payload any) {

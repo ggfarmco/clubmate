@@ -42,6 +42,7 @@ struct RootView: View {
         .fullScreenCover(item: $navigation.doc) { doc in
             DocumentSheet(doc: doc)
         }
+        .modifier(WorkspacePopups(connection: popupContext?.connection, workspace: popupContext.flatMap { navigation.workspace(for: $0.connection)?.id }))
         .overlay {
             if case .pairing(let name) = pairing.phase {
                 PairingOverlay(name: name)
@@ -84,6 +85,12 @@ struct RootView: View {
     private var context: PluginContext? {
         guard let item = navigation.sidebar, let connection = model.connection(item.computer) else { return nil }
         return PluginContext(model: model, connection: connection, navigation: navigation)
+    }
+
+    private var popupContext: PluginContext? {
+        guard let context, context.connection.supportsUI, navigation.sidebar.flatMap({ CompanionPlugins.plugin($0.plugin) })?.inWorkspace == true else { return nil }
+        guard navigation.layout != .compact || navigation.preferredColumn != .sidebar else { return nil }
+        return context
     }
 
     private func selectDefault() {

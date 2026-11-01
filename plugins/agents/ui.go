@@ -53,6 +53,7 @@ type uiState struct {
 	advisors       map[string]string
 	present        map[string]bool
 	sections       map[string]string
+	watched        map[string][]string
 	editorFiles    map[string]editorFile
 }
 
@@ -98,7 +99,7 @@ func newUIState() uiState {
 	return uiState{
 		ui: map[string]*workspaceUI{}, goneWorkspaces: map[string]bool{}, auth: map[string]authCommand{}, signIns: map[string]string{},
 		resumable: map[string]bool{}, steers: map[string]bool{}, noResume: map[string]bool{}, advisors: map[string]string{},
-		present: map[string]bool{}, sections: map[string]string{}, editorFiles: map[string]editorFile{},
+		present: map[string]bool{}, sections: map[string]string{}, watched: map[string][]string{}, editorFiles: map[string]editorFile{},
 	}
 }
 
@@ -147,6 +148,7 @@ func (a *app) forgetWorkspace(workspaceID string) {
 	delete(a.ui, workspaceID)
 	delete(a.present, workspaceID)
 	delete(a.sections, workspaceID)
+	delete(a.watched, workspaceID)
 	delete(a.editorFiles, workspaceID)
 	a.uiMu.Unlock()
 	if p != nil {
@@ -274,16 +276,17 @@ func (a *app) slots() []string {
 
 func (a *app) shownSlots(workspaceID string) []string {
 	a.uiMu.Lock()
-	present, section := a.present[workspaceID], a.sections[workspaceID]
+	present, section, watched := a.present[workspaceID], a.sections[workspaceID], a.watched[workspaceID]
 	a.uiMu.Unlock()
 	if !present {
 		return nil
 	}
+	shown := func(id string) bool { return section == "" || section == id || slices.Contains(watched, id) }
 	slots := []string{sidebarSlot}
-	if section == "" || section == sectionID {
+	if shown(sectionID) {
 		slots = append(slots, mainSlot)
 	}
-	if a.codePanel && (section == "" || section == editorSection) {
+	if a.codePanel && shown(editorSection) {
 		slots = append(slots, codeSlot)
 	}
 	return slots
@@ -336,6 +339,19 @@ func (a *app) setPresent(ctx context.Context, workspaceID string, on bool) error
 		a.sections[workspaceID] = section
 	}
 	return err
+}
+
+func (a *app) setWatched(workspaceID string, sections []string) {
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	if a.goneWorkspaces[workspaceID] {
+		return
+	}
+	if len(sections) == 0 {
+		delete(a.watched, workspaceID)
+		return
+	}
+	a.watched[workspaceID] = sections
 }
 
 func (a *app) setSection(workspaceID, section string) {

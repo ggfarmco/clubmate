@@ -6,6 +6,10 @@ import CompanionKit
 
 @MainActor
 enum DebugLaunch {
+    static var gallery: String? {
+        UserDefaults.standard.string(forKey: "sdui-gallery")
+    }
+
     static func transport() -> (any HTTPTransport)? {
         let defaults = UserDefaults.standard
         let offline = defaults.object(forKey: "offline") == nil ? nil : Duration.seconds(defaults.double(forKey: "offline"))

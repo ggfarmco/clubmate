@@ -21,6 +21,8 @@ type (
 	Event       = contract.Event
 )
 
+const busReadLimit = 1000
+
 type Host struct {
 	conn     *jsonrpc2.Conn
 	pluginID func() string
@@ -166,6 +168,35 @@ func (h *Host) Subscribe(ctx context.Context, pattern string, after int64) (stri
 	return out.Subscription, err
 }
 
+func (h *Host) WatchedSections(ctx context.Context, until int64) (map[string][]string, error) {
+	out := map[string][]string{}
+	var after int64
+	for {
+		var page []Event
+		if err := h.Call(ctx, "bus.read", busReadParams{Pattern: contract.TopicRemoteWatching, After: after, Limit: busReadLimit}, &page); err != nil {
+			return nil, err
+		}
+		for _, ev := range page {
+			if ev.Seq > until {
+				return out, nil
+			}
+			var w contract.RemoteWatching
+			if json.Unmarshal(ev.Payload, &w) != nil || w.Workspace == "" {
+				continue
+			}
+			if len(w.Sections) == 0 {
+				delete(out, w.Workspace)
+			} else {
+				out[w.Workspace] = w.Sections
+			}
+		}
+		if len(page) < busReadLimit {
+			return out, nil
+		}
+		after = page[len(page)-1].Seq
+	}
+}
+
 func (h *Host) WatchFS(ctx context.Context, workspaceID string) (string, error) {
 	var out watchResult
 	err := h.Call(ctx, "fs.watch", workspaceParams{WorkspaceID: workspaceID}, &out)
@@ -186,6 +217,34 @@ func (h *Host) RenderJSON(ctx context.Context, workspaceID, slot string, tree js
 	var out renderResult
 	err := h.Call(ctx, "ui.render", renderParams{WorkspaceID: workspaceID, Slot: slot, Tree: tree}, &out)
 	return out.Rev, err
+}
+
+func (h *Host) UISections(ctx context.Context) ([]json.RawMessage, error) {
+	var out []json.RawMessage
+	err := h.Call(ctx, "ui.sections", struct{}{}, &out)
+	return out, err
+}
+
+func (h *Host) UIGet(ctx context.Context, workspaceID string) ([]SlotView, error) {
+	var out []SlotView
+	err := h.Call(ctx, "ui.get", workspaceParams{WorkspaceID: workspaceID}, &out)
+	return out, err
+}
+
+func (h *Host) UISubscribe(ctx context.Context, p UISubscribe) (string, error) {
+	var out subscribeResult
+	err := h.Call(ctx, "ui.subscribe", p, &out)
+	return out.Subscription, err
+}
+
+func (h *Host) UIUnsubscribe(ctx context.Context, subscription string) error {
+	return h.Call(ctx, "ui.unsubscribe", subscribeResult{Subscription: subscription}, nil)
+}
+
+func (h *Host) UIEvent(ctx context.Context, ev UIEvent) (json.RawMessage, error) {
+	var out json.RawMessage
+	err := h.Call(ctx, "ui.event", ev, &out)
+	return out, err
 }
 
 func (h *Host) Approve(ctx context.Context, workspaceID, title, command string, args map[string]string, body string) error {
@@ -245,6 +304,11 @@ type worktreeSetParams struct {
 	Path string `json:"path"`
 }
 
+type UISubscribe struct {
+	WorkspaceID string `json:"workspaceId"`
+	Presence    bool   `json:"presence"`
+}
+
 type SessionRequest struct {
 	WorkspaceID string   `json:"workspaceId"`
 	Title       string   `json:"title"`
@@ -280,6 +344,12 @@ type publishParams struct {
 type subscribeParams struct {
 	Pattern string `json:"pattern"`
 	After   int64  `json:"after"`
+}
+
+type busReadParams struct {
+	Pattern string `json:"pattern"`
+	After   int64  `json:"after"`
+	Limit   int    `json:"limit"`
 }
 
 type subscribeResult struct {

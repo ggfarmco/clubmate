@@ -30,6 +30,8 @@ targets:
       - path: Companion
         excludes:
           - "Info.plist"
+      - path: Clubmate/SDUI/GalleryFixture.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: Companion
@@ -48,7 +50,22 @@ targets:
       - package: ClubmateDocument
     scheme:
       testTargets:
+        - CompanionTests
         - CompanionUITests
+
+  CompanionTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: CompanionTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.companion.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Companion.app/Companion"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+    dependencies:
+      - target: Companion
 
   CompanionUITests:
     type: bundle.ui-testing

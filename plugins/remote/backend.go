@@ -16,6 +16,11 @@ type backend interface {
 	Events(ctx context.Context, after int64) ([]pluginsdk.Event, error)
 	Head(ctx context.Context) (int64, error)
 	Version(ctx context.Context) (string, error)
+	UISections(ctx context.Context) ([]json.RawMessage, error)
+	UIGet(ctx context.Context, workspace string) ([]pluginsdk.SlotView, error)
+	UIEvent(ctx context.Context, ev pluginsdk.UIEvent) (json.RawMessage, error)
+	UISubscribe(ctx context.Context, p pluginsdk.UISubscribe) (string, error)
+	UIUnsubscribe(ctx context.Context, sub string) error
 }
 
 type kvStore interface {
@@ -81,4 +86,24 @@ func (b hostBackend) Version(ctx context.Context) (string, error) {
 	var out pingResult
 	err := b.host.Call(ctx, "core.ping", struct{}{}, &out)
 	return out.Version, err
+}
+
+func (b hostBackend) UISections(ctx context.Context) ([]json.RawMessage, error) {
+	return b.host.UISections(ctx)
+}
+
+func (b hostBackend) UIGet(ctx context.Context, workspace string) ([]pluginsdk.SlotView, error) {
+	return b.host.UIGet(ctx, workspace)
+}
+
+func (b hostBackend) UIEvent(ctx context.Context, ev pluginsdk.UIEvent) (json.RawMessage, error) {
+	return b.host.UIEvent(ctx, ev)
+}
+
+func (b hostBackend) UISubscribe(ctx context.Context, p pluginsdk.UISubscribe) (string, error) {
+	return b.host.UISubscribe(ctx, p)
+}
+
+func (b hostBackend) UIUnsubscribe(ctx context.Context, sub string) error {
+	return b.host.UIUnsubscribe(ctx, sub)
 }

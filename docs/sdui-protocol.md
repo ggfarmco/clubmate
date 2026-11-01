@@ -114,6 +114,22 @@ Inside a `form`, a horizontal `stack` whose first child is a muted `text` is a p
 
 Input fields are uncontrolled: `value`/`values` on `textField`, `folderField`, `toggle` and `select` are initial values. The client keeps what the user entered while the node keeps its identity. A changed `value` in a later render replaces it, but re-rendering an unchanged one does not. To reset a form (e.g. after a successful submit), the plugin renders it with a new node `id`. The client then discards the form's field state and starts again from the props. Actions are routed by `action`, not by `id`, so rotating ids (e.g. `create-<n>`) does not change event handling.
 
+## Phone
+
+The Companion (`client/Companion/SDUI`) draws the same trees with iOS controls and sends the same events (§ ui.event contract). Where it differs from the Mac:
+
+- `split`: panes stack vertically on compact width; a horizontal split is side by side on regular width (iPad).
+- `stack` horizontal wraps its children when they don't fit. A vertical `stack` or `form` outside a `scroll` that holds nothing scrolling (`scroll`, `split`, `list`, `tree`, `table`, `transcript`, a `fill` `document`) scrolls itself.
+- `list`, `tree`, `table` outside a `scroll` are an inset grouped `List`; inside one, rows in a rounded group. In a `<section>.sidebar` slot a row tap sends `select`, then asks the screen to push `<section>.main`. Row menus are a context menu; the first two entries without `confirm` are also swipe actions (destructive entries are never swiped, per the phone design); an entry with `confirm` asks first. `tree`: the chevron sends `expand`/`collapse`, the row sends `select`.
+- `table`: the first column is the row title, the other columns one line under it (`title value`, bars and sparks inline; stacked when they don't fit), `group` rows are section headers; `sort` is a menu above the rows. Column `priority` is ignored.
+- `tabs`: horizontally scrolling chips; the selected chip is filled with the accent.
+- `form`: consecutive fields and property rows are grouped like a Settings form. `header.field` is an always-editable title field.
+- `header`: up to three buttons on a wrapping action bar, the rest (and `overflow` ones) in a "…" menu.
+- `button.shortcut` is ignored; `confirm` is an alert.
+- `folderField` shows its folders read-only with "Choose folders on the Mac".
+- `surface` shows "Terminal — open it on the Mac"; an unknown type shows "<type> isn't supported on the phone".
+- `transcript`: adjacent `toolCard`s (except `failed` and `standalone`) fold into one "N actions" row. `message.from` shows as "From another agent". `composer` is a field and Send only: no modes, pickers, attach, `/` commands or `@` files.
+
 ## Slots
 
 A slot is named `<section>.sidebar`, `<section>.main` or `<section>.status`, or `<section>.<name>` for a name the section declares in `slots`. A section is registered by a plugin, which owns all of its slots. Only the owning plugin may call `ui.render` for them. Slots are rendered per workspace, unless the section has `scope: "app"`. The client insets a `<section>.main` tree from the top edge, unless its root is a `surface`.
@@ -175,7 +191,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 |---|---|---|
 | ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin, slots?, host?, rail?}]` |
 | ui.get | `{workspaceId}` (`""` for app scope) | `[SlotView]` sorted by slot |
-| ui.subscribe | `{workspaceId, delta?, append?, keep?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them, `keep: true` into kept array elements inside them (see `ui.updated`) |
+| ui.subscribe | `{workspaceId, delta?, append?, keep?, presence?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them, `keep: true` into kept array elements inside them (see `ui.updated`); `presence: false` (default true) keeps a workspace subscription out of presence (`ui.presence`, `ui.opened`/`ui.idle`) and `ui.focus`, as `remote` does while a phone watches only popups |
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{workspaceId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{workspaceId, slot, tree}` (plugin callers only; `tree` is decoded strictly: exact-case member names, no duplicate or unknown members, valid UTF-8, else invalid tree; the core keeps the plugin's bytes and sends them on as they are) | `{rev}` |
@@ -340,7 +356,7 @@ The app's Help ▸ Collect Diagnostics… first shows a sheet listing the files 
 
 ## Notifications
 
-- `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the workspace are replayed first. A subscriber is never dropped for falling behind: while the core waits to write to a slow connection, a newer render of a slot replaces the one still pending for that slot, so a slow client skips intermediate revs and gets the latest view of each slot.
+- `ui.updated` `{subscription, view}`: `view` is a `SlotView`. On subscribe, the current views of the workspace are replayed first. A subscriber is never dropped for falling behind: while the core waits to write to a slow connection, a newer render of a slot replaces the one still pending for that slot, so a slow client skips intermediate revs and gets the latest view of each slot. A plugin connection may subscribe too: it gets them as `Plugin.UIUpdated` (`pluginsdk.UIUpdate{Subscription, View}`), and uses `Host.UISubscribe` / `Host.UIUnsubscribe`, `Host.UIGet`, `Host.UISections` and `Host.UIEvent`.
 
 ### Delta frames
 
@@ -409,6 +425,7 @@ Every event is `{seq, topic, source, time, workspace?, payload}`; `workspace` re
 - `git.changed` `{workspace}`: published by `git` (debounced 300 ms) when a `HEAD` file in a git dir of an open workspace's folder changes (an in-place `git switch` in a checkout or a linked worktree) or its `fs.watch` overflows; the app reloads `git.worktrees` for that workspace, so the titlebar pill follows the branch, and `agents` rereads the branch names of its sidebar groups.
 - `editor-nvim.file` `{workspace, root, path}`: published by `editor-nvim` when a Neovim enters a buffer of another file (absolute `path`; buffers without a file are skipped); `agents` shows it in the Code chat panel when `root` is the panel's worktree.
 - `processes.killed` `{workspace, pids}`: published by `processes` when auto-kill terminates orphans of a workspace; never published with empty `pids`.
+- `remote.watching` `{workspace, sections}`: published by `remote` when the set of sections whose non-popup slots paired phones watch in a workspace changes (sorted, unique; `[]` once none); `remote` also publishes `[]` for every workspace when it starts. `processes` and `agents` render a watched section as if the Mac showed it and restore the set on start from the bus history (`pluginsdk.Host.WatchedSections`). See [Remote § Plugin UI on the phone](remote.md#plugin-ui-on-the-phone).
 
 ## Core notifications
 
@@ -425,9 +442,9 @@ The core publishes `ui.opened` `{workspace}` on the durable bus when a workspace
 
 Clients keep per-workspace UI state with `ui.state.get` / `ui.state.set` `{workspaceId, state}` (client callers only). `ui.state.patch` `{workspaceId, key, value}` sets one top-level key atomically in the core, so concurrent writers to the same workspace do not drop each other's keys; a `null` value deletes the key. Its `section` field is the section the workspace's window shows: the app has one window per workspace and writes `section` when it opens the workspace and on every switch. When a `ui.state.set` or `ui.state.patch` changes `section`, the core publishes `ui.section` `{workspace, section}` on the durable bus. Plugins read the current value with `ui.state.section` (`pluginsdk.Host.SelectedSection`).
 
-`processes` uses it to skip work nobody sees: its 1 Hz refresh keeps recording history for every present workspace but renders only workspaces whose section is `processes` or unknown (`""`). On `ui.section` to `processes` it renders at once. `processes.sidebar` is sent again only when its sessions or selection changed; the core keeps the last tree for new subscribers.
+`processes` uses it to skip work nobody sees: its 1 Hz refresh keeps recording history for every present workspace but renders only workspaces whose section is `processes` or unknown (`""`), or that a phone watches (`remote.watching` lists `processes`, see [Remote § Plugin UI on the phone](remote.md#plugin-ui-on-the-phone)). On `ui.section` to `processes`, and when a phone starts watching it, it renders at once. `processes.sidebar` is sent again only when its sessions or selection changed; the core keeps the last tree for new subscribers.
 
-`agents` renders only for present workspaces (it renders every workspace once at start-up). `agents.sidebar` is always rendered for a present workspace; `agents.main` only while the section is `agents` or unknown, and its `editor-nvim.sidebar` panel only while the section is `editor-nvim` or unknown. A hidden slot keeps its last tree in the store until the next render, which `ui.opened` and `ui.section` trigger. `agents` encodes each tree once and sends the bytes with `pluginsdk.Host.RenderJSON`, skipping the call when they equal the last sent tree. Composer command descriptions are clipped to 300 runes (`…`), as the client shows them on one line.
+`agents` renders only for present workspaces (it renders every workspace once at start-up). `agents.sidebar` is always rendered for a present workspace; `agents.main` only while the section is `agents` or unknown, and its `editor-nvim.sidebar` panel only while the section is `editor-nvim` or unknown; a section a phone watches (`remote.watching`) counts as shown. A hidden slot keeps its last tree in the store until the next render, which `ui.opened`, `ui.section` and `remote.watching` trigger. `agents` encodes each tree once and sends the bytes with `pluginsdk.Host.RenderJSON`, skipping the call when they equal the last sent tree. Composer command descriptions are clipped to 300 runes (`…`), as the client shows them on one line.
 
 ## Removed names
 

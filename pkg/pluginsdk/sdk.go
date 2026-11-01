@@ -31,6 +31,19 @@ type UIEvent struct {
 	Value       json.RawMessage `json:"value"`
 }
 
+type SlotView struct {
+	WorkspaceID string          `json:"workspaceId"`
+	Slot        string          `json:"slot"`
+	Owner       string          `json:"owner"`
+	Rev         int64           `json:"rev"`
+	Tree        json.RawMessage `json:"tree"`
+}
+
+type UIUpdate struct {
+	Subscription string   `json:"subscription"`
+	View         SlotView `json:"view"`
+}
+
 type CommandRun struct {
 	ID          string          `json:"id"`
 	WorkspaceID string          `json:"workspaceId"`
@@ -54,6 +67,7 @@ type Plugin struct {
 	BusEvent  func(ctx context.Context, h *Host, sub string, ev Event)
 	BusClosed func(ctx context.Context, h *Host, sub string, err error)
 	FSChanged func(ctx context.Context, h *Host, ev FSChange)
+	UIUpdated func(ctx context.Context, h *Host, ev UIUpdate)
 	Shutdown  func(ctx context.Context, h *Host)
 }
 
@@ -211,6 +225,8 @@ func (rt *runtime) notify(ctx context.Context, h *Host, req *jsonrpc2.Request) {
 		rt.busClosed(ctx, h, req)
 	case "fs.changed":
 		rt.fsChanged(ctx, h, req)
+	case "ui.updated":
+		rt.uiUpdated(ctx, h, req)
 	}
 }
 
@@ -317,6 +333,18 @@ func (rt *runtime) fsChanged(ctx context.Context, h *Host, req *jsonrpc2.Request
 		return
 	}
 	rt.plugin.FSChanged(ctx, h, ev)
+}
+
+func (rt *runtime) uiUpdated(ctx context.Context, h *Host, req *jsonrpc2.Request) {
+	if rt.plugin.UIUpdated == nil {
+		return
+	}
+	var ev UIUpdate
+	if err := decode(req, &ev); err != nil {
+		fmt.Fprintln(os.Stderr, "plugin: bad ui.updated:", err)
+		return
+	}
+	rt.plugin.UIUpdated(ctx, h, ev)
 }
 
 func (rt *runtime) currentID() string {

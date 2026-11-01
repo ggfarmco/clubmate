@@ -39,12 +39,23 @@ public struct Hello: Codable, Sendable, Equatable {
     public let version: String
     public let commands: [String]
     public let topics: [String]
+    public let ui: Bool
 
-    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String]) {
+    public init(computer: ComputerInfo, version: String, commands: [String], topics: [String], ui: Bool = false) {
         self.computer = computer
         self.version = version
         self.commands = commands
         self.topics = topics
+        self.ui = ui
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        computer = try c.decode(ComputerInfo.self, forKey: .computer)
+        version = try c.decode(String.self, forKey: .version)
+        commands = try c.decode([String].self, forKey: .commands)
+        topics = try c.decode([String].self, forKey: .topics)
+        ui = try c.decodeIfPresent(Bool.self, forKey: .ui) ?? false
     }
 }
 
@@ -61,6 +72,8 @@ public struct Workspace: Codable, Sendable, Equatable, Identifiable, Hashable {
 public enum EventStreamItem: Sendable, Equatable {
     case alive
     case event(BusEvent)
+    case stream(String)
+    case ui(SlotView)
 }
 
 public struct PairResult: Sendable, Equatable {
@@ -157,6 +170,23 @@ public actor RemoteClient {
         return value
     }
 
+    public func uiSections() async throws -> [SectionInfo] {
+        try await rpc("uiSections", as: [SectionInfo].self) ?? []
+    }
+
+    public func uiGet(workspace: String, slots: [String]) async throws -> [SlotView] {
+        let params = JSONValue.object(["workspace": .string(workspace), "slots": .array(slots.map(JSONValue.string))])
+        return (try await rpc("uiGet", params: params, as: [UIFrame].self) ?? []).map(\.view)
+    }
+
+    public func uiWatch(stream: String, workspace: String, slots: [String]) async throws {
+        _ = try await rpc("uiWatch", params: .object(["stream": .string(stream), "workspace": .string(workspace), "slots": .array(slots.map(JSONValue.string))]))
+    }
+
+    public func uiEvent(workspace: String, slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
+        try await rpc("uiEvent", params: .object(["workspace": .string(workspace), "slot": .string(slot), "nodeId": .string(nodeId), "action": .string(action), "value": value ?? .null]))
+    }
+
     private static func commandParams(_ id: String, workspace: String?, args: JSONValue?) -> JSONValue {
         var params: [String: JSONValue] = ["id": .string(id)]
         if let workspace { params["workspace"] = .string(workspace) }
@@ -195,9 +225,17 @@ public actor RemoteClient {
                             alive = true
                             continuation.yield(.alive)
                         }
-                        for event in parser.feed(chunk) where event.event == "bus" {
-                            if let bus = try? decoder.decode(BusEvent.self, from: Data(event.data.utf8)) {
-                                continuation.yield(.event(bus))
+                        for event in parser.feed(chunk) {
+                            let data = Data(event.data.utf8)
+                            switch event.event {
+                            case "bus":
+                                if let bus = try? decoder.decode(BusEvent.self, from: data) { continuation.yield(.event(bus)) }
+                            case "stream":
+                                if let frame = try? decoder.decode(StreamFrame.self, from: data) { continuation.yield(.stream(frame.id)) }
+                            case "ui":
+                                if let frame = try? decoder.decode(UIFrame.self, from: data) { continuation.yield(.ui(frame.view)) }
+                            default:
+                                break
                             }
                         }
                     }
@@ -284,6 +322,23 @@ private struct IdentityReply: Decodable {
 private struct PairReply: Decodable {
     let token: String
     let computer: ComputerInfo
+}
+
+private struct StreamFrame: Decodable {
+    let id: String
+}
+
+private struct UIFrame: Decodable {
+    let workspace: String?
+    let workspaceId: String?
+    let slot: String
+    let owner: String?
+    let rev: Int64
+    let tree: SDUINode
+
+    var view: SlotView {
+        SlotView(workspaceId: workspace ?? workspaceId ?? "", slot: slot, owner: owner ?? "", rev: rev, tree: tree)
+    }
 }
 
 private struct RPCRequest: Encodable {

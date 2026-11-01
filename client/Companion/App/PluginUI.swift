@@ -13,21 +13,23 @@ protocol CompanionPluginUI: CompanionPlugin {
     @MainActor func makeDetail(context: PluginContext, selection: String?) -> AnyView
     @MainActor func badge(context: PluginContext) -> Int
     var inWorkspace: Bool { get }
+    var needsUI: Bool { get }
 }
 
 extension CompanionPluginUI {
     var inWorkspace: Bool { false }
+    var needsUI: Bool { false }
 }
 
 @MainActor
 enum CompanionPlugins {
-    static let all: [any CompanionPluginUI] = [AgentsPlugin(), BacklogPlugin(), DocsPlugin(), InboxPlugin()]
+    static let all: [any CompanionPluginUI] = [AgentsPlugin(), BacklogPlugin(), DocsPlugin(), MorePlugin(), InboxPlugin()]
     static let registry = PluginRegistry(all)
 
     static func supported(by connection: ComputerConnection) -> [any CompanionPluginUI] {
         guard connection.state != .unauthorized else { return [] }
         let ids = Set(registry.supported(by: connection.hello).map(\.id))
-        return all.filter { ids.contains($0.id) }
+        return all.filter { ids.contains($0.id) && (!$0.needsUI || connection.supportsUI) }
     }
 
     static func inWorkspace(_ connection: ComputerConnection) -> [any CompanionPluginUI] {

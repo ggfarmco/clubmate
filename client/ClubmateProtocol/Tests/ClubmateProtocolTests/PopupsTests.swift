@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-@testable import ClubmateKit
+import ClubmateProtocol
 
 final class PopupsTests: XCTestCase {
     private func view(_ slot: String, _ type: String) -> SlotView {

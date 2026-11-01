@@ -16,6 +16,7 @@ const (
 	TopicUIOpened         = "ui.opened"
 	TopicUIIdle           = "ui.idle"
 	TopicUISection        = "ui.section"
+	TopicRemoteWatching   = "remote.watching"
 )
 
 type Event struct {
@@ -59,4 +60,9 @@ type UIPresence struct {
 type UISection struct {
 	Workspace string `json:"workspace"`
 	Section   string `json:"section"`
+}
+
+type RemoteWatching struct {
+	Workspace string   `json:"workspace"`
+	Sections  []string `json:"sections"`
 }

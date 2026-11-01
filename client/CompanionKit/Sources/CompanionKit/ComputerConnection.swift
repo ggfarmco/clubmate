@@ -45,11 +45,13 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var workspaces: [Workspace] = []
     public private(set) var lastEventID: Int?
     public private(set) var lastSeen: Date?
+    @ObservationIgnored public private(set) var streamID: String?
 
     @ObservationIgnored public private(set) var client: RemoteClient
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var listeners: [UUID: @MainActor (ConnectionSignal) -> Void] = [:]
+    @ObservationIgnored private var interfaces: [String: WeakInterface] = [:]
 
     public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.computer = computer
@@ -68,6 +70,7 @@ public final class ComputerConnection: CommandRunner {
     public func stop() {
         task?.cancel()
         task = nil
+        streamID = nil
         if state != .unauthorized { state = .offline(nil) }
     }
 
@@ -95,17 +98,44 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
-        do {
-            return try await client.command(id, workspace: workspace, args: args)
-        } catch RemoteError.unauthorized {
-            revoke()
-            throw RemoteError.unauthorized
-        }
+        try await authorized { try await $0.command(id, workspace: workspace, args: args) }
     }
 
     public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
+        try await authorized { try await $0.command(id, workspace: workspace, args: args, as: type) }
+    }
+
+    public var supportsUI: Bool {
+        hello?.ui ?? false
+    }
+
+    public func workspaceUI(_ workspace: String) -> WorkspaceUI {
+        if let live = interfaces[workspace]?.value { return live }
+        interfaces = interfaces.filter { $0.value.value != nil }
+        let ui = WorkspaceUI(connection: self, workspace: workspace)
+        interfaces[workspace] = WeakInterface(value: ui)
+        return ui
+    }
+
+    func uiSections() async throws -> [SectionInfo] {
+        try await authorized { try await $0.uiSections() }
+    }
+
+    func uiGet(workspace: String, slots: [String]) async throws -> [SlotView] {
+        try await authorized { try await $0.uiGet(workspace: workspace, slots: slots) }
+    }
+
+    func uiWatch(stream: String, workspace: String, slots: [String]) async throws {
+        try await authorized { try await $0.uiWatch(stream: stream, workspace: workspace, slots: slots) }
+    }
+
+    func uiEvent(workspace: String, slot: String, nodeId: String, action: String, value: JSONValue?) async throws -> JSONValue {
+        try await authorized { try await $0.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value) }
+    }
+
+    private func authorized<T: Sendable>(_ call: (RemoteClient) async throws -> T) async throws -> T {
         do {
-            return try await client.command(id, workspace: workspace, args: args, as: type)
+            return try await call(client)
         } catch RemoteError.unauthorized {
             revoke()
             throw RemoteError.unauthorized
@@ -193,9 +223,17 @@ public final class ComputerConnection: CommandRunner {
                             identify(info)
                         }
                         emit(.event(event))
+                    case .stream(let id):
+                        streamID = id
+                        for ui in interfaces.values.compactMap(\.value) {
+                            ui.reload()
+                        }
+                    case .ui(let view):
+                        interfaces[view.workspaceId]?.value?.receive(view)
                     }
                 }
                 if Task.isCancelled { return }
+                streamID = nil
                 state = .offline(nil)
             } catch RemoteError.unauthorized {
                 if Task.isCancelled { return }
@@ -203,6 +241,7 @@ public final class ComputerConnection: CommandRunner {
                 return
             } catch {
                 if Task.isCancelled || error is CancellationError { return }
+                streamID = nil
                 state = .offline((error as? RemoteError)?.message ?? error.localizedDescription)
             }
             let delay = Self.backoff[min(failures, Self.backoff.count - 1)]
@@ -223,6 +262,7 @@ public final class ComputerConnection: CommandRunner {
 
     private func revoke() {
         state = .unauthorized
+        streamID = nil
         hello = nil
         workspaces = []
         task?.cancel()
@@ -234,4 +274,8 @@ public final class ComputerConnection: CommandRunner {
             listener(signal)
         }
     }
+}
+
+private struct WeakInterface {
+    weak var value: WorkspaceUI?
 }

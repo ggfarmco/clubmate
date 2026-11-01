@@ -13,6 +13,7 @@ import (
 
 	"github.com/sourcegraph/jsonrpc2"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -45,7 +46,11 @@ type server struct {
 	hub      *hub
 	identity *identity
 	changed  func()
+	watching func(contract.RemoteWatching)
 	ping     time.Duration
+
+	uiMu     sync.Mutex
+	sections map[string][]string
 
 	cacheMu sync.Mutex
 	gen     int64
@@ -116,6 +121,7 @@ type helloResult struct {
 	Version  string   `json:"version"`
 	Commands []string `json:"commands"`
 	Topics   []string `json:"topics"`
+	UI       bool     `json:"ui"`
 }
 
 type workspaceInfo struct {
@@ -241,6 +247,26 @@ func (s *server) call(ctx context.Context, d device, req rpcRequest) (any, error
 			return nil, err
 		}
 		return s.setIdentityColour(ctx, p.Colour)
+	case "uiSections":
+		return s.uiSections(ctx)
+	case "uiGet":
+		var p uiGetRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return s.uiGet(ctx, p)
+	case "uiEvent":
+		var p uiEventRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return s.uiEvent(ctx, p)
+	case "uiWatch":
+		var p uiWatchRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return nil, s.uiWatch(ctx, d, p)
 	}
 	return nil, &apiError{Code: codeNotAllowed, Message: "unknown method: " + req.Method}
 }
@@ -254,7 +280,7 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 	if err != nil {
 		return helloResult{}, err
 	}
-	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics)}, nil
+	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics), UI: true}, nil
 }
 
 func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {

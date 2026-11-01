@@ -75,6 +75,7 @@ type uiSubscribeParams struct {
 	WorkspaceID string `json:"workspaceId"`
 	Delta       bool   `json:"delta,omitempty"`
 	Append      bool   `json:"append,omitempty"`
+	Presence    *bool  `json:"presence,omitempty"`
 	Keep        bool   `json:"keep,omitempty"`
 }
 
@@ -184,7 +185,8 @@ func (s *Server) uiSubscribe(ctx context.Context, p uiSubscribeParams) (subscrip
 	}
 	leave := func() {}
 	target := &focusTarget{conn: connFrom(ctx)}
-	if p.WorkspaceID != "" {
+	present := p.WorkspaceID != "" && (p.Presence == nil || *p.Presence)
+	if present {
 		leaveCount := s.presence.join(s.bus, s.logger, p.WorkspaceID)
 		leave = func() {
 			s.presence.dropTarget(p.WorkspaceID, target)
@@ -195,7 +197,7 @@ func (s *Server) uiSubscribe(ctx context.Context, p uiSubscribeParams) (subscrip
 		sub.Close()
 		leave()
 	}), forwardUI(ctx, connFrom(ctx), sub, p.Delta, sdui.DeltaOptions{Appends: p.Append, Keeps: p.Keep}))
-	if err == nil && p.WorkspaceID != "" {
+	if err == nil && present {
 		s.presence.addTarget(p.WorkspaceID, target, sid)
 	}
 	return subscriptionParams{Subscription: sid}, err

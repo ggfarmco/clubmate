@@ -42,6 +42,10 @@ public enum DocsPluginInfo {
     public static let requiredCommands = [DocsCommand.list, DocsCommand.read]
 }
 
+public enum MorePluginInfo {
+    public static let id = "more"
+}
+
 public enum InboxPluginInfo {
     public static let id = "inbox"
 }

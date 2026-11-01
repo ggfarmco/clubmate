@@ -1,6 +1,6 @@
 import XCTest
 
-import ClubmateKit
+import ClubmateProtocol
 
 final class HeaderActionsTests: XCTestCase {
     private func button(_ id: String, _ variant: String, _ extra: [String: JSONValue] = [:]) -> SDUINode {

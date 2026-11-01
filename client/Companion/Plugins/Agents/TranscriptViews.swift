@@ -600,19 +600,30 @@ struct CodeBlock: View {
 }
 
 struct DiffView: View {
-    let diff: ToolCall.FileDiff
+    let fileName: String
+    let lines: [DiffLine]
     var limit = 400
+
+    init(diff: ToolCall.FileDiff, limit: Int = 400) {
+        self.init(fileName: diff.fileName, lines: diff.lines, limit: limit)
+    }
+
+    init(fileName: String, lines: [DiffLine], limit: Int = 400) {
+        self.fileName = fileName
+        self.lines = lines
+        self.limit = limit
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Label(diff.fileName, systemImage: "doc")
+            Label(fileName, systemImage: "doc")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(diff.lines.prefix(limit).enumerated()), id: \.offset) { _, line in
+                    ForEach(Array(lines.prefix(limit).enumerated()), id: \.offset) { _, line in
                         HStack(spacing: 6) {
                             Text(sign(line.kind))
                                 .foregroundStyle(color(line.kind))

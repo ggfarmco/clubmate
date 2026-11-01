@@ -55,22 +55,15 @@ struct CompanionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(model)
-                .environment(navigation)
-                .environment(pairing)
-                .onOpenURL { url in
-                    guard PairingLink.isPairingURL(url) else { return }
-                    pairing.received(url.absoluteString, from: .link, model: model, navigation: navigation)
-                }
-                .onChange(of: pairing.paired) { _, _ in notifier.requestAuthorization() }
-                .task {
-                    notifier.attach(model: model, navigation: navigation)
-                    model.start()
-                    #if DEBUG
-                    await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing)
-                    #endif
-                }
+            #if DEBUG
+            if let gallery = DebugLaunch.gallery {
+                SDUIGalleryScreen(focus: gallery)
+            } else {
+                root
+            }
+            #else
+            root
+            #endif
         }
         .commands { SessionCommands() }
         .onChange(of: scenePhase) { _, phase in
@@ -85,5 +78,24 @@ struct CompanionApp: App {
                 break
             }
         }
+    }
+
+    private var root: some View {
+        RootView()
+            .environment(model)
+            .environment(navigation)
+            .environment(pairing)
+            .onOpenURL { url in
+                guard PairingLink.isPairingURL(url) else { return }
+                pairing.received(url.absoluteString, from: .link, model: model, navigation: navigation)
+            }
+            .onChange(of: pairing.paired) { _, _ in notifier.requestAuthorization() }
+            .task {
+                notifier.attach(model: model, navigation: navigation)
+                model.start()
+                #if DEBUG
+                await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing)
+                #endif
+            }
     }
 }

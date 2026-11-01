@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"slices"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
@@ -118,11 +119,27 @@ func (a *app) setSection(id, section string) {
 	}
 }
 
+func (a *app) setWatched(id string, sections []string) bool {
+	on := slices.Contains(sections, sectionID)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if _, gone := a.deleted[id]; gone {
+		return false
+	}
+	was := a.watched[id]
+	if on {
+		a.watched[id] = true
+	} else {
+		delete(a.watched, id)
+	}
+	return on && !was
+}
+
 func (a *app) visible(id string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	section := a.sections[id]
-	return section == "" || section == sectionID
+	return section == "" || section == sectionID || a.watched[id]
 }
 
 func (a *app) drop(ctx context.Context, h *pluginsdk.Host, id string) {
@@ -136,6 +153,7 @@ func (a *app) forget(id string, now time.Time) {
 	delete(a.workspaces, id)
 	delete(a.present, id)
 	delete(a.sections, id)
+	delete(a.watched, id)
 	a.deleted[id] = now
 }
 

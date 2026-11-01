@@ -85,6 +85,10 @@ actor FixtureServer {
     private var docRevs: [String: Int] = [:]
     private var turns: [String: Task<Void, Never>] = [:]
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
+    private var uiSections: JSONValue = .array([])
+    private var uiViews: [String: (rev: Int, tree: JSONValue)] = [:]
+    private var openedDoc: JSONValue = .null
+    private var streams = 0
     private var seq = 100
     private var notified = false
 
@@ -160,7 +164,14 @@ actor FixtureServer {
         if case .object(let map) = listed["sessions"] ?? .null {
             sessionDocs = map.mapValues { $0.arrayValue?.compactMap(\.stringValue) ?? [] }
         }
+        let sdui = decode("sdui.json")
+        uiSections = sdui["sections"] ?? .array([])
+        for (slot, tree) in sdui["views"]?.objectValue ?? [:] {
+            uiViews[slot] = (1, slot == "docs.popup" ? .object(["type": .string("empty")]) : tree)
+        }
+        openedDoc = sdui["views"]?["docs.popup"] ?? .null
         guard mac.id != FixtureMac.studio.id else { return }
+        uiViews = [:]
         docs = [:]
         docsList = []
         tasks = []
@@ -180,7 +191,8 @@ actor FixtureServer {
 
     func subscribe() -> AsyncThrowingStream<Data, any Error> {
         let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
-        continuation.yield(Data(": connected\n\n".utf8))
+        streams += 1
+        continuation.yield(Data(": connected\n\nevent: stream\ndata: {\"id\":\"fx\(streams)\"}\n\n".utf8))
         subscribers.append(continuation)
         if !notified {
             notified = true
@@ -208,7 +220,19 @@ actor FixtureServer {
         switch request["method"]?.stringValue {
         case "hello":
             let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list"].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted")])])]))
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
+        case "uiSections":
+            return (200, Self.json(["result": uiSections]))
+        case "uiGet":
+            let slots = params["slots"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            let found = params["workspace"]?.stringValue == workspace ? slots.compactMap { slot in uiViews[slot].map { slotView(slot, rev: $0.rev, tree: $0.tree) } } : []
+            return (200, Self.json(["result": .array(found)]))
+        case "uiWatch":
+            return (200, Self.json(["result": .null]))
+        case "uiEvent":
+            let slot = params["slot"]?.stringValue ?? ""
+            if slot.hasSuffix(".popup"), params["action"]?.stringValue == "close" { showUI(slot, .object(["type": .string("empty")])) }
+            return (200, Self.json(["result": .null]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
                 .object(["id": .string(item.id), "name": .string(item.name), "folders": .array([.object(["path": .string("/Users/me/src/" + item.name)])])])
@@ -501,6 +525,7 @@ actor FixtureServer {
             Task {
                 try? await Task.sleep(for: .seconds(3))
                 publish("docs.opened", ["workspace": .string(workspace), "session": session, "path": .string("/Users/me/src/shop/docs/checkout-retries.md")])
+                showUI("docs.popup", openedDoc)
             }
         }
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null
@@ -508,6 +533,20 @@ actor FixtureServer {
         publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])
         publish("notify.posted", ["id": .string("ntf_2"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run go test ./... in shop."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 60)])
         publish("notify.posted", ["id": .string("ntf_3"), "workspace": .string(workspace), "session": asking, "title": .string("Checkout question"), "message": .string("Should I add retries to the charge step?"), "kind": .string("needs-input"), "agent": .bool(true), "ts": Self.stamp(ago: 30)])
+    }
+
+    private func slotView(_ slot: String, rev: Int, tree: JSONValue) -> JSONValue {
+        .object(["workspaceId": .string(workspace), "slot": .string(slot), "owner": .string(String(slot.prefix { $0 != "." })), "rev": .number(Double(rev)), "tree": tree])
+    }
+
+    private func showUI(_ slot: String, _ tree: JSONValue) {
+        let rev = (uiViews[slot]?.rev ?? 0) + 1
+        uiViews[slot] = (rev, tree)
+        let frame = Self.json(["workspace": .string(workspace), "slot": .string(slot), "rev": .number(Double(rev)), "tree": tree])
+        let wire = Data("event: ui\ndata: ".utf8) + frame + Data("\n\n".utf8)
+        for subscriber in subscribers {
+            subscriber.yield(wire)
+        }
     }
 
     private func publish(_ topic: String, _ payload: [String: JSONValue]) {

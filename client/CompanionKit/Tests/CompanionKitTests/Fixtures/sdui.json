@@ -1,0 +1,1345 @@
+{
+ "sections": [
+  {
+   "id": "editor-nvim",
+   "title": "Code",
+   "icon": "chevron.left.forwardslash.chevron.right",
+   "order": 10,
+   "scope": "workspace",
+   "autoNew": false,
+   "plugin": "editor-nvim"
+  },
+  {
+   "id": "terminals",
+   "title": "Terminals",
+   "icon": "terminal",
+   "order": 20,
+   "scope": "workspace",
+   "autoNew": true,
+   "plugin": "terminals"
+  },
+  {
+   "id": "agents",
+   "title": "Agents",
+   "icon": "sparkles",
+   "order": 25,
+   "scope": "workspace",
+   "autoNew": false,
+   "plugin": "agents"
+  },
+  {
+   "id": "backlog",
+   "title": "Backlog",
+   "icon": "checklist",
+   "order": 27,
+   "scope": "workspace",
+   "autoNew": false,
+   "plugin": "backlog"
+  },
+  {
+   "id": "processes",
+   "title": "Processes",
+   "icon": "cpu",
+   "order": 30,
+   "scope": "workspace",
+   "autoNew": false,
+   "plugin": "processes"
+  },
+  {
+   "id": "cron",
+   "title": "Cron",
+   "icon": "clock",
+   "order": 35,
+   "scope": "workspace",
+   "autoNew": false,
+   "plugin": "cron"
+  },
+  {
+   "id": "triggers",
+   "title": "Triggers",
+   "icon": "bolt",
+   "order": 36,
+   "scope": "workspace",
+   "autoNew": false,
+   "plugin": "triggers"
+  },
+  {
+   "id": "docs",
+   "title": "Docs",
+   "icon": "doc.richtext",
+   "order": 90,
+   "scope": "workspace",
+   "autoNew": false,
+   "plugin": "docs",
+   "rail": false,
+   "slots": [
+    "popup"
+   ]
+  }
+ ],
+ "views": {
+  "processes.sidebar": {
+   "type": "list",
+   "id": "sessions",
+   "props": {
+    "items": [
+     {
+      "id": "all",
+      "label": "All",
+      "detail": "6"
+     },
+     {
+      "id": "ses_t1",
+      "label": "Terminal 1",
+      "detail": "182.9%",
+      "icon": "terminal",
+      "truncate": "tail"
+     },
+     {
+      "id": "agt_0000000000000001",
+      "label": "Fix flaky checkout test",
+      "detail": "15.4%",
+      "icon": "sparkles",
+      "truncate": "tail"
+     },
+     {
+      "id": "ses_nvim",
+      "label": "nvim",
+      "detail": "0.8%",
+      "icon": "chevron.left.forwardslash.chevron.right",
+      "truncate": "tail"
+     }
+    ],
+    "selected": "all"
+   }
+  },
+  "processes.main": {
+   "type": "stack",
+   "id": "main",
+   "props": {
+    "direction": "vertical"
+   },
+   "children": [
+    {
+     "type": "header",
+     "id": "header",
+     "props": {
+      "meta": "6 running · 0 orphans",
+      "title": "All processes"
+     },
+     "children": [
+      {
+       "type": "textField",
+       "id": "filter",
+       "props": {
+        "action": "filter",
+        "live": true,
+        "placeholder": "Filter"
+       }
+      },
+      {
+       "type": "button",
+       "id": "kill-orphans",
+       "props": {
+        "confirm": "Kill all orphan processes?",
+        "disabled": true,
+        "icon": "trash",
+        "label": "Kill orphans",
+        "variant": "danger"
+       }
+      },
+      {
+       "type": "button",
+       "id": "options",
+       "props": {
+        "icon": "slider.horizontal.3",
+        "label": "Options",
+        "variant": "ghost"
+       }
+      }
+     ]
+    },
+    {
+     "type": "stack",
+     "id": "totals",
+     "props": {
+      "direction": "horizontal"
+     },
+     "children": [
+      {
+       "type": "stack",
+       "props": {
+        "direction": "vertical"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "CPU · peak 199%"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "199.1%"
+         }
+        }
+       ]
+      },
+      {
+       "type": "sparkline",
+       "id": "total-cpu",
+       "props": {
+        "height": 16,
+        "max": 199,
+        "values": [
+         199,
+         199,
+         199,
+         199,
+         199,
+         199,
+         199
+        ]
+       }
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "vertical"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "MEM · avg 1.7 GB"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "1.7 GB"
+         }
+        }
+       ]
+      },
+      {
+       "type": "sparkline",
+       "id": "total-mem",
+       "props": {
+        "height": 16,
+        "max": 1692.4,
+        "values": [
+         1692.4,
+         1692.4,
+         1692.4,
+         1692.4,
+         1692.4,
+         1692.4,
+         1692.4
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "type": "scroll",
+     "id": "table-scroll",
+     "children": [
+      {
+       "type": "table",
+       "id": "processes",
+       "props": {
+        "action": "select-pid",
+        "columns": [
+         {
+          "id": "pid",
+          "title": "PID",
+          "width": 100
+         },
+         {
+          "id": "cpu",
+          "title": "CPU%",
+          "align": "right",
+          "width": 64
+         },
+         {
+          "id": "mem",
+          "title": "MEM",
+          "align": "right",
+          "width": 72,
+          "priority": 1
+         },
+         {
+          "id": "time",
+          "title": "TIME",
+          "align": "right",
+          "width": 72,
+          "priority": 2
+         },
+         {
+          "id": "history",
+          "title": "LAST MIN",
+          "width": 72,
+          "priority": 3
+         },
+         {
+          "id": "command",
+          "title": "COMMAND",
+          "truncate": "middle"
+         }
+        ],
+        "rows": [
+         {
+          "id": "g:ses_t1",
+          "hasChildren": true,
+          "expanded": true,
+          "group": true,
+          "cells": [
+           {
+            "text": "Terminal 1"
+           },
+           {},
+           {},
+           {},
+           {},
+           {}
+          ]
+         },
+         {
+          "id": "4101",
+          "depth": 1,
+          "hasChildren": true,
+          "expanded": true,
+          "cells": [
+           {
+            "text": "4101"
+           },
+           {
+            "text": "0.0",
+            "bar": 0
+           },
+           {
+            "text": "6 MB"
+           },
+           {
+            "text": "3:00:00"
+           },
+           {
+            "spark": {
+             "values": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+             ],
+             "max": 100
+            }
+           },
+           {
+            "text": "-zsh"
+           }
+          ]
+         },
+         {
+          "id": "4188",
+          "depth": 2,
+          "hasChildren": true,
+          "expanded": true,
+          "cells": [
+           {
+            "text": "4188"
+           },
+           {
+            "text": "0.4",
+            "bar": 0.004
+           },
+           {
+            "text": "12 MB"
+           },
+           {
+            "text": "0:02:00"
+           },
+           {
+            "spark": {
+             "values": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+             ],
+             "max": 100
+            }
+           },
+           {
+            "text": "make test"
+           }
+          ]
+         },
+         {
+          "id": "4190",
+          "depth": 3,
+          "cells": [
+           {
+            "text": "4190"
+           },
+           {
+            "text": "182.5",
+            "bar": 1,
+            "tone": "danger"
+           },
+           {
+            "text": "303 MB"
+           },
+           {
+            "text": "0:02:00"
+           },
+           {
+            "spark": {
+             "values": [
+              183,
+              183,
+              183,
+              183,
+              183,
+              183,
+              183
+             ],
+             "max": 183
+            }
+           },
+           {
+            "text": "go test ./..."
+           }
+          ]
+         },
+         {
+          "id": "g:agt_0000000000000001",
+          "hasChildren": true,
+          "expanded": true,
+          "group": true,
+          "cells": [
+           {
+            "text": "Fix flaky checkout test"
+           },
+           {},
+           {},
+           {},
+           {},
+           {}
+          ]
+         },
+         {
+          "id": "5200",
+          "depth": 1,
+          "hasChildren": true,
+          "expanded": true,
+          "cells": [
+           {
+            "text": "5200"
+           },
+           {
+            "text": "12.3",
+            "bar": 0.12300000000000001
+           },
+           {
+            "text": "410 MB"
+           },
+           {
+            "text": "0:40:00"
+           },
+           {
+            "spark": {
+             "values": [
+              12,
+              12,
+              12,
+              12,
+              12,
+              12,
+              12
+             ],
+             "max": 100
+            }
+           },
+           {
+            "text": "claude --acp"
+           }
+          ]
+         },
+         {
+          "id": "5230",
+          "depth": 2,
+          "cells": [
+           {
+            "text": "5230"
+           },
+           {
+            "text": "3.1",
+            "bar": 0.031
+           },
+           {
+            "text": "869 MB"
+           },
+           {
+            "text": "0:38:00"
+           },
+           {
+            "spark": {
+             "values": [
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3
+             ],
+             "max": 100
+            }
+           },
+           {
+            "text": "gopls serve"
+           }
+          ]
+         },
+         {
+          "id": "g:ses_nvim",
+          "hasChildren": true,
+          "expanded": true,
+          "group": true,
+          "cells": [
+           {
+            "text": "nvim"
+           },
+           {},
+           {},
+           {},
+           {},
+           {}
+          ]
+         },
+         {
+          "id": "6001",
+          "depth": 1,
+          "cells": [
+           {
+            "text": "6001"
+           },
+           {
+            "text": "0.8",
+            "bar": 0.008
+           },
+           {
+            "text": "93 MB"
+           },
+           {
+            "text": "3:00:00"
+           },
+           {
+            "spark": {
+             "values": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+             ],
+             "max": 100
+            }
+           },
+           {
+            "text": "nvim --embed"
+           }
+          ]
+         }
+        ],
+        "selected": "4190",
+        "sort": {
+         "column": "cpu",
+         "desc": true
+        }
+       }
+      }
+     ]
+    },
+    {
+     "type": "stack",
+     "id": "action-strip",
+     "props": {
+      "direction": "horizontal"
+     },
+     "children": [
+      {
+       "type": "stack",
+       "props": {
+        "direction": "vertical"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "title",
+          "text": "4190  go test ./..."
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "child of 4188 · started 22:40"
+         }
+        }
+       ]
+      },
+      {
+       "type": "button",
+       "id": "copy",
+       "props": {
+        "copy": "go test ./...",
+        "icon": "doc.on.doc",
+        "label": "Copy command",
+        "variant": "ghost"
+       }
+      },
+      {
+       "type": "button",
+       "id": "reveal",
+       "props": {
+        "disabled": true,
+        "icon": "folder",
+        "label": "Reveal",
+        "shortcut": "cmd+shift+r",
+        "variant": "ghost"
+       }
+      },
+      {
+       "type": "button",
+       "id": "kill",
+       "props": {
+        "confirm": "Kill go (4190) and its children?",
+        "icon": "xmark.circle",
+        "label": "Kill",
+        "shortcut": "shift+k",
+        "variant": "danger"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "cron.sidebar": {
+   "type": "list",
+   "id": "jobs",
+   "props": {
+    "items": [
+     {
+      "id": "cj_nightly",
+      "label": "Nightly tests",
+      "detail": "03:41",
+      "icon": "clock",
+      "menu": [
+       {
+        "action": "run",
+        "label": "Run now"
+       },
+       {
+        "action": "pause",
+        "label": "Pause"
+       },
+       {
+        "action": "duplicate",
+        "label": "Duplicate"
+       },
+       {
+        "action": "delete",
+        "label": "Delete",
+        "confirm": "Delete cron job “Nightly tests”?"
+       }
+      ]
+     },
+     {
+      "id": "cj_check",
+      "label": "Check children",
+      "detail": "22:45",
+      "icon": "clock",
+      "menu": [
+       {
+        "action": "run",
+        "label": "Run now"
+       },
+       {
+        "action": "pause",
+        "label": "Pause"
+       },
+       {
+        "action": "duplicate",
+        "label": "Duplicate"
+       },
+       {
+        "action": "delete",
+        "label": "Delete",
+        "confirm": "Delete cron job “Check children”?"
+       }
+      ]
+     },
+     {
+      "id": "cj_report",
+      "label": "Weekly report",
+      "detail": "paused",
+      "icon": "pause.circle",
+      "menu": [
+       {
+        "action": "run",
+        "label": "Run now"
+       },
+       {
+        "action": "resume",
+        "label": "Resume"
+       },
+       {
+        "action": "duplicate",
+        "label": "Duplicate"
+       },
+       {
+        "action": "delete",
+        "label": "Delete",
+        "confirm": "Delete cron job “Weekly report”?"
+       }
+      ]
+     }
+    ],
+    "selected": "cj_nightly"
+   }
+  },
+  "cron.main": {
+   "type": "stack",
+   "props": {
+    "direction": "vertical"
+   },
+   "children": [
+    {
+     "type": "header",
+     "props": {
+      "badges": [
+       {
+        "text": "active"
+       }
+      ],
+      "icon": "clock",
+      "title": "Nightly tests"
+     },
+     "children": [
+      {
+       "type": "button",
+       "id": "cj_nightly/run",
+       "props": {
+        "action": "run",
+        "icon": "play.fill",
+        "label": "Run now",
+        "shortcut": "cmd+r",
+        "variant": "primary"
+       }
+      },
+      {
+       "type": "button",
+       "id": "cj_nightly/pause",
+       "props": {
+        "action": "pause",
+        "icon": "pause",
+        "label": "Pause",
+        "shortcut": "p",
+        "variant": "secondary"
+       }
+      },
+      {
+       "type": "button",
+       "id": "cj_nightly/duplicate",
+       "props": {
+        "action": "duplicate",
+        "icon": "plus.square.on.square",
+        "label": "Duplicate",
+        "variant": "ghost"
+       }
+      },
+      {
+       "type": "button",
+       "id": "cj_nightly/reveal",
+       "props": {
+        "action": "reveal",
+        "icon": "sparkles",
+        "label": "Show session",
+        "variant": "ghost"
+       }
+      },
+      {
+       "type": "button",
+       "id": "cj_nightly/delete",
+       "props": {
+        "action": "delete",
+        "confirm": "Delete cron job “Nightly tests”?",
+        "icon": "trash",
+        "label": "Delete",
+        "shortcut": "cmd+delete",
+        "variant": "danger"
+       }
+      }
+     ]
+    },
+    {
+     "type": "form",
+     "id": "props",
+     "children": [
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Schedule"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "Every day 03:00"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "0 3 * * *"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Next run"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "Mon, Nov 2 · 03:41"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "in 5 h"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "When missed"
+         }
+        },
+        {
+         "type": "select",
+         "id": "cj_nightly/missed",
+         "props": {
+          "action": "missed",
+          "options": [
+           {
+            "value": "once",
+            "label": "Run once when Clubmate is back"
+           },
+           {
+            "value": "skip",
+            "label": "Skip it and wait for the next run"
+           }
+          ],
+          "value": "once"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Owner"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "Fix flaky checkout test"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Does"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "Send a prompt to Fix flaky checkout test"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": ""
+         }
+        },
+        {
+         "type": "card",
+         "children": [
+          {
+           "type": "text",
+           "props": {
+            "lines": 3,
+            "text": "Run make test and report failures"
+           }
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": ""
+         }
+        },
+        {
+         "type": "button",
+         "id": "cj_nightly/json",
+         "props": {
+          "action": "json",
+          "icon": "chevron.right",
+          "label": "Show as JSON",
+          "variant": "ghost"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Runs"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": ""
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "scroll",
+     "children": [
+      {
+       "type": "table",
+       "id": "history",
+       "props": {
+        "columns": [
+         {
+          "id": "when",
+          "title": "When",
+          "width": 120
+         },
+         {
+          "id": "status",
+          "title": "Status",
+          "width": 72
+         },
+         {
+          "id": "detail",
+          "title": "Reason / Result"
+         }
+        ],
+        "rows": [
+         {
+          "id": "r0",
+          "cells": [
+           {
+            "text": "Nov 1 03:41:58"
+           },
+           {
+            "text": "ok",
+            "tone": "ok"
+           },
+           {
+            "text": "{\"session\":\"Nightly run\"}"
+           }
+          ]
+         },
+         {
+          "id": "r1",
+          "cells": [
+           {
+            "text": "Oct 31 03:41:58"
+           },
+           {
+            "text": "error",
+            "tone": "danger"
+           },
+           {
+            "text": "agent busy"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "triggers.sidebar": {
+   "type": "tree",
+   "id": "triggers",
+   "props": {
+    "items": [
+     {
+      "id": "tr_review",
+      "label": "Review after a turn",
+      "detail": "an agent turn finishes · status done · session Fix flaky checkout test",
+      "icon": "bolt",
+      "menu": [
+       {
+        "action": "run",
+        "label": "Run now"
+       },
+       {
+        "action": "pause",
+        "label": "Pause"
+       },
+       {
+        "action": "delete",
+        "label": "Delete",
+        "confirm": "Delete trigger “Review after a turn”?"
+       }
+      ]
+     },
+     {
+      "id": "tr_nightly",
+      "label": "Nightly",
+      "detail": "the event “nightly” is emitted",
+      "icon": "bolt",
+      "menu": [
+       {
+        "action": "run",
+        "label": "Run now"
+       },
+       {
+        "action": "pause",
+        "label": "Pause"
+       },
+       {
+        "action": "delete",
+        "label": "Delete",
+        "confirm": "Delete trigger “Nightly”?"
+       }
+      ]
+     }
+    ],
+    "selected": "tr_review"
+   }
+  },
+  "triggers.main": {
+   "type": "stack",
+   "props": {
+    "direction": "vertical"
+   },
+   "children": [
+    {
+     "type": "header",
+     "props": {
+      "badges": [
+       {
+        "text": "active"
+       }
+      ],
+      "icon": "bolt",
+      "title": "Review after a turn"
+     },
+     "children": [
+      {
+       "type": "button",
+       "id": "tr_review/run",
+       "props": {
+        "action": "run",
+        "icon": "play.fill",
+        "label": "Run now",
+        "shortcut": "cmd+r",
+        "variant": "secondary"
+       }
+      },
+      {
+       "type": "button",
+       "id": "tr_review/pause",
+       "props": {
+        "action": "pause",
+        "icon": "pause",
+        "label": "Pause",
+        "shortcut": "p",
+        "variant": "secondary"
+       }
+      },
+      {
+       "type": "button",
+       "id": "tr_review/delete",
+       "props": {
+        "action": "delete",
+        "confirm": "Delete trigger “Review after a turn”?",
+        "icon": "trash",
+        "label": "Delete",
+        "shortcut": "cmd+delete",
+        "variant": "danger"
+       }
+      }
+     ]
+    },
+    {
+     "type": "form",
+     "id": "props",
+     "children": [
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "When"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "an agent turn finishes · status done · session Fix flaky checkout test"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Owner"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "nobody — results go to the inbox"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Does"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "Send a prompt to Explain the checkout flow"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": ""
+         }
+        },
+        {
+         "type": "card",
+         "children": [
+          {
+           "type": "text",
+           "props": {
+            "lines": 3,
+            "text": "Review the last commit."
+           }
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": ""
+         }
+        },
+        {
+         "type": "button",
+         "id": "tr_review/json",
+         "props": {
+          "action": "json",
+          "icon": "chevron.right",
+          "label": "Show as JSON",
+          "variant": "ghost"
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": "Runs"
+         }
+        },
+        {
+         "type": "text",
+         "props": {
+          "text": "No runs yet. It runs when an agent turn finishes · status done · session Fix flaky checkout test."
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "docs.popup": {
+   "type": "stack",
+   "props": {
+    "direction": "vertical"
+   },
+   "children": [
+    {
+     "type": "header",
+     "props": {
+      "title": "Checkout retries"
+     }
+    },
+    {
+     "type": "document",
+     "id": "doc",
+     "props": {
+      "html": "<h1 id=\"checkout-retries\">Checkout retries</h1>\n<p>Status: draft for approval. Follows the <a href=\"clubmate-doc:/Users/me/src/shop/docs/payments.md#charge\">payments overview</a>.</p>\n<h2 id=\"why\">Why</h2>\n<p>The <strong>charge</strong> step fails about 0.4% of the time on a provider timeout. Today the cart is released and the user starts over.</p>\n<ul>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> measure timeouts per provider</li>\n<li><input disabled=\"\" type=\"checkbox\"> retry with the same idempotency key</li>\n<li><input disabled=\"\" type=\"checkbox\"> surface <del>a generic error</del> the provider's reason</li>\n</ul>\n<h2 id=\"flow\">Flow</h2>\n<pre class=\"mermaid\">flowchart LR\n  V[validate] --&gt; R[reserve] --&gt; C{charge}\n  C --&gt;|ok| D[done]\n  C --&gt;|timeout| W[wait 2 s] --&gt; C\n  C --&gt;|declined| X[release stock]</pre>\n<pre class=\"mermaid\">sequenceDiagram\n  participant App\n  participant Shop\n  participant Provider\n  App-&gt;&gt;Shop: POST /checkout\n  Shop-&gt;&gt;Provider: charge(key)\n  Provider--&gt;&gt;Shop: timeout\n  Shop-&gt;&gt;Provider: charge(key) again\n  Provider--&gt;&gt;Shop: ok\n  Shop--&gt;&gt;App: 200</pre>\n<h2 id=\"limits\">Limits</h2>\n<table>\n<thead>\n<tr>\n<th>Provider</th>\n<th style=\"text-align:right\">Timeout</th>\n<th style=\"text-align:right\">Retries</th>\n<th>Backoff</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Stripe</td>\n<td style=\"text-align:right\">10 s</td>\n<td style=\"text-align:right\">2</td>\n<td>2 s, 5 s</td>\n</tr>\n<tr>\n<td>Adyen</td>\n<td style=\"text-align:right\">15 s</td>\n<td style=\"text-align:right\">1</td>\n<td>5 s</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"code\">Code</h2>\n<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\"><span class=\"kd\">func</span><span class=\"w\"> </span><span class=\"nf\">charge</span><span class=\"p\">(</span><span class=\"nx\">ctx</span><span class=\"w\"> </span><span class=\"nx\">context</span><span class=\"p\">.</span><span class=\"nx\">Context</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">p</span><span class=\"w\"> </span><span class=\"nx\">Provider</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">key</span><span class=\"w\"> </span><span class=\"kt\">string</span><span class=\"p\">)</span><span class=\"w\"> </span><span class=\"kt\">error</span><span class=\"w\"> </span><span class=\"p\">{</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t</span><span class=\"k\">for</span><span class=\"w\"> </span><span class=\"nx\">attempt</span><span class=\"w\"> </span><span class=\"o\">:=</span><span class=\"w\"> </span><span class=\"k\">range</span><span class=\"w\"> </span><span class=\"mi\">3</span><span class=\"w\"> </span><span class=\"p\">{</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t</span><span class=\"k\">if</span><span class=\"w\"> </span><span class=\"nx\">err</span><span class=\"w\"> </span><span class=\"o\">:=</span><span class=\"w\"> </span><span class=\"nx\">p</span><span class=\"p\">.</span><span class=\"nf\">Charge</span><span class=\"p\">(</span><span class=\"nx\">ctx</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">key</span><span class=\"p\">);</span><span class=\"w\"> </span><span class=\"p\">!</span><span class=\"nx\">errors</span><span class=\"p\">.</span><span class=\"nf\">Is</span><span class=\"p\">(</span><span class=\"nx\">err</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">ErrTimeout</span><span class=\"p\">)</span><span class=\"w\"> </span><span class=\"p\">{</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t\t</span><span class=\"k\">return</span><span class=\"w\"> </span><span class=\"nx\">err</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t</span><span class=\"p\">}</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t</span><span class=\"nx\">time</span><span class=\"p\">.</span><span class=\"nf\">Sleep</span><span class=\"p\">(</span><span class=\"nx\">backoff</span><span class=\"p\">[</span><span class=\"nx\">attempt</span><span class=\"p\">])</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t</span><span class=\"p\">}</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t</span><span class=\"k\">return</span><span class=\"w\"> </span><span class=\"nx\">ErrTimeout</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"p\">}</span><span class=\"w\">\n</span></span></span></code></pre><h2 id=\"open-questions\">Open questions</h2>\n<pre class=\"mermaid\">flowchart TD\n  A --&gt; </pre>\n<p>Should a declined card retry once? See the <a href=\"https://stripe.com/docs/error-codes\">provider docs</a> and <code>cart/charge.go</code>.<sup id=\"fnref:1\"><a href=\"#fn:1\" class=\"footnote-ref\" role=\"doc-noteref\">1</a></sup></p>\n<div class=\"footnotes\" role=\"doc-endnotes\">\n<hr>\n<ol>\n<li id=\"fn:1\">\n<p>Retries never change the amount.&#160;<a href=\"#fnref:1\" class=\"footnote-backref\" role=\"doc-backlink\">&#x21a9;&#xfe0e;</a></p>\n</li>\n</ol>\n</div>\n",
+      "kind": "markdown",
+      "path": "/Users/me/src/shop/docs/checkout-retries.md",
+      "rev": 1,
+      "size": "fill"
+     }
+    }
+   ]
+  }
+ }
+}

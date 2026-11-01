@@ -15,6 +15,7 @@ import (
 	"clubmate/internal/kv"
 	"clubmate/internal/rpc"
 	"clubmate/internal/testutil"
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -92,6 +93,24 @@ func TestSDKDeliversBusEventWithSubscription(t *testing.T) {
 		assert.Equal(t, "sub_x:a.b", v)
 	case <-time.After(3 * time.Second):
 		t.Fatal("no bus event")
+	}
+}
+
+func TestSDKDeliversUIUpdated(t *testing.T) {
+	got := make(chan pluginsdk.UIUpdate, 1)
+	conn := startPlugin(t, pluginsdk.Plugin{
+		UIUpdated: func(_ context.Context, _ *pluginsdk.Host, ev pluginsdk.UIUpdate) {
+			got <- ev
+		},
+	}, nil)
+	view := map[string]any{"workspaceId": "prj_1", "slot": "cron.main", "owner": "cron", "rev": 3, "tree": map[string]any{"type": "empty"}}
+	require.NoError(t, conn.Notify(t.Context(), "ui.updated", map[string]any{"subscription": "sub_x", "view": view}))
+	select {
+	case ev := <-got:
+		assert.Equal(t, "sub_x", ev.Subscription)
+		assert.Equal(t, pluginsdk.SlotView{WorkspaceID: "prj_1", Slot: "cron.main", Owner: "cron", Rev: 3, Tree: json.RawMessage(`{"type":"empty"}`)}, ev.View)
+	case <-time.After(3 * time.Second):
+		t.Fatal("no ui.updated")
 	}
 }
 
@@ -274,4 +293,43 @@ func startWithCore(t *testing.T, p pluginsdk.Plugin) *pluginsdk.Host {
 		t.Fatal("Init not called")
 		return nil
 	}
+}
+
+func TestWatchedSectionsKeepsLatestPerWorkspace(t *testing.T) {
+	svc, b := testutil.NewServiceWithBus(t)
+	srv := rpc.NewServer(svc, b)
+	coreSide, pluginSide := net.Pipe()
+	conn := srv.ServeConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), rpc.Caller{PluginID: "remote"})
+	t.Cleanup(func() { conn.Close() })
+	ready := make(chan *pluginsdk.Host, 1)
+	go func() {
+		_ = pluginsdk.RunConn(t.Context(), pluginSide, pluginsdk.Plugin{
+			Init: func(_ context.Context, h *pluginsdk.Host) error {
+				ready <- h
+				return nil
+			},
+		})
+	}()
+	require.NoError(t, conn.Call(t.Context(), "plugin.initialize", map[string]any{"protocol": 1, "pluginId": "remote"}, nil))
+	h := <-ready
+	ctx := t.Context()
+	var until int64
+	for _, w := range []contract.RemoteWatching{
+		{Workspace: "a", Sections: []string{"processes"}},
+		{Workspace: "b", Sections: []string{"agents"}},
+		{Workspace: "a", Sections: []string{}},
+		{Workspace: "b", Sections: []string{"agents", "processes"}},
+		{Workspace: "c", Sections: []string{"cron"}},
+	} {
+		ev, err := h.Publish(ctx, contract.TopicRemoteWatching, w)
+		require.NoError(t, err)
+		if w.Workspace != "c" {
+			until = ev.Seq
+		}
+	}
+
+	got, err := h.WatchedSections(ctx, until)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{"b": {"agents", "processes"}}, got)
 }

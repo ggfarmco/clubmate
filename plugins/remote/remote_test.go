@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -33,6 +34,12 @@ type fixture struct {
 	kv      *memKV
 	clock   *clock
 	topics  *topicLog
+	watched *watchLog
+}
+
+type watchLog struct {
+	mu   sync.Mutex
+	list []contract.RemoteWatching
 }
 
 type topicLog struct {
@@ -47,6 +54,10 @@ type fakeBackend struct {
 	lists       int
 	headEntered chan struct{}
 	headRelease chan struct{}
+	subs        []pluginsdk.UISubscribe
+	unsubs      []string
+	uiEvents    []pluginsdk.UIEvent
+	views       []pluginsdk.SlotView
 }
 
 type runCall struct {
@@ -77,6 +88,7 @@ func TestPairIssuesTokenReplacingTheDevicesOldOne(t *testing.T) {
 	first := f.pair(t, "phone-1")
 	_, stream := f.openEvents(t, first, "")
 	require.Equal(t, ": connected", frame(t, stream))
+	streamID(t, stream)
 
 	assert.Regexp(t, `^cmt_[A-Za-z0-9_-]{43}$`, first)
 	stored := f.kv.get(deviceKey("phone-1"))
@@ -371,7 +383,7 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	_, ok := f.call(t, token, "command", map[string]any{"id": "agents.sessions", "workspace": "prj_1", "args": map[string]any{"x": 1}})
 	_, denied := f.call(t, token, "command", map[string]any{"id": "agents.delete", "workspace": "prj_1"})
 
-	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":""},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed"]}`, string(hello.Result))
+	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":""},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","docs.changed","docs.opened","notify.posted","plugin.changed","remote.identity","voice.changed"],"ui":true}`, string(hello.Result))
 	assert.JSONEq(t, `{"ran":"agents.sessions"}`, string(ok.Result))
 	assert.Equal(t, []runCall{{id: "agents.sessions", workspace: "prj_1", args: `{"x":1}`}}, f.backend.calls())
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
@@ -432,6 +444,7 @@ func TestEventsStreamLiveAllowlistedTopics(t *testing.T) {
 
 	assert.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 	assert.Equal(t, ": connected", frame(t, r))
+	streamID(t, r)
 	f.srv.hub.publish(pluginsdk.Event{Seq: 6, Topic: "ui.opened", Payload: json.RawMessage(`{}`)})
 	f.srv.hub.publish(pluginsdk.Event{Seq: 7, Topic: "agents.changed", Workspace: "prj_1", Payload: json.RawMessage(`{"workspace":"prj_1","session":"s"}`)})
 	assert.Equal(t, "id: 7\nevent: bus\ndata: {\"seq\":7,\"topic\":\"agents.changed\",\"workspace\":\"prj_1\",\"payload\":{\"workspace\":\"prj_1\",\"session\":\"s\"}}", frame(t, r))
@@ -448,6 +461,7 @@ func TestEventsResumeFromLastEventID(t *testing.T) {
 	_, r := f.openEvents(t, f.pair(t, "phone"), "1")
 
 	assert.Equal(t, ": connected", frame(t, r))
+	streamID(t, r)
 	assert.True(t, strings.HasPrefix(frame(t, r), "id: 2\n"))
 	assert.True(t, strings.HasPrefix(frame(t, r), "id: 4\n"))
 	f.srv.hub.publish(pluginsdk.Event{Seq: 4, Topic: "notify.posted", Payload: json.RawMessage(`{}`)})
@@ -461,6 +475,7 @@ func TestEventsCursorAheadOfBusStartsLive(t *testing.T) {
 	_, r := f.openEvents(t, f.pair(t, "phone"), "100")
 
 	assert.Equal(t, ": connected", frame(t, r))
+	streamID(t, r)
 	f.srv.hub.publish(pluginsdk.Event{Seq: 4, Topic: "agents.changed", Payload: json.RawMessage(`{}`)})
 	assert.True(t, strings.HasPrefix(frame(t, r), "id: 4\n"))
 }
@@ -470,6 +485,7 @@ func TestEventsBurstPastBufferCatchesUpWithoutDropping(t *testing.T) {
 	f.backend.headEntered, f.backend.headRelease = make(chan struct{}), make(chan struct{})
 	_, r := f.openEvents(t, f.pair(t, "phone"), "100000")
 	assert.Equal(t, ": connected", frame(t, r))
+	streamID(t, r)
 	<-f.backend.headEntered
 	publish := func(seq int) {
 		ev := pluginsdk.Event{Seq: int64(seq), Topic: "agents.changed", Payload: json.RawMessage(`{}`)}
@@ -494,6 +510,7 @@ func TestRevokeClosesStreamsAndToken(t *testing.T) {
 	token := f.pair(t, "phone")
 	_, r := f.openEvents(t, token, "")
 	assert.Equal(t, ": connected", frame(t, r))
+	streamID(t, r)
 	assert.True(t, f.srv.hub.connected("phone"))
 
 	require.NoError(t, f.srv.revoke(t.Context(), "phone"))
@@ -544,7 +561,7 @@ func TestParseTailscaleKeepsTailnetIPs(t *testing.T) {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	f := &fixture{backend: &fakeBackend{}, kv: &memKV{data: map[string][]byte{}}, clock: &clock{now: time.Unix(1_800_000_000, 0)}, topics: &topicLog{}}
+	f := &fixture{backend: &fakeBackend{}, kv: &memKV{data: map[string][]byte{}}, clock: &clock{now: time.Unix(1_800_000_000, 0)}, topics: &topicLog{}, watched: &watchLog{}}
 	f.srv = &server{
 		backend:  f.backend,
 		devices:  newDeviceStore(f.kv, f.clock.Now),
@@ -552,6 +569,7 @@ func newFixture(t *testing.T) *fixture {
 		hub:      newHub(func() {}),
 		identity: &identity{kv: f.kv, publish: f.topics.add, comp: computer{ID: "cmp", Name: "Mac"}},
 		changed:  func() {},
+		watching: f.watched.add,
 		ping:     time.Hour,
 	}
 	f.ts = httptest.NewServer(f.srv.handler())
@@ -643,6 +661,15 @@ func openEvents(t *testing.T, base, token, lastEventID string) (*http.Response, 
 	return res, bufio.NewReader(res.Body)
 }
 
+func streamID(t *testing.T, r *bufio.Reader) string {
+	t.Helper()
+	data, ok := strings.CutPrefix(frame(t, r), "event: stream\ndata: ")
+	require.True(t, ok)
+	var out streamFrame
+	require.NoError(t, json.Unmarshal([]byte(data), &out))
+	return out.ID
+}
+
 func frame(t *testing.T, r *bufio.Reader) string {
 	t.Helper()
 	var lines []string
@@ -715,6 +742,43 @@ func (b *fakeBackend) Head(context.Context) (int64, error) {
 
 func (b *fakeBackend) Version(context.Context) (string, error) {
 	return "1.2.3", nil
+}
+
+func (b *fakeBackend) UISections(context.Context) ([]json.RawMessage, error) {
+	return []json.RawMessage{json.RawMessage(`{"id":"cron","scope":"workspace"}`), json.RawMessage(`{"id":"settings","scope":"app"}`)}, nil
+}
+
+func (b *fakeBackend) UIGet(context.Context, string) ([]pluginsdk.SlotView, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.views), nil
+}
+
+func (b *fakeBackend) UIEvent(_ context.Context, ev pluginsdk.UIEvent) (json.RawMessage, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.uiEvents = append(b.uiEvents, ev)
+	return json.RawMessage(`{"ok":true}`), nil
+}
+
+func (b *fakeBackend) UISubscribe(_ context.Context, p pluginsdk.UISubscribe) (string, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.subs = append(b.subs, p)
+	return "uisub_" + strconv.Itoa(len(b.subs)), nil
+}
+
+func (b *fakeBackend) UIUnsubscribe(_ context.Context, sub string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.unsubs = append(b.unsubs, sub)
+	return nil
+}
+
+func (b *fakeBackend) uiCalls() ([]pluginsdk.UISubscribe, []string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.subs), slices.Clone(b.unsubs)
 }
 
 func (m *memKV) StorageGet(_ context.Context, key string, out any) (bool, error) {
@@ -795,6 +859,18 @@ func (b *fakeBackend) calls() []runCall {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return slices.Clone(b.runs)
+}
+
+func (l *watchLog) add(w contract.RemoteWatching) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.list = append(l.list, w)
+}
+
+func (l *watchLog) all() []contract.RemoteWatching {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.list)
 }
 
 func (l *topicLog) add(topic string, _ any) {

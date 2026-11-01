@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -37,13 +39,17 @@ type hub struct {
 
 	mu      sync.Mutex
 	streams map[*stream]struct{}
+	spaces  map[string]*space
 }
 
 type stream struct {
+	id      string
 	device  string
 	events  chan pluginsdk.Event
 	lagged  chan struct{}
 	lagging bool
+	ui      *uiQueue
+	watch   map[string][]string
 	done    chan struct{}
 	once    sync.Once
 }
@@ -56,11 +62,11 @@ type wireEvent struct {
 }
 
 func newHub(changed func()) *hub {
-	return &hub{changed: changed, streams: map[*stream]struct{}{}}
+	return &hub{changed: changed, streams: map[*stream]struct{}{}, spaces: map[string]*space{}}
 }
 
 func (h *hub) open(device string, valid func() bool) (*stream, bool) {
-	st := &stream{device: device, events: make(chan pluginsdk.Event, streamBuffer), lagged: make(chan struct{}, 1), done: make(chan struct{})}
+	st := &stream{id: rand.Text(), device: device, events: make(chan pluginsdk.Event, streamBuffer), lagged: make(chan struct{}, 1), ui: newUIQueue(), watch: map[string][]string{}, done: make(chan struct{})}
 	h.mu.Lock()
 	if !valid() {
 		h.mu.Unlock()
@@ -75,15 +81,18 @@ func (h *hub) open(device string, valid func() bool) (*stream, bool) {
 	return st, true
 }
 
-func (h *hub) close(st *stream) {
+func (h *hub) close(st *stream) []string {
 	st.stop()
 	h.mu.Lock()
 	delete(h.streams, st)
+	watched := slices.Sorted(maps.Keys(st.watch))
+	clear(st.watch)
 	last := !h.connectedLocked(st.device)
 	h.mu.Unlock()
 	if last {
 		h.changed()
 	}
+	return watched
 }
 
 func (h *hub) publish(ev pluginsdk.Event) {
@@ -165,12 +174,12 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 		writeError(w, http.StatusUnauthorized, codeUnauthorized, "unknown or revoked device token")
 		return
 	}
-	defer s.hub.close(st)
+	defer s.closeStream(r.Context(), st)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
-	if !s.send(rc, w, ": connected\n\n") {
+	if !s.send(rc, w, ": connected\n\n") || !s.send(rc, w, streamSSEFrame(st.id)) {
 		return
 	}
 	var seen int64
@@ -205,6 +214,12 @@ func (s *server) events(w http.ResponseWriter, r *http.Request, d device) {
 				return
 			}
 			seen = ev.Seq
+		case <-st.ui.ready:
+			for _, view := range st.ui.take() {
+				if !s.send(rc, w, uiSSEFrame(view)) {
+					return
+				}
+			}
 		case <-ping.C:
 			if !valid() || !s.send(rc, w, ": ping\n\n") {
 				return

@@ -121,6 +121,25 @@ func TestPresenceEvents(t *testing.T) {
 	assert.JSONEq(t, fmt.Sprintf(`{"workspace":%q}`, p.ID), string(events[0].Payload))
 }
 
+func TestSubscribeWithoutPresence(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t)
+	p := h.CreateWorkspace(t, "demo")
+	c := h.Client(t)
+	var sub struct {
+		Subscription string `json:"subscription"`
+	}
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]any{"workspaceId": p.ID, "presence": false}, &sub))
+	var present []string
+	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
+	require.NoError(t, c.Call(t.Context(), "ui.unsubscribe", map[string]string{"subscription": sub.Subscription}, nil))
+	events, err := h.Bus.Read(t.Context(), "ui.*", 0, 0)
+	require.NoError(t, err)
+
+	assert.Empty(t, present)
+	assert.Empty(t, events)
+}
+
 func TestWorkspaceTouchOrdersList(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t)

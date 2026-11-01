@@ -9,7 +9,7 @@ public enum Popups {
         order.last { views[$0].map(isOpen) ?? false }
     }
 
-    static func isOpen(_ view: SlotView) -> Bool {
+    public static func isOpen(_ view: SlotView) -> Bool {
         view.tree.type != "empty"
     }
 }

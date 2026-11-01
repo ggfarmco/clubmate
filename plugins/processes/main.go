@@ -35,6 +35,7 @@ type app struct {
 	workspaces  map[string]*workspaceState
 	present     map[string]bool
 	sections    map[string]string
+	watched     map[string]bool
 	deleted     map[string]time.Time
 }
 
@@ -50,6 +51,7 @@ func newApp(memKiB int64) *app {
 		workspaces: map[string]*workspaceState{},
 		present:    map[string]bool{},
 		sections:   map[string]string{},
+		watched:    map[string]bool{},
 		deleted:    map[string]time.Time{},
 	}
 }
@@ -63,7 +65,14 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if err != nil {
 		return err
 	}
-	for _, pattern := range []string{"ui.*", "workspace.*"} {
+	watched, err := h.WatchedSections(ctx, ready.Seq)
+	if err != nil {
+		return err
+	}
+	for id, sections := range watched {
+		a.setWatched(id, sections)
+	}
+	for _, pattern := range []string{"ui.*", "workspace.*", contract.TopicRemoteWatching} {
 		if _, err := h.Subscribe(ctx, pattern, ready.Seq); err != nil {
 			return err
 		}
@@ -103,6 +112,11 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		}
 		a.setSection(p.Workspace, p.Section)
 		if p.Section == sectionID {
+			a.renderLogged(ctx, h, p.Workspace)
+		}
+	case contract.TopicRemoteWatching:
+		var p contract.RemoteWatching
+		if decode(ev, &p) && a.setWatched(p.Workspace, p.Sections) {
 			a.renderLogged(ctx, h, p.Workspace)
 		}
 	case contract.TopicWorkspaceCreated:

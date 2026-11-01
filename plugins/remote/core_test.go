@@ -15,7 +15,7 @@ import (
 	"clubmate/internal/testutil"
 )
 
-const alphaManifest = `{"id":"alpha","name":"alpha","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"alpha.say","title":"Say","remote":true}]}}`
+const alphaManifest = `{"id":"alpha","name":"alpha","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"alpha.say","title":"Say","remote":true}],"sections":[{"id":"alpha","title":"Alpha"}]}}`
 
 func TestRemoteThroughCore(t *testing.T) {
 	t.Setenv(listenEnv, "127.0.0.1:0")
@@ -50,14 +50,27 @@ func TestRemoteThroughCore(t *testing.T) {
 	rpcCall(t, base, paired.Token, "command", map[string]any{"id": "alpha.say", "workspace": p.ID, "args": map[string]any{"text": "hi"}}, &said)
 	_, stream := openEvents(t, base, paired.Token, "")
 	require.Equal(t, ": connected", frame(t, stream))
+	id := streamID(t, stream)
 	_, err = h.Bus.Publish(t.Context(), "agents.changed", "test", json.RawMessage(`{"workspace":"`+p.ID+`"}`))
 	require.NoError(t, err)
+	busFrame := frame(t, stream)
+	rpcCall(t, base, paired.Token, "uiWatch", map[string]any{"stream": id, "workspace": p.ID, "slots": []string{"alpha.main"}}, new(json.RawMessage))
+	var echoed map[string]any
+	rpcCall(t, base, paired.Token, "uiEvent", map[string]any{"workspace": p.ID, "slot": "alpha.main", "nodeId": "x", "action": "say", "value": "hi"}, &echoed)
+	var present []string
+	require.NoError(t, c.Call(t.Context(), "ui.presence", struct{}{}, &present))
+	replayed := frame(t, stream)
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "tree": map[string]any{"type": "empty", "props": map[string]any{"text": "hi"}}}))
 	var devices []deviceView
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "remote.devices", "workspaceId": ""}, &devices))
 
 	assert.Equal(t, []string{"alpha.say"}, hello.Commands)
 	assert.Equal(t, "alpha", said["plugin"])
-	assert.Contains(t, frame(t, stream), `"workspace":"`+p.ID+`"`)
+	assert.Contains(t, busFrame, `"workspace":"`+p.ID+`"`)
+	assert.Equal(t, "event: ui\ndata: {\"workspace\":\""+p.ID+`","slot":"alpha.main","rev":1,"tree":{"type":"text","props":{"text":"hello"}}}`, replayed)
+	assert.Equal(t, "event: ui\ndata: {\"workspace\":\""+p.ID+`","slot":"alpha.main","rev":2,"tree":{"props":{"text":"hi"},"type":"empty"}}`, frame(t, stream))
+	assert.Equal(t, []string{p.ID}, present)
+	assert.Equal(t, map[string]any{"said": "hi", "plugin": "alpha"}, echoed)
 	require.Len(t, devices, 1)
 	assert.True(t, devices[0].Connected)
 	assert.True(t, strings.HasPrefix(pr.Link, "clubmate://pair?v=1&c="+pr.Code+"&h=127.0.0.1&p="))

@@ -131,6 +131,16 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
 		return err
 	}
+	watched, err := h.WatchedSections(ctx, ready.Seq)
+	if err != nil {
+		return err
+	}
+	for id, sections := range watched {
+		a.setWatched(id, sections)
+	}
+	if _, err := h.Subscribe(ctx, contract.TopicRemoteWatching, ready.Seq); err != nil {
+		return err
+	}
 	if err := a.loadPresence(ctx); err != nil {
 		return err
 	}
@@ -157,6 +167,12 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		var f editorFile
 		if json.Unmarshal(ev.Payload, &f) == nil && a.setEditorFile(f) {
 			a.kick(f.Workspace)
+		}
+	case contract.TopicRemoteWatching:
+		var p contract.RemoteWatching
+		if json.Unmarshal(ev.Payload, &p) == nil {
+			a.setWatched(p.Workspace, p.Sections)
+			a.kick(p.Workspace)
 		}
 	case contract.TopicWorkspaceCreated:
 		var p contract.WorkspaceChanged

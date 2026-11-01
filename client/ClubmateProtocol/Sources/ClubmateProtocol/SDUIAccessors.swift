@@ -16,7 +16,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
     public let menu: [SDUIMenuEntry]
     public let truncate: SDUITruncate
 
-    init?(_ value: JSONValue) {
+    public init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
         self.id = id
         self.label = label
@@ -36,7 +36,7 @@ public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
 
     public var id: String { action }
 
-    init?(_ value: JSONValue) {
+    public init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let action = fields["action"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
         self.action = action
         self.label = label
@@ -59,7 +59,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         [item] + (expanded ? children.flatMap(\.visibleItems) : [])
     }
 
-    init?(_ value: JSONValue) {
+    public init?(_ value: JSONValue) {
         guard let item = SDUIItem(value), let fields = value.objectValue else { return nil }
         self.item = item
         tone = fields["tone"]?.stringValue
@@ -75,7 +75,7 @@ public struct SDUIHeaderBadge: Sendable, Equatable {
     public let text: String
     public let tone: String?
 
-    init?(_ json: JSONValue) {
+    public init?(_ json: JSONValue) {
         guard let fields = json.objectValue, let text = fields["text"]?.stringValue else { return nil }
         self.text = text
         tone = fields["tone"]?.stringValue
@@ -88,7 +88,7 @@ public struct SDUIOption: Sendable, Equatable, Identifiable {
 
     public var id: String { value }
 
-    init?(_ json: JSONValue) {
+    public init?(_ json: JSONValue) {
         guard let fields = json.objectValue, let value = fields["value"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
         self.value = value
         self.label = label
@@ -119,7 +119,7 @@ public struct SDUIColumn: Sendable, Equatable, Identifiable {
         self.priority = priority
     }
 
-    init?(_ value: JSONValue) {
+    public init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let title = fields["title"]?.stringValue else { return nil }
         let width = fields["width"]?.numberValue ?? 0
         self.init(
@@ -155,7 +155,7 @@ public struct SDUISpark: Sendable, Equatable {
         self.max = max
     }
 
-    init?(values: JSONValue?, max: JSONValue?) {
+    public init?(values: JSONValue?, max: JSONValue?) {
         guard let max = max?.numberValue, max > 0 else { return nil }
         self.init(values: values?.arrayValue?.compactMap(\.numberValue) ?? [], max: max)
     }
@@ -183,7 +183,7 @@ public struct SDUICell: Sendable, Equatable {
         return "\(seconds / 3600):\(two(seconds / 60 % 60)):\(two(seconds % 60))"
     }
 
-    init(_ value: JSONValue) {
+    public init(_ value: JSONValue) {
         let fields = value.objectValue ?? [:]
         let spark = fields["spark"]?.objectValue
         let tone = fields["tone"]?.stringValue
@@ -216,7 +216,7 @@ public struct SDUITableRow: Sendable, Equatable, Identifiable {
         self.cells = cells
     }
 
-    init?(_ value: JSONValue) {
+    public init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue else { return nil }
         self.init(
             id: id,

@@ -456,7 +456,7 @@ public struct PlanItem: Sendable, Equatable {
     public let status: PlanStatus
     public let priority: String
 
-    init(_ value: JSONValue) {
+    public init(_ value: JSONValue) {
         content = value["content"]?.stringValue ?? ""
         status = PlanStatus(value["status"]?.stringValue)
         priority = value["priority"]?.stringValue ?? ""

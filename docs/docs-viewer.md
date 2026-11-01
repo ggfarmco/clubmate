@@ -81,7 +81,7 @@ Both are forwarded to paired phones by `remote` (see [remote](remote.md)).
 - an agent calls `docs_open`
 - Open Doc… (⇧⌘D or the command palette, Mac): a fuzzy picker over `docs.list` in the plugin's order (agent docs first; `sparkles` for an agent doc, `chart.bar.doc.horizontal` for an artifact, `doc.richtext` for Markdown), filtered on `rel` in the client; ↩ runs `docs.open {path}`. The list is read once per opening.
 - Open on a transcript card or tool row whose entry has `doc` (Mac and phone, see [agents](agents.md#docs-in-the-transcript))
-- on the phone, the "Opened <file name>" banner shown for `docs.opened` on that session's screen
+- on the phone, the "Opened <file name>" banner shown for `docs.opened` on that session's screen when the Mac has no UI bridge (`hello.ui`); with it, the doc arrives as the `docs.popup` sheet instead
 
 ## Phone
 
