@@ -97,11 +97,11 @@ extension JSONDecoder {
 
 extension Date {
     public static func parseRFC3339(_ text: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        guard let dot = text.firstIndex(of: ".") else { return formatter.date(from: text) }
+        let style = ISO8601FormatStyle()
+        guard let dot = text.firstIndex(of: ".") else { return try? style.parse(text) }
         let digits = text[text.index(after: dot)...].prefix { $0.isASCII && $0.isNumber }
-        let millis = String(digits.prefix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: text[..<dot] + "." + millis + text[digits.endIndex...])
+        let millis = Double(String(digits.prefix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)) ?? 0
+        guard let whole = try? style.parse(String(text[..<dot] + text[digits.endIndex...])) else { return nil }
+        return Date(timeIntervalSince1970: (whole.timeIntervalSince1970 * 1000 + millis) / 1000)
     }
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -45,6 +46,11 @@ type server struct {
 	identity *identity
 	changed  func()
 	ping     time.Duration
+
+	cacheMu sync.Mutex
+	gen     int64
+	cmds    []string
+	version string
 }
 
 type computer struct {
@@ -124,8 +130,8 @@ type authedHandler func(w http.ResponseWriter, r *http.Request, d device)
 
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /v1/pair", s.pair)
-	mux.HandleFunc("POST /v1/rpc", s.authed(s.rpc))
+	mux.HandleFunc("POST /v1/pair", gzipped(s.pair))
+	mux.HandleFunc("POST /v1/rpc", gzipped(s.authed(s.rpc)))
 	mux.HandleFunc("GET /v1/events", s.authed(s.events))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
@@ -248,7 +254,7 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 	if err != nil {
 		return helloResult{}, err
 	}
-	version, err := s.backend.Version(ctx)
+	version, err := s.coreVersion(ctx)
 	if err != nil {
 		return helloResult{}, err
 	}
@@ -318,6 +324,12 @@ func (s *server) setIdentityColour(ctx context.Context, colour string) (identity
 }
 
 func (s *server) remoteCommands(ctx context.Context) ([]string, error) {
+	s.cacheMu.Lock()
+	cached, gen := s.cmds, s.gen
+	s.cacheMu.Unlock()
+	if cached != nil {
+		return cached, nil
+	}
 	all, err := s.backend.Commands(ctx)
 	if err != nil {
 		return nil, err
@@ -328,7 +340,36 @@ func (s *server) remoteCommands(ctx context.Context) ([]string, error) {
 			out = append(out, c.ID)
 		}
 	}
+	s.cacheMu.Lock()
+	if s.gen == gen {
+		s.cmds = out
+	}
+	s.cacheMu.Unlock()
 	return out, nil
+}
+
+func (s *server) forgetCommands() {
+	s.cacheMu.Lock()
+	s.gen++
+	s.cmds = nil
+	s.cacheMu.Unlock()
+}
+
+func (s *server) coreVersion(ctx context.Context) (string, error) {
+	s.cacheMu.Lock()
+	version := s.version
+	s.cacheMu.Unlock()
+	if version != "" {
+		return version, nil
+	}
+	version, err := s.backend.Version(ctx)
+	if err != nil {
+		return "", err
+	}
+	s.cacheMu.Lock()
+	s.version = version
+	s.cacheMu.Unlock()
+	return version, nil
 }
 
 func (e *apiError) Error() string {

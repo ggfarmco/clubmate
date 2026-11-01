@@ -9,6 +9,7 @@ import (
 
 type procCache struct {
 	ttl      time.Duration
+	list     func() ([]proc.Process, error)
 	readArgs func(pid int) []string
 
 	mu    sync.Mutex
@@ -32,6 +33,10 @@ type argsKey struct {
 
 func WithSnapshotTTL(d time.Duration) Option {
 	return func(s *Service) { s.cache.ttl = d }
+}
+
+func WithProcessList(fn func() ([]proc.Process, error)) Option {
+	return func(s *Service) { s.cache.list = fn }
 }
 
 func WithArgsReader(fn func(pid int) []string) Option {
@@ -68,9 +73,13 @@ func (s *Service) cachedSnapshot() (procTable, error) {
 }
 
 func (s *Service) freshSnapshot() (procTable, error) {
-	s.cache.mu.Lock()
-	defer s.cache.mu.Unlock()
-	return s.snapshotLocked()
+	procs, err := s.cache.list()
+	if err != nil {
+		return procTable{}, err
+	}
+	t := newProcTable(procs)
+	s.pruneArgs(t.byPID)
+	return t, nil
 }
 
 func (s *Service) snapshotLocked() (procTable, error) {
@@ -78,10 +87,7 @@ func (s *Service) snapshotLocked() (procTable, error) {
 	if err != nil {
 		return procTable{}, err
 	}
-	t := procTable{procs: procs, byPID: make(map[int]proc.Process, len(procs))}
-	for _, p := range procs {
-		t.byPID[p.PID] = p
-	}
+	t := newProcTable(procs)
 	if s.cache.ttl > 0 {
 		s.cache.table, s.cache.at = t, time.Now()
 	}
@@ -98,4 +104,12 @@ func (s *Service) pruneArgs(byPID map[int]proc.Process) {
 			delete(c.args, key)
 		}
 	}
+}
+
+func newProcTable(procs []proc.Process) procTable {
+	t := procTable{procs: procs, byPID: make(map[int]proc.Process, len(procs))}
+	for _, p := range procs {
+		t.byPID[p.PID] = p
+	}
+	return t
 }

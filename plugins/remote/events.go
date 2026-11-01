@@ -20,6 +20,8 @@ const (
 	sseWriteTimeout = 30 * time.Second
 	lastEventHeader = "Last-Event-ID"
 	afterQuery      = "after"
+
+	pluginChangedTopic = "plugin.changed"
 )
 
 var (

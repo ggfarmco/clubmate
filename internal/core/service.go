@@ -103,6 +103,9 @@ func NewService(workspaces *workspace.Store, sessions *session.Manager, tracker 
 	for _, opt := range opts {
 		opt(s)
 	}
+	if s.cache.list == nil {
+		s.cache.list = snapshot
+	}
 	return s
 }
 

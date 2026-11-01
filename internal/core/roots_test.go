@@ -219,13 +219,20 @@ func TestProcessTreeSharesSnapshotWithinTTL(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	var mu sync.Mutex
-	snapshots, argReads := 0, 0
+	snapshots, lists, argReads := 0, 0, 0
 	t0 := time.Unix(1000, 0)
+	procs := []proc.Process{{PID: 60, PPID: 1, PGID: 60, Comm: "node", StartTime: t0}}
 	snapshot := func() ([]proc.Process, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		snapshots++
-		return []proc.Process{{PID: 60, PPID: 1, PGID: 60, Comm: "node", StartTime: t0}}, nil
+		return procs, nil
+	}
+	list := func() ([]proc.Process, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		lists++
+		return procs, nil
 	}
 	readArgs := func(int) []string {
 		mu.Lock()
@@ -234,7 +241,7 @@ func TestProcessTreeSharesSnapshotWithinTTL(t *testing.T) {
 		return []string{"node", "acp"}
 	}
 	tracker := proc.NewTracker(func(int) ([]string, error) { return nil, nil }, os.Getpid())
-	svc := core.NewService(store, session.NewManager(dirs, "unused"), tracker, snapshot, core.WithSnapshotTTL(time.Hour), core.WithArgsReader(readArgs))
+	svc := core.NewService(store, session.NewManager(dirs, "unused"), tracker, snapshot, core.WithSnapshotTTL(time.Hour), core.WithProcessList(list), core.WithArgsReader(readArgs))
 	p, err := svc.CreateWorkspace(t.Context(), "demo", nil)
 	require.NoError(t, err)
 
@@ -246,7 +253,8 @@ func TestProcessTreeSharesSnapshotWithinTTL(t *testing.T) {
 
 	_, err = svc.RegisterProcess(t.Context(), core.RootOwner{Plugin: "agents", PID: 50}, core.RegisterRequest{WorkspaceID: p.ID, PID: 60, Label: "x"})
 	require.ErrorIs(t, err, core.ErrNotOwned)
-	assert.Equal(t, 2, snapshots)
+	assert.Equal(t, 1, snapshots)
+	assert.Equal(t, 1, lists)
 
 	node := proc.Process{PID: 60, Comm: "node", StartTime: t0}
 	assert.Equal(t, []string{"node", "acp"}, svc.ProcessArgs(node))

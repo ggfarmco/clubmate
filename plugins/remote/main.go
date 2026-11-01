@@ -214,6 +214,9 @@ func (a *app) busEvent(_ context.Context, _ *pluginsdk.Host, _ string, ev plugin
 	a.mu.Lock()
 	a.lastSeq = max(a.lastSeq, ev.Seq)
 	a.mu.Unlock()
+	if ev.Topic == pluginChangedTopic {
+		a.srv.forgetCommands()
+	}
 	a.srv.hub.publish(ev)
 }
 
@@ -347,6 +350,7 @@ func (a *app) subscribe(ctx context.Context, h *pluginsdk.Host, after int64) {
 	a.mu.Lock()
 	a.sub = sid
 	a.mu.Unlock()
+	a.srv.forgetCommands()
 }
 
 func (a *app) rescanLoop(ctx context.Context) {

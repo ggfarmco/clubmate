@@ -106,30 +106,38 @@ public actor RemoteClient {
             let hosts = [host] + policy.filter(link.hosts).filter { $0 != host }
             return PairResult(token: reply.token, computer: Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now, colour: reply.computer.colour))
         case 403:
-            throw RemoteError.pairingFailed((try? JSONDecoder().decode(Envelope.self, from: data))?.error?.message ?? "")
+            throw RemoteError.pairingFailed((try? JSONDecoder().decode(Envelope<JSONValue>.self, from: data))?.error?.message ?? "")
         default:
             throw RemoteError.http(response.statusCode)
         }
     }
 
     public func rpc(_ method: String, params: JSONValue? = nil) async throws -> JSONValue {
+        try await rpc(method, params: params, as: JSONValue.self) ?? .null
+    }
+
+    public func rpc<T: Decodable & Sendable>(_ method: String, params: JSONValue? = nil, as type: T.Type) async throws -> T? {
         let body = try JSONEncoder().encode(RPCRequest(method: method, params: params))
         let (data, response, _) = try await exchange(path: "/v1/rpc", method: "POST", body: body, probe: method == "hello")
         if response.statusCode == 401 { throw RemoteError.unauthorized }
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
+        guard let envelope = try? JSONDecoder.clubmate.decode(Envelope<T>.self, from: data) else {
+            if let failure = (try? JSONDecoder().decode(Envelope<JSONValue>.self, from: data))?.error {
+                throw RemoteError.server(code: failure.code, message: failure.message)
+            }
             throw response.statusCode == 200 ? RemoteError.badResponse : RemoteError.http(response.statusCode)
         }
         if let error = envelope.error { throw RemoteError.server(code: error.code, message: error.message) }
         guard response.statusCode == 200 else { throw RemoteError.http(response.statusCode) }
-        return envelope.result ?? .null
+        return envelope.result
     }
 
     public func hello() async throws -> Hello {
-        try await rpc("hello").decode(Hello.self)
+        guard let hello = try await rpc("hello", as: Hello.self) else { throw RemoteError.badResponse }
+        return hello
     }
 
     public func workspaces() async throws -> [Workspace] {
-        try await rpc("workspaces").decode([Workspace].self)
+        try await rpc("workspaces", as: [Workspace].self) ?? []
     }
 
     public func macs(_ macs: [MacTag]) async throws {
@@ -141,10 +149,19 @@ public actor RemoteClient {
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue? = nil) async throws -> JSONValue {
+        try await rpc("command", params: Self.commandParams(id, workspace: workspace, args: args))
+    }
+
+    public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue? = nil, as type: T.Type) async throws -> T {
+        guard let value = try await rpc("command", params: Self.commandParams(id, workspace: workspace, args: args), as: type) else { throw RemoteError.badResponse }
+        return value
+    }
+
+    private static func commandParams(_ id: String, workspace: String?, args: JSONValue?) -> JSONValue {
         var params: [String: JSONValue] = ["id": .string(id)]
         if let workspace { params["workspace"] = .string(workspace) }
         if let args { params["args"] = args }
-        return try await rpc("command", params: .object(params))
+        return .object(params)
     }
 
     public func events(after seq: Int?) async throws -> AsyncThrowingStream<EventStreamItem, any Error> {
@@ -275,12 +292,12 @@ private struct RPCRequest: Encodable {
     let params: JSONValue?
 }
 
-private struct Envelope: Decodable {
+private struct Envelope<Result: Decodable>: Decodable {
     struct Failure: Decodable {
         let code: String
         let message: String
     }
 
-    let result: JSONValue?
+    let result: Result?
     let error: Failure?
 }

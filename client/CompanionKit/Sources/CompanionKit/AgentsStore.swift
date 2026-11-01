@@ -94,7 +94,7 @@ public final class AgentsStore {
     private func loadSessions() async {
         guard let runner else { return }
         do {
-            sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil).decode([AgentSession].self)
+            sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil, as: [AgentSession].self)
             error = nil
         } catch {
             self.error = Self.message(error)
@@ -128,8 +128,10 @@ public final class AgentsStore {
                     let fromTurn = loaded?.lastTurn ?? 0
                     var args: [String: JSONValue] = ["session": .string(session), "compact": .bool(true)]
                     if fromTurn > 0 { args["fromTurn"] = .number(Double(fromTurn)) }
-                    let fetched = try await Self.transcript(from: runner.command("agents.transcript", workspace: workspace, args: .object(args)))
-                    transcripts[session] = fromTurn > 0 ? loaded?.merging(fetched, fromTurn: fromTurn) ?? fetched : fetched
+                    if let cursor = loaded?.cursor { args["since"] = .string(cursor) }
+                    let fetched = try await runner.command("agents.transcript", workspace: workspace, args: .object(args), as: AgentTranscript.self)
+                    let merged = if let loaded, fetched.delta { loaded.merging(delta: fetched) } else if let loaded, fromTurn > 0 { loaded.merging(fetched, fromTurn: fromTurn) } else { fetched }
+                    if transcripts[session] != merged { transcripts[session] = merged }
                     transcriptErrors[session] = nil
                     reconcile(session)
                     return
@@ -158,11 +160,6 @@ public final class AgentsStore {
 
     private func load(_ session: String) async {
         await Task { await loadTranscript(session, incremental: true) }.value
-    }
-
-    @concurrent
-    private nonisolated static func transcript(from value: JSONValue) async throws -> AgentTranscript {
-        try value.decode(AgentTranscript.self)
     }
 
     public func send(_ text: String, attachments: [ComposerAttachment] = [], to session: String) async throws {
@@ -197,7 +194,7 @@ public final class AgentsStore {
 
     public func answer(_ session: String, request: String, option: String) async throws {
         guard let runner else { return }
-        sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil).decode([AgentSession].self)
+        sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil, as: [AgentSession].self)
         do {
             guard self.session(session)?.pending.contains(request) == true else { throw AnswerError.alreadyAnswered }
             try await run("agents.permission", ["session": .string(session), "request": .string(request), "option": .string(option)])

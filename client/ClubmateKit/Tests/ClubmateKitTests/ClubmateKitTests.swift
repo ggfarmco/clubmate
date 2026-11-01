@@ -68,6 +68,7 @@ final class ClubmateKitTests: XCTestCase {
 
         var feed = BusFeed(subscription: "s1", after: 3)
         XCTAssertEqual(feed.receive(event("other", 9)), .ignored)
+        XCTAssertEqual(feed.receive(RPCNotification(method: "ui.updated", params: .object(["subscription": .string("s1")]))), .ignored)
         XCTAssertEqual(feed.receive(event("s1", 5)), .event(BusEvent(seq: 5, topic: "t", payload: .null)))
         XCTAssertEqual(feed.receive(closed("s1")), .closed(after: 5))
         feed.resubscribed("s2")

@@ -5,10 +5,15 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"clubmate/plugins/agents/acp"
 )
+
+const cursorSep = "."
+
+var transcriptEpoch = strconv.FormatInt(time.Now().UnixNano(), 36)
 
 const (
 	entryUser       = "user"
@@ -37,6 +42,7 @@ type transcriptState struct {
 	turns    []turnInfo
 	turn     int
 	nextID   int
+	rev      int64
 	edited   bool
 	prompted bool
 	senders  []string
@@ -54,6 +60,8 @@ type transcriptView struct {
 	Commands []acp.AvailableCommand    `json:"commands"`
 	Turns    []turnInfo                `json:"turns"`
 	Entries  []*entry                  `json:"entries"`
+	Cursor   string                    `json:"cursor,omitempty"`
+	Delta    bool                      `json:"delta,omitempty"`
 }
 
 type entry struct {
@@ -80,8 +88,10 @@ type entry struct {
 
 	Compaction *compaction `json:"compaction,omitempty"`
 
-	node *nodeCache
-	sub  *subagent
+	node   *nodeCache
+	sub    *subagent
+	rev    int64
+	closed bool
 }
 
 type turnInfo struct {
@@ -132,30 +142,59 @@ type noticeUpdate struct {
 }
 
 func (s *session) view(fromTurn int) transcriptView {
+	return s.viewSince(fromTurn, -1)
+}
+
+func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
 	v := transcriptView{Session: s.rec, Modes: slices.Clone(s.modes), Configs: slices.Clone(s.configs), Usage: s.usage, Commands: slices.Clone(s.commands), Turns: slices.Clone(s.turns)}
 	for _, en := range s.entries {
-		if en.Turn >= fromTurn {
-			s.refreshLocked(en)
-			if en.node == nil {
-				en.node = new(nodeCache)
+		if since < 0 && en.Turn < fromTurn {
+			continue
+		}
+		s.refreshLocked(en)
+		if en.node == nil {
+			en.node = new(nodeCache)
+			s.bumpLocked(en)
+		}
+		c := *en
+		c.sub = nil
+		closed := false
+		if en.Tool != nil && (en.sub == nil && !s.running || en.sub != nil && s.proc == nil) {
+			if tool, ok := closeTool(en.Tool); ok {
+				c.Tool, c.node, c.Stoppable, closed = tool, nil, false, true
 			}
-			c := *en
-			c.sub = nil
-			if en.Tool != nil && (en.sub == nil && !s.running || en.sub != nil && s.proc == nil) {
-				if closed, ok := closeTool(en.Tool); ok {
-					c.Tool, c.node, c.Stoppable = closed, nil, false
-				}
-			}
-			if !s.running && c.Compaction != nil && c.Compaction.Status == compactionRunning {
-				c.Compaction, c.node = &compaction{Status: compactionCancelled}, nil
-			}
+		}
+		if !s.running && c.Compaction != nil && c.Compaction.Status == compactionRunning {
+			c.Compaction, c.node, closed = &compaction{Status: compactionCancelled}, nil, true
+		}
+		if closed != en.closed {
+			en.closed = closed
+			s.bumpLocked(en)
+			c.rev = en.rev
+		}
+		if c.rev > since {
 			v.Entries = append(v.Entries, &c)
 		}
 	}
+	v.Cursor = transcriptEpoch + cursorSep + strconv.FormatInt(s.rev, 10)
 	return v
+}
+
+func (s *session) bumpLocked(en *entry) {
+	s.rev++
+	en.rev = s.rev
+}
+
+func parseCursor(cursor string) (int64, bool) {
+	epoch, rev, ok := strings.Cut(cursor, cursorSep)
+	if !ok || epoch != transcriptEpoch {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(rev, 10, 64)
+	return n, err == nil && n >= 0
 }
 
 func (v transcriptView) lastTurn() transcriptView {

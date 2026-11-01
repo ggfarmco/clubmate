@@ -70,8 +70,7 @@ public final class WorkspaceUIStore {
         starting = true
         listener = Task { [weak self] in
             for await notification in stream {
-                let message = await UIMessage.decode(notification)
-                await self?.receive(message, generation)
+                await self?.receive(notification, generation)
             }
             guard !Task.isCancelled else { return }
             self?.connected = false
@@ -232,12 +231,15 @@ public final class WorkspaceUIStore {
         }
     }
 
-    private func receive(_ message: UIMessage, _ generation: Int) async {
-        guard generation == self.generation, !Task.isCancelled else { return }
+    private func receive(_ notification: RPCNotification, _ generation: Int) async {
+        guard generation == self.generation, !Task.isCancelled, UIMessage.carries(notification.method) else { return }
         if starting {
             await withCheckedContinuation { gate = $0 }
             guard generation == self.generation else { return }
         }
+        guard notification.subscription == subscription else { return }
+        let message = await UIMessage.decode(notification)
+        guard generation == self.generation else { return }
         if route(message) { await recover() }
     }
 
@@ -438,6 +440,10 @@ private enum UIMessage: Sendable {
     case view(UINotification, closed: Bool)
     case focus(UIFocusNotification)
     case ignored
+
+    static func carries(_ method: String) -> Bool {
+        ["ui.focus", "ui.updated", "ui.closed"].contains(method)
+    }
 
     @concurrent static func decode(_ notification: RPCNotification) async -> UIMessage {
         switch notification.method {

@@ -152,6 +152,7 @@ type transcriptArgs struct {
 	FromTurn int    `json:"fromTurn"`
 	Compact  bool   `json:"compact"`
 	Last     bool   `json:"last"`
+	Since    string `json:"since"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -298,7 +299,12 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	if err != nil {
 		return nil, err
 	}
-	v := s.view(args.FromTurn)
+	since, delta := parseCursor(args.Since)
+	if !delta || args.Last {
+		since, delta = -1, false
+	}
+	v := s.viewSince(args.FromTurn, since)
+	v.Delta = delta
 	if args.Last {
 		v = v.lastTurn()
 	} else if v.Session.Agent == agentClaude {
@@ -309,6 +315,7 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	}
 	if args.Compact {
 		compactTools(v.Entries)
+		v.Commands = nil
 	}
 	return v, nil
 }

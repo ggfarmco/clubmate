@@ -238,6 +238,22 @@ final class TranscriptRefreshTests: XCTestCase {
         store.unwatch("s")
     }
 
+    func testChangeSendsTheCursorAndMergesTheDeltaByEntry() async throws {
+        let first = #"{"session":{"id":"s","status":"running"},"cursor":"e.2","entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"},{"kind":"agent","id":"a1","turn":1,"text":"part"}]}"#
+        let delta = #"{"session":{"id":"s","status":"running"},"cursor":"e.4","delta":true,"entries":[{"kind":"agent","id":"a1","turn":1,"text":"partial answer"},{"kind":"tool","id":"t1","turn":1}]}"#
+        let runner = ScriptedRunner(replies: [first, delta])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        store.watch("s")
+        try await waitUntil { store.transcripts["s"] != nil }
+        store.handle(.event(BusEvent(seq: 1, topic: "agents.changed", payload: .object(["workspace": .string("w"), "session": .string("s")]))))
+        try await waitUntil { store.transcripts["s"]?.cursor == "e.4" }
+        XCTAssertEqual(runner.args.last, .object(["session": .string("s"), "compact": .bool(true), "fromTurn": .number(1), "since": .string("e.2")]))
+        let transcript = try XCTUnwrap(store.transcripts["s"])
+        XCTAssertEqual(transcript.entries.map(\.id), ["user/prompt-1", "agent/a1", "tool/t1"])
+        XCTAssertEqual(transcript.entries[1].content, .agent("partial answer"))
+        store.unwatch("s")
+    }
+
     func testSentPromptShowsUntilTheTranscriptRecordsIt() async throws {
         let before = #"{"session":{"id":"s","status":"done"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#
         let started = #"{"session":{"id":"s","status":"running"},"entries":[{"kind":"user","id":"prompt-1","turn":1,"text":"one"}]}"#

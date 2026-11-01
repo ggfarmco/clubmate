@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -43,6 +44,7 @@ type fakeBackend struct {
 	mu     sync.Mutex
 	runs   []runCall
 	events []pluginsdk.Event
+	lists  int
 }
 
 type runCall struct {
@@ -356,6 +358,46 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
 }
 
+func TestCommandListIsCachedUntilAPluginChanges(t *testing.T) {
+	f := newFixture(t)
+	token := f.pair(t, "phone")
+
+	f.call(t, token, "hello", nil)
+	f.call(t, token, "command", map[string]any{"id": "agents.sessions"})
+	f.srv.forgetCommands()
+	f.call(t, token, "command", map[string]any{"id": "agents.sessions"})
+
+	f.backend.mu.Lock()
+	defer f.backend.mu.Unlock()
+	assert.Equal(t, 2, f.backend.lists)
+}
+
+func TestRPCIsGzippedButEventsAreNot(t *testing.T) {
+	f := newFixture(t)
+	token := f.pair(t, "phone")
+	request := func(method, path string, body io.Reader) *http.Response {
+		req, err := http.NewRequestWithContext(t.Context(), method, f.ts.URL+path, body)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { res.Body.Close() })
+		return res
+	}
+
+	rpc := request(http.MethodPost, "/v1/rpc", strings.NewReader(`{"method":"workspaces"}`))
+	events := request(http.MethodGet, "/v1/events", nil)
+
+	assert.Equal(t, "gzip", rpc.Header.Get("Content-Encoding"))
+	gz, err := gzip.NewReader(rpc.Body)
+	require.NoError(t, err)
+	var out reply
+	require.NoError(t, json.NewDecoder(gz).Decode(&out))
+	assert.Contains(t, string(out.Result), `"prj_1"`)
+	assert.Empty(t, events.Header.Get("Content-Encoding"))
+}
+
 func TestWorkspacesListFoldersAndLegacyRoots(t *testing.T) {
 	f := newFixture(t)
 	token := f.pair(t, "phone")
@@ -585,6 +627,9 @@ func ipNet(s string) *net.IPNet {
 }
 
 func (b *fakeBackend) Commands(context.Context) ([]commandInfo, error) {
+	b.mu.Lock()
+	b.lists++
+	b.mu.Unlock()
 	return []commandInfo{{ID: "agents.sessions", Remote: true, Running: true}, {ID: "agents.delete", Running: true}, {ID: "agents.stopped", Remote: true}}, nil
 }
 

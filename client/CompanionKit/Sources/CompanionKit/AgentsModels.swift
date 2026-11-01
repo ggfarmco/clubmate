@@ -225,12 +225,14 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     public let usage: AgentUsage?
     public let turns: [AgentTurn]
     public let entries: [TranscriptEntry]
+    public let cursor: String?
+    public let delta: Bool
 
     enum CodingKeys: String, CodingKey {
-        case session, modes, configOptions, advisor, usage, turns, entries
+        case session, modes, configOptions, advisor, usage, turns, entries, cursor, delta
     }
 
-    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry]) {
+    init(session: AgentSession, modes: [AgentMode], configOptions: [AgentConfigOption], advisor: String, usage: AgentUsage?, turns: [AgentTurn], entries: [TranscriptEntry], cursor: String? = nil) {
         self.session = session
         self.modes = modes
         self.configOptions = configOptions
@@ -238,6 +240,8 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         self.usage = usage
         self.turns = turns
         self.entries = entries
+        self.cursor = cursor
+        delta = false
     }
 
     public var lastTurn: Int {
@@ -247,7 +251,16 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
     public func merging(_ newer: AgentTranscript, fromTurn: Int) -> AgentTranscript {
         AgentTranscript(
             session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
-            entries: entries.filter { $0.turn < fromTurn } + newer.entries
+            entries: entries.filter { $0.turn < fromTurn } + newer.entries, cursor: newer.cursor
+        )
+    }
+
+    public func merging(delta newer: AgentTranscript) -> AgentTranscript {
+        let changed = Dictionary(newer.entries.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+        let known = Set(entries.map(\.id))
+        return AgentTranscript(
+            session: newer.session, modes: newer.modes, configOptions: newer.configOptions, advisor: newer.advisor, usage: newer.usage, turns: newer.turns,
+            entries: newer.entries.isEmpty ? entries : entries.map { changed[$0.id] ?? $0 } + newer.entries.filter { !known.contains($0.id) }, cursor: newer.cursor
         )
     }
 
@@ -260,6 +273,8 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
         usage = try? c.decodeIfPresent(AgentUsage.self, forKey: .usage)
         turns = (try? c.decodeIfPresent([AgentTurn].self, forKey: .turns)) ?? []
         entries = (try c.decodeIfPresent([TranscriptEntry].self, forKey: .entries)) ?? []
+        cursor = try? c.decodeIfPresent(String.self, forKey: .cursor)
+        delta = (try? c.decodeIfPresent(Bool.self, forKey: .delta)) ?? false
     }
 }
 

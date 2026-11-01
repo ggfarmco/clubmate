@@ -8,6 +8,13 @@ public enum ConnectionSignal: Sendable, Equatable {
 
 public protocol CommandRunner: AnyObject {
     @MainActor func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue
+    @MainActor func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T
+}
+
+extension CommandRunner {
+    @MainActor public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
+        try await command(id, workspace: workspace, args: args).decode(type)
+    }
 }
 
 @MainActor
@@ -90,6 +97,15 @@ public final class ComputerConnection: CommandRunner {
     public func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         do {
             return try await client.command(id, workspace: workspace, args: args)
+        } catch RemoteError.unauthorized {
+            revoke()
+            throw RemoteError.unauthorized
+        }
+    }
+
+    public func command<T: Decodable & Sendable>(_ id: String, workspace: String?, args: JSONValue?, as type: T.Type) async throws -> T {
+        do {
+            return try await client.command(id, workspace: workspace, args: args, as: type)
         } catch RemoteError.unauthorized {
             revoke()
             throw RemoteError.unauthorized
