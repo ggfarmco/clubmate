@@ -95,7 +95,7 @@ struct SessionListView: View {
                         rows(items)
                     } header: {
                         Button {
-                            withAnimation { closedExpanded.toggle() }
+                            Motion.disclose { closedExpanded.toggle() }
                         } label: {
                             HStack {
                                 Text("\(group.group.title) · \(count)")
@@ -145,7 +145,7 @@ struct SessionListView: View {
                 SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants)
                 if !item.node.children.isEmpty {
                     SubagentToggle(count: item.node.descendants, expanded: item.expanded) {
-                        withAnimation {
+                        Motion.disclose {
                             if item.expanded { store.expanded.remove(item.id) } else { store.expanded.insert(item.id) }
                         }
                     }

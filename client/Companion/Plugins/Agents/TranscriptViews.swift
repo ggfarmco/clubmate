@@ -183,7 +183,7 @@ struct ThoughtView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
-                withAnimation(.snappy) { expanded.toggle() }
+                Motion.disclose { expanded.toggle() }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "chevron.right")
@@ -224,7 +224,7 @@ struct CompactionView: View {
             label
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            DisclosureGroup(isExpanded: $expanded) {
+            DisclosureGroup(isExpanded: $expanded.animation(Motion.disclosure)) {
                 Text(detail)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -259,7 +259,7 @@ struct ToolRow: View {
                 }
             }
             .onChange(of: tool.status) { _, status in
-                if status == .failed { expanded = true }
+                if status == .failed { Motion.disclose { expanded = true } }
             }
     }
 }
@@ -282,7 +282,7 @@ struct ToolLine: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(.snappy) { expanded.toggle() }
+                Motion.disclose { expanded.toggle() }
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: tool.kind.symbol)
@@ -351,7 +351,7 @@ struct ToolGroupRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.snappy) { expanded.toggle() }
+                Motion.disclose { expanded.toggle() }
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: group.symbol)
@@ -408,8 +408,10 @@ struct ToolGroupRow: View {
         }
         .onChange(of: group.calls.filter { $0.status == .failed }.map(\.id)) { _, failed in
             guard !failed.isEmpty else { return }
-            expanded = true
-            open.formUnion(failed)
+            Motion.disclose {
+                expanded = true
+                open.formUnion(failed)
+            }
         }
     }
 }

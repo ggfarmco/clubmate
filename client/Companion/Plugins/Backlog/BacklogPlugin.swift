@@ -108,7 +108,7 @@ struct TaskListView: View {
                         rows(group.tasks)
                     } header: {
                         Button {
-                            withAnimation { toggle(group.status) }
+                            Motion.disclose { toggle(group.status) }
                         } label: {
                             HStack {
                                 Text("\(group.status.label) · \(group.tasks.count)")
