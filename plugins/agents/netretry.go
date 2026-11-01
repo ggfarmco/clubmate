@@ -21,7 +21,7 @@ func (a *app) retryNetwork(s *session, err error) {
 	f, ok := classifyFailure(err)
 	rec := s.snapshot()
 	w := &a.watchdog
-	if !ok || !f.retry || !(a.effectiveAFK(rec) || a.orchestrated(rec)) {
+	if !ok || f.retry != retryBackoff || !(a.effectiveAFK(rec) || a.orchestrated(rec)) {
 		a.resetNetRetry(rec.ID)
 		if ok {
 			s.notice(f.title, f.description())

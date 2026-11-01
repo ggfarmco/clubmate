@@ -269,7 +269,7 @@ func (a *app) retryTurn(s *session, rec record, err error) (acp.PromptRequest, b
 	if !ok || rpcErr.Code != acp.CodeInternal {
 		return acp.PromptRequest{}, false
 	}
-	if f, typed := classifyFailure(err); typed && f.kind != failureInternal {
+	if f, typed := classifyFailure(err); typed && f.retry != retryInTurn {
 		return acp.PromptRequest{}, false
 	}
 	reason := firstLine(rpcErr.Message)

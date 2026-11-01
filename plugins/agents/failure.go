@@ -16,6 +16,7 @@ const (
 	failureRequest   = "bad_request"
 	failureContext   = "context_exhausted"
 	failureInternal  = "internal_error"
+	failureNetwork   = "network_error"
 	failureOverload  = "overloaded"
 	failureProvider  = "provider_error"
 	failureQuota     = "quota_exhausted"
@@ -24,20 +25,41 @@ const (
 	failureShutdown  = "worker_shutdown"
 
 	internalErrorPrefix = "Internal error: "
-	netErrorTitle       = "Network error."
 	newSessionHint      = "Start a new session or hand this one off to continue."
 )
 
-type turnFailure struct {
-	kind       string
-	title      string
-	detail     string
-	retry      bool
-	newSession bool
-}
+type (
+	retryMode int
+
+	turnFailure struct {
+		kind       string
+		title      string
+		detail     string
+		retry      retryMode
+		newSession bool
+	}
+
+	textKind struct {
+		text string
+		kind string
+	}
+)
+
+const (
+	retryInTurn retryMode = iota + 1
+	retryBackoff
+)
 
 var (
-	netErrors = []string{"No response from API", "Connection refused", "ECONNREFUSED"}
+	textKinds = []textKind{
+		{text: "No response from API", kind: failureNetwork},
+		{text: "Connection refused", kind: failureNetwork},
+		{text: "ECONNREFUSED", kind: failureNetwork},
+		{text: "Can't reach the API server", kind: failureNetwork},
+		{text: "No internet route", kind: failureNetwork},
+		{text: "Unable to connect to API (", kind: failureNetwork},
+		{text: "Repeated 529 Overloaded errors", kind: failureOverload},
+	}
 
 	usageLimitPrefixes = []string{
 		"You've hit your",
@@ -79,11 +101,12 @@ var (
 		failureAuth:      {title: "Sign in to continue using Claude."},
 		failureRequest:   {title: "Claude could not process this request."},
 		failureContext:   {title: "This Claude turn reached its configured limit.", newSession: true},
-		failureInternal:  {title: "Claude Agent encountered an internal error.", retry: true},
-		failureOverload:  {title: "Claude is temporarily overloaded.", retry: true},
-		failureProvider:  {title: "The model provider reported an error.", retry: true},
+		failureInternal:  {title: "Claude Agent encountered an internal error.", retry: retryInTurn},
+		failureNetwork:   {title: "Network error.", retry: retryBackoff},
+		failureOverload:  {title: "Claude is temporarily overloaded.", retry: retryBackoff},
+		failureProvider:  {title: "The model provider reported an error."},
 		failureQuota:     {title: "The Claude account has no available quota."},
-		failureRateLimit: {title: "Claude is temporarily rate limited.", retry: true},
+		failureRateLimit: {title: "Claude is temporarily rate limited.", retry: retryBackoff},
 		failureTransport: {title: "The connection to Claude was lost.", newSession: true},
 		failureShutdown:  {title: "The Claude worker is shutting down.", newSession: true},
 	}
@@ -99,15 +122,12 @@ func classifyFailure(err error) (turnFailure, bool) {
 	if slices.ContainsFunc(usageLimitPrefixes, func(p string) bool { return strings.HasPrefix(text, p) }) {
 		return turnFailure{kind: failureQuota, title: text, detail: detail}, true
 	}
+	if i := slices.IndexFunc(textKinds, func(k textKind) bool { return strings.Contains(rpcErr.Message, k.text) }); i >= 0 {
+		return policyFailure(textKinds[i].kind, detail), true
+	}
 	var data acp.ErrorData
 	if json.Unmarshal(rpcErr.Data, &data) == nil && data.ErrorKind != "" {
-		kind := cmp.Or(errorKinds[data.ErrorKind], failureProvider)
-		f := failurePolicies[kind]
-		f.kind, f.detail = kind, detail
-		return f, true
-	}
-	if slices.ContainsFunc(netErrors, func(m string) bool { return strings.Contains(rpcErr.Message, m) }) {
-		return turnFailure{title: netErrorTitle, detail: detail, retry: true}, true
+		return policyFailure(cmp.Or(errorKinds[data.ErrorKind], failureProvider), detail), true
 	}
 	return turnFailure{}, false
 }
@@ -128,4 +148,10 @@ func failureStatus(err error) string {
 		return f.title
 	}
 	return err.Error()
+}
+
+func policyFailure(kind, detail string) turnFailure {
+	f := failurePolicies[kind]
+	f.kind, f.detail = kind, detail
+	return f
 }

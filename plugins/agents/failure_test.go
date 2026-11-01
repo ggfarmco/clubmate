@@ -3,6 +3,7 @@ package main_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,16 +28,31 @@ func TestLimitFailureEndsTurnWithTitle(t *testing.T) {
 	assert.Contains(t, n.Description, "Internal error: max_output_tokens")
 }
 
-func TestRetryableFailureBacksOffWithoutTurnRetry(t *testing.T) {
-	t.Setenv("CLUBMATE_AGENTS_NET_RETRY_AFTER", "10ms")
-	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "build it", "fail": "Internal error: API Error: 529", "errorKind": "overloaded"}}})
-	workspace := f.workspace(t, newRepo(t))
-	parent := f.newSession(t, workspace)
-	kid := f.newChild(t, workspace, parent, map[string]any{"title": "Kid", "prompt": "build it"}).Session
-	kidID := f.agentID(t, workspace, kid)
+func TestTypedFailureInOrchestration(t *testing.T) {
+	tests := []struct {
+		name    string
+		fail    string
+		kind    string
+		status  string
+		prompts int
+	}{
+		{"rate limit backs off without turn retry", "Internal error: API Error: Request rejected (429)", "rate_limit", "done", 2},
+		{"server error stops after Claude Code's retries", "Internal error: API Error: 500 Internal server error", "server_error", "error", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("CLUBMATE_AGENTS_NET_RETRY_AFTER", "10ms")
+			f := start(t, map[string]any{"prompt": []map[string]any{{"match": "build it", "fail": tt.fail, "errorKind": tt.kind}}})
+			workspace := f.workspace(t, newRepo(t))
+			parent := f.newSession(t, workspace)
+			kid := f.newChild(t, workspace, parent, map[string]any{"title": "Kid", "prompt": "build it"}).Session
+			kidID := f.agentID(t, workspace, kid)
 
-	f.waitStatus(t, workspace, kid, "done")
+			f.waitStatus(t, workspace, kid, tt.status)
+			time.Sleep(quiet)
 
-	assert.Len(t, f.promptsTo(t, kidID, "Your turn ended with an error (Internal error: API Error: 529)"), 1)
-	assert.Empty(t, f.promptsTo(t, kidID, "Your previous reply ended with an error"))
+			assert.Len(t, f.promptsTo(t, kidID, ""), tt.prompts)
+			assert.Len(t, f.promptsTo(t, kidID, "Your turn ended with an error"), tt.prompts-1)
+		})
+	}
 }
