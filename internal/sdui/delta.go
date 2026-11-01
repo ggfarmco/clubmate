@@ -12,6 +12,7 @@ const (
 	minRefSpan   = 16
 	appendOpOpen = `{"append":"`
 	appendOpSize = len(appendOpOpen) + 2
+	keepOpOpen   = `{"keep":`
 )
 
 var errNotNode = errors.New("tree node is not an object")
@@ -33,6 +34,7 @@ type treeNode struct {
 
 type DeltaOptions struct {
 	Appends bool
+	Keeps   bool
 }
 
 type DeltaTracker struct {
@@ -52,6 +54,7 @@ type field struct {
 type deltaWriter struct {
 	ix, base *TreeIndex
 	appends  bool
+	keeps    bool
 	dst      []byte
 	clash    bool
 }
@@ -76,7 +79,7 @@ func IndexTree(tree []byte) (*TreeIndex, error) {
 }
 
 func (ix *TreeIndex) DeltaFrom(base *TreeIndex, opts DeltaOptions) ([]byte, bool) {
-	w := deltaWriter{ix: ix, base: base, appends: opts.Appends, dst: make([]byte, 0, 4096)}
+	w := deltaWriter{ix: ix, base: base, appends: opts.Appends, keeps: opts.Keeps, dst: make([]byte, 0, 4096)}
 	w.node(0, 0)
 	if w.clash || len(w.dst) >= len(ix.tree) {
 		return nil, false
@@ -215,7 +218,7 @@ func (w *deltaWriter) node(i, at int32) {
 		}
 		w.dst = w.dst[:mark]
 	}
-	patch := w.appends && at >= 0 && n.propsStart >= 0 && w.base.nodes[at].propsStart >= 0
+	patch := (w.appends || w.keeps) && at >= 0 && n.propsStart >= 0 && w.base.nodes[at].propsStart >= 0
 	if n.firstChild < 0 && !patch {
 		w.dst = append(w.dst, span...)
 		return
@@ -263,13 +266,15 @@ func (w *deltaWriter) value(v, base []byte) {
 	switch {
 	case bytes.Equal(v, base):
 		w.dst = append(w.dst, v...)
-	case v[0] == '"' && base[0] == '"':
+	case w.appends && v[0] == '"' && base[0] == '"':
 		w.text(v, base)
 	case v[0] == '{' && base[0] == '"':
-		w.clash = w.clash || isAppendOp(v)
+		w.clash = w.clash || isOp(v, "append", '"')
 		w.dst = append(w.dst, v...)
 	case v[0] == '{' && base[0] == '{':
 		w.object(v, base)
+	case w.keeps && v[0] == '[' && base[0] == '[':
+		w.array(v, base)
 	default:
 		w.dst = append(w.dst, v...)
 	}
@@ -308,6 +313,55 @@ func (w *deltaWriter) object(v, base []byte) {
 	w.dst = append(w.dst, '}')
 }
 
+func (w *deltaWriter) array(v, base []byte) {
+	elems, ok := arrayElems(v)
+	baseElems, baseOK := arrayElems(base)
+	if !ok || !baseOK {
+		w.dst = append(w.dst, v...)
+		return
+	}
+	byHash := make(map[uint64]int, len(baseElems))
+	for k, e := range baseElems {
+		if len(e) >= minRefSpan {
+			if h := maphash.Bytes(treeSeed, e); byHash[h] == 0 {
+				byHash[h] = k + 1
+			}
+		}
+	}
+	w.dst = append(w.dst, '[')
+	for i, e := range elems {
+		if i > 0 {
+			w.dst = append(w.dst, ',')
+		}
+		if len(e) >= minRefSpan {
+			if k := byHash[maphash.Bytes(treeSeed, e)] - 1; k >= 0 && bytes.Equal(baseElems[k], e) {
+				w.dst = append(strconv.AppendInt(append(w.dst, keepOpOpen...), int64(k), 10), '}')
+				continue
+			}
+		}
+		w.clash = w.clash || (e[0] == '{' && isOp(e, "keep", '0'))
+		w.dst = append(w.dst, e...)
+	}
+	w.dst = append(w.dst, ']')
+}
+
+func arrayElems(v []byte) ([][]byte, bool) {
+	dec := newTreeDecoder(v)
+	if _, err := dec.ReadToken(); err != nil {
+		return nil, false
+	}
+	var elems [][]byte
+	for dec.PeekKind() != ']' {
+		val, err := dec.ReadValue()
+		if err != nil {
+			return nil, false
+		}
+		end := int(dec.InputOffset())
+		elems = append(elems, v[end-len(val):end])
+	}
+	return elems, true
+}
+
 func objectFields(v []byte) ([]field, bool) {
 	dec := newTreeDecoder(v)
 	if _, err := dec.ReadToken(); err != nil {
@@ -339,13 +393,13 @@ func fieldValue(fields []field, name []byte) ([]byte, bool) {
 	return nil, false
 }
 
-func isAppendOp(v []byte) bool {
+func isOp(v []byte, op string, kind jsontext.Kind) bool {
 	dec := newTreeDecoder(v)
 	if _, err := dec.ReadToken(); err != nil {
 		return false
 	}
 	name, err := dec.ReadToken()
-	if err != nil || name.Kind() != '"' || name.String() != "append" || dec.PeekKind() != '"' {
+	if err != nil || name.Kind() != '"' || name.String() != op || dec.PeekKind() != kind {
 		return false
 	}
 	if err := dec.SkipValue(); err != nil {

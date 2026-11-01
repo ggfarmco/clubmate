@@ -69,6 +69,7 @@ type Cell struct {
 	Bar   *float64 `json:"bar,omitempty"`
 	Tone  string   `json:"tone,omitempty"`
 	Spark *Spark   `json:"spark,omitempty"`
+	Since int64    `json:"since,omitempty"`
 }
 
 type Spark struct {

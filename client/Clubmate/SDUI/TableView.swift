@@ -231,6 +231,13 @@ private struct TableCellView: View {
                     .foregroundStyle(textColor(tone))
                     .help(cell.text)
             }
+            if let since = cell.since {
+                TimelineView(.periodic(from: .distantPast, by: 1)) { context in
+                    Text(SDUICell.elapsed(since: since, now: context.date))
+                        .lineLimit(1)
+                        .foregroundStyle(textColor(tone))
+                }
+            }
         }
     }
 

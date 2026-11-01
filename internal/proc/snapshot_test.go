@@ -14,16 +14,24 @@ import (
 )
 
 func TestSnapshotAndReadEnvOfChild(t *testing.T) {
-	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperSleep$")
-	cmd.Env = append(os.Environ(), "CLUBMATE_HELPER_SLEEP=1", "CLUBMATE_SESSION_ID=ses_probe")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperBusy$")
+	cmd.Env = append(os.Environ(), "CLUBMATE_HELPER_BUSY=1", "CLUBMATE_SESSION_ID=ses_probe")
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
 	pid := cmd.Process.Pid
+	_, err := proc.Snapshot()
+	require.NoError(t, err)
+	time.Sleep(300 * time.Millisecond)
 	snap, err := proc.Snapshot()
 	require.NoError(t, err)
+	self, ok := findPID(snap, os.Getpid())
+	require.True(t, ok)
+	assert.Equal(t, os.Getppid(), self.PPID)
+	assert.Positive(t, self.RSSKiB)
 	p, ok := findPID(snap, pid)
 	require.True(t, ok)
 	assert.Positive(t, p.RSSKiB)
+	assert.Greater(t, p.CPU, 20.0)
 	env, err := proc.ReadEnv(pid)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Base(os.Args[0]), p.Comm)
@@ -38,11 +46,12 @@ func TestProcessArgs(t *testing.T) {
 	assert.Equal(t, []string{}, proc.ReadArgs(1))
 }
 
-func TestHelperSleep(t *testing.T) {
-	if os.Getenv("CLUBMATE_HELPER_SLEEP") == "" {
+func TestHelperBusy(t *testing.T) {
+	if os.Getenv("CLUBMATE_HELPER_BUSY") == "" {
 		t.Skip()
 	}
-	time.Sleep(30 * time.Second)
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); {
+	}
 }
 
 func pids(nodes []proc.Node) []int {

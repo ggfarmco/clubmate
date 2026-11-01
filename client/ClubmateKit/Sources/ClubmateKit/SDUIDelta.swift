@@ -52,7 +52,10 @@ private extension [String: JSONValue] {
     func appended(to old: [String: JSONValue]) -> [String: JSONValue] {
         var out = self
         for (key, value) in self {
-            if case .object = value { out[key] = value.appended(to: old[key]) }
+            switch value {
+            case .object, .array: out[key] = value.appended(to: old[key])
+            default: break
+            }
         }
         return out
     }
@@ -60,16 +63,24 @@ private extension [String: JSONValue] {
 
 private extension JSONValue {
     func appended(to old: JSONValue?) -> JSONValue {
-        guard case .object(let fields) = self, let old else { return self }
-        switch old {
-        case .string(let prefix):
+        guard let old else { return self }
+        switch (self, old) {
+        case (.object(let fields), .string(let prefix)):
             guard fields.count == 1, case .string(let tail)? = fields["append"] else { return self }
             return .string(prefix + tail)
-        case .object(let previous):
+        case (.object(let fields), .object(let previous)):
             return .object(fields.appended(to: previous))
+        case (.array(let elements), .array(let previous)):
+            return .array(elements.map { $0.kept(from: previous) })
         default:
             return self
         }
+    }
+
+    func kept(from previous: [JSONValue]) -> JSONValue {
+        guard case .object(let fields) = self, fields.count == 1, case .number(let index)? = fields["keep"],
+              let i = Int(exactly: index), previous.indices.contains(i) else { return self }
+        return previous[i]
     }
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"fmt"
+	"math"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -479,10 +480,10 @@ func (m viewModel) selectedNode() (pluginsdk.ProcessNode, bool) {
 
 func (m viewModel) cells(row *procRow) []sdui.Cell {
 	n, p := row.node, row.node.Process
-	cpuBar := min(max(p.CPU/100, 0), 1)
+	cpuBar := min(max(math.Round(p.CPU*10)/1000, 0), 1)
 	mem := sdui.Cell{Text: formatMB(float64(p.RSSKiB) / kibPerMiB)}
 	if m.memKiB > 0 {
-		share := min(float64(p.RSSKiB)/float64(m.memKiB), 1)
+		share := min(math.Round(float64(p.RSSKiB)/float64(m.memKiB)*1000)/1000, 1)
 		mem.Bar, mem.Tone = &share, tone(share*100, 10, 30)
 	}
 	var history sdui.Cell
@@ -497,7 +498,7 @@ func (m viewModel) cells(row *procRow) []sdui.Cell {
 		{Text: row.id},
 		{Text: strconv.FormatFloat(p.CPU, 'f', 1, 64), Bar: &cpuBar, Tone: tone(p.CPU, 50, 90)},
 		mem,
-		{Text: elapsed(p.StartTime, m.now)},
+		{Since: since(p.StartTime)},
 		history,
 		commandCell,
 	}
@@ -623,20 +624,11 @@ func badges(n pluginsdk.ProcessNode) string {
 	return b.String()
 }
 
-func elapsed(start, now time.Time) string {
+func since(start time.Time) int64 {
 	if start.IsZero() {
-		return ""
+		return 0
 	}
-	s := int(max(now.Sub(start), 0) / time.Second)
-	b := strconv.AppendInt(make([]byte, 0, 16), int64(s/3600), 10)
-	b = append(b, ':')
-	b = appendTwoDigits(b, s/60%60)
-	b = append(b, ':')
-	return string(appendTwoDigits(b, s%60))
-}
-
-func appendTwoDigits(b []byte, v int) []byte {
-	return append(b, byte('0'+v/10), byte('0'+v%10))
+	return start.Unix()
 }
 
 func formatMB(mb float64) string {

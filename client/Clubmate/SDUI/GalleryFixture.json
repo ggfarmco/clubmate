@@ -204,20 +204,21 @@
                           {"id": "name", "title": "Process", "truncate": "middle"},
                           {"id": "cpu", "title": "CPU", "align": "right", "width": 70},
                           {"id": "mem", "title": "MEM", "align": "right", "width": 70, "priority": 1},
-                          {"id": "hist", "title": "History", "width": 70, "priority": 2}
+                          {"id": "hist", "title": "History", "width": 70, "priority": 2},
+                          {"id": "time", "title": "Time", "align": "right", "width": 72, "priority": 3}
                         ],
                         "rows": [
-                          {"id": "g:terminals", "group": true, "hasChildren": true, "expanded": true, "cells": [{"text": "Terminals"}, {}, {}, {}]},
+                          {"id": "g:terminals", "group": true, "hasChildren": true, "expanded": true, "cells": [{"text": "Terminals"}, {}, {}, {}, {}]},
                           {"id": "101", "depth": 1, "hasChildren": true, "expanded": true, "cells": [
-                            {"text": "zsh"}, {"text": "1.2%", "bar": 0.012}, {"text": "8 MB"}, {"spark": {"values": [1, 2, 1, 1, 2], "max": 100}}
+                            {"text": "zsh"}, {"text": "1.2%", "bar": 0.012}, {"text": "8 MB"}, {"spark": {"values": [1, 2, 1, 1, 2], "max": 100}}, {"since": 1793491200}
                           ]},
                           {"id": "102", "depth": 2, "cells": [
-                            {"text": "/Users/me/src/clubmate/build/cm-plugin-agents --stdio --workspace main"}, {"text": "88%", "bar": 0.88, "tone": "danger"}, {"text": "640 MB", "tone": "warn"}, {"spark": {"values": [40, 70, 88, 92, 88], "max": 100}, "tone": "danger"}
+                            {"text": "/Users/me/src/clubmate/build/cm-plugin-agents --stdio --workspace main"}, {"text": "88%", "bar": 0.88, "tone": "danger"}, {"text": "640 MB", "tone": "warn"}, {"spark": {"values": [40, 70, 88, 92, 88], "max": 100}, "tone": "danger"}, {"since": 1790000000}
                           ]},
                           {"id": "103", "depth": 1, "hasChildren": true, "cells": [
-                            {"text": "nvim"}, {"text": "4.0%", "bar": 0.04, "tone": "ok"}, {"text": "120 MB"}, {"spark": {"values": [3, 5, 4, 4, 4], "max": 100}}
+                            {"text": "nvim"}, {"text": "4.0%", "bar": 0.04, "tone": "ok"}, {"text": "120 MB"}, {"spark": {"values": [3, 5, 4, 4, 4], "max": 100}}, {}
                           ]},
-                          {"id": "more", "muted": true, "cells": [{"text": "… 12 more"}, {}, {}, {}]}
+                          {"id": "more", "muted": true, "cells": [{"text": "… 12 more"}, {}, {}, {}, {}]}
                         ],
                         "sort": {"column": "cpu", "desc": true},
                         "selected": "102"

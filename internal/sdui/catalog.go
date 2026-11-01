@@ -613,35 +613,27 @@ func treeItemCheck(c *validator, v any) error {
 	return objectCheck(itemRequired, fields)(c, v)
 }
 
-func columnCheck(c *validator, v any) error {
-	return objectCheck([]string{"id", "title"}, map[string]propCheck{
+var (
+	columnCheck = objectCheck([]string{"id", "title"}, map[string]propCheck{
 		"id": uniqueItemID, "title": isString, "align": oneOf(columnAligns), "width": nonNegative,
 		"truncate": oneOf(truncates), "priority": priorityNumber,
-	})(c, v)
-}
-
-func tableRowCheck(c *validator, v any) error {
-	return objectCheck([]string{"id", "cells"}, map[string]propCheck{
+	})
+	tableRowCheck = objectCheck([]string{"id", "cells"}, map[string]propCheck{
 		"id": uniqueItemID, "depth": depthNumber, "hasChildren": isBool, "expanded": isBool, "muted": isBool, "group": isBool, "cells": cellsCheck,
-	})(c, v)
-}
-
-func cellCheck(c *validator, v any) error {
-	return objectCheck(nil, map[string]propCheck{
-		"text": isString, "bar": unitNumber, "tone": oneOf(cellTones), "spark": objectCheck([]string{"values", "max"}, sparkFields),
-	})(c, v)
-}
+	})
+	cellCheck = objectCheck(nil, map[string]propCheck{
+		"text": isString, "bar": unitNumber, "tone": oneOf(cellTones), "spark": objectCheck([]string{"values", "max"}, sparkFields), "since": nonNegative,
+	})
+	sortCheck  = objectCheck([]string{"column"}, map[string]propCheck{"column": columnID, "desc": isBool})
+	cellsArray = arrayOf(cellCheck)
+)
 
 func cellsCheck(c *validator, v any) error {
 	cells, _ := v.([]any)
 	if len(cells) != len(c.columns) {
 		return fmt.Errorf("%d cells for %d columns", len(cells), len(c.columns))
 	}
-	return arrayOf(cellCheck)(c, v)
-}
-
-func sortCheck(c *validator, v any) error {
-	return objectCheck([]string{"column"}, map[string]propCheck{"column": columnID, "desc": isBool})(c, v)
+	return cellsArray(c, v)
 }
 
 func columnID(c *validator, v any) error {

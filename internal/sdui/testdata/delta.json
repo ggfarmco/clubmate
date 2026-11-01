@@ -520,5 +520,200 @@
         }
       ]
     }
+  },
+  {
+    "name": "unchanged elements of a prop array are kept by their old index",
+    "keep": true,
+    "base": {
+      "type": "stack",
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "text": "Processes"
+          }
+        },
+        {
+          "type": "table",
+          "id": "processes",
+          "props": {
+            "columns": [
+              {
+                "id": "pid",
+                "title": "PID"
+              },
+              {
+                "id": "cpu",
+                "title": "CPU%"
+              }
+            ],
+            "rows": [
+              {
+                "id": "1",
+                "cells": [
+                  {
+                    "text": "1"
+                  },
+                  {
+                    "text": "0.0"
+                  }
+                ]
+              },
+              {
+                "id": "2",
+                "cells": [
+                  {
+                    "text": "2"
+                  },
+                  {
+                    "text": "3.5"
+                  }
+                ]
+              },
+              {
+                "id": "3",
+                "cells": [
+                  {
+                    "text": "3"
+                  },
+                  {
+                    "text": "0.0"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "stack",
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "text": "Processes"
+          }
+        },
+        {
+          "type": "table",
+          "id": "processes",
+          "props": {
+            "columns": [
+              {
+                "id": "pid",
+                "title": "PID"
+              },
+              {
+                "id": "cpu",
+                "title": "CPU%"
+              }
+            ],
+            "rows": [
+              {
+                "id": "2",
+                "cells": [
+                  {
+                    "text": "2"
+                  },
+                  {
+                    "text": "4.0"
+                  }
+                ]
+              },
+              {
+                "id": "1",
+                "cells": [
+                  {
+                    "text": "1"
+                  },
+                  {
+                    "text": "0.0"
+                  }
+                ]
+              },
+              {
+                "id": "3",
+                "cells": [
+                  {
+                    "text": "3"
+                  },
+                  {
+                    "text": "0.0"
+                  }
+                ]
+              },
+              {
+                "id": "4",
+                "cells": [
+                  {
+                    "text": "4"
+                  },
+                  {
+                    "text": "0.0"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "delta": {
+      "type": "stack",
+      "children": [
+        {
+          "ref": [
+            0
+          ]
+        },
+        {
+          "type": "table",
+          "id": "processes",
+          "props": {
+            "columns": [
+              {
+                "id": "pid",
+                "title": "PID"
+              },
+              {
+                "id": "cpu",
+                "title": "CPU%"
+              }
+            ],
+            "rows": [
+              {
+                "id": "2",
+                "cells": [
+                  {
+                    "text": "2"
+                  },
+                  {
+                    "text": "4.0"
+                  }
+                ]
+              },
+              {
+                "keep": 0
+              },
+              {
+                "keep": 2
+              },
+              {
+                "id": "4",
+                "cells": [
+                  {
+                    "text": "4"
+                  },
+                  {
+                    "text": "0.0"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
   }
 ]

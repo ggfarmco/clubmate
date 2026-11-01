@@ -166,12 +166,20 @@ public struct SDUICell: Sendable, Equatable {
     public let bar: Double?
     public let tone: String?
     public let spark: SDUISpark?
+    public let since: Date?
 
-    public init(text: String, bar: Double?, tone: String?, spark: SDUISpark?) {
+    public init(text: String, bar: Double?, tone: String?, spark: SDUISpark?, since: Date? = nil) {
         self.text = text
         self.bar = bar
         self.tone = tone
         self.spark = spark
+        self.since = since
+    }
+
+    public static func elapsed(since start: Date, now: Date) -> String {
+        let seconds = Swift.max(Int(now.timeIntervalSince(start)), 0)
+        let two = { (v: Int) in v < 10 ? "0\(v)" : "\(v)" }
+        return "\(seconds / 3600):\(two(seconds / 60 % 60)):\(two(seconds % 60))"
     }
 
     init(_ value: JSONValue) {
@@ -182,7 +190,8 @@ public struct SDUICell: Sendable, Equatable {
             text: fields["text"]?.stringValue ?? "",
             bar: fields["bar"]?.numberValue.map { Swift.min(Swift.max($0, 0), 1) },
             tone: tone?.isEmpty == false ? tone : nil,
-            spark: spark.flatMap { SDUISpark(values: $0["values"], max: $0["max"]) }
+            spark: spark.flatMap { SDUISpark(values: $0["values"], max: $0["max"]) },
+            since: fields["since"]?.numberValue.flatMap { $0 > 0 ? Date(timeIntervalSince1970: $0) : nil }
         )
     }
 }

@@ -38,7 +38,7 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 		logError("list groups", err)
 		return
 	}
-	core, err := scanCore(ctx, nodes)
+	core, err := scanCore(nodes)
 	logError("core processes", err)
 	a.setCore(core)
 	a.renderMu.Lock()
@@ -79,7 +79,7 @@ func (a *app) ensureCore(ctx context.Context, h *pluginsdk.Host) []pluginsdk.Pro
 		logError("process tree", err)
 		return nil
 	}
-	core, err := scanCore(ctx, nodes)
+	core, err := scanCore(nodes)
 	logError("core processes", err)
 	a.setCore(core)
 	return core

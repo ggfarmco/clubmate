@@ -26,7 +26,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 - option (`select`): `{value*, label*}`.
 - column (`table`): `{id*, title*, align, width, truncate, priority}`: `align` is `left` (default) or `right` (numbers; every table cell uses tabular figures), `width` is a fixed width in points (`0` or absent = flexible, sharing the remaining space), `truncate` is where a long cell text is cut: `tail` (default), `middle` (paths, commands) or `head`; the full text is the cell's tooltip. `priority` is an integer 0-32: `0` or absent never drops; while the flexible columns would get less than 200pt each, the column with the highest priority drops (header and cells), then the next. Ids unique and non-empty.
 - row (`table`): `{id*, depth, hasChildren, expanded, muted, group, cells*}`: `depth` is an integer 0-32 (indent 12pt per level, chevron when `hasChildren`), `muted` dims the row's text. `group: true` makes the row a group heading: the first cell's text spans the whole row in the muted small font after the chevron, the other cells are not drawn, and clicking the row expands or collapses it instead of selecting it. Ids unique and non-empty. `cells` must have exactly one cell per column.
-- cell (`table`): `{text, bar, tone, spark}`: `bar` is a number 0…1 drawn as a filled capsule behind the text, `tone` is `""`\|`ok`\|`warn`\|`danger` (colours the bar and sparkline, or the text when there is no bar), `spark` is a spark.
+- cell (`table`): `{text, bar, tone, spark, since}`: `bar` is a number 0…1 drawn as a filled capsule behind the text, `tone` is `""`\|`ok`\|`warn`\|`danger` (colours the bar and sparkline, or the text when there is no bar), `spark` is a spark. `since` is a time in Unix seconds (`0` or absent = none): the client shows the time elapsed since then as `h:mm:ss` after the text and counts it up every second itself, so a plugin does not re-render a row only to advance a clock.
 - spark (`table` cell): `{values*, max*}`: at most 900 numbers, `max` > 0. Values are clamped to 0…`max` and drawn as a 60×16pt line. The Go helpers `sdui.Sparkline`, `sdui.SparklineSized` and `sdui.NewSpark` clamp them before sending.
 - attachment (`message`, `composer`): `{id, kind*, path*, startLine, endLine}`: `kind` is `file` or `selection` (with the 1-based line range); `path` is shown as given (relative to the worktree when inside it); `id` names a composer attachment for `detach` (non-empty and unique within the list when set).
 - plan entry (`plan`): `{content*, status*}`, `status` `pending`\|`in_progress`\|`completed`.
@@ -175,7 +175,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 |---|---|---|
 | ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin, slots?, host?, rail?}]` |
 | ui.get | `{workspaceId}` (`""` for app scope) | `[SlotView]` sorted by slot |
-| ui.subscribe | `{workspaceId, delta?, append?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them (see `ui.updated`) |
+| ui.subscribe | `{workspaceId, delta?, append?, keep?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them, `keep: true` into kept array elements inside them (see `ui.updated`) |
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{workspaceId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{workspaceId, slot, tree}` (plugin callers only; `tree` is decoded strictly: exact-case member names, no duplicate or unknown members, valid UTF-8, else invalid tree; the core keeps the plugin's bytes and sends them on as they are) | `{rev}` |
@@ -201,7 +201,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | debug.pprof | `{profile, debug?, seconds?, gc?, plugin?}` (not for plugin callers; `plugin` forwards it to that plugin) | `{profile, data}` (see [debugging.md](debugging.md)) |
 | plugin.list | none | `[{id, state, pid, restarts, lastError, manifest}]` sorted by id |
 | plugin.restart | `{id}` (not for plugin callers) | `{}` |
-| process.tree | `{workspaceId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]` |
+| process.tree | `{workspaceId, sessionId}` (both optional filters) | `[{process: {pid, ppid, pgid, comm, args, startTime, rssKiB, cpu}, sessionId, orphan, duplicate}]`; `rssKiB` is resident memory, `cpu` the percent of one core the process used since the core's previous snapshot (its lifetime average the first time it is seen); processes that exit while the snapshot is read are left out |
 | process.kill | `{pids, sessionId, workspaceId, orphansOnly}` | `{killed: [pid]}` |
 | process.register | `{workspaceId, pid, label}` (plugin callers only) | `{id, workspaceId, label, owner, pid, ended}` |
 | process.unregister | `{pid}` (plugin callers only) | `{}` |
@@ -353,7 +353,9 @@ A subscriber that passed `delta: true` to `ui.subscribe` may get a view without 
 
 A subscriber that also passed `append: true` may get string values in a delta as `{"append": "<tail>"}`: the value is the string at the same prop in the counterpart node followed by `<tail>`. The counterpart of the delta root is the root of the `base` tree, and the counterpart of the child at index `i` of a delta node is the child at index `i` of that node's counterpart (none when out of range). The prop is found by the same keys from `props` down through nested objects (`props.body.text`), never through arrays. An object of exactly the shape `{"append": <string>}` is an append only where the counterpart's value at that place is a string; anywhere else it is a plain value. The core uses an append only when the tail is shorter than the whole value and never sends a delta in which a plain value of that shape stands over a string in the counterpart (it sends the full `tree` instead). Without `append`, or from a core that predates it, deltas carry whole strings.
 
-The app subscribes with `delta: true, append: true`. While an agent streams into a ~620 KB `agents.main` tree, each frame is the new tail of the streaming message plus refs for every other node.
+A subscriber that also passed `keep: true` may get array elements in a delta as `{"keep": k}`: the element is element `k` of the array at the same prop in the counterpart node, found the same way as for an append (arrays are only looked into one level: an element is kept whole or sent whole). An object of exactly the shape `{"keep": <number>}` is a kept element only inside an array whose counterpart value is an array; anywhere else it is a plain value. The core keeps only elements of at least 16 bytes that occur byte for byte in the counterpart array, and never sends a delta in which a plain element of that shape stands in an array over an array (it sends the full `tree` instead). Without `keep`, or from a core that predates it, deltas carry whole arrays.
+
+The app subscribes with `delta: true, append: true, keep: true`. While an agent streams into a ~620 KB `agents.main` tree, each frame is the new tail of the streaming message plus refs for every other node.
 - `ui.focus` `{subscription, section, slot, field}`: the client should show `section`, and `slot` when non-empty, for that subscription's workspace. `field` is present (true) only when the caller passed it: the client puts keyboard focus into the first `textField` of that sidebar instead of its list or tree. A focus to a hidden sidebar shows it first.
 
 ## File watching

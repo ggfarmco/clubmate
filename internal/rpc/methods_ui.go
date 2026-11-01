@@ -75,6 +75,7 @@ type uiSubscribeParams struct {
 	WorkspaceID string `json:"workspaceId"`
 	Delta       bool   `json:"delta,omitempty"`
 	Append      bool   `json:"append,omitempty"`
+	Keep        bool   `json:"keep,omitempty"`
 }
 
 type renderParams struct {
@@ -193,7 +194,7 @@ func (s *Server) uiSubscribe(ctx context.Context, p uiSubscribeParams) (subscrip
 	sid, err := subscriptionsFrom(ctx).add(kindUI, sync.OnceFunc(func() {
 		sub.Close()
 		leave()
-	}), forwardUI(ctx, connFrom(ctx), sub, p.Delta, sdui.DeltaOptions{Appends: p.Append}))
+	}), forwardUI(ctx, connFrom(ctx), sub, p.Delta, sdui.DeltaOptions{Appends: p.Append, Keeps: p.Keep}))
 	if err == nil && p.WorkspaceID != "" {
 		s.presence.addTarget(p.WorkspaceID, target, sid)
 	}

@@ -17,6 +17,7 @@ import (
 type deltaCase struct {
 	Name   string          `json:"name"`
 	Append bool            `json:"append"`
+	Keep   bool            `json:"keep"`
 	Base   json.RawMessage `json:"base"`
 	Tree   json.RawMessage `json:"tree"`
 	Delta  json.RawMessage `json:"delta"`
@@ -30,7 +31,7 @@ func TestDeltaRefersToUnchangedSubtrees(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			base := index(t, compact(t, tc.Base))
-			delta, ok := index(t, compact(t, tc.Tree)).DeltaFrom(base, internalsdui.DeltaOptions{Appends: tc.Append})
+			delta, ok := index(t, compact(t, tc.Tree)).DeltaFrom(base, internalsdui.DeltaOptions{Appends: tc.Append, Keeps: tc.Keep})
 			require.True(t, ok)
 			assert.Equal(t, string(compact(t, tc.Delta)), string(delta))
 		})
@@ -46,6 +47,12 @@ func TestDeltaNotSmallerThanTreeIsDropped(t *testing.T) {
 func TestDeltaWithAppendShapedPropOverStringIsDropped(t *testing.T) {
 	base := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"note":"plain"}}]}`))
 	_, ok := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"note":{"append":"x"}}}]}`)).DeltaFrom(base, internalsdui.DeltaOptions{Appends: true})
+	assert.False(t, ok)
+}
+
+func TestDeltaWithKeepShapedElementOverArrayIsDropped(t *testing.T) {
+	base := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"table","props":{"rows":[{"id":"a long enough row"}]}}]}`))
+	_, ok := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"table","props":{"rows":[{"keep":0}]}}]}`)).DeltaFrom(base, internalsdui.DeltaOptions{Keeps: true})
 	assert.False(t, ok)
 }
 
