@@ -83,6 +83,8 @@ func companionScript(repo string) map[string]any {
 		{"optionId": "deny", "name": "Reject", "kind": "reject_once"},
 		{"optionId": "deny_always", "name": "Reject Always", "kind": "reject_always"},
 	}
+	subagent := announce("sub-1", "Check the cart tests", "Explore", map[string]any{"state": "running"})
+	subagent["capabilities"] = map[string]any{"cancel": map[string]any{}}
 	return map[string]any{
 		"configs": []map[string]any{
 			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "opus", "name": "Opus"}, {"value": "sonnet", "name": "Sonnet"}}},
@@ -111,6 +113,8 @@ func companionScript(repo string) map[string]any {
 				"locations": []map[string]any{{"path": path, "line": 1}},
 			}),
 			step(refactorPrompt, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "edit1", "status": "completed"}),
+			step(refactorPrompt, subagent),
+			{"match": refactorPrompt, "session": "sub-1", "update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "sub-read1", "title": "Read cart_test.go", "kind": "read", "status": "in_progress"}},
 			step(refactorPrompt, map[string]any{"sessionUpdate": "compaction_update", "compactionId": "compact1", "status": "completed", "summary": []map[string]any{{"type": "text", "text": compactSummary}}}),
 			step(refactorPrompt, map[string]any{"sessionUpdate": "usage_update", "used": 84000, "size": 200000, "cost": map[string]any{"amount": 0.84, "currency": "USD"}}),
 			{"match": refactorPrompt, "permission": permission},

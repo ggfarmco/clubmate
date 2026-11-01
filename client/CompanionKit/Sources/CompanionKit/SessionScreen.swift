@@ -137,7 +137,7 @@ public struct SessionScreen: Sendable, Equatable {
                 let next = index + 1 < entries.count ? entries[index + 1].at : nil
                 rows.append(.thought(id: entry.id, text: text, title: Self.thoughtTitle(from: entry.at, to: next)))
             case .tool(let call):
-                if case .tools(let id, let group) = rows.last {
+                if call.kind != .agent, case .tools(let id, let group) = rows.last, !group.calls.contains(where: { $0.kind == .agent }) {
                     rows[rows.count - 1] = .tools(id: id, ToolGroup(calls: group.calls + [call]))
                 } else {
                     rows.append(.tools(id: entry.id, ToolGroup(calls: [call])))

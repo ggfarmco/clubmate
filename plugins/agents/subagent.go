@@ -145,7 +145,7 @@ func (s *session) loseSubagents() {
 func (s *session) refreshLocked(en *entry) {
 	if en.sub != nil && en.sub.dirty {
 		en.Tool = en.sub.toolFields()
-		en.stop = en.sub.parent == nil && en.sub.cancel && en.sub.working()
+		en.Stoppable = en.sub.parent == nil && en.sub.cancel && en.sub.working()
 		en.sub.dirty = false
 	}
 }

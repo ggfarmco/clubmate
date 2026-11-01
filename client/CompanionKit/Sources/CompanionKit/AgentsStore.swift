@@ -185,6 +185,11 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
+    public func stopSubagent(_ subagent: String, in session: String) async throws {
+        try await run("agents.stop-subagent", ["session": .string(session), "subagent": .string(subagent)])
+        await refreshSession(session)
+    }
+
     public func answer(_ session: String, request: String, option: String) async throws {
         guard let runner else { return }
         sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil).decode([AgentSession].self)

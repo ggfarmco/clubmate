@@ -102,6 +102,24 @@ func TestStopSendsCancelToTheRunningSubagent(t *testing.T) {
 	assert.JSONEq(t, `{"sessionId":"sub-1"}`, string(got.Params))
 }
 
+func TestStopSubagentCommandCancelsTheStoppableSubagent(t *testing.T) {
+	cancellable := announce("sub-1", "run tests", "", map[string]any{"state": "running"})
+	cancellable["capabilities"] = map[string]any{"cancel": map[string]any{}}
+	f := start(t, map[string]any{"prompt": []map[string]any{subagentStep("", cancellable)}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	testutil.Eventually(t, func() bool {
+		tools := ofKind(f.transcript(t, workspace, session).Entries, "tool")
+		return len(tools) == 1 && tools[0].Stoppable
+	}, wait)
+
+	require.NoError(t, f.run(t, workspace, "agents.stop-subagent", map[string]any{"session": session, "subagent": "sub-1"}, nil))
+
+	got := f.waitCall(t, "session/cancel", func(fakeCall) bool { return true })
+	assert.JSONEq(t, `{"sessionId":"sub-1"}`, string(got.Params))
+}
+
 func TestSubagentPermissionAsksInTheParentSession(t *testing.T) {
 	f := start(t, map[string]any{"after": []map[string]any{
 		subagentStep("", announce("sub-1", "run tests", "", map[string]any{"state": "running"})),

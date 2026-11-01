@@ -10,14 +10,16 @@ final class SessionScreenTests: XCTestCase {
         let screen = SessionScreen(entries: transcript.entries, session: session)
         XCTAssertEqual(session.state, .waitingForYou)
         XCTAssertEqual(session.headerDetail, "shop")
-        XCTAssertEqual(screen.rows.map(\.id), ["user/prompt-1", "thought/thought-1", "agent/agent-2", "plan/plan-1", "tool/read1", "compaction/compact1"])
+        XCTAssertEqual(screen.rows.map(\.id), ["user/prompt-1", "thought/thought-1", "agent/agent-2", "plan/plan-1", "tool/read1", "tool/sub-1", "compaction/compact1"])
         guard case .agent(_, let blocks) = screen.rows[2], case .tools(_, let tools) = screen.rows[4],
+              case .tools(_, let subagent) = screen.rows[5],
               case .permission(let request, 0) = screen.dock
         else { return XCTFail("unexpected screen \(screen)") }
         XCTAssertEqual(blocks.first, .paragraph("I'll move the total into `cartTotal` and keep **behaviour** the same."))
         XCTAssertFalse(blocks.contains { if case .list = $0 { true } else { false } })
         XCTAssertEqual(tools.title, "2 actions")
         XCTAssertEqual(tools.detail, "read cart.go · edit cart.go")
+        XCTAssertEqual(subagent.calls.map(\.stoppable), [true])
         XCTAssertEqual(request.id, "permission-3")
         XCTAssertEqual(request.question, "Run a command?")
         XCTAssertEqual(request.alwaysRule, "Bash(go test:*)")

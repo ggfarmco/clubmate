@@ -135,7 +135,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")]), "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array([
@@ -199,6 +199,9 @@ actor FixtureServer {
         case "agents.cancel":
             turns.removeValue(forKey: session)?.cancel()
             update(session) { $0["status"] = .string("done"); $0["pending"] = nil }
+            return .null
+        case "agents.stop-subagent":
+            stopSubagent(session, args["subagent"]?.stringValue ?? "")
             return .null
         case "agents.close":
             update(session) { $0["status"] = .string("closed") }
@@ -324,6 +327,20 @@ actor FixtureServer {
             append(session, Self.entry("agent", "agent-9", text: "Tests pass. `cartTotal` is extracted and covered by `TestCartTotal`."))
             update(session) { $0["status"] = .string("done") }
         }
+    }
+
+    private func stopSubagent(_ session: String, _ subagent: String) {
+        guard case .array(var entries) = transcripts[session]?["entries"] else { return }
+        for index in entries.indices where entries[index]["kind"] == .string("tool") && entries[index]["id"]?.stringValue == subagent {
+            guard case .object(var fields) = entries[index], case .object(var tool) = fields["tool"] ?? .null else { continue }
+            tool["status"] = .string("cancelled")
+            tool["title"] = .string(tool["title"]?.stringValue?.components(separatedBy: " · ").first ?? "")
+            fields["tool"] = .object(tool)
+            fields["stoppable"] = nil
+            entries[index] = .object(fields)
+        }
+        transcripts[session]?["entries"] = .array(entries)
+        update(session) { _ in }
     }
 
     private func append(_ session: String, _ entry: JSONValue) {

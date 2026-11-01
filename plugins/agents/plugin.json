@@ -133,6 +133,21 @@
         }
       },
       {
+        "id": "agents.stop-subagent",
+        "title": "Stop Subagent",
+        "hidden": true,
+        "remote": true,
+        "agent": false,
+        "description": "Stop one running subagent of a session (sends session/cancel to that subagent alone); the transcript marks a top-level subagent the adapter lets Clubmate cancel with stoppable. A paired companion device calls it as the user.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."},
+            "subagent": {"type": "string", "description": "Subagent id: the transcript tool entry id of the subagent card."}
+          },
+          "required": ["session", "subagent"]
+        }
+      },
+      {
         "id": "agents.permission",
         "title": "Answer Permission",
         "hidden": true,

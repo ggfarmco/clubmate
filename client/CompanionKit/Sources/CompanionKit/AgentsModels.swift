@@ -284,7 +284,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let content: Content
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -319,7 +319,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .thought:
             content = .thought(text)
         case .tool:
-            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null))
+            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null, stoppable: (try? c.decodeIfPresent(Bool.self, forKey: .stoppable)) ?? false))
         case .plan:
             let plan = (try? c.decodeIfPresent(JSONValue.self, forKey: .plan)) ?? .null
             content = .plan((plan["entries"]?.arrayValue ?? []).map(PlanItem.init))
@@ -374,9 +374,11 @@ public struct ToolCall: Sendable, Equatable {
     public let paths: [String]
     public let command: String?
     public let intent: String?
+    public let stoppable: Bool
 
-    public init(id: String, fields: JSONValue) {
+    public init(id: String, fields: JSONValue, stoppable: Bool = false) {
         self.id = id
+        self.stoppable = stoppable
         title = fields["title"]?.stringValue ?? ""
         kind = ToolKind(fields["kind"]?.stringValue)
         status = fields["status"]?.stringValue.flatMap { $0.isEmpty ? nil : ToolStatus($0) } ?? .pending

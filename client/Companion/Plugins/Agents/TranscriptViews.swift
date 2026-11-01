@@ -264,9 +264,20 @@ struct ToolRow: View {
     }
 }
 
+struct SubagentStop {
+    let enabled: Bool
+    let run: @MainActor (String) async -> Bool
+}
+
+extension EnvironmentValues {
+    @Entry var subagentStop: SubagentStop?
+}
+
 struct ToolLine: View {
     let tool: ToolCall
     @Binding var expanded: Bool
+    @Environment(\.subagentStop) private var stop
+    @State private var stopping = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -298,6 +309,14 @@ struct ToolLine: View {
             }
             .buttonStyle(.plain)
             .allowsHitTesting(hasDetails)
+            if tool.stoppable, let stop {
+                PlainCapsule(title: stopping ? "Stopping…" : "Stop", tint: Color.danger) {
+                    stopping = true
+                    Task { stopping = await stop.run(tool.id) }
+                }
+                .disabled(!stop.enabled || stopping)
+                .accessibilityLabel("Stop subagent")
+            }
             if expanded {
                 ForEach(Array(tool.diffs.enumerated()), id: \.offset) { _, diff in
                     DiffView(diff: diff)
@@ -310,6 +329,7 @@ struct ToolLine: View {
                 }
             }
         }
+        .onChange(of: tool.stoppable) { _, _ in stopping = false }
     }
 
     private var hasDetails: Bool {

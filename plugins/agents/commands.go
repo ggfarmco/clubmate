@@ -39,6 +39,7 @@ var (
 		"agents.import":         withArgs((*app).importCommand),
 		"agents.handoff":        withArgs((*app).handoffCommand),
 		"agents.cancel":         withSession((*app).cancelCommand),
+		"agents.stop-subagent":  withArgs((*app).stopSubagentCommand),
 		"agents.close":          withSession((*app).closeCommand),
 		"agents.delete":         withSession((*app).deleteCommand),
 		"agents.resume":         withSession((*app).resumeCommand),
@@ -54,6 +55,11 @@ type commandFunc func(a *app, ctx context.Context, cmd pluginsdk.CommandRun) (an
 
 type sessionArgs struct {
 	Session string `json:"session"`
+}
+
+type subagentArgs struct {
+	Session  string `json:"session"`
+	Subagent string `json:"subagent"`
 }
 
 type newArgs struct {
@@ -355,6 +361,14 @@ func (a *app) cancelCommand(_ context.Context, cmd pluginsdk.CommandRun, s *sess
 	}
 	a.cancel(s)
 	return nil, nil
+}
+
+func (a *app) stopSubagentCommand(_ context.Context, cmd pluginsdk.CommandRun, args subagentArgs) (any, error) {
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
+	if err != nil {
+		return nil, err
+	}
+	return nil, s.stopSubagent(args.Subagent)
 }
 
 func (a *app) closeCommand(ctx context.Context, _ pluginsdk.CommandRun, s *session) (any, error) {

@@ -341,7 +341,7 @@ func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 		body.Text = text
 		p.Body, p.Truncated = body, cut
 	}
-	if en.stop {
+	if en.Stoppable {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actStopSubagent, Label: "Stop", Icon: "stop.circle"})
 	}
 	if path, line := location(f); path != "" && kind != "execute" {

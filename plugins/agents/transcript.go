@@ -57,19 +57,20 @@ type transcriptView struct {
 }
 
 type entry struct {
-	Kind     string                     `json:"kind"`
-	ID       string                     `json:"id"`
-	Turn     int                        `json:"turn"`
-	Text     string                     `json:"text,omitempty"`
-	Content  []json.RawMessage          `json:"content,omitempty"`
-	Tool     map[string]json.RawMessage `json:"tool,omitempty"`
-	Plan     json.RawMessage            `json:"plan,omitempty"`
-	ToolCall json.RawMessage            `json:"toolCall,omitempty"`
-	Options  []acp.PermissionOption     `json:"options,omitempty"`
-	Outcome  *acp.PermissionOutcome     `json:"outcome,omitempty"`
-	Notice   json.RawMessage            `json:"notice,omitempty"`
-	From     string                     `json:"from,omitempty"`
-	Subagent string                     `json:"subagent,omitempty"`
+	Kind      string                     `json:"kind"`
+	ID        string                     `json:"id"`
+	Turn      int                        `json:"turn"`
+	Text      string                     `json:"text,omitempty"`
+	Content   []json.RawMessage          `json:"content,omitempty"`
+	Tool      map[string]json.RawMessage `json:"tool,omitempty"`
+	Plan      json.RawMessage            `json:"plan,omitempty"`
+	ToolCall  json.RawMessage            `json:"toolCall,omitempty"`
+	Options   []acp.PermissionOption     `json:"options,omitempty"`
+	Outcome   *acp.PermissionOutcome     `json:"outcome,omitempty"`
+	Notice    json.RawMessage            `json:"notice,omitempty"`
+	From      string                     `json:"from,omitempty"`
+	Subagent  string                     `json:"subagent,omitempty"`
+	Stoppable bool                       `json:"stoppable,omitempty"`
 
 	Elicitation *elicitation             `json:"elicitation,omitempty"`
 	Response    *acp.ElicitationResponse `json:"response,omitempty"`
@@ -81,7 +82,6 @@ type entry struct {
 
 	node *nodeCache
 	sub  *subagent
-	stop bool
 }
 
 type turnInfo struct {
@@ -146,7 +146,7 @@ func (s *session) view(fromTurn int) transcriptView {
 			c.sub = nil
 			if en.Tool != nil && (en.sub == nil && !s.running || en.sub != nil && s.proc == nil) {
 				if closed, ok := closeTool(en.Tool); ok {
-					c.Tool, c.node, c.stop = closed, nil, false
+					c.Tool, c.node, c.Stoppable = closed, nil, false
 				}
 			}
 			if !s.running && c.Compaction != nil && c.Compaction.Status == compactionRunning {

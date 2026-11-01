@@ -81,15 +81,15 @@ final class AgentsTests: XCTestCase {
     func testDecodesTranscriptFixture() throws {
         let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: fixture("agents-transcript"))
         XCTAssertEqual(transcript.modes.map(\.id), ["default", "plan"])
-        guard transcript.entries.count == 8,
+        guard transcript.entries.count == 9,
               case .user(let prompt, false, []) = transcript.entries[0].content,
               case .thought = transcript.entries[1].content,
               case .agent(let markdown) = transcript.entries[2].content,
               case .plan(let plan) = transcript.entries[3].content,
               case .tool(let read) = transcript.entries[4].content,
               case .tool(let edit) = transcript.entries[5].content,
-              case .compaction(let compaction) = transcript.entries[6].content,
-              case .permission(let permission) = transcript.entries[7].content
+              case .compaction(let compaction) = transcript.entries[7].content,
+              case .permission(let permission) = transcript.entries[8].content
         else { return XCTFail("unexpected entries \(transcript.entries.map(\.id))") }
         XCTAssertEqual(compaction.title, "Context compacted")
         XCTAssertFalse(compaction.summary.isEmpty)

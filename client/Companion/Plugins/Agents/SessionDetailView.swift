@@ -45,6 +45,15 @@ struct SessionDetailView: View {
             .frame(maxWidth: 820)
             .frame(maxWidth: .infinity)
         }
+        .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(enabled: blocked == nil) { id in
+            do {
+                try await store.stopSubagent(id, in: sessionID)
+                return true
+            } catch {
+                failure = Self.message(error)
+                return false
+            }
+        } : nil)
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
