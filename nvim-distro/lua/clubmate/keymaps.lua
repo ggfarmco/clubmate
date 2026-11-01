@@ -86,8 +86,8 @@ end, { desc = "Copy file path" })
 local function open_doc()
   local file = vim.api.nvim_buf_get_name(0)
   local ext = file:lower():match("%.(%w+)$")
-  if ext ~= "md" and ext ~= "markdown" and ext ~= "mmd" then
-    vim.notify("Not a Markdown or mermaid file", vim.log.levels.WARN)
+  if ext ~= "md" and ext ~= "markdown" and ext ~= "mmd" and ext ~= "html" and ext ~= "htm" then
+    vim.notify("Not a Markdown, mermaid or HTML file", vim.log.levels.WARN)
     return
   end
   local m = package.loaded["clubmate"]

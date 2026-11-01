@@ -189,7 +189,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Buffer | Esc | Clear the search highlight | `lua/clubmate/keymaps.lua` |
 | Buffer | ,q | Close the quickfix list | `lua/clubmate/keymaps.lua` |
 | Buffer | v / s (quickfix) | Open the entry in a vertical, horizontal split | `lua/clubmate/autocmds.lua` |
-| Docs | ,mp (or `:ClubmateDocOpen`) | Open the current Markdown/mermaid file in the docs viewer | `lua/clubmate/keymaps.lua` |
+| Docs | ,mp (or `:ClubmateDocOpen`) | Open the current Markdown/mermaid/HTML file in the docs viewer | `lua/clubmate/keymaps.lua` |
 | Folding | Space | Toggle the fold under the cursor | `lua/clubmate/keymaps.lua` |
 | Folding | zV | Close all folds, or open all when none is open | `lua/clubmate/keymaps.lua` |
 | Windows | ⌃H / ⌃J / ⌃K / ⌃L | Move to the left, lower, upper, right window | `lua/clubmate/keymaps.lua` |

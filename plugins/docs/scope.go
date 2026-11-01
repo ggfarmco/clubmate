@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 
 	"clubmate/pkg/contract"
+	"clubmate/pkg/docext"
 	"clubmate/pkg/docrender"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
 )
 
@@ -45,7 +47,7 @@ func load(path string, allow func(string) bool) (string, []byte, error) {
 	if !allow(abs) {
 		return abs, nil, errNotInWorkspace
 	}
-	if !docrender.DocExt(abs) {
+	if !viewable(abs) {
 		return abs, nil, errNotDocument
 	}
 	info, err := os.Stat(abs)
@@ -66,6 +68,17 @@ func load(path string, allow func(string) bool) (string, []byte, error) {
 		return abs, nil, errNotFound
 	}
 	return abs, src, err
+}
+
+func viewable(path string) bool {
+	return docext.Is(path) || docext.IsArtifact(path)
+}
+
+func render(src []byte, path string, allow func(string) bool) (docrender.Doc, string) {
+	if docext.IsArtifact(path) {
+		return docrender.Artifact(src, path), sdui.DocumentArtifact
+	}
+	return docrender.Render(src, docrender.Options{Path: path, Allowed: allow}), sdui.DocumentMarkdown
 }
 
 func workspaceScope(ctx context.Context, ws contract.Workspace, uploads string) func(string) bool {

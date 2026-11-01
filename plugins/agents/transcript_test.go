@@ -90,6 +90,7 @@ func TestDocOnlyForCompletedDocTools(t *testing.T) {
 		tool("tool_call", "code", "completed", diff("/r/main.go")),
 		tool("tool_call", "failed", "failed", diff("/r/a.md")),
 		tool("tool_call", "relative", "completed", `,"locations":[{"path":"main.go"},{"path":"docs/b.md"}]`),
+		tool("tool_call", "artifact", "completed", diff("/r/out/report.html")),
 		`{"turn":1,"kind":"session/update","payload":{"sessionUpdate":"tool_call","toolCallId":"link","kind":"other","status":"completed","content":[{"type":"content","content":{"type":"resource_link","uri":"file:///r/plan.mmd","name":"plan.mmd"}}]}}`,
 	}
 	path := filepath.Join(t.TempDir(), "s.jsonl")
@@ -100,7 +101,7 @@ func TestDocOnlyForCompletedDocTools(t *testing.T) {
 	for _, en := range s.view(0).Entries {
 		docs[en.ID] = en.Doc
 	}
-	assert.Equal(t, map[string]string{"doc": "/r/docs/a.md", "code": "", "failed": "", "relative": "/w/docs/b.md", "link": "/r/plan.mmd"}, docs)
+	assert.Equal(t, map[string]string{"doc": "/r/docs/a.md", "code": "", "failed": "", "relative": "/w/docs/b.md", "artifact": "/r/out/report.html", "link": "/r/plan.mmd"}, docs)
 
 	actions, _ := toolCard("c", "/r", s.view(0).Entries[0], false, false).Props["actions"].([]sdui.CardAction)
 	require.Len(t, actions, 2)

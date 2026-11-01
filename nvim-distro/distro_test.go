@@ -764,15 +764,17 @@ func TestDocOpenOnlyForDocs(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	require.NoError(t, v.Command("ClubmateDocOpen"))
-	for _, name := range []string{"a.go", "b.MD"} {
+	for _, name := range []string{"a.go", "b.MD", "c.Html"} {
 		require.NoError(t, v.Command("edit "+filepath.Join(dir, name)))
 		require.NoError(t, v.Command("ClubmateDocOpen"))
 	}
-	select {
-	case ev := <-got:
-		assert.Equal(t, "docOpen "+filepath.Join(dir, "b.MD"), ev)
-	case <-time.After(5 * time.Second):
-		t.Fatal("no docOpen notification")
+	for _, name := range []string{"b.MD", "c.Html"} {
+		select {
+		case ev := <-got:
+			assert.Equal(t, "docOpen "+filepath.Join(dir, name), ev)
+		case <-time.After(5 * time.Second):
+			t.Fatal("no docOpen notification")
+		}
 	}
 }
 

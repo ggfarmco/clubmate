@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"clubmate/pkg/contract"
-	"clubmate/pkg/docrender"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
 )
@@ -46,6 +45,7 @@ type readResult struct {
 	Title string `json:"title"`
 	HTML  string `json:"html"`
 	Rev   int    `json:"rev"`
+	Kind  string `json:"kind"`
 }
 
 type changedEvent struct {
@@ -166,7 +166,7 @@ func (d *docs) read(ctx context.Context, h *pluginsdk.Host, workspaceID, path st
 	if err != nil {
 		return nil, err
 	}
-	doc := docrender.Render(src, docrender.Options{Path: abs, Allowed: allow})
+	doc, kind := render(src, abs, allow)
 	s := d.space(ws.ID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -175,7 +175,7 @@ func (d *docs) read(ctx context.Context, h *pluginsdk.Host, workspaceID, path st
 	if err := d.ensureWatch(ctx, h, ws.ID, s); err != nil {
 		return nil, err
 	}
-	return readResult{Path: abs, Title: doc.Title, HTML: doc.HTML, Rev: st.rev}, nil
+	return readResult{Path: abs, Title: doc.Title, HTML: doc.HTML, Rev: st.rev, Kind: kind}, nil
 }
 
 func (d *docs) absolute(ctx context.Context, h *pluginsdk.Host, ws contract.Workspace, session, path string) string {

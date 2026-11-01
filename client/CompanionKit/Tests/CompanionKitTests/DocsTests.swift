@@ -25,6 +25,16 @@ final class DocsTests: XCTestCase {
         await store.open("/r/b.md#usage")
         XCTAssertEqual(server.reads, ["/r/b.md"])
         XCTAssertEqual(store.stack.map(\.anchor), ["usage"])
+        XCTAssertFalse(store.stack[0].isArtifact)
+    }
+
+    func testOpenArtifactKeepsTheAnchorAndKind() async {
+        let server = DocsServer()
+        let store = DocsStore(connection: server.connection, workspace: "w")
+        await store.open("/r/report.html#q3")
+        XCTAssertEqual(server.reads, ["/r/report.html"])
+        XCTAssertEqual(store.stack.last?.anchor, "q3")
+        XCTAssertEqual(store.stack.last?.isArtifact, true)
     }
 
     func testChangedRefetchesOnlyTheOpenPathAtAHigherRev() async throws {
@@ -78,7 +88,8 @@ private final class DocsServer {
             guard path.hasPrefix("/r/") else { return (Data(#"{"error":{"code":"command_failed","message":"not in workspace"}}"#.utf8), 200) }
             let name = URL(filePath: path).deletingPathExtension().lastPathComponent
             let value = revs.values.last ?? 1
-            return (FakeTransport.result(#"{"path":"\#(path)","title":"\#(name)","html":"<p>\#(value)</p>","rev":\#(value)}"#), 200)
+            let kind = path.hasSuffix(".html") ? #","kind":"artifact""# : ""
+            return (FakeTransport.result(#"{"path":"\#(path)","title":"\#(name)","html":"<p>\#(value)</p>","rev":\#(value)\#(kind)}"#), 200)
         })
         connection = ComputerConnection(computer: Computer(id: "mac1", name: "Mac", hosts: ["100.64.0.1"], port: 47621), token: "t", transport: transport)
     }

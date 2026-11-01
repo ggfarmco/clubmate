@@ -82,6 +82,7 @@ var (
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
 	documentSizes = []string{"fill", "fit"}
+	documentKinds = []string{"markdown", "artifact"}
 
 	columnAligns = []string{"left", "right"}
 	truncates    = []string{"tail", "middle", "head"}
@@ -147,7 +148,7 @@ var (
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"document": {
 			required:    []string{"html"},
-			props:       map[string]propCheck{"html": isString, "path": isString, "rev": countNumber, "size": oneOf(documentSizes), "anchor": isString},
+			props:       map[string]propCheck{"html": isString, "path": isString, "rev": countNumber, "size": oneOf(documentSizes), "anchor": isString, "kind": oneOf(documentKinds)},
 			children:    noChildren,
 			interactive: true,
 		},

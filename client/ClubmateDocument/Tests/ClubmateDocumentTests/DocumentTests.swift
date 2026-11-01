@@ -32,6 +32,10 @@ final class DocumentTests: XCTestCase {
         let a1Intro = DocumentContent(path: "/r/a.md", html: "<p>1</p>", rev: 1, anchor: "intro")
         XCTAssertEqual(DocumentPage.update(old: a1, new: a1Intro), .scroll)
         XCTAssertEqual(DocumentPage.update(old: a1Intro, new: a1), .none)
+        let r1 = DocumentContent(path: "/r/r.html", html: "<p>1</p>", rev: 1, kind: .artifact)
+        let r2 = DocumentContent(path: "/r/r.html", html: "<p>2</p>", rev: 2, kind: .artifact)
+        XCTAssertEqual(DocumentPage.update(old: r1, new: r2), .load)
+        XCTAssertEqual(DocumentPage.update(old: r1, new: r1), .none)
     }
 
     func testLoadScrollsToAnchorWhenItExists() async throws {

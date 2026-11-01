@@ -6,14 +6,20 @@ public struct DocPage: Decodable, Equatable, Sendable {
     public let title: String
     public let html: String
     public let rev: Int
+    public let kind: String?
     public var anchor: String?
 
-    public init(path: String, title: String, html: String, rev: Int, anchor: String? = nil) {
+    public init(path: String, title: String, html: String, rev: Int, kind: String? = nil, anchor: String? = nil) {
         self.path = path
         self.title = title
         self.html = html
         self.rev = rev
+        self.kind = kind
         self.anchor = anchor
+    }
+
+    public var isArtifact: Bool {
+        kind == "artifact"
     }
 }
 
@@ -68,7 +74,7 @@ public final class DocsStore {
     }
 
     private static func split(_ link: String) -> (String, String?) {
-        guard let hash = link.lastIndex(of: "#"), [".md", ".markdown", ".mmd"].contains(where: { link[..<hash].lowercased().hasSuffix($0) }) else { return (link, nil) }
+        guard let hash = link.lastIndex(of: "#"), [".md", ".markdown", ".mmd", ".html", ".htm"].contains(where: { link[..<hash].lowercased().hasSuffix($0) }) else { return (link, nil) }
         return (String(link[..<hash]), String(link[link.index(after: hash)...]))
     }
 

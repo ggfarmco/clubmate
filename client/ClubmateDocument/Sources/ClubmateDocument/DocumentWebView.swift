@@ -16,7 +16,9 @@ public struct DocumentWebView: View {
     }
 
     public var body: some View {
+        let size = content.kind == .artifact ? .fill : size
         DocumentRepresentable(content: content, theme: theme, size: size, onLink: onLink) { height = $0 }
+            .id(content.kind)
             .frame(height: size == .fit ? height : nil)
     }
 }
@@ -30,7 +32,7 @@ private struct DocumentRepresentable {
     let onHeight: (CGFloat) -> Void
 
     func makeCoordinator() -> DocumentController {
-        DocumentController()
+        DocumentController(kind: content.kind)
     }
 
     private func update(_ controller: DocumentController) {

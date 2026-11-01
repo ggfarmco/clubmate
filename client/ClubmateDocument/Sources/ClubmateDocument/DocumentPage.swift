@@ -5,13 +5,20 @@ public struct DocumentContent: Equatable, Sendable {
     public let html: String
     public let rev: Int
     public let anchor: String?
+    public let kind: DocumentKind
 
-    public init(path: String, html: String, rev: Int, anchor: String? = nil) {
+    public init(path: String, html: String, rev: Int, anchor: String? = nil, kind: DocumentKind = .markdown) {
         self.path = path
         self.html = html
         self.rev = rev
         self.anchor = anchor
+        self.kind = kind
     }
+}
+
+public enum DocumentKind: String, Equatable, Hashable, Sendable {
+    case markdown
+    case artifact
 }
 
 public enum DocumentSize: Equatable, Sendable {
@@ -30,8 +37,8 @@ enum DocumentPage {
     static let web = Bundle.module.resourceURL!.appendingPathComponent("Web", isDirectory: true)
 
     static func update(old: DocumentContent?, new: DocumentContent) -> Update {
-        guard let old, old.path == new.path else { return .load }
-        if old.rev != new.rev { return .replaceBody }
+        guard let old, old.path == new.path, old.kind == new.kind else { return .load }
+        if old.rev != new.rev { return new.kind == .artifact ? .load : .replaceBody }
         return new.anchor != nil && new.anchor != old.anchor ? .scroll : .none
     }
 

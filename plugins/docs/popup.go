@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"clubmate/pkg/docrender"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/gitrepo"
@@ -259,7 +258,11 @@ func (s *space) viewOf(src []byte, loadErr error, allow func(string) bool) popup
 	st := s.track(path)
 	v := popupState{path: path, anchor: top.anchor, rev: st.rev, back: len(s.stack) > 1, gone: loadErr != nil}
 	if !v.gone {
-		v.html = docrender.Render(src, docrender.Options{Path: path, Allowed: allow}).HTML
+		doc, kind := render(src, path, allow)
+		v.html = doc.HTML
+		if kind == sdui.DocumentArtifact {
+			v.kind = kind
+		}
 	}
 	v.title = filepath.Base(path)
 	return v
@@ -270,7 +273,7 @@ func (s *space) top() string {
 }
 
 func splitAnchor(path string) (string, string) {
-	if i := strings.LastIndexByte(path, '#'); i >= 0 && docrender.DocExt(path[:i]) {
+	if i := strings.LastIndexByte(path, '#'); i >= 0 && viewable(path[:i]) {
 		return path[:i], path[i+1:]
 	}
 	return path, ""

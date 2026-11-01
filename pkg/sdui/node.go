@@ -243,16 +243,22 @@ const (
 	SizeFit  = "fit"
 )
 
+const (
+	DocumentMarkdown = "markdown"
+	DocumentArtifact = "artifact"
+)
+
 type DocumentProps struct {
 	HTML   string
 	Path   string
 	Rev    int
 	Size   string
 	Anchor string
+	Kind   string
 }
 
 func Document(id string, p DocumentProps) Node {
-	props := withOptional(withOptional(withOptional(map[string]any{"html": p.HTML}, "path", p.Path), "size", p.Size), "anchor", p.Anchor)
+	props := withOptional(withOptional(withOptional(withOptional(map[string]any{"html": p.HTML}, "path", p.Path), "size", p.Size), "anchor", p.Anchor), "kind", p.Kind)
 	if p.Rev != 0 {
 		props["rev"] = p.Rev
 	}

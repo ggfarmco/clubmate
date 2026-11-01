@@ -76,6 +76,8 @@ func TestValidate(t *testing.T) {
 		{"document", sdui.Document("d", sdui.DocumentProps{HTML: "<p>a</p>", Path: "/r/a.md", Rev: 3, Size: sdui.SizeFit, Anchor: "intro"}), true},
 		{"document without html", sdui.Node{Type: "document", ID: "d", Props: map[string]any{"path": "/r/a.md"}}, false},
 		{"document bad size", sdui.Document("d", sdui.DocumentProps{HTML: "x", Size: "big"}), false},
+		{"document artifact", sdui.Document("d", sdui.DocumentProps{HTML: "<html></html>", Kind: sdui.DocumentArtifact}), true},
+		{"document bad kind", sdui.Document("d", sdui.DocumentProps{HTML: "x", Kind: "x"}), false},
 		{"document negative rev", sdui.Document("d", sdui.DocumentProps{HTML: "x", Rev: -1}), false},
 		{"document without id", sdui.Document("", sdui.DocumentProps{HTML: "x"}), false},
 		{"empty state with a non-button child", sdui.Node{Type: "empty", Props: map[string]any{"text": "x"}, Children: []sdui.Node{sdui.Text("a")}}, false},

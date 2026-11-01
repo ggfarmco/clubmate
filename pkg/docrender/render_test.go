@@ -133,13 +133,6 @@ func TestMMDFile(t *testing.T) {
 	assert.Equal(t, "flow", doc.Title)
 }
 
-func TestDocExt(t *testing.T) {
-	assert.True(t, docrender.DocExt("/r/A.MD"))
-	assert.True(t, docrender.DocExt("x.markdown"))
-	assert.True(t, docrender.DocExt("x.mmd"))
-	assert.False(t, docrender.DocExt("x.go"))
-}
-
 func tempDir(t *testing.T) string {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())

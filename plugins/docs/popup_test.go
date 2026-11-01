@@ -151,6 +151,47 @@ func TestAgentOpenPublishesOpened(t *testing.T) {
 	assert.Equal(t, published{Topic: "docs.opened", Payload: map[string]any{"workspace": "ws", "session": "agt_a", "path": spec}}, e.core.lastPublished())
 }
 
+func TestArtifactOpens(t *testing.T) {
+	e := newEnv(t)
+	src := "<!doctype html><title>Q3</title><script>document.title = 'x'</script>"
+	r := e.doc("report.html", src)
+
+	e.open(r)
+
+	e.assertDoc(r, 1, false)
+	doc := find(e.core.last(), func(n sdui.Node) bool { return n.Type == "document" })
+	assert.Equal(t, "artifact", doc.Props["kind"])
+	assert.Equal(t, src, doc.Props["html"])
+}
+
+func TestArtifactTitle(t *testing.T) {
+	e := newEnv(t)
+	r := e.doc("report.htm", "<html><head><TITLE>\n  Q3 &amp; Q4\n</TITLE></head></html>")
+
+	res, err := e.run(pluginsdk.CommandRun{ID: "docs.read", Args: e.args(map[string]any{"path": r})})
+	require.NoError(t, err)
+	got, ok := res.(readResult)
+	require.True(t, ok)
+	assert.Equal(t, "Q3 & Q4", got.Title)
+	assert.Equal(t, "artifact", got.Kind)
+}
+
+func TestArtifactLinkFromDoc(t *testing.T) {
+	e := newEnv(t)
+	a := e.doc("a.md", "[r](out/report.html)")
+	r := e.doc(filepath.Join("out", "report.html"), "<p>r</p>")
+	e.open(a)
+	doc := find(e.core.last(), func(n sdui.Node) bool { return n.Type == "document" })
+	assert.Contains(t, doc.Props["html"], `href="clubmate-doc:`+r+`"`)
+	assert.Nil(t, doc.Props["kind"])
+
+	e.event("openDoc", r)
+	e.assertDoc(r, 1, true)
+
+	e.event("back", nil)
+	e.assertDoc(a, 1, false)
+}
+
 func newEnv(t *testing.T) *env {
 	dir := realDir(t)
 	core := &fakeCore{ws: contract.Workspace{ID: "ws", Folders: []contract.Folder{{Path: dir}}}}

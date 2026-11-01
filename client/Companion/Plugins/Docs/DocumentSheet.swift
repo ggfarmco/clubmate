@@ -82,7 +82,7 @@ private struct DocumentScreen: View {
     @ViewBuilder
     private var content: some View {
         if let page = store.stack.last {
-            DocumentWebView(content: DocumentContent(path: page.path, html: page.html, rev: page.rev, anchor: page.anchor), theme: .system(dark: scheme == .dark), size: .fill, onLink: follow)
+            DocumentWebView(content: DocumentContent(path: page.path, html: page.html, rev: page.rev, anchor: page.anchor, kind: page.isArtifact ? .artifact : .markdown), theme: .system(dark: scheme == .dark), size: .fill, onLink: follow)
                 .ignoresSafeArea(.container, edges: .bottom)
         } else if let error = store.error {
             ContentUnavailableView("Can't Open Document", systemImage: "doc.questionmark", description: Text(error))

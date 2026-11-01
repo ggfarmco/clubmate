@@ -539,7 +539,7 @@ func (s *session) docOf(tool map[string]json.RawMessage) string {
 		}
 	}
 	for _, p := range paths {
-		if p != "" && docext.Is(p) {
+		if p != "" && (docext.Is(p) || docext.IsArtifact(p)) {
 			if !filepath.IsAbs(p) {
 				p = filepath.Join(s.rec.Worktree, p)
 			}

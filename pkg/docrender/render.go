@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
@@ -37,7 +38,7 @@ type Doc struct {
 
 func Render(src []byte, opts Options) Doc {
 	if opts.IsDoc == nil {
-		opts.IsDoc = DocExt
+		opts.IsDoc = viewable
 	}
 	if strings.EqualFold(filepath.Ext(opts.Path), ".mmd") {
 		return Doc{Title: fileTitle(opts.Path), HTML: mermaidHTML(src)}
@@ -56,8 +57,18 @@ func Render(src []byte, opts Options) Doc {
 	return Doc{Title: title, HTML: buf.String()}
 }
 
-func DocExt(path string) bool {
-	return docext.Is(path)
+func Artifact(src []byte, path string) Doc {
+	title := fileTitle(path)
+	if m := titleTag.FindSubmatch(src); m != nil {
+		if t := strings.Join(strings.Fields(html.UnescapeString(string(m[1]))), " "); t != "" {
+			title = t
+		}
+	}
+	return Doc{Title: title, HTML: string(src)}
+}
+
+func viewable(path string) bool {
+	return docext.Is(path) || docext.IsArtifact(path)
 }
 
 type state struct {
@@ -70,7 +81,7 @@ type transformer struct{}
 func (transformer) Transform(root *ast.Document, reader text.Reader, pc parser.Context) {
 	s, ok := pc.Get(stateKey).(*state)
 	if !ok {
-		s = &state{opts: Options{IsDoc: DocExt}}
+		s = &state{opts: Options{IsDoc: viewable}}
 	}
 	src := reader.Source()
 	var nodes []ast.Node
@@ -124,6 +135,7 @@ func (nodeRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 }
 
 var (
+	titleTag    = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
 	stateKey    = parser.NewContextKey()
 	kindMermaid = ast.NewNodeKind("DocMermaid")
 	markdown    = goldmark.New(

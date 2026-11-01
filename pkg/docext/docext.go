@@ -12,3 +12,11 @@ func Is(path string) bool {
 	}
 	return false
 }
+
+func IsArtifact(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".html", ".htm":
+		return true
+	}
+	return false
+}

@@ -12,7 +12,7 @@
         "title": "Open Doc",
         "hidden": true,
         "agent": true,
-        "description": "Show a Markdown (.md, .markdown) or mermaid (.mmd) file rendered, with diagrams drawn, in a popup over the user's workspace; it takes focus and updates while the file changes. Call it after you write a spec, plan or report the user should read. Only files inside the workspace's folders, their git worktrees and agent uploads open; fails with not in workspace, not a document, too large (over 4 MiB) or not found.",
+        "description": "Show a Markdown (.md, .markdown) or mermaid (.mmd) file rendered, with diagrams drawn, or an HTML page (.html, .htm) running with JS, in a popup over the user's workspace; it takes focus and updates while the file changes. Call it after you write a spec, plan or report the user should read. For interactive reports and UI mockups write ONE self-contained .html: inline CSS and JS, libraries only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com or esm.sh, no network calls (fetch, XHR and WebSockets are blocked), no iframes or forms; use the CSS variables --bg --text --muted --accent --border --code-bg --success --warning --danger --font --code-font to match the app; then call docs_open with it. Only files inside the workspace's folders, their git worktrees and agent uploads open; fails with not in workspace, not a document, too large (over 4 MiB) or not found.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "File to show; absolute, or relative to the session's worktree (else the workspace's first folder)."},
@@ -31,7 +31,7 @@
         "title": "Read Doc",
         "hidden": true,
         "remote": true,
-        "description": "Render a Markdown or mermaid file of the workspace to an HTML fragment; the path stays watched and docs.changed is published when it changes.",
+        "description": "Render a Markdown or mermaid file of the workspace to an HTML fragment, or return an HTML page as is; the path stays watched and docs.changed is published when it changes.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "File to read; absolute, or relative to the workspace's first folder."}
@@ -41,9 +41,10 @@
         "result": {
           "properties": {
             "path": {"type": "string", "description": "Absolute path, symlinks resolved."},
-            "title": {"type": "string", "description": "First # heading, else the file name."},
-            "html": {"type": "string", "description": "HTML fragment for the document template."},
-            "rev": {"type": "integer", "description": "Revision of the file, grows on every change."}
+            "title": {"type": "string", "description": "First # heading (an artifact's <title>), else the file name."},
+            "html": {"type": "string", "description": "HTML fragment for the document template, or the whole page for an artifact."},
+            "rev": {"type": "integer", "description": "Revision of the file, grows on every change."},
+            "kind": {"type": "string", "enum": ["markdown", "artifact"], "description": "markdown for .md, .markdown and .mmd; artifact for .html and .htm."}
           }
         }
       },
