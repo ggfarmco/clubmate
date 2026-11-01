@@ -1,0 +1,30 @@
+a01	answer	второй вариант
+a02	answer	да, мержи в main	main=мейн
+a03	answer	первый вариант, но добавь офлайн режим	офлайн
+a04	answer	вынеси это в отдельный срез и сделай его вторым	срез
+a05	answer	нет, давай без кэша, просто перечитывай файл	кэш=кеш
+a06	answer	оставь API как есть, поменяй только UI	API=апи,эй пи ай|UI=юай,ю ай
+a07	answer	да, разреши go test на весь проект	go test=гоу тест,го тест
+a08	answer	третий вариант, и закоммить когда тесты зелёные	закоммить
+a09	answer	используй GigaAM, а Whisper оставь запасным	GigaAM=гига ам,гигаам|Whisper=виспер
+a10	answer	сделай squash в main одним коммитом	squash=сквош|main=мейн
+a11	answer	мне не нравится, переделай панель снизу	панель
+a12	answer	добавь горячую клавишу option пробел	option=опшн,опшен
+a13	answer	пусть Companion показывает это только когда Mac офлайн	Companion=компаньон|Mac=мак
+a14	answer	да, только сначала прогони make app и посмотри скриншот	make app=мейк апп,мейк эпп
+a15	answer	отклони, не трогай ветку main	main=мейн
+c01	command	запусти агента на ветке feat/voice с задачей поправить MCP сервер	feat/voice=фит войс,фича войс|MCP=эмсипи,эм си пи
+c02	command	удали worktree feat/old	worktree=ворктри|feat/old=фит олд
+c03	command	покажи что упало в CI	CI=си ай,сиай
+c04	command	закоммить и сделай squash в main	squash=сквош|main=мейн
+c05	command	открой в backlog задачу про GigaAM	backlog=бэклог,беклог|GigaAM=гига ам,гигаам
+c06	command	переключись на workspace clubmate	workspace=воркспейс|clubmate=клабмейт
+c07	command	создай новую сессию Claude в worktree feat/voicebench	Claude=клод|worktree=ворктри|feat/voicebench=фит войсбенч
+c08	command	останови агента который делает рефакторинг cron	cron=крон
+c09	command	открой PR и попроси ревью	PR=пиар,пи ар
+c10	command	перезапусти nvim	nvim=энвим,неовим
+c11	command	добавь в backlog задачу: поддержать Parakeet	backlog=бэклог,беклог|Parakeet=паракит
+c12	command	покажи diff последнего коммита в git	diff=дифф,диф|git=гит
+c13	command	в терминале запусти go test по пакету plugins agents	go test=гоу тест,го тест|plugins=плагинс
+c14	command	поставь cron на каждую ночь гонять make test	cron=крон|make test=мейк тест
+c15	command	открой спеку voice assistant в docs	voice assistant=войс ассистант|docs=докс

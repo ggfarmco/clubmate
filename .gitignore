@@ -25,3 +25,6 @@ client/Clubmate/Resources/terminfo
 /terminals
 /triggers
 .claude/worktrees/
+/scripts/voicebench/data/
+/scripts/voicebench/fixtures/*.wav
+__pycache__/
