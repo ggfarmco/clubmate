@@ -128,12 +128,13 @@ public final class CompanionModel {
     }
 
     public func needsYou() -> [NeedsYouItem] {
-        let online = computers.compactMap { connections[$0.id] }.filter { $0.state == .online }
-        return NeedsYouItem.collect(online.flatMap { connection in
+        let known = computers.compactMap { connections[$0.id] }.filter { $0.state != .unauthorized }
+        let offline = Set(known.filter { $0.state != .online }.map(\.computer.id))
+        return NeedsYouItem.collect(known.flatMap { connection in
             connection.workspaces.compactMap { workspace in
                 agents(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, tag(connection.computer.id), workspace, $0.sessions) }
             }
-        })
+        }, offline: offline)
     }
 
     public func backlog(computer: String, workspace: String) -> BacklogStore? {

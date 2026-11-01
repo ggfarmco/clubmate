@@ -31,6 +31,9 @@ struct SessionDetailView: View {
         }
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
+                if let parent = session?.parentSession.flatMap(store.session) {
+                    StartedByCard(parent: parent) { context.navigation.detail = parent.id }
+                }
                 ForEach(screen.rows) { row in
                     RowView(row: row)
                 }
@@ -57,6 +60,14 @@ struct SessionDetailView: View {
                 return false
             }
         } : nil)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            RequestBannerHost()
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .frame(maxWidth: 820)
+                .frame(maxWidth: .infinity)
+                .background(Color(.systemGroupedBackground))
+        }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
@@ -258,6 +269,37 @@ struct SessionHeader: View {
         }
         .frame(maxWidth: 260)
         .accessibilityElement(children: .combine)
+    }
+}
+
+struct StartedByCard: View {
+    let parent: AgentSession
+    let open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 12) {
+                Image(systemName: "chevron.left")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Started by")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(parent.displayTitle)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
+            .background(Color.surface1, in: .rect(cornerRadius: 20))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the parent session")
     }
 }
 

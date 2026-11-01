@@ -60,6 +60,14 @@ public enum BacklogPriority: String, Sendable, Codable, CaseIterable, Identifiab
         case .low: "Low"
         }
     }
+
+    public var glyph: String? {
+        switch self {
+        case .high: "!!"
+        case .normal: nil
+        case .low: "↓"
+        }
+    }
 }
 
 public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {

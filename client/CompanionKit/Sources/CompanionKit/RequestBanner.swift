@@ -6,7 +6,7 @@ public struct RequestBanner: Sendable, Equatable {
     public let keys: Set<String>
 
     public init?(_ items: [NeedsYouItem], current: String?, dismissed: Set<String> = []) {
-        let shown = items.filter { $0.id != current && !dismissed.contains($0.requestKey) }
+        let shown = items.filter { !$0.offline && $0.id != current && !dismissed.contains($0.requestKey) }
         guard let newest = shown.last else { return nil }
         item = newest
         more = shown.count - 1

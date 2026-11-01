@@ -19,7 +19,6 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 440)
         } detail: {
             detail
-                .safeAreaInset(edge: .top) { RequestBannerHost() }
         }
         .navigationSplitViewStyle(.balanced)
         .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }

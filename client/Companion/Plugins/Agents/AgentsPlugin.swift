@@ -143,17 +143,20 @@ struct SessionListView: View {
     }
 
     private func rows(_ items: [SessionRowItem]) -> some View {
-        ForEach(items) { item in
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            let nestedBelow = index + 1 < items.count && items[index + 1].depth > 0
             HStack(spacing: 0) {
                 SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants)
-                if !item.node.children.isEmpty {
-                    SubagentToggle(count: item.node.descendants, expanded: item.expanded) {
+                if let count = item.toggleCount {
+                    SubagentToggle(count: count, expanded: item.expanded) {
                         Motion.disclose {
                             if item.expanded { store.expanded.remove(item.id) } else { store.expanded.insert(item.id) }
                         }
                     }
                 }
             }
+            .listRowSeparator(item.depth > 0 ? .hidden : .automatic, edges: .top)
+            .listRowSeparator(nestedBelow ? .hidden : .automatic, edges: .bottom)
             .tag(item.id)
         }
     }
@@ -208,7 +211,7 @@ struct SessionRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.leading, CGFloat(min(depth, 2)) * 40)
+            .padding(.leading, CGFloat(min(depth, 2)) * 24)
             .padding(.vertical, 4)
             .frame(minHeight: 52)
             .contentShape(.rect)
@@ -223,8 +226,16 @@ struct StateLineText: View {
     var body: some View {
         let lead = Text(line.lead.map { $0 + " " } ?? "").foregroundStyle(Color.warningInk)
         let text = Text(line.text).monospaced(line.mono).foregroundStyle(color)
-        let age = Text(line.age.map { " · " + $0 } ?? "").foregroundStyle(.secondary)
-        Text("\(lead)\(text)\(age)")
+        HStack(spacing: 0) {
+            Text("\(lead)\(text)")
+                .lineLimit(1)
+            if let age = line.age {
+                Text(" · " + age)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
     }
 
     private var color: Color {
@@ -240,13 +251,14 @@ struct StateLineText: View {
 struct SessionGlyphView: View {
     let glyph: SessionGlyph
     var size: CGFloat = 28
+    var muted = false
 
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: size * 0.5, weight: .semibold))
-            .foregroundStyle(foreground)
+            .foregroundStyle(muted ? .secondary : foreground)
             .frame(width: size, height: size)
-            .background(background, in: .circle)
+            .background(muted ? Color(.tertiarySystemFill) : background, in: .circle)
             .accessibilityHidden(true)
     }
 

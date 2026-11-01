@@ -31,15 +31,18 @@ final class SessionRowsTests: XCTestCase {
         }
     }
 
-    func testSubagentsStayFoldedUntilTheParentIsExpanded() throws {
+    func testSubagentsFoldUnlessTheyNeedYou() throws {
         let tree = try XCTUnwrap(AgentSession.grouped([
             AgentSession(id: "p", status: .done),
             AgentSession(id: "c", parentSession: "p", status: .waiting),
             AgentSession(id: "g", parentSession: "c", status: .done),
+            AgentSession(id: "r", parentSession: "p", status: .running),
         ]).first?.sessions.first)
-        XCTAssertEqual(tree.rows(expanded: []).map(\.id), ["p"])
-        XCTAssertEqual(tree.rows(expanded: ["p"]).map(\.id), ["p", "c"])
-        XCTAssertEqual(tree.rows(expanded: ["p", "c"]).map(\.depth), [0, 1, 2])
+        let folded = tree.rows(expanded: [])
+        XCTAssertEqual(folded.map(\.id), ["p", "c"])
+        XCTAssertEqual(folded.map(\.toggleCount), [1, 1])
+        XCTAssertEqual(tree.rows(expanded: ["p", "c"]).map(\.depth), [0, 1, 2, 1])
+        XCTAssertEqual(tree.rows(expanded: ["p", "c"]).first?.toggleCount, 3)
         XCTAssertEqual(tree.session.glyph(waitingChildren: tree.waitingDescendants), .childWaiting)
         XCTAssertEqual(tree.session.stateLine(now: now, waitingChildren: tree.waitingDescendants), SessionStateLine(text: "1 subagent waiting"))
     }
@@ -73,5 +76,6 @@ final class SessionRowsTests: XCTestCase {
         XCTAssertEqual(items.map(\.command), [nil, "go test ./...", nil])
         XCTAssertEqual(items.map(\.mac?.name), ["MacBook Pro", "Mac Studio", "Mac Studio"])
         XCTAssertEqual(items.map(\.subtitle), ["api · Docs", "shop · Refactor the cart total", "shop · Explain the checkout flow"])
+        XCTAssertEqual(items.map(\.bannerDetail), ["api · wants: Edit README.md", "shop · wants to run go test ./...", "shop · asks: Add retries?"])
     }
 }

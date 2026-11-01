@@ -9,7 +9,7 @@ struct RequestBannerHost: View {
 
     var body: some View {
         let banner = current.flatMap { RequestBanner(model.needsYou(), current: $0, dismissed: dismissed) }
-        VStack {
+        Group {
             if let banner {
                 RequestBannerView(banner: banner) {
                     navigation.workspaces[banner.item.computer] = banner.item.workspace.id
@@ -17,13 +17,9 @@ struct RequestBannerHost: View {
                 } dismiss: {
                     dismissed.formUnion(banner.keys)
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
-                .frame(maxWidth: 820)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(.opacity)
             }
         }
-        .frame(maxWidth: .infinity)
         .animation(.snappy, value: banner)
     }
 
@@ -39,17 +35,23 @@ struct RequestBannerView: View {
     let dismiss: () -> Void
 
     var body: some View {
-        let session = banner.item.session
+        let item = banner.item
         HStack(spacing: 4) {
             Button(action: open) {
                 HStack(spacing: 12) {
-                    SessionGlyphView(glyph: session.glyph)
+                    Image(systemName: item.session.glyph == .question ? "questionmark.bubble" : "hand.raised")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.warningInk)
+                        .frame(width: 28, height: 28)
+                        .background(Color(.tertiarySystemFill), in: .circle)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(session.displayTitle)
+                        Text(item.session.displayTitle)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
-                        StateLineText(line: line)
+                        item.mac.lead(item.bannerDetail)
                             .font(.subheadline)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -57,6 +59,7 @@ struct RequestBannerView: View {
                         Text(more)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                            .fixedSize()
                     }
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -79,12 +82,9 @@ struct RequestBannerView: View {
         .padding(.leading, 14)
         .padding(.trailing, 2)
         .padding(.vertical, 6)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
-    }
-
-    private var line: SessionStateLine {
-        var line = banner.item.session.stateLine(now: .now)
-        line.age = nil
-        return line
+        .background(Color.surface1, in: .rect(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20).strokeBorder(Color(.separator), lineWidth: 1)
+        }
     }
 }

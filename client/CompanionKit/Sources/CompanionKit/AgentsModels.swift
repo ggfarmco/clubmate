@@ -341,7 +341,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .thought:
             content = .thought(text)
         case .tool:
-            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null, stoppable: (try? c.decodeIfPresent(Bool.self, forKey: .stoppable)) ?? false))
+            content = .tool(ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .tool)) ?? .null, stoppable: (try? c.decodeIfPresent(Bool.self, forKey: .stoppable)) ?? false, at: at))
         case .plan:
             let plan = (try? c.decodeIfPresent(JSONValue.self, forKey: .plan)) ?? .null
             content = .plan((plan["entries"]?.arrayValue ?? []).map(PlanItem.init))
@@ -397,10 +397,12 @@ public struct ToolCall: Sendable, Equatable {
     public let command: String?
     public let intent: String?
     public let stoppable: Bool
+    public let at: Date?
 
-    public init(id: String, fields: JSONValue, stoppable: Bool = false) {
+    public init(id: String, fields: JSONValue, stoppable: Bool = false, at: Date? = nil) {
         self.id = id
         self.stoppable = stoppable
+        self.at = at
         title = fields["title"]?.stringValue ?? ""
         kind = ToolKind(fields["kind"]?.stringValue)
         status = fields["status"]?.stringValue.flatMap { $0.isEmpty ? nil : ToolStatus($0) } ?? .pending
@@ -421,6 +423,12 @@ public struct ToolCall: Sendable, Equatable {
             return plain.replacingOccurrences(of: path, with: path.split(separator: "/").last.map(String.init) ?? path)
         }
         return plain.isEmpty ? kind.rawValue.capitalized : plain
+    }
+
+    public func runningLine(now: Date) -> String {
+        let state = SessionState.running.label
+        guard let at else { return state }
+        return state + " · " + ShortAge.since(at, now: now)
     }
 
     public var changes: (added: Int, removed: Int) {

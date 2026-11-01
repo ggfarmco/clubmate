@@ -154,8 +154,9 @@ struct MarkdownView: View {
                         ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text(item.marker)
+                                    .font(.body)
                                     .monospacedDigit()
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.primary)
                                 Text(Markdown.inline(item.text))
                             }
                             .padding(.leading, CGFloat(item.depth) * 16)
@@ -278,20 +279,32 @@ struct ToolLine: View {
     @Binding var expanded: Bool
     @Environment(\.subagentStop) private var stop
     @State private var stopping = false
+    @State private var confirmingStop = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
+                guard hasDetails else { return }
                 Motion.disclose { expanded.toggle() }
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: tool.kind.symbol)
                         .foregroundStyle(.secondary)
                         .frame(width: 20)
-                    Text(tool.displayTitle)
-                        .font(tool.kind == .execute ? .callout.monospaced() : .callout)
-                        .lineLimit(1)
-                        .foregroundStyle(tool.status == .failed ? Color.danger : .primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tool.displayTitle)
+                            .font(tool.kind == .execute ? .callout.monospaced() : .callout)
+                            .lineLimit(1)
+                            .foregroundStyle(tool.status == .failed ? Color.danger : .primary)
+                        if tool.stoppable {
+                            TimelineView(.periodic(from: .now, by: 30)) { timeline in
+                                Text(stopping ? "Stopping…" : tool.runningLine(now: timeline.date))
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
                     Spacer(minLength: 6)
                     if !tool.diffs.isEmpty {
                         ChangeCounts(changes: tool.changes)
@@ -308,14 +321,21 @@ struct ToolLine: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .allowsHitTesting(hasDetails)
-            if tool.stoppable, let stop {
-                PlainCapsule(title: stopping ? "Stopping…" : "Stop", tint: Color.danger) {
+            .allowsHitTesting(hasDetails || tool.stoppable)
+            .contextMenu {
+                if tool.stoppable, let stop {
+                    Button("Stop Subagent…", systemImage: "stop.circle", role: .destructive) { confirmingStop = true }
+                        .disabled(!stop.enabled || stopping)
+                }
+            }
+            .confirmationDialog("Stop this subagent?", isPresented: $confirmingStop, titleVisibility: .visible) {
+                Button("Stop Subagent", role: .destructive) {
+                    guard let stop else { return }
                     stopping = true
                     Task { stopping = await stop.run(tool.id) }
                 }
-                .disabled(!stop.enabled || stopping)
-                .accessibilityLabel("Stop subagent")
+            } message: {
+                Text("Only this subagent stops. The session keeps running.")
             }
             if expanded {
                 ForEach(Array(tool.diffs.enumerated()), id: \.offset) { _, diff in

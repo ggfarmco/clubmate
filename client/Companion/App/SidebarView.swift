@@ -21,10 +21,17 @@ struct SidebarView: View {
                         NeedsYouRow(item: item)
                     }
                 } header: {
-                    HStack {
-                        Text("Needs you")
-                        Spacer()
-                        Text("\(needs.count)")
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Needs you")
+                            Spacer()
+                            Text("\(needs.count)")
+                        }
+                        ForEach(offlineMacs(needs), id: \.self) { name in
+                            Text("\(name) is offline — answer when it's back.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -55,6 +62,11 @@ struct SidebarView: View {
         } message: {
             Text("This phone forgets the Mac and its access token. Revoke the device in Clubmate on the Mac to cut access there too.")
         }
+    }
+
+    private func offlineMacs(_ needs: [NeedsYouItem]) -> [String] {
+        var seen: Set<String> = []
+        return needs.filter { $0.offline && seen.insert($0.computer).inserted }.compactMap { model.connection($0.computer)?.computer.name }
     }
 
     private var selection: MacsRow? {
@@ -89,7 +101,7 @@ struct NeedsYouRow: View {
         } label: {
             TimelineView(.periodic(from: .now, by: 30)) { timeline in
                 HStack(spacing: 12) {
-                    SessionGlyphView(glyph: item.session.glyph)
+                    SessionGlyphView(glyph: item.session.glyph, muted: item.offline)
                     VStack(alignment: .leading, spacing: 2) {
                         title
                             .font(.body.weight(.semibold))
@@ -109,6 +121,8 @@ struct NeedsYouRow: View {
             }
         }
         .buttonStyle(.plain)
+        .opacity(item.offline ? 0.5 : 1)
+        .accessibilityHint(item.offline ? "Read-only until the Mac is back" : "")
     }
 
     private var title: Text {

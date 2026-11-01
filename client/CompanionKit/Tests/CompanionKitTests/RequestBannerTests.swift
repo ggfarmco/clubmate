@@ -26,6 +26,7 @@ final class RequestBannerTests: XCTestCase {
         XCTAssertEqual(banner?.item.session.id, "b")
         XCTAssertEqual(banner?.moreText, "1 more")
         XCTAssertNil(RequestBanner(items([permission("c", "p2", ago: 10)]), current: "mac|c"))
+        XCTAssertNil(RequestBanner(NeedsYouItem.collect([("mac", nil, shop, [permission("a", "p1", ago: 5)])], offline: ["mac"]), current: "mac|x"))
     }
 
     func testDismissedRequestsStayHiddenUntilANewOneArrives() {

@@ -124,12 +124,19 @@ struct TaskListView: View {
                         .buttonStyle(.plain)
                     }
                 } else {
-                    Section("\(group.status.label) · \(group.tasks.count)") {
+                    Section {
                         rows(group.tasks)
+                    } header: {
+                        HStack {
+                            Text(group.status.label)
+                            Spacer()
+                            Text("\(group.tasks.count)")
+                        }
                     }
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .overlay {
             if !store.loaded {
                 ProgressView()
@@ -223,28 +230,25 @@ struct TaskRow: View {
     let owner: String?
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             TaskStatusIcon(status: task.status)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("\(Text(task.number).foregroundStyle(.secondary).monospacedDigit()) \(task.title)")
-                    .font(.body.weight(.medium))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(PriorityTag(priority: task.priority).text)\(task.title)")
                     .lineLimit(2)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Spacer(minLength: 4)
-            PriorityTag(priority: task.priority)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
+        .frame(minHeight: 52)
     }
 
-    private var subtitle: String? {
-        if task.status == .inProgress, let owner { return "In progress by \(owner)" }
-        return task.noteLine
+    private var subtitle: String {
+        let detail = task.status == .inProgress ? owner ?? task.noteLine : task.noteLine
+        return ([task.number] + [detail].compactMap { $0 }).joined(separator: " · ")
     }
 }
 
@@ -252,17 +256,19 @@ struct TaskStatusIcon: View {
     let status: BacklogStatus
 
     var body: some View {
-        Image(systemName: status.symbol)
-            .foregroundStyle(color)
-            .frame(width: 22)
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(status == .inProgress ? Color.accentColor : .secondary)
+            .frame(width: 28, height: 28)
+            .background(status == .inProgress ? Color.accentColor.opacity(0.18) : Color(.tertiarySystemFill), in: .circle)
             .accessibilityLabel(status.label)
     }
 
-    private var color: Color {
+    private var symbol: String {
         switch status {
-        case .inProgress: .accentColor
-        case .done: .green
-        default: .secondary
+        case .inProgress: "play"
+        case .done: "checkmark"
+        default: status.symbol
         }
     }
 }
@@ -270,11 +276,15 @@ struct TaskStatusIcon: View {
 struct PriorityTag: View {
     let priority: BacklogPriority
 
+    var text: Text {
+        guard let glyph = priority.glyph else { return Text("") }
+        return Text(glyph + " ").foregroundStyle(.secondary)
+    }
+
     var body: some View {
-        switch priority {
-        case .high: Tag(text: "High", color: .orange)
-        case .low: Tag(text: "Low", color: .gray)
-        case .normal: EmptyView()
+        if priority.glyph != nil {
+            text
+                .accessibilityLabel("\(priority.label) priority")
         }
     }
 }

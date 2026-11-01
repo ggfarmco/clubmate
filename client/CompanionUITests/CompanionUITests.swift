@@ -57,16 +57,24 @@ final class CompanionUITests: XCTestCase {
         add(screenshot(app, "sent-file"))
     }
 
-    func testSubagentsAreFoldedUnderTheParentUntilShown() {
+    func testASubagentThatNeedsYouIsNeverFolded() {
         let app = launch(open: "agents")
-        let show = app.buttons["Show 1 subagents"]
-        XCTAssertTrue(show.waitForExistence(timeout: 10))
-        let child = app.staticTexts["Explain the checkout flow"]
-        XCTAssertFalse(child.exists)
-        show.tap()
-        XCTAssertTrue(child.waitForExistence(timeout: 5))
-        app.buttons["Hide 1 subagents"].tap()
-        XCTAssertFalse(child.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Show 1 subagents"].exists)
+    }
+
+    func testSubagentStopIsInTheCardMenuAndAsksFirst() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let card = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Explore: Check the cart tests")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Stop subagent"].exists)
+        card.press(forDuration: 1)
+        app.buttons["Stop Subagent…"].tap()
+        let confirm = app.buttons["Stop Subagent"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        let running = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Running ·")).firstMatch
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: running)], timeout: 5)
     }
 
     func testBacklogOpensFromTheWorkspaceNotTheMac() {

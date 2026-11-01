@@ -112,14 +112,20 @@ extension SessionNode {
         children.reduce(0) { $0 + ($1.session.glyph.needsYou ? 1 : 0) + $1.waitingDescendants }
     }
 
+    public var needsYouInTree: Bool {
+        session.glyph.needsYou || waitingDescendants > 0
+    }
+
     public func rows(expanded: Set<String>) -> [SessionRowItem] {
         rows(depth: 0, expanded: expanded)
     }
 
     private func rows(depth: Int, expanded: Set<String>) -> [SessionRowItem] {
         let open = expanded.contains(id)
-        let nested = open ? children.flatMap { $0.rows(depth: depth + 1, expanded: expanded) } : []
-        return [SessionRowItem(node: self, depth: depth, expanded: open)] + nested
+        let shown = open ? children : children.filter(\.needsYouInTree)
+        let nested = shown.flatMap { $0.rows(depth: depth + 1, expanded: expanded) }
+        let hidden = open ? 0 : descendants - shown.reduce(0) { $0 + 1 + $1.descendants }
+        return [SessionRowItem(node: self, depth: depth, expanded: open, hidden: hidden)] + nested
     }
 }
 
@@ -127,8 +133,15 @@ public struct SessionRowItem: Sendable, Equatable, Identifiable {
     public let node: SessionNode
     public let depth: Int
     public let expanded: Bool
+    public let hidden: Int
 
     public var id: String { node.id }
+
+    public var toggleCount: Int? {
+        if node.children.isEmpty { return nil }
+        if expanded { return node.descendants }
+        return hidden > 0 ? hidden : nil
+    }
 }
 
 public struct WorkspaceActivity: Sendable, Equatable {
@@ -164,6 +177,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     public let mac: MacTag?
     public let workspace: Workspace
     public let session: AgentSession
+    public var offline = false
 
     public var id: String { Self.id(computer: computer, session: session.id) }
 
@@ -187,15 +201,26 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
         [workspace.name, session.displayTitle].joined(separator: " · ")
     }
 
+    public var wants: String {
+        if let command { return "wants to run \(command)" }
+        if session.glyph == .question { return session.askedQuestion.map { "asks: \($0)" } ?? "asking you" }
+        guard let text = session.pendingSummary?.text, !text.isEmpty else { return "waiting for you" }
+        return "wants: \(text)"
+    }
+
+    public var bannerDetail: String {
+        [workspace.name, wants].joined(separator: " · ")
+    }
+
     public var at: Date {
         session.pendingSummary?.at ?? session.updatedAt
     }
 
-    public static func collect(_ sources: [(computer: String, mac: MacTag?, workspace: Workspace, sessions: [AgentSession])]) -> [NeedsYouItem] {
+    public static func collect(_ sources: [(computer: String, mac: MacTag?, workspace: Workspace, sessions: [AgentSession])], offline: Set<String> = []) -> [NeedsYouItem] {
         var items: [NeedsYouItem] = []
         for source in sources {
             for session in source.sessions where session.glyph.needsYou {
-                items.append(NeedsYouItem(computer: source.computer, mac: source.mac, workspace: source.workspace, session: session))
+                items.append(NeedsYouItem(computer: source.computer, mac: source.mac, workspace: source.workspace, session: session, offline: offline.contains(source.computer)))
             }
         }
         return items.sorted { $0.at != $1.at ? $0.at < $1.at : $0.id < $1.id }
