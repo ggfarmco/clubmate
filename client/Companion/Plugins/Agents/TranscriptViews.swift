@@ -776,7 +776,17 @@ struct AlwaysAllowSheet: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            CodeBlock(text: request.alwaysRule, lines: 4)
+            if let label = request.option(.allowAlways)?.name {
+                Text("\(agentName)'s option: “\(label)”")
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Likely rule, read from that label")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                CodeBlock(text: request.alwaysRule, lines: 4)
+            }
             VStack(spacing: 6) {
                 PlainCapsule(title: "Always allow", tint: .primary, action: confirm)
                 Button { dismiss() } label: {
@@ -798,10 +808,10 @@ struct AlwaysAllowSheet: View {
     private var scope: AttributedString {
         let what = request.toolCall.kind == .execute ? "run matching commands" : "do this"
         if request.alwaysForSession {
-            return Markdown.inline("\(agentName) will \(what) without asking until this session ends.")
+            return Markdown.inline("\(agentName) will \(what) without asking; its option says until this session ends.")
         }
         let place = place.isEmpty ? "this workspace" : "**\(place)**"
-        return Markdown.inline("\(agentName) will \(what) in \(place) without asking, on this Mac, until you remove the rule from `.claude/settings.local.json`.")
+        return Markdown.inline("\(agentName) will \(what) in \(place) without asking, on this Mac, until you remove the rule it stores (usually in `.claude/settings.local.json`).")
     }
 }
 
