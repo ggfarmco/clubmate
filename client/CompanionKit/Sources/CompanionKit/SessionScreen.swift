@@ -251,6 +251,28 @@ extension PermissionRequest {
         options.first { $0.kind == kind }
     }
 
+    public var fallbackButtons: [PermissionCardContent.Option] {
+        let labels: [(PermissionKind, String)] = [(.allowOnce, "Allow once"), (.allowAlways, "Always allow…"), (.rejectOnce, "Reject")]
+        return labels.compactMap { kind, label in option(kind).map { PermissionCardContent.Option(id: $0.optionId, label: label, kind: kind) } }
+    }
+
+    public var fallbackMenu: [PermissionCardContent.Option] {
+        option(.rejectAlways).map { [PermissionCardContent.Option(id: $0.optionId, label: "Reject and don't ask again", kind: .rejectAlways, menu: true)] } ?? []
+    }
+
+    public static let keyCount = 3
+
+    public func keyed(_ digit: Int) -> PermissionCardContent.Option? {
+        if let card { return card.options.first { $0.shortcut == "opt+\(digit)" } }
+        let kinds: [PermissionKind] = [.allowOnce, .allowAlways, .rejectOnce]
+        guard digit >= 1, digit <= kinds.count else { return nil }
+        return fallbackButtons.first { $0.kind == kinds[digit - 1] }
+    }
+
+    public var alwaysOption: PermissionCardContent.Option? {
+        card?.options.first { $0.kind == .allowAlways }
+    }
+
     public var subject: String {
         (toolCall.command ?? toolCall.displayTitle).split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).joined(separator: "\n")
     }

@@ -130,10 +130,10 @@ Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.
 
 | Keys | Action |
 |---|---|
-| ⌥1 ⌥2 ⌥3 | Choose the pending permission request's option in button order (Allow first); "Always" options have no key and need a tap and the confirm |
+| ⌥1 ⌥2 ⌥3 | The pending permission card's keys from the agents plugin (`shortcut` in its `card`): ⌥1 Allow once, ⌥2 opens the Always allow confirm sheet (nothing is stored until its Always allow button), ⌥3 Reject; Always reject in ••• has no key |
 | ⌘↩ | Send the composer's message (Session menu) |
 
-Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionKeys`.
+Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`.
 
 ## Code chat panel starters (session with no turns yet)
 

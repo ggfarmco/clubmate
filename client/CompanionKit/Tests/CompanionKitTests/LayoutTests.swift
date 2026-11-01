@@ -28,12 +28,6 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(CompanionLayout.stackColumn(chosen: false, detail: false), .sidebar)
     }
 
-    func testOptionKeysFollowButtonOrderAndSkipAlwaysOptions() {
-        let kinds: [PermissionKind] = [.allowOnce, .allowAlways, .rejectOnce]
-        XCTAssertEqual((1...4).map { PermissionKeys.option($0, kinds: kinds) }, [0, nil, 2, nil])
-        XCTAssertEqual(kinds.indices.map { PermissionKeys.label($0, kind: kinds[$0]) }, ["⌥1", nil, "⌥3"])
-    }
-
     func testPendingPermissionIsTheOpenRequestOfTheSession() async throws {
         let runner = FakeRunner()
         let store = AgentsStore(workspace: "w", runner: runner)

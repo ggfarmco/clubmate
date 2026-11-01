@@ -18,6 +18,7 @@ struct SessionDetailView: View {
     @State private var confirmingClose = false
     @State private var confirmingStop = false
     @State private var showingSettings = false
+    @State private var alwaysAsked = 0
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -111,7 +112,7 @@ struct SessionDetailView: View {
                     Group {
                         switch dock {
                         case .permission(let request, let more):
-                            PermissionCard(request: request, more: more, agentName: session.agentName, place: session.worktreeName, blocked: blocked) { option in
+                            PermissionCard(request: request, more: more, agentName: session.agentName, place: session.worktreeName, blocked: blocked, askAlways: alwaysAsked) { option in
                                 try await answer(request: request.id, option: option)
                             }
                             .id(request.id)
@@ -193,8 +194,8 @@ struct SessionDetailView: View {
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: sent)
         .sessionKeys(enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
-            perform { try await answer(request: request.id, option: option.optionId) }
-        }, send: send)
+            perform { try await answer(request: request.id, option: option) }
+        }, confirmAlways: { alwaysAsked += 1 }, send: send)
         .onChange(of: entries.count) { _, _ in
             withAnimation { position.scrollTo(edge: .bottom) }
         }

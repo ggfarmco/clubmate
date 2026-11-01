@@ -107,18 +107,19 @@ actor FixtureServer {
                 summary["at"] = stamp
                 fields["pendingSummary"] = .object(summary)
             }
+            if fields["needsYouSince"] != nil { fields["needsYouSince"] = stamp }
             sessions.append(fields)
         }
         if let template = sessions.first {
-            let extra: [(String, String, String, Double)] = [
-                ("agt_0000000000000004", "Add stock reservation expiry", "running", 240),
-                ("agt_0000000000000005", "Migrate cart storage", "error", 2_400),
-                ("agt_0000000000000006", "Bump Go to 1.25", "done", 3_700),
+            let extra: [(String, String, String, Double, String?)] = [
+                ("agt_0000000000000004", "Add stock reservation expiry", "running", 240, "Editing reserve.go"),
+                ("agt_0000000000000005", "Migrate cart storage", "error", 2_400, nil),
+                ("agt_0000000000000006", "Bump Go to 1.25", "done", 3_700, nil),
             ]
-            for (id, title, status, ago) in extra {
-                sessions.append(Self.session(template, id: id, title: title, status: status, ago: ago))
+            for (id, title, status, ago, activity) in extra {
+                sessions.append(Self.session(template, id: id, title: title, status: status, ago: ago, activity: activity))
             }
-            others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600)]
+            others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600, activity: "Reading prompt.md")]
         }
         var transcripts: [String: [String: JSONValue]] = [:]
         if case .object(var first) = decode("agents-transcript.json"), let id = sessions.first?["id"]?.stringValue {
@@ -160,6 +161,7 @@ actor FixtureServer {
             fields["worktree"] = .string("/Users/me/src/infra")
             fields["title"] = .string("Move the state bucket to the new account")
             fields["pendingSummary"] = .object(["kind": .string("permission"), "text": .string("terraform plan"), "tool": .string("execute"), "at": Self.stamp(ago: 240)])
+            fields["needsYouSince"] = Self.stamp(ago: 240)
             return fields
         } : []
     }
@@ -455,7 +457,9 @@ actor FixtureServer {
         if sessions[index]["pending"] == nil && sessions[index]["asks"] != .bool(true) {
             sessions[index]["pendingSummary"] = nil
             sessions[index]["needsYou"] = nil
+            sessions[index]["needsYouSince"] = nil
         }
+        if sessions[index]["status"] != .string("running") { sessions[index]["activity"] = nil }
         sessions[index]["updatedAt"] = Self.stamp(ago: 0)
         publish("agents.changed", ["workspace": .string(workspace), "session": .string(session), "kind": .string("status")])
     }
@@ -501,9 +505,10 @@ actor FixtureServer {
         .object(["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)])
     }
 
-    private static func session(_ template: [String: JSONValue], id: String, title: String, status: String, ago: TimeInterval) -> [String: JSONValue] {
+    private static func session(_ template: [String: JSONValue], id: String, title: String, status: String, ago: TimeInterval, activity: String? = nil) -> [String: JSONValue] {
         var fields = template
-        for key in ["pending", "pendingSummary", "question", "parentSession", "needsYou"] { fields[key] = nil }
+        for key in ["pending", "pendingSummary", "question", "parentSession", "needsYou", "needsYouSince"] { fields[key] = nil }
+        if let activity { fields["activity"] = .object(["title": .string(activity), "at": stamp(ago: ago)]) }
         fields["id"] = .string(id)
         fields["title"] = .string(title)
         fields["status"] = .string(status)

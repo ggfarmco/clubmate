@@ -111,6 +111,12 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(permission.toolCall.command, "go test ./...")
         XCTAssertEqual(permission.options.map(\.optionId), ["allow", "allow_always", "deny", "deny_always"])
         XCTAssertNil(permission.outcome)
+        XCTAssertEqual(permission.card?.title, "Run a command?")
+        XCTAssertEqual(permission.card?.caption, "Claude says: Run the shop tests")
+        XCTAssertEqual(permission.card?.buttons.map(\.label), ["Allow once", "Always allow…", "Reject"])
+        XCTAssertEqual(permission.card?.menu.map(\.id), ["deny_always"])
+        XCTAssertEqual([permission.alwaysOption?.rule, permission.alwaysOption?.scope], ["Bash(go test:*)", "in demo on this Mac"])
+        XCTAssertEqual((1...4).map { permission.keyed($0)?.id }, ["allow", "allow_always", "deny", nil])
     }
 
     func testConfigOptionsFlattenGroupedChoices() throws {

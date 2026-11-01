@@ -45,6 +45,10 @@ extension AgentSession {
         }
     }
 
+    public var needsYouAt: Date? {
+        needsYou ? needsYouSince ?? pendingSummary?.at ?? updatedAt : nil
+    }
+
     public var isTurnActive: Bool {
         status == .running || status == .waiting
     }
@@ -75,7 +79,7 @@ extension AgentSession {
         let buckets = Dictionary(grouping: trees, by: \.group)
         return SessionGroup.allCases.compactMap { group in
             guard let list = buckets[group], !list.isEmpty else { return nil }
-            return (group, list.sorted(by: SessionNode.newerFirst))
+            return (group, list.sorted(by: group == .needsInput ? SessionNode.waitingLonger : SessionNode.newerFirst))
         }
     }
 }
@@ -85,6 +89,7 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
     public let children: [SessionNode]
     public let group: SessionGroup
     public let updatedAt: Date
+    public let needsYouAt: Date?
 
     public var id: String { session.id }
 
@@ -103,8 +108,14 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
             session: session,
             children: children.sorted(by: newerFirst),
             group: SessionGroup.allCases.first(where: groups.contains) ?? session.group,
-            updatedAt: children.map(\.updatedAt).reduce(session.updatedAt, max)
+            updatedAt: children.map(\.updatedAt).reduce(session.updatedAt, max),
+            needsYouAt: (children.map(\.needsYouAt) + [session.needsYouAt]).compactMap { $0 }.min()
         )
+    }
+
+    static func waitingLonger(_ a: SessionNode, _ b: SessionNode) -> Bool {
+        let (x, y) = (a.needsYouAt ?? .distantFuture, b.needsYouAt ?? .distantFuture)
+        return x != y ? x < y : a.id < b.id
     }
 
     static func newerFirst(_ a: SessionNode, _ b: SessionNode) -> Bool {
@@ -299,7 +310,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let content: Content
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, card
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -351,7 +362,8 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
                 toolCall: ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .toolCall)) ?? .null),
                 options: PermissionOption.ordered((try? c.decodeIfPresent([PermissionOption].self, forKey: .options)) ?? []),
                 outcome: try? c.decodeIfPresent(PermissionOutcome.self, forKey: .outcome),
-                answeredAt: try? c.decodeIfPresent(Date.self, forKey: .answeredAt)
+                answeredAt: try? c.decodeIfPresent(Date.self, forKey: .answeredAt),
+                card: try? c.decodeIfPresent(PermissionCardContent.self, forKey: .card)
             ))
         case .elicitation:
             content = .elicitation(Elicitation(
@@ -472,12 +484,72 @@ public struct PermissionOutcome: Decodable, Sendable, Equatable {
     public let optionId: String?
 }
 
+public struct PermissionCardContent: Decodable, Sendable, Equatable {
+    public struct Option: Decodable, Sendable, Equatable, Identifiable {
+        public let id: String
+        public let label: String
+        public let kind: PermissionKind
+        public var shortcut: String?
+        public var menu = false
+        public var rule: String?
+        public var scope: String?
+
+        public init(id: String, label: String, kind: PermissionKind, menu: Bool = false) {
+            self.id = id
+            self.label = label
+            self.kind = kind
+            self.menu = menu
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case id, label, kind, shortcut, menu, rule, scope
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            label = try c.decodeIfPresent(String.self, forKey: .label) ?? id
+            kind = try c.decodeIfPresent(PermissionKind.self, forKey: .kind) ?? .other
+            shortcut = try c.decodeIfPresent(String.self, forKey: .shortcut)
+            menu = try c.decodeIfPresent(Bool.self, forKey: .menu) ?? false
+            rule = try c.decodeIfPresent(String.self, forKey: .rule).flatMap { $0.isEmpty ? nil : $0 }
+            scope = try c.decodeIfPresent(String.self, forKey: .scope).flatMap { $0.isEmpty ? nil : $0 }
+        }
+    }
+
+    public let title: String
+    public let command: String?
+    public let caption: String?
+    public let options: [Option]
+
+    enum CodingKeys: String, CodingKey {
+        case title, command, caption, options
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        command = try c.decodeIfPresent(String.self, forKey: .command).flatMap { $0.isEmpty ? nil : $0 }
+        caption = try c.decodeIfPresent(String.self, forKey: .caption).flatMap { $0.isEmpty ? nil : $0 }
+        options = try c.decodeIfPresent([Option].self, forKey: .options) ?? []
+    }
+
+    public var buttons: [Option] {
+        options.filter { !$0.menu }
+    }
+
+    public var menu: [Option] {
+        options.filter(\.menu)
+    }
+}
+
 public struct PermissionRequest: Sendable, Equatable {
     public let id: String
     public let toolCall: ToolCall
     public let options: [PermissionOption]
     public let outcome: PermissionOutcome?
     public let answeredAt: Date?
+    public var card: PermissionCardContent?
 
     public var answer: String? {
         guard let outcome else { return nil }

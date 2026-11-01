@@ -96,6 +96,7 @@ extension AgentSession {
             return SessionStateLine(text: count == 1 ? "1 subagent waiting" : "\(count) subagents waiting")
         case .running:
             if status != .running { return SessionStateLine(text: "Waiting for subagents") }
+            if let activity, !activity.title.isEmpty { return SessionStateLine(text: activity.title, age: age(activity.at)) }
             return SessionStateLine(text: SessionState.running.label, age: age(turnStartedAt ?? updatedAt))
         case .stopped:
             return SessionStateLine(text: SessionState.stopped.label + " · error", tone: .danger)
@@ -213,7 +214,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     }
 
     public var at: Date {
-        session.pendingSummary?.at ?? session.updatedAt
+        session.needsYouAt ?? session.updatedAt
     }
 
     public static func collect(_ sources: [(computer: String, mac: MacTag?, workspace: Workspace, sessions: [AgentSession])], offline: Set<String> = []) -> [NeedsYouItem] {

@@ -19,6 +19,7 @@ final class SessionRowsTests: XCTestCase {
              .question, SessionStateLine(lead: "Asks:", text: "Add retries?", tone: .primary)),
             (AgentSession(id: "e", status: .done, asks: true), .question, SessionStateLine(text: "Asking you", tone: .needsYou)),
             (AgentSession(id: "f", status: .running, updatedAt: ago(1), turnStartedAt: ago(240)), .running, SessionStateLine(text: "Running", age: "4 min")),
+            (AgentSession(id: "f2", status: .running, turnStartedAt: ago(600), activity: SessionActivity(title: "Editing reserve.go", at: ago(240))), .running, SessionStateLine(text: "Editing reserve.go", age: "4 min")),
             (AgentSession(id: "g", status: .done, childStatus: .running), .running, SessionStateLine(text: "Waiting for subagents")),
             (AgentSession(id: "h", status: .done, childStatus: .waiting), .childWaiting, SessionStateLine(text: "1 subagent waiting")),
             (AgentSession(id: "i", status: .error, error: "boom"), .stopped, SessionStateLine(text: "Stopped · error", tone: .danger)),
@@ -45,6 +46,16 @@ final class SessionRowsTests: XCTestCase {
         XCTAssertEqual(tree.rows(expanded: ["p", "c"]).first?.toggleCount, 3)
         XCTAssertEqual(tree.session.glyph(waitingChildren: tree.waitingDescendants), .childWaiting)
         XCTAssertEqual(tree.session.stateLine(now: now, waitingChildren: tree.waitingDescendants), SessionStateLine(text: "1 subagent waiting"))
+    }
+
+    func testNeedsYouGroupIsOldestFirstBySubtree() {
+        let ago = { (seconds: Double) in self.now.addingTimeInterval(-seconds) }
+        let needs = AgentSession.grouped([
+            AgentSession(id: "a", status: .waiting, updatedAt: ago(1), needsYouSince: ago(60)),
+            AgentSession(id: "b", status: .done, updatedAt: ago(500)),
+            AgentSession(id: "c", parentSession: "b", status: .waiting, updatedAt: ago(500), needsYouSince: ago(300)),
+        ]).first { $0.group == .needsInput }?.sessions
+        XCTAssertEqual(needs?.map(\.id), ["b", "a"])
     }
 
     func testWorkspaceActivityCountsWaitingRunningAndClosed() {

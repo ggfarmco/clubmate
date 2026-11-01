@@ -37,17 +37,3 @@ public enum CompanionLayout: Sendable, Equatable {
         return detail ? .detail : .content
     }
 }
-
-public enum PermissionKeys {
-    public static let count = 3
-
-    public static func option(_ digit: Int, kinds: [PermissionKind]) -> Int? {
-        guard digit >= 1, digit <= kinds.count, label(digit - 1, kind: kinds[digit - 1]) != nil else { return nil }
-        return digit - 1
-    }
-
-    public static func label(_ index: Int, kind: PermissionKind) -> String? {
-        guard index < count, kind != .allowAlways, kind != .rejectAlways else { return nil }
-        return "⌥\(index + 1)"
-    }
-}

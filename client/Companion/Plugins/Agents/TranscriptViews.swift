@@ -667,6 +667,7 @@ struct PermissionCard: View {
     let agentName: String
     let place: String
     let blocked: String?
+    var askAlways = 0
     let choose: @MainActor (String) async throws -> Void
     @State private var chosen: String?
     @State private var failure: String?
@@ -679,13 +680,15 @@ struct PermissionCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     DockBadge(symbol: "hand.raised.fill")
-                    Text(request.question)
+                    Text(request.card?.title ?? request.question)
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
                     Spacer(minLength: 0)
-                    if let never = request.option(.rejectAlways) {
+                    if !menu.isEmpty {
                         Menu {
-                            Button("Reject and don't ask again", systemImage: "hand.raised.slash", role: .destructive) { pick(never) }
+                            ForEach(menu, id: \.id) { option in
+                                Button(option.label, systemImage: option.kind.rejects ? "hand.raised.slash" : "checkmark", role: option.kind.rejects ? .destructive : nil) { pick(option.id) }
+                            }
                         } label: {
                             Image(systemName: "ellipsis")
                                 .font(.body.weight(.semibold))
@@ -698,7 +701,7 @@ struct PermissionCard: View {
                         .disabled(!answerable)
                     }
                 }
-                CodeBlock(text: request.subject, lines: PermissionRequest.dockCommandLines)
+                CodeBlock(text: subject, lines: PermissionRequest.dockCommandLines)
                 ForEach(Array(request.toolCall.diffs.prefix(1).enumerated()), id: \.offset) { _, diff in
                     DiffView(diff: diff, limit: PermissionRequest.dockDiffLines)
                 }
@@ -719,9 +722,9 @@ struct PermissionCard: View {
                         .lineLimit(2)
                 }
                 VStack(spacing: 10) {
-                    if let once = request.option(.allowOnce) {
-                        Button { pick(once) } label: {
-                            Text("Allow once")
+                    if let first = buttons.first {
+                        Button { tap(first) } label: {
+                            Text(first.label)
                                 .font(.headline)
                                 .frame(maxWidth: .infinity, minHeight: 50)
                                 .foregroundStyle(Color.onAccent)
@@ -731,11 +734,8 @@ struct PermissionCard: View {
                         .buttonStyle(.plain)
                     }
                     HStack(spacing: 10) {
-                        if request.option(.allowAlways) != nil {
-                            PlainCapsule(title: "Always allow…", tint: .primary) { confirmingAlways = true }
-                        }
-                        if let reject = request.option(.rejectOnce) {
-                            PlainCapsule(title: "Reject", tint: Color.danger) { pick(reject) }
+                        ForEach(buttons.dropFirst(), id: \.id) { option in
+                            PlainCapsule(title: option.label, tint: option.kind.rejects ? Color.danger : .primary) { tap(option) }
                         }
                     }
                 }
@@ -751,6 +751,9 @@ struct PermissionCard: View {
         .task {
             try? await Task.sleep(for: .milliseconds(600))
             armed = true
+        }
+        .onChange(of: askAlways) { _, _ in
+            if answerable, buttons.contains(where: { $0.kind == .allowAlways }) { confirmingAlways = true }
         }
         .sheet(isPresented: $showingAll) {
             NavigationStack {
@@ -775,7 +778,7 @@ struct PermissionCard: View {
         .sheet(isPresented: $confirmingAlways) {
             AlwaysAllowSheet(request: request, agentName: agentName, place: place) {
                 confirmingAlways = false
-                if let always = request.option(.allowAlways) { pick(always) }
+                if let always = buttons.first(where: { $0.kind == .allowAlways }) { pick(always.id) }
             }
         }
     }
@@ -788,20 +791,37 @@ struct PermissionCard: View {
         enabled && armed && chosen == nil
     }
 
+    private var subject: String {
+        request.card?.command ?? request.subject
+    }
+
+    private var buttons: [PermissionCardContent.Option] {
+        request.card?.buttons ?? request.fallbackButtons
+    }
+
+    private var menu: [PermissionCardContent.Option] {
+        request.card?.menu ?? request.fallbackMenu
+    }
+
+    private func tap(_ option: PermissionCardContent.Option) {
+        if option.kind == .allowAlways { confirmingAlways = true } else { pick(option.id) }
+    }
+
     private var caption: String? {
         if let blocked { return blocked }
-        let intent = (request.toolCall.intent ?? (request.toolCall.displayTitle != request.subject ? request.toolCall.displayTitle : nil)).map { "\(agentName) says: \($0)" }
+        let said = request.card.map(\.caption) ?? (request.toolCall.intent ?? (request.toolCall.displayTitle != request.subject ? request.toolCall.displayTitle : nil)).map { "\(agentName) says: \($0)" }
+        let intent = said
         let rest = more > 0 ? (more == 1 ? "1 more request waiting" : "\(more) more requests waiting") : nil
         let parts = [intent, rest].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    private func pick(_ option: PermissionOption) {
-        chosen = option.optionId
+    private func pick(_ option: String) {
+        chosen = option
         failure = nil
         Task {
             do {
-                try await choose(option.optionId)
+                try await choose(option)
             } catch {
                 failure = (error as? RemoteError)?.message ?? error.localizedDescription
                 chosen = nil
@@ -846,16 +866,31 @@ struct AlwaysAllowSheet: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if let label = request.option(.allowAlways)?.name {
-                Text("\(agentName)'s option: “\(label)”")
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Likely rule, read from that label")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                CodeBlock(text: request.alwaysRule, lines: 4)
+            if let always = request.alwaysOption {
+                if let rule = always.rule {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Rule it stores")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        CodeBlock(text: rule, lines: 4)
+                    }
+                } else if let label = request.option(.allowAlways)?.name {
+                    Text("\(agentName)'s option: “\(label)”")
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                if let label = request.option(.allowAlways)?.name {
+                    Text("\(agentName)'s option: “\(label)”")
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Likely rule, read from that label")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    CodeBlock(text: request.alwaysRule, lines: 4)
+                }
             }
             VStack(spacing: 6) {
                 PlainCapsule(title: "Always allow", tint: .primary, action: confirm)
@@ -877,6 +912,9 @@ struct AlwaysAllowSheet: View {
 
     private var scope: AttributedString {
         let what = request.toolCall.kind == .execute ? "run matching commands" : "do this"
+        if let scope = request.alwaysOption?.scope {
+            return Markdown.inline("\(agentName) will \(what) without asking, \(scope), until you remove the rule.")
+        }
         if request.alwaysForSession {
             return Markdown.inline("\(agentName) will \(what) without asking; its option says until this session ends.")
         }
