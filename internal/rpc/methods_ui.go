@@ -221,7 +221,7 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 	if scope, _ := u.sections.SlotScope(p.Section + ".main"); scope == sdui.ScopeApp {
 		return deliveredResult{}, invalidParams(fmt.Sprintf("section %q is app-scope", p.Section))
 	}
-	if !slices.Contains([]string{"", p.Section + ".sidebar", p.Section + ".main"}, p.Slot) {
+	if !slices.Contains(focusSlots(u.sections, p.Section), p.Slot) {
 		return deliveredResult{}, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
 	if p.Field && p.Slot != p.Section+".sidebar" {
@@ -404,6 +404,18 @@ func (s *Server) requireWorkspace(ctx context.Context, workspaceID string) error
 	}
 	_, err := s.svc.GetWorkspace(ctx, workspaceID)
 	return err
+}
+
+func focusSlots(sections *sdui.Sections, section string) []string {
+	var slots []string
+	if sections.InRail(section) {
+		slots = append(slots, "", section+".sidebar", section+".main")
+	}
+	popup := section + ".popup"
+	if owner, ok := sections.SlotSection(popup); ok && owner == section {
+		slots = append(slots, popup)
+	}
+	return slots
 }
 
 func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription, delta bool, opts sdui.DeltaOptions) forwardFunc {

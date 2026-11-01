@@ -1,0 +1,58 @@
+{
+  "id": "docs",
+  "name": "Docs",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["docs"],
+  "contributes": {
+    "sections": [{"id": "docs", "title": "Docs", "icon": "doc.richtext", "order": 90, "rail": false, "slots": ["popup"]}],
+    "commands": [
+      {
+        "id": "docs.open",
+        "title": "Open Doc",
+        "hidden": true,
+        "agent": true,
+        "description": "Show a Markdown (.md, .markdown) or mermaid (.mmd) file rendered, with diagrams drawn, in a popup over the user's workspace; it takes focus and updates while the file changes. Call it after you write a spec, plan or report the user should read. Only files inside the workspace's folders, their git worktrees and agent uploads open; fails with not in workspace, not a document, too large (over 4 MiB) or not found.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "File to show; absolute, or relative to the session's worktree (else the workspace's first folder)."},
+            "session": {"type": "string", "description": "Agent session whose worktree a relative path is resolved against; default the calling session."}
+          },
+          "required": ["path"]
+        },
+        "result": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute path shown, symlinks resolved."}
+          }
+        }
+      },
+      {
+        "id": "docs.read",
+        "title": "Read Doc",
+        "hidden": true,
+        "remote": true,
+        "description": "Render a Markdown or mermaid file of the workspace to an HTML fragment; the path stays watched and docs.changed is published when it changes.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "File to read; absolute, or relative to the workspace's first folder."}
+          },
+          "required": ["path"]
+        },
+        "result": {
+          "properties": {
+            "path": {"type": "string", "description": "Absolute path, symlinks resolved."},
+            "title": {"type": "string", "description": "First # heading, else the file name."},
+            "html": {"type": "string", "description": "HTML fragment for the document template."},
+            "rev": {"type": "integer", "description": "Revision of the file, grows on every change."}
+          }
+        }
+      },
+      {
+        "id": "docs.close",
+        "title": "Close Doc",
+        "hidden": true,
+        "description": "Close the docs popup."
+      }
+    ]
+  }
+}

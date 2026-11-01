@@ -8,6 +8,14 @@ struct SidebarItem: Hashable {
     let plugin: String
 }
 
+struct OpenDoc: Identifiable, Hashable {
+    let computer: String
+    let workspace: String
+    let path: String
+
+    var id: Self { self }
+}
+
 @MainActor
 @Observable
 final class AppNavigation {
@@ -16,6 +24,7 @@ final class AppNavigation {
     var macDetails: String?
     var workspaces: [String: String] = [:]
     var showingAddComputer = false
+    var doc: OpenDoc?
     var preferredColumn: NavigationSplitViewColumn = .sidebar
     var layout: CompanionLayout = .compact
     var visibility: NavigationSplitViewVisibility = .all
@@ -25,6 +34,10 @@ final class AppNavigation {
         sidebar = SidebarItem(computer: computer, plugin: plugin)
         self.detail = detail
         preferredColumn = detail == nil ? .content : .detail
+    }
+
+    func openDoc(computer: String, workspace: String, path: String) {
+        doc = OpenDoc(computer: computer, workspace: workspace, path: path)
     }
 
     func showMac(_ computer: String) {

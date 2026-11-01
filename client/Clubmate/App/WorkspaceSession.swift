@@ -26,6 +26,8 @@ final class WorkspaceSession {
     private(set) var filePicker: FilePickerModel?
     var thumbnail: NSImage?
     var autoNewRequest = 0
+    var popupPoppedOut = false
+    @ObservationIgnored var popupHost: PopupWindowHost?
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: WorkspaceUIStore?
     @ObservationIgnored private let lookup: @MainActor () -> Workspace?
@@ -122,6 +124,15 @@ final class WorkspaceSession {
         if overlay == .picker {
             picker?.model.cancel()
             picker = nil
+        }
+    }
+
+    func closePopup(_ slot: String) {
+        guard let store else { return }
+        Task {
+            if case .failure(let error) = await store.send(UIEvent(workspaceId: workspaceID, slot: slot, nodeId: "", action: "close")) {
+                banner.show(error.message)
+            }
         }
     }
 

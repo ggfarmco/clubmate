@@ -168,9 +168,31 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
-    private func launch(open target: String) -> XCUIApplication {
+    func testDocLinkPushesUpdatesLiveAndBackReturns() {
+        let app = launch(open: "agents", ["-doc", "/Users/me/src/shop/docs/checkout-retries.md"])
+        XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.navigationBars.buttons["Back"].exists)
+        add(screenshot(app, "doc-top"))
+        let link = app.webViews.links["payments overview"]
+        XCTAssertTrue(link.waitForExistence(timeout: 5))
+        link.tap()
+        XCTAssertTrue(app.navigationBars["Payments overview"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.webViews.staticTexts["Updated while you were reading."].waitForExistence(timeout: 10))
+        add(screenshot(app, "doc-linked-updated"))
+        app.navigationBars.buttons["Back"].tap()
+        XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.navigationBars.buttons["Back"].exists)
+        for index in 1...3 {
+            app.webViews.firstMatch.swipeUp()
+            add(screenshot(app, "doc-scroll-\(index)"))
+        }
+        app.buttons["Done"].tap()
+        XCTAssertTrue(wait(for: app.navigationBars["Checkout retries"], "exists == false"))
+    }
+
+    private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target]
+        app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra
         app.launch()
         return app
     }

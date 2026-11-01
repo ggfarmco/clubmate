@@ -147,7 +147,7 @@ var primitives = browserPrimitives(map[string]primitive{
 		cmd: coreCommand("ui.focus", "Focus Section", "Show a section in the workspace's window.", &schema.Object{
 			Properties: map[string]schema.Prop{
 				"section": {Type: "string", Description: "Section id, e.g. editor-nvim, terminals, agents."},
-				"slot":    {Type: "string", Description: "Slot to focus: <section>.sidebar or <section>.main; empty shows the section only."},
+				"slot":    {Type: "string", Description: "Slot to focus: <section>.sidebar, <section>.main, or <section>.popup when the section declares it; empty shows the section only."},
 			},
 			Required: []string{"section"},
 		}),

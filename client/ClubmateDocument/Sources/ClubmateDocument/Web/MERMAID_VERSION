@@ -1,0 +1,5 @@
+mermaid 11.17.2
+file dist/mermaid.min.js from https://registry.npmjs.org/mermaid/-/mermaid-11.17.2.tgz (npm pack mermaid@11.17.2)
+integrity sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==
+shasum e3caf3717582c0e44e5d04cff043e025caec7cba
+license MIT (MERMAID_LICENSE)

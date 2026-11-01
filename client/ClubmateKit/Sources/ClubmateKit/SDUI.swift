@@ -40,6 +40,7 @@ public struct SectionInfo: Codable, Sendable, Equatable {
     public let plugin: String
     public let host: String?
     public let slots: [String]
+    public let rail: Bool
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -52,6 +53,7 @@ public struct SectionInfo: Codable, Sendable, Equatable {
         plugin = try container.decode(String.self, forKey: .plugin)
         host = try container.decodeIfPresent(String.self, forKey: .host)
         slots = try container.decodeIfPresent([String].self, forKey: .slots) ?? []
+        rail = try container.decodeIfPresent(Bool.self, forKey: .rail) ?? true
     }
 }
 

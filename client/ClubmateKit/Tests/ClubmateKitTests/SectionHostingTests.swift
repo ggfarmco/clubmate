@@ -21,4 +21,16 @@ final class SectionHostingTests: XCTestCase {
         XCTAssertEqual(SectionHosting.resolve("editor-nvim", slot: "editor-nvim.main", in: all), SectionTarget(section: "editor-nvim", tab: nil, slot: "editor-nvim.main"))
         XCTAssertEqual(SectionHosting.rail(Array(all.dropFirst())).map(\.id), ["alpha"])
     }
+
+    func testRailFalseSectionIsNotListed() throws {
+        let all = try sections(#"""
+        [{"id":"terminals","title":"Terminals","icon":"","order":20,"scope":"workspace","plugin":"terminals"},
+         {"id":"docs","title":"Docs","icon":"","order":90,"scope":"workspace","plugin":"docs","rail":false,"slots":["popup"]}]
+        """#)
+        let shown = SectionHosting.rail(all) + SectionHosting.hosted(all)
+
+        XCTAssertEqual(shown.map(\.id), ["terminals"])
+        XCTAssertFalse(CommandPalette.entries(commands: [], sections: shown, sidebar: true).contains { $0.title == "Go to Docs" })
+        XCTAssertNil(SectionHosting.resolve("docs", slot: "docs.popup", in: shown))
+    }
 }

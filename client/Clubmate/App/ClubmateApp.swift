@@ -51,7 +51,7 @@ struct ClubmateApp: App {
     }
 }
 
-private struct SettingsTheme: ViewModifier {
+struct SettingsTheme: ViewModifier {
     let settings: AppSettings
 
     func body(content: Content) -> some View {

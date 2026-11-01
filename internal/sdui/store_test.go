@@ -170,6 +170,21 @@ func TestSectionsKeepOnlyValidHosts(t *testing.T) {
 	assert.Equal(t, map[string]string{"code": "", "git": "code", "sub": "", "lost": "", "late": "lost", "app": ""}, hosts)
 }
 
+func TestSectionsRailOffKeepsExtraSlots(t *testing.T) {
+	sec := internalsdui.NewSections([]internalsdui.Section{
+		{SectionDef: internalsdui.SectionDef{ID: "docs", Slots: []string{"popup"}, Rail: new(false)}, Plugin: "pd"},
+		{SectionDef: internalsdui.SectionDef{ID: "code", Rail: new(true)}, Plugin: "pc"},
+	})
+	rails := map[string]*bool{}
+	for _, s := range sec.List() {
+		rails[s.ID] = s.Rail
+	}
+	assert.Equal(t, map[string]*bool{"docs": new(false), "code": nil}, rails)
+	section, ok := sec.SlotSection("docs.popup")
+	assert.True(t, ok)
+	assert.Equal(t, "docs", section)
+}
+
 func recv(t *testing.T, sub *internalsdui.Subscription) internalsdui.SlotView {
 	t.Helper()
 	views := recvAll(t, sub)

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+import ClubmateDocument
 import ClubmateKit
 
 struct Theme: Sendable {
@@ -24,10 +25,13 @@ struct Theme: Sendable {
     var muted: Color
     var accentInk: Color
     var onAccent: Color
+    private var documentBase: DocumentTheme
 
     init(background: RGB, foreground: RGB, accent: RGB, success: RGB, warning: RGB, danger: RGB, fontFamily: String?, name: String? = nil, palette: [String] = []) {
         let surface1 = background.mixed(with: foreground, amount: 0.04)
-        func ink(_ tone: RGB) -> Color { Color(ThemeContrast.ink(tone, toward: foreground, on: background, reaching: 4.5)) }
+        func inkRGB(_ tone: RGB) -> RGB { ThemeContrast.ink(tone, toward: foreground, on: background, reaching: 4.5) }
+        func ink(_ tone: RGB) -> Color { Color(inkRGB(tone)) }
+        func mix(_ amount: Double) -> String { background.mixed(with: foreground, amount: amount).eventHex }
         self.background = Color(background)
         self.foreground = Color(foreground)
         self.accent = Color(accent)
@@ -36,7 +40,8 @@ struct Theme: Sendable {
         self.danger = ink(danger)
         self.fontFamily = fontFamily
         self.name = name
-        self.isDark = 0.2126 * background.red + 0.7152 * background.green + 0.0722 * background.blue < 128.0 / 255
+        let dark = 0.2126 * background.red + 0.7152 * background.green + 0.0722 * background.blue < 128.0 / 255
+        self.isDark = dark
         self.backgroundHex = background.eventHex
         self.foregroundHex = foreground.eventHex
         self.palette = palette
@@ -47,6 +52,20 @@ struct Theme: Sendable {
         self.muted = Color(foreground).opacity(ThemeContrast.alpha(of: foreground, over: surface1, reaching: 3))
         self.accentInk = ink(accent)
         self.onAccent = Color(ThemeContrast.on(accent, candidates: [background, RGB(hex: 0xFFFFFF)], reaching: 4.5))
+        let font = fontFamily.flatMap { $0.isEmpty ? nil : "\"\($0)\", \(DocumentTheme.monoFont)" } ?? DocumentTheme.monoFont
+        self.documentBase = DocumentTheme(
+            background: background.eventHex, text: foreground.eventHex,
+            muted: mix(ThemeContrast.alpha(of: foreground, over: surface1, reaching: 3)), accent: inkRGB(accent).eventHex,
+            border: mix(0.12), codeBackground: mix(0.07),
+            success: inkRGB(success).eventHex, warning: inkRGB(warning).eventHex, danger: inkRGB(danger).eventHex,
+            font: font, codeFont: font, dark: dark
+        )
+    }
+
+    var document: DocumentTheme {
+        var theme = documentBase
+        theme.fontSize = uiSize + 1
+        return theme
     }
 
     var faint: Color { foreground.opacity(isDark ? 0.42 : 0.52) }

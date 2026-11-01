@@ -18,6 +18,8 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
+| Esc | Close the popup a plugin shows over the workspace (e.g. a doc), in the panel or its popped-out window; focus goes back to where it was | `PopupPanel.swift`, `PopupWindow.swift` |
+| ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
 ⇧⌘I is an app menu key, so it shadows any ⇧⌘I mapping in terminals and nvim.

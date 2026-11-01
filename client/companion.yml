@@ -19,6 +19,8 @@ settings:
 packages:
   CompanionKit:
     path: CompanionKit
+  ClubmateDocument:
+    path: ClubmateDocument
 
 targets:
   Companion:
@@ -43,6 +45,7 @@ targets:
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
     dependencies:
       - package: CompanionKit
+      - package: ClubmateDocument
     scheme:
       testTargets:
         - CompanionUITests

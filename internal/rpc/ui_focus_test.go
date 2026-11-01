@@ -74,6 +74,20 @@ func TestUIFocusFieldTargetsSidebarField(t *testing.T) {
 	assert.ErrorIs(t, err, rpc.ErrInvalidParams)
 }
 
+func TestUIFocusRailOffSectionOnlyPopup(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo"},{"id":"echo.docs","title":"Docs","rail":false,"slots":["popup"]}]}`)))
+	p := h.CreateWorkspace(t, "p")
+	c := h.Client(t)
+	focus := func(section, slot string) error {
+		return c.Call(t.Context(), "ui.focus", map[string]string{"workspaceId": p.ID, "section": section, "slot": slot}, nil)
+	}
+	require.NoError(t, focus("echo.docs", "echo.docs.popup"))
+	assert.ErrorIs(t, focus("echo.docs", ""), rpc.ErrInvalidParams)
+	assert.ErrorIs(t, focus("echo.docs", "echo.docs.main"), rpc.ErrInvalidParams)
+	assert.ErrorIs(t, focus("echo", "echo.popup"), rpc.ErrInvalidParams)
+}
+
 func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
 	deadline := time.After(wait)
 	for {

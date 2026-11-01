@@ -236,6 +236,7 @@ struct SDUINodeView: View, Equatable {
         case "badge": BadgeNodeView(node: node)
         case "icon": IconNodeView(node: node)
         case "markdown": MarkdownNodeView(node: node)
+        case "document": DocumentNodeView(node: node)
         case "diff": DiffNodeView(node: node)
         case "button": ButtonNodeView(node: node)
         case "textField": TextFieldNodeView(node: node)

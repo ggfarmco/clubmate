@@ -79,6 +79,8 @@ actor FixtureServer {
     private var others: [[String: JSONValue]] = []
     private var transcripts: [String: [String: JSONValue]] = [:]
     private var tasks: [[String: JSONValue]] = []
+    private var docs: [String: JSONValue] = [:]
+    private var docRevs: [String: Int] = [:]
     private var turns: [String: Task<Void, Never>] = [:]
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
     private var seq = 100
@@ -143,7 +145,11 @@ actor FixtureServer {
             if fields["claimedBy"] != nil, let id = sessions.first?["id"] { fields["claimedBy"] = id }
             return fields
         }
+        for page in decode("docs-read.json")["docs"]?.arrayValue ?? [] {
+            if let path = page["path"]?.stringValue { docs[path] = page }
+        }
         guard mac.id != FixtureMac.studio.id else { return }
+        docs = [:]
         tasks = []
         others = []
         self.transcripts = [:]
@@ -187,8 +193,8 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done"].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("notify.posted")])])]))
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read"].map(JSONValue.string)
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
                 .object(["id": .string(item.id), "name": .string(item.name), "folders": .array([.object(["path": .string("/Users/me/src/" + item.name)])])])
@@ -199,6 +205,8 @@ actor FixtureServer {
             colour = params["colour"]?.stringValue ?? colour
             publish("remote.identity", ["computer": computer])
             return (200, Self.json(["result": .object(["computer": computer])]))
+        case "command" where params["id"]?.stringValue == "docs.read":
+            return (200, Self.json(read(params["args"]?["path"]?.stringValue ?? "")))
         case "command":
             return (200, Self.json(["result": command(params["id"]?.stringValue ?? "", workspace: params["workspace"]?.stringValue ?? "", args: params["args"] ?? .null)]))
         default:
@@ -320,6 +328,31 @@ actor FixtureServer {
         default:
             return .null
         }
+    }
+
+    private func read(_ path: String) -> [String: JSONValue] {
+        guard case .object(var page) = docs[path] ?? .null else {
+            return ["error": .object(["code": .string("internal"), "message": .string("not in workspace")])]
+        }
+        if docRevs[path] == nil {
+            docRevs[path] = 1
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                change(path)
+            }
+        }
+        let rev = docRevs[path] ?? 1
+        page["rev"] = .number(Double(rev))
+        if rev > 1, let html = page["html"]?.stringValue {
+            page["html"] = .string(html + "<p><em>Updated while you were reading.</em></p>\n")
+        }
+        return ["result": .object(page)]
+    }
+
+    private func change(_ path: String) {
+        let rev = (docRevs[path] ?? 1) + 1
+        docRevs[path] = rev
+        publish("docs.changed", ["workspace": .string(workspace), "path": .string(path), "rev": .number(Double(rev))])
     }
 
     private func configure(_ session: String, id: String, value: String) {

@@ -20,6 +20,7 @@ type SectionDef struct {
 	AutoNew bool     `json:"autoNew"`
 	Slots   []string `json:"slots,omitempty"`
 	Host    string   `json:"host,omitempty"`
+	Rail    *bool    `json:"rail,omitempty"`
 }
 
 type Section struct {
@@ -51,6 +52,9 @@ func NewSections(defs []Section, views ...ViewDef) *Sections {
 		}
 		s.owners[d.ID] = d.Plugin
 		d.Scope = cmp.Or(d.Scope, ScopeWorkspace)
+		if d.Rail != nil && *d.Rail {
+			d.Rail = nil
+		}
 		s.scopes[d.ID] = d.Scope
 		for _, name := range d.Slots {
 			s.extra[d.ID+"."+name] = d.ID
@@ -79,6 +83,11 @@ func NewSections(defs []Section, views ...ViewDef) *Sections {
 
 func (s *Sections) List() []Section {
 	return slices.Clone(s.list)
+}
+
+func (s *Sections) InRail(sectionID string) bool {
+	i := slices.IndexFunc(s.list, func(sec Section) bool { return sec.ID == sectionID })
+	return i >= 0 && s.list[i].Rail == nil
 }
 
 func (s *Sections) Owner(sectionID string) (string, bool) {

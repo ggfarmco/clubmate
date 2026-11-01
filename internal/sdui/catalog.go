@@ -80,6 +80,8 @@ var (
 	attachmentFields = map[string]propCheck{"id": uniqueItemID, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
+	documentSizes = []string{"fill", "fit"}
+
 	columnAligns = []string{"left", "right"}
 	truncates    = []string{"tail", "middle", "head"}
 	cellTones    = []string{"", "ok", "warn", "danger"}
@@ -142,6 +144,12 @@ var (
 		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString}, children: noChildren},
 		"diff":     {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
+		"document": {
+			required:    []string{"html"},
+			props:       map[string]propCheck{"html": isString, "path": isString, "rev": countNumber, "size": oneOf(documentSizes)},
+			children:    noChildren,
+			interactive: true,
+		},
 		"button": {
 			required:    []string{"label"},
 			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString},

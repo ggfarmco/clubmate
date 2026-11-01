@@ -15,6 +15,7 @@ struct WorkspaceView: View {
 
     var body: some View {
         content
+            .slotPopup(session)
             .background { VisibleSlotsWatch(store: session.store) { [app] in app.notifications.focusChanged() } }
             .environment(\.surfaceDeck, session.deck)
             .environment(\.focusRouter, focus)

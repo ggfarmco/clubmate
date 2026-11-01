@@ -29,6 +29,8 @@ settings:
 packages:
   ClubmateKit:
     path: ClubmateKit
+  ClubmateDocument:
+    path: ClubmateDocument
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     exactVersion: "2.10.1"
@@ -83,6 +85,7 @@ targets:
       - framework: GhosttyKit.xcframework
         embed: false
       - package: ClubmateKit
+      - package: ClubmateDocument
       - package: Sparkle
       - sdk: Carbon.framework
       - sdk: Metal.framework

@@ -2,6 +2,7 @@ public enum Topic {
     public static let notifyPosted = "notify.posted"
     public static let agentsChanged = "agents.changed"
     public static let backlogChanged = "backlog.changed"
+    public static let docsChanged = "docs.changed"
     public static let sessionRemoved = "session.removed"
     public static let pluginChanged = "plugin.changed"
 }
@@ -19,6 +20,10 @@ public enum BacklogCommand {
     public static let claim = "backlog.claim"
     public static let release = "backlog.release"
     public static let done = "backlog.done"
+}
+
+public enum DocsCommand {
+    public static let read = "docs.read"
 }
 
 public enum AgentSessionID {

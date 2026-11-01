@@ -154,6 +154,7 @@
                       ]
                     },
                     {"type": "markdown", "props": {"text": "**markdown** with _emphasis_, `code` and a [link](https://example.com)"}},
+                    {"type": "document", "id": "doc", "props": {"html": "<h2 id=\"document\">Document</h2><p>Rendered <strong>Markdown</strong> with <a href=\"clubmate-doc:/gallery/next.md\">a doc link</a>.</p><pre class=\"mermaid\">flowchart LR\n  A[Agent] --&gt; B[Doc]</pre>", "path": "/gallery/doc.md", "rev": 1, "size": "fit"}},
                     {
                       "type": "stack",
                       "props": {"direction": "horizontal"},

@@ -135,7 +135,7 @@ final class TestHarness {
             let id = window.windowNumber
             let title = window.title.isEmpty ? kind(window) : window.title
             var png: String?
-            if request.png, let data = WindowImage.png(window, titlebar: true) {
+            if request.png, let data = WindowImage.png(window, titlebar: true, pages: await WindowImage.pages(window)) {
                 let file = out.appending(path: "w\(id).png")
                 try data.write(to: file)
                 png = file.path(percentEncoded: false)

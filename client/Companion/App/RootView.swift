@@ -35,6 +35,9 @@ struct RootView: View {
         .sheet(item: Binding(get: { navigation.showingAddComputer ? nil : pairing.review }, set: { pairing.review = $0 })) { review in
             PairingConfirmView(review: review)
         }
+        .fullScreenCover(item: $navigation.doc) { doc in
+            DocumentSheet(doc: doc)
+        }
         .overlay {
             if case .pairing(let name) = pairing.phase {
                 PairingOverlay(name: name)

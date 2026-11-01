@@ -224,6 +224,26 @@ func Markdown(text string) Node {
 	return Node{Type: "markdown", Props: map[string]any{"text": text}}
 }
 
+const (
+	SizeFill = "fill"
+	SizeFit  = "fit"
+)
+
+type DocumentProps struct {
+	HTML string
+	Path string
+	Rev  int
+	Size string
+}
+
+func Document(id string, p DocumentProps) Node {
+	props := withOptional(withOptional(map[string]any{"html": p.HTML}, "path", p.Path), "size", p.Size)
+	if p.Rev != 0 {
+		props["rev"] = p.Rev
+	}
+	return Node{Type: "document", ID: id, Props: props}
+}
+
 func Button(id, label, icon string) Node {
 	return Node{Type: "button", ID: id, Props: withOptional(map[string]any{"label": label}, "icon", icon)}
 }

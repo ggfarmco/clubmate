@@ -73,6 +73,11 @@ func TestValidate(t *testing.T) {
 		{"header with two text fields", sdui.Header("x", sdui.HeaderProps{}, sdui.TextField("a", "", ""), sdui.TextField("b", "", "")), false},
 		{"button reserved shortcut", sdui.WithShortcut(sdui.Button("b", "Run", ""), "shift+return"), false},
 		{"empty state with action", sdui.EmptyState("Nothing yet.", sdui.EmptyProps{Title: "No runs", Icon: "clock", Hint: "cm cron add", Action: &sdui.Node{Type: "button", ID: "run", Props: map[string]any{"label": "Run"}}}), true},
+		{"document", sdui.Document("d", sdui.DocumentProps{HTML: "<p>a</p>", Path: "/r/a.md", Rev: 3, Size: sdui.SizeFit}), true},
+		{"document without html", sdui.Node{Type: "document", ID: "d", Props: map[string]any{"path": "/r/a.md"}}, false},
+		{"document bad size", sdui.Document("d", sdui.DocumentProps{HTML: "x", Size: "big"}), false},
+		{"document negative rev", sdui.Document("d", sdui.DocumentProps{HTML: "x", Rev: -1}), false},
+		{"document without id", sdui.Document("", sdui.DocumentProps{HTML: "x"}), false},
 		{"empty state with a non-button child", sdui.Node{Type: "empty", Props: map[string]any{"text": "x"}, Children: []sdui.Node{sdui.Text("a")}}, false},
 	}
 	for _, tt := range tests {

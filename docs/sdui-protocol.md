@@ -54,6 +54,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | icon | name* (string) | none | no |
 | diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
+| document | html* (string, a `pkg/docrender` fragment), path (string), rev (int ≥ 0), size (`fill`\|`fit`, default `fill`) | none | yes |
 | button | label* (string), icon (string), confirm (string), variant (`primary`\|`secondary`\|`ghost`\|`danger`), disabled (bool), shortcut (key combo), loading (string), iconOnly (bool), copy (string), action | none | yes |
 | textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), error (string), live (bool), action | none | yes |
 | folderField | label* (string), values (string[]), action | none | yes |
@@ -76,6 +77,8 @@ A window shows at most one `surface` node at a time in v1. The client keeps ever
 `list` and `tree` rows render lazily. Outside a `scroll` a `list` or `tree` scrolls itself and fills the height left by its siblings, so a long one never grows the window; a changed `selected` from the plugin scrolls to that row.
 
 `table` rows render lazily; wrap the table in a `scroll` to scroll them under a pinned header. Each row counts toward the 5000-node limit; cells are bounded by the row and column caps (at most 1000 × 32), and spark values (cell sparks and `sparkline` nodes) are capped at 100000 per tree. The client does not page or truncate: a plugin with more rows renders the first 1000 or fewer and adds a final muted `… N more` row itself. `selected` works like `tree`'s: a changed value from the plugin sets, moves or clears the highlight (and scrolls to it); clicking a row highlights it locally and sends `select`. `sparkline` draws `values` as a 60×16pt line (e.g. in a header); with `height` it fills the available width at that height in points (e.g. a detail chart).
+
+`document` shows `html` (an HTML fragment from `pkg/docrender`) in a web view with the shared document template. `size: fill` takes the space it is given and scrolls itself; `size: fit` is as tall as its content, does not scroll and sits in a `scroll` or `stack` next to other nodes. A new `rev` for the same `path` replaces the body in place and keeps the scroll position; another `path` loads fresh at the top (or at its `#anchor`). Clicking a `clubmate-doc:` link sends `openDoc`, a `clubmate-file:` link `openFile` (see § ui.event contract); `http(s)` links open outside the app, other links do nothing. Neither the core nor its JSON-RPC transport limits the size of a tree or a message: a `document` with 10 MiB of `html` goes through `ui.render` and `ui.get` unchanged.
 
 Agent chat nodes (the `agents` section):
 
@@ -114,6 +117,14 @@ A manifest section may declare extra slots with `slots`: names matching `^[a-z][
 ### Hosted sections
 
 A manifest section may set `host` to another section's id; `ui.sections` returns it (omitted when empty). A `host` equal to the section's own id fails manifest load; a host that is not registered, is itself hosted or has another scope is dropped by the core, and the section stays a normal one. A hosted section has no rail icon, ⌘ number or palette "Go to …" entry, and the client shows none of its slots. Selecting it (a saved `section` in the UI state, `ui.focus` to it or any of its slots) selects the host. No bundled plugin sets `host`.
+
+### Rail
+
+A manifest section may set `rail: false`; `ui.sections` returns `rail: false` only then (omitted when absent or true). Such a section has no rail icon, ⌘ number or palette "Go to …" entry, but unlike a hosted section the client still shows its extra slots. `ui.focus` to it accepts only its `popup` slot.
+
+### Popup slot
+
+An extra slot named `popup` (`slots: ["popup"]`, giving `<section>.popup`) is shown by the Mac client as a floating panel over the workspace while its tree is not `empty`, and closed when the tree becomes `empty`. The user closing the panel sends `ui.event` with action `close`, nodeId `""` and value `null` on that slot; the plugin then renders `empty`.
 
 ### Scope
 
@@ -156,7 +167,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 
 | method | params | result |
 |---|---|---|
-| ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin, slots?}]` |
+| ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin, slots?, host?, rail?}]` |
 | ui.get | `{workspaceId}` (`""` for app scope) | `[SlotView]` sorted by slot |
 | ui.subscribe | `{workspaceId, delta?, append?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them (see `ui.updated`) |
 | ui.unsubscribe | `{subscription}` | `{}` |
@@ -247,7 +258,7 @@ A workspace is `{id, name, folders, createdAt, home, lastOpenedAt}`; `lastOpened
 
 `client.register` marks the calling connection for the listed handles: `"workspace.show"` and `"ui.confirm"`; anything else is invalid params. The app registers both. Registration lasts for the connection. Plugin callers get invalid params.
 
-`ui.focus` is open to any caller. It is invalid params when the workspace does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar` or `<section>.main`, or `field` is true with a `slot` other than `<section>.sidebar`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that workspace (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusField` to focus the sidebar's text field.
+`ui.focus` is open to any caller. It is invalid params when the workspace does not exist, the section is not registered or is app-scope, or `slot` is not `""`, `<section>.sidebar`, `<section>.main` or, when the section declares it, `<section>.popup` (a `rail: false` section accepts only `<section>.popup`), or `field` is true with a `slot` other than `<section>.sidebar`. It sends the `ui.focus` notification to every `ui.subscribe` subscription of that workspace (app-scope subscriptions never receive it) and returns their count as `delivered`. Plugins call it as `Host.Focus`, or as `Host.FocusField` to focus the sidebar's text field.
 
 `ui.render` is invalid params for a workspace that has been deleted.
 
@@ -449,6 +460,8 @@ A plugin's `session.create` (`pluginsdk.Host.CreateSession`) also takes `env`, e
 | composer | attach a file (picker or `@`) | `"attachFile"` | object `{path}`: absolute path |
 | composer | attach the editor selection | `"attachSelection"` | `null` |
 | composer | remove an attachment chip | `"detach"` | object `{id}` |
+| document | click a `clubmate-doc:` link | `"openDoc"` | `"<absolute path>[#anchor]"` |
+| document | click a `clubmate-file:` link | `"openFile"` | `"<absolute path>"` |
 
 `nodeId` is the `id` of the node that fired the event.
 

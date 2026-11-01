@@ -32,6 +32,14 @@ enum DebugLaunch {
                 }
             }
         }
+        if let path = defaults.string(forKey: "doc"), let computer = model.computers.first {
+            for _ in 0..<50 where model.connection(computer.id)?.state != .online {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            if let connection = model.connection(computer.id), let workspace = defaults.string(forKey: "workspace") ?? navigation.workspace(for: connection)?.id {
+                navigation.openDoc(computer: computer.id, workspace: workspace, path: path)
+            }
+        }
         guard let target = defaults.string(forKey: "open"), let computer = model.computers.first else { return }
         if target == "sidebar" || target == "mac" {
             try? await Task.sleep(for: .seconds(1))

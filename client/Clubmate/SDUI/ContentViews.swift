@@ -126,6 +126,7 @@ struct HeaderNodeView: View {
 
     @State private var width: CGFloat = 0
     @Environment(\.theme) private var theme
+    @Environment(\.headerTrailingInset) private var trailingInset
 
     var body: some View {
         let title = node.string("title") ?? ""
@@ -149,6 +150,7 @@ struct HeaderNodeView: View {
                 }
                 Spacer(minLength: 0)
             }
+            .padding(.trailing, trailingInset)
             if let meta = node.string("meta") {
                 Text(meta)
                     .font(theme.uiSmall)
@@ -305,5 +307,16 @@ struct UnsupportedNodeView: View {
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
             .padding(.horizontal, theme.gutter)
+    }
+}
+
+private struct HeaderTrailingInsetKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var headerTrailingInset: CGFloat {
+        get { self[HeaderTrailingInsetKey.self] }
+        set { self[HeaderTrailingInsetKey.self] = newValue }
     }
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/testutil"
 	"clubmate/internal/workspace"
+	"clubmate/pkg/sdui"
 )
 
 func manifestJSON(id, contributes string) string {
@@ -70,6 +72,26 @@ func TestDeclaredExtraSlot(t *testing.T) {
 	var res map[string]any
 	require.NoError(t, h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": p.ID, "slot": "alpha.review", "nodeId": "x", "action": "say", "value": "hi"}, &res))
 	assert.Equal(t, "alpha", res["plugin"])
+}
+
+func TestLargeDocumentRoundTrips(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha","rail":false,"slots":["popup"]}]}`)))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()
+		return len(st) == 1 && st[0].State == plugin.StateRunning
+	}, 5*time.Second)
+	p := h.CreateWorkspace(t, "demo")
+	html := strings.Repeat("<p>x</p>", 10<<20/8)
+	tree := sdui.Document("d", sdui.DocumentProps{HTML: html, Path: "/r/a.md", Rev: 1})
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.popup", "tree": tree}))
+	var views []internalsdui.SlotView
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.get", map[string]string{"workspaceId": p.ID}, &views))
+	i := slices.IndexFunc(views, func(v internalsdui.SlotView) bool { return v.Slot == "alpha.popup" })
+	require.GreaterOrEqual(t, i, 0)
+	n, err := views[i].Node()
+	require.NoError(t, err)
+	assert.Equal(t, html, n.Props["html"])
 }
 
 func TestPresenceEvents(t *testing.T) {

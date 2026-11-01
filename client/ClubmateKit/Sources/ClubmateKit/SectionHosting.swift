@@ -12,7 +12,7 @@ public struct SectionTarget: Equatable, Sendable {
 
 public enum SectionHosting {
     public static func rail(_ sections: [SectionInfo]) -> [SectionInfo] {
-        sections.filter { host(of: $0, in: sections) == nil }
+        sections.filter { $0.rail && host(of: $0, in: sections) == nil }
     }
 
     public static func hosted(_ sections: [SectionInfo]) -> [SectionInfo] {
@@ -41,5 +41,9 @@ extension SDUINode {
 
     public var firstTabs: SDUINode? {
         type == "tabs" ? self : children.lazy.compactMap(\.firstTabs).first
+    }
+
+    public var firstHeader: SDUINode? {
+        type == "header" ? self : children.lazy.compactMap(\.firstHeader).first
     }
 }

@@ -8,6 +8,9 @@ public final class WorkspaceUIStore {
     public let drafts = ComposerDrafts()
     public private(set) var sections: [SectionInfo] = []
     public private(set) var hostedSections: [SectionInfo] = []
+    public private(set) var popupSlots: [String] = []
+    private var popupSections: [SectionInfo] = []
+    private var popupOrder: [String] = []
     public private(set) var connected = false
     public private(set) var failure: String?
     public private(set) var focusRequest: FocusRequest?
@@ -81,6 +84,8 @@ public final class WorkspaceUIStore {
             let scoped = sections.filter { $0.scope == scope }
             self.sections = SectionHosting.rail(scoped)
             hostedSections = SectionHosting.hosted(scoped)
+            popupSections = scoped.filter { !Popups.slots([$0]).isEmpty }
+            popupSlots = Popups.slots(popupSections)
             let views = try await client.uiGet(workspaceID: workspaceID)
             guard generation == self.generation else { return }
             replace(with: views)
@@ -112,6 +117,15 @@ public final class WorkspaceUIStore {
         guard let requested = requestedSection else { return }
         requestedSection = nil
         select(requested)
+    }
+
+    public var popup: String? {
+        let views = Dictionary(popupSlots.compactMap { name in slot(name).map { (name, $0) } }) { _, last in last }
+        return Popups.current(views, order: popupOrder)
+    }
+
+    public func popupTitle(_ slot: String) -> String {
+        popupSections.first { "\($0.id).\(Popups.name)" == slot }?.title ?? ""
     }
 
     public func slot(_ name: String) -> SlotView? {
@@ -336,7 +350,7 @@ public final class WorkspaceUIStore {
     private func replace(with views: [SlotView]) {
         let mine = Dictionary(views.filter { $0.workspaceId == workspaceID }.map { ($0.slot, $0) }) { _, last in last }
         for (name, cell) in cells where mine[name] == nil { cell.set(nil) }
-        for (name, view) in mine { cell(name).set(view) }
+        for (name, view) in mine { store(view, in: name) }
         revs = mine.mapValues(\.rev)
     }
 
@@ -344,8 +358,17 @@ public final class WorkspaceUIStore {
         guard update.workspaceId == workspaceID, update.rev > revs[update.slot] ?? 0 else { return true }
         guard let view = update.view(over: cells[update.slot]?.view) else { return false }
         revs[view.slot] = view.rev
-        cell(view.slot).set(view)
+        store(view, in: view.slot)
         return true
+    }
+
+    private func store(_ view: SlotView, in name: String) {
+        let cell = cell(name)
+        if popupSlots.contains(name), Popups.isOpen(view), cell.view.map(Popups.isOpen) != true {
+            popupOrder.removeAll { $0 == name }
+            popupOrder.append(name)
+        }
+        cell.set(view)
     }
 
     private func restore(from state: JSONValue?) {

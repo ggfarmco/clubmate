@@ -30,6 +30,8 @@ build:
 	cp plugins/triggers/plugin.json bin/plugins/triggers/
 	$(GO_BUILD) -o bin/plugins/backlog/backlog ./plugins/backlog
 	cp plugins/backlog/plugin.json bin/plugins/backlog/
+	$(GO_BUILD) -o bin/plugins/docs/docs ./plugins/docs
+	cp plugins/docs/plugin.json bin/plugins/docs/
 	$(GO_BUILD) -o bin/plugins/graphs/graphs ./plugins/graphs
 	cp plugins/graphs/plugin.json bin/plugins/graphs/
 
@@ -47,7 +49,7 @@ ghostty:
 	scripts/build-ghostty.sh
 
 app: ghostty
-	cd client && xcodegen generate && xcodebuild -project Clubmate.xcodeproj -scheme Clubmate -configuration Debug -derivedDataPath ../build/DerivedData MARKETING_VERSION=$(VERSION) CLUBMATE_COMMIT=$(COMMIT) $(if $(DEV_SIGN_IDENTITY),CODE_SIGN_IDENTITY=$(DEV_SIGN_IDENTITY)) build
+	cd client && xcodegen generate && xcodebuild -project Clubmate.xcodeproj -scheme Clubmate -configuration Debug -derivedDataPath ../build/DerivedData MARKETING_VERSION=$(VERSION) CLUBMATE_COMMIT=$(COMMIT) $(if $(DEV_SIGN_IDENTITY),CODE_SIGN_IDENTITY=$(DEV_SIGN_IDENTITY) CODE_SIGN_STYLE=Manual) build
 
 app-release: ghostty
 	cd client && xcodegen generate && xcodebuild -project Clubmate.xcodeproj -scheme Clubmate -configuration Release -derivedDataPath ../build/DerivedData MARKETING_VERSION=$(VERSION) CLUBMATE_COMMIT=$(COMMIT) CLUBMATE_FLAVOR=release build
