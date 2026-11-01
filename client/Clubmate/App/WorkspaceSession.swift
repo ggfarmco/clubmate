@@ -38,6 +38,12 @@ final class WorkspaceSession {
         report: { [weak self] message in self?.banner.show(message) }
     )
 
+    @ObservationIgnored private(set) lazy var voice = VoiceController(
+        run: storeRun,
+        source: VoiceCapture(),
+        pointer: { [weak self] in VoicePointer(section: self?.store?.selectedSection ?? "") }
+    )
+
     init(workspaceID: String, legacyChat: LegacyChat? = nil, workspace: @escaping @MainActor () -> Workspace?) {
         self.workspaceID = workspaceID
         self.legacyChat = legacyChat

@@ -10,6 +10,7 @@ enum ConnectionStatus {
 }
 
 struct StatusBar<Trailing: View>: View {
+    var voice: VoiceController?
     let connection: ConnectionStatus
     let agents: AgentTally?
     let usage: SubscriptionUsage?
@@ -21,6 +22,9 @@ struct StatusBar<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: theme.gutter * 1.5) {
+            if let voice {
+                VoiceButton(voice: voice)
+            }
             HStack(spacing: theme.spacing.s) {
                 Text(dot).foregroundStyle(tone)
                 Text(label).foregroundStyle(connected ? theme.muted : tone)

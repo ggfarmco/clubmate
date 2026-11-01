@@ -22,6 +22,7 @@ final class AppModel {
     @ObservationIgnored private var browserClosing: [Task<Void, Never>] = []
     @ObservationIgnored private var usageChanges: Task<Void, Never>?
     @ObservationIgnored private var remoteChanges: Task<Void, Never>?
+    @ObservationIgnored private var voiceChanges: Task<Void, Never>?
     private var launchWorkspace = launchWorkspaceID(CommandLine.arguments)
     @ObservationIgnored private var presence: [String: WorkspacePresence] = [:]
     @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
@@ -38,6 +39,10 @@ final class AppModel {
     )
 
     @ObservationIgnored private lazy var focus: NotificationFocus = NotificationFocus(windows: windows, sessions: sessions)
+
+    @ObservationIgnored private lazy var voiceHotkeys = VoiceHotkeys { [weak self] in
+        self?.windows.activeWorkspace.flatMap { self?.sessions.existing($0)?.voice }
+    }
 
     @ObservationIgnored private(set) lazy var actions: WorkspaceActions = WorkspaceActions(supervisor: supervisor, windows: windows, sessions: sessions) { [weak self] id in
         self?.workspace(id)
@@ -95,6 +100,7 @@ final class AppModel {
         trackWorkspaces()
         windows.syncSessions()
         _ = notifications
+        voiceHotkeys.install()
         AppDelegate.willQuit = { [weak self] in self?.terminating() }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.terminating() }
@@ -118,6 +124,10 @@ final class AppModel {
 
     func retry() {
         supervisor.retry()
+    }
+
+    func revealSession(_ session: String, in workspace: String) {
+        focus.reveal(workspace, session: session, owner: nil)
     }
 
     private func touch(_ workspaceID: String) {
@@ -271,6 +281,14 @@ final class AppModel {
         remoteChanges = Task { [weak self] in
             guard let remote = self?.remoteDevices else { return }
             await remote.follow(client)
+        }
+        voiceChanges?.cancel()
+        voiceChanges = Task { [weak self] in
+            guard let events = try? await client.busEvents(pattern: VoiceController.changedTopic) else { return }
+            for await event in events {
+                let workspace = event.payload["workspace"]?.stringValue ?? event.workspace
+                self?.sessions.existing(workspace)?.voice.busEvent(event)
+            }
         }
         pluginChanges?.cancel()
         pluginChanges = Task { [weak self] in

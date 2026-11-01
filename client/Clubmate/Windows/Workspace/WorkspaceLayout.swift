@@ -60,7 +60,14 @@ struct WorkspaceLayout: View {
             }
             .frame(maxHeight: .infinity)
             .clipped()
-            StatusBar(connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, hints: panes?.hints) { [app] in
+            .overlay(alignment: .bottom) {
+                if let voice {
+                    VoicePanel(voice: voice) { [app, store] session in app.revealSession(session, in: store.workspaceID) }
+                        .frame(width: VoicePanel.width(row: rowWidth))
+                        .padding(.bottom, theme.spacing.xl)
+                }
+            }
+            StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, hints: panes?.hints) { [app] in
                 app.retry()
             } trailing: {
                 if store.hasSlot("\(section).status") {
@@ -68,6 +75,10 @@ struct WorkspaceLayout: View {
                 }
             }
         }
+    }
+
+    private var voice: VoiceController? {
+        app.sessions.existing(store.workspaceID)?.voice
     }
 
     private var connection: ConnectionStatus {

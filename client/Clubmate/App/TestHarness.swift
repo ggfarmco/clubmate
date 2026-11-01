@@ -11,6 +11,7 @@ final class TestHarness {
     private let probes = NSHashTable<TestProbeNSView>.weakObjects()
     private let monitors = NSHashTable<KeyMonitorView>.weakObjects()
     private var presenters: [String: (Bool) -> Void] = [:]
+    var voiceKeys: (@MainActor (NSEvent) -> Bool)?
     private var sized = Set<Int>()
     private var timer: Timer?
 
@@ -90,7 +91,10 @@ final class TestHarness {
                 NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, characters: combo.characters, charactersIgnoringModifiers: combo.charactersIgnoringModifiers, isARepeat: false, keyCode: combo.keyCode)
             }
             guard let down = event(.keyDown), let up = event(.keyUp) else { throw TestModeError("cannot build a key event") }
-            if monitors.allObjects.contains(where: { $0.deliver(down) }) {
+            if let voiceKeys, voiceKeys(down) {
+                _ = voiceKeys(up)
+                routes.append("voice")
+            } else if monitors.allObjects.contains(where: { $0.deliver(down) }) {
                 routes.append("monitor")
             } else if combo.command, window.performKeyEquivalent(with: down) {
                 routes.append("shortcut")

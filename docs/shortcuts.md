@@ -19,6 +19,8 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
+| ⌥Space | Voice: hold to talk, release to send; a tap (under 250 ms) starts listening and the next ⌥Space sends. Taken before terminals, nvim and text fields, so it never types a character there. The mic button at the left of the status bar does the same with a click or a press-and-hold | `Windows/VoiceButton.swift` (`VoiceHotkeys`), `ClubmateKit/Voice.swift` |
+| ↩, Esc | In the voice panel's confirmation of a dangerous action: Yes, No. The panel takes key focus when the confirmation shows (↩ is ignored for its first 0.6 s and while held, so a Return typed for a terminal does not approve); once focus moves elsewhere, ↩ and Esc go there again | `Windows/VoicePanel.swift` |
 | Esc | Close the popup a plugin shows over the workspace (e.g. a doc), in the panel or its popped-out window; focus goes back to where it was | `PopupPanel.swift`, `PopupWindow.swift` |
 | Esc | Close an enlarged mermaid diagram from the transcript | `SDUI/MarkdownView.swift` |
 | ⌘W | Close the popup over the workspace while it has focus, instead of the terminal or window | `PopupPanel.swift` |

@@ -20,6 +20,8 @@
 	<string>6.0</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Clubmate listens while you hold ⌥Space or the mic button, so you can talk to your agents.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSPrincipalClass</key>
