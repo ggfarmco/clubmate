@@ -15,7 +15,7 @@ struct ButtonNodeView: View {
 
     private var variant: String? { node.string("variant") }
     private var disabled: Bool { press.disabled }
-    private var loading: String? { press.loading }
+    private var loading: String? { press.loading ?? press.saving }
     private var combo: KeyCombo? { press.combo }
 
     var body: some View {
@@ -119,6 +119,7 @@ struct ButtonPress {
     var combo: KeyCombo? { node.string("shortcut").flatMap(KeyCombo.init) }
     var loading: String? { node.string("loading").flatMap { $0.isEmpty ? nil : $0 } }
     var disabled: Bool { node.bool("disabled") == true || loading != nil }
+    var saving: String? { form?.saving == true && node.string("action") == nil ? UIFormSave.verb : nil }
 
     func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags

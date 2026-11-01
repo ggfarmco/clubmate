@@ -109,9 +109,12 @@ final class FormState {
 
     var values: [String: JSONValue] = [:]
     private(set) var submissions = 0
+    private(set) var save = UIFormSave()
     @ObservationIgnored var autosave = false
-    @ObservationIgnored private(set) var dirty = false
     @ObservationIgnored private var pending: Task<Void, Never>?
+
+    var dirty: Bool { save.dirty }
+    var saving: Bool { save.saving && autosave }
 
     func submit() {
         pending?.cancel()
@@ -121,7 +124,7 @@ final class FormState {
 
     func edited(after delay: Duration? = nil) {
         guard autosave else { return }
-        dirty = true
+        if !save.dirty { save.edited() }
         pending?.cancel()
         guard let delay else { return submit() }
         pending = Task { [weak self] in
@@ -138,7 +141,11 @@ final class FormState {
     func sent() {
         pending?.cancel()
         pending = nil
-        dirty = false
+        save.sent()
+    }
+
+    func answered() {
+        save.answered()
     }
 }
 
@@ -176,7 +183,9 @@ struct FormNodeView: View {
 
     private func send() {
         state.sent()
-        dispatch(node, .submit(UIForm.collect(state.values, in: node)))
+        dispatch(node, .submit(UIForm.collect(state.values, in: node))) { [state] _ in
+            state.answered()
+        }
     }
 }
 

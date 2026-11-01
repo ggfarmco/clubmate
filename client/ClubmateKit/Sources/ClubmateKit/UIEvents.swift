@@ -72,3 +72,27 @@ public enum UIForm {
         return .object(values.filter { ids.contains($0.key) })
     }
 }
+
+public struct UIFormSave: Sendable, Equatable {
+    public static let verb = "Saving…"
+
+    public private(set) var dirty = false
+    private var inFlight = 0
+
+    public init() {}
+
+    public var saving: Bool { dirty || inFlight > 0 }
+
+    public mutating func edited() {
+        dirty = true
+    }
+
+    public mutating func sent() {
+        dirty = false
+        inFlight += 1
+    }
+
+    public mutating func answered() {
+        inFlight = max(0, inFlight - 1)
+    }
+}

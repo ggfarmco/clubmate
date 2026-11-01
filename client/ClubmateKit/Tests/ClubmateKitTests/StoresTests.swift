@@ -437,6 +437,19 @@ final class StoresTests: XCTestCase {
         XCTAssertEqual(UIForm.collect(values, in: form), .object(["name": .string("demo"), "repos": .array([.string("/a"), .string("/b")])]))
     }
 
+    func testFormSaveStaysSavingUntilTheLastSubmitIsAnswered() {
+        var save = UIFormSave()
+        save.edited()
+        XCTAssertTrue(save.saving)
+        save.sent()
+        save.edited()
+        save.sent()
+        save.answered()
+        XCTAssertTrue(save.saving)
+        save.answered()
+        XCTAssertFalse(save.saving)
+    }
+
     func testPaletteRanking() {
         let entries = ["New Terminal", "Open Terminal Here", "Restart Neovim", "Kill Orphan Processes"].map {
             PaletteEntry(id: $0, title: $0, detail: "")
