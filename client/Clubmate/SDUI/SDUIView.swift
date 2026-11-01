@@ -247,6 +247,7 @@ struct SDUINodeView: View, Equatable {
         case "message": MessageNodeView(node: node).equatable()
         case "plan": PlanNodeView(node: node)
         case "toolCard": ToolCardNodeView(node: node)
+        case "card": CardNodeView(node: node)
         case "permissionCard": PermissionCardNodeView(node: node)
         case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")

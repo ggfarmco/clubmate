@@ -96,7 +96,7 @@ public struct Inbox: Sendable, Equatable {
 
 public struct LocalAlert: Sendable, Equatable {
     public static let window: TimeInterval = 3600
-    public static let kinds: Set<NotificationKind> = [.needsInput, .permission, .stuck, .done]
+    public static let kinds: Set<NotificationKind> = [.needsInput, .permission, .question, .stuck, .done]
 
     public let id: String
     public let title: String
@@ -125,7 +125,7 @@ public struct InboxSections: Sendable, Equatable {
 
 extension InboxItem {
     public var needsAction: Bool {
-        kind == .needsInput || kind == .permission
+        kind == .needsInput || kind == .permission || kind == .question
     }
 
     public var displayTitle: String {
@@ -134,7 +134,7 @@ extension InboxItem {
 
     public var heading: String {
         switch kind {
-        case .needsInput: "Question"
+        case .needsInput, .question: "Question"
         case .permission: "Permission"
         default: displayTitle
         }

@@ -132,8 +132,8 @@ public final class CompanionModel {
 
     private static let resolvedKind = "resolved"
 
-    private static func resolvedNotification(_ payload: JSONValue) -> NotificationKind {
-        payload["requestKind"]?.stringValue == "elicitation" ? .needsInput : .permission
+    private static func resolvedNotifications(_ payload: JSONValue) -> [NotificationKind] {
+        payload["requestKind"]?.stringValue == "elicitation" ? [.question, .needsInput] : [.permission]
     }
 
     private static func resolvedKey(_ computer: String, _ session: String, _ kind: NotificationKind) -> String {
@@ -154,9 +154,10 @@ public final class CompanionModel {
         }
         if case .event(let event) = signal, event.topic == Topic.agentsChanged, event.payload["kind"]?.stringValue == Self.resolvedKind,
            let session = event.payload["session"]?.stringValue {
-            let kind = Self.resolvedNotification(event.payload)
-            resolvedAt[Self.resolvedKey(computer, session, kind)] = event.seq
-            let ids = inbox.resolve(computer: computer, session: session, kind: kind)
+            let ids = Self.resolvedNotifications(event.payload).flatMap { kind in
+                resolvedAt[Self.resolvedKey(computer, session, kind)] = event.seq
+                return inbox.resolve(computer: computer, session: session, kind: kind)
+            }
             if !ids.isEmpty { withdrawn?(ids) }
         }
         if case .event(let event) = signal, let item = InboxItem(event, computerID: computer, received: .now) {

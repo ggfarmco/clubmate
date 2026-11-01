@@ -33,7 +33,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     public init(_ alert: AgentAlert) {
-        self.init(id: alert.id, workspace: alert.workspace, session: alert.session, owner: AgentNotifier.section, title: alert.title, message: alert.body, kind: .permission, source: .agentsSection)
+        self.init(id: alert.id, workspace: alert.workspace, session: alert.session, owner: AgentNotifier.section, title: alert.title, message: alert.body, kind: alert.kind, source: .agentsSection)
     }
 
     public static func posted(_ payload: JSONValue) -> HubNotification? {
@@ -81,7 +81,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     var coveredByAgentsSection: Bool {
-        source == .bus && !viaAgent && (kind == .needsInput || kind == .permission) && isAgentSession
+        source == .bus && !viaAgent && (kind == .needsInput || kind == .permission || kind == .question) && isAgentSession
     }
 
     public func headline(workspaceName: String?) -> String {

@@ -73,6 +73,19 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(hub.handleResolved(workspace: "w", session: nil, sessions: [asking[1]]), [])
     }
 
+    func testPendingQuestionIsItsOwnKindAndLeavesOnceAnswered() {
+        var hub = NotificationHub()
+        let asking = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["elicitation-2"])
+        let alert = AgentNotifier.requests([asking])[0]
+        XCTAssertEqual(alert.title, "Claude has a question")
+        XCTAssertTrue(hub.receive(HubNotification(alert), focus: HubFocus(appActive: false, workspace: nil), now: now))
+        XCTAssertEqual(hub.inbox.entries.map(\.note.kind), [.question])
+
+        XCTAssertEqual(hub.handleResolved(workspace: "w", session: "agt_1", sessions: []), ["agt_1/elicitation-2"])
+        XCTAssertEqual(hub.inbox.entries.map(\.note.kind), [.question])
+        XCTAssertEqual(hub.inbox.unhandled, [])
+    }
+
     func testWaitingDropsDeletedSessionsAndClosedWorkspaces() {
         var waiting = AgentWaiting()
         let sessions = [

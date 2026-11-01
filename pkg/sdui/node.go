@@ -325,6 +325,11 @@ func ToolCard(id string, p ToolCardProps) Node {
 	return Node{Type: "toolCard", ID: id, Props: props}
 }
 
+func Card(tone, icon string, children ...Node) Node {
+	props := withOptional(map[string]any{}, "tone", tone)
+	return Node{Type: "card", Props: withOptional(props, "icon", icon), Children: children}
+}
+
 func PermissionCard(id, request, text string, options []PermissionOption, outcome string) Node {
 	props := map[string]any{"request": request, "text": text, "options": nonNil(options)}
 	return Node{Type: "permissionCard", ID: id, Props: withOptional(props, "outcome", outcome)}

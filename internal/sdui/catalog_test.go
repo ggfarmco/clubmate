@@ -105,6 +105,7 @@ func TestValidateAgentNodes(t *testing.T) {
 			Kind: "edit", Title: "Edit a.go", Status: "completed", Body: &sdui.ToolBody{Format: "diff", Text: "+a"}, Truncated: true,
 			Actions: []sdui.CardAction{{Action: "openLocation", Label: "Open in nvim", Value: map[string]any{"path": "/r/a.go", "line": 3}}, {Action: "showAll", Label: "Show all"}},
 		}),
+		"card":           sdui.Card("warning", "questionmark.bubble.fill", sdui.Text("Which store?")),
 		"permissionCard": sdui.PermissionCard("p", "permission-1", "Run go test?", []sdui.PermissionOption{{ID: "allow", Label: "Allow once", Kind: "allow_once"}}, ""),
 		"composer": sdui.Composer("m", sdui.ComposerProps{
 			Placeholder: "Ask", Agent: "Claude", Modes: []sdui.Option{{Value: "default", Label: "Manual"}}, Mode: "default",
@@ -127,6 +128,8 @@ func TestValidateAgentNodes(t *testing.T) {
 		"card without id":      sdui.ToolCard("", sdui.ToolCardProps{Kind: "read", Title: "x"}),
 		"bad body format":      sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Body: &sdui.ToolBody{Format: "html", Text: "x"}}),
 		"nested action value":  sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Actions: []sdui.CardAction{{Action: "go", Label: "Go", Value: map[string]any{"a": []int{1}}}}}),
+		"empty card":           sdui.Card("warning", ""),
+		"bad card tone":        sdui.Card("orange", "", sdui.Text("x")),
 		"duplicate option":     sdui.PermissionCard("p", "r", "x", []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}, ""),
 		"bad attach kind":      sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
 		"duplicate attachment": sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),

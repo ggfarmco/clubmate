@@ -25,7 +25,10 @@ struct SessionDetailView: View {
         let session = store.session(sessionID)
         let screen = SessionScreen(entries: entries, session: session)
         let blocked = context.connection.blocked
-        let permissionDocked = if case .permission = screen.dock { true } else { false }
+        let answerDocked = switch screen.dock {
+        case .permission, .elicitation: true
+        default: false
+        }
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
                 ForEach(screen.rows) { row in
@@ -99,7 +102,7 @@ struct SessionDetailView: View {
                             }
                             .id(request.id)
                         case .elicitation(let question):
-                            ElicitationCard(question: question, agentName: session.agentName, enabled: blocked == nil) { action, answers in
+                            ElicitationCard(question: question, agentName: session.agentName, blocked: blocked) { action, answers in
                                 try await store.respond(sessionID, request: question.id, action: action, answers: answers)
                             }
                             .id(question.id)
@@ -118,7 +121,7 @@ struct SessionDetailView: View {
                         focused: $composerFocused,
                         session: session,
                         enabled: blocked == nil,
-                        blocked: permissionDocked ? nil : blocked,
+                        blocked: answerDocked ? nil : blocked,
                         sending: sending,
                         send: send
                     )

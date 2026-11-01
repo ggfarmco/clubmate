@@ -884,7 +884,7 @@ struct AskedRow: View {
 struct ElicitationCard: View {
     let question: Elicitation
     let agentName: String
-    let enabled: Bool
+    let blocked: String?
     let send: @MainActor (String, [Elicitation.Answer]) async throws -> Void
     @State private var picks: [String: Set<String>] = [:]
     @State private var texts: [String: String] = [:]
@@ -892,6 +892,7 @@ struct ElicitationCard: View {
     @State private var sending = false
     @State private var failure: String?
     @State private var fieldsHeight: CGFloat = 0
+    @State private var armed = false
     @Environment(\.openURL) private var openURL
 
     private static let maxFieldsHeight: CGFloat = 300
@@ -920,12 +921,13 @@ struct ElicitationCard: View {
                     .scrollBounceBehavior(.basedOnSize)
                 }
                 actions
-                    .disabled(!enabled || sending)
+                    .disabled(!answerable)
                     .opacity(enabled ? 1 : 0.5)
-                if !enabled {
-                    Text("Can't answer while the Mac is offline")
+                if let blocked {
+                    Text(blocked)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
                 if let failure {
                     Label(failure, systemImage: "exclamationmark.triangle.fill")
@@ -935,6 +937,18 @@ struct ElicitationCard: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .task {
+            try? await Task.sleep(for: .milliseconds(600))
+            armed = true
+        }
+    }
+
+    private var enabled: Bool {
+        blocked == nil
+    }
+
+    private var answerable: Bool {
+        enabled && armed && !sending
     }
 
     @ViewBuilder
@@ -977,7 +991,7 @@ struct ElicitationCard: View {
                     optionRow(option, symbol: single ? nil : selected ? "checkmark.circle.fill" : "circle")
                 }
                 .buttonStyle(.plain)
-                .disabled(!enabled || sending)
+                .disabled(!answerable)
             }
         case "boolean":
             Toggle(field.label, isOn: Binding(get: { toggles[field.key] ?? false }, set: { toggles[field.key] = $0 }))

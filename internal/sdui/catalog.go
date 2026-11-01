@@ -195,6 +195,7 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
+		"card": {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString}, children: childRule{min: 1, max: -1}},
 		"permissionCard": {
 			required:    []string{"request", "text", "options"},
 			props:       map[string]propCheck{"request": isString, "text": isString, "options": listOf(permissionOptionCheck), "outcome": isString, "action": actionCheck},

@@ -243,7 +243,8 @@ final class ModelTests: XCTestCase {
             let wire = [
                 #"{"seq":1,"topic":"notify.posted","workspace":"w","payload":{"id":"n1","session":"agt_1","message":"m","kind":"permission"}}"#,
                 #"{"seq":2,"topic":"notify.posted","workspace":"w","payload":{"id":"n2","session":"agt_1","message":"q","kind":"needs-input"}}"#,
-                #"{"seq":3,"topic":"agents.changed","workspace":"w","payload":{"workspace":"w","session":"agt_1","kind":"resolved","request":"elicitation-2","requestKind":"elicitation"}}"#,
+                #"{"seq":3,"topic":"notify.posted","workspace":"w","payload":{"id":"n3","session":"agt_1","message":"Which store?","kind":"question"}}"#,
+                #"{"seq":4,"topic":"agents.changed","workspace":"w","payload":{"workspace":"w","session":"agt_1","kind":"resolved","request":"elicitation-2","requestKind":"elicitation"}}"#,
             ].enumerated().map { "id: \($0.offset + 1)\nevent: bus\ndata: \($0.element)\n\n" }.joined()
             return (200, AsyncThrowingStream { $0.yield(Data((": connected\n\n" + wire).utf8)) })
         })
@@ -255,7 +256,7 @@ final class ModelTests: XCTestCase {
 
         model.start()
 
-        try await waitUntil { model.inbox.items.count == 2 }
+        try await waitUntil { model.inbox.items.count == 3 }
         XCTAssertEqual(Set(posted.values).subtracting(withdrawn.values), ["m|n1"])
         XCTAssertEqual(model.inbox.unread, ["m|n1"])
         try model.remove("m")

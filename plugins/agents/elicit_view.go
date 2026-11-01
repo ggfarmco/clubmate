@@ -19,6 +19,7 @@ const (
 	maxOptionShortcut = 9
 	noChoice          = "—"
 	questionLabel     = "Has a question"
+	cardTone          = "warning"
 )
 
 func elicitationCard(sc screen, en *entry) sdui.Node {
@@ -33,9 +34,9 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 	if el.Mode == acp.ElicitationURL {
 		open := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/open", "Open in browser", "safari"), actElicitOpen), "primary")
 		decline := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Decline", ""), actElicitDecline), "ghost")
-		return sdui.Form(id, sdui.HStack(sdui.Icon("person.badge.key"), sdui.Text(el.Message)), sdui.MutedText(el.URL), sdui.HStack(open, decline))
+		return sdui.Form(id, sdui.Card(cardTone, "person.badge.key.fill", sdui.Text(el.Message), sdui.MutedText(el.URL), sdui.HStack(open, decline)))
 	}
-	children := []sdui.Node{sdui.HStack(sdui.Icon("questionmark.bubble"), sdui.Text(el.Message))}
+	children := []sdui.Node{sdui.Text(el.Message)}
 	single := singleChoice(el.Fields)
 	for i, f := range el.Fields {
 		fid := id + "/f/" + strconv.Itoa(i)
@@ -48,7 +49,7 @@ func elicitationCard(sc screen, en *entry) sdui.Node {
 	submit := sdui.WithVariant(sdui.Button(id+"/submit", "Send", ""), "primary")
 	skip := sdui.WithVariant(sdui.WithAction(sdui.Button(id+"/decline", "Skip", ""), actElicitDecline), "ghost")
 	children = append(children, sdui.HStack(submit, skip))
-	return sdui.WithAction(sdui.Form(id, children...), actElicitation)
+	return sdui.WithAction(sdui.Form(id, sdui.Card(cardTone, "questionmark.bubble.fill", children...)), actElicitation)
 }
 
 func (a *app) elicitAct(ev pluginsdk.UIEvent, s *session, node string) error {

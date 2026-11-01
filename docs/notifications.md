@@ -12,7 +12,7 @@ cm notify [--title T] [--kind K] [--workspace W] [--session S] [--quiet] <messag
 
 - Inside a Clubmate terminal the workspace and session come from `$CLUBMATE_WORKSPACE_ID` and `$CLUBMATE_SESSION_ID`, so a plain `cm notify "Build finished"` points at the terminal it ran in. Inside an agent session of the Agents section `$CLUBMATE_AGENT_SESSION` names that session and wins over `$CLUBMATE_SESSION_ID`. `--workspace` and `--session` override them; the env session is used only when the workspace is the env workspace.
 - Outside Clubmate, `--workspace` is required unless exactly one workspace is open in the app.
-- `--kind` is one of `needs-input`, `permission`, `done`, `stuck`, `info` (default `info`). Any other kind is an error.
+- `--kind` is one of `needs-input`, `permission`, `question`, `done`, `stuck`, `info` (default `info`). Any other kind is an error.
 - The message is cut to 1000 characters and the title to 120 (cut, not rejected). Several words are joined with spaces. `-` reads the message from stdin, so hooks can pipe into it.
 - It prints the notification id and exits 0 once the core accepted it. It never waits for the app; if the app isn't running the notification is dropped.
 - At most 5 notifications per 10 seconds per workspace and 20 in all; extra ones fail with `too many notifications`.
@@ -26,7 +26,7 @@ Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`
 - The title is the workspace name and the notification's title (the kind when it has none); the body is the message.
 - Clicking it brings up the workspace's window and the session: a terminal is selected in Terminals and focused, an agent session opens in Agents.
 - macOS asks for notification permission the first time one is shown.
-- Agents: a session waiting for permission is posted through the same path as kind `permission`, once per request. A `needs-input` or `permission` post that names an agent session (`agt_…`, e.g. from Claude's hooks inside the Agents section) is dropped, because that path already covers it; `done` and the other kinds are shown (skipped while that session is on screen, a click opens it).
+- Agents: a session waiting for permission is posted through the same path as kind `permission`, and a pending agent question (an elicitation: AskUserQuestion, an MCP form or sign-in link) as kind `question` ("Claude has a question"), once per request; on macOS both carry their kind icon (hand, question mark) as the notification's image. A `needs-input`, `permission` or `question` post that names an agent session (`agt_…`, e.g. from Claude's hooks inside the Agents section) is dropped, because that path already covers it; `done` and the other kinds are shown (skipped while that session is on screen, a click opens it).
 - A notification an agent posted through MCP says "via agent" under the title.
 - Agent sessions have a notification policy; see [Per-session policy](#per-session-policy).
 - Every notification is unseen and unhandled unless its session was on screen when it arrived (then it is listed as handled).
@@ -35,7 +35,7 @@ Agents reach the same thing through MCP as the `notify_post` tool (`notify.post`
 
 ## Per-session policy
 
-Each agent session of the Agents section has a notification policy: **All** (default) shows every notification, **Needs input** only `needs-input` and `permission` ones (questions and permission requests), **Muted** none.
+Each agent session of the Agents section has a notification policy: **All** (default) shows every notification, **Needs input** only `needs-input`, `permission` and `question` ones (questions and permission requests), **Muted** none.
 
 - A notification the policy holds back gets no banner and no sound; it is listed in the inbox history as read, so it counts neither on the bell nor on the Dock icon and is not pinned. Pending agent permission requests stay pinned in "Waiting for you" and counted on the bell whatever the policy.
 - The strictest policy among the session and its parent sessions applies, so muting an orchestrator mutes its children too.
@@ -49,7 +49,7 @@ Each agent session of the Agents section has a notification policy: **All** (def
 
 The bell in the window's title bar, next to the workspace switcher, or ⇧⌘I opens the inbox. It works whether or not macOS notifications are allowed.
 
-- **Waiting for you**, pinned at the top: agent permission requests until they are answered (or the session is deleted, or the workspace is closed), and unhandled `needs-input` notifications. A window becoming key does not unpin them.
+- **Waiting for you**, pinned at the top: agent permission requests and questions until they are answered (or the session is deleted, or the workspace is closed; their history entries and delivered macOS notifications go too), and unhandled `needs-input` notifications. A window becoming key does not unpin them.
 - **History**, newest first, across all workspaces: kind icon, title, two lines of the message, the source (workspace · session · "via agent"), how long ago (kept current while the inbox is open), and a dot when unhandled. A menu filters by kind. Notifications skipped because you were looking at the session are listed as read.
 - Clicking a row brings up its workspace and session and marks it handled (a pinned permission marks its history entry); opening the inbox marks nothing.
 - The history keeps the last 200 notifications from the last 7 days, with their read state, in `notifications.json` in Clubmate's state directory. It remembers the last bus event it saw, so after a restart it picks up notifications posted while the app was closed (listed unhandled, without a banner; so is anything older than 30 s). If that event is no longer on the bus (a new bus database), it starts from new events; if the core cannot be asked, it keeps the remembered event and resumes from it. Writes of the file are ordered, so a save still in flight at quit cannot overwrite the final one. Entries it cannot read are skipped, not the whole file.

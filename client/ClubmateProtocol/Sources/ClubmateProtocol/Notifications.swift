@@ -3,6 +3,7 @@ import Foundation
 public enum NotificationKind: String, Sendable, Hashable, CaseIterable, Codable {
     case needsInput = "needs-input"
     case permission
+    case question
     case done
     case stuck
     case info
@@ -11,6 +12,7 @@ public enum NotificationKind: String, Sendable, Hashable, CaseIterable, Codable 
         switch self {
         case .needsInput: "Needs input"
         case .permission: "Permission needed"
+        case .question: "Question"
         case .done: "Done"
         case .stuck: "Stuck"
         case .info: "Info"
@@ -21,6 +23,7 @@ public enum NotificationKind: String, Sendable, Hashable, CaseIterable, Codable 
         switch self {
         case .needsInput: "questionmark.bubble"
         case .permission: "hand.raised"
+        case .question: "questionmark.circle"
         case .done: "checkmark.circle"
         case .stuck: "exclamationmark.triangle"
         case .info: "info.circle"
@@ -42,7 +45,7 @@ public enum NotificationPolicy: String, FallbackEnum {
     public func allows(_ kind: NotificationKind) -> Bool {
         switch self {
         case .all: true
-        case .needsInput: kind == .needsInput || kind == .permission
+        case .needsInput: kind == .needsInput || kind == .permission || kind == .question
         case .muted: false
         }
     }

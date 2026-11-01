@@ -251,11 +251,32 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         content.body = note.message
         content.sound = .default
         content.threadIdentifier = note.session ?? note.workspace
+        if let icon = Self.icon(note.kind) { content.attachments = [icon] }
         var info = [Self.workspaceKey: note.workspace]
         info[Self.sessionKey] = note.session
         info[Self.ownerKey] = note.owner
         content.userInfo = info
         try? await center.add(UNNotificationRequest(identifier: note.id, content: content, trigger: nil))
+    }
+
+    private static let iconKinds: Set<NotificationKind> = [.permission, .question]
+    private static let iconSide: CGFloat = 96
+
+    private static func icon(_ kind: NotificationKind) -> UNNotificationAttachment? {
+        guard iconKinds.contains(kind),
+              let symbol = NSImage(systemSymbolName: kind.symbol + ".fill", accessibilityDescription: kind.label)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: iconSide * 0.6, weight: .semibold).applying(.init(paletteColors: [.systemOrange])))
+        else { return nil }
+        let side = NSSize(width: iconSide, height: iconSide)
+        let image = NSImage(size: side, flipped: false) { rect in
+            let size = symbol.size
+            symbol.draw(in: NSRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height))
+            return true
+        }
+        guard let tiff = image.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("clubmate-\(kind.rawValue)-\(UUID().uuidString).png")
+        guard (try? png.write(to: url)) != nil else { return nil }
+        return try? UNNotificationAttachment(identifier: kind.rawValue, url: url)
     }
 
     private func refreshSystemState() {

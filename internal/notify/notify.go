@@ -15,7 +15,7 @@ const (
 	ellipsis    = "…"
 )
 
-var Kinds = []string{"needs-input", "permission", "done", "stuck", DefaultKind}
+var Kinds = []string{"needs-input", "permission", "question", "done", "stuck", DefaultKind}
 
 func ValidKind(kind string) bool {
 	return slices.Contains(Kinds, kind)

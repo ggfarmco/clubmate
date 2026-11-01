@@ -178,7 +178,7 @@ struct InboxView: View {
 
     private func color(_ kind: NotificationKind) -> Color {
         switch kind {
-        case .needsInput, .permission: theme.warning
+        case .needsInput, .permission, .question: theme.warning
         case .stuck: theme.danger
         case .done: theme.success
         case .info: theme.muted

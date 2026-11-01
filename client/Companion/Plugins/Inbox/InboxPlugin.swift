@@ -209,6 +209,7 @@ struct InboxGlyph: View {
         switch kind {
         case .needsInput: "questionmark.bubble"
         case .permission: "hand.raised"
+        case .question: "questionmark.circle"
         case .stuck: "exclamationmark.circle"
         case .done: "checkmark"
         case .info: "info"

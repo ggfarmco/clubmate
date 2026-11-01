@@ -64,6 +64,8 @@ func TestElicitationOptionPick(t *testing.T) {
 	assert.Contains(t, string(init.Params), `"elicitation":{"form":{},"url":{}}`)
 
 	form := elicitationForm(t, f, workspace)
+	require.Len(t, cardsOf(form, "card"), 1)
+	assert.Equal(t, "warning", cardsOf(form, "card")[0].Props["tone"])
 	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "composer")) == 1 })
 	assert.Equal(t, true, cardsOf(main, "composer")[0].Props["docked"])
 	buttons := buttonsWith(form, "elicitationPick")

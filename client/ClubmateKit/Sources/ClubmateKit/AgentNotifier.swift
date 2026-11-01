@@ -16,7 +16,7 @@ public struct AgentAlert: Sendable, Equatable, Identifiable {
     public let body: String
 
     public var id: String { "\(session)/\(request)" }
-    public var kind: NotificationKind { AgentSession.isQuestion(request) ? .needsInput : .permission }
+    public var kind: NotificationKind { AgentSession.isQuestion(request) ? .question : .permission }
 }
 
 public struct AgentNotifier: Sendable {
