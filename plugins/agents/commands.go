@@ -60,6 +60,11 @@ type sessionArgs struct {
 	Session string `json:"session"`
 }
 
+type sessionsArgs struct {
+	Session string  `json:"session"`
+	Since   *string `json:"since"`
+}
+
 type subagentArgs struct {
 	Session  string `json:"session"`
 	Subagent string `json:"subagent"`
@@ -242,12 +247,24 @@ func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 	return nil, a.setConfig(ctx, cmd.WorkspaceID, args)
 }
 
-func (a *app) sessionsCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionArgs) (any, error) {
+func (a *app) sessionsCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionsArgs) (any, error) {
 	infos := a.infos(cmd.WorkspaceID)
-	if args.Session == "" {
-		return infos, nil
+	if args.Since == nil {
+		return onlySession(infos, args.Session), nil
 	}
-	return slices.DeleteFunc(infos, func(info sessionInfo) bool { return info.ID != args.Session }), nil
+	page := a.sessionRevs.page(cmd.WorkspaceID, infos, *args.Since)
+	page.Sessions = onlySession(page.Sessions, args.Session)
+	if args.Session != "" {
+		page.Removed = slices.DeleteFunc(page.Removed, func(id string) bool { return id != args.Session })
+	}
+	return page, nil
+}
+
+func onlySession(infos []sessionInfo, id string) []sessionInfo {
+	if id == "" {
+		return infos
+	}
+	return slices.DeleteFunc(infos, func(info sessionInfo) bool { return info.ID != id })
 }
 
 func (a *app) notifyCommand(_ context.Context, cmd pluginsdk.CommandRun, args notifyArgs) (any, error) {

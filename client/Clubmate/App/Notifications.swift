@@ -19,6 +19,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     private(set) var agents: [String: AgentTally] = [:]
 
     @ObservationIgnored private var notifier = AgentNotifier()
+    @ObservationIgnored private var lists: [String: AgentSessionList] = [:]
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var checks: Task<Void, Never>?
     @ObservationIgnored private var saving: Task<Void, Never>?
@@ -148,12 +149,21 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         let added = workspaces.subtracting(agents.keys)
         hub.waiting.keep(workspaces)
         agents = agents.filter { workspaces.contains($0.key) }
+        lists = lists.filter { workspaces.contains($0.key) }
         if !added.isEmpty { checkOpenWorkspaces() }
     }
 
     func tally(_ workspace: String) async {
-        guard case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
-        agents[workspace] = AgentTally(AgentSession.list(listed))
+        guard let all = await sessions(workspace) else { return }
+        agents[workspace] = AgentTally(all)
+    }
+
+    private func sessions(_ workspace: String) async -> [AgentSession]? {
+        guard case .success(let reply) = await run(workspace, CommandInvocation(id: AgentCommand.sessions, args: (lists[workspace] ?? AgentSessionList()).args)) else { return nil }
+        var list = lists[workspace] ?? AgentSessionList()
+        guard (try? list.apply(reply)) != nil else { return nil }
+        lists[workspace] = list
+        return list.sessions
     }
 
     private func agentDeleted(_ workspace: String, _ session: String) {
@@ -196,8 +206,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func checkAgents(_ workspace: String, session: String?) async {
-        guard case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
-        let all = AgentSession.list(listed)
+        guard let all = await sessions(workspace) else { return }
         agents[workspace] = AgentTally(all)
         withdraw(hub.handleResolved(workspace: workspace, session: session, sessions: all))
         guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session) else { return }

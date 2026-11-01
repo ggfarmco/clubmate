@@ -419,6 +419,10 @@
             "session": {
               "type": "string",
               "description": "Only this session: the list holds it alone, or is empty when the workspace has no such session."
+            },
+            "since": {
+              "type": "string",
+              "description": "Returns {sessions, removed, cursor, delta?} instead of the list. Pass \"\" for every session and a cursor; pass an earlier result's cursor for only the sessions that changed since then (delta true) and the ids of the ones removed since then. A cursor from before the plugin restarted is ignored and every session comes back without delta."
             }
           }
         }

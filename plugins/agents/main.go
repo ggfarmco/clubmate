@@ -41,6 +41,8 @@ type app struct {
 	branches  branchCache
 	watchdog  watchdog
 
+	sessionRevs sessionRevs
+
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
 	stopOnce   sync.Once

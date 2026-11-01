@@ -160,6 +160,19 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(runner.calls.values, ["agents.sessions"])
     }
 
+    func testRefreshAfterTheFirstLoadMergesOnlyWhatChanged() async throws {
+        let runner = ScriptedRunner(replies: [], sessions: [
+            #"{"sessions":[{"id":"a","status":"done"},{"id":"b","status":"done"},{"id":"c","status":"done"}],"removed":[],"cursor":"e.3"}"#,
+            #"{"sessions":[{"id":"b","status":"running"},{"id":"d","status":"idle"}],"removed":["c"],"cursor":"e.5","delta":true}"#,
+        ])
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.refresh()
+        await store.refresh()
+        XCTAssertEqual(runner.sessionArgs, [.object(["since": .string("")]), .object(["since": .string("e.3")])])
+        XCTAssertEqual(store.sessions.map(\.id), ["a", "b", "d"])
+        XCTAssertEqual(store.sessions[1].status, .running)
+    }
+
     func testACancelledCallerDoesNotLoseTheSessions() async throws {
         let runner = SlowSessionsRunner()
         let store = AgentsStore(workspace: "prj_00000000000000f1", runner: runner)
@@ -380,7 +393,7 @@ final class AnswerRunner: CommandRunner {
         switch id {
         case "agents.sessions":
             sessionArgs.append(args)
-            let other: [JSONValue] = args == nil ? [.object(["id": .string("other"), "status": .string("done")])] : []
+            let other: [JSONValue] = args?["session"] == nil ? [.object(["id": .string("other"), "status": .string("done")])] : []
             return .array([.object(["id": .string("s"), "status": .string("waiting"), "pending": .array(pending.map(JSONValue.string))])] + other)
         case "agents.permission":
             listedAtPermission = store?.sessions.map(\.id) ?? []
@@ -405,6 +418,7 @@ final class ScriptedRunner: CommandRunner {
     private var replies: [String]
     private var sessions: [String]
     private(set) var args: [JSONValue] = []
+    private(set) var sessionArgs: [JSONValue] = []
 
     init(replies: [String], sessions: [String] = []) {
         self.replies = replies
@@ -413,6 +427,7 @@ final class ScriptedRunner: CommandRunner {
 
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         guard id == "agents.transcript" else {
+            sessionArgs.append(args ?? .null)
             return sessions.isEmpty ? .array([]) : try JSONDecoder().decode(JSONValue.self, from: Data(sessions.removeFirst().utf8))
         }
         self.args.append(args ?? .null)
