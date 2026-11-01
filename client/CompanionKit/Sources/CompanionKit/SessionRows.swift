@@ -156,7 +156,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     public let workspace: Workspace
     public let session: AgentSession
 
-    public var id: String { computer + "|" + session.id }
+    public var id: String { Self.id(computer: computer, session: session.id) }
 
     public var command: String? {
         guard let summary = session.pendingSummary, summary.isCommand, !summary.text.isEmpty else { return nil }
