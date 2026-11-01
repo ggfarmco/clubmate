@@ -1,32 +1,42 @@
-# Companion check — 1 Nov 2026, b91c54f2
+# Companion re-check — 1 Nov 2026, d45a8ff7
 
-Debug build (`make companion`), iOS 27.0 simulator, status bar 9:41. Every launch: `-fixtures client/CompanionKit/Tests/CompanionKitTests/Fixtures -autoConfirmPairing YES -pair 'clubmate://pair?v=1&c=ABCDEF&h=100.101.1.2&p=47622&id=mac-mock&n=Mac%20Studio&e=4000000000'` plus the args below. Fresh install per shot.
+Re-capture after the design-check fixes. Debug build (`make companion`), iOS 27.0 simulator, iPhone 18 Pro (402×874 pt, shots 1206×2622 px at 3×; boards are 393×852 at 2×), status bar time 9:41. Fresh install per shot. iPad and Duo are out of scope.
 
-iPhone shots are iPhone 18 Pro, which is 402×874 pt here (1206×2622 px), not the boards' 393×852; the boards are 2×, the shots 3×.
+Every launch: `-fixtures <absolute path>/client/CompanionKit/Tests/CompanionKitTests/Fixtures -autoConfirmPairing YES -pair 'clubmate://pair?v=1&c=ABCDEF&h=100.101.1.2&p=47622&id=mac-mock&n=Mac%20Studio&e=4000000000'` plus the args below. The fixture path must be absolute: the app's working directory in the simulator is `/`, so a relative path reads every fixture as empty ("No sessions", "Couldn't Load the Transcript").
 
-| File | Device | Look | Extra args | Wait |
-|---|---|---|---|---|
-| C-Macs(-Light) | iPhone 18 Pro | dark / light | `-macs 3 -open sidebar` | 22 s |
-| C-Workspace(-Light) | iPhone 18 Pro | dark / light | `-macs 3 -open agents` | 9 s |
-| C-Permission(-Light) | iPhone 18 Pro | dark / light | `-macs 3 -open agents/agt_0000000000000001` | 9 s |
-| C-Question(-Light) | iPhone 18 Pro | dark / light | `-macs 3 -open agents/agt_0000000000000002` | 9 s |
-| C-Inbox(-Light) | iPhone 18 Pro | dark / light | `-macs 3 -open inbox` | 9 s |
-| C-MacInfo(-Light) | iPhone 18 Pro | dark / light | `-macs 3 -open mac` | 9 s |
-| x-Backlog | iPhone 18 Pro | dark | `-macs 3 -open backlog` | 9 s |
-| x-Offline | iPhone 18 Pro | dark | `-offline 4 -open sidebar` (one Mac) | 28 s |
+| File | Look | Extra args | Wait |
+|---|---|---|---|
+| C-Macs(-Light) | dark / light | `-macs 3 -open sidebar` | 22 s |
+| C-Workspace(-Light) | dark / light | `-macs 3 -open agents` | 9 s |
+| C-Permission(-Light) | dark / light | `-macs 3 -open agents/agt_0000000000000001` | 9 s |
+| C-Question(-Light) | dark / light | `-macs 3 -open agents/agt_0000000000000002` | 9 s |
+| C-Inbox(-Light) | dark / light | `-macs 3 -open inbox` | 9 s |
+| C-MacInfo(-Light) | dark / light | `-macs 3 -open mac` | 9 s |
+| C-Backlog(-Light) | dark / light | `-macs 3 -open backlog` | 9 s |
+| C-Offline | dark | `-offline 4 -open sidebar` (one Mac) | 28 s |
+
+Seed data is not counted as a difference: workspace `clubmate` instead of `design-brief`, the extra running Explore subagent ("1 running" on shop), ages, the Explore title carrying its last tool ("· Read cart_test.go"), "3 actions" instead of 2, inbox rows. Needs-you order on Macs and Offline is oldest first by `needsYouSince` (question 25 min → terraform 4 min → go test 1 min), as decided in fix list §3 P2 "Order of Needs you"; the boards' order comes from their own seed ages.
+
+## Per board
+
+- **C-Macs**: matches (Needs you section, waiting in warning ink, Mac sections). MacBook Air is below the fold.
+- **C-Workspace**: matches P0 "Companion workspace list" (subagent nested 24pt, no separator, not folded) and P1 "Running row" ("Editing reserve.go · 4 min"). Real gap: no › on session rows (see below).
+- **C-Permission**: matches decision 1 (title, mono command, "Claude says:", Allow once / Always allow… / Reject, •••), P0 "Stop" (spinner + "Running · 10 s", no Stop button) and P1 banner (neutral surface, outline glyph, names the Mac, pinned above the transcript instead of over it). Differences: the banner has an extra ✕ Dismiss; the Plan card's "Plan · 2 of 3" header is not visible: the transcript opens scrolled to the end and the card's top is clipped under the pinned banner (presumably still rendered — `TranscriptViews.swift` draws it and the board's shorter rows fit it; unverified, no scroll in this pass); the attach button is a paperclip, the board's is a photo glyph.
+- **C-Question**: matches P1 "Started by · ‹parent›" and P2 "Phone bullets". A Needs-you banner for the parent's permission shows above the transcript; the board has none, but the fixture has another pending request, so this is the banner rule working (seed). Placeholder "Answer Claude…" per P2 "Composer placeholder".
+- **C-Inbox**: matches. "Earlier" lists Build finished (10 min, dimmed as read) before Stuck (1 h); the board puts Stuck first. Counted as seed, but if the board's order is meant (unread or by kind first), that is an ordering rule, not seed.
+- **C-MacInfo**: matches content. Real gap: colour rows are ~74 pt tall against the board's 48 pt, so Notifications and Forget this Mac fall below the fold.
+- **C-Backlog**: matches P1 "Backlog, phone" (inset grouped, counts at the right) and P2 "Priority" (neutral `!!` / `↓`). Real gap: no › on task rows.
+- **C-Offline**: matches decision 3 (Needs you stays, dimmed, "Mac Studio is offline — answer when it's back", "as of" rows).
+- **Light**: compared against the Workspace, Permission, Inbox and Backlog light boards; same results as dark, warning glyph fills match the boards' tone.
+
+## Remaining real gaps (not in the fix list)
+
+1. No › disclosure chevron on navigable list rows (Macs workspace/inbox rows, workspace sessions, backlog tasks, Needs-you rows); every board draws one. Present in the previous capture too and not raised in K2, so it may be an accepted divergence rather than a regression.
+2. Row density: list rows are taller than the boards (two-line rows ~80 pt vs ~65 pt, MacInfo colour rows ~74 pt vs 48 pt), which pushes MacInfo's Notifications / Forget this Mac and the Permission Plan header out of view.
+3. Needs-you banner has a ✕ Dismiss the C-Permission board doesn't show.
+4. Composer attach button is a paperclip; the boards use a photo glyph.
 
 ## Not reproduced
 
-- iPad and Fold: left out on purpose, not tested yet.
-- Always-allow confirm: needs a tap; no UI driver used for a capture-only pass.
-- Shots are only what fits on screen: the MacBook Air (offline) section on C-Macs and Notifications / Forget this Mac on C-MacInfo are below the fold.
-- Fixture content differs from the boards (workspace `clubmate` not `design-brief`, an extra Done section, a running Explore subagent, inbox order); not counted as differences below.
-
-## Looks broken or off vs the boards
-
-- Permission / Question: a Needs-you banner ("Move the state bucket… · 1 more") floats under the header and covers the transcript (on C-Permission it overlaps the Plan card). No banner on the boards.
-- Workspace: the subagent row under "Refactor…" is folded into a "1 ›" chevron instead of the nested "Subagent · Explain the checkout flow / Asks: …" row; the "Needs you 2" count then shows one row. Board has no Agents | Backlog control (new in 3e7f3561).
-- Question: no "Started by · Refactor the cart total…" parent card above the transcript; bullets are small grey dots, not the board's full-size text-coloured ones.
-- Permission: card reads "Claude says: Run the shop tests" where the board says "go test isn't in this workspace's allow list."; extra "···" in the card header and a "Sends after the current turn · Stop is in ···" footer; send button is neutral grey (board: dim green).
-- Macs: Needs-you order is question → terraform → go test (board: go test → question → terraform); shop subtitle adds "1 running".
-- Offline (one Mac): the Needs-you section disappears while the Mac is offline although its rows say "2 waiting".
+- Always-allow confirm sheet: needs a tap; no UI driver in a capture-only pass.
+- Shots show only what fits on screen.
