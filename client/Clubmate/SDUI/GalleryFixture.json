@@ -110,6 +110,16 @@
                         {"type": "button", "id": "gallery-header/delete", "props": {"label": "Delete", "icon": "trash", "variant": "danger", "shortcut": "cmd+delete", "confirm": "Delete cron job “Nightly dependency audit”?"}}
                       ]
                     },
+                    {
+                      "type": "header",
+                      "id": "gallery-filter-header",
+                      "props": {"title": "All processes", "meta": "5 running · 0 orphans"},
+                      "children": [
+                        {"type": "textField", "id": "gallery-filter", "props": {"placeholder": "Filter", "live": true}},
+                        {"type": "button", "id": "gallery-filter-header/copy", "props": {"label": "Copy command", "variant": "ghost", "copy": "/bin/zsh -l"}},
+                        {"type": "button", "id": "gallery-filter-header/kill", "props": {"label": "Kill orphans", "variant": "danger", "disabled": true}}
+                      ]
+                    },
                     {"type": "text", "props": {"text": "Text styles", "style": "title"}},
                     {"type": "text", "props": {"text": "body: the quick brown fox", "style": "body"}},
                     {"type": "text", "props": {"text": "muted: secondary information", "style": "muted"}},

@@ -16,7 +16,7 @@ func BenchmarkRecord(b *testing.B) {
 	sessions, nodes, hist, now := benchFixture()
 	b.ReportAllocs()
 	for i := 0; b.Loop(); i++ {
-		hist.record(sessions, nodes, now.Add(time.Duration(i)*time.Second))
+		hist.record(sessions, nodes, nil, nil, now.Add(time.Duration(i)*time.Second))
 	}
 }
 
@@ -88,7 +88,7 @@ func benchFixture() ([]group, []pluginsdk.ProcessNode, *history, time.Time) {
 	hist := newHistory()
 	start := now.Add(-historyLen * time.Second)
 	for i := range historyLen {
-		hist.record(sessions, nodes, start.Add(time.Duration(i)*time.Second))
+		hist.record(sessions, nodes, nil, nil, start.Add(time.Duration(i)*time.Second))
 	}
 	return sessions, nodes, hist, now
 }

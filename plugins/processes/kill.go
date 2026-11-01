@@ -12,7 +12,7 @@ type killedEvent struct {
 }
 
 func killSelected(ctx context.Context, h *pluginsdk.Host, workspaceID string, st workspaceState) error {
-	if st.pid == 0 {
+	if st.pid == 0 || st.session == coreID {
 		return nil
 	}
 	nodes, err := h.ProcessTree(ctx, workspaceID, st.session)
@@ -28,6 +28,9 @@ func killSelected(ctx context.Context, h *pluginsdk.Host, workspaceID string, st
 }
 
 func killOrphans(ctx context.Context, h *pluginsdk.Host, workspaceID, sessionID string) ([]int, error) {
+	if sessionID == coreID {
+		return nil, nil
+	}
 	return h.KillProcesses(ctx, pluginsdk.KillRequest{WorkspaceID: workspaceID, SessionID: sessionID, OrphansOnly: true})
 }
 

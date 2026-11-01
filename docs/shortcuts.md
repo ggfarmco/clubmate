@@ -37,6 +37,7 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘S | Save the task now (the form also autosaves) | backlog |
 | ⌘I | Show the session's context, or back to the transcript | agents |
 | ⇧K | Kill the selected process and its children (confirmed) | processes |
+| ⇧⌘R | Reveal the selected process's executable in Finder | processes |
 
 ## Lists: palette, file picker, pickers, switcher
 
@@ -64,6 +65,18 @@ Pickers are the fuzzy lists for worktrees: the worktree switcher in the window t
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
 
 `g` waits for the next key; a key that is not listed is swallowed. Defined in `ClubmateKit/TreeKeys.swift`.
+
+## Tables (plugin table focused)
+
+A click on a row, or focus moving to the main pane, focuses the table; the selected row then shows the accent bar. Group headings are skipped.
+
+| Keys | Action |
+|---|---|
+| j / ↓, k / ↑ | Move the selection |
+| l / → | Expand the row, or step to its first child |
+| h / ← | Collapse the row, or go to its parent row |
+
+Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defined in `SDUI/TableView.swift`, rows in `ClubmateKit/TableKeys.swift`.
 
 ## Agent composer (Agents section or Code chat panel, prompt focused)
 

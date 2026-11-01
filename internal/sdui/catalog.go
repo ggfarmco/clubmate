@@ -41,6 +41,7 @@ type propCheck func(c *validator, v any) error
 type childRule struct {
 	min, max int
 	only     []string
+	once     []string
 }
 
 type spec struct {
@@ -143,12 +144,12 @@ var (
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString},
 			children:    noChildren,
 			interactive: true,
 		},
 		"textField": {
-			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck},
+			props:       map[string]propCheck{"value": isString, "placeholder": isString, "lines": linesNumber, "error": isString, "action": actionCheck, "live": isBool},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -170,7 +171,7 @@ var (
 		"header": {
 			required: []string{"title"},
 			props:    map[string]propCheck{"title": isString, "icon": isString, "meta": isString, "badges": listOf(headerBadgeCheck)},
-			children: childRule{min: 0, max: 8, only: []string{"button"}},
+			children: childRule{min: 0, max: 9, only: []string{"button", "textField"}, once: []string{"textField"}},
 		},
 		"empty": {
 			required: []string{"text"},
@@ -307,9 +308,16 @@ func checkChildCount(n sdui.Node, sp spec, path string) error {
 	if count < sp.children.min || (sp.children.max >= 0 && count > sp.children.max) {
 		return invalid(path, "invalid child count %d", count)
 	}
+	seen := map[string]bool{}
 	for _, c := range n.Children {
 		if len(sp.children.only) > 0 && !slices.Contains(sp.children.only, c.Type) {
 			return invalid(path, "child %s not allowed; only %v", c.Type, sp.children.only)
+		}
+		if slices.Contains(sp.children.once, c.Type) {
+			if seen[c.Type] {
+				return invalid(path, "more than one %s child", c.Type)
+			}
+			seen[c.Type] = true
 		}
 	}
 	return nil

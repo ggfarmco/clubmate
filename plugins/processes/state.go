@@ -15,6 +15,8 @@ var errWorkspaceDeleted = errors.New("workspace deleted")
 type workspaceState struct {
 	session   string
 	pid       int
+	filter    string
+	coreOpen  bool
 	auto      bool
 	options   bool
 	sort      sdui.Sort

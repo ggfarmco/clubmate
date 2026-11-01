@@ -53,14 +53,14 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | icon | name* (string) | none | no |
 | diff | text* (string, unified diff) | none | no |
 | markdown | text* (string) | none | no |
-| button | label* (string), icon (string), confirm (string), variant (`primary`\|`secondary`\|`ghost`\|`danger`), disabled (bool), shortcut (key combo), loading (string), iconOnly (bool), action | none | yes |
-| textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), error (string), action | none | yes |
+| button | label* (string), icon (string), confirm (string), variant (`primary`\|`secondary`\|`ghost`\|`danger`), disabled (bool), shortcut (key combo), loading (string), iconOnly (bool), copy (string), action | none | yes |
+| textField | value (string), placeholder (string), lines (int 2…50: multi-line, grows up to `lines` rows), error (string), live (bool), action | none | yes |
 | folderField | label* (string), values (string[]), action | none | yes |
 | toggle | value* (bool), action | none | yes |
 | select | options* (option[]), value (string), error (string), action | none | yes |
 | form | action, autosave (bool) | any | yes |
 | surface | sessionId* (`ses_` id) | none | no |
-| header | title* (string), icon (string), meta (string), badges (`[{text*, tone}]`) | 0-8 `button` | no |
+| header | title* (string), icon (string), meta (string), badges (`[{text*, tone}]`) | 0-9: `button`, at most one `textField` | no |
 | empty | text* (string), title (string), icon (string), hint (string) | 0-1 `button` | no |
 | transcript | none | any | no |
 | message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]) | none | no |
@@ -88,9 +88,13 @@ Agent chat nodes (the `agents` section):
 
 `button.variant`: `primary` (accent fill; at most one per pane), `secondary` (raised, bordered), `ghost` (text only, fill on hover; toolbars and headers) or `danger` (danger outline; destructive actions). Without it the button looks like `ghost` in the body text colour. `disabled: true` greys it out and drops clicks and its shortcut. `shortcut` is a key combo in `cm ui key` form (`cmd+r`, `opt+1`, `shift+p`, `p`): the client prints it inside the button (`⌘R`) and presses the button on that key while the button is on screen in the key window; a combo without `cmd`, `ctrl` or `opt` does nothing while a text field has focus, a combo an app menu item uses goes to the menu, and `esc`, `return` and `tab` without `cmd`, `ctrl` or `opt` are rejected. A plugin keeps its shortcuts unique per pane and lists them in `docs/shortcuts.md`. `loading` is the progress verb (`Saving…`): a non-empty one replaces the label, the button keeps the width of its label (a longer verb widens it, so keep verbs short) and drops clicks and its shortcut like `disabled`. Buttons take keyboard focus like macOS buttons (Tab, with Keyboard navigation on; a click does not focus them) and draw the focus ring while focused; Space or Return presses the focused button. `iconOnly: true` with an `icon` draws only the icon in a control-height square; the `label` and the key become its tooltip.
 
+`button.copy`: the client puts that text on the clipboard instead of sending the event (after `confirm`, when set); the shortcut does the same.
+
+`textField.live: true` (outside a `form`) also sends the field's submit event 250 ms after the last keystroke, besides on Return; while the field has focus, a changed `value` from the plugin does not replace the text, so a render that lags behind the typing cannot undo it. Filter fields use it.
+
 `textField.error` and `select.error` (one short sentence, `Title is empty`) draw the field with a danger border and the text as one caption line under it. Unlike `value` it is not an initial value: the field shows whatever the latest render says, so the plugin drops the prop once the input is valid.
 
-`header` heads a detail pane: the `icon`, the `title` (heading size, two lines at most, then cut with a tooltip), the `badges` (toned like `badge`; leave the normal state untoned), an optional muted `meta` line and its `button` children as the action bar on one row. When they don't fit, or the header is under 480pt wide, the first three non-`danger` buttons stay and the rest (`danger` ones included) move into a "…" menu at the right end; their shortcuts keep working, and the menu shows them after the label. It draws a rule under itself.
+`header` heads a detail pane: the `icon`, the `title` (heading size, two lines at most, then cut with a tooltip), the `badges` (toned like `badge`; leave the normal state untoned), an optional muted `meta` line and its children as the action bar on one row: a `textField` child (a filter) comes first, at most 220pt wide, and never moves into the menu, then the `button`s. When they don't fit, or the header is under 480pt wide, the first three non-`danger` buttons stay and the rest (`danger` ones included) move into a "…" menu at the right end; their shortcuts keep working, and the menu shows them after the label. It draws a rule under itself.
 
 Inside a `form`, a horizontal `stack` whose first child is a muted `text` is a property row: that text is the key column (120pt, 88pt when the form is narrower than 480pt) and the rest is the value. An empty muted text continues the row above.
 

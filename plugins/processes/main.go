@@ -26,14 +26,16 @@ const (
 )
 
 type app struct {
-	renderMu   sync.Mutex
-	hist       *history
-	memKiB     int64
-	mu         sync.Mutex
-	workspaces map[string]*workspaceState
-	present    map[string]bool
-	sections   map[string]string
-	deleted    map[string]time.Time
+	renderMu    sync.Mutex
+	hist        *history
+	memKiB      int64
+	mu          sync.Mutex
+	core        []pluginsdk.ProcessNode
+	coreScanned bool
+	workspaces  map[string]*workspaceState
+	present     map[string]bool
+	sections    map[string]string
+	deleted     map[string]time.Time
 }
 
 func main() {

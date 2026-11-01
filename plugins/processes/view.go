@@ -15,27 +15,32 @@ import (
 )
 
 const (
-	allID       = "all"
-	sessionsID  = "sessions"
-	tableID     = "processes"
-	moreID      = "more"
-	selectPID   = "select-pid"
-	killAction  = "kill"
-	orphanKill  = "kill-orphans"
-	autoKill    = "autokill"
-	optionsID   = "options"
-	groupPrefix = "g:"
-	otherGroup  = "other"
-	kibPerMiB   = 1024
-	mibPerGiB   = 1024
-	maxRows     = 1000
-	maxDepth    = 32
-	pidWidth    = 64
-	indent      = 12
-	stripHeight = 16
-	cellRunes   = 512
-	stripRunes  = 64
-	killKey     = "shift+k"
+	allID        = "all"
+	sessionsID   = "sessions"
+	tableID      = "processes"
+	moreID       = "more"
+	selectPID    = "select-pid"
+	killAction   = "kill"
+	orphanKill   = "kill-orphans"
+	autoKill     = "autokill"
+	optionsID    = "options"
+	groupPrefix  = "g:"
+	otherGroup   = "other"
+	kibPerMiB    = 1024
+	mibPerGiB    = 1024
+	maxRows      = 1000
+	maxDepth     = 32
+	pidWidth     = 64
+	indent       = 12
+	stripHeight  = 16
+	cellRunes    = 512
+	stripRunes   = 64
+	killKey      = "shift+k"
+	revealKey    = "cmd+shift+r"
+	filterID     = "filter"
+	filterAction = "filter"
+	copyID       = "copy"
+	revealAction = "reveal"
 
 	colPID     = "pid"
 	colCPU     = "cpu"
@@ -55,6 +60,8 @@ type viewModel struct {
 	nodes     []pluginsdk.ProcessNode
 	groups    []group
 	selected  int
+	filter    string
+	coreOpen  bool
 	auto      bool
 	options   bool
 	sort      sdui.Sort
@@ -102,19 +109,26 @@ func sidebarView(sessions []group, selected string) sdui.Node {
 }
 
 func mainView(m viewModel) (sdui.Node, int) {
-	rows, depth := processRows(m)
+	shown := m
+	shown.nodes = filterNodes(m.nodes, m.groups, m.filter)
+	rows, depth := processRows(shown)
 	depth = max(depth, m.pidDepth)
 	selectedID := ""
 	if m.selected != 0 {
 		selectedID = strconv.Itoa(m.selected)
 	}
-	table := sdui.WithAction(sdui.Table(tableID, tableColumns(depth), rows, selectedID, m.sort), selectPID)
 	children := []sdui.Node{headerView(m)}
 	if m.options {
 		children = append(children, optionsView(m))
 	}
-	children = append(children, totalsView(m), withID(sdui.Scroll(table), "table-scroll"))
-	if strip, ok := actionStrip(m); ok {
+	children = append(children, totalsView(m))
+	if len(rows) == 0 && m.filter != "" {
+		children = append(children, withID(sdui.Empty(fmt.Sprintf("No processes match “%s”.", m.filter)), "no-match"))
+	} else {
+		table := sdui.WithAction(sdui.Table(tableID, tableColumns(depth), rows, selectedID, m.sort), selectPID)
+		children = append(children, withID(sdui.Scroll(table), "table-scroll"))
+	}
+	if strip, ok := actionStrip(shown); ok {
 		children = append(children, strip)
 	}
 	return withID(sdui.VStack(children...), "main"), depth
@@ -143,7 +157,8 @@ func headerView(m viewModel) sdui.Node {
 	if m.options {
 		options = sdui.WithVariant(sdui.Button(optionsID, "Hide options", "slider.horizontal.3"), sdui.VariantGhost)
 	}
-	return withID(sdui.Header(title, sdui.HeaderProps{Meta: meta}, kill, options), "header")
+	filter := sdui.WithAction(sdui.WithLive(sdui.TextField(filterID, m.filter, "Filter")), filterAction)
+	return withID(sdui.Header(title, sdui.HeaderProps{Meta: meta}, filter, kill, options), "header")
 }
 
 func optionsView(m viewModel) sdui.Node {
@@ -184,10 +199,20 @@ func actionStrip(m viewModel) (sdui.Node, bool) {
 	if !p.StartTime.IsZero() {
 		facts = append(facts, "started "+startedAt(p.StartTime, m.now))
 	}
+	copyCommand := sdui.WithCopy(sdui.WithVariant(sdui.Button(copyID, "Copy command", "doc.on.doc"), sdui.VariantGhost), shellCommand(n))
+	reveal := sdui.WithShortcut(sdui.WithVariant(sdui.Button(revealAction, "Reveal", "folder"), sdui.VariantGhost), revealKey)
+	if executable(n) == "" {
+		reveal = sdui.WithDisabled(reveal)
+	}
 	confirm := fmt.Sprintf("Kill %s (%d) and its children?", p.Comm, p.PID)
 	kill := sdui.WithShortcut(sdui.WithVariant(sdui.WithConfirm(sdui.Button(killAction, "Kill", "xmark.circle"), confirm), sdui.VariantDanger), killKey)
+	if n.SessionID == coreID {
+		kill = sdui.WithDisabled(kill)
+	}
 	return withID(sdui.HStack(
 		sdui.VStack(titleText(strconv.Itoa(p.PID)+"  "+middle(shortCommand(n), cellRunes)), sdui.MutedText(strings.Join(facts, " · "))),
+		copyCommand,
+		reveal,
 		kill,
 	), "action-strip"), true
 }
@@ -294,7 +319,39 @@ func ownerGroups(sessions []group, nodes []pluginsdk.ProcessNode) []ownerGroup {
 		}
 		out[i].nodes = append(out[i].nodes, n)
 	}
+	if i, ok := index[coreID]; ok && i > 0 {
+		core := out[i]
+		out = slices.Insert(slices.Delete(out, i, i+1), 0, core)
+	}
 	return slices.DeleteFunc(out, func(g ownerGroup) bool { return len(g.nodes) == 0 })
+}
+
+func filterNodes(nodes []pluginsdk.ProcessNode, groups []group, query string) []pluginsdk.ProcessNode {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return nodes
+	}
+	labels := make(map[string]string, len(groups))
+	for _, g := range groups {
+		labels[g.ID] = strings.ToLower(g.Title + " " + ownerLabel(g.Owner))
+	}
+	byPID := make(map[int]pluginsdk.ProcessNode, len(nodes))
+	for _, n := range nodes {
+		byPID[n.Process.PID] = n
+	}
+	keep := make(map[int]bool, len(nodes))
+	for _, n := range nodes {
+		text := strings.ToLower(strconv.Itoa(n.Process.PID) + " " + command(n, cellRunes) + " " + labels[n.SessionID])
+		if !strings.Contains(text, query) {
+			continue
+		}
+		for p, ok := n.Process, true; ok && !keep[p.PID]; {
+			keep[p.PID] = true
+			parent, found := byPID[p.PPID]
+			p, ok = parent.Process, found && p.PPID != p.PID
+		}
+	}
+	return slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return !keep[n.Process.PID] })
 }
 
 func ownerLabel(owner string) string {
@@ -335,7 +392,11 @@ func treeEntries(m viewModel, nodes []pluginsdk.ProcessNode, titles map[string]s
 		for _, p := range siblings {
 			pid := p.node.Process.PID
 			kids := children[pid]
-			expanded := len(kids) > 0 && !m.collapsed[pid]
+			open := !m.collapsed[pid]
+			if depth == base && p.node.SessionID == coreID {
+				open = m.coreOpen
+			}
+			expanded := len(kids) > 0 && open
 			entries = append(entries, treeEntry{proc: p, depth: min(depth, maxDepth), hasChildren: len(kids) > 0, expanded: expanded})
 			if expanded {
 				walk(kids, depth+1)
@@ -439,6 +500,33 @@ func command(n pluginsdk.ProcessNode, limit int) string {
 
 func titleText(text string) sdui.Node {
 	return sdui.Node{Type: "text", Props: map[string]any{"text": text, "style": "title"}}
+}
+
+func executable(n pluginsdk.ProcessNode) string {
+	if len(n.Process.Args) == 0 || !filepath.IsAbs(n.Process.Args[0]) {
+		return ""
+	}
+	return n.Process.Args[0]
+}
+
+func shellCommand(n pluginsdk.ProcessNode) string {
+	if len(n.Process.Args) == 0 {
+		return n.Process.Comm
+	}
+	quoted := make([]string, len(n.Process.Args))
+	for i, arg := range n.Process.Args {
+		quoted[i] = shellQuote(arg)
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellQuote(arg string) string {
+	if arg != "" && !strings.ContainsFunc(arg, func(r rune) bool {
+		return !(r == '/' || r == '-' || r == '_' || r == '.' || r == '=' || r == ':' || r == ',' || r == '+' || r == '@' || r == '%' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z')
+	}) {
+		return arg
+	}
+	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
 func shortCommand(n pluginsdk.ProcessNode) string {

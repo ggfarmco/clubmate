@@ -161,7 +161,10 @@ struct HeaderNodeView: View {
                 } else {
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: theme.spacing.m) {
-                            SDUIChildren(node: node)
+                            filter
+                            ForEach(node.headerButtons) { child in
+                                SDUINodeView(node: child.node).equatable()
+                            }
                         }
                         overflowRow
                     }
@@ -175,9 +178,22 @@ struct HeaderNodeView: View {
         .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
     }
 
+    @ViewBuilder
+    private var filter: some View {
+        if let field = node.headerField {
+            SDUINodeView(node: field.node)
+                .equatable()
+                .frame(maxWidth: Self.filterWidth)
+                .padding(.leading, -theme.gutter)
+        }
+    }
+
+    private static let filterWidth: CGFloat = 220
+
     private var overflowRow: some View {
         let actions = node.headerOverflow()
         return HStack(alignment: .top, spacing: theme.spacing.m) {
+            filter
             FlowLayout(spacing: theme.spacing.m) {
                 ForEach(actions.shown) { child in
                     SDUINodeView(node: child.node)

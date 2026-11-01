@@ -151,8 +151,20 @@ struct ButtonPress {
     }
 
     private func perform() {
+        if let text = node.string("copy") { return Clipboard.copy(text) }
         guard let form, node.string("action") == nil else { return dispatch(node, .click) }
         form.submit()
+    }
+}
+
+@MainActor
+enum Clipboard {
+    static let testName = NSPasteboard.Name("com.clubmate.test")
+
+    static func copy(_ text: String) {
+        let board = TestMode.current ? NSPasteboard(name: testName) : .general
+        board.clearContents()
+        board.setString(text, forType: .string)
     }
 }
 
@@ -342,12 +354,17 @@ struct TextFieldNodeView: View {
     let node: SDUINode
 
     @State private var text = ""
+    @State private var pending: Task<Void, Never>?
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSlot) private var sidebarSlot
+
+    private static let liveDelay: Duration = .milliseconds(250)
+
+    private var live: Bool { form == nil && node.bool("live") == true }
 
     private var lines: Int? {
         node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 2 ? min($0, 50) : nil }
@@ -373,7 +390,7 @@ struct TextFieldNodeView: View {
                 if !now { form?.flush() }
             }
             .onChange(of: node.string("value"), initial: true) { _, value in
-                if form?.autosave == true, focused { return }
+                if form?.autosave == true || live, focused { return }
                 text = value ?? ""
             }
             .onChange(of: text, initial: true) { _, value in
@@ -401,10 +418,21 @@ struct TextFieldNodeView: View {
             guard value != text else { return }
             text = value
             form?.edited(after: FormState.typingDelay)
+            if live { schedule(value) }
         })
     }
 
+    private func schedule(_ value: String) {
+        pending?.cancel()
+        pending = Task { @MainActor in
+            try? await Task.sleep(for: Self.liveDelay)
+            guard !Task.isCancelled else { return }
+            dispatch(node, .submit(.string(value)))
+        }
+    }
+
     private func submit() {
+        pending?.cancel()
         guard let form, node.string("action") == nil else { return dispatch(node, .submit(.string(text))) }
         form.submit()
     }

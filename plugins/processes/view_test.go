@@ -27,7 +27,8 @@ func TestHeaderAndActionStrip(t *testing.T) {
 	header := view.Children[0]
 	assert.Equal(t, "All processes", header.Props["title"])
 	assert.Equal(t, "3 running · 1 orphans · auto-kill on", header.Props["meta"])
-	assert.Nil(t, header.Children[0].Props["disabled"])
+	assert.Equal(t, true, header.Children[0].Props["live"])
+	assert.Nil(t, header.Children[1].Props["disabled"])
 
 	strip := view.Children[len(view.Children)-1]
 	require.Equal(t, "action-strip", strip.ID)
@@ -36,8 +37,10 @@ func TestHeaderAndActionStrip(t *testing.T) {
 	assert.Equal(t, cellRunes+3, utf8.RuneCountInString(short))
 	assert.True(t, strings.HasPrefix(short, "2  nvim é"))
 	assert.Equal(t, "child of 1 · started 13:12", summary[1].Props["text"])
-	assert.Equal(t, "Kill nvim (2) and its children?", strip.Children[1].Props["confirm"])
-	assert.Equal(t, killKey, strip.Children[1].Props["shortcut"])
+	assert.Equal(t, "/usr/local/bin/nvim '"+strings.Repeat("é", 600)+"'", strip.Children[1].Props["copy"])
+	assert.Nil(t, strip.Children[2].Props["disabled"])
+	assert.Equal(t, "Kill nvim (2) and its children?", strip.Children[3].Props["confirm"])
+	assert.Equal(t, killKey, strip.Children[3].Props["shortcut"])
 
 	rows, _ := processRows(viewModel{nodes: nodes, sort: defaultSort, hist: newHistory()})
 	long := rows[1].Cells[len(columnIDs)-1].Text
@@ -45,7 +48,7 @@ func TestHeaderAndActionStrip(t *testing.T) {
 	assert.Equal(t, "gopls · orphan · dup", rows[2].Cells[len(columnIDs)-1].Text)
 
 	idle, _ := mainView(viewModel{nodes: nodes[:1], options: true, sort: defaultSort, scope: "All", hist: newHistory()})
-	assert.Equal(t, true, idle.Children[0].Children[0].Props["disabled"])
+	assert.Equal(t, true, idle.Children[0].Children[1].Props["disabled"])
 	assert.Equal(t, "options-row", idle.Children[1].ID)
 	assert.NotEqual(t, "action-strip", idle.Children[len(idle.Children)-1].ID)
 }
@@ -90,6 +93,66 @@ func TestRowsGroupedByOwner(t *testing.T) {
 
 	single, _ := processRows(viewModel{nodes: nodes[3:4], groups: groups[2:3], sort: defaultSort, hist: newHistory()})
 	assert.Equal(t, []string{"30"}, []string{single[0].ID})
+}
+
+func TestCoreGroupFirstAndReadOnly(t *testing.T) {
+	groups := []group{{ID: "ses_a", Title: "Terminal 1", Owner: "terminals"}, coreGroup("w")}
+	nodes := []pluginsdk.ProcessNode{
+		{Process: pluginsdk.ProcessInfo{PID: 10, Comm: "zsh"}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 316, Comm: "clubmate-core"}, SessionID: coreID},
+		{Process: pluginsdk.ProcessInfo{PID: 324, PPID: 316, Comm: "cm-plugin-agents"}, SessionID: coreID},
+	}
+	view, _ := mainView(viewModel{nodes: nodes, groups: groups, selected: 324, sort: defaultSort, scope: "All", hist: newHistory()})
+	require.NoError(t, internalsdui.Validate(view))
+	rows := view.Children[2].Children[0].Props["rows"].([]sdui.TableRow)
+	assert.Equal(t, "g:core", rows[0].ID)
+	assert.False(t, rows[1].Expanded)
+	assert.Len(t, rows, 4)
+	strip := view.Children[len(view.Children)-1]
+	assert.Equal(t, true, strip.Children[3].Props["disabled"])
+	assert.Equal(t, true, strip.Children[2].Props["disabled"])
+}
+
+func TestFilterKeepsAncestorsAndMatchesGroupTitles(t *testing.T) {
+	groups := []group{{ID: "ses_a", Title: "Terminal 1", Owner: "terminals"}, {ID: "root_c", Title: "Claude · clubmate", Owner: "agents"}}
+	nodes := []pluginsdk.ProcessNode{
+		{Process: pluginsdk.ProcessInfo{PID: 10, Comm: "zsh"}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 11, PPID: 10, Comm: "make"}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 12, PPID: 11, Comm: "go", Args: []string{"go", "test"}}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 13, PPID: 10, Comm: "vim"}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 30, Comm: "node"}, SessionID: "root_c"},
+	}
+	pids := func(query string) []int {
+		var out []int
+		for _, n := range filterNodes(nodes, groups, query) {
+			out = append(out, n.Process.PID)
+		}
+		return out
+	}
+	assert.Equal(t, []int{10, 11, 12}, pids(" GO TEST "))
+	assert.Equal(t, []int{30}, pids("claude"))
+
+	view, _ := mainView(viewModel{nodes: nodes, groups: groups, filter: "nothing", selected: 30, sort: defaultSort, scope: "All", hist: newHistory()})
+	assert.Equal(t, "no-match", view.Children[2].ID)
+	assert.NotEqual(t, "action-strip", view.Children[len(view.Children)-1].ID)
+}
+
+func TestCoreMembersSkipSessionHostsAndTrackedTrees(t *testing.T) {
+	procs := []pluginsdk.ProcessInfo{
+		{PID: 1, Comm: "launchd"},
+		{PID: 316, PPID: 1, Comm: "clubmate-core"},
+		{PID: 324, PPID: 316, Comm: "cm-plugin-agents"},
+		{PID: 400, PPID: 324, Comm: "claude"},
+		{PID: 401, PPID: 400, Comm: "node"},
+		{PID: 500, PPID: 316, Comm: sessionHostComm},
+		{PID: 501, PPID: 500, Comm: "zsh"},
+		{PID: 600, PPID: 1, Comm: "Finder"},
+	}
+	var got []int
+	for _, p := range coreMembers(procs, 316, []pluginsdk.ProcessNode{{Process: pluginsdk.ProcessInfo{PID: 400}}}) {
+		got = append(got, p.PID)
+	}
+	assert.Equal(t, []int{316, 324}, got)
 }
 
 func TestProcessTableSortsSiblings(t *testing.T) {

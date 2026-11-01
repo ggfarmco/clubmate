@@ -47,13 +47,32 @@ func newHistory() *history {
 	return &history{series: map[seriesKey]*series{}}
 }
 
-func (h *history) record(sessions []group, nodes []pluginsdk.ProcessNode, now time.Time) {
+func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
 	type total struct{ cpu, mb float64 }
 	workspaceOf := sessionWorkspaces(sessions)
-	totals := make(map[seriesKey]*total, 2*len(sessions))
+	totals := make(map[seriesKey]*total, 2*len(sessions)+len(workspaces)+1)
 	for _, s := range sessions {
 		totals[sessionKey(s.ID)] = &total{}
 		totals[workspaceKey(s.WorkspaceID)] = &total{}
+	}
+	if len(core) > 0 {
+		coreTotal := &total{}
+		for _, n := range core {
+			mb := float64(n.Process.RSSKiB) / kibPerMiB
+			h.push(processKey(n), n.Process.CPU, mb, now)
+			coreTotal.cpu += n.Process.CPU
+			coreTotal.mb += mb
+		}
+		totals[sessionKey(coreID)] = coreTotal
+		for _, id := range workspaces {
+			t, ok := totals[workspaceKey(id)]
+			if !ok {
+				t = &total{}
+				totals[workspaceKey(id)] = t
+			}
+			t.cpu += coreTotal.cpu
+			t.mb += coreTotal.mb
+		}
 	}
 	for _, n := range nodes {
 		mb := float64(n.Process.RSSKiB) / kibPerMiB

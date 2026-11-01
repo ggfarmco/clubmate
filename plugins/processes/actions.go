@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,6 +20,7 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errUnknownColumn  = errors.New("unknown sort column")
 	errNoWorkspace    = errors.New("command needs a workspace")
+	errNoExecutable   = errors.New("no executable path for process")
 )
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
@@ -42,6 +46,10 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		err = a.toggleAuto(ctx, h, ev, st)
 	case optionsID:
 		err = a.toggleOptions(ctx, h, ev.WorkspaceID, st)
+	case filterAction:
+		err = a.setFilter(ev, st)
+	case revealAction:
+		err = a.reveal(ctx, h, ev.WorkspaceID, snap)
 	default:
 		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 	}
@@ -93,6 +101,37 @@ func (a *app) selectProcess(ev pluginsdk.UIEvent, st *workspaceState) error {
 	return nil
 }
 
+func (a *app) setFilter(ev pluginsdk.UIEvent, st *workspaceState) error {
+	var text string
+	if err := json.Unmarshal(ev.Value, &text); err != nil {
+		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	a.mu.Lock()
+	st.filter = strings.TrimSpace(text)
+	a.mu.Unlock()
+	return nil
+}
+
+func (a *app) reveal(ctx context.Context, h *pluginsdk.Host, workspaceID string, st workspaceState) error {
+	if st.pid == 0 {
+		return nil
+	}
+	nodes, err := h.ProcessTree(ctx, workspaceID, "")
+	if err != nil {
+		return err
+	}
+	nodes = append(nodes, a.coreNodes()...)
+	i := slices.IndexFunc(nodes, func(n pluginsdk.ProcessNode) bool { return n.Process.PID == st.pid })
+	if i < 0 {
+		return nil
+	}
+	path := executable(nodes[i])
+	if path == "" {
+		return fmt.Errorf("%w: %d", errNoExecutable, st.pid)
+	}
+	return exec.CommandContext(ctx, "/usr/bin/open", "-R", path).Run()
+}
+
 func (a *app) toggleCollapsed(ev pluginsdk.UIEvent, st *workspaceState) error {
 	var raw string
 	if err := json.Unmarshal(ev.Value, &raw); err == nil && strings.HasPrefix(raw, groupPrefix) {
@@ -111,6 +150,10 @@ func (a *app) toggleCollapsed(ev pluginsdk.UIEvent, st *workspaceState) error {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if pid == os.Getppid() {
+		st.coreOpen = ev.Action == "expand"
+		return nil
+	}
 	if ev.Action == "collapse" {
 		st.collapsed[pid] = true
 	} else {

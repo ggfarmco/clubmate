@@ -37,8 +37,11 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 		logError("list groups", err)
 		return
 	}
+	core, err := scanCore(ctx, nodes)
+	logError("core processes", err)
+	a.setCore(core)
 	a.renderMu.Lock()
-	a.hist.record(sessions, nodes, time.Now())
+	a.hist.record(sessions, nodes, core, ids, time.Now())
 	a.renderMu.Unlock()
 	byWorkspace := splitByWorkspace(sessions, nodes)
 	for _, id := range ids {
@@ -46,8 +49,46 @@ func (a *app) tick(ctx context.Context, h *pluginsdk.Host) {
 			continue
 		}
 		p := byWorkspace[id]
-		logError("render "+id, a.show(ctx, h, id, p.sessions, p.nodes))
+		withSessions, withNodes := withCore(id, p.sessions, p.nodes, core)
+		logError("render "+id, a.show(ctx, h, id, withSessions, withNodes))
 	}
+}
+
+func (a *app) coreNodes() []pluginsdk.ProcessNode {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.core
+}
+
+func (a *app) setCore(core []pluginsdk.ProcessNode) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.core, a.coreScanned = core, true
+}
+
+func (a *app) ensureCore(ctx context.Context, h *pluginsdk.Host) []pluginsdk.ProcessNode {
+	a.mu.Lock()
+	scanned := a.coreScanned
+	a.mu.Unlock()
+	if scanned {
+		return a.coreNodes()
+	}
+	nodes, err := h.ProcessTree(ctx, "", "")
+	if err != nil {
+		logError("process tree", err)
+		return nil
+	}
+	core, err := scanCore(ctx, nodes)
+	logError("core processes", err)
+	a.setCore(core)
+	return core
+}
+
+func withCore(id string, sessions []group, nodes, core []pluginsdk.ProcessNode) ([]group, []pluginsdk.ProcessNode) {
+	if len(core) == 0 {
+		return sessions, nodes
+	}
+	return append(slices.Clip(sessions), coreGroup(id)), slices.Concat(nodes, core)
 }
 
 func (a *app) renderLogged(ctx context.Context, h *pluginsdk.Host, id string) {
@@ -70,6 +111,7 @@ func (a *app) render(ctx context.Context, h *pluginsdk.Host, id string) error {
 	if err != nil {
 		return err
 	}
+	sessions, nodes = withCore(id, sessions, nodes, a.ensureCore(ctx, h))
 	return a.show(ctx, h, id, sessions, nodes)
 }
 
@@ -110,6 +152,8 @@ func (a *app) draw(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 		nodes:     shown,
 		groups:    groups,
 		selected:  snap.pid,
+		filter:    snap.filter,
+		coreOpen:  snap.coreOpen,
 		auto:      snap.auto,
 		options:   snap.options,
 		folded:    snap.folded,

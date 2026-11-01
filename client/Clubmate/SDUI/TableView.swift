@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
@@ -8,6 +9,8 @@ struct TableNodeView: View {
     @State private var selected: String?
     @State private var sort: SDUISort?
     @State private var width: CGFloat = 0
+    @FocusState private var focused: Bool
+    @Environment(\.isFocused) private var paneFocused
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
     @Environment(\.theme) private var theme
@@ -38,7 +41,14 @@ struct TableNodeView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .keyMonitor(active: focused, handle: handle)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onChange(of: paneFocused) { _, value in
+            if value { focused = true }
+        }
         .onChange(of: node.tableSort(), initial: true) { _, value in
             sort = value
         }
@@ -50,13 +60,36 @@ struct TableNodeView: View {
     }
 
     private func tableRow(_ row: SDUITableRow, columns: [(index: Int, column: SDUIColumn)], tree: Bool) -> some View {
-        TableRowView(row: row, columns: columns, tree: tree, selected: row.id == selected) {
-            selected = row.id
-            dispatch(node, .select(row.id))
+        TableRowView(row: row, columns: columns, tree: tree, selected: row.id == selected, active: focused) {
+            focused = true
+            select(row.id)
         } toggle: { expanded in
             dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
         }
         .id(row.id)
+    }
+
+    private func select(_ id: String) {
+        selected = id
+        dispatch(node, .select(id))
+    }
+
+    private func handle(_ event: NSEvent) -> Bool {
+        let plain = event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+        guard let action = TableKeys.action(keyCode: event.keyCode, plain: plain) else { return false }
+        let all = node.tableRows()
+        let rows = TableKeys.rows(all)
+        switch TreeCursor.resolve(action, cursor: selected, in: rows) {
+        case .cursor(let id):
+            let up = (rows.firstIndex { $0.id == id } ?? 0) < (rows.firstIndex { $0.id == selected } ?? 0)
+            let index = all.firstIndex { $0.id == id } ?? 0
+            scroll?.scrollTo(up ? all[max(index - 1, 0)].id : id)
+            select(id)
+        case .expand(let id): dispatch(node, .expand(id))
+        case .collapse(let id): dispatch(node, .collapse(id))
+        case .select, .focusMain, nil: break
+        }
+        return true
     }
 }
 
@@ -129,6 +162,7 @@ private struct TableRowView: View {
     let columns: [(index: Int, column: SDUIColumn)]
     let tree: Bool
     let selected: Bool
+    let active: Bool
     let select: () -> Void
     let toggle: (Bool) -> Void
 
@@ -161,13 +195,16 @@ private struct TableRowView: View {
         .padding(.horizontal, theme.gutter)
         .frame(height: theme.rowHeight)
         .background(background, ignoresSafeAreaEdges: [])
+        .overlay(alignment: .leading) {
+            if selected && active { theme.accent.frame(width: 2) }
+        }
         .contentShape(Rectangle())
         .onTapGesture(perform: select)
         .onHover { hovering = $0 }
     }
 
     private var background: Color {
-        if selected { return theme.selected }
+        if selected { return active ? theme.selected : theme.selectedIdle }
         return hovering ? theme.hover : .clear
     }
 }

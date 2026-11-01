@@ -269,8 +269,16 @@ extension SDUINode {
         props["badges"]?.arrayValue?.compactMap(SDUIHeaderBadge.init) ?? []
     }
 
+    public var headerField: SDUIChild? {
+        identifiedChildren.first { $0.node.type == "textField" }
+    }
+
+    public var headerButtons: [SDUIChild] {
+        identifiedChildren.filter { $0.node.type != "textField" }
+    }
+
     public func headerOverflow() -> (shown: [SDUIChild], more: [SDUIChild]) {
-        let all = identifiedChildren
+        let all = headerButtons
         let shown = Array(all.filter { $0.node.string("variant") != "danger" }.prefix(3))
         let ids = Set(shown.map(\.id))
         return (shown, all.filter { !ids.contains($0.id) })
