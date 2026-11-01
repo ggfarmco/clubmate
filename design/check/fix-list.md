@@ -154,7 +154,7 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
 1. Approval sheet: ⏎ and Esc trigger **Deny**; Allow is never the default. Yes.
 2. "Needs you" oldest first on the Mac too (bell popover and the Agents filter). Yes.
 3. The Mac's name stays read-only, taken from the computer name. Yes.
-4. The coloured rim around the Inbox popover: check whether it is ours while fixing the popover.
+4. The coloured rim around the Inbox popover is not ours: no code draws it and it stays on a wholly system popover; it is how the off-screen capture renders the popover's glass edge.
 5. Processes-640, x-Palette, x-Switcher and the Processes action bar with a row selected: re-capture them with the rest.
 6. Duo boards are out of scope for now; iPad is in scope again since 1 Nov (the user started testing it).
 7. Processes Kill stays on ⇧K (the board's bare K is not taken).
