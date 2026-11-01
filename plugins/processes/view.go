@@ -34,6 +34,7 @@ const (
 	stripHeight  = 16
 	cellRunes    = 512
 	stripRunes   = 64
+	groupRunes   = 40
 	killKey      = "shift+k"
 	revealKey    = "cmd+shift+r"
 	filterID     = "filter"
@@ -189,12 +190,17 @@ func optionsView(m viewModel) sdui.Node {
 	), "options-row")
 }
 
-func totalsView(m viewModel) sdui.Node {
+func totals(nodes []pluginsdk.ProcessNode) (float64, int64) {
 	cpu, rss := 0.0, int64(0)
-	for _, n := range m.nodes {
+	for _, n := range nodes {
 		cpu += n.Process.CPU
 		rss += n.Process.RSSKiB
 	}
+	return cpu, rss
+}
+
+func totalsView(m viewModel) sdui.Node {
+	cpu, rss := totals(m.nodes)
 	cpuHist, memHist := m.hist.cpu(m.totalKey, historyLen), m.hist.mem(m.totalKey, historyLen)
 	cpuPeak, _ := peakAvg(cpuHist)
 	memPeak, memAvg := peakAvg(memHist)
@@ -264,6 +270,10 @@ func processRows(m viewModel) ([]sdui.TableRow, int) {
 			open := !m.folded[g.key]
 			cells := make([]sdui.Cell, len(columnIDs))
 			cells[0].Text = g.label
+			if !open {
+				cpu, rss := totals(g.nodes)
+				cells[0].Text = fmt.Sprintf("%s · %s%% · %s", middle(g.label, groupRunes), strconv.FormatFloat(cpu, 'f', 1, 64), formatMB(float64(rss)/kibPerMiB))
+			}
 			all = append(all, sdui.TableRow{ID: id, Group: true, HasChildren: true, Expanded: open, Cells: cells})
 			if !open {
 				continue

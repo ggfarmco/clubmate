@@ -61,9 +61,9 @@ func TestRowsGroupedByOwner(t *testing.T) {
 		{ID: "ses_idle", Title: "nvim", Owner: "editor-nvim"},
 	}
 	nodes := []pluginsdk.ProcessNode{
-		{Process: pluginsdk.ProcessInfo{PID: 10, Comm: "zsh"}, SessionID: "ses_a"},
-		{Process: pluginsdk.ProcessInfo{PID: 11, PPID: 10, Comm: "make"}, SessionID: "ses_a"},
-		{Process: pluginsdk.ProcessInfo{PID: 20, Comm: "zsh"}, SessionID: "ses_b"},
+		{Process: pluginsdk.ProcessInfo{PID: 10, Comm: "zsh", CPU: 1.5, RSSKiB: 1024}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 11, PPID: 10, Comm: "make", CPU: 40, RSSKiB: 2048}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 20, Comm: "zsh", CPU: 0.25, RSSKiB: 1024}, SessionID: "ses_b"},
 		{Process: pluginsdk.ProcessInfo{PID: 30, Comm: "claude"}, SessionID: "root_c"},
 		{Process: pluginsdk.ProcessInfo{PID: 40, Comm: "stray"}, SessionID: "ses_gone"},
 	}
@@ -89,6 +89,7 @@ func TestRowsGroupedByOwner(t *testing.T) {
 	m.folded = map[string]bool{"terminals": true}
 	rows, _ = processRows(m)
 	assert.False(t, rows[0].Expanded)
+	assert.Equal(t, "Terminals · 41.8% · 4 MB", rows[0].Cells[0].Text)
 	assert.Equal(t, "g:root_c", rows[1].ID)
 
 	single, _ := processRows(viewModel{nodes: nodes[3:4], groups: groups[2:3], sort: defaultSort, hist: newHistory()})
