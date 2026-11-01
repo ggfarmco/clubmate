@@ -119,6 +119,22 @@ func (a *app) cancel(s *session) {
 	s.changed(changeUpdate, false)
 }
 
+func (a *app) steerText(s *session, text string) {
+	s.mu.Lock()
+	p, agentID := s.proc, s.rec.AgentSessionID
+	ok := s.running && !s.cancelRequested && !s.rec.closed() && p != nil && p.steering
+	s.mu.Unlock()
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	defer cancel()
+	var res acp.SteerResponse
+	if err := p.conn.Call(ctx, acp.MethodSessionSteering, acp.NewSteerRequest(agentID, []acp.ContentBlock{{Type: "text", Text: text}}), &res); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: steer:", err)
+	}
+}
+
 func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool {
 	blocks := promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)
 	req := acp.NewSteerRequest(rec.AgentSessionID, slices.Clone(blocks))

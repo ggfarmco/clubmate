@@ -862,6 +862,35 @@ func TestAFKMode(t *testing.T) {
 	}
 }
 
+func TestAFKOnMidTurnSteersRunningSessions(t *testing.T) {
+	f := start(t, map[string]any{"steering": true, "prompt": []map[string]any{{"sleep": 3000}}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "one")
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "two"}).Session
+	testutil.Eventually(t, func() bool { return len(f.calls(t, "session/prompt")) == 2 }, wait)
+
+	require.NoError(t, f.run(t, workspace, "agents.afk", map[string]any{"session": parent, "on": true}, nil))
+
+	steered := func() []string {
+		var out []string
+		for _, c := range f.calls(t, "_session/steering") {
+			if strings.HasPrefix(promptText(t, c), "[Clubmate AFK mode]") {
+				var p struct {
+					SessionID string `json:"sessionId"`
+				}
+				require.NoError(t, json.Unmarshal(c.Params, &p))
+				out = append(out, p.SessionID)
+			}
+		}
+		return out
+	}
+	want := []string{f.session(t, workspace, parent).AgentSessionID, f.session(t, workspace, kid).AgentSessionID}
+	testutil.Eventually(t, func() bool { return len(steered()) == 2 }, wait)
+	assert.ElementsMatch(t, want, steered())
+	assert.Equal(t, []string{"one"}, userTexts(t, f, workspace, parent))
+}
+
 func TestDeleteDuringTurn(t *testing.T) {
 	repo := newRepo(t)
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 1500}}})

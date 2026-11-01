@@ -29,6 +29,14 @@ func (a *app) children(id string) []*session {
 	return out
 }
 
+func (a *app) subtree(s *session) []*session {
+	out := []*session{s}
+	for i := 0; i < len(out); i++ {
+		out = append(out, a.children(out[i].snapshot().ID)...)
+	}
+	return out
+}
+
 func (a *app) runningChildren(id string) int {
 	n := 0
 	for _, c := range a.children(id) {

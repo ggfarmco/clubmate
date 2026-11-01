@@ -202,10 +202,17 @@ func (a *app) afkDefault(ctx context.Context) bool {
 }
 
 func (a *app) setAFK(s *session, on bool) {
+	var tell []*session
+	if on {
+		tell = slices.DeleteFunc(a.subtree(s), func(t *session) bool { return a.effectiveAFK(t.snapshot()) })
+	}
 	s.mu.Lock()
 	s.rec.AFK = on
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
+	for _, t := range tell {
+		go a.steerText(t, afkText)
+	}
 }
 
 func (a *app) effectiveAFK(rec record) bool {
