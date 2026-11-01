@@ -17,9 +17,13 @@ struct SessionDetailView: View {
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var confirmingClose = false
     @State private var confirmingStop = false
+    @State private var confirmingHeaderStop = false
     @State private var showingSettings = false
     @State private var alwaysAsked: AlwaysAsk?
+    @State private var width = 0.0
     @FocusState private var composerFocused: Bool
+
+    private static let pairedWidth = 520.0
 
     var body: some View {
         let transcript = store.transcripts[sessionID]
@@ -36,8 +40,15 @@ struct SessionDetailView: View {
                 if let parent = session?.parentSession.flatMap(store.session) {
                     StartedByCard(parent: parent) { context.navigation.detail = parent.id }
                 }
-                ForEach(screen.rows) { row in
-                    RowView(row: row)
+                ForEach(Self.blocks(screen.rows, paired: width >= Self.pairedWidth), id: \.[0].id) { block in
+                    if block.count == 2 {
+                        HStack(alignment: .top, spacing: 10) {
+                            RowView(row: block[0])
+                            RowView(row: block[1])
+                        }
+                    } else {
+                        RowView(row: block[0])
+                    }
                 }
                 if session?.status == .running {
                     HStack(spacing: 8) {
@@ -51,6 +62,7 @@ struct SessionDetailView: View {
             .padding(.horizontal)
             .padding(.vertical, 12)
             .frame(maxWidth: 820)
+            .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
             .frame(maxWidth: .infinity)
         }
         .environment(\.subagentStop, context.connection.supports("agents.stop-subagent") ? SubagentStop(enabled: blocked == nil) { id in
@@ -138,6 +150,7 @@ struct SessionDetailView: View {
                         enabled: blocked == nil,
                         blocked: answerDocked ? nil : blocked,
                         sending: sending,
+                        stopInHeader: stopInHeader,
                         send: send
                     )
                 }
@@ -151,6 +164,14 @@ struct SessionDetailView: View {
             ToolbarItem(placement: .principal) {
                 if let session {
                     SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id))
+                }
+            }
+            if stopInHeader, session?.isTurnActive == true {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Stop", systemImage: "stop.fill") { confirmingHeaderStop = true }
+                        .stopConfirmation(agentName: session?.agentName, isPresented: $confirmingHeaderStop) {
+                            perform { try await store.cancel(sessionID) }
+                        }
                 }
             }
             ToolbarItem(placement: .primaryAction) {
@@ -169,7 +190,7 @@ struct SessionDetailView: View {
                             }
                         }
                     }
-                    if session?.isTurnActive == true {
+                    if !stopInHeader, session?.isTurnActive == true {
                         Button("Stop…", systemImage: "stop.circle") { confirmingStop = true }
                     }
                     if session?.isClosed == false && context.connection.supports("agents.config") {
@@ -187,12 +208,8 @@ struct SessionDetailView: View {
         .sheet(isPresented: $showingSettings) {
             SessionSettingsView(store: store, sessionID: sessionID)
         }
-        .confirmationDialog("Stop \(session?.agentName ?? "the agent")?", isPresented: $confirmingStop, titleVisibility: .visible) {
-            Button("Stop", role: .destructive) {
-                perform { try await store.cancel(sessionID) }
-            }
-        } message: {
-            Text("The current turn ends now. The session stays open for your next message.")
+        .stopConfirmation(agentName: session?.agentName, isPresented: $confirmingStop) {
+            perform { try await store.cancel(sessionID) }
         }
         .confirmationDialog("Close this session?", isPresented: $confirmingClose, titleVisibility: .visible) {
             Button("Close Session", role: .destructive) {
@@ -240,6 +257,22 @@ struct SessionDetailView: View {
                 withAnimation { store.dismissOpenedDoc(sessionID) }
             }
         }
+    }
+
+    private var stopInHeader: Bool {
+        navigation.layout != .compact
+    }
+
+    private static func blocks(_ rows: [TranscriptRow], paired: Bool) -> [[TranscriptRow]] {
+        var blocks: [[TranscriptRow]] = []
+        for row in rows {
+            if paired, case .tools = row, let last = blocks.last, last.count == 1, case .entry(let entry) = last[0], case .plan = entry.content {
+                blocks[blocks.count - 1].append(row)
+            } else {
+                blocks.append([row])
+            }
+        }
+        return blocks
     }
 
     private var docsList: DocsListStore? {
@@ -300,6 +333,16 @@ struct SessionDetailView: View {
 
     private static func message(_ error: any Error) -> String {
         (error as? RemoteError)?.message ?? error.localizedDescription
+    }
+}
+
+extension View {
+    func stopConfirmation(agentName: String?, isPresented: Binding<Bool>, stop: @escaping () -> Void) -> some View {
+        confirmationDialog("Stop \(agentName ?? "the agent")?", isPresented: isPresented, titleVisibility: .visible) {
+            Button("Stop", role: .destructive, action: stop)
+        } message: {
+            Text("The current turn ends now. The session stays open for your next message.")
+        }
     }
 }
 
@@ -432,6 +475,7 @@ struct ComposerView: View {
     let enabled: Bool
     var blocked: String? = nil
     let sending: Bool
+    var stopInHeader = false
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
@@ -506,7 +550,7 @@ struct ComposerView: View {
                         .disabled(empty || sending || importing > 0 || attachedBytes > ComposerAttachment.maxBytes)
                         .accessibilityLabel(session?.sendLabel ?? "Send")
                     }
-                    if let caption = blocked ?? sizeCaption ?? session?.composerCaption {
+                    if let caption = blocked ?? sizeCaption ?? session?.composerCaption(stopInHeader: stopInHeader) {
                         Text(caption)
                             .font(.caption)
                             .foregroundStyle(.secondary)

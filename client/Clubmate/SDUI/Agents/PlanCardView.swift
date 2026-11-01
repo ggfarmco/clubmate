@@ -5,15 +5,31 @@ import ClubmateKit
 struct PlanNodeView: View {
     let node: SDUINode
 
+    @State private var hovering = false
     @Environment(\.theme) private var theme
 
     var body: some View {
         let entries = node.planEntries()
+        let fold = PlanFold(entries.map(\.status))
+        let showingDone = node.id.map { MessageExpansion.shared.expanded.contains($0) } ?? true
         VStack(alignment: .leading, spacing: theme.spacing.s) {
-            Text(caption(entries))
-                .font(theme.uiSmall)
-                .foregroundStyle(theme.muted)
-            ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+            HStack(spacing: theme.spacing.m) {
+                Text(caption(fold))
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                Spacer(minLength: 0)
+                if fold.folds, let id = node.id {
+                    Button { MessageExpansion.shared.toggle(id) } label: {
+                        Text(showingDone ? "Hide done" : "Show done")
+                            .font(theme.uiSmall)
+                            .foregroundStyle(hovering ? theme.foreground : theme.text2)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering = $0 }
+                }
+            }
+            ForEach(Array(entries.enumerated()).filter { fold.shows($0.element.status, showingDone: showingDone) }, id: \.offset) { _, entry in
                 HStack(alignment: .firstTextBaseline, spacing: theme.spacing.l) {
                     Image(systemName: icon(entry.status))
                         .foregroundStyle(iconStyle(entry.status))
@@ -30,9 +46,8 @@ struct PlanNodeView: View {
         .agentCard()
     }
 
-    private func caption(_ entries: [SDUIPlanEntry]) -> String {
-        guard !entries.isEmpty else { return "Plan" }
-        return "Plan · \(entries.count { $0.status == .completed }) of \(entries.count)"
+    private func caption(_ fold: PlanFold) -> String {
+        fold.total == 0 ? "Plan" : "Plan · \(fold.done) of \(fold.total)"
     }
 
     private func icon(_ status: PlanStatus) -> String {

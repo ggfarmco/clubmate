@@ -47,8 +47,9 @@ extension AgentSession {
         }
     }
 
-    public var composerCaption: String? {
-        isTurnActive ? "Sends after the current turn · Stop is in •••" : nil
+    public func composerCaption(stopInHeader: Bool = false) -> String? {
+        guard isTurnActive else { return nil }
+        return stopInHeader ? "Sends after the current turn" : "Sends after the current turn · Stop is in •••"
     }
 
     public var sendLabel: String {

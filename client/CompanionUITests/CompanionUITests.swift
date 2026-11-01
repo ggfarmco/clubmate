@@ -249,6 +249,16 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(session.navigationBars["Checkout conversion"].waitForExistence(timeout: 10))
     }
 
+    func testPlanFoldsDoneStepsBehindShowDone() {
+        let app = launch(open: "agents/agt_0000000000000001")
+        let show = app.buttons["Show done"]
+        XCTAssertTrue(show.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Extract cartTotal"].exists)
+        show.tap()
+        XCTAssertTrue(app.staticTexts["Extract cartTotal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Hide done"].exists)
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra

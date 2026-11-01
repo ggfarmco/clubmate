@@ -652,18 +652,29 @@ struct DiffView: View {
 
 struct PlanCard: View {
     let items: [PlanItem]
+    @State private var showingDone = false
 
     var body: some View {
+        let fold = PlanFold(items.map(\.status))
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Plan")
-                Spacer()
-                Text("\(items.filter { $0.status == .completed }.count) of \(items.count)")
+                Text("Plan · \(fold.done) of \(fold.total)")
                     .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if fold.folds {
+                    Button(showingDone ? "Hide done" : "Show done") {
+                        Motion.disclose { showingDone.toggle() }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
+                    .frame(minHeight: 44)
+                    .padding(.vertical, -12)
+                    .contentShape(.rect)
+                }
             }
             .font(.subheadline)
-            .foregroundStyle(.secondary)
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            ForEach(Array(items.enumerated()).filter { fold.shows($0.element.status, showingDone: showingDone) }, id: \.offset) { _, item in
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Image(systemName: symbol(item.status))
                         .foregroundStyle(color(item.status))
@@ -759,6 +770,7 @@ struct PermissionCard: View {
     @State private var pendingAlways: AlwaysConfirm?
     @State private var showingAll = false
     @State private var armed = false
+    @Environment(AppNavigation.self) private var navigation
 
     var body: some View {
         DockCard {
@@ -806,21 +818,13 @@ struct PermissionCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-                VStack(spacing: 10) {
-                    if let first = buttons.first {
-                        Button { tap(first) } label: {
-                            Text(first.label)
-                                .font(.headline)
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .foregroundStyle(Color.onAccent)
-                                .background(Color.accentColor, in: .capsule)
-                                .contentShape(.capsule)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    HStack(spacing: 10) {
-                        ForEach(buttons.dropFirst(), id: \.id) { option in
-                            PlainCapsule(title: option.label, tint: option.kind.rejects ? Color.danger : .primary) { tap(option) }
+                Group {
+                    if navigation.layout == .compact {
+                        stackedButtons
+                    } else {
+                        ViewThatFits(in: .horizontal) {
+                            buttonRow
+                            stackedButtons
                         }
                     }
                 }
@@ -874,6 +878,50 @@ struct PermissionCard: View {
 
     private var answerable: Bool {
         enabled && armed && chosen == nil
+    }
+
+    private var stackedButtons: some View {
+        VStack(spacing: 10) {
+            if let first = buttons.first {
+                Button { tap(first) } label: {
+                    Text(first.label)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .foregroundStyle(Color.onAccent)
+                        .background(Color.accentColor, in: .capsule)
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+            }
+            HStack(spacing: 10) {
+                ForEach(buttons.dropFirst(), id: \.id) { option in
+                    PlainCapsule(title: option.label, tint: option.kind.rejects ? Color.danger : .primary) { tap(option) }
+                }
+            }
+        }
+    }
+
+    private var buttonRow: some View {
+        let rejectAt = buttons.indices.dropFirst().first { buttons[$0].kind.rejects }
+        return HStack(spacing: 10) {
+            ForEach(Array(buttons.enumerated()), id: \.element.id) { index, option in
+                if index == rejectAt {
+                    Spacer(minLength: 0)
+                }
+                Button { tap(option) } label: {
+                    Text(option.label)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .padding(.horizontal, 22)
+                        .frame(minHeight: index == 0 ? 50 : 44)
+                        .foregroundStyle(index == 0 ? Color.onAccent : option.kind.rejects ? Color.danger : .primary)
+                        .background(index == 0 ? Color.accentColor : Color.surface2, in: .capsule)
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .fixedSize()
+            }
+        }
     }
 
     private var subject: String {

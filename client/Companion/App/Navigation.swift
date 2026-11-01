@@ -22,6 +22,7 @@ final class AppNavigation {
     var sidebar: SidebarItem?
     var detail: String?
     var macDetails: String?
+    var needsYouList = false
     var workspaces: [String: String] = [:]
     var showingAddComputer = false
     var doc: OpenDoc?
@@ -40,6 +41,7 @@ final class AppNavigation {
 
     func open(computer: String, plugin: String, detail: String? = nil) {
         macDetails = nil
+        needsYouList = false
         sidebar = SidebarItem(computer: computer, plugin: plugin)
         self.detail = detail
         preferredColumn = detail == nil ? .content : .detail
@@ -51,13 +53,22 @@ final class AppNavigation {
 
     func showMac(_ computer: String) {
         macDetails = computer
+        needsYouList = false
+        sidebar = nil
+        detail = nil
+        preferredColumn = .content
+    }
+
+    func showNeedsYou() {
+        needsYouList = true
+        macDetails = nil
         sidebar = nil
         detail = nil
         preferredColumn = .content
     }
 
     func arrange() {
-        let chosen = sidebar != nil || macDetails != nil
+        let chosen = sidebar != nil || macDetails != nil || needsYouList
         switch layout.columns(chosen: chosen, sidebarHidden: sidebarHidden) {
         case .stack:
             switch CompanionLayout.stackColumn(chosen: chosen, detail: detail != nil) {
@@ -73,7 +84,7 @@ final class AppNavigation {
     }
 
     func visibilityChanged() {
-        guard layout == .wide, sidebar != nil || macDetails != nil else { return }
+        guard layout == .wide, sidebar != nil || macDetails != nil || needsYouList else { return }
         sidebarHidden = visibility != .all
     }
 

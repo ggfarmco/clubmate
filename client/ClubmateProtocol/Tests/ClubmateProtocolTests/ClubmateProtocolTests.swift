@@ -16,6 +16,14 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(oneLine.preview.count, 1200)
     }
 
+    func testPlanFoldHidesDoneStepsOnlyWhileStepsRemain() {
+        let going = PlanFold([.completed, .inProgress, .pending])
+        XCTAssertEqual(going.done, 1)
+        XCTAssertEqual([PlanStatus.completed, .inProgress, .pending].filter { going.shows($0, showingDone: false) }, [.inProgress, .pending])
+        XCTAssertTrue(going.shows(.completed, showingDone: true))
+        XCTAssertFalse(PlanFold([.completed, .completed]).folds)
+    }
+
     func testMarkdownBlocks() {
         let source = "# Title\n\nSome *text*\nmore\n- one\n  - two\n3. third\n> quoted\n> twice\nafter quote\n\n```go\nfunc main() {\n\n}\n```\nafter"
 

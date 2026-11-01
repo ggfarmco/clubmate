@@ -12,6 +12,7 @@ extension Color {
     static let dangerInk = Color(light: 0xB23A33, dark: 0xFF7A6E)
     static let surface1 = Color(light: 0xFFFFFF, dark: 0x1C1C1E)
     static let surface2 = Color(light: 0xE9E9EE, dark: 0x2C2C2E)
+    static let selectedRow = Color(light: 0xE3ECE1, dark: 0x37412A)
 
     init(light: UInt32, dark: UInt32) {
         self.init(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })

@@ -25,9 +25,13 @@ struct RootView: View {
         .onChange(of: CompanionLayout(width: width, compactClass: sizeClass == .compact), initial: true) { _, layout in navigation.layout = layout }
         .onChange(of: navigation.layout) { _, _ in navigation.arrange() }
         .onChange(of: navigation.sidebar) { _, _ in navigation.arrange() }
+        .onChange(of: navigation.needsYouList) { _, _ in navigation.arrange() }
         .onChange(of: navigation.visibility) { _, _ in navigation.visibilityChanged() }
         .onChange(of: navigation.preferredColumn) { _, column in
-            if column == .sidebar, navigation.layout == .compact { navigation.macDetails = nil }
+            if column == .sidebar, navigation.layout == .compact {
+                navigation.macDetails = nil
+                navigation.needsYouList = false
+            }
         }
         .sheet(isPresented: $navigation.showingAddComputer) {
             AddComputerView()
@@ -59,6 +63,8 @@ struct RootView: View {
             plugin.makeList(context: context)
         } else if let computer = navigation.macDetails {
             MacDetailsView(computerID: computer)
+        } else if navigation.needsYouList {
+            NeedsYouListView()
         } else if model.computers.isEmpty {
             WelcomeView()
         } else {
@@ -81,6 +87,7 @@ struct RootView: View {
     }
 
     private func selectDefault() {
+        if navigation.needsYouList { return }
         if let item = navigation.sidebar, model.connection(item.computer) != nil { return }
         navigation.sidebar = nil
         guard model.computers.count == 1, let computer = model.computers.first else { return }

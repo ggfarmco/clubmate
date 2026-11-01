@@ -43,6 +43,7 @@ struct MacSubtitle: ToolbarContent {
 struct MacSectionHeader: View {
     let connection: ComputerConnection
     let tinted: Bool
+    var inline = false
     let open: () -> Void
 
     var body: some View {
@@ -52,8 +53,15 @@ struct MacSectionHeader: View {
                 HStack(spacing: 8) {
                     Image(systemName: tag.glyph)
                         .foregroundStyle(tinted ? tag.color : .secondary)
-                    Text(tag.name)
-                        .lineLimit(1)
+                    if inline {
+                        ViewThatFits(in: .horizontal) {
+                            inlineName(tag.name, connection.presence)
+                            inlineName(tag.name, connection.shortPresence)
+                        }
+                    } else {
+                        Text(tag.name)
+                            .lineLimit(1)
+                    }
                 }
                 .contentShape(.rect)
             }
@@ -61,13 +69,28 @@ struct MacSectionHeader: View {
             .layoutPriority(1)
             .accessibilityHint("Shows this Mac's details")
             .accessibilityIdentifier("mac.header." + connection.computer.id)
-            Spacer(minLength: 8)
-            Text(connection.presence)
-                .font(.subheadline)
-                .textCase(nil)
-                .lineLimit(1)
+            Spacer(minLength: inline ? 0 : 8)
+            if !inline {
+                Text(connection.presence)
+                    .font(.subheadline)
+                    .textCase(nil)
+                    .lineLimit(1)
+            }
         }
     }
+}
+
+private func inlineName(_ name: String, _ presence: String) -> some View {
+    HStack(spacing: 6) {
+        Text(name)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+        Text("· " + presence)
+            .font(.subheadline)
+            .lineLimit(1)
+            .fixedSize()
+    }
+    .textCase(nil)
 }
 
 struct MacDetailsView: View {

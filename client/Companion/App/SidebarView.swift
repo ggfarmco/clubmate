@@ -3,6 +3,7 @@ import SwiftUI
 import CompanionKit
 
 enum MacsRow: Hashable {
+    case needsYou
     case workspace(computer: String, workspace: String)
     case plugin(SidebarItem)
 }
@@ -14,8 +15,15 @@ struct SidebarView: View {
 
     var body: some View {
         let needs = model.needsYou()
+        let selected = navigation.layout == .compact ? nil : selection
         List(selection: Binding(get: { selection }, set: select)) {
-            if !needs.isEmpty {
+            if !needs.isEmpty, navigation.layout != .compact {
+                Section {
+                    NeedsYouSummaryRow(count: needs.count)
+                        .tag(MacsRow.needsYou)
+                        .selectedRow(selected == .needsYou)
+                }
+            } else if !needs.isEmpty {
                 Section {
                     ForEach(needs) { item in
                         NeedsYouRow(item: item)
@@ -27,7 +35,7 @@ struct SidebarView: View {
                             Spacer()
                             Text("\(needs.count)")
                         }
-                        ForEach(offlineMacs(needs), id: \.self) { name in
+                        ForEach(model.offlineMacNames(needs), id: \.self) { name in
                             Text("\(name) is offline — answer when it's back.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
@@ -37,7 +45,7 @@ struct SidebarView: View {
             }
             ForEach(model.computers) { computer in
                 if let connection = model.connection(computer.id) {
-                    ComputerSection(connection: connection, removing: $removing)
+                    ComputerSection(connection: connection, selection: selected, removing: $removing)
                 }
             }
         }
@@ -64,12 +72,8 @@ struct SidebarView: View {
         }
     }
 
-    private func offlineMacs(_ needs: [NeedsYouItem]) -> [String] {
-        var seen: Set<String> = []
-        return needs.filter { $0.offline && seen.insert($0.computer).inserted }.compactMap { model.connection($0.computer)?.computer.name }
-    }
-
     private var selection: MacsRow? {
+        if navigation.needsYouList { return .needsYou }
         guard let item = navigation.sidebar else { return nil }
         guard CompanionPlugins.plugin(item.plugin)?.inWorkspace == true, let connection = model.connection(item.computer), let workspace = navigation.workspace(for: connection) else { return .plugin(item) }
         return .workspace(computer: item.computer, workspace: workspace.id)
@@ -78,12 +82,15 @@ struct SidebarView: View {
     private func select(_ row: MacsRow?) {
         guard row != selection else { return }
         switch row {
+        case .needsYou:
+            navigation.showNeedsYou()
         case .workspace(let computer, let workspace):
             navigation.workspaces[computer] = workspace
             navigation.open(computer: computer, plugin: AgentsPluginInfo.id)
         case .plugin(let item):
             navigation.open(computer: item.computer, plugin: item.plugin)
         case nil:
+            navigation.needsYouList = false
             navigation.sidebar = nil
             navigation.detail = nil
         }
@@ -135,6 +142,7 @@ struct NeedsYouRow: View {
 
 struct ComputerSection: View {
     let connection: ComputerConnection
+    let selection: MacsRow?
     @Binding var removing: Computer?
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
@@ -145,19 +153,23 @@ struct ComputerSection: View {
             let workspaces = plugins.contains { $0.id == AgentsPluginInfo.id } ? connection.workspaces : []
             ForEach(workspaces) { workspace in
                 if let store = model.agents(computer: connection.computer.id, workspace: workspace.id) {
-                    WorkspaceRow(connection: connection, workspace: workspace, store: store)
-                        .tag(MacsRow.workspace(computer: connection.computer.id, workspace: workspace.id))
+                    let tag = MacsRow.workspace(computer: connection.computer.id, workspace: workspace.id)
+                    WorkspaceRow(connection: connection, workspace: workspace, store: store, selected: selection == tag)
+                        .tag(tag)
+                        .selectedRow(selection == tag)
                 }
             }
             ForEach(plugins.filter { !(workspaces.count > 0 && $0.inWorkspace) }, id: \.id) { plugin in
+                let tag = MacsRow.plugin(SidebarItem(computer: connection.computer.id, plugin: plugin.id))
                 PluginRow(plugin: plugin, context: PluginContext(model: model, connection: connection, navigation: navigation))
-                    .tag(MacsRow.plugin(SidebarItem(computer: connection.computer.id, plugin: plugin.id)))
+                    .tag(tag)
+                    .selectedRow(selection == tag)
             }
             if connection.hello == nil || connection.state == .unauthorized {
                 StatusRow(connection: connection)
             }
         } header: {
-            MacSectionHeader(connection: connection, tinted: model.namesMacs) { navigation.showMac(connection.computer.id) }
+            MacSectionHeader(connection: connection, tinted: model.namesMacs, inline: navigation.layout != .compact) { navigation.showMac(connection.computer.id) }
                 .contextMenu { actions }
         }
     }
@@ -175,9 +187,43 @@ struct WorkspaceRow: View {
     let connection: ComputerConnection
     let workspace: Workspace
     let store: AgentsStore
+    var selected = false
+    @Environment(AppNavigation.self) private var navigation
 
     var body: some View {
         let activity = WorkspaceActivity(store.sessions)
+        Group {
+            if navigation.layout == .compact {
+                twoLines(activity)
+            } else {
+                oneLine(activity)
+            }
+        }
+        .listRowDensity()
+        .opacity(connection.state == .online ? 1 : 0.5)
+        .task(id: connection.state == .online) {
+            if connection.state == .online && !store.loaded { await store.refresh() }
+        }
+    }
+
+    private func oneLine(_ activity: WorkspaceActivity) -> some View {
+        HStack(spacing: 12) {
+            RowIcon(systemImage: "folder", tint: selected ? .accentColor : nil)
+            Text(workspace.name)
+                .fontWeight(selected ? .semibold : .regular)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if activity.waiting > 0 {
+                Text("\(activity.waiting)")
+                    .monospacedDigit()
+                    .foregroundStyle(Color.warningInk)
+                    .accessibilityLabel(activity.waitingText ?? "")
+            }
+        }
+        .frame(minHeight: 44)
+    }
+
+    private func twoLines(_ activity: WorkspaceActivity) -> some View {
         HStack(spacing: 12) {
             RowIcon(systemImage: "folder")
             VStack(alignment: .leading, spacing: 2) {
@@ -197,11 +243,6 @@ struct WorkspaceRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             RowChevron()
         }
-        .listRowDensity()
-        .opacity(connection.state == .online ? 1 : 0.5)
-        .task(id: connection.state == .online) {
-            if connection.state == .online && !store.loaded { await store.refresh() }
-        }
     }
 
     private func activityText(_ activity: WorkspaceActivity) -> Text {
@@ -214,6 +255,7 @@ struct WorkspaceRow: View {
 struct PluginRow: View {
     let plugin: any CompanionPluginUI
     let context: PluginContext
+    @Environment(AppNavigation.self) private var navigation
 
     var body: some View {
         let badge = plugin.badge(context: context)
@@ -222,7 +264,8 @@ struct PluginRow: View {
             Text(plugin.title)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if badge > 0 {
-                Text(plugin.id == InboxPluginInfo.id ? "\(badge) unread" : "\(badge)")
+                Text(plugin.id == InboxPluginInfo.id && navigation.layout == .compact ? "\(badge) unread" : "\(badge)")
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .fixedSize()
@@ -236,11 +279,12 @@ struct PluginRow: View {
 
 struct RowIcon: View {
     let systemImage: String
+    var tint: Color?
 
     var body: some View {
         Image(systemName: systemImage)
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(tint ?? .secondary)
             .frame(width: 28, height: 28)
             .background(Color(.tertiarySystemFill), in: .circle)
     }
@@ -260,7 +304,71 @@ struct RowChevron: View {
     }
 }
 
+struct NeedsYouSummaryRow: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.onWarning)
+                .frame(width: 28, height: 28)
+                .background(Color.warning, in: .circle)
+            Text("Needs you")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(count)")
+                .monospacedDigit()
+                .foregroundStyle(Color.warningInk)
+        }
+        .frame(minHeight: 44)
+        .listRowDensity()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("macs.needsYou")
+    }
+}
+
+struct NeedsYouListView: View {
+    @Environment(CompanionModel.self) private var model
+
+    var body: some View {
+        let needs = model.needsYou()
+        List {
+            Section {
+                ForEach(needs) { item in
+                    NeedsYouRow(item: item)
+                }
+            } footer: {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(model.offlineMacNames(needs), id: \.self) { name in
+                        Text("\(name) is offline — answer when it's back.")
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Needs you")
+        .overlay {
+            if needs.isEmpty {
+                ContentUnavailableView("Nothing needs you", systemImage: "checkmark.circle", description: Text("Requests from your Macs show up here."))
+            }
+        }
+    }
+
+}
+
+extension CompanionModel {
+    func offlineMacNames(_ needs: [NeedsYouItem]) -> [String] {
+        var seen: Set<String> = []
+        return needs.filter { $0.offline && seen.insert($0.computer).inserted }.compactMap { connection($0.computer)?.computer.name }
+    }
+}
+
 extension View {
+    func selectedRow(_ selected: Bool) -> some View {
+        listRowBackground(selected ? Color.selectedRow : nil)
+            .foregroundStyle(selected ? AnyShapeStyle(Color(.label)) : AnyShapeStyle(.foreground))
+    }
+
     func listRowDensity(_ vertical: CGFloat = 11) -> some View {
         listRowInsets(.vertical, vertical)
     }

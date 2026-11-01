@@ -196,6 +196,7 @@ final class ModelTests: XCTestCase {
 
         let connection = ComputerConnection(computer: ComputerStore(file: file, vault: vault).computers[0], token: "t", transport: FakeTransport())
         XCTAssertEqual(connection.presence, "offline since " + ComputerConnection.clock(seen))
+        XCTAssertEqual(connection.shortPresence, "offline")
         XCTAssertEqual(connection.blocked, "Can't answer — Mac is offline · as of " + ComputerConnection.clock(seen))
     }
 

@@ -136,6 +136,7 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(session.state, .running)
         XCTAssertEqual(session.composerPlaceholder, "Queue a message")
         XCTAssertEqual(session.sendLabel, "Queue")
-        XCTAssertEqual(session.composerCaption, "Sends after the current turn · Stop is in •••")
+        XCTAssertEqual(session.composerCaption(), "Sends after the current turn · Stop is in •••")
+        XCTAssertEqual(session.composerCaption(stopInHeader: true), "Sends after the current turn")
     }
 }

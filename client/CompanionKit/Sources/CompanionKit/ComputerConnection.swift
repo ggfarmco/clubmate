@@ -135,6 +135,11 @@ public final class ComputerConnection: CommandRunner {
         }
     }
 
+    public var shortPresence: String {
+        if case .offline = state { return "offline" }
+        return presence
+    }
+
     public var offlineDetail: String? {
         guard case .offline(let reason) = state else { return nil }
         let parts = [reason, lastSeen.map { "as of " + Self.clock($0) }].compactMap { $0 }
