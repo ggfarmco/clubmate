@@ -390,7 +390,7 @@ actor FixtureServer {
 
     private static func session(_ template: [String: JSONValue], id: String, title: String, status: String, ago: TimeInterval) -> [String: JSONValue] {
         var fields = template
-        for key in ["pending", "pendingSummary", "question", "parentSession"] { fields[key] = nil }
+        for key in ["pending", "pendingSummary", "question", "parentSession", "needsYou"] { fields[key] = nil }
         fields["id"] = .string(id)
         fields["title"] = .string(title)
         fields["status"] = .string(status)

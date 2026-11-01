@@ -7,6 +7,7 @@ struct BacklogPlugin: CompanionPluginUI {
     let title = "Backlog"
     let systemImage = "checklist"
     let requiredCommands = BacklogPluginInfo.requiredCommands
+    let inWorkspace = true
 
     @MainActor
     func makeList(context: PluginContext) -> AnyView {
@@ -72,8 +73,9 @@ struct BacklogListView: View {
                 ConnectionUnavailableView(connection: context.connection)
             }
         }
-        .navigationTitle("Backlog")
-        .navigationSubtitle(workspace?.name ?? "")
+        .safeAreaBar(edge: .top) { WorkspaceTabs(context: context) }
+        .navigationTitle(workspace?.name ?? "Backlog")
+        .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
         .toolbar {
             WorkspaceMenu(context: context)
             ToolbarItem(placement: .primaryAction) {

@@ -12,6 +12,11 @@ protocol CompanionPluginUI: CompanionPlugin {
     @MainActor func makeList(context: PluginContext) -> AnyView
     @MainActor func makeDetail(context: PluginContext, selection: String?) -> AnyView
     @MainActor func badge(context: PluginContext) -> Int
+    var inWorkspace: Bool { get }
+}
+
+extension CompanionPluginUI {
+    var inWorkspace: Bool { false }
 }
 
 @MainActor
@@ -25,8 +30,33 @@ enum CompanionPlugins {
         return all.filter { ids.contains($0.id) }
     }
 
+    static func inWorkspace(_ connection: ComputerConnection) -> [any CompanionPluginUI] {
+        supported(by: connection).filter(\.inWorkspace)
+    }
+
     static func plugin(_ id: String) -> (any CompanionPluginUI)? {
         all.first { $0.id == id }
+    }
+}
+
+struct WorkspaceTabs: View {
+    let context: PluginContext
+
+    var body: some View {
+        let tabs = CompanionPlugins.inWorkspace(context.connection)
+        if tabs.count > 1 {
+            Picker("Section", selection: Binding(get: { context.navigation.sidebar?.plugin ?? "" }, set: { id in
+                context.navigation.sidebar = SidebarItem(computer: context.connection.computer.id, plugin: id)
+                context.navigation.detail = nil
+            })) {
+                ForEach(tabs, id: \.id) { plugin in
+                    Text(plugin.title).tag(plugin.id)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
     }
 }
 

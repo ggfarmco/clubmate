@@ -7,6 +7,7 @@ struct AgentsPlugin: CompanionPluginUI {
     let title = "Agents"
     let systemImage = "sparkles"
     let requiredCommands = AgentsPluginInfo.requiredCommands
+    let inWorkspace = true
 
     @MainActor
     func makeList(context: PluginContext) -> AnyView {
@@ -60,6 +61,7 @@ struct AgentsListView: View {
                 ConnectionUnavailableView(connection: context.connection)
             }
         }
+        .safeAreaBar(edge: .top) { WorkspaceTabs(context: context) }
         .navigationTitle(workspace?.name ?? "Agents")
         .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
         .toolbar {

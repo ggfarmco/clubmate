@@ -43,6 +43,18 @@ final class CompanionUITests: XCTestCase {
         XCTAssertFalse(child.waitForExistence(timeout: 2))
     }
 
+    func testBacklogOpensFromTheWorkspaceNotTheMac() {
+        let app = launch(open: "sidebar")
+        XCTAssertTrue(app.navigationBars["Macs"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Backlog"].exists)
+        app.staticTexts["shop"].tap()
+        let backlog = app.buttons["Backlog"]
+        XCTAssertTrue(backlog.waitForExistence(timeout: 5))
+        backlog.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Retry the charge step on 502")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["shop"].exists)
+    }
+
     func testBackToMacsNeverShowsChooseAMac() {
         let app = launch(open: "sidebar")
         let macs = app.navigationBars["Macs"]

@@ -59,7 +59,7 @@ struct SidebarView: View {
 
     private var selection: MacsRow? {
         guard let item = navigation.sidebar else { return nil }
-        guard item.plugin == AgentsPluginInfo.id, let connection = model.connection(item.computer), let workspace = navigation.workspace(for: connection) else { return .plugin(item) }
+        guard CompanionPlugins.plugin(item.plugin)?.inWorkspace == true, let connection = model.connection(item.computer), let workspace = navigation.workspace(for: connection) else { return .plugin(item) }
         return .workspace(computer: item.computer, workspace: workspace.id)
     }
 
@@ -133,7 +133,7 @@ struct ComputerSection: View {
                         .tag(MacsRow.workspace(computer: connection.computer.id, workspace: workspace.id))
                 }
             }
-            ForEach(plugins.filter { !(workspaces.count > 0 && $0.id == AgentsPluginInfo.id) }, id: \.id) { plugin in
+            ForEach(plugins.filter { !(workspaces.count > 0 && $0.inWorkspace) }, id: \.id) { plugin in
                 PluginRow(plugin: plugin, context: PluginContext(model: model, connection: connection, navigation: navigation))
                     .tag(MacsRow.plugin(SidebarItem(computer: connection.computer.id, plugin: plugin.id)))
             }
