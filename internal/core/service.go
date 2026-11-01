@@ -431,6 +431,14 @@ func (s *Service) RefreshLoop(ctx context.Context, every time.Duration) {
 	}
 }
 
+func (s *Service) publishWorkspace(ctx context.Context, topic string, w workspace.Workspace) {
+	s.publish(ctx, topic, contract.WorkspaceChanged{Workspace: w.ID, Info: w})
+}
+
+func (s *Service) publishWorkspaceDeleted(ctx context.Context, id string) {
+	s.publish(ctx, contract.TopicWorkspaceDeleted, contract.WorkspaceDeleted{Workspace: id})
+}
+
 func (s *Service) publish(ctx context.Context, topic string, payload any) {
 	if s.bus == nil {
 		return

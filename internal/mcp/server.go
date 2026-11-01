@@ -18,7 +18,6 @@ import (
 
 	"clubmate/internal/rpc"
 	"clubmate/internal/schema"
-	"clubmate/pkg/contract"
 )
 
 const (
@@ -240,8 +239,7 @@ func (s *Server) call(ctx context.Context, p callParams) (any, error) {
 	if err != nil {
 		return failure(err), nil
 	}
-	name := currentToolName(p.Name)
-	i := slices.IndexFunc(tools, func(t tool) bool { return t.Name == name })
+	i := slices.IndexFunc(tools, func(t tool) bool { return t.Name == p.Name })
 	if i < 0 {
 		return nil, &protocolError{Code: codeInvalidParams, Message: "unknown tool: " + p.Name}
 	}
@@ -387,15 +385,6 @@ func build(cmds []rpc.Command, caps map[string]string, logf func(string, ...any)
 		}
 	}
 	return out
-}
-
-func currentToolName(name string) string {
-	for legacy, current := range contract.LegacyCommands() {
-		if toolName.Replace(legacy) == name {
-			return toolName.Replace(current)
-		}
-	}
-	return name
 }
 
 func newTool(target string, c rpc.Command) tool {

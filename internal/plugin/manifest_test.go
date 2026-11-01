@@ -40,14 +40,12 @@ func TestLoadRejectsInvalidSectionScope(t *testing.T) {
 	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
 }
 
-func TestLoadAcceptsLegacyProjectScope(t *testing.T) {
+func TestLoadRejectsProjectScope(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","scope":"project"}],"commands":[{"id":"beta.go","title":"Go","scope":"project"}]}}`)
-	m, err := plugin.Load(dir)
-	require.NoError(t, err)
-	assert.Equal(t, "workspace", m.Contributes.Sections[0].Scope)
-	assert.Equal(t, "workspace", m.Contributes.Commands[0].Scope)
+	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"commands":[{"id":"beta.go","title":"Go","scope":"project"}]}}`)
+	_, err := plugin.Load(dir)
+	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
 }
 
 func TestLoadRejectsReservedID(t *testing.T) {

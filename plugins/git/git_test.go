@@ -286,7 +286,7 @@ func TestNewWorktreeWithoutSwitch(t *testing.T) {
 	var started struct {
 		ID string `json:"id"`
 	}
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "git.worktree-new", "projectId": id, "agent": true, "args": map[string]any{"branch": "agent", "switch": false}}, &started))
+	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "git.worktree-new", "workspaceId": id, "agent": true, "args": map[string]any{"branch": "agent", "switch": false}}, &started))
 	assert.Empty(t, waitOp(t, h, id, started.ID).Error)
 	assert.Len(t, outcomes(t, h), 1)
 }

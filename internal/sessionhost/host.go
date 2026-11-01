@@ -36,7 +36,6 @@ const (
 	defaultTerm       = "TERM=xterm-256color"
 	sessionMarker     = "CLUBMATE_SESSION_ID="
 	workspaceMarker   = contract.WorkspaceEnv + "="
-	legacyMarker      = contract.LegacyWorkspaceEnv + "="
 )
 
 var ErrEmptyCommand = errors.New("sessionhost: empty command")
@@ -526,7 +525,7 @@ func childEnv(cfg Config) []string {
 		return slices.Contains(cfg.UnsetEnv, key)
 	})
 	env = StripMarkers(append(env, cfg.Env...))
-	env = append(env, sessionMarker+cfg.ID, workspaceMarker+cfg.WorkspaceID, legacyMarker+cfg.WorkspaceID)
+	env = append(env, sessionMarker+cfg.ID, workspaceMarker+cfg.WorkspaceID)
 	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "TERM=") }) {
 		env = append(env, defaultTerm)
 	}
@@ -558,7 +557,7 @@ func appendPath(env, extra []string) []string {
 }
 
 func isMarker(kv string) bool {
-	return strings.HasPrefix(kv, sessionMarker) || strings.HasPrefix(kv, workspaceMarker) || strings.HasPrefix(kv, legacyMarker)
+	return strings.HasPrefix(kv, sessionMarker) || strings.HasPrefix(kv, workspaceMarker)
 }
 
 func listen(sock string) (net.Listener, error) {

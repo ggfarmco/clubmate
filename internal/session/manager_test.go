@@ -44,13 +44,12 @@ func TestManagerSessionsSurviveManagerRestart(t *testing.T) {
 func TestManagerHostDoesNotInheritMarkers(t *testing.T) {
 	t.Setenv("CLUBMATE_SESSION_ID", "ses_outer")
 	t.Setenv("CLUBMATE_WORKSPACE_ID", "prj_outer")
-	t.Setenv("CLUBMATE_PROJECT_ID", "prj_outer")
 	dirs, bin := testutil.ShortDirs(t), testutil.BuildBinary(t, "clubmate/cmd/clubmate-session")
 	s := spawn(t, session.NewManager(dirs, bin), "sh", "-c", "exec cat")
 	env, err := proc.ReadEnv(s.HostPID)
 	require.NoError(t, err)
 	assert.False(t, slices.ContainsFunc(env, func(kv string) bool {
-		return strings.HasPrefix(kv, "CLUBMATE_SESSION_ID=") || strings.HasPrefix(kv, "CLUBMATE_WORKSPACE_ID=") || strings.HasPrefix(kv, "CLUBMATE_PROJECT_ID=")
+		return strings.HasPrefix(kv, "CLUBMATE_SESSION_ID=") || strings.HasPrefix(kv, "CLUBMATE_WORKSPACE_ID=")
 	}), env)
 }
 

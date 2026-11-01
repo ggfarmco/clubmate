@@ -59,7 +59,7 @@ func launcherFor(ctx context.Context, stateDir, agent, workspace, root string, i
 	return launch{argv: []string{node, script}, env: env, mcp: clubmateMCP(ctx, workspace, root)}, nil
 }
 
-var droppedEnv = []string{apiKeyEnv, contract.WorkspaceEnv, contract.LegacyWorkspaceEnv, "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}
+var droppedEnv = []string{apiKeyEnv, contract.WorkspaceEnv, "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}
 
 func agentEnv(workspace string) []string {
 	out := paths.StripDefaults(slices.DeleteFunc(os.Environ(), func(kv string) bool {
@@ -67,7 +67,7 @@ func agentEnv(workspace string) []string {
 		return slices.Contains(droppedEnv, name)
 	}))
 	if workspace != "" {
-		out = append(out, contract.WorkspaceEnv+"="+workspace, contract.LegacyWorkspaceEnv+"="+workspace)
+		out = append(out, contract.WorkspaceEnv+"="+workspace)
 	}
 	if tools := pluginsdk.ToolsDir(); tools != "" {
 		out = appendTools(out, tools)

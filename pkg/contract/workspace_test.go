@@ -27,7 +27,7 @@ func TestFolderRoot(t *testing.T) {
 	}
 }
 
-func TestWorkspaceJSONCarriesLegacyFolderFields(t *testing.T) {
+func TestWorkspaceJSONRoundTripsFolders(t *testing.T) {
 	w := contract.Workspace{ID: "prj_1", Folders: []contract.Folder{
 		{Path: "/a"},
 		{Path: "/b", Worktree: "/b/wt"},
@@ -38,9 +38,9 @@ func TestWorkspaceJSONCarriesLegacyFolderFields(t *testing.T) {
 	var got map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(raw, &got))
 	assert.JSONEq(t, `[{"path":"/a"},{"path":"/b","worktree":"/b/wt"},{"path":"/c","worktree":"/c/gone","missing":true}]`, string(got["folders"]))
-	assert.JSONEq(t, `["/a","/b","/c"]`, string(got["repos"]))
-	assert.JSONEq(t, `["/a","/b/wt","/c"]`, string(got["roots"]))
-	assert.JSONEq(t, `["/c/gone"]`, string(got["missing"]))
+	assert.NotContains(t, got, "repos")
+	assert.NotContains(t, got, "roots")
+	assert.NotContains(t, got, "missing")
 	var back contract.Workspace
 	require.NoError(t, json.Unmarshal(raw, &back))
 	assert.Equal(t, w, back)
@@ -50,7 +50,4 @@ func TestEmptyWorkspaceJSONHasNoNullFolders(t *testing.T) {
 	raw, err := json.Marshal(contract.Workspace{ID: "prj_1"})
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"folders":[]`)
-	assert.Contains(t, string(raw), `"repos":[]`)
-	assert.Contains(t, string(raw), `"roots":[]`)
-	assert.NotContains(t, string(raw), `"missing"`)
 }

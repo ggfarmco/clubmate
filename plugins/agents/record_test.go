@@ -31,7 +31,7 @@ func TestRecordJSONContract(t *testing.T) {
 	info, err := json.Marshal(sessionInfo{record: record{ID: "agt_2", lineage: lineage{ParentSession: "agt_p"}}, NotifyEffective: notifyAll})
 	require.NoError(t, err)
 	assert.Equal(t, `{"id":"agt_2","workspace":"","worktree":"","agent":"","agentSessionId":"","parentSession":"agt_p","title":"","status":"","mode":"",`+
-		`"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z","asks":false,"notifyEffective":"all","closed":false}`, string(info))
+		`"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z","asks":false,"notifyEffective":"all"}`, string(info))
 }
 
 func TestSessionInfoDecodesAsAPISession(t *testing.T) {
@@ -42,7 +42,7 @@ func TestSessionInfoDecodesAsAPISession(t *testing.T) {
 		Title:     "T",
 		lineage:   lineage{ParentSession: "agt_p", HandoffFrom: "agt_f"},
 		Status:    statusClosed,
-	}, Closed: true}
+	}}
 	raw, err := json.Marshal(info)
 	require.NoError(t, err)
 	var got api.Session
@@ -60,14 +60,13 @@ func TestSessionInfoDecodesAsAPISession(t *testing.T) {
 
 func TestLoadRecordsMigratesLegacySessions(t *testing.T) {
 	kv := memStore{
-		"session/agt_000000000000000a":       `{"id":"agt_000000000000000a","workspace":"prj_1","status":"done","closed":true}`,
 		"session/agt_000000000000000b":       `{"id":"agt_000000000000000b","workspace":"prj_1","title":"flat","updatedAt":"2026-10-31T12:00:00Z"}`,
 		"session/prj_1/agt_000000000000000b": `{"id":"agt_000000000000000b","workspace":"prj_1","title":"nested","updatedAt":"2026-10-31T11:00:00Z"}`,
 		"session/agt_000000000000000c":       `{"id":"agt_000000000000000c","workspace":"prj_2","title":"flat","updatedAt":"2026-10-31T11:00:00Z"}`,
 		"session/prj_2/agt_000000000000000c": `{"id":"agt_000000000000000c","workspace":"prj_2","title":"nested","updatedAt":"2026-10-31T12:00:00Z"}`,
 		"session/prj_2/agt_000000000000000d": `{"id":"agt_000000000000000d","workspace":"prj_2","status":"idle"}`,
 	}
-	want := map[string]string{"agt_000000000000000a": statusClosed + "/", "agt_000000000000000b": "/flat", "agt_000000000000000c": "/nested", "agt_000000000000000d": statusIdle + "/"}
+	want := map[string]string{"agt_000000000000000b": "/flat", "agt_000000000000000c": "/nested", "agt_000000000000000d": statusIdle + "/"}
 
 	for range 2 {
 		recs, err := loadRecords(t.Context(), kv)
@@ -77,8 +76,7 @@ func TestLoadRecordsMigratesLegacySessions(t *testing.T) {
 			got[r.ID] = r.Status + "/" + r.Title
 		}
 		assert.Equal(t, want, got)
-		assert.ElementsMatch(t, []string{"session/prj_1/agt_000000000000000a", "session/prj_1/agt_000000000000000b", "session/prj_2/agt_000000000000000c", "session/prj_2/agt_000000000000000d"}, slices.Collect(maps.Keys(kv)))
-		assert.NotContains(t, kv["session/prj_1/agt_000000000000000a"], `"closed":`)
+		assert.ElementsMatch(t, []string{"session/prj_1/agt_000000000000000b", "session/prj_2/agt_000000000000000c", "session/prj_2/agt_000000000000000d"}, slices.Collect(maps.Keys(kv)))
 	}
 }
 

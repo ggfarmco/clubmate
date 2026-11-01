@@ -68,7 +68,6 @@ type sessionInfo struct {
 	PendingSummary  *pendingSummary `json:"pendingSummary,omitempty"`
 	TurnStartedAt   *time.Time      `json:"turnStartedAt,omitempty"`
 	NotifyEffective string          `json:"notifyEffective"`
-	Closed          bool            `json:"closed"`
 	ChildStatus     string          `json:"childStatus,omitempty"`
 }
 
@@ -77,11 +76,6 @@ type pendingSummary struct {
 	Text string    `json:"text"`
 	Tool string    `json:"tool,omitempty"`
 	At   time.Time `json:"at"`
-}
-
-type storedRecord struct {
-	record
-	Closed bool `json:"closed"`
 }
 
 type sessionStore interface {
@@ -100,13 +94,9 @@ func loadRecords(ctx context.Context, kv sessionStore) ([]record, error) {
 	latest := map[string]record{}
 	legacy := map[string]string{}
 	for _, k := range keys {
-		var stored storedRecord
-		if found, err := kv.StorageGet(ctx, k, &stored); err != nil || !found || !api.Valid(stored.ID) {
+		var rec record
+		if found, err := kv.StorageGet(ctx, k, &rec); err != nil || !found || !api.Valid(rec.ID) {
 			continue
-		}
-		rec := stored.record
-		if stored.Closed {
-			rec.Status = statusClosed
 		}
 		if !strings.Contains(strings.TrimPrefix(k, sessionKey), "/") {
 			legacy[rec.ID] = k

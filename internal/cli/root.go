@@ -12,15 +12,9 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	"clubmate/internal/paths"
 	"clubmate/internal/rpc"
-)
-
-const (
-	workspaceFlag       = "workspace"
-	legacyWorkspaceFlag = "project"
 )
 
 type ExitError struct {
@@ -35,13 +29,6 @@ type app struct {
 	out    io.Writer
 	asJSON bool
 	launch func(ctx context.Context, workspaceID string) error
-}
-
-func legacyFlagNames(_ *pflag.FlagSet, name string) pflag.NormalizedName {
-	if name == legacyWorkspaceFlag {
-		name = workspaceFlag
-	}
-	return pflag.NormalizedName(name)
 }
 
 func NewRoot(stdout, stderr io.Writer) *cobra.Command {
@@ -73,7 +60,6 @@ func newRoot(stdout, stderr io.Writer, launch func(ctx context.Context, workspac
 	}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.SetGlobalNormalizationFunc(legacyFlagNames)
 	root.PersistentFlags().BoolVar(&a.asJSON, "json", false, "print raw result as JSON")
 	root.AddCommand(a.workspaceCmd(), a.sessionCmd(), a.processCmd(), a.attachCmd(), a.busCmd(), a.pluginCmd(), a.uiCmd(), a.commandCmd(), a.agentCmd(), a.openCmd(), a.mcpCmd(), a.coreCmd(), a.diagnosticsCmd(), a.debugCmd(), a.notifyCmd(), a.versionCmd())
 	return root

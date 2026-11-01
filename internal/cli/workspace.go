@@ -25,7 +25,7 @@ const (
 var errRemoveNeedsYes = errors.New("removing a workspace stops all its processes; pass --yes to confirm")
 
 func (a *app) workspaceCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "workspace", Aliases: []string{"project"}, Short: "Manage workspaces"}
+	cmd := &cobra.Command{Use: "workspace", Short: "Manage workspaces"}
 	cmd.AddCommand(
 		a.workspaceListCmd(),
 		a.workspaceOpenCmd(),

@@ -25,7 +25,7 @@ const (
 
 var (
 	placeholderRe   = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}`)
-	workspacePaths  = []string{"workspace", "workspaceId", "session.workspaceId", "projectId", "project.id"}
+	workspacePaths  = []string{"workspace", "workspaceId", "session.workspaceId"}
 	errNotInEvent   = errors.New("not in the event")
 	errBadOnPattern = errors.New(`on: give a topic like agents.turn or a prefix like event.*; "*" is not allowed`)
 )

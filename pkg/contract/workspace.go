@@ -1,6 +1,12 @@
 package contract
 
-import "time"
+import (
+	"encoding/json"
+	"os"
+	"time"
+)
+
+const WorkspaceEnv = "CLUBMATE_WORKSPACE_ID"
 
 type Workspace struct {
 	ID           string     `json:"id"`
@@ -15,6 +21,18 @@ type Folder struct {
 	Path     string `json:"path"`
 	Worktree string `json:"worktree,omitempty"`
 	Missing  bool   `json:"missing,omitempty"`
+}
+
+func WorkspaceFromEnv() string {
+	return os.Getenv(WorkspaceEnv)
+}
+
+func (w Workspace) MarshalJSON() ([]byte, error) {
+	type plain Workspace
+	if w.Folders == nil {
+		w.Folders = []Folder{}
+	}
+	return json.Marshal(plain(w))
 }
 
 func (w Workspace) Paths() []string {

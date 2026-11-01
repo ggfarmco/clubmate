@@ -21,8 +21,7 @@
       "tool": "execute",
       "at": "2026-10-30T09:41:00Z"
     },
-    "notifyEffective": "all",
-    "closed": false
+    "notifyEffective": "all"
   },
   {
     "id": "agt_0000000000000002",
@@ -43,8 +42,7 @@
       "text": "Should I add retries to the charge step?",
       "at": "2026-10-30T09:41:00Z"
     },
-    "notifyEffective": "all",
-    "closed": false
+    "notifyEffective": "all"
   },
   {
     "id": "agt_0000000000000003",
@@ -59,7 +57,6 @@
     "createdAt": "2026-10-30T09:41:00Z",
     "updatedAt": "2026-10-30T09:41:00Z",
     "asks": false,
-    "notifyEffective": "all",
-    "closed": true
+    "notifyEffective": "all"
   }
 ]

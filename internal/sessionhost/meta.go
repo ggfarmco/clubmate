@@ -39,7 +39,7 @@ func ReadMeta(path string) (Meta, error) {
 		return Meta{}, fmt.Errorf("read meta: %w", err)
 	}
 	var m Meta
-	if err := json.Unmarshal(contract.UpgradeLegacyKeys(data), &m); err != nil {
+	if err := json.Unmarshal(data, &m); err != nil {
 		return Meta{}, fmt.Errorf("decode meta %s: %w", path, err)
 	}
 	return m, nil

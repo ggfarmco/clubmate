@@ -35,7 +35,7 @@ func TestCoreEventsForWorkspaceAndSessionLifecycle(t *testing.T) {
 	require.NoError(t, svc.RemoveSession(t.Context(), s.ID))
 	require.NoError(t, svc.DeleteWorkspace(t.Context(), p.ID))
 	all, _ := b.Read(t.Context(), "*", 0, 0)
-	assert.Equal(t, []string{"workspace.created", "project.created", "session.created", "session.exited", "workspace.updated", "project.updated", "session.removed", "workspace.deleted", "project.deleted"}, topics(all))
+	assert.Equal(t, []string{"workspace.created", "session.created", "session.exited", "workspace.updated", "session.removed", "workspace.deleted"}, topics(all))
 }
 
 func TestKillSessionPublishesKilled(t *testing.T) {

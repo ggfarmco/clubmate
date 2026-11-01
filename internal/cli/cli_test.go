@@ -170,7 +170,7 @@ func TestSessionRemoveCommand(t *testing.T) {
 	startCore(t)
 	var p workspace.Workspace
 	require.NoError(t, json.Unmarshal(run(t, "workspace", "create", "demo", "--json"), &p))
-	sid := strings.TrimSpace(string(run(t, "session", "create", "--project", p.ID, "--", "true")))
+	sid := strings.TrimSpace(string(run(t, "session", "create", "--workspace", p.ID, "--", "true")))
 	testutil.Eventually(t, func() bool {
 		var list []session.Session
 		return json.Unmarshal(run(t, "session", "list", "--json"), &list) == nil && len(list) == 1 && list[0].State == session.StateExited

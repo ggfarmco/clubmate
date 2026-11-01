@@ -305,12 +305,3 @@ func TestPluginApprove(t *testing.T) {
 	a.reply <- true
 	require.NoError(t, <-done)
 }
-
-func TestLegacyCommandIDRunsCurrentCommand(t *testing.T) {
-	h := testutil.NewHarness(t)
-	h.Start(t, testutil.EchoPluginDirAs(t, `{"id":"remote","name":"remote","version":"0.1.0","protocol":1,"command":["echo"],"echoResults":{"remote.set-port":"current"},"contributes":{"commands":[{"id":"remote.set-port","title":"Set Port","scope":"app"}]}}`))
-	testutil.Eventually(t, func() bool { return h.Sup.Statuses()[0].State == "running" }, 5*time.Second)
-	var out string
-	require.NoError(t, h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "remote.setPort", "workspaceId": ""}, &out))
-	assert.Equal(t, "current", out)
-}

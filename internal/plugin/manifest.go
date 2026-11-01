@@ -68,7 +68,6 @@ func Load(dir string) (Manifest, error) {
 		return Manifest{}, invalid(dir, "decode: %v", err)
 	}
 	m.Dir = dir
-	m.upgradeLegacyScopes()
 	if err := m.validate(); err != nil {
 		return Manifest{}, err
 	}
@@ -114,19 +113,6 @@ func ViewDefs(manifests []Manifest, logger *slog.Logger) []sdui.ViewDef {
 
 func (m Manifest) Executable() string {
 	return filepath.Join(m.Dir, m.Command[0])
-}
-
-func (m *Manifest) upgradeLegacyScopes() {
-	for i := range m.Contributes.Sections {
-		if m.Contributes.Sections[i].Scope == sdui.LegacyScopeWorkspace {
-			m.Contributes.Sections[i].Scope = sdui.ScopeWorkspace
-		}
-	}
-	for i := range m.Contributes.Commands {
-		if m.Contributes.Commands[i].Scope == sdui.LegacyScopeWorkspace {
-			m.Contributes.Commands[i].Scope = sdui.ScopeWorkspace
-		}
-	}
 }
 
 func (m Manifest) validate() error {

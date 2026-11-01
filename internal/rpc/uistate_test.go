@@ -29,19 +29,11 @@ func rpcCode(t *testing.T, err error) int64 {
 	return rpcErr.Code
 }
 
-func TestLegacyProjectMethodsAndKey(t *testing.T) {
+func TestProjectMethodsAreGone(t *testing.T) {
 	svc, b := testutil.NewServiceWithBus(t)
 	client := connectAs(t, rpc.NewServer(svc, b), rpc.Caller{})
-	var p workspace.Workspace
-	require.NoError(t, client.Call(t.Context(), "project.create", map[string]any{"name": "demo"}, &p))
-	var got workspace.Workspace
-	require.NoError(t, client.Call(t.Context(), "project.get", map[string]any{"id": p.ID}, &got))
-	assert.Equal(t, "demo", got.Name)
-
-	require.NoError(t, client.Call(t.Context(), "ui.state.set", map[string]any{"projectId": p.ID, "state": map[string]any{"section": "terminals"}}, nil))
-	var state uiStateResult
-	require.NoError(t, client.Call(t.Context(), "ui.state.get", map[string]any{"workspaceId": p.ID}, &state))
-	assert.Equal(t, map[string]any{"section": "terminals"}, state.State)
+	var list []workspace.Workspace
+	require.Error(t, client.Call(t.Context(), "project.list", nil, &list))
 }
 
 func TestUIStateRoundTripAndDelete(t *testing.T) {

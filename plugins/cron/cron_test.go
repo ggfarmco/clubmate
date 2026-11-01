@@ -203,30 +203,6 @@ func TestLegacyShortIDLoads(t *testing.T) {
 	assert.Empty(t, f.list(t))
 }
 
-func TestLegacyCommandMigratesOnLoad(t *testing.T) {
-	h := testutil.NewHarness(t)
-	workspace := h.CreateWorkspace(t, "demo").ID
-	key := "job/" + workspace + "/cj_0123456789abcdef"
-	raw, err := json.Marshal(map[string]any{
-		"id": "cj_0123456789abcdef", "name": "port", "workspace": workspace, "command": "remote.setPort",
-		"args": json.RawMessage(`{"port":47622}`), "enabled": true, "missed": "skip",
-		"schedule": map[string]string{"every": "1h"}, "nextRun": time.Now().Add(time.Hour),
-	})
-	require.NoError(t, err)
-	require.NoError(t, h.KV.Set(t.Context(), "cron", key, raw))
-	h.Start(t, cronDir(t))
-	ready(t, &fixture{h: h, workspace: workspace})
-
-	stored, found, err := h.KV.Get(t.Context(), "cron", key)
-	require.NoError(t, err)
-	require.True(t, found)
-	var job struct {
-		Command string `json:"command"`
-	}
-	require.NoError(t, json.Unmarshal(stored, &job))
-	assert.Equal(t, "remote.set-port", job.Command)
-}
-
 func TestSectionFollowsUIActions(t *testing.T) {
 	f := newFixture(t)
 	f.h.WaitSlot(t, f.workspace, "cron.sidebar", func(n sdui.Node) bool { return n.Type == "empty" })

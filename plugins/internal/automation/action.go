@@ -38,7 +38,6 @@ type Entry[P any] interface {
 	comparable
 	Keyed
 	Action() Action
-	SetCommand(id string)
 	Clone() P
 }
 

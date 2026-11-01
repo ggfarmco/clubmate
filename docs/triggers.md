@@ -23,7 +23,7 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 An event fires a trigger when all of these hold:
 
 1. Its topic matches `on`.
-2. It names the trigger's workspace in `workspace`, `workspaceId` or `session.workspaceId` (the first one present; the deprecated `project.*` topics also in `projectId` or `project.id`). An event naming no workspace (e.g. `agents.ready`, `session.killed`) fires no trigger.
+2. It names the trigger's workspace in `workspace`, `workspaceId` or `session.workspaceId` (the first one present). An event naming no workspace (e.g. `agents.ready`, `session.killed`) fires no trigger.
 3. Every key of `match`, a dotted path into the payload (e.g. `session`, `info.name`), is present and equals its value. An array value matches any of its elements: `{"status":["done","error"]}`.
 
 `match` is JSON text holding an object; `""` or `{}` matches every event on the topic.

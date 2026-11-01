@@ -21,7 +21,6 @@ import (
 	"clubmate/internal/kv"
 	"clubmate/internal/notify"
 	"clubmate/internal/paths"
-	"clubmate/pkg/contract"
 )
 
 const (
@@ -114,7 +113,6 @@ func NewServer(svc *core.Service, b *bus.Bus, opts ...ServerOption) *Server {
 	maps.Copy(s.methods, s.processMethods())
 	maps.Copy(s.methods, s.testModeMethods())
 	maps.Copy(s.methods, s.testAppMethods())
-	addLegacyMethods(s.methods)
 	return s
 }
 
@@ -291,7 +289,7 @@ func method[P, R any](fn func(ctx context.Context, p P) (R, error)) handlerFunc 
 	return func(ctx context.Context, raw *json.RawMessage) (any, error) {
 		var p P
 		if raw != nil {
-			if err := json.Unmarshal(contract.UpgradeLegacyKeys(*raw), &p); err != nil {
+			if err := json.Unmarshal(*raw, &p); err != nil {
 				return nil, &jsonrpc2.Error{Code: codeInvalidParams, Message: fmt.Sprintf("decode params: %v", err)}
 			}
 		}

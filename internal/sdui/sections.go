@@ -7,9 +7,8 @@ import (
 )
 
 const (
-	ScopeWorkspace       = "workspace"
-	ScopeApp             = "app"
-	LegacyScopeWorkspace = "project"
+	ScopeWorkspace = "workspace"
+	ScopeApp       = "app"
 )
 
 type SectionDef struct {

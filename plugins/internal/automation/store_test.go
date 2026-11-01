@@ -28,24 +28,6 @@ func (n *note) StorageKey() (workspace, id string) {
 	return n.Workspace, n.ID
 }
 
-type job struct {
-	ID        string `json:"id"`
-	Workspace string `json:"workspace"`
-	Command   string `json:"command"`
-}
-
-func (j *job) StorageKey() (workspace, id string) {
-	return j.Workspace, j.ID
-}
-
-func (j *job) Action() automation.Action {
-	return automation.Action{ID: j.ID, Workspace: j.Workspace, Command: j.Command}
-}
-
-func (j *job) SetCommand(id string) {
-	j.Command = id
-}
-
 func TestStoreKeepsKeyedValuesUnderWorkspaceAndID(t *testing.T) {
 	h, store := storeHost(t)
 	st := &automation.Store[note, *note]{Host: h, Prefix: "note/", Noun: "note", Log: func(err error) { t.Error(err) }}
@@ -63,21 +45,6 @@ func TestStoreKeepsKeyedValuesUnderWorkspaceAndID(t *testing.T) {
 	loaded, err = st.Load(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, loaded)
-}
-
-func TestStoreMigratesLegacyCommandsOfEntries(t *testing.T) {
-	h, _ := storeHost(t)
-	st := &automation.Store[job, *job]{Host: h, Prefix: "job/", Noun: "job", Log: func(err error) { t.Error(err) }}
-	require.NoError(t, h.StorageSet(t.Context(), "job/ws1/j1", job{ID: "j1", Workspace: "ws1", Command: "remote.cancelPair"}))
-
-	loaded, err := st.Load(t.Context())
-	require.NoError(t, err)
-	require.Len(t, loaded, 1)
-	assert.Equal(t, "remote.cancel-pair", loaded[0].Command)
-	var stored job
-	_, err = h.StorageGet(t.Context(), "job/ws1/j1", &stored)
-	require.NoError(t, err)
-	assert.Equal(t, "remote.cancel-pair", stored.Command)
 }
 
 func storeHost(t *testing.T) (*pluginsdk.Host, *kv.Store) {

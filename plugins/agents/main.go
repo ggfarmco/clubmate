@@ -236,7 +236,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 	children := childStatuses(recs)
 	out := make([]sessionInfo, 0, len(recs))
 	for _, rec := range recs {
-		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), Closed: rec.closed(), ChildStatus: children[rec.ID]}
+		info := sessionInfo{record: rec, NotifyEffective: a.effectiveNotify(rec), ChildStatus: children[rec.ID]}
 		if s := a.session(rec.ID); s != nil {
 			info.Pending = s.pending()
 			info.Asks = s.asks()
