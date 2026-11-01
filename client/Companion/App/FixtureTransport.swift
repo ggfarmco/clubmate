@@ -235,7 +235,13 @@ actor FixtureServer {
             let text = args["text"]?.stringValue ?? ""
             var prompt = Self.entry("user", "prompt-\(UUID().uuidString)", text: text)
             if case .object(var fields) = prompt, let attachments = args["attachments"]?.arrayValue, !attachments.isEmpty {
-                fields["content"] = .array(attachments.map { .object(["type": .string("image"), "mimeType": $0["mimeType"] ?? .null, "data": $0["data"] ?? .null]) })
+                fields["content"] = .array(attachments.map { attachment in
+                    if attachment["kind"] == .string("file") {
+                        let name = attachment["name"] ?? .null
+                        return .object(["type": .string("resource_link"), "uri": .string("file:///uploads/\(name.stringValue ?? "")"), "name": name])
+                    }
+                    return .object(["type": .string("image"), "mimeType": attachment["mimeType"] ?? .null, "data": attachment["data"] ?? .null])
+                })
                 prompt = .object(fields)
             }
             append(session, prompt)

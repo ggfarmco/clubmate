@@ -13,7 +13,9 @@ struct AttachmentsRow: View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(Array(attachments.enumerated()), id: \.offset) { _, attachment in
-                    if let data = attachment.images.first, let image = UIImage(data: data) {
+                    if case .file(let name, let data) = attachment {
+                        FileChip(name: name, size: data.count) { attachments.removeAll { $0 == attachment } }
+                    } else if let data = attachment.images.first, let image = UIImage(data: data) {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
@@ -46,6 +48,35 @@ struct AttachmentsRow: View {
             .padding(.horizontal, 4)
         }
         .scrollIndicators(.hidden)
+    }
+}
+
+struct FileChip: View {
+    let name: String
+    let size: Int
+    let remove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "doc")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.footnote.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Button("Remove", systemImage: "xmark.circle.fill", action: remove)
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: 180, minHeight: 56, maxHeight: 56)
+        .background(.fill.secondary, in: .rect(cornerRadius: 12))
     }
 }
 

@@ -34,8 +34,8 @@ struct EntryView: View {
 
     var body: some View {
         switch entry.content {
-        case .user(let text, let fromAgent, let images):
-            UserBubble(text: text, fromAgent: fromAgent, images: images)
+        case .user(let text, let fromAgent, let images, let files):
+            UserBubble(text: text, fromAgent: fromAgent, images: images, files: files)
         case .agent(let text):
             MarkdownView(blocks: Markdown.blocks(text))
         case .thought(let text):
@@ -62,6 +62,7 @@ struct UserBubble: View {
     let text: String
     let fromAgent: Bool
     let images: [Data]
+    var files: [String] = []
 
     private var shown: [Data] {
         images.filter { !$0.isEmpty }
@@ -83,6 +84,13 @@ struct UserBubble: View {
                 Label(omitted == 1 ? "1 image" : "\(omitted) images", systemImage: "photo.on.rectangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            ForEach(Array(files.enumerated()), id: \.offset) { _, name in
+                Label(name, systemImage: "doc")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
             if images.count == 1, let image = UIImage(data: images[0]) {
                 Image(uiImage: image)

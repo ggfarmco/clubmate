@@ -87,6 +87,8 @@ companion-ui-test:
 	xcrun simctl erase $$udid && xcrun simctl boot $$udid && xcrun simctl bootstatus $$udid >/dev/null && \
 	xcrun simctl spawn $$udid defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true && \
 	xcrun simctl addmedia $$udid design/companion-brief/screens/01-macs-dark.png && \
+	files="$$(xcrun simctl get_app_container $$udid com.apple.DocumentsApp groups | awk '/FileProvider.LocalStorage/ {print $$2}')/File Provider Storage" && \
+	mkdir -p "$$files" && printf 'PK\005\006' > "$$files/crash-logs.zip" && \
 	cd client && xcodegen generate --spec companion.yml && \
 	xcodebuild test -project Companion.xcodeproj -scheme Companion -destination id=$$udid -parallel-testing-enabled NO -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual; \
 	status=$$?; xcrun simctl shutdown $$udid; exit $$status

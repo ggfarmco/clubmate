@@ -309,6 +309,13 @@ struct ComposerView: View {
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
+    @State private var choosingPhotos = false
+    @State private var choosingFiles = false
+    @State private var tooLarge = false
+
+    private var attachedBytes: Int {
+        attachments.reduce(0) { $0 + $1.bytes }
+    }
 
     private var empty: Bool {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty
@@ -334,14 +341,21 @@ struct ComposerView: View {
                         AttachmentsRow(attachments: $attachments, importing: importing)
                     }
                     HStack(alignment: .bottom, spacing: 10) {
-                        PhotosPicker(selection: $picked, maxSelectionCount: 4, matching: .any(of: [.images, .videos])) {
-                            Image(systemName: "photo.on.rectangle")
+                        Menu {
+                            Button("Photos or Videos", systemImage: "photo.on.rectangle") { choosingPhotos = true }
+                            Button("Files", systemImage: "folder") { choosingFiles = true }
+                        } label: {
+                            Image(systemName: "paperclip")
                                 .font(.body.weight(.semibold))
                                 .frame(width: 30, height: 30)
                         }
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
-                        .accessibilityLabel("Attach Photos or Videos")
+                        .accessibilityLabel("Attach")
+                        .photosPicker(isPresented: $choosingPhotos, selection: $picked, maxSelectionCount: 4, matching: .any(of: [.images, .videos]))
+                        .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                            if case .success(let urls) = result { addFiles(urls) }
+                        }
                         TextField(placeholder, text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .focused(focused)
@@ -362,10 +376,10 @@ struct ComposerView: View {
                         }
                         .buttonStyle(.glassProminent)
                         .buttonBorderShape(.circle)
-                        .disabled(empty || sending || importing > 0)
+                        .disabled(empty || sending || importing > 0 || attachedBytes > ComposerAttachment.maxBytes)
                         .accessibilityLabel(session?.sendLabel ?? "Send")
                     }
-                    if let caption = blocked ?? session?.composerCaption {
+                    if let caption = blocked ?? sizeCaption ?? session?.composerCaption {
                         Text(caption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -398,6 +412,25 @@ struct ComposerView: View {
     private func submit() {
         focused.wrappedValue = false
         send()
+    }
+
+    private var sizeCaption: String? {
+        guard tooLarge || attachedBytes > ComposerAttachment.maxBytes else { return nil }
+        return "Attachments are limited to \(ByteCountFormatter.string(fromByteCount: Int64(ComposerAttachment.maxBytes), countStyle: .file)) per message"
+    }
+
+    private func addFiles(_ urls: [URL]) {
+        tooLarge = false
+        for url in urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            guard attachedBytes + size <= ComposerAttachment.maxBytes, let data = try? Data(contentsOf: url) else {
+                tooLarge = true
+                continue
+            }
+            attachments.append(.file(name: url.lastPathComponent, data: data))
+        }
     }
 
     private func paste(_ images: [PastedImage]) {

@@ -67,10 +67,10 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(sessions.map(\.status), [.done, .idle, .done])
     }
 
-    func testDecodesUserImages() throws {
-        let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"},{"type":"image","mimeType":"image/jpeg"}]}"#
+    func testDecodesUserImagesAndFiles() throws {
+        let json = #"{"kind":"user","id":"prompt-1","turn":1,"text":"see","content":[{"type":"text","text":"see"},{"type":"image","data":"AAEC","mimeType":"image/jpeg"},{"type":"image","mimeType":"image/jpeg"},{"type":"resource_link","uri":"file:///u/logs.zip","name":"logs.zip"},{"type":"resource","resource":{"uri":"file:///r/a.go","text":"x"}},{"type":"resource","resource":{"uri":"file:///r/b.go#L1-2","text":"y"}}]}"#
         let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
-        XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2]), Data()]))
+        XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2]), Data()], files: ["logs.zip", "a.go"]))
     }
 
     func testPromptTextNotesVideoFrames() {
@@ -82,7 +82,7 @@ final class AgentsTests: XCTestCase {
         let transcript = try JSONDecoder.clubmate.decode(AgentTranscript.self, from: fixture("agents-transcript"))
         XCTAssertEqual(transcript.modes.map(\.id), ["default", "plan"])
         guard transcript.entries.count == 9,
-              case .user(let prompt, false, []) = transcript.entries[0].content,
+              case .user(let prompt, false, [], []) = transcript.entries[0].content,
               case .thought = transcript.entries[1].content,
               case .agent(let markdown) = transcript.entries[2].content,
               case .plan(let plan) = transcript.entries[3].content,
@@ -162,17 +162,20 @@ final class AgentsTests: XCTestCase {
         XCTAssertNil(store.error)
     }
 
-    func testCreateWithAttachmentsStartsIdleThenPromptsWithImages() async throws {
+    func testCreateWithAttachmentsStartsIdleThenPromptsWithImagesAndFiles() async throws {
         let runner = CreateRunner()
         let store = AgentsStore(workspace: "w", runner: runner)
-        let id = try await store.create("look", attachments: [.photo(Data([1]))])
+        let id = try await store.create("look", attachments: [.photo(Data([1])), .file(name: "logs.zip", data: Data([2]))])
         XCTAssertEqual(id, "s")
         XCTAssertEqual(runner.calls.map(\.id), ["agents.new", "agents.prompt", "agents.sessions"])
         XCTAssertEqual(runner.calls[0].args, .object([:]))
         XCTAssertEqual(runner.calls[1].args, .object([
             "session": .string("s"),
             "text": .string("look"),
-            "attachments": .array([.object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string("AQ==")])]),
+            "attachments": .array([
+                .object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string("AQ==")]),
+                .object(["kind": .string("file"), "name": .string("logs.zip"), "data": .string("Ag==")]),
+            ]),
         ]))
     }
 

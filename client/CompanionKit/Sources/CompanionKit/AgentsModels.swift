@@ -280,7 +280,7 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
 
 public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public enum Content: Sendable, Equatable {
-        case user(text: String, fromAgent: Bool, images: [Data])
+        case user(text: String, fromAgent: Bool, images: [Data], files: [String] = [])
         case agent(String)
         case thought(String)
         case tool(ToolCall)
@@ -304,12 +304,12 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
 
     static let outgoingPrefix = "outgoing/"
 
-    init(outgoing text: String, images: [Data]) {
+    init(outgoing text: String, images: [Data], files: [String] = []) {
         entryID = UUID().uuidString
         id = Self.outgoingPrefix + entryID
         turn = 0
         at = nil
-        content = .user(text: text, fromAgent: false, images: images)
+        content = .user(text: text, fromAgent: false, images: images, files: files)
     }
 
     public var isOutgoing: Bool {
@@ -328,7 +328,14 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .user:
             let blocks = (try? c.decodeIfPresent([JSONValue].self, forKey: .content)) ?? []
             let images = blocks.compactMap { $0["type"]?.stringValue == "image" ? Data(base64Encoded: $0["data"]?.stringValue ?? "") ?? Data() : nil }
-            content = .user(text: text, fromAgent: !(try c.decodeIfPresent(String.self, forKey: .from) ?? "").isEmpty, images: images)
+            let files = blocks.compactMap { block -> String? in
+                switch block["type"]?.stringValue {
+                case "resource_link": block["name"]?.stringValue
+                case "resource": block["resource"]?["uri"]?.stringValue.flatMap { $0.contains("#L") ? nil : URL(string: $0)?.lastPathComponent }
+                default: nil
+                }
+            }
+            content = .user(text: text, fromAgent: !(try c.decodeIfPresent(String.self, forKey: .from) ?? "").isEmpty, images: images, files: files)
         case .agent:
             content = .agent(text)
         case .thought:

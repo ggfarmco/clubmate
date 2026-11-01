@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
+	"unicode/utf8"
 
 	"clubmate/plugins/agents/acp"
 )
@@ -40,6 +40,9 @@ type runState struct {
 func (a *app) prompt(workspaceID string, args promptArgs) error {
 	s, err := a.lookup(workspaceID, args.Session)
 	if err != nil {
+		return err
+	}
+	if err := a.saveUploads(s.snapshot().ID, args.Attachments); err != nil {
 		return err
 	}
 	if args.From == "" || s.snapshot().ParentSession != args.From {
@@ -373,8 +376,8 @@ func promptBlocks(args promptArgs, root string, caps acp.PromptCapabilities) []a
 		case "file":
 			if caps.EmbeddedContext {
 				if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Size() <= embedLimit {
-					if data, err := os.ReadFile(path); err == nil {
-						blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri, Text: strings.ToValidUTF8(string(data), "")}})
+					if data, err := os.ReadFile(path); err == nil && utf8.Valid(data) {
+						blocks = append(blocks, acp.ContentBlock{Type: "resource", Resource: &acp.TextResourceContents{URI: uri, Text: string(data)}})
 						continue
 					}
 				}

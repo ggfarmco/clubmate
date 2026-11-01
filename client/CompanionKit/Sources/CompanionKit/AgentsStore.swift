@@ -166,10 +166,10 @@ public final class AgentsStore {
         let images = attachments.flatMap(\.images)
         let prompt = ComposerAttachment.promptText(text, attachments)
         var args: [String: JSONValue] = ["session": .string(session), "text": .string(prompt)]
-        if !images.isEmpty {
-            args["attachments"] = .array(images.map { .object(["kind": .string("image"), "mimeType": .string("image/jpeg"), "data": .string($0.base64EncodedString())]) })
+        if !attachments.isEmpty {
+            args["attachments"] = .array(attachments.flatMap(\.payload))
         }
-        let echo = self.echo(prompt, images: images, in: session)
+        let echo = self.echo(prompt, images: images, files: attachments.compactMap(\.fileName), in: session)
         do {
             try await run("agents.prompt", args)
         } catch {
@@ -258,8 +258,8 @@ public final class AgentsStore {
     }
 
     @discardableResult
-    private func echo(_ text: String, images: [Data], in session: String, sent: Bool = false) -> String {
-        let entry = TranscriptEntry(outgoing: text, images: images)
+    private func echo(_ text: String, images: [Data], files: [String] = [], in session: String, sent: Bool = false) -> String {
+        let entry = TranscriptEntry(outgoing: text, images: images, files: files)
         let known = Set((transcripts[session]?.entries ?? []).map(\.id))
         outgoing[session, default: []].append(Outgoing(entry: entry, text: text, known: known, sent: sent))
         return entry.id
@@ -270,7 +270,7 @@ public final class AgentsStore {
         let kept = list.filter { prompt in
             if prompt.sent && ![.running, .waiting].contains(transcript.session.status) { return false }
             return !transcript.entries.contains { entry in
-                guard !prompt.known.contains(entry.id), case .user(let text, _, _) = entry.content else { return false }
+                guard !prompt.known.contains(entry.id), case .user(let text, _, _, _) = entry.content else { return false }
                 return text.contains(prompt.text)
             }
         }

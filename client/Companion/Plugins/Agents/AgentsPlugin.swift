@@ -360,7 +360,7 @@ struct NewSessionView: View {
     @FocusState private var composerFocused: Bool
 
     var body: some View {
-        ContentUnavailableView("New Session", systemImage: "sparkles", description: Text("Describe the task and attach photos or videos. The session starts when you send."))
+        ContentUnavailableView("New Session", systemImage: "sparkles", description: Text("Describe the task and attach photos, videos or files. The session starts when you send."))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(.rect)
             .onTapGesture { composerFocused = false }

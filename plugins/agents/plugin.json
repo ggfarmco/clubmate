@@ -46,17 +46,18 @@
             "text": {"type": "string", "description": "Prompt text."},
             "attachments": {
               "type": "array",
-              "description": "Files, selections and images: {kind: \"file\", path}, {kind: \"selection\", path, startLine, endLine, text} or {kind: \"image\", mimeType, data} with base64 data.",
+              "description": "Files, selections and images: {kind: \"file\", path}, {kind: \"file\", name, data} with base64 bytes the plugin saves on this Mac (from a device without the file), {kind: \"selection\", path, startLine, endLine, text} or {kind: \"image\", mimeType, data} with base64 data.",
               "items": {
                 "type": "object",
                 "properties": {
                   "kind": {"type": "string", "enum": ["file", "selection", "image"], "description": "Attachment kind."},
                   "path": {"type": "string", "description": "File path, absolute or relative to the session's worktree."},
+                  "name": {"type": "string", "description": "File name for a file sent as data."},
                   "startLine": {"type": "integer", "description": "First selected line, 1-based."},
                   "endLine": {"type": "integer", "description": "Last selected line, 1-based."},
                   "text": {"type": "string", "description": "Selected text."},
                   "mimeType": {"type": "string", "description": "Image type, e.g. image/jpeg."},
-                  "data": {"type": "string", "description": "Base64 image bytes."}
+                  "data": {"type": "string", "description": "Base64 image or file bytes."}
                 },
                 "required": ["kind"]
               }

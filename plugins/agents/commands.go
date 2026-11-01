@@ -88,6 +88,7 @@ type promptArgs struct {
 type attachment struct {
 	Kind      string `json:"kind"`
 	Path      string `json:"path"`
+	Name      string `json:"name,omitempty"`
 	StartLine int    `json:"startLine"`
 	EndLine   int    `json:"endLine"`
 	Text      string `json:"text"`

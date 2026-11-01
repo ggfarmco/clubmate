@@ -16,7 +16,8 @@ final class CompanionUITests: XCTestCase {
         let composer = app.textFields["composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertTrue(wait(for: composer, "hasKeyboardFocus == true"))
-        app.buttons["Attach Photos or Videos"].tap()
+        app.buttons["Attach"].tap()
+        app.buttons["Photos or Videos"].tap()
         let photo = app.images.matching(NSPredicate(format: "label BEGINSWITH 'Photo'")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 10))
         photo.tap()
@@ -29,6 +30,31 @@ final class CompanionUITests: XCTestCase {
         send.tap()
         XCTAssertTrue(app.staticTexts["1 image"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars["Fix the layout"].waitForExistence(timeout: 5))
+    }
+
+    func testNewSessionSendsFile() {
+        let app = launch(open: "agents")
+        app.navigationBars.buttons["New Session"].tap()
+        let composer = app.textFields["composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        app.buttons["Attach"].tap()
+        add(screenshot(app, "attach-menu"))
+        app.buttons["Files"].tap()
+        let browse = app.buttons["Browse"]
+        XCTAssertTrue(browse.waitForExistence(timeout: 10))
+        browse.tap()
+        let file = app.cells.matching(NSPredicate(format: "identifier BEGINSWITH 'crash-logs.zip'")).firstMatch
+        XCTAssertTrue(file.waitForExistence(timeout: 10))
+        file.tap()
+        if app.buttons["Open"].waitForExistence(timeout: 2) { app.buttons["Open"].tap() }
+        XCTAssertTrue(app.staticTexts["crash-logs.zip"].waitForExistence(timeout: 10))
+        add(screenshot(app, "file-chip"))
+        composer.tap()
+        composer.typeText("Why does it crash")
+        app.buttons["Send"].tap()
+        XCTAssertTrue(app.navigationBars["Why does it crash"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["crash-logs.zip"].waitForExistence(timeout: 10))
+        add(screenshot(app, "sent-file"))
     }
 
     func testSubagentsAreFoldedUnderTheParentUntilShown() {
@@ -147,6 +173,13 @@ final class CompanionUITests: XCTestCase {
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target]
         app.launch()
         return app
+    }
+
+    private func screenshot(_ app: XCUIApplication, _ name: String) -> XCTAttachment {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        return shot
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
