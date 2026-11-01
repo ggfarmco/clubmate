@@ -48,6 +48,7 @@ final class CompanionUITests: XCTestCase {
         let macs = app.navigationBars["Macs"]
         XCTAssertTrue(macs.waitForExistence(timeout: 10))
         for (row, title, swipe) in [("shop", "shop", false), ("shop", "shop", true), ("Inbox", "Inbox", false)] {
+            reveal(app.staticTexts[row], in: app)
             app.staticTexts[row].tap()
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
             if swipe {
@@ -131,6 +132,12 @@ final class CompanionUITests: XCTestCase {
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target]
         app.launch()
         return app
+    }
+
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<5 where !(element.exists && element.isHittable) {
+            app.swipeUp()
+        }
     }
 
     private func wait(for element: XCUIElement, _ predicate: String) -> Bool {
