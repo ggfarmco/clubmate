@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ const (
 	computerKey  = "computer"
 	enabledKey   = "enabled"
 	portKey      = "port"
+	titleBarKey  = "titleBarColour"
 	busPattern   = "*"
 )
 
@@ -40,25 +42,36 @@ type app struct {
 	host  *pluginsdk.Host
 	srv   *server
 	ln    *listeners
+	ident *identity
 
 	enableMu sync.Mutex
 
-	mu      sync.Mutex
-	comp    computer
-	enabled bool
-	port    int
-	dns     string
-	tsIPs   []netip.Addr
-	sub     string
-	lastSeq int64
+	mu       sync.Mutex
+	enabled  bool
+	titleBar bool
+	port     int
+	dns      string
+	tsIPs    []netip.Addr
+	sub      string
+	lastSeq  int64
 }
 
 type status struct {
-	Enabled   bool     `json:"enabled"`
-	Port      int      `json:"port"`
-	Listening []string `json:"listening"`
-	Hosts     []string `json:"hosts"`
-	Error     string   `json:"error"`
+	Enabled        bool       `json:"enabled"`
+	Port           int        `json:"port"`
+	Listening      []string   `json:"listening"`
+	Hosts          []string   `json:"hosts"`
+	Error          string     `json:"error"`
+	Computer       computer   `json:"computer"`
+	TitleBarColour bool       `json:"titleBarColour"`
+	OtherMacs      []otherMac `json:"otherMacs"`
+	TitleDot       bool       `json:"titleDot"`
+}
+
+type otherMac struct {
+	Name    string   `json:"name"`
+	Colour  string   `json:"colour"`
+	Devices []string `json:"devices"`
 }
 
 type deviceView struct {
@@ -68,6 +81,7 @@ type deviceView struct {
 	PairedAt  time.Time `json:"pairedAt"`
 	LastSeen  time.Time `json:"lastSeen"`
 	Connected bool      `json:"connected"`
+	Macs      []macInfo `json:"macs"`
 }
 
 type enableArgs struct {
@@ -76,6 +90,10 @@ type enableArgs struct {
 
 type portArgs struct {
 	Port int `json:"port"`
+}
+
+type colourArgs struct {
+	Colour string `json:"colour"`
 }
 
 type revokeArgs struct {
@@ -106,13 +124,18 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.StorageGet(ctx, portKey, &port); err != nil {
 		return err
 	}
-	a.comp, a.enabled, a.port = comp, enabled, port
+	titleBar := true
+	if _, err := h.StorageGet(ctx, titleBarKey, &titleBar); err != nil {
+		return err
+	}
+	a.enabled, a.port, a.titleBar = enabled, port, titleBar
+	a.ident = &identity{kv: h, publish: a.publish, comp: comp}
 	a.srv = &server{
 		backend:  hostBackend{host: h},
 		devices:  devices,
 		pairing:  newPairing(time.Now),
 		hub:      newHub(a.changed),
-		computer: a.computer,
+		identity: a.ident,
 		changed:  a.changed,
 		ping:     pingInterval,
 	}
@@ -149,6 +172,24 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		if err := a.setPort(ctx, args.Port); err != nil {
+			return nil, err
+		}
+		return a.status(), nil
+	case "remote.set-colour":
+		var args colourArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if _, err := a.ident.setColour(ctx, args.Colour); err != nil {
+			return nil, err
+		}
+		return a.status(), nil
+	case "remote.set-title-bar-colour":
+		var args enableArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if err := a.setTitleBar(ctx, args.Enabled); err != nil {
 			return nil, err
 		}
 		return a.status(), nil
@@ -208,7 +249,7 @@ func (a *app) pair(ctx context.Context) (pairResult, error) {
 		return pairResult{}, err
 	}
 	code, expires := a.srv.pairing.issue()
-	return pairResult{Link: pairLink(code, st.Hosts, st.Port, a.computer(), expires), Code: code, ExpiresAt: expires.UTC().Format(time.RFC3339)}, nil
+	return pairResult{Link: pairLink(code, st.Hosts, st.Port, a.ident.get(), expires), Code: code, ExpiresAt: expires.UTC().Format(time.RFC3339)}, nil
 }
 
 func (a *app) setEnabled(ctx context.Context, enabled bool) error {
@@ -267,6 +308,17 @@ func (a *app) setPort(ctx context.Context, port int) error {
 		a.srv.hub.closeAll()
 		a.ln.restart(port)
 	}
+	a.changed()
+	return nil
+}
+
+func (a *app) setTitleBar(ctx context.Context, enabled bool) error {
+	if err := a.host.StorageSet(ctx, titleBarKey, enabled); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.titleBar = enabled
+	a.mu.Unlock()
 	a.changed()
 	return nil
 }
@@ -345,8 +397,18 @@ func (a *app) scanAddrs() ([]netip.Addr, error) {
 }
 
 func (a *app) status() status {
+	others := otherMacs(a.srv.devices.list())
 	a.mu.Lock()
-	st := status{Enabled: a.enabled, Port: a.port, Listening: []string{}, Hosts: []string{}}
+	st := status{
+		Enabled:        a.enabled,
+		Port:           a.port,
+		Listening:      []string{},
+		Hosts:          []string{},
+		Computer:       a.ident.get(),
+		TitleBarColour: a.titleBar,
+		OtherMacs:      others,
+		TitleDot:       a.titleBar && len(others) > 0,
+	}
 	dns := a.dns
 	a.mu.Unlock()
 	if !st.Enabled {
@@ -369,15 +431,9 @@ func (a *app) devices() []deviceView {
 	list := a.srv.devices.list()
 	out := make([]deviceView, 0, len(list))
 	for _, d := range list {
-		out = append(out, deviceView{ID: d.ID, Name: d.Name, Model: d.Model, PairedAt: wireTime(d.PairedAt), LastSeen: wireTime(d.LastSeen), Connected: a.srv.hub.connected(d.ID)})
+		out = append(out, deviceView{ID: d.ID, Name: d.Name, Model: d.Model, PairedAt: wireTime(d.PairedAt), LastSeen: wireTime(d.LastSeen), Connected: a.srv.hub.connected(d.ID), Macs: nonNil(d.Macs)})
 	}
 	return out
-}
-
-func (a *app) computer() computer {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.comp
 }
 
 func (a *app) dnsName() string {
@@ -387,8 +443,12 @@ func (a *app) dnsName() string {
 }
 
 func (a *app) changed() {
-	if _, err := a.host.Publish(a.ctx, changedTopic, struct{}{}); err != nil {
-		logf("publish %s: %v", changedTopic, err)
+	a.publish(changedTopic, struct{}{})
+}
+
+func (a *app) publish(topic string, payload any) {
+	if _, err := a.host.Publish(a.ctx, topic, payload); err != nil {
+		logf("publish %s: %v", topic, err)
 	}
 }
 
@@ -404,6 +464,25 @@ func loadComputer(ctx context.Context, h *pluginsdk.Host) (computer, error) {
 	return c, h.StorageSet(ctx, computerKey, c)
 }
 
+func otherMacs(devices []device) []otherMac {
+	slices.SortStableFunc(devices, func(a, b device) int { return b.LastSeen.Compare(a.LastSeen) })
+	out := []otherMac{}
+	for _, d := range devices {
+		for _, m := range d.Macs {
+			i := slices.IndexFunc(out, func(o otherMac) bool { return o.Name == m.Name })
+			if i < 0 {
+				out = append(out, otherMac{Name: m.Name, Colour: m.Colour})
+				i = len(out) - 1
+			}
+			if !slices.Contains(out[i].Devices, d.Name) {
+				out[i].Devices = append(out[i].Devices, d.Name)
+			}
+		}
+	}
+	slices.SortFunc(out, func(a, b otherMac) int { return strings.Compare(a.Name, b.Name) })
+	return out
+}
+
 func pairHostsError(st status) error {
 	if len(st.Hosts) > 0 {
 		return nil
@@ -416,6 +495,13 @@ func resumeAfter(lastSeq int64) int64 {
 		return math.MaxInt64
 	}
 	return lastSeq
+}
+
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }
 
 func wireTime(t time.Time) time.Time {

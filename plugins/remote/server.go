@@ -18,6 +18,7 @@ import (
 const (
 	maxBodyBytes      = 16 << 20
 	maxDeviceField    = 128
+	maxMacs           = 64
 	requestTimeout    = 2 * time.Minute
 	readHeaderTimeout = 10 * time.Second
 	readTimeout       = 30 * time.Second
@@ -41,14 +42,15 @@ type server struct {
 	devices  *deviceStore
 	pairing  *pairing
 	hub      *hub
-	computer func() computer
+	identity *identity
 	changed  func()
 	ping     time.Duration
 }
 
 type computer struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Colour string `json:"colour"`
 }
 
 type apiError struct {
@@ -70,9 +72,10 @@ type pairRequest struct {
 }
 
 type deviceInfo struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Model string `json:"model"`
+	ID    string    `json:"id"`
+	Name  string    `json:"name"`
+	Model string    `json:"model"`
+	Macs  []macInfo `json:"macs"`
 }
 
 type pairResponse struct {
@@ -89,6 +92,18 @@ type commandRequest struct {
 	ID        string          `json:"id"`
 	Workspace string          `json:"workspace"`
 	Args      json.RawMessage `json:"args"`
+}
+
+type macsRequest struct {
+	Macs []macInfo `json:"macs"`
+}
+
+type colourRequest struct {
+	Colour string `json:"colour"`
+}
+
+type identityResult struct {
+	Computer computer `json:"computer"`
 }
 
 type helloResult struct {
@@ -136,7 +151,7 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validDevice(req.Device) {
-		writeError(w, http.StatusBadRequest, codeInvalidParams, "device id, name and model must be at most 128 characters; id is required")
+		writeError(w, http.StatusBadRequest, codeInvalidParams, "device id, name, model and mac names must be at most 128 characters, at most 64 macs; id is required")
 		return
 	}
 	gen, ok := s.pairing.redeem(req.Code, remoteHost(r.RemoteAddr))
@@ -144,7 +159,7 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, codePairingFailed, "the pairing code is wrong, expired or already used")
 		return
 	}
-	token, err := s.devices.add(r.Context(), req.Device.ID, req.Device.Name, req.Device.Model)
+	token, err := s.devices.add(r.Context(), req.Device)
 	if err != nil {
 		s.pairing.reopen(gen)
 		writeError(w, http.StatusInternalServerError, codeFailed, err.Error())
@@ -152,7 +167,12 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 	}
 	s.hub.revoke(req.Device.ID)
 	s.changed()
-	writeJSON(w, http.StatusOK, pairResponse{Token: token, Computer: s.computer()})
+	comp, err := s.identity.ensureColour(r.Context(), s.devices.usedColours())
+	if err != nil {
+		logf("pick identity colour: %v", err)
+		comp = s.identity.get()
+	}
+	writeJSON(w, http.StatusOK, pairResponse{Token: token, Computer: comp})
 }
 
 func (s *server) revoke(ctx context.Context, id string) error {
@@ -180,14 +200,14 @@ func (s *server) authed(next authedHandler) http.HandlerFunc {
 	}
 }
 
-func (s *server) rpc(w http.ResponseWriter, r *http.Request, _ device) {
+func (s *server) rpc(w http.ResponseWriter, r *http.Request, d device) {
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(requestTimeout))
 	var req rpcRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusOK, errorBody{Error: apiError{Code: codeInvalidParams, Message: "invalid request body"}})
 		return
 	}
-	result, err := s.call(r.Context(), req)
+	result, err := s.call(r.Context(), d, req)
 	if err != nil {
 		writeJSON(w, http.StatusOK, errorBody{Error: toAPIError(err)})
 		return
@@ -195,7 +215,7 @@ func (s *server) rpc(w http.ResponseWriter, r *http.Request, _ device) {
 	writeJSON(w, http.StatusOK, resultBody{Result: result})
 }
 
-func (s *server) call(ctx context.Context, req rpcRequest) (any, error) {
+func (s *server) call(ctx context.Context, d device, req rpcRequest) (any, error) {
 	switch req.Method {
 	case "hello":
 		return s.hello(ctx)
@@ -207,6 +227,18 @@ func (s *server) call(ctx context.Context, req rpcRequest) (any, error) {
 			return nil, err
 		}
 		return s.command(ctx, p)
+	case "macs":
+		var p macsRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return nil, s.macs(ctx, d, p.Macs)
+	case "setIdentityColour":
+		var p colourRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return s.setIdentityColour(ctx, p.Colour)
 	}
 	return nil, &apiError{Code: codeNotAllowed, Message: "unknown method: " + req.Method}
 }
@@ -220,7 +252,7 @@ func (s *server) hello(ctx context.Context) (helloResult, error) {
 	if err != nil {
 		return helloResult{}, err
 	}
-	return helloResult{Computer: s.computer(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics)}, nil
+	return helloResult{Computer: s.identity.get(), Version: version, Commands: cmds, Topics: slices.Clone(forwardedTopics)}, nil
 }
 
 func (s *server) workspaces(ctx context.Context) ([]workspaceInfo, error) {
@@ -257,6 +289,34 @@ func (s *server) command(ctx context.Context, p commandRequest) (json.RawMessage
 	return out, nil
 }
 
+func (s *server) macs(ctx context.Context, d device, macs []macInfo) error {
+	if !validMacs(macs) {
+		return &apiError{Code: codeInvalidParams, Message: "at most 64 macs, names and colours at most 128 characters"}
+	}
+	changed, err := s.devices.setMacs(ctx, d.ID, macs)
+	if err != nil {
+		return err
+	}
+	if _, err := s.identity.ensureColour(ctx, s.devices.usedColours()); err != nil {
+		return err
+	}
+	if changed {
+		s.changed()
+	}
+	return nil
+}
+
+func (s *server) setIdentityColour(ctx context.Context, colour string) (identityResult, error) {
+	c, err := s.identity.setColour(ctx, colour)
+	if errors.Is(err, errBadColour) {
+		return identityResult{}, &apiError{Code: codeInvalidParams, Message: err.Error()}
+	}
+	if err != nil {
+		return identityResult{}, err
+	}
+	return identityResult{Computer: c}, nil
+}
+
 func (s *server) remoteCommands(ctx context.Context) ([]string, error) {
 	all, err := s.backend.Commands(ctx)
 	if err != nil {
@@ -276,7 +336,13 @@ func (e *apiError) Error() string {
 }
 
 func validDevice(d deviceInfo) bool {
-	return d.ID != "" && len(d.ID) <= maxDeviceField && len(d.Name) <= maxDeviceField && len(d.Model) <= maxDeviceField
+	return d.ID != "" && len(d.ID) <= maxDeviceField && len(d.Name) <= maxDeviceField && len(d.Model) <= maxDeviceField && validMacs(d.Macs)
+}
+
+func validMacs(macs []macInfo) bool {
+	return len(macs) <= maxMacs && !slices.ContainsFunc(macs, func(m macInfo) bool {
+		return len(m.Name) > maxDeviceField || len(m.Colour) > maxDeviceField
+	})
 }
 
 func remoteHost(addr string) string {

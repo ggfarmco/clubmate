@@ -3,9 +3,9 @@
 The `remote` plugin lets the Clubmate Companion app (iPhone / iPad) control agents on this Mac over your Tailscale tailnet. There is no backend: the phone talks straight to the Mac.
 
 ## Enable and pair
-- Off by default. Settings → Devices → "Pair Device…" (or `remote.pair`) turns it on and shows a QR code.
+- Off by default. Settings → Remote → "Pair Device…" (or `remote.pair`) turns it on and shows a QR code.
 - The phone scans the QR code (`clubmate://pair?...`) and gets a device token. A phone can pair with many Macs.
-- Settings → Devices lists paired devices (connected / last seen) and revokes them. "Allow companion devices" (`remote.enable {enabled:false}`) stops listening without forgetting devices.
+- Settings → Remote lists paired devices (connected / last seen) and revokes them. "Allow companion devices" (`remote.enable {enabled:false}`) stops listening without forgetting devices.
 
 From the CLI (app-scoped commands, no workspace needed):
 ```
@@ -14,7 +14,17 @@ clubmate command run remote.status
 clubmate command run remote.devices
 clubmate command run remote.revoke device=<id>
 clubmate command run remote.set-port port=<port>
+clubmate command run remote.set-colour colour=<token>
+clubmate command run remote.set-title-bar-colour enabled=false
 ```
+
+## A colour for each Mac
+- Every Mac has an identity colour, a name tag shown next to its name on paired phones and in the Mac title bar. Tokens: `sky`, `blue`, `indigo`, `purple`, `magenta`, `graphite`. The wire carries the token, never a hex; an unknown or missing token renders as `graphite`.
+- The name is the system computer name (read-only). The colour is stored with the computer (plugin storage key `computer`, `{id, name, colour}`).
+- Default: while the stored colour is empty, the first pairing (or the first `macs` call) picks the first token of `blue`, `magenta`, `sky`, `purple`, `indigo`, `graphite` that no paired phone reports for another Mac; with nothing reported (or every token taken) it is `blue`. It is never re-picked afterwards. Duplicates are allowed.
+- Each phone reports the other Macs it has paired (`macs` in the pair body and the `macs` rpc), stored on its device record (`device/<id>`). Older phones report nothing, read as `[]`.
+- Changed from the phone (`setIdentityColour`) or the Mac (`remote.set-colour`, Settings → Remote). Every change publishes `remote.identity` `{computer: {id, name, colour}}` (forwarded to phones) and `remote.changed`.
+- Title bar: the workspace pill shows the dot iff `remote.status.titleDot` = `titleBarColour` (setting, default on, storage key `titleBarColour`) and at least one other Mac is reported. The Mac UI renders `titleDot` and never re-derives the rule.
 
 ## Network
 - Plain HTTP/1.1 on the Mac's Tailscale addresses only. Never `0.0.0.0` or LAN addresses.
@@ -35,27 +45,31 @@ clubmate command run remote.set-port port=<port>
 ## Wire contract (v1)
 All bodies are JSON. Authenticated endpoints need `Authorization: Bearer <token>`; a missing, unknown or revoked token gets `401 {"error":{"code":"unauthorized","message":"..."}}`.
 
-- `POST /v1/pair` (no auth) `{"code","device":{"id","name","model"}}` → `{"token","computer":{"id","name"}}`; a wrong, expired or used code → `403 pairing_failed`; a malformed body → `400 invalid_params`.
+- `POST /v1/pair` (no auth) `{"code","device":{"id","name","model","macs":[{"name","colour"}]}}` → `{"token","computer":{"id","name","colour"}}`; `macs` (optional, at most 64) are the other Macs this phone has paired; a wrong, expired or used code → `403 pairing_failed`; a malformed body → `400 invalid_params`.
 - `POST /v1/rpc` `{"method","params"}` → `200 {"result":...}` or `200 {"error":{"code","message"}}` (`not_allowed`, `invalid_params`, `failed`):
-  - `hello` → `{computer, version, commands, topics}`; `commands` = registered commands with `"remote": true` whose plugin is running (`command.list` carries `running`). The phone reads `hello` on each connection and again on every `plugin.changed` event, so a plugin that starts or stops later is reflected live.
+  - `hello` → `{computer: {id, name, colour}, version, commands, topics}`; `commands` = registered commands with `"remote": true` whose plugin is running (`command.list` carries `running`). The phone reads `hello` on each connection and again on every `plugin.changed` event, so a plugin that starts or stops later is reflected live.
   - `workspaces` → `[{id, name, folders, roots}]` (`folders` as in `workspace.list`; `roots` is deprecated and kept for Companion builds that predate `folders`).
   - `command {id, workspace, args}` → the command's result verbatim; ids missing from `hello.commands` (non-remote or plugin not running) fail with `not_allowed`.
-- `GET /v1/events` (SSE): starts with a `: connected` comment, then `id: <seq>\nevent: bus\ndata: {"seq","topic","workspace","payload"}` for `agents.changed`, `backlog.changed`, `notify.posted` and `plugin.changed` (`{id, running}`, published by the core when a plugin starts or stops running), and `: ping` every 15 s. `Last-Event-ID` (or `?after=<seq>`) replays later events from the bus first; without it, or when it is above the bus head (the Mac's event store was reset), the stream starts live and the phone takes the next event's seq as its cursor. Events only say "something changed"; the phone refetches with `command`. An `agents.changed` of kind `resolved` names the request that stopped pending (`request`) and what it was (`requestKind`: `permission` or `elicitation`; absent in older events, read as `permission`): the phone drops its card and that session's delivered notifications of the matching kind (`permission` for a permission, `needs-input` for an elicitation) at once, wherever it was answered.
+  - `macs {macs: [{name, colour}]}` → `null`; replaces this device's list of the other Macs it has paired. The phone sends it after every `hello` and whenever its Mac list or another Mac's colour changes.
+  - `setIdentityColour {colour}` → `{computer}`; an unknown token fails with `invalid_params`.
+- `GET /v1/events` (SSE): starts with a `: connected` comment, then `id: <seq>\nevent: bus\ndata: {"seq","topic","workspace","payload"}` for `agents.changed`, `backlog.changed`, `notify.posted`, `plugin.changed` (`{id, running}`, published by the core when a plugin starts or stops running) and `remote.identity` (`{computer: {id, name, colour}}`, this Mac's colour changed), and `: ping` every 15 s. `Last-Event-ID` (or `?after=<seq>`) replays later events from the bus first; without it, or when it is above the bus head (the Mac's event store was reset), the stream starts live and the phone takes the next event's seq as its cursor. Events only say "something changed"; the phone refetches with `command`. An `agents.changed` of kind `resolved` names the request that stopped pending (`request`) and what it was (`requestKind`: `permission` or `elicitation`; absent in older events, read as `permission`): the phone drops its card and that session's delivered notifications of the matching kind (`permission` for a permission, `needs-input` for an elicitation) at once, wherever it was answered.
 
 ## Mac app commands
 All hidden, app-scoped (`"scope": "app"`), never agent or remote. Call `command.run {id, workspaceId: "" (or any), args}`.
 
 | Command | Args | Result |
 |---|---|---|
-| `remote.status` | – | `{enabled, port, listening: ["100.x.y.z:47621"], hosts: ["mac.tailnet.ts.net", "100.x.y.z"], error}` |
+| `remote.status` | – | `{enabled, port, listening: ["100.x.y.z:47621"], hosts: ["mac.tailnet.ts.net", "100.x.y.z"], error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices: [deviceName]}], titleDot}`; `otherMacs` is the union of every device's `macs` by name (sorted by name; the most recently seen device's colour wins), `titleDot` = `titleBarColour` and `otherMacs` is not empty |
 | `remote.enable` | `{enabled}` | status |
 | `remote.set-port` | `{port}` (1–65535) | status; restarts listening, closes open streams, drops the active pairing code; destructive, confirm "Change the companion port? Paired devices stay offline until you pair them again." |
+| `remote.set-colour` | `{colour}` | status; publishes `remote.identity` |
+| `remote.set-title-bar-colour` | `{enabled}` | status |
 | `remote.pair` | – | `{link, code, expiresAt}` (RFC 3339); enables remote access; fails without issuing a code when there is no address to listen on (e.g. Tailscale is down) |
 | `remote.cancel-pair` | – | `null` |
-| `remote.devices` | – | `[{id, name, model, pairedAt, lastSeen, connected}]`, newest first |
+| `remote.devices` | – | `[{id, name, model, pairedAt, lastSeen, connected, macs: [{name, colour}]}]`, newest first |
 | `remote.revoke` | `{device}` | `null`; destructive, confirm "Revoke this device's access to Clubmate?" |
 
-The plugin publishes `remote.changed` `{}` when a device pairs, is revoked, connects or disconnects, and when access is turned on or off or the listening addresses change.
+The plugin publishes `remote.changed` `{}` when a device pairs, is revoked, connects or disconnects, reports a different `macs` list, when access is turned on or off or the listening addresses change, and when the colour or the title-bar setting changes.
 
 ## Companion app: App Transport Security
 
@@ -100,7 +114,7 @@ The simulator covers loopback only. On a device, check:
    ```
    A free/personal team needs a unique bundle id (`PRODUCT_BUNDLE_IDENTIFIER=<your.prefix>.companion`). Find the udid with `xcrun devicectl list devices`; install with `xcrun devicectl device install app --device <udid> <path to Companion.app>`.
 3. **Mac**: `clubmate command run remote.status` shows `enabled: true` and a non-empty `listening` with `100.x` / `fd7a:` addresses (and `hosts` with the MagicDNS name).
-4. **Pair by camera**: Settings → Devices → "Pair Device…", scan the QR code with the in-app scanner (camera permission prompt appears once). Also try the system Camera app: the `clubmate://pair` link must open the Companion.
+4. **Pair by camera**: Settings → Remote → "Pair Device…", scan the QR code with the in-app scanner (camera permission prompt appears once). Also try the system Camera app: the `clubmate://pair` link must open the Companion.
 5. **First request**: iOS shows the Local Network prompt on the first connection (never in the simulator); allow it. The Macs list shows the Mac online, and `remote.devices` shows the phone `connected: true`.
 6. **Agents**: open a session, send a prompt, answer a permission request from the phone.
 7. **Revoke live**: with a transcript open, revoke the phone on the Mac. The open transcript and the list switch to "Access Revoked" within a few seconds.

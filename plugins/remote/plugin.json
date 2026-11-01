@@ -11,7 +11,7 @@
         "title": "Companion Status",
         "hidden": true,
         "scope": "app",
-        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries and why it is not listening: {enabled, port, listening, hosts, error}."
+        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot: {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot}."
       },
       {
         "id": "remote.enable",
@@ -42,6 +42,32 @@
         }
       },
       {
+        "id": "remote.set-colour",
+        "title": "Set Mac Colour",
+        "hidden": true,
+        "scope": "app",
+        "description": "Set this Mac's identity colour shown next to its name on paired phones and in the title bar; publishes remote.identity. Returns the status.",
+        "args": {
+          "properties": {
+            "colour": {"type": "string", "enum": ["sky", "blue", "indigo", "purple", "magenta", "graphite"], "description": "Colour token."}
+          },
+          "required": ["colour"]
+        }
+      },
+      {
+        "id": "remote.set-title-bar-colour",
+        "title": "Show Mac Colour in Title Bar",
+        "hidden": true,
+        "scope": "app",
+        "description": "Show or hide this Mac's colour dot in the title bar (shown only while a paired phone reports other Macs); returns the status.",
+        "args": {
+          "properties": {
+            "enabled": {"type": "boolean", "description": "Show the dot."}
+          },
+          "required": ["enabled"]
+        }
+      },
+      {
         "id": "remote.pair",
         "title": "Pair Device",
         "hidden": true,
@@ -60,7 +86,7 @@
         "title": "Paired Devices",
         "hidden": true,
         "scope": "app",
-        "description": "Paired devices, newest first: [{id, name, model, pairedAt, lastSeen, connected}]."
+        "description": "Paired devices, newest first: [{id, name, model, pairedAt, lastSeen, connected, macs: [{name, colour}]}]; macs are the other Macs that device has paired."
       },
       {
         "id": "remote.revoke",

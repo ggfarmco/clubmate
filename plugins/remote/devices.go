@@ -30,6 +30,7 @@ type device struct {
 	PairedAt  time.Time `json:"pairedAt"`
 	LastSeen  time.Time `json:"lastSeen"`
 	TokenHash string    `json:"tokenHash"`
+	Macs      []macInfo `json:"macs,omitempty"`
 }
 
 type deviceStore struct {
@@ -75,12 +76,13 @@ func (s *deviceStore) load(ctx context.Context) error {
 	return nil
 }
 
-func (s *deviceStore) add(ctx context.Context, id, name, model string) (string, error) {
+func (s *deviceStore) add(ctx context.Context, info deviceInfo) (string, error) {
 	raw := make([]byte, tokenBytes)
 	_, _ = rand.Read(raw)
 	token := tokenPrefix + base64.RawURLEncoding.EncodeToString(raw)
 	now := s.now()
-	d := device{ID: id, Name: name, Model: model, PairedAt: now, LastSeen: now, TokenHash: hashToken(token)}
+	id := info.ID
+	d := device{ID: id, Name: info.Name, Model: info.Model, PairedAt: now, LastSeen: now, TokenHash: hashToken(token), Macs: slices.Clone(info.Macs)}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.mu.Lock()
@@ -146,6 +148,45 @@ func (s *deviceStore) revoke(ctx context.Context, id string) error {
 		return errUnknownDevice
 	}
 	return s.persist(ctx, id)
+}
+
+func (s *deviceStore) setMacs(ctx context.Context, id string, macs []macInfo) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	i := slices.IndexFunc(s.devices, func(d device) bool { return d.ID == id })
+	if i < 0 {
+		s.mu.Unlock()
+		return false, errUnknownDevice
+	}
+	prev := s.devices[i].Macs
+	if slices.Equal(prev, macs) {
+		s.mu.Unlock()
+		return false, nil
+	}
+	s.devices[i].Macs = slices.Clone(macs)
+	s.mu.Unlock()
+	if err := s.persist(ctx, id); err != nil {
+		s.mu.Lock()
+		if i := slices.IndexFunc(s.devices, func(d device) bool { return d.ID == id }); i >= 0 {
+			s.devices[i].Macs = prev
+		}
+		s.mu.Unlock()
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *deviceStore) usedColours() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []string
+	for _, d := range s.devices {
+		for _, m := range d.Macs {
+			out = append(out, m.Colour)
+		}
+	}
+	return out
 }
 
 func (s *deviceStore) list() []device {

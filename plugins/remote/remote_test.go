@@ -31,6 +31,12 @@ type fixture struct {
 	backend *fakeBackend
 	kv      *memKV
 	clock   *clock
+	topics  *topicLog
+}
+
+type topicLog struct {
+	mu     sync.Mutex
+	topics []string
 }
 
 type fakeBackend struct {
@@ -168,7 +174,7 @@ func TestRevokeDuringAFailedRepairStaysRevoked(t *testing.T) {
 	entered, release := f.kv.holdNextSet()
 	paired := make(chan struct{})
 	go func() {
-		_, _ = f.srv.devices.add(t.Context(), "phone", "iPhone", "iPhone")
+		_, _ = f.srv.devices.add(t.Context(), deviceInfo{ID: "phone", Name: "iPhone", Model: "iPhone"})
 		close(paired)
 	}()
 	<-entered
@@ -224,6 +230,98 @@ func TestDevicesMigrateFromLegacyList(t *testing.T) {
 	}
 }
 
+func TestPairPicksTheFirstColourOtherMacsDontUse(t *testing.T) {
+	all := make([]macInfo, 0, len(colourOrder))
+	for _, c := range colourOrder {
+		all = append(all, macInfo{Name: c, Colour: c})
+	}
+	tests := []struct {
+		name string
+		macs []macInfo
+		want string
+	}{
+		{"no other macs", nil, "blue"},
+		{"blue and magenta taken", []macInfo{{Name: "Studio", Colour: "blue"}, {Name: "Air", Colour: "magenta"}}, "sky"},
+		{"every colour taken", all, "blue"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+
+			got := f.pairDevice(t, deviceInfo{ID: "phone", Macs: tt.macs})
+
+			assert.Equal(t, tt.want, got.Computer.Colour)
+			assert.Equal(t, tt.macs, f.srv.devices.list()[0].Macs)
+			assert.Contains(t, f.kv.get(computerKey), `"colour":"`+tt.want+`"`)
+		})
+	}
+}
+
+func TestColourIsPickedOnceOnTheFirstMacsCall(t *testing.T) {
+	f := newFixture(t)
+	token, err := f.srv.devices.add(t.Context(), deviceInfo{ID: "phone"})
+	require.NoError(t, err)
+
+	_, res := f.call(t, token, "macs", macsRequest{Macs: []macInfo{{Name: "Studio", Colour: "blue"}}})
+	paired := f.pairDevice(t, deviceInfo{ID: "pad", Macs: []macInfo{{Name: "Air", Colour: "magenta"}}})
+
+	assert.Nil(t, res.Error)
+	assert.JSONEq(t, `null`, string(res.Result))
+	assert.Equal(t, "magenta", paired.Computer.Colour)
+}
+
+func TestSetIdentityColour(t *testing.T) {
+	tests := []struct {
+		name   string
+		colour string
+		want   computer
+		code   string
+		topics []string
+	}{
+		{"known token", "purple", computer{ID: "cmp", Name: "Mac", Colour: "purple"}, "", []string{identityTopic, changedTopic}},
+		{"unknown token", "red", computer{ID: "cmp", Name: "Mac"}, codeInvalidParams, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			token, err := f.srv.devices.add(t.Context(), deviceInfo{ID: "phone"})
+			require.NoError(t, err)
+
+			_, res := f.call(t, token, "setIdentityColour", colourRequest{Colour: tt.colour})
+
+			if tt.code != "" {
+				require.NotNil(t, res.Error)
+				assert.Equal(t, tt.code, res.Error.Code)
+			} else {
+				var got identityResult
+				require.NoError(t, json.Unmarshal(res.Result, &got))
+				assert.Equal(t, tt.want, got.Computer)
+			}
+			assert.Equal(t, tt.want, f.srv.identity.get())
+			assert.Equal(t, tt.topics, f.topics.list())
+		})
+	}
+}
+
+func TestMacsReplaceTheDevicesListAndDriveTheTitleDot(t *testing.T) {
+	f := newFixture(t)
+	a := &app{srv: f.srv, ident: f.srv.identity, titleBar: true}
+	phone := f.pairDevice(t, deviceInfo{ID: "phone", Name: "iPhone", Macs: []macInfo{{Name: "Studio", Colour: "sky"}}}).Token
+	f.clock.advance(time.Minute)
+	f.pairDevice(t, deviceInfo{ID: "pad", Name: "iPad", Macs: []macInfo{{Name: "Studio", Colour: "sky"}, {Name: "Air", Colour: "purple"}}})
+
+	both := a.status()
+	f.call(t, phone, "macs", macsRequest{Macs: []macInfo{{Name: "Mini", Colour: "indigo"}}})
+	replaced := a.status()
+	a.titleBar = false
+	off := a.status()
+
+	assert.Equal(t, []otherMac{{Name: "Air", Colour: "purple", Devices: []string{"iPad"}}, {Name: "Studio", Colour: "sky", Devices: []string{"iPad", "iPhone"}}}, both.OtherMacs)
+	assert.True(t, both.TitleDot)
+	assert.Equal(t, []otherMac{{Name: "Air", Colour: "purple", Devices: []string{"iPad"}}, {Name: "Mini", Colour: "indigo", Devices: []string{"iPhone"}}, {Name: "Studio", Colour: "sky", Devices: []string{"iPad"}}}, replaced.OtherMacs)
+	assert.False(t, off.TitleDot)
+}
+
 func TestPairHostsError(t *testing.T) {
 	assert.NoError(t, pairHostsError(status{Hosts: []string{"100.64.0.1"}}))
 	assert.EqualError(t, pairHostsError(status{}), "pairing needs a Tailscale address: no Tailscale address")
@@ -252,7 +350,7 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	_, ok := f.call(t, token, "command", map[string]any{"id": "agents.sessions", "workspace": "prj_1", "args": map[string]any{"x": 1}})
 	_, denied := f.call(t, token, "command", map[string]any{"id": "agents.delete", "workspace": "prj_1"})
 
-	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac"},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","notify.posted","plugin.changed"]}`, string(hello.Result))
+	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":"blue"},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","notify.posted","plugin.changed","remote.identity"]}`, string(hello.Result))
 	assert.JSONEq(t, `{"ran":"agents.sessions"}`, string(ok.Result))
 	assert.Equal(t, []runCall{{id: "agents.sessions", workspace: "prj_1", args: `{"x":1}`}}, f.backend.calls())
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)
@@ -361,13 +459,13 @@ func TestParseTailscaleKeepsTailnetIPs(t *testing.T) {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	f := &fixture{backend: &fakeBackend{}, kv: &memKV{data: map[string][]byte{}}, clock: &clock{now: time.Unix(1_800_000_000, 0)}}
+	f := &fixture{backend: &fakeBackend{}, kv: &memKV{data: map[string][]byte{}}, clock: &clock{now: time.Unix(1_800_000_000, 0)}, topics: &topicLog{}}
 	f.srv = &server{
 		backend:  f.backend,
 		devices:  newDeviceStore(f.kv, f.clock.Now),
 		pairing:  newPairing(f.clock.Now),
 		hub:      newHub(func() {}),
-		computer: func() computer { return computer{ID: "cmp", Name: "Mac"} },
+		identity: &identity{kv: f.kv, publish: f.topics.add, comp: computer{ID: "cmp", Name: "Mac"}},
 		changed:  func() {},
 		ping:     time.Hour,
 	}
@@ -381,13 +479,18 @@ func newFixture(t *testing.T) *fixture {
 
 func (f *fixture) pair(t *testing.T, deviceID string) string {
 	t.Helper()
+	return f.pairDevice(t, deviceInfo{ID: deviceID, Name: "iPhone", Model: "iPhone"}).Token
+}
+
+func (f *fixture) pairDevice(t *testing.T, d deviceInfo) pairResponse {
+	t.Helper()
 	code, _ := f.srv.pairing.issue()
 	var out pairResponse
-	res := f.post(t, "/v1/pair", "", pairRequest{Code: code, Device: deviceInfo{ID: deviceID, Name: "iPhone", Model: "iPhone"}})
+	res := f.post(t, "/v1/pair", "", pairRequest{Code: code, Device: d})
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
-	return out.Token
+	return out
 }
 
 func (f *fixture) postPair(t *testing.T, code, deviceID string) (int, reply) {
@@ -600,6 +703,18 @@ func (b *fakeBackend) calls() []runCall {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return slices.Clone(b.runs)
+}
+
+func (l *topicLog) add(topic string, _ any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.topics = append(l.topics, topic)
+}
+
+func (l *topicLog) list() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.topics)
 }
 
 func (c *clock) Now() time.Time {
