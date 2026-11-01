@@ -27,7 +27,16 @@ final class AppNavigation {
     var doc: OpenDoc?
     var preferredColumn: NavigationSplitViewColumn = .sidebar
     var layout: CompanionLayout = .compact
-    var visibility: NavigationSplitViewVisibility = .all
+    var visibility: NavigationSplitViewVisibility
+    var sidebarHidden: Bool {
+        didSet { UserDefaults.standard.set(sidebarHidden, forKey: "sidebarHidden") }
+    }
+
+    init() {
+        let hidden = UserDefaults.standard.bool(forKey: "sidebarHidden")
+        sidebarHidden = hidden
+        visibility = hidden ? .doubleColumn : .all
+    }
 
     func open(computer: String, plugin: String, detail: String? = nil) {
         macDetails = nil
@@ -49,7 +58,7 @@ final class AppNavigation {
 
     func arrange() {
         let chosen = sidebar != nil || macDetails != nil
-        switch layout.columns(chosen: chosen) {
+        switch layout.columns(chosen: chosen, sidebarHidden: sidebarHidden) {
         case .stack:
             switch CompanionLayout.stackColumn(chosen: chosen, detail: detail != nil) {
             case .sidebar: preferredColumn = .sidebar
@@ -61,6 +70,11 @@ final class AppNavigation {
         case .three:
             visibility = .all
         }
+    }
+
+    func visibilityChanged() {
+        guard layout == .wide, sidebar != nil || macDetails != nil else { return }
+        sidebarHidden = visibility != .all
     }
 
     func workspace(for connection: ComputerConnection) -> Workspace? {

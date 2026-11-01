@@ -13,7 +13,7 @@ struct RootView: View {
         @Bindable var navigation = navigation
         NavigationSplitView(columnVisibility: $navigation.visibility, preferredCompactColumn: $navigation.preferredColumn) {
             SidebarView()
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
+                .navigationSplitViewColumnWidth(260)
         } content: {
             content
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 440)
@@ -25,6 +25,7 @@ struct RootView: View {
         .onChange(of: CompanionLayout(width: width, compactClass: sizeClass == .compact), initial: true) { _, layout in navigation.layout = layout }
         .onChange(of: navigation.layout) { _, _ in navigation.arrange() }
         .onChange(of: navigation.sidebar) { _, _ in navigation.arrange() }
+        .onChange(of: navigation.visibility) { _, _ in navigation.visibilityChanged() }
         .onChange(of: navigation.preferredColumn) { _, column in
             if column == .sidebar, navigation.layout == .compact { navigation.macDetails = nil }
         }

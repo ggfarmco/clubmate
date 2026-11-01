@@ -17,6 +17,11 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(CompanionLayout.compact.columns(chosen: true), .stack)
     }
 
+    func testWideKeepsTheSidebarTheUserHidUntilNothingIsChosen() {
+        XCTAssertEqual(CompanionLayout.wide.columns(chosen: true, sidebarHidden: true), .two)
+        XCTAssertEqual(CompanionLayout.wide.columns(chosen: false, sidebarHidden: true), .three)
+    }
+
     func testStackShowsTheDeepestOpenColumn() {
         XCTAssertEqual(CompanionLayout.stackColumn(chosen: true, detail: true), .detail)
         XCTAssertEqual(CompanionLayout.stackColumn(chosen: true, detail: false), .content)

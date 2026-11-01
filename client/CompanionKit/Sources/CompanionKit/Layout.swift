@@ -24,11 +24,11 @@ public enum CompanionLayout: Sendable, Equatable {
         self = compactClass || width < Self.regularWidth ? .compact : width > Self.wideWidth ? .wide : .regular
     }
 
-    public func columns(chosen: Bool) -> Columns {
+    public func columns(chosen: Bool, sidebarHidden: Bool = false) -> Columns {
         switch self {
         case .compact: .stack
         case .regular: chosen ? .two : .three
-        case .wide: .three
+        case .wide: chosen && sidebarHidden ? .two : .three
         }
     }
 
