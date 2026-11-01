@@ -23,7 +23,8 @@
     },
     "notifyEffective": "all",
     "needsYou": true,
-    "needsYouSince": "2026-10-30T09:41:00Z"
+    "needsYouSince": "2026-10-30T09:41:00Z",
+    "modeLabel": "Ask before edits"
   },
   {
     "id": "agt_0000000000000002",
@@ -46,7 +47,8 @@
     },
     "notifyEffective": "all",
     "needsYou": true,
-    "needsYouSince": "2026-10-30T09:41:00Z"
+    "needsYouSince": "2026-10-30T09:41:00Z",
+    "modeLabel": "Ask before edits"
   },
   {
     "id": "agt_0000000000000003",
@@ -62,6 +64,7 @@
     "updatedAt": "2026-10-30T09:41:00Z",
     "asks": false,
     "notifyEffective": "all",
-    "needsYou": false
+    "needsYou": false,
+    "modeLabel": "Ask before edits"
   }
 ]

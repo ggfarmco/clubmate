@@ -583,7 +583,10 @@ actor FixtureServer {
         fields["createdAt"] = stamp(ago: ago)
         fields["updatedAt"] = stamp(ago: status == "running" ? 5 : ago)
         if status == "running" { fields["turnStartedAt"] = stamp(ago: ago) }
-        if status == "error" { fields["error"] = .string("exit status 1") }
+        if status == "error" {
+            fields["error"] = .string("acp error -32603: exit status 1")
+            fields["failure"] = .object(["word": .string("exit 1"), "badge": .string("Stopped · exit 1"), "line": .string("Claude exited with status 1.")])
+        }
         return fields
     }
 

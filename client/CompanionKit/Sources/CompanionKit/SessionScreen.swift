@@ -35,6 +35,14 @@ extension AgentSession {
         return .done
     }
 
+    public var stopped: SessionFailure {
+        failure ?? SessionFailure(word: SessionState.stopped.label, badge: SessionState.stopped.label + " · error", line: "")
+    }
+
+    public var headerState: String {
+        state == .stopped ? stopped.badge : state.label
+    }
+
     public var headerDetail: String {
         parentSession == nil ? worktreeName : "subagent"
     }

@@ -138,6 +138,12 @@ func (s *session) activity() string {
 	return title
 }
 
+func (s *session) modeLabel() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return modeWord(s.rec.Mode, s.modes)
+}
+
 func (s *session) toolActivity() *toolActivity {
 	s.mu.Lock()
 	running := s.rec.Status == statusRunning

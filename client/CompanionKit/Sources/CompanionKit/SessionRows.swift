@@ -87,7 +87,7 @@ extension AgentSession {
             if let activity, !activity.title.isEmpty { return SessionStateLine(text: activity.title, age: age(activity.at)) }
             return SessionStateLine(text: SessionState.running.label, age: age(turnStartedAt ?? updatedAt))
         case .stopped:
-            return SessionStateLine(text: SessionState.stopped.label + " · error", tone: .danger)
+            return SessionStateLine(text: stopped.word, tone: .danger)
         case .done:
             return SessionStateLine(text: SessionState.done.label, age: age(updatedAt))
         case .closed:

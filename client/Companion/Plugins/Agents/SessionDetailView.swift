@@ -50,6 +50,11 @@ struct SessionDetailView: View {
                         RowView(row: block[0])
                     }
                 }
+                if session?.status == .error, let line = session?.failure?.line, !line.isEmpty {
+                    Label(line, systemImage: "xmark.circle")
+                        .font(.footnote)
+                        .foregroundStyle(Color.dangerInk)
+                }
                 if session?.status == .running {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -150,7 +155,7 @@ struct SessionDetailView: View {
                         enabled: blocked == nil,
                         blocked: answerDocked ? nil : blocked,
                         sending: sending,
-                        stopInHeader: stopInHeader,
+                        wide: stopInHeader,
                         send: send
                     )
                 }
@@ -159,11 +164,20 @@ struct SessionDetailView: View {
             .animation(.snappy, value: store.openedDocs[sessionID])
         }
         .navigationTitle(session?.displayTitle ?? "Session")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleDisplayMode(stopInHeader ? .inlineLarge : .inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                if let session {
-                    SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id))
+            if let session {
+                if stopInHeader {
+                    ToolbarItem(placement: .largeSubtitle) {
+                        SessionHeader.subtitle(session, mac: context.model.tag(context.connection.computer.id), mode: true)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    ToolbarItem(placement: .principal) {
+                        SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id))
+                    }
                 }
             }
             if stopInHeader, session?.isTurnActive == true {
@@ -351,19 +365,22 @@ struct SessionHeader: View {
     var mac: MacTag?
 
     var body: some View {
-        let state = session.state
-        let detail = session.headerDetail
         VStack(spacing: 1) {
             Text(session.displayTitle)
                 .font(.headline)
                 .lineLimit(1)
-            (Text(state.label).foregroundStyle(state.needsYou ? Color.warning : .secondary)
-                + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary))
+            Self.subtitle(session, mac: mac)
                 .font(.footnote)
                 .lineLimit(1)
         }
         .frame(maxWidth: 260)
         .accessibilityElement(children: .combine)
+    }
+
+    static func subtitle(_ session: AgentSession, mac: MacTag?, mode: Bool = false) -> Text {
+        let detail = [session.headerDetail, mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        return Text(session.headerState).foregroundStyle(session.state.needsYou ? Color.warning : .secondary)
+            + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary)
     }
 }
 
@@ -475,7 +492,7 @@ struct ComposerView: View {
     let enabled: Bool
     var blocked: String? = nil
     let sending: Bool
-    var stopInHeader = false
+    var wide = false
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
     @State private var importing = 0
@@ -535,22 +552,11 @@ struct ComposerView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
                             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
-                        Button(action: submit) {
-                            Group {
-                                if sending {
-                                    ProgressView()
-                                } else {
-                                    Image(systemName: "arrow.up").font(.body.weight(.bold))
-                                }
-                            }
-                            .frame(width: 30, height: 30)
+                        if !(wide && empty && !sending) {
+                            sendButton
                         }
-                        .buttonStyle(.glassProminent)
-                        .buttonBorderShape(.circle)
-                        .disabled(empty || sending || importing > 0 || attachedBytes > ComposerAttachment.maxBytes)
-                        .accessibilityLabel(session?.sendLabel ?? "Send")
                     }
-                    if let caption = blocked ?? sizeCaption ?? session?.composerCaption(stopInHeader: stopInHeader) {
+                    if let caption = blocked ?? sizeCaption ?? session?.composerCaption(stopInHeader: wide) {
                         Text(caption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -578,6 +584,23 @@ struct ComposerView: View {
             .padding(.bottom, 8)
             .frame(maxWidth: 820)
         }
+    }
+
+    private var sendButton: some View {
+        Button(action: submit) {
+            Group {
+                if sending {
+                    ProgressView()
+                } else {
+                    Image(systemName: "arrow.up").font(.body.weight(.bold))
+                }
+            }
+            .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.glassProminent)
+        .buttonBorderShape(.circle)
+        .disabled(empty || sending || importing > 0 || attachedBytes > ComposerAttachment.maxBytes)
+        .accessibilityLabel(session?.sendLabel ?? "Send")
     }
 
     private func submit() {

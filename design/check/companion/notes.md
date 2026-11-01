@@ -1,6 +1,6 @@
 # Companion re-check — 1 Nov 2026, after the polish pass on 932c48f0
 
-**iPad pass (1 Nov 2026, later):** C-iPad re-captured in landscape after the seven iPad fixes; C-Permission(-Light) re-captured for the plan fold. Everything else below is from the earlier pass.
+**iPad pass (1 Nov 2026, later):** C-iPad re-captured in landscape after the seven iPad fixes; C-Permission(-Light) re-captured for the plan fold. **Second iPad pass (2 Nov 2026):** C-iPad re-captured after the middle column and header follow-up; C-Workspace(-Light) re-captured for the failed-session words ("exit 1"). Everything else below is from the earlier pass.
 
 Re-capture after the four polish fixes (› on navigable rows, row density, no ✕ on the Needs-you banner, photo attach glyph) and the first iPad capture. Debug build (`make companion`), iOS 27.0 simulator, status bar time 9:41, fresh install per shot.
 
@@ -36,7 +36,7 @@ Seed data is not counted as a difference: workspace `clubmate` instead of `desig
 ## Per board
 
 - **C-Macs**: matches, now with › on Needs-you, workspace and Inbox rows and board density; the MacBook Pro section and the MacBook Air header fit above the fold.
-- **C-Workspace**: matches (› top-aligned on the first title line like the board; a parent with a folded-subagent toggle "N ›" gets no second ›).
+- **C-Workspace**: matches (› top-aligned on the first title line like the board; a parent with a folded-subagent toggle "N ›" gets no second ›). The failed seed session now reads "exit 1" in danger ink (the Mac's word, from `failure` in `agents.sessions`); its screen says "Stopped · exit 1" in the header and "Claude exited with status 1." under the transcript.
 - **C-Permission**: matches decision 1, P0 "Stop", P1 banner; the banner has no ✕ and the attach button is the photo glyph. The plan card now folds the done step behind "Show done" like the board, so the "Plan · 1 of 3" header sits just under the banner (the count stays done-of-total like the Mac card and the iPad board; the phone board's "2 of 3" would make the two clients disagree). The Mac plan card folds the same way (`PlanFold` in ClubmateProtocol, `docs/agents.md` § Transcript folding); looked at in a Kanagawa test instance with the fake agent's Rate-limit session: "Plan · 2 of 4", Show done, current and pending steps only; only the card's top padding is still under it (the iPhone 18 Pro has ~18 pt more bottom safe area than the board, and the transcript opens scrolled to the end).
 - **C-Question**: matches (P1 "Started by", P2 bullets, "Answer Claude…"); the parent's permission banner shows (seed, the rule working).
 - **C-Inbox**: matches; rows denser. Inbox notification rows have no › (the board draws none there). "Earlier" order as before (seed or an ordering question, see the previous note).
@@ -47,19 +47,17 @@ Seed data is not counted as a difference: workspace `clubmate` instead of `desig
 
 ## C-iPad (landscape, same orientation as the board)
 
-Matches: three columns (Macs · shop · session); Macs column with one "Needs you 3" row, Mac headers "Mac Studio · online" / "MacBook Air · offline", one-line workspace rows with the amber waiting count ("shop 2", "infra 1"), Inbox "2" / "1"; the selected row is the dim green tint with label ink and a green folder glyph (light: same tint, label stays dark, checked); session header with ■ Stop next to ••• (asks once, the popover anchors on the button); Plan and the 3-actions card side by side; the request card's Allow once · Always allow… · Reject on one row; caption "Sends after the current turn".
+Matches: three columns; Macs column with one "Needs you 3" row, inline Mac headers, one-line workspace rows with amber counts, the selected row a dim green tint; middle column with the inline large title "shop", no Mac line and no segmented control (Agents / Backlog / Docs are in the folder menu, above the workspaces), a plain list without separators and the selected session a rounded green tint; session header as the board: the title large on the left, "Waiting for you · ● Mac Studio · shop · Ask before edits" under it, ■ and •••; Plan and the actions card side by side, the actions card naming its calls ("Read cart.go", "Edit cart.go +1 −1", the doc as "Open checkout-retries.md"); the request card with "Run a command?" and `go test ./...` on one line and the answers on one row; the composer without Send while empty, caption "Sends after the current turn".
 
 Differences:
-1. A 2 pt green rectangle around the selected Macs row: the iPadOS keyboard focus halo of the list cell. It shows only with a hardware keyboard attached (the simulator always has one); `focusEffectDisabled`, `focusable(false)` and a row tint don't reach the UIKit cell halo. With the focus elsewhere (after tapping ■) the row is just the tint.
-2. Sessions column: large title "shop" + Mac line + segmented control; the board has an inline title, no segmented control and a plain list with a green-tinted selected row; ours is inset grouped with a grey selected row. Not in this pass.
-3. Session header subtitle lacks the mode ("Ask before edits"); the composer keeps its Send button (the board has none). Not in this pass.
-4. The request card keeps title and command on two lines (the board puts the command inline after "Run a command?") and keeps the "Claude says" caption.
-5. The board's actions card lists each call with "Show diff"; ours is the folded tool-group row ("3 actions · read cart.go · edit … +2 −1"), and the two cards keep their own heights.
-6. Seed: the other-Mac banner, "Thought for 3 s", "Context compacted" and the running Explore card show; the board has none of them.
+1. The 2 pt green keyboard-focus halo around the selected Macs row (see the earlier pass; only with a hardware keyboard).
+2. The actions card keeps per-call status ticks and diff counts on each line and names the doc instead of "Show diff"; the plan and actions cards keep their own heights.
+3. The request card keeps its "Claude says" caption and the hand badge and ••• (the board has neither).
+4. Seed: the other-Mac banner, "Thought for 3 s", "Context compacted", the running Explore card and the Done section show; the board has none of them.
 
 ## Remaining gaps
 
-- iPad differences 2–5 above (sessions column chrome, header mode, composer Send, request card command inline, actions card shape).
+- iPad differences 2–3 above (actions card line details, request card caption/badge).
 - MacInfo Notifications row: needs a per-Mac notification setting first.
 
 ## Not reproduced

@@ -61,11 +61,8 @@ struct AgentsListView: View {
                 ConnectionUnavailableView(connection: context.connection)
             }
         }
-        .safeAreaBar(edge: .top) { WorkspaceTabs(context: context) }
-        .navigationTitle(workspace?.name ?? "Agents")
-        .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
+        .workspaceChrome(context, title: workspace?.name ?? "Agents")
         .toolbar {
-            MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(context.connection.presence))
             WorkspaceMenu(context: context)
             ToolbarItem(placement: .primaryAction) {
                 Button("New Session", systemImage: "square.and.pencil") { AgentsPlugin.startNew(context) }
@@ -123,7 +120,7 @@ struct SessionListView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(insetGrouped: context.navigation.layout == .compact)
         .overlay {
             if !store.loaded {
                 ProgressView()
@@ -142,6 +139,10 @@ struct SessionListView: View {
         .refreshable { await store.refresh() }
     }
 
+    private var wide: Bool {
+        context.navigation.layout != .compact
+    }
+
     private func rows(_ items: [SessionRowItem]) -> some View {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             let nestedBelow = index + 1 < items.count && items[index + 1].depth > 0
@@ -156,9 +157,36 @@ struct SessionListView: View {
                 }
             }
             .listRowDensity()
-            .listRowSeparator(item.depth > 0 ? .hidden : .automatic, edges: .top)
-            .listRowSeparator(nestedBelow ? .hidden : .automatic, edges: .bottom)
+            .listRowSeparator(item.depth > 0 || wide ? .hidden : .automatic, edges: .top)
+            .listRowSeparator(nestedBelow || wide ? .hidden : .automatic, edges: .bottom)
             .tag(item.id)
+            .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == item.id))
+        }
+    }
+}
+
+struct SelectedSessionRow: ViewModifier {
+    let active: Bool
+    let selected: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            content
+                .listRowBackground(RoundedRectangle(cornerRadius: 16).fill(selected ? Color.accentColor.opacity(0.2) : .clear).padding(.horizontal, 8))
+                .foregroundStyle(selected ? AnyShapeStyle(Color(.label)) : AnyShapeStyle(.foreground))
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func listStyle(insetGrouped: Bool) -> some View {
+        if insetGrouped {
+            listStyle(.insetGrouped)
+        } else {
+            listStyle(.plain)
         }
     }
 }

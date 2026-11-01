@@ -398,6 +398,7 @@ extension EnvironmentValues {
 struct ToolLine: View {
     let tool: ToolCall
     @Binding var expanded: Bool
+    var link = false
     @Environment(\.subagentStop) private var stop
     @Environment(\.openDoc) private var openDoc
     @State private var stopping = false
@@ -460,8 +461,17 @@ struct ToolLine: View {
                 Text("Only this subagent stops. The session keeps running.")
             }
             if let doc = tool.doc, let openDoc {
-                PlainCapsule(title: "Open", tint: .primary) { openDoc(doc) }
-                    .accessibilityLabel("Open \(URL(filePath: doc).lastPathComponent)")
+                if link {
+                    Button("Open \(URL(filePath: doc).lastPathComponent)") { openDoc(doc) }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .lineLimit(1)
+                        .buttonStyle(.plain)
+                        .padding(.leading, 30)
+                } else {
+                    PlainCapsule(title: "Open", tint: .primary) { openDoc(doc) }
+                        .accessibilityLabel("Open \(URL(filePath: doc).lastPathComponent)")
+                }
             }
             if expanded {
                 ForEach(Array(tool.diffs.enumerated()), id: \.offset) { _, diff in
@@ -487,8 +497,55 @@ struct ToolGroupRow: View {
     let group: ToolGroup
     @State private var expanded = false
     @State private var open: Set<String> = []
+    @Environment(AppNavigation.self) private var navigation
+
+    private static let listed = 3
 
     var body: some View {
+        if navigation.layout == .compact {
+            folded
+        } else {
+            list
+        }
+    }
+
+    private var list: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(group.title)
+                .font(.footnote)
+                .foregroundStyle(group.failed ? Color.danger : .secondary)
+            ForEach(expanded ? group.calls : Array(group.calls.prefix(Self.listed)), id: \.id) { call in
+                line(call, link: true)
+            }
+            if group.calls.count > Self.listed {
+                Button(expanded ? "Show fewer" : "Show all \(group.calls.count)") {
+                    Motion.disclose { expanded.toggle() }
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tint)
+                .buttonStyle(.plain)
+                .frame(minHeight: 32)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.surface1, in: .rect(cornerRadius: 20))
+        .overlay {
+            if group.failed {
+                RoundedRectangle(cornerRadius: 20).strokeBorder(Color.danger.opacity(0.5), lineWidth: 1)
+            }
+        }
+    }
+
+    private func line(_ call: ToolCall, link: Bool = false) -> some View {
+        ToolLine(tool: call, expanded: Binding(
+            get: { open.contains(call.id) },
+            set: { if $0 { open.insert(call.id) } else { open.remove(call.id) } }
+        ), link: link)
+    }
+
+    private var folded: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
                 Motion.disclose { expanded.toggle() }
@@ -531,10 +588,7 @@ struct ToolGroupRow: View {
             .accessibilityLabel("\(group.title): \(group.detail)")
             if expanded {
                 ForEach(group.calls, id: \.id) { call in
-                    ToolLine(tool: call, expanded: Binding(
-                        get: { open.contains(call.id) },
-                        set: { if $0 { open.insert(call.id) } else { open.remove(call.id) } }
-                    ))
+                    line(call)
                 }
             }
         }
@@ -786,30 +840,14 @@ struct PermissionCard: View {
     var body: some View {
         DockCard {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    DockBadge(symbol: "hand.raised.fill")
-                    Text(request.card?.title ?? request.question)
-                        .font(.title3.weight(.semibold))
-                        .lineLimit(2)
-                    Spacer(minLength: 0)
-                    if !menu.isEmpty {
-                        Menu {
-                            ForEach(menu, id: \.id) { option in
-                                Button(option.label, systemImage: option.kind.rejects ? "hand.raised.slash" : "checkmark", role: option.kind.rejects ? .destructive : nil) { pick(option.id) }
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 44, height: 44)
-                                .contentShape(.rect)
-                        }
-                        .tint(.secondary)
-                        .accessibilityLabel("More Answers")
-                        .disabled(!answerable)
+                if navigation.layout == .compact || subject.contains("\n") {
+                    stackedHeader
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        inlineHeader
+                        stackedHeader
                     }
                 }
-                CodeBlock(text: subject, lines: PermissionRequest.dockCommandLines)
                 ForEach(Array(request.toolCall.diffs.prefix(1).enumerated()), id: \.offset) { _, diff in
                     DiffView(diff: diff, limit: PermissionRequest.dockDiffLines)
                 }
@@ -889,6 +927,62 @@ struct PermissionCard: View {
 
     private var answerable: Bool {
         enabled && armed && chosen == nil
+    }
+
+    private var title: some View {
+        Text(request.card?.title ?? request.question)
+            .font(.title3.weight(.semibold))
+    }
+
+    private var stackedHeader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                DockBadge(symbol: "hand.raised.fill")
+                title
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                menuButton
+            }
+            CodeBlock(text: subject, lines: PermissionRequest.dockCommandLines)
+        }
+    }
+
+    private var inlineHeader: some View {
+        HStack(spacing: 12) {
+            DockBadge(symbol: "hand.raised.fill")
+            title
+                .lineLimit(1)
+                .fixedSize()
+            Text(subject)
+                .font(.callout.monospaced())
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
+            menuButton
+        }
+    }
+
+    @ViewBuilder
+    private var menuButton: some View {
+        if !menu.isEmpty {
+            Menu {
+                ForEach(menu, id: \.id) { option in
+                    Button(option.label, systemImage: option.kind.rejects ? "hand.raised.slash" : "checkmark", role: option.kind.rejects ? .destructive : nil) { pick(option.id) }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
+            }
+            .tint(.secondary)
+            .accessibilityLabel("More Answers")
+            .disabled(!answerable)
+        }
     }
 
     private var stackedButtons: some View {

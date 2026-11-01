@@ -75,6 +75,14 @@ type sessionInfo struct {
 	NeedsYouSince   *time.Time      `json:"needsYouSince,omitempty"`
 	Activity        *toolActivity   `json:"activity,omitempty"`
 	ChildStatus     string          `json:"childStatus,omitempty"`
+	Failure         *sessionFailure `json:"failure,omitempty"`
+	ModeLabel       string          `json:"modeLabel,omitempty"`
+}
+
+type sessionFailure struct {
+	Word  string `json:"word"`
+	Badge string `json:"badge"`
+	Line  string `json:"line"`
 }
 
 type toolActivity struct {

@@ -167,6 +167,15 @@ func failureWord(text string) string {
 	return ""
 }
 
+func failureOf(rec record) sessionFailure {
+	word := failureWord(rec.Error)
+	return sessionFailure{
+		Word:  cmp.Or(word, statusLabels[statusError]),
+		Badge: statusLabels[statusError] + " · " + cmp.Or(word, stoppedDetail),
+		Line:  failureLine(agentLabel(rec.Agent), rec.Error),
+	}
+}
+
 func failureLine(agent, text string) string {
 	line := firstLine(text)
 	if m := exitStatusRe.FindStringSubmatch(line); m != nil {

@@ -22,7 +22,8 @@ final class SessionRowsTests: XCTestCase {
             (AgentSession(id: "f2", status: .running, turnStartedAt: ago(600), activity: SessionActivity(title: "Editing reserve.go", at: ago(240))), .running, SessionStateLine(text: "Editing reserve.go", age: "4 min")),
             (AgentSession(id: "g", status: .done, childStatus: .running), .running, SessionStateLine(text: "Waiting for subagents")),
             (AgentSession(id: "h", status: .done, childStatus: .waiting), .childWaiting, SessionStateLine(text: "1 subagent waiting")),
-            (AgentSession(id: "i", status: .error, error: "boom"), .stopped, SessionStateLine(text: "Stopped · error", tone: .danger)),
+            (AgentSession(id: "i", status: .error, error: "boom"), .stopped, SessionStateLine(text: "Stopped", tone: .danger)),
+            (AgentSession(id: "i2", status: .error, failure: Self.exit1), .stopped, SessionStateLine(text: "exit 1", tone: .danger)),
             (AgentSession(id: "j", status: .done, updatedAt: ago(3_700)), .done, SessionStateLine(text: "Done", age: "1 h")),
             (AgentSession(id: "k", status: .closed, updatedAt: ago(200_000)), .closed, SessionStateLine(text: "Closed", age: "2 d")),
         ]
@@ -30,7 +31,11 @@ final class SessionRowsTests: XCTestCase {
             XCTAssertEqual(session.glyph, glyph, session.id)
             XCTAssertEqual(session.stateLine(now: now), line, session.id)
         }
+        XCTAssertEqual(AgentSession(id: "i", status: .error).headerState, "Stopped · error")
+        XCTAssertEqual(AgentSession(id: "i2", status: .error, failure: Self.exit1).headerState, "Stopped · exit 1")
     }
+
+    private static let exit1 = SessionFailure(word: "exit 1", badge: "Stopped · exit 1", line: "Claude exited with status 1.")
 
     func testSubagentsFoldUnlessTheyNeedYou() throws {
         let tree = try XCTUnwrap(AgentSession.grouped([

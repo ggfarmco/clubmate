@@ -260,7 +260,7 @@ func header(sc screen) sdui.Node {
 			badges = append(badges, sdui.HeaderBadge{Text: waitingBadge, Tone: statusTones[statusWaiting]})
 		}
 		if rec.Status == statusError {
-			badges = append(badges, sdui.HeaderBadge{Text: statusLabels[statusError] + " · " + cmp.Or(failureWord(rec.Error), stoppedDetail), Tone: statusTones[statusError]})
+			badges = append(badges, sdui.HeaderBadge{Text: failureOf(rec).Badge, Tone: statusTones[statusError]})
 		}
 		if full {
 			badges = append(badges, sdui.HeaderBadge{Text: fill, Tone: "warning"})
@@ -279,7 +279,7 @@ func header(sc screen) sdui.Node {
 	if rec.Status != statusError {
 		return sdui.VStack(children...)
 	}
-	problem := []sdui.Node{sdui.MutedText(failureLine(agentLabel(rec.Agent), rec.Error))}
+	problem := []sdui.Node{sdui.MutedText(failureOf(rec).Line)}
 	switch {
 	case sc.NeedsAuth:
 		problem = append(problem, sdui.WithAction(sdui.Button(sid+"/signin", "Sign in", "person.badge.key"), actSignIn))
@@ -292,10 +292,14 @@ func header(sc screen) sdui.Node {
 }
 
 func sessionModeLabel(v transcriptView) string {
-	if i := slices.IndexFunc(v.Modes, func(m acp.SessionMode) bool { return m.ID == v.Session.Mode }); i >= 0 {
-		return modeLabel(v.Modes[i])
+	return modeWord(v.Session.Mode, v.Modes)
+}
+
+func modeWord(mode string, modes []acp.SessionMode) string {
+	if i := slices.IndexFunc(modes, func(m acp.SessionMode) bool { return m.ID == mode }); i >= 0 {
+		return modeLabel(modes[i])
 	}
-	return cmp.Or(modeLabels[v.Session.Mode], v.Session.Mode)
+	return cmp.Or(modeLabels[mode], mode)
 }
 
 func continueButton(sid string) sdui.Node {

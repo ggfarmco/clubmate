@@ -804,6 +804,7 @@ func TestFailedSessionReadsInWords(t *testing.T) {
 		require.NoError(t, internalsdui.Validate(main))
 		assert.Equal(t, []sdui.HeaderBadge{{Text: tc.badge, Tone: "danger"}}, nodesOf(main, "header")[0].Props["badges"], tc.err)
 		assert.Contains(t, texts(main), tc.line, tc.err)
+		assert.Equal(t, sessionFailure{Word: tc.detail, Badge: tc.badge, Line: tc.line}, failureOf(rec), tc.err)
 	}
 }
 

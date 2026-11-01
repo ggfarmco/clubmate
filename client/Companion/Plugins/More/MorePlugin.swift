@@ -47,11 +47,8 @@ struct MoreListView: View {
                 ConnectionUnavailableView(connection: context.connection)
             }
         }
-        .safeAreaBar(edge: .top) { WorkspaceTabs(context: context) }
-        .navigationTitle(workspace?.name ?? "More")
-        .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
+        .workspaceChrome(context, title: workspace?.name ?? "More")
         .toolbar {
-            MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(context.connection.presence))
             WorkspaceMenu(context: context)
         }
     }

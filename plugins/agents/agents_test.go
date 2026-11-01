@@ -61,6 +61,10 @@ type record struct {
 	} `json:"pendingSummary"`
 	Suspended       bool     `json:"suspended"`
 	DisallowedTools []string `json:"disallowedTools"`
+	Failure         *struct {
+		Badge string `json:"badge"`
+	} `json:"failure"`
+	ModeLabel string `json:"modeLabel"`
 }
 
 type entry struct {
@@ -581,6 +585,8 @@ func TestAgentCrash(t *testing.T) {
 	got := f.waitStatus(t, workspace, session, "error")
 
 	assert.Contains(t, got.Error, "fatal: adapter blew up")
+	require.NotNil(t, got.Failure)
+	assert.Contains(t, got.Failure.Badge, "Stopped · ")
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	child := f.calls(t, "child")
@@ -768,6 +774,7 @@ func TestModeAndCommands(t *testing.T) {
 	got := f.waitCall(t, "session/set_mode", func(fakeCall) bool { return true })
 	assert.Contains(t, string(got.Params), `"modeId":"plan"`)
 	testutil.Eventually(t, func() bool { return f.transcript(t, workspace, session).Session.Mode == "plan" }, wait)
+	assert.Equal(t, "Plan", f.session(t, workspace, session).ModeLabel)
 }
 
 func TestConfigOptionsAndAdvisor(t *testing.T) {

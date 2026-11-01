@@ -260,11 +260,19 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.Asks = s.asks()
 			info.PendingSummary = s.permissionSummary()
 			info.Activity = s.toolActivity()
+			info.ModeLabel = s.modeLabel()
 			if started := s.turnStart().UTC(); rec.Status == statusRunning && !started.IsZero() {
 				info.TurnStartedAt = &started
 			}
 		}
+		if info.ModeLabel == "" {
+			info.ModeLabel = modeWord(rec.Mode, nil)
+		}
 		info.NeedsYou = needsYou(info.record)
+		if rec.Status == statusError {
+			failure := failureOf(rec)
+			info.Failure = &failure
+		}
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {
 			info.PendingSummary = &pendingSummary{Kind: pendingQuestion, Text: rec.Question, At: rec.UpdatedAt}
 		}
