@@ -21,7 +21,7 @@ Ignore differences caused by seed data (names, counts, text) unless the structur
 
 - Mac: invisible test instance at 2×, seeded with a fake agent, backlog, cron, triggers, a graph run and terminals. Details per file in `mac/notes.md`.
 - Phone: iPhone 18 Pro simulator, fixtures, status bar 9:41, dark and light. Details in `companion/notes.md`.
-- **iPhone only.** iPad and Fold aren't tested yet, so `C-iPad` and `C-Fold` are out of scope for this check.
+- iPhone and iPad (`C-iPad`). Duo/Fold aren't tested yet and are out of scope.
 - Mac themes match the boards: `*-1280` in Kanagawa Wave (dark), `*-640` in Catppuccin Latte (light). The window can't go under 800pt, so every `*-640.png` is really **800pt wide** (1600×1600 px): the sidebar stays and the 640 layout without a sidebar never shows. `Agents-Mate-1280` is not captured (the Mate theme is only a fallback when Ghostty gives no palette). Settings, the approval sheet and popovers follow the system appearance, not the theme.
 - The phone shots are iPhone 18 Pro at 402×874pt (3×), not the boards' 393×852 (2×).
 - Window chrome: traffic lights are grey because the test window is never key; ignore that.

@@ -156,7 +156,7 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
 3. The Mac's name stays read-only, taken from the computer name. Yes.
 4. The coloured rim around the Inbox popover: check whether it is ours while fixing the popover.
 5. Processes-640, x-Palette, x-Switcher and the Processes action bar with a row selected: re-capture them with the rest.
-6. iPad and Duo boards are out of scope for now (not tested yet).
+6. Duo boards are out of scope for now; iPad is in scope again since 1 Nov (the user started testing it).
 7. Processes Kill stays on ⇧K (the board's bare K is not taken).
 
 ## 6. Done when
