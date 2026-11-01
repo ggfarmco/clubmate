@@ -16,6 +16,7 @@ type session struct {
 	rec       record
 	log       *eventLog
 	loaded    bool
+	used      time.Time
 	deleted   bool
 	changed   func(kind string, save bool)
 	turned    func(api.Turn)
@@ -51,6 +52,7 @@ func (s *session) snapshot() record {
 }
 
 func (s *session) loadLocked() {
+	s.used = time.Now()
 	if s.loaded {
 		return
 	}
@@ -173,6 +175,18 @@ func (u *setup) wait() error {
 	}
 	<-u.done
 	return u.err
+}
+
+func (u *setup) pending() bool {
+	if u == nil {
+		return false
+	}
+	select {
+	case <-u.done:
+		return false
+	default:
+		return true
+	}
 }
 
 func (u *setup) failed() bool {

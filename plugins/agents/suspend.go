@@ -35,6 +35,7 @@ func (a *app) suspendIdleLoop(after time.Duration) {
 			return
 		case <-t.C:
 			a.suspendIdle(after)
+			a.unloadIdle(after)
 		}
 	}
 }
