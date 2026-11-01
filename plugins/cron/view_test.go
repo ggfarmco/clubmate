@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	isdui "clubmate/internal/sdui"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/automation"
 )
@@ -18,17 +20,16 @@ func TestSidebarDetailAndMenu(t *testing.T) {
 		{At: now.Add(-time.Minute), Status: automation.StatusError},
 		{At: now.Add(-2 * time.Minute), Status: automation.StatusOK},
 	}}
-	items := listItems(t, sidebarView([]*Job{daily, paused}, nil, "", now))
+	items := listItems(t, sidebarView([]*Job{daily, paused}, "", now))
 	require.Len(t, items, 2)
-	assert.Equal(t, "every day 09:00 · next 09:00", items[0].Detail)
+	assert.Equal(t, "09:00", items[0].Detail)
 	assert.Equal(t, "clock", items[0].Icon)
-	assert.Empty(t, items[0].Badge)
-	assert.Equal(t, []string{"pause", "run", "delete"}, actions(items[0]))
-	assert.Equal(t, "paused · boom", items[1].Detail)
-	assert.Equal(t, "pause.circle", items[1].Icon)
-	assert.Equal(t, "failed", items[1].Badge)
-	assert.Equal(t, []string{"resume", "run", "delete"}, actions(items[1]))
-	assert.Equal(t, "Delete cron job “b”?", items[1].Menu[2].Confirm)
+	assert.Equal(t, []string{"run", "pause", "duplicate", "delete"}, actions(items[0]))
+	assert.Equal(t, "paused", items[1].Detail)
+	assert.Equal(t, []string{"xmark.circle", "danger"}, []string{items[1].Icon, items[1].Tone})
+	assert.Empty(t, items[1].Badge)
+	assert.Equal(t, "resume", items[1].Menu[1].Action)
+	assert.Equal(t, "Delete cron job “b”?", items[1].Menu[3].Confirm)
 }
 
 func TestMainHistoryNewestFirst(t *testing.T) {
@@ -38,20 +39,43 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 		{At: at, Status: automation.StatusOK, Result: `{"session":"agt_2"}`},
 		{At: at.Add(2 * time.Minute), Status: automation.StatusError, Reason: "boom"},
 	}}
-	view := mainView(j, map[string]string{"agt_1": "Orchestrator"}, false)
+	view := mainView(j, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, automation.Open{}, at)
+	require.NoError(t, isdui.Validate(view))
 	assert.Contains(t, texts(view), "Orchestrator")
 	assert.Equal(t, "header", view.Children[0].Type)
-	assert.Equal(t, []string{"cj_a/run", "cj_a/resume", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
+	assert.Equal(t, []string{"cj_a/run", "cj_a/resume", "cj_a/duplicate", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
 	rows := tableRows(t, view)
 	require.Len(t, rows, 3)
 	assert.Equal(t, "boom", rows[0].Cells[2].Text)
 	assert.Equal(t, automation.ReasonInFlight, rows[1].Cells[2].Text)
-	assert.Equal(t, `{"session":"agt_2"}`, rows[2].Cells[2].Text)
+	assert.Equal(t, `{"session":"Child"}`, rows[2].Cells[2].Text)
+}
+
+func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
+	now := time.Date(2026, 10, 31, 14, 0, 0, 0, time.UTC)
+	j := &Job{ID: "cj_a", Name: "Nightly", Enabled: true, Missed: missedSkip, Command: "agents.new",
+		Args:     json.RawMessage(`{"prompt":"Run govulncheck"}`),
+		Schedule: Schedule{Cron: "0 3 * * *", Timezone: "UTC"}, NextRun: now.Add(13 * time.Hour),
+		History: []Run{
+			{At: now.Add(-48 * time.Hour), Status: automation.StatusOK},
+			{At: now.Add(-11 * time.Hour), Status: automation.StatusSkipped, Reason: reasonMissed},
+		}}
+
+	view := mainView(j, nil, automation.Open{}, now)
+	require.NoError(t, isdui.Validate(view))
+	assert.Equal(t, []sdui.HeaderBadge{{Text: "active"}, {Text: "missed 1 run", Tone: "warning"}}, view.Children[0].Props["badges"])
+	got := texts(view)
+	assert.Contains(t, got, "in 13 h")
+	assert.Contains(t, got, "Skip it and wait for the next run")
+	assert.Contains(t, got, "the main checkout")
+	assert.Contains(t, got, "nobody — results go to the inbox")
+	assert.Contains(t, got, "Start an agent · Claude · new session")
+	assert.Contains(t, childIDs(view.Children[1].Children[2]), "cj_a/runMissed")
 }
 
 func TestEmptyStates(t *testing.T) {
-	assert.Equal(t, "empty", sidebarView(nil, nil, "", time.Now()).Type)
-	assert.Equal(t, "empty", mainView(nil, nil, false).Type)
+	assert.Equal(t, "empty", sidebarView(nil, "", time.Now()).Type)
+	assert.Equal(t, "empty", mainView(nil, nil, automation.Open{}, time.Now()).Type)
 }
 
 func listItems(t *testing.T, n sdui.Node) []sdui.Item {

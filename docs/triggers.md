@@ -15,6 +15,7 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 | `enabled` | `false` while paused. |
 | `owner` | The agent session the trigger belongs to, if any (see [Owner](#owner)). |
 | `createdBy` | The agent session that added it; empty when added by the user or the CLI. |
+| `run`, `runTitle` | The graph run that made the trigger for one of its edges and that run's title; empty for other triggers. The Triggers section groups and labels a run's triggers by them. |
 | `failures`, `lastError` | Errors in a row and the last error message. |
 | `history` | The last 20 runs: `{at, topic, seq, status, reason?, result?}`, `topic` and `seq` of the event, `status` `ok`, `error` or `skipped`; `result` is the command's result cut to 200 characters. Only `triggers.show` returns it. |
 
@@ -123,4 +124,4 @@ cm command run triggers.show id=tr_1a2b3c4d
 
 ## Triggers section
 
-The sidebar lists the triggers by name with `on <topic> <match>`, or `paused · <last error>`, and a `failed` badge when the last run failed. A row's context menu has Pause or Resume and Delete. The main view shows the selected trigger: topic and filter, command and args, state, owner session and the run history, newest first.
+The sidebar lists the triggers by name with what they wait for in words (`an agent turn finishes · status done · session Review loop · Coder`), or `paused · <last error>`; a trigger whose last run failed has a danger ✕ icon. Triggers a graph run created (`run`, `runTitle` set by `graphs.run`) are grouped under `from graph <title> · N`, labelled without the `<title>: ` prefix. A row's context menu has Run now, Pause or Resume and Delete; for a graph's trigger Delete warns that the run stops at that step. The main view shows the selected trigger: a header with `active` or `paused` and `failed`, Run now (⌘R, fires it at once with an empty event, so its `{{…}}` placeholders are left empty) and Pause (P), then Delete (⌘⌫) for the user's and agents' triggers, or `created by graph <title>` and Open graph (G, selects the run in Graphs) for a graph's; then When in words, Owner (`graph <title>` for a graph's), Does in words with the prompt in a card cut to 3 lines (Show all) and Show as JSON, and the run history, newest first. Session and graph run ids are shown as their titles.

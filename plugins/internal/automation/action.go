@@ -16,6 +16,7 @@ import (
 const (
 	PromptCommand = "agents.prompt"
 	OwnerNone     = "none"
+	nobody        = "nobody — results go to the inbox"
 )
 
 const (
@@ -155,9 +156,9 @@ func Sort[P Entry[P]](items []P) {
 
 func OwnerLabel(owner string, titles map[string]string) string {
 	if owner == "" {
-		return OwnerNone
+		return nobody
 	}
-	return cmp.Or(titles[owner], owner)
+	return Names(owner, titles)
 }
 
 func CallCommand(ctx context.Context, h *pluginsdk.Host, req CommandRequest) (json.RawMessage, error) {

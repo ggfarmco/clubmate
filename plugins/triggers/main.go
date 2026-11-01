@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +26,7 @@ type app struct {
 	mu         sync.Mutex
 	triggers   map[string]*Trigger
 	inFlight   map[string]bool
+	collapsed  map[string]map[string]bool
 	held       map[string]heldEvent
 	fired      map[string][]time.Time
 	runs       sync.WaitGroup
@@ -47,12 +50,13 @@ func main() {
 
 func newApp() *app {
 	a := &app{
-		triggers: map[string]*Trigger{},
-		inFlight: map[string]bool{},
-		held:     map[string]heldEvent{},
-		fired:    map[string][]time.Time{},
-		ready:    make(chan struct{}),
-		now:      time.Now,
+		triggers:  map[string]*Trigger{},
+		inFlight:  map[string]bool{},
+		collapsed: map[string]map[string]bool{},
+		held:      map[string]heldEvent{},
+		fired:     map[string][]time.Time{},
+		ready:     make(chan struct{}),
+		now:       time.Now,
 	}
 	a.runCommand = a.callCommand
 	a.sessions = a.agentSessions
@@ -141,21 +145,32 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	default:
 		return nil, nil
 	}
-	if ev.Action == automation.ActJSON {
-		if err := automation.ToggleJSON(ctx, a.host, ev.WorkspaceID, id); err != nil {
+	switch {
+	case ev.Action == "expand" || ev.Action == "collapse":
+		a.fold(ev.WorkspaceID, id, ev.Action == "collapse")
+		a.registry.Invalidate(ev.WorkspaceID)
+		a.registry.Flush(ctx)
+		return nil, nil
+	case strings.HasPrefix(id, groupPrefix):
+		return nil, nil
+	case automation.IsToggle(ev.Action):
+		if err := automation.Toggle(ctx, a.host, ev.Action, ev.WorkspaceID, id); err != nil {
 			return nil, err
 		}
 		a.registry.Invalidate(ev.WorkspaceID)
 		a.registry.Flush(ctx)
 		return nil, nil
-	}
-	if ev.Action == "select" {
+	case ev.Action == "select":
 		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {
 			return nil, err
 		}
 		a.registry.Invalidate(ev.WorkspaceID)
 		a.registry.Flush(ctx)
 		return nil, nil
+	case ev.Action == automation.ActRun:
+		return nil, a.runNow(context.WithoutCancel(ctx), ev.WorkspaceID, id)
+	case ev.Action == actGraph:
+		return nil, a.openGraph(ctx, ev.WorkspaceID, id)
 	}
 	cmdID, ok := uiCommands[ev.Action]
 	if !ok {
@@ -175,16 +190,73 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	expanded, err := automation.JSONExpanded(ctx, a.host, workspace, selected)
+	open, err := automation.ReadOpen(ctx, a.host, workspace, selected)
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	titles := a.registry.Titles(ctx, workspace, triggers)
-	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(triggers, selected)); err != nil {
+	for _, t := range triggers {
+		if t.Run != "" && t.RunTitle != "" {
+			if titles == nil {
+				titles = map[string]string{}
+			}
+			titles[t.Run] = t.RunTitle
+		}
+	}
+	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(triggers, selected, a.folds(workspace), titles)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, expanded)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
+	}
+	return nil
+}
+
+func (a *app) fold(workspace, id string, collapsed bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.collapsed[workspace] == nil {
+		a.collapsed[workspace] = map[string]bool{}
+	}
+	a.collapsed[workspace][id] = collapsed
+}
+
+func (a *app) folds(workspace string) map[string]bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return maps.Clone(a.collapsed[workspace])
+}
+
+func (a *app) runNow(ctx context.Context, workspace, id string) error {
+	a.mu.Lock()
+	t, ok := a.triggers[id]
+	if !ok || t.Workspace != workspace {
+		a.mu.Unlock()
+		return fmt.Errorf("trigger %q not found", id)
+	}
+	t = t.Clone()
+	if a.inFlight[id] {
+		a.mu.Unlock()
+		return fmt.Errorf("trigger %q is already running", t.Name)
+	}
+	a.inFlight[id] = true
+	a.mu.Unlock()
+	a.runs.Go(func() { logError(a.settle(ctx, id, a.fire(ctx, t, pluginsdk.Event{Topic: manualTopic}), false)) })
+	return nil
+}
+
+func (a *app) openGraph(ctx context.Context, workspace, id string) error {
+	a.mu.Lock()
+	var run string
+	if t, ok := a.triggers[id]; ok && t.Workspace == workspace {
+		run = t.Run
+	}
+	a.mu.Unlock()
+	if run == "" {
+		return fmt.Errorf("trigger %q was not created by a graph", id)
+	}
+	if err := a.host.RunCommand(ctx, "graphs.reveal", workspace, automation.IDArgs{ID: run}, nil); err != nil {
+		return fmt.Errorf("open graph run %s: %w", run, err)
 	}
 	return nil
 }

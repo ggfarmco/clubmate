@@ -84,8 +84,9 @@ A node with `outcomes` is told to call the clubmate tool `triggers_emit {name: "
 | `graphs.show {id}` | One run, each node with its session title and live status. |
 | `graphs.stop {id}` | Deletes the run's triggers; sessions stay open and running turns go on. |
 | `graphs.delete {id}` | Stops the run and removes it from the list. |
+| `graphs.reveal {id}` | Not agent-visible. Selects the run in the Graphs section and focuses it; Open graph in Triggers calls it. |
 
-All are agent-visible and non-destructive. `graphs.run` runs in three steps, in this order because `triggers.add` checks its target session exists:
+All but `graphs.reveal` are agent-visible, and all are non-destructive. `graphs.run` runs in three steps, in this order because `triggers.add` checks its target session exists:
 
 1. `agents.new` every node, idle (title `<graph title> · <role>`, `run` and `runTitle`, so the Agents sidebar lists the node sessions under one run row: the run title with `<Role> needs you`, `Running` or the last change as its detail, each node labelled by its role; selecting a node, also through the run's Open, unfolds the row).
 2. `triggers.add` every edge.
@@ -121,7 +122,7 @@ Cycles are the point (coder ↔ reviewer), so loops are bounded by `maxTurns`, t
 
 ## Graphs section
 
-The sidebar lists the runs, newest first: title, start time and turns (or the stop reason), and a badge with the most urgent node state (`waiting`, `running`, `error`). A row's menu has Stop and Remove. The main view shows the selected run, else the newest one, else an empty state that explains graphs: a header with the title, `running · turn N of M` (or `stopped`), a `<Role> needs you` badge, Open <node> (⌘↩), Stop run (⌘.) and Remove (⌘⌫); the input, start time, turns, stop reason and definition path; then a NODE · STATE · SESSION table. A node row shows its role (`· start` for start nodes), its state coloured by tone, and its session title (`not started` while idle, blank once the session is gone); under it are its outgoing edges (`→ Reviewer`, `on done · on error`), and rows are muted once the run is stopped. SESSION drops first when the pane is narrow. Run and session ids are not shown.
+The sidebar lists the runs, newest first: title, start time and turns (or the stop reason), and an icon for the most urgent node state: waiting a warning `!`, error a danger ✕, running an accent ▶. A running row's menu has Stop; a stopped one's has Remove. The main view shows the selected run, else the newest one, else an empty state that explains graphs: a header with the title, `running · turn N of M` (or `stopped`), a `<Role> needs you` badge, Open <node> (⌘↩), then Stop run (⌘.) while it runs or Remove (⌘⌫) once it is stopped; the input, start time, turns, stop reason and definition path; then a NODE · STATE · SESSION table. A node row shows its role (`· start` for start nodes), its state coloured by tone, and its session title (`not started` while idle, blank once the session is gone); under it are its outgoing edges (`→ Reviewer`, `on done · on error`), and rows are muted once the run is stopped. SESSION drops first when the pane is narrow. Run and session ids are not shown.
 
 ## Limits of this slice
 

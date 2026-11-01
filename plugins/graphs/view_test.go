@@ -37,15 +37,17 @@ func TestExecutionView(t *testing.T) {
 	side := sidebarView([]*Run{r}, "gr_1", sessions)
 	items, ok := side.Props["items"].([]sdk.Item)
 	require.True(t, ok)
-	assert.Equal(t, "waiting", items[0].Badge)
-	assert.Equal(t, []string{"stop", "remove"}, []string{items[0].Menu[0].Action, items[0].Menu[1].Action})
+	assert.Equal(t, []string{"exclamationmark.circle", "warning"}, []string{items[0].Icon, items[0].Tone})
+	assert.Empty(t, items[0].Badge)
+	assert.Equal(t, []sdk.MenuEntry{{Action: actStop, Label: "Stop", Confirm: stopConfirm(r)}}, items[0].Menu)
 
 	view := mainView(r, sessions)
 	require.NoError(t, sdui.Validate(view))
 	header := view.Children[0]
 	assert.Equal(t, []sdk.HeaderBadge{{Text: "running · turn 3 of 12"}, {Text: "Reviewer needs you", Tone: "warning"}}, header.Props["badges"])
 	assert.Equal(t, "Open Reviewer", header.Children[0].Props["label"])
-	assert.Equal(t, []string{"gr_1/open", "gr_1/stop", "gr_1/remove"}, []string{header.Children[0].ID, header.Children[1].ID, header.Children[2].ID})
+	assert.Equal(t, []string{"gr_1/open", "gr_1/stop"}, []string{header.Children[0].ID, header.Children[1].ID})
+	require.Len(t, header.Children, 2)
 	rows, ok := view.Children[2].Children[0].Props["rows"].([]sdk.TableRow)
 	require.True(t, ok)
 	require.Len(t, rows, 6)
@@ -57,6 +59,17 @@ func TestExecutionView(t *testing.T) {
 	assert.Equal(t, []string{"Fixer", "session closed", ""}, cellTexts(rows[5]))
 
 	assert.Equal(t, "empty", mainView(nil, nil).Type)
+}
+
+func TestStoppedRunOffersRemove(t *testing.T) {
+	r := &Run{ID: "gr_1", Title: "Review loop", Status: statusStopped, StartedAt: time.Now()}
+
+	items, ok := sidebarView([]*Run{r}, "gr_1", nil).Props["items"].([]sdk.Item)
+	require.True(t, ok)
+	assert.Equal(t, []string{actRemove}, []string{items[0].Menu[0].Action})
+	assert.Equal(t, "", items[0].Tone)
+	header := mainView(r, nil).Children[0]
+	assert.Equal(t, "gr_1/remove", header.Children[len(header.Children)-1].ID)
 }
 
 func cellTexts(row sdk.TableRow) []string {

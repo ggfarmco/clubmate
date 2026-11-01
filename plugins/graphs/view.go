@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	sectionID   = "graphs"
 	sidebarSlot = "graphs.sidebar"
 	mainSlot    = "graphs.main"
 	listID      = "runs"
@@ -33,13 +34,13 @@ func sidebarView(runs []*Run, selected string, sessions map[string]api.Session) 
 	}
 	items := make([]sdui.Item, 0, len(runs))
 	for _, r := range runs {
-		live := runLive(r, sessions)
+		icon, tone := runIcon(r, runLive(r, sessions))
 		items = append(items, sdui.Item{
 			ID:     r.ID,
 			Label:  r.Title,
 			Detail: runDetail(r),
-			Icon:   runIcon(r),
-			Badge:  live,
+			Icon:   icon,
+			Tone:   tone,
 			Menu:   runMenu(r),
 		})
 	}
@@ -86,8 +87,9 @@ func runHeader(r *Run, sessions map[string]api.Session) sdui.Node {
 	}
 	if r.Status == statusRunning {
 		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actStop, Label: "Stop run", Icon: "stop.circle", Variant: sdui.VariantSecondary, Shortcut: "cmd+.", Confirm: stopConfirm(r)}))
+	} else {
+		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actRemove, Label: "Remove", Icon: "trash", Variant: sdui.VariantDanger, Shortcut: "cmd+delete", Confirm: removeConfirm(r)}))
 	}
-	actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actRemove, Label: "Remove", Icon: "trash", Variant: sdui.VariantDanger, Shortcut: "cmd+delete", Confirm: removeConfirm(r)}))
 	return sdui.Header(r.Title, sdui.HeaderProps{Icon: graphIcon, Badges: badges}, actions...)
 }
 
@@ -212,19 +214,25 @@ func runDetail(r *Run) string {
 	return when + " · " + cmp.Or(r.Reason, r.Status)
 }
 
-func runIcon(r *Run) string {
-	if r.Status == statusRunning {
-		return graphIcon
+func runIcon(r *Run, live string) (string, string) {
+	switch {
+	case r.Status != statusRunning:
+		return "stop.circle", ""
+	case live == "waiting":
+		return "exclamationmark.circle", statusTone(live)
+	case live == "error":
+		return "xmark.circle", statusTone(live)
+	case live == "running":
+		return "play.circle", statusTone(live)
 	}
-	return "stop.circle"
+	return graphIcon, ""
 }
 
 func runMenu(r *Run) []sdui.MenuEntry {
-	var menu []sdui.MenuEntry
 	if r.Status == statusRunning {
-		menu = append(menu, sdui.MenuEntry{Action: actStop, Label: "Stop", Confirm: stopConfirm(r)})
+		return []sdui.MenuEntry{{Action: actStop, Label: "Stop", Confirm: stopConfirm(r)}}
 	}
-	return append(menu, sdui.MenuEntry{Action: actRemove, Label: "Remove", Confirm: removeConfirm(r)})
+	return []sdui.MenuEntry{{Action: actRemove, Label: "Remove", Confirm: removeConfirm(r)}}
 }
 
 func stopConfirm(r *Run) string {

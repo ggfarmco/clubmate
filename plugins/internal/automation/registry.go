@@ -250,7 +250,7 @@ func (r *Registry[P]) InWorkspace(workspace string) []P {
 }
 
 func (r *Registry[P]) Titles(ctx context.Context, workspace string, items []P) map[string]string {
-	if !slices.ContainsFunc(items, func(p P) bool { return p.Action().Owner != "" }) {
+	if len(items) == 0 {
 		return nil
 	}
 	sessions, err := r.Sessions(ctx, workspace)

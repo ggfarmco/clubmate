@@ -47,3 +47,13 @@ func TestExpand(t *testing.T) {
 	_, err = expand(json.RawMessage(`{"text":"{{who}}"}`), ev)
 	assert.ErrorContains(t, err, "unknown placeholder")
 }
+
+func TestManualRunLeavesMissingPlaceholdersEmpty(t *testing.T) {
+	args := json.RawMessage(`{"text":"done: {{payload.reply}}"}`)
+
+	_, err := expand(args, pluginsdk.Event{Topic: "agents.turn", Payload: json.RawMessage(`{}`)})
+	require.Error(t, err)
+	got, err := expand(args, pluginsdk.Event{Topic: manualTopic})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"text":"done: "}`, string(got))
+}

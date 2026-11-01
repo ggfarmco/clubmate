@@ -17,13 +17,15 @@ import (
 var errNoName = errors.New("name is required")
 
 type triggerArgs struct {
-	ID      string  `json:"id"`
-	Name    string  `json:"name"`
-	On      string  `json:"on"`
-	Match   *string `json:"match"`
-	Command string  `json:"command"`
-	Args    string  `json:"args"`
-	Owner   string  `json:"owner"`
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	On       string  `json:"on"`
+	Match    *string `json:"match"`
+	Command  string  `json:"command"`
+	Args     string  `json:"args"`
+	Owner    string  `json:"owner"`
+	Run      string  `json:"run"`
+	RunTitle string  `json:"runTitle"`
 }
 
 type emitArgs struct {
@@ -103,6 +105,8 @@ func (a *app) add(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, erro
 		Args:      targetArgs,
 		Enabled:   true,
 		CreatedBy: caller,
+		Run:       args.Run,
+		RunTitle:  args.RunTitle,
 	}
 	if args.Owner != automation.OwnerNone {
 		t.Owner = caller

@@ -64,6 +64,8 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 	case "graphs.delete":
 		_, err := a.stopRun(ctx, cmd, true)
 		return nil, err
+	case "graphs.reveal":
+		return nil, a.reveal(ctx, cmd)
 	}
 	return nil, fmt.Errorf("%w: %q", agentcall.ErrUnknownCommand, cmd.ID)
 }
@@ -225,6 +227,22 @@ func nodeStatus(s api.Session, known bool) string {
 		return "gone"
 	}
 	return cmp.Or(s.Status, "idle")
+}
+
+func (a *app) reveal(ctx context.Context, cmd pluginsdk.CommandRun) error {
+	var args automation.IDArgs
+	if err := automation.Decode(cmd, &args); err != nil {
+		return err
+	}
+	if _, err := a.lookup(cmd.WorkspaceID, args.ID); err != nil {
+		return err
+	}
+	if err := a.host.StorageSet(ctx, selectedPrefix+cmd.WorkspaceID, args.ID); err != nil {
+		return err
+	}
+	a.invalidate(cmd.WorkspaceID)
+	a.flush(ctx)
+	return a.host.Focus(ctx, cmd.WorkspaceID, sectionID, mainSlot)
 }
 
 func unknownRun(id string) error {

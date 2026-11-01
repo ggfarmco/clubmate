@@ -79,12 +79,14 @@ type promptArgs struct {
 }
 
 type triggerArgs struct {
-	Name    string `json:"name"`
-	On      string `json:"on"`
-	Match   string `json:"match"`
-	Command string `json:"command"`
-	Args    string `json:"args"`
-	Owner   string `json:"owner"`
+	Name     string `json:"name"`
+	On       string `json:"on"`
+	Match    string `json:"match"`
+	Command  string `json:"command"`
+	Args     string `json:"args"`
+	Owner    string `json:"owner"`
+	Run      string `json:"run"`
+	RunTitle string `json:"runTitle"`
 }
 
 type updateArgs struct {
@@ -247,12 +249,14 @@ func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 		return triggerArgs{}, err
 	}
 	return triggerArgs{
-		Name:    fmt.Sprintf("%s: %s %s → %s", cmp.Or(x.run.Title, x.run.Graph), cmp.Or(from.Role, from.ID), edgeVerb(e), cmp.Or(to.Role, to.ID)),
-		On:      on,
-		Match:   string(matchText),
-		Command: "agents.prompt",
-		Args:    string(argsText),
-		Owner:   "self",
+		Name:     fmt.Sprintf("%s: %s %s → %s", cmp.Or(x.run.Title, x.run.Graph), cmp.Or(from.Role, from.ID), edgeVerb(e), cmp.Or(to.Role, to.ID)),
+		On:       on,
+		Match:    string(matchText),
+		Command:  "agents.prompt",
+		Args:     string(argsText),
+		Owner:    "self",
+		Run:      x.run.ID,
+		RunTitle: cmp.Or(x.run.Title, x.run.Graph),
 	}, nil
 }
 

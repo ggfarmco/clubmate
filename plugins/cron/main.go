@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"clubmate/pkg/id"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/agentcall"
@@ -19,10 +20,11 @@ const (
 )
 
 var uiCommands = map[string]string{
-	"pause":  "cron.pause",
-	"resume": "cron.resume",
-	"run":    "cron.run",
-	"delete": "cron.delete",
+	"pause":     "cron.pause",
+	"resume":    "cron.resume",
+	"run":       "cron.run",
+	"runMissed": "cron.run",
+	"delete":    "cron.delete",
 }
 
 type app struct {
@@ -153,13 +155,16 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	default:
 		return nil, nil
 	}
-	if ev.Action == automation.ActJSON {
-		if err := automation.ToggleJSON(ctx, a.host, ev.WorkspaceID, id); err != nil {
+	if automation.IsToggle(ev.Action) {
+		if err := automation.Toggle(ctx, a.host, ev.Action, ev.WorkspaceID, id); err != nil {
 			return nil, err
 		}
 		a.registry.Invalidate(ev.WorkspaceID)
 		a.registry.Flush(ctx)
 		return nil, nil
+	}
+	if ev.Action == actDuplicate {
+		return nil, a.duplicate(ctx, ev.WorkspaceID, id)
 	}
 	if ev.Action == "select" {
 		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {
@@ -178,7 +183,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, err
 	}
 	cmd := pluginsdk.CommandRun{ID: cmdID, WorkspaceID: ev.WorkspaceID, Args: args}
-	if ev.Action == "run" {
+	if cmdID == "cron.run" {
 		ctx = context.WithoutCancel(ctx)
 		a.runs.Go(func() {
 			_, err := a.command(ctx, nil, cmd)
@@ -209,17 +214,44 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	expanded, err := automation.JSONExpanded(ctx, a.host, workspace, selected)
+	open, err := automation.ReadOpen(ctx, a.host, workspace, selected)
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	titles := a.registry.Titles(ctx, workspace, jobs)
-	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(jobs, titles, selected, a.now())); err != nil {
+	now := a.now()
+	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(jobs, selected, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, expanded)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
+	return nil
+}
+
+func (a *app) duplicate(ctx context.Context, workspace, jobID string) error {
+	a.mu.Lock()
+	j, ok := a.jobs[jobID]
+	if !ok || j.Workspace != workspace {
+		a.mu.Unlock()
+		return fmt.Errorf("cron job %q not found", jobID)
+	}
+	c := j.Clone()
+	c.Name += " copy"
+	c.Enabled, c.Failures, c.LastError, c.History = false, 0, "", nil
+	for c.ID == j.ID || a.jobs[c.ID] != nil {
+		c.ID = id.New(idPrefix)
+	}
+	err := a.put(ctx, c)
+	a.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := a.host.StorageSet(ctx, automation.SelectedKey(workspace), c.ID); err != nil {
+		return err
+	}
+	a.registry.Invalidate(workspace)
+	a.registry.Flush(ctx)
 	return nil
 }
 

@@ -21,6 +21,7 @@ const (
 	payloadField = "payload"
 	byField      = "by"
 	byAgent      = "agent"
+	manualTopic  = "run now"
 )
 
 var (
@@ -139,7 +140,7 @@ func expand(args json.RawMessage, ev pluginsdk.Event) (json.RawMessage, error) {
 		return placeholderRe.ReplaceAllStringFunc(s, func(m string) string {
 			name := placeholderRe.FindStringSubmatch(m)[1]
 			out, err := placeholder(name, ev, payload)
-			if err != nil && failed == nil {
+			if err != nil && failed == nil && ev.Topic != manualTopic {
 				failed = fmt.Errorf("args: {{%s}}: %w", name, err)
 			}
 			return out

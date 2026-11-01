@@ -55,6 +55,18 @@
         }
       },
       {
+        "id": "graphs.reveal",
+        "title": "Open Agent Graph Run",
+        "hidden": true,
+        "description": "Select the run in the Graphs section and focus its detail; Triggers calls it for Open graph on a trigger a run created.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."}
+          },
+          "required": ["id"]
+        }
+      },
+      {
         "id": "graphs.delete",
         "title": "Remove Agent Graph Run",
         "hidden": true,

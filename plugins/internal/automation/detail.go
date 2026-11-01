@@ -1,8 +1,12 @@
 package automation
 
 import (
+	"cmp"
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"clubmate/pkg/sdui"
 )
@@ -14,8 +18,18 @@ const (
 	ActDelete = "delete"
 	ActReveal = "reveal"
 	ActJSON   = "json"
+	ActAll    = "all"
 
-	propsID = "props"
+	propsID     = "props"
+	promptLines = 3
+	promptRunes = 360
+	agentNew    = "agents.new"
+	agentEmit   = "triggers.emit"
+)
+
+var (
+	idRe        = regexp.MustCompile(`\b(agt|gr)_[0-9a-zA-Z]+\b`)
+	graphHeader = regexp.MustCompile(`^\[Agent graph [^\]\n]*\]\s*`)
 )
 
 type DetailAction struct {
@@ -25,6 +39,11 @@ type DetailAction struct {
 	Variant  string
 	Shortcut string
 	Confirm  string
+}
+
+type Open struct {
+	JSON bool
+	All  bool
 }
 
 func ActionNode(id string, a DetailAction) sdui.Node {
@@ -45,6 +64,10 @@ func ActionTarget(nodeID, action string) (string, bool) {
 	return strings.CutSuffix(nodeID, "/"+action)
 }
 
+func RunAction(variant string) DetailAction {
+	return DetailAction{Action: ActRun, Label: "Run now", Icon: "play.fill", Variant: variant, Shortcut: "cmd+r"}
+}
+
 func PauseAction(enabled bool) DetailAction {
 	if enabled {
 		return DetailAction{Action: ActPause, Label: "Pause", Icon: "pause", Variant: sdui.VariantSecondary, Shortcut: "p"}
@@ -57,14 +80,29 @@ func DeleteAction(confirm string) DetailAction {
 }
 
 func StateBadges(enabled bool, history []Run) []sdui.HeaderBadge {
-	var badges []sdui.HeaderBadge
+	badges := []sdui.HeaderBadge{{Text: "active"}}
 	if !enabled {
-		badges = append(badges, sdui.HeaderBadge{Text: "paused"})
+		badges[0].Text = "paused"
 	}
-	if r, ok := LastRun(history); ok && r.Status == StatusError {
+	if Failed(history) {
 		badges = append(badges, sdui.HeaderBadge{Text: "failed", Tone: "danger"})
 	}
 	return badges
+}
+
+func Failed(history []Run) bool {
+	r, ok := LastRun(history)
+	return ok && r.Status == StatusError
+}
+
+func ListIcon(enabled bool, history []Run, icon string) (string, string) {
+	switch {
+	case Failed(history):
+		return "xmark.circle", "danger"
+	case !enabled:
+		return "pause.circle", ""
+	}
+	return icon, ""
 }
 
 func Property(key, value, machine string) sdui.Node {
@@ -79,30 +117,110 @@ func Properties(rows ...sdui.Node) sdui.Node {
 	return sdui.Form(propsID, rows...)
 }
 
-func Does(id, command string, args json.RawMessage, expanded bool) []sdui.Node {
-	rows := []sdui.Node{Property("Does", command, "")}
-	var fields map[string]any
-	if json.Unmarshal(args, &fields) != nil || len(fields) == 0 {
-		return rows
+func Until(t, now time.Time) string {
+	d := t.Sub(now)
+	switch {
+	case d < time.Minute:
+		return "in less than a minute"
+	case d < time.Hour:
+		return fmt.Sprintf("in %d min", int(d.Round(time.Minute)/time.Minute))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("in %d h", int(d.Round(time.Hour)/time.Hour))
 	}
-	for _, key := range []string{"prompt", "text"} {
-		if s, ok := fields[key].(string); ok && strings.TrimSpace(s) != "" {
-			rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.Text(strings.TrimSpace(s))))
-			delete(fields, key)
-			break
+	return fmt.Sprintf("in %d days", int(d.Round(24*time.Hour)/(24*time.Hour)))
+}
+
+func Names(text string, titles map[string]string) string {
+	return idRe.ReplaceAllStringFunc(text, func(id string) string {
+		if t := titles[id]; t != "" {
+			return t
 		}
+		if strings.HasPrefix(id, "gr_") {
+			return "a graph run"
+		}
+		return "a closed session"
+	})
+}
+
+func Does(id, command string, args json.RawMessage, titles map[string]string, open Open) []sdui.Node {
+	var fields map[string]any
+	_ = json.Unmarshal(args, &fields)
+	rows := []sdui.Node{Property("Does", doesLine(command, fields, titles), "")}
+	toggles := []sdui.Node{sdui.MutedText("")}
+	prompt := Names(promptOf(fields), titles)
+	if prompt != "" {
+		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.Card("", "", sdui.Text(clampPrompt(prompt, open.All)))))
 	}
-	if len(fields) == 0 {
-		return rows
+	if clampPrompt(prompt, false) != prompt {
+		all := DetailAction{Action: ActAll, Label: "Show all", Icon: "chevron.down", Variant: sdui.VariantGhost}
+		if open.All {
+			all.Label, all.Icon = "Show less", "chevron.up"
+		}
+		toggles = append(toggles, ActionNode(id, all))
 	}
 	toggle := DetailAction{Action: ActJSON, Label: "Show as JSON", Icon: "chevron.right", Variant: sdui.VariantGhost}
-	if expanded {
+	if open.JSON {
 		toggle.Label, toggle.Icon = "Hide JSON", "chevron.down"
 	}
-	rows = append(rows, sdui.HStack(sdui.MutedText(""), ActionNode(id, toggle)))
-	if expanded {
-		rest, _ := json.MarshalIndent(fields, "", "  ")
-		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.MutedText(string(rest))))
+	rows = append(rows, sdui.HStack(append(toggles, ActionNode(id, toggle))...))
+	if open.JSON {
+		raw, _ := json.MarshalIndent(map[string]any{"command": command, "args": fields}, "", "  ")
+		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.MutedText(string(raw))))
 	}
 	return rows
+}
+
+func doesLine(command string, fields map[string]any, titles map[string]string) string {
+	str := func(key string) string {
+		s, _ := fields[key].(string)
+		return strings.TrimSpace(s)
+	}
+	switch command {
+	case agentNew:
+		parts := []string{"Start an agent", cmp.Or(Capitalize(str("agent")), "Claude")}
+		if branch := str("branch"); branch != "" {
+			return strings.Join(append(parts, "new session in worktree "+branch), " · ")
+		}
+		return strings.Join(append(parts, "new session"), " · ")
+	case PromptCommand:
+		return "Send a prompt to " + Names(cmp.Or(str("session"), "a session"), titles)
+	case agentEmit:
+		return "Emit the event “" + str("name") + "”"
+	}
+	return "Run the command " + command
+}
+
+func promptOf(fields map[string]any) string {
+	for _, key := range []string{"prompt", "text"} {
+		if s, ok := fields[key].(string); ok && strings.TrimSpace(s) != "" {
+			return graphHeader.ReplaceAllString(strings.TrimSpace(s), "")
+		}
+	}
+	return ""
+}
+
+func clampPrompt(s string, all bool) string {
+	if all {
+		return s
+	}
+	lines := strings.SplitN(s, "\n", promptLines+1)
+	cut := len(lines) > promptLines
+	if cut {
+		lines = lines[:promptLines]
+	}
+	out := strings.Join(lines, "\n")
+	if runes := []rune(out); len(runes) > promptRunes {
+		out, cut = string(runes[:promptRunes]), true
+	}
+	if cut {
+		out = strings.TrimRight(out, " \n") + "…"
+	}
+	return out
+}
+
+func Capitalize(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

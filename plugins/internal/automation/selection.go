@@ -11,27 +11,38 @@ func SelectedKey(workspace string) string {
 	return "selected/" + workspace
 }
 
-func JSONKey(workspace string) string {
-	return "json/" + workspace
+func openKey(action, workspace string) string {
+	return action + "/" + workspace
 }
 
-func JSONExpanded(ctx context.Context, h *pluginsdk.Host, workspace, id string) (bool, error) {
-	var expanded string
-	if _, err := h.StorageGet(ctx, JSONKey(workspace), &expanded); err != nil {
-		return false, err
+func ReadOpen(ctx context.Context, h *pluginsdk.Host, workspace, id string) (Open, error) {
+	var open Open
+	for _, o := range []struct {
+		action string
+		on     *bool
+	}{{ActJSON, &open.JSON}, {ActAll, &open.All}} {
+		var current string
+		if _, err := h.StorageGet(ctx, openKey(o.action, workspace), &current); err != nil {
+			return Open{}, err
+		}
+		*o.on = id != "" && current == id
 	}
-	return id != "" && expanded == id, nil
+	return open, nil
 }
 
-func ToggleJSON(ctx context.Context, h *pluginsdk.Host, workspace, id string) error {
-	expanded, err := JSONExpanded(ctx, h, workspace, id)
-	if err != nil {
+func IsToggle(action string) bool {
+	return action == ActJSON || action == ActAll
+}
+
+func Toggle(ctx context.Context, h *pluginsdk.Host, action, workspace, id string) error {
+	var current string
+	if _, err := h.StorageGet(ctx, openKey(action, workspace), &current); err != nil {
 		return err
 	}
-	if expanded {
-		return h.StorageDelete(ctx, JSONKey(workspace))
+	if current == id {
+		return h.StorageDelete(ctx, openKey(action, workspace))
 	}
-	return h.StorageSet(ctx, JSONKey(workspace), id)
+	return h.StorageSet(ctx, openKey(action, workspace), id)
 }
 
 func Selection[P Entry[P]](ctx context.Context, h *pluginsdk.Host, workspace string, items []P) (P, string, error) {

@@ -25,6 +25,8 @@ type Trigger struct {
 	Enabled   bool            `json:"enabled"`
 	Owner     string          `json:"owner,omitempty"`
 	CreatedBy string          `json:"createdBy,omitempty"`
+	Run       string          `json:"run,omitempty"`
+	RunTitle  string          `json:"runTitle,omitempty"`
 	Failures  int             `json:"failures,omitempty"`
 	LastError string          `json:"lastError,omitempty"`
 	History   []Run           `json:"history,omitempty"`
