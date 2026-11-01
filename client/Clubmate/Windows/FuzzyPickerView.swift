@@ -94,7 +94,7 @@ struct FuzzyPickerList: View {
                     .frame(width: 14)
             }
             Text(item.label)
-                .foregroundStyle(theme.foreground)
+                .foregroundStyle(item.faint ? theme.faint : theme.foreground)
                 .truncationMode(item.icon.isEmpty ? .label : .path)
                 .help(item.label)
                 .layoutPriority(1)

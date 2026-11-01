@@ -11,7 +11,9 @@ public struct Worktree: Equatable, Sendable, Identifiable {
 
     public var id: String { "\(repo)\u{0}\(path)" }
 
-    public var name: String { branch.isEmpty ? head : branch }
+    public var detached: Bool { branch.isEmpty && !head.isEmpty }
+
+    public var name: String { detached ? "detached · \(head)" : branch }
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let repo = fields["repo"]?.stringValue, let path = fields["path"]?.stringValue else { return nil }
@@ -131,7 +133,7 @@ public final class WorktreeModel {
     }
 
     public func switcherItems(_ query: String) -> [PickerItem] {
-        let trees = worktrees.map { PickerItem(id: $0.id, label: label($0), checked: $0.current, section: Self.worktreesSection) }
+        let trees = worktrees.map { PickerItem(id: $0.id, label: label($0), checked: $0.current, section: Self.worktreesSection, faint: $0.detached) }
         let multi = groups.count > 1
         let names = branches.map { branch in
             let name = multi ? "\(URL(fileURLWithPath: branch.repo).lastPathComponent) ▸ \(branch.name)" : branch.name

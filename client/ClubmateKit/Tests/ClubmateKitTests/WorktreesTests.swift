@@ -76,6 +76,17 @@ final class WorktreesTests: XCTestCase {
         ])
     }
 
+    func testDetachedWorktreeReadsDetachedWithItsShortSha() async throws {
+        let core = FakeGitCore()
+        core.trees.append(.object(["repo": .string("/r"), "path": .string("/r/.worktrees/x"), "branch": .string(""), "head": .string("03a9ff5f")]))
+        let model = makeModel(core)
+        await model.load()
+
+        let items = model.switcherItems("")
+        XCTAssertEqual(items.map(\.label), ["main", "feat", "detached · 03a9ff5f"])
+        XCTAssertEqual(items.map(\.faint), [false, false, true])
+    }
+
     func testMenuOpenedReloadsList() async throws {
         let core = FakeGitCore()
         let model = makeModel(core)

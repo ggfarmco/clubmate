@@ -23,14 +23,14 @@ struct WorktreeTitleMenu: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
-                if let branch = session.worktrees.current?.name {
+                if let current = session.worktrees.current {
                     Text("/")
                         .foregroundStyle(theme.faint)
                         .fixedSize()
                     Image(systemName: "arrow.triangle.branch")
                         .foregroundStyle(theme.muted)
-                    Text(branch)
-                        .foregroundStyle(theme.foreground)
+                    Text(current.name)
+                        .foregroundStyle(current.detached ? theme.faint : theme.foreground)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .layoutPriority(1)
@@ -73,9 +73,9 @@ private struct WorktreeSwitcher: View {
             FuzzyPickerList(model: model, choose: switchTo, dismiss: close)
             theme.border.frame(height: 1)
             VStack(spacing: 0) {
-                action("New Worktree…") { session.newWorktree(chooseFolder: false) }
+                action("New worktree…") { session.newWorktree(chooseFolder: false) }
                 if !worktrees.linked.isEmpty {
-                    action("Remove Worktree…") { session.chooseWorktreeToRemove() }
+                    action("Remove worktree…") { session.chooseWorktreeToRemove() }
                 }
             }
             .padding(.vertical, theme.spacing.s)

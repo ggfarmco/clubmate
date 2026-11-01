@@ -10,7 +10,7 @@
       {
         "id": "editor-nvim.open",
         "provides": ["editor.open"],
-        "title": "Open File",
+        "title": "Open file",
         "hidden": true,
         "agent": true,
         "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column. An absolute path inside another git worktree of a workspace folder switches that folder to the worktree first and opens the file in its Neovim.",
@@ -26,7 +26,7 @@
       {
         "id": "editor-nvim.quickfix",
         "provides": ["editor.quickfix"],
-        "title": "Show in Quickfix",
+        "title": "Show in quickfix",
         "hidden": true,
         "agent": true,
         "description": "Replace the workspace Neovim's quickfix list with the given locations, open the quickfix window and show the Code section. Returns once validated; nvim fills the list asynchronously in small batches. Takes 1 to 10000 items; only items in the first 1000 distinct files are kept, and the title then gets \" (first 1000 files)\". Unknown fields are rejected.",
@@ -67,14 +67,14 @@
       },
       {
         "id": "editor-nvim.selection",
-        "title": "Current Selection",
+        "title": "Current selection",
         "hidden": true,
         "agent": false,
         "description": "The current or last visual selection of the current root's Neovim: {path, startLine, endLine, text}. Fails with no selection when there is none."
       },
       {
         "id": "editor-nvim.checktime",
-        "title": "Reload Changed Files",
+        "title": "Reload changed files",
         "hidden": true,
         "agent": false,
         "handles": ["git.worktree.switched"],
@@ -88,7 +88,7 @@
       },
       {
         "id": "editor-nvim.stop-root",
-        "title": "Stop Worktree Neovim",
+        "title": "Stop worktree Neovim",
         "hidden": true,
         "agent": false,
         "handles": ["git.worktree.removing"],
@@ -103,7 +103,7 @@
       },
       {
         "id": "editor-nvim.unsaved",
-        "title": "Unsaved Buffers",
+        "title": "Unsaved buffers",
         "hidden": true,
         "agent": false,
         "description": "List the modified buffers of every running Neovim of the workspace whose files are inside the given root, except files another Neovim holds inside its own root, as workspace-relative names; [] when there are none. Never stops or starts Neovim; fails with unsaved buffers: unknown when it does not respond.",
@@ -116,7 +116,7 @@
       },
       {
         "id": "editor-nvim.guard-switch",
-        "title": "Guard Branch Switch",
+        "title": "Guard branch switch",
         "hidden": true,
         "agent": false,
         "handles": ["git.worktree.switching"],
@@ -130,7 +130,7 @@
       },
       {
         "id": "editor-nvim.release-root",
-        "title": "Release Worktree Neovim",
+        "title": "Release worktree Neovim",
         "hidden": true,
         "agent": false,
         "handles": ["git.worktree.released"],
@@ -145,13 +145,13 @@
       {
         "id": "editor-nvim.reveal",
         "provides": ["editor.reveal"],
-        "title": "Reveal File in Finder",
+        "title": "Reveal file in Finder",
         "agent": true,
         "description": "Reveal the file currently open in Neovim in Finder."
       },
       {
         "id": "editor-nvim.terminal",
-        "title": "Open Terminal Here",
+        "title": "Open terminal here",
         "agent": true,
         "description": "Open a new terminal in the directory of the file open in Neovim, or in the first workspace folder."
       },

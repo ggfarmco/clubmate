@@ -87,41 +87,45 @@ public enum PaletteAction: Hashable, Sendable {
 extension CommandPalette {
     public static func entries(commands: [Command], sections: [SectionInfo], sidebar: Bool, chat: Bool = false, workspaces: [PaletteWorkspace] = [], active: String? = nil, worktrees: [Worktree] = []) -> [PaletteEntry] {
         let commandEntries = commands.filter { !$0.hidden && $0.running }.map {
-            PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: $0.id)
+            PaletteEntry(id: PaletteAction.command($0.id).entryID, title: $0.title, detail: pluginName($0.plugin, sections: sections))
         }
         let sectionEntries = SectionHosting.rail(sections).enumerated().map { index, section in
             PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
-        let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: chat ? "Toggle Chat" : "Toggle Sidebar", detail: "⌘B")] : []
-        let docEntries = commands.contains { $0.id == DocsPicker.listCommand } ? [PaletteEntry(id: PaletteAction.openDoc.entryID, title: "Open Doc…", detail: "⇧⌘D")] : []
+        let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: chat ? "Toggle chat" : "Toggle sidebar", detail: "⌘B")] : []
+        let docEntries = commands.contains { $0.id == DocsPicker.listCommand } ? [PaletteEntry(id: PaletteAction.openDoc.entryID, title: "Open doc…", detail: "⇧⌘D")] : []
         return commandEntries + sectionEntries + sidebarEntries + docEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
+    }
+
+    private static func pluginName(_ plugin: String, sections: [SectionInfo]) -> String {
+        sections.filter { $0.plugin == plugin }.min { $0.order < $1.order }?.title ?? plugin.prefix(1).uppercased() + plugin.dropFirst()
     }
 
     private static func worktreeEntries(_ worktrees: [Worktree]) -> [PaletteEntry] {
         guard !worktrees.isEmpty else { return [] }
         var entries = [
-            PaletteEntry(id: PaletteAction.switchWorktree.entryID, title: "Switch Worktree…", detail: ""),
-            PaletteEntry(id: PaletteAction.newWorktree.entryID, title: "New Worktree…", detail: ""),
+            PaletteEntry(id: PaletteAction.switchWorktree.entryID, title: "Switch worktree…", detail: ""),
+            PaletteEntry(id: PaletteAction.newWorktree.entryID, title: "New worktree…", detail: ""),
         ]
         if worktrees.contains(where: { !$0.main }) {
-            entries.append(PaletteEntry(id: PaletteAction.removeWorktree.entryID, title: "Remove Worktree…", detail: ""))
+            entries.append(PaletteEntry(id: PaletteAction.removeWorktree.entryID, title: "Remove worktree…", detail: ""))
         }
         return entries
     }
 
     private static func workspaceEntries(_ workspaces: [PaletteWorkspace], active: String?) -> [PaletteEntry] {
         var entries = [
-            PaletteEntry(id: PaletteAction.openFolder.entryID, title: "Open Folder…", detail: "⌘O"),
-            PaletteEntry(id: PaletteAction.newHomeTerminal.entryID, title: "New Home Terminal", detail: "⇧⌘N"),
+            PaletteEntry(id: PaletteAction.openFolder.entryID, title: "Open folder…", detail: "⌘O"),
+            PaletteEntry(id: PaletteAction.newHomeTerminal.entryID, title: "New home terminal", detail: "⇧⌘N"),
         ]
         guard let active, workspaces.contains(where: { $0.id == active }) else { return entries }
         entries += [
-            PaletteEntry(id: PaletteAction.renameWorkspace.entryID, title: "Rename Workspace…", detail: ""),
-            PaletteEntry(id: PaletteAction.closeWorkspace.entryID, title: "Close Workspace", detail: ""),
-            PaletteEntry(id: PaletteAction.removeWorkspace.entryID, title: "Remove Workspace…", detail: ""),
+            PaletteEntry(id: PaletteAction.renameWorkspace.entryID, title: "Rename workspace…", detail: ""),
+            PaletteEntry(id: PaletteAction.closeWorkspace.entryID, title: "Close workspace", detail: ""),
+            PaletteEntry(id: PaletteAction.removeWorkspace.entryID, title: "Remove workspace…", detail: ""),
         ]
         if workspaces.count > 1 {
-            entries.append(PaletteEntry(id: PaletteAction.moveWorkspaceToNewWindow.entryID, title: "Move Workspace to New Window", detail: ""))
+            entries.append(PaletteEntry(id: PaletteAction.moveWorkspaceToNewWindow.entryID, title: "Move workspace to new window", detail: ""))
         }
         return entries + workspaces.filter { $0.id != active }.map {
             PaletteEntry(id: PaletteAction.switchWorkspace($0.id).entryID, title: "Switch to \($0.name)", detail: "")

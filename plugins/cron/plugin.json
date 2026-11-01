@@ -9,7 +9,7 @@
     "commands": [
       {
         "id": "cron.add",
-        "title": "Add Cron Job",
+        "title": "Add cron job",
         "hidden": true,
         "agent": true,
         "description": "Schedule a call of an agent-visible command in this workspace, e.g. a reminder to yourself: command agents.prompt, args {\"session\":\"<your session id>\",\"text\":\"Check the CI run\"}, in 10m. Clubmate already prompts you when a child session ends its turn, so don't schedule checks on children. Give exactly one of cron, every, at, in. The target command and its args are checked now, so a typo fails here. The job runs as an agent call: a destructive target asks for the user's approval when it fires. Returns the job: {id, name, workspace, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?}. Non-destructive.",
@@ -31,14 +31,14 @@
       },
       {
         "id": "cron.list",
-        "title": "List Cron Jobs",
+        "title": "List cron jobs",
         "hidden": true,
         "agent": true,
         "description": "List the workspace's cron jobs without their run history: {jobs: [{id, name, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?}]}. Non-destructive."
       },
       {
         "id": "cron.show",
-        "title": "Show Cron Job",
+        "title": "Show cron job",
         "hidden": true,
         "agent": true,
         "description": "Show one cron job with its last 20 runs: history [{at, status, reason?, result?}], status ok, error or skipped (busy, no app, missed, previous run still running, owner gone, owner unknown; skips are not failures). Non-destructive.",
@@ -51,7 +51,7 @@
       },
       {
         "id": "cron.update",
-        "title": "Update Cron Job",
+        "title": "Update cron job",
         "hidden": true,
         "agent": true,
         "description": "Change a cron job; only the given fields change. Any of cron, timezone, every, at, in replaces the whole schedule (give exactly one of cron, every, at, in) and recomputes the next run. command and args are checked like in cron.add. An agent may change only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
@@ -73,7 +73,7 @@
       },
       {
         "id": "cron.pause",
-        "title": "Pause Cron Job",
+        "title": "Pause cron job",
         "hidden": true,
         "agent": true,
         "description": "Stop a cron job from firing until cron.resume. An agent may pause only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
@@ -86,7 +86,7 @@
       },
       {
         "id": "cron.resume",
-        "title": "Resume Cron Job",
+        "title": "Resume cron job",
         "hidden": true,
         "agent": true,
         "description": "Resume a paused cron job (also one paused after 3 failed runs in a row): clears the failure count and last error and schedules the next run from now. An agent may resume only jobs owned or created by itself or its child sessions. Returns the job. Non-destructive.",
@@ -99,7 +99,7 @@
       },
       {
         "id": "cron.run",
-        "title": "Run Cron Job Now",
+        "title": "Run cron job now",
         "hidden": true,
         "agent": true,
         "description": "Run a cron job's command now, without changing its schedule; the run is added to its history. Returns the run: {at, status, reason?, result?}, status ok, error or skipped. An agent may run only jobs owned or created by itself or its child sessions. Non-destructive.",
@@ -112,7 +112,7 @@
       },
       {
         "id": "cron.delete",
-        "title": "Delete Cron Job",
+        "title": "Delete cron job",
         "hidden": true,
         "agent": true,
         "description": "Delete a cron job. An agent may delete only jobs owned or created by itself or its child sessions. Non-destructive.",

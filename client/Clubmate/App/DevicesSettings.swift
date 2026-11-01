@@ -210,7 +210,7 @@ private struct ThisMacSection: View {
                         .lineLimit(1)
                         .truncationMode(.label)
                 }
-                .font(theme.ui)
+                .font(.system(size: theme.uiSize + 1))
                 .foregroundStyle(theme.foreground)
                 .padding(.horizontal, theme.spacing.l)
                 .frame(height: theme.control)

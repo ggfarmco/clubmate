@@ -8,14 +8,14 @@
     "commands": [
       {
         "id": "git.worktrees",
-        "title": "List Worktrees",
+        "title": "List worktrees",
         "hidden": true,
         "agent": true,
         "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, main, current}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, and current marks the worktree the folder is switched to."
       },
       {
         "id": "git.worktree-switch",
-        "title": "Switch Worktree",
+        "title": "Switch worktree",
         "hidden": true,
         "agent": true,
         "description": "Switch a workspace folder to one of its git worktrees: the editor and new terminals follow it. A folder that is a repo subdirectory maps to the same subdirectory of the worktree.",
@@ -29,14 +29,14 @@
       },
       {
         "id": "git.branches",
-        "title": "List Branches",
+        "title": "List branches",
         "hidden": true,
         "agent": false,
         "description": "List the branches of every git folder that no worktree has checked out: local branches, then remote-tracking ones without a local branch of the same name, each newest commit first, at most 1500 local and 500 remote-tracking per folder. Returns [{repo, name, remote?}]."
       },
       {
         "id": "git.branch-switch",
-        "title": "Switch Branch",
+        "title": "Switch branch",
         "hidden": true,
         "agent": false,
         "destructive": true,
@@ -51,7 +51,7 @@
       },
       {
         "id": "git.worktree-new",
-        "title": "New Worktree",
+        "title": "New worktree",
         "hidden": true,
         "agent": true,
         "description": "Start creating the worktree <main checkout>/.worktrees/<branch>, then switch to it unless switch is false. Checks out the branch when it exists, else creates it from HEAD of the worktree given as from, default the current worktree. Adds .worktrees/ to .git/info/exclude when the repo does not ignore it. Then copies the files listed in .clubmate/worktree-include and runs .clubmate/setup.sh once the user trusts it; a failing setup.sh removes the worktree and fails the operation. Returns {id}; poll git.worktree-op-status for the outcome. Once it finishes, a call from the app (not an agent or plugin) also publishes git.outcome {workspace, id, message?, confirm?}. Fails at once on an invalid branch, an existing folder, a symlinked .worktrees, or while another git operation runs.",
@@ -67,7 +67,7 @@
       },
       {
         "id": "git.worktree-op-status",
-        "title": "Worktree Operation Status",
+        "title": "Worktree operation status",
         "hidden": true,
         "agent": true,
         "description": "Wait up to 1 s for a worktree create or remove started by git.worktree-new or git.worktree-remove. Returns {done, error?, path?, notice?}; path is the new worktree after a successful create, notice a warning worth showing after success.",
@@ -80,7 +80,7 @@
       },
       {
         "id": "git.worktree-sessions",
-        "title": "Worktree Sessions",
+        "title": "Worktree sessions",
         "hidden": true,
         "agent": false,
         "description": "List the workspace's running sessions whose working directory is inside the given worktree, except sessions owned by plugins that handle git.worktree.removing (the editor's own Neovim). Returns [{id, title}].",
@@ -93,7 +93,7 @@
       },
       {
         "id": "git.worktree-remove-prompt",
-        "title": "Worktree Remove Prompt",
+        "title": "Worktree remove prompt",
         "hidden": true,
         "agent": false,
         "description": "The question the app asks before removing a linked worktree: refuses the main checkout and the folder's own checkout like git.worktree-remove, and lists the running terminals inside it as git.worktree-sessions does. Returns {title, detail?, command, args}; on approval the app runs command with args.",
@@ -107,7 +107,7 @@
       },
       {
         "id": "git.worktree-remove",
-        "title": "Remove Worktree",
+        "title": "Remove worktree",
         "hidden": true,
         "agent": true,
         "destructive": true,

@@ -9,7 +9,7 @@
     "commands": [
       {
         "id": "triggers.add",
-        "title": "Add Trigger",
+        "title": "Add trigger",
         "hidden": true,
         "agent": true,
         "description": "Call an agent-visible command whenever a bus event of this workspace arrives, e.g. have a reviewer session look at another session's work when its turn ends: on agents.turn, match {\"session\":\"<coder id>\",\"status\":\"done\"}, command agents.prompt, args {\"session\":\"<reviewer id>\",\"text\":\"Review what {{payload.session}} just did\"}. Clubmate already prompts you when your own child sessions end their turns, so don't add triggers for that. Only events naming this workspace (in workspace, workspaceId or session.workspaceId) fire it. String values in args may hold {{topic}}, {{seq}}, {{payload}} and {{payload.<field.path>}}, filled from the event. The target command and its args are checked now. A trigger never runs twice at once; 10 runs within 1m or 3 errors in a row pause it. triggers.* and cron.* commands cannot be targets. Returns the trigger: {id, name, workspace, on, match?, command, args, enabled, owner?, createdBy?, failures?, lastError?}. Non-destructive.",
@@ -29,14 +29,14 @@
       },
       {
         "id": "triggers.list",
-        "title": "List Triggers",
+        "title": "List triggers",
         "hidden": true,
         "agent": true,
         "description": "List the workspace's triggers without their run history: {triggers: [{id, name, on, match?, command, args, enabled, owner?, createdBy?, failures?, lastError?}]}. Non-destructive."
       },
       {
         "id": "triggers.show",
-        "title": "Show Trigger",
+        "title": "Show trigger",
         "hidden": true,
         "agent": true,
         "description": "Show one trigger with its last 20 runs: history [{at, topic, seq, status, reason?, result?}], status ok, error or skipped (busy, no app, previous run still running, owner gone, owner unknown, emitted by another agent session; skips are not failures). Non-destructive.",
@@ -49,7 +49,7 @@
       },
       {
         "id": "triggers.update",
-        "title": "Update Trigger",
+        "title": "Update trigger",
         "hidden": true,
         "agent": true,
         "description": "Change a trigger; only the given fields change; match \"\" or \"{}\" drops the filter. command and args are checked like in triggers.add. An agent may change only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
@@ -67,7 +67,7 @@
       },
       {
         "id": "triggers.pause",
-        "title": "Pause Trigger",
+        "title": "Pause trigger",
         "hidden": true,
         "agent": true,
         "description": "Stop a trigger from firing until triggers.resume. An agent may pause only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
@@ -80,7 +80,7 @@
       },
       {
         "id": "triggers.resume",
-        "title": "Resume Trigger",
+        "title": "Resume trigger",
         "hidden": true,
         "agent": true,
         "description": "Resume a paused trigger (also one paused by errors or the loop limit) and clear its failure count and last error. An agent may resume only triggers owned or created by itself or its child sessions. Returns the trigger. Non-destructive.",
@@ -93,7 +93,7 @@
       },
       {
         "id": "triggers.delete",
-        "title": "Delete Trigger",
+        "title": "Delete trigger",
         "hidden": true,
         "agent": true,
         "description": "Delete a trigger. An agent may delete only triggers owned or created by itself or its child sessions. Non-destructive.",
@@ -106,7 +106,7 @@
       },
       {
         "id": "triggers.emit",
-        "title": "Emit Event",
+        "title": "Emit event",
         "hidden": true,
         "agent": true,
         "description": "Publish the bus event event.<name> in this workspace, with payload plus workspace set to this workspace and by set to your agent session; an owned trigger whose args use placeholders ignores events emitted by sessions other than its owner and the owner's descendants; triggers listening on it fire. Schedule it with cron.add to run triggers on a timer. Returns {topic, seq}. Non-destructive.",

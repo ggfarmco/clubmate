@@ -10,7 +10,7 @@
       {
         "id": "terminals.new",
         "provides": ["terminal.new"],
-        "title": "New Terminal",
+        "title": "New terminal",
         "agent": true,
         "description": "Open a new login-shell terminal in the workspace and focus it.",
         "args": {
@@ -22,7 +22,7 @@
       {
         "id": "terminals.close",
         "provides": ["terminal.close"],
-        "title": "Close Terminal",
+        "title": "Close terminal",
         "agent": true,
         "destructive": true,
         "description": "Close a terminal session, killing whatever runs in it; a no-op when the session is absent or unknown.",
@@ -34,7 +34,7 @@
       },
       {
         "id": "terminals.busy",
-        "title": "Terminal Busy",
+        "title": "Terminal busy",
         "hidden": true,
         "agent": true,
         "description": "Report whether a terminal session is running a process besides its shell.",

@@ -9,7 +9,7 @@
     "commands": [
       {
         "id": "processes.kill-orphans",
-        "title": "Kill Orphan Processes",
+        "title": "Kill orphan processes",
         "confirm": "Kill orphan processes in this workspace?",
         "agent": true,
         "destructive": true,

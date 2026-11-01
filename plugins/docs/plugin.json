@@ -9,7 +9,7 @@
     "commands": [
       {
         "id": "docs.open",
-        "title": "Open Doc",
+        "title": "Open doc",
         "hidden": true,
         "agent": true,
         "description": "Show a Markdown (.md, .markdown) or mermaid (.mmd) file rendered, with diagrams drawn, or an HTML page (.html, .htm) running with JS, in a popup over the user's workspace; it takes focus and updates while the file changes. Call it after you write a spec, plan or report the user should read. For interactive reports and UI mockups write ONE self-contained .html: inline CSS and JS, libraries only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com or esm.sh, no network calls (fetch, XHR and WebSockets are blocked), no iframes or forms; use the CSS variables --bg --text --muted --accent --border --code-bg --success --warning --danger --font --code-font to match the app; then call docs_open with it. Only files inside the workspace's folders, their git worktrees and agent uploads open; fails with not in workspace, not a document, too large (over 4 MiB) or not found.",
@@ -28,7 +28,7 @@
       },
       {
         "id": "docs.read",
-        "title": "Read Doc",
+        "title": "Read doc",
         "hidden": true,
         "remote": true,
         "description": "Render a Markdown or mermaid file of the workspace to an HTML fragment, or return an HTML page as is; the path stays watched and docs.changed is published when it changes.",
@@ -50,7 +50,7 @@
       },
       {
         "id": "docs.list",
-        "title": "List Docs",
+        "title": "List docs",
         "hidden": true,
         "remote": true,
         "description": "List the workspace's docs (.md, .markdown, .mmd, .html, .htm): the ones agent sessions wrote first, newest first, then every other one git does not ignore, by rel; at most 2000. With session, only that session's docs; the home workspace lists only agents' docs. Only files that exist and are in the workspace's scope.",
@@ -81,7 +81,7 @@
       },
       {
         "id": "docs.close",
-        "title": "Close Doc",
+        "title": "Close doc",
         "hidden": true,
         "description": "Close the docs popup."
       }

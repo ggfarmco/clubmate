@@ -176,24 +176,27 @@ enum Confirmation {
     private static let bodySize = NSSize(width: 560, height: 300)
 
     static func ask(_ request: ConfirmRequest, font: NSFont, window: NSWindow?, expiry: ConfirmExpiry?) async -> Bool {
-        await ask(request.message, detail: request.detail, facts: request.facts, body: request.displayBody, font: font, action: "Allow", cancel: "Deny", destructive: true, window: window, expiry: expiry)
+        await ask(request.message, detail: request.detail, facts: request.facts, body: request.displayBody, font: font, action: "Allow", cancel: "Deny", cancelFirst: true, window: window, expiry: expiry)
     }
 
-    static func ask(_ message: String, detail: String = "", facts: String = "", body: String? = nil, font: NSFont = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular), action: String, cancel: String = "Cancel", destructive: Bool = false, window: NSWindow? = nil, expiry: ConfirmExpiry? = nil) async -> Bool {
+    static func ask(_ message: String, detail: String = "", facts: String = "", body: String? = nil, font: NSFont = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular), action: String, cancel: String = "Cancel", destructive: Bool = false, cancelFirst: Bool = false, window: NSWindow? = nil, expiry: ConfirmExpiry? = nil) async -> Bool {
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail
         alert.accessoryView = accessory(facts: facts, body: body, font: font)
-        let confirm = alert.addButton(withTitle: action)
-        let dismiss = alert.addButton(withTitle: cancel)
-        if destructive {
-            confirm.hasDestructiveAction = true
+        let buttons = (cancelFirst ? [cancel, action] : [action, cancel]).map { alert.addButton(withTitle: $0) }
+        let (confirm, dismiss) = cancelFirst ? (buttons[1], buttons[0]) : (buttons[0], buttons[1])
+        let confirmed: NSApplication.ModalResponse = cancelFirst ? .alertSecondButtonReturn : .alertFirstButtonReturn
+        let denied: NSApplication.ModalResponse = cancelFirst ? .alertFirstButtonReturn : .alertSecondButtonReturn
+        let safe = destructive || cancelFirst
+        if safe {
+            confirm.hasDestructiveAction = destructive
             confirm.keyEquivalent = ""
             confirm.refusesFirstResponder = true
             dismiss.keyEquivalent = "\r"
             alert.window.initialFirstResponder = dismiss
         }
-        let escape = destructive ? NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+        let escape = safe ? NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.window === alert.window, event.charactersIgnoringModifiers == "\u{1b}" else { return event }
             dismiss.performClick(nil)
             return nil
@@ -202,10 +205,10 @@ enum Confirmation {
         guard let window = window ?? NSApp.promptWindow else {
             if TestMode.current { return false }
             expiry?.onExpire { NSApp.abortModal() }
-            return alert.runModal() == .alertFirstButtonReturn
+            return alert.runModal() == confirmed
         }
-        expiry?.onExpire { [weak window] in window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn) }
-        return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
+        expiry?.onExpire { [weak window] in window?.endSheet(alert.window, returnCode: denied) }
+        return await alert.beginSheetModal(for: window) == confirmed
     }
 
     private static func accessory(facts: String, body: String?, font: NSFont) -> NSView? {

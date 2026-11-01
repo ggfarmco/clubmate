@@ -10,7 +10,7 @@
     "commands": [
       {
         "id": "agents.new",
-        "title": "New Agent Session",
+        "title": "New agent session",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -35,7 +35,7 @@
       },
       {
         "id": "agents.prompt",
-        "title": "Send Prompt",
+        "title": "Send prompt",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -68,7 +68,7 @@
       },
       {
         "id": "agents.notify",
-        "title": "Set Notification Policy",
+        "title": "Set notification policy",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -83,7 +83,7 @@
       },
       {
         "id": "agents.afk",
-        "title": "Set AFK Mode",
+        "title": "Set AFK mode",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -98,14 +98,14 @@
       },
       {
         "id": "agents.usage",
-        "title": "Subscription Usage",
+        "title": "Subscription usage",
         "hidden": true,
         "scope": "app",
         "description": "Latest Claude subscription usage seen in agent replies: {windows: {five_hour, seven_day: {used, resetsAt, status}}, updatedAt}. used is a percentage, resetsAt and updatedAt are unix seconds, status is allowed, allowed_warning or rejected. A window is missing until an agent reply reports it; agents.usage is published on the bus with the same payload whenever it changes."
       },
       {
         "id": "agents.afk-default",
-        "title": "Default AFK Mode",
+        "title": "Default AFK mode",
         "hidden": true,
         "description": "Get whether new top-level sessions start in AFK mode, or set it when on is given. Child sessions follow their parent.",
         "args": {
@@ -121,7 +121,7 @@
       },
       {
         "id": "agents.cancel",
-        "title": "Stop Agent Turn",
+        "title": "Stop agent turn",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -135,7 +135,7 @@
       },
       {
         "id": "agents.stop-subagent",
-        "title": "Stop Subagent",
+        "title": "Stop subagent",
         "hidden": true,
         "remote": true,
         "agent": false,
@@ -150,7 +150,7 @@
       },
       {
         "id": "agents.permission",
-        "title": "Answer Permission",
+        "title": "Answer permission",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -166,7 +166,7 @@
       },
       {
         "id": "agents.elicitation",
-        "title": "Answer Question",
+        "title": "Answer question",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -194,7 +194,7 @@
       },
       {
         "id": "agents.answer",
-        "title": "Send Answer as User",
+        "title": "Send answer as user",
         "hidden": true,
         "agent": true,
         "destructive": true,
@@ -210,7 +210,7 @@
       },
       {
         "id": "agents.mode",
-        "title": "Set Agent Mode",
+        "title": "Set agent mode",
         "hidden": true,
         "remote": true,
         "description": "Switch the session to one of the modes its agent advertises; remembered for new sessions in the worktree.",
@@ -224,7 +224,7 @@
       },
       {
         "id": "agents.config",
-        "title": "Set Agent Option",
+        "title": "Set agent option",
         "hidden": true,
         "remote": true,
         "description": "Set a session option such as the model; the choice is remembered for new sessions in the worktree. The advisor option sets the advisor model for new sessions in the worktree (empty value restores the default).",
@@ -239,7 +239,7 @@
       },
       {
         "id": "agents.handoff",
-        "title": "Hand Off Agent Session",
+        "title": "Hand off agent session",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -259,7 +259,7 @@
       },
       {
         "id": "agents.trace",
-        "title": "Agent Trace",
+        "title": "Agent trace",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -273,7 +273,7 @@
       },
       {
         "id": "agents.export",
-        "title": "Export Agent Session",
+        "title": "Export agent session",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -293,7 +293,7 @@
       },
       {
         "id": "agents.import",
-        "title": "Import Agent Session",
+        "title": "Import agent session",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -316,7 +316,7 @@
       },
       {
         "id": "agents.close",
-        "title": "Close Agent Session",
+        "title": "Close agent session",
         "hidden": true,
         "remote": true,
         "description": "Close the session; the agent process stops when no open sessions remain in its worktree. The transcript stays readable.",
@@ -329,7 +329,7 @@
       },
       {
         "id": "agents.reveal",
-        "title": "Show Agent Session",
+        "title": "Show agent session",
         "hidden": true,
         "description": "Select the session in the Agents section and focus its transcript; Cron and Backlog call it to show an owner or claimer.",
         "args": {
@@ -341,7 +341,7 @@
       },
       {
         "id": "agents.delete",
-        "title": "Delete Agent Session",
+        "title": "Delete agent session",
         "hidden": true,
         "destructive": true,
         "confirm": "Delete this agent session, its child sessions, their transcripts and their checkpoints?",
@@ -355,7 +355,7 @@
       },
       {
         "id": "agents.resume",
-        "title": "Resume Agent Session",
+        "title": "Resume agent session",
         "hidden": true,
         "description": "Reattach a session whose agent process is gone (session/resume); fails when the agent cannot resume. Runs in the background.",
         "args": {
@@ -367,7 +367,7 @@
       },
       {
         "id": "agents.finish-default",
-        "title": "Default Finish Mode",
+        "title": "Default finish mode",
         "hidden": true,
         "description": "Get the finish mode new sessions start with, or set it when value is given: ask (ask before merging) or merge (merge into main and clean up once tests pass).",
         "args": {
@@ -383,7 +383,7 @@
       },
       {
         "id": "agents.stop-root",
-        "title": "Stop Worktree Agents",
+        "title": "Stop worktree agents",
         "hidden": true,
         "agent": false,
         "handles": ["git.worktree.vacating"],
@@ -397,7 +397,7 @@
       },
       {
         "id": "agents.sessions",
-        "title": "List Agent Sessions",
+        "title": "List agent sessions",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -405,7 +405,7 @@
       },
       {
         "id": "agents.wait",
-        "title": "Wait for Agent Sessions",
+        "title": "Wait for agent sessions",
         "hidden": true,
         "agent": true,
         "timeout": 310,
@@ -420,7 +420,7 @@
       },
       {
         "id": "agents.transcript",
-        "title": "Agent Session Transcript",
+        "title": "Agent session transcript",
         "hidden": true,
         "remote": true,
         "agent": true,
@@ -438,7 +438,7 @@
       },
       {
         "id": "agents.docs",
-        "title": "Agent Docs",
+        "title": "Agent docs",
         "hidden": true,
         "remote": true,
         "description": "Docs (.md, .markdown, .mmd, .html, .htm) agent sessions wrote: the paths of transcript entries with doc, also from their subagents. Returns {docs:[{path, session, at}]}, one per path at its latest at (RFC 3339), newest first. Non-destructive.",
@@ -466,7 +466,7 @@
       },
       {
         "id": "agents.blame",
-        "title": "Agent Blame",
+        "title": "Agent blame",
         "hidden": true,
         "remote": true,
         "agent": true,
