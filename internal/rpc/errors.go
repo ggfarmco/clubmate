@@ -27,6 +27,7 @@ const (
 	codePluginError       = contract.CodePluginError
 	codeDenied            = -32014
 	codeRateLimited       = -32015
+	codeStaleBase         = -32016
 )
 
 var (
@@ -129,6 +130,8 @@ func errorCode(err error) int64 {
 		return codeDenied
 	case errors.Is(err, ErrRateLimited):
 		return codeRateLimited
+	case errors.Is(err, sdui.ErrStaleBase):
+		return codeStaleBase
 	case errors.Is(err, core.ErrNotTracked):
 		return codeNotTracked
 	case errors.Is(err, session.ErrRunning):

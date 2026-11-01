@@ -194,7 +194,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 | ui.subscribe | `{workspaceId, delta?, append?, keep?, presence?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them, `keep: true` into kept array elements inside them (see `ui.updated`); `presence: false` (default true) keeps a workspace subscription out of presence (`ui.presence`, `ui.opened`/`ui.idle`) and `ui.focus`, as `remote` does while a phone watches only popups |
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{workspaceId, slot, nodeId, action, value}` | plugin-defined JSON |
-| ui.render | `{workspaceId, slot, tree}` (plugin callers only; `tree` is decoded strictly: exact-case member names, no duplicate or unknown members, valid UTF-8, else invalid tree; the core keeps the plugin's bytes and sends them on as they are) | `{rev}` |
+| ui.render | `{workspaceId, slot, tree}` or `{workspaceId, slot, base, delta}` (plugin callers only; `tree` is decoded strictly: exact-case member names, no duplicate or unknown members, valid UTF-8, else invalid tree; the core keeps the plugin's bytes and sends them on as they are; for `delta` see [Render deltas](#render-deltas)) | `{rev}` |
 | ui.approve | `{workspaceId, title, command, args, body?}` (plugin callers only) | `{}` once the user allows it, else a denied error |
 | ui.presence | none | `[workspaceId]`, workspaces that currently have UI subscribers |
 | ui.state.section | `{workspaceId}` | `{section}`, the section saved in the workspace's UI state (`""` when unset) |
@@ -373,6 +373,16 @@ A subscriber that also passed `keep: true` may get array elements in a delta as 
 
 The app subscribes with `delta: true, append: true, keep: true`. While an agent streams into a ~620 KB `agents.main` tree, each frame is the new tail of the streaming message plus refs for every other node.
 - `ui.focus` `{subscription, section, slot, field}`: the client should show `section`, and `slot` when non-empty, for that subscription's workspace. `field` is present (true) only when the caller passed it: the client puts keyboard focus into the first `textField` of that sidebar instead of its list or tree. A focus to a hidden sidebar shows it first.
+
+### Render deltas
+
+A plugin may render a slot as `{workspaceId, slot, base, delta}` instead of `{tree}`: `base` is the rev the core returned for that plugin's last render of the slot, and `delta` is the new tree in the delta frame format above against the tree of rev `base`, with refs, string appends and kept array elements all allowed (the core always reads `{"append": …}` and `{"keep": …}` as described there, so a plugin encodes with both on). The core resolves it byte for byte into the full tree, which then goes through the same strict decoding and validation as a `tree` and replaces the slot like any render; subscribers and `ui.get` never see the plugin's delta.
+
+- `tree` together with `delta`, or `delta` without a `base` ≥ 1, is invalid params; a delta that does not resolve (a ref outside the base tree, trailing data) or resolves to more than twice the base tree plus the delta's own size is an invalid tree.
+- A `base` that is not the slot's current rev (another render came in between, the slot was cleared, or the core restarted) fails with `-32016` ("delta base is not the slot's current rev") and leaves the slot as it is.
+- `pluginsdk.Host.Render` / `RenderJSON` do this on their own: after a slot's first successful render they send the delta against the last tree the core accepted for it, and on any error from a delta render resend the full `tree` once. A tree whose delta would not be smaller goes as a full `tree`.
+
+While an agent streams into the ~726 KB `agents.main` tree, each plugin→core render is ~10 KB (the same size as the app's frame) instead of the whole tree.
 
 ## File watching
 

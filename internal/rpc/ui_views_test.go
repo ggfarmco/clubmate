@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -313,4 +314,28 @@ func TestDeltaSubscriberGetsRefsAgainstLastSentTree(t *testing.T) {
 		map[string]any{"ref": []any{float64(0)}},
 		map[string]any{"type": "text", "props": map[string]any{"text": map[string]any{"append": ", then more"}}},
 	}}, next[appends.Subscription]["delta"])
+}
+
+func TestRenderDeltaResolvesAgainstCurrentRev(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha"}]}`)))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()
+		return len(st) == 1 && st[0].State == plugin.StateRunning
+	}, 5*time.Second)
+	p := h.CreateWorkspace(t, "demo")
+	base := `{"type":"stack","props":{"direction":"vertical"},"children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"text":"growing"}}]}`
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "tree": json.RawMessage(base)}))
+	delta := json.RawMessage(`{"type":"stack","props":{"direction":"vertical"},"children":[{"ref":[0]},{"type":"text","props":{"text":{"append":", then more"}}}]}`)
+	require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "base": 1, "delta": delta}))
+	var views []internalsdui.SlotView
+	require.NoError(t, h.Client(t).Call(t.Context(), "ui.get", map[string]string{"workspaceId": p.ID}, &views))
+	i := slices.IndexFunc(views, func(v internalsdui.SlotView) bool { return v.Slot == "alpha.main" })
+	require.GreaterOrEqual(t, i, 0)
+	assert.Equal(t, int64(2), views[i].Rev)
+	assert.JSONEq(t, `{"type":"stack","props":{"direction":"vertical"},"children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"text":"growing, then more"}}]}`, string(views[i].Tree))
+	err := h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.main", "base": 1, "delta": delta})
+	remote, ok := errors.AsType[*rpc.RemoteError](err)
+	require.True(t, ok, err)
+	assert.Equal(t, -32016, remote.Code)
 }

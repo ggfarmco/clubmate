@@ -333,3 +333,51 @@ func TestWatchedSectionsKeepsLatestPerWorkspace(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string][]string{"b": {"agents", "processes"}}, got)
 }
+
+func TestSDKRenderSendsDeltaAndFallsBackToFullTree(t *testing.T) {
+	var renders []map[string]json.RawMessage
+	reject := false
+	core := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		if req.Method != "ui.render" {
+			return nil, nil
+		}
+		var p map[string]json.RawMessage
+		if err := json.Unmarshal(*req.Params, &p); err != nil {
+			return nil, err
+		}
+		renders = append(renders, p)
+		if reject && p["delta"] != nil {
+			return nil, &jsonrpc2.Error{Code: -32016, Message: "stale base"}
+		}
+		return map[string]int{"rev": len(renders)}, nil
+	})
+	coreSide, pluginSide := net.Pipe()
+	conn := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), jsonrpc2.AsyncHandler(core))
+	t.Cleanup(func() { conn.Close() })
+	ready := make(chan *pluginsdk.Host, 1)
+	go func() {
+		_ = pluginsdk.RunConn(t.Context(), pluginSide, pluginsdk.Plugin{Init: func(_ context.Context, h *pluginsdk.Host) error {
+			ready <- h
+			return nil
+		}})
+	}()
+	require.NoError(t, conn.Call(t.Context(), "plugin.initialize", map[string]any{"protocol": 1, "pluginId": "echo"}, nil))
+	h := <-ready
+	tree := func(text string) json.RawMessage {
+		return json.RawMessage(`{"type":"stack","props":{"direction":"vertical"},"children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"text":"` + text + `"}}]}`)
+	}
+	ctx := t.Context()
+	_, err := h.RenderJSON(ctx, "prj_1", "a.main", tree("a first line that keeps growing"))
+	require.NoError(t, err)
+	rev, err := h.RenderJSON(ctx, "prj_1", "a.main", tree("a first line that keeps growing, then more"))
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), rev)
+	assert.Nil(t, renders[1]["tree"])
+	assert.JSONEq(t, `1`, string(renders[1]["base"]))
+	assert.JSONEq(t, `{"type":"stack","props":{"direction":"vertical"},"children":[{"ref":[0]},{"type":"text","props":{"text":{"append":", then more"}}}]}`, string(renders[1]["delta"]))
+	reject = true
+	rev, err = h.RenderJSON(ctx, "prj_1", "a.main", tree("a first line that keeps growing, then more and more"))
+	require.NoError(t, err)
+	assert.Equal(t, int64(4), rev)
+	assert.JSONEq(t, string(tree("a first line that keeps growing, then more and more")), string(renders[3]["tree"]))
+}

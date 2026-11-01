@@ -83,6 +83,8 @@ type renderParams struct {
 	WorkspaceID string          `json:"workspaceId"`
 	Slot        string          `json:"slot"`
 	Tree        json.RawMessage `json:"tree"`
+	Base        int64           `json:"base"`
+	Delta       json.RawMessage `json:"delta"`
 }
 
 type focusParams struct {
@@ -266,7 +268,14 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if err := s.requireSlotScope(ctx, u, p.Slot, p.WorkspaceID); err != nil {
 		return revResult{}, err
 	}
-	rev, err := u.store.RenderJSON(ctx, p.WorkspaceID, p.Slot, caller.PluginID, p.Tree)
+	if p.Delta == nil {
+		rev, err := u.store.RenderJSON(ctx, p.WorkspaceID, p.Slot, caller.PluginID, p.Tree)
+		return revResult{Rev: rev}, err
+	}
+	if p.Tree != nil || p.Base <= 0 {
+		return revResult{}, invalidParams("ui.render takes either tree or base with delta")
+	}
+	rev, err := u.store.RenderDelta(ctx, p.WorkspaceID, p.Slot, caller.PluginID, p.Base, p.Delta)
 	return revResult{Rev: rev}, err
 }
 

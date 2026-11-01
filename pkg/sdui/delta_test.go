@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	internalsdui "clubmate/internal/sdui"
+	"clubmate/pkg/sdui"
 )
 
 type deltaCase struct {
@@ -23,7 +23,7 @@ type deltaCase struct {
 	Delta  json.RawMessage `json:"delta"`
 }
 
-func TestDeltaRefersToUnchangedSubtrees(t *testing.T) {
+func TestDeltaRefersToUnchangedSubtreesAndResolvesBack(t *testing.T) {
 	raw, err := os.ReadFile("testdata/delta.json")
 	require.NoError(t, err)
 	var cases []deltaCase
@@ -31,52 +31,65 @@ func TestDeltaRefersToUnchangedSubtrees(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			base := index(t, compact(t, tc.Base))
-			delta, ok := index(t, compact(t, tc.Tree)).DeltaFrom(base, internalsdui.DeltaOptions{Appends: tc.Append, Keeps: tc.Keep})
+			delta, ok := index(t, compact(t, tc.Tree)).DeltaFrom(base, sdui.DeltaOptions{Appends: tc.Append, Keeps: tc.Keep})
 			require.True(t, ok)
 			assert.Equal(t, string(compact(t, tc.Delta)), string(delta))
+			resolved, err := base.Resolve(delta)
+			require.NoError(t, err)
+			assert.Equal(t, string(compact(t, tc.Tree)), string(resolved))
 		})
 	}
 }
 
 func TestDeltaNotSmallerThanTreeIsDropped(t *testing.T) {
 	base := index(t, []byte(`{"type":"stack","props":{"direction":"vertical"},"children":[{"type":"text","props":{"text":"a"}}]}`))
-	_, ok := index(t, []byte(`{"type":"empty","props":{"text":""}}`)).DeltaFrom(base, internalsdui.DeltaOptions{})
+	_, ok := index(t, []byte(`{"type":"empty","props":{"text":""}}`)).DeltaFrom(base, sdui.DeltaOptions{})
 	assert.False(t, ok)
 }
 
 func TestDeltaWithAppendShapedPropOverStringIsDropped(t *testing.T) {
 	base := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"note":"plain"}}]}`))
-	_, ok := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"note":{"append":"x"}}}]}`)).DeltaFrom(base, internalsdui.DeltaOptions{Appends: true})
+	_, ok := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"note":{"append":"x"}}}]}`)).DeltaFrom(base, sdui.DeltaOptions{Appends: true})
 	assert.False(t, ok)
 }
 
 func TestDeltaWithKeepShapedElementOverArrayIsDropped(t *testing.T) {
 	base := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"table","props":{"rows":[{"id":"a long enough row"}]}}]}`))
-	_, ok := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"table","props":{"rows":[{"keep":0}]}}]}`)).DeltaFrom(base, internalsdui.DeltaOptions{Keeps: true})
+	_, ok := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"table","props":{"rows":[{"keep":0}]}}]}`)).DeltaFrom(base, sdui.DeltaOptions{Keeps: true})
 	assert.False(t, ok)
+}
+
+func TestMalformedDeltaDoesNotResolve(t *testing.T) {
+	base := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a"}},{"type":"table","props":{"text":"a text long enough to be worth copying many times over","rows":["a text long enough to be worth copying many times over"]}}]}`))
+	keeps := `{"type":"stack","children":[{"ref":[0]},{"type":"table","props":{"rows":[` + strings.Repeat(`{"keep":0},`, 40) + `{"keep":0}]}}]}`
+	appends := `{"type":"stack","children":[{"ref":[0]},{"type":"table","props":{` + strings.Repeat(`"text":{"append":""},`, 40) + `"text":{"append":""}}}]}`
+	for _, delta := range []string{keeps, appends, `{"ref":[2]}`, `{"ref":[0,0]}`, `{"ref":[-1]}`, `{"ref":[0],"type":"x"}`, `[]`, `{"type":"stack"}{}`, `{"type":"stack","children":[{"ref":"0"}]}`, `{"type":"stack","children":[{"ref":[]},{"ref":[]},{"ref":[]}]}`} {
+		_, err := base.Resolve([]byte(delta))
+		assert.ErrorIs(t, err, sdui.ErrUnresolvedDelta, delta)
+	}
 }
 
 func BenchmarkDelta(b *testing.B) {
 	base := transcriptTree(40, "Running")
 	tree := transcriptTree(40, "Running the whole suite")
-	prev, err := internalsdui.IndexTree(base)
+	prev, err := sdui.IndexTree(base)
 	require.NoError(b, err)
 	b.SetBytes(int64(len(tree)))
 	b.ReportAllocs()
 	for b.Loop() {
-		next, err := internalsdui.IndexTree(tree)
+		next, err := sdui.IndexTree(tree)
 		if err != nil {
 			b.Fatal(err)
 		}
-		if _, ok := next.DeltaFrom(prev, internalsdui.DeltaOptions{Appends: true}); !ok {
+		if _, ok := next.DeltaFrom(prev, sdui.DeltaOptions{Appends: true}); !ok {
 			b.Fatal("no delta")
 		}
 	}
 }
 
-func index(t *testing.T, tree []byte) *internalsdui.TreeIndex {
+func index(t *testing.T, tree []byte) *sdui.TreeIndex {
 	t.Helper()
-	ix, err := internalsdui.IndexTree(tree)
+	ix, err := sdui.IndexTree(tree)
 	require.NoError(t, err)
 	return ix
 }

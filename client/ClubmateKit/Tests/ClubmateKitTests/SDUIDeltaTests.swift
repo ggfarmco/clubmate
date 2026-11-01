@@ -13,7 +13,7 @@ final class SDUIDeltaTests: XCTestCase {
 
     func testGoFixturesResolveToTheNewTree() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let data = try Data(contentsOf: repo.appending(path: "internal/sdui/testdata/delta.json"))
+        let data = try Data(contentsOf: repo.appending(path: "pkg/sdui/testdata/delta.json"))
         let cases = try JSONDecoder().decode([Case].self, from: data)
         XCTAssertFalse(cases.isEmpty)
         for c in cases {

@@ -16,7 +16,10 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-var ErrUnknownWorkspace = errors.New("unknown workspace")
+var (
+	ErrUnknownWorkspace = errors.New("unknown workspace")
+	ErrStaleBase        = errors.New("delta base is not the slot's current rev")
+)
 
 type SlotView struct {
 	WorkspaceID string          `json:"workspaceId"`
@@ -26,6 +29,8 @@ type SlotView struct {
 	Tree        json.RawMessage `json:"tree,omitempty"`
 	Base        int64           `json:"base,omitempty"`
 	Delta       json.RawMessage `json:"delta,omitempty"`
+
+	index *sdui.TreeIndex
 }
 
 type slotKey struct {
@@ -69,39 +74,61 @@ func (s *Store) Render(ctx context.Context, workspaceID, slot, owner string, n s
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
 	}
-	return s.put(ctx, workspaceID, slot, owner, tree)
+	return s.put(ctx, SlotView{WorkspaceID: workspaceID, Slot: slot, Owner: owner, Tree: tree, index: indexOrNil(tree)}, 0)
 }
 
 func (s *Store) RenderJSON(ctx context.Context, workspaceID, slot, owner string, tree json.RawMessage) (int64, error) {
+	return s.renderJSON(ctx, SlotView{WorkspaceID: workspaceID, Slot: slot, Owner: owner, Tree: tree}, 0)
+}
+
+func (s *Store) RenderDelta(ctx context.Context, workspaceID, slot, owner string, base int64, delta json.RawMessage) (int64, error) {
+	s.mu.Lock()
+	cur, ok := s.slots[slotKey{workspaceID, slot}]
+	s.mu.Unlock()
+	if !ok || cur.Rev != base || cur.Owner != owner || cur.index == nil {
+		return 0, ErrStaleBase
+	}
+	tree, err := cur.index.Resolve(delta)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
+	}
+	return s.renderJSON(ctx, SlotView{WorkspaceID: workspaceID, Slot: slot, Owner: owner, Tree: tree}, base)
+}
+
+func (s *Store) renderJSON(ctx context.Context, view SlotView, base int64) (int64, error) {
 	var n sdui.Node
-	if err := jsonv2.Unmarshal(tree, &n, jsonv2.RejectUnknownMembers(true)); err != nil {
+	if err := jsonv2.Unmarshal(view.Tree, &n, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
 	}
 	if err := Validate(n); err != nil {
 		return 0, err
 	}
-	if bytes.IndexByte(tree, '\n') >= 0 {
+	if bytes.IndexByte(view.Tree, '\n') >= 0 {
 		var buf bytes.Buffer
-		if err := json.Compact(&buf, tree); err != nil {
+		if err := json.Compact(&buf, view.Tree); err != nil {
 			return 0, fmt.Errorf("%w: %v", ErrInvalidTree, err)
 		}
-		tree = buf.Bytes()
+		view.Tree = buf.Bytes()
 	}
-	return s.put(ctx, workspaceID, slot, owner, tree)
+	view.index = indexOrNil(view.Tree)
+	return s.put(ctx, view, base)
 }
 
-func (s *Store) put(ctx context.Context, workspaceID, slot, owner string, tree json.RawMessage) (int64, error) {
+func (s *Store) put(ctx context.Context, view SlotView, base int64) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	if _, gone := s.dropped[workspaceID]; gone {
+	if _, gone := s.dropped[view.WorkspaceID]; gone {
 		return 0, ErrUnknownWorkspace
 	}
-	key := slotKey{workspaceID, slot}
+	key := slotKey{view.WorkspaceID, view.Slot}
+	if base > 0 && s.revs[key] != base {
+		return 0, ErrStaleBase
+	}
 	s.revs[key]++
-	view := SlotView{WorkspaceID: workspaceID, Slot: slot, Owner: owner, Rev: s.revs[key], Tree: tree}
+	view.Rev = s.revs[key]
 	s.slots[key] = view
 	s.notifyLocked(view)
 	return view.Rev, nil
@@ -245,4 +272,12 @@ func (sub *Subscription) pushLocked(view SlotView) {
 	case sub.ready <- struct{}{}:
 	default:
 	}
+}
+
+func indexOrNil(tree []byte) *sdui.TreeIndex {
+	ix, err := sdui.IndexTree(tree)
+	if err != nil {
+		return nil
+	}
+	return ix
 }

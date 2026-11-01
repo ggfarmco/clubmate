@@ -3,6 +3,8 @@ package pluginsdk
 import (
 	"context"
 	"encoding/json"
+	"slices"
+	"sync"
 
 	"github.com/sourcegraph/jsonrpc2"
 
@@ -26,6 +28,9 @@ const busReadLimit = 1000
 type Host struct {
 	conn     *jsonrpc2.Conn
 	pluginID func() string
+
+	renderMu sync.Mutex
+	rendered map[slotRef]renderedTree
 }
 
 func (h *Host) PluginID() string {
@@ -208,15 +213,30 @@ func (h *Host) UnwatchFS(ctx context.Context, watch string) error {
 }
 
 func (h *Host) Render(ctx context.Context, workspaceID, slot string, n sdui.Node) (int64, error) {
-	var out renderResult
-	err := h.Call(ctx, "ui.render", renderParams{WorkspaceID: workspaceID, Slot: slot, Tree: n}, &out)
-	return out.Rev, err
+	tree, err := json.Marshal(n)
+	if err != nil {
+		return 0, err
+	}
+	return h.RenderJSON(ctx, workspaceID, slot, tree)
 }
 
 func (h *Host) RenderJSON(ctx context.Context, workspaceID, slot string, tree json.RawMessage) (int64, error) {
-	var out renderResult
-	err := h.Call(ctx, "ui.render", renderParams{WorkspaceID: workspaceID, Slot: slot, Tree: tree}, &out)
-	return out.Rev, err
+	key := slotRef{workspace: workspaceID, slot: slot}
+	tree = slices.Clone(tree)
+	next, err := sdui.IndexTree(tree)
+	if prev, ok := h.lastRender(key); ok && err == nil {
+		if delta, ok := next.DeltaFrom(prev.index, sdui.DeltaOptions{Appends: true, Keeps: true}); ok {
+			if rev, err := h.render(ctx, renderParams{WorkspaceID: workspaceID, Slot: slot, Base: prev.rev, Delta: delta}); err == nil {
+				h.remember(key, renderedTree{rev: rev, index: next})
+				return rev, nil
+			}
+		}
+	}
+	rev, err := h.render(ctx, renderParams{WorkspaceID: workspaceID, Slot: slot, Tree: tree})
+	if err == nil && next != nil {
+		h.remember(key, renderedTree{rev: rev, index: next})
+	}
+	return rev, err
 }
 
 func (h *Host) UISections(ctx context.Context) ([]json.RawMessage, error) {
@@ -357,9 +377,20 @@ type subscribeResult struct {
 }
 
 type renderParams struct {
-	WorkspaceID string `json:"workspaceId"`
-	Slot        string `json:"slot"`
-	Tree        any    `json:"tree"`
+	WorkspaceID string          `json:"workspaceId"`
+	Slot        string          `json:"slot"`
+	Tree        json.RawMessage `json:"tree,omitempty"`
+	Base        int64           `json:"base,omitempty"`
+	Delta       json.RawMessage `json:"delta,omitempty"`
+}
+
+type slotRef struct {
+	workspace, slot string
+}
+
+type renderedTree struct {
+	rev   int64
+	index *sdui.TreeIndex
 }
 
 type approveParams struct {
@@ -412,4 +443,28 @@ type storageGetResult struct {
 
 type storageListResult struct {
 	Keys []string `json:"keys"`
+}
+
+func (h *Host) render(ctx context.Context, p renderParams) (int64, error) {
+	var out renderResult
+	err := h.Call(ctx, "ui.render", p, &out)
+	return out.Rev, err
+}
+
+func (h *Host) lastRender(key slotRef) (renderedTree, bool) {
+	h.renderMu.Lock()
+	defer h.renderMu.Unlock()
+	r, ok := h.rendered[key]
+	return r, ok
+}
+
+func (h *Host) remember(key slotRef, r renderedTree) {
+	h.renderMu.Lock()
+	defer h.renderMu.Unlock()
+	if h.rendered == nil {
+		h.rendered = map[slotRef]renderedTree{}
+	}
+	if r.rev > h.rendered[key].rev {
+		h.rendered[key] = r
+	}
 }

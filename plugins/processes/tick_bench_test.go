@@ -7,22 +7,23 @@ import (
 	"time"
 
 	internalsdui "clubmate/internal/sdui"
+	"clubmate/pkg/sdui"
 )
 
 func BenchmarkTickDelta(b *testing.B) {
 	before, after := tickTrees(b)
-	base, err := internalsdui.IndexTree(before)
+	base, err := sdui.IndexTree(before)
 	if err != nil {
 		b.Fatal(err)
 	}
 	var delta []byte
 	b.ReportAllocs()
 	for b.Loop() {
-		next, err := internalsdui.IndexTree(after)
+		next, err := sdui.IndexTree(after)
 		if err != nil {
 			b.Fatal(err)
 		}
-		delta, _ = next.DeltaFrom(base, internalsdui.DeltaOptions{Appends: true, Keeps: true})
+		delta, _ = next.DeltaFrom(base, sdui.DeltaOptions{Appends: true, Keeps: true})
 	}
 	b.ReportMetric(float64(len(after)), "tree-B")
 	b.ReportMetric(float64(len(delta)), "delta-B")

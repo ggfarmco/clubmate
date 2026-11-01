@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"net"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/sourcegraph/jsonrpc2"
+
+	internalsdui "clubmate/internal/sdui"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 )
 
@@ -38,6 +44,96 @@ func BenchmarkRenderMainAndCode(b *testing.B) {
 		b.ReportMetric(float64(mainBytes), "main-bytes")
 		b.ReportMetric(float64(codeBytes), "code-bytes")
 	})
+}
+
+func BenchmarkStreamingFrame(b *testing.B) {
+	chunk, err := json.Marshal(map[string]any{"sessionUpdate": acp.UpdateAgentMessageChunk, "content": map[string]string{"type": "text", "text": "and the next few streamed words. "}})
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, mode := range []string{"full", "delta"} {
+		b.Run(mode, func(b *testing.B) {
+			s := benchSession(b, 60)
+			s.applyPrompt(envelope{Turn: 61, Payload: json.RawMessage(`{"prompt":[{"type":"text","text":"Explain the change"}]}`)})
+			store := internalsdui.NewStore()
+			sub, err := store.Subscribe("prj_bench")
+			if err != nil {
+				b.Fatal(err)
+			}
+			tracker := internalsdui.NewDeltaTracker(internalsdui.DeltaOptions{Appends: true, Keeps: true})
+			conn := benchCore(b, store)
+			var prev *sdui.TreeIndex
+			var rev int64
+			var pluginBytes, appBytes int
+			b.ReportAllocs()
+			for b.Loop() {
+				s.applyUpdate(61, chunk)
+				raw, err := json.Marshal(mainView(benchScreen(s)))
+				if err != nil {
+					b.Fatal(err)
+				}
+				params := benchRender{WorkspaceID: "prj_bench", Slot: mainSlot, Tree: raw}
+				if mode == "delta" {
+					next, err := sdui.IndexTree(raw)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if prev != nil {
+						if delta, ok := next.DeltaFrom(prev, sdui.DeltaOptions{Appends: true, Keeps: true}); ok {
+							params = benchRender{WorkspaceID: "prj_bench", Slot: mainSlot, Base: rev, Delta: delta}
+						}
+					}
+					prev = next
+				}
+				pluginBytes += len(params.Tree) + len(params.Delta)
+				var out struct {
+					Rev int64 `json:"rev"`
+				}
+				if err := conn.Call(b.Context(), "ui.render", params, &out); err != nil {
+					b.Fatal(err)
+				}
+				rev = out.Rev
+				views, _ := sub.Take()
+				for _, v := range views {
+					f := tracker.Frame(v)
+					appBytes += len(f.Tree) + len(f.Delta)
+				}
+			}
+			b.ReportMetric(float64(pluginBytes)/float64(b.N), "plugin-B/frame")
+			b.ReportMetric(float64(appBytes)/float64(b.N), "app-B/frame")
+		})
+	}
+}
+
+type benchRender struct {
+	WorkspaceID string          `json:"workspaceId"`
+	Slot        string          `json:"slot"`
+	Tree        json.RawMessage `json:"tree,omitempty"`
+	Base        int64           `json:"base,omitempty"`
+	Delta       json.RawMessage `json:"delta,omitempty"`
+}
+
+func benchCore(b *testing.B, store *internalsdui.Store) *jsonrpc2.Conn {
+	b.Helper()
+	pluginSide, coreSide := net.Pipe()
+	core := jsonrpc2.NewConn(b.Context(), jsonrpc2.NewPlainObjectStream(coreSide), jsonrpc2.HandlerWithError(func(ctx context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		var p benchRender
+		if err := json.Unmarshal(*req.Params, &p); err != nil {
+			return nil, err
+		}
+		if p.Delta != nil {
+			rev, err := store.RenderDelta(ctx, p.WorkspaceID, p.Slot, "agents", p.Base, p.Delta)
+			return map[string]int64{"rev": rev}, err
+		}
+		rev, err := store.RenderJSON(ctx, p.WorkspaceID, p.Slot, "agents", p.Tree)
+		return map[string]int64{"rev": rev}, err
+	}))
+	plugin := jsonrpc2.NewConn(b.Context(), jsonrpc2.NewPlainObjectStream(pluginSide), jsonrpc2.HandlerWithError(func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (any, error) { return nil, nil }))
+	b.Cleanup(func() {
+		_ = plugin.Close()
+		_ = core.Close()
+	})
+	return plugin
 }
 
 func benchScreen(s *session) screen {
