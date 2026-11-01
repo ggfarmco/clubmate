@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"strings"
 	"sync"
 
 	"clubmate/plugins/internal/gitrepo"
@@ -36,6 +37,13 @@ func (c *branchCache) name(ctx context.Context, root string) string {
 	}
 	c.names[root] = name
 	c.mu.Unlock()
+	return name
+}
+
+func branchLabel(name string) string {
+	if sha, ok := strings.CutPrefix(name, "(detached "); ok {
+		return "detached · " + strings.TrimSuffix(sha, ")")
+	}
 	return name
 }
 

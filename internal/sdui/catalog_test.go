@@ -111,7 +111,7 @@ func TestValidateAgentNodes(t *testing.T) {
 			Actions: []sdui.CardAction{{Action: "openLocation", Label: "Open in nvim", Value: map[string]any{"path": "/r/a.go", "line": 3}}, {Action: "showAll", Label: "Show all"}},
 		}),
 		"card":           sdui.Card("warning", "questionmark.bubble.fill", sdui.Text("Which store?")),
-		"permissionCard": sdui.PermissionCard("p", "permission-1", "Run go test?", []sdui.PermissionOption{{ID: "allow", Label: "Allow once", Kind: "allow_once"}}, ""),
+		"permissionCard": sdui.PermissionCard("p", "permission-1", sdui.PermissionCardProps{Text: "Run go test?", Title: "Run a command?", Command: "go test ./...", Caption: "Claude says: Run the tests", Options: []sdui.PermissionOption{{ID: "allow", Label: "Allow once", Kind: "allow_once", Shortcut: "opt+1"}, {ID: "always", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(go test:*)", Scope: "in shop on this Mac"}, {ID: "never", Label: "Always reject", Kind: "reject_always", Menu: true}}}),
 		"composer": sdui.Composer("m", sdui.ComposerProps{
 			Placeholder: "Ask", Agent: "Claude", Modes: []sdui.Option{{Value: "default", Label: "Manual"}}, Mode: "default",
 			Pickers:  []sdui.Picker{{ID: "model", Help: "Model", Value: "opus", Options: []sdui.Option{{Value: "opus", Label: "Opus"}}}},
@@ -135,7 +135,7 @@ func TestValidateAgentNodes(t *testing.T) {
 		"nested action value":  sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Actions: []sdui.CardAction{{Action: "go", Label: "Go", Value: map[string]any{"a": []int{1}}}}}),
 		"empty card":           sdui.Card("warning", ""),
 		"bad card tone":        sdui.Card("orange", "", sdui.Text("x")),
-		"duplicate option":     sdui.PermissionCard("p", "r", "x", []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}, ""),
+		"duplicate option":     sdui.PermissionCard("p", "r", sdui.PermissionCardProps{Text: "x", Options: []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}}),
 		"bad attach kind":      sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
 		"duplicate attachment": sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),
 		"menu bad action":      sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),

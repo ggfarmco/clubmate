@@ -116,9 +116,22 @@ type ToolCardProps struct {
 }
 
 type PermissionOption struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Kind  string `json:"kind,omitempty"`
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	Kind     string `json:"kind,omitempty"`
+	Shortcut string `json:"shortcut,omitempty"`
+	Menu     bool   `json:"menu,omitempty"`
+	Rule     string `json:"rule,omitempty"`
+	Scope    string `json:"scope,omitempty"`
+}
+
+type PermissionCardProps struct {
+	Text    string
+	Title   string
+	Command string
+	Caption string
+	Options []PermissionOption
+	Outcome string
 }
 
 type Command struct {
@@ -138,6 +151,7 @@ type Picker struct {
 
 type ComposerProps struct {
 	Placeholder string
+	Hint        string
 	Agent       string
 	Modes       []Option
 	Mode        string
@@ -286,10 +300,17 @@ type HeaderProps struct {
 	Icon   string
 	Meta   string
 	Badges []HeaderBadge
+	Status string
+	Agent  string
+	Branch string
+	Mode   string
 }
 
 func Header(title string, p HeaderProps, actions ...Node) Node {
 	props := withOptional(withOptional(map[string]any{"title": title}, "icon", p.Icon), "meta", p.Meta)
+	for _, kv := range [][2]string{{"status", p.Status}, {"agent", p.Agent}, {"branch", p.Branch}, {"mode", p.Mode}} {
+		props = withOptional(props, kv[0], kv[1])
+	}
 	if len(p.Badges) > 0 {
 		props["badges"] = p.Badges
 	}
@@ -350,13 +371,17 @@ func Card(tone, icon string, children ...Node) Node {
 	return Node{Type: "card", Props: withOptional(props, "icon", icon), Children: children}
 }
 
-func PermissionCard(id, request, text string, options []PermissionOption, outcome string) Node {
-	props := map[string]any{"request": request, "text": text, "options": nonNil(options)}
-	return Node{Type: "permissionCard", ID: id, Props: withOptional(props, "outcome", outcome)}
+func PermissionCard(id, request string, p PermissionCardProps) Node {
+	props := map[string]any{"request": request, "text": p.Text, "options": nonNil(p.Options)}
+	for _, kv := range [][2]string{{"title", p.Title}, {"command", p.Command}, {"caption", p.Caption}, {"outcome", p.Outcome}} {
+		props = withOptional(props, kv[0], kv[1])
+	}
+	return Node{Type: "permissionCard", ID: id, Props: props}
 }
 
 func Composer(id string, p ComposerProps) Node {
 	props := withOptional(map[string]any{}, "placeholder", p.Placeholder)
+	props = withOptional(props, "hint", p.Hint)
 	props = withOptional(props, "agent", p.Agent)
 	props = withOptional(props, "mode", p.Mode)
 	if len(p.Modes) > 0 {

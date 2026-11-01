@@ -257,6 +257,10 @@
    "fail": "exit status 1"
   },
   {
+   "match": "Your previous reply ended with an error",
+   "fail": "exit status 1"
+  },
+  {
    "match": "Bump",
    "update": {
     "sessionUpdate": "session_info_update",

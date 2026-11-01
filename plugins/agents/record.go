@@ -69,7 +69,14 @@ type sessionInfo struct {
 	TurnStartedAt   *time.Time      `json:"turnStartedAt,omitempty"`
 	NotifyEffective string          `json:"notifyEffective"`
 	NeedsYou        bool            `json:"needsYou"`
+	NeedsYouSince   *time.Time      `json:"needsYouSince,omitempty"`
+	Activity        *toolActivity   `json:"activity,omitempty"`
 	ChildStatus     string          `json:"childStatus,omitempty"`
+}
+
+type toolActivity struct {
+	Title string    `json:"title"`
+	At    time.Time `json:"at"`
 }
 
 type pendingSummary struct {

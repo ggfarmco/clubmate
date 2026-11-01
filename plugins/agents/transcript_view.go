@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"clubmate/pkg/sdui"
@@ -29,15 +31,22 @@ const (
 )
 
 var (
-	cardKinds    = []string{"read", "edit", "delete", "move", "search", "execute", "think", "agent", "fetch", "switch_mode", "other"}
-	cardStatuses = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
-	oneLineKinds = []string{"read", "search"}
-	permVerbs    = map[string]string{"execute": "run", "edit": "edit", "delete": "delete", "move": "move", "read": "read", "fetch": "fetch"}
-	titleVerbs   = map[string][]string{"execute": {"Run"}, "edit": {"Write", "Edit"}, "delete": {"Delete"}, "move": {"Move"}, "read": {"Read"}, "fetch": {"Fetch"}}
-	selectionRe  = regexp.MustCompile(`^(.+):(\d+)-(\d+)\n`)
-	fragmentRe   = regexp.MustCompile(`^L(\d+)-(\d+)$`)
-	planHeadRe   = regexp.MustCompile(`(?i)^(#{1,6}\s+)?[*_]{0,2}plan[*_]{0,2}:?[*_]{0,2}$`)
-	planStepRe   = regexp.MustCompile(`^\s*([-*+]|\d+[.)])\s+\S`)
+	cardKinds        = []string{"read", "edit", "delete", "move", "search", "execute", "think", "agent", "fetch", "switch_mode", "other"}
+	cardStatuses     = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
+	oneLineKinds     = []string{"read", "search"}
+	permVerbs        = map[string]string{"execute": "run", "edit": "edit", "delete": "delete", "move": "move", "read": "read", "fetch": "fetch"}
+	permTitles       = map[string]string{"execute": "Run a command?"}
+	optionLabels     = map[string]string{"allow_once": "Allow once", "allow_always": "Always allow…", "reject_once": "Reject", "reject_always": "Always reject"}
+	permissionKinds  = []string{"allow_once", "allow_always", "reject_once", "reject_always"}
+	idRefRe          = regexp.MustCompile(` \((?:agt|gr)_[0-9A-Za-z]+\)`)
+	transcriptHintRe = regexp.MustCompile(` Read its full transcript with agents\.transcript session=\S+ when this summary is not enough\.`)
+	allowCommandsRe  = regexp.MustCompile(`don't ask again for (.+) commands$`)
+	listSplitRe      = regexp.MustCompile(`,? and |, `)
+	titleVerbs       = map[string][]string{"execute": {"Run"}, "edit": {"Write", "Edit"}, "delete": {"Delete"}, "move": {"Move"}, "read": {"Read"}, "fetch": {"Fetch"}}
+	selectionRe      = regexp.MustCompile(`^(.+):(\d+)-(\d+)\n`)
+	fragmentRe       = regexp.MustCompile(`^L(\d+)-(\d+)$`)
+	planHeadRe       = regexp.MustCompile(`(?i)^(#{1,6}\s+)?[*_]{0,2}plan[*_]{0,2}:?[*_]{0,2}$`)
+	planStepRe       = regexp.MustCompile(`^\s*([-*+]|\d+[.)])\s+\S`)
 )
 
 type nodeCache struct {
@@ -138,7 +147,7 @@ func transcript(sc screen) sdui.Node {
 			nodes = append(nodes, sdui.MutedText(note))
 		}
 		if b.shown {
-			nodes = append(nodes, b.node)
+			nodes = append(nodes, thoughtDuration(b.node, shown, i))
 		}
 	}
 	slices.Reverse(nodes)
@@ -150,6 +159,19 @@ func transcript(sc screen) sdui.Node {
 		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", label, "chevron.up"), actShowEarlier))
 	}
 	return sdui.Transcript(sid+"/transcript", nodes...)
+}
+
+func shownPrompt(text string) string {
+	return idRefRe.ReplaceAllString(transcriptHintRe.ReplaceAllString(text, ""), "")
+}
+
+func thoughtDuration(n sdui.Node, shown []*entry, i int) sdui.Node {
+	if shown[i].Kind != entryThought || i+1 >= len(shown) || shown[i].At.IsZero() || shown[i+1].At.IsZero() {
+		return n
+	}
+	n.Props = maps.Clone(n.Props)
+	n.Props["seconds"] = max(1, int(shown[i+1].At.Sub(shown[i].At).Round(time.Second)/time.Second))
+	return n
 }
 
 func foldsIntoPlan(shown []*entry, i int) bool {
@@ -261,7 +283,7 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	root := sc.View.Session.Worktree
 	switch en.Kind {
 	case entryUser:
-		n := sdui.Message("user", en.Text, promptAttachments(en.Content, root))
+		n := sdui.Message("user", shownPrompt(en.Text), promptAttachments(en.Content, root))
 		if en.From != "" {
 			n.Props["from"] = cmp.Or(sc.FromTitles[en.From], fromAnother)
 		}
@@ -497,6 +519,18 @@ func commonEnds(a, b []string) (int, int) {
 
 func permissionCard(sc screen, en *entry) sdui.Node {
 	rec := sc.View.Session
+	c := permissionContentOf(rec, en, sc.Workspace)
+	p := sdui.PermissionCardProps{Text: c.Text, Title: c.Title, Command: c.Command, Caption: c.Caption, Options: c.Options}
+	switch {
+	case en.Outcome != nil && en.Outcome.Outcome == acp.OutcomeSelected:
+		p.Outcome = en.Outcome.OptionID
+	case en.Outcome != nil || !sc.Pending[en.ID]:
+		p.Outcome = acp.OutcomeCancelled
+	}
+	return sdui.PermissionCard(rec.ID+"/permission/"+en.ID, en.ID, p)
+}
+
+func permissionContentOf(rec record, en *entry, workspace string) *permissionContent {
 	var f toolFields
 	_ = json.Unmarshal(en.ToolCall, &f)
 	label := agentLabel(rec.Agent)
@@ -511,32 +545,93 @@ func permissionCard(sc screen, en *entry) sdui.Node {
 		}
 		text = label + " wants to " + verb + " " + title
 	}
+	c := &permissionContent{Text: text, Title: cmp.Or(permTitles[f.Kind], text), Options: permissionOptions(workspace, en, f)}
+	if command, ok := f.RawInput["command"].(string); ok && strings.TrimSpace(command) != "" {
+		c.Command = strings.TrimSpace(command)
+	}
+	if desc, ok := f.RawInput["description"].(string); ok && strings.TrimSpace(desc) != "" {
+		c.Caption = label + " says: " + strings.TrimSpace(desc)
+	}
+	return c
+}
+
+func withPermissionContent(rec record, entries []*entry, workspace string) {
+	for _, en := range entries {
+		if en.Kind == entryPermission {
+			en.Card = permissionContentOf(rec, en, workspace)
+		}
+	}
+}
+
+func permissionOptions(workspace string, en *entry, f toolFields) []sdui.PermissionOption {
 	options := make([]sdui.PermissionOption, 0, len(en.Options))
 	seen := map[string]bool{}
+	kinds := map[string]int{}
 	for _, o := range en.Options {
 		if o.OptionID == "" || seen[o.OptionID] {
 			continue
 		}
 		seen[o.OptionID] = true
 		kind := o.Kind
-		if !slices.Contains([]string{"allow_once", "allow_always", "reject_once", "reject_always"}, kind) {
+		if !slices.Contains(permissionKinds, kind) {
 			kind = ""
 		}
+		kinds[kind]++
 		options = append(options, sdui.PermissionOption{ID: o.OptionID, Label: cmp.Or(o.Name, o.OptionID), Kind: kind})
 	}
 	slices.SortStableFunc(options, func(a, b sdui.PermissionOption) int { return cmp.Compare(optionRank(a.Kind), optionRank(b.Kind)) })
-	outcome := ""
-	switch {
-	case en.Outcome != nil && en.Outcome.Outcome == acp.OutcomeSelected:
-		outcome = en.Outcome.OptionID
-	case en.Outcome != nil || !sc.Pending[en.ID]:
-		outcome = acp.OutcomeCancelled
+	standard := kinds[""] == 0 && !slices.ContainsFunc(permissionKinds, func(k string) bool { return kinds[k] > 1 })
+	keys := 0
+	for i, o := range options {
+		if standard {
+			if o.Kind == "allow_always" {
+				o.Rule = allowRule(f, en.ToolCall, o.Label)
+				o.Scope = allowScope(workspace)
+			}
+			o.Label = optionLabels[o.Kind]
+			o.Menu = o.Kind == "reject_always"
+		}
+		if !o.Menu && keys < 3 {
+			keys++
+			o.Shortcut = "opt+" + strconv.Itoa(keys)
+		}
+		options[i] = o
 	}
-	return sdui.PermissionCard(rec.ID+"/permission/"+en.ID, en.ID, text, options, outcome)
+	return options
+}
+
+func allowRule(f toolFields, call json.RawMessage, name string) string {
+	m := allowCommandsRe.FindStringSubmatch(name)
+	if f.Kind != "execute" || m == nil || m[1] == "similar" {
+		return ""
+	}
+	var meta struct {
+		Meta struct {
+			ClaudeCode struct {
+				ToolName string `json:"toolName"`
+			} `json:"claudeCode"`
+		} `json:"_meta"`
+	}
+	_ = json.Unmarshal(call, &meta)
+	tool := cmp.Or(meta.Meta.ClaudeCode.ToolName, "Bash")
+	var rules []string
+	for _, c := range listSplitRe.Split(m[1], -1) {
+		if c = strings.TrimSpace(c); c != "" {
+			rules = append(rules, tool+"("+c+":*)")
+		}
+	}
+	return strings.Join(rules, " ")
+}
+
+func allowScope(workspace string) string {
+	if workspace == "" {
+		return "on this Mac"
+	}
+	return "in " + workspace + " on this Mac"
 }
 
 func optionRank(kind string) int {
-	if i := slices.Index([]string{"allow_once", "allow_always", "reject_once", "reject_always"}, kind); i >= 0 {
+	if i := slices.Index(permissionKinds, kind); i >= 0 {
 		return i
 	}
 	return 4

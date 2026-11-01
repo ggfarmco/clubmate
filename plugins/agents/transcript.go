@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 )
 
@@ -80,6 +81,7 @@ type entry struct {
 	From      string                     `json:"from,omitempty"`
 	Subagent  string                     `json:"subagent,omitempty"`
 	Stoppable bool                       `json:"stoppable,omitempty"`
+	Card      *permissionContent         `json:"card,omitempty"`
 
 	Elicitation *elicitation             `json:"elicitation,omitempty"`
 	Response    *acp.ElicitationResponse `json:"response,omitempty"`
@@ -93,6 +95,14 @@ type entry struct {
 	sub    *subagent
 	rev    int64
 	closed bool
+}
+
+type permissionContent struct {
+	Text    string                  `json:"text"`
+	Title   string                  `json:"title"`
+	Command string                  `json:"command,omitempty"`
+	Caption string                  `json:"caption,omitempty"`
+	Options []sdui.PermissionOption `json:"options"`
 }
 
 type turnInfo struct {

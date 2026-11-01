@@ -241,6 +241,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.Pending = s.pending()
 			info.Asks = s.asks()
 			info.PendingSummary = s.permissionSummary()
+			info.Activity = s.toolActivity()
 			if started := s.turnStart().UTC(); rec.Status == statusRunning && !started.IsZero() {
 				info.TurnStartedAt = &started
 			}
@@ -248,6 +249,13 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		info.NeedsYou = needsYou(info.record)
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {
 			info.PendingSummary = &pendingSummary{Kind: pendingQuestion, Text: rec.Question, At: rec.UpdatedAt}
+		}
+		if info.NeedsYou {
+			since := info.UpdatedAt
+			if info.PendingSummary != nil {
+				since = info.PendingSummary.At
+			}
+			info.NeedsYouSince = &since
 		}
 		out = append(out, info)
 	}

@@ -2290,3 +2290,31 @@ func TestNewInWorktreeThenMergeToMain(t *testing.T) {
 		return strings.Contains(string(c.Params), id) && strings.Contains(promptText(t, c), "Merge this task into main now")
 	})
 }
+
+func TestSessionsCarryRunningToolActivity(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{
+		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Editing reserve.go", "kind": "edit", "status": "in_progress"}},
+		{"sleep": 1500},
+	}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+
+	f.prompt(t, workspace, session, "go")
+
+	var got struct {
+		Title string    `json:"title"`
+		At    time.Time `json:"at"`
+	}
+	type info struct {
+		ID       string          `json:"id"`
+		Activity json.RawMessage `json:"activity"`
+	}
+	testutil.Eventually(t, func() bool {
+		var list []info
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+		i := slices.IndexFunc(list, func(s info) bool { return s.ID == session })
+		return i >= 0 && json.Unmarshal(list[i].Activity, &got) == nil && got.Title != ""
+	}, wait)
+	assert.Equal(t, "Editing reserve.go", got.Title)
+	assert.False(t, got.At.IsZero())
+}

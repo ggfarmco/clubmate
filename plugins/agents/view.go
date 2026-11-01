@@ -23,6 +23,8 @@ const (
 	starterNote    = "Ask anything, @ to attach a file, or start from one of these."
 	maxCodeOptions = 50
 	commandRunes   = 300
+	composerHint   = "/ for commands, @ for files"
+	waitingBadge   = "waiting for you"
 	installingNote = "Installing %s adapter…"
 	queuedNote     = "Queued, sent when the turn ends"
 	heldNote       = "Queued, not sent"
@@ -52,6 +54,7 @@ var (
 
 type screen struct {
 	View        transcriptView
+	Workspace   string
 	Pending     map[string]bool
 	Window      int
 	Expanded    map[string]bool
@@ -205,49 +208,60 @@ func starterView(sc screen) sdui.Node {
 func header(sc screen) sdui.Node {
 	rec := sc.View.Session
 	sid := rec.ID
+	display := displayStatus(rec, sc.Children)
 	var meta []string
 	if rec.AFK {
 		meta = append(meta, afkLabel)
 	}
-	if display, ok := childDisplay[sc.Children]; ok {
+	if display == childrenRunning || display == childrenWaiting {
 		meta = append(meta, statusLabels[display])
 	}
 	fill, full := usageParts(sc.View.Usage)
 	if !full {
 		meta = append(meta, nonEmpty(fill)...)
 	}
-	row := []sdui.Node{{Type: "text", Props: map[string]any{"text": cmp.Or(rec.Title, "New session"), "style": "title"}}}
-	if full {
-		row = append(row, sdui.Badge(fill, "warning"))
-	}
-	if len(meta) > 0 {
-		row = append(row, sdui.MutedText(strings.Join(meta, " · ")))
-	}
-	if sc.Code != nil {
-		row = []sdui.Node{sdui.Icon(cmp.Or(statusIcons[cmp.Or(childDisplay[sc.Children], rec.Status)], statusIcons[statusIdle])), sc.Code.Picker}
+	var buttons []sdui.Node
+	if turnActive(rec) {
+		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop))
 	}
 	if sc.Parent != "" {
-		row = append(row, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
+		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/parent", "from "+sc.Parent, "arrow.turn.up.left"), actSelectParent))
 	}
 	if rec.HandoffFrom != "" {
-		row = append(row, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
+		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+handoffFromNode, "Earlier session", "clock.arrow.circlepath"), actOpenHandoff))
 	}
 	if b, ok := contextButton(sc); ok {
-		row = append(row, b)
+		buttons = append(buttons, b)
 	}
 	if sc.Changes {
-		row = append(row, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
+		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
 	}
 	if mergeable(rec, sc.Changes) {
-		row = append(row, sdui.WithConfirm(sdui.WithAction(sdui.Button(sid+"/merge", "Merge to main", "arrow.triangle.merge"), actMerge), mergeConfirm))
+		buttons = append(buttons, sdui.WithConfirm(sdui.WithAction(sdui.Button(sid+"/merge", "Merge to main", "arrow.triangle.merge"), actMerge), mergeConfirm))
 	}
-	if turnActive(rec) {
-		row = append(row, sdui.WithAction(sdui.Button(sid+"/stop", "Stop", "stop.fill"), actStop))
-	}
+	var top sdui.Node
 	if sc.Code != nil {
-		row = append(row, sc.Code.New)
+		row := append([]sdui.Node{sdui.Icon(cmp.Or(statusIcons[display], statusIcons[statusIdle])), sc.Code.Picker}, buttons...)
+		top = sdui.HStack(append(row, sc.Code.New)...)
+	} else {
+		var badges []sdui.HeaderBadge
+		if needsYou(rec) {
+			badges = append(badges, sdui.HeaderBadge{Text: waitingBadge, Tone: statusTones[statusWaiting]})
+		}
+		if full {
+			badges = append(badges, sdui.HeaderBadge{Text: fill, Tone: "warning"})
+		}
+		top = sdui.Header(cmp.Or(rec.Title, "New session"), sdui.HeaderProps{
+			Icon:   statusIcons[display],
+			Meta:   strings.Join(meta, " · "),
+			Badges: badges,
+			Status: display,
+			Agent:  agentLabel(rec.Agent),
+			Branch: sc.Branch,
+			Mode:   sessionModeLabel(sc.View),
+		}, buttons...)
 	}
-	children := []sdui.Node{sdui.HStack(row...)}
+	children := []sdui.Node{top}
 	if rec.Status != statusError {
 		return sdui.VStack(children...)
 	}
@@ -261,6 +275,13 @@ func header(sc screen) sdui.Node {
 		problem = append(problem, sdui.WithAction(sdui.Button(sid+"/retry", "Retry", "arrow.clockwise"), actRetry))
 	}
 	return sdui.VStack(append(children, sdui.HStack(problem...))...)
+}
+
+func sessionModeLabel(v transcriptView) string {
+	if i := slices.IndexFunc(v.Modes, func(m acp.SessionMode) bool { return m.ID == v.Session.Mode }); i >= 0 {
+		return modeLabel(v.Modes[i])
+	}
+	return cmp.Or(modeLabels[v.Session.Mode], v.Session.Mode)
 }
 
 func continueButton(sid string) sdui.Node {
@@ -304,12 +325,9 @@ func composer(sc screen) sdui.Node {
 	for _, a := range sc.Attachments {
 		attachments = append(attachments, sdui.Attachment{ID: a.ID, Kind: a.Kind, Path: relPath(a.Path, rec.Worktree), StartLine: a.StartLine, EndLine: a.EndLine})
 	}
-	placeholder := "Ask " + agentLabel(rec.Agent) + ", @ to attach a file, / for commands…"
-	if len(v.Turns) > 0 {
-		placeholder = "Ask a follow-up, or type / for commands…"
-	}
 	return sdui.Composer(sc.Composer, sdui.ComposerProps{
-		Placeholder: placeholder,
+		Placeholder: composerPlaceholder(sc),
+		Hint:        composerHint,
 		Agent:       agentLabel(rec.Agent),
 		Modes:       modes,
 		Mode:        rec.Mode,
@@ -321,6 +339,26 @@ func composer(sc screen) sdui.Node {
 		Steers:      sc.Steers,
 		Docked:      docked(sc),
 	})
+}
+
+func composerPlaceholder(sc screen) string {
+	rec := sc.View.Session
+	agent := agentLabel(rec.Agent)
+	switch {
+	case asked(sc):
+		return "Answer " + agent + "…"
+	case turnActive(rec) && !sc.Steers:
+		return "Queue a message"
+	}
+	return "Message " + agent + "…"
+}
+
+func asked(sc screen) bool {
+	rec := sc.View.Session
+	if rec.Status == statusDone && rec.Asks {
+		return true
+	}
+	return slices.ContainsFunc(sc.View.Entries, func(en *entry) bool { return en.Kind == entryElicitation && sc.Pending[en.ID] })
 }
 
 func pickers(sc screen) []sdui.Picker {

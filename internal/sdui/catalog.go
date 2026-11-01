@@ -70,6 +70,7 @@ var (
 	itemRequired = []string{"id", "label"}
 
 	messageRoles     = []string{"user", "agent", "thought"}
+	sessionStatuses  = []string{"running", "waiting", "asks", "done", "idle", "error", "closed", "childrenRunning", "childrenWaiting"}
 	planStatuses     = []string{"pending", "in_progress", "completed"}
 	toolKinds        = []string{"read", "edit", "delete", "move", "search", "execute", "think", "agent", "fetch", "switch_mode", "other"}
 	toolStatuses     = []string{"pending", "in_progress", "completed", "failed", "cancelled"}
@@ -178,7 +179,10 @@ var (
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
 		"header": {
 			required: []string{"title"},
-			props:    map[string]propCheck{"title": isString, "icon": isString, "meta": isString, "badges": listOf(headerBadgeCheck)},
+			props: map[string]propCheck{
+				"title": isString, "icon": isString, "meta": isString, "badges": listOf(headerBadgeCheck),
+				"status": oneOf(sessionStatuses), "agent": isString, "branch": isString, "mode": isString,
+			},
 			children: childRule{min: 0, max: 9, only: []string{"button", "textField"}, once: []string{"textField"}},
 		},
 		"empty": {
@@ -190,7 +194,7 @@ var (
 		"transcript": {children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
-			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString},
+			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber},
 			children: noChildren,
 		},
 		"plan": {required: []string{"entries"}, props: map[string]propCheck{"entries": listOf(planEntryCheck)}, children: noChildren},
@@ -205,14 +209,17 @@ var (
 		},
 		"card": {props: map[string]propCheck{"tone": oneOf(badgeTones), "icon": isString}, children: childRule{min: 1, max: -1}},
 		"permissionCard": {
-			required:    []string{"request", "text", "options"},
-			props:       map[string]propCheck{"request": isString, "text": isString, "options": listOf(permissionOptionCheck), "outcome": isString, "action": actionCheck},
+			required: []string{"request", "text", "options"},
+			props: map[string]propCheck{
+				"request": isString, "text": isString, "title": isString, "command": isString, "caption": isString,
+				"options": listOf(permissionOptionCheck), "outcome": isString, "action": actionCheck,
+			},
 			children:    noChildren,
 			interactive: true,
 		},
 		"composer": {
 			props: map[string]propCheck{
-				"placeholder": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
+				"placeholder": isString, "hint": isString, "agent": isString, "modes": listOf(optionCheck), "mode": isString, "pickers": listOf(pickerCheck),
 				"commands": listOf(commandCheck), "attach": listOf(oneOf(attachSources)), "attachments": attachmentsCheck, "running": isBool, "steers": isBool, "docked": isBool,
 			},
 			children:    noChildren,
@@ -544,7 +551,9 @@ func cardActionCheck(c *validator, v any) error {
 }
 
 func permissionOptionCheck(c *validator, v any) error {
-	return objectCheck([]string{"id", "label"}, map[string]propCheck{"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds)})(c, v)
+	return objectCheck([]string{"id", "label"}, map[string]propCheck{
+		"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds), "shortcut": shortcutCheck, "menu": isBool, "rule": isString, "scope": isString,
+	})(c, v)
 }
 
 func pickerCheck(c *validator, v any) error {

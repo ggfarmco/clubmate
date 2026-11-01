@@ -22,7 +22,8 @@
       "at": "2026-10-30T09:41:00Z"
     },
     "notifyEffective": "all",
-    "needsYou": true
+    "needsYou": true,
+    "needsYouSince": "2026-10-30T09:41:00Z"
   },
   {
     "id": "agt_0000000000000002",
@@ -44,7 +45,8 @@
       "at": "2026-10-30T09:41:00Z"
     },
     "notifyEffective": "all",
-    "needsYou": true
+    "needsYou": true,
+    "needsYouSince": "2026-10-30T09:41:00Z"
   },
   {
     "id": "agt_0000000000000003",

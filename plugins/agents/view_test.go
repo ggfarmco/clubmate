@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
@@ -60,7 +61,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 	assert.Equal(t, "Closed · 1", a[1].Label)
 	assert.False(t, a[1].Expanded)
 	assert.Empty(t, a[1].Children)
-	assert.Equal(t, "Waiting for permission · go test", a[0].Detail)
+	assert.Equal(t, "waiting", a[0].Detail)
 	assert.Equal(t, "Muted · 12 min ago", b[0].Detail)
 	assert.Equal(t, []string{"warning", ""}, []string{a[0].Tone, b[0].Tone})
 	assert.Equal(t, []string{actNotifyNeeds, actNotifyMuted, actClose, actDelete}, menuActions(a[0].Menu))
@@ -95,10 +96,10 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 func TestSidebarFilter(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{
-		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}},
+		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Since: now.Add(-time.Minute)},
 		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusRunning}},
 		{Rec: record{ID: "agt_3", Worktree: "/r/b", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
-		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now.Add(-time.Hour)}},
 		{Rec: record{ID: "agt_5", Worktree: "/r/c", Agent: agentClaude, Title: "Orchestrator", Status: statusDone}, Children: statusWaiting},
 		{Rec: record{ID: "agt_6", Worktree: "/r/c", Agent: agentClaude, lineage: lineage{ParentSession: "agt_gone"}, Title: "Child", Status: statusDone, Asks: true}},
 	}
@@ -119,7 +120,7 @@ func TestSidebarFilter(t *testing.T) {
 	assert.Equal(t, []string{"5", "3", "1"}, []string{items[0].Badge, items[1].Badge, items[2].Badge})
 	assert.Equal(t, []string{"", "warning", ""}, []string{items[0].Tone, items[1].Tone, items[2].Tone})
 	assert.Equal(t, filterNeeds, nodesOf(needs, "tabs")[0].Props["selected"])
-	assert.Equal(t, []string{"agt_1", "agt_4", "agt_5"}, ids(needs))
+	assert.Equal(t, []string{"agt_4", "agt_1", "agt_5"}, ids(needs))
 	assert.Equal(t, []string{"agt_2"}, ids(sidebarView(rows, "", nil, now, false, filterRunning)))
 
 	calm := sidebarView(rows[1:3], "", nil, now, false, filterNeeds)
@@ -617,7 +618,7 @@ func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 		children, icon, tone, detail string
 		afk                          bool
 	}{
-		{statusRunning, "circle.dotted", "", "AFK · Waiting for child sessions", true},
+		{statusRunning, "play.circle", "accent", "AFK · Waiting for child sessions", true},
 		{statusWaiting, "exclamationmark.circle", "warning", "Child session waiting", false},
 	} {
 		rows := []sessionRow{{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now, AFK: tc.afk}, Children: tc.children}}
@@ -637,11 +638,7 @@ func TestHeaderShowsAFKAndWaitingForChildren(t *testing.T) {
 	tree := mainView(screen{View: v, Children: statusRunning, Composer: "agt_p/composer/0"})
 	require.NoError(t, internalsdui.Validate(tree))
 
-	var texts []string
-	for _, n := range nodesOf(tree, "text") {
-		texts = append(texts, n.Props["text"].(string))
-	}
-	assert.Contains(t, texts, "AFK · Waiting for child sessions")
+	assert.Equal(t, "AFK · Waiting for child sessions", nodesOf(tree, "header")[0].Props["meta"])
 }
 
 func TestPendingPermissionDocksAboveTheComposer(t *testing.T) {
@@ -763,4 +760,112 @@ func TestEntryNodeCachedUntilEntryChanges(t *testing.T) {
 
 	chunk(", world")
 	assert.Equal(t, "Hello, world", message().Props["text"])
+}
+
+func TestSidebarFailedSessionReadsStopped(t *testing.T) {
+	rows := []sessionRow{{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusError, Error: "exit status 1\nmore"}}}
+	tree := sidebarView(rows, "", nil, time.Now(), false, "")
+	require.NoError(t, internalsdui.Validate(tree))
+
+	item := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
+	assert.Equal(t, []string{"xmark.circle", "danger", "Stopped · exit status 1"}, []string{item.Icon, item.Tone, item.Detail})
+}
+
+func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {
+	now := time.Now()
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusRunning}},
+		{Rec: record{ID: "agt_c", Worktree: "/r/a", Agent: agentClaude, Status: statusWaiting, lineage: lineage{ParentSession: "agt_p"}}, Since: now},
+	}
+	tree := sidebarView(rows, "", map[string]bool{"/r/a": true, expandPrefix + "agt_p": true}, now, false, "")
+	require.NoError(t, internalsdui.Validate(tree))
+
+	group := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)[0]
+	require.True(t, group.Expanded)
+	parent := group.Children[0]
+	assert.True(t, parent.Expanded)
+	require.Len(t, parent.Children, 1)
+	assert.Equal(t, "agt_c", parent.Children[0].ID)
+}
+
+func TestThoughtCarriesItsDuration(t *testing.T) {
+	at := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	v := transcriptView{
+		Session: record{ID: "agt_1", Agent: agentClaude, Status: statusRunning},
+		Entries: []*entry{
+			{Kind: entryThought, ID: "t1", Turn: 1, Text: "weighing", At: at},
+			{Kind: entryAgent, ID: "a1", Turn: 1, Text: "done", At: at.Add(4200 * time.Millisecond)},
+			{Kind: entryThought, ID: "t2", Turn: 1, Text: "still thinking", At: at.Add(5 * time.Second)},
+		},
+	}
+	tree := transcript(screen{View: v})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	var seconds []any
+	for _, n := range nodesOf(tree, "message") {
+		if n.Props["role"] == "thought" {
+			seconds = append(seconds, n.Props["seconds"])
+		}
+	}
+	assert.Equal(t, []any{4, nil}, seconds)
+}
+
+func TestSessionHeaderNamesStatusAgentBranchAndMode(t *testing.T) {
+	v := transcriptView{
+		Session: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Rate-limit", Status: statusWaiting, Mode: "default"},
+		Modes:   []acp.SessionMode{{ID: "default", Name: "Default"}},
+	}
+	tree := mainView(screen{View: v, Branch: branchLabel("(detached 03a9ff5f)"), Composer: "agt_1/composer/0"})
+	require.NoError(t, internalsdui.Validate(tree))
+
+	h := nodesOf(tree, "header")[0]
+	assert.Equal(t, []any{"Rate-limit", "waiting", "Claude", "detached · 03a9ff5f", "Ask before edits"}, []any{h.Props["title"], h.Props["status"], h.Props["agent"], h.Props["branch"], h.Props["mode"]})
+	assert.Equal(t, []sdui.HeaderBadge{{Text: "waiting for you", Tone: "warning"}}, h.Props["badges"])
+	assert.Equal(t, []string{"agt_1/stop"}, []string{h.Children[0].ID})
+}
+
+func TestPermissionCardForACommand(t *testing.T) {
+	call := rawJSON(t, map[string]any{"title": "go test ./internal/notify/...", "kind": "execute", "rawInput": map[string]string{"command": "go test ./internal/notify/...", "description": "Run the notify tests"}})
+	options := []acp.PermissionOption{
+		{OptionID: "reject", Name: "No", Kind: "reject_once"},
+		{OptionID: "allow-with-updates", Name: "Yes, and don't ask again for go test and go vet commands", Kind: "allow_always"},
+		{OptionID: "allow-once", Name: "Yes", Kind: "allow_once"},
+		{OptionID: "never", Name: "No, never", Kind: "reject_always"},
+	}
+	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusWaiting}, Entries: []*entry{{Kind: entryPermission, ID: "perm-1", Turn: 1, ToolCall: call, Options: options}}}
+	card := permissionCard(screen{View: v, Workspace: "shop", Pending: map[string]bool{"perm-1": true}}, v.Entries[0])
+	require.NoError(t, internalsdui.Validate(card))
+
+	assert.Equal(t, []any{"Run a command?", "go test ./internal/notify/...", "Claude says: Run the notify tests"}, []any{card.Props["title"], card.Props["command"], card.Props["caption"]})
+	assert.Equal(t, []sdui.PermissionOption{
+		{ID: "allow-once", Label: "Allow once", Kind: "allow_once", Shortcut: "opt+1"},
+		{ID: "allow-with-updates", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(go test:*) Bash(go vet:*)", Scope: "in shop on this Mac"},
+		{ID: "reject", Label: "Reject", Kind: "reject_once", Shortcut: "opt+3"},
+		{ID: "never", Label: "Always reject", Kind: "reject_always", Menu: true},
+	}, card.Props["options"])
+}
+
+func TestComposerPlaceholderFollowsState(t *testing.T) {
+	for _, tc := range []struct {
+		rec     record
+		pending map[string]bool
+		want    string
+	}{
+		{record{Status: statusIdle}, nil, "Message Claude…"},
+		{record{Status: statusRunning}, nil, "Queue a message"},
+		{record{Status: statusDone, Asks: true}, nil, "Answer Claude…"},
+		{record{Status: statusWaiting}, map[string]bool{"elicitation-1": true}, "Answer Claude…"},
+	} {
+		tc.rec.ID, tc.rec.Agent = "agt_1", agentClaude
+		v := transcriptView{Session: tc.rec, Entries: []*entry{{Kind: entryElicitation, ID: "elicitation-1", Turn: 1}}}
+		n := composer(screen{View: v, Composer: "agt_1/composer/0", Pending: tc.pending})
+		assert.Equal(t, tc.want, n.Props["placeholder"], tc.rec.Status)
+		assert.Equal(t, composerHint, n.Props["hint"])
+	}
+}
+
+func TestShownPromptDropsIDs(t *testing.T) {
+	assert.Equal(t, `[Clubmate] Child "Fix tests" is done.`, shownPrompt(`[Clubmate] Child "Fix tests" (agt_a928b82b8bcb94ab) is done.`))
+	head := fmt.Sprintf(handoffHead, "Old", "agt_0123abcd", "/r/a", "agt_0123abcd")
+	assert.Equal(t, `[Clubmate handoff] You continue agent session "Old" in /r/a; it is closed now.`, shownPrompt(head))
 }

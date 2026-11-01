@@ -253,6 +253,40 @@
           "kind": "reject_always"
         }
       ],
+      "card": {
+        "text": "Claude wants to run go test ./...",
+        "title": "Run a command?",
+        "command": "go test ./...",
+        "caption": "Claude says: Run the shop tests",
+        "options": [
+          {
+            "id": "allow",
+            "label": "Allow once",
+            "kind": "allow_once",
+            "shortcut": "opt+1"
+          },
+          {
+            "id": "allow_always",
+            "label": "Always allow…",
+            "kind": "allow_always",
+            "shortcut": "opt+2",
+            "rule": "Bash(go test:*)",
+            "scope": "in demo on this Mac"
+          },
+          {
+            "id": "deny",
+            "label": "Reject",
+            "kind": "reject_once",
+            "shortcut": "opt+3"
+          },
+          {
+            "id": "deny_always",
+            "label": "Always reject",
+            "kind": "reject_always",
+            "menu": true
+          }
+        ]
+      },
       "at": "2026-10-30T09:41:00Z"
     }
   ],

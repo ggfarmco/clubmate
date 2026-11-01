@@ -32,30 +32,40 @@ const (
 	filterNeeds   = "needs"
 	filterRunning = "running"
 
+	statusAsks      = "asks"
 	childrenRunning = "childrenRunning"
 	childrenWaiting = "childrenWaiting"
+	stoppedDetail   = "error"
 )
 
 var (
 	statusIcons = map[string]string{
-		statusRunning:   "circle.dotted",
-		statusWaiting:   "exclamationmark.circle.fill",
+		statusRunning:   "play.circle",
+		statusWaiting:   "exclamationmark.circle",
+		statusAsks:      "exclamationmark.circle",
 		statusDone:      "checkmark.circle",
 		statusIdle:      "circle",
-		statusError:     "xmark.octagon",
+		statusError:     "xmark.circle",
 		statusClosed:    "archivebox",
-		childrenRunning: "circle.dotted",
+		childrenRunning: "play.circle",
 		childrenWaiting: "exclamationmark.circle",
 	}
 	statusTones = map[string]string{
+		statusRunning:   "accent",
 		statusWaiting:   "warning",
+		statusAsks:      "warning",
 		statusError:     "danger",
+		childrenRunning: "accent",
 		childrenWaiting: "warning",
 	}
 	statusLabels = map[string]string{
 		statusRunning:   "Running",
-		statusWaiting:   "Waiting for permission",
-		statusError:     "Error",
+		statusWaiting:   "waiting",
+		statusAsks:      "asking",
+		statusDone:      "Done",
+		statusIdle:      "idle",
+		statusError:     "Stopped",
+		statusClosed:    "Closed",
 		childrenRunning: "Waiting for child sessions",
 		childrenWaiting: "Child session waiting",
 	}
@@ -77,6 +87,7 @@ type sessionRow struct {
 	Children string
 	Branch   string
 	Asking   bool
+	Since    time.Time
 }
 
 type notifyChoice struct {
@@ -109,9 +120,16 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		}
 		roots = append(roots, row)
 	}
+	oldest := map[string]time.Time{}
+	for _, row := range roots {
+		oldestNeed(row, kids, oldest, map[string]bool{})
+	}
 	filter = cmp.Or(filter, filterAll)
 	tabs := filterTabs(roots, filter)
 	roots = slices.DeleteFunc(roots, func(row sessionRow) bool { return !matchesFilter(row, filter) })
+	if filter == filterNeeds {
+		slices.SortStableFunc(roots, func(x, y sessionRow) int { return compareSince(oldest[x.Rec.ID], oldest[y.Rec.ID]) })
+	}
 	if len(roots) == 0 {
 		all := sdui.WithAction(sdui.Button("filterAll", "Show all", ""), actFilterAll)
 		return sdui.VStack(top, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
@@ -139,14 +157,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	var groups []sdui.TreeItem
 	for _, wt := range order {
 		b := buckets[wt]
-		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{})
+		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{}, oldest)
 		if len(b.closed) > 0 {
 			key := closedKey + wt
 			folded, ok := collapsed[key]
-			closed := runItems(b.closed, key, kids, collapsed, now, map[string]bool{})
+			closed := runItems(b.closed, key, kids, collapsed, now, map[string]bool{}, oldest)
 			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), statusIcons[statusClosed], closed, ok && !folded))
 		}
-		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt])
+		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt] || anyNeeds(b.open, oldest))
 		group.Truncate = "middle"
 		groups = append(groups, group)
 	}
@@ -186,7 +204,46 @@ func matchesFilter(row sessionRow, filter string) bool {
 	return true
 }
 
-func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool) sdui.TreeItem {
+func oldestNeed(row sessionRow, kids map[string][]sessionRow, oldest map[string]time.Time, seen map[string]bool) time.Time {
+	seen[row.Rec.ID] = true
+	var at time.Time
+	if needsYou(row.Rec) {
+		at = cmp.Or(row.Since, row.Rec.UpdatedAt)
+	}
+	for _, kid := range kids[row.Rec.ID] {
+		if seen[kid.Rec.ID] {
+			continue
+		}
+		if k := oldestNeed(kid, kids, oldest, seen); !k.IsZero() && (at.IsZero() || k.Before(at)) {
+			at = k
+		}
+	}
+	if !at.IsZero() {
+		oldest[row.Rec.ID] = at
+	}
+	return at
+}
+
+func compareSince(x, y time.Time) int {
+	switch {
+	case x.IsZero() || y.IsZero():
+		return cmp.Compare(boolInt(x.IsZero()), boolInt(y.IsZero()))
+	}
+	return x.Compare(y)
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func anyNeeds(rows []sessionRow, oldest map[string]time.Time) bool {
+	return slices.ContainsFunc(rows, func(row sessionRow) bool { return !oldest[row.Rec.ID].IsZero() })
+}
+
+func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool, oldest map[string]time.Time) sdui.TreeItem {
 	path[row.Rec.ID] = true
 	defer delete(path, row.Rec.ID)
 	var children []sessionRow
@@ -201,14 +258,14 @@ func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[stri
 	}
 	item.HasChildren = true
 	folded, ok := collapsed[expandPrefix+row.Rec.ID]
-	item.Expanded = ok && !folded
+	item.Expanded = ok && !folded || anyNeeds(children, oldest)
 	if item.Expanded {
-		item.Children = runItems(children, row.Rec.ID, kids, collapsed, now, path)
+		item.Children = runItems(children, row.Rec.ID, kids, collapsed, now, path, oldest)
 	}
 	return item
 }
 
-func runItems(rows []sessionRow, scope string, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool) []sdui.TreeItem {
+func runItems(rows []sessionRow, scope string, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool, oldest map[string]time.Time) []sdui.TreeItem {
 	type entry struct {
 		row  sessionRow
 		run  *api.Run
@@ -233,18 +290,18 @@ func runItems(rows []sessionRow, scope string, kids map[string][]sessionRow, col
 	items := make([]sdui.TreeItem, 0, len(entries))
 	for _, e := range entries {
 		if e.run == nil {
-			items = append(items, nestedItem(e.row, kids, collapsed, now, path))
+			items = append(items, nestedItem(e.row, kids, collapsed, now, path, oldest))
 			continue
 		}
 		slices.SortStableFunc(e.rows, func(x, y sessionRow) int { return x.Rec.CreatedAt.Compare(y.Rec.CreatedAt) })
 		nodes := make([]sdui.TreeItem, 0, len(e.rows))
 		for _, row := range e.rows {
-			item := nestedItem(row, kids, collapsed, now, path)
+			item := nestedItem(row, kids, collapsed, now, path, oldest)
 			item.Label = nodeLabel(row.Rec)
 			nodes = append(nodes, item)
 		}
 		key := runGroupKey(scope, e.run.ID)
-		run := groupItem(key, cmp.Or(e.run.Title, graphRun), graphIcon, nodes, !collapsed[key])
+		run := groupItem(key, cmp.Or(e.run.Title, graphRun), graphIcon, nodes, !collapsed[key] || anyNeeds(e.rows, oldest))
 		run.Detail = runActivity(e.rows, now)
 		items = append(items, run)
 	}
@@ -319,7 +376,7 @@ func sessionItem(row sessionRow, descendants int, now time.Time) sdui.TreeItem {
 		menu = append(menu, sdui.MenuEntry{Action: actClose, Label: "Close Session"})
 	}
 	menu = append(menu, sdui.MenuEntry{Action: actDelete, Label: "Delete Session", Confirm: confirm})
-	display := cmp.Or(childDisplay[row.Children], rec.Status)
+	display := displayStatus(rec, row.Children)
 	return sdui.TreeItem{
 		ID:     rec.ID,
 		Label:  cmp.Or(rec.Title, "New session"),
@@ -337,33 +394,40 @@ func afkDetail(rec record) string {
 	return ""
 }
 
+func displayStatus(rec record, children string) string {
+	if display, ok := childDisplay[children]; ok {
+		return display
+	}
+	if needsYou(rec) && rec.Status == statusDone {
+		return statusAsks
+	}
+	return rec.Status
+}
+
 func needsYou(rec record) bool {
 	return rec.Status == statusWaiting || rec.Status == statusDone && rec.Asks && rec.ParentSession == ""
 }
 
 func activity(row sessionRow, now time.Time) string {
 	rec := row.Rec
-	if display, ok := childDisplay[row.Children]; ok {
-		return statusLabels[display]
-	}
-	label := cmp.Or(statusLabels[rec.Status], rec.Status)
-	switch rec.Status {
+	display := displayStatus(rec, row.Children)
+	label := cmp.Or(statusLabels[display], rec.Status)
+	switch display {
+	case statusWaiting:
+		if row.Asking {
+			return statusLabels[statusAsks]
+		}
+		return label
+	case childrenRunning, childrenWaiting, statusAsks, statusIdle:
+		return label
 	case statusRunning:
 		var parts []string
 		if !row.Started.IsZero() {
 			parts = append(parts, elapsed(now.Sub(row.Started)))
 		}
 		return cmp.Or(strings.Join(nonEmpty(append(parts, row.Activity)...), " · "), label)
-	case statusWaiting:
-		if row.Asking {
-			label = questionLabel
-		}
-		return strings.Join(nonEmpty(label, row.Activity), " · ")
 	case statusError:
-		if line := firstLine(rec.Error); line != "" {
-			return label + " · " + line
-		}
-		return label
+		return label + " · " + cmp.Or(firstLine(rec.Error), stoppedDetail)
 	}
 	return ago(rec.UpdatedAt, now)
 }

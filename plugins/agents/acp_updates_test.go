@@ -44,7 +44,7 @@ func TestUsageKeepsLatestAndCostAndWarnsInHeader(t *testing.T) {
 	assert.Equal(t, 200000, got.Usage.Size)
 	assert.InDelta(t, 0.5, got.Usage.Cost.Amount, 0.001)
 	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
-		warned := slices.ContainsFunc(cardsOf(n, "badge"), func(x sdui.Node) bool { return x.Props["text"] == "84% context" && x.Props["tone"] == "warning" })
+		warned := strings.Contains(string(rawTree(t, n)), `"badges":[{"text":"84% context","tone":"warning"}]`)
 		return warned && !slices.ContainsFunc(cardsOf(n, "text"), func(x sdui.Node) bool { return strings.Contains(x.Props["text"].(string), "$0.50") })
 	})
 	assert.Len(t, updates(t, f.logLines(t, session), "usage_update"), 1)

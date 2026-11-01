@@ -134,10 +134,29 @@ func (s *session) turnStart() time.Time {
 }
 
 func (s *session) activity() string {
+	title, _ := s.current()
+	return title
+}
+
+func (s *session) toolActivity() *toolActivity {
+	s.mu.Lock()
+	running := s.rec.Status == statusRunning
+	s.mu.Unlock()
+	if !running {
+		return nil
+	}
+	title, at := s.current()
+	if title == "" {
+		return nil
+	}
+	return &toolActivity{Title: title, At: at}
+}
+
+func (s *session) current() (string, time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.loaded || (s.rec.Status != statusRunning && s.rec.Status != statusWaiting) {
-		return ""
+		return "", time.Time{}
 	}
 	for i := len(s.entries) - 1; i >= 0; i-- {
 		en := s.entries[i]
@@ -155,9 +174,9 @@ func (s *session) activity() string {
 		default:
 			continue
 		}
-		return firstLine(title)
+		return firstLine(title), en.At
 	}
-	return ""
+	return "", time.Time{}
 }
 
 func newSetup(args worktreeNewArgs) *setup {

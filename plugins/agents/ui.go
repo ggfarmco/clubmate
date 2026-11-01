@@ -220,12 +220,15 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	rows := make([]sessionRow, 0, len(recs))
 	for _, rec := range recs {
-		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: a.branches.name(ctx, rec.Worktree)}
+		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: branchLabel(a.branches.name(ctx, rec.Worktree))}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
 			row.Asking = s.asking()
 			row.Started = s.turnStart()
 			row.Rec.Asks = s.asks()
+			if sum := s.permissionSummary(); sum != nil {
+				row.Since = sum.At
+			}
 		}
 		rows = append(rows, row)
 		if turnActive(rec) {
@@ -248,6 +251,7 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		main := sdui.Empty(pickSession)
 		if s := a.session(selected); s != nil {
 			sc := a.screen(ctx, workspaceID, s)
+			sc.Workspace = workspace.Name
 			main, shown = mainView(sc), &sc
 		}
 		if err := a.push(ctx, p, workspaceID, mainSlot, main); err != nil {
@@ -365,6 +369,7 @@ func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsd
 		sc = nil
 		if s := a.session(bound); s != nil {
 			v := a.screen(ctx, workspace.ID, s)
+			v.Workspace = workspace.Name
 			sc = &v
 		}
 	}
@@ -410,7 +415,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	st := a.sessionState(workspaceID, sid)
 	parent, fromTitles := a.relatives(v)
 	advisor := a.sessionAdvisor(ctx, v.Session)
-	branch := a.branches.name(ctx, v.Session.Worktree)
+	branch := branchLabel(a.branches.name(ctx, v.Session.Worktree))
 	ctxScreen := a.contextScreen(st, v.Session)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()

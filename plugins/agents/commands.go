@@ -306,6 +306,13 @@ func (a *app) transcriptCommand(ctx context.Context, cmd pluginsdk.CommandRun, a
 	}
 	v := s.viewSince(args.FromTurn, since)
 	v.Delta = delta
+	if !cmd.Agent {
+		name := ""
+		if w, err := a.host.GetWorkspace(ctx, cmd.WorkspaceID); err == nil {
+			name = w.Name
+		}
+		withPermissionContent(v.Session, v.Entries, name)
+	}
 	if args.Last {
 		v = v.lastTurn()
 	} else if v.Session.Agent == agentClaude {

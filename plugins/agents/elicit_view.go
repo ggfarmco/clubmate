@@ -18,7 +18,6 @@ const (
 	actElicitOpen     = "elicitationOpen"
 	maxOptionShortcut = 9
 	noChoice          = "—"
-	questionLabel     = "Has a question"
 	cardTone          = "warning"
 )
 

@@ -112,6 +112,8 @@ A pending request is docked above the composer.
 
 Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift`.
 
+The agents plugin also sends the key of each option as its `shortcut` (`opt+1` Allow once, `opt+2` Always allow…, `opt+3` Reject; Always reject sits in the card's ••• menu without a key). Once the Mac renders it, ⌥2 opens the Always allow confirm and ⌥2 again confirms, with Esc as Cancel. Until then the Mac keeps the keys above.
+
 ## Agent questions (Agents section or Code chat panel)
 
 A pending question (AskUserQuestion or an MCP form) is docked above the composer like a permission request.

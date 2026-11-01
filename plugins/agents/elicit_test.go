@@ -58,7 +58,7 @@ func TestElicitationOptionPick(t *testing.T) {
 	require.NotNil(t, waiting.PendingSummary)
 	assert.Equal(t, "question", waiting.PendingSummary.Kind)
 	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
-		return strings.Contains(string(rawTree(t, n)), "Has a question · Which store?")
+		return strings.Contains(string(rawTree(t, n)), `"detail":"asking"`)
 	})
 	init := f.waitCall(t, "initialize", func(fakeCall) bool { return true })
 	assert.Contains(t, string(init.Params), `"elicitation":{"form":{},"url":{}}`)
