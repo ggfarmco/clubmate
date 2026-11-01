@@ -33,7 +33,12 @@ enum WindowImage {
             return rect
         }
         for (view, image) in pages {
+            var visible = root.convert(view.visibleRect, from: view)
+            if root.isFlipped { visible.origin.y = root.bounds.height - visible.maxY }
+            context.cgContext.saveGState()
+            context.cgContext.clip(to: visible)
             context.cgContext.draw(image, in: rect(view))
+            context.cgContext.restoreGState()
         }
         context.cgContext.setBlendMode(.destinationOver)
         for view in surfaces {

@@ -14,11 +14,16 @@ struct DocumentNodeView: View {
         DocumentContent(path: node.string("path") ?? "", html: node.string("html") ?? "", rev: Int(node.props["rev"]?.numberValue ?? 0), anchor: node.string("anchor"), kind: node.string("kind") == "artifact" ? .artifact : .markdown)
     }
 
+    private var fit: Bool {
+        node.string("size") == "fit"
+    }
+
     var body: some View {
-        DocumentWebView(content: content, theme: theme.document, size: node.string("size") == "fit" ? .fit : .fill) { link in
+        DocumentWebView(content: content, theme: theme.document, size: fit ? .fit : .fill) { link in
             open(link)
         }
-        .frame(maxWidth: .infinity, maxHeight: node.string("size") == "fit" ? nil : .infinity)
+        .padding(.horizontal, fit ? theme.gutter : 0)
+        .frame(maxWidth: .infinity, maxHeight: fit ? nil : .infinity)
     }
 
     private func open(_ link: DocumentLink) {

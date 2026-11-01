@@ -159,6 +159,10 @@
               "type": "string",
               "description": "Markdown details."
             },
+            "descriptionHtml": {
+              "type": "string",
+              "description": "The description rendered as HTML for the app and the phone; not sent to agents."
+            },
             "status": {
               "type": "string",
               "enum": [

@@ -6,7 +6,8 @@ The **Backlog** section is a per-workspace task list shared by you and your agen
 
 - Sidebar: a "New task" field on top (Return adds a `todo` task), then tasks grouped as In progress, Todo, Idea, Not now, Done. Rows read `#12 Title`; in-progress rows show the owner, others the first line of the note; high and low priority get a badge.
 - Main: a `header` (`#12 Title`, the status and a non-normal priority as badges) with Start agent (⌘↩), Release, Done (D) and Delete (⌘⌫, confirmed), then the owner and the last note, then the task as a form (title, status, priority, multi-line description) with Save (⌘S). An owner that is an agent session gets a "Show Session" button that selects it in Agents.
-- Companion (iPhone/iPad): a Backlog item under each Mac with the same groups (Not now and Done folded), New Task (title, description, priority, status), and a task screen with Start, Release, Done, Move to and Edit. It acts as you (owner `user`) and refreshes on `backlog.changed`.
+- A non-empty description shows rendered above the form (a `document` node, `size: fit`, rendered by `pkg/docrender`: tables, highlighted code, mermaid diagrams; only `http(s)` links, which open outside the app) and leaves the form; "Edit description" swaps it for the multi-line field and "Done editing" back. The flag is per workspace and holds only for the selected task. An empty description is the field. A change from anywhere (an agent, the phone) re-renders it on `backlog.changed`.
+- Companion (iPhone/iPad): a Backlog item under each Mac with the same groups (Not now and Done folded), New Task (title, description, priority, status), and a task screen with Start, Release, Done, Move to and Edit. The task screen draws the description from `descriptionHtml` (`backlog.get`) with the shared document web view; a Mac that sends none gets it as plain Markdown. It acts as you (owner `user`) and refreshes on `backlog.changed`.
 - ⌘N inside the section, or "New Backlog Task" in the palette, focuses the new-task field. Delete is UI-only (row menu, confirmed).
 
 Statuses: `idea`, `todo`, `in_progress`, `done`, `not_now`. Priorities: `high`, `normal`, `low`. Order is priority, then oldest first (done: newest first).
@@ -20,7 +21,7 @@ Agents use the MCP tools `backlog_list`, `backlog_get`, `backlog_add`, `backlog_
 3. Work. Record progress with `backlog_update` and a `note`.
 4. Finish with `backlog_done` and a note naming the commit, or `backlog_release` (with a note) if you give up.
 
-`backlog_list` defaults to `status: open` (idea + todo + in progress).
+`backlog_list` defaults to `status: open` (idea + todo + in progress). `backlog.get` from the app or the phone also returns `descriptionHtml`, the description rendered; agents don't get it.
 
 Only the user puts tasks into `todo`. A task an agent finds goes in with `backlog_add` as `idea`, and the user promotes it. Agents may not add or set `todo`, and cannot set `in_progress` through update (claim does that). To park a task use `not_now`.
 

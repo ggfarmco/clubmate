@@ -74,6 +74,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     public let id: Int
     public let title: String
     public let description: String
+    public let descriptionHtml: String?
     public let status: BacklogStatus
     public let priority: BacklogPriority
     public let claimedBy: String?
@@ -83,10 +84,11 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     public let createdAt: Date?
     public let updatedAt: Date?
 
-    public init(id: Int, title: String, description: String = "", status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil) {
+    public init(id: Int, title: String, description: String = "", descriptionHtml: String? = nil, status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil) {
         self.id = id
         self.title = title
         self.description = description
+        self.descriptionHtml = descriptionHtml
         self.status = status
         self.priority = priority
         self.claimedBy = claimedBy
@@ -98,7 +100,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, description, status, priority, claimedBy, claimedAt, note, createdBy, createdAt, updatedAt
+        case id, title, description, descriptionHtml, status, priority, claimedBy, claimedAt, note, createdBy, createdAt, updatedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -110,6 +112,7 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
             id: try c.decode(Int.self, forKey: .id),
             title: try text(.title),
             description: try text(.description),
+            descriptionHtml: try c.decodeIfPresent(String.self, forKey: .descriptionHtml),
             status: try c.decodeIfPresent(BacklogStatus.self, forKey: .status) ?? .other,
             priority: try c.decodeIfPresent(BacklogPriority.self, forKey: .priority) ?? .normal,
             claimedBy: owner.isEmpty ? nil : owner,

@@ -12,6 +12,8 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(tasks[0].claimedBy, "agt_0000000000000001")
         XCTAssertEqual(tasks[0].claimedAt, Date.parseRFC3339("2026-10-31T09:12:00.123Z"))
         XCTAssertNil(tasks[1].claimedBy)
+        XCTAssertTrue(tasks[0].descriptionHtml?.contains("<table>") ?? false)
+        XCTAssertNil(tasks[1].descriptionHtml)
         XCTAssertEqual(tasks.last?.priority, .normal)
     }
 

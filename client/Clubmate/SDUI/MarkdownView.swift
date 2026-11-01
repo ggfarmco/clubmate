@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+import ClubmateDocument
 import ClubmateKit
 
 extension Theme {
@@ -40,6 +41,8 @@ struct MarkdownText: View, Equatable {
                     ProseText(content: theme.prose(blocks, muted: muted), linkColor: NSColor(theme.accent))
                 case .code(let language, let text):
                     CodeBlock(language: language, text: text)
+                case .mermaid(let source):
+                    MermaidBlock(source: source)
                 }
             }
         }
@@ -49,6 +52,7 @@ struct MarkdownText: View, Equatable {
 private enum MarkdownSection {
     case prose([MarkdownBlock])
     case code(language: String, text: String)
+    case mermaid(String)
 
     static func split(_ blocks: [MarkdownBlock]) -> [MarkdownSection] {
         var sections: [MarkdownSection] = []
@@ -58,6 +62,10 @@ private enum MarkdownSection {
                 if !prose.isEmpty { sections.append(.prose(prose)) }
                 prose = []
                 sections.append(.code(language: language, text: text))
+            } else if case .mermaid(let source) = block {
+                if !prose.isEmpty { sections.append(.prose(prose)) }
+                prose = []
+                sections.append(.mermaid(source))
             } else {
                 prose.append(block)
             }
@@ -137,7 +145,7 @@ extension Theme {
             }
             quote.addAttribute(.quoteBar, value: NSColor(border), range: range)
             result.append(quote)
-        case .code:
+        case .code, .mermaid:
             break
         }
         return result
@@ -272,5 +280,110 @@ private struct CodeBlock: View {
             try? await Task.sleep(for: .seconds(1.5))
             copied = false
         }
+    }
+}
+
+private struct MermaidBlock: View {
+    static let width: CGFloat = 960
+    static let maxHeight: CGFloat = 480
+
+    let source: String
+
+    @State private var image: CGImage?
+    @State private var enlarged = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let shown = MermaidRenderer.shared.cached(source: source, theme: theme.document, width: Self.width) ?? image
+        Group {
+            if let shown {
+                Button { enlarged = true } label: {
+                    diagram(shown)
+                }
+                .buttonStyle(.plain)
+                .help("Enlarge diagram")
+                .accessibilityLabel("Diagram")
+            } else {
+                CodeBlock(language: "mermaid", text: source)
+            }
+        }
+        .task(id: theme.document) {
+            image = await MermaidRenderer.shared.image(source: source, theme: theme.document, width: Self.width)
+        }
+        .sheet(isPresented: $enlarged) {
+            MermaidSheet(source: source, size: NSApp.keyWindow?.contentLayoutRect.size)
+        }
+    }
+
+    private func diagram(_ image: CGImage) -> some View {
+        let natural = CGSize(width: CGFloat(image.width) / 2, height: CGFloat(image.height) / 2)
+        let width = natural.width * min(1, Self.maxHeight / max(natural.height, 1))
+        return Image(decorative: image, scale: 2)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(maxWidth: width)
+            .padding(theme.spacing.m)
+            .overlay(RoundedRectangle(cornerRadius: theme.radius.m).strokeBorder(theme.border))
+            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct MermaidSheet: View {
+    let source: String
+    let size: CGSize?
+
+    @State private var image: CGImage?
+    @State private var zoom: ZoomRequest?
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: theme.spacing.s) {
+                Text("Diagram")
+                    .font(theme.strong)
+                    .foregroundStyle(theme.foreground)
+                Spacer(minLength: 0)
+                zoomButton("minus.magnifyingglass", "Zoom out", .zoomOut)
+                zoomButton("arrow.up.left.and.down.right.magnifyingglass", "Fit", .fit)
+                zoomButton("plus.magnifyingglass", "Zoom in", .zoomIn)
+                CardButton(label: "Close", shortcut: "Esc") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, theme.spacing.l)
+            .frame(height: theme.header)
+            Rectangle().fill(theme.border).frame(height: 1)
+            Group {
+                if let image {
+                    ZoomableImage(image: image, scale: 4, request: zoom)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .task(id: theme.document) {
+                image = await MermaidRenderer.shared.image(source: source, theme: theme.document, width: width, scale: 4)
+            }
+        }
+        .frame(width: width, height: height)
+        .background(theme.background)
+    }
+
+    private var width: CGFloat { max(640, (size?.width ?? 1040) - 80) }
+    private var height: CGFloat { max(420, (size?.height ?? 760) - 80) }
+
+    private func zoomButton(_ icon: String, _ help: String, _ action: ZoomAction) -> some View {
+        Button { zoom = ZoomRequest(action) } label: {
+            Image(systemName: icon)
+                .font(theme.ui)
+                .foregroundStyle(theme.muted)
+                .frame(width: theme.control, height: theme.control)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
     }
 }

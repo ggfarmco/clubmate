@@ -315,7 +315,11 @@ actor FixtureServer {
                 return status == "open" ? ["idea", "todo", "in_progress"].contains(value) : value == status
             }
             if case .number(let limit) = args["limit"] ?? .null { list = Array(list.prefix(Int(limit))) }
-            return .object(["tasks": .array(list.map(JSONValue.object))])
+            return .object(["tasks": .array(list.map { task in
+                var task = task
+                task["descriptionHtml"] = nil
+                return .object(task)
+            })])
         case "backlog.get":
             return tasks.first { $0["id"] == args["id"] }.map(JSONValue.object) ?? .null
         case "backlog.add":
@@ -397,6 +401,7 @@ actor FixtureServer {
                 if let value = args[key] { task[key] = value }
             }
             if args["status"] != nil { task["claimedBy"] = nil }
+            if args["description"] != nil { task["descriptionHtml"] = nil }
         }
         task["updatedAt"] = Self.stamp(ago: 0)
         tasks[index] = task

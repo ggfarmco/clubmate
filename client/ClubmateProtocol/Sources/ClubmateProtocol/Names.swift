@@ -16,6 +16,7 @@ public enum AgentCommand {
 
 public enum BacklogCommand {
     public static let list = "backlog.list"
+    public static let get = "backlog.get"
     public static let add = "backlog.add"
     public static let update = "backlog.update"
     public static let claim = "backlog.claim"

@@ -18,6 +18,7 @@ public enum MarkdownBlock: Sendable, Hashable {
     case list([MarkdownListItem])
     case quote(String)
     case code(language: String, text: String)
+    case mermaid(String)
 }
 
 public enum Markdown {
@@ -40,7 +41,8 @@ public enum Markdown {
         for line in source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
             if let open = fence {
                 if line.trimmingCharacters(in: .whitespaces).hasPrefix(open.marker) {
-                    blocks.append(.code(language: open.language, text: open.lines.joined(separator: "\n")))
+                    let text = open.lines.joined(separator: "\n")
+                    blocks.append(open.language.lowercased() == "mermaid" ? .mermaid(text) : .code(language: open.language, text: text))
                     fence = nil
                 } else {
                     fence?.lines.append(line)

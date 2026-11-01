@@ -47,9 +47,9 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 }
 
 func TestMainOmitsStatusWhileInProgress(t *testing.T) {
-	_, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "user"}, nil, true, ""), "status")
+	_, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "user"}, nil, true, "", false), "status")
 	assert.False(t, ok)
-	status, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true, ""), "status")
+	status, ok := findNode(mainView(&Task{ID: 1, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true, "", false), "status")
 	require.True(t, ok)
 	for _, o := range status.Props["options"].([]sdui.Option) {
 		assert.NotEqual(t, statusInProgress, o.Value)
@@ -57,18 +57,18 @@ func TestMainOmitsStatusWhileInProgress(t *testing.T) {
 }
 
 func TestMainEmptyState(t *testing.T) {
-	assert.Equal(t, "No tasks yet — add one on the left", mainView(nil, nil, false, "").Props["text"])
-	assert.Equal(t, "Select a task", mainView(nil, nil, true, "").Props["text"])
+	assert.Equal(t, "No tasks yet — add one on the left", mainView(nil, nil, false, "", false).Props["text"])
+	assert.Equal(t, "Select a task", mainView(nil, nil, true, "", false).Props["text"])
 }
 
 func TestMainDeleteConfirms(t *testing.T) {
-	del, ok := findNode(mainView(&Task{ID: 7, Title: "a", Status: statusDone, Priority: priorityNormal}, nil, true, ""), "delete")
+	del, ok := findNode(mainView(&Task{ID: 7, Title: "a", Status: statusDone, Priority: priorityNormal}, nil, true, "", false), "delete")
 	require.True(t, ok)
 	assert.Equal(t, "Delete task #7?", del.Props["confirm"])
 }
 
 func TestMainFormAutosaves(t *testing.T) {
-	main := mainView(&Task{ID: 7, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true, "")
+	main := mainView(&Task{ID: 7, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true, "", false)
 	form, ok := findNode(main, "edit")
 	require.True(t, ok)
 	assert.Equal(t, true, form.Props["autosave"])
@@ -82,8 +82,35 @@ func TestMainFormAutosaves(t *testing.T) {
 
 func TestMainNamesClosedClaimer(t *testing.T) {
 	owners := map[string]string{"agt_b": ownerLabel("agt_b", "Refactor", true)}
-	main := mainView(&Task{ID: 4, Title: "Old", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_b"}, owners, true, "")
+	main := mainView(&Task{ID: 4, Title: "Old", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_b"}, owners, true, "", false)
 	raw, err := json.Marshal(main)
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"In progress by Refactor (closed)"`)
+}
+
+func TestMainDescriptionIsADocumentUntilEdited(t *testing.T) {
+	task := &Task{ID: 2, Title: "a", Status: statusTodo, Priority: priorityNormal, Description: "| a | b |\n|---|---|\n| 1 | 2 |"}
+
+	doc, ok := findNode(mainView(task, nil, true, "", false), "doc")
+	require.True(t, ok)
+	assert.Equal(t, "document", doc.Type)
+	assert.Equal(t, sdui.SizeFit, doc.Props["size"])
+	assert.Contains(t, doc.Props["html"], "<table>")
+	_, ok = findNode(mainView(task, nil, true, "", false), "description")
+	assert.False(t, ok)
+
+	editing := mainView(task, nil, true, "", true)
+	_, ok = findNode(editing, "doc")
+	assert.False(t, ok)
+	_, ok = findNode(editing, "description")
+	assert.True(t, ok)
+	toggle, ok := findNode(editing, "describe")
+	require.True(t, ok)
+	assert.Equal(t, "Done editing", toggle.Props["label"])
+
+	empty := mainView(&Task{ID: 3, Title: "b", Status: statusTodo, Priority: priorityNormal}, nil, true, "", false)
+	_, ok = findNode(empty, "description")
+	assert.True(t, ok)
+	_, ok = findNode(empty, "describe")
+	assert.False(t, ok)
 }

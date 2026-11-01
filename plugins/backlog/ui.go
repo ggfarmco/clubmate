@@ -29,6 +29,7 @@ type workspaceUI struct {
 	formRev    int
 	sent       map[string][32]byte
 	titleError fieldError
+	editing    int
 }
 
 type fieldError struct {
@@ -124,7 +125,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		return err
 	}
 	b.mu.Lock()
-	selected, collapsed, rev, titleError := w.selected, maps.Clone(w.collapsed), w.formRev, w.titleError
+	selected, collapsed, rev, titleError, editing := w.selected, maps.Clone(w.collapsed), w.formRev, w.titleError, w.editing
 	b.mu.Unlock()
 	var current *Task
 	for i := range tasks {
@@ -143,7 +144,7 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if titleError.task != selected {
 		titleError.text = ""
 	}
-	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0, titleError.text))
+	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0, titleError.text, current != nil && editing == current.ID))
 }
 
 func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot string, n sdui.Node) error {
@@ -235,6 +236,15 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return nil
 		}
 		return err
+	case ev.Slot == mainSlot && ev.Action == actDescribe:
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		if w.editing == w.selected {
+			w.editing = 0
+		} else {
+			w.editing = w.selected
+		}
+		return nil
 	case ev.Slot == mainSlot:
 		return b.taskAction(ctx, ev.WorkspaceID, w, ev.Action, b.selected(w))
 	case ev.NodeID != "tasks":

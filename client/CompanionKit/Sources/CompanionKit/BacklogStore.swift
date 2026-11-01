@@ -58,6 +58,10 @@ public final class BacklogStore {
         } while again
     }
 
+    public func get(_ id: Int) async throws -> BacklogTask? {
+        try await run(BacklogCommand.get, .object(["id": .number(Double(id))]))
+    }
+
     @discardableResult
     public func add(_ draft: BacklogDraft) async throws -> BacklogTask? {
         let task = try await run(BacklogCommand.add, draft.addArgs())

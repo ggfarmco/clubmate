@@ -33,6 +33,8 @@ final class ClubmateProtocolTests: XCTestCase {
             .paragraph("after"),
         ])
         XCTAssertEqual(Markdown.blocks("```\nstreaming"), [.code(language: "", text: "streaming")])
+        XCTAssertEqual(Markdown.blocks("```mermaid\ngraph TD\n  A-->B\n```"), [.mermaid("graph TD\n  A-->B")])
+        XCTAssertEqual(Markdown.blocks("```mermaid\ngraph TD"), [.code(language: "mermaid", text: "graph TD")])
     }
 
     func testMarkdownLinksOnlyOpenWebAndMail() throws {

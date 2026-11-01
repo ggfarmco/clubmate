@@ -1,6 +1,6 @@
 import Foundation
 
-public struct DocumentTheme: Equatable, Sendable {
+public struct DocumentTheme: Hashable, Sendable {
     public var background: String
     public var text: String
     public var muted: String

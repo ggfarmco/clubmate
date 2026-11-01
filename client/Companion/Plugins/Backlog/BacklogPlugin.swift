@@ -1,5 +1,6 @@
 import SwiftUI
 
+import ClubmateDocument
 import CompanionKit
 
 struct BacklogPlugin: CompanionPluginUI {
@@ -289,12 +290,19 @@ struct PriorityTag: View {
     }
 }
 
+private struct RenderedDescription: Equatable {
+    let html: String?
+}
+
 struct TaskDetailView: View {
     let context: PluginContext
     let store: BacklogStore
     let taskID: Int
     @State private var editing = false
     @State private var failure: String?
+    @State private var rendered: RenderedDescription?
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Group {
@@ -354,9 +362,15 @@ struct TaskDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
                 }
-                if !task.description.isEmpty {
-                    MarkdownView(text: task.description)
-                        .textSelection(.enabled)
+                if !task.description.isEmpty, let rendered {
+                    if let html = rendered.html {
+                        DocumentWebView(content: DocumentContent(path: "", html: html, rev: html.hashValue), theme: .system(dark: scheme == .dark), size: .fit) { link in
+                            if case .external(let url) = link { openURL(url) }
+                        }
+                    } else {
+                        MarkdownView(text: task.description)
+                            .textSelection(.enabled)
+                    }
                 }
                 Text(footer(task))
                     .font(.footnote)
@@ -367,6 +381,12 @@ struct TaskDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .refreshable { await store.refresh() }
+        .task(id: task.description) {
+            guard !task.description.isEmpty else { return }
+            let html = (try? await store.get(task.id))?.descriptionHtml
+            guard !Task.isCancelled else { return }
+            rendered = RenderedDescription(html: html)
+        }
     }
 
     @ViewBuilder

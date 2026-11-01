@@ -176,14 +176,17 @@ struct FormNodeView: View {
         .onDisappear {
             if state.dirty { send() }
         }
-        .onChange(of: UIForm.fieldIDs(in: node)) { _, ids in
+        .onChange(of: UIForm.fieldIDs(in: node)) { old, ids in
+            if state.dirty, !old.isSubset(of: ids) {
+                send(.object(state.values.filter { old.contains($0.key) }))
+            }
             state.values = state.values.filter { ids.contains($0.key) }
         }
     }
 
-    private func send() {
+    private func send(_ values: JSONValue? = nil) {
         state.sent()
-        dispatch(node, .submit(UIForm.collect(state.values, in: node))) { [state] _ in
+        dispatch(node, .submit(values ?? UIForm.collect(state.values, in: node))) { [state] _ in
             state.answered()
         }
     }

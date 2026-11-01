@@ -75,6 +75,11 @@ func creatorOf(cmd pluginsdk.CommandRun) (string, bool) {
 	return userOwner, false
 }
 
+type renderedTask struct {
+	Task
+	DescriptionHTML string `json:"descriptionHtml,omitempty"`
+}
+
 type commandArgs struct {
 	ID          int     `json:"id"`
 	Status      *string `json:"status"`
@@ -101,7 +106,11 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 	case "backlog.list":
 		return b.listCmd(ctx, cmd.WorkspaceID, args)
 	case "backlog.get":
-		return b.store.get(ctx, cmd.WorkspaceID, args.ID)
+		t, err := b.store.get(ctx, cmd.WorkspaceID, args.ID)
+		if _, agent := creatorOf(cmd); err != nil || agent {
+			return t, err
+		}
+		return renderedTask{Task: t, DescriptionHTML: describe(t.Description)}, nil
 	case "backlog.add":
 		return b.addCmd(ctx, cmd, args)
 	case "backlog.update":

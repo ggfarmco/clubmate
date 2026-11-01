@@ -3,9 +3,11 @@ package main
 import (
 	"cmp"
 	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 
+	"clubmate/pkg/docrender"
 	"clubmate/pkg/sdui"
 )
 
@@ -17,6 +19,7 @@ const (
 	noTasks     = "No tasks yet — add one on the left"
 	formLines   = 8
 	actReveal   = "reveal"
+	actDescribe = "describe"
 )
 
 var (
@@ -121,7 +124,7 @@ func parseAction(action string) (string, string) {
 	return verb, strings.ReplaceAll(value, "-", "_")
 }
 
-func mainView(t *Task, owners map[string]string, hasTasks bool, titleError string) sdui.Node {
+func mainView(t *Task, owners map[string]string, hasTasks bool, titleError string, editing bool) sdui.Node {
 	switch {
 	case t == nil && hasTasks:
 		return sdui.Empty("Select a task")
@@ -146,6 +149,17 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 	if t.Note != "" {
 		nodes = append(nodes, sdui.MutedText(t.Note))
 	}
+	described := t.Description != "" && !editing
+	if described {
+		nodes = append(nodes, sdui.Document("doc", sdui.DocumentProps{HTML: describe(t.Description), Rev: descriptionRev(t.Description), Size: sdui.SizeFit}))
+	}
+	if t.Description != "" {
+		label := "Done editing"
+		if described {
+			label = "Edit description"
+		}
+		nodes = append(nodes, sdui.HStack(sdui.WithVariant(sdui.Button(actDescribe, label, "pencil"), sdui.VariantGhost)))
+	}
 	title, saved := sdui.TextField("title", t.Title, "Title"), sdui.Button("save", "Saved", "checkmark")
 	if titleError != "" {
 		title, saved = sdui.WithError(title, titleError), sdui.Button("save", "Not saved", "")
@@ -154,15 +168,28 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 	if t.Status != statusInProgress {
 		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
 	}
-	fields = append(fields,
-		sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, priorityText), t.Priority)),
-		sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)),
-		sdui.WithShortcut(sdui.WithVariant(saved, sdui.VariantGhost), "cmd+s"),
-	)
+	fields = append(fields, sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, priorityText), t.Priority)))
+	if !described {
+		fields = append(fields, sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)))
+	}
+	fields = append(fields, sdui.WithShortcut(sdui.WithVariant(saved, sdui.VariantGhost), "cmd+s"))
 	form := sdui.VStack(sdui.WithAutosave(sdui.WithAction(sdui.Form("edit", fields...), "save."+strconv.Itoa(t.ID))))
 	form.ID = fmt.Sprintf("task-%d", t.ID)
 	nodes = append(nodes, form)
 	return sdui.Scroll(sdui.VStack(nodes...))
+}
+
+func describe(desc string) string {
+	if desc == "" {
+		return ""
+	}
+	return docrender.Render([]byte(desc), docrender.Options{}).HTML
+}
+
+func descriptionRev(desc string) int {
+	h := fnv.New32a()
+	h.Write([]byte(desc))
+	return int(h.Sum32()&0x7fffffff) | 1
 }
 
 func actions(t *Task) []sdui.Node {

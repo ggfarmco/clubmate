@@ -1,5 +1,6 @@
 import SwiftUI
 
+import ClubmateDocument
 import CompanionKit
 
 
@@ -211,11 +212,95 @@ struct MarkdownView: View {
                             .padding(14)
                     }
                     .background(Color.surface1, in: .rect(cornerRadius: 16))
+                case .mermaid(let source):
+                    MermaidBlock(source: source)
                 }
             }
         }
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct MermaidBlock: View {
+    static let width: CGFloat = 800
+    static let maxHeight: CGFloat = 420
+
+    let source: String
+
+    @State private var image: CGImage?
+    @State private var enlarged = false
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let theme = DocumentTheme.system(dark: scheme == .dark)
+        let shown = MermaidRenderer.shared.cached(source: source, theme: theme, width: Self.width) ?? image
+        Group {
+            if let shown {
+                Button { enlarged = true } label: {
+                    diagram(shown)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Diagram")
+                .accessibilityHint("Opens it full screen")
+            } else {
+                CodeBlock(text: source)
+            }
+        }
+        .task(id: theme) {
+            image = await MermaidRenderer.shared.image(source: source, theme: theme, width: Self.width)
+        }
+        .fullScreenCover(isPresented: $enlarged) {
+            MermaidScreen(source: source)
+        }
+    }
+
+    private func diagram(_ image: CGImage) -> some View {
+        let natural = CGSize(width: CGFloat(image.width) / 2, height: CGFloat(image.height) / 2)
+        let width = natural.width * min(1, Self.maxHeight / max(natural.height, 1))
+        return Image(decorative: image, scale: 2)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(maxWidth: width)
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .background(Color(.systemBackground), in: .rect(cornerRadius: 16))
+            .contentShape(.rect(cornerRadius: 16))
+    }
+}
+
+private struct MermaidScreen: View {
+    let source: String
+
+    @State private var image: CGImage?
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let theme = DocumentTheme.system(dark: scheme == .dark)
+        NavigationStack {
+            GeometryReader { proxy in
+                Group {
+                    if let image {
+                        ZoomableImage(image: image, scale: 4)
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .task(id: theme) {
+                    image = await MermaidRenderer.shared.image(source: source, theme: theme, width: max(proxy.size.width, MermaidBlock.width), scale: 4)
+                }
+            }
+            .background(Color(.systemBackground))
+            .navigationTitle("Diagram")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 

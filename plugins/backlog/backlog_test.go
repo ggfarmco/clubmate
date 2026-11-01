@@ -19,14 +19,15 @@ import (
 )
 
 type task struct {
-	ID            int    `json:"id"`
-	Title         string `json:"title"`
-	Status        string `json:"status"`
-	Priority      string `json:"priority"`
-	ClaimedBy     string `json:"claimedBy"`
-	ClaimedFrom   string `json:"claimedFrom"`
-	LastClaimedBy string `json:"lastClaimedBy"`
-	Note          string `json:"note"`
+	ID              int    `json:"id"`
+	Title           string `json:"title"`
+	Status          string `json:"status"`
+	Priority        string `json:"priority"`
+	ClaimedBy       string `json:"claimedBy"`
+	ClaimedFrom     string `json:"claimedFrom"`
+	LastClaimedBy   string `json:"lastClaimedBy"`
+	Note            string `json:"note"`
+	DescriptionHTML string `json:"descriptionHtml"`
 }
 
 type env struct {
@@ -293,4 +294,25 @@ func TestShowSessionRevealsTheClaimer(t *testing.T) {
 			return strings.Contains(string(ev.Payload), `"id":"agents.reveal"`) && strings.Contains(string(ev.Payload), `"session":"agt_live"`)
 		})
 	}, 10*time.Second, 20*time.Millisecond)
+}
+
+func TestDescriptionRendersAsDocument(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.add("Table", map[string]any{"description": "| a | b |\n|---|---|\n| 1 | 2 |"})
+	assert.Contains(t, e.must(e.user("backlog.get", map[string]any{"id": 1})).DescriptionHTML, "<table>")
+	assert.Empty(t, e.must(e.agent("agt_a", "backlog.get", map[string]any{"id": 1})).DescriptionHTML)
+
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", "1")
+	slotHas := func(text string) {
+		e.h.WaitSlot(t, e.p, "backlog.main", func(n sdui.Node) bool {
+			raw, err := json.Marshal(n)
+			return err == nil && strings.Contains(string(raw), text)
+		})
+	}
+	slotHas(`\u003ctable\u003e`)
+	e.must(e.user("backlog.update", map[string]any{"id": 1, "description": "**bold**"}))
+	slotHas(`\u003cstrong\u003ebold`)
+	e.h.Event(t, e.p, "backlog.main", "describe", "describe", nil)
+	slotHas(`"label":"Done editing"`)
 }
