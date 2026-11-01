@@ -54,7 +54,7 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(hub.bellCount, 1)
     }
 
-    func testDropsAnsweredPermissionEntriesOfItsWorkspaceOnly() {
+    func testMarksAnsweredPermissionEntriesOfItsWorkspaceRead() {
         var hub = NotificationHub()
         let away = HubFocus(appActive: false, workspace: nil)
         let asking = [
@@ -67,8 +67,10 @@ final class NotificationInboxTests: XCTestCase {
         }
         XCTAssertTrue(hub.receive(HubNotification(id: "bus", workspace: "w", session: "agt_1", message: "?", kind: .permission, viaAgent: true), focus: away, now: now))
 
-        XCTAssertEqual(hub.dropResolved(workspace: "w", session: nil, sessions: [asking[1]]), ["agt_1/p1"])
-        XCTAssertEqual(Set(hub.inbox.entries.map(\.id)), ["agt_2/p2", "agt_3/p3", "bus"])
+        XCTAssertEqual(hub.handleResolved(workspace: "w", session: nil, sessions: [asking[1]]), ["agt_1/p1"])
+        XCTAssertEqual(hub.inbox.entries.count, 4)
+        XCTAssertEqual(hub.inbox.unhandled, ["agt_2/p2", "agt_3/p3", "bus"])
+        XCTAssertEqual(hub.handleResolved(workspace: "w", session: nil, sessions: [asking[1]]), [])
     }
 
     func testWaitingDropsDeletedSessionsAndClosedWorkspaces() {

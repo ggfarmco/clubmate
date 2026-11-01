@@ -176,9 +176,9 @@ public struct NotificationHub: Sendable {
     }
 
     @discardableResult
-    public mutating func dropResolved(workspace: String, session: String?, sessions: [AgentSession]) -> [String] {
+    public mutating func handleResolved(workspace: String, session: String?, sessions: [AgentSession]) -> [String] {
         let live = Set(AgentNotifier.requests(sessions).map(\.id))
-        return inbox.remove {
+        return inbox.handle {
             $0.note.source == .agentsSection && $0.note.workspace == workspace && (session == nil || $0.note.session == session) && !live.contains($0.id)
         }
     }

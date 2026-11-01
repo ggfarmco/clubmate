@@ -158,7 +158,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func agentDeleted(_ workspace: String, _ session: String) {
         hub.waiting.remove(workspace: workspace, session: session)
-        withdraw(hub.dropResolved(workspace: workspace, session: session, sessions: []))
+        withdraw(hub.handleResolved(workspace: workspace, session: session, sessions: []))
     }
 
     private func withdraw(_ ids: [String]) {
@@ -199,7 +199,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         guard case .success(let listed) = await run(workspace, CommandInvocation(id: AgentCommand.sessions)) else { return }
         let all = AgentSession.list(listed)
         agents[workspace] = AgentTally(all)
-        withdraw(hub.dropResolved(workspace: workspace, session: session, sessions: all))
+        withdraw(hub.handleResolved(workspace: workspace, session: session, sessions: all))
         guard !focus().shows(workspace: workspace, session: session) || hub.waiting.has(workspace: workspace, session: session) else { return }
         let sessions = all.filter { session == nil || $0.id == session }
         hub.waiting.update(workspace: workspace, session: session, sessions: sessions)

@@ -64,21 +64,15 @@ public struct NotificationInbox: Sendable, Equatable, Codable {
     }
 
     public mutating func handle(_ id: String) {
-        update { $0.id == id }
+        handle { $0.id == id }
     }
 
     public mutating func handleAll() {
-        update { _ in true }
+        handle { _ in true }
     }
 
     public mutating func handleShown(_ focus: HubFocus) {
-        update { focus.shows(workspace: $0.note.workspace, session: $0.note.session) }
-    }
-
-    public mutating func remove(where matches: (InboxEntry) -> Bool) -> [String] {
-        let removed = entries.filter(matches).map(\.id)
-        entries.removeAll(where: matches)
-        return removed
+        handle { focus.shows(workspace: $0.note.workspace, session: $0.note.session) }
     }
 
     public mutating func markSeen(workspace: String) {
@@ -112,11 +106,15 @@ public struct NotificationInbox: Sendable, Equatable, Codable {
         waiting.map(InboxPin.permission) + entries.filter { !$0.handled && $0.note.kind == .needsInput }.map(InboxPin.input)
     }
 
-    private mutating func update(_ matches: (InboxEntry) -> Bool) {
+    @discardableResult
+    public mutating func handle(where matches: (InboxEntry) -> Bool) -> [String] {
+        var handled: [String] = []
         for index in entries.indices where !entries[index].handled && matches(entries[index]) {
             entries[index].seen = true
             entries[index].handled = true
+            handled.append(entries[index].id)
         }
+        return handled
     }
 
     public static func load(from url: URL) -> NotificationInbox {
