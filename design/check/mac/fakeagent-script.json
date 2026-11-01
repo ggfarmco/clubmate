@@ -1,0 +1,277 @@
+{
+ "modes": {
+  "currentModeId": "default",
+  "availableModes": [
+   {
+    "id": "default",
+    "name": "Ask before edits"
+   },
+   {
+    "id": "acceptEdits",
+    "name": "Accept edits"
+   },
+   {
+    "id": "plan",
+    "name": "Plan"
+   }
+  ]
+ },
+ "prompt": [
+  {
+   "match": "Rate-limit",
+   "update": {
+    "sessionUpdate": "session_info_update",
+    "title": "Rate-limit notifications per workspace"
+   }
+  },
+  {
+   "match": "Rate-limit",
+   "update": {
+    "sessionUpdate": "agent_thought_chunk",
+    "content": {
+     "type": "text",
+     "text": "The bus publishes every notification immediately; a per-workspace token bucket in front of Publish keeps one noisy workspace from flooding the rest."
+    }
+   }
+  },
+  {
+   "match": "Rate-limit",
+   "update": {
+    "sessionUpdate": "plan",
+    "entries": [
+     {
+      "content": "Read notify.go and the bus publish path",
+      "priority": "high",
+      "status": "completed"
+     },
+     {
+      "content": "Add a token bucket per workspace",
+      "priority": "high",
+      "status": "completed"
+     },
+     {
+      "content": "Cover the burst case with a test",
+      "priority": "medium",
+      "status": "in_progress"
+     },
+     {
+      "content": "Run go test ./internal/notify",
+      "priority": "medium",
+      "status": "pending"
+     }
+    ]
+   }
+  },
+  {
+   "match": "Rate-limit",
+   "update": {
+    "sessionUpdate": "tool_call",
+    "toolCallId": "r1",
+    "title": "Read internal/notify/notify.go",
+    "kind": "read",
+    "status": "completed",
+    "locations": [
+     {
+      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go",
+      "line": 1
+     }
+    ],
+    "rawInput": {
+     "file_path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go"
+    }
+   }
+  },
+  {
+   "match": "Rate-limit",
+   "update": {
+    "sessionUpdate": "tool_call",
+    "toolCallId": "s1",
+    "title": "Search notify.posted in internal, plugins",
+    "kind": "search",
+    "status": "completed",
+    "rawInput": {
+     "pattern": "notify.posted",
+     "path": "internal, plugins"
+    },
+    "rawOutput": {
+     "numFiles": 4
+    }
+   }
+  },
+  {
+   "match": "Rate-limit",
+   "update": {
+    "sessionUpdate": "tool_call",
+    "toolCallId": "e1",
+    "title": "Edit internal/notify/notify.go",
+    "kind": "edit",
+    "status": "completed",
+    "content": [
+     {
+      "type": "diff",
+      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go",
+      "oldText": "func (s *Service) Post(ctx context.Context, n Notification) error {\n\treturn s.bus.Publish(ctx, Topic, n)\n}\n",
+      "newText": "func (s *Service) Post(ctx context.Context, n Notification) error {\n\tif !s.limiter.Allow(n.Project) {\n\t\treturn ErrRateLimited\n\t}\n\treturn s.bus.Publish(ctx, Topic, n)\n}\n"
+     }
+    ],
+    "locations": [
+     {
+      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go",
+      "line": 14
+     }
+    ]
+   }
+  },
+  {
+   "match": "Rate-limit",
+   "update": {
+    "sessionUpdate": "agent_message_chunk",
+    "content": {
+     "type": "text",
+     "text": "Added a per-workspace **token bucket** in front of `bus.Publish`:\n\n- 10 notifications burst, refill 1/s\n- the global cap stays as before\n- `ErrRateLimited` goes back to the caller, so `cm notify` exits 1\n\nNext I'll run the package tests."
+    }
+   }
+  },
+  {
+   "match": "Rate-limit",
+   "permission": {
+    "toolCall": {
+     "toolCallId": "x1",
+     "title": "go test ./internal/notify/...",
+     "kind": "execute",
+     "status": "pending",
+     "rawInput": {
+      "command": "go test ./internal/notify/...",
+      "description": "go test isn't in this workspace's allow list"
+     }
+    },
+    "options": [
+     {
+      "optionId": "allow",
+      "name": "Allow",
+      "kind": "allow_once"
+     },
+     {
+      "optionId": "always",
+      "name": "Always allow",
+      "kind": "allow_always"
+     },
+     {
+      "optionId": "reject",
+      "name": "Reject",
+      "kind": "reject_once"
+     }
+    ]
+   }
+  },
+  {
+   "match": "flaky",
+   "update": {
+    "sessionUpdate": "session_info_update",
+    "title": "Fix flaky switcher test"
+   }
+  },
+  {
+   "match": "flaky",
+   "update": {
+    "sessionUpdate": "tool_call",
+    "toolCallId": "f1",
+    "title": "Read client/Clubmate/Windows/Switcher.swift",
+    "kind": "read",
+    "status": "completed"
+   }
+  },
+  {
+   "match": "flaky",
+   "permission": {
+    "toolCall": {
+     "toolCallId": "f2",
+     "title": "Edit SwitcherTests.swift",
+     "kind": "edit",
+     "status": "pending"
+    },
+    "options": [
+     {
+      "optionId": "allow",
+      "name": "Allow",
+      "kind": "allow_once"
+     },
+     {
+      "optionId": "reject",
+      "name": "Reject",
+      "kind": "reject_once"
+     }
+    ]
+   }
+  },
+  {
+   "match": "Port cron",
+   "update": {
+    "sessionUpdate": "session_info_update",
+    "title": "Port cron to the detail pane"
+   }
+  },
+  {
+   "match": "Port cron",
+   "update": {
+    "sessionUpdate": "tool_call",
+    "toolCallId": "p1",
+    "title": "Read plugins/cron/view.go",
+    "kind": "read",
+    "status": "completed"
+   }
+  },
+  {
+   "match": "Port cron",
+   "update": {
+    "sessionUpdate": "tool_call",
+    "toolCallId": "p2",
+    "title": "go build ./plugins/cron",
+    "kind": "execute",
+    "status": "in_progress"
+   }
+  },
+  {
+   "match": "Port cron",
+   "sleep": 3600000
+  },
+  {
+   "match": "Migrate",
+   "update": {
+    "sessionUpdate": "session_info_update",
+    "title": "Migrate agents store to sqlite"
+   }
+  },
+  {
+   "match": "Migrate",
+   "update": {
+    "sessionUpdate": "tool_call",
+    "toolCallId": "m1",
+    "title": "go test ./plugins/agents/store",
+    "kind": "execute",
+    "status": "failed"
+   }
+  },
+  {
+   "match": "Migrate",
+   "fail": "exit status 1"
+  },
+  {
+   "match": "Bump",
+   "update": {
+    "sessionUpdate": "session_info_update",
+    "title": "Bump ghostty to 1.2"
+   }
+  },
+  {
+   "match": "Bump",
+   "update": {
+    "sessionUpdate": "agent_message_chunk",
+    "content": {
+     "type": "text",
+     "text": "Bumped the pinned ghostty rev and rebuilt GhosttyKit; `make app` is green."
+    }
+   }
+  }
+ ]
+}
