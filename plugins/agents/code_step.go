@@ -54,11 +54,14 @@ func stepView(sc screen, recs []record) sdui.Node {
 	slices.SortStableFunc(steps, func(a, b record) int { return a.CreatedAt.Compare(b.CreatedAt) })
 	for _, step := range steps {
 		state := cmp.Or(stepStates[step.Status], stepStates[statusIdle])
-		value := sdui.MutedText(state.label)
-		if state.tone != "" {
-			value = sdui.Badge(state.label, state.tone)
+		glyph, value := sdui.Icon(cmp.Or(statusIcons[step.Status], statusIcons[statusIdle])), sdui.MutedText(state.label)
+		if tone := statusTones[step.Status]; tone != "" {
+			glyph = sdui.WithTone(glyph, tone)
 		}
-		nodes = append(nodes, sdui.HStack(sdui.MutedText(nodeLabel(step)), sdui.Icon(cmp.Or(statusIcons[step.Status], statusIcons[statusIdle])), value))
+		if state.tone != "" {
+			value = sdui.WithTone(sdui.Text(state.label), state.tone)
+		}
+		nodes = append(nodes, sdui.HStack(sdui.MutedText(nodeLabel(step)), glyph, value))
 	}
 	open := sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+actOpenGraphs, openGraphs, ""), actOpenGraphs), "secondary")
 	chat := sdui.WithVariant(sdui.WithAction(sdui.Button(codeNewNode+"/step", newChat, ""), actCodeNew), "ghost")

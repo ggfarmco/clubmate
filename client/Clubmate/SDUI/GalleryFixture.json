@@ -34,6 +34,7 @@
               },
               {"id": "internal", "label": "internal", "icon": "folder", "hasChildren": true, "expanded": false},
               {"id": "wt-long", "label": "feat/agents-sidebar-worktree-groups-middle-truncation", "icon": "arrow.triangle.branch", "truncate": "middle"},
+              {"id": "wt-detached", "label": "detached · 03a9ff5f", "icon": "arrow.triangle.branch", "faint": true},
               {"id": "readme", "label": "README.md", "icon": "doc.richtext", "badge": "M"},
               {"id": "agt-run", "label": "Мобильное приложение для управления агентами", "icon": "circle.dotted", "tone": "accent", "detail": "4 min · Read view.go"},
               {"id": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "Waiting for permission · go test"},
@@ -141,13 +142,25 @@
                       "id": "gallery-session-header",
                       "props": {"title": "Rate-limit notifications per workspace", "icon": "exclamationmark.circle", "status": "waiting", "agent": "Claude", "branch": "docs/design-brief", "mode": "Ask before edits", "badges": [{"text": "waiting for you", "tone": "warning"}]},
                       "children": [
-                        {"type": "button", "id": "gallery-session-header/stop", "props": {"label": "Stop", "icon": "stop.fill"}}
+                        {"type": "button", "id": "gallery-session-header/stop", "props": {"label": "Stop", "icon": "stop.fill", "variant": "ghost", "action": "stop"}}
+                      ]
+                    },
+                    {
+                      "type": "header",
+                      "id": "gallery-graph-trigger-header",
+                      "props": {"title": "Review loop: Coder done → Reviewer", "icon": "bolt", "meta": "created by graph Review loop", "badges": [{"text": "active"}]},
+                      "children": [
+                        {"type": "button", "id": "gallery-graph-trigger-header/run", "props": {"label": "Run now", "icon": "play.fill", "variant": "secondary", "shortcut": "cmd+r"}},
+                        {"type": "button", "id": "gallery-graph-trigger-header/graph", "props": {"label": "Open graph", "variant": "ghost", "shortcut": "g"}},
+                        {"type": "button", "id": "gallery-graph-trigger-header/delete", "props": {"label": "Delete", "icon": "trash", "variant": "danger", "shortcut": "cmd+delete", "overflow": true, "confirm": "Delete trigger “Coder done → Reviewer”? Graph Review loop passes work along it; without it the run stops at this step."}}
                       ]
                     },
                     {"type": "text", "props": {"text": "Text styles", "style": "title"}},
                     {"type": "text", "props": {"text": "body: the quick brown fox", "style": "body"}},
                     {"type": "text", "props": {"text": "muted: secondary information", "style": "muted"}},
                     {"type": "text", "props": {"text": "mono: go test ./...", "style": "mono"}},
+                    {"type": "text", "props": {"text": "warning tone: Sun, Nov 1 · 03:00 — not run: Clubmate was closed or the Mac asleep", "tone": "warning"}},
+                    {"type": "text", "props": {"lines": 3, "text": "Review the diff Coder left in the worktree. Run go test ./... and go vet ./... first; if anything fails, report the failing package and the first error and stop there.\nOtherwise read every changed file, check the error handling, the names and that each new branch has a test.\nList what you would change, most important first, one line each.\nEnd with APPROVE or REQUEST CHANGES on its own line."}},
                     {
                       "type": "stack",
                       "props": {"direction": "horizontal"},
@@ -166,7 +179,10 @@
                         {"type": "icon", "props": {"name": "terminal"}},
                         {"type": "icon", "props": {"name": "gearshape"}},
                         {"type": "icon", "props": {"name": "bolt.fill"}},
-                        {"type": "icon", "props": {"name": "no.such.symbol"}}
+                        {"type": "icon", "props": {"name": "no.such.symbol"}},
+                        {"type": "icon", "props": {"name": "play.circle", "tone": "accent"}},
+                        {"type": "icon", "props": {"name": "exclamationmark.circle", "tone": "warning"}},
+                        {"type": "icon", "props": {"name": "xmark.circle", "tone": "danger"}}
                       ]
                     },
                     {"type": "markdown", "props": {"text": "**markdown** with _emphasis_, `code` and a [link](https://example.com)"}},

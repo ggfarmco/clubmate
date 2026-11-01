@@ -220,7 +220,8 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	}
 	rows := make([]sessionRow, 0, len(recs))
 	for _, rec := range recs {
-		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: branchLabel(a.branches.name(ctx, rec.Worktree))}
+		branch := a.branches.name(ctx, rec.Worktree)
+		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: branchLabel(branch), Detached: detachedBranch(branch)}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
 			row.Asking = s.asking()

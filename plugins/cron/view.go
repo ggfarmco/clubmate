@@ -18,11 +18,17 @@ const (
 	historyID    = "history"
 	actDuplicate = "duplicate"
 	actRunMissed = "runMissed"
+	actMissed    = "missed"
 	clockLayout  = "15:04"
 	dayLayout    = "Jan 2 15:04"
 	nextLayout   = "Mon, Jan 2 · 15:04"
 	whenLayout   = "Jan 2 15:04:05"
 )
+
+var missedOptions = []sdui.Option{
+	{Value: missedOnce, Label: "Run once when Clubmate is back"},
+	{Value: missedSkip, Label: "Skip it and wait for the next run"},
+}
 
 func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
 	if len(jobs) == 0 {
@@ -73,9 +79,10 @@ func mainView(j *Job, titles map[string]string, open automation.Open, now time.T
 	if missed > 0 {
 		text := last.In(loc).Format(nextLayout) + " — not run: Clubmate was closed or the Mac asleep"
 		run := automation.ActionNode(j.ID, automation.DetailAction{Action: actRunMissed, Label: "Run it now", Variant: sdui.VariantSecondary})
-		rows = append(rows, sdui.HStack(sdui.MutedText("Missed"), sdui.Badge(text, "warning"), run))
+		rows = append(rows, sdui.HStack(sdui.MutedText("Missed"), sdui.WithTone(sdui.Text(text), "warning"), run))
 	}
-	rows = append(rows, automation.Property("When missed", missedPolicy(j.Missed), ""))
+	policy := sdui.WithAction(sdui.Select(j.ID+"/"+actMissed, missedOptions, cmp.Or(j.Missed, missedOnce)), actMissed)
+	rows = append(rows, sdui.HStack(sdui.MutedText("When missed"), policy))
 	if branch, ok := worktree(j); ok {
 		rows = append(rows, automation.Property("Worktree", branch, ""))
 	}
@@ -97,13 +104,6 @@ func missedRuns(history []Run) (int, time.Time) {
 		return 0, time.Time{}
 	}
 	return n, runs[0].At
-}
-
-func missedPolicy(policy string) string {
-	if policy == missedSkip {
-		return "Skip it and wait for the next run"
-	}
-	return "Run once when Clubmate is back"
 }
 
 func worktree(j *Job) (string, bool) {

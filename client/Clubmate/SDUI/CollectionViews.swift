@@ -215,7 +215,7 @@ struct TreeNodeView: View {
     }
 
     private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, tone: row.item.tone, depth: row.depth, action: action) {
+        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, depth: row.depth, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -323,6 +323,7 @@ struct ItemRow<Leading: View>: View {
     var active = true
     var cursor = false
     var muted = false
+    var faint = false
     var tone: String?
     var depth = 0
     let action: () -> Void
@@ -350,7 +351,7 @@ struct ItemRow<Leading: View>: View {
                 }
             }
             Text(item.label)
-                .foregroundStyle(muted ? theme.muted : theme.foreground)
+                .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
                 .lineLimit(1)
                 .truncationMode(Text.TruncationMode(item.truncate))
                 .help(item.label)

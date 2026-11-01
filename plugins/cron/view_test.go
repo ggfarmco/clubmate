@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	isdui "clubmate/internal/sdui"
+	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/automation"
 )
@@ -66,7 +67,10 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 	assert.Equal(t, []sdui.HeaderBadge{{Text: "active"}, {Text: "missed 1 run", Tone: "warning"}}, view.Children[0].Props["badges"])
 	got := texts(view)
 	assert.Contains(t, got, "in 13 h")
-	assert.Contains(t, got, "Skip it and wait for the next run")
+	missedRow := view.Children[1].Children[2]
+	assert.Equal(t, "warning", missedRow.Children[1].Props["tone"])
+	policy := view.Children[1].Children[3].Children[1]
+	assert.Equal(t, []any{"select", missedSkip, actMissed}, []any{policy.Type, policy.Props["value"], policy.Props["action"]})
 	assert.Contains(t, got, "the main checkout")
 	assert.Contains(t, got, "nobody — results go to the inbox")
 	assert.Contains(t, got, "Start an agent · Claude · new session")
@@ -126,4 +130,15 @@ func childIDs(n sdui.Node) []string {
 		ids = append(ids, c.ID)
 	}
 	return ids
+}
+
+func TestWhenMissedPickerSetsThePolicy(t *testing.T) {
+	now := time.Date(2026, 10, 31, 14, 0, 0, 0, time.UTC)
+	j := &Job{ID: "cj_a", Name: "Nightly", Workspace: "ws", Enabled: true, Missed: missedOnce, Command: "notify.post", Schedule: Schedule{Cron: "0 3 * * *", Timezone: "UTC"}}
+	a, _ := testApp(&now, nil, j)
+	close(a.ready)
+
+	require.NoError(t, a.setMissed(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws", Action: actMissed, Value: json.RawMessage(`"skip"`)}, j.ID))
+	assert.Equal(t, missedSkip, a.jobs[j.ID].Missed)
+	assert.Error(t, a.setMissed(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws", Action: actMissed, Value: json.RawMessage(`"later"`)}, j.ID))
 }

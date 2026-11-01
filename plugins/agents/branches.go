@@ -9,7 +9,10 @@ import (
 	"clubmate/plugins/internal/gitrepo"
 )
 
-const gitChangedTopic = "git.changed"
+const (
+	gitChangedTopic = "git.changed"
+	detachedPrefix  = "(detached "
+)
 
 type gitChanged struct {
 	Workspace string `json:"workspace"`
@@ -40,8 +43,12 @@ func (c *branchCache) name(ctx context.Context, root string) string {
 	return name
 }
 
+func detachedBranch(name string) bool {
+	return strings.HasPrefix(name, detachedPrefix)
+}
+
 func branchLabel(name string) string {
-	if sha, ok := strings.CutPrefix(name, "(detached "); ok {
+	if sha, ok := strings.CutPrefix(name, detachedPrefix); ok {
 		return "detached · " + strings.TrimSuffix(sha, ")")
 	}
 	return name

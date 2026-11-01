@@ -12,6 +12,7 @@ struct ButtonNodeView: View {
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(FormState.self) private var form: FormState?
     @Environment(\.theme) private var theme
+    @Environment(\.buttonKeyHint) private var keyHint
 
     private var variant: String? { node.string("variant") }
     private var disabled: Bool { press.disabled }
@@ -43,7 +44,7 @@ struct ButtonNodeView: View {
     private var height: CGFloat { variant == nil ? theme.rowHeight : theme.control }
 
     private var tooltip: String {
-        [node.string("label") ?? "", combo?.label ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
+        [node.string("label") ?? "", keyLabel ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     private var chrome: some View {
@@ -84,8 +85,8 @@ struct ButtonNodeView: View {
                 Text(node.string("label") ?? "")
                     .lineLimit(1)
             }
-            if let combo, !iconOnly {
-                Text(combo.label)
+            if let keyLabel, !iconOnly {
+                Text(keyLabel)
                     .font(theme.uiSmall)
                     .foregroundStyle(variant == "primary" ? theme.onAccent : theme.muted)
             }
@@ -93,6 +94,8 @@ struct ButtonNodeView: View {
     }
 
     private var press: ButtonPress { ButtonPress(node: node, dispatch: dispatch, form: form) }
+
+    private var keyLabel: String? { combo?.label ?? keyHint }
 
     private var foreground: Color {
         if loading != nil { return variant == "primary" ? theme.onAccent : theme.text2 }

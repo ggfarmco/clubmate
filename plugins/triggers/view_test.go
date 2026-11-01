@@ -33,7 +33,9 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	require.NoError(t, isdui.Validate(view))
 	header := view.Children[0]
 	assert.Equal(t, "created by graph Review loop", header.Props["meta"])
-	assert.Equal(t, []string{"tr_1/run", "tr_1/pause", "tr_1/graph"}, childIDs(header))
+	assert.Equal(t, []string{"tr_1/run", "tr_1/pause", "tr_1/graph", "tr_1/delete"}, childIDs(header))
+	assert.Equal(t, true, header.Children[3].Props["overflow"])
+	assert.Contains(t, header.Children[3].Props["confirm"], "without it the run stops at this step")
 	got := texts(view)
 	assert.Contains(t, got, "an agent turn finishes · status done · session Review loop · Coder")
 	assert.Contains(t, got, "graph Review loop")

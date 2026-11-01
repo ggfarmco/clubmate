@@ -17,6 +17,10 @@ struct TextNodeView: View {
 
     @Environment(\.theme) private var theme
 
+    private var lines: Int? {
+        node.props["lines"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap { $0 >= 2 ? min($0, 50) : nil }
+    }
+
     var body: some View {
         let text = node.string("text") ?? ""
         if node.string("style") == "title" {
@@ -28,12 +32,60 @@ struct TextNodeView: View {
                 .help(text)
                 .layoutPriority(1)
                 .padding(.horizontal, theme.gutter)
+        } else if let lines {
+            ClampedText(text: text, lines: lines, color: color)
+                .padding(.horizontal, theme.gutter)
         } else {
             Text(text)
                 .font(theme.ui)
-                .foregroundStyle(node.string("style") == "muted" ? theme.muted : theme.foreground)
+                .foregroundStyle(color)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, theme.gutter)
+        }
+    }
+
+    private var color: Color {
+        theme.tone(node.string("tone")) ?? (node.string("style") == "muted" ? theme.muted : theme.foreground)
+    }
+}
+
+private struct ClampedText: View {
+    let text: String
+    let lines: Int
+    let color: Color
+
+    @State private var expanded = false
+    @State private var clamped: CGFloat = 0
+    @State private var full: CGFloat = 0
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.xs) {
+            Text(text)
+                .font(theme.ui)
+                .foregroundStyle(color)
+                .lineLimit(expanded ? nil : lines)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(expanded ? "" : text)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { clamped = $0 }
+                .background(alignment: .topLeading) {
+                    Text(text)
+                        .font(theme.ui)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .hidden()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { full = $0 }
+                }
+            if expanded || full > clamped + 0.5 {
+                Button { expanded.toggle() } label: {
+                    Text(expanded ? "Show less" : "Show all")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(hovering ? theme.foreground : theme.text2)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering = $0 }
+            }
         }
     }
 }
@@ -72,7 +124,7 @@ struct IconNodeView: View {
     var body: some View {
         Image(systemName: SymbolName.resolve(node.string("name")))
             .font(theme.ui)
-            .foregroundStyle(theme.foreground)
+            .foregroundStyle(theme.tone(node.string("tone")) ?? theme.foreground)
             .padding(.horizontal, theme.gutter)
     }
 }
@@ -128,13 +180,17 @@ struct HeaderNodeView: View {
     @Environment(\.theme) private var theme
     @Environment(\.headerTrailingInset) private var trailingInset
 
+    private static let inlineCaptionWidth: CGFloat = 640
+
     var body: some View {
         let title = node.string("title") ?? ""
+        let session = node.string("status") != nil
+        let inline = width >= Self.inlineCaptionWidth
         VStack(alignment: .leading, spacing: theme.spacing.l) {
             HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
                 if let icon = node.string("icon") {
                     Image(systemName: SymbolName.resolve(icon))
-                        .foregroundStyle(theme.muted)
+                        .foregroundStyle(theme.tone(node.headerStatusTone) ?? theme.muted)
                 }
                 Text(title)
                     .font(theme.heading)
@@ -144,35 +200,47 @@ struct HeaderNodeView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .help(title)
                     .layoutPriority(1)
-                ForEach(Array(node.headerBadges().enumerated()), id: \.offset) { _, badge in
-                    BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
-                        .fixedSize()
+                if inline, let caption = sessionCaption {
+                    captionText(caption)
                 }
+                if !session { badges }
                 Spacer(minLength: 0)
+                if session {
+                    badges
+                    stop(compact: !inline)
+                }
             }
             .padding(.trailing, trailingInset)
+            if !inline, let caption = sessionCaption {
+                captionText(caption)
+            }
             if let meta = node.string("meta") {
                 Text(meta)
                     .font(theme.uiSmall)
                     .foregroundStyle(theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !node.children.isEmpty {
+            if node.headerField != nil || !node.headerButtons.isEmpty {
                 if width > 0 && width < 480 {
                     overflowRow
                 } else {
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: theme.spacing.m) {
                             filter
-                            ForEach(node.headerButtons.filter { $0.node.string("variant") != "danger" }) { child in
+                            let bar = node.headerBar
+                            ForEach(bar.filter { $0.node.string("variant") != "danger" }) { child in
                                 SDUINodeView(node: child.node).equatable()
                             }
-                            let danger = node.headerButtons.filter { $0.node.string("variant") == "danger" }
-                            if !danger.isEmpty {
+                            let danger = bar.filter { $0.node.string("variant") == "danger" }
+                            let menu = node.headerButtons.filter { $0.node.bool("overflow") == true }
+                            if !danger.isEmpty || !menu.isEmpty {
                                 Spacer(minLength: theme.spacing.m)
-                                ForEach(danger) { child in
-                                    SDUINodeView(node: child.node).equatable()
-                                }
+                            }
+                            ForEach(danger) { child in
+                                SDUINodeView(node: child.node).equatable()
+                            }
+                            if !menu.isEmpty {
+                                HeaderMoreMenu(id: "\(node.id ?? "header").more", actions: menu.map(\.node))
                             }
                         }
                         overflowRow
@@ -186,6 +254,45 @@ struct HeaderNodeView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
     }
+
+    private var sessionCaption: String? {
+        let parts = ["agent", "branch", "mode"].compactMap { node.string($0) }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func captionText(_ caption: String) -> some View {
+        Text(caption)
+            .font(theme.uiSmall)
+            .foregroundStyle(theme.muted)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .help(caption)
+    }
+
+    private var badges: some View {
+        ForEach(Array(node.headerBadges().enumerated()), id: \.offset) { _, badge in
+            BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
+                .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private func stop(compact: Bool) -> some View {
+        if let stop = node.headerStop {
+            SDUINodeView(node: compact ? Self.iconOnly(stop.node) : stop.node)
+                .equatable()
+                .environment(\.buttonKeyHint, Self.stopHint)
+                .fixedSize()
+        }
+    }
+
+    private static func iconOnly(_ button: SDUINode) -> SDUINode {
+        var props = button.props
+        props["iconOnly"] = .bool(true)
+        return SDUINode(type: button.type, id: button.id, props: props)
+    }
+
+    private static let stopHint = "⎋"
 
     @ViewBuilder
     private var filter: some View {
@@ -321,9 +428,18 @@ private struct HeaderTrailingInsetKey: EnvironmentKey {
     static let defaultValue: CGFloat = 0
 }
 
+private struct ButtonKeyHintKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
 extension EnvironmentValues {
     var headerTrailingInset: CGFloat {
         get { self[HeaderTrailingInsetKey.self] }
         set { self[HeaderTrailingInsetKey.self] = newValue }
+    }
+
+    var buttonKeyHint: String? {
+        get { self[ButtonKeyHintKey.self] }
+        set { self[ButtonKeyHintKey.self] = newValue }
     }
 }

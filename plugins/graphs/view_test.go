@@ -69,7 +69,9 @@ func TestStoppedRunOffersRemove(t *testing.T) {
 	assert.Equal(t, []string{actRemove}, []string{items[0].Menu[0].Action})
 	assert.Equal(t, "", items[0].Tone)
 	header := mainView(r, nil).Children[0]
-	assert.Equal(t, "gr_1/remove", header.Children[len(header.Children)-1].ID)
+	remove := header.Children[len(header.Children)-1]
+	assert.Equal(t, "gr_1/remove", remove.ID)
+	assert.Equal(t, true, remove.Props["overflow"])
 }
 
 func cellTexts(row sdk.TableRow) []string {

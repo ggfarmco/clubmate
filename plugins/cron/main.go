@@ -166,6 +166,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	if ev.Action == actDuplicate {
 		return nil, a.duplicate(ctx, ev.WorkspaceID, id)
 	}
+	if ev.Action == actMissed {
+		return nil, a.setMissed(ctx, ev, id)
+	}
 	if ev.Action == "select" {
 		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {
 			return nil, err
@@ -193,6 +196,22 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	}
 	_, err = a.command(ctx, nil, cmd)
 	return nil, err
+}
+
+func (a *app) setMissed(ctx context.Context, ev pluginsdk.UIEvent, id string) error {
+	var policy string
+	if err := json.Unmarshal(ev.Value, &policy); err != nil {
+		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	if policy != missedOnce && policy != missedSkip {
+		return fmt.Errorf("%s value: unknown policy %q", ev.Action, policy)
+	}
+	args, err := json.Marshal(jobArgs{ID: id, Missed: policy})
+	if err != nil {
+		return err
+	}
+	_, err = a.command(ctx, nil, pluginsdk.CommandRun{ID: "cron.update", WorkspaceID: ev.WorkspaceID, Args: args})
+	return err
 }
 
 func (a *app) revealOwner(ctx context.Context, workspace, id string) error {

@@ -18,11 +18,9 @@ const (
 	ActDelete = "delete"
 	ActReveal = "reveal"
 	ActJSON   = "json"
-	ActAll    = "all"
 
 	propsID     = "props"
 	promptLines = 3
-	promptRunes = 360
 	agentNew    = "agents.new"
 	agentEmit   = "triggers.emit"
 )
@@ -43,7 +41,6 @@ type DetailAction struct {
 
 type Open struct {
 	JSON bool
-	All  bool
 }
 
 func ActionNode(id string, a DetailAction) sdui.Node {
@@ -146,23 +143,14 @@ func Does(id, command string, args json.RawMessage, titles map[string]string, op
 	var fields map[string]any
 	_ = json.Unmarshal(args, &fields)
 	rows := []sdui.Node{Property("Does", doesLine(command, fields, titles), "")}
-	toggles := []sdui.Node{sdui.MutedText("")}
-	prompt := Names(promptOf(fields), titles)
-	if prompt != "" {
-		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.Card("", "", sdui.Text(clampPrompt(prompt, open.All)))))
-	}
-	if clampPrompt(prompt, false) != prompt {
-		all := DetailAction{Action: ActAll, Label: "Show all", Icon: "chevron.down", Variant: sdui.VariantGhost}
-		if open.All {
-			all.Label, all.Icon = "Show less", "chevron.up"
-		}
-		toggles = append(toggles, ActionNode(id, all))
+	if prompt := Names(promptOf(fields), titles); prompt != "" {
+		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.Card("", "", sdui.WithLines(sdui.Text(prompt), promptLines))))
 	}
 	toggle := DetailAction{Action: ActJSON, Label: "Show as JSON", Icon: "chevron.right", Variant: sdui.VariantGhost}
 	if open.JSON {
 		toggle.Label, toggle.Icon = "Hide JSON", "chevron.down"
 	}
-	rows = append(rows, sdui.HStack(append(toggles, ActionNode(id, toggle))...))
+	rows = append(rows, sdui.HStack(sdui.MutedText(""), ActionNode(id, toggle)))
 	if open.JSON {
 		raw, _ := json.MarshalIndent(map[string]any{"command": command, "args": fields}, "", "  ")
 		rows = append(rows, sdui.HStack(sdui.MutedText(""), sdui.MutedText(string(raw))))
@@ -197,25 +185,6 @@ func promptOf(fields map[string]any) string {
 		}
 	}
 	return ""
-}
-
-func clampPrompt(s string, all bool) string {
-	if all {
-		return s
-	}
-	lines := strings.SplitN(s, "\n", promptLines+1)
-	cut := len(lines) > promptLines
-	if cut {
-		lines = lines[:promptLines]
-	}
-	out := strings.Join(lines, "\n")
-	if runes := []rune(out); len(runes) > promptRunes {
-		out, cut = string(runes[:promptRunes]), true
-	}
-	if cut {
-		out = strings.TrimRight(out, " \n") + "…"
-	}
-	return out
 }
 
 func Capitalize(s string) string {

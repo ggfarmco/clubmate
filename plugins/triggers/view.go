@@ -79,7 +79,10 @@ func mainView(t *Trigger, titles map[string]string, open automation.Open) sdui.N
 	}
 	if t.Run != "" {
 		props.Meta = "created by graph " + runName(t)
-		actions = append(actions, automation.ActionNode(t.ID, automation.DetailAction{Action: actGraph, Label: "Open graph", Icon: graphIcon, Variant: sdui.VariantGhost, Shortcut: "g"}))
+		actions = append(actions,
+			automation.ActionNode(t.ID, automation.DetailAction{Action: actGraph, Label: "Open graph", Icon: graphIcon, Variant: sdui.VariantGhost, Shortcut: "g"}),
+			sdui.WithOverflow(automation.ActionNode(t.ID, automation.DeleteAction(deleteConfirm(t)))),
+		)
 	} else {
 		actions = append(actions, automation.ActionNode(t.ID, automation.DeleteAction(deleteConfirm(t))))
 	}

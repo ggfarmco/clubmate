@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -41,7 +42,7 @@ func rawJSON(t *testing.T, v any) json.RawMessage {
 func TestSidebarGroupsByWorktree(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{
-		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Activity: "go test"},
+		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Refunds", Status: statusWaiting}, Activity: "go test", Branch: branchLabel("(detached 03a9ff5f)"), Detached: true},
 		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusDone, UpdatedAt: now.Add(-12 * time.Minute)}, Notify: notifyMuted, Branch: "feat/auth"},
 		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
@@ -51,7 +52,8 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 2)
-	assert.Equal(t, []string{"a", "feat/auth"}, []string{groups[0].Label, groups[1].Label})
+	assert.Equal(t, []string{"detached · 03a9ff5f", "feat/auth"}, []string{groups[0].Label, groups[1].Label})
+	assert.Equal(t, []bool{true, false}, []bool{groups[0].Faint, groups[1].Faint})
 	assert.Empty(t, groups[1].Detail)
 	assert.Equal(t, []string{"middle", "middle"}, []string{groups[0].Truncate, groups[1].Truncate})
 	a, b := groups[0].Children, groups[1].Children
@@ -721,13 +723,15 @@ func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
 	require.NoError(t, internalsdui.Validate(tree))
 
 	assert.Empty(t, nodesOf(tree, "composer"))
-	var texts []string
-	for _, n := range append(nodesOf(tree, "text"), nodesOf(tree, "badge")...) {
-		texts = append(texts, n.Props["text"].(string))
+	tones := map[string]any{}
+	for _, n := range append(nodesOf(tree, "text"), nodesOf(tree, "icon")...) {
+		tones[cmp.Or(n.Props["text"], n.Props["name"]).(string)] = n.Props["tone"]
 	}
-	assert.Contains(t, texts, "Reviewer is a step of Review loop")
-	assert.Contains(t, texts, "waiting for you")
-	assert.Contains(t, texts, "not started")
+	assert.Contains(t, tones, "Reviewer is a step of Review loop")
+	assert.Equal(t, "warning", tones["waiting for you"])
+	assert.Equal(t, "warning", tones[statusIcons[statusWaiting]])
+	assert.Contains(t, tones, "not started")
+	assert.Empty(t, nodesOf(tree, "badge"))
 	var actions []string
 	for _, b := range nodesOf(tree, "button") {
 		actions = append(actions, b.Props["action"].(string))

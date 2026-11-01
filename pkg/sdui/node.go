@@ -33,6 +33,7 @@ type TreeItem struct {
 	Badge       string      `json:"badge,omitempty"`
 	Menu        []MenuEntry `json:"menu,omitempty"`
 	Muted       bool        `json:"muted,omitempty"`
+	Faint       bool        `json:"faint,omitempty"`
 	HasChildren bool        `json:"hasChildren,omitempty"`
 	Expanded    bool        `json:"expanded,omitempty"`
 	Children    []TreeItem  `json:"children,omitempty"`
@@ -449,6 +450,14 @@ func WithVariant(n Node, variant string) Node {
 
 func WithShortcut(n Node, combo string) Node {
 	return withProp(n, "shortcut", combo)
+}
+
+func WithOverflow(n Node) Node {
+	return withProp(n, "overflow", true)
+}
+
+func WithTone(n Node, tone string) Node {
+	return withProp(n, "tone", tone)
 }
 
 func WithIconOnly(n Node) Node {

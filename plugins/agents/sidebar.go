@@ -86,6 +86,7 @@ type sessionRow struct {
 	Notify   string
 	Children string
 	Branch   string
+	Detached bool
 	Asking   bool
 	Since    time.Time
 }
@@ -136,6 +137,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	type bucket struct {
 		label        string
+		detached     bool
 		open, closed []sessionRow
 	}
 	var order []string
@@ -144,7 +146,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		wt := row.Rec.Worktree
 		b, ok := buckets[wt]
 		if !ok {
-			b = &bucket{label: cmp.Or(row.Branch, filepath.Base(wt))}
+			b = &bucket{label: cmp.Or(row.Branch, filepath.Base(wt)), detached: row.Detached}
 			buckets[wt] = b
 			order = append(order, wt)
 		}
@@ -166,6 +168,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		}
 		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt] || anyNeeds(b.open, oldest))
 		group.Truncate = "middle"
+		group.Faint = b.detached
 		groups = append(groups, group)
 	}
 	return sdui.VStack(top, tabs, sdui.Tree("sessions", groups, selected))

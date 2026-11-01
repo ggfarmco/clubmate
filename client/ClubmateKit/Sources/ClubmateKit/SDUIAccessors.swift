@@ -48,6 +48,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let item: SDUIItem
     public let tone: String?
     public let muted: Bool
+    public let faint: Bool
     public let hasChildren: Bool
     public let expanded: Bool
     public let children: [SDUITreeItem]
@@ -63,6 +64,7 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         self.item = item
         tone = fields["tone"]?.stringValue
         muted = fields["muted"]?.boolValue ?? false
+        faint = fields["faint"]?.boolValue ?? false
         hasChildren = fields["hasChildren"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false
         children = fields["children"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
@@ -276,12 +278,30 @@ extension SDUINode {
     }
 
     public var headerButtons: [SDUIChild] {
-        identifiedChildren.filter { $0.node.type != "textField" }
+        identifiedChildren.filter { $0.node.type != "textField" && $0.id != headerStop?.id }
+    }
+
+    public var headerStatusTone: String? {
+        switch string("status") {
+        case "running", "childrenRunning": "accent"
+        case "waiting", "asks", "childrenWaiting": "warning"
+        case "error": "danger"
+        default: nil
+        }
+    }
+
+    public var headerStop: SDUIChild? {
+        guard string("status") != nil else { return nil }
+        return identifiedChildren.first { $0.node.type == "button" && $0.node.string("action") == "stop" }
+    }
+
+    public var headerBar: [SDUIChild] {
+        headerButtons.filter { $0.node.bool("overflow") != true }
     }
 
     public func headerOverflow() -> (shown: [SDUIChild], more: [SDUIChild]) {
         let all = headerButtons
-        let shown = Array(all.filter { $0.node.string("variant") != "danger" }.prefix(3))
+        let shown = Array(headerBar.filter { $0.node.string("variant") != "danger" }.prefix(3))
         let ids = Set(shown.map(\.id))
         return (shown, all.filter { !ids.contains($0.id) })
     }

@@ -141,9 +141,9 @@ var (
 			props:    map[string]propCheck{"values": sparkValues, "max": positive, "height": sparkHeight},
 			children: noChildren,
 		},
-		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles)}, children: noChildren},
+		"text":     {required: []string{"text"}, props: map[string]propCheck{"text": isString, "style": oneOf(textStyles), "lines": linesNumber, "tone": oneOf(badgeTones)}, children: noChildren},
 		"badge":    {required: []string{"text"}, props: map[string]propCheck{"text": isString, "tone": oneOf(badgeTones)}, children: noChildren},
-		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString}, children: noChildren},
+		"icon":     {required: []string{"name"}, props: map[string]propCheck{"name": isString, "tone": oneOf(badgeTones)}, children: noChildren},
 		"diff":     {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"markdown": {required: []string{"text"}, props: map[string]propCheck{"text": isString}, children: noChildren},
 		"document": {
@@ -154,7 +154,7 @@ var (
 		},
 		"button": {
 			required:    []string{"label"},
-			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString},
+			props:       map[string]propCheck{"label": isString, "icon": isString, "confirm": isString, "action": actionCheck, "variant": oneOf(variants), "disabled": isBool, "shortcut": shortcutCheck, "loading": isString, "iconOnly": isBool, "copy": isString, "overflow": isBool},
 			children:    noChildren,
 			interactive: true,
 		},
@@ -597,7 +597,7 @@ func treeItemCheck(c *validator, v any) error {
 		return fmt.Errorf("depth exceeds %d", maxDepth)
 	}
 	fields := map[string]propCheck{
-		"muted": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
+		"muted": isBool, "faint": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
 	}
 	for k, f := range itemFields {
 		fields[k] = f
