@@ -401,7 +401,15 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks (a child session's asks is for the session that started it); every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive."
+        "description": "List the workspace's agent sessions: [{id, workspace, worktree, agent, agentSessionId, parentSession?, advisor?, fork?, run?: {id, title}, title, titleSet?, status, mode, finish?, createdAt, updatedAt, closed, error?, pending?, pendingSummary?: {kind, text, tool?, at}, turnStartedAt?, asks, question?, needsYou}]. asks is true when the turn is done and the agent's last message ends with \"?\": it is asking a question; question is that question. needsYou is true when the session waits for the user: a permission or question is pending, or a top-level session asks (a child session's asks is for the session that started it); every client shows exactly these as needing you. pendingSummary says what the session waits for: kind permission (text the pending command or tool title, tool its ACP kind) or question (text the question). parentSession is the agent session that started it with agents.new; run is the agent graph run it is a node of. status is running, waiting (a permission is pending; pending lists the request ids), done, idle, error or closed. Non-destructive.",
+        "args": {
+          "properties": {
+            "session": {
+              "type": "string",
+              "description": "Only this session: the list holds it alone, or is empty when the workspace has no such session."
+            }
+          }
+        }
       },
       {
         "id": "agents.wait",

@@ -250,7 +250,7 @@ public final class CompanionModel {
 
     private func policy(_ item: InboxItem) async -> NotificationPolicy {
         guard let session = item.session, AgentSessionID.matches(session), let connection = connections[item.computerID],
-              let sessions = try? await connection.command(AgentCommand.sessions, workspace: item.workspace, args: nil) else { return .all }
+              let sessions = try? await connection.command(AgentCommand.sessions, workspace: item.workspace, args: .object(["session": .string(session)])) else { return .all }
         return NotificationPolicy(session: session, in: sessions)
     }
 }

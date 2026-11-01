@@ -203,7 +203,7 @@ public final class AgentsStore {
 
     public func answer(_ session: String, request: String, option: String) async throws {
         guard let runner else { return }
-        sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil, as: [AgentSession].self)
+        merge(try await runner.command(AgentCommand.sessions, workspace: workspace, args: .object(["session": .string(session)]), as: [AgentSession].self), for: session)
         do {
             guard self.session(session)?.pending.contains(request) == true else { throw AnswerError.alreadyAnswered }
             try await run("agents.permission", ["session": .string(session), "request": .string(request), "option": .string(option)])
@@ -284,6 +284,15 @@ public final class AgentsStore {
             }
         }
         outgoing[session] = kept.isEmpty ? nil : kept
+    }
+
+    private func merge(_ fetched: [AgentSession], for id: String) {
+        let row = fetched.first { $0.id == id }
+        if let i = sessions.firstIndex(where: { $0.id == id }) {
+            if let row { sessions[i] = row } else { sessions.remove(at: i) }
+        } else if let row {
+            sessions.append(row)
+        }
     }
 
     private func refreshSession(_ session: String) async {

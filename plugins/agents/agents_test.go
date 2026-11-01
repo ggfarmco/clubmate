@@ -1886,6 +1886,31 @@ func TestDoneParentShowsRunningChildren(t *testing.T) {
 	assert.Equal(t, map[string]string{parent: "done/", kid: "done/"}, childStatus())
 }
 
+func TestSessionsFilteredToOneSessionKeepItsChildStatus(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 1500}}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	f.prompt(t, workspace, parent, "orchestrate")
+	f.waitStatus(t, workspace, parent, "done")
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "slow"}).Session
+	f.waitStatus(t, workspace, kid, "running")
+	filtered := func(session string) []string {
+		var list []struct {
+			ID          string `json:"id"`
+			ChildStatus string `json:"childStatus"`
+		}
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{"session": session}, &list))
+		out := []string{}
+		for _, s := range list {
+			out = append(out, s.ID+"/"+s.ChildStatus)
+		}
+		return out
+	}
+
+	assert.Equal(t, []string{parent + "/running"}, filtered(parent))
+	assert.Empty(t, filtered("agt_missing"))
+}
+
 func TestCloseParentClosesChildren(t *testing.T) {
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))

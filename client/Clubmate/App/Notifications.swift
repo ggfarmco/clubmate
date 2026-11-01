@@ -219,7 +219,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func policy(_ note: HubNotification) async -> NotificationPolicy {
         guard note.isAgentSession, let session = note.session,
-              case .success(let listed) = await run(note.workspace, CommandInvocation(id: AgentCommand.sessions)) else { return .all }
+              case .success(let listed) = await run(note.workspace, CommandInvocation(id: AgentCommand.sessions, args: .object(["session": .string(session)]))) else { return .all }
         return NotificationPolicy(session: session, in: listed)
     }
 

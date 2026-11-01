@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"clubmate/pkg/pluginsdk"
 )
@@ -24,7 +25,7 @@ var (
 		"agents.elicitation":    withArgs((*app).elicitationCommand),
 		"agents.mode":           withArgs((*app).modeCommand),
 		"agents.config":         withArgs((*app).configCommand),
-		"agents.sessions":       (*app).sessionsCommand,
+		"agents.sessions":       withArgs((*app).sessionsCommand),
 		"agents.notify":         withArgs((*app).notifyCommand),
 		"agents.finish-default": withArgs((*app).finishDefaultCommand),
 		"agents.afk":            withArgs((*app).afkCommand),
@@ -239,8 +240,12 @@ func (a *app) configCommand(ctx context.Context, cmd pluginsdk.CommandRun, args 
 	return nil, a.setConfig(ctx, cmd.WorkspaceID, args)
 }
 
-func (a *app) sessionsCommand(_ context.Context, cmd pluginsdk.CommandRun) (any, error) {
-	return a.infos(cmd.WorkspaceID), nil
+func (a *app) sessionsCommand(_ context.Context, cmd pluginsdk.CommandRun, args sessionArgs) (any, error) {
+	infos := a.infos(cmd.WorkspaceID)
+	if args.Session == "" {
+		return infos, nil
+	}
+	return slices.DeleteFunc(infos, func(info sessionInfo) bool { return info.ID != args.Session }), nil
 }
 
 func (a *app) notifyCommand(_ context.Context, cmd pluginsdk.CommandRun, args notifyArgs) (any, error) {

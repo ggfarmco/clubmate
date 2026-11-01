@@ -344,6 +344,16 @@ final class PermissionAnswerTests: XCTestCase {
         XCTAssertFalse(runner.commands.contains("agents.permission"))
     }
 
+    func testAnswerChecksOnlyThatSessionAndKeepsTheRestOfTheList() async throws {
+        let runner = AnswerRunner(pending: ["permission-1"], failure: nil)
+        let store = AgentsStore(workspace: "w", runner: runner)
+        runner.store = store
+        await store.refresh()
+        try await store.answer("s", request: "permission-1", option: "a")
+        XCTAssertEqual(runner.sessionArgs[1], .object(["session": .string("s")]))
+        XCTAssertEqual(runner.listedAtPermission, ["s", "other"])
+    }
+
     func testRequestTheMacNoLongerKnowsReadsAsAlreadyAnswered() async throws {
         let runner = AnswerRunner(pending: ["permission-1"], failure: RemoteError.server(code: "internal", message: "agents.permission: unknown permission request"))
         let store = AgentsStore(workspace: "w", runner: runner)
@@ -356,6 +366,9 @@ final class AnswerRunner: CommandRunner {
     let pending: [String]
     let failure: RemoteError?
     private(set) var commands: [String] = []
+    private(set) var sessionArgs: [JSONValue?] = []
+    private(set) var listedAtPermission: [String] = []
+    weak var store: AgentsStore?
 
     init(pending: [String], failure: RemoteError?) {
         self.pending = pending
@@ -365,8 +378,13 @@ final class AnswerRunner: CommandRunner {
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         commands.append(id)
         switch id {
-        case "agents.sessions": return .array([.object(["id": .string("s"), "status": .string("waiting"), "pending": .array(pending.map(JSONValue.string))])])
-        case "agents.permission": if let failure { throw failure } else { return .null }
+        case "agents.sessions":
+            sessionArgs.append(args)
+            let other: [JSONValue] = args == nil ? [.object(["id": .string("other"), "status": .string("done")])] : []
+            return .array([.object(["id": .string("s"), "status": .string("waiting"), "pending": .array(pending.map(JSONValue.string))])] + other)
+        case "agents.permission":
+            listedAtPermission = store?.sessions.map(\.id) ?? []
+            if let failure { throw failure } else { return .null }
         default: return .array([])
         }
     }
