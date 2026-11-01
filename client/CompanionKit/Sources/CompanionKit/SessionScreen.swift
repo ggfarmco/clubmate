@@ -246,6 +246,17 @@ public struct SessionScreen: Sendable, Equatable {
     }
 }
 
+public struct AlwaysConfirm: Sendable, Equatable, Identifiable {
+    public let optionID: String
+    public let label: String
+    public let rule: String?
+    public let scope: String?
+    public let forSession: Bool
+    public let guessed: Bool
+
+    public var id: String { optionID }
+}
+
 extension PermissionRequest {
     public func option(_ kind: PermissionKind) -> PermissionOption? {
         options.first { $0.kind == kind }
@@ -267,10 +278,6 @@ extension PermissionRequest {
         let kinds: [PermissionKind] = [.allowOnce, .allowAlways, .rejectOnce]
         guard digit >= 1, digit <= kinds.count else { return nil }
         return fallbackButtons.first { $0.kind == kinds[digit - 1] }
-    }
-
-    public var alwaysOption: PermissionCardContent.Option? {
-        card?.options.first { $0.kind == .allowAlways }
     }
 
     public var subject: String {
@@ -306,13 +313,23 @@ extension PermissionRequest {
         toolCall.kind == .execute ? "Always allow this command?" : "Always allow this action?"
     }
 
-    public var alwaysForSession: Bool {
-        option(.allowAlways)?.name.lowercased().contains("during this session") ?? false
+    public func alwaysConfirm(_ id: String) -> AlwaysConfirm? {
+        let raw = options.first { $0.optionId == id }
+        if let card {
+            guard let option = card.options.first(where: { $0.id == id }), option.kind == .allowAlways else { return nil }
+            let label = raw?.name ?? option.label
+            return AlwaysConfirm(optionID: id, label: label, rule: option.rule, scope: option.scope, forSession: Self.forSession(label), guessed: false)
+        }
+        guard let raw, raw.kind == .allowAlways else { return nil }
+        return AlwaysConfirm(optionID: id, label: raw.name, rule: rule(from: raw.name), scope: nil, forSession: Self.forSession(raw.name), guessed: true)
     }
 
-    public var alwaysRule: String {
-        guard let name = option(.allowAlways)?.name else { return subject }
-        if alwaysForSession {
+    private static func forSession(_ label: String) -> Bool {
+        label.lowercased().contains("during this session")
+    }
+
+    private func rule(from name: String) -> String {
+        if Self.forSession(name) {
             let rest = name.hasPrefix("Yes, ") ? String(name.dropFirst(5)) : name
             return rest.prefix(1).uppercased() + rest.dropFirst()
         }

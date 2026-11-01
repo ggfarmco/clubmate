@@ -22,7 +22,7 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(subagent.calls.map(\.stoppable), [true])
         XCTAssertEqual(request.id, "permission-3")
         XCTAssertEqual(request.question, "Run a command?")
-        XCTAssertEqual(request.alwaysRule, "Bash(go test:*)")
+        XCTAssertEqual(request.alwaysConfirm("allow_always")?.rule, "Bash(go test:*)")
         XCTAssertEqual(request.toolCall.intent, "Run the shop tests")
     }
 
@@ -74,9 +74,27 @@ final class SessionScreenTests: XCTestCase {
         for c in cases {
             let json = #"{"kind":"permission","id":"p","toolCall":{"kind":"\#(c.kind)","rawInput":{"command":"\#(c.command)"}},"options":[{"optionId":"x","name":"\#(c.name)","kind":"allow_always"}]}"#
             guard case .permission(let request) = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8)).content else { return XCTFail("not a permission") }
-            XCTAssertEqual(request.alwaysRule, c.rule, c.name)
-            XCTAssertEqual(request.alwaysForSession, c.session, c.name)
+            XCTAssertEqual(request.alwaysConfirm("x")?.rule, c.rule, c.name)
+            XCTAssertEqual(request.alwaysConfirm("x")?.forSession, c.session, c.name)
         }
+    }
+
+    func testAlwaysConfirmIsTheOptionThatAsked() throws {
+        let json = #"""
+        {"kind":"permission","id":"p","toolCall":{"kind":"execute","rawInput":{"command":"go test ./..."}},
+         "options":[{"optionId":"a1","name":"Yes, and don't ask again for go test commands","kind":"allow_always"},{"optionId":"a2","name":"Yes, and don't ask again for go commands","kind":"allow_always"},{"optionId":"o","name":"Yes","kind":"allow_once"}],
+         "card":{"title":"Run a command?","command":"go test ./...","options":[
+           {"id":"o","label":"Yes","kind":"allow_once","shortcut":"opt+1"},
+           {"id":"a1","label":"Yes, and don't ask again for go test commands","kind":"allow_always","shortcut":"opt+2","rule":"Bash(go test:*)","scope":"in shop on this Mac"},
+           {"id":"a2","label":"Yes, and don't ask again for go commands","kind":"allow_always","shortcut":"opt+3","rule":"Bash(go:*)","scope":"in shop on this Mac"}]}}
+        """#
+        guard case .permission(let request) = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8)).content else { return XCTFail("not a permission") }
+        XCTAssertEqual([request.keyed(2), request.keyed(3)].map { $0.flatMap { request.alwaysConfirm($0.id)?.rule } }, ["Bash(go test:*)", "Bash(go:*)"])
+        XCTAssertNil(request.alwaysConfirm("o"))
+        let bare = json.replacingOccurrences(of: #"(?s),\s*"card":\{.*\]\}\}"#, with: "}", options: .regularExpression)
+        guard case .permission(let fallback) = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(bare.utf8)).content else { return XCTFail("not a permission") }
+        XCTAssertNil(fallback.card)
+        XCTAssertEqual(["a1", "a2"].map { fallback.alwaysConfirm($0)?.rule }, ["Bash(go test:*)", "Bash(go:*)"])
     }
 
     func testDockSaysWhatTheCardHides() throws {

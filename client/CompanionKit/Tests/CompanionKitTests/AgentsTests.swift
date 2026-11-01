@@ -115,7 +115,7 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(permission.card?.caption, "Claude says: Run the shop tests")
         XCTAssertEqual(permission.card?.buttons.map(\.label), ["Allow once", "Always allow…", "Reject"])
         XCTAssertEqual(permission.card?.menu.map(\.id), ["deny_always"])
-        XCTAssertEqual([permission.alwaysOption?.rule, permission.alwaysOption?.scope], ["Bash(go test:*)", "in demo on this Mac"])
+        XCTAssertEqual([permission.alwaysConfirm("allow_always")?.rule, permission.alwaysConfirm("allow_always")?.scope], ["Bash(go test:*)", "in demo on this Mac"])
         XCTAssertEqual((1...4).map { permission.keyed($0)?.id }, ["allow", "allow_always", "deny", nil])
     }
 

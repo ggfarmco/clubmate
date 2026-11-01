@@ -2,11 +2,16 @@ import SwiftUI
 
 import CompanionKit
 
+struct AlwaysAsk: Equatable {
+    let option: String
+    let nonce = UUID()
+}
+
 struct SessionKeyActions {
     let enabled: Bool
     let pending: PermissionRequest?
     let answer: (PermissionRequest, String) -> Void
-    let confirmAlways: () -> Void
+    let confirmAlways: (String) -> Void
     let send: () -> Void
 }
 
@@ -15,7 +20,7 @@ extension FocusedValues {
 }
 
 extension View {
-    func sessionKeys(enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping () -> Void, send: @escaping () -> Void) -> some View {
+    func sessionKeys(enabled: Bool, pending: PermissionRequest?, answer: @escaping (PermissionRequest, String) -> Void, confirmAlways: @escaping (String) -> Void, send: @escaping () -> Void) -> some View {
         modifier(SessionKeysModifier(enabled: enabled, pending: pending, answer: answer, confirmAlways: confirmAlways, send: send))
     }
 }
@@ -24,7 +29,7 @@ struct SessionKeysModifier: ViewModifier {
     let enabled: Bool
     let pending: PermissionRequest?
     let answer: (PermissionRequest, String) -> Void
-    let confirmAlways: () -> Void
+    let confirmAlways: (String) -> Void
     let send: () -> Void
     @State private var answered: String?
     @State private var armed: String?
@@ -55,7 +60,7 @@ struct SessionCommands: Commands {
                 ForEach(1...PermissionRequest.keyCount, id: \.self) { digit in
                     if let option = pending.keyed(digit) {
                         Button(option.label) {
-                            if option.kind == .allowAlways { keys.confirmAlways() } else { keys.answer(pending, option.id) }
+                            if option.kind == .allowAlways { keys.confirmAlways(option.id) } else { keys.answer(pending, option.id) }
                         }
                             .keyboardShortcut(KeyEquivalent(Character(String(digit))), modifiers: .option)
                             .disabled(!keys.enabled)

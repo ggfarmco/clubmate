@@ -18,7 +18,7 @@ struct SessionDetailView: View {
     @State private var confirmingClose = false
     @State private var confirmingStop = false
     @State private var showingSettings = false
-    @State private var alwaysAsked = 0
+    @State private var alwaysAsked: AlwaysAsk?
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -195,7 +195,7 @@ struct SessionDetailView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: sent)
         .sessionKeys(enabled: context.connection.state == .online, pending: store.pendingPermission(sessionID), answer: { request, option in
             perform { try await answer(request: request.id, option: option) }
-        }, confirmAlways: { alwaysAsked += 1 }, send: send)
+        }, confirmAlways: { alwaysAsked = AlwaysAsk(option: $0) }, send: send)
         .onChange(of: entries.count) { _, _ in
             withAnimation { position.scrollTo(edge: .bottom) }
         }
