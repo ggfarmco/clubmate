@@ -26,6 +26,7 @@ public enum BacklogCommand {
 
 public enum DocsCommand {
     public static let read = "docs.read"
+    public static let list = "docs.list"
 }
 
 public enum AgentSessionID {

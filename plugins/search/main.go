@@ -18,6 +18,7 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/fileindex"
 	"clubmate/plugins/internal/fuzzy"
 )
 
@@ -75,13 +76,13 @@ type workspace struct {
 }
 
 type app struct {
-	idx        index
+	idx        fileindex.Index
 	mu         sync.Mutex
 	workspaces map[string]*workspace
 }
 
 func main() {
-	a := &app{idx: newIndex(), workspaces: map[string]*workspace{}}
+	a := &app{idx: fileindex.New(), workspaces: map[string]*workspace{}}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
 
@@ -254,7 +255,7 @@ func (ws *workspace) watched(a *app) bool {
 }
 
 func newListing(folders, paths []string) *listing {
-	return &listing{folders: folders, labels: labels(folders), corpus: fuzzy.NewCorpus(paths), capped: len(paths) >= maxFiles}
+	return &listing{folders: folders, labels: fileindex.Labels(folders), corpus: fuzzy.NewCorpus(paths), capped: len(paths) >= fileindex.MaxFiles}
 }
 
 func (l *listing) abs(path string) string {

@@ -80,6 +80,8 @@ actor FixtureServer {
     private var transcripts: [String: [String: JSONValue]] = [:]
     private var tasks: [[String: JSONValue]] = []
     private var docs: [String: JSONValue] = [:]
+    private var docsList: [JSONValue] = []
+    private var sessionDocs: [String: [String]] = [:]
     private var docRevs: [String: Int] = [:]
     private var turns: [String: Task<Void, Never>] = [:]
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
@@ -149,8 +151,18 @@ actor FixtureServer {
         for page in decode("docs-read.json")["docs"]?.arrayValue ?? [] {
             if let path = page["path"]?.stringValue { docs[path] = page }
         }
+        let listed = decode("docs-list.json")
+        docsList = (listed["docs"]?.arrayValue ?? []).enumerated().map { index, value in
+            guard case .object(var fields) = value, index < 3 else { return value }
+            fields["modified"] = Self.stamp(ago: [120, 1_500, 7_200][index])
+            return .object(fields)
+        }
+        if case .object(let map) = listed["sessions"] ?? .null {
+            sessionDocs = map.mapValues { $0.arrayValue?.compactMap(\.stringValue) ?? [] }
+        }
         guard mac.id != FixtureMac.studio.id else { return }
         docs = [:]
+        docsList = []
         tasks = []
         others = []
         self.transcripts = [:]
@@ -195,7 +207,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted")])])]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
@@ -307,6 +319,11 @@ actor FixtureServer {
                 _ = command("agents.prompt", workspace: workspace, args: .object(["session": .string(id), "text": .string(prompt)]))
             }
             return .object(["session": .string(id), "worktree": record["worktree"] ?? .null])
+        case "docs.list":
+            guard workspace == self.workspace else { return .object(["docs": .array([]), "truncated": .bool(false)]) }
+            guard let session = args["session"]?.stringValue else { return .object(["docs": .array(docsList), "truncated": .bool(false)]) }
+            let paths = Set(sessionDocs[session] ?? [])
+            return .object(["docs": .array(docsList.filter { paths.contains($0["path"]?.stringValue ?? "") }), "truncated": .bool(false)])
         case "backlog.list":
             guard workspace == self.workspace else { return .object(["tasks": .array([])]) }
             let status = args["status"]?.stringValue ?? "open"
@@ -337,7 +354,7 @@ actor FixtureServer {
     }
 
     private func read(_ path: String) -> [String: JSONValue] {
-        guard case .object(var page) = docs[path] ?? .null else {
+        guard case .object(var page) = docs[path] ?? listed(path) else {
             return ["error": .object(["code": .string("internal"), "message": .string("not in workspace")])]
         }
         if docRevs[path] == nil {
@@ -353,6 +370,12 @@ actor FixtureServer {
             page["html"] = .string(html + "<p><em>Updated while you were reading.</em></p>\n")
         }
         return ["result": .object(page)]
+    }
+
+    private func listed(_ path: String) -> JSONValue {
+        guard let entry = docsList.first(where: { $0["path"]?.stringValue == path }) else { return .null }
+        let name = URL(filePath: path).deletingPathExtension().lastPathComponent
+        return .object(["path": .string(path), "title": .string(name), "kind": entry["kind"] ?? .string("markdown"), "html": .string("<h1>\(name)</h1>\n<p>A doc from the workspace.</p>\n")])
     }
 
     private func change(_ path: String) {

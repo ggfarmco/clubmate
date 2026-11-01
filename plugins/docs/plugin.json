@@ -49,6 +49,37 @@
         }
       },
       {
+        "id": "docs.list",
+        "title": "List Docs",
+        "hidden": true,
+        "remote": true,
+        "description": "List the workspace's docs (.md, .markdown, .mmd, .html, .htm): the ones agent sessions wrote first, newest first, then every other one git does not ignore, by rel; at most 2000. With session, only that session's docs; the home workspace lists only agents' docs. Only files that exist and are in the workspace's scope.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Agent session whose docs to list; omit for the whole workspace."}
+          }
+        },
+        "result": {
+          "properties": {
+            "docs": {
+              "type": "array",
+              "description": "Docs in order.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string", "description": "Absolute path, symlinks resolved."},
+                  "rel": {"type": "string", "description": "Path relative to its folder, prefixed with the folder's name when the workspace has several; the absolute path for a doc outside the folders."},
+                  "kind": {"type": "string", "enum": ["markdown", "artifact"], "description": "markdown for .md, .markdown and .mmd; artifact for .html and .htm."},
+                  "modified": {"type": "string", "description": "Last change of the file (RFC 3339)."},
+                  "agent": {"type": "boolean", "description": "An agent session wrote it."}
+                }
+              }
+            },
+            "truncated": {"type": "boolean", "description": "More docs exist than were returned."}
+          }
+        }
+      },
+      {
         "id": "docs.close",
         "title": "Close Doc",
         "hidden": true,

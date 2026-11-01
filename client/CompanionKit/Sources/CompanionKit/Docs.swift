@@ -90,3 +90,120 @@ public final class DocsStore {
         }
     }
 }
+
+public struct DocEntry: Decodable, Equatable, Sendable, Identifiable {
+    public let path: String
+    public let rel: String
+    public let kind: String
+    public let modified: Date?
+    public let agent: Bool
+
+    public var id: String { path }
+
+    public var isArtifact: Bool {
+        kind == "artifact"
+    }
+
+    public var name: String {
+        URL(filePath: rel).lastPathComponent
+    }
+
+    public var folder: String? {
+        let parent = (rel as NSString).deletingLastPathComponent
+        return parent.isEmpty ? nil : parent
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case path, rel, kind, modified, agent
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        path = try c.decode(String.self, forKey: .path)
+        rel = try c.decodeIfPresent(String.self, forKey: .rel) ?? path
+        kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? "markdown"
+        modified = (try? c.decodeIfPresent(String.self, forKey: .modified)).flatMap { $0.flatMap(Date.parseRFC3339) }
+        agent = try c.decodeIfPresent(Bool.self, forKey: .agent) ?? false
+    }
+}
+
+public struct DocsList: Decodable, Sendable {
+    public let docs: [DocEntry]
+    public let truncated: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case docs, truncated
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        docs = try c.decodeIfPresent([DocEntry].self, forKey: .docs) ?? []
+        truncated = try c.decodeIfPresent(Bool.self, forKey: .truncated) ?? false
+    }
+}
+
+@MainActor
+@Observable
+public final class DocsListStore {
+    public let workspace: String
+    public let session: String?
+    public private(set) var docs: [DocEntry] = []
+    public private(set) var truncated = false
+    public private(set) var loaded = false
+    public private(set) var error: String?
+
+    @ObservationIgnored private weak var runner: (any CommandRunner)?
+    @ObservationIgnored private var inflight = false
+    @ObservationIgnored private var again = false
+
+    public init(workspace: String, session: String?, runner: any CommandRunner) {
+        self.workspace = workspace
+        self.session = session
+        self.runner = runner
+    }
+
+    public func matching(_ query: String) -> [DocEntry] {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return docs }
+        return docs.filter { $0.rel.localizedCaseInsensitiveContains(query) }
+    }
+
+    public func handle(_ signal: ConnectionSignal) {
+        switch signal {
+        case .online:
+            Task { await refresh() }
+        case .event(let event) where event.topic == Topic.docsChanged || (event.topic == Topic.agentsChanged && event.payload["kind"]?.stringValue != "resolved"):
+            let target = event.payload["workspace"]?.stringValue ?? event.workspace
+            guard target.isEmpty || target == workspace else { return }
+            Task { await refresh() }
+        case .event:
+            break
+        }
+    }
+
+    public func refresh() async {
+        guard !inflight else {
+            again = true
+            return
+        }
+        inflight = true
+        defer { inflight = false }
+        repeat {
+            again = false
+            await load()
+        } while again
+    }
+
+    private func load() async {
+        guard let runner else { return }
+        do {
+            let list = try await runner.command(DocsCommand.list, workspace: workspace, args: session.map { .object(["session": .string($0)]) }).decode(DocsList.self)
+            docs = list.docs
+            truncated = list.truncated
+            error = nil
+        } catch {
+            self.error = (error as? RemoteError)?.message ?? error.localizedDescription
+        }
+        loaded = true
+    }
+}

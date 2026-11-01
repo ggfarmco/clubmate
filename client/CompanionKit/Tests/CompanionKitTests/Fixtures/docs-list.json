@@ -1,0 +1,19 @@
+{
+  "docs": [
+    {"path": "/Users/me/src/shop/docs/checkout-retries.md", "rel": "docs/checkout-retries.md", "kind": "markdown", "modified": "2026-11-01T09:40:00Z", "agent": true},
+    {"path": "/Users/me/src/shop/docs/conversion.html", "rel": "docs/conversion.html", "kind": "artifact", "modified": "2026-11-01T09:12:00.250Z", "agent": true},
+    {"path": "/Users/me/src/shop/docs/payments.md", "rel": "docs/payments.md", "kind": "markdown", "modified": "2026-10-31T17:05:00Z", "agent": true},
+    {"path": "/Users/me/src/shop/CHANGELOG.md", "rel": "CHANGELOG.md", "kind": "markdown", "modified": "2026-10-30T12:00:00Z", "agent": false},
+    {"path": "/Users/me/src/shop/README.md", "rel": "README.md", "kind": "markdown", "modified": "2026-10-28T08:30:00Z", "agent": false},
+    {"path": "/Users/me/src/shop/docs/architecture.md", "rel": "docs/architecture.md", "kind": "markdown", "modified": "2026-10-20T10:00:00Z", "agent": false},
+    {"path": "/Users/me/src/shop/docs/decisions/0007-reserve-stock-before-charging-the-card-and-release-on-timeout.md", "rel": "docs/decisions/0007-reserve-stock-before-charging-the-card-and-release-on-timeout.md", "kind": "markdown", "modified": "2026-10-12T15:45:00Z", "agent": false},
+    {"path": "/Users/me/src/shop/docs/payments-flow.mmd", "rel": "docs/payments-flow.mmd", "kind": "markdown", "modified": "2026-10-10T09:00:00Z", "agent": false},
+    {"path": "/Users/me/src/shop/docs/runbook.md", "rel": "docs/runbook.md", "kind": "markdown", "modified": "2026-09-30T18:20:00Z", "agent": false},
+    {"path": "/Users/me/src/shop/reports/latency-2026-10.html", "rel": "reports/latency-2026-10.html", "kind": "artifact", "modified": "not a date", "agent": false}
+  ],
+  "truncated": false,
+  "sessions": {
+    "agt_0000000000000001": ["/Users/me/src/shop/docs/checkout-retries.md", "/Users/me/src/shop/docs/conversion.html"],
+    "agt_0000000000000002": ["/Users/me/src/shop/docs/payments.md"]
+  }
+}

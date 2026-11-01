@@ -12,6 +12,7 @@ import (
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/agentcall"
+	"clubmate/plugins/internal/fileindex"
 )
 
 const (
@@ -23,6 +24,7 @@ type docs struct {
 	h       *pluginsdk.Host
 	clock   clock
 	uploads string
+	index   fileindex.Index
 	mu      sync.Mutex
 	spaces  map[string]*space
 }
@@ -61,7 +63,7 @@ type openedEvent struct {
 }
 
 func newDocs(c clock, uploads string) *docs {
-	return &docs{clock: c, uploads: uploads, spaces: map[string]*space{}}
+	return &docs{clock: c, uploads: uploads, index: fileindex.New(), spaces: map[string]*space{}}
 }
 
 func main() {
@@ -97,6 +99,12 @@ func (d *docs) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Com
 			return nil, err
 		}
 		return d.read(ctx, h, cmd.WorkspaceID, args.Path)
+	case "docs.list":
+		var args listArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return d.list(ctx, h, cmd.WorkspaceID, args)
 	case "docs.close":
 		return nil, d.close(ctx, h, cmd.WorkspaceID)
 	}

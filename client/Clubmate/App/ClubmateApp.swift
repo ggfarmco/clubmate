@@ -163,6 +163,9 @@ private struct WorkspaceCommands: Commands {
                 Button("Clear Menu") { app.settings.recentsClearedAt = Date() }
                     .disabled(recents.isEmpty)
             }
+            Button("Open Doc…") { session?.chooseDoc() }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .disabled(session == nil || !app.commands.contains { $0.id == DocsPicker.listCommand })
             Divider()
             Button("Add Folder to Workspace…") { active.map(actions.addFolder) }
                 .disabled(active == nil)

@@ -28,6 +28,8 @@ type fakeCore struct {
 	mu        sync.Mutex
 	ws        contract.Workspace
 	sessions  []map[string]string
+	agentDocs map[string][]string
+	docsArgs  []map[string]string
 	renders   []sdui.Node
 	focus     []string
 	published []published
@@ -328,6 +330,13 @@ func (c *fakeCore) handle(req *jsonrpc2.Request) (any, error) {
 		c.unwatched++
 		return nil, nil
 	case "command.run":
+		var id string
+		if err := json.Unmarshal(params["id"], &id); err != nil {
+			return nil, err
+		}
+		if id == "agents.docs" {
+			return c.runAgentDocs(params["args"])
+		}
 		return c.sessions, nil
 	}
 	return nil, nil

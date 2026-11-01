@@ -517,6 +517,10 @@ final class StoresTests: XCTestCase {
         )
         XCTAssertFalse(CommandPalette.entries(commands: [], sections: [], sidebar: false).contains { $0.title == "Toggle Sidebar" })
         XCTAssertEqual(CommandPalette.entries(commands: [], sections: [], sidebar: true, chat: true).first { $0.id == PaletteAction.toggleSidebar.entryID }?.title, "Toggle Chat")
+        let docs = try JSONDecoder().decode([Command].self, from: Data(#"[{"id":"docs.list","title":"List Docs","plugin":"docs","hidden":true}]"#.utf8))
+        let docEntry = try XCTUnwrap(CommandPalette.entries(commands: docs, sections: [], sidebar: false).first)
+        XCTAssertEqual([docEntry.title, docEntry.detail], ["Open Doc…", "⇧⌘D"])
+        XCTAssertEqual(PaletteAction(entryID: docEntry.id), .openDoc)
     }
 
     func testPaletteWorkspaceEntries() {

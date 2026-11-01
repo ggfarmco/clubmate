@@ -9,6 +9,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌘N | New (terminal or item in the current section; in Backlog it focuses the new task field) | `ClubmateApp.swift` |
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
+| ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
 | ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⇧⌘W | Close Session | `ClubmateApp.swift` |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
@@ -24,7 +25,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
-⇧⌘I is an app menu key, so it shadows any ⇧⌘I mapping in terminals and nvim.
+⇧⌘I and ⇧⌘D are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
 
 ## Plugin buttons
 

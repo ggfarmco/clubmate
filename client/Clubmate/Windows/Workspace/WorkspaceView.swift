@@ -132,6 +132,7 @@ struct WorkspaceView: View {
         case .switchWorktree: session.chooseWorktree()
         case .newWorktree: session.newWorktree(chooseFolder: true)
         case .removeWorktree: session.chooseWorktreeToRemove()
+        case .openDoc: session.chooseDoc()
         }
     }
 }

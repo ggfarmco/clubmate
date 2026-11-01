@@ -8,11 +8,22 @@ The `docs` plugin (`plugins/docs`) shows a Markdown or mermaid file rendered, or
 |---|---|---|---|---|
 | `docs.open` | `{path, session?}` (`path` may end in `#anchor`) | yes (MCP `docs_open`) | no | `{path}`; shows the doc in the workspace's popup and focuses it |
 | `docs.read` | `{path}` | no | yes | `{path, title, html, rev, kind}` |
+| `docs.list` | `{session?}` | no | yes | `{docs: [{path, rel, kind, modified, agent}], truncated}`, see § Docs list |
 | `docs.close` | none | no | no | renders the popup `empty` |
 
 - A relative `path` in `docs.open` is resolved against the worktree of `session` (default the calling agent session, from `agents.sessions` field `worktree`), else the selected worktree of the workspace's first folder. In `docs.read` it is resolved against that folder.
 - `path` in a result is absolute with symlinks resolved; `title` is the first `# heading` (an artifact's `<title>`), else the file name without extension; `kind` is `markdown` or `artifact`.
 - Errors are exactly `not in workspace`, `not a document`, `too large` and `not found`.
+
+## Docs list
+
+`docs.list` decides which docs a list shows and in what order; the Mac picker and the phone show it as returned.
+
+- First the docs agent sessions wrote (`agents.docs`, see [agents](agents.md#docs-in-the-transcript)), newest first, with `agent: true`. Then, without `session`, every other doc of each folder's selected worktree that git does not ignore (`git ls-files -co --exclude-standard`; a folder outside git is walked, skipping dot dirs, `node_modules` and the home dir's children, like `search.files`), sorted by `rel`.
+- With `session`: only that session's docs. The home workspace lists only agents' docs.
+- Only files that exist, are docs (`pkg/docext`) and are in scope (§ Scope) are listed, each once; a doc an agent wrote and deleted is gone.
+- `path` is absolute with symlinks resolved; `rel` is relative to its folder (selected worktree, else the folder's path), prefixed with the folder's name when the workspace has several (like `search.files`), else the absolute path (uploads, another worktree outside the folder); `kind` is `markdown` or `artifact`; `modified` is the file's mtime in RFC 3339 (UTC, seconds).
+- At most 2000 docs; `truncated` is true when more exist.
 
 ## From nvim
 
@@ -68,9 +79,12 @@ Both are forwarded to paired phones by `remote` (see [remote](remote.md)).
 ## Entry points
 
 - an agent calls `docs_open`
+- Open Doc… (⇧⌘D or the command palette, Mac): a fuzzy picker over `docs.list` in the plugin's order (agent docs first; `sparkles` for an agent doc, `chart.bar.doc.horizontal` for an artifact, `doc.richtext` for Markdown), filtered on `rel` in the client; ↩ runs `docs.open {path}`. The list is read once per opening.
 - Open on a transcript card or tool row whose entry has `doc` (Mac and phone, see [agents](agents.md#docs-in-the-transcript))
 - on the phone, the "Opened <file name>" banner shown for `docs.opened` on that session's screen
 
 ## Phone
 
 The Companion opens a doc as a full-screen sheet (`AppNavigation.openDoc(computer:workspace:path:)`, presented from `RootView`) that reads it with `docs.read` and draws the HTML with the shared `ClubmateDocument` web view in the system theme. `DocsStore` keeps its own back stack: a `clubmate-doc:` link reads and pushes (keeping its `#anchor`, or only moving to the anchor when it points into the page on top), Back pops (only shown with two or more pages), `http(s)` opens in Safari, `clubmate-file:` does nothing. A `docs.changed` for the page on top with a higher `rev` reads it again and swaps the body in place; one for a page under it is read again when Back shows that page. A failed read keeps the stack and shows the plugin's error (`not in workspace`, …) under the page, or in place of it when nothing is open yet.
+
+A workspace on the phone has a Docs segment next to Agents and Backlog (shown when the Mac has `docs.list` and `docs.read`): `docs.list` as returned, split into "Written by agents" (`agent: true`) and "All docs", each row the file name, its folder and when it changed; search filters on `rel`; a tap opens the doc sheet. A session's ••• menu has a Docs submenu with `docs.list {session}` when that is not empty. Both lists load again on `docs.changed` and `agents.changed` (not kind `resolved`) for the workspace and when the Mac comes back online.

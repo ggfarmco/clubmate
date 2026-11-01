@@ -83,6 +83,13 @@ final class WorkspaceSession {
         }
     }
 
+    func chooseDoc() {
+        let docs = DocsPicker(run: storeRun)
+        openPicker("Open doc", source: docs.source) { [weak self] item in
+            self?.run(DocsPicker.open(item))
+        }
+    }
+
     func chooseWorktreeToRemove() {
         Task {
             await worktrees.menuOpened()

@@ -223,6 +223,32 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
     }
 
+    func testDocsOpenFromTheWorkspaceListAndTheSessionMenu() {
+        let app = launch(open: "docs")
+        let payments = app.buttons["payments.md"]
+        XCTAssertTrue(payments.waitForExistence(timeout: 10))
+        add(screenshot(app, "docs-list"))
+        let search = app.searchFields["Search docs"]
+        search.tap()
+        search.typeText("decisions")
+        XCTAssertTrue(wait(for: payments, "exists == false"))
+        add(screenshot(app, "docs-search"))
+        app.buttons["0007-reserve-stock-before-charging-the-card-and-release-on-timeout.md"].tap()
+        XCTAssertTrue(app.navigationBars["0007-reserve-stock-before-charging-the-card-and-release-on-timeout"].waitForExistence(timeout: 10))
+
+        let session = launch(open: "agents/agt_0000000000000001")
+        session.buttons["More"].firstMatch.tap()
+        let docs = session.buttons["Docs"]
+        XCTAssertTrue(docs.waitForExistence(timeout: 5))
+        docs.tap()
+        let conversion = session.buttons.matching(NSPredicate(format: "label BEGINSWITH 'conversion.html'")).firstMatch
+        XCTAssertTrue(conversion.waitForExistence(timeout: 5))
+        XCTAssertFalse(session.buttons.matching(NSPredicate(format: "label BEGINSWITH 'payments.md'")).firstMatch.exists)
+        add(screenshot(session, "session-docs-menu"))
+        conversion.tap()
+        XCTAssertTrue(session.navigationBars["Checkout conversion"].waitForExistence(timeout: 10))
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra

@@ -42,11 +42,12 @@ public enum PaletteAction: Hashable, Sendable {
     case switchWorktree
     case newWorktree
     case removeWorktree
+    case openDoc
 
     private static let fixed: [PaletteAction] = [
         .toggleSidebar, .openFolder, .newHomeTerminal,
         .renameWorkspace, .closeWorkspace, .removeWorkspace, .moveWorkspaceToNewWindow,
-        .switchWorktree, .newWorktree, .removeWorktree,
+        .switchWorktree, .newWorktree, .removeWorktree, .openDoc,
     ]
 
     public init?(entryID: String) {
@@ -78,6 +79,7 @@ public enum PaletteAction: Hashable, Sendable {
         case .switchWorktree: "switch-worktree"
         case .newWorktree: "new-worktree"
         case .removeWorktree: "remove-worktree"
+        case .openDoc: "open-doc"
         }
     }
 }
@@ -91,7 +93,8 @@ extension CommandPalette {
             PaletteEntry(id: PaletteAction.section(section.id).entryID, title: "Go to \(section.title)", detail: index < 9 ? "⌘\(index + 1)" : "")
         }
         let sidebarEntries = sidebar ? [PaletteEntry(id: PaletteAction.toggleSidebar.entryID, title: chat ? "Toggle Chat" : "Toggle Sidebar", detail: "⌘B")] : []
-        return commandEntries + sectionEntries + sidebarEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
+        let docEntries = commands.contains { $0.id == DocsPicker.listCommand } ? [PaletteEntry(id: PaletteAction.openDoc.entryID, title: "Open Doc…", detail: "⇧⌘D")] : []
+        return commandEntries + sectionEntries + sidebarEntries + docEntries + workspaceEntries(workspaces, active: active) + worktreeEntries(worktrees)
     }
 
     private static func worktreeEntries(_ worktrees: [Worktree]) -> [PaletteEntry] {

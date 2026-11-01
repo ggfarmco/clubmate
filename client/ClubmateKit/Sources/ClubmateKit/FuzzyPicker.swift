@@ -7,13 +7,15 @@ public struct PickerItem: Equatable, Sendable, Identifiable {
     public let detail: String
     public let checked: Bool
     public let section: String
+    public let icon: String
 
-    public init(id: String, label: String, detail: String = "", checked: Bool = false, section: String = "") {
+    public init(id: String, label: String, detail: String = "", checked: Bool = false, section: String = "", icon: String = "") {
         self.id = id
         self.label = label
         self.detail = detail
         self.checked = checked
         self.section = section
+        self.icon = icon
     }
 }
 

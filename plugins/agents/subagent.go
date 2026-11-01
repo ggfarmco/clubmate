@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/plugins/agents/acp"
 )
@@ -56,7 +57,7 @@ func (s *session) applySubagent(turn int, agentSession string, payload json.RawM
 		}
 		sub.message(chunkKinds[head.SessionUpdate], c.MessageID).Text += c.Content.Text
 	case acp.UpdateToolCall, acp.UpdateToolCallUpdate:
-		if sub.tool(head.SessionUpdate == acp.UpdateToolCall, payload) {
+		if sub.tool(head.SessionUpdate == acp.UpdateToolCall, payload, s.at) {
 			s.edited = true
 		}
 	case acp.UpdateSubagent:
@@ -197,7 +198,7 @@ func (sub *subagent) message(kind, messageID string) *entry {
 	return sub.upsert(kind, kind+"-"+strconv.Itoa(sub.nextID))
 }
 
-func (sub *subagent) tool(create bool, payload json.RawMessage) bool {
+func (sub *subagent) tool(create bool, payload json.RawMessage, at time.Time) bool {
 	var fields map[string]json.RawMessage
 	var head acp.ToolCallHeader
 	if json.Unmarshal(payload, &fields) != nil || json.Unmarshal(payload, &head) != nil || head.ToolCallID == "" {
@@ -205,6 +206,9 @@ func (sub *subagent) tool(create bool, payload json.RawMessage) bool {
 	}
 	dropUnkeptToolFields(fields)
 	en := sub.upsert(entryTool, head.ToolCallID)
+	if en.At.IsZero() {
+		en.At = at
+	}
 	if create || en.Tool == nil {
 		en.Tool = map[string]json.RawMessage{}
 	}

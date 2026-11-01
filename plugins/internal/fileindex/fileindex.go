@@ -1,4 +1,4 @@
-package main
+package fileindex
 
 import (
 	"bytes"
@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	maxFiles     = 200_000
+	MaxFiles     = 200_000
 	lsFilesLimit = 64 << 20
 	gitlinkMode  = "160000 "
 )
 
-type index struct {
-	home string
+type Index struct {
+	Home string
 }
 
 type root struct {
@@ -28,18 +28,18 @@ type root struct {
 	label    string
 }
 
-func newIndex() index {
+func New() Index {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return index{}
+		return Index{}
 	}
 	if real, err := filepath.EvalSymlinks(home); err == nil {
 		home = real
 	}
-	return index{home: home}
+	return Index{Home: home}
 }
 
-func (x index) Files(ctx context.Context, folders []string) ([]string, error) {
+func (x Index) Files(ctx context.Context, folders []string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
 	for _, r := range newRoots(folders) {
@@ -60,7 +60,7 @@ func (x index) Files(ctx context.Context, folders []string) ([]string, error) {
 			}
 			seen[file] = true
 			out = append(out, path)
-			if len(out) >= maxFiles {
+			if len(out) >= MaxFiles {
 				return out, nil
 			}
 		}
@@ -68,7 +68,7 @@ func (x index) Files(ctx context.Context, folders []string) ([]string, error) {
 	return out, nil
 }
 
-func (x index) listRepo(ctx context.Context, repo, prefix string, out *[]string) error {
+func (x Index) listRepo(ctx context.Context, repo, prefix string, out *[]string) error {
 	cached, err := lsFiles(ctx, repo, "--cached", "--stage")
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (x index) listRepo(ctx context.Context, repo, prefix string, out *[]string)
 		} else {
 			*out = append(*out, join(prefix, rel))
 		}
-		if err != nil || len(*out) >= maxFiles {
+		if err != nil || len(*out) >= MaxFiles {
 			return err
 		}
 	}
@@ -103,14 +103,14 @@ func (x index) listRepo(ctx context.Context, repo, prefix string, out *[]string)
 		} else {
 			*out = append(*out, join(prefix, rel))
 		}
-		if err != nil || len(*out) >= maxFiles {
+		if err != nil || len(*out) >= MaxFiles {
 			return err
 		}
 	}
 	return nil
 }
 
-func (x index) nested(ctx context.Context, repo, rel, prefix string, out *[]string) error {
+func (x Index) nested(ctx context.Context, repo, rel, prefix string, out *[]string) error {
 	dir, err := filepath.EvalSymlinks(filepath.Join(repo, rel))
 	if err != nil || dir == repo || !within(repo, dir) {
 		return nil
@@ -126,7 +126,7 @@ func (x index) nested(ctx context.Context, repo, rel, prefix string, out *[]stri
 	return x.walk(ctx, dir, prefix, out)
 }
 
-func (x index) walk(ctx context.Context, root, prefix string, out *[]string) error {
+func (x Index) walk(ctx context.Context, root, prefix string, out *[]string) error {
 	guarded := x.guarded(root)
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -135,7 +135,7 @@ func (x index) walk(ctx context.Context, root, prefix string, out *[]string) err
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if len(*out) >= maxFiles {
+		if len(*out) >= MaxFiles {
 			return filepath.SkipAll
 		}
 		rel, err := filepath.Rel(root, path)
@@ -154,7 +154,7 @@ func (x index) walk(ctx context.Context, root, prefix string, out *[]string) err
 		if path == root {
 			return nil
 		}
-		if name := d.Name(); name == "node_modules" || strings.HasPrefix(name, ".") || guarded && filepath.Dir(path) == x.home {
+		if name := d.Name(); name == "node_modules" || strings.HasPrefix(name, ".") || guarded && filepath.Dir(path) == x.Home {
 			return filepath.SkipDir
 		}
 		if !x.isRepo(path) {
@@ -172,12 +172,12 @@ func (x index) walk(ctx context.Context, root, prefix string, out *[]string) err
 	})
 }
 
-func (x index) isRepo(dir string) bool {
+func (x Index) isRepo(dir string) bool {
 	return !x.guarded(dir) && exists(filepath.Join(dir, ".git"))
 }
 
-func (x index) guarded(dir string) bool {
-	return x.home != "" && (dir == x.home || strings.HasPrefix(x.home, strings.TrimSuffix(dir, "/")+"/"))
+func (x Index) guarded(dir string) bool {
+	return x.Home != "" && (dir == x.Home || strings.HasPrefix(x.Home, strings.TrimSuffix(dir, "/")+"/"))
 }
 
 func lsFiles(ctx context.Context, repo string, args ...string) ([]byte, error) {
@@ -193,7 +193,7 @@ func lsFiles(ctx context.Context, repo string, args ...string) ([]byte, error) {
 
 func newRoots(folders []string) []root {
 	var out []root
-	for i, label := range labels(folders) {
+	for i, label := range Labels(folders) {
 		resolved, err := filepath.EvalSymlinks(folders[i])
 		if err != nil {
 			logError("resolve "+folders[i], err)
@@ -204,7 +204,7 @@ func newRoots(folders []string) []root {
 	return out
 }
 
-func labels(folders []string) []string {
+func Labels(folders []string) []string {
 	out := make([]string, len(folders))
 	if len(folders) < 2 {
 		return out
@@ -236,6 +236,12 @@ func join(prefix, rel string) string {
 func exists(path string) bool {
 	_, err := os.Lstat(path)
 	return err == nil
+}
+
+func logError(what string, err error) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %s: %v\n", filepath.Base(os.Args[0]), what, err)
+	}
 }
 
 func skip(d fs.DirEntry) error {

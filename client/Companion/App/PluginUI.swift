@@ -21,7 +21,7 @@ extension CompanionPluginUI {
 
 @MainActor
 enum CompanionPlugins {
-    static let all: [any CompanionPluginUI] = [AgentsPlugin(), BacklogPlugin(), InboxPlugin()]
+    static let all: [any CompanionPluginUI] = [AgentsPlugin(), BacklogPlugin(), DocsPlugin(), InboxPlugin()]
     static let registry = PluginRegistry(all)
 
     static func supported(by connection: ComputerConnection) -> [any CompanionPluginUI] {

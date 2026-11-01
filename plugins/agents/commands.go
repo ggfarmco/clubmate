@@ -35,6 +35,7 @@ var (
 		"agents.transcript":     withArgs((*app).transcriptCommand),
 		"agents.blame":          typed((*app).blameCommand),
 		"agents.trace":          typed((*app).traceCommand),
+		"agents.docs":           withArgs((*app).docsCommand),
 		"agents.export":         withArgs((*app).exportCommand),
 		"agents.import":         withArgs((*app).importCommand),
 		"agents.handoff":        withArgs((*app).handoffCommand),

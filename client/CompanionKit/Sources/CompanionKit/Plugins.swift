@@ -37,6 +37,11 @@ public enum BacklogPluginInfo {
     public static let requiredCommands = [BacklogCommand.list, BacklogCommand.add, BacklogCommand.update]
 }
 
+public enum DocsPluginInfo {
+    public static let id = "docs"
+    public static let requiredCommands = [DocsCommand.list, DocsCommand.read]
+}
+
 public enum InboxPluginInfo {
     public static let id = "inbox"
 }

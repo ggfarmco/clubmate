@@ -1,4 +1,4 @@
-package main
+package fileindex
 
 import (
 	"os"
@@ -17,7 +17,7 @@ func TestWalkSkipsHomeChildren(t *testing.T) {
 	write(t, home, "Library/l.txt", "")
 	write(t, parent, "other/o.txt", "")
 
-	got, err := index{home: home}.Files(t.Context(), []string{parent})
+	got, err := Index{Home: home}.Files(t.Context(), []string{parent})
 
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"home/top.txt", "other/o.txt"}, got)

@@ -81,14 +81,23 @@ struct FuzzyPickerList: View {
 
     private func row(_ item: PickerItem, selected: Bool) -> some View {
         HStack(spacing: theme.gutter) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(theme.accentInk)
-                .opacity(item.checked ? 1 : 0)
-                .frame(width: 10)
+            if item.icon.isEmpty {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(theme.accentInk)
+                    .opacity(item.checked ? 1 : 0)
+                    .frame(width: 10)
+            } else {
+                Image(systemName: item.icon)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.muted)
+                    .frame(width: 14)
+            }
             Text(item.label)
                 .foregroundStyle(theme.foreground)
-                .truncationMode(.label)
+                .truncationMode(item.icon.isEmpty ? .label : .path)
+                .help(item.label)
+                .layoutPriority(1)
             Spacer(minLength: theme.gutter)
             Text(item.detail)
                 .font(theme.uiSmall)

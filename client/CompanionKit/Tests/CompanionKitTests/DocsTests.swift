@@ -73,6 +73,50 @@ final class DocsTests: XCTestCase {
         XCTAssertEqual(store.error, "not in workspace")
         XCTAssertEqual(store.stack.map(\.path), ["/r/a.md"])
     }
+
+    func testDocsListLoadsInPluginOrderAndMatchesOnRel() async throws {
+        let runner = DocsListRunner()
+        let store = DocsListStore(workspace: "w", session: "agt_0000000000000001", runner: runner)
+        await store.refresh()
+        XCTAssertEqual(runner.calls.map(\.args), [.object(["session": .string("agt_0000000000000001")])])
+        XCTAssertEqual(store.docs.map(\.rel), ["docs/checkout-retries.md", "docs/conversion.html"])
+        let all = DocsListStore(workspace: "w", session: nil, runner: runner)
+        await all.refresh()
+        XCTAssertNil(runner.calls.last?.args)
+        XCTAssertEqual(all.docs.filter(\.agent).count, 3)
+        XCTAssertEqual(all.docs[1].isArtifact, true)
+        XCTAssertEqual(all.docs[1].modified, Date.parseRFC3339("2026-11-01T09:12:00.250Z"))
+        XCTAssertNil(all.docs.last?.modified)
+        XCTAssertEqual(all.matching("PAY").map(\.rel), ["docs/payments.md", "docs/payments-flow.mmd"])
+        XCTAssertEqual(all.matching(" ").count, 10)
+    }
+
+    func testDocsListRefreshesOnDocsAndAgentsChangesForItsWorkspace() async throws {
+        let runner = DocsListRunner()
+        let store = DocsListStore(workspace: "w", session: nil, runner: runner)
+        store.handle(.event(BusEvent(seq: 1, topic: "docs.changed", payload: .object(["workspace": .string("other"), "path": .string("/a.md"), "rev": .number(2)]))))
+        store.handle(.event(BusEvent(seq: 2, topic: "backlog.changed", payload: .object(["workspace": .string("w")]))))
+        store.handle(.event(BusEvent(seq: 2, topic: "agents.changed", payload: .object(["workspace": .string("w"), "kind": .string("resolved")]))))
+        XCTAssertTrue(runner.calls.isEmpty)
+        store.handle(.event(BusEvent(seq: 3, topic: "docs.changed", payload: .object(["workspace": .string("w"), "path": .string("/a.md"), "rev": .number(2)]))))
+        try await waitUntil { runner.calls.count == 1 }
+        store.handle(.event(BusEvent(seq: 4, topic: "agents.changed", payload: .object(["workspace": .string("w"), "session": .string("agt_1"), "kind": .string("status")]))))
+        try await waitUntil { runner.calls.count == 2 }
+        XCTAssertTrue(store.loaded)
+    }
+}
+
+@MainActor
+private final class DocsListRunner: CommandRunner {
+    private(set) var calls: [(id: String, args: JSONValue?)] = []
+
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        calls.append((id, args))
+        let list = try JSONDecoder().decode(JSONValue.self, from: fixture("docs-list"))
+        guard let session = args?["session"]?.stringValue else { return list }
+        let paths = Set(list["sessions"]?[session]?.arrayValue?.compactMap(\.stringValue) ?? [])
+        return .object(["docs": .array((list["docs"]?.arrayValue ?? []).filter { paths.contains($0["path"]?.stringValue ?? "") }), "truncated": .bool(false)])
+    }
 }
 
 @MainActor

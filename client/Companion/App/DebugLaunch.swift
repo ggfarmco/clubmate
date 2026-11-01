@@ -32,6 +32,7 @@ enum DebugLaunch {
                 }
             }
         }
+        await navigate(model: model, navigation: navigation)
         if let path = defaults.string(forKey: "doc"), let computer = model.computers.first {
             for _ in 0..<50 where model.connection(computer.id)?.state != .online {
                 try? await Task.sleep(for: .milliseconds(100))
@@ -40,6 +41,10 @@ enum DebugLaunch {
                 navigation.openDoc(computer: computer.id, workspace: workspace, path: path)
             }
         }
+    }
+
+    private static func navigate(model: CompanionModel, navigation: AppNavigation) async {
+        let defaults = UserDefaults.standard
         guard let target = defaults.string(forKey: "open"), let computer = model.computers.first else { return }
         if target == "sidebar" || target == "mac" {
             try? await Task.sleep(for: .seconds(1))

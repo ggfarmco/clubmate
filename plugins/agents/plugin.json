@@ -437,6 +437,34 @@
         }
       },
       {
+        "id": "agents.docs",
+        "title": "Agent Docs",
+        "hidden": true,
+        "remote": true,
+        "description": "Docs (.md, .markdown, .mmd, .html, .htm) agent sessions wrote: the paths of transcript entries with doc, also from their subagents. Returns {docs:[{path, session, at}]}, one per path at its latest at (RFC 3339), newest first. Non-destructive.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Only this session's docs; omit for every session of the workspace."}
+          }
+        },
+        "result": {
+          "properties": {
+            "docs": {
+              "type": "array",
+              "description": "Docs, newest first.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string", "description": "Absolute path."},
+                  "session": {"type": "string", "description": "Session that wrote it."},
+                  "at": {"type": "string", "description": "When its latest write began (RFC 3339)."}
+                }
+              }
+            }
+          }
+        }
+      },
+      {
         "id": "agents.blame",
         "title": "Agent Blame",
         "hidden": true,

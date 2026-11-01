@@ -18,6 +18,7 @@ public final class CompanionModel {
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var agents: [String: AgentsStore] = [:]
     @ObservationIgnored private var backlogs: [String: BacklogStore] = [:]
+    @ObservationIgnored private var docsLists: [String: DocsListStore] = [:]
     @ObservationIgnored private var observers: [String: UUID] = [:]
     @ObservationIgnored private var lastSignal = ContinuousClock.now
     @ObservationIgnored private var receiving = 0
@@ -146,6 +147,15 @@ public final class CompanionModel {
         return store
     }
 
+    public func docs(computer: String, workspace: String, session: String? = nil) -> DocsListStore? {
+        let key = computer + "|" + workspace + "|" + (session ?? "")
+        if let existing = docsLists[key] { return existing }
+        guard let connection = connections[computer] else { return nil }
+        let store = DocsListStore(workspace: workspace, session: session, runner: connection)
+        docsLists[key] = store
+        return store
+    }
+
     private func attach(_ computer: Computer) {
         let saved = cursors?.object(forKey: Self.cursorKey(computer.id)) as? Int
         let connection = ComputerConnection(computer: computer, token: store.token(for: computer.id), transport: transport, policy: policy, lastEventID: saved, sleep: sleep)
@@ -163,6 +173,7 @@ public final class CompanionModel {
         connections[id] = nil
         agents = agents.filter { !$0.key.hasPrefix(id + "|") }
         backlogs = backlogs.filter { !$0.key.hasPrefix(id + "|") }
+        docsLists = docsLists.filter { !$0.key.hasPrefix(id + "|") }
     }
 
     private static let resolvedKind = "resolved"
@@ -219,6 +230,9 @@ public final class CompanionModel {
             store.handle(signal)
         }
         for (key, store) in backlogs where key.hasPrefix(computer + "|") {
+            store.handle(signal)
+        }
+        for (key, store) in docsLists where key.hasPrefix(computer + "|") {
             store.handle(signal)
         }
     }

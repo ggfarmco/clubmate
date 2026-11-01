@@ -155,6 +155,20 @@ struct SessionDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
+                    if let docs = docsList?.docs, !docs.isEmpty {
+                        Menu("Docs", systemImage: "doc.richtext") {
+                            ForEach(docs) { doc in
+                                Button {
+                                    open(doc: doc.path)
+                                } label: {
+                                    Label(doc.name, systemImage: doc.symbol)
+                                    if let folder = doc.folder {
+                                        Text(folder)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if session?.isTurnActive == true {
                         Button("Stop…", systemImage: "stop.circle") { confirmingStop = true }
                     }
@@ -204,6 +218,9 @@ struct SessionDetailView: View {
             withAnimation { position.scrollTo(edge: .bottom) }
         }
         .task(id: sessionID) {
+            await docsList?.refresh()
+        }
+        .task(id: sessionID) {
             store.watch(sessionID)
             try? await Task.sleep(for: .seconds(31_536_000))
             store.unwatch(sessionID)
@@ -223,6 +240,11 @@ struct SessionDetailView: View {
                 withAnimation { store.dismissOpenedDoc(sessionID) }
             }
         }
+    }
+
+    private var docsList: DocsListStore? {
+        guard context.connection.supports(DocsCommand.list), context.connection.supports(DocsCommand.read) else { return nil }
+        return context.model.docs(computer: context.connection.computer.id, workspace: store.workspace, session: sessionID)
     }
 
     private var docOpener: (@MainActor (String) -> Void)? {

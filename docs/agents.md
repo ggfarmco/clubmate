@@ -117,6 +117,8 @@ Tool calls are folded on the Mac and the phone: consecutive calls are one action
 
 A tool call is a doc when its status is `completed` and either its kind is `edit` (Write, Edit, MultiEdit) and one of its `locations` or `diff` paths ends in `.md`, `.markdown`, `.mmd`, `.html` or `.htm` (case-insensitive, `pkg/docext`), or it has a `resource_link` whose `file://` URI does. The agents plugin decides this once and sends the first such path, absolute against the session's worktree, as the entry's `doc` field in `agents.transcript`; a failed, cancelled or still running call, a delete or move, and a call on other files have none. The Mac card gets an Open action (before Open in nvim) and the phone's tool row an Open button; both show the doc in the [docs viewer](docs-viewer.md) — the Mac through `openDoc` on `agents.main`, which runs `docs.open {path, session}`, the phone with `docs.read`. Like the rest of a call, Open is inside the folded actions row until you open it. Neither client checks the path itself.
 
+`agents.docs {session?}` (not an agent tool, remote) lists those docs as `{docs: [{path, session, at}]}`: one per path at its latest `at` (when that call began), newest first, from that session and its subagents' calls, or without `session` from every session of the workspace. It reads each session's transcript, so a dropped one is read back first. `docs.list` builds the docs lists on it (see [docs viewer](docs-viewer.md#docs-list)).
+
 When an agent opens a doc with `docs_open`, the phone shows "Opened <file name>" with an Open button above the composer of that session's screen, for 8 s or until tapped; on any other screen it shows nothing.
 
 ## CLI
