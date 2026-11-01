@@ -44,52 +44,19 @@ func (f *fixture) agentID(t *testing.T, workspace, session string) string {
 	return id
 }
 
-func TestTurnCutOffByRestart(t *testing.T) {
-	tests := []struct {
-		name      string
-		setup     func(f *fixture, workspace string) string
-		continues bool
-	}{
-		{"afk session continues", func(f *fixture, workspace string) string {
-			s := f.newSession(t, workspace)
-			require.NoError(t, f.run(t, workspace, "agents.afk", map[string]any{"session": s, "on": true}, nil))
-			f.prompt(t, workspace, s, "long")
-			return s
-		}, true},
-		{"child of a live orchestrator continues", func(f *fixture, workspace string) string {
-			parent := f.newSession(t, workspace)
-			return f.newChild(t, workspace, parent, map[string]any{"prompt": "long"}).Session
-		}, true},
-		{"plain session is only marked", func(f *fixture, workspace string) string {
-			s := f.newSession(t, workspace)
-			f.prompt(t, workspace, s, "long")
-			return s
-		}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := start(t, longTurn)
-			workspace := f.workspace(t, newRepo(t))
-			session := tt.setup(f, workspace)
-			agentID := f.agentID(t, workspace, session)
-			f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+func TestTurnCutOffByRestartContinues(t *testing.T) {
+	f := start(t, longTurn)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "long")
+	agentID := f.agentID(t, workspace, session)
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 
-			f.restartPlugin(t, workspace)
+	f.restartPlugin(t, workspace)
 
-			if tt.continues {
-				f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(promptText(t, c), cutOffText) })
-				f.waitStatus(t, workspace, session, "done")
-				assert.Len(t, f.promptsTo(t, agentID, cutOffText), 1)
-				return
-			}
-			testutil.Eventually(t, func() bool {
-				return len(ofKind(f.transcript(t, workspace, session).Entries, "notice")) == 1
-			}, wait)
-			time.Sleep(quiet)
-			assert.Equal(t, "idle", f.session(t, workspace, session).Status)
-			assert.Empty(t, f.promptsTo(t, agentID, cutOffText))
-		})
-	}
+	f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.Contains(promptText(t, c), cutOffText) })
+	f.waitStatus(t, workspace, session, "done")
+	assert.Len(t, f.promptsTo(t, agentID, cutOffText), 1)
 }
 
 func TestChildDoneWakesSuspendedParent(t *testing.T) {

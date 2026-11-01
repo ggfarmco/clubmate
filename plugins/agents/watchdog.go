@@ -10,11 +10,9 @@ import (
 )
 
 const (
-	wakeDelay    = time.Second
-	cutOffText   = "[Clubmate] Your turn was cut off by a restart; continue from where you stopped."
-	cutOffNotice = "Turn cut off by a restart"
-	cutOffHint   = "send a message to continue"
-	childFormat  = "[Clubmate] Child %q (%s) is %s."
+	wakeDelay   = time.Second
+	cutOffText  = "[Clubmate] Your turn was cut off by a restart; continue from where you stopped."
+	childFormat = "[Clubmate] Child %q (%s) is %s."
 )
 
 type watchdog struct {
@@ -35,12 +33,7 @@ func newWatchdog() watchdog {
 
 func (a *app) continueCutOff(cut []*session) {
 	for _, s := range cut {
-		rec := s.snapshot()
-		if a.effectiveAFK(rec) || a.orchestrated(rec) {
-			a.submitIdle(s, promptArgs{Text: cutOffText})
-			continue
-		}
-		s.notice(cutOffNotice, cutOffHint)
+		a.submitIdle(s, promptArgs{Text: cutOffText})
 	}
 }
 
