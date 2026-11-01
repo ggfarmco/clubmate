@@ -38,16 +38,20 @@ final class RemoteClientTests: XCTestCase {
         await XCTAssertThrowsAsync(try await client.command("agents.delete", workspace: "w"), RemoteError.server(code: "not_allowed", message: "agents.delete is not remote"))
     }
 
-    func testPairSendsCodeAndDevice() async throws {
-        let transport = FakeTransport(reply: { _ in (Data(#"{"token":"cmt_abc","computer":{"id":"mac1","name":"Mac Studio"}}"#.utf8), 200) })
+    func testPairSendsCodeDeviceAndOtherMacs() async throws {
+        let transport = FakeTransport(reply: { _ in (Data(#"{"token":"cmt_abc","computer":{"id":"mac1","name":"Mac Studio","colour":"blue"}}"#.utf8), 200) })
         let link = PairingLink(code: "CODE", hosts: ["fd7a:115c:a1e0::1"], port: 47621, computerID: "mac1", computerName: "Mac", expiresAt: .distantFuture)
         let device = DeviceIdentity(id: "dev1", name: "Phone", model: "iPhone")
-        let result = try await RemoteClient.pair(link, device: device, transport: transport, now: .distantPast)
+        let macs = [MacTag(name: "MacBook Pro", colour: "magenta"), MacTag(name: "MacBook Air", colour: nil)]
+        let result = try await RemoteClient.pair(link, device: device, macs: macs, transport: transport, now: .distantPast)
         XCTAssertEqual(result.token, "cmt_abc")
-        XCTAssertEqual(result.computer, Computer(id: "mac1", name: "Mac Studio", hosts: ["fd7a:115c:a1e0::1"], port: 47621, pairedAt: .distantPast))
+        XCTAssertEqual(result.computer, Computer(id: "mac1", name: "Mac Studio", hosts: ["fd7a:115c:a1e0::1"], port: 47621, pairedAt: .distantPast, colour: "blue"))
         let request = try XCTUnwrap(transport.requests.first)
         XCTAssertEqual(request.url?.absoluteString, "http://[fd7a:115c:a1e0::1]:47621/v1/pair")
-        XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data()), .object(["code": .string("CODE"), "device": .object(["id": .string("dev1"), "name": .string("Phone"), "model": .string("iPhone")])]))
+        XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data()), .object(["code": .string("CODE"), "device": .object([
+            "id": .string("dev1"), "name": .string("Phone"), "model": .string("iPhone"),
+            "macs": .array([.object(["name": .string("MacBook Pro"), "colour": .string("magenta")]), .object(["name": .string("MacBook Air")])]),
+        ])]))
     }
 
     func testNeverContactsNonTailnetHosts() async throws {

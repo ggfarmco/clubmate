@@ -8,7 +8,7 @@ final class RequestBannerTests: XCTestCase {
     private let shop = Workspace(id: "w1", name: "shop")
 
     private func items(_ sessions: [AgentSession]) -> [NeedsYouItem] {
-        NeedsYouItem.collect([("mac", shop, sessions)])
+        NeedsYouItem.collect([("mac", nil, shop, sessions)])
     }
 
     private func permission(_ id: String, _ request: String, ago: Double) -> AgentSession {

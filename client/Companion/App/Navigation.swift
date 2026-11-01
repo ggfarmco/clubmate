@@ -13,6 +13,7 @@ struct SidebarItem: Hashable {
 final class AppNavigation {
     var sidebar: SidebarItem?
     var detail: String?
+    var macDetails: String?
     var workspaces: [String: String] = [:]
     var showingAddComputer = false
     var preferredColumn: NavigationSplitViewColumn = .sidebar
@@ -20,13 +21,21 @@ final class AppNavigation {
     var visibility: NavigationSplitViewVisibility = .all
 
     func open(computer: String, plugin: String, detail: String? = nil) {
+        macDetails = nil
         sidebar = SidebarItem(computer: computer, plugin: plugin)
         self.detail = detail
         preferredColumn = detail == nil ? .content : .detail
     }
 
+    func showMac(_ computer: String) {
+        macDetails = computer
+        sidebar = nil
+        detail = nil
+        preferredColumn = .content
+    }
+
     func arrange() {
-        let chosen = sidebar != nil
+        let chosen = sidebar != nil || macDetails != nil
         switch layout.columns(chosen: chosen) {
         case .stack:
             switch CompanionLayout.stackColumn(chosen: chosen, detail: detail != nil) {

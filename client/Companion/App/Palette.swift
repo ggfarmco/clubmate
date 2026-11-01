@@ -13,7 +13,7 @@ extension Color {
     static let surface1 = Color(light: 0xFFFFFF, dark: 0x1C1C1E)
     static let surface2 = Color(light: 0xE9E9EE, dark: 0x2C2C2E)
 
-    private init(light: UInt32, dark: UInt32) {
+    init(light: UInt32, dark: UInt32) {
         self.init(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })
     }
 }

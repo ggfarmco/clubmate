@@ -77,6 +77,7 @@ struct BacklogListView: View {
         .navigationTitle(workspace?.name ?? "Backlog")
         .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
         .toolbar {
+            MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(context.connection.presence))
             WorkspaceMenu(context: context)
             ToolbarItem(placement: .primaryAction) {
                 Button("New Task", systemImage: "plus") { BacklogPlugin.startNew(context) }

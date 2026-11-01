@@ -21,8 +21,10 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         }
         model.posted = { [weak self, weak model] item in
             guard let self, let model, UIApplication.shared.applicationState != .active else { return }
-            let name = model.computers.first { $0.id == item.computerID }?.name ?? ""
-            guard let alert = LocalAlert(item, computerName: name, now: .now) else { return }
+            let connection = model.connection(item.computerID)
+            let name = connection?.computer.name ?? model.computers.first { $0.id == item.computerID }?.name ?? ""
+            let workspace = connection?.workspaces.first { $0.id == item.workspace }?.name
+            guard let alert = LocalAlert(item, computerName: name, workspaceName: workspace, now: .now) else { return }
             post(alert)
         }
         model.withdrawn = { [weak self] ids in

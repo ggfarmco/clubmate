@@ -87,15 +87,19 @@ public final class AgentsStore {
 
     public func refresh() async {
         await coalesced("sessions") { [weak self] in
-            guard let self, let runner else { return }
-            do {
-                sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil).decode([AgentSession].self)
-                error = nil
-            } catch {
-                self.error = Self.message(error)
-            }
-            loaded = true
+            await Task { [weak self] in await self?.loadSessions() }.value
         }
+    }
+
+    private func loadSessions() async {
+        guard let runner else { return }
+        do {
+            sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil).decode([AgentSession].self)
+            error = nil
+        } catch {
+            self.error = Self.message(error)
+        }
+        loaded = true
     }
 
     public func watch(_ session: String) {

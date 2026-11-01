@@ -25,11 +25,19 @@ enum DebugLaunch {
         for _ in 0..<50 where model.computers.isEmpty {
             try? await Task.sleep(for: .milliseconds(100))
         }
+        if defaults.integer(forKey: "macs") > 1, defaults.string(forKey: "fixtures") != nil {
+            for mac in [FixtureMac.pro, FixtureMac.air].prefix(defaults.integer(forKey: "macs") - 1) where model.connection(mac.id) == nil {
+                if let link = try? PairingLink.parse(mac.link, policy: model.policy) {
+                    _ = try? await model.pair(link)
+                }
+            }
+        }
         guard let target = defaults.string(forKey: "open"), let computer = model.computers.first else { return }
-        if target == "sidebar" {
+        if target == "sidebar" || target == "mac" {
             try? await Task.sleep(for: .seconds(1))
             navigation.sidebar = nil
             navigation.preferredColumn = .sidebar
+            if target == "mac" { navigation.showMac(computer.id) }
             return
         }
         let parts = target.split(separator: "/", maxSplits: 1).map(String.init)

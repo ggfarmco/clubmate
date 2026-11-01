@@ -116,7 +116,10 @@ final class CompanionUITests: XCTestCase {
         afk.switches.firstMatch.tap()
         XCTAssertTrue(wait(for: afk, "value == '1'"))
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '· AFK'")).firstMatch.waitForExistence(timeout: 5))
+        more.tap()
+        app.buttons["Session Settings"].tap()
+        XCTAssertTrue(app.switches["settings.afk"].waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: app.switches["settings.afk"], "value == '1'"))
     }
 
     func testOptionKeysAnswerThePermissionInButtonOrder() {

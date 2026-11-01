@@ -106,11 +106,11 @@ public struct LocalAlert: Sendable, Equatable {
     public let workspace: String
     public let session: String?
 
-    public init?(_ item: InboxItem, computerName: String, now: Date) {
+    public init?(_ item: InboxItem, computerName: String, workspaceName: String?, now: Date) {
         guard Self.kinds.contains(item.kind), now.timeIntervalSince(item.date) < Self.window else { return nil }
         id = item.id
-        title = item.title.isEmpty ? item.kind.label : item.title
-        subtitle = computerName
+        title = [computerName, workspaceName ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        subtitle = item.title.isEmpty ? item.kind.label : item.title
         body = item.message
         computerID = item.computerID
         workspace = item.workspace

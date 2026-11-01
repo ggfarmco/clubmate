@@ -134,7 +134,7 @@ struct SessionDetailView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 if let session {
-                    SessionHeader(session: session, usage: store.transcripts[sessionID]?.usage?.contextLabel)
+                    SessionHeader(session: session, mac: context.model.tag(context.connection.computer.id))
                 }
             }
             ToolbarItem(placement: .primaryAction) {
@@ -242,17 +242,17 @@ struct SessionDetailView: View {
 
 struct SessionHeader: View {
     let session: AgentSession
-    var usage: String?
+    var mac: MacTag?
 
     var body: some View {
         let state = session.state
-        let detail = ([session.headerDetail] + (usage.map { [$0] } ?? [])).filter { !$0.isEmpty }.joined(separator: " · ")
+        let detail = session.headerDetail
         VStack(spacing: 1) {
             Text(session.displayTitle)
                 .font(.headline)
                 .lineLimit(1)
             (Text(state.label).foregroundStyle(state.needsYou ? Color.warning : .secondary)
-                + Text(detail.isEmpty ? "" : " · " + detail).foregroundStyle(.secondary))
+                + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary))
                 .font(.footnote)
                 .lineLimit(1)
         }

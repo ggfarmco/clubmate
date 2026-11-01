@@ -161,6 +161,7 @@ public struct WorkspaceActivity: Sendable, Equatable {
 
 public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     public let computer: String
+    public let mac: MacTag?
     public let workspace: Workspace
     public let session: AgentSession
 
@@ -183,20 +184,18 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     }
 
     public var subtitle: String {
-        var parts = [workspace.name, session.displayTitle]
-        if session.parentSession != nil { parts.append(session.subagentLabel) }
-        return parts.joined(separator: " · ")
+        [workspace.name, session.displayTitle].joined(separator: " · ")
     }
 
     public var at: Date {
         session.pendingSummary?.at ?? session.updatedAt
     }
 
-    public static func collect(_ sources: [(computer: String, workspace: Workspace, sessions: [AgentSession])]) -> [NeedsYouItem] {
+    public static func collect(_ sources: [(computer: String, mac: MacTag?, workspace: Workspace, sessions: [AgentSession])]) -> [NeedsYouItem] {
         var items: [NeedsYouItem] = []
         for source in sources {
             for session in source.sessions where session.glyph.needsYou {
-                items.append(NeedsYouItem(computer: source.computer, workspace: source.workspace, session: session))
+                items.append(NeedsYouItem(computer: source.computer, mac: source.mac, workspace: source.workspace, session: session))
             }
         }
         return items.sorted { $0.at != $1.at ? $0.at < $1.at : $0.id < $1.id }

@@ -29,6 +29,7 @@ public final class ComputerConnection: CommandRunner {
         }
     }
 
+    public static let identityTopic = "remote.identity"
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
 
     public private(set) var computer: Computer
@@ -95,6 +96,20 @@ public final class ComputerConnection: CommandRunner {
         }
     }
 
+    public func sendMacs(_ macs: [MacTag]) async {
+        try? await client.macs(macs)
+    }
+
+    public func setColour(_ colour: MacColour) async throws -> Computer {
+        do {
+            identify(try await client.setIdentityColour(colour.rawValue))
+            return computer
+        } catch RemoteError.unauthorized {
+            revoke()
+            throw RemoteError.unauthorized
+        }
+    }
+
     public var presence: String {
         switch state {
         case .online: "online"
@@ -137,7 +152,7 @@ public final class ComputerConnection: CommandRunner {
                 if Task.isCancelled { return }
                 self.hello = hello
                 workspaces = list
-                computer.name = hello.computer.name
+                identify(hello.computer)
                 for try await item in try await client.events(after: lastEventID) {
                     if Task.isCancelled { return }
                     failures = 0
@@ -151,6 +166,10 @@ public final class ComputerConnection: CommandRunner {
                         if event.topic == Topic.pluginChanged, let fresh = try? await client.hello() {
                             if Task.isCancelled { return }
                             self.hello = fresh
+                            identify(fresh.computer)
+                        }
+                        if event.topic == Self.identityTopic, let info = try? event.payload["computer"]?.decode(ComputerInfo.self) {
+                            identify(info)
                         }
                         emit(.event(event))
                     }
@@ -173,6 +192,12 @@ public final class ComputerConnection: CommandRunner {
                 return
             }
         }
+    }
+
+    private func identify(_ info: ComputerInfo) {
+        guard info.id == computer.id else { return }
+        computer.name = info.name
+        if let colour = info.colour { computer.colour = colour }
     }
 
     private func revoke() {

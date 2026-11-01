@@ -1,34 +1,52 @@
 #if DEBUG
 import Foundation
+import Synchronization
 
 import CompanionKit
 
 final class FixtureTransport: HTTPTransport {
-    private let server: FixtureServer
+    private let servers: [String: FixtureServer]
+    private let fallback: FixtureServer
     private let offline: ContinuousClock.Instant?
+    private let offlineHosts = Mutex<[String: ContinuousClock.Instant]>([:])
 
     init(directory: URL, offlineAfter: Duration? = nil) {
-        server = FixtureServer(directory: directory)
+        fallback = FixtureServer(directory: directory, mac: .studio)
+        servers = [FixtureMac.pro.host: FixtureServer(directory: directory, mac: .pro), FixtureMac.air.host: FixtureServer(directory: directory, mac: .air)]
         offline = offlineAfter.map { .now + $0 }
     }
 
-    private func reachable() throws {
-        if let offline, ContinuousClock.now >= offline { throw URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."]) }
+    private func server(_ request: URLRequest) -> FixtureServer {
+        servers[request.url?.host() ?? ""] ?? fallback
+    }
+
+    private func deadline(_ request: URLRequest) -> ContinuousClock.Instant? {
+        let host = request.url?.host() ?? ""
+        guard host == FixtureMac.air.host else { return offline }
+        return offlineHosts.withLock { $0[host] }
+    }
+
+    private func reachable(_ request: URLRequest) throws {
+        if let deadline = deadline(request), ContinuousClock.now >= deadline { throw URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."]) }
     }
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         try await Task.sleep(for: .milliseconds(120))
-        try reachable()
-        let (status, body) = await server.handle(path: request.url?.path() ?? "", body: request.httpBody ?? Data())
+        try reachable(request)
+        let (status, body) = await server(request).handle(path: request.url?.path() ?? "", body: request.httpBody ?? Data())
         return (body, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!)
     }
 
     func stream(_ request: URLRequest) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, any Error>) {
-        try reachable()
+        try reachable(request)
+        if request.url?.host() == FixtureMac.air.host {
+            offlineHosts.withLock { $0[FixtureMac.air.host] = $0[FixtureMac.air.host] ?? .now + .seconds(3) }
+        }
+        let server = server(request)
         let stream = await server.subscribe()
-        if let offline {
-            Task { [server] in
-                try? await Task.sleep(until: offline)
+        if let deadline = deadline(request) {
+            Task {
+                try? await Task.sleep(until: deadline)
                 await server.drop()
             }
         }
@@ -36,8 +54,26 @@ final class FixtureTransport: HTTPTransport {
     }
 }
 
+struct FixtureMac: Sendable {
+    static let studio = FixtureMac(id: "mac-mock", name: "Mac Studio", colour: "blue", host: "100.101.1.2", workspaces: [("prj_00000000000000f1", "shop"), ("prj_00000000000000f2", "clubmate")])
+    static let pro = FixtureMac(id: "mac-pro", name: "MacBook Pro", colour: "magenta", host: "100.101.1.3", workspaces: [("prj_00000000000000f3", "infra")])
+    static let air = FixtureMac(id: "mac-air", name: "MacBook Air", colour: "graphite", host: "100.101.1.4", workspaces: [("prj_00000000000000f4", "shop-api")])
+
+    let id: String
+    let name: String
+    let colour: String
+    let host: String
+    let workspaces: [(id: String, name: String)]
+
+    var link: String {
+        "clubmate://pair?v=1&c=ABCDEF&h=\(host)&p=47622&id=\(id)&n=\(name.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? name)&e=4000000000"
+    }
+}
+
 actor FixtureServer {
-    private static let workspace = "prj_00000000000000f1"
+    private let mac: FixtureMac
+    private let workspace: String
+    private var colour: String
 
     private var sessions: [[String: JSONValue]] = []
     private var others: [[String: JSONValue]] = []
@@ -48,7 +84,10 @@ actor FixtureServer {
     private var seq = 100
     private var notified = false
 
-    init(directory: URL) {
+    init(directory: URL, mac: FixtureMac) {
+        self.mac = mac
+        workspace = mac.workspaces[0].id
+        colour = mac.colour
         let decode = { (name: String) in
             (try? JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: directory.appending(path: name)))) ?? .null
         }
@@ -104,6 +143,19 @@ actor FixtureServer {
             if fields["claimedBy"] != nil, let id = sessions.first?["id"] { fields["claimedBy"] = id }
             return fields
         }
+        guard mac.id != FixtureMac.studio.id else { return }
+        tasks = []
+        others = []
+        self.transcripts = [:]
+        self.sessions = mac.id == FixtureMac.pro.id ? sessions.prefix(1).map { first in
+            var fields = first
+            fields["id"] = .string("agt_0000000000000011")
+            fields["workspace"] = .string(mac.workspaces[0].id)
+            fields["worktree"] = .string("/Users/me/src/infra")
+            fields["title"] = .string("Move the state bucket to the new account")
+            fields["pendingSummary"] = .object(["kind": .string("permission"), "text": .string("terraform plan"), "tool": .string("execute"), "at": Self.stamp(ago: 240)])
+            return fields
+        } : []
     }
 
     func subscribe() -> AsyncThrowingStream<Data, any Error> {
@@ -130,18 +182,23 @@ actor FixtureServer {
     func handle(path: String, body: Data) -> (Int, Data) {
         let request = (try? JSONDecoder().decode(JSONValue.self, from: body)) ?? .null
         if path == "/v1/pair" {
-            return (200, Self.json(["token": .string("cmt_fixture"), "computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")])]))
+            return (200, Self.json(["token": .string("cmt_fixture"), "computer": computer]))
         }
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
             let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done"].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": .object(["id": .string("mac-mock"), "name": .string("Mac Studio")]), "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("notify.posted")])])]))
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("notify.posted")])])]))
         case "workspaces":
-            return (200, Self.json(["result": .array([
-                .object(["id": .string(Self.workspace), "name": .string("shop"), "folders": .array([.object(["path": .string("/Users/me/src/shop")])])]),
-                .object(["id": .string("prj_00000000000000f2"), "name": .string("clubmate"), "folders": .array([.object(["path": .string("/Users/me/src/clubmate")])])]),
-            ])]))
+            return (200, Self.json(["result": .array(mac.workspaces.map { item in
+                .object(["id": .string(item.id), "name": .string(item.name), "folders": .array([.object(["path": .string("/Users/me/src/" + item.name)])])])
+            })]))
+        case "macs":
+            return (200, Self.json(["result": .null]))
+        case "setIdentityColour":
+            colour = params["colour"]?.stringValue ?? colour
+            publish("remote.identity", ["computer": computer])
+            return (200, Self.json(["result": .object(["computer": computer])]))
         case "command":
             return (200, Self.json(["result": command(params["id"]?.stringValue ?? "", workspace: params["workspace"]?.stringValue ?? "", args: params["args"] ?? .null)]))
         default:
@@ -149,11 +206,15 @@ actor FixtureServer {
         }
     }
 
+    private var computer: JSONValue {
+        .object(["id": .string(mac.id), "name": .string(mac.name), "colour": .string(colour)])
+    }
+
     private func command(_ id: String, workspace: String, args: JSONValue) -> JSONValue {
         let session = args["session"]?.stringValue ?? ""
         switch id {
         case "agents.sessions":
-            return .array((workspace == Self.workspace ? sessions : others).map(JSONValue.object))
+            return .array((workspace == self.workspace ? sessions : others).map(JSONValue.object))
         case "agents.transcript":
             var transcript = transcripts[session] ?? [:]
             if args["compact"] == .bool(true) {
@@ -231,7 +292,7 @@ actor FixtureServer {
             }
             return .object(["session": .string(id), "worktree": record["worktree"] ?? .null])
         case "backlog.list":
-            guard workspace == Self.workspace else { return .object(["tasks": .array([])]) }
+            guard workspace == self.workspace else { return .object(["tasks": .array([])]) }
             let status = args["status"]?.stringValue ?? "open"
             var list = tasks.filter { task in
                 let value = task["status"]?.stringValue ?? ""
@@ -246,7 +307,7 @@ actor FixtureServer {
             var task: [String: JSONValue] = ["id": .number(id), "title": args["title"] ?? .string(""), "status": args["status"] ?? .string("todo"), "priority": args["priority"] ?? .string("normal"), "createdBy": .string("user"), "createdAt": Self.stamp(ago: 0), "updatedAt": Self.stamp(ago: 0)]
             if let description = args["description"] { task["description"] = description }
             tasks.insert(task, at: 0)
-            publish("backlog.changed", ["workspace": .string(Self.workspace), "id": .number(id), "kind": .string("added")])
+            publish("backlog.changed", ["workspace": .string(self.workspace), "id": .number(id), "kind": .string("added")])
             return .object(task)
         case "backlog.update", "backlog.claim", "backlog.release", "backlog.done":
             return updateTask(id, args)
@@ -298,7 +359,7 @@ actor FixtureServer {
         }
         task["updatedAt"] = Self.stamp(ago: 0)
         tasks[index] = task
-        publish("backlog.changed", ["workspace": .string(Self.workspace), "id": task["id"] ?? .null, "kind": .string("updated")])
+        publish("backlog.changed", ["workspace": .string(workspace), "id": task["id"] ?? .null, "kind": .string("updated")])
         return .object(task)
     }
 
@@ -317,7 +378,7 @@ actor FixtureServer {
         }
         transcripts[session]?["entries"] = .array(entries)
         update(session) { $0["status"] = .string("running"); $0["pending"] = nil }
-        publish("agents.changed", ["workspace": .string(Self.workspace), "session": .string(session), "kind": .string("resolved"), "request": .string(request)])
+        publish("agents.changed", ["workspace": .string(workspace), "session": .string(session), "kind": .string("resolved"), "request": .string(request)])
         Task {
             try? await Task.sleep(for: .milliseconds(1500))
             append(session, .object(["kind": .string("tool"), "id": .string("run1"), "turn": .number(1), "tool": .object([
@@ -352,22 +413,29 @@ actor FixtureServer {
     private func update(_ session: String, _ change: (inout [String: JSONValue]) -> Void) {
         guard let index = sessions.firstIndex(where: { $0["id"]?.stringValue == session }) else { return }
         change(&sessions[index])
-        if sessions[index]["pending"] == nil && sessions[index]["asks"] != .bool(true) { sessions[index]["pendingSummary"] = nil }
+        if sessions[index]["pending"] == nil && sessions[index]["asks"] != .bool(true) {
+            sessions[index]["pendingSummary"] = nil
+            sessions[index]["needsYou"] = nil
+        }
         sessions[index]["updatedAt"] = Self.stamp(ago: 0)
-        publish("agents.changed", ["workspace": .string(Self.workspace), "session": .string(session), "kind": .string("status")])
+        publish("agents.changed", ["workspace": .string(workspace), "session": .string(session), "kind": .string("status")])
     }
 
     private func notifyAll() {
+        if mac.id == FixtureMac.pro.id {
+            publish("notify.posted", ["id": .string("ntf_p1"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run terraform plan in infra."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 240)])
+        }
+        guard mac.id == FixtureMac.studio.id else { return }
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null
-        publish("notify.posted", ["id": .string("ntf_0"), "workspace": .string(Self.workspace), "title": .string("Stuck"), "message": .string("No output for 15 minutes"), "kind": .string("stuck"), "ts": Self.stamp(ago: 3600)])
-        publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(Self.workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])
-        publish("notify.posted", ["id": .string("ntf_2"), "workspace": .string(Self.workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run go test ./... in shop."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 60)])
-        publish("notify.posted", ["id": .string("ntf_3"), "workspace": .string(Self.workspace), "session": asking, "title": .string("Checkout question"), "message": .string("Should I add retries to the charge step?"), "kind": .string("needs-input"), "agent": .bool(true), "ts": Self.stamp(ago: 30)])
+        publish("notify.posted", ["id": .string("ntf_0"), "workspace": .string(workspace), "title": .string("Stuck"), "message": .string("No output for 15 minutes"), "kind": .string("stuck"), "ts": Self.stamp(ago: 3600)])
+        publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])
+        publish("notify.posted", ["id": .string("ntf_2"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run go test ./... in shop."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 60)])
+        publish("notify.posted", ["id": .string("ntf_3"), "workspace": .string(workspace), "session": asking, "title": .string("Checkout question"), "message": .string("Should I add retries to the charge step?"), "kind": .string("needs-input"), "agent": .bool(true), "ts": Self.stamp(ago: 30)])
     }
 
     private func publish(_ topic: String, _ payload: [String: JSONValue]) {
         seq += 1
-        let event = Self.json(["seq": .number(Double(seq)), "topic": .string(topic), "workspace": .string(Self.workspace), "payload": .object(payload)])
+        let event = Self.json(["seq": .number(Double(seq)), "topic": .string(topic), "workspace": .string(workspace), "payload": .object(payload)])
         let wire = Data("id: \(seq)\nevent: bus\ndata: ".utf8) + event + Data("\n\n".utf8)
         for subscriber in subscribers {
             subscriber.yield(wire)

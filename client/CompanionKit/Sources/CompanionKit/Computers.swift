@@ -8,14 +8,16 @@ public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
     public var port: Int
     public var pairedAt: Date
     public var lastSeen: Date?
+    public var colour: String?
 
-    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now, lastSeen: Date? = nil) {
+    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now, lastSeen: Date? = nil, colour: String? = nil) {
         self.id = id
         self.name = name
         self.hosts = hosts
         self.port = port
         self.pairedAt = pairedAt
         self.lastSeen = lastSeen
+        self.colour = colour
     }
 }
 
@@ -75,6 +77,15 @@ public final class ComputerStore {
         guard let index = computers.firstIndex(where: { $0.id == id }) else { return }
         if let saved = computers[index].lastSeen, date.timeIntervalSince(saved) < Self.seenEvery { return }
         computers[index].lastSeen = date
+        try persist()
+    }
+
+    public func identify(_ id: String, as info: ComputerInfo) throws {
+        guard let index = computers.firstIndex(where: { $0.id == id }) else { return }
+        let colour = info.colour ?? computers[index].colour
+        guard computers[index].name != info.name || computers[index].colour != colour else { return }
+        computers[index].name = info.name
+        computers[index].colour = colour
         try persist()
     }
 

@@ -61,16 +61,17 @@ final class SessionRowsTests: XCTestCase {
         let shop = Workspace(id: "w1", name: "shop")
         let api = Workspace(id: "w2", name: "api")
         let items = NeedsYouItem.collect([
-            ("mac1", shop, [
+            ("mac1", MacTag(name: "Mac Studio", colour: "blue"), shop, [
                 AgentSession(id: "a", title: "Refactor the cart total", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "go test ./...", tool: "execute", at: now.addingTimeInterval(-60))),
                 AgentSession(id: "b", parentSession: "a", title: "Explain the checkout flow", status: .waiting, afk: true, pending: ["elicitation-1"], pendingSummary: PendingSummary(kind: .question, text: "Add retries?", at: now.addingTimeInterval(-30))),
                 AgentSession(id: "c", status: .running),
             ]),
-            ("mac2", api, [AgentSession(id: "d", title: "Docs", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "Edit README.md", tool: "edit", at: now.addingTimeInterval(-90)))]),
+            ("mac2", MacTag(name: "MacBook Pro", colour: "magenta"), api, [AgentSession(id: "d", title: "Docs", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "Edit README.md", tool: "edit", at: now.addingTimeInterval(-90)))]),
         ])
         XCTAssertEqual(items.map(\.id), ["mac2|d", "mac1|a", "mac1|b"])
         XCTAssertEqual(items.map(\.title), ["Edit README.md?", "Run go test ./...?", "Add retries?"])
         XCTAssertEqual(items.map(\.command), [nil, "go test ./...", nil])
-        XCTAssertEqual(items.map(\.subtitle), ["api · Docs", "shop · Refactor the cart total", "shop · Explain the checkout flow · Subagent · AFK"])
+        XCTAssertEqual(items.map(\.mac?.name), ["MacBook Pro", "Mac Studio", "Mac Studio"])
+        XCTAssertEqual(items.map(\.subtitle), ["api · Docs", "shop · Refactor the cart total", "shop · Explain the checkout flow"])
     }
 }

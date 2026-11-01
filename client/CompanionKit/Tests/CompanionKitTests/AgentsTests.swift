@@ -151,6 +151,17 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(runner.calls.values, ["agents.sessions"])
     }
 
+    func testACancelledCallerDoesNotLoseTheSessions() async throws {
+        let runner = SlowSessionsRunner()
+        let store = AgentsStore(workspace: "prj_00000000000000f1", runner: runner)
+        let caller = Task { await store.refresh() }
+        try await Task.sleep(for: .milliseconds(10))
+        caller.cancel()
+        try await waitUntil { store.loaded }
+        XCTAssertEqual(store.sessions.count, 3)
+        XCTAssertNil(store.error)
+    }
+
     func testCreateWithAttachmentsStartsIdleThenPromptsWithImages() async throws {
         let runner = CreateRunner()
         let store = AgentsStore(workspace: "w", runner: runner)
@@ -185,6 +196,14 @@ final class CreateRunner: CommandRunner {
         case "agents.sessions": return .array([])
         default: return .null
         }
+    }
+}
+
+@MainActor
+final class SlowSessionsRunner: CommandRunner {
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        try await Task.sleep(for: .milliseconds(100))
+        return try JSONDecoder().decode(JSONValue.self, from: fixture("agents-sessions"))
     }
 }
 

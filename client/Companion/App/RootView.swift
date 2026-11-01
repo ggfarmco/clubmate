@@ -26,6 +26,9 @@ struct RootView: View {
         .onChange(of: CompanionLayout(width: width, compactClass: sizeClass == .compact), initial: true) { _, layout in navigation.layout = layout }
         .onChange(of: navigation.layout) { _, _ in navigation.arrange() }
         .onChange(of: navigation.sidebar) { _, _ in navigation.arrange() }
+        .onChange(of: navigation.preferredColumn) { _, column in
+            if column == .sidebar, navigation.layout == .compact { navigation.macDetails = nil }
+        }
         .sheet(isPresented: $navigation.showingAddComputer) {
             AddComputerView()
         }
@@ -51,6 +54,8 @@ struct RootView: View {
     private var content: some View {
         if let context, let plugin = navigation.sidebar.flatMap({ CompanionPlugins.plugin($0.plugin) }) {
             plugin.makeList(context: context)
+        } else if let computer = navigation.macDetails {
+            MacDetailsView(computerID: computer)
         } else if model.computers.isEmpty {
             WelcomeView()
         } else {

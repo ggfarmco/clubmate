@@ -25,10 +25,12 @@ public enum RemoteError: Error, Equatable, Sendable {
 public struct ComputerInfo: Codable, Sendable, Equatable {
     public let id: String
     public let name: String
+    public let colour: String?
 
-    public init(id: String, name: String) {
+    public init(id: String, name: String, colour: String? = nil) {
         self.id = id
         self.name = name
+        self.colour = colour
     }
 }
 
@@ -93,16 +95,16 @@ public actor RemoteClient {
 
     public static let mismatchMessage = "The Mac that answered isn't the one in the pairing link."
 
-    public static func pair(_ link: PairingLink, device: DeviceIdentity, transport: any HTTPTransport, policy: HostPolicy = .tailnet, now: Date = .now) async throws -> PairResult {
+    public static func pair(_ link: PairingLink, device: DeviceIdentity, macs: [MacTag] = [], transport: any HTTPTransport, policy: HostPolicy = .tailnet, now: Date = .now) async throws -> PairResult {
         let client = RemoteClient(hosts: link.hosts, port: link.port, token: nil, transport: transport, policy: policy)
-        let body = try JSONEncoder().encode(PairRequest(code: link.code, device: device))
+        let body = try JSONEncoder().encode(PairRequest(code: link.code, device: PairDevice(id: device.id, name: device.name, model: device.model, macs: macs)))
         let (data, response, host) = try await client.exchange(path: "/v1/pair", method: "POST", body: body, probe: true)
         switch response.statusCode {
         case 200:
             guard let reply = try? JSONDecoder.clubmate.decode(PairReply.self, from: data) else { throw RemoteError.badResponse }
             guard reply.computer.id == link.computerID else { throw RemoteError.pairingFailed(mismatchMessage) }
             let hosts = [host] + policy.filter(link.hosts).filter { $0 != host }
-            return PairResult(token: reply.token, computer: Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now))
+            return PairResult(token: reply.token, computer: Computer(id: reply.computer.id, name: reply.computer.name, hosts: hosts, port: link.port, pairedAt: now, colour: reply.computer.colour))
         case 403:
             throw RemoteError.pairingFailed((try? JSONDecoder().decode(Envelope.self, from: data))?.error?.message ?? "")
         default:
@@ -128,6 +130,14 @@ public actor RemoteClient {
 
     public func workspaces() async throws -> [Workspace] {
         try await rpc("workspaces").decode([Workspace].self)
+    }
+
+    public func macs(_ macs: [MacTag]) async throws {
+        _ = try await rpc("macs", params: .object(["macs": try JSONValue.encoding(macs)]))
+    }
+
+    public func setIdentityColour(_ colour: String) async throws -> ComputerInfo {
+        try await rpc("setIdentityColour", params: .object(["colour": .string(colour)])).decode(IdentityReply.self).computer
     }
 
     public func command(_ id: String, workspace: String?, args: JSONValue? = nil) async throws -> JSONValue {
@@ -241,7 +251,18 @@ public actor RemoteClient {
 
 private struct PairRequest: Encodable {
     let code: String
-    let device: DeviceIdentity
+    let device: PairDevice
+}
+
+private struct PairDevice: Encodable {
+    let id: String
+    let name: String
+    let model: String
+    let macs: [MacTag]
+}
+
+private struct IdentityReply: Decodable {
+    let computer: ComputerInfo
 }
 
 private struct PairReply: Decodable {

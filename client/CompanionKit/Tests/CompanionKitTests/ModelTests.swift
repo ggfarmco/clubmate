@@ -121,10 +121,10 @@ final class ModelTests: XCTestCase {
         let item = { (kind: NotificationKind, age: TimeInterval) in
             InboxItem(notificationID: "ntf_1", computerID: "m", workspace: "w", session: "agt_1", message: "Need a decision", kind: kind, date: now.addingTimeInterval(-age))
         }
-        let alert = try XCTUnwrap(LocalAlert(item(.permission, 5), computerName: "Mac Studio", now: now))
-        XCTAssertEqual([alert.id, alert.title, alert.subtitle, alert.body, alert.session], ["m|ntf_1", "Permission needed", "Mac Studio", "Need a decision", "agt_1"])
-        XCTAssertNil(LocalAlert(item(.info, 5), computerName: "", now: now))
-        XCTAssertNil(LocalAlert(item(.permission, LocalAlert.window), computerName: "", now: now))
+        let alert = try XCTUnwrap(LocalAlert(item(.permission, 5), computerName: "Mac Studio", workspaceName: "shop", now: now))
+        XCTAssertEqual([alert.id, alert.title, alert.subtitle, alert.body, alert.session], ["m|ntf_1", "Mac Studio · shop", "Permission needed", "Need a decision", "agt_1"])
+        XCTAssertNil(LocalAlert(item(.info, 5), computerName: "", workspaceName: nil, now: now))
+        XCTAssertNil(LocalAlert(item(.permission, LocalAlert.window), computerName: "", workspaceName: nil, now: now))
     }
 
     @MainActor
@@ -187,6 +187,7 @@ final class ModelTests: XCTestCase {
         let store = ComputerStore(file: file, vault: vault)
         XCTAssertEqual(store.computers.map(\.id), ["m"])
         XCTAssertNil(store.computers[0].lastSeen)
+        XCTAssertEqual(store.computers[0].tag.macColour, .graphite)
 
         let seen = Date(timeIntervalSince1970: 1_800_000_000)
         try store.seen("m", at: seen)

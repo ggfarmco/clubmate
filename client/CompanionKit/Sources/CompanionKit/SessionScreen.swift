@@ -36,7 +36,7 @@ extension AgentSession {
     }
 
     public var headerDetail: String {
-        ([parentSession == nil ? worktreeName : "subagent"] + (afk ? ["AFK"] : [])).filter { !$0.isEmpty }.joined(separator: " · ")
+        parentSession == nil ? worktreeName : "subagent"
     }
 
     public var composerPlaceholder: String {

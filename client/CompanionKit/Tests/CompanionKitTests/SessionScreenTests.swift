@@ -97,7 +97,7 @@ final class SessionScreenTests: XCTestCase {
         let session = AgentSession(id: "s", agent: "claude", status: .done, afk: true, asks: true)
         let screen = SessionScreen(entries: entries, session: session)
         XCTAssertEqual(session.state.label, "Asking you")
-        XCTAssertEqual(session.headerDetail, "AFK")
+        XCTAssertEqual(session.headerDetail, "")
         XCTAssertEqual(session.composerPlaceholder, "Answer Claude…")
         XCTAssertEqual(screen.dock, .question("Should I add retries to the charge step?"))
         guard case .agent(_, let blocks) = screen.rows.first else { return XCTFail("unexpected rows \(screen.rows)") }

@@ -94,7 +94,7 @@ struct NeedsYouRow: View {
                         title
                             .font(.body.weight(.semibold))
                             .lineLimit(1)
-                        Text(item.subtitle)
+                        item.mac.lead(item.subtitle)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -141,20 +141,14 @@ struct ComputerSection: View {
                 StatusRow(connection: connection)
             }
         } header: {
-            HStack(spacing: 8) {
-                Image(systemName: "desktopcomputer")
-                Text(connection.computer.name)
-                Spacer()
-                Text(connection.presence)
-                    .font(.subheadline)
-                    .textCase(nil)
-            }
-            .contextMenu { actions }
+            MacSectionHeader(connection: connection, tinted: model.namesMacs) { navigation.showMac(connection.computer.id) }
+                .contextMenu { actions }
         }
     }
 
     @ViewBuilder
     private var actions: some View {
+        Button("Details", systemImage: "info.circle") { navigation.showMac(connection.computer.id) }
         Button("Reconnect", systemImage: "arrow.clockwise") { connection.reconnectNow() }
             .disabled(connection.state == .online || connection.state == .unauthorized)
         Button("Remove…", systemImage: "trash", role: .destructive) { removing = connection.computer }

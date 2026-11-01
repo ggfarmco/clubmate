@@ -67,12 +67,13 @@ public final class CompanionModel {
     }
 
     public func pair(_ link: PairingLink) async throws -> Computer {
-        let result = try await RemoteClient.pair(link, device: device, transport: transport, policy: policy)
+        let result = try await RemoteClient.pair(link, device: device, macs: macs(excluding: link.computerID), transport: transport, policy: policy)
         try store.save(result.computer, token: result.token)
         computers = store.computers
         detach(result.computer.id)
         attach(result.computer)
         connections[result.computer.id]?.start()
+        sendMacs(excluding: result.computer.id)
         return result.computer
     }
 
@@ -82,6 +83,39 @@ public final class CompanionModel {
         try store.remove(id)
         computers = store.computers
         inbox.remove(computer: id)
+        sendMacs(excluding: nil)
+    }
+
+    public var namesMacs: Bool {
+        computers.count > 1
+    }
+
+    public func tag(_ computer: String) -> MacTag? {
+        guard namesMacs else { return nil }
+        return (connections[computer]?.computer ?? computers.first { $0.id == computer })?.tag
+    }
+
+    public func macs(excluding id: String?) -> [MacTag] {
+        computers.filter { $0.id != id }.map { (connections[$0.id]?.computer ?? $0).tag }
+    }
+
+    public func setColour(_ colour: MacColour, computer: String) async throws {
+        guard let connection = connections[computer] else { return }
+        identified(try await connection.setColour(colour))
+    }
+
+    private func identified(_ computer: Computer) {
+        let before = computers.first { $0.id == computer.id }?.tag
+        try? store.identify(computer.id, as: ComputerInfo(id: computer.id, name: computer.name, colour: computer.colour))
+        computers = store.computers
+        if computers.first(where: { $0.id == computer.id })?.tag != before { sendMacs(excluding: computer.id) }
+    }
+
+    private func sendMacs(excluding id: String?) {
+        for connection in connections.values where connection.computer.id != id && connection.state == .online {
+            let list = macs(excluding: connection.computer.id)
+            Task { await connection.sendMacs(list) }
+        }
     }
 
     public func agents(computer: String, workspace: String) -> AgentsStore? {
@@ -97,7 +131,7 @@ public final class CompanionModel {
         let online = computers.compactMap { connections[$0.id] }.filter { $0.state == .online }
         return NeedsYouItem.collect(online.flatMap { connection in
             connection.workspaces.compactMap { workspace in
-                agents(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, workspace, $0.sessions) }
+                agents(computer: connection.computer.id, workspace: workspace.id).map { (connection.computer.id, tag(connection.computer.id), workspace, $0.sessions) }
             }
         })
     }
@@ -151,6 +185,18 @@ public final class CompanionModel {
         }
         if case .event = signal, let seq = connections[computer]?.lastEventID {
             cursors?.set(seq, forKey: Self.cursorKey(computer))
+        }
+        if let connection = connections[computer] {
+            switch signal {
+            case .online:
+                identified(connection.computer)
+                let list = macs(excluding: computer)
+                Task { await connection.sendMacs(list) }
+            case .event(let event) where event.topic == ComputerConnection.identityTopic:
+                identified(connection.computer)
+            case .event:
+                break
+            }
         }
         if case .event(let event) = signal, event.topic == Topic.agentsChanged, event.payload["kind"]?.stringValue == Self.resolvedKind,
            let session = event.payload["session"]?.stringValue {

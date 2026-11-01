@@ -80,6 +80,7 @@ struct InboxListView: View {
         .navigationTitle("Inbox")
         .navigationSubtitle(context.connection.computer.name)
         .toolbar {
+            MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(""))
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis") {
                     Button("Mark All as Read", systemImage: "envelope.open") { context.model.inbox.markAllRead() }
