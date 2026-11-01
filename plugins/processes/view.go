@@ -174,10 +174,11 @@ func headerView(m viewModel) sdui.Node {
 	if orphans == 0 {
 		kill = sdui.WithDisabled(kill)
 	}
-	options := sdui.WithVariant(sdui.Button(optionsID, "Options", "slider.horizontal.3"), sdui.VariantGhost)
+	optionsLabel := "Options"
 	if m.options {
-		options = sdui.WithVariant(sdui.Button(optionsID, "Hide options", "slider.horizontal.3"), sdui.VariantGhost)
+		optionsLabel = "Hide options"
 	}
+	options := sdui.WithIconOnly(sdui.WithVariant(sdui.Button(optionsID, optionsLabel, "slider.horizontal.3"), sdui.VariantGhost))
 	filter := sdui.WithAction(sdui.WithLive(sdui.TextField(filterID, m.filter, "Filter")), filterAction)
 	return withID(sdui.Header(title, sdui.HeaderProps{Meta: meta}, filter, kill, options), "header")
 }

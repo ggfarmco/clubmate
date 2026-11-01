@@ -185,9 +185,62 @@ struct HeaderNodeView: View {
 
     var body: some View {
         let title = node.string("title") ?? ""
+        Group {
+            if node.headerField != nil {
+                ViewThatFits(in: .horizontal) {
+                    oneLine(title)
+                    stacked(title)
+                }
+            } else {
+                stacked(title)
+            }
+        }
+        .padding(.horizontal, theme.gutter)
+        .padding(.vertical, theme.spacing.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+    }
+
+    private func oneLine(_ title: String) -> some View {
+        HStack(spacing: theme.spacing.m) {
+            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
+                Text(title)
+                    .font(theme.heading)
+                    .foregroundStyle(theme.foreground)
+                    .lineLimit(1)
+                    .fixedSize()
+                if let meta = node.string("meta") {
+                    Text(meta)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.muted)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            Spacer(minLength: theme.spacing.xl)
+            if let field = node.headerField {
+                SDUINodeView(node: field.node)
+                    .equatable()
+                    .environment(\.fieldGutter, false)
+                    .frame(width: Self.filterWidth)
+            }
+            ForEach(node.headerBar) { child in
+                SDUINodeView(node: child.node).equatable()
+                    .fixedSize()
+            }
+            let menu = node.headerButtons.filter { $0.node.bool("overflow") == true }
+            if !menu.isEmpty {
+                HeaderMoreMenu(id: "\(node.id ?? "header").more", actions: menu.map(\.node))
+            }
+        }
+        .padding(.trailing, trailingInset)
+    }
+
+    private func stacked(_ title: String) -> some View {
         let session = node.string("status") != nil
         let inline = width >= Self.inlineCaptionWidth
-        VStack(alignment: .leading, spacing: theme.spacing.l) {
+        return VStack(alignment: .leading, spacing: theme.spacing.l) {
             HStack(alignment: .firstTextBaseline, spacing: theme.spacing.m) {
                 if let icon = node.string("icon") {
                     Image(systemName: SymbolName.resolve(icon))
@@ -254,11 +307,6 @@ struct HeaderNodeView: View {
                 }
             }
         }
-        .padding(.horizontal, theme.gutter)
-        .padding(.vertical, theme.spacing.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
     }
 
     private var sessionCaption: String? {
@@ -559,6 +607,10 @@ private struct ButtonKeyHintKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }
 
+private struct FieldGutterKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 extension EnvironmentValues {
     var headerTrailingInset: CGFloat {
         get { self[HeaderTrailingInsetKey.self] }
@@ -568,5 +620,10 @@ extension EnvironmentValues {
     var buttonKeyHint: String? {
         get { self[ButtonKeyHintKey.self] }
         set { self[ButtonKeyHintKey.self] = newValue }
+    }
+
+    var fieldGutter: Bool {
+        get { self[FieldGutterKey.self] }
+        set { self[FieldGutterKey.self] = newValue }
     }
 }

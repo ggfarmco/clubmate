@@ -18,6 +18,7 @@ const (
 	ActDelete = "delete"
 	ActReveal = "reveal"
 	ActJSON   = "json"
+	ActEdit   = "edit"
 
 	propsID     = "props"
 	promptLines = 3
@@ -41,6 +42,7 @@ type DetailAction struct {
 
 type Open struct {
 	JSON bool
+	Edit bool
 }
 
 func ActionNode(id string, a DetailAction) sdui.Node {
@@ -175,7 +177,25 @@ func doesLine(command string, fields map[string]any, titles map[string]string) s
 	case agentEmit:
 		return "Emit the event “" + str("name") + "”"
 	}
-	return "Run the command " + command
+	if title := titles[command]; title != "" {
+		return SentenceCase(title)
+	}
+	return "Run a command that is no longer installed"
+}
+
+func SentenceCase(title string) string {
+	words := strings.Fields(title)
+	if len(words) == 0 {
+		return ""
+	}
+	for i, w := range words[1:] {
+		rest := w[1:]
+		if w[:1] != strings.ToUpper(w[:1]) || rest != strings.ToLower(rest) {
+			continue
+		}
+		words[i+1] = strings.ToLower(w)
+	}
+	return strings.Join(words, " ")
 }
 
 func promptOf(fields map[string]any) string {

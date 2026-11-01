@@ -18,6 +18,7 @@ var ErrUnknownCommand = errors.New("unknown command")
 
 type target struct {
 	ID     string         `json:"id"`
+	Title  string         `json:"title"`
 	Plugin string         `json:"plugin"`
 	Agent  bool           `json:"agent"`
 	Args   *schema.Object `json:"args"`
@@ -67,6 +68,18 @@ func Descends(session, ancestor string, parents map[string]string) bool {
 		session = parents[session]
 	}
 	return false
+}
+
+func CommandTitles(ctx context.Context, h *pluginsdk.Host) (map[string]string, error) {
+	var cmds []target
+	if err := h.Call(ctx, "command.list", struct{}{}, &cmds); err != nil {
+		return nil, fmt.Errorf("list commands: %w", err)
+	}
+	titles := make(map[string]string, len(cmds))
+	for _, c := range cmds {
+		titles[c.ID] = c.Title
+	}
+	return titles, nil
 }
 
 func ValidateTarget(ctx context.Context, h *pluginsdk.Host, command, args string) (json.RawMessage, error) {

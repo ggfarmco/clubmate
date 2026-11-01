@@ -49,6 +49,8 @@ func TestHeaderAndActionStrip(t *testing.T) {
 
 	idle, _ := mainView(viewModel{nodes: nodes[:1], options: true, sort: defaultSort, scope: "All", hist: newHistory()})
 	assert.Equal(t, true, idle.Children[0].Children[1].Props["disabled"])
+	assert.Equal(t, "Hide options", idle.Children[0].Children[2].Props["label"])
+	assert.Equal(t, true, idle.Children[0].Children[2].Props["iconOnly"])
 	assert.Equal(t, "options-row", idle.Children[1].ID)
 	assert.NotEqual(t, "action-strip", idle.Children[len(idle.Children)-1].ID)
 }

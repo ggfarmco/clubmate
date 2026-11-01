@@ -25,12 +25,12 @@ func TestSidebarDetailAndMenu(t *testing.T) {
 	require.Len(t, items, 2)
 	assert.Equal(t, "09:00", items[0].Detail)
 	assert.Equal(t, "clock", items[0].Icon)
-	assert.Equal(t, []string{"run", "pause", "duplicate", "delete"}, actions(items[0]))
+	assert.Equal(t, []string{"run", "pause", "edit", "duplicate", "delete"}, actions(items[0]))
 	assert.Equal(t, "paused", items[1].Detail)
 	assert.Equal(t, []string{"xmark.circle", "danger"}, []string{items[1].Icon, items[1].Tone})
 	assert.Empty(t, items[1].Badge)
 	assert.Equal(t, "resume", items[1].Menu[1].Action)
-	assert.Equal(t, "Delete cron job “b”?", items[1].Menu[3].Confirm)
+	assert.Equal(t, "Delete cron job “b”?", items[1].Menu[4].Confirm)
 }
 
 func TestMainHistoryNewestFirst(t *testing.T) {
@@ -40,11 +40,11 @@ func TestMainHistoryNewestFirst(t *testing.T) {
 		{At: at, Status: automation.StatusOK, Result: `{"session":"agt_2"}`},
 		{At: at.Add(2 * time.Minute), Status: automation.StatusError, Reason: "boom"},
 	}}
-	view := mainView(j, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, automation.Open{}, at)
+	view := mainView(j, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, automation.Open{}, draft{}, at)
 	require.NoError(t, isdui.Validate(view))
 	assert.Contains(t, texts(view), "Orchestrator")
 	assert.Equal(t, "header", view.Children[0].Type)
-	assert.Equal(t, []string{"cj_a/run", "cj_a/resume", "cj_a/duplicate", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
+	assert.Equal(t, []string{"cj_a/run", "cj_a/resume", "cj_a/edit", "cj_a/duplicate", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
 	rows := tableRows(t, view)
 	require.Len(t, rows, 3)
 	assert.Equal(t, "boom", rows[0].Cells[2].Text)
@@ -62,7 +62,7 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 			{At: now.Add(-11 * time.Hour), Status: automation.StatusSkipped, Reason: reasonMissed},
 		}}
 
-	view := mainView(j, nil, automation.Open{}, now)
+	view := mainView(j, nil, automation.Open{}, draft{}, now)
 	require.NoError(t, isdui.Validate(view))
 	assert.Equal(t, []sdui.HeaderBadge{{Text: "active"}, {Text: "missed 1 run", Tone: "warning"}}, view.Children[0].Props["badges"])
 	got := texts(view)
@@ -79,7 +79,7 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 
 func TestEmptyStates(t *testing.T) {
 	assert.Equal(t, "empty", sidebarView(nil, "", time.Now()).Type)
-	assert.Equal(t, "empty", mainView(nil, nil, automation.Open{}, time.Now()).Type)
+	assert.Equal(t, "empty", mainView(nil, nil, automation.Open{}, draft{}, time.Now()).Type)
 }
 
 func listItems(t *testing.T, n sdui.Node) []sdui.Item {
@@ -141,4 +141,18 @@ func TestWhenMissedPickerSetsThePolicy(t *testing.T) {
 	require.NoError(t, a.setMissed(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws", Action: actMissed, Value: json.RawMessage(`"skip"`)}, j.ID))
 	assert.Equal(t, missedSkip, a.jobs[j.ID].Missed)
 	assert.Error(t, a.setMissed(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws", Action: actMissed, Value: json.RawMessage(`"later"`)}, j.ID))
+}
+
+func TestEditArgsKeepTheAgentArgsAndSendOnlyChanges(t *testing.T) {
+	j := &Job{ID: "cj_a", Name: "Nightly", Command: agentNewCommand, Missed: missedOnce,
+		Args:     json.RawMessage(`{"agent":"claude","prompt":"Audit","branch":"audit"}`),
+		Schedule: Schedule{Cron: "0 3 * * *", Timezone: "UTC"}}
+	require.NoError(t, isdui.Validate(editView(j, draft{})))
+	values := editValues(j)
+	values[fieldPrompt] = "Audit again"
+	values[fieldBranch] = ""
+
+	args, err := editArgs(j, values)
+	require.NoError(t, err)
+	assert.Equal(t, jobArgs{ID: "cj_a", Name: "Nightly", Missed: missedOnce, Args: `{"agent":"claude","prompt":"Audit again"}`}, args)
 }

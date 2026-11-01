@@ -20,7 +20,7 @@ func ReadOpen(ctx context.Context, h *pluginsdk.Host, workspace, id string) (Ope
 	for _, o := range []struct {
 		action string
 		on     *bool
-	}{{ActJSON, &open.JSON}} {
+	}{{ActJSON, &open.JSON}, {ActEdit, &open.Edit}} {
 		var current string
 		if _, err := h.StorageGet(ctx, openKey(o.action, workspace), &current); err != nil {
 			return Open{}, err
@@ -31,7 +31,11 @@ func ReadOpen(ctx context.Context, h *pluginsdk.Host, workspace, id string) (Ope
 }
 
 func IsToggle(action string) bool {
-	return action == ActJSON
+	return action == ActJSON || action == ActEdit
+}
+
+func Close(ctx context.Context, h *pluginsdk.Host, action, workspace string) error {
+	return h.StorageDelete(ctx, openKey(action, workspace))
 }
 
 func Toggle(ctx context.Context, h *pluginsdk.Host, action, workspace, id string) error {

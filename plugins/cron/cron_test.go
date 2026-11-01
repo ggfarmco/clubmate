@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"syscall"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -405,4 +405,33 @@ func firstItem(n sdui.Node) map[string]any {
 	}
 	item, _ := items[0].(map[string]any)
 	return item
+}
+
+func TestEditFormSavesThroughTheUpdate(t *testing.T) {
+	f := newFixture(t)
+	var added job
+	require.NoError(t, f.run(t, "cron.add", ping(nil), &added))
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
+		titled := nodesWhere(n, func(c sdui.Node) bool { return c.Props["text"] == "Post notification" })
+		return len(titled) == 1 && len(nodesWithID(n, added.ID+"/edit")) == 1
+	})
+
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/edit", "edit", nil)
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/save")) == 1 })
+	values := map[string]string{"name": "ping 2", "schedule": "nope", "timezone": "", "args": `{"message":"yo"}`, "missed": "skip"}
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/save", "save", values)
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
+		return len(nodesWhere(n, func(c sdui.Node) bool { return c.Props["tone"] == "danger" && c.Type == "text" })) == 1
+	})
+
+	values["schedule"] = "every 15m"
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/save", "save", values)
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool { return len(nodesWithID(n, added.ID+"/save")) == 0 })
+	var shown struct {
+		job
+		Args     map[string]string `json:"args"`
+		Schedule map[string]string `json:"schedule"`
+	}
+	require.NoError(t, f.run(t, "cron.show", map[string]any{"id": added.ID}, &shown))
+	assert.Equal(t, []string{"ping 2", "skip", "yo", "15m"}, []string{shown.Name, shown.Missed, shown.Args["message"], shown.Schedule["every"]})
 }

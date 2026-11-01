@@ -31,6 +31,7 @@ type app struct {
 	mu         sync.Mutex
 	jobs       map[string]*Job
 	inFlight   map[string]bool
+	drafts     map[string]draft
 	runs       sync.WaitGroup
 	registry   *automation.Registry[*Job]
 	store      automation.Storage[*Job]
@@ -53,6 +54,7 @@ func newApp() *app {
 	a := &app{
 		jobs:     map[string]*Job{},
 		inFlight: map[string]bool{},
+		drafts:   map[string]draft{},
 		ready:    make(chan struct{}),
 		poke:     make(chan struct{}, 1),
 		now:      time.Now,
@@ -67,6 +69,7 @@ func newApp() *app {
 		Noun:       "job",
 		Sessions:   func(ctx context.Context, ws string) ([]agentSession, error) { return a.sessions(ctx, ws) },
 		Workspaces: func(ctx context.Context) ([]pluginsdk.Workspace, error) { return a.workspaces(ctx) },
+		Commands:   func(ctx context.Context) (map[string]string, error) { return agentcall.CommandTitles(ctx, a.host) },
 		Render:     func(ctx context.Context, ws string) error { return a.render(ctx, ws) },
 		Save:       func(ctx context.Context, j *Job) error { return a.store.Save(ctx, j) },
 		Drop:       a.drop,
@@ -155,7 +158,15 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	default:
 		return nil, nil
 	}
+	if ev.Action == actSave {
+		return nil, a.save(ctx, ev, id)
+	}
 	if automation.IsToggle(ev.Action) {
+		if ev.Action == automation.ActEdit {
+			a.mu.Lock()
+			delete(a.drafts, ev.WorkspaceID)
+			a.mu.Unlock()
+		}
 		if err := automation.Toggle(ctx, a.host, ev.Action, ev.WorkspaceID, id); err != nil {
 			return nil, err
 		}
@@ -173,6 +184,12 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {
 			return nil, err
 		}
+		if err := automation.Close(ctx, a.host, automation.ActEdit, ev.WorkspaceID); err != nil {
+			return nil, err
+		}
+		a.mu.Lock()
+		delete(a.drafts, ev.WorkspaceID)
+		a.mu.Unlock()
 		a.registry.Invalidate(ev.WorkspaceID)
 		a.registry.Flush(ctx)
 		return nil, nil
@@ -238,11 +255,14 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	titles := a.registry.Titles(ctx, workspace, jobs)
+	a.mu.Lock()
+	d := a.drafts[workspace]
+	a.mu.Unlock()
 	now := a.now()
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(jobs, selected, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, now)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, d, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil

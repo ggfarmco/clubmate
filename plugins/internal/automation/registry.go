@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 
@@ -19,6 +20,7 @@ type Registry[P Entry[P]] struct {
 	Noun           string
 	Sessions       func(ctx context.Context, workspace string) ([]api.Session, error)
 	Workspaces     func(ctx context.Context) ([]pluginsdk.Workspace, error)
+	Commands       func(ctx context.Context) (map[string]string, error)
 	Render         func(ctx context.Context, workspace string) error
 	Save           func(ctx context.Context, p P) error
 	Drop           func(ctx context.Context, p P) error
@@ -253,13 +255,16 @@ func (r *Registry[P]) Titles(ctx context.Context, workspace string, items []P) m
 	if len(items) == 0 {
 		return nil
 	}
-	sessions, err := r.Sessions(ctx, workspace)
-	if err != nil {
-		return nil
+	titles := map[string]string{}
+	if sessions, err := r.Sessions(ctx, workspace); err == nil {
+		for _, s := range sessions {
+			titles[s.ID] = s.Title
+		}
 	}
-	titles := make(map[string]string, len(sessions))
-	for _, s := range sessions {
-		titles[s.ID] = s.Title
+	if r.Commands != nil {
+		if commands, err := r.Commands(ctx); err == nil {
+			maps.Copy(titles, commands)
+		}
 	}
 	return titles
 }

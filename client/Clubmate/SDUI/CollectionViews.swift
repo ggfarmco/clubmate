@@ -364,8 +364,8 @@ struct ItemRow<Leading: View>: View {
                     .lineLimit(1)
                     .truncationMode(.label)
                     .help(detail)
-                    .frame(minWidth: detailIdeal <= theme.uiSize * 3 ? detailIdeal : nil)
-                    .opacity(detailWidth + 0.5 < min(detailIdeal, theme.uiSize * 3) ? 0 : 1)
+                    .frame(minWidth: detailIdeal <= keptDetail ? detailIdeal : nil)
+                    .opacity(detailWidth + 0.5 < min(detailIdeal, keptDetail) ? 0 : 1)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .background {
                         Text(detail)
@@ -396,6 +396,8 @@ struct ItemRow<Leading: View>: View {
         .onTapGesture(perform: action)
         .onHover { hovering = $0 }
     }
+
+    private var keptDetail: CGFloat { theme.uiSize * 6 }
 
     private var guides: some View {
         ForEach(0..<depth, id: \.self) { level in

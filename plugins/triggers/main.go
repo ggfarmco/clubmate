@@ -69,6 +69,7 @@ func newApp() *app {
 		Noun:           "trigger",
 		Sessions:       func(ctx context.Context, ws string) ([]api.Session, error) { return a.sessions(ctx, ws) },
 		Workspaces:     func(ctx context.Context) ([]pluginsdk.Workspace, error) { return a.workspaces(ctx) },
+		Commands:       func(ctx context.Context) (map[string]string, error) { return agentcall.CommandTitles(ctx, a.host) },
 		Render:         func(ctx context.Context, ws string) error { return a.render(ctx, ws) },
 		Save:           func(ctx context.Context, t *Trigger) error { return a.store.Save(ctx, t) },
 		Drop:           a.drop,

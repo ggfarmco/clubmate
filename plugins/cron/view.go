@@ -49,13 +49,17 @@ func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
 	return sdui.List(jobsList, items, selected)
 }
 
-func mainView(j *Job, titles map[string]string, open automation.Open, now time.Time) sdui.Node {
+func mainView(j *Job, titles map[string]string, open automation.Open, d draft, now time.Time) sdui.Node {
 	if j == nil {
 		return sdui.Empty("Select a cron job")
+	}
+	if open.Edit {
+		return editView(j, d)
 	}
 	actions := []sdui.Node{
 		automation.ActionNode(j.ID, automation.RunAction(sdui.VariantPrimary)),
 		automation.ActionNode(j.ID, automation.PauseAction(j.Enabled)),
+		automation.ActionNode(j.ID, automation.DetailAction{Action: automation.ActEdit, Label: "Edit", Icon: "pencil", Variant: sdui.VariantGhost, Shortcut: "e"}),
 		automation.ActionNode(j.ID, automation.DetailAction{Action: actDuplicate, Label: "Duplicate", Icon: "plus.square.on.square", Variant: sdui.VariantGhost}),
 	}
 	if _, ok := titles[j.Owner]; ok {
@@ -107,7 +111,7 @@ func missedRuns(history []Run) (int, time.Time) {
 }
 
 func worktree(j *Job) (string, bool) {
-	if j.Command != "agents.new" {
+	if j.Command != agentNewCommand {
 		return "", false
 	}
 	var args struct {
@@ -159,6 +163,7 @@ func jobMenu(j *Job) []sdui.MenuEntry {
 	return []sdui.MenuEntry{
 		{Action: automation.ActRun, Label: "Run now"},
 		toggle,
+		{Action: automation.ActEdit, Label: "Edit"},
 		{Action: actDuplicate, Label: "Duplicate"},
 		{Action: automation.ActDelete, Label: "Delete", Confirm: "Delete cron job “" + j.Name + "”?"},
 	}

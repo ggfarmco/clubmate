@@ -402,6 +402,7 @@ struct TextFieldNodeView: View {
     @Environment(\.theme) private var theme
     @Environment(\.focusRouter) private var router
     @Environment(\.sidebarSlot) private var sidebarSlot
+    @Environment(\.fieldGutter) private var gutter
 
     private static let liveDelay: Duration = .milliseconds(250)
 
@@ -426,7 +427,7 @@ struct TextFieldNodeView: View {
             .padding(.vertical, lines == nil ? 0 : theme.spacing.s)
             .frame(minWidth: 160, minHeight: theme.control, alignment: lines == nil ? .center : .topLeading)
             .fieldChrome(focused: focused, error: node.string("error"))
-            .padding(.horizontal, theme.gutter)
+            .padding(.horizontal, gutter ? theme.gutter : 0)
             .onSubmit(submit)
             .onChange(of: focused) { _, now in
                 if !now { form?.flush() }
