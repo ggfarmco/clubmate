@@ -30,6 +30,7 @@ var (
 	chunkKinds       = map[string]string{acp.UpdateUserMessageChunk: entryUser, acp.UpdateAgentMessageChunk: entryAgent, acp.UpdateAgentThoughtChunk: entryThought}
 	editKinds        = []string{"edit", "delete", "move"}
 	openToolStatuses = []string{"", "pending", "in_progress"}
+	unkeptToolFields = []string{"sessionUpdate", "rawOutput", "_meta"}
 )
 
 type transcriptState struct {
@@ -233,8 +234,6 @@ func compactTools(entries []*entry) {
 		if en.Tool == nil {
 			continue
 		}
-		en.Tool, en.node = maps.Clone(en.Tool), nil
-		delete(en.Tool, "rawOutput")
 		var items []json.RawMessage
 		if json.Unmarshal(en.Tool["content"], &items) != nil {
 			continue
@@ -250,6 +249,7 @@ func compactTools(entries []*entry) {
 			kept = append(kept, raw)
 		}
 		if len(kept) < len(items) {
+			en.Tool, en.node = maps.Clone(en.Tool), nil
 			en.Tool["content"], _ = json.Marshal(kept)
 		}
 	}
@@ -484,7 +484,7 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 	if json.Unmarshal(payload, &fields) != nil || json.Unmarshal(payload, &head) != nil || head.ToolCallID == "" {
 		return
 	}
-	delete(fields, "sessionUpdate")
+	dropUnkeptToolFields(fields)
 	en := s.upsert(entryTool, head.ToolCallID, turn)
 	tool := make(map[string]json.RawMessage, len(en.Tool)+len(fields))
 	if !create {
@@ -495,6 +495,12 @@ func (s *session) applyTool(create bool, turn int, payload json.RawMessage) {
 	var kind string
 	if json.Unmarshal(en.Tool["kind"], &kind) == nil && slices.Contains(editKinds, kind) {
 		s.edited = true
+	}
+}
+
+func dropUnkeptToolFields(fields map[string]json.RawMessage) {
+	for _, k := range unkeptToolFields {
+		delete(fields, k)
 	}
 }
 

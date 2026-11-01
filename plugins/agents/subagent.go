@@ -203,7 +203,7 @@ func (sub *subagent) tool(create bool, payload json.RawMessage) bool {
 	if json.Unmarshal(payload, &fields) != nil || json.Unmarshal(payload, &head) != nil || head.ToolCallID == "" {
 		return false
 	}
-	delete(fields, "sessionUpdate")
+	dropUnkeptToolFields(fields)
 	en := sub.upsert(entryTool, head.ToolCallID)
 	if create || en.Tool == nil {
 		en.Tool = map[string]json.RawMessage{}

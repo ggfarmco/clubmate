@@ -429,7 +429,7 @@
             "session": {"type": "string", "description": "Session id."},
             "fromTurn": {"type": "integer", "description": "First turn to include; defaults to all."},
             "last": {"type": "boolean", "description": "Only the last turn's entry in turns and its entries; modes, configOptions and commands are null."},
-            "compact": {"type": "boolean", "description": "Drop tool calls' rawOutput and the images in their content, the image data in user prompts, and commands (null)."},
+            "compact": {"type": "boolean", "description": "Drop the images in tool calls' content, the image data in user prompts, and commands (null)."},
             "since": {"type": "string", "description": "A cursor from an earlier result: entries holds only the entries added or changed since then, in log order, and delta is true; fromTurn is ignored. A cursor from before the plugin restarted is ignored and the full transcript comes back without delta."}
           },
           "required": ["session"]

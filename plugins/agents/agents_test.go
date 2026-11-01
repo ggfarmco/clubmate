@@ -432,9 +432,9 @@ func TestPromptStreamsAndLogs(t *testing.T) {
 	}, wait)
 }
 
-func TestStoppedTranscriptClosesOpenToolsAndCompactDropsRawOutput(t *testing.T) {
+func TestStoppedTranscriptClosesOpenToolsWithoutRawOutputAndCompactDropsImages(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{
-		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "w1", "title": "Wait", "kind": "other", "status": "in_progress", "rawOutput": "partial",
+		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "w1", "title": "Wait", "kind": "other", "status": "in_progress", "rawOutput": "partial", "_meta": map[string]any{"claudeCode": map[string]any{"toolResponse": "partial"}},
 			"content": []map[string]any{{"type": "content", "content": map[string]any{"type": "image", "data": "AAAA", "mimeType": "image/png"}}, {"type": "content", "content": map[string]any{"type": "text", "text": "seen"}}}}},
 	}})
 	workspace := f.workspace(t, newRepo(t))
@@ -445,13 +445,13 @@ func TestStoppedTranscriptClosesOpenToolsAndCompactDropsRawOutput(t *testing.T) 
 	full := ofKind(f.transcript(t, workspace, session).Entries, "tool")
 	require.Len(t, full, 1)
 	assert.JSONEq(t, `"cancelled"`, string(full[0].Tool["status"]))
-	assert.JSONEq(t, `"partial"`, string(full[0].Tool["rawOutput"]))
+	assert.NotContains(t, full[0].Tool, "rawOutput")
+	assert.NotContains(t, full[0].Tool, "_meta")
 
 	var compact transcript
 	require.NoError(t, f.run(t, workspace, "agents.transcript", map[string]any{"session": session, "compact": true}, &compact))
 	tools := ofKind(compact.Entries, "tool")
 	require.Len(t, tools, 1)
-	assert.NotContains(t, tools[0].Tool, "rawOutput")
 	assert.JSONEq(t, `[{"type":"content","content":{"type":"text","text":"seen"}}]`, string(tools[0].Tool["content"]))
 }
 
