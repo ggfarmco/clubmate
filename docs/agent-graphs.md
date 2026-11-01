@@ -121,7 +121,7 @@ Cycles are the point (coder ↔ reviewer), so loops are bounded by `maxTurns`, t
 
 ## Graphs section
 
-The sidebar lists the runs, newest first: title, start time and turns (or the stop reason), and a badge with the most urgent node state (`waiting`, `running`, `error`). A row's menu has Stop and Remove. The main view shows the run: title and id, state and turns, the input, and a tree of nodes. A node row shows role, id, `start`, its session title and a status badge coloured by state; its children are its outgoing edges (target node, `on done` / `on outcome changes`), muted once the run is stopped.
+The sidebar lists the runs, newest first: title, start time and turns (or the stop reason), and a badge with the most urgent node state (`waiting`, `running`, `error`). A row's menu has Stop and Remove. The main view shows the selected run, else the newest one, else an empty state that explains graphs: a header with the title, `running · turn N of M` (or `stopped`), a `<Role> needs you` badge, Open <node> (⌘↩), Stop run (⌘.) and Remove (⌘⌫); the input, start time, turns, stop reason and definition path; then a NODE · STATE · SESSION table. A node row shows its role (`· start` for start nodes), its state coloured by tone, and its session title (`not started` while idle, blank once the session is gone); under it are its outgoing edges (`→ Reviewer`, `on done · on error`), and rows are muted once the run is stopped. SESSION drops first when the pane is narrow. Run and session ids are not shown.
 
 ## Limits of this slice
 

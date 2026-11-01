@@ -109,7 +109,7 @@ func attentionNode(r *Run, sessions map[string]api.Session) (*RunNode, string) {
 
 var nodeColumns = []sdui.Column{
 	{ID: "node", Title: "Node"},
-	{ID: "state", Title: "State", Width: 180},
+	{ID: "state", Title: "State"},
 	{ID: "session", Title: "Session", Priority: 1},
 }
 
@@ -125,7 +125,7 @@ func nodeRows(r *Run, sessions map[string]api.Session) []sdui.TableRow {
 		rows = append(rows, sdui.TableRow{
 			ID:    n.ID,
 			Muted: r.Status != statusRunning,
-			Cells: []sdui.Cell{{Text: label}, {Text: stateLabel(status, false), Tone: cellTone(status)}, {Text: cmp.Or(s.Title, n.Session)}},
+			Cells: []sdui.Cell{{Text: label}, {Text: stateLabel(status, false), Tone: cellTone(status)}, {Text: sessionLabel(s, status)}},
 		})
 		rows = append(rows, edgeRows(r, n.ID)...)
 	}
@@ -154,6 +154,16 @@ func edgeRows(r *Run, from string) []sdui.TableRow {
 		})
 	}
 	return rows
+}
+
+func sessionLabel(s api.Session, status string) string {
+	switch status {
+	case "idle":
+		return "not started"
+	case "gone", "unknown":
+		return ""
+	}
+	return s.Title
 }
 
 func roleOf(r *Run, id string) string {
