@@ -249,7 +249,7 @@ private struct WorkspaceCommands: Commands {
             return
         }
         guard let store = session.store, store.selectedSection == TerminalsSection.id,
-              let close = TerminalsSection.close(sidebar: store.slots["\(TerminalsSection.id).sidebar"]?.tree, commands: app.commands)
+              let close = TerminalsSection.close(sidebar: store.slot("\(TerminalsSection.id).sidebar")?.tree, commands: app.commands)
         else { return }
         session.closeTerminal(close)
     }
@@ -280,6 +280,6 @@ private struct WorkspaceCommands: Commands {
 
 extension WorkspaceUIStore {
     func mainTree(_ section: String) -> SDUINode? {
-        slots["\(section).main"]?.tree
+        slot("\(section).main")?.tree
     }
 }

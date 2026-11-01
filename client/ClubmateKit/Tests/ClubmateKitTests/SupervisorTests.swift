@@ -77,7 +77,7 @@ final class SupervisorTests: XCTestCase {
         registry.add(dropped)
         supervisor.attach(kept)
         supervisor.attach(dropped)
-        try await waitUntil { kept.connected && dropped.connected && kept.slots["terminals.sidebar"] != nil }
+        try await waitUntil { kept.connected && dropped.connected && kept.slot("terminals.sidebar") != nil }
         registry.remove { $0 === dropped }
 
         try core.crash()
@@ -85,9 +85,9 @@ final class SupervisorTests: XCTestCase {
         try await core.launch()
         try await waitUntil(within: .seconds(15)) { kept.connected && supervisor.client !== client }
         XCTAssertFalse(dropped.connected)
-        let button = try await waitFor { kept.slots["terminals.sidebar"]?.tree.find(id: "new") }
+        let button = try await waitFor { kept.slot("terminals.sidebar")?.tree.find(id: "new") }
         _ = try await kept.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
-        try await waitUntil { kept.slots["terminals.main"]?.tree.type == "surface" }
+        try await waitUntil { kept.slot("terminals.main")?.tree.type == "surface" }
         await kept.stop()
         await dropped.stop()
     }

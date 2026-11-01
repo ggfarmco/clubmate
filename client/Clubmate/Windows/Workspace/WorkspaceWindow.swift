@@ -11,8 +11,7 @@ struct WorkspaceWindow: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        content
-            .frame(minWidth: 800, minHeight: 500)
+        WindowMinimum(size: CGSize(width: 800, height: 500)) { content }
             .background(theme.background, ignoresSafeAreaEdges: .all)
             .navigationTitle(title)
             .toolbar(removing: worktreeSession == nil ? nil : .title)
@@ -66,5 +65,31 @@ struct WorkspaceWindow: View {
         } else {
             WelcomeView(windowID: windowID)
         }
+    }
+}
+
+private struct WindowMinimum: Layout {
+    let size: CGSize
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        if let width = proposal.width, let height = proposal.height {
+            return CGSize(width: max(width, size.width), height: max(height, size.height))
+        }
+        let fitted = subviews.first?.sizeThatFits(proposal) ?? .zero
+        return CGSize(width: max(proposal.width ?? fitted.width, size.width), height: max(proposal.height ?? fitted.height, size.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            subview.place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: ProposedViewSize(bounds.size))
+        }
+    }
+
+    func explicitAlignment(of guide: HorizontalAlignment, in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGFloat? {
+        nil
+    }
+
+    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGFloat? {
+        nil
     }
 }

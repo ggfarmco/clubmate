@@ -8,7 +8,6 @@ public final class WorkspaceUIStore {
     public let drafts = ComposerDrafts()
     public private(set) var sections: [SectionInfo] = []
     public private(set) var hostedSections: [SectionInfo] = []
-    public private(set) var slots: [String: SlotView] = [:]
     public private(set) var connected = false
     public private(set) var failure: String?
     public private(set) var focusRequest: FocusRequest?
@@ -43,6 +42,7 @@ public final class WorkspaceUIStore {
     @ObservationIgnored private var starting = false
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var revs: [String: Int64] = [:]
+    @ObservationIgnored private var cells: [String: SlotCell] = [:]
     @ObservationIgnored private var listener: Task<Void, Never>?
     @ObservationIgnored private var saving: Task<Void, Never>?
     @ObservationIgnored private var restoring = false
@@ -115,6 +115,21 @@ public final class WorkspaceUIStore {
         select(requested)
     }
 
+    public func slot(_ name: String) -> SlotView? {
+        cell(name).view
+    }
+
+    public func hasSlot(_ name: String) -> Bool {
+        cell(name).present
+    }
+
+    private func cell(_ name: String) -> SlotCell {
+        if let cell = cells[name] { return cell }
+        let cell = SlotCell()
+        cells[name] = cell
+        return cell
+    }
+
     public var allSections: [SectionInfo] {
         sections + hostedSections
     }
@@ -153,7 +168,7 @@ public final class WorkspaceUIStore {
     }
 
     public var togglesChat: Bool {
-        selectedSection == CodeSection.id && slots[CodeSection.chatSlot] != nil
+        selectedSection == CodeSection.id && hasSlot(CodeSection.chatSlot)
     }
 
     public var chatShown: Bool {
@@ -299,16 +314,17 @@ public final class WorkspaceUIStore {
     }
 
     private func replace(with views: [SlotView]) {
-        let mine = views.filter { $0.workspaceId == workspaceID }
-        slots = Dictionary(mine.map { ($0.slot, $0) }) { _, last in last }
-        revs = slots.mapValues(\.rev)
+        let mine = Dictionary(views.filter { $0.workspaceId == workspaceID }.map { ($0.slot, $0) }) { _, last in last }
+        for (name, cell) in cells where mine[name] == nil { cell.set(nil) }
+        for (name, view) in mine { cell(name).set(view) }
+        revs = mine.mapValues(\.rev)
     }
 
     private func apply(_ update: SlotUpdate) -> Bool {
         guard update.workspaceId == workspaceID, update.rev > revs[update.slot] ?? 0 else { return true }
-        guard let view = update.view(over: slots[update.slot]) else { return false }
+        guard let view = update.view(over: cells[update.slot]?.view) else { return false }
         revs[view.slot] = view.rev
-        slots[view.slot] = view
+        cell(view.slot).set(view)
         return true
     }
 
@@ -339,6 +355,18 @@ public final class WorkspaceUIStore {
             await previous?.value
             try? await client.uiStatePatch(workspaceID: workspaceID, key: key, value: value)
         }
+    }
+}
+
+@MainActor
+@Observable
+private final class SlotCell {
+    private(set) var view: SlotView?
+    private(set) var present = false
+
+    func set(_ view: SlotView?) {
+        if self.view != view { self.view = view }
+        if present != (view != nil) { present = view != nil }
     }
 }
 

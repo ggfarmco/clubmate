@@ -1,5 +1,7 @@
 import Darwin
 import Foundation
+import Observation
+import Synchronization
 import XCTest
 
 import ClubmateKit
@@ -26,15 +28,15 @@ final class StoresTests: XCTestCase {
         try await store.start()
         XCTAssertEqual(store.sections.map(\.id), ["terminals", "echo"])
         XCTAssertEqual(store.selectedSection, "terminals")
-        let button = try await waitFor { store.slots["terminals.sidebar"]?.tree.find(id: "new") }
+        let button = try await waitFor { store.slot("terminals.sidebar")?.tree.find(id: "new") }
         _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
-        try await waitUntil { store.slots["terminals.main"]?.tree.type == "surface" }
-        XCTAssertEqual(store.slots["terminals.sidebar"]?.tree.find(id: "terminals")?.items().map(\.label), ["Terminal 1"])
-        try await waitUntil { try await client.uiGet(workspaceID: workspace.id).allSatisfy { store.slots[$0.slot] == $0 } }
+        try await waitUntil { store.slot("terminals.main")?.tree.type == "surface" }
+        XCTAssertEqual(store.slot("terminals.sidebar")?.tree.find(id: "terminals")?.items().map(\.label), ["Terminal 1"])
+        try await waitUntil { try await client.uiGet(workspaceID: workspace.id).allSatisfy { store.slot($0.slot) == $0 } }
 
         let close = SDUINode(type: "button", id: "close")
         _ = try await store.send(UIAction.event(for: close, trigger: .click, slot: "terminals.main", workspaceID: workspace.id)).get()
-        try await waitUntil { store.slots["terminals.main"]?.tree.type == "empty" }
+        try await waitUntil { store.slot("terminals.main")?.tree.type == "empty" }
         await store.stop()
         await workspaces.stop()
         await client.close()
@@ -232,7 +234,7 @@ final class StoresTests: XCTestCase {
         let workspace = try await client.createWorkspace(name: "demo")
         let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
-        try await waitUntil { store.slots["terminals.main"]?.tree.string("text") == "Create a terminal" }
+        try await waitUntil { store.slot("terminals.main")?.tree.string("text") == "Create a terminal" }
 
         let pid = try await waitFor { try await terminalsPID(client) }
         XCTAssertEqual(kill(pid, SIGKILL), 0)
@@ -247,7 +249,7 @@ final class StoresTests: XCTestCase {
         let workspace = try await client.createWorkspace(name: "demo")
         let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
         try await store.start()
-        try await waitUntil { store.slots["terminals.main"] != nil }
+        try await waitUntil { store.slot("terminals.main") != nil }
         await client.close()
         try await waitUntil { !store.connected }
 
@@ -255,9 +257,9 @@ final class StoresTests: XCTestCase {
         let fresh = try await CoreClient.connect(paths: paths)
         try await store.reconnect(using: fresh)
         XCTAssertTrue(store.connected)
-        let button = try XCTUnwrap(store.slots["terminals.sidebar"]?.tree.find(id: "new"))
+        let button = try XCTUnwrap(store.slot("terminals.sidebar")?.tree.find(id: "new"))
         _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
-        try await waitUntil { store.slots["terminals.main"]?.tree.type == "surface" }
+        try await waitUntil { store.slot("terminals.main")?.tree.type == "surface" }
         await store.stop()
         await fresh.close()
     }
@@ -289,7 +291,7 @@ final class StoresTests: XCTestCase {
             released = store
             let select = UIEvent(workspaceId: workspace.id, slot: "terminals.sidebar", nodeId: "terminals", action: "select", value: .string("x"))
             try await store.start()
-            try await waitUntil { store.slots["terminals.main"] != nil }
+            try await waitUntil { store.slot("terminals.main") != nil }
             _ = try await client.uiSubscribe(workspaceID: workspace.id)
             let traffic = Task {
                 while !Task.isCancelled { _ = try? await client.uiEvent(select) }
@@ -304,12 +306,33 @@ final class StoresTests: XCTestCase {
             }
             traffic.cancel()
             await traffic.value
-            let rev = try XCTUnwrap(store.slots["terminals.main"]?.rev)
+            let rev = try XCTUnwrap(store.slot("terminals.main")?.rev)
             _ = try await client.uiEvent(select)
-            try await waitUntil { (store.slots["terminals.main"]?.rev ?? 0) > rev }
+            try await waitUntil { (store.slot("terminals.main")?.rev ?? 0) > rev }
             await store.stop()
         }
         try await waitUntil { released == nil }
+        await client.close()
+    }
+
+    func testSlotUpdateNotifiesOnlyItsReaders() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await store.start()
+        let rev = try await waitFor { store.slot("terminals.main")?.rev }
+        let main = ObservedFlag()
+        let others = ObservedFlag()
+        withObservationTracking { _ = store.slot("terminals.main") } onChange: { main.fire() }
+        withObservationTracking {
+            _ = store.slot("echo.main")
+            _ = store.hasSlot("terminals.main")
+        } onChange: { others.fire() }
+        _ = try await client.uiEvent(UIEvent(workspaceId: workspace.id, slot: "terminals.sidebar", nodeId: "terminals", action: "select", value: .string("x")))
+        try await waitUntil { (store.slot("terminals.main")?.rev ?? 0) > rev }
+        XCTAssertTrue(main.fired)
+        XCTAssertFalse(others.fired)
+        await store.stop()
         await client.close()
     }
 
@@ -592,9 +615,17 @@ private func firstUIUpdate(_ stream: AsyncStream<RPCNotification>, within timeou
     }
 }
 
+private final class ObservedFlag: Sendable {
+    private let state = Mutex(false)
+
+    var fired: Bool { state.withLock { $0 } }
+
+    func fire() { state.withLock { $0 = true } }
+}
+
 @MainActor
 private func mainText(_ store: WorkspaceUIStore) -> String? {
-    guard let tree = store.slots["terminals.main"]?.tree, tree.type == "empty" else { return nil }
+    guard let tree = store.slot("terminals.main")?.tree, tree.type == "empty" else { return nil }
     return tree.string("text")
 }
 

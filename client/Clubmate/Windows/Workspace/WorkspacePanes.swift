@@ -8,7 +8,7 @@ struct SlotPane: View {
     let slot: String
 
     var body: some View {
-        if let view = store.slots[slot] {
+        if let view = store.slot(slot) {
             SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store] event in
                 await store.send(event)
             }
@@ -32,7 +32,7 @@ struct SidebarPane: View {
         } content: {
             SlotPane(store: store, slot: slot)
                 .environment(\.sidebarSlot, slot)
-                .environment(\.sidebarHasField, store.slots[slot]?.tree.hasTextField ?? false)
+                .environment(\.sidebarHasField, store.slot(slot)?.tree.hasTextField ?? false)
                 .background(theme.surface1, ignoresSafeAreaEdges: [])
         }
     }
@@ -130,15 +130,20 @@ private struct ResizablePane<Content: View>: View {
 }
 
 struct MainFocus: ViewModifier {
+    let store: WorkspaceUIStore
     let slot: String
-    let surface: String?
 
     @FocusState private var focused: Bool
     @Environment(\.focusRouter) private var router
     @Environment(\.surfaceDeck) private var deck
 
+    private var surface: String? {
+        store.slot(slot)?.tree.surfaceSessionID
+    }
+
     func body(content: Content) -> some View {
-        content
+        let surface = surface
+        return content
             .focusable(surface == nil)
             .focusEffectDisabled()
             .focused($focused)

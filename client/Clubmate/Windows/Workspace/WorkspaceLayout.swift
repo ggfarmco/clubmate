@@ -31,7 +31,7 @@ struct WorkspaceLayout: View {
                 }
                 content {
                     SlotPane(store: store, slot: "\(section).main")
-                        .modifier(MainFocus(slot: "\(section).main", surface: store.slots["\(section).main"]?.tree.surfaceSessionID))
+                        .modifier(MainFocus(store: store, slot: "\(section).main"))
                         .overlay(alignment: .top) {
                             if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
                         }
@@ -62,7 +62,7 @@ struct WorkspaceLayout: View {
             StatusBar(connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage) { [app] in
                 app.retry()
             } trailing: {
-                if store.slots["\(section).status"] != nil {
+                if store.hasSlot("\(section).status") {
                     SlotPane(store: store, slot: "\(section).status")
                 }
             }

@@ -12,14 +12,9 @@ struct WorkspaceView: View {
     @State private var focus = FocusRouter()
     @State private var rowWidth: CGFloat = 0
 
-    private var visibleRevs: [Int64?] {
-        let store = session.store
-        let section = store?.selectedSection
-        return [section.flatMap { store?.slots["\($0).sidebar"]?.rev }, section.flatMap { store?.slots["\($0).main"]?.rev }, store?.chatShown == true ? store?.slots[CodeSection.chatSlot]?.rev : nil]
-    }
-
     var body: some View {
         content
+            .background { VisibleSlotsWatch(store: session.store) { [app] in app.notifications.focusChanged() } }
             .environment(\.surfaceDeck, session.deck)
             .environment(\.focusRouter, focus)
             .environment(\.sidebarSide, app.settings.sidebarSide)
@@ -46,9 +41,6 @@ struct WorkspaceView: View {
                 Task { await session.worktrees.load(retrying: true) }
             }
             .onChange(of: session.store?.selectedSection) {
-                app.notifications.focusChanged()
-            }
-            .onChange(of: visibleRevs) {
                 app.notifications.focusChanged()
             }
             .onChange(of: autoNewKey, initial: true) { old, new in
@@ -87,7 +79,7 @@ struct WorkspaceView: View {
 
     private var autoNewKey: AutoNewGate.Key {
         let section = session.store?.selectedSection
-        return AutoNewGate.Key(section: section, loaded: section.flatMap { session.store?.mainTree($0) } != nil, request: session.autoNewRequest)
+        return AutoNewGate.Key(section: section, loaded: section.map { session.store?.hasSlot("\($0).main") == true } ?? false, request: session.autoNewRequest)
     }
 
     @ViewBuilder private var content: some View {
@@ -138,5 +130,19 @@ struct WorkspaceView: View {
         case .newWorktree: session.newWorktree(chooseFolder: true)
         case .removeWorktree: session.chooseWorktreeToRemove()
         }
+    }
+}
+
+private struct VisibleSlotsWatch: View {
+    let store: WorkspaceUIStore?
+    let changed: () -> Void
+
+    private var revs: [Int64?] {
+        let section = store?.selectedSection
+        return [section.flatMap { store?.slot("\($0).sidebar")?.rev }, section.flatMap { store?.slot("\($0).main")?.rev }, store?.chatShown == true ? store?.slot(CodeSection.chatSlot)?.rev : nil]
+    }
+
+    var body: some View {
+        Color.clear.onChange(of: revs) { changed() }
     }
 }

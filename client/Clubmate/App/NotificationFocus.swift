@@ -19,9 +19,9 @@ struct NotificationFocus {
         return HubFocus(
             appActive: NSApp.isActive,
             workspace: active,
-            sidebar: code ? nil : section.flatMap { store?.slots["\($0).sidebar"]?.tree },
+            sidebar: code ? nil : section.flatMap { store?.slot("\($0).sidebar")?.tree },
             main: section.flatMap { store?.mainTree($0) },
-            panel: store?.chatShown == true ? store?.slots[CodeSection.chatSlot]?.tree : nil
+            panel: store?.chatShown == true ? store?.slot(CodeSection.chatSlot)?.tree : nil
         )
     }
 
