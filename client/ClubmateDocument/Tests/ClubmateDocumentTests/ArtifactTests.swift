@@ -61,6 +61,16 @@ final class ArtifactTests: XCTestCase {
         XCTAssertEqual(links, [.doc(path: "/r/out/b.md", anchor: "x")])
     }
 
+    func testArtifactNeverOpensExternal() async throws {
+        var links: [DocumentLink] = []
+        let page = await open("""
+            <html><body><a id="w" href="https://example.com/?q=secret">w</a></body></html>
+            """) { links.append($0) }
+        _ = try await run(page, "document.getElementById('w').click()")
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(links, [])
+    }
+
     func testArtifactThemeVariablesAndViewport() async throws {
         let page = await open("<html><body>x</body></html>")
         let state = try await run(page, "return [getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), document.querySelector('meta[name=viewport]')?.content ?? '']") as? [String]

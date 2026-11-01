@@ -191,18 +191,14 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         if main, artifact.isPage(url), url.fragment != nil {
             return .allow
         }
-        if action.navigationType == .linkActivated {
-            if artifact.owns(url) {
-                onLink(.doc(path: url.path, anchor: url.fragment))
-            } else if case .external = DocumentLink(url) {
-                onLink(.external(url))
-            }
+        if action.navigationType == .linkActivated, artifact.owns(url) {
+            onLink(.doc(path: url.path, anchor: url.fragment))
         }
         return .cancel
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = navigationAction.request.url, case .external = DocumentLink(url) {
+        if kind != .artifact, let url = navigationAction.request.url, case .external = DocumentLink(url) {
             onLink(.external(url))
         }
         return nil
