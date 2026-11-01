@@ -20,9 +20,10 @@ Ignore differences caused by seed data (names, counts, text) unless the structur
 ## 2. Capture conditions
 
 - Mac: invisible test instance at 2×, seeded with a fake agent, backlog, cron, triggers, a graph run and terminals. Details per file in `mac/notes.md`.
-- Phone: iPhone 18 Pro simulator (393×852), fixtures, status bar 9:41, dark and light; iPad for `C-iPad`. Details in `companion/notes.md`.
+- Phone: iPhone 18 Pro simulator, fixtures, status bar 9:41, dark and light. Details in `companion/notes.md`.
+- **iPhone only.** iPad and Fold aren't tested yet, so `C-iPad` and `C-Fold` are out of scope for this check.
 - Mac themes match the boards: `*-1280` in Kanagawa Wave (dark), `*-640` in Catppuccin Latte (light). The window can't go under 800pt, so every `*-640.png` is really **800pt wide** (1600×1600 px): the sidebar stays and the 640 layout without a sidebar never shows. `Agents-Mate-1280` is not captured (the Mate theme is only a fallback when Ghostty gives no palette). Settings, the approval sheet and popovers follow the system appearance, not the theme.
-- The phone shots are iPhone 18 Pro at 402×874pt (3×), not the boards' 393×852 (2×). `C-iPad` is iPad Pro 13" in portrait (the headless simulator can't rotate). `C-Fold` is not captured (no foldable simulator).
+- The phone shots are iPhone 18 Pro at 402×874pt (3×), not the boards' 393×852 (2×).
 - Window chrome: traffic lights are grey because the test window is never key; ignore that.
 
 ## 3. Decisions that overrule the boards (don't flag these)
@@ -70,8 +71,7 @@ Ignore differences caused by seed data (names, counts, text) unless the structur
 | `C-Question.png`, `C-Question-Light.png` | C-Question* | A child session asking a question |
 | `C-Inbox.png`, `C-Inbox-Light.png` | C-Inbox* | Notifications |
 | `C-MacInfo.png`, `C-MacInfo-Light.png` | C-MacInfo* | Mac details with the colour picker |
-| `C-iPad.png` | C-iPad | Three columns: Macs, workspace, session with a permission |
-| `x-iPad11.png`, `x-Backlog.png`, `x-Offline.png` | — | iPad 11" (sidebar collapses), the workspace's Backlog, a single offline Mac |
+| `x-Backlog.png`, `x-Offline.png` | — | The workspace's Backlog, a single offline Mac |
 
 `mac/notes.md` and `companion/notes.md` list what the person capturing saw as different. Use them as hints, not as the answer.
 
