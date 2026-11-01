@@ -75,6 +75,7 @@ type workspaceParams struct {
 type uiSubscribeParams struct {
 	WorkspaceID string `json:"workspaceId"`
 	Delta       bool   `json:"delta,omitempty"`
+	Append      bool   `json:"append,omitempty"`
 }
 
 type renderParams struct {
@@ -193,7 +194,7 @@ func (s *Server) uiSubscribe(ctx context.Context, p uiSubscribeParams) (subscrip
 	sid, err := subscriptionsFrom(ctx).add(kindUI, sync.OnceFunc(func() {
 		sub.Close()
 		leave()
-	}), forwardUI(ctx, connFrom(ctx), sub, p.Delta))
+	}), forwardUI(ctx, connFrom(ctx), sub, p.Delta, sdui.DeltaOptions{Appends: p.Append}))
 	if err == nil && p.WorkspaceID != "" {
 		s.presence.addTarget(p.WorkspaceID, target, sid)
 	}
@@ -407,11 +408,11 @@ func (s *Server) requireWorkspace(ctx context.Context, workspaceID string) error
 	return err
 }
 
-func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription, delta bool) forwardFunc {
+func forwardUI(ctx context.Context, conn *jsonrpc2.Conn, sub *sdui.Subscription, delta bool, opts sdui.DeltaOptions) forwardFunc {
 	return func(sid string, done <-chan struct{}) {
 		var tracker *sdui.DeltaTracker
 		if delta {
-			tracker = sdui.NewDeltaTracker()
+			tracker = sdui.NewDeltaTracker(opts)
 		}
 		for {
 			select {

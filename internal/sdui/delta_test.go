@@ -15,10 +15,11 @@ import (
 )
 
 type deltaCase struct {
-	Name  string          `json:"name"`
-	Base  json.RawMessage `json:"base"`
-	Tree  json.RawMessage `json:"tree"`
-	Delta json.RawMessage `json:"delta"`
+	Name   string          `json:"name"`
+	Append bool            `json:"append"`
+	Base   json.RawMessage `json:"base"`
+	Tree   json.RawMessage `json:"tree"`
+	Delta  json.RawMessage `json:"delta"`
 }
 
 func TestDeltaRefersToUnchangedSubtrees(t *testing.T) {
@@ -29,7 +30,7 @@ func TestDeltaRefersToUnchangedSubtrees(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			base := index(t, compact(t, tc.Base))
-			delta, ok := index(t, compact(t, tc.Tree)).DeltaFrom(base)
+			delta, ok := index(t, compact(t, tc.Tree)).DeltaFrom(base, internalsdui.DeltaOptions{Appends: tc.Append})
 			require.True(t, ok)
 			assert.Equal(t, string(compact(t, tc.Delta)), string(delta))
 		})
@@ -38,7 +39,13 @@ func TestDeltaRefersToUnchangedSubtrees(t *testing.T) {
 
 func TestDeltaNotSmallerThanTreeIsDropped(t *testing.T) {
 	base := index(t, []byte(`{"type":"stack","props":{"direction":"vertical"},"children":[{"type":"text","props":{"text":"a"}}]}`))
-	_, ok := index(t, []byte(`{"type":"empty","props":{"text":""}}`)).DeltaFrom(base)
+	_, ok := index(t, []byte(`{"type":"empty","props":{"text":""}}`)).DeltaFrom(base, internalsdui.DeltaOptions{})
+	assert.False(t, ok)
+}
+
+func TestDeltaWithAppendShapedPropOverStringIsDropped(t *testing.T) {
+	base := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"note":"plain"}}]}`))
+	_, ok := index(t, []byte(`{"type":"stack","children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"note":{"append":"x"}}}]}`)).DeltaFrom(base, internalsdui.DeltaOptions{Appends: true})
 	assert.False(t, ok)
 }
 
@@ -54,7 +61,7 @@ func BenchmarkDelta(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if _, ok := next.DeltaFrom(prev); !ok {
+		if _, ok := next.DeltaFrom(prev, internalsdui.DeltaOptions{Appends: true}); !ok {
 			b.Fatal("no delta")
 		}
 	}

@@ -228,16 +228,17 @@ func TestDeltaSubscriberGetsRefsAgainstLastSentTree(t *testing.T) {
 		}}
 		require.NoError(t, h.PluginCall(t, "alpha", "ui.render", map[string]any{"workspaceId": p.ID, "slot": "alpha.sidebar", "tree": tree}))
 	}
-	render("first")
+	render("a first line that keeps growing")
 	c := h.Client(t)
-	var plain, delta struct {
+	var plain, delta, appends struct {
 		Subscription string `json:"subscription"`
 	}
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]any{"workspaceId": p.ID}, &plain))
 	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]any{"workspaceId": p.ID, "delta": true}, &delta))
+	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]any{"workspaceId": p.ID, "delta": true, "append": true}, &appends))
 	frames := func() map[string]map[string]any {
 		got := map[string]map[string]any{}
-		for len(got) < 2 {
+		for len(got) < 3 {
 			select {
 			case n := <-c.Notifications():
 				var params struct {
@@ -256,7 +257,7 @@ func TestDeltaSubscriberGetsRefsAgainstLastSentTree(t *testing.T) {
 	}
 	replay := frames()
 	assert.Contains(t, replay[delta.Subscription], "tree")
-	render("second")
+	render("a first line that keeps growing, then more")
 	next := frames()
 	assert.Contains(t, next[plain.Subscription], "tree")
 	assert.NotContains(t, next[plain.Subscription], "delta")
@@ -264,7 +265,11 @@ func TestDeltaSubscriberGetsRefsAgainstLastSentTree(t *testing.T) {
 		"workspaceId": p.ID, "slot": "alpha.sidebar", "owner": "alpha", "rev": float64(2), "base": float64(1),
 		"delta": map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
 			map[string]any{"ref": []any{float64(0)}},
-			map[string]any{"type": "text", "props": map[string]any{"text": "second"}},
+			map[string]any{"type": "text", "props": map[string]any{"text": "a first line that keeps growing, then more"}},
 		}},
 	}, next[delta.Subscription])
+	assert.Equal(t, map[string]any{"type": "stack", "props": map[string]any{"direction": "vertical"}, "children": []any{
+		map[string]any{"ref": []any{float64(0)}},
+		map[string]any{"type": "text", "props": map[string]any{"text": map[string]any{"append": ", then more"}}},
+	}}, next[appends.Subscription]["delta"])
 }

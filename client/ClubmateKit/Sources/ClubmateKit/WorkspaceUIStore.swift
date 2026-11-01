@@ -123,6 +123,24 @@ public final class WorkspaceUIStore {
         cell(name).present
     }
 
+    public func surfaceSessionID(_ name: String) -> String? {
+        let cell = cell(name)
+        cell.track(.surface)
+        return cell.surface
+    }
+
+    public func hasTextField(_ name: String) -> Bool {
+        let cell = cell(name)
+        cell.track(.textField)
+        return cell.hasTextField
+    }
+
+    public func firstTabs(_ name: String) -> SDUINode? {
+        let cell = cell(name)
+        cell.track(.tabs)
+        return cell.tabs
+    }
+
     private func cell(_ name: String) -> SlotCell {
         if let cell = cells[name] { return cell }
         let cell = SlotCell()
@@ -363,11 +381,45 @@ public final class WorkspaceUIStore {
 private final class SlotCell {
     private(set) var view: SlotView?
     private(set) var present = false
+    private(set) var surface: String?
+    private(set) var hasTextField = false
+    private(set) var tabs: SDUINode?
+    @ObservationIgnored private var tracked: Set<SlotFact> = []
+    @ObservationIgnored private var tree: SDUINode?
 
     func set(_ view: SlotView?) {
-        if self.view != view { self.view = view }
+        guard self.view != view else { return }
+        self.view = view
+        tree = view?.tree
         if present != (view != nil) { present = view != nil }
+        refresh(tracked)
     }
+
+    func track(_ fact: SlotFact) {
+        guard tracked.insert(fact).inserted else { return }
+        refresh([fact])
+    }
+
+    private func refresh(_ facts: Set<SlotFact>) {
+        if facts.contains(.surface) {
+            let surface = tree?.surfaceSessionID
+            if self.surface != surface { self.surface = surface }
+        }
+        if facts.contains(.textField) {
+            let hasTextField = tree?.hasTextField ?? false
+            if self.hasTextField != hasTextField { self.hasTextField = hasTextField }
+        }
+        if facts.contains(.tabs) {
+            let tabs = tree?.firstTabs
+            if self.tabs != tabs { self.tabs = tabs }
+        }
+    }
+}
+
+private enum SlotFact: Hashable {
+    case surface
+    case textField
+    case tabs
 }
 
 public struct FocusRequest: Equatable, Sendable {

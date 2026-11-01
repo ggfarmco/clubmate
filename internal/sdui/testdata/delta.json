@@ -253,5 +253,272 @@
         }
       ]
     }
+  },
+  {
+    "name": "grown text is sent as its tail",
+    "append": true,
+    "base": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "Run the whole test suite, please"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Running the whole suite"
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "Run the whole test suite, please"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Running the whole suite now, it takes a minute"
+          }
+        }
+      ]
+    },
+    "delta": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "ref": [
+            0
+          ]
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": {
+              "append": " now, it takes a minute"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "grown text inside a prop object is sent as its tail",
+    "append": true,
+    "base": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "toolCard",
+          "id": "s/tool/1",
+          "props": {
+            "kind": "execute",
+            "title": "go test",
+            "body": {
+              "format": "terminal",
+              "text": "=== RUN   TestAlpha\n=== PAUSE TestAlpha\n"
+            }
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "toolCard",
+          "id": "s/tool/1",
+          "props": {
+            "kind": "execute",
+            "title": "go test",
+            "body": {
+              "format": "terminal",
+              "text": "=== RUN   TestAlpha\n=== PAUSE TestAlpha\n--- PASS: TestAlpha (0.01s)\n"
+            }
+          }
+        }
+      ]
+    },
+    "delta": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "toolCard",
+          "id": "s/tool/1",
+          "props": {
+            "kind": "execute",
+            "title": "go test",
+            "body": {
+              "format": "terminal",
+              "text": {
+                "append": "--- PASS: TestAlpha (0.01s)\n"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "text that does not start with the old one is sent whole",
+    "append": true,
+    "base": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "Run the whole test suite, please"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Running the whole suite"
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "Run the whole test suite, please"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Ran the suite: all green"
+          }
+        }
+      ]
+    },
+    "delta": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "ref": [
+            0
+          ]
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "text": "Ran the suite: all green"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "an append-shaped prop over a non-string is a plain value",
+    "append": true,
+    "base": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "Run the whole test suite, please"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "note": 3
+          }
+        }
+      ]
+    },
+    "tree": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "type": "message",
+          "id": "s/msg/1",
+          "props": {
+            "role": "user",
+            "text": "Run the whole test suite, please"
+          }
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "note": {
+              "append": "literal"
+            }
+          }
+        }
+      ]
+    },
+    "delta": {
+      "type": "transcript",
+      "id": "s/transcript",
+      "children": [
+        {
+          "ref": [
+            0
+          ]
+        },
+        {
+          "type": "message",
+          "id": "s/msg/2",
+          "props": {
+            "role": "agent",
+            "note": {
+              "append": "literal"
+            }
+          }
+        }
+      ]
+    }
   }
 ]

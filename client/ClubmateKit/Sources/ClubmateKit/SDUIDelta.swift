@@ -23,6 +23,10 @@ public indirect enum SDUIDelta: Decodable, Sendable, Equatable {
     }
 
     public func resolve(against base: SDUINode) -> SDUINode? {
+        resolve(against: base, at: base)
+    }
+
+    private func resolve(against base: SDUINode, at counterpart: SDUINode?) -> SDUINode? {
         switch self {
         case .ref(let path):
             var node = base
@@ -32,13 +36,39 @@ public indirect enum SDUIDelta: Decodable, Sendable, Equatable {
             }
             return node
         case .node(let type, let id, let props, let children):
+            let previous = counterpart?.children ?? []
             var resolved: [SDUINode] = []
             resolved.reserveCapacity(children.count)
-            for child in children {
-                guard let node = child.resolve(against: base) else { return nil }
+            for (index, child) in children.enumerated() {
+                guard let node = child.resolve(against: base, at: previous.indices.contains(index) ? previous[index] : nil) else { return nil }
                 resolved.append(node)
             }
-            return SDUINode(type: type, id: id, props: props, children: resolved)
+            return SDUINode(type: type, id: id, props: counterpart.map { props.appended(to: $0.props) } ?? props, children: resolved)
+        }
+    }
+}
+
+private extension [String: JSONValue] {
+    func appended(to old: [String: JSONValue]) -> [String: JSONValue] {
+        var out = self
+        for (key, value) in self {
+            if case .object = value { out[key] = value.appended(to: old[key]) }
+        }
+        return out
+    }
+}
+
+private extension JSONValue {
+    func appended(to old: JSONValue?) -> JSONValue {
+        guard case .object(let fields) = self, let old else { return self }
+        switch old {
+        case .string(let prefix):
+            guard fields.count == 1, case .string(let tail)? = fields["append"] else { return self }
+            return .string(prefix + tail)
+        case .object(let previous):
+            return .object(fields.appended(to: previous))
+        default:
+            return self
         }
     }
 }

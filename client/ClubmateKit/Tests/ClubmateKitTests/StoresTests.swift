@@ -32,6 +32,7 @@ final class StoresTests: XCTestCase {
         _ = try await store.send(UIAction.event(for: button, trigger: .click, slot: "terminals.sidebar", workspaceID: workspace.id)).get()
         try await waitUntil { store.slot("terminals.main")?.tree.type == "surface" }
         XCTAssertEqual(store.slot("terminals.sidebar")?.tree.find(id: "terminals")?.items().map(\.label), ["Terminal 1"])
+        XCTAssertEqual(store.surfaceSessionID("terminals.main"), store.slot("terminals.main")?.tree.string("sessionId"))
         try await waitUntil { try await client.uiGet(workspaceID: workspace.id).allSatisfy { store.slot($0.slot) == $0 } }
 
         let close = SDUINode(type: "button", id: "close")
@@ -327,6 +328,9 @@ final class StoresTests: XCTestCase {
         withObservationTracking {
             _ = store.slot("echo.main")
             _ = store.hasSlot("terminals.main")
+            _ = store.surfaceSessionID("terminals.main")
+            _ = store.hasTextField("terminals.main")
+            _ = store.firstTabs("terminals.main")
         } onChange: { others.fire() }
         _ = try await client.uiEvent(UIEvent(workspaceId: workspace.id, slot: "terminals.sidebar", nodeId: "terminals", action: "select", value: .string("x")))
         try await waitUntil { (store.slot("terminals.main")?.rev ?? 0) > rev }

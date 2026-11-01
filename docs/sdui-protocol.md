@@ -156,7 +156,7 @@ Clients keep the highest `rev` per `(workspaceId, slot)` and ignore views with a
 |---|---|---|
 | ui.sections | none | `[{id, title, icon, order, scope, autoNew, plugin, slots?}]` |
 | ui.get | `{workspaceId}` (`""` for app scope) | `[SlotView]` sorted by slot |
-| ui.subscribe | `{workspaceId, delta?}` | `{subscription}`; `delta: true` opts into delta frames (see `ui.updated`) |
+| ui.subscribe | `{workspaceId, delta?, append?}` | `{subscription}`; `delta: true` opts into delta frames, `append: true` into string appends inside them (see `ui.updated`) |
 | ui.unsubscribe | `{subscription}` | `{}` |
 | ui.event | `{workspaceId, slot, nodeId, action, value}` | plugin-defined JSON |
 | ui.render | `{workspaceId, slot, tree}` (plugin callers only; `tree` is decoded strictly: exact-case member names, no duplicate or unknown members, valid UTF-8, else invalid tree; the core keeps the plugin's bytes and sends them on as they are) | `{rev}` |
@@ -332,7 +332,9 @@ A subscriber that passed `delta: true` to `ui.subscribe` may get a view without 
 - A client whose tree for the slot is not at rev `base` (or whose ref does not resolve) resubscribes: it calls `ui.subscribe` again, unsubscribes the old subscription and reloads with `ui.get`; the new subscription starts with full trees.
 - Without `delta`, or from a core that predates it (it ignores the unknown param), every view carries the full `tree`; old clients never see `base` or `delta`. `ui.get` always returns full trees.
 
-The app subscribes with `delta: true`. While an agent streams into a ~620 KB `agents.main` tree, each frame is a few KB: the streaming message in full plus refs for every other node.
+A subscriber that also passed `append: true` may get string values in a delta as `{"append": "<tail>"}`: the value is the string at the same prop in the counterpart node followed by `<tail>`. The counterpart of the delta root is the root of the `base` tree, and the counterpart of the child at index `i` of a delta node is the child at index `i` of that node's counterpart (none when out of range). The prop is found by the same keys from `props` down through nested objects (`props.body.text`), never through arrays. An object of exactly the shape `{"append": <string>}` is an append only where the counterpart's value at that place is a string; anywhere else it is a plain value. The core uses an append only when the tail is shorter than the whole value and never sends a delta in which a plain value of that shape stands over a string in the counterpart (it sends the full `tree` instead). Without `append`, or from a core that predates it, deltas carry whole strings.
+
+The app subscribes with `delta: true, append: true`. While an agent streams into a ~620 KB `agents.main` tree, each frame is the new tail of the streaming message plus refs for every other node.
 - `ui.focus` `{subscription, section, slot, field}`: the client should show `section`, and `slot` when non-empty, for that subscription's workspace. `field` is present (true) only when the caller passed it: the client puts keyboard focus into the first `textField` of that sidebar instead of its list or tree. A focus to a hidden sidebar shows it first.
 
 ## File watching

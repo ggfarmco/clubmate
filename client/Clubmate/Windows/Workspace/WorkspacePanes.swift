@@ -32,8 +32,8 @@ struct SidebarPane: View {
         } content: {
             SlotPane(store: store, slot: slot)
                 .environment(\.sidebarSlot, slot)
-                .environment(\.sidebarHasField, store.slot(slot)?.tree.hasTextField ?? false)
-                .environment(\.sidebarTabs, store.slot(slot)?.tree.firstTabs)
+                .environment(\.sidebarHasField, store.hasTextField(slot))
+                .environment(\.sidebarTabs, store.firstTabs(slot))
                 .background(theme.surface1, ignoresSafeAreaEdges: [])
         }
     }
@@ -139,7 +139,7 @@ struct MainFocus: ViewModifier {
     @Environment(\.surfaceDeck) private var deck
 
     private var surface: String? {
-        store.slot(slot)?.tree.surfaceSessionID
+        store.surfaceSessionID(slot)
     }
 
     func body(content: Content) -> some View {
