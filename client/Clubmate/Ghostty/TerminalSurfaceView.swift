@@ -5,6 +5,7 @@ import GhosttyKit
 final class TerminalSurfaceView: NSView {
     let sessionID: String
     var onClose: (() -> Void)?
+    var onFocus: ((Bool) -> Void)?
 
     nonisolated(unsafe) private(set) var surface: ghostty_surface_t?
     nonisolated(unsafe) private var cStrings: [UnsafeMutablePointer<CChar>] = []
@@ -44,6 +45,8 @@ final class TerminalSurfaceView: NSView {
         guard !destroyed else { return }
         destroyed = true
         onClose = nil
+        onFocus?(false)
+        onFocus = nil
         observers.forEach {
             NotificationCenter.default.removeObserver($0)
             NSWorkspace.shared.notificationCenter.removeObserver($0)
@@ -248,12 +251,14 @@ extension TerminalSurfaceView {
     override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
         if result, let surface { ghostty_surface_set_focus(surface, window?.isKeyWindow == true) }
+        if result { onFocus?(true) }
         return result
     }
 
     override func resignFirstResponder() -> Bool {
         let result = super.resignFirstResponder()
         if result, let surface { ghostty_surface_set_focus(surface, false) }
+        if result { onFocus?(false) }
         return result
     }
 

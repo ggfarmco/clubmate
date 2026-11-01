@@ -45,6 +45,7 @@ struct TableNodeView: View {
         .focusEffectDisabled()
         .focused($focused)
         .keyMonitor(active: focused, handle: handle)
+        .reportsFocus(.table, focused)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onChange(of: paneFocused) { _, value in
             if value { focused = true }

@@ -9,6 +9,7 @@ struct WorkspaceLayout: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
+    @Environment(\.paneFocus) private var panes
 
     var body: some View {
         let side = app.settings.sidebarSide
@@ -59,7 +60,7 @@ struct WorkspaceLayout: View {
             }
             .frame(maxHeight: .infinity)
             .clipped()
-            StatusBar(connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage) { [app] in
+            StatusBar(connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, hints: panes?.hints) { [app] in
                 app.retry()
             } trailing: {
                 if store.hasSlot("\(section).status") {

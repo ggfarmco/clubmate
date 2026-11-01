@@ -10,6 +10,7 @@ struct WorkspaceView: View {
     @Environment(WindowRouter.self) private var windows
     @Environment(WorkspaceActions.self) private var actions
     @State private var focus = FocusRouter()
+    @State private var panes = PaneFocus()
     @State private var rowWidth: CGFloat = 0
 
     var body: some View {
@@ -17,6 +18,7 @@ struct WorkspaceView: View {
             .background { VisibleSlotsWatch(store: session.store) { [app] in app.notifications.focusChanged() } }
             .environment(\.surfaceDeck, session.deck)
             .environment(\.focusRouter, focus)
+            .environment(\.paneFocus, panes)
             .environment(\.sidebarSide, app.settings.sidebarSide)
             .environment(\.filePicker, FilePicker { [session] target in session.pickFile(target) })
             .eventBanner(session.banner)

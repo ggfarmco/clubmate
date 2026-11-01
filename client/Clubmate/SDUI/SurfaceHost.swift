@@ -44,6 +44,7 @@ private struct SurfaceDeckRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ view: SurfaceDeckView, context: Context) {
+        deck.panes = context.environment.paneFocus
         deck.select(sessionID)
     }
 }

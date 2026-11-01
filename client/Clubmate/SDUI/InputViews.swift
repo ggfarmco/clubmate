@@ -373,6 +373,7 @@ struct TextFieldNodeView: View {
     var body: some View {
         field
             .focused($focused)
+            .reportsFocus(.field, focused)
             .onChange(of: router?.pending, initial: true) {
                 guard let sidebarSlot, router?.take(sidebarSlot + SidebarField.suffix) == true else { return }
                 focused = true

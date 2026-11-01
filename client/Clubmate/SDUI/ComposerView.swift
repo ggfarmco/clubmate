@@ -53,6 +53,7 @@ struct ComposerNodeView: View {
     private var model: ComposerModel { drafts.model(for: node.id ?? "") }
     private var running: Bool { node.bool("running") == true }
     private var queues: Bool { running && node.bool("steers") != true }
+    private var pane: FocusedPane { .composer(running: running, queues: queues) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.l) {
@@ -64,6 +65,7 @@ struct ComposerNodeView: View {
         .padding(.vertical, theme.gutter + theme.spacing.s)
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
         .keyMonitor(active: focused, handle: handle)
+        .reportsFocus(pane, focused)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
         .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }
@@ -246,7 +248,7 @@ struct ComposerNodeView: View {
     }
 
     private var hint: some View {
-        Text(queues ? "⌘↩ queue · Esc stop" : running ? "⌘↩ send · Esc stop" : "⌘↩ send")
+        Text(pane.hints ?? "")
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
             .lineLimit(1)

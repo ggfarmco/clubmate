@@ -97,6 +97,38 @@ extension EnvironmentValues {
     }
 }
 
+private struct PaneFocusKey: EnvironmentKey {
+    static let defaultValue: PaneFocus? = nil
+}
+
+extension EnvironmentValues {
+    var paneFocus: PaneFocus? {
+        get { self[PaneFocusKey.self] }
+        set { self[PaneFocusKey.self] = newValue }
+    }
+}
+
+private struct PaneFocusReport: ViewModifier {
+    let pane: FocusedPane
+    let focused: Bool
+
+    @State private var id = UUID().uuidString
+    @Environment(\.paneFocus) private var panes
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: focused, initial: true) { panes?.report(pane, from: id, focused: focused) }
+            .onChange(of: pane) { panes?.report(pane, from: id, focused: focused) }
+            .onDisappear { panes?.report(pane, from: id, focused: false) }
+    }
+}
+
+extension View {
+    func reportsFocus(_ pane: FocusedPane, _ focused: Bool) -> some View {
+        modifier(PaneFocusReport(pane: pane, focused: focused))
+    }
+}
+
 private struct SidebarSideKey: EnvironmentKey {
     static let defaultValue = SidebarSide.left
 }

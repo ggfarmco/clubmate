@@ -13,6 +13,7 @@ struct StatusBar<Trailing: View>: View {
     let connection: ConnectionStatus
     let agents: AgentTally?
     let usage: SubscriptionUsage?
+    let hints: String?
     let retry: () -> Void
     @ViewBuilder let trailing: Trailing
 
@@ -35,11 +36,19 @@ struct StatusBar<Trailing: View>: View {
             UsageStatus(usage: usage)
                 .layoutPriority(1)
             Spacer(minLength: 0)
+                .layoutPriority(-2)
             trailing
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .frame(height: 22)
                 .clipped()
+            if let hints {
+                Text(hints)
+                    .foregroundStyle(theme.muted)
+                    .truncationMode(.tail)
+                    .help(hints)
+                    .layoutPriority(-1)
+            }
             Text("⌘K")
                 .foregroundStyle(theme.muted)
                 .fixedSize()

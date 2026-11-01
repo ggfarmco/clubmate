@@ -2,6 +2,8 @@ import AppKit
 import Observation
 import SwiftUI
 
+import ClubmateKit
+
 @MainActor
 @Observable
 final class SurfaceDeck {
@@ -10,6 +12,7 @@ final class SurfaceDeck {
         didSet { views.values.forEach { $0.setFontSize(fontSize) } }
     }
 
+    @ObservationIgnored weak var panes: PaneFocus?
     @ObservationIgnored let container = SurfaceDeckView()
     @ObservationIgnored private var views: [String: TerminalSurfaceView] = [:]
     @ObservationIgnored private var selected: String?
@@ -58,6 +61,7 @@ final class SurfaceDeck {
     private func mount(_ sessionID: String) {
         let view = TerminalSurfaceView(sessionID: sessionID, fontSize: fontSize)
         view.onClose = { [weak self] in self?.surfaceClosed(sessionID) }
+        view.onFocus = { [weak self] focused in self?.panes?.report(.terminal, from: "terminal:" + sessionID, focused: focused) }
         view.frame = container.bounds
         view.autoresizingMask = [.width, .height]
         view.setVisible(false)

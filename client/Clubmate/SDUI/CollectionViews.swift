@@ -160,6 +160,7 @@ struct TreeNodeView: View {
         .focusEffectDisabled()
         .focused($focused)
         .keyMonitor(active: focused, handle: handle)
+        .reportsFocus(.tree(field: sidebarHasField), focused)
         .onChange(of: focused) { _, focused in
             if !focused { leader = false }
         }
