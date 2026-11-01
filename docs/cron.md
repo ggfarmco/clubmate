@@ -73,14 +73,14 @@ All are agent-visible and none is destructive (the fired command carries its own
 
 ## Examples
 
-An orchestrator that started child sessions reminds itself every minute; the job goes away with its session:
+An agent waiting on CI reminds itself in 10 minutes; the job goes away with its session. Children need no such job: Clubmate prompts the orchestrator when a child's turn ends.
 
 ```json
 cron.add {
-  "name": "Check children",
+  "name": "Check CI",
   "command": "agents.prompt",
-  "args": "{\"session\":\"<your session id>\",\"text\":\"Check your children\"}",
-  "every": "1m"
+  "args": "{\"session\":\"<your session id>\",\"text\":\"Check the CI run\"}",
+  "in": "10m"
 }
 ```
 

@@ -12,7 +12,7 @@
         "title": "Add Cron Job",
         "hidden": true,
         "agent": true,
-        "description": "Schedule a call of an agent-visible command in this workspace, e.g. a reminder to yourself: command agents.prompt, args {\"session\":\"<your session id>\",\"text\":\"Check your children\"}, every 1m. Give exactly one of cron, every, at, in. The target command and its args are checked now, so a typo fails here. The job runs as an agent call: a destructive target asks for the user's approval when it fires. Returns the job: {id, name, workspace, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?}. Non-destructive.",
+        "description": "Schedule a call of an agent-visible command in this workspace, e.g. a reminder to yourself: command agents.prompt, args {\"session\":\"<your session id>\",\"text\":\"Check the CI run\"}, in 10m. Clubmate already prompts you when a child session ends its turn, so don't schedule checks on children. Give exactly one of cron, every, at, in. The target command and its args are checked now, so a typo fails here. The job runs as an agent call: a destructive target asks for the user's approval when it fires. Returns the job: {id, name, workspace, schedule, command, args, enabled, owner?, createdBy?, missed, nextRun, failures?, lastError?}. Non-destructive.",
         "args": {
           "properties": {
             "name": {"type": "string", "description": "Short human name of the job."},

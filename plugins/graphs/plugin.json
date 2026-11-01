@@ -46,7 +46,7 @@
         "title": "Stop Agent Graph Run",
         "hidden": true,
         "agent": true,
-        "description": "Stop a graph run: delete its edge triggers so no node prompts another. Running turns go on and the sessions stay open; cancel or close them with agents.cancel and agents.close. An agent may stop only runs started by itself or its child sessions. Returns the run. Non-destructive.",
+        "description": "Stop a graph run: delete its edge triggers so no node prompts another. Running turns go on and the sessions stay open; cancel their turns with agents.cancel. An agent may stop only runs started by itself or its child sessions. Returns the run. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Run id (gr_…)."}

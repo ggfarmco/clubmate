@@ -93,15 +93,15 @@ All are agent-visible and none is destructive (the fired command carries its own
 
 ## Examples
 
-An orchestrator hears when a child session ends its turn; the trigger goes away with the orchestrator's session:
+A reviewer session looks at a coder session's work each time the coder ends a turn; the trigger goes away with the session that added it. An orchestrator needs no trigger for its own children: Clubmate prompts it when a child's turn ends.
 
 ```json
 triggers.add {
-  "name": "Child finished",
+  "name": "Review coder",
   "on": "agents.turn",
-  "match": "{\"session\":\"<child id>\",\"status\":[\"done\",\"error\"]}",
+  "match": "{\"session\":\"<coder id>\",\"status\":\"done\"}",
   "command": "agents.prompt",
-  "args": "{\"session\":\"<your session id>\",\"text\":\"Child {{payload.session}} is {{payload.status}}\"}"
+  "args": "{\"session\":\"<reviewer id>\",\"text\":\"Review what {{payload.session}} just did\"}"
 }
 ```
 
