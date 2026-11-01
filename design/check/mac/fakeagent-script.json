@@ -72,12 +72,12 @@
     "status": "completed",
     "locations": [
      {
-      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go",
+      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-recapture-mac/internal/notify/notify.go",
       "line": 1
      }
     ],
     "rawInput": {
-     "file_path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go"
+     "file_path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-recapture-mac/internal/notify/notify.go"
     }
    }
   },
@@ -109,14 +109,14 @@
     "content": [
      {
       "type": "diff",
-      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go",
+      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-recapture-mac/internal/notify/notify.go",
       "oldText": "func (s *Service) Post(ctx context.Context, n Notification) error {\n\treturn s.bus.Publish(ctx, Topic, n)\n}\n",
       "newText": "func (s *Service) Post(ctx context.Context, n Notification) error {\n\tif !s.limiter.Allow(n.Project) {\n\t\treturn ErrRateLimited\n\t}\n\treturn s.bus.Publish(ctx, Topic, n)\n}\n"
      }
     ],
     "locations": [
      {
-      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-screens-mac/internal/notify/notify.go",
+      "path": "/Users/cali/develop/norimori/ggfarmco/clubmate/.worktrees/docs/check-recapture-mac/internal/notify/notify.go",
       "line": 14
      }
     ]
@@ -148,18 +148,23 @@
     "options": [
      {
       "optionId": "allow",
-      "name": "Allow",
+      "name": "Yes",
       "kind": "allow_once"
      },
      {
       "optionId": "always",
-      "name": "Always allow",
+      "name": "Yes, and don't ask again for go test commands",
       "kind": "allow_always"
      },
      {
       "optionId": "reject",
-      "name": "Reject",
+      "name": "No",
       "kind": "reject_once"
+     },
+     {
+      "optionId": "never",
+      "name": "No, and don't ask again",
+      "kind": "reject_always"
      }
     ]
    }
