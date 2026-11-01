@@ -14,6 +14,7 @@ import (
 
 const (
 	remotePlugin  = "remote"
+	voicePlugin   = "voice"
 	unknownCaller = "unknown"
 )
 
@@ -52,6 +53,7 @@ var (
 	errUnknownCmd    = errors.New("unknown command")
 	errRelativeRoot  = errors.New("stop-root: path must be absolute")
 	errNotDescendant = errors.New("the session was not started by this agent")
+	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt or mode")
 )
 
 type commandFunc func(a *app, ctx context.Context, cmd pluginsdk.CommandRun) (any, error)
@@ -71,14 +73,17 @@ type subagentArgs struct {
 }
 
 type newArgs struct {
-	Agent    string         `json:"agent"`
-	Branch   string         `json:"branch"`
-	Prompt   string         `json:"prompt"`
-	Title    string         `json:"title"`
-	Notify   string         `json:"notify"`
-	Run      string         `json:"run"`
-	RunTitle string         `json:"runTitle"`
-	RunAfter []api.RunAfter `json:"runAfter"`
+	Agent           string         `json:"agent"`
+	Branch          string         `json:"branch"`
+	Prompt          string         `json:"prompt"`
+	Title           string         `json:"title"`
+	Notify          string         `json:"notify"`
+	Run             string         `json:"run"`
+	RunTitle        string         `json:"runTitle"`
+	RunAfter        []api.RunAfter `json:"runAfter"`
+	DisallowedTools []string       `json:"disallowedTools"`
+	SystemPrompt    string         `json:"systemPrompt"`
+	Mode            string         `json:"mode"`
 }
 
 type newResult struct {
@@ -205,11 +210,15 @@ func withSession(fn func(*app, context.Context, pluginsdk.CommandRun, *session) 
 }
 
 func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args newArgs) (any, error) {
+	restricted := args.restricted()
+	if restricted && (cmd.Agent || cmd.Via != voicePlugin) {
+		return nil, errVoiceOnly
+	}
 	res, err := a.newSession(ctx, a.host, cmd.WorkspaceID, origin(cmd), args)
 	if err != nil {
 		return nil, err
 	}
-	if res.parent == "" {
+	if res.parent == "" && !restricted {
 		if err := a.selectSession(ctx, cmd.WorkspaceID, res.Session); err != nil {
 			return nil, err
 		}
@@ -232,8 +241,7 @@ func (a *app) permissionCommand(_ context.Context, cmd pluginsdk.CommandRun, arg
 	if err != nil {
 		return nil, err
 	}
-	user := !cmd.Agent && cmd.Via == remotePlugin
-	if !user && (cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller)) {
+	if !asUser(cmd) && (cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller)) {
 		return nil, errNotDescendant
 	}
 	return nil, s.answer(args.Request, args.Option)
@@ -427,6 +435,14 @@ func (a *app) resumeCommand(_ context.Context, _ pluginsdk.CommandRun, s *sessio
 
 func (a *app) revealCommand(ctx context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
 	return nil, a.reveal(ctx, cmd.WorkspaceID, s.snapshot().ID)
+}
+
+func (n newArgs) restricted() bool {
+	return len(n.DisallowedTools) > 0 || n.SystemPrompt != "" || n.Mode != ""
+}
+
+func asUser(cmd pluginsdk.CommandRun) bool {
+	return !cmd.Agent && (cmd.Via == remotePlugin || cmd.Via == voicePlugin)
 }
 
 func origin(cmd pluginsdk.CommandRun) string {

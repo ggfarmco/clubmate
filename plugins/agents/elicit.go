@@ -167,8 +167,7 @@ func (a *app) elicitationCommand(_ context.Context, cmd pluginsdk.CommandRun, ar
 	if err != nil {
 		return nil, err
 	}
-	user := !cmd.Agent && cmd.Via == remotePlugin
-	if !user && (cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller)) {
+	if !asUser(cmd) && (cmd.Caller == "" || !a.descendantOf(args.Session, cmd.Caller)) {
 		return nil, errNotDescendant
 	}
 	el, ok := s.elicitation(args.Request)

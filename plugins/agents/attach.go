@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -110,7 +111,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	mode, value := a.startSettings(ctx, rec)
-	a.applyMode(ctx, s, res.Modes, mode)
+	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
 	a.applyConfigs(ctx, s, res.ConfigOptions, value)
 	return p, nil
 }
@@ -152,7 +153,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	s.changed(changeStatus, true)
 	var res acp.ResumeSessionResponse
 	if json.Unmarshal(raw, &res) == nil {
-		a.applyMode(ctx, s, res.Modes, mode)
+		a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
 		a.applyConfigs(ctx, s, res.ConfigOptions, func(id string) string { return values[id] })
 	}
 	return nil
@@ -167,6 +168,9 @@ func (a *app) startSettings(ctx context.Context, rec record) (string, func(id st
 		return "", func(string) string { return "" }
 	}
 	mode, values := parent.settings()
+	if parent.snapshot().StartMode != "" {
+		mode = a.stored(ctx, modeStorageKey(rec.Worktree))
+	}
 	return mode, func(id string) string { return values[id] }
 }
 

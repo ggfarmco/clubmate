@@ -24,6 +24,7 @@ client/Clubmate/Resources/terminfo
 /search
 /terminals
 /triggers
+/voice
 .claude/worktrees/
 /scripts/voicebench/data/
 /scripts/voicebench/fixtures/*.wav

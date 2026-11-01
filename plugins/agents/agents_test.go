@@ -59,7 +59,8 @@ type record struct {
 		Kind string `json:"kind"`
 		Text string `json:"text"`
 	} `json:"pendingSummary"`
-	Suspended bool `json:"suspended"`
+	Suspended       bool     `json:"suspended"`
+	DisallowedTools []string `json:"disallowedTools"`
 }
 
 type entry struct {
@@ -1998,6 +1999,89 @@ func TestPermissionScope(t *testing.T) {
 	delete(params, "via")
 	require.NoError(t, f.h.PluginCall(t, "remote", "command.run", params))
 	f.waitStatus(t, workspace, other, "done")
+}
+
+func TestPermissionFromVoicePluginIsUser(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "waiting")
+	request := ofKind(f.transcript(t, workspace, session).Entries, "permission")[0].ID
+
+	params := map[string]any{"id": "agents.permission", "workspaceId": workspace, "args": map[string]any{"session": session, "request": request, "option": "allow"}}
+	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
+
+	f.waitStatus(t, workspace, session, "done")
+}
+
+func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
+	f := start(t, map[string]any{"modes": map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "bypassPermissions", "name": "Bypass permissions"}}}})
+	workspace := f.workspace(t, newRepo(t))
+	args := map[string]any{"disallowedTools": []string{"Bash"}, "mode": "bypassPermissions"}
+	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": args}
+
+	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", args, nil), "only the voice plugin may set disallowedTools, systemPrompt or mode")
+	assert.ErrorContains(t, f.h.PluginCall(t, "remote", "command.run", params), "only the voice plugin may set disallowedTools, systemPrompt or mode")
+	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
+
+	voice := listedIDs(t, f, workspace)[0]
+	assert.Equal(t, []string{"Bash"}, f.session(t, workspace, voice).DisallowedTools)
+	got := f.waitCall(t, "session/set_mode", func(fakeCall) bool { return true })
+	assert.Contains(t, string(got.Params), `"modeId":"bypassPermissions"`)
+	assert.Contains(t, string(f.calls(t, "session/new")[0].Params), `"disallowedTools":["Bash"]`)
+	kid := f.newChild(t, workspace, voice, map[string]any{"prompt": "go"}).Session
+	f.waitStatus(t, workspace, kid, "done")
+	assert.Len(t, f.calls(t, "session/set_mode"), 1)
+}
+
+func TestNewSessionFromVoiceNotSelected(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	first := f.newSession(t, workspace)
+
+	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{"systemPrompt": "Route the user's words."}}
+	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
+
+	ids := listedIDs(t, f, workspace)
+	voice := ids[slices.IndexFunc(ids, func(id string) bool { return id != first })]
+	testutil.Eventually(t, func() bool { return f.session(t, workspace, voice).AgentSessionID != "" }, wait)
+	news := f.calls(t, "session/new")
+	sent := string(news[slices.IndexFunc(news, func(c fakeCall) bool { return strings.Contains(string(c.Params), voice) })].Params)
+	assert.Contains(t, sent, `"systemPrompt":{"append":"Route the user's words."}`)
+	assert.NotContains(t, sent, "When you need the user's answer")
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		trees := cardsOf(n, "tree")
+		if len(trees) == 0 {
+			return false
+		}
+		raw, err := json.Marshal(trees[0].Props["items"])
+		require.NoError(t, err)
+		return strings.Contains(string(raw), voice) && trees[0].Props["selected"] == first
+	})
+}
+
+func TestVoiceSessionGetsNoPolicyTexts(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{"systemPrompt": "Route the user's words.", "prompt": `{"text":"hi"}`}}
+
+	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
+
+	sent := f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	assert.NotContains(t, string(sent.Params), "[Clubmate")
+	assert.Equal(t, `{"text":"hi"}`, promptText(t, sent))
+}
+
+func listedIDs(t *testing.T, f *fixture, workspace string) []string {
+	t.Helper()
+	var list []record
+	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+	ids := make([]string, 0, len(list))
+	for _, r := range list {
+		ids = append(ids, r.ID)
+	}
+	return ids
 }
 
 func TestAnswerIsUserTurn(t *testing.T) {

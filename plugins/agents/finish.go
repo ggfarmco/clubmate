@@ -58,6 +58,9 @@ type worktreeSession struct {
 }
 
 func (a *app) policies(ctx context.Context, rec record) []acp.ContentBlock {
+	if rec.SystemPrompt != "" {
+		return nil
+	}
 	out := []acp.ContentBlock{{Type: "text", Text: finishPolicy(rec, a.layout(ctx, rec))}}
 	if len(a.children(rec.ID)) > 0 {
 		out = append(out, acp.ContentBlock{Type: "text", Text: orchestratorText})

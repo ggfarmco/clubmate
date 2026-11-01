@@ -270,12 +270,15 @@ func registered(ctx context.Context, root string) bool {
 }
 
 func sessionMeta(rec record, advisor string) *acp.SessionMeta {
-	opts := acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: rec.ID}}
+	opts := acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: rec.ID}, DisallowedTools: rec.DisallowedTools}
 	if advisor != "" {
 		opts.Settings = &acp.ClaudeCodeSettings{AdvisorModel: advisor}
 	}
 	meta := &acp.SessionMeta{ClaudeCode: acp.ClaudeCodeMeta{Options: opts}}
-	if rec.ParentSession == "" {
+	switch {
+	case rec.SystemPrompt != "":
+		meta.SystemPrompt = &acp.SystemPromptMeta{Append: rec.SystemPrompt}
+	case rec.ParentSession == "":
 		meta.SystemPrompt = &acp.SystemPromptMeta{Append: askUserText}
 	}
 	return meta

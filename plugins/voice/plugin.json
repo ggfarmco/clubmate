@@ -1,0 +1,206 @@
+{
+  "id": "voice",
+  "name": "Voice",
+  "version": "0.1.0",
+  "protocol": 1,
+  "command": ["voice"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "voice.start",
+        "title": "Start voice input",
+        "hidden": true,
+        "remote": true,
+        "timeout": 10,
+        "description": "Start an utterance: args {pointer: {device: \"mac\"|\"phone\", section, selection: {session?, task?, file?, line?}}, lang?: \"ru\"|\"auto\"} (default ru). Returns {utterance}. Phase is loading while the recognizer loads its model (audio is kept), else listening. Fails with \"voice needs uv (https://docs.astral.sh/uv/)\" when uv is not installed."
+      },
+      {
+        "id": "voice.audio",
+        "title": "Send voice audio",
+        "hidden": true,
+        "remote": true,
+        "timeout": 10,
+        "description": "Feed audio to an utterance: 16 kHz mono PCM s16le, base64, 320 ms chunks recommended, at most 64 KiB raw per call. Returns the partial text heard so far. After 60 s of audio the rest is cut and the utterance ends itself. Fails with unknown utterance once it ended or was cancelled.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…)."},
+            "pcm": {"type": "string", "description": "Base64 PCM s16le, 16 kHz mono."}
+          },
+          "required": ["utterance", "pcm"]
+        },
+        "result": {
+          "properties": {
+            "partial": {"type": "string", "description": "Text heard so far, before the dictionary."}
+          }
+        }
+      },
+      {
+        "id": "voice.end",
+        "title": "End voice input",
+        "hidden": true,
+        "remote": true,
+        "timeout": 60,
+        "description": "Stop listening and return the final text with the user dictionary applied; the assistant then routes it in the background (follow voice.changed and voice.state).",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…)."}
+          },
+          "required": ["utterance"]
+        },
+        "result": {
+          "properties": {
+            "heard": {"type": "string", "description": "Final text after the dictionary."}
+          }
+        }
+      },
+      {
+        "id": "voice.cancel",
+        "title": "Cancel voice input",
+        "hidden": true,
+        "remote": true,
+        "description": "Cancel an utterance at any phase; a pending confirmation is declined.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…)."}
+          },
+          "required": ["utterance"]
+        }
+      },
+      {
+        "id": "voice.state",
+        "title": "Voice input state",
+        "hidden": true,
+        "remote": true,
+        "description": "Current state of an utterance: {utterance, phase, partial?, heard?, plan?, result?, error?, confirm?: {title, command, args}, session?, rev}. phase is loading, listening, thinking, confirm, done, error or cancelled.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…)."}
+          },
+          "required": ["utterance"]
+        }
+      },
+      {
+        "id": "voice.confirm",
+        "title": "Confirm voice action",
+        "hidden": true,
+        "remote": true,
+        "description": "Answer the confirmation an utterance waits for (phase confirm): approve runs the action, decline ends the utterance with result cancelled.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…)."},
+            "approve": {"type": "boolean", "description": "true runs the action, false declines it."}
+          },
+          "required": ["utterance", "approve"]
+        }
+      },
+      {
+        "id": "voice.plan",
+        "title": "Voice plan",
+        "hidden": true,
+        "agent": true,
+        "description": "Voice session only: show the user one line saying what you will do with this utterance, in the user's language. Call it first. Non-destructive.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},
+            "summary": {"type": "string", "description": "One line, e.g. → ответ «Voice plugin»: вариант 2."}
+          },
+          "required": ["utterance", "summary"]
+        }
+      },
+      {
+        "id": "voice.answer",
+        "title": "Voice answer",
+        "hidden": true,
+        "agent": true,
+        "timeout": 120,
+        "description": "Voice session only: answer another agent session as the user. Give text for a plain answer, request with answers for a question (elicitation), or request with option for a permission request. Allowing a permission goes straight through only for the request in the utterance's context.session; allow_always, or allowing any other request, waits for the user's confirmation first. Non-destructive.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},
+            "session": {"type": "string", "description": "Session to answer."},
+            "text": {"type": "string", "description": "The user's answer, cleaned of fillers, repeats and recognition errors, meaning unchanged."},
+            "request": {"type": "string", "description": "Question or permission request id from the context."},
+            "answers": {
+              "type": "array",
+              "description": "Question answers by field key: a choice field takes one option value.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {"type": "string", "description": "Field key."},
+                  "value": {"type": "string", "description": "Option value or the typed answer."}
+                },
+                "required": ["key", "value"]
+              }
+            },
+            "option": {"type": "string", "description": "optionId of the chosen permission option."}
+          },
+          "required": ["utterance", "session"]
+        }
+      },
+      {
+        "id": "voice.run",
+        "title": "Voice run",
+        "hidden": true,
+        "agent": true,
+        "timeout": 120,
+        "description": "Voice session only: run a dangerous Clubmate command for the user: a destructive agent-visible command or terminal input (session.send). It waits until the user confirms on the device they spoke from (at most 60 s); a decline fails with \"the user declined\". Other commands fail with \"not dangerous\": call them directly as MCP tools. Answers to sessions go through voice.answer instead. Returns the command's result.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},
+            "command": {"type": "string", "description": "Command id, e.g. git.worktree-remove or session.send."},
+            "args": {"type": "string", "default": "{}", "description": "Arguments of the command as JSON text (a string holding a JSON object)."},
+            "summary": {"type": "string", "description": "One line for the confirmation, in the user's language."}
+          },
+          "required": ["utterance", "command", "summary"]
+        }
+      },
+      {
+        "id": "voice.done",
+        "title": "Voice done",
+        "hidden": true,
+        "agent": true,
+        "description": "Voice session only: finish the utterance with a short result in the user's language (what was done, or what was unclear). Always call it last. Non-destructive.",
+        "args": {
+          "properties": {
+            "utterance": {"type": "string", "description": "Utterance id (vu_…) from the prompt."},
+            "result": {"type": "string", "description": "Short result, e.g. отправлено."}
+          },
+          "required": ["utterance", "result"]
+        }
+      },
+      {
+        "id": "voice.dictionary",
+        "title": "Voice dictionary",
+        "hidden": true,
+        "remote": true,
+        "scope": "app",
+        "description": "The user dictionary of replacements applied to recognized text: {entries: [{from, to}]}. Matching is whole-word, case-insensitive, longest from first."
+      },
+      {
+        "id": "voice.dictionary-set",
+        "title": "Set voice dictionary",
+        "hidden": true,
+        "remote": true,
+        "scope": "app",
+        "description": "Replace the user dictionary; returns it as stored.",
+        "args": {
+          "properties": {
+            "entries": {
+              "type": "array",
+              "description": "Replacements.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {"type": "string", "description": "Words as recognized, e.g. мсп."},
+                  "to": {"type": "string", "description": "Replacement, e.g. MCP."}
+                },
+                "required": ["from", "to"]
+              }
+            }
+          },
+          "required": ["entries"]
+        }
+      }
+    ]
+  }
+}

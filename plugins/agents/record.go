@@ -46,20 +46,23 @@ type record struct {
 	Agent          string `json:"agent"`
 	AgentSessionID string `json:"agentSessionId"`
 	lineage
-	Run       *api.Run  `json:"run,omitempty"`
-	Title     string    `json:"title"`
-	TitleSet  bool      `json:"titleSet,omitempty"`
-	Status    string    `json:"status"`
-	Mode      string    `json:"mode"`
-	Finish    string    `json:"finish,omitempty"`
-	AFK       bool      `json:"afk,omitempty"`
-	Suspended bool      `json:"suspended,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Asks      bool      `json:"asks"`
-	Question  string    `json:"question,omitempty"`
-	Notify    string    `json:"notify,omitempty"`
-	Error     string    `json:"error,omitempty"`
+	Run             *api.Run  `json:"run,omitempty"`
+	Title           string    `json:"title"`
+	TitleSet        bool      `json:"titleSet,omitempty"`
+	Status          string    `json:"status"`
+	Mode            string    `json:"mode"`
+	Finish          string    `json:"finish,omitempty"`
+	AFK             bool      `json:"afk,omitempty"`
+	Suspended       bool      `json:"suspended,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+	Asks            bool      `json:"asks"`
+	Question        string    `json:"question,omitempty"`
+	Notify          string    `json:"notify,omitempty"`
+	Error           string    `json:"error,omitempty"`
+	DisallowedTools []string  `json:"disallowedTools,omitempty"`
+	SystemPrompt    string    `json:"systemPrompt,omitempty"`
+	StartMode       string    `json:"startMode,omitempty"`
 }
 
 type sessionInfo struct {

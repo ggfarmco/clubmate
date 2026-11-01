@@ -34,6 +34,9 @@ build:
 	cp plugins/docs/plugin.json bin/plugins/docs/
 	$(GO_BUILD) -o bin/plugins/graphs/graphs ./plugins/graphs
 	cp plugins/graphs/plugin.json bin/plugins/graphs/
+	$(GO_BUILD) -o bin/plugins/voice/voice ./plugins/voice
+	cp plugins/voice/plugin.json bin/plugins/voice/
+	rsync -a --exclude '__pycache__' --exclude '.pytest_cache' --exclude 'test_*' plugins/voice/asr bin/plugins/voice/
 
 run-core: build
 	bin/clubmate-core

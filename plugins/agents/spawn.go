@@ -54,7 +54,7 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	if err != nil {
 		return newResult{}, err
 	}
-	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify)}
+	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode}
 	if args.Run != "" {
 		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
 	}
