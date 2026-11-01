@@ -54,9 +54,10 @@ public enum ShortAge {
 extension AgentSession {
     public var glyph: SessionGlyph {
         if isClosed { return .closed }
-        if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
-        if status == .waiting || !pending.isEmpty || pendingSummary?.kind == .permission { return .permission }
-        if asks { return .question }
+        if needsYou {
+            if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
+            return status == .waiting || !pending.isEmpty ? .permission : .question
+        }
         if childStatus == .waiting { return .childWaiting }
         if displayStatus == .running { return .running }
         if status == .error { return .stopped }

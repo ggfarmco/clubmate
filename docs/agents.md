@@ -68,6 +68,10 @@ The status bar shows how much of the Claude subscription is used: `5h 42% ↻19:
 
 Agent mode is a cooperative guard for well-behaved agents, not a security boundary: any program running as your user can reach Clubmate directly.
 
+## Needs you
+
+A session needs you when a permission or a question is pending (status `waiting`), or when a top-level session's turn is done and its last message asks a question (`asks`). A child session's `asks` is for the session that started it, not for you, so it never needs you on its own; its pending permissions and questions do. A session that stopped with an error does not need you; it shows as Stopped. The agents plugin computes this once and sends it as `needsYou` in `agents.sessions`. The Mac sidebar's "Needs you" filter (a top-level session that needs you, or whose child waits for permission), the Mac status bar's "N need you" and the phone (its "Needs you" list, waiting counts, session groups and glyphs) show exactly these sessions; neither client derives it on its own. The phone falls back to the same rule only for a Mac whose Clubmate does not send `needsYou` yet.
+
 ## CLI
 
 Inside a Clubmate terminal, `clubmate` is on `PATH` and `$CLUBMATE_WORKSPACE_ID` names the current workspace.

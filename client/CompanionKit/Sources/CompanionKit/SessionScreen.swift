@@ -29,10 +29,10 @@ public enum SessionState: String, Sendable, CaseIterable {
 extension AgentSession {
     public var state: SessionState {
         if isClosed { return .closed }
-        if status == .waiting || !pending.isEmpty { return .waitingForYou }
+        if needsYou { return status == .waiting || !pending.isEmpty ? .waitingForYou : .askingYou }
         if status == .running { return .running }
         if status == .error { return .stopped }
-        return asks ? .askingYou : .done
+        return .done
     }
 
     public var headerDetail: String {

@@ -29,6 +29,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let turnStartedAt: Date?
     public let notifyEffective: NotificationPolicy
     public let childStatus: AgentSessionStatus?
+    public let needsYou: Bool
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -36,7 +37,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         title: String = "", titleSet: Bool = false, status: AgentSessionStatus = .other, mode: String = "", finish: AgentFinish = .ask, afk: Bool = false,
         createdAt: Date = .distantPast, updatedAt: Date? = nil, asks: Bool = false,
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
-        childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil
+        childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -66,6 +67,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.turnStartedAt = turnStartedAt
         self.notifyEffective = notifyEffective
         self.childStatus = childStatus
+        self.needsYou = needsYou ?? (status != .closed && (status == .waiting || !pending.isEmpty || status == .done && asks && parentSession == nil))
     }
 
     public var isClosed: Bool { status == .closed }
@@ -73,7 +75,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt
+        case pendingSummary, question, turnStartedAt, needsYou
     }
 
     public init(from decoder: any Decoder) throws {
@@ -111,7 +113,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             childStatus: try c.decodeIfPresent(AgentSessionStatus.self, forKey: .childStatus),
             pendingSummary: try? c.decodeIfPresent(PendingSummary.self, forKey: .pendingSummary),
             question: try optional(.question),
-            turnStartedAt: date(.turnStartedAt)
+            turnStartedAt: date(.turnStartedAt),
+            needsYou: try c.decodeIfPresent(Bool.self, forKey: .needsYou)
         )
     }
 
@@ -147,6 +150,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(pendingSummary, forKey: .pendingSummary)
         try c.encodeIfPresent(question, forKey: .question)
         try c.encodeIfPresent(turnStartedAt.map(formatter.string(from:)), forKey: .turnStartedAt)
+        try c.encode(needsYou, forKey: .needsYou)
     }
 }
 

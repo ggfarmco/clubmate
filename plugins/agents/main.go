@@ -245,6 +245,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 				info.TurnStartedAt = &started
 			}
 		}
+		info.NeedsYou = needsYou(info.record)
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {
 			info.PendingSummary = &pendingSummary{Kind: pendingQuestion, Text: rec.Question, At: rec.UpdatedAt}
 		}

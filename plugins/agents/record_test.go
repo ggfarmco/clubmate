@@ -31,7 +31,7 @@ func TestRecordJSONContract(t *testing.T) {
 	info, err := json.Marshal(sessionInfo{record: record{ID: "agt_2", lineage: lineage{ParentSession: "agt_p"}}, NotifyEffective: notifyAll})
 	require.NoError(t, err)
 	assert.Equal(t, `{"id":"agt_2","workspace":"","worktree":"","agent":"","agentSessionId":"","parentSession":"agt_p","title":"","status":"","mode":"",`+
-		`"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z","asks":false,"notifyEffective":"all"}`, string(info))
+		`"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z","asks":false,"notifyEffective":"all","needsYou":false}`, string(info))
 }
 
 func TestSessionInfoDecodesAsAPISession(t *testing.T) {

@@ -179,7 +179,7 @@ func filterTabs(roots []sessionRow, filter string) sdui.Node {
 func matchesFilter(row sessionRow, filter string) bool {
 	switch filter {
 	case filterNeeds:
-		return row.Rec.ParentSession == "" && needsYou(row.Rec)
+		return needsYou(row.Rec) || row.Children == statusWaiting
 	case filterRunning:
 		return row.Rec.Status == statusRunning || row.Children == statusRunning
 	}
@@ -338,7 +338,7 @@ func afkDetail(rec record) string {
 }
 
 func needsYou(rec record) bool {
-	return rec.Status == statusWaiting || rec.Status == statusDone && rec.Asks
+	return rec.Status == statusWaiting || rec.Status == statusDone && rec.Asks && rec.ParentSession == ""
 }
 
 func activity(row sessionRow, now time.Time) string {

@@ -99,6 +99,8 @@ func TestSidebarFilter(t *testing.T) {
 		{Rec: record{ID: "agt_2", Worktree: "/r/b", Agent: agentClaude, Title: "Auth", Status: statusRunning}},
 		{Rec: record{ID: "agt_3", Worktree: "/r/b", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
+		{Rec: record{ID: "agt_5", Worktree: "/r/c", Agent: agentClaude, Title: "Orchestrator", Status: statusDone}, Children: statusWaiting},
+		{Rec: record{ID: "agt_6", Worktree: "/r/c", Agent: agentClaude, lineage: lineage{ParentSession: "agt_gone"}, Title: "Child", Status: statusDone, Asks: true}},
 	}
 	tabs := func(tree sdui.Node) []sdui.Item { return nodesOf(tree, "tabs")[0].Props["items"].([]sdui.Item) }
 	ids := func(tree sdui.Node) []string {
@@ -114,10 +116,10 @@ func TestSidebarFilter(t *testing.T) {
 	needs := sidebarView(rows, "", nil, now, false, filterNeeds)
 	require.NoError(t, internalsdui.Validate(needs))
 	items := tabs(needs)
-	assert.Equal(t, []string{"3", "2", "1"}, []string{items[0].Badge, items[1].Badge, items[2].Badge})
+	assert.Equal(t, []string{"5", "3", "1"}, []string{items[0].Badge, items[1].Badge, items[2].Badge})
 	assert.Equal(t, []string{"", "warning", ""}, []string{items[0].Tone, items[1].Tone, items[2].Tone})
 	assert.Equal(t, filterNeeds, nodesOf(needs, "tabs")[0].Props["selected"])
-	assert.Equal(t, []string{"agt_1", "agt_4"}, ids(needs))
+	assert.Equal(t, []string{"agt_1", "agt_4", "agt_5"}, ids(needs))
 	assert.Equal(t, []string{"agt_2"}, ids(sidebarView(rows, "", nil, now, false, filterRunning)))
 
 	calm := sidebarView(rows[1:3], "", nil, now, false, filterNeeds)

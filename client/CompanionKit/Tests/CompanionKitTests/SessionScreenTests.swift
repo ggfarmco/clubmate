@@ -89,15 +89,15 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(request.subject, "a\nb\nc\nd\ne")
     }
 
-    func testAskingSubagentDocksTheLastQuestionAndDropsItFromTheMessage() throws {
+    func testAskingSessionDocksTheLastQuestionAndDropsItFromTheMessage() throws {
         let json = #"""
         [{"kind":"agent","id":"a1","text":"Checkout runs in three steps.\n\n- **validate** checks the cart\n\nShould I add retries to the charge step?"}]
         """#
         let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
-        let session = AgentSession(id: "s", agent: "claude", parentSession: "p", status: .done, afk: true, asks: true)
+        let session = AgentSession(id: "s", agent: "claude", status: .done, afk: true, asks: true)
         let screen = SessionScreen(entries: entries, session: session)
         XCTAssertEqual(session.state.label, "Asking you")
-        XCTAssertEqual(session.headerDetail, "subagent · AFK")
+        XCTAssertEqual(session.headerDetail, "AFK")
         XCTAssertEqual(session.composerPlaceholder, "Answer Claude…")
         XCTAssertEqual(screen.dock, .question("Should I add retries to the charge step?"))
         guard case .agent(_, let blocks) = screen.rows.first else { return XCTFail("unexpected rows \(screen.rows)") }

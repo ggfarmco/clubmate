@@ -34,7 +34,7 @@ final class SessionRowsTests: XCTestCase {
     func testSubagentsStayFoldedUntilTheParentIsExpanded() throws {
         let tree = try XCTUnwrap(AgentSession.grouped([
             AgentSession(id: "p", status: .done),
-            AgentSession(id: "c", parentSession: "p", status: .done, asks: true),
+            AgentSession(id: "c", parentSession: "p", status: .waiting),
             AgentSession(id: "g", parentSession: "c", status: .done),
         ]).first?.sessions.first)
         XCTAssertEqual(tree.rows(expanded: []).map(\.id), ["p"])
@@ -52,7 +52,7 @@ final class SessionRowsTests: XCTestCase {
             AgentSession(id: "d", status: .closed),
             AgentSession(id: "e", status: .done),
         ])
-        XCTAssertEqual([activity.waitingText, activity.restText], ["2 waiting", "1 running · 1 closed"])
+        XCTAssertEqual([activity.waitingText, activity.restText], ["1 waiting", "1 running · 1 closed"])
         XCTAssertEqual(WorkspaceActivity([]).restText, "No sessions")
         XCTAssertEqual(WorkspaceActivity([]).offlineText(asOf: nil), "nothing waiting")
     }
@@ -63,7 +63,7 @@ final class SessionRowsTests: XCTestCase {
         let items = NeedsYouItem.collect([
             ("mac1", shop, [
                 AgentSession(id: "a", title: "Refactor the cart total", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "go test ./...", tool: "execute", at: now.addingTimeInterval(-60))),
-                AgentSession(id: "b", parentSession: "a", title: "Explain the checkout flow", status: .done, afk: true, asks: true, pendingSummary: PendingSummary(kind: .question, text: "Add retries?", at: now.addingTimeInterval(-30))),
+                AgentSession(id: "b", parentSession: "a", title: "Explain the checkout flow", status: .waiting, afk: true, pending: ["elicitation-1"], pendingSummary: PendingSummary(kind: .question, text: "Add retries?", at: now.addingTimeInterval(-30))),
                 AgentSession(id: "c", status: .running),
             ]),
             ("mac2", api, [AgentSession(id: "d", title: "Docs", status: .waiting, pendingSummary: PendingSummary(kind: .permission, text: "Edit README.md", tool: "edit", at: now.addingTimeInterval(-90)))]),
