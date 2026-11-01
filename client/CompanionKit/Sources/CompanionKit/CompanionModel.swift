@@ -134,6 +134,9 @@ public final class CompanionModel {
 
     private func route(_ signal: ConnectionSignal, from computer: String) {
         lastSignal = .now
+        if let seen = connections[computer]?.lastSeen {
+            try? store.seen(computer, at: seen)
+        }
         if case .event = signal, let seq = connections[computer]?.lastEventID {
             cursors?.set(seq, forKey: Self.cursorKey(computer))
         }

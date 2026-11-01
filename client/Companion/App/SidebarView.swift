@@ -269,11 +269,12 @@ struct StatusRow: View {
                 Label {
                     VStack(alignment: .leading) {
                         Text("Offline")
-                        Text(reason ?? "Tap to retry").font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                        Text(reason ?? "Tap to retry").font(.footnote).lineLimit(2)
                     }
                 } icon: {
-                    Image(systemName: "wifi.slash").foregroundStyle(.secondary)
+                    Image(systemName: "wifi.slash")
                 }
+                .foregroundStyle(Color.secondary)
             }
         case .connecting, .online:
             Label {

@@ -46,6 +46,7 @@ public final class ComputerConnection: CommandRunner {
     public init(computer: Computer, token: String?, transport: any HTTPTransport, policy: HostPolicy = .tailnet, lastEventID: Int? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.computer = computer
         self.lastEventID = lastEventID
+        lastSeen = computer.lastSeen
         self.sleep = sleep
         client = RemoteClient(hosts: computer.hosts, port: computer.port, token: token, transport: transport, policy: policy)
         if token == nil { state = .unauthorized }
@@ -100,6 +101,21 @@ public final class ComputerConnection: CommandRunner {
         case .connecting: "connecting…"
         case .unauthorized: "access revoked"
         case .offline: lastSeen.map { "offline since " + Self.clock($0) } ?? "offline"
+        }
+    }
+
+    public var offlineDetail: String? {
+        guard case .offline(let reason) = state else { return nil }
+        let parts = [reason, lastSeen.map { "as of " + Self.clock($0) }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    public var blocked: String? {
+        let offline = "Can't answer — \(computer.name) is offline"
+        switch state {
+        case .online: return nil
+        case .unauthorized: return "Can't answer — access revoked"
+        case .offline, .connecting: return lastSeen.map { offline + " · as of " + Self.clock($0) } ?? offline
         }
     }
 

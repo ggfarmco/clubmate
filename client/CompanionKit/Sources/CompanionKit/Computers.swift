@@ -7,13 +7,15 @@ public struct Computer: Codable, Sendable, Equatable, Identifiable, Hashable {
     public var hosts: [String]
     public var port: Int
     public var pairedAt: Date
+    public var lastSeen: Date?
 
-    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now) {
+    public init(id: String, name: String, hosts: [String], port: Int, pairedAt: Date = .now, lastSeen: Date? = nil) {
         self.id = id
         self.name = name
         self.hosts = hosts
         self.port = port
         self.pairedAt = pairedAt
+        self.lastSeen = lastSeen
     }
 }
 
@@ -43,6 +45,8 @@ public final class MemoryTokenVault: TokenVault {
 
 @MainActor
 public final class ComputerStore {
+    public static let seenEvery: TimeInterval = 60
+
     public private(set) var computers: [Computer]
     public let vault: any TokenVault
     private let file: URL?
@@ -64,6 +68,13 @@ public final class ComputerStore {
         } else {
             computers.append(computer)
         }
+        try persist()
+    }
+
+    public func seen(_ id: String, at date: Date) throws {
+        guard let index = computers.firstIndex(where: { $0.id == id }) else { return }
+        if let saved = computers[index].lastSeen, date.timeIntervalSince(saved) < Self.seenEvery { return }
+        computers[index].lastSeen = date
         try persist()
     }
 

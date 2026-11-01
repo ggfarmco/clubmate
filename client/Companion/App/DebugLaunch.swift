@@ -7,7 +7,9 @@ import CompanionKit
 @MainActor
 enum DebugLaunch {
     static func transport() -> (any HTTPTransport)? {
-        UserDefaults.standard.string(forKey: "fixtures").map { FixtureTransport(directory: URL(filePath: $0)) }
+        let defaults = UserDefaults.standard
+        let offline = defaults.object(forKey: "offline") == nil ? nil : Duration.seconds(defaults.double(forKey: "offline"))
+        return defaults.string(forKey: "fixtures").map { FixtureTransport(directory: URL(filePath: $0), offlineAfter: offline) }
     }
 
     static func apply(model: CompanionModel, navigation: AppNavigation, pairing: PairingFlow) async {

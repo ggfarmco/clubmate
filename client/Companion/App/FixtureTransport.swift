@@ -5,19 +5,33 @@ import CompanionKit
 
 final class FixtureTransport: HTTPTransport {
     private let server: FixtureServer
+    private let offline: ContinuousClock.Instant?
 
-    init(directory: URL) {
+    init(directory: URL, offlineAfter: Duration? = nil) {
         server = FixtureServer(directory: directory)
+        offline = offlineAfter.map { .now + $0 }
+    }
+
+    private func reachable() throws {
+        if let offline, ContinuousClock.now >= offline { throw URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."]) }
     }
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         try await Task.sleep(for: .milliseconds(120))
+        try reachable()
         let (status, body) = await server.handle(path: request.url?.path() ?? "", body: request.httpBody ?? Data())
         return (body, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!)
     }
 
     func stream(_ request: URLRequest) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, any Error>) {
+        try reachable()
         let stream = await server.subscribe()
+        if let offline {
+            Task { [server] in
+                try? await Task.sleep(until: offline)
+                await server.drop()
+            }
+        }
         return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!, stream)
     }
 }
@@ -98,6 +112,13 @@ actor FixtureServer {
             }
         }
         return stream
+    }
+
+    func drop() {
+        for subscriber in subscribers {
+            subscriber.finish(throwing: URLError(.networkConnectionLost, userInfo: [NSLocalizedDescriptionKey: "The network connection was lost."]))
+        }
+        subscribers = []
     }
 
     func handle(path: String, body: Data) -> (Int, Data) {

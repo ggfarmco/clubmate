@@ -166,6 +166,26 @@ final class ModelTests: XCTestCase {
     }
 
     @MainActor
+    func testComputerStoreKeepsLastSeenAcrossLaunches() throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: "computers.json")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"[{"id":"m","name":"Mac","hosts":["h"],"port":1,"pairedAt":"2026-10-31T10:00:00Z"}]"#.utf8).write(to: file)
+        let vault = MemoryTokenVault()
+        let store = ComputerStore(file: file, vault: vault)
+        XCTAssertEqual(store.computers.map(\.id), ["m"])
+        XCTAssertNil(store.computers[0].lastSeen)
+
+        let seen = Date(timeIntervalSince1970: 1_800_000_000)
+        try store.seen("m", at: seen)
+        try store.seen("m", at: seen.addingTimeInterval(ComputerStore.seenEvery - 1))
+        XCTAssertEqual(ComputerStore(file: file, vault: vault).computers[0].lastSeen, seen)
+
+        let connection = ComputerConnection(computer: ComputerStore(file: file, vault: vault).computers[0], token: "t", transport: FakeTransport())
+        XCTAssertEqual(connection.presence, "offline since " + ComputerConnection.clock(seen))
+        XCTAssertEqual(connection.blocked, "Can't answer — Mac is offline · as of " + ComputerConnection.clock(seen))
+    }
+
+    @MainActor
     func testInboxHoldsBackWhatTheSessionPolicyExcludes() async throws {
         let store = ComputerStore(file: nil, vault: MemoryTokenVault())
         try store.save(Computer(id: "m", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")

@@ -271,8 +271,8 @@ struct ConnectionBanner: View {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(connection.state.label)
-                    if case .offline(let reason?) = connection.state {
-                        Text(reason).font(.footnote).foregroundStyle(.secondary)
+                    if let detail = connection.offlineDetail {
+                        Text(detail).font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             } icon: {

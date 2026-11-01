@@ -23,7 +23,8 @@ struct SessionDetailView: View {
         let entries = store.entries(sessionID)
         let session = store.session(sessionID)
         let screen = SessionScreen(entries: entries, session: session)
-        let online = context.connection.state == .online
+        let blocked = context.connection.blocked
+        let permissionDocked = if case .permission = screen.dock { true } else { false }
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
                 ForEach(screen.rows) { row in
@@ -75,12 +76,12 @@ struct SessionDetailView: View {
                     Group {
                         switch dock {
                         case .permission(let request, let more):
-                            PermissionCard(request: request, more: more, agentName: session.agentName, place: session.worktreeName, enabled: online) { option in
+                            PermissionCard(request: request, more: more, agentName: session.agentName, place: session.worktreeName, blocked: blocked) { option in
                                 try await answer(request: request.id, option: option)
                             }
                             .id(request.id)
                         case .elicitation(let question):
-                            ElicitationCard(question: question, agentName: session.agentName, enabled: online) { action, answers in
+                            ElicitationCard(question: question, agentName: session.agentName, enabled: blocked == nil) { action, answers in
                                 try await store.respond(sessionID, request: question.id, action: action, answers: answers)
                             }
                             .id(question.id)
@@ -98,7 +99,8 @@ struct SessionDetailView: View {
                         attachments: $attachments,
                         focused: $composerFocused,
                         session: session,
-                        enabled: online,
+                        enabled: blocked == nil,
+                        blocked: permissionDocked ? nil : blocked,
                         sending: sending,
                         send: send
                     )
@@ -265,6 +267,7 @@ struct ComposerView: View {
     var focused: FocusState<Bool>.Binding
     let session: AgentSession?
     let enabled: Bool
+    var blocked: String? = nil
     let sending: Bool
     let send: () -> Void
     @State private var picked: [PhotosPickerItem] = []
@@ -325,7 +328,7 @@ struct ComposerView: View {
                         .disabled(empty || sending || importing > 0)
                         .accessibilityLabel(session?.sendLabel ?? "Send")
                     }
-                    if let caption = session?.composerCaption {
+                    if let caption = blocked ?? session?.composerCaption {
                         Text(caption)
                             .font(.caption)
                             .foregroundStyle(.secondary)

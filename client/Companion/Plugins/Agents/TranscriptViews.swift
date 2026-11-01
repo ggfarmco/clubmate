@@ -589,7 +589,7 @@ struct PermissionCard: View {
     let more: Int
     let agentName: String
     let place: String
-    let enabled: Bool
+    let blocked: String?
     let choose: @MainActor (String) async throws -> Void
     @State private var chosen: String?
     @State private var failure: String?
@@ -703,12 +703,16 @@ struct PermissionCard: View {
         }
     }
 
+    private var enabled: Bool {
+        blocked == nil
+    }
+
     private var answerable: Bool {
         enabled && armed && chosen == nil
     }
 
     private var caption: String? {
-        if !enabled { return "Can't answer while the Mac is offline" }
+        if let blocked { return blocked }
         let intent = (request.toolCall.intent ?? (request.toolCall.displayTitle != request.subject ? request.toolCall.displayTitle : nil)).map { "\(agentName) says: \($0)" }
         let rest = more > 0 ? (more == 1 ? "1 more request waiting" : "\(more) more requests waiting") : nil
         let parts = [intent, rest].compactMap { $0 }
