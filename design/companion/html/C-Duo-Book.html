@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion: iPhone Duo open, book pose</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .vbar{position:absolute;right:10px;display:flex;flex-direction:column;align-items:center;gap:10px;z-index:5}
+.comp .vpill{display:flex;flex-direction:column;align-items:center;width:44px;border-radius:22px;padding:4px 0}
+.comp .vpill>button{width:44px;height:44px;border:0;background:none;color:var(--fg);display:flex;align-items:center;justify-content:center}
+.comp .vpill svg.i,.comp .vbar .gbtn svg.i{width:22px;height:22px;stroke-width:1.7}
+.comp .di{position:absolute;top:12px;right:17px;width:32px;height:86px;border-radius:16px;background:#000;z-index:6}
+.comp.th-clight .crease{background:linear-gradient(90deg,transparent,rgba(0,0,0,.07) 50%,transparent)}
+.comp.th-cdark .crease{background:linear-gradient(90deg,transparent,rgba(255,255,255,.07) 50%,transparent)}
+.comp.th-clight .crease.h{background:linear-gradient(180deg,transparent,rgba(0,0,0,.07) 50%,transparent)}
+.comp.th-cdark .crease.h{background:linear-gradient(180deg,transparent,rgba(255,255,255,.07) 50%,transparent)}
+</style>
+
+</head><body>
+
+<div class="cm comp th-clight" style="width: 951px; height: 669px">
+<div class="di" aria-hidden="true"></div>
+<div class="crease" aria-hidden="true" style="position: absolute; top: 0; bottom: 0; left: 455px; width: 40px"></div>
+
+<section class="col" aria-label="Sessions in shop" style="position: absolute; left: 0; top: 0; bottom: 0; width: 455px; display: flex; flex-direction: column; padding-top: 16px">
+<div class="colhd" style="padding: 0 16px; height: 48px">
+<button class="gbtn glass" aria-label="Back to Macs"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<span style="flex: 1"></span>
+<button class="gbtn glass" aria-label="New session"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.5 2.5H3a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5V7.5"/><path d="m13 2.5-5.5 5.5-.5 2 2-.5L14.5 4Z"/></svg></button>
+</div>
+<h1 class="big" style="margin: 0; padding: 4px 20px 0; font-size: 30px; line-height: 36px">shop</h1>
+<div class="cap mut" style="padding: 2px 20px 0"><span class="mdot id-blue" style="margin-right: 6px"></span>Mac Studio · online</div>
+<div class="hdr" style="padding: 14px 20px 6px; font-size: 13px"><span>Needs you</span><span>2</span></div>
+<div class="ig" style="margin: 0 12px">
+<div class="c" style="align-items: flex-start"><span class="st wa" style="width: 26px; height: 26px; margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="sub w6">Refactor the cart total into its own function</span><span class="cap ell"><span class="wa-i">Wants to run</span> <span class="mono" style="font-size: 12px">go test ./…</span></span></div></div>
+<div class="c nest sel" style="align-items: flex-start"><span class="st wa" style="width: 22px; height: 22px; margin-top: 2px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 13px; height: 13px"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/></svg></span><div class="cbody"><span class="cap mut">Subagent · AFK</span><span class="sub w6 ell">Explain the checkout flow</span><span class="cap ell"><span class="wa-i">Asks:</span><span class="t2"> Add retries to the charge step?</span></span></div></div>
+</div>
+<div class="hdr" style="padding: 18px 20px 6px; font-size: 13px"><span>Running</span><span>1</span></div>
+<div class="ig" style="margin: 0 12px"><div class="c"><span class="st ac" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><div class="cbody"><span class="sub ell">Add stock reservation expiry</span><span class="cap mut">Editing reserve.go · 4 min</span></div></div></div>
+</section>
+
+<nav class="vbar" aria-label="Session controls" style="top: 112px">
+<div class="vpill glass"><button aria-label="Stop the subagent"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.8" style="fill: currentColor"/></svg></button><button aria-label="More: open parent session, mode"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button></div>
+</nav>
+<main class="col" style="position: absolute; left: 495px; right: 64px; top: 0; bottom: 0; display: flex; flex-direction: column; padding: 18px 8px 20px 12px; gap: 10px">
+<div style="display: flex; flex-direction: column; flex: none">
+<span class="w6 ell">Explain the checkout flow</span>
+<span class="cap"><span class="wa-i">Asking you</span><span class="mut"> · <span class="mdot id-blue" style="margin: 0 4px 0 1px; width: 7px; height: 7px"></span>Mac Studio · subagent</span></span>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; display: grid; align-content: end; gap: 10px">
+<div class="ub" style="justify-self: end">Explain the checkout flow</div>
+<p>Checkout runs in three steps: <i>validate</i>, <i>reserve</i>, <i>charge</i>.</p>
+<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px"><li><b>validate</b> checks the cart</li><li><b>reserve</b> holds stock for 10 minutes</li><li><b>charge</b> calls the payment provider</li></ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; flex: none">
+<section class="cc" aria-label="Question from Claude" style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<span class="cap wa-i w6">Claude is asking</span>
+<p class="w6" style="font-size: 19px; line-height: 25px">Should I add retries to the charge step?</p>
+<span class="cap mut">Paused until you answer.</span>
+</section>
+<div class="cmp">
+<button class="gbtn glass" aria-label="Attach a photo or video"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><circle cx="5.5" cy="6.5" r="1.2"/><path d="m1.5 11.5 4-3.5 3 2.5 2-1.5 4 3"/></svg></button>
+<label class="fld glass" for="duo-b-msg">Answer Claude…</label>
+<input id="duo-b-msg" aria-label="Answer Claude…" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gbtn" aria-label="Send" disabled style="background: var(--ac); color: var(--on-ac); opacity: .35"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+</div>
+</div>
+</main>
+</div>
+</body></html>

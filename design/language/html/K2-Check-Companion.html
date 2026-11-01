@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Build check, companion</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+.doc .imp{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:18px;padding:0 6px;border-radius:4px;white-space:nowrap}
+.doc .im{background:#F4D6D2;color:#7A1F17}.doc .ih{background:#E4E2D9;color:#2C302D}.doc .it{background:#EEECE5;color:#5B5F5C}.doc .ic{background:#F3E0C3;color:#71440B}.doc .in{color:#9A9C97}
+.doc .tag.d{background:#E9DDF3;color:#4B2A6B}
+.doc .ver{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:22px;padding:0 9px;border-radius:11px;white-space:nowrap}
+.doc .vm{background:#D9EAD9;color:#1D5A2B}.doc .vd{background:#F3E0C3;color:#71440B}.doc .vw{background:#F4D6D2;color:#7A1F17}
+.doc .scr{display:flex;flex-direction:column;gap:8px;padding-top:18px;border-top:1px solid #DAD8CF}
+.doc .scr h3{font-size:18px}
+.doc td.k{width:120px}.doc td.cl{width:44px;text-align:center}
+</style>
+
+</head><body>
+
+<div class="doc" style="width: 1480px; min-height: 4100px; padding: 64px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · build check · 1 Nov 2026</div>
+<h1>K2 · Companion, cross-screen, verdicts</h1>
+<p class="lead">iPhone only (iPad and iPhone Duo aren't built yet). The phone follows the boards closely; what needs work is the banner, the folded subagent, an inline Stop, and Backlog, which had no board.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: center; font-size: 14px">
+<span>Impact, highest first:</span><span class="imp im">state · meaning</span><span class="imp ih">hierarchy</span><span class="imp it">spacing · type</span><span class="imp ic">colour</span>
+<span style="padding-left: 12px">Class:</span><span><span class="tag a">a</span> token / renderer</span><span><span class="tag b">b</span> SDUI prop or node</span><span><span class="tag c">c</span> plugin content</span><span><span class="tag d">d</span> board changes</span>
+</div>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>C-Macs · C-Macs-Light</h3><span class="ver vm">matches</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Needs you is ordered oldest first (25 min → 4 min → 1 min); the board had no order.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>Board rule: oldest first, everywhere (Q2).</td></tr>
+<tr><td>Colours, dots and tinted Mac glyphs as specified.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="in">—</span></td><td>OK.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>C-Workspace · C-Workspace-Light</h3><span class="ver vw">needs work</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>The subagent that asks a question is folded into a “1 ›” on its parent: “Needs you 2” shows one row, and the question isn't visible.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Nested row one step in (C3 rule). Never fold an item that needs you.</td></tr>
+<tr><td>Parent state line loses the time: “go test ./… · 1…”.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag a">a</span></td><td>Truncate the command, keep the time.</td></tr>
+<tr><td>Running row says “Running · 4 min”, repeating its section.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag b">b</span></td><td>Last tool title per session in the list payload → “Editing reserve.go · 4 min”.</td></tr>
+<tr><td>Agents | Backlog control and a Done section.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>Board takes both (C-Workspace redrawn).</td></tr>
+<tr><td>Control sits tight under the subtitle.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag a">a</span></td><td>12 pt above, 8 below.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>C-Permission · C-Permission-Light</h3><span class="ver vw">needs work</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>A Needs-you banner for another session floats over the transcript and covers the plan card.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>Banner sits inline at the top of the scroll area, not over it.</td></tr>
+<tr><td>The banner's request is MacBook Pro's, but it shows no Mac name or dot (3 Macs paired).</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Second line “● MacBook Pro · infra · Wants to run terraform…”.</td></tr>
+<tr><td>Banner and docked card both show a filled amber hand: two things ask at once.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>Banner on a neutral surface with an outline glyph; amber fill only for this session's request.</td></tr>
+<tr><td>A full-width red Stop inside the running subagent card, in the scroll area above the request.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Card shows spinner + “Running · 1 min”; Stop in the card's menu with a confirm (C3).</td></tr>
+<tr><td>Caption “Claude says: Run the shop tests”.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>Better than the board: agent text is attributed. Board and Mac take it.</td></tr>
+<tr><td>••• in the card header (Always reject…), footer “Sends after the current turn · Stop is in •••”, grey disabled Send, “Context compacted” row.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>All good; board redrawn with them.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>C-Question · C-Question-Light</h3><span class="ver vd">minor drift</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>No “Started by · Refactor the cart total…” link to the parent session.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>Restore the card (the parent is known: nesting works).</td></tr>
+<tr><td>Banner for the parent's request — same fixes as C-Permission.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>—</td></tr>
+<tr><td>Bullets are small grey dots.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag a">a</span></td><td>Body size, label colour.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>C-Inbox · C-Inbox-Light</h3><span class="ver vm">matches</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Order differs only by fixture.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="in">—</span></td><td>OK.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>C-MacInfo · C-MacInfo-Light</h3><span class="ver vm">matches</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Picker, used-by labels, caption as specified.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="in">—</span></td><td>OK.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>x-Backlog</h3><span class="ver vw">needs work</span><span class="muted" style="font-size: 14px">No board before: C-Backlog added.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Priority as filled orange pills: orange is the needs-you family here, and it isn't our amber token. The Mac shows the same value in blue.</td><td class="k"><span class="imp ic">colour</span></td><td class="cl"><span class="tag a">a</span></td><td>Neutral glyph as on the Mac board: !! high · ↓ low, secondary ink.</td></tr>
+<tr><td>Flat list with hairlines, while Agents (the other segment) uses inset groups.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>Same inset groups.</td></tr>
+<tr><td>Section counts inline (“Todo · 2”); Agents puts them at the right.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag a">a</span></td><td>Count at the right.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>x-Offline (one Mac)</h3><span class="ver vd">minor drift</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Needs you disappears while the rows still say “2 waiting”.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Keep Needs you, dimmed, “as of 13:43 · answer when Mac Studio is back”; rows open read-only (C-Offline).</td></tr>
+<tr><td>One Mac: no dot, untinted glyph.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="in">—</span></td><td>OK, per C5.</td></tr>
+</tbody></table>
+</section>
+<section class="scr" style="border-top: 1.5px solid #1B1D1C; padding-top: 24px">
+<h2>Cross-screen</h2>
+<table><thead><tr><th style="width: 180px">Topic</th><th>Now</th><th style="width: 36%">One rule</th></tr></thead><tbody>
+<tr><td><b>Permission request</b></td><td>Mac: “Claude wants to run …” + Allow / Always allow / Reject. Phone: “Run a command?” + command box + Allow once / Always allow… / Reject.</td><td>One model for both: title, command box, attributed caption, “Allow once · Always allow… · Reject”.</td></tr>
+<tr><td><b>Agent's reason</b></td><td>Mac drops <code>description</code>; phone shows “Claude says: …”.</td><td>Show it on both, always attributed.</td></tr>
+<tr><td><b>Failed and running</b></td><td>Mac: failed = ✓, running = dotted grey circle. Phone: “Stopped · error” ✕, running = green play.</td><td>One status map: glyph + word + tone.</td></tr>
+<tr><td><b>Waiting tone</b></td><td>Amber in headers and on the phone; accent blue in the Graphs list; grey in the Agents sidebar.</td><td>Amber for every needs-you.</td></tr>
+<tr><td><b>Priority</b></td><td>Mac list: blue badge; Mac header: amber badge; phone: orange pill.</td><td>Neutral glyph everywhere.</td></tr>
+<tr><td><b>Stop</b></td><td>Mac: header + composer (beside Queue). Phone: ••• + a full-width Stop on subagent cards.</td><td>One Stop per surface, never beside send.</td></tr>
+<tr><td><b>⌥1–3</b></td><td>Answer a permission in Agents; run a suggestion in the Code chat.</td><td>Only permission answers.</td></tr>
+<tr><td><b>Notification copy</b></td><td>Mac popover: “Claude is waiting for permission”. Phone Inbox: “Permission · Run go test ./…”.</td><td>The phone's.</td></tr>
+<tr><td><b>Theme vs system</b></td><td>Inbox popover mixes theme ink with a system background.</td><td>Each surface is wholly themed or wholly system.</td></tr>
+<tr><td><b>Destructive actions</b></td><td>Delete / Remove beside primary actions (Backlog, Cron, Graphs, Triggers).</td><td>Far end of the bar; in ••• when the object is running or owned.</td></tr>
+<tr><td><b>Names over ids</b></td><td>agents.new, agents.prompt, agt_…, gr_…, a bare sha.</td><td>Names first; ids faint or on demand.</td></tr>
+<tr><td><b>Composer placeholder</b></td><td>“Ask a follow-up, or type / for commands…” · “Ask Claude, @ to attach a file, / for commands…” · “Queue a message” · “Answer Claude…”.</td><td>By state: idle “Message Claude…”, busy “Queue a message”, asked “Answer Claude…”; / and @ in the hint row.</td></tr>
+<tr><td><b>Case</b></td><td>Title Case in the worktree picker and popover buttons; sentence case elsewhere.</td><td>Sentence case in themed UI; Title Case only in system Settings and menus.</td></tr>
+<tr><td><b>Session header</b></td><td>Phone: “Waiting for you · ● Mac Studio · shop”. Mac: title only.</td><td>Mac header shows status, agent, branch, mode.</td></tr>
+</tbody></table>
+</section>
+<div style="display: grid; grid-template-columns: 520px minmax(0, 1fr); gap: 48px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2>Verdicts</h2>
+<table><tbody>
+<tr><td>Agents-1280 · Agents-640</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>x-Title-Dot-1280</td><td><span class="ver vd">minor drift</span></td></tr>
+<tr><td>Code-1280 · Code-640</td><td><span class="ver vd">minor drift</span></td></tr>
+<tr><td>Backlog-1280 · Backlog-640</td><td><span class="ver vd">minor drift</span></td></tr>
+<tr><td>Cron-1280</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>Triggers-640 · x-Triggers-1280</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>Graphs-1280 · Graphs-640</td><td><span class="ver vd">minor drift</span></td></tr>
+<tr><td>Processes-1280</td><td><span class="ver vd">minor drift</span></td></tr>
+<tr><td>Mac-Settings-Remote</td><td><span class="ver vm">matches</span></td></tr>
+<tr><td>x-Inbox-popover</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>x-Approval-Sheet</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>x-Worktree-Picker</td><td><span class="ver vd">minor drift</span></td></tr>
+<tr><td>C-Macs · C-Macs-Light</td><td><span class="ver vm">matches</span></td></tr>
+<tr><td>C-Workspace · C-Workspace-Light</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>C-Permission · C-Permission-Light</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>C-Question · C-Question-Light</td><td><span class="ver vd">minor drift</span></td></tr>
+<tr><td>C-Inbox · C-Inbox-Light</td><td><span class="ver vm">matches</span></td></tr>
+<tr><td>C-MacInfo · C-MacInfo-Light</td><td><span class="ver vm">matches</span></td></tr>
+<tr><td>x-Backlog</td><td><span class="ver vw">needs work</span></td></tr>
+<tr><td>x-Offline (one Mac)</td><td><span class="ver vd">minor drift</span></td></tr>
+</tbody></table>
+</section>
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2>Boards updated</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li><b>C-Permission</b>: banner inline and neutral with the Mac's dot; subagent card without the big Stop; “Claude says:” caption; ••• in the card; footer hint; grey disabled Send; Context compacted.</li>
+<li><b>C-Workspace</b>: Agents | Backlog control, nested subagent kept, Running says what it does, Done section.</li>
+<li><b>C-Backlog</b> (new, dark + light): inset groups, neutral priority glyphs, counts at the right.</li>
+<li><b>Mac-Settings-Remote</b>: redrawn as the native form the build uses.</li>
+<li><b>Mac-AlwaysAllow</b> (new): the confirm popover for ⌥2; Agents boards renamed to Allow once · Always allow….</li>
+<li><b>C-Offline</b> (new): one Mac offline, its waiting items dimmed and read-only.</li>
+<li><b>Mac-ChatGraphStep</b> (new): the Code chat on a graph step; Code-1280 now shows a regular new chat.</li>
+</ul>
+<h2 style="padding-top: 16px">Decided</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li><b>Code chat on a graph step:</b> not chosen by default; if picked by hand, it explains the step, offers Open in Graphs / New chat, and the composer stays off until the loop has run it.</li><li><b>Always allow on the Mac:</b> ⌥2 opens a confirm with the rule and scope; Cancel is the default, ⌥2 again confirms. Labels on both clients: Allow once · Always allow… · Reject.</li><li><b>Offline Mac:</b> its waiting items stay in Needs you, dimmed and read-only, with “as of 13:43 — you can answer when it's back”.</li>
+</ul>
+<h2 style="padding-top: 16px">Open questions</h2>
+<ol style="margin: 0; padding-left: 20px; font-size: 15px; display: flex; flex-direction: column; gap: 8px">
+<li><b>Approval sheet default.</b> Which button does ⏎ trigger? I'd make Deny the default for ⏎ and Esc.</li>
+<li><b>Needs-you order.</b> Oldest first everywhere (phone does it already) — Mac popover and Agents filter too?</li>
+<li><b>Mac name.</b> Read-only, taken from the Mac's computer name — confirm, and C5 says so.</li>
+<li><b>Popover glow.</b> The coloured rim around the Inbox popover — ours or a capture artefact?</li>
+<li><b>Not received:</b> Processes-640, x-Palette, x-Switcher and <code>mac/notes.md</code>. Send them if you want them checked.</li>
+</ol>
+</section>
+</div>
+</div>
+</body></html>

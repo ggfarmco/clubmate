@@ -5,7 +5,9 @@ Claude Design's answer to `design/brief/prompt.md`: the review, the design langu
 - `png/`: every board at 2×.
   - `Audit`, `Principles`, `Tokens`, `Components`, `AgentNodes`, `Patterns` and `Handoff` hold the review and the language.
   - `*-1280` are mockups in Kanagawa (dark); `*-640` are mockups in Catppuccin Latte (light); `Agents-Mate-1280` is the Agents screen in the Mate theme with the Mac's colour dot in the workspace pill.
-  - `Mac-Settings-Remote`: Settings → Remote with this Mac's name and colour, the title-bar option and paired devices.
+  - `Mac-Settings-Remote`: Settings → Remote as built (native form) with this Mac's name and colour, the title-bar option and paired devices.
+  - `Mac-AlwaysAllow`: the Mac confirm for Always allow… (⌥2 opens it, ⌥2 again stores the rule). `Mac-ChatGraphStep`: the Code chat on a graph step, off until the loop runs it.
+  - `K1-Check-Mac`, `K2-Check-Companion`: the build check of 1 Nov 2026 (divergences per screen with impact, class a–d and fix; verdicts; decisions). The fix list that goes with them is `design/check/fix-list.md`.
   - `Main` and `Layers` present the icon.
 - `html/`: the same boards as standalone pages, with fonts and styles in `assets/`. `assets/cm.css` holds the theme roles and the Mac colour tokens (`--id-*`); swap the `.th-*` class on a board's root to try another palette.
 - `source/`: the raw canvas files (`.dc.html`, `canvas.json`, `cm.css`, `c.css`) as they live in the Claude Design artifact.

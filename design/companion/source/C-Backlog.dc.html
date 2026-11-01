@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: workspace backlog</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .seg{margin:12px 16px 0;height:34px;border-radius:17px;background:var(--s2);display:grid;grid-template-columns:1fr 1fr;padding:2px}
+.comp .seg>button{border:0;border-radius:15px;font-size:15px;line-height:20px;color:var(--fg);background:none}
+.comp .seg>button[aria-selected="true"]{font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.comp.th-cdark .seg>button[aria-selected="true"]{background:#636366}
+.comp.th-clight .seg>button[aria-selected="true"]{background:#FFFFFF}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="top">
+<button class="gbtn glass" aria-label="Back to Macs"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<span style="flex: 1"></span>
+<div class="gpill glass"><button aria-label="Files"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></button><button aria-label="New task"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div>
+</div>
+<div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<h1 class="big" style="margin: 0; padding: 0 20px">shop</h1>
+<div class="cap mut" style="padding: 2px 20px 0"><span class="mdot id-blue" style="margin-right: 6px"></span>Mac Studio · online</div>
+<div class="seg" role="tablist" aria-label="Workspace view"><button role="tab" aria-selected="false">Agents</button><button role="tab" aria-selected="true">Backlog</button></div>
+
+<div class="hdr"><span>In progress</span><span class="cap">1</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st ac" style="margin-top: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5Z"/></svg></span><div class="cbody"><span style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden"><span class="w6" aria-label="High priority" style="color: var(--t3); margin-right: 6px">!!</span>Retry the charge step on 502</span><span class="cap mut ell">#7 · Claude · Refactor the cart total</span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+
+<div class="hdr"><span>Todo</span><span class="cap">2</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg></span><div class="cbody"><span style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden"><span class="w6" aria-label="High priority" style="color: var(--t3); margin-right: 6px">!!</span>Cart badge shows stale count after checkout</span><span class="cap mut ell">#9</span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg></span><div class="cbody"><span style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">Split checkout.go into validate, reserve, charge</span><span class="cap mut ell">#4</span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+
+<div class="hdr"><span>Idea</span><span class="cap">1</span></div>
+<div class="ig">
+<div class="c" style="align-items: flex-start"><span class="st n" style="margin-top: 1px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 12.5h4M6.5 14.5h3M8 1.5a4.5 4.5 0 0 0-2.5 8.2V11h5V9.7A4.5 4.5 0 0 0 8 1.5Z"/></svg></span><div class="cbody"><span style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden"><span aria-label="Low priority" style="color: var(--t3); margin-right: 6px">↓</span>Cache product images on the CDN</span><span class="cap mut ell">#11 · found while profiling the product page</span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+
+<div class="hdr" style="padding-top: 26px"><span>Not now · 1</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="hdr" style="padding-top: 14px"><span>Done · 1</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

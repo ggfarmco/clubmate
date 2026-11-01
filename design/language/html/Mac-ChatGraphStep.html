@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Code chat on a graph step</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>body{margin:0}</style>
+
+</head><body>
+
+<div class="cm th-kanagawa" style="width: 400px; height: 620px">
+<aside aria-label="Chat" style="height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--bd); background: var(--bg)">
+<div class="phead" style="padding: 0 6px; background: var(--s1)">
+<button class="btn sm gh" style="flex: 0 1 auto; min-width: 0"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg><span class="ell">Review loop · Reviewer</span><svg class="i s12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
+<span style="flex: 1"></span>
+<button class="btn ico sm gh" aria-label="New chat ⌘N"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+<button class="btn ico sm gh" aria-label="Hide chat ⌘J"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M10 2.5v11"/></svg></button>
+</div>
+<div style="flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 24px 20px">
+<svg class="i s16 mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 20px; height: 20px"><circle cx="3.5" cy="4" r="1.8"/><circle cx="12.5" cy="4" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="M5.3 4h5.4M4.4 5.6l2.7 4.8M11.6 5.6l-2.7 4.8"/></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span class="b">Reviewer is a step of Review loop</span>
+<p class="t2">It starts on its own when Coder finishes its turn, and gets Coder's result. You can write here once it has run.</p>
+</div>
+<div class="props" style="grid-template-columns: 70px minmax(0, 1fr)">
+<span class="k">Coder</span><span class="v"><svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8v3.8M8 11.1v.1"/></svg><span class="wa-i">waiting for you</span></span>
+<span class="k">Reviewer</span><span class="v"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/></svg><span class="mut">not started · runs after Coder</span></span>
+</div>
+<div class="abar">
+<button class="btn">Open in Graphs<span class="kbd">⌘8</span></button>
+<button class="btn gh">New chat<span class="kbd">⌘N</span></button>
+</div>
+</div>
+<div style="padding: 0 12px 12px; flex: none">
+<div class="card" style="display: flex; flex-direction: column; opacity: .6">
+<span class="faint" style="padding: 8px 12px 0; min-height: 44px">Reviewer runs as part of Review loop</span>
+<div style="display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px 6px">
+<span class="cap faint" style="padding-left: 6px">Claude · Ask before edits</span>
+<span style="flex: 1"></span>
+<button class="btn sm pri dis" disabled>Send<span class="kbd">⌘⏎</span></button>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</body></html>

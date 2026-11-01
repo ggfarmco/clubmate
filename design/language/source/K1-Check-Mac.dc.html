@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Build check, Mac</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+.doc .imp{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:18px;padding:0 6px;border-radius:4px;white-space:nowrap}
+.doc .im{background:#F4D6D2;color:#7A1F17}.doc .ih{background:#E4E2D9;color:#2C302D}.doc .it{background:#EEECE5;color:#5B5F5C}.doc .ic{background:#F3E0C3;color:#71440B}.doc .in{color:#9A9C97}
+.doc .tag.d{background:#E9DDF3;color:#4B2A6B}
+.doc .ver{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:22px;padding:0 9px;border-radius:11px;white-space:nowrap}
+.doc .vm{background:#D9EAD9;color:#1D5A2B}.doc .vd{background:#F3E0C3;color:#71440B}.doc .vw{background:#F4D6D2;color:#7A1F17}
+.doc .scr{display:flex;flex-direction:column;gap:8px;padding-top:18px;border-top:1px solid #DAD8CF}
+.doc .scr h3{font-size:18px}
+.doc td.k{width:120px}.doc td.cl{width:44px;text-align:center}
+</style>
+</helmet>
+<div class="doc" style="width: 1480px; min-height: 4780px; padding: 64px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate · build check · 1 Nov 2026</div>
+<h1>K1 · Mac build vs boards</h1>
+<p class="lead">Tracked gaps, the decisions that overrule the boards and seed data are left out. Most of what is left is three things: the status map (failed, running, waiting), the permission card, and plugin content that shows ids and method names instead of words.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: center; font-size: 14px">
+<span>Impact, highest first:</span><span class="imp im">state · meaning</span><span class="imp ih">hierarchy</span><span class="imp it">spacing · type</span><span class="imp ic">colour</span>
+<span style="padding-left: 12px">Class:</span><span><span class="tag a">a</span> token / renderer</span><span><span class="tag b">b</span> SDUI prop or node</span><span><span class="tag c">c</span> plugin content</span><span><span class="tag d">d</span> board changes</span>
+</div>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Agents-1280 · Agents-640</h3><span class="ver vw">needs work</span><span class="muted" style="font-size: 14px">Shared by both widths; 640 is captured at 800pt.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>“Migrate agents store…” failed (exit status 1) but the sidebar shows the done glyph ✓ and no “exit 1”.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Failed → danger ✕ glyph + “exit 1” in danger ink. One status map shared with the phone, which already says “Stopped · error”.</td></tr>
+<tr><td>Running “Port cron…” shows a dotted grey circle — reads as pending.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Running = accent play-in-circle, as on the board and the phone.</td></tr>
+<tr><td>Session header lost its state: no “Claude · docs/… · Ask before edits” line, no “waiting for you” badge.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag b">b</span></td><td>Session header node gets <code>status</code>, <code>agent</code>, <code>branch</code>, <code>mode</code>; render as on the board.</td></tr>
+<tr><td>Two Stop buttons: one in the header and one in the composer, right beside Queue.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Keep the header Stop with its ⎋ hint. The composer's right slot is only Queue / Send.</td></tr>
+<tr><td>Permission card is one sentence (“Claude wants to run go test …”): no title, no command box, and the request's <code>description</code> isn't shown.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>Title “Run a command?”, command in a mono box, caption from <code>description</code> attributed “Claude says: …” (as on the phone); buttons “Allow once · Always allow… · Reject”.</td></tr>
+<tr><td>Always allow has no ⌥2 and stores the rule at once, without the confirm the phone shows.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>⌥2 opens a popover with the rule (<code>Bash(go test:*)</code>) and its scope; Cancel ⎋ is the default, ⌥2 again confirms (Mac-AlwaysAllow).</td></tr>
+<tr><td>Diff card prints raw <code>--- a/</code> <code>+++ b/</code> lines, no line numbers; Open in nvim / Diff sit at the bottom without ⌘O / ⌘D.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>File bar on top with the actions and keys, hunk header, line numbers — the board's diff.</td></tr>
+<tr><td>Needs-you rows say “Waiting for per…” / “Coder need…” in grey.</td><td class="k"><span class="imp ic">colour</span></td><td class="cl"><span class="tag a">a</span></td><td>Short state word in warning ink: “waiting”.</td></tr>
+<tr><td>The selected filter chip (“All 7”) gets an accent outline, which reads as keyboard focus.</td><td class="k"><span class="imp ic">colour</span></td><td class="cl"><span class="tag a">a</span></td><td>Selected chip = filled (pressed) pill; the accent ring only for focus.</td></tr>
+<tr><td>Latte: warning glyphs, the “Needs you” chip and the bell count are filled with the dark warning ink, so they look brown.</td><td class="k"><span class="imp ic">colour</span></td><td class="cl"><span class="tag a">a</span></td><td>Fills use the warning tone with a dark glyph; the ink is for text only.</td></tr>
+<tr><td>“Thinking” has no duration.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag b">b</span></td><td><code>thought</code> node carries its duration → “Thought for 4 s”.</td></tr>
+<tr><td>Sidebar starts with “+ New · New in worktree…” instead of the board's title + search.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag d">d</span></td><td>Keep the build: the worktree entry point is more useful than a title.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>x-Title-Dot-1280</h3><span class="ver vd">minor drift</span><span class="muted" style="font-size: 14px">Pill dot only.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Dot is there and is the same blue as on the phone.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="in">—</span></td><td>OK.</td></tr>
+<tr><td>In this capture the title bar is painted system light grey inside a dark theme (every other dark shot has a dark title bar).</td><td class="k"><span class="imp ic">colour</span></td><td class="cl"><span class="tag a">a</span></td><td>Title bar always uses the theme's surface-1, whether or not the dot is on or the window is key.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Code-1280 · Code-640</h3><span class="ver vd">minor drift</span><span class="muted" style="font-size: 14px">Beyond the tracked gaps.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Suggestions are bound to ⌥1 ⌥2 ⌥3 — the keys that answer a permission (Allow / Always / Reject) in Agents.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Board: bare 1 2 3 while the composer is empty (or no keys). ⌥1–3 mean permission answers everywhere.</td></tr>
+<tr><td>The panel opens on a graph node (“Review loop · Reviewer”, not started) and invites a free prompt; a message there runs the node outside its loop.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag c">c</span></td><td>Decided (a): the panel opens on the last regular session or a new chat. A graph step picked by hand shows “Reviewer is a step of Review loop”, Open in Graphs ⌘8, New chat ⌘N, and the composer stays off until the loop has run it (Mac-ChatGraphStep). The Code board now shows a regular chat.</td></tr>
+<tr><td>Empty state repeats the composer hint (“Ask anything, @ to attach…”).</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag c">c</span></td><td>Board copy says what it sees: “It sees the file and selection you're on.”</td></tr>
+<tr><td>Clubmate's status bar repeats nvim's own statusline (file, NORMAL, gopls, branch).</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>When the editor draws a statusline, the app bar shows only app items and the chat keys (⌘J chat · ⌘L focus chat).</td></tr>
+<tr><td>“Context ⌘I” in the panel header.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>Good addition; the board takes it.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Backlog-1280 · Backlog-640</h3><span class="ver vd">minor drift</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Priority is a text badge in accent blue in the list (“high”, “low”) and an amber badge in the header — one value, two tones, both reserved for other roles.</td><td class="k"><span class="imp ic">colour</span></td><td class="cl"><span class="tag a">a</span></td><td>Board's neutral glyphs: !! high · none for normal · ↓ low, secondary ink.</td></tr>
+<tr><td>Header repeats status and priority as badges right above the Status and Priority selects.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>Drop the header badges.</td></tr>
+<tr><td>Title appears twice: header and a Title field.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag b">b</span></td><td>Board edits the title in place (⏎). If the SDUI header can't edit, keep the field and show the header title smaller.</td></tr>
+<tr><td>Delete sits next to Done.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Delete at the far end of the bar (board). Same rule in Cron, Graphs, Triggers.</td></tr>
+<tr><td>List puts “#n” before the title.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag a">a</span></td><td>Number at the right in faint ink.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Cron-1280</h3><span class="ver vw">needs work</span><span class="muted" style="font-size: 14px">Mostly plugin content.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>“Missed runs: once” reads like a count; it is the catch-up policy.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag c">c</span></td><td>Two rows as on the board: “Missed — Sat 03:00, Mac was asleep · Run it now” (warning ink) and “When missed — Run once on wake”.</td></tr>
+<tr><td>Header has no state badges (“active”, “missed 1 run”).</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag c">c</span></td><td>Add them; “missed” in warning.</td></tr>
+<tr><td>“Does: agents.new” — a method name.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>“Start an agent · Claude · Default · new session in main”, prompt in a card, Show as JSON.</td></tr>
+<tr><td>Next run without the relative time; Owner “none”; no Worktree row.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag c">c</span></td><td>“Nov 2 · 03:00 · in 13 h”; “nobody — results go to the inbox”; Worktree main.</td></tr>
+<tr><td>Edit and Duplicate missing; Delete next to Pause.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>Edit E · Duplicate; Delete at the far end.</td></tr>
+<tr><td>Only “Poll CI” has a right-hand label in the list.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag c">c</span></td><td>Every row: next time or “paused”.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Triggers-640 · x-Triggers-1280</h3><span class="ver vw">needs work</span><span class="muted" style="font-size: 14px">Graph-made triggers.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Delete ⌘⌫ on a trigger the running graph owns — one click breaks the loop.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag c">c</span></td><td>Owned triggers: no Delete in the bar (••• with a warning), “Open graph G” instead.</td></tr>
+<tr><td>Owner “none” for a trigger the graph created.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag c">c</span></td><td>“created by graph Review loop” under the title (board).</td></tr>
+<tr><td>“When” is the raw event plus a JSON filter with session ids.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>“an agent turn finishes · status done · session Review loop · Coder”.</td></tr>
+<tr><td>“Does” prints the whole generated system prompt (~25 lines).</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>“start an agent as Reviewer”, prompt card clamped to 3 lines + Show all / Show as JSON.</td></tr>
+<tr><td>The three graph triggers sit among the user's with near-identical truncated names.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>Group them under “from graph Review loop · 3” (board breadcrumb).</td></tr>
+<tr><td>No Run now.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>Run now ⌘R first.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Graphs-1280 · Graphs-640</h3><span class="ver vd">minor drift</span><span class="muted" style="font-size: 14px">Beyond the tracked gaps.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>List row shows “waiting” as an accent-blue badge; the header says “Coder needs you” in amber.</td><td class="k"><span class="imp ic">colour</span></td><td class="cl"><span class="tag a">a</span></td><td>Amber for every needs-you; in the list, a warning glyph and the age (board).</td></tr>
+<tr><td>“Remove ⌘⌫” (danger) in the bar while the run is running.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag c">c</span></td><td>Bar: Open Coder · Stop run · Edit definition; Remove in ••• and only when stopped.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Processes-1280</h3><span class="ver vd">minor drift</span><span class="muted" style="font-size: 14px">Processes-640 wasn't in the set.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Long commands are cut at the end (“…/editor-nvim/prj_1a3983d56…”), losing the part that differs.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Truncate the path in the middle; keep the executable and its args.</td></tr>
+<tr><td>Owner list shows a kind label at the right (“terminals”, “core”).</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>Owner icon at the left, its CPU % at the right (board).</td></tr>
+<tr><td>Column “LAST MIN”.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag c">c</span></td><td>“LAST 10 MIN”, or keep 1 min and say so.</td></tr>
+<tr><td>No row selected, so the action bar (Copy command / Reveal / Kill) couldn't be checked.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="in">—</span></td><td>Re-capture with a row selected.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>Mac-Settings-Remote</h3><span class="ver vm">matches</span><span class="muted" style="font-size: 14px">System appearance, native form.</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Native grouped form; adds Allow companion devices, the listening address and Revoke… per device.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>The build is better: board redrawn to match it.</td></tr>
+<tr><td>Name is read-only text; the board had a field.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>Fine if it's the Mac's computer name (Q3).</td></tr>
+<tr><td>Preview: the iPhone row is set in mono; the phone uses SF.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag a">a</span></td><td>SF in the iPhone preview.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>x-Inbox-popover</h3><span class="ver vw">needs work</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>The popover is system-light but its text uses the theme's light foreground: titles, headers and captions are near-invisible (≈1.3:1).</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>A surface is either themed (theme bg + fg) or system (system bg + label colours). Popovers: system labels.</td></tr>
+<tr><td>Every title is “Claude is waiting for permission”; the task is the second line.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>Same as the phone Inbox: kind + what it wants (“Run go test ./…”), then the session.</td></tr>
+<tr><td>Waiting rows have no time; History rows do.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag c">c</span></td><td>Age on every row.</td></tr>
+<tr><td>Coloured glow around the popover.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="in">—</span></td><td>Ours or the capture? (Q4)</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>x-Approval-Sheet</h3><span class="ver vw">needs work</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>Says “2 entries, shown below” but lists three file headers, teardown.sh twice.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>De-duplicate; the count must match what's shown. In a trust prompt this is the bug that matters most.</td></tr>
+<tr><td>Metadata is one block as loud as the question; sha256 and paths compete with the command.</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag a">a</span></td><td>Top: question, workspace, command. Below, smaller and mono: repo, worktree, size, sha256.</td></tr>
+<tr><td>Allow is tinted red and on the left; it isn't clear which button ⏎ triggers.</td><td class="k"><span class="imp im">state · meaning</span></td><td class="cl"><span class="tag a">a</span></td><td>Default (⏎ and Esc) = Deny; Allow plain or destructive-tinted, never default (Q1).</td></tr>
+<tr><td>Control characters shown escaped (<code>\u{202e}</code>), long lines wrapped.</td><td class="k"><span class="imp in">—</span></td><td class="cl"><span class="tag d">d</span></td><td>Good — keep.</td></tr>
+</tbody></table>
+</section>
+<section class="scr">
+<div style="display: flex; align-items: center; gap: 12px"><h3>x-Worktree-Picker</h3><span class="ver vd">minor drift</span></div>
+<table><thead><tr><th>Divergence</th><th style="width: 120px">Impact</th><th style="width: 44px">Class</th><th style="width: 38%">Fix</th></tr></thead><tbody>
+<tr><td>A detached worktree shows as a bare sha (“03a9ff5f”).</td><td class="k"><span class="imp ih">hierarchy</span></td><td class="cl"><span class="tag c">c</span></td><td>“detached · 03a9ff5f”, sha in faint ink.</td></tr>
+<tr><td>Title says “worktree or branch”, only worktrees are listed.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag c">c</span></td><td>Add Branches, or “Switch worktree”.</td></tr>
+<tr><td>“New Worktree…”, “Remove Worktree…” in Title Case inside a themed popover.</td><td class="k"><span class="imp it">spacing · type</span></td><td class="cl"><span class="tag c">c</span></td><td>Sentence case in themed UI: “New worktree…”.</td></tr>
+</tbody></table>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":4780}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

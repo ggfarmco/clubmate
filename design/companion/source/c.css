@@ -73,3 +73,7 @@
 .comp .col{position:relative;min-width:0;min-height:0;overflow:hidden}
 .comp .colhd{display:flex;align-items:center;gap:8px;height:52px;padding:0 12px;flex:none}
 .comp .sel{background:var(--ac-bg)}
+
+/* subagent nested under its parent: one step (24pt) in, no separator between them */
+.comp .c.nest{padding-left:40px}
+.comp .c.nest::before{display:none}

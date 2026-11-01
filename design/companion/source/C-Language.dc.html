@@ -5,7 +5,7 @@
 <title>Companion adaptation</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
-<link rel="stylesheet" href="/_blob/7df5c25b2aedc6ec882e4f5493f98846">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
 </head>
 <body>
 <x-dc>
@@ -16,11 +16,11 @@ body{margin:0}
 a{color:#2B6E39}a:hover{color:#1B4A25}
 </style>
 </helmet>
-<div class="doc" style="width: 1400px; min-height: 2160px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div class="doc" style="width: 1400px; min-height: 2520px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
 <div style="display: flex; flex-direction: column; gap: 14px">
 <div class="eyebrow">Clubmate companion · design language</div>
 <h1>C2 · Companion adaptation</h1>
-<p class="lead">Same product, different hands. The principles and node specs carry over from the Mac; what changes is the metrics, the surfaces and the navigation; accent and tones are the same values as the Mac's Mate theme. One layout system serves iPhone, iPad and the Fold, keyed on width, not on the device.</p>
+<p class="lead">Same product, different hands. The principles and node specs carry over from the Mac; what changes is the metrics, the surfaces and the navigation; accent and tones are the same values as the Mac's Mate theme. One layout serves iPhone, iPad and iPhone Duo, driven by size classes, not by the device.</p>
 </div>
 
 <div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 40px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
@@ -72,46 +72,64 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <tr><td>Type</td><td>Dynamic Type: Large Title 34 · Title 3 20 · Body 17 · Subheadline 15 · Footnote 13 · Caption 12. SF Mono at body − 3 for commands, paths, code</td></tr>
 <tr><td>Density</td><td>A row = title (up to two lines) + one state line. No previews.</td></tr>
 <tr><td>Space, radius</td><td>16pt margins; 22pt above a section; list groups radius 22, cards 20, code 16 — concentric with the device corners</td></tr>
-<tr><td>Navigation</td><td>NavigationSplitView everywhere: collapses to a stack on compact width. Header = back · title · one ••• menu</td></tr>
+<tr><td>Navigation</td><td>NavigationSplitView everywhere: collapses to a stack on compact width. Header = back · title · one ••• menu, as system bars (they go vertical on iPhone Duo)</td></tr>
 <tr><td>Reach</td><td>Everything that answers lives in the bottom 40%: docked request card + composer. The header only navigates.</td></tr>
 <tr><td>Gestures</td><td>Swipe only for harmless actions (mark read). Never swipe to allow, reject or stop.</td></tr>
-<tr><td>Keys</td><td>Hardware keyboard on iPad / Fold: ⌥1 ⌥2 ⌥3 answer, ⌘⏎ send — same as the Mac.</td></tr>
+<tr><td>Keys</td><td>Hardware keyboard on iPad / iPhone Duo: ⌥1 ⌥2 ⌥3 answer, ⌘⏎ send — same as the Mac.</td></tr>
 </tbody>
 </table>
 </div>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 24px; border-top: 1px solid #DAD8CF">
-<h2>One layout, three devices</h2>
-<p class="muted" style="font-size: 14px">Breakpoints by available width, so Split View, Stage Manager and the Fold's two states all follow from the same rule. Fold sizes come from leaks (≈5.5″ cover, ≈7.8″ ~4:3 inner) — verify once Apple publishes them.</p>
+<h2>One layout: size classes, not breakpoints</h2>
+<p class="muted" style="font-size: 14px; max-width: 980px">Apple's iPhone Duo guidance: no fixed widths, breakpoints or per-screen metrics — compact width on the outer display, regular on the inner, and let <code>NavigationSplitView</code> decide how many columns fit. The same rule covers iPhone, iPad, Split View, Stage Manager and both Duo displays. Duo metrics: outer 5.4″, 1398×2034 px (≈466×678 pt, portrait); inner 7.6″, 1878×2670 px (≈951×669 pt, landscape when open). Pixels are Apple's; points and the ≈40 pt fold are simulator measurements.</p>
 <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
 <div class="panel" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
-<span class="mono muted">compact · &lt; 600pt</span>
+<span class="mono muted">horizontal size class · compact</span>
 <h3>One column, a stack</h3>
-<div style="display: flex; gap: 6px; height: 120px"><div style="flex: 1; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">Macs → shop → session</div></div>
-<p class="muted" style="font-size: 14px">iPhone, Fold folded, iPad Slide Over. The iPhone mockups.</p>
+<div style="display: flex; gap: 6px; height: 120px"><div style="flex: 1; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px; text-align: center;">Macs → shop → session</div></div>
+<p class="muted" style="font-size: 14px">iPhone; iPhone Duo closed (wider and shorter, bars on the side); iPad Slide Over.</p>
 </div>
 <div class="panel" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
-<span class="mono muted">regular · 600–1000pt</span>
+<span class="mono muted">regular · two columns fit</span>
 <h3>Two columns</h3>
-<div style="display: flex; gap: 6px; height: 120px"><div style="width: 36%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">sessions</div><div style="flex: 1; border-radius: 10px; background: #D9EAD9; display: flex; align-items: center; justify-content: center; font-size: 13px">session</div></div>
-<p class="muted" style="font-size: 14px">Fold open, iPad portrait, iPad split screen. Macs move into a toolbar menu / sidebar toggle.</p>
+<div style="display: flex; gap: 6px; height: 120px"><div style="width: 50%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px; text-align: center;">sessions</div><div style="width: 8px; background: repeating-linear-gradient(180deg,#C9C6BA 0 4px,transparent 4px 8px); border-radius: 2px"></div><div style="flex: 1; border-radius: 10px; background: #D9EAD9; display: flex; align-items: center; justify-content: center; font-size: 13px; text-align: center;">session</div></div>
+<p class="muted" style="font-size: 14px">iPhone Duo open; iPad portrait and split screen. On the Duo the columns split 50/50 when it is partially folded; the sidebar can be narrower when it is flat.</p>
 </div>
 <div class="panel" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
-<span class="mono muted">wide · &gt; 1000pt</span>
+<span class="mono muted">regular · three columns fit</span>
 <h3>Three columns</h3>
-<div style="display: flex; gap: 6px; height: 120px"><div style="width: 22%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">Macs</div><div style="width: 28%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px">sessions</div><div style="flex: 1; border-radius: 10px; background: #D9EAD9; display: flex; align-items: center; justify-content: center; font-size: 13px">session</div></div>
+<div style="display: flex; gap: 6px; height: 120px"><div style="width: 22%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px; text-align: center;">Macs</div><div style="width: 28%; border-radius: 10px; background: #E4E2D9; display: flex; align-items: center; justify-content: center; font-size: 13px; text-align: center;">sessions</div><div style="flex: 1; border-radius: 10px; background: #D9EAD9; display: flex; align-items: center; justify-content: center; font-size: 13px; text-align: center;">session</div></div>
 <p class="muted" style="font-size: 14px">iPad landscape. Permission buttons go into one row (Allow once first, Reject at the far end).</p>
 </div>
 </div>
-<ul style="font-size: 15px">
-<li>Folding or unfolding keeps the open session; the column state is restored, not the scroll position of a list you didn't see.</li>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>iPhone Duo: bars on the side</h3>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li>On the outer display and the inner display in landscape the system moves the header to a vertical bar on the right edge. Top: Back; then •••. Stop stays inside ••• in one column, as on iPhone, and gets its own button in two columns, as on iPad. Only the inner display in portrait keeps horizontal bars.</li>
+<li>Use the system bars (<code>.toolbar</code> on <code>NavigationStack</code> / <code>NavigationSplitView</code>), not a custom overlay: the glass buttons in the iPhone mockups are these system items, so the move is automatic. Icon-only items with titles; titles show in overflow.</li>
+<li>In two columns only the detail column gets the vertical bar; the session list keeps its horizontal items.</li>
+<li>The composer and a docked request are content, not a toolbar: they stay at the bottom of the content area, beside the bar.</li>
+<li>The session title moves into the content as a two-line heading (title + state line).</li>
+</ul>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3>iPhone Duo: the fold and poses</h3>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
+<li>Nothing you can tap sits in the fold. Read it from <code>reservedRegions(kind: .division)</code>; the transcript may scroll across it.</li>
+<li>Book pose: list on the left, session on the right, 50/50; the request card and composer live in the right half.</li>
+<li>Laptop pose: the transcript on top, the request card and composer below the fold — the same “answer in the bottom 40%” rule, now physical.</li>
+<li>Same controls and order in every pose. Folding or unfolding keeps the open session and the draft.</li>
 <li>A request arriving while you're in another session shows as a banner at the top of the detail column, not a modal.</li>
 </ul>
 </div>
 </div>
+</div>
+</div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":2160}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":2520}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};

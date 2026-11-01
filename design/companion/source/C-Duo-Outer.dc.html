@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: iPhone Duo outer display</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .vbar{position:absolute;right:10px;display:flex;flex-direction:column;align-items:center;gap:10px;z-index:5}
+.comp .vpill{display:flex;flex-direction:column;align-items:center;width:44px;border-radius:22px;padding:4px 0}
+.comp .vpill>button{width:44px;height:44px;border:0;background:none;color:var(--fg);display:flex;align-items:center;justify-content:center}
+.comp .vpill svg.i,.comp .vbar .gbtn svg.i{width:22px;height:22px;stroke-width:1.7}
+.comp .di{position:absolute;top:12px;right:17px;width:32px;height:86px;border-radius:16px;background:#000;z-index:6}
+.comp.th-clight .crease{background:linear-gradient(90deg,transparent,rgba(0,0,0,.07) 50%,transparent)}
+.comp.th-cdark .crease{background:linear-gradient(90deg,transparent,rgba(255,255,255,.07) 50%,transparent)}
+.comp.th-clight .crease.h{background:linear-gradient(180deg,transparent,rgba(0,0,0,.07) 50%,transparent)}
+.comp.th-cdark .crease.h{background:linear-gradient(180deg,transparent,rgba(255,255,255,.07) 50%,transparent)}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 466px; height: 678px">
+<div class="di" aria-hidden="true"></div>
+<nav class="vbar" aria-label="Session controls" style="top: 112px">
+<button class="gbtn glass" aria-label="Back to shop"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+<button class="gbtn glass" aria-label="More: stop, mode, open on Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
+</nav>
+<div style="position: absolute; left: 0; top: 0; bottom: 0; right: 64px; display: flex; flex-direction: column; padding: 18px 12px 20px 16px; gap: 10px">
+<div style="display: flex; flex-direction: column; flex: none">
+<span class="w6 ell">Refactor the cart total into its own function</span>
+<span class="cap"><span class="wa-i">Waiting for you</span><span class="mut"> · <span class="mdot id-blue" style="margin: 0 4px 0 1px; width: 7px; height: 7px"></span>Mac Studio · shop</span></span>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; display: grid; align-content: end; gap: 10px">
+<div class="ub" style="justify-self: end">Refactor the cart total into its own function</div>
+<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span> and keep the behaviour the same.</p>
+<div class="code mono" style="font-size: 13px; line-height: 19px; overflow: visible">func cartTotal(items []Item) int {
+    return sum(items)
+}</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; flex: none">
+<section class="cc" aria-label="Permission request" style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="w6">Run a command?</span></div>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg)">go test ./...</div>
+<button class="cb pri full">Allow once</button>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px"><button class="cb plain sm">Always allow…</button><button class="cb dgt sm">Reject</button></div>
+</section>
+<div class="cmp">
+<button class="gbtn glass" aria-label="Attach a photo or video"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><circle cx="5.5" cy="6.5" r="1.2"/><path d="m1.5 11.5 4-3.5 3 2.5 2-1.5 4 3"/></svg></button>
+<label class="fld glass" for="duo-o-msg">Queue a message</label>
+<input id="duo-o-msg" aria-label="Queue a message" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gbtn" aria-label="Queue message" disabled style="background: var(--ac); color: var(--on-ac); opacity: .35"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":466,"height":678}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>

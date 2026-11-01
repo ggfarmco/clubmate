@@ -12,7 +12,7 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 
 </head><body>
 
-<div class="doc" style="width: 1200px; min-height: 1820px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
+<div class="doc" style="width: 1200px; min-height: 1920px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
 <div style="display: flex; flex-direction: column; gap: 14px">
 <div class="eyebrow">Clubmate companion · handoff</div>
 <h1>C4 · Handoff &amp; open questions</h1>
@@ -57,15 +57,16 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <li>Macs screen: “Needs you” on top; per-workspace “2 waiting”; offline Macs dimmed.</li>
 <li>Workspace list: status glyph + state line, no pills; subagents nested.</li>
 <li>Inbox: Waiting for you / Earlier; dots only on unseen actionable items.</li>
-<li>NavigationSplitView with width breakpoints: stack &lt; 600pt, two columns 600–1000pt (Fold open, iPad portrait), three above (iPad landscape).</li>
-<li>No swipe actions that allow, reject or stop. Hardware keys ⌥1 ⌥2 ⌥3, ⌘⏎ on iPad / Fold.</li>
+<li>NavigationSplitView driven by size classes, no width breakpoints: a stack on compact width, two or three columns on regular (iPhone Duo open, iPad).</li>
+<li>iPhone Duo: system bars (they go vertical on the right edge); session title in the content; nothing tappable in the fold (<code>reservedRegions</code>); 50/50 in book pose; request card and composer below the fold in laptop pose.</li>
+<li>No swipe actions that allow, reject or stop. Hardware keys ⌥1 ⌥2 ⌥3, ⌘⏎ on iPad / iPhone Duo.</li>
 </ul>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
 <div class="eyebrow">Open questions</div>
 <ol style="margin: 0; padding-left: 20px; font-size: 15px; display: flex; flex-direction: column; gap: 10px">
-<li><b>Fold metrics.</b> Layouts are keyed on width, so the Fold should just work; the open-state board assumes ≈4:3. Re-check against Apple's numbers once they're published, especially the cover screen width.</li>
+<li><b>iPhone Duo metrics.</b> Boards use ≈466×678 pt (outer) and ≈951×669 pt (inner) from the simulator, a ≈40 pt fold and a ≈64 pt side bar. Check on hardware; layouts don't depend on these numbers.</li>
 <li><b>Always allow from a notification.</b> Proposal: notifications offer Allow once and Reject only; Always needs the app (and the confirm sheet). Agree?</li>
 <li><b>Stop.</b> One confirm, or a long press? I chose a confirm in the ••• menu — slower, but it can't happen by accident.</li>
 <li><b>Nesting depth.</b> Can subagents have subagents? The list nests one level; deeper chains would need a breadcrumb.</li>

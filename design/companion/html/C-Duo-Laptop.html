@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Companion: iPhone Duo open, laptop pose</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/cm.css">
+<link rel="stylesheet" href="assets/c.css">
+
+
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.comp .vbar{position:absolute;right:10px;display:flex;flex-direction:column;align-items:center;gap:10px;z-index:5}
+.comp .vpill{display:flex;flex-direction:column;align-items:center;width:44px;border-radius:22px;padding:4px 0}
+.comp .vpill>button{width:44px;height:44px;border:0;background:none;color:var(--fg);display:flex;align-items:center;justify-content:center}
+.comp .vpill svg.i,.comp .vbar .gbtn svg.i{width:22px;height:22px;stroke-width:1.7}
+.comp .di{position:absolute;top:12px;right:17px;width:32px;height:86px;border-radius:16px;background:#000;z-index:6}
+.comp.th-clight .crease{background:linear-gradient(90deg,transparent,rgba(0,0,0,.07) 50%,transparent)}
+.comp.th-cdark .crease{background:linear-gradient(90deg,transparent,rgba(255,255,255,.07) 50%,transparent)}
+.comp.th-clight .crease.h{background:linear-gradient(180deg,transparent,rgba(0,0,0,.07) 50%,transparent)}
+.comp.th-cdark .crease.h{background:linear-gradient(180deg,transparent,rgba(255,255,255,.07) 50%,transparent)}
+</style>
+
+</head><body>
+
+<div class="cm comp th-cdark" style="width: 669px; height: 951px">
+<div class="crease h" aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 455px; height: 40px"></div>
+<div class="top" style="top: 24px">
+<button class="gbtn glass" aria-label="Show sessions"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+<div class="t"><span class="tt">Refactor the cart total into its own function</span><span class="ts"><span class="wa-i">Waiting for you</span> · <span class="mdot id-blue" style="margin: 0 4px 0 1px; width: 7px; height: 7px"></span>Mac Studio · shop</span></div>
+<div class="gpill glass"><button aria-label="Stop the agent"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.8" style="fill: currentColor"/></svg></button><button aria-label="More: mode, open on Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button></div>
+</div>
+<div style="position: absolute; left: 0; right: 0; top: 84px; height: 371px; overflow: hidden; display: grid; align-content: end; gap: 12px; padding: 0 32px 16px">
+<div class="ub" style="justify-self: end; font-size: 19px; line-height: 25px">Refactor the cart total into its own function</div>
+<p style="font-size: 19px; line-height: 26px">I'll move the total into <span class="mono" style="font-size: 16px">cartTotal</span> and keep the behaviour the same.</p>
+<div class="code mono" style="font-size: 15px; line-height: 22px; overflow: visible">func cartTotal(items []Item) int {
+    return sum(items)
+}</div>
+</div>
+<div style="position: absolute; left: 0; right: 0; top: 495px; bottom: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 16px 32px 28px">
+<section class="cc" aria-label="Permission request" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="w6">Run a command?</span></div>
+<div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg)">go test ./...</div>
+<span class="cap mut">go test isn't in this workspace's allow list.</span>
+<div style="display: flex; gap: 10px; align-items: center"><button class="cb pri">Allow once</button><button class="cb plain">Always allow…</button><span style="flex: 1"></span><button class="cb dgt">Reject</button></div>
+</section>
+<div class="cmp">
+<button class="gbtn glass" aria-label="Attach a photo or video"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><circle cx="5.5" cy="6.5" r="1.2"/><path d="m1.5 11.5 4-3.5 3 2.5 2-1.5 4 3"/></svg></button>
+<label class="fld glass" for="duo-l-msg">Queue a message</label>
+<input id="duo-l-msg" aria-label="Queue a message" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
+<button class="gbtn" aria-label="Queue message" disabled style="background: var(--ac); color: var(--on-ac); opacity: .35"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+</div>
+</div>
+</div>
+</body></html>

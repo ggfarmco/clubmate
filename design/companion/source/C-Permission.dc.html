@@ -5,7 +5,7 @@
 <title>Companion: session waiting for permission</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
-<link rel="stylesheet" href="/_blob/7df5c25b2aedc6ec882e4f5493f98846">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
 </head>
 <body>
 <x-dc>
@@ -24,39 +24,42 @@ a{color:inherit}a:hover{color:inherit}
 <button class="gbtn glass" aria-label="More: stop, mode, open on Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button>
 </div>
 
-<div style="position: absolute; left: 0; right: 0; top: 118px; bottom: 336px; overflow: hidden; display: grid; align-content: end; gap: 12px; padding: 0 16px 8px">
-<div class="ub" style="justify-self: end">Refactor the cart total into its own function</div>
-<div class="cap mut" style="display: flex; align-items: center; gap: 4px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 12px; height: 12px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>Thought for 3 s</div>
-<p>I'll move the total into <span class="mono" style="font-size: 15px">cartTotal</span> and keep the behaviour the same.</p>
-<div class="code mono" style="font-size: 13px; line-height: 19px; overflow: visible">func cartTotal(items []Item) int {
-    return sum(items)
-}</div>
+<a class="cc" href="#" aria-label="Another request: Move the state bucket, MacBook Pro" style="position: absolute; top: 114px; left: 16px; right: 16px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--bd); text-decoration: none; z-index: 3">
+<span class="st n" style="width: 26px; height: 26px; color: var(--wa-i)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span class="sub w6 ell">Move the state bucket to the new region</span>
+<span class="foot mut ell"><span class="mdot id-magenta" style="width: 7px; height: 7px; margin-right: 4px"></span>MacBook Pro · infra · wants to run <span class="mono" style="font-size: 12px">terraform plan</span></span>
+</span>
+<span class="foot mut" style="flex: none">1 more</span>
+<svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>
+</a>
+
+<div style="position: absolute; left: 0; right: 0; top: 180px; bottom: 392px; overflow: hidden; display: grid; align-content: end; gap: 10px; padding: 0 16px 8px">
 <div class="cc" style="padding: 10px 14px">
-<div class="cap mut" style="display: flex; justify-content: space-between; padding-bottom: 4px"><span>Plan</span><span>1 of 3</span></div>
-<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><path d="m3.5 8.5 3 3 6-7"/></svg><span class="sub mut">Extract cartTotal</span></div>
-<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i ac-i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div>
-<div style="display: flex; align-items: center; gap: 10px; height: 28px"><svg class="i faint" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div>
+<div class="cap mut" style="display: flex; justify-content: space-between; padding-bottom: 2px"><span>Plan</span><span>2 of 3</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--ac-i)"><circle cx="8" cy="8" r="6"/><path d="M6.8 5.6v4.8L10.5 8Z"/></svg><span class="sub w6">Add a test</span></div>
+<div style="display: flex; align-items: center; gap: 10px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--t4)"><circle cx="8" cy="8" r="6"/></svg><span class="sub t2">Run the tests</span></div>
 </div>
-<div class="cc" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px"><svg class="i mut" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">2 actions</span><span class="cap mut ell">read cart.go · edit cart.go <span class="ok-i">+1</span> <span class="er-i">−1</span></span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="cc" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M11 2.5 13.5 5 6 12.5l-3 .5.5-3Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub">2 actions</span><span class="cap mut ell">read cart.go · edit cart.go <span class="ok-i">+1</span> <span class="er-i">−1</span></span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="cc" role="group" aria-label="Subagent Explore, running" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; color: var(--t3)"><path d="M8 1.5 9.3 6.7 14.5 8 9.3 9.3 8 14.5 6.7 9.3 1.5 8 6.7 6.7Z"/></svg><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span class="sub ell">Explore: Check the cart tests</span><span class="cap mut">Running · 1 min</span></div><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 16px; height: 16px; color: var(--t3)"><path d="M8 2v2.2M8 11.8V14M2 8h2.2M11.8 8H14M3.8 3.8l1.5 1.5M10.7 10.7l1.5 1.5M3.8 12.2l1.5-1.5M10.7 5.3l1.5-1.5"/></svg><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px; color: var(--t4)"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="cap mut" style="display: flex; align-items: center; gap: 8px; padding: 2px 4px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 14px; height: 14px"><path d="M2.5 2.5 6.5 6.5M6.5 3v3.5H3M13.5 13.5 9.5 9.5M9.5 13V9.5H13"/></svg><span style="flex: 1">Context compacted</span><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 12px; height: 12px"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
 </div>
 
-<div class="bar">
+<div class="bar" style="padding-bottom: 24px">
 <section class="cc" aria-label="Permission request" style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px solid var(--wa-bd); background: color-mix(in srgb, var(--wa) 9%, var(--s1))">
-<div style="display: flex; align-items: center; gap: 10px"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="w6">Run a command?</span></div>
+<div style="display: flex; align-items: center; gap: 10px"><span class="st wa" style="width: 26px; height: 26px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 15px; height: 15px"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><span class="w6" style="flex: 1">Run a command?</span><button class="gbtn" aria-label="More answers: always reject" style="width: 32px; height: 32px; color: var(--t3)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><circle cx="3.5" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.5" cy="8" r=".9"/></svg></button></div>
 <div class="mono" style="padding: 10px 12px; border-radius: 12px; background: var(--bg)">go test ./...</div>
-<span class="cap mut">go test isn't in this workspace's allow list.</span>
+<span class="cap mut">Claude says: Run the shop tests</span>
 <button class="cb pri full">Allow once</button>
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
-<button class="cb plain sm">Always allow…</button>
-<button class="cb dgt sm">Reject</button>
-</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px"><button class="cb plain sm">Always allow…</button><button class="cb dgt sm">Reject</button></div>
 </section>
 <div class="cmp">
 <button class="gbtn glass" aria-label="Attach a photo or video"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><circle cx="5.5" cy="6.5" r="1.2"/><path d="m1.5 11.5 4-3.5 3 2.5 2-1.5 4 3"/></svg></button>
 <label class="fld glass" for="cp-msg">Queue a message</label>
 <input id="cp-msg" aria-label="Queue a message" style="position: absolute; width: 1px; height: 1px; opacity: 0" tabindex="-1">
-<button class="gbtn" aria-label="Queue message" disabled style="background: var(--ac); color: var(--on-ac); opacity: .35"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+<button class="gbtn" aria-label="Queue message" disabled style="background: var(--s2); color: var(--t4)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="stroke-width: 2"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
 </div>
+<span class="foot mut" style="padding: 0 4px">Sends after the current turn · Stop is in •••</span>
 </div>
 </div>
 </x-dc>

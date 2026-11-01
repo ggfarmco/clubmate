@@ -168,7 +168,7 @@
    "x": 1480,
    "y": 9820,
    "w": 1400,
-   "h": 2160,
+   "h": 2520,
    "title": "C2 · Companion adaptation"
   },
   "C-Components.dc.html": {
@@ -182,12 +182,12 @@
    "x": 4440,
    "y": 9820,
    "w": 1200,
-   "h": 1820,
+   "h": 1920,
    "title": "C4 · Companion handoff & questions"
   },
   "C-Macs.dc.html": {
    "x": 0,
-   "y": 12300,
+   "y": 12520,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -195,7 +195,7 @@
   },
   "C-Workspace.dc.html": {
    "x": 473,
-   "y": 12300,
+   "y": 12520,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -203,7 +203,7 @@
   },
   "C-Permission.dc.html": {
    "x": 946,
-   "y": 12300,
+   "y": 12520,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -211,7 +211,7 @@
   },
   "C-Question.dc.html": {
    "x": 1419,
-   "y": 12300,
+   "y": 12520,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -219,7 +219,7 @@
   },
   "C-Inbox.dc.html": {
    "x": 1892,
-   "y": 12300,
+   "y": 12520,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -227,7 +227,7 @@
   },
   "C-Macs-Light.dc.html": {
    "x": 0,
-   "y": 13280,
+   "y": 13500,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -235,7 +235,7 @@
   },
   "C-Workspace-Light.dc.html": {
    "x": 473,
-   "y": 13280,
+   "y": 13500,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -243,7 +243,7 @@
   },
   "C-Permission-Light.dc.html": {
    "x": 946,
-   "y": 13280,
+   "y": 13500,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -251,7 +251,7 @@
   },
   "C-Question-Light.dc.html": {
    "x": 1419,
-   "y": 13280,
+   "y": 13500,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -259,7 +259,7 @@
   },
   "C-Inbox-Light.dc.html": {
    "x": 1892,
-   "y": 13280,
+   "y": 13500,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -267,30 +267,22 @@
   },
   "C-iPad.dc.html": {
    "x": 2365,
-   "y": 12300,
+   "y": 12520,
    "w": 1194,
    "h": 834,
    "radius": 18,
    "title": "iPad · split view · dark"
   },
-  "C-Fold.dc.html": {
-   "x": 2365,
-   "y": 13280,
-   "w": 1024,
-   "h": 768,
-   "radius": 24,
-   "title": "iPhone Fold open (assumed ~4:3) · light"
-  },
   "C-MacColour.dc.html": {
    "x": 0,
-   "y": 14660,
+   "y": 14880,
    "w": 1400,
    "h": 1900,
    "title": "C5 · A colour for each Mac"
   },
   "C-MacInfo.dc.html": {
    "x": 1480,
-   "y": 14660,
+   "y": 14880,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -298,7 +290,7 @@
   },
   "C-MacInfo-Light.dc.html": {
    "x": 1953,
-   "y": 14660,
+   "y": 14880,
    "w": 393,
    "h": 852,
    "radius": 50,
@@ -306,18 +298,104 @@
   },
   "Mac-Settings-Remote.dc.html": {
    "x": 2426,
-   "y": 14660,
-   "w": 760,
-   "h": 560,
+   "y": 14880,
+   "w": 520,
+   "h": 680,
    "radius": 12,
-   "title": "Mac · Settings → Remote · Mate"
+   "title": "Mac · Settings → Remote (native form, as built)"
   },
   "Agents-Mate-1280.dc.html": {
    "x": 3266,
-   "y": 14660,
+   "y": 14880,
    "w": 1280,
    "h": 800,
    "title": "Agents · 1280 · Mate · paired (blue dot in the pill)"
+  },
+  "C-Duo-Outer.dc.html": {
+   "x": 2365,
+   "y": 13500,
+   "w": 466,
+   "h": 678,
+   "radius": 40,
+   "title": "iPhone Duo · outer display, closed · side bar · dark"
+  },
+  "C-Duo-Outer-Light.dc.html": {
+   "x": 2911,
+   "y": 13500,
+   "w": 466,
+   "h": 678,
+   "radius": 40,
+   "title": "iPhone Duo · outer display, closed · side bar · light"
+  },
+  "C-Duo-Book.dc.html": {
+   "x": 3457,
+   "y": 13500,
+   "w": 951,
+   "h": 669,
+   "radius": 28,
+   "title": "iPhone Duo · open, book pose · 50/50 around the fold · light"
+  },
+  "C-Duo-Laptop.dc.html": {
+   "x": 4488,
+   "y": 13500,
+   "w": 669,
+   "h": 951,
+   "radius": 28,
+   "title": "iPhone Duo · open, laptop pose · read on top, answer below · dark"
+  },
+  "K1-Check-Mac.dc.html": {
+   "x": 0,
+   "y": 17320,
+   "w": 1480,
+   "h": 4780,
+   "title": "K1 · Build check — Mac"
+  },
+  "K2-Check-Companion.dc.html": {
+   "x": 1560,
+   "y": 17320,
+   "w": 1480,
+   "h": 4100,
+   "title": "K2 · Build check — companion, cross-screen, verdicts"
+  },
+  "C-Backlog.dc.html": {
+   "x": 3120,
+   "y": 17320,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace backlog · dark (new)"
+  },
+  "C-Backlog-Light.dc.html": {
+   "x": 3593,
+   "y": 17320,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace backlog · light (new)"
+  },
+  "C-Offline.dc.html": {
+   "x": 4066,
+   "y": 17320,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · one Mac offline · waiting items read-only · dark (new)"
+  },
+  "Mac-AlwaysAllow.dc.html": {
+   "x": 3120,
+   "y": 18252,
+   "w": 880,
+   "h": 470,
+   "radius": 12,
+   "title": "Mac · Always allow… confirm (⌥2, then ⌥2 again) · Kanagawa (new)"
+  },
+  "Mac-ChatGraphStep.dc.html": {
+   "x": 4080,
+   "y": 18252,
+   "w": 400,
+   "h": 620,
+   "radius": 12,
+   "title": "Mac · Code chat on a graph step: off until the loop runs it · Kanagawa (new)"
   }
  },
  "order": [
@@ -357,12 +435,22 @@
   "C-Question-Light.dc.html",
   "C-Inbox-Light.dc.html",
   "C-iPad.dc.html",
-  "C-Fold.dc.html",
+  "C-Duo-Outer.dc.html",
+  "C-Duo-Outer-Light.dc.html",
+  "C-Duo-Book.dc.html",
+  "C-Duo-Laptop.dc.html",
   "C-MacColour.dc.html",
   "C-MacInfo.dc.html",
   "C-MacInfo-Light.dc.html",
   "Mac-Settings-Remote.dc.html",
-  "Agents-Mate-1280.dc.html"
+  "Agents-Mate-1280.dc.html",
+  "K1-Check-Mac.dc.html",
+  "K2-Check-Companion.dc.html",
+  "C-Backlog.dc.html",
+  "C-Backlog-Light.dc.html",
+  "C-Offline.dc.html",
+  "Mac-AlwaysAllow.dc.html",
+  "Mac-ChatGraphStep.dc.html"
  ],
  "notes": {
   "t_lang": {
@@ -389,16 +477,23 @@
   "t_companion": {
    "x": 0,
    "y": 9560,
-   "text": "Companion — the shipped structure, the Mac language, iPhone · iPad · Fold",
+   "text": "Companion — the shipped structure, the Mac language, iPhone · iPad · iPhone Duo",
    "kind": "title1",
    "maxW": 5640
   },
   "t_maccolour": {
    "x": 0,
-   "y": 14400,
+   "y": 14620,
    "text": "A colour for each Mac — a name tag, not a theme; shown with two or more Macs",
    "kind": "title1",
    "maxW": 4546
+  },
+  "t_check": {
+   "x": 0,
+   "y": 17060,
+   "text": "Build check, 1 Nov 2026 — screenshots vs boards",
+   "kind": "title1",
+   "maxW": 3986
   }
  },
  "designSystems": []

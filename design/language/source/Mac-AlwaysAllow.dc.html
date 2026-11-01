@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Always allow confirm, Mac</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cm .pop.arrow::after{content:'';position:absolute;left:122px;bottom:-6px;width:12px;height:12px;background:var(--s3);transform:rotate(45deg);border-radius:2px}
+</style>
+</helmet>
+<div class="cm th-{{theme}}" style="width: 880px; height: 470px; box-sizing: border-box; padding: 24px 32px; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; position: relative; overflow: hidden">
+<p class="mut">Next I'll run the package tests.</p>
+
+<div class="pop arrow" role="dialog" aria-labelledby="aa-t" style="position: absolute; left: 120px; bottom: 132px; width: 500px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; z-index: 3">
+<span id="aa-t" class="ttl">Always allow this command?</span>
+<p class="t2">Claude will run matching commands in <b>shop</b> without asking, on this Mac, until you remove the rule from the allow list.</p>
+<div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 5px; padding: 2px 10px">Bash(go test:*)</div>
+<div class="abar" style="justify-content: flex-end; padding-top: 2px">
+<span class="cap mut" style="flex: 1">Press ⌥2 again to confirm.</span>
+<button class="btn b">Cancel<span class="kbd">⎋</span></button>
+<button class="btn">Always allow<span class="kbd">⌥2</span></button>
+</div>
+</div>
+
+<section class="card" aria-label="Permission request" style="width: 100%; min-width: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; border-color: var(--wa-bd); background: color-mix(in srgb, var(--wa) 7%, var(--bg))">
+<div style="display: flex; align-items: center; gap: 8px">
+<svg class="i wa-i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4Z"/><path d="M8 5.5v3M8 10.8v.1"/></svg>
+<span class="b">Run a command?</span>
+<span class="mut cap">Claude says: run the notify package tests</span>
+</div>
+<div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 5px; padding: 2px 10px">go test ./internal/notify/...</div>
+<div class="abar">
+<button class="btn pri">Allow once<span class="kbd">⌥1</span></button>
+<button class="btn hov" aria-expanded="true">Always allow…<span class="kbd">⌥2</span></button>
+<button class="btn dg">Reject<span class="kbd">⌥3</span></button>
+</div>
+</section>
+<div class="field" style="width: 100%; height: 40px; align-items: flex-start; padding-top: 8px"><span class="phd">Reply, / for commands, @ for files</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["kanagawa","onedark","latte","mate","matelight"],"default":"kanagawa"},"$preview":{"width":880,"height":470}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'kanagawa' };
+}
+}
+</script>
+</body>
+</html>

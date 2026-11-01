@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Companion: Macs, one Mac offline</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/4987a8b4234bbea3e512a6d02560ee1d">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="cm comp th-{{theme}}" style="width: 393px; height: 852px">
+<div class="top">
+<span style="flex: 1"></span>
+<button class="gbtn glass" aria-label="Pair a Mac"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+</div>
+<div style="position: absolute; inset: 0; padding-top: 112px; overflow: hidden">
+<h1 class="big" style="margin: 0; padding: 0 20px">Macs</h1>
+
+<div class="hdr"><span>Needs you</span><span class="cap">2</span></div>
+<p class="foot mut" style="padding: 0 20px 8px; margin-top: -2px">Mac Studio is offline — answer when it's back.</p>
+<div class="ig" style="opacity: .55">
+<div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6 ell">Run <span class="mono" style="font-size: 15px">go test ./…</span>?</span><span class="cap mut ell">shop · Refactor the cart total</span></div><span class="cap mut">1 h</span><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2Z"/><path d="M6.6 6a1.5 1.5 0 1 1 2 1.4c-.4.2-.6.5-.6.9M8 9.6v.1"/></svg></span><div class="cbody"><span class="w6 ell">Add retries to the charge step?</span><span class="cap mut ell">shop · Explain the checkout flow</span></div><span class="cap mut">1 h</span><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+
+<div class="hdr"><span style="display: flex; align-items: center; gap: 8px"><svg class="i" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/></svg>Mac Studio</span><span class="cap" style="font-weight: 400">offline since 13:43</span></div>
+<div class="ig" style="opacity: .55">
+<div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><div class="cbody"><span>shop</span><span class="cap mut ell">as of 13:43 · 2 waiting</span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5v8h13v-7h-6l-1.5-1.5h-5.5Z"/></svg></span><div class="cbody"><span>clubmate</span><span class="cap mut ell">as of 13:43 · nothing waiting</span></div><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+<div class="c"><span class="st n"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 9.5 4 3h8l2 6.5V13H2Z"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg></span><div class="cbody"><span>Inbox</span></div><span class="val">2 unread</span><svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["cdark","clight"],"default":"cdark"},"$preview":{"width":393,"height":852}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'cdark' };
+}
+}
+</script>
+</body>
+</html>
