@@ -241,12 +241,7 @@ struct CompactionView: View {
 
 struct ToolRow: View {
     let tool: ToolCall
-    @State private var expanded: Bool
-
-    init(tool: ToolCall) {
-        self.tool = tool
-        _expanded = State(initialValue: tool.status == .failed)
-    }
+    @State private var expanded = false
 
     var body: some View {
         ToolLine(tool: tool, expanded: $expanded)
@@ -257,9 +252,6 @@ struct ToolRow: View {
                 if tool.status == .failed {
                     RoundedRectangle(cornerRadius: 20).strokeBorder(Color.danger.opacity(0.5), lineWidth: 1)
                 }
-            }
-            .onChange(of: tool.status) { _, status in
-                if status == .failed { Motion.disclose { expanded = true } }
             }
     }
 }
@@ -339,14 +331,8 @@ struct ToolLine: View {
 
 struct ToolGroupRow: View {
     let group: ToolGroup
-    @State private var expanded: Bool
+    @State private var expanded = false
     @State private var open: Set<String> = []
-
-    init(group: ToolGroup) {
-        self.group = group
-        _expanded = State(initialValue: group.failed)
-        _open = State(initialValue: Set(group.calls.filter { $0.status == .failed }.map(\.id)))
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -404,13 +390,6 @@ struct ToolGroupRow: View {
         .overlay {
             if group.failed {
                 RoundedRectangle(cornerRadius: 20).strokeBorder(Color.danger.opacity(0.5), lineWidth: 1)
-            }
-        }
-        .onChange(of: group.calls.filter { $0.status == .failed }.map(\.id)) { _, failed in
-            guard !failed.isEmpty else { return }
-            Motion.disclose {
-                expanded = true
-                open.formUnion(failed)
             }
         }
     }
