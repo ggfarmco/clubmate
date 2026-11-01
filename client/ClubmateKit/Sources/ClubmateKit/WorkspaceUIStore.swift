@@ -148,6 +148,12 @@ public final class WorkspaceUIStore {
         return cell.hasTextField
     }
 
+    public func hasComposer(_ name: String) -> Bool {
+        let cell = cell(name)
+        cell.track(.composer)
+        return cell.hasComposer
+    }
+
     public func firstTabs(_ name: String) -> SDUINode? {
         let cell = cell(name)
         cell.track(.tabs)
@@ -408,6 +414,7 @@ private final class SlotCell {
     private(set) var present = false
     private(set) var surface: String?
     private(set) var hasTextField = false
+    private(set) var hasComposer = false
     private(set) var tabs: SDUINode?
     @ObservationIgnored private var tracked: Set<SlotFact> = []
     @ObservationIgnored private var tree: SDUINode?
@@ -434,6 +441,10 @@ private final class SlotCell {
             let hasTextField = tree?.hasTextField ?? false
             if self.hasTextField != hasTextField { self.hasTextField = hasTextField }
         }
+        if facts.contains(.composer) {
+            let hasComposer = tree?.hasComposer ?? false
+            if self.hasComposer != hasComposer { self.hasComposer = hasComposer }
+        }
         if facts.contains(.tabs) {
             let tabs = tree?.firstTabs
             if self.tabs != tabs { self.tabs = tabs }
@@ -444,6 +455,7 @@ private final class SlotCell {
 private enum SlotFact: Hashable {
     case surface
     case textField
+    case composer
     case tabs
 }
 

@@ -107,14 +107,16 @@ struct ListNodeView: View {
     @FocusState private var focused: Bool
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
+    @Environment(\.focusRouter) private var router
+    @Environment(\.sidebarSide) private var side
+    @Environment(\.sidebarSlot) private var sidebarSlot
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(node.items()) { item in
                 ItemRow(item: item, selected: item.id == selected, active: focused, tone: item.tone) {
-                    selected = item.id
                     focused = true
-                    dispatch(node, .select(item.id))
+                    select(item.id)
                 }
                 .itemMenu(item.menu) { dispatch.choose($0, item: item.id, in: node) }
                 .id(item.id)
@@ -123,11 +125,38 @@ struct ListNodeView: View {
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
+        .keyMonitor(active: focused, handle: handle)
+        .reportsFocus(.list, focused)
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
             if let value { scroll?.scrollTo(value, anchor: .center) }
         }
+        .onChange(of: router?.pending, initial: true) {
+            guard let sidebarSlot, router?.take(sidebarSlot) == true else { return }
+            focused = true
+        }
+    }
+
+    private func select(_ id: String) {
+        selected = id
+        dispatch(node, .select(id))
+    }
+
+    private func handle(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags
+        switch TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift)) {
+        case .move(let delta):
+            let rows = node.items().map { TreeRow(id: $0.id, depth: 0, parent: nil, hasChildren: false, expanded: false) }
+            guard let id = TreeCursor.move(selected, by: delta, in: rows) else { return true }
+            if id != selected { select(id) }
+            scroll?.scrollTo(id)
+        case .open, .focusMain:
+            router?.requestMain(from: sidebarSlot ?? dispatch.slot)
+        default:
+            return false
+        }
+        return true
     }
 }
 

@@ -76,6 +76,18 @@ Pickers are the fuzzy lists for worktrees: the worktree switcher in the window t
 
 `g` waits for the next key; a key that is not listed is swallowed. Defined in `ClubmateKit/TreeKeys.swift`.
 
+## Sidebar lists (Terminals, Processes, Cron, Graphs; list focused)
+
+A click on a row, or focus moving to the sidebar, focuses the list.
+
+| Keys | Action |
+|---|---|
+| j / ↓, k / ↑ | Move the selection |
+| ↩ | Open: focus the main pane on the selected item |
+| Esc, ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
+
+Other keys pass through. Defined in `SDUI/CollectionViews.swift` (`ListNodeView`), keys from `ClubmateKit/TreeKeys.swift`.
+
 ## Tables (plugin table focused)
 
 A click on a row, or focus moving to the main pane, focuses the table; the selected row then shows the accent bar. Group headings are skipped.
@@ -89,6 +101,8 @@ A click on a row, or focus moving to the main pane, focuses the table; the selec
 Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defined in `SDUI/TableView.swift`, rows in `ClubmateKit/TableKeys.swift`.
 
 ## Agent composer (Agents section or Code chat panel, prompt focused)
+
+Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H from the sessions tree) lands in the prompt when the session shows one.
 
 | Keys | Action |
 |---|---|

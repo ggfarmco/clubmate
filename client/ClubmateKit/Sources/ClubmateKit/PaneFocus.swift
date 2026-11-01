@@ -3,6 +3,7 @@ import Observation
 
 public enum FocusedPane: Equatable, Sendable {
     case tree(field: Bool)
+    case list
     case table
     case composer(running: Bool, queues: Bool)
     case field
@@ -11,6 +12,7 @@ public enum FocusedPane: Equatable, Sendable {
     public var hints: String? {
         switch self {
         case .tree(let field): field ? "j/k · ↩ open · gc field" : "j/k · ↩ open"
+        case .list: "j/k · ↩ open"
         case .table: "j/k · h/l fold"
         case .composer(let running, let queues): queues ? "⌘↩ queue · Esc stop" : running ? "⌘↩ send · Esc stop" : "⌘↩ send"
         case .field: "↩ submit"

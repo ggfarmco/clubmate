@@ -39,6 +39,10 @@ extension SDUINode {
         type == "textField" || children.contains { $0.hasTextField }
     }
 
+    public var hasComposer: Bool {
+        type == "composer" || type != "transcript" && children.contains { $0.hasComposer }
+    }
+
     public var firstTabs: SDUINode? {
         type == "tabs" ? self : children.lazy.compactMap(\.firstTabs).first
     }

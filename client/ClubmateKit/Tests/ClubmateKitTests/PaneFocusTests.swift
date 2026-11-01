@@ -17,8 +17,14 @@ final class PaneFocusTests: XCTestCase {
         XCTAssertNil(focus.pane)
     }
 
+    func testMainPaneWithAComposerHandsItFocus() {
+        XCTAssertTrue(SDUINode(type: "stack", children: [SDUINode(type: "transcript"), SDUINode(type: "composer")]).hasComposer)
+        XCTAssertFalse(SDUINode(type: "stack", children: [SDUINode(type: "transcript", children: [SDUINode(type: "composer")])]).hasComposer)
+    }
+
     func testHintsFollowThePaneState() {
         XCTAssertEqual(FocusedPane.tree(field: false).hints, "j/k · ↩ open")
+        XCTAssertEqual(FocusedPane.list.hints, "j/k · ↩ open")
         XCTAssertEqual(FocusedPane.composer(running: false, queues: false).hints, "⌘↩ send")
         XCTAssertEqual(FocusedPane.composer(running: true, queues: true).hints, "⌘↩ queue · Esc stop")
         XCTAssertNil(FocusedPane.terminal.hints)
