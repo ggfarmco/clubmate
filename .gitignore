@@ -15,4 +15,13 @@ client/Clubmate/Resources/terminfo
 /plugins/agents/agents
 /agents
 /editor-nvim
+/backlog
+/cron
+/git
+/graphs
+/processes
+/remote
+/search
+/terminals
+/triggers
 .claude/worktrees/
