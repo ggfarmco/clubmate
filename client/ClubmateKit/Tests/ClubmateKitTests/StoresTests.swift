@@ -406,6 +406,7 @@ final class StoresTests: XCTestCase {
             ]),
         ])
         XCTAssertEqual(SDUICell.elapsed(since: Date(timeIntervalSince1970: 0), now: Date(timeIntervalSince1970: 36 * 3600 + 5 * 60 + 7.9)), "36:05:07")
+        XCTAssertEqual(SDUICell.elapsed(since: Date(timeIntervalSince1970: -1e300), now: Date(timeIntervalSince1970: 0)), "2777777:46:40")
         XCTAssertEqual(table.tableSort(), SDUISort(column: "cpu", desc: true))
         XCTAssertEqual(table.string("selected"), "42")
     }

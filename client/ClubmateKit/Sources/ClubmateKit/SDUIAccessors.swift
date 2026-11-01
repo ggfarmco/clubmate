@@ -177,7 +177,8 @@ public struct SDUICell: Sendable, Equatable {
     }
 
     public static func elapsed(since start: Date, now: Date) -> String {
-        let seconds = Swift.max(Int(now.timeIntervalSince(start)), 0)
+        let interval = now.timeIntervalSince(start)
+        let seconds = interval > 0 ? Int(Swift.min(interval, 1e10)) : 0
         let two = { (v: Int) in v < 10 ? "0\(v)" : "\(v)" }
         return "\(seconds / 3600):\(two(seconds / 60 % 60)):\(two(seconds % 60))"
     }
