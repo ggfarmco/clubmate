@@ -44,7 +44,7 @@ struct TranscriptNodeView: View {
         }
         .onChange(of: ToolExpansion.shared.opened) { _, opened in
             guard let opened, let last = items.last, last.contains(opened) else { return }
-            Task { position.scrollTo(edge: .bottom) }
+            Task { Motion.disclose { position.scrollTo(edge: .bottom) } }
         }
         .onAppear {
             watchUntil = .now + .seconds(3)

@@ -47,7 +47,9 @@ struct MessageNodeView: View, Equatable {
     private(set) var expanded: Set<String> = []
 
     func toggle(_ id: String) {
-        if expanded.remove(id) == nil { expanded.insert(id) }
+        Motion.disclose {
+            if expanded.remove(id) == nil { expanded.insert(id) }
+        }
     }
 }
 
@@ -106,10 +108,9 @@ private struct ThoughtView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.s) {
-            Button { expanded.toggle() } label: {
+            Button { Motion.disclose { expanded.toggle() } } label: {
                 HStack(spacing: theme.spacing.s) {
-                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                        .font(theme.glyph)
+                    DisclosureChevron(expanded: expanded)
                     Text("Thinking")
                         .italic()
                 }

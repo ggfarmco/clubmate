@@ -154,9 +154,7 @@ private struct Chevron: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Image(systemName: expanded ? "chevron.down" : "chevron.right")
-            .font(theme.glyph)
+        DisclosureChevron(expanded: expanded)
             .foregroundStyle(theme.muted)
-            .accessibilityHidden(true)
     }
 }

@@ -158,6 +158,7 @@ struct TreeNodeView: View {
                 .id(row.id)
             }
         }
+        .disclosureAnimation(Set(rows.filter(\.item.expanded).map(\.id)))
         .overlay(alignment: .top) {
             if scroll != nil {
                 let tree = TreeCursor.rows(node.treeItems())
@@ -282,8 +283,7 @@ struct Disclosure: View {
     var body: some View {
         if hasChildren {
             Button { toggle(expanded) } label: {
-                Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 8, weight: .semibold))
+                DisclosureChevron(expanded: expanded, font: .system(size: 8, weight: .semibold))
                     .foregroundStyle(theme.muted)
                     .frame(width: theme.indent, height: theme.rowHeight)
                     .contentShape(Rectangle())

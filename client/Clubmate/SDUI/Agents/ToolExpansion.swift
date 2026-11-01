@@ -9,7 +9,7 @@ import ClubmateKit
     private(set) var opened: String?
 
     func toggle(card id: String) {
-        opened = state.toggle(card: id) ? id : nil
+        Motion.disclose { opened = state.toggle(card: id) ? id : nil }
     }
 
     func set(card id: String, expanded: Bool) {
@@ -17,7 +17,7 @@ import ClubmateKit
     }
 
     func toggle(group ids: [String]) {
-        opened = state.toggle(group: ids) ? ids.first : nil
+        Motion.disclose { opened = state.toggle(group: ids) ? ids.first : nil }
     }
 
     func prune(_ transcript: SDUINode) {

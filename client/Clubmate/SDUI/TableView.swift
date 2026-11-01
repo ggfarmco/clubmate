@@ -40,6 +40,7 @@ struct TableNodeView: View {
                 }
             }
         }
+        .disclosureAnimation(Set(rows.filter(\.expanded).map(\.id)))
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .focusable()
         .focusEffectDisabled()
