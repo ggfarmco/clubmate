@@ -213,7 +213,12 @@ type NewSessionRequest struct {
 }
 
 type SessionMeta struct {
-	ClaudeCode ClaudeCodeMeta `json:"claudeCode"`
+	ClaudeCode   ClaudeCodeMeta    `json:"claudeCode"`
+	SystemPrompt *SystemPromptMeta `json:"systemPrompt,omitempty"`
+}
+
+type SystemPromptMeta struct {
+	Append string `json:"append"`
 }
 
 type ClaudeCodeMeta struct {

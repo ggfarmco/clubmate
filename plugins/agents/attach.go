@@ -85,7 +85,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return nil, authErr
@@ -133,7 +133,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	}
 	mode, values := s.settings()
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec.ID, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return authErr

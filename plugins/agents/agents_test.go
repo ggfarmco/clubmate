@@ -1725,6 +1725,8 @@ func TestAgentNewCreatesChildInOwnWorktree(t *testing.T) {
 	})
 	news := f.calls(t, "session/new")
 	require.Len(t, news, 2)
+	assert.Contains(t, string(news[0].Params), `"systemPrompt":{"append":"When you need the user's answer`)
+	assert.NotContains(t, string(news[1].Params), "systemPrompt")
 	assert.Contains(t, string(news[1].Params), `"settings":{"advisorModel":"opus"}`)
 	actor, from := promptEvent(t, f.logLines(t, out.Session))
 	assert.Equal(t, "agent:"+parent, actor)
