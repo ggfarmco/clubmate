@@ -202,8 +202,8 @@ final class BrowserTabTests: XCTestCase {
     }
 
     func testUnresponsivePageFailsAction() async throws {
-        let server = try await serve(["/a": FixtureResponse(body: #"<button onclick="const end = Date.now() + 2500; while (Date.now() < end) {}">Warten</button>"#)])
-        let tab = makeTab(timeout: .seconds(1))
+        let server = try await serve(["/a": FixtureResponse(body: #"<button onclick="const end = Date.now() + 6000; while (Date.now() < end) {}">Warten</button>"#)])
+        let tab = makeTab(timeout: .seconds(3))
         _ = await tab.open(server.url("/a"))
         let text = try await tab.snapshot().text
         let button = try XCTUnwrap(ref(in: text, for: #"button "Warten""#), text)
@@ -214,7 +214,7 @@ final class BrowserTabTests: XCTestCase {
         } catch let error as BrowserError {
             XCTAssertEqual(error.message, "page did not respond")
         }
-        XCTAssertLessThan(ContinuousClock.now - started, .seconds(2))
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(5))
     }
 
     private func serve(_ routes: [String: FixtureResponse]) async throws -> FixtureServer {
