@@ -531,7 +531,11 @@ func TestAnsweredPermissionPublishesResolved(t *testing.T) {
 	require.Len(t, perms, 1)
 	f.answerPermission(t, workspace, session, perms[0].ID)
 
-	want := api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: perms[0].ID}
+	f.waitResolved(t, api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: perms[0].ID, RequestKind: api.RequestPermission})
+}
+
+func (f *fixture) waitResolved(t *testing.T, want api.Changed) {
+	t.Helper()
 	testutil.Eventually(t, func() bool {
 		events, err := f.h.Bus.Read(t.Context(), api.TopicChanged, 0, 1000)
 		require.NoError(t, err)

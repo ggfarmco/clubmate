@@ -132,6 +132,14 @@ public final class CompanionModel {
 
     private static let resolvedKind = "resolved"
 
+    private static func resolvedNotification(_ payload: JSONValue) -> NotificationKind {
+        payload["requestKind"]?.stringValue == "elicitation" ? .needsInput : .permission
+    }
+
+    private static func resolvedKey(_ computer: String, _ session: String, _ kind: NotificationKind) -> String {
+        computer + "|" + session + "|" + kind.rawValue
+    }
+
     private static func cursorKey(_ computer: String) -> String {
         "companion.cursor." + computer
     }
@@ -146,8 +154,9 @@ public final class CompanionModel {
         }
         if case .event(let event) = signal, event.topic == Topic.agentsChanged, event.payload["kind"]?.stringValue == Self.resolvedKind,
            let session = event.payload["session"]?.stringValue {
-            resolvedAt[computer + "|" + session] = event.seq
-            let ids = inbox.resolve(computer: computer, session: session)
+            let kind = Self.resolvedNotification(event.payload)
+            resolvedAt[Self.resolvedKey(computer, session, kind)] = event.seq
+            let ids = inbox.resolve(computer: computer, session: session, kind: kind)
             if !ids.isEmpty { withdrawn?(ids) }
         }
         if case .event(let event) = signal, let item = InboxItem(event, computerID: computer, received: .now) {
@@ -169,7 +178,7 @@ public final class CompanionModel {
     private func receive(_ item: InboxItem, seq: Int) async {
         let allowed = await policy(item).allows(item.kind)
         guard inbox.add(item) else { return }
-        let resolved = item.kind == .permission && (item.session.flatMap { resolvedAt[item.computerID + "|" + $0] } ?? 0) > seq
+        let resolved = (item.session.flatMap { resolvedAt[Self.resolvedKey(item.computerID, $0, item.kind)] } ?? 0) > seq
         if allowed && !resolved {
             posted?(item)
         } else {

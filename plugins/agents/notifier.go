@@ -29,9 +29,10 @@ type notifier struct {
 }
 
 type change struct {
-	session *session
-	kind    string
-	request string
+	session     *session
+	kind        string
+	request     string
+	requestKind string
 }
 
 func newNotifier(h *pluginsdk.Host) *notifier {
@@ -58,9 +59,9 @@ func (n *notifier) mark(s *session, kind string, save bool) {
 	n.poke()
 }
 
-func (n *notifier) resolved(s *session, request string) {
+func (n *notifier) resolved(s *session, kind, request string) {
 	n.mu.Lock()
-	n.order = append(n.order, change{session: s, kind: changeResolved, request: request})
+	n.order = append(n.order, change{session: s, kind: changeResolved, request: request, requestKind: kind})
 	n.mu.Unlock()
 	n.poke()
 }
@@ -91,7 +92,7 @@ func (n *notifier) run() {
 		}
 		for _, c := range order {
 			rec := c.session.snapshot()
-			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind, Status: rec.Status, Request: c.request}); err != nil {
+			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind, Status: rec.Status, Request: c.request, RequestKind: c.requestKind}); err != nil {
 				fmt.Fprintln(os.Stderr, "agents: publish:", err)
 			}
 		}

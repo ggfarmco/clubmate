@@ -50,7 +50,7 @@ func (s *session) requestPermission(ctx context.Context, request string, params 
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
 	if s.resolved != nil {
-		s.resolved(id)
+		s.resolved(entryPermission, id)
 	}
 	return out
 }

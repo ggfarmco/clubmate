@@ -15,6 +15,9 @@ const (
 	ChangeDeleted  = "deleted"
 	ChangeResolved = "resolved"
 
+	RequestPermission  = "permission"
+	RequestElicitation = "elicitation"
+
 	StatusClosed = "closed"
 )
 
@@ -42,11 +45,12 @@ type Turn struct {
 }
 
 type Changed struct {
-	Workspace string `json:"workspace"`
-	Session   string `json:"session"`
-	Kind      string `json:"kind"`
-	Status    string `json:"status,omitempty"`
-	Request   string `json:"request,omitempty"`
+	Workspace   string `json:"workspace"`
+	Session     string `json:"session"`
+	Kind        string `json:"kind"`
+	Status      string `json:"status,omitempty"`
+	Request     string `json:"request,omitempty"`
+	RequestKind string `json:"requestKind,omitempty"`
 }
 
 func (s Session) Closed() bool {

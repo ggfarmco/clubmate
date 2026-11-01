@@ -191,7 +191,7 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	})
 	s.setup = ready
 	s.turned = a.notes.turn
-	s.resolved = func(request string) { a.notes.resolved(s, request) }
+	s.resolved = func(kind, request string) { a.notes.resolved(s, kind, request) }
 	a.mu.Lock()
 	a.sessions[rec.ID] = s
 	a.mu.Unlock()

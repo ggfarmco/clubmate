@@ -19,7 +19,7 @@ type session struct {
 	deleted   bool
 	changed   func(kind string, save bool)
 	turned    func(api.Turn)
-	resolved  func(request string)
+	resolved  func(kind, request string)
 	setup     *setup
 
 	transcriptState

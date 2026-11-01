@@ -99,7 +99,7 @@ final class ModelTests: XCTestCase {
         let resolved = item("p", "m", "agt_1", .permission)
         let others = [item("q", "m", "agt_1", .needsInput), item("o", "m", "agt_2", .permission), item("x", "other", "agt_1", .permission)]
         for entry in [resolved] + others { inbox.add(entry) }
-        XCTAssertEqual(inbox.resolve(computer: "m", session: "agt_1"), [resolved.id])
+        XCTAssertEqual(inbox.resolve(computer: "m", session: "agt_1", kind: .permission), [resolved.id])
         XCTAssertFalse(inbox.isUnread(resolved))
         XCTAssertTrue(others.allSatisfy(inbox.isUnread))
     }
@@ -226,6 +226,38 @@ final class ModelTests: XCTestCase {
         try await waitUntil { model.inbox.items.count == 1 }
         XCTAssertEqual(posted.values, withdrawn.values)
         XCTAssertEqual(model.inbox.unread, [])
+        try model.remove("m")
+    }
+
+    @MainActor
+    func testAnsweredQuestionWithdrawsOnlyItsSessionsQuestionAlerts() async throws {
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        try store.save(Computer(id: "m", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            case AgentCommand.sessions: (FakeTransport.result("[]"), 200)
+            default: (FakeTransport.result(helloJSON), 200)
+            }
+        }, stream: { _ in
+            let wire = [
+                #"{"seq":1,"topic":"notify.posted","workspace":"w","payload":{"id":"n1","session":"agt_1","message":"m","kind":"permission"}}"#,
+                #"{"seq":2,"topic":"notify.posted","workspace":"w","payload":{"id":"n2","session":"agt_1","message":"q","kind":"needs-input"}}"#,
+                #"{"seq":3,"topic":"agents.changed","workspace":"w","payload":{"workspace":"w","session":"agt_1","kind":"resolved","request":"elicitation-2","requestKind":"elicitation"}}"#,
+            ].enumerated().map { "id: \($0.offset + 1)\nevent: bus\ndata: \($0.element)\n\n" }.joined()
+            return (200, AsyncThrowingStream { $0.yield(Data((": connected\n\n" + wire).utf8)) })
+        })
+        let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "P", model: "iPhone"), sleep: { _ in })
+        let posted = Recorder<String>()
+        let withdrawn = Recorder<String>()
+        model.posted = { posted.add($0.id) }
+        model.withdrawn = { $0.forEach(withdrawn.add) }
+
+        model.start()
+
+        try await waitUntil { model.inbox.items.count == 2 }
+        XCTAssertEqual(Set(posted.values).subtracting(withdrawn.values), ["m|n1"])
+        XCTAssertEqual(model.inbox.unread, ["m|n1"])
         try model.remove("m")
     }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/api"
 )
 
 func askScript(multi bool) map[string]any {
@@ -135,4 +136,5 @@ func TestElicitationRemoteDecline(t *testing.T) {
 
 	got := f.waitCall(t, "elicitation_response", func(fakeCall) bool { return true })
 	assert.JSONEq(t, `{"action":"decline"}`, string(got.Params))
+	f.waitResolved(t, api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: request, RequestKind: api.RequestElicitation})
 }

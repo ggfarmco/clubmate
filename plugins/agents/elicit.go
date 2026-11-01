@@ -202,6 +202,9 @@ func (s *session) requestElicitation(ctx context.Context, request string, params
 	s.settleLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
+	if s.resolved != nil {
+		s.resolved(entryElicitation, id)
+	}
 	return out
 }
 

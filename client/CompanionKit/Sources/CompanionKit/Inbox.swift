@@ -82,8 +82,8 @@ public struct Inbox: Sendable, Equatable {
         unread.removeAll()
     }
 
-    public mutating func resolve(computer: String, session: String) -> [String] {
-        let resolved = items.filter { $0.computerID == computer && $0.session == session && $0.kind == .permission }.map(\.id)
+    public mutating func resolve(computer: String, session: String, kind: NotificationKind) -> [String] {
+        let resolved = items.filter { $0.computerID == computer && $0.session == session && $0.kind == kind }.map(\.id)
         unread.subtract(resolved)
         return resolved
     }
