@@ -20,6 +20,7 @@ public final class AgentsStore {
     public private(set) var loaded = false
     public private(set) var error: String?
     public private(set) var transcriptErrors: [String: String] = [:]
+    public var expanded: Set<String> = []
     private var outgoing: [String: [Outgoing]] = [:]
 
     public static let followInterval: Duration = .seconds(2)

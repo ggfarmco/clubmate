@@ -31,6 +31,19 @@ final class SessionRowsTests: XCTestCase {
         }
     }
 
+    func testSubagentsStayFoldedUntilTheParentIsExpanded() throws {
+        let tree = try XCTUnwrap(AgentSession.grouped([
+            AgentSession(id: "p", status: .done),
+            AgentSession(id: "c", parentSession: "p", status: .done, asks: true),
+            AgentSession(id: "g", parentSession: "c", status: .done),
+        ]).first?.sessions.first)
+        XCTAssertEqual(tree.rows(expanded: []).map(\.id), ["p"])
+        XCTAssertEqual(tree.rows(expanded: ["p"]).map(\.id), ["p", "c"])
+        XCTAssertEqual(tree.rows(expanded: ["p", "c"]).map(\.depth), [0, 1, 2])
+        XCTAssertEqual(tree.session.glyph(waitingChildren: tree.waitingDescendants), .childWaiting)
+        XCTAssertEqual(tree.session.stateLine(now: now, waitingChildren: tree.waitingDescendants), SessionStateLine(text: "1 subagent waiting"))
+    }
+
     func testWorkspaceActivityCountsWaitingRunningAndClosed() {
         let activity = WorkspaceActivity([
             AgentSession(id: "a", status: .waiting),

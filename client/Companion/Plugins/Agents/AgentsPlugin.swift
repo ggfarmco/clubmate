@@ -88,7 +88,8 @@ struct SessionListView: View {
                 }
             }
             ForEach(store.groups, id: \.group) { group in
-                let items = group.sessions.flatMap(\.rows)
+                let items = group.sessions.flatMap { $0.rows(expanded: store.expanded) }
+                let count = group.sessions.reduce(0) { $0 + 1 + $1.descendants }
                 if group.group == .closed {
                     Section(isExpanded: $closedExpanded) {
                         rows(items)
@@ -97,7 +98,7 @@ struct SessionListView: View {
                             withAnimation { closedExpanded.toggle() }
                         } label: {
                             HStack {
-                                Text("\(group.group.title) · \(items.count)")
+                                Text("\(group.group.title) · \(count)")
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .rotationEffect(.degrees(closedExpanded ? 90 : 0))
@@ -113,7 +114,7 @@ struct SessionListView: View {
                         HStack {
                             Text(group.group.title)
                             Spacer()
-                            Text("\(items.count)")
+                            Text("\(count)")
                         }
                     }
                 }
@@ -140,9 +141,42 @@ struct SessionListView: View {
 
     private func rows(_ items: [SessionRowItem]) -> some View {
         ForEach(items) { item in
-            SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants)
-                .tag(item.id)
+            HStack(spacing: 0) {
+                SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants)
+                if !item.node.children.isEmpty {
+                    SubagentToggle(count: item.node.descendants, expanded: item.expanded) {
+                        withAnimation {
+                            if item.expanded { store.expanded.remove(item.id) } else { store.expanded.insert(item.id) }
+                        }
+                    }
+                }
+            }
+            .tag(item.id)
         }
+    }
+}
+
+struct SubagentToggle: View {
+    let count: Int
+    let expanded: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack(spacing: 4) {
+                Text("\(count)")
+                    .monospacedDigit()
+                Image(systemName: "chevron.right")
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.borderless)
+        .tint(.secondary)
+        .accessibilityLabel(expanded ? "Hide \(count) subagents" : "Show \(count) subagents")
     }
 }
 
@@ -154,7 +188,7 @@ struct SessionRow: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             HStack(alignment: .top, spacing: 12) {
-                SessionGlyphView(glyph: session.glyph, size: depth > 0 ? 24 : 28)
+                SessionGlyphView(glyph: session.glyph(waitingChildren: waitingChildren), size: depth > 0 ? 24 : 28)
                 VStack(alignment: .leading, spacing: 2) {
                     if depth > 0 {
                         Text(session.subagentLabel)

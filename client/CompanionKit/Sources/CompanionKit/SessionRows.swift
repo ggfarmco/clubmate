@@ -72,9 +72,13 @@ extension AgentSession {
         return question.flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    public func glyph(waitingChildren: Int) -> SessionGlyph {
+        waitingChildren > 0 && !glyph.needsYou ? .childWaiting : glyph
+    }
+
     public func stateLine(now: Date, waitingChildren: Int = 0) -> SessionStateLine {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
-        switch glyph {
+        switch glyph(waitingChildren: waitingChildren) {
         case .permission:
             guard let summary = pendingSummary, summary.kind == .permission, !summary.text.isEmpty else {
                 return SessionStateLine(text: SessionState.waitingForYou.label, tone: .needsYou, age: age(updatedAt))
@@ -107,18 +111,21 @@ extension SessionNode {
         children.reduce(0) { $0 + ($1.session.glyph.needsYou ? 1 : 0) + $1.waitingDescendants }
     }
 
-    public var rows: [SessionRowItem] {
-        rows(depth: 0)
+    public func rows(expanded: Set<String>) -> [SessionRowItem] {
+        rows(depth: 0, expanded: expanded)
     }
 
-    private func rows(depth: Int) -> [SessionRowItem] {
-        [SessionRowItem(node: self, depth: depth)] + children.flatMap { $0.rows(depth: depth + 1) }
+    private func rows(depth: Int, expanded: Set<String>) -> [SessionRowItem] {
+        let open = expanded.contains(id)
+        let nested = open ? children.flatMap { $0.rows(depth: depth + 1, expanded: expanded) } : []
+        return [SessionRowItem(node: self, depth: depth, expanded: open)] + nested
     }
 }
 
 public struct SessionRowItem: Sendable, Equatable, Identifiable {
     public let node: SessionNode
     public let depth: Int
+    public let expanded: Bool
 
     public var id: String { node.id }
 }

@@ -31,6 +31,18 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Fix the layout"].waitForExistence(timeout: 5))
     }
 
+    func testSubagentsAreFoldedUnderTheParentUntilShown() {
+        let app = launch(open: "agents")
+        let show = app.buttons["Show 1 subagents"]
+        XCTAssertTrue(show.waitForExistence(timeout: 10))
+        let child = app.staticTexts["Explain the checkout flow"]
+        XCTAssertFalse(child.exists)
+        show.tap()
+        XCTAssertTrue(child.waitForExistence(timeout: 5))
+        app.buttons["Hide 1 subagents"].tap()
+        XCTAssertFalse(child.waitForExistence(timeout: 2))
+    }
+
     func testBackToMacsNeverShowsChooseAMac() {
         let app = launch(open: "sidebar")
         let macs = app.navigationBars["Macs"]
