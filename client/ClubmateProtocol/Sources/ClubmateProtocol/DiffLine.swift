@@ -95,6 +95,8 @@ public struct DiffFile: Sendable, Hashable {
         var oldLeft: Int
         var newLeft: Int
 
+        static let limit = 10_000_000
+
         var open: Bool { oldLeft > 0 || newLeft > 0 }
 
         init(_ header: String) {
@@ -102,7 +104,8 @@ public struct DiffFile: Sendable, Hashable {
             let range = { (sign: Character) -> (Int, Int) in
                 guard let field = fields.first(where: { $0.first == sign }) else { return (0, 0) }
                 let parts = field.dropFirst().split(separator: ",", omittingEmptySubsequences: false)
-                return (Int(parts.first ?? "") ?? 0, parts.count > 1 ? Int(parts[1]) ?? 0 : 1)
+                let number = { (text: Substring?) in min(max(Int(text ?? "") ?? 0, 0), Self.limit) }
+                return (number(parts.first), parts.count > 1 ? number(parts[1]) : 1)
             }
             (old, oldLeft) = range("-")
             (new, newLeft) = range("+")
@@ -111,15 +114,15 @@ public struct DiffFile: Sendable, Hashable {
         mutating func take(_ line: String) -> Line {
             switch line.first {
             case "+":
-                defer { new += 1; newLeft -= 1 }
+                defer { new &+= 1; newLeft &-= 1 }
                 return Line(text: String(line.dropFirst()), kind: .added, number: new)
             case "-":
-                defer { old += 1; oldLeft -= 1 }
+                defer { old &+= 1; oldLeft &-= 1 }
                 return Line(text: String(line.dropFirst()), kind: .removed, number: old)
             case "\\":
                 return Line(text: line, kind: .context, number: nil)
             default:
-                defer { old += 1; new += 1; oldLeft -= 1; newLeft -= 1 }
+                defer { old &+= 1; new &+= 1; oldLeft &-= 1; newLeft &-= 1 }
                 return Line(text: line.hasPrefix(" ") ? String(line.dropFirst()) : line, kind: .context, number: new)
             }
         }

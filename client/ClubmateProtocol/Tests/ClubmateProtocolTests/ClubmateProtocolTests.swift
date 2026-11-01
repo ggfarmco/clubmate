@@ -131,4 +131,11 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(files[0].lines.map(\.kind), [.hunk, .context, .removed, .added, .context])
         XCTAssertEqual([files[0].added, files[0].removed, files[1].added, files[1].removed], [1, 1, 1, 0])
     }
+
+    func testDiffFileClampsHugeHunkNumbers() {
+        let text = "--- a/x\n+++ b/x\n@@ -9223372036854775807,9223372036854775807 +9223372036854775807 @@\n a\n-b\n+c\n"
+        let files = DiffFile.parse(text)
+
+        XCTAssertEqual(files[0].lines.map(\.number), [nil, 10_000_000, 10_000_001, 10_000_001])
+    }
 }
