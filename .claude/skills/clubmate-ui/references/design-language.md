@@ -11,7 +11,9 @@ Distilled from the boards in `design/language/` (open `png/<Board>.png` or `html
 5. **Every action is visible once and has a key.** A context-menu action is also in the pane's action bar or the palette, with its key printed. Focus is always visible.
 6. **Names over ids; keep the end that differs.** Show what a person named or what the thing does; ids go behind "Copy id". The plugin writes a name when the user gave none ("Review loop: Coder done → Reviewer").
 
-Brand mate green: only in the app icon, onboarding, docs and the Mate fallback theme. Never as accent, selection, success, title bar, rail or status-bar tint inside a themed window.
+Brand mate green: only in the app icon, onboarding, docs and the Mate fallback theme. Never as accent, selection, success, title bar, rail or status-bar tint inside a themed window. The Mate theme's accent and tones equal the companion's (dark warning `#F2B84B`, danger `#FF6B5E`; light accent `#357A27`, danger `#C93A30`).
+
+Mac colours (`--id-*` in `cm.css`, spec in `design/companion/png/C-MacColour.png`): one of six tokens per Mac, a name tag next to the Mac's name, never a role. On the Mac it is only the 8pt dot in the workspace title pill (`Agents-Mate-1280`) while `remote.status` says `titleDot`, and the picker in Settings → Remote (`Mac-Settings-Remote`).
 
 ## Colour roles
 

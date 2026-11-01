@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mac colours</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
+<link rel="stylesheet" href="/_blob/7df5c25b2aedc6ec882e4f5493f98846">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2B6E39}a:hover{color:#1B4A25}
+</style>
+</helmet>
+<div class="doc" style="width: 1400px; min-height: 1900px; padding: 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div class="eyebrow">Clubmate companion · Mac colours</div>
+<h1>C5 · A colour for each Mac</h1>
+<p class="lead">With two or more Macs paired, each one gets a colour, so you can tell at a glance which Mac is asking. The colour is a name tag, not a theme: buttons, status and selection keep their roles everywhere, so Allow once is always the same green button.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 40px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="eyebrow">Palette</div>
+<h2>Six colours, none of them a role</h2>
+<p style="font-size: 15px">Each hue sits at least 30° away from the roles: accent green 84°, warning amber 39°, danger red 5°, success teal 169°. All six pass 3:1 against the surfaces in both appearances (non-text contrast).</p>
+<p style="font-size: 15px">They are close in lightness, so the Mac's name is always next to the colour. Colour is never the only cue.</p>
+<p style="font-size: 15px">The Mac sends a <b>token</b> (<code>blue</code>), not a hex value. Each app maps it to its dark or light value, and a future seventh colour doesn't break older apps; they fall back to graphite.</p>
+</div>
+<table>
+<thead><tr><th style="width: 110px">Token</th><th>Dark</th><th>Light</th><th style="width: 70px">Hue</th></tr></thead>
+<tbody>
+<tr><td class="mono" style="vertical-align: middle">Sky</td><td><div class="cm comp th-cdark id-sky" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#5AC8FA</span><span class="foot mut">8.97:1 on #1C1C1E</span></div></td><td><div class="cm comp th-clight id-sky" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#0A78A8</span><span class="foot mut">4.92:1 on #FFF</span></div></td><td class="mono muted" style="vertical-align: middle">199°</td></tr>
+<tr><td class="mono" style="vertical-align: middle">Blue</td><td><div class="cm comp th-cdark id-blue" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#3D8BFF</span><span class="foot mut">5.13:1 on #1C1C1E</span></div></td><td><div class="cm comp th-clight id-blue" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#1F62D0</span><span class="foot mut">5.65:1 on #FFF</span></div></td><td class="mono muted" style="vertical-align: middle">216°</td></tr>
+<tr><td class="mono" style="vertical-align: middle">Indigo</td><td><div class="cm comp th-cdark id-indigo" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#8582FF</span><span class="foot mut">5.38:1 on #1C1C1E</span></div></td><td><div class="cm comp th-clight id-indigo" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#5450D6</span><span class="foot mut">6.01:1 on #FFF</span></div></td><td class="mono muted" style="vertical-align: middle">241°</td></tr>
+<tr><td class="mono" style="vertical-align: middle">Purple</td><td><div class="cm comp th-cdark id-purple" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#BF7AF0</span><span class="foot mut">5.88:1 on #1C1C1E</span></div></td><td><div class="cm comp th-clight id-purple" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#8540BF</span><span class="foot mut">6.03:1 on #FFF</span></div></td><td class="mono muted" style="vertical-align: middle">275°</td></tr>
+<tr><td class="mono" style="vertical-align: middle">Magenta</td><td><div class="cm comp th-cdark id-magenta" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#F06FC8</span><span class="foot mut">6.33:1 on #1C1C1E</span></div></td><td><div class="cm comp th-clight id-magenta" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#B02E8C</span><span class="foot mut">5.81:1 on #FFF</span></div></td><td class="mono muted" style="vertical-align: middle">319°</td></tr>
+<tr><td class="mono" style="vertical-align: middle">Graphite</td><td><div class="cm comp th-cdark id-graphite" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#A1A1A6</span><span class="foot mut">6.61:1 on #1C1C1E</span></div></td><td><div class="cm comp th-clight id-graphite" style="padding: 8px 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px"><span class="mdot" style="width: 14px; height: 14px"></span><span class="cap" style="flex: 1">#636369</span><span class="foot mut">5.97:1 on #FFF</span></div></td><td class="mono muted" style="vertical-align: middle">—</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-top: 24px; border-top: 1px solid #DAD8CF">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<h2>Where it appears</h2>
+<p style="font-size: 15px; display: flex; gap: 10px"><span class="tag">1</span><span>Section headers on Macs and in the iPad / Fold sidebar: the Mac glyph takes the colour; the name stays in the label colour.</span></p>
+<div class="cm comp th-cdark" style="border-radius: 14px; padding: 12px 0; display: flex; flex-direction: column"><div class="hdr id-blue" style="padding: 4px 16px 8px"><span style="display: flex; align-items: center; gap: 8px"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; stroke-width: 2"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/></svg>Mac Studio</span><span class="cap" style="font-weight: 400">online</span></div><div class="hdr id-magenta" style="padding: 4px 16px 8px"><span style="display: flex; align-items: center; gap: 8px"><svg class="i mtint" viewBox="0 0 16 16" aria-hidden="true" style="width: 18px; height: 18px; stroke-width: 2"><path d="M3 3.5h10v7H3Z"/><path d="M1.5 12.5h13"/></svg>MacBook Pro</span><span class="cap" style="font-weight: 400">online</span></div></div>
+<p style="font-size: 15px; display: flex; gap: 10px"><span class="tag">2</span><span>Mixed lists (“Needs you”): a dot before the Mac name in the row's second line.</span></p>
+<div class="cm comp th-cdark" style="border-radius: 14px; padding: 12px 0; display: flex; flex-direction: column"><div class="ig" style="margin: 0 12px"><div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6 ell">Run <span class="mono" style="font-size: 15px">go test ./…</span>?</span><span class="cap mut ell"><span class="mdot id-blue" style="margin-right: 5px"></span>Mac Studio · shop</span></div><span class="cap mut">1 min</span></div><div class="c"><span class="st wa"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V4.5a1 1 0 0 1 2 0V7M7 7V3.5a1 1 0 0 1 2 0V7M9 7V4a1 1 0 0 1 2 0v4M11 8V6a1 1 0 0 1 2 0v3.5c0 2.8-2 4.5-4.5 4.5S4 12.6 3.5 11L2.6 8.8a1 1 0 0 1 1.8-.8L5 9"/></svg></span><div class="cbody"><span class="w6 ell">Run <span class="mono" style="font-size: 15px">terraform plan</span>?</span><span class="cap mut ell"><span class="mdot id-magenta" style="margin-right: 5px"></span>MacBook Pro · infra</span></div><span class="cap mut">4 min</span></div></div></div>
+<p style="font-size: 15px; display: flex; gap: 10px"><span class="tag">3</span><span>Under a title, wherever the Mac is named: workspace, Inbox, session header.</span></p>
+<div class="cm comp th-clight" style="border-radius: 14px; padding: 12px 0; display: flex; flex-direction: column"><div style="display: flex; flex-direction: column; align-items: center; padding: 4px 16px"><span style="font-size: 15px; line-height: 20px; font-weight: 600">Refactor the cart total</span><span class="foot mut"><span class="wa-i">Waiting for you</span> · <span class="mdot id-blue" style="width: 7px; height: 7px; margin: 0 4px 0 1px"></span>Mac Studio · shop</span></div></div>
+<p style="font-size: 15px; display: flex; gap: 10px"><span class="tag">4</span><span>On the Mac itself: a dot in the workspace pill in the title bar, so “the blue Mac” is blue on every screen. It can be turned off in Settings → Remote.</span></p>
+<div class="cm th-mate" style="border-radius: 10px; overflow: hidden; border: 1px solid #1B1D1C"><div class="tb" style="height: 38px; border-bottom: 0"><div class="lights"><i style="background: #FF5F57"></i><i style="background: #FEBC2E"></i><i style="background: #28C840"></i></div><span class="pill"><span class="mdot id-blue"></span><span>design-brief</span><span class="faint">/</span><span>docs/design-brief</span></span><span style="flex: 1"></span></div></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<h2>Rules</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 8px">
+<li><b>Only with two or more Macs.</b> With one Mac paired there are no dots and no tinted glyphs, and the Mac's title bar shows no dot.</li>
+<li><b>Always next to the name.</b> A dot or glyph is never shown without the Mac's name beside it.</li>
+<li><b>Never on</b> buttons, status glyphs, selection, the unread dot, row backgrounds, or text. The amber “needs you” glyph is still the thing that catches the eye; the dot only says where.</li>
+<li><b>Notifications:</b> iOS doesn't let us colour them, so the Mac's name leads the title: “Mac Studio · shop”.</li>
+<li><b>Offline Macs</b> keep their colour; the row dims as before.</li>
+<li><b>Default at pairing:</b> the first colour not used by another Mac, in the order blue, magenta, sky, purple, indigo, graphite — neighbours in that order are far apart.</li>
+<li><b>Duplicates are allowed</b> if you pick them; the picker shows which Mac already uses each colour.</li>
+</ul>
+<h2 style="padding-top: 12px">Where you choose it</h2>
+<ul style="font-size: 15px; display: flex; flex-direction: column; gap: 8px">
+<li><b>The colour belongs to the Mac.</b> It is stored on the Mac and sent at pairing, so the iPhone, the iPad and the Mac's own title bar always agree.</li>
+<li><b>On the phone:</b> Macs → tap a Mac's name → Colour. The change is sent to the Mac; while the Mac is offline the picker is disabled (“Connect to change”).</li>
+<li><b>On the Mac:</b> Settings → Remote → This Mac's colour, with a preview of the title bar and of a phone row.</li>
+</ul>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
+<div style="display: flex; align-items: center; gap: 10px"><span class="tag b">b</span><h2>Handoff</h2></div>
+<table>
+<thead><tr><th style="width: 300px">Change</th><th>What it needs</th></tr></thead>
+<tbody>
+<tr><td>Colour per Mac on the phone and iPad</td><td><span class="tag b">b</span> <code>identity: { name, colour }</code> on each Mac in the <code>remote</code> plugin's pairing and list payloads; <code>colour</code> is one of <code>sky blue indigo purple magenta graphite</code></td></tr>
+<tr><td>Change it from the phone</td><td><span class="tag b">b</span> A <code>setIdentityColour</code> call to the Mac, and a change event so every paired device updates</td></tr>
+<tr><td>Default colour at pairing</td><td><span class="tag b">b</span> The phone sends the colours its other Macs use, so the Mac can take the first free one and the picker can label them</td></tr>
+<tr><td>Dot in the Mac's title-bar pill; Settings → Remote picker</td><td><span class="tag a">a</span> Mac renderer: six tokens with dark / light values next to the theme roles; the pill shows the dot only when 2+ Macs are paired to a device and the setting is on</td></tr>
+<tr><td>Dots, tinted glyphs, picker in the companion</td><td><span class="tag a">a</span> Companion SwiftUI: the same six tokens; hidden with one Mac</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":1900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

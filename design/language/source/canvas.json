@@ -1,208 +1,405 @@
 {
-"v": 3,
-"createdOnFiles": {
-"v": 1,
-"at": "2026-10-30T23:30:00Z"
-},
-"title": "Clubmate icon",
-"launch": {
-"view": "canvas"
-},
-"pages": [],
-"boards": {
-"Main.dc.html": {
-"x": 0,
-"y": 0,
-"w": 1200,
-"h": 760,
-"title": "Clubmate — app icon"
-},
-"Layers.dc.html": {
-"x": 0,
-"y": 880,
-"w": 1560,
-"h": 440,
-"title": "Icon Composer layers"
-},
-"Audit.dc.html": {
-"x": 0,
-"y": 1700,
-"w": 1480,
-"h": 2400,
-"title": "1 · Audit"
-},
-"Principles.dc.html": {
-"x": 1560,
-"y": 1700,
-"w": 1000,
-"h": 2400,
-"title": "2 · Principles & brand"
-},
-"Tokens.dc.html": {
-"x": 2640,
-"y": 1700,
-"w": 1480,
-"h": 2400,
-"title": "3 · Tokens"
-},
-"Components.dc.html": {
-"x": 0,
-"y": 4440,
-"w": 1480,
-"h": 2000,
-"title": "4a · Components — rows & controls"
-},
-"AgentNodes.dc.html": {
-"x": 1560,
-"y": 4440,
-"w": 1480,
-"h": 2000,
-"title": "4b · Components — agent nodes & chrome"
-},
-"Patterns.dc.html": {
-"x": 3120,
-"y": 4440,
-"w": 1480,
-"h": 2000,
-"title": "5 · Patterns"
-},
-"Handoff.dc.html": {
-"x": 4680,
-"y": 4440,
-"w": 1200,
-"h": 2000,
-"title": "6 · Handoff & open questions"
-},
-"Agents-1280.dc.html": {
-"x": 0,
-"y": 6960,
-"w": 1280,
-"h": 800,
-"title": "Agents · 1280 · dark"
-},
-"Code-1280.dc.html": {
-"x": 1360,
-"y": 6960,
-"w": 1280,
-"h": 800,
-"title": "Code + chat · 1280 · dark"
-},
-"Backlog-1280.dc.html": {
-"x": 2720,
-"y": 6960,
-"w": 1280,
-"h": 800,
-"title": "Backlog task · 1280 · dark"
-},
-"Cron-1280.dc.html": {
-"x": 4080,
-"y": 6960,
-"w": 1280,
-"h": 800,
-"title": "Cron job · 1280 · dark"
-},
-"Processes-1280.dc.html": {
-"x": 5440,
-"y": 6960,
-"w": 1280,
-"h": 800,
-"title": "Processes · 1280 · dark"
-},
-"Graphs-1280.dc.html": {
-"x": 6800,
-"y": 6960,
-"w": 1280,
-"h": 800,
-"title": "Graph run · 1280 · dark"
-},
-"Agents-640.dc.html": {
-"x": 0,
-"y": 7880,
-"w": 640,
-"h": 800,
-"title": "Agents · 640 · light"
-},
-"Code-640.dc.html": {
-"x": 1360,
-"y": 7880,
-"w": 640,
-"h": 800,
-"title": "Code + chat · 640 · light"
-},
-"Backlog-640.dc.html": {
-"x": 2720,
-"y": 7880,
-"w": 640,
-"h": 800,
-"title": "Backlog task · 640 · light"
-},
-"Triggers-640.dc.html": {
-"x": 4080,
-"y": 7880,
-"w": 640,
-"h": 800,
-"title": "Trigger · 640 · light"
-},
-"Processes-640.dc.html": {
-"x": 5440,
-"y": 7880,
-"w": 640,
-"h": 800,
-"title": "Processes · 640 · light"
-},
-"Graphs-640.dc.html": {
-"x": 6800,
-"y": 7880,
-"w": 640,
-"h": 800,
-"title": "Graph run · 640 · light"
-}
-},
-"order": [
-"Main.dc.html",
-"Layers.dc.html",
-"Audit.dc.html",
-"Principles.dc.html",
-"Tokens.dc.html",
-"Components.dc.html",
-"AgentNodes.dc.html",
-"Patterns.dc.html",
-"Handoff.dc.html",
-"Agents-1280.dc.html",
-"Code-1280.dc.html",
-"Backlog-1280.dc.html",
-"Cron-1280.dc.html",
-"Processes-1280.dc.html",
-"Graphs-1280.dc.html",
-"Agents-640.dc.html",
-"Code-640.dc.html",
-"Backlog-640.dc.html",
-"Triggers-640.dc.html",
-"Processes-640.dc.html",
-"Graphs-640.dc.html"
-],
-"notes": {
-"t_lang": {
-"x": 0,
-"y": 1420,
-"text": "Clubmate design language — review & system",
-"kind": "title1",
-"maxW": 4120
-},
-"t_comp": {
-"x": 0,
-"y": 4180,
-"text": "Components, patterns, handoff",
-"kind": "title1",
-"maxW": 5880
-},
-"t_mock": {
-"x": 0,
-"y": 6700,
-"text": "Mockups — 1280 in Kanagawa (dark), 640 in Catppuccin Latte (light); theme is a Tweak on every board",
-"kind": "title1",
-"maxW": 8080
-}
-},
-"designSystems": []
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-30T23:30:00Z"
+ },
+ "title": "Clubmate design",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1200,
+   "h": 760,
+   "title": "Clubmate — app icon"
+  },
+  "Layers.dc.html": {
+   "x": 0,
+   "y": 880,
+   "w": 1560,
+   "h": 440,
+   "title": "Icon Composer layers"
+  },
+  "Audit.dc.html": {
+   "x": 0,
+   "y": 1700,
+   "w": 1480,
+   "h": 2440,
+   "title": "1 · Audit"
+  },
+  "Principles.dc.html": {
+   "x": 1560,
+   "y": 1700,
+   "w": 1000,
+   "h": 2220,
+   "title": "2 · Principles & brand"
+  },
+  "Tokens.dc.html": {
+   "x": 2640,
+   "y": 1700,
+   "w": 1480,
+   "h": 2720,
+   "title": "3 · Tokens"
+  },
+  "Components.dc.html": {
+   "x": 0,
+   "y": 4820,
+   "w": 1480,
+   "h": 2360,
+   "title": "4a · Components — rows & controls"
+  },
+  "AgentNodes.dc.html": {
+   "x": 1560,
+   "y": 4820,
+   "w": 1480,
+   "h": 2320,
+   "title": "4b · Components — agent nodes & chrome"
+  },
+  "Patterns.dc.html": {
+   "x": 3120,
+   "y": 4820,
+   "w": 1480,
+   "h": 1940,
+   "title": "5 · Patterns"
+  },
+  "Handoff.dc.html": {
+   "x": 4680,
+   "y": 4820,
+   "w": 1200,
+   "h": 2480,
+   "title": "6 · Handoff & open questions"
+  },
+  "Agents-1280.dc.html": {
+   "x": 0,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · 1280 · dark"
+  },
+  "Code-1280.dc.html": {
+   "x": 1360,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Code + chat · 1280 · dark"
+  },
+  "Backlog-1280.dc.html": {
+   "x": 2720,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Backlog task · 1280 · dark"
+  },
+  "Cron-1280.dc.html": {
+   "x": 4080,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Cron job · 1280 · dark"
+  },
+  "Processes-1280.dc.html": {
+   "x": 5440,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Processes · 1280 · dark"
+  },
+  "Graphs-1280.dc.html": {
+   "x": 6800,
+   "y": 7700,
+   "w": 1280,
+   "h": 800,
+   "title": "Graph run · 1280 · dark"
+  },
+  "Agents-640.dc.html": {
+   "x": 0,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Agents · 640 · light"
+  },
+  "Code-640.dc.html": {
+   "x": 1360,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Code + chat · 640 · light"
+  },
+  "Backlog-640.dc.html": {
+   "x": 2720,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Backlog task · 640 · light"
+  },
+  "Triggers-640.dc.html": {
+   "x": 4080,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Trigger · 640 · light"
+  },
+  "Processes-640.dc.html": {
+   "x": 5440,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Processes · 640 · light"
+  },
+  "Graphs-640.dc.html": {
+   "x": 6800,
+   "y": 8620,
+   "w": 640,
+   "h": 800,
+   "title": "Graph run · 640 · light"
+  },
+  "C-Audit.dc.html": {
+   "x": 0,
+   "y": 9820,
+   "w": 1400,
+   "h": 1720,
+   "title": "C1 · Companion audit"
+  },
+  "C-Language.dc.html": {
+   "x": 1480,
+   "y": 9820,
+   "w": 1400,
+   "h": 2160,
+   "title": "C2 · Companion adaptation"
+  },
+  "C-Components.dc.html": {
+   "x": 2960,
+   "y": 9820,
+   "w": 1400,
+   "h": 2340,
+   "title": "C3 · Companion components"
+  },
+  "C-Handoff.dc.html": {
+   "x": 4440,
+   "y": 9820,
+   "w": 1200,
+   "h": 1820,
+   "title": "C4 · Companion handoff & questions"
+  },
+  "C-Macs.dc.html": {
+   "x": 0,
+   "y": 12300,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Macs (three Macs, colours) · dark"
+  },
+  "C-Workspace.dc.html": {
+   "x": 473,
+   "y": 12300,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace sessions · dark"
+  },
+  "C-Permission.dc.html": {
+   "x": 946,
+   "y": 12300,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Waiting for permission · dark"
+  },
+  "C-Question.dc.html": {
+   "x": 1419,
+   "y": 12300,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Asking a question · dark"
+  },
+  "C-Inbox.dc.html": {
+   "x": 1892,
+   "y": 12300,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Inbox · dark"
+  },
+  "C-Macs-Light.dc.html": {
+   "x": 0,
+   "y": 13280,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Macs (three Macs, colours) · light"
+  },
+  "C-Workspace-Light.dc.html": {
+   "x": 473,
+   "y": 13280,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Workspace sessions · light"
+  },
+  "C-Permission-Light.dc.html": {
+   "x": 946,
+   "y": 13280,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Waiting for permission · light"
+  },
+  "C-Question-Light.dc.html": {
+   "x": 1419,
+   "y": 13280,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Asking a question · light"
+  },
+  "C-Inbox-Light.dc.html": {
+   "x": 1892,
+   "y": 13280,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Inbox · light"
+  },
+  "C-iPad.dc.html": {
+   "x": 2365,
+   "y": 12300,
+   "w": 1194,
+   "h": 834,
+   "radius": 18,
+   "title": "iPad · split view · dark"
+  },
+  "C-Fold.dc.html": {
+   "x": 2365,
+   "y": 13280,
+   "w": 1024,
+   "h": 768,
+   "radius": 24,
+   "title": "iPhone Fold open (assumed ~4:3) · light"
+  },
+  "C-MacColour.dc.html": {
+   "x": 0,
+   "y": 14660,
+   "w": 1400,
+   "h": 1900,
+   "title": "C5 · A colour for each Mac"
+  },
+  "C-MacInfo.dc.html": {
+   "x": 1480,
+   "y": 14660,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Mac details, colour · dark"
+  },
+  "C-MacInfo-Light.dc.html": {
+   "x": 1953,
+   "y": 14660,
+   "w": 393,
+   "h": 852,
+   "radius": 50,
+   "title": "iPhone · Mac details, colour · light"
+  },
+  "Mac-Settings-Remote.dc.html": {
+   "x": 2426,
+   "y": 14660,
+   "w": 760,
+   "h": 560,
+   "radius": 12,
+   "title": "Mac · Settings → Remote · Mate"
+  },
+  "Agents-Mate-1280.dc.html": {
+   "x": 3266,
+   "y": 14660,
+   "w": 1280,
+   "h": 800,
+   "title": "Agents · 1280 · Mate · paired (blue dot in the pill)"
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Layers.dc.html",
+  "Audit.dc.html",
+  "Principles.dc.html",
+  "Tokens.dc.html",
+  "Components.dc.html",
+  "AgentNodes.dc.html",
+  "Patterns.dc.html",
+  "Handoff.dc.html",
+  "Agents-1280.dc.html",
+  "Code-1280.dc.html",
+  "Backlog-1280.dc.html",
+  "Cron-1280.dc.html",
+  "Processes-1280.dc.html",
+  "Graphs-1280.dc.html",
+  "Agents-640.dc.html",
+  "Code-640.dc.html",
+  "Backlog-640.dc.html",
+  "Triggers-640.dc.html",
+  "Processes-640.dc.html",
+  "Graphs-640.dc.html",
+  "C-Audit.dc.html",
+  "C-Language.dc.html",
+  "C-Components.dc.html",
+  "C-Handoff.dc.html",
+  "C-Macs.dc.html",
+  "C-Workspace.dc.html",
+  "C-Permission.dc.html",
+  "C-Question.dc.html",
+  "C-Inbox.dc.html",
+  "C-Macs-Light.dc.html",
+  "C-Workspace-Light.dc.html",
+  "C-Permission-Light.dc.html",
+  "C-Question-Light.dc.html",
+  "C-Inbox-Light.dc.html",
+  "C-iPad.dc.html",
+  "C-Fold.dc.html",
+  "C-MacColour.dc.html",
+  "C-MacInfo.dc.html",
+  "C-MacInfo-Light.dc.html",
+  "Mac-Settings-Remote.dc.html",
+  "Agents-Mate-1280.dc.html"
+ ],
+ "notes": {
+  "t_lang": {
+   "x": 0,
+   "y": 1420,
+   "text": "Clubmate design language — review & system",
+   "kind": "title1",
+   "maxW": 4120
+  },
+  "t_comp": {
+   "x": 0,
+   "y": 4560,
+   "text": "Components, patterns, handoff",
+   "kind": "title1",
+   "maxW": 5880
+  },
+  "t_mock": {
+   "x": 0,
+   "y": 7440,
+   "text": "Mockups — 1280 in Kanagawa (dark), 640 in Catppuccin Latte (light); theme is a Tweak on every board",
+   "kind": "title1",
+   "maxW": 8080
+  },
+  "t_companion": {
+   "x": 0,
+   "y": 9560,
+   "text": "Companion — the shipped structure, the Mac language, iPhone · iPad · Fold",
+   "kind": "title1",
+   "maxW": 5640
+  },
+  "t_maccolour": {
+   "x": 0,
+   "y": 14400,
+   "text": "A colour for each Mac — a name tag, not a theme; shown with two or more Macs",
+   "kind": "title1",
+   "maxW": 4546
+  }
+ },
+ "designSystems": []
 }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Companion handoff</title>
 <script src="./support.js"></script>
-<link rel="stylesheet" href="/_blob/3d1bf05f310421f9abc3a5d4ab39c49f">
+<link rel="stylesheet" href="/_blob/8f71d86e93f170850cbc3ca4af1cb0cf">
 </head>
 <body>
 <x-dc>
@@ -15,11 +15,11 @@ body{margin:0}
 a{color:#2B6E39}a:hover{color:#1B4A25}
 </style>
 </helmet>
-<div class="doc" style="width: 1200px; min-height: 1780px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
+<div class="doc" style="width: 1200px; min-height: 1820px; padding: 64px; display: flex; flex-direction: column; gap: 32px">
 <div style="display: flex; flex-direction: column; gap: 14px">
 <div class="eyebrow">Clubmate companion · handoff</div>
 <h1>C4 · Handoff &amp; open questions</h1>
-<p class="lead">Most of it is SwiftUI in the companion. Six things need data the companion doesn't get today; five rules are shared with the Mac renderers so both apps behave the same.</p>
+<p class="lead">Most of it is SwiftUI in the companion. Seven things need data the companion doesn't get today; five rules are shared with the Mac renderers so both apps behave the same.</p>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
@@ -32,6 +32,7 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <tr><td>Docked question card</td><td>An explicit “asking” marker with the question text, rather than inferring it from the last agent message</td></tr>
 <tr><td>Always-allow confirm sheet</td><td>The exact rule the Mac will store for <code>allow_always</code> (e.g. <code>Bash(go test:*)</code>) and its scope (workspace, Mac)</td></tr>
 <tr><td>Offline Mac: “as of 18:20”, answers disabled</td><td>Last-seen timestamp per Mac, and a request's validity (still pending on the Mac?) checked before an answer is sent</td></tr>
+<tr><td>A colour for each Mac (C5)</td><td><code>identity: {name, colour}</code> per Mac in the pairing and list payloads, a call to change the colour from the phone, and a change event</td></tr>
 <tr><td>Requests answered elsewhere disappear</td><td>A “resolved” event when a request is answered on the Mac or another device, to remove the card and the notification</td></tr>
 </tbody>
 </table>
@@ -51,7 +52,8 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid #DAD8CF">
 <div style="display: flex; align-items: center; gap: 10px"><span class="tag a">a</span><h2>Companion-only SwiftUI</h2></div>
 <ul style="font-size: 15px; display: flex; flex-direction: column; gap: 6px">
-<li>Accent → Mate green (#A6D85B dark / #357A27 light); success → teal; warning amber; danger red. System surfaces and label levels.</li>
+<li>Accent → Mate green (#A6D85B dark / #357A27 light); success → teal; warning amber; danger red — the same values as the Mac's Mate theme. System surfaces and label levels. The palette does not follow the paired Mac.</li>
+<li>Mac colours (C5): six tokens, dots and tinted Mac glyphs, picker in Mac details; hidden with one Mac.</li>
 <li>Permission card: Allow once full width on row 1; Always allow… + Reject on row 2; confirm sheet for Always.</li>
 <li>Composer: right slot always Send / Queue; Stop into ••• with one confirm (header button on iPad).</li>
 <li>Pending request / question docked above the composer; transcript inset below the glass header.</li>
@@ -66,17 +68,16 @@ a{color:#2B6E39}a:hover{color:#1B4A25}
 <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1.5px solid #1B1D1C">
 <div class="eyebrow">Open questions</div>
 <ol style="margin: 0; padding-left: 20px; font-size: 15px; display: flex; flex-direction: column; gap: 10px">
-<li><b>Palette source.</b> Earlier you picked “sync from the Mac”; this brief says the phone follows the system. I went with system surfaces + Mate accent. Worth an optional “Use my Mac's terminal colours” switch later?</li>
 <li><b>Fold metrics.</b> Layouts are keyed on width, so the Fold should just work; the open-state board assumes ≈4:3. Re-check against Apple's numbers once they're published, especially the cover screen width.</li>
 <li><b>Always allow from a notification.</b> Proposal: notifications offer Allow once and Reject only; Always needs the app (and the confirm sheet). Agree?</li>
 <li><b>Stop.</b> One confirm, or a long press? I chose a confirm in the ••• menu — slower, but it can't happen by accident.</li>
 <li><b>Nesting depth.</b> Can subagents have subagents? The list nests one level; deeper chains would need a breadcrumb.</li>
-<li><b>Earlier exploration.</b> The tab-bar boards (M-*) above are kept for reference only. OK to delete them?</li>
+<li><b>Title-bar dot on the Mac.</b> On by default once a second Mac is paired, or off until you turn it on in Settings → Remote?</li>
 </ol>
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1780}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1820}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};

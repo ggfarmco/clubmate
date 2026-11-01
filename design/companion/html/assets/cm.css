@@ -12,12 +12,21 @@
 .th-latte{--bg:#EFF1F5;--fg:#4C4F69;--ac:#1E66F5;--ok:#40A02B;--wa:#DF8E1D;--er:#D20F39;
   --t2r:92%;--t3r:78%;--t4r:52%;--ac-i:#1D5BD6;--ok-i:#2F7A1F;--wa-i:#8F5F14;--er-i:#C10E35;--on-ac:#FFFFFF;
   --sh:0 12px 32px rgba(40,44,70,.20),0 0 0 1px rgba(40,44,70,.14);--scrim:rgba(40,44,70,.18)}
-.th-mate{--bg:#151B17;--fg:#E3E3D3;--ac:#A6D85B;--ok:#4FB3A0;--wa:#E3B65C;--er:#E07161;
-  --t2r:80%;--t3r:62%;--t4r:42%;--ac-i:#A6D85B;--ok-i:#4FB3A0;--wa-i:#E3B65C;--er-i:#E07161;--on-ac:#111611;
+.th-mate{--bg:#151B17;--fg:#E3E3D3;--ac:#A6D85B;--ok:#4FB3A0;--wa:#F2B84B;--er:#FF6B5E;
+  --t2r:80%;--t3r:62%;--t4r:42%;--ac-i:#A6D85B;--ok-i:#5CC2AE;--wa-i:#F2B84B;--er-i:#FF7A6E;--on-ac:#0E1A08;
   --sh:0 12px 32px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.5);--scrim:rgba(0,0,0,.4)}
-.th-matelight{--bg:#F6F1E6;--fg:#2B2A22;--ac:#3E8A2E;--ok:#1F7F70;--wa:#B5761E;--er:#C2413A;
+.th-matelight{--bg:#F6F1E6;--fg:#2B2A22;--ac:#357A27;--ok:#1F7F70;--wa:#B5761E;--er:#C93A30;
   --t2r:90%;--t3r:72%;--t4r:50%;--ac-i:#357A27;--ok-i:#1A6E61;--wa-i:#8A5810;--er-i:#B23A33;--on-ac:#FFFFFF;
   --sh:0 12px 32px rgba(60,50,20,.18),0 0 0 1px rgba(60,50,20,.14);--scrim:rgba(60,50,20,.16)}
+
+/* Mac identity colours — one per paired Mac; a mark next to the Mac's name, never a role.
+   Hues kept away from accent (green), warning (amber), danger (red) and success (teal). */
+.th-kanagawa,.th-onedark,.th-mate,.th-cdark{--id-sky:#5AC8FA;--id-blue:#3D8BFF;--id-indigo:#8582FF;--id-purple:#BF7AF0;--id-magenta:#F06FC8;--id-graphite:#A1A1A6}
+.th-latte,.th-matelight,.th-clight{--id-sky:#0A78A8;--id-blue:#1F62D0;--id-indigo:#5450D6;--id-purple:#8540BF;--id-magenta:#B02E8C;--id-graphite:#636369}
+.id-sky{--id:var(--id-sky)} .id-blue{--id:var(--id-blue)} .id-indigo{--id:var(--id-indigo)}
+.id-purple{--id:var(--id-purple)} .id-magenta{--id:var(--id-magenta)} .id-graphite{--id:var(--id-graphite)}
+.cm .mdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--id);flex:none;vertical-align:middle}
+.cm .mtint{color:var(--id)}
 
 .cm{
   --s1:color-mix(in srgb,var(--fg) 4%,var(--bg));
