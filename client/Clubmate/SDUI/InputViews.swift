@@ -72,8 +72,8 @@ struct ButtonNodeView: View {
         .contentShape(Rectangle())
     }
 
-    private static let ringGap: CGFloat = 2
-    private static let mouseEvents: Set<NSEvent.EventType> = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp]
+    static let ringGap: CGFloat = 2
+    static let mouseEvents: Set<NSEvent.EventType> = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp]
 
     private var label: some View {
         HStack(spacing: theme.spacing.m) {
@@ -173,14 +173,14 @@ enum Confirmation {
     private static let bodySize = NSSize(width: 560, height: 300)
 
     static func ask(_ request: ConfirmRequest, font: NSFont, window: NSWindow?, expiry: ConfirmExpiry?) async -> Bool {
-        await ask(request.message, detail: request.detail, body: request.displayBody, font: font, action: "Allow", cancel: "Deny", destructive: true, window: window, expiry: expiry)
+        await ask(request.message, detail: request.detail, facts: request.facts, body: request.displayBody, font: font, action: "Allow", cancel: "Deny", destructive: true, window: window, expiry: expiry)
     }
 
-    static func ask(_ message: String, detail: String = "", body: String? = nil, font: NSFont = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular), action: String, cancel: String = "Cancel", destructive: Bool = false, window: NSWindow? = nil, expiry: ConfirmExpiry? = nil) async -> Bool {
+    static func ask(_ message: String, detail: String = "", facts: String = "", body: String? = nil, font: NSFont = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular), action: String, cancel: String = "Cancel", destructive: Bool = false, window: NSWindow? = nil, expiry: ConfirmExpiry? = nil) async -> Bool {
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail
-        if let body { alert.accessoryView = bodyView(body, font: font) }
+        alert.accessoryView = accessory(facts: facts, body: body, font: font)
         let confirm = alert.addButton(withTitle: action)
         let dismiss = alert.addButton(withTitle: cancel)
         if destructive {
@@ -205,6 +205,36 @@ enum Confirmation {
         return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
     }
 
+    private static func accessory(facts: String, body: String?, font: NSFont) -> NSView? {
+        let small = NSFont(descriptor: font.fontDescriptor, size: max(font.pointSize - 1, NSFont.smallSystemFontSize)) ?? font
+        let label: NSTextField? = facts.isEmpty ? nil : {
+            let label = NSTextField(wrappingLabelWithString: facts)
+            label.font = small
+            label.textColor = .secondaryLabelColor
+            label.isSelectable = false
+            label.preferredMaxLayoutWidth = bodySize.width
+            label.frame.size = NSSize(width: bodySize.width, height: label.fittingSize.height)
+            return label
+        }()
+        let scroll = body.map { bodyView($0, font: font) }
+        guard label != nil || scroll != nil else { return nil }
+        let gap: CGFloat = label != nil && scroll != nil ? factsGap : 0
+        let height = (label?.frame.height ?? 0) + gap + (scroll?.frame.height ?? 0)
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: bodySize.width, height: height))
+        if let scroll {
+            scroll.frame.origin = .zero
+            container.addSubview(scroll)
+        }
+        if let label {
+            label.frame.origin = NSPoint(x: 0, y: height - label.frame.height)
+            container.addSubview(label)
+        }
+        return container
+    }
+
+    private static let factsGap: CGFloat = 10
+    private static let headerGap: CGFloat = 8
+
     private static func bodyView(_ text: String, font: NSFont) -> NSView {
         let scroll = NSScrollView(frame: NSRect(origin: .zero, size: bodySize))
         scroll.borderType = .bezelBorder
@@ -228,16 +258,21 @@ enum Confirmation {
         let indent = NSMutableParagraphStyle()
         indent.headIndent = ("  " as NSString).size(withAttributes: [.font: font]).width
         let plain: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.textColor, .paragraphStyle: indent]
-        let header: [NSAttributedString.Key: Any] = [
-            .font: NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask),
-            .foregroundColor: NSColor.textColor,
-            .backgroundColor: NSColor.selectedContentBackgroundColor.withAlphaComponent(0.25),
-        ]
+        let spaced = NSMutableParagraphStyle()
+        spaced.paragraphSpacingBefore = headerGap
+        func header(_ first: Bool) -> [NSAttributedString.Key: Any] {
+            [
+                .font: NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask),
+                .foregroundColor: NSColor.textColor,
+                .backgroundColor: NSColor.selectedContentBackgroundColor.withAlphaComponent(0.25),
+                .paragraphStyle: first ? NSParagraphStyle.default : spaced,
+            ]
+        }
         let result = NSMutableAttributedString()
         let lines = text.components(separatedBy: "\n")
         for (index, line) in lines.enumerated() {
             let end = index < lines.count - 1 ? "\n" : ""
-            result.append(NSAttributedString(string: line + end, attributes: line.hasPrefix("──── ") ? header : plain))
+            result.append(NSAttributedString(string: line + end, attributes: line.hasPrefix("──── ") ? header(index == 0) : plain))
         }
         return result
     }

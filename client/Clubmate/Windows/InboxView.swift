@@ -31,7 +31,7 @@ struct InboxView: View {
                                     title: alert.title,
                                     message: alert.body,
                                     source: HubNotification(alert).source(workspaceName: app.workspace(alert.workspace)?.name),
-                                    date: nil,
+                                    date: alert.date,
                                     unread: true
                                 ) { open { notifications.open(alert) } }
                             case .input(let entry):
@@ -44,7 +44,7 @@ struct InboxView: View {
                     if history.isEmpty {
                         Text("No notifications")
                             .font(theme.ui)
-                            .foregroundStyle(theme.muted)
+                            .foregroundStyle(.secondary)
                             .padding(theme.gutter)
                     }
                     ForEach(history) { entry in
@@ -85,10 +85,10 @@ struct InboxView: View {
             .help("Show kind")
             .testMenu("inbox.kind", ["All"].map { LayoutMenuItem(title: $0) } + NotificationKind.allCases.map { LayoutMenuItem(title: $0.label) })
             ViewThatFits(in: .horizontal) {
-                Button("Mark All Read") { notifications.handleAll() }
+                Button("Mark all read") { notifications.handleAll() }
                 Button { notifications.handleAll() } label: { Image(systemName: "checkmark.circle") }
-                    .help("Mark All Read")
-                    .accessibilityLabel("Mark All Read")
+                    .help("Mark all read")
+                    .accessibilityLabel("Mark all read")
             }
             .disabled(notifications.hub.inbox.unhandled.isEmpty)
         }
@@ -98,7 +98,7 @@ struct InboxView: View {
     private func caption(_ text: String) -> some View {
         Text(text)
             .font(theme.uiSmall)
-            .foregroundStyle(theme.muted)
+            .foregroundStyle(.secondary)
             .padding(.horizontal, theme.gutter)
             .padding(.top, theme.spacing.l)
             .padding(.bottom, theme.spacing.s)
@@ -125,28 +125,32 @@ struct InboxView: View {
                     HStack(spacing: theme.spacing.m) {
                         Text(title)
                             .font(theme.ui)
-                            .foregroundStyle(theme.foreground)
+                            .foregroundStyle(.primary)
                             .lineLimit(1)
+                            .truncationMode(.label)
+                            .help(title)
+                            .layoutPriority(1)
                         Spacer(minLength: theme.spacing.s)
                         if let date {
                             TimelineView(.periodic(from: .now, by: Self.tick)) { context in
                                 Text(date.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
                                     .id(context.date)
                                     .font(theme.uiSmall)
-                                    .foregroundStyle(theme.muted)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize()
                             }
                         }
                         if unread {
-                            Circle().fill(theme.accent).frame(width: theme.spacing.m, height: theme.spacing.m)
+                            Circle().fill(Color.accentColor).frame(width: theme.spacing.m, height: theme.spacing.m)
                         }
                     }
                     Text(message)
                         .font(theme.uiSmall)
-                        .foregroundStyle(theme.foreground)
+                        .foregroundStyle(.secondary)
                         .lineLimit(2)
                     Text(source)
                         .font(theme.uiSmall)
-                        .foregroundStyle(theme.muted)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
@@ -167,7 +171,7 @@ struct InboxView: View {
             Spacer()
             Button("Open System Settings") { notifications.openSystemSettings() }
         }
-        .foregroundStyle(theme.muted)
+        .foregroundStyle(.secondary)
         .padding(theme.gutter)
     }
 
@@ -178,10 +182,10 @@ struct InboxView: View {
 
     private func color(_ kind: NotificationKind) -> Color {
         switch kind {
-        case .needsInput, .permission, .question: theme.warning
-        case .stuck: theme.danger
-        case .done: theme.success
-        case .info: theme.muted
+        case .needsInput, .permission, .question: .orange
+        case .stuck: .red
+        case .done: .green
+        case .info: .secondary
         }
     }
 }

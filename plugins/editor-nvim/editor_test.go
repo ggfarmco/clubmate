@@ -569,7 +569,7 @@ func TestSecondFolderWorktreeGetsOwnNvim(t *testing.T) {
 
 func TestStatusBranchFollowsInPlaceSwitch(t *testing.T) {
 	e, wt := startWorktreeEditor(t, setup{})
-	e.setWorktree(t, wt)
+	require.NoError(t, dial(t, listenSocket(e.setWorktree(t, wt))).Command("set laststatus=0"))
 	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasText(n, "feat") })
 	gitIn(t, wt, "switch", "-q", "-c", "other")
 	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasText(n, "other") })
@@ -673,7 +673,7 @@ func startEditorIn(t *testing.T, s setup) *editor {
 	}
 	require.NoError(t, h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": p.ID}, &sub))
 	main := h.WaitSlot(t, p.ID, mainSlot, func(n sdui.Node) bool { return n.Type == "surface" })
-	h.WaitSlot(t, p.ID, statusSlot, func(n sdui.Node) bool { return contains(n, "badge") })
+	h.WaitSlot(t, p.ID, statusSlot, func(n sdui.Node) bool { return contains(n, "badge") || hasText(n, "⌘B chat") })
 	e.sessionID = main.Props["sessionId"].(string)
 	sess := h.GetSession(t, e.sessionID)
 	assert.Equal(t, "nvim", sess.Title)

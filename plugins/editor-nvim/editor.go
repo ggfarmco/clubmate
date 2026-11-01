@@ -210,7 +210,7 @@ func (e *editor) setOpenError(msg string) {
 func (e *editor) update(ev nvimEvent, branch string, refresh bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.status.File, e.status.Mode, e.status.LSP, e.status.Light = ev.File, ev.Mode, ev.LSP, ev.Light
+	e.status.File, e.status.Mode, e.status.LSP, e.status.Light, e.status.Statusline = ev.File, ev.Mode, ev.LSP, ev.Light, ev.Statusline
 	if ev.Event == "BufEnter" {
 		e.status.OpenError = ""
 	}

@@ -13,11 +13,12 @@ local function emit(ev)
   local file = vim.bo[buf].buftype == "" and vim.api.nvim_buf_get_name(buf) or ""
   local lsp = {}
   for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do lsp[#lsp + 1] = c.name end
-  pcall(vim.rpcnotify, chan, "clubmate", { event = ev, file = file, mode = vim.api.nvim_get_mode().mode, lsp = lsp, light = vim.b[buf].clubmate_light == true })
+  pcall(vim.rpcnotify, chan, "clubmate", { event = ev, file = file, mode = vim.api.nvim_get_mode().mode, lsp = lsp, light = vim.b[buf].clubmate_light == true, statusline = vim.o.laststatus ~= 0 })
 end
 for _, ev in ipairs({ "BufEnter", "ModeChanged", "LspAttach", "LspDetach", "DirChanged" }) do
   vim.api.nvim_create_autocmd(ev, { group = g, callback = function() vim.schedule(function() emit(ev) end) end })
 end
+vim.api.nvim_create_autocmd("OptionSet", { group = g, pattern = "laststatus", callback = function() vim.schedule(function() emit("OptionSet") end) end })
 emit("BufEnter")
 local m = type(package.loaded["clubmate"]) == "table" and package.loaded["clubmate"] or {}
 package.loaded["clubmate"] = m

@@ -11,15 +11,19 @@ import (
 	"clubmate/pkg/sdui"
 )
 
-const renderDelay = 30 * time.Millisecond
+const (
+	renderDelay = 30 * time.Millisecond
+	chatHint    = "⌘B chat"
+)
 
 type status struct {
-	Mode      string
-	File      string
-	LSP       []string
-	Branch    string
-	Light     bool
-	OpenError string
+	Mode       string
+	File       string
+	LSP        []string
+	Branch     string
+	Light      bool
+	Statusline bool
+	OpenError  string
 }
 
 var modeNames = map[byte]string{
@@ -88,6 +92,9 @@ func failedView(err error) sdui.Node {
 }
 
 func statusView(st status, repos []string) sdui.Node {
+	if st.Statusline {
+		return sdui.HStack(appItems(st)...)
+	}
 	var items []sdui.Node
 	if st.File != "" {
 		items = append(items, sdui.Node{Type: "text", Props: map[string]any{"text": relative(st.File, repos), "style": "mono"}})
@@ -108,6 +115,17 @@ func statusView(st status, repos []string) sdui.Node {
 		items = append(items, sdui.MutedText(st.Branch))
 	}
 	return sdui.HStack(items...)
+}
+
+func appItems(st status) []sdui.Node {
+	var items []sdui.Node
+	if st.Light {
+		items = append(items, sdui.Badge("light", ""))
+	}
+	if st.OpenError != "" {
+		items = append(items, sdui.Badge("open failed: "+st.OpenError, "danger"))
+	}
+	return append(items, sdui.MutedText(chatHint))
 }
 
 func modeName(mode string) string {

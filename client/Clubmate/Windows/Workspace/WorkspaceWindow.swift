@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
@@ -21,11 +22,14 @@ struct WorkspaceWindow: View {
                 }
             }
             .toolbar { toolbarItems }
+            .toolbarBackground(theme.surface1, for: .windowToolbar)
+            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
             .modifier(WorkspacePresenters(windowID: $windowID))
             .focusedSceneValue(\.workspaceWindowID, windowID)
             .background(WindowObserver { [app, windowID] in
                 if let windowID { windows.windowBecameKey(windowID) }
-            } onAttach: { [app, windowID] window in
+            } onAttach: { [app, windowID, dark = theme.isDark] window in
+                window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 if let windowID { windows.windowAttached(windowID, window) }
             } onClose: { [app, windowID] in
                 if let windowID { windows.windowClosed(windowID) }

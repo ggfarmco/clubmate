@@ -14,9 +14,16 @@ public struct AgentAlert: Sendable, Equatable, Identifiable {
     public let request: String
     public let title: String
     public let body: String
+    public let date: Date
 
     public var id: String { "\(session)/\(request)" }
     public var kind: NotificationKind { AgentSession.isQuestion(request) ? .question : .permission }
+
+    static func title(question: Bool, summary: PendingSummary?) -> String {
+        let heading = question ? "Question" : "Permission"
+        guard let summary, !summary.text.isEmpty, (summary.kind == .question) == question else { return heading }
+        return heading + " · " + (summary.isCommand ? "Run " + summary.text : summary.text)
+    }
 }
 
 public struct AgentNotifier: Sendable {
@@ -30,13 +37,15 @@ public struct AgentNotifier: Sendable {
 
     public static func requests(_ sessions: [AgentSession]) -> [AgentAlert] {
         sessions.filter { $0.status == .waiting }.flatMap { session in
-            session.pending.map { request in
-                AgentAlert(
+            session.pending.enumerated().map { index, request in
+                let summary = index == 0 ? session.pendingSummary : nil
+                return AgentAlert(
                     workspace: session.workspace,
                     session: session.id,
                     request: request,
-                    title: "\(session.agent.isEmpty ? "Agent" : session.agent.capitalized) \(AgentSession.isQuestion(request) ? "has a question" : "is waiting for permission")",
-                    body: session.title.isEmpty ? "New session" : session.title
+                    title: AgentAlert.title(question: AgentSession.isQuestion(request), summary: summary),
+                    body: session.title.isEmpty ? "New session" : session.title,
+                    date: summary?.at ?? session.updatedAt
                 )
             }
         }

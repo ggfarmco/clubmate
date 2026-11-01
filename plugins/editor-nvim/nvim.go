@@ -33,12 +33,13 @@ var (
 )
 
 type nvimEvent struct {
-	Event   string   `msgpack:"event"`
-	File    string   `msgpack:"file"`
-	Mode    string   `msgpack:"mode"`
-	LSP     []string `msgpack:"lsp"`
-	Light   bool     `msgpack:"light"`
-	Message string   `msgpack:"message"`
+	Event      string   `msgpack:"event"`
+	File       string   `msgpack:"file"`
+	Mode       string   `msgpack:"mode"`
+	LSP        []string `msgpack:"lsp"`
+	Light      bool     `msgpack:"light"`
+	Statusline bool     `msgpack:"statusline"`
+	Message    string   `msgpack:"message"`
 }
 
 type client struct {

@@ -105,13 +105,15 @@ final class ClubmateKitTests: XCTestCase {
         let request = try JSONDecoder().decode(ConfirmRequest.self, from: fixture)
         XCTAssertEqual(request, ConfirmRequest(title: "Close Terminal", workspaceName: "demo", command: "terminals.close", args: .object(["sessionId": .string("ses_1"), "force": .bool(true), "line": .number(3)])))
         XCTAssertEqual(request.message, "Allow agent to close Terminal?")
-        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: terminals.close\nforce: true\nline: 3\nsessionId: ses_1")
+        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: terminals.close")
+        XCTAssertEqual(request.facts, "force: true\nline: 3\nsessionId: ses_1")
     }
 
     func testConfirmDetailEscapes() {
         let long = String(repeating: "x", count: 300)
         let request = ConfirmRequest(title: "Kill Session", workspaceName: "demo", command: "session.kill", args: .object(["id\nCommand: fake": .string("ses_1\u{2028}Approved\u{202E}: yes"), "note": .string(long)]), session: ConfirmSession(id: "ses_1", title: "Build", workspaceName: "demo"))
-        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nSession: Build (ses_1) in demo\nid\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
+        XCTAssertEqual(request.detail, "Workspace: demo\nCommand: session.kill\nSession: Build (ses_1) in demo")
+        XCTAssertEqual(request.facts, "id\\nCommand: fake: ses_1\\u{2028}Approved\\u{202e}: yes\nnote: \(long)")
     }
 
     func testPluginConfirmShowsBodyNeutrally() throws {

@@ -10,6 +10,8 @@ struct Theme: Sendable {
     var accent: Color
     var success: Color
     var warning: Color
+    var warningFill: Color
+    var onWarning: Color
     var danger: Color
     var fontFamily: String?
     var uiSize: CGFloat = 12
@@ -37,10 +39,12 @@ struct Theme: Sendable {
         self.accent = Color(accent)
         self.success = ink(success)
         self.warning = ink(warning)
+        self.warningFill = Color(warning)
+        let dark = 0.2126 * background.red + 0.7152 * background.green + 0.0722 * background.blue < 128.0 / 255
+        self.onWarning = Color(ThemeContrast.on(warning, candidates: [dark ? background : foreground, RGB(hex: 0x1A1A1A)], reaching: 4.5))
         self.danger = ink(danger)
         self.fontFamily = fontFamily
         self.name = name
-        let dark = 0.2126 * background.red + 0.7152 * background.green + 0.0722 * background.blue < 128.0 / 255
         self.isDark = dark
         self.backgroundHex = background.eventHex
         self.foregroundHex = foreground.eventHex
@@ -134,6 +138,10 @@ struct Theme: Sendable {
         case "danger": danger
         default: nil
         }
+    }
+
+    func toneFill(_ name: String?) -> Color? {
+        name == "warning" ? warningFill : tone(name)
     }
 
     static let identities = ["sky", "blue", "indigo", "purple", "magenta", "graphite"]

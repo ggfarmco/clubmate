@@ -134,11 +134,7 @@ Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/
 
 ## Code chat panel starters (session with no turns yet)
 
-| Keys | Action |
-|---|---|
-| ⌥1 ⌥2 ⌥3 | Send the starter prompt in that row (printed on each starter); "Explain" and "Write a test" attach the file open in Neovim. Works while the prompt has a draft and leaves it untouched; not while Neovim has focus |
-
-Defined by the agents plugin (`plugins/agents/view.go`, button `shortcut`).
+Starters have no keys: ⌥1–⌥3 answer permission requests only. A click sends the starter prompt; "Explain" and "Write a test" attach the file open in Neovim. Defined by the agents plugin (`plugins/agents/view.go`).
 
 ## nvim (Clubmate distribution, leader `,`)
 

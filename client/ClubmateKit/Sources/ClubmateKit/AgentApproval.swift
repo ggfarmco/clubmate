@@ -45,15 +45,18 @@ public struct ConfirmRequest: Decodable, Sendable, Equatable {
             let place = session.workspaceName.isEmpty ? "" : " in \(Self.capped(session.workspaceName))"
             lines.append("Session: \(title) (\(Self.capped(session.id)))\(place)")
         }
+        return lines.joined(separator: "\n")
+    }
+
+    public var facts: String {
         switch args {
         case .null:
-            break
+            ""
         case .object(let fields):
-            lines += fields.keys.sorted().map { "\(Self.clean($0)): \(fields[$0].map(Self.summary) ?? "")" }
+            fields.keys.sorted().map { "\(Self.clean($0)): \(fields[$0].map(Self.summary) ?? "")" }.joined(separator: "\n")
         default:
-            lines.append("Args (not an object): \(Self.summary(args))")
+            "Args (not an object): \(Self.summary(args))"
         }
-        return lines.joined(separator: "\n")
     }
 
     public var displayBody: String? {

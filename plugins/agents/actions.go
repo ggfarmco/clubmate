@@ -137,6 +137,8 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 		err = h.Focus(ctx, ev.WorkspaceID, sectionID, mainSlot)
 	case ev.Action == actCodeNew:
 		err = h.Focus(ctx, ev.WorkspaceID, editorSection, codeSlot)
+	case ev.Action == actOpenGraphs:
+		err = h.Focus(ctx, ev.WorkspaceID, graphsSection, graphsMain)
 	case ev.Action == actShowBranch:
 		err = h.FocusField(ctx, ev.WorkspaceID, sectionID)
 	}
@@ -160,6 +162,8 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return err
 		}
 		return a.bindCode(ctx, ev.WorkspaceID, res.Session)
+	case actOpenGraphs:
+		return nil
 	case actCodeSelect:
 		id, err := itemID(ev)
 		if err != nil {

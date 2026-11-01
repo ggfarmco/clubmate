@@ -33,10 +33,10 @@ struct CountBadge: View {
         if count > 0 {
             Text("\(count)")
                 .font(theme.count.monospacedDigit())
-                .foregroundStyle(needsYou ? theme.background : theme.text2)
+                .foregroundStyle(needsYou ? theme.onWarning : theme.text2)
                 .padding(.horizontal, theme.spacing.s)
                 .frame(minWidth: 16, minHeight: 16)
-                .background(Capsule().fill(needsYou ? theme.warning : theme.hover))
+                .background(Capsule().fill(needsYou ? theme.warningFill : theme.hover))
                 .accessibilityLabel(needsYou ? "\(count), needs you" : "\(count) unread")
         }
     }

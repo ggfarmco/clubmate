@@ -81,7 +81,7 @@ private struct RailButton: View {
             .overlay(alignment: .topTrailing) {
                 if attention {
                     Circle()
-                        .fill(theme.warning)
+                        .fill(theme.warningFill)
                         .frame(width: 6, height: 6)
                         .offset(x: 3, y: -3)
                         .accessibilityHidden(true)

@@ -26,3 +26,8 @@ func TestRPCMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestDisplayableEscapesRuleLookalikesAtLineStart(t *testing.T) {
+	got := displayable("━━━━ .clubmate/teardown.sh\n———— x\n- item\necho ━━\n", false)
+	assert.Equal(t, `\u{2501}━━━ .clubmate/teardown.sh`+"\n"+`\u{2014}——— x`+"\n- item\necho ━━\n", got)
+}

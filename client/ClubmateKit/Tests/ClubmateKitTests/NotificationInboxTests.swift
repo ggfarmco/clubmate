@@ -77,13 +77,22 @@ final class NotificationInboxTests: XCTestCase {
         var hub = NotificationHub()
         let asking = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "", status: .waiting, pending: ["elicitation-2"])
         let alert = AgentNotifier.requests([asking])[0]
-        XCTAssertEqual(alert.title, "Claude has a question")
+        XCTAssertEqual(alert.title, "Question")
         XCTAssertTrue(hub.receive(HubNotification(alert), focus: HubFocus(appActive: false, workspace: nil), now: now))
         XCTAssertEqual(hub.inbox.entries.map(\.note.kind), [.question])
 
         XCTAssertEqual(hub.handleResolved(workspace: "w", session: "agt_1", sessions: []), ["agt_1/elicitation-2"])
         XCTAssertEqual(hub.inbox.entries.map(\.note.kind), [.question])
         XCTAssertEqual(hub.inbox.unhandled, [])
+    }
+
+    func testAlertNamesWhatTheSessionWantsAndWhenItAsked() {
+        let asked = now.addingTimeInterval(-120)
+        let session = AgentSession(id: "agt_1", workspace: "w", title: "Fix flaky test", status: .waiting, pending: ["p1", "p2"], pendingSummary: PendingSummary(kind: .permission, text: "go test ./...", tool: "execute", at: asked))
+        let alerts = AgentNotifier.requests([session])
+        XCTAssertEqual(alerts.map(\.title), ["Permission · Run go test ./...", "Permission"])
+        XCTAssertEqual(alerts[0].body, "Fix flaky test")
+        XCTAssertEqual(alerts[0].date, asked)
     }
 
     func testWaitingDropsDeletedSessionsAndClosedWorkspaces() {

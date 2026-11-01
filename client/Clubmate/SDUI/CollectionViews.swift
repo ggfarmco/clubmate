@@ -44,6 +44,8 @@ struct TabButton: View {
     let action: () -> Void
 
     @State private var hovering = false
+    @State private var keyboardFocus = false
+    @FocusState private var focused: Bool
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -65,17 +67,36 @@ struct TabButton: View {
             .foregroundStyle(ink ?? (selected || hovering ? theme.foreground : theme.text2))
             .padding(.horizontal, theme.spacing.l)
             .frame(height: theme.rowHeight)
-            .background(Capsule().fill(ink.map(theme.toneBg) ?? (hovering ? theme.pressed : theme.hover)))
+            .background(Capsule().fill(fill))
             .overlay {
-                if selected { Capsule().strokeBorder(theme.accent, lineWidth: 1) }
+                if keyboardFocus && focused {
+                    Capsule()
+                        .stroke(theme.accent, lineWidth: theme.focusRing)
+                        .padding(-ButtonNodeView.ringGap)
+                }
             }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .focusable(interactions: .activate)
+        .focusEffectDisabled()
+        .focused($focused)
+        .onChange(of: focused) { _, now in
+            keyboardFocus = now && !ButtonNodeView.mouseEvents.contains(NSApp.currentEvent?.type ?? .keyDown)
+        }
+        .onKeyPress(keys: [.space, .return]) { _ in
+            action()
+            return .handled
+        }
         .help(item.label)
         .accessibilityLabel([item.label, item.badge].compactMap { $0 }.joined(separator: " "))
         .accessibilityAddTraits(selected ? .isSelected : [])
         .onHover { hovering = $0 }
+    }
+
+    private var fill: Color {
+        if let tone = theme.toneFill(item.tone) { return selected ? theme.toneBorder(tone) : theme.toneBg(tone) }
+        return selected || hovering ? theme.pressed : theme.hover
     }
 }
 
@@ -316,9 +337,17 @@ struct ItemRow<Leading: View>: View {
         HStack(spacing: theme.spacing.m) {
             leading()
             if let icon = item.icon, !icon.isEmpty {
-                Image(systemName: SymbolName.resolve(icon))
-                    .foregroundStyle(theme.tone(tone) ?? theme.muted)
-                    .frame(width: 14)
+                let symbol = SymbolName.resolve(icon)
+                if tone == "warning", symbol.hasSuffix(".fill") {
+                    Image(systemName: symbol)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(theme.onWarning, theme.warningFill)
+                        .frame(width: 14)
+                } else {
+                    Image(systemName: symbol)
+                        .foregroundStyle(theme.tone(tone) ?? theme.muted)
+                        .frame(width: 14)
+                }
             }
             Text(item.label)
                 .foregroundStyle(muted ? theme.muted : theme.foreground)
@@ -330,7 +359,7 @@ struct ItemRow<Leading: View>: View {
             if let detail = item.detail {
                 Text(detail)
                     .font(theme.uiSmall)
-                    .foregroundStyle(theme.muted)
+                    .foregroundStyle(theme.tone(tone) ?? theme.muted)
                     .lineLimit(1)
                     .truncationMode(.label)
                     .help(detail)

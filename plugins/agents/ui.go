@@ -358,10 +358,7 @@ func (a *app) renderCode(ctx context.Context, p *workspaceUI, workspace pluginsd
 		return r.Worktree != root && gitrepo.Canonical(r.Worktree) != canonical
 	})
 	if a.session(bound) == nil || !slices.ContainsFunc(recs, func(r record) bool { return r.ID == bound }) {
-		bound = ""
-		if i := slices.IndexFunc(here, func(r record) bool { return !r.closed() }); i >= 0 {
-			bound = here[i].ID
-		}
+		bound = defaultCodeSession(here)
 	}
 	sc := shown
 	if sc == nil || sc.View.Session.ID != bound {

@@ -708,10 +708,43 @@ func TestCodePanelHeaderAndStarters(t *testing.T) {
 	var starts []string
 	for _, b := range nodesOf(tree, "button") {
 		if b.Props["action"] == actStarter {
-			starts = append(starts, b.Props["label"].(string)+" "+b.Props["shortcut"].(string))
+			assert.NotContains(t, b.Props, "shortcut")
+			starts = append(starts, b.Props["label"].(string))
 		}
 	}
-	assert.Equal(t, []string{"Explain notify.go opt+1", "Review the last commit opt+2", "Write a test for notify.go opt+3"}, starts)
+	assert.Equal(t, []string{"Explain notify.go", "Review the last commit", "Write a test for notify.go"}, starts)
+}
+
+func TestCodePanelOnUnstartedGraphStep(t *testing.T) {
+	run := &api.Run{ID: "gr_1", Title: "Review loop"}
+	coder := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Coder", Status: statusWaiting, Run: run, CreatedAt: time.Unix(1, 0)}
+	reviewer := record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Title: "Review loop · Reviewer", Status: statusIdle, Run: run, CreatedAt: time.Unix(2, 0)}
+	sc := screen{View: transcriptView{Session: reviewer}, Composer: "agt_2/composer/0"}
+	tree := codeView([]record{coder, reviewer}, "agt_2", &sc, "")
+	require.NoError(t, internalsdui.Validate(tree))
+
+	assert.Empty(t, nodesOf(tree, "composer"))
+	var texts []string
+	for _, n := range append(nodesOf(tree, "text"), nodesOf(tree, "badge")...) {
+		texts = append(texts, n.Props["text"].(string))
+	}
+	assert.Contains(t, texts, "Reviewer is a step of Review loop")
+	assert.Contains(t, texts, "waiting for you")
+	assert.Contains(t, texts, "not started")
+	var actions []string
+	for _, b := range nodesOf(tree, "button") {
+		actions = append(actions, b.Props["action"].(string))
+	}
+	assert.Subset(t, actions, []string{actOpenGraphs, actCodeNew})
+}
+
+func TestDefaultCodeSessionSkipsGraphSteps(t *testing.T) {
+	step := record{ID: "agt_1", Status: statusWaiting, Run: &api.Run{ID: "gr_1"}, UpdatedAt: time.Unix(9, 0)}
+	older := record{ID: "agt_2", Status: statusDone, UpdatedAt: time.Unix(1, 0)}
+	newer := record{ID: "agt_3", Status: statusIdle, UpdatedAt: time.Unix(5, 0)}
+	closed := record{ID: "agt_4", Status: statusClosed, UpdatedAt: time.Unix(8, 0)}
+	assert.Equal(t, "agt_3", defaultCodeSession([]record{step, older, newer, closed}))
+	assert.Empty(t, defaultCodeSession([]record{step}))
 }
 
 func TestEntryNodeCachedUntilEntryChanges(t *testing.T) {

@@ -204,9 +204,12 @@ func review(script string, data []byte, entries []hookEntry) string {
 
 func displayable(text string, name bool) string {
 	var b strings.Builder
+	lineStart := true
 	for _, r := range strings.ToValidUTF8(text, "\uFFFD") {
+		rule := lineStart && !name && ruleLike(r)
+		lineStart = r == '\n'
 		switch {
-		case r == '─', name && (r == '\n' || r == '\t' || r == '→'):
+		case r == '─', rule, name && (r == '\n' || r == '\t' || r == '→'):
 			fmt.Fprintf(&b, `\u{%x}`, r)
 		case r == '\n' || r == '\t' || !unicode.IsControl(r) && !unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp):
 			b.WriteRune(r)
@@ -215,6 +218,10 @@ func displayable(text string, name bool) string {
 		}
 	}
 	return b.String()
+}
+
+func ruleLike(r rune) bool {
+	return r > unicode.MaxASCII && (unicode.Is(unicode.Pd, r) || r >= '\u2500' && r <= '\u257F')
 }
 
 func hookEnv(env []string) []string {

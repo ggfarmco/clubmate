@@ -157,6 +157,9 @@ func codeView(recs []record, bound string, sc *screen, file string) sdui.Node {
 	}
 	v := *sc
 	v.Code = &codePanel{Picker: sdui.WithAction(sdui.Select(codeSelectNode, opts, bound), actCodeSelect), New: add, File: file}
+	if unstartedStep(v) {
+		return sdui.VStack(header(v), stepView(v, recs))
+	}
 	return mainView(v)
 }
 
@@ -194,8 +197,7 @@ func starterView(sc screen) sdui.Node {
 	var buttons []sdui.Node
 	for i, s := range starters(sc.Code.File) {
 		n := strconv.Itoa(i + 1)
-		b := sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+starterPrefix+n, s.label, ""), actStarter), "ghost")
-		buttons = append(buttons, sdui.WithShortcut(b, "opt+"+n))
+		buttons = append(buttons, sdui.WithVariant(sdui.WithAction(sdui.Button(sid+"/"+starterPrefix+n, s.label, ""), actStarter), "ghost"))
 	}
 	return sdui.Transcript(sid+"/transcript", append(nodes, sdui.VStack(buttons...))...)
 }
