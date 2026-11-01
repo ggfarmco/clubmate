@@ -20,6 +20,12 @@ public enum InboxPin: Sendable, Equatable, Identifiable {
         case .input(let entry): entry.id
         }
     }
+    public var date: Date {
+        switch self {
+        case .permission(let alert): alert.date
+        case .input(let entry): entry.date
+        }
+    }
 }
 
 public struct NotificationInbox: Sendable, Equatable, Codable {
@@ -103,7 +109,8 @@ public struct NotificationInbox: Sendable, Equatable, Codable {
     }
 
     public func pinned(waiting: [AgentAlert]) -> [InboxPin] {
-        waiting.map(InboxPin.permission) + entries.filter { !$0.handled && $0.note.kind == .needsInput }.map(InboxPin.input)
+        (waiting.map(InboxPin.permission) + entries.filter { !$0.handled && $0.note.kind == .needsInput }.map(InboxPin.input))
+            .sorted { ($0.date, $0.id) < ($1.date, $1.id) }
     }
 
     @discardableResult

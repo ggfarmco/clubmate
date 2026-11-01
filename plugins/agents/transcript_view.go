@@ -377,7 +377,7 @@ func toolCard(id, root string, en *entry, expanded, reviewable bool) sdui.Node {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actOpenLocation, Label: "Open in nvim", Icon: "arrow.up.forward.square", Value: value})
 	}
 	if reviewable && slices.Contains(editKinds, kind) {
-		p.Actions = append(p.Actions, sdui.CardAction{Action: actReview, Label: "Diff", Icon: "plus.forwardslash.minus", Value: map[string]any{"turn": en.Turn}})
+		p.Actions = append(p.Actions, sdui.CardAction{Action: actReview, Label: "Full diff", Icon: "plus.forwardslash.minus", Value: map[string]any{"turn": en.Turn}})
 	}
 	if _, prompt := f.RawInput["prompt"].(string); scrolls || p.Truncated || prompt {
 		p.Actions = append(p.Actions, sdui.CardAction{Action: actOpenOutput, Label: "Open output", Icon: "doc.text"})

@@ -95,6 +95,14 @@ Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defi
 
 ↩ alone inserts a newline. Defined in `ClubmateKit/Composer.swift` (`ComposerKey`).
 
+## Agent transcript (Agents section or Code chat panel)
+
+| Keys | Action | Where defined |
+|---|---|---|
+| ⌘D | Full diff: open the turn of the newest edit card in the transcript in nvim's diffview (printed on that card's Full diff) | `SDUI/Agents/TranscriptView.swift` |
+
+Open in nvim on an edit card has no key: the board's ⌘O is the app's Open Folder….
+
 ## Agent Browser window (during a handoff)
 
 | Keys | Action | Where defined |
@@ -107,13 +115,12 @@ A pending request is docked above the composer.
 
 | Keys | Action |
 |---|---|
-| ⌥1 … ⌥9 | Choose the request's option in button order (printed on each button; Allow first); works while the prompt has a draft and leaves it untouched. "Always" options have no key and need a click |
-| 1 … 9 | The same without ⌥, only while the session's prompt is focused and empty or the request card has focus (click it); typed into a prompt with a draft, the digit goes into the draft |
+| ⌥1 ⌥2 ⌥3 | Allow once · Always allow… · Reject: the key each option carries (`shortcut`, printed on its button); works while the prompt has a draft and leaves it untouched. ⌥2 (or a click) opens the Always allow confirm instead of answering. Always reject sits in the card's ••• menu without a key. A request whose options carry no keys keeps ⌥N in button order, "always" options without a key |
+| ⌥2 again / ⎋ or ↩ | In the Always allow confirm: store the rule and allow / Cancel (the default); nothing is sent before ⌥2 |
+| 1 2 3 | The same without ⌥ (bare 2 opens and confirms Always allow too), only while the session's prompt is focused and empty or the request card has focus (click it); typed into a prompt with a draft, the digit goes into the draft |
 | y / n | Allow once / Reject once, under the same condition as bare digits |
 
-Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift`.
-
-The agents plugin also sends the key of each option as its `shortcut` (`opt+1` Allow once, `opt+2` Always allow…, `opt+3` Reject; Always reject sits in the card's ••• menu without a key). Once the Mac renders it, ⌥2 opens the Always allow confirm and ⌥2 again confirms, with Esc as Cancel. Until then the Mac keeps the keys above.
+Outside the Always allow confirm, Esc still stops the turn and does not answer the request. Defined in `ClubmateKit/PermissionKeys.swift` and `SDUI/Agents/PermissionCardView.swift`.
 
 ## Agent questions (Agents section or Code chat panel)
 

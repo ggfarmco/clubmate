@@ -104,15 +104,20 @@ struct ToolActionLine: View, Equatable {
             if expanded, expandable {
                 VStack(alignment: .leading, spacing: 0) {
                     if let toolBody {
-                        ToolBodyView(toolBody: toolBody).equatable()
+                        if toolBody.format == .diff {
+                            DiffCardBody(node: node, toolBody: toolBody)
+                        } else {
+                            ToolBodyView(toolBody: toolBody).equatable()
+                        }
                     }
                     if truncated {
                         TruncatedNote()
                     }
-                    if !actions.isEmpty {
+                    let below = ToolCardButtons.below(node, body: toolBody)
+                    if !below.isEmpty {
                         if toolBody != nil || truncated { theme.border.frame(height: 1) }
                         HStack(spacing: theme.spacing.m) {
-                            ToolCardButtons(node: node)
+                            ToolCardButtons(node: node, actions: below)
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, theme.gutter + theme.spacing.s)

@@ -128,6 +128,12 @@ public final class ComposerDrafts {
         }
     }
 
+    public private(set) var confirming: Set<String> = []
+
+    public func confirm(session: String, _ open: Bool) {
+        if open { confirming.insert(session) } else { confirming.remove(session) }
+    }
+
     public func focusedEmpty(session: String) -> Bool {
         guard let focused, Self.session(of: focused) == session else { return false }
         return models[focused]?.text.isEmpty ?? false

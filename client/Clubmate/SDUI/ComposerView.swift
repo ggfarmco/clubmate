@@ -248,7 +248,7 @@ struct ComposerNodeView: View {
     }
 
     private var hint: some View {
-        Text(pane.hints ?? "")
+        Text(node.string("hint") ?? pane.hints ?? "")
             .font(theme.uiSmall)
             .foregroundStyle(theme.muted)
             .lineLimit(1)
@@ -256,9 +256,6 @@ struct ComposerNodeView: View {
     }
 
     @ViewBuilder private var actions: some View {
-        if running {
-            CardButton(label: "Stop", icon: "stop.fill", tone: .danger) { dispatch(node, .named("stop", .null)) }
-        }
         CardButton(label: queues ? "Queue" : "Send", icon: "paperplane.fill", tone: node.bool("docked") == true ? .plain : .primary, disabled: model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
             if case .send(let text) = model.handle(.send) { send(text) }
         }
@@ -363,6 +360,7 @@ struct ComposerNodeView: View {
             shift: flags.contains(.shift)
         ) else { return false }
         if key == .attach, filePicker == nil || !node.attachKinds().contains("file") { return false }
+        if drafts.confirming.contains(ComposerDrafts.session(of: node.id ?? "")), event.keyCode == 53 || event.keyCode == 36 { return false }
         switch model.handle(key, before: model.character(before: caret)) {
         case .send(let text): send(text)
         case .stop: dispatch(node, .named("stop", .null))

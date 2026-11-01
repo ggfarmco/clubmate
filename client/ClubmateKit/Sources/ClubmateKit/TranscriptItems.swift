@@ -133,8 +133,15 @@ public struct ToolExpansionState: Sendable, Equatable {
 extension SDUIToolBody {
     @MainActor public var changes: (added: Int, removed: Int)? {
         guard format == .diff else { return nil }
-        let kinds = lines.map(\.kind)
-        return (kinds.filter { $0 == .added }.count, kinds.filter { $0 == .removed }.count)
+        return files.reduce((0, 0)) { ($0.0 + $1.added, $0.1 + $1.removed) }
+    }
+}
+
+extension SDUINode {
+    public static let fileBarActions: Set<String> = ["openLocation", "review"]
+
+    public var fullDiffCard: SDUINode? {
+        children.last { $0.type == "toolCard" && $0.toolBody()?.format == .diff && $0.cardActions().contains { $0.action == "review" } }
     }
 }
 

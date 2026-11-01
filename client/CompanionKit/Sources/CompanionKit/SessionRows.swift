@@ -39,18 +39,6 @@ public struct SessionStateLine: Sendable, Equatable {
     }
 }
 
-public enum ShortAge {
-    public static func since(_ date: Date, now: Date) -> String {
-        let seconds = max(0, Int(now.timeIntervalSince(date)))
-        switch seconds {
-        case ..<60: return "\(seconds) s"
-        case ..<3_600: return "\(seconds / 60) min"
-        case ..<86_400: return "\(seconds / 3_600) h"
-        default: return "\(seconds / 86_400) d"
-        }
-    }
-}
-
 extension AgentSession {
     public var glyph: SessionGlyph {
         if isClosed { return .closed }

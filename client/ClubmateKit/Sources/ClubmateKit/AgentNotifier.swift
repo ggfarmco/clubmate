@@ -45,7 +45,7 @@ public struct AgentNotifier: Sendable {
                     request: request,
                     title: AgentAlert.title(question: AgentSession.isQuestion(request), summary: summary),
                     body: session.title.isEmpty ? "New session" : session.title,
-                    date: summary?.at ?? session.updatedAt
+                    date: session.needsYouSince ?? summary?.at ?? session.updatedAt
                 )
             }
         }

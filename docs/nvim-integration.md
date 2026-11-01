@@ -54,7 +54,7 @@ Palette "Import my nvim config" (offered once when `~/.config/nvim` exists) star
 
 ## Review changes
 
-In the Agents section, "Review changes" in a session's header and "Diff" on an edit card run `DiffviewOpen -C<worktree> <checkpoint> --untracked-scoped` in that worktree's nvim and show the Code section (`editor-nvim.diffview`). The left side is the checkpoint Clubmate took before the turn (the first turn's for Review changes), the right side the editable worktree file, uncommitted and untracked files included. The diffview is the bundled `0xnorimori/diffview.nvim` fork; its `nrev` review comments (`,rc`, `,rl`, …) are what the `review` skill reads.
+In the Agents section, "Review changes" in a session's header and "Full diff" on an edit card run `DiffviewOpen -C<worktree> <checkpoint> --untracked-scoped` in that worktree's nvim and show the Code section (`editor-nvim.diffview`). The left side is the checkpoint Clubmate took before the turn (the first turn's for Review changes), the right side the editable worktree file, uncommitted and untracked files included. The diffview is the bundled `0xnorimori/diffview.nvim` fork; its `nrev` review comments (`,rc`, `,rl`, …) are what the `review` skill reads.
 
 ## Large and binary files
 

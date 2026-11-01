@@ -1,3 +1,4 @@
+import AppKit
 import os
 import SwiftUI
 
@@ -10,10 +11,12 @@ struct TranscriptNodeView: View {
     @State private var pinned = true
     @State private var watchUntil = ContinuousClock.now + .seconds(3)
     @Environment(\.theme) private var theme
+    @Environment(\.sduiDispatch) private var dispatch
 
     var body: some View {
         let slack = theme.rowHeight
         let items = node.transcriptItems()
+        let fullDiff = node.fullDiffCard
         ScrollView {
             LazyVStack(alignment: .leading, spacing: theme.gutter + theme.spacing.s) {
                 ForEach(items) { item in
@@ -60,6 +63,12 @@ struct TranscriptNodeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .environment(\.fullDiffCard, fullDiff?.id)
+        .keyMonitor(active: fullDiff != nil) { event in
+            guard let fullDiff, let review = fullDiff.cardActions().first(where: { $0.action == "review" }), FullDiffKey.matches(event) else { return false }
+            dispatch(fullDiff, .named(review.action, review.value))
+            return true
+        }
     }
 
     private var watching: Bool {
@@ -107,4 +116,15 @@ private struct TranscriptScroll: Equatable {
     let pinned: Bool
 
     @MainActor static var saved: [String: TranscriptScroll] = [:]
+}
+
+@MainActor
+enum FullDiffKey {
+    static let label = "⌘D"
+
+    static func matches(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        guard flags == .command, event.charactersIgnoringModifiers?.lowercased() == "d" else { return false }
+        return NSApp.mainMenu.map { !MenuKeys.claims($0, event) } ?? true
+    }
 }

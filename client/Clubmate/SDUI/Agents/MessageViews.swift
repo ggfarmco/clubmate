@@ -32,7 +32,7 @@ struct MessageNodeView: View, Equatable {
                 .background(UnevenRoundedRectangle(topLeadingRadius: theme.radius.l, bottomLeadingRadius: theme.radius.l, bottomTrailingRadius: theme.radius.s, topTrailingRadius: theme.radius.l).fill(theme.surface1))
             }
         case .thought:
-            ThoughtView(text: text)
+            ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init))
         case .agent:
             MarkdownText(text: text)
                 .equatable()
@@ -102,6 +102,7 @@ private struct AttachmentLabels: View {
 
 private struct ThoughtView: View {
     let text: String
+    let seconds: Int?
 
     @State private var expanded = false
     @Environment(\.theme) private var theme
@@ -111,8 +112,8 @@ private struct ThoughtView: View {
             Button { Motion.disclose { expanded.toggle() } } label: {
                 HStack(spacing: theme.spacing.s) {
                     DisclosureChevron(expanded: expanded)
-                    Text("Thinking")
-                        .italic()
+                    Text(seconds.map(ShortAge.thought) ?? "Thinking")
+                        .italic(seconds == nil)
                 }
                 .font(theme.uiSmall)
                 .foregroundStyle(theme.muted)

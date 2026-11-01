@@ -54,6 +54,16 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(hub.bellCount, 1)
     }
 
+    func testPinsOldestFirstByWhenItNeededYou() {
+        var hub = NotificationHub()
+        let away = HubFocus(appActive: false, workspace: nil)
+        let state = AgentSession(id: "agt_1", workspace: "w", title: "Fix", status: .waiting, updatedAt: now, pending: ["p1"], needsYouSince: now.addingTimeInterval(-30))
+        hub.waiting.update(workspace: "w", session: nil, sessions: [state])
+        _ = hub.receive(note("older", kind: .needsInput, ago: 60), focus: away, now: now)
+        _ = hub.receive(note("newer", kind: .needsInput, ago: 10), focus: away, now: now)
+        XCTAssertEqual(hub.pinned.map(\.id), ["older", "agt_1/p1", "newer"])
+    }
+
     func testMarksAnsweredPermissionEntriesOfItsWorkspaceRead() {
         var hub = NotificationHub()
         let away = HubFocus(appActive: false, workspace: nil)

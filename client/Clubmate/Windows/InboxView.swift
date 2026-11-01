@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 import ClubmateKit
@@ -10,7 +11,7 @@ struct InboxView: View {
 
     private static let width: CGFloat = 380
     private static let height: CGFloat = 480
-    private static let tick: TimeInterval = 30
+    private static let tick: TimeInterval = 1
 
     var body: some View {
         let notifications = app.notifications
@@ -59,6 +60,7 @@ struct InboxView: View {
         }
         .frame(width: Self.width)
         .frame(maxHeight: Self.height)
+        .background(PopoverAppearance(dark: theme.isDark))
     }
 
     private func header(_ notifications: Notifications) -> some View {
@@ -133,7 +135,7 @@ struct InboxView: View {
                         Spacer(minLength: theme.spacing.s)
                         if let date {
                             TimelineView(.periodic(from: .now, by: Self.tick)) { context in
-                                Text(date.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))
+                                Text(ShortAge.since(date, now: context.date))
                                     .id(context.date)
                                     .font(theme.uiSmall)
                                     .foregroundStyle(.secondary)
@@ -187,5 +189,32 @@ struct InboxView: View {
         case .done: .green
         case .info: .secondary
         }
+    }
+}
+
+private struct PopoverAppearance: NSViewRepresentable {
+    let dark: Bool
+
+    func makeNSView(context: Context) -> PopoverAppearanceView {
+        PopoverAppearanceView()
+    }
+
+    func updateNSView(_ view: PopoverAppearanceView, context: Context) {
+        view.dark = dark
+    }
+}
+
+private final class PopoverAppearanceView: NSView {
+    var dark = false {
+        didSet { apply() }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        apply()
+    }
+
+    private func apply() {
+        window?.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     }
 }

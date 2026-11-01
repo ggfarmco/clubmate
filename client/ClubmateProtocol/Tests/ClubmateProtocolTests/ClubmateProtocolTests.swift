@@ -120,4 +120,15 @@ final class ClubmateProtocolTests: XCTestCase {
                        BusEvent(seq: 3, topic: "notify.posted", workspace: "w2", payload: .object(["workspace": .string("other")])))
         XCTAssertEqual(try decode(#"{"seq":4,"topic":"plugin.changed"}"#), BusEvent(seq: 4, topic: "plugin.changed", payload: .null))
     }
+
+    func testDiffFileSplitsFilesAndNumbersLines() {
+        let text = "--- a/q.sql\n+++ b/q.sql\n@@ -14,3 +14,3 @@ select\n a\n--- old\n+-- new\n b\n--- /dev/null\n+++ b/new.go\n@@ -0,0 +1,1 @@\n+package x\n"
+        let files = DiffFile.parse(text)
+
+        XCTAssertEqual(files.map(\.path), ["q.sql", "new.go"])
+        XCTAssertEqual(files[0].lines.map(\.number), [nil, 14, 15, 15, 16])
+        XCTAssertEqual(files[0].lines.map(\.text), ["@@ -14,3 +14,3 @@ select", "a", "-- old", "-- new", "b"])
+        XCTAssertEqual(files[0].lines.map(\.kind), [.hunk, .context, .removed, .added, .context])
+        XCTAssertEqual([files[0].added, files[0].removed, files[1].added, files[1].removed], [1, 1, 1, 0])
+    }
 }

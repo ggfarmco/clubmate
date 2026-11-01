@@ -176,8 +176,7 @@ public struct SessionScreen: Sendable, Equatable {
 
     static func thoughtTitle(from start: Date?, to end: Date?) -> String {
         guard let start, let end else { return "Thought" }
-        let seconds = max(1, Int(end.timeIntervalSince(start).rounded()))
-        return seconds < 60 ? "Thought for \(seconds) s" : "Thought for \(seconds / 60) min"
+        return ShortAge.thought(Int(end.timeIntervalSince(start).rounded()))
     }
 
     static func foldPlan(_ blocks: [MarkdownBlock]) -> [MarkdownBlock] {

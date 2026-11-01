@@ -65,6 +65,16 @@ public struct SDUIToolBody: Sendable, Hashable {
         Self.memo[self] = lines
         return lines
     }
+
+    @MainActor private static var filesMemo: [SDUIToolBody: [DiffFile]] = [:]
+
+    @MainActor public var files: [DiffFile] {
+        if let cached = Self.filesMemo[self] { return cached }
+        let files = DiffFile.parse(text)
+        if Self.filesMemo.count >= Self.memoLimit { Self.filesMemo.removeAll() }
+        Self.filesMemo[self] = files
+        return files
+    }
 }
 
 public struct SDUICardAction: Sendable, Equatable, Identifiable {
@@ -88,12 +98,27 @@ public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
     public let id: String
     public let label: String
     public let kind: PermissionKind
+    public let shortcut: KeyCombo?
+    public let menu: Bool
+    public let rule: String?
+    public let scope: String?
+
+    public var confirms: Bool { kind == .allowAlways }
+
+    public init(id: String, label: String, kind: PermissionKind, shortcut: String? = nil, menu: Bool = false, rule: String? = nil, scope: String? = nil) {
+        self.id = id
+        self.label = label
+        self.kind = kind
+        self.shortcut = shortcut.flatMap(KeyCombo.init)
+        self.menu = menu
+        self.rule = rule
+        self.scope = scope
+    }
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
-        self.id = id
-        self.label = label
-        kind = PermissionKind(fields["kind"]?.stringValue)
+        let text = { (key: String) in fields[key]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } }
+        self.init(id: id, label: label, kind: PermissionKind(fields["kind"]?.stringValue), shortcut: text("shortcut"), menu: fields["menu"]?.boolValue ?? false, rule: text("rule"), scope: text("scope"))
     }
 }
 
