@@ -181,8 +181,9 @@ struct InboxRow: View {
                 .accessibilityHidden(!dot)
                 .accessibilityLabel("Unread")
         }
-        .frame(minHeight: 52)
+        .frame(minHeight: 44)
         .contentShape(.rect)
+        .listRowDensity()
     }
 
     private var summary: Text {

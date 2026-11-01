@@ -146,7 +146,7 @@ struct SessionListView: View {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             let nestedBelow = index + 1 < items.count && items[index + 1].depth > 0
             HStack(spacing: 0) {
-                SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants)
+                SessionRow(session: item.node.session, depth: item.depth, waitingChildren: item.node.waitingDescendants, chevron: item.toggleCount == nil)
                 if let count = item.toggleCount {
                     SubagentToggle(count: count, expanded: item.expanded) {
                         Motion.disclose {
@@ -155,6 +155,7 @@ struct SessionListView: View {
                     }
                 }
             }
+            .listRowDensity()
             .listRowSeparator(item.depth > 0 ? .hidden : .automatic, edges: .top)
             .listRowSeparator(nestedBelow ? .hidden : .automatic, edges: .bottom)
             .tag(item.id)
@@ -190,6 +191,7 @@ struct SessionRow: View {
     let session: AgentSession
     var depth = 0
     var waitingChildren = 0
+    var chevron = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
@@ -210,10 +212,13 @@ struct SessionRow: View {
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if chevron {
+                    RowChevron()
+                        .frame(height: 22)
+                }
             }
             .padding(.leading, CGFloat(min(depth, 2)) * 24)
-            .padding(.vertical, 4)
-            .frame(minHeight: 52)
+            .frame(minHeight: 44)
             .contentShape(.rect)
             .accessibilityElement(children: .combine)
         }

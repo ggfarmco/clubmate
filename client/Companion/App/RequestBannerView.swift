@@ -5,17 +5,14 @@ import CompanionKit
 struct RequestBannerHost: View {
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
-    @State private var dismissed: Set<String> = []
 
     var body: some View {
-        let banner = current.flatMap { RequestBanner(model.needsYou(), current: $0, dismissed: dismissed) }
+        let banner = current.flatMap { RequestBanner(model.needsYou(), current: $0) }
         Group {
             if let banner {
                 RequestBannerView(banner: banner) {
                     navigation.workspaces[banner.item.computer] = banner.item.workspace.id
                     navigation.open(computer: banner.item.computer, plugin: AgentsPluginInfo.id, detail: banner.item.session.id)
-                } dismiss: {
-                    dismissed.formUnion(banner.keys)
                 }
                 .transition(.opacity)
             }
@@ -32,56 +29,44 @@ struct RequestBannerHost: View {
 struct RequestBannerView: View {
     let banner: RequestBanner
     let open: () -> Void
-    let dismiss: () -> Void
 
     var body: some View {
         let item = banner.item
-        HStack(spacing: 4) {
-            Button(action: open) {
-                HStack(spacing: 12) {
-                    Image(systemName: item.session.glyph == .question ? "questionmark.bubble" : "hand.raised")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.warningInk)
-                        .frame(width: 28, height: 28)
-                        .background(Color(.tertiarySystemFill), in: .circle)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.session.displayTitle)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        item.mac.lead(item.bannerDetail)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    if let more = banner.moreText {
-                        Text(more)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .fixedSize()
-                    }
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+        Button(action: open) {
+            HStack(spacing: 12) {
+                Image(systemName: item.session.glyph == .question ? "questionmark.bubble" : "hand.raised")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.warningInk)
+                    .frame(width: 28, height: 28)
+                    .background(Color(.tertiarySystemFill), in: .circle)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.session.displayTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    item.mac.lead(item.bannerDetail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                .frame(minHeight: 44)
-                .contentShape(.rect)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let more = banner.moreText {
+                    Text(more)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                }
+                RowChevron(always: true)
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
-            .accessibilityHint("Opens the session")
-            Button("Dismiss", systemImage: "xmark", action: dismiss)
-                .labelStyle(.iconOnly)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
-                .contentShape(.rect)
-                .buttonStyle(.plain)
+            .frame(minHeight: 44)
+            .padding(.leading, 14)
+            .padding(.trailing, 16)
+            .padding(.vertical, 6)
+            .contentShape(.rect)
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 2)
-        .padding(.vertical, 6)
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the session")
         .background(Color.surface1, in: .rect(cornerRadius: 20))
         .overlay {
             RoundedRectangle(cornerRadius: 20).strokeBorder(Color(.separator), lineWidth: 1)

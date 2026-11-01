@@ -28,13 +28,4 @@ final class RequestBannerTests: XCTestCase {
         XCTAssertNil(RequestBanner(items([permission("c", "p2", ago: 10)]), current: "mac|c"))
         XCTAssertNil(RequestBanner(NeedsYouItem.collect([("mac", nil, shop, [permission("a", "p1", ago: 5)])], offline: ["mac"]), current: "mac|x"))
     }
-
-    func testDismissedRequestsStayHiddenUntilANewOneArrives() {
-        let first = items([permission("a", "p1", ago: 60)])
-        let dismissed = RequestBanner(first, current: "mac|x")?.keys ?? []
-        XCTAssertNil(RequestBanner(first, current: "mac|x", dismissed: dismissed))
-        let next = RequestBanner(items([permission("a", "p2", ago: 5)]), current: "mac|x", dismissed: dismissed)
-        XCTAssertEqual(next?.item.session.pending, ["p2"])
-        XCTAssertNil(next?.moreText)
-    }
 }

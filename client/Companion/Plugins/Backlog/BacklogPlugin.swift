@@ -242,9 +242,11 @@ struct TaskRow: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            RowChevron()
+                .frame(height: 22)
         }
-        .padding(.vertical, 4)
-        .frame(minHeight: 52)
+        .frame(minHeight: 44)
+        .listRowDensity()
     }
 
     private var subtitle: String {

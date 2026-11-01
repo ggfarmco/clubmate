@@ -115,12 +115,14 @@ struct NeedsYouRow: View {
                     Text(ShortAge.since(item.at, now: timeline.date))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    RowChevron()
                 }
-                .frame(minHeight: 52)
+                .frame(minHeight: 44)
                 .contentShape(.rect)
             }
         }
         .buttonStyle(.plain)
+        .listRowDensity()
         .opacity(item.offline ? 0.5 : 1)
         .accessibilityHint(item.offline ? "Read-only until the Mac is back" : "")
     }
@@ -192,8 +194,10 @@ struct WorkspaceRow: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            RowChevron()
         }
-        .frame(minHeight: 52)
+        .listRowDensity()
         .opacity(connection.state == .online ? 1 : 0.5)
         .task(id: connection.state == .online) {
             if connection.state == .online && !store.loaded { await store.refresh() }
@@ -216,9 +220,16 @@ struct PluginRow: View {
         HStack(spacing: 12) {
             RowIcon(systemImage: plugin.id == InboxPluginInfo.id ? "tray" : plugin.systemImage)
             Text(plugin.title)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if badge > 0 {
+                Text(plugin.id == InboxPluginInfo.id ? "\(badge) unread" : "\(badge)")
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            RowChevron()
         }
-        .frame(minHeight: 44)
-        .badge(badge > 0 ? Text(plugin.id == InboxPluginInfo.id ? "\(badge) unread" : "\(badge)") : nil)
+        .listRowDensity()
         .opacity(context.connection.state == .online ? 1 : 0.5)
     }
 }
@@ -232,6 +243,26 @@ struct RowIcon: View {
             .foregroundStyle(.secondary)
             .frame(width: 28, height: 28)
             .background(Color(.tertiarySystemFill), in: .circle)
+    }
+}
+
+struct RowChevron: View {
+    var always = false
+    @Environment(AppNavigation.self) private var navigation
+
+    var body: some View {
+        if always || navigation.layout == .compact {
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+extension View {
+    func listRowDensity(_ vertical: CGFloat = 11) -> some View {
+        listRowInsets(.vertical, vertical)
     }
 }
 

@@ -32,7 +32,7 @@ struct SessionDetailView: View {
         default: false
         }
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 10) {
                 if let parent = session?.parentSession.flatMap(store.session) {
                     StartedByCard(parent: parent) { context.navigation.detail = parent.id }
                 }
@@ -471,7 +471,8 @@ struct ComposerView: View {
                             Button("Photos or Videos", systemImage: "photo.on.rectangle") { choosingPhotos = true }
                             Button("Files", systemImage: "folder") { choosingFiles = true }
                         } label: {
-                            Image(systemName: "paperclip")
+                            Label("Attach", systemImage: "photo")
+                                .labelStyle(.iconOnly)
                                 .font(.body.weight(.semibold))
                                 .frame(width: 30, height: 30)
                         }

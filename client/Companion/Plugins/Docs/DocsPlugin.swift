@@ -158,9 +158,9 @@ struct DocRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 4)
-        .frame(minHeight: 52)
+        .frame(minHeight: 44)
         .contentShape(.rect)
+        .listRowDensity()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(doc.name)
         .accessibilityValue([doc.folder, age].compactMap { $0 }.joined(separator: ", "))

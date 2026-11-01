@@ -115,10 +115,10 @@ struct MacDetailsView: View {
                                     .truncationMode(.tail)
                             }
                         }
-                        .frame(minHeight: 44)
                         .opacity(reason == nil ? 1 : 0.5)
                         .contentShape(.rect)
                     }
+                    .listRowDensity(12)
                     .accessibilityAddTraits(colour == current ? .isSelected : [])
                     .accessibilityIdentifier("mac.colour." + colour.rawValue)
                 }
@@ -136,6 +136,7 @@ struct MacDetailsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .environment(\.defaultMinListRowHeight, 44)
         .navigationTitle(tag.name)
         .navigationSubtitle(summary(connection))
         .toolbar { MacSubtitle(text: model.namesMacs ? Text("\(tag.dot) \(summary(connection))") : nil) }
