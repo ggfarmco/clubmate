@@ -13,6 +13,8 @@ Clubmate has a design language: `references/design-language.md` (principles, col
 
 The iPhone/iPad companion (`client/Companion`) follows the same principles with phone metrics, the Mate green accent and its own component specs: `references/companion.md` (boards in `design/companion/`). Look at a companion change in the simulator with fixtures (`design/companion-brief/README.md`).
 
+Decisions that overrule the boards; keep them when a new export is synced: failed tool calls stay folded on the Mac and the phone (`docs/agents.md` § Transcript folding).
+
 It is a target; the code is partway there. Scope each change:
 
 | Change | Do |
