@@ -67,7 +67,7 @@ public final class CompanionModel {
     }
 
     public func pair(_ link: PairingLink) async throws -> Computer {
-        let result = try await RemoteClient.pair(link, device: device, macs: macs(excluding: link.computerID), transport: transport, policy: policy)
+        let result = try await RemoteClient.pair(link, device: device, transport: transport, policy: policy)
         try store.save(result.computer, token: result.token)
         computers = store.computers
         detach(result.computer.id)

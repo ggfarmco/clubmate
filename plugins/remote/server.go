@@ -78,10 +78,9 @@ type pairRequest struct {
 }
 
 type deviceInfo struct {
-	ID    string    `json:"id"`
-	Name  string    `json:"name"`
-	Model string    `json:"model"`
-	Macs  []macInfo `json:"macs"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Model string `json:"model"`
 }
 
 type pairResponse struct {
@@ -157,7 +156,7 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validDevice(req.Device) {
-		writeError(w, http.StatusBadRequest, codeInvalidParams, "device id, name, model and mac names must be at most 128 characters, at most 64 macs; id is required")
+		writeError(w, http.StatusBadRequest, codeInvalidParams, "device id, name and model must be at most 128 characters; id is required")
 		return
 	}
 	gen, ok := s.pairing.redeem(req.Code, remoteHost(r.RemoteAddr))
@@ -173,12 +172,7 @@ func (s *server) pair(w http.ResponseWriter, r *http.Request) {
 	}
 	s.hub.revoke(req.Device.ID)
 	s.changed()
-	comp, err := s.identity.ensureColour(r.Context(), s.devices.usedColours())
-	if err != nil {
-		logf("pick identity colour: %v", err)
-		comp = s.identity.get()
-	}
-	writeJSON(w, http.StatusOK, pairResponse{Token: token, Computer: comp})
+	writeJSON(w, http.StatusOK, pairResponse{Token: token, Computer: s.identity.get()})
 }
 
 func (s *server) revoke(ctx context.Context, id string) error {
@@ -377,7 +371,7 @@ func (e *apiError) Error() string {
 }
 
 func validDevice(d deviceInfo) bool {
-	return d.ID != "" && len(d.ID) <= maxDeviceField && len(d.Name) <= maxDeviceField && len(d.Model) <= maxDeviceField && validMacs(d.Macs)
+	return d.ID != "" && len(d.ID) <= maxDeviceField && len(d.Name) <= maxDeviceField && len(d.Model) <= maxDeviceField
 }
 
 func validMacs(macs []macInfo) bool {

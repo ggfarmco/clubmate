@@ -82,7 +82,7 @@ func (s *deviceStore) add(ctx context.Context, info deviceInfo) (string, error) 
 	token := tokenPrefix + base64.RawURLEncoding.EncodeToString(raw)
 	now := s.now()
 	id := info.ID
-	d := device{ID: id, Name: info.Name, Model: info.Model, PairedAt: now, LastSeen: now, TokenHash: hashToken(token), Macs: slices.Clone(info.Macs)}
+	d := device{ID: id, Name: info.Name, Model: info.Model, PairedAt: now, LastSeen: now, TokenHash: hashToken(token)}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.mu.Lock()

@@ -232,7 +232,21 @@ func TestDevicesMigrateFromLegacyList(t *testing.T) {
 	}
 }
 
-func TestPairPicksTheFirstColourOtherMacsDontUse(t *testing.T) {
+func TestPairLeavesTheColourToTheMacsCall(t *testing.T) {
+	f := newFixture(t)
+	code, _ := f.srv.pairing.issue()
+
+	res := f.post(t, "/v1/pair", "", map[string]any{"code": code, "device": map[string]any{"id": "phone", "macs": []macInfo{{Name: "Studio", Colour: "blue"}}}})
+	defer res.Body.Close()
+	var got pairResponse
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
+
+	assert.Equal(t, computer{ID: "cmp", Name: "Mac"}, got.Computer)
+	assert.Nil(t, f.srv.devices.list()[0].Macs)
+	assert.Empty(t, f.kv.get(computerKey))
+}
+
+func TestMacsCallPicksTheFirstColourOtherMacsDontUse(t *testing.T) {
 	all := make([]macInfo, 0, len(colourOrder))
 	for _, c := range colourOrder {
 		all = append(all, macInfo{Name: c, Colour: c})
@@ -249,10 +263,13 @@ func TestPairPicksTheFirstColourOtherMacsDontUse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(t)
+			token := f.pairDevice(t, deviceInfo{ID: "phone"}).Token
 
-			got := f.pairDevice(t, deviceInfo{ID: "phone", Macs: tt.macs})
+			_, res := f.call(t, token, "macs", macsRequest{Macs: tt.macs})
 
-			assert.Equal(t, tt.want, got.Computer.Colour)
+			assert.Nil(t, res.Error)
+			assert.JSONEq(t, `null`, string(res.Result))
+			assert.Equal(t, tt.want, f.srv.identity.get().Colour)
 			assert.Equal(t, tt.macs, f.srv.devices.list()[0].Macs)
 			assert.Contains(t, f.kv.get(computerKey), `"colour":"`+tt.want+`"`)
 		})
@@ -261,15 +278,13 @@ func TestPairPicksTheFirstColourOtherMacsDontUse(t *testing.T) {
 
 func TestColourIsPickedOnceOnTheFirstMacsCall(t *testing.T) {
 	f := newFixture(t)
-	token, err := f.srv.devices.add(t.Context(), deviceInfo{ID: "phone"})
-	require.NoError(t, err)
+	phone := f.pairDevice(t, deviceInfo{ID: "phone"}).Token
+	pad := f.pairDevice(t, deviceInfo{ID: "pad"}).Token
 
-	_, res := f.call(t, token, "macs", macsRequest{Macs: []macInfo{{Name: "Studio", Colour: "blue"}}})
-	paired := f.pairDevice(t, deviceInfo{ID: "pad", Macs: []macInfo{{Name: "Air", Colour: "magenta"}}})
+	f.call(t, phone, "macs", macsRequest{Macs: []macInfo{{Name: "Studio", Colour: "blue"}}})
+	f.call(t, pad, "macs", macsRequest{Macs: []macInfo{{Name: "Air", Colour: "magenta"}}})
 
-	assert.Nil(t, res.Error)
-	assert.JSONEq(t, `null`, string(res.Result))
-	assert.Equal(t, "magenta", paired.Computer.Colour)
+	assert.Equal(t, "magenta", f.srv.identity.get().Colour)
 }
 
 func TestSetIdentityColour(t *testing.T) {
@@ -308,9 +323,11 @@ func TestSetIdentityColour(t *testing.T) {
 func TestMacsReplaceTheDevicesListAndDriveTheTitleDot(t *testing.T) {
 	f := newFixture(t)
 	a := &app{srv: f.srv, ident: f.srv.identity, titleBar: true}
-	phone := f.pairDevice(t, deviceInfo{ID: "phone", Name: "iPhone", Macs: []macInfo{{Name: "Studio", Colour: "sky"}}}).Token
+	phone := f.pairDevice(t, deviceInfo{ID: "phone", Name: "iPhone"}).Token
+	f.call(t, phone, "macs", macsRequest{Macs: []macInfo{{Name: "Studio", Colour: "sky"}}})
 	f.clock.advance(time.Minute)
-	f.pairDevice(t, deviceInfo{ID: "pad", Name: "iPad", Macs: []macInfo{{Name: "Studio", Colour: "sky"}, {Name: "Air", Colour: "purple"}}})
+	pad := f.pairDevice(t, deviceInfo{ID: "pad", Name: "iPad"}).Token
+	f.call(t, pad, "macs", macsRequest{Macs: []macInfo{{Name: "Studio", Colour: "sky"}, {Name: "Air", Colour: "purple"}}})
 
 	both := a.status()
 	f.call(t, phone, "macs", macsRequest{Macs: []macInfo{{Name: "Mini", Colour: "indigo"}}})
@@ -352,7 +369,7 @@ func TestCommandRunsOnlyRemoteCommands(t *testing.T) {
 	_, ok := f.call(t, token, "command", map[string]any{"id": "agents.sessions", "workspace": "prj_1", "args": map[string]any{"x": 1}})
 	_, denied := f.call(t, token, "command", map[string]any{"id": "agents.delete", "workspace": "prj_1"})
 
-	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":"blue"},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","notify.posted","plugin.changed","remote.identity"]}`, string(hello.Result))
+	assert.JSONEq(t, `{"computer":{"id":"cmp","name":"Mac","colour":""},"version":"1.2.3","commands":["agents.sessions"],"topics":["agents.changed","backlog.changed","notify.posted","plugin.changed","remote.identity"]}`, string(hello.Result))
 	assert.JSONEq(t, `{"ran":"agents.sessions"}`, string(ok.Result))
 	assert.Equal(t, []runCall{{id: "agents.sessions", workspace: "prj_1", args: `{"x":1}`}}, f.backend.calls())
 	assert.Equal(t, codeNotAllowed, denied.Error.Code)

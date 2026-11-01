@@ -95,9 +95,9 @@ public actor RemoteClient {
 
     public static let mismatchMessage = "The Mac that answered isn't the one in the pairing link."
 
-    public static func pair(_ link: PairingLink, device: DeviceIdentity, macs: [MacTag] = [], transport: any HTTPTransport, policy: HostPolicy = .tailnet, now: Date = .now) async throws -> PairResult {
+    public static func pair(_ link: PairingLink, device: DeviceIdentity, transport: any HTTPTransport, policy: HostPolicy = .tailnet, now: Date = .now) async throws -> PairResult {
         let client = RemoteClient(hosts: link.hosts, port: link.port, token: nil, transport: transport, policy: policy)
-        let body = try JSONEncoder().encode(PairRequest(code: link.code, device: PairDevice(id: device.id, name: device.name, model: device.model, macs: macs)))
+        let body = try JSONEncoder().encode(PairRequest(code: link.code, device: PairDevice(id: device.id, name: device.name, model: device.model)))
         let (data, response, host) = try await client.exchange(path: "/v1/pair", method: "POST", body: body, probe: true)
         switch response.statusCode {
         case 200:
@@ -275,7 +275,6 @@ private struct PairDevice: Encodable {
     let id: String
     let name: String
     let model: String
-    let macs: [MacTag]
 }
 
 private struct IdentityReply: Decodable {

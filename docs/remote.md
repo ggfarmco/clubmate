@@ -21,8 +21,8 @@ clubmate command run remote.set-title-bar-colour enabled=false
 ## A colour for each Mac
 - Every Mac has an identity colour, a name tag shown next to its name on paired phones and in the Mac title bar. Tokens: `sky`, `blue`, `indigo`, `purple`, `magenta`, `graphite`. The wire carries the token, never a hex; an unknown or missing token renders as `graphite`.
 - The name is the system computer name (read-only). The colour is stored with the computer (plugin storage key `computer`, `{id, name, colour}`).
-- Default: while the stored colour is empty, the first pairing (or the first `macs` call) picks the first token of `blue`, `magenta`, `sky`, `purple`, `indigo`, `graphite` that no paired phone reports for another Mac; with nothing reported (or every token taken) it is `blue`. It is never re-picked afterwards. Duplicates are allowed.
-- Each phone reports the other Macs it has paired (`macs` in the pair body and the `macs` rpc), stored on its device record (`device/<id>`). Older phones report nothing, read as `[]`.
+- Default: while the stored colour is empty, the first `macs` call picks the first token of `blue`, `magenta`, `sky`, `purple`, `indigo`, `graphite` that no paired phone reports for another Mac; with nothing reported (or every token taken) it is `blue`. It is never re-picked afterwards. Duplicates are allowed.
+- Each phone reports the other Macs it has paired with the `macs` rpc, only after pairing succeeded and the Mac's id matched the QR code, so a host answering a pairing code never learns them. They are stored on its device record (`device/<id>`). Older phones report nothing, read as `[]`. Pairing never picks the colour; the pair response carries an empty one until the phone's first `macs` call, which publishes `remote.identity`.
 - Changed from the phone (`setIdentityColour`) or the Mac (`remote.set-colour`, Settings → Remote). Every change publishes `remote.identity` `{computer: {id, name, colour}}` (forwarded to phones) and `remote.changed`.
 - Title bar: the workspace pill shows the dot iff `remote.status.titleDot` = `titleBarColour` (setting, default on, storage key `titleBarColour`) and at least one other Mac is reported. The Mac UI renders `titleDot` and never re-derives the rule.
 
@@ -46,7 +46,7 @@ clubmate command run remote.set-title-bar-colour enabled=false
 ## Wire contract (v1)
 All bodies are JSON. Authenticated endpoints need `Authorization: Bearer <token>`; a missing, unknown or revoked token gets `401 {"error":{"code":"unauthorized","message":"..."}}`.
 
-- `POST /v1/pair` (no auth) `{"code","device":{"id","name","model","macs":[{"name","colour"}]}}` → `{"token","computer":{"id","name","colour"}}`; `macs` (optional, at most 64) are the other Macs this phone has paired; a wrong, expired or used code → `403 pairing_failed`; a malformed body → `400 invalid_params`.
+- `POST /v1/pair` (no auth) `{"code","device":{"id","name","model"}}` → `{"token","computer":{"id","name","colour"}}`; a `macs` field from 0.0.20 phones is ignored; a wrong, expired or used code → `403 pairing_failed`; a malformed body → `400 invalid_params`.
 - `POST /v1/rpc` `{"method","params"}` → `200 {"result":...}` or `200 {"error":{"code","message"}}` (`not_allowed`, `invalid_params`, `failed`):
   - `hello` → `{computer: {id, name, colour}, version, commands, topics}`; `commands` = registered commands with `"remote": true` whose plugin is running (`command.list` carries `running`). The phone reads `hello` on each connection and again on every `plugin.changed` event, so a plugin that starts or stops later is reflected live.
   - `workspaces` → `[{id, name, folders, roots}]` (`folders` as in `workspace.list`; `roots` is deprecated and kept for Companion builds that predate `folders`).
