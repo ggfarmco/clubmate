@@ -10,9 +10,10 @@ const (
 	TopicReady   = "agents.ready"
 	TopicUsage   = "agents.usage"
 
-	ChangeCreated = "created"
-	ChangeStatus  = "status"
-	ChangeDeleted = "deleted"
+	ChangeCreated  = "created"
+	ChangeStatus   = "status"
+	ChangeDeleted  = "deleted"
+	ChangeResolved = "resolved"
 
 	StatusClosed = "closed"
 )
@@ -45,6 +46,7 @@ type Changed struct {
 	Session   string `json:"session"`
 	Kind      string `json:"kind"`
 	Status    string `json:"status,omitempty"`
+	Request   string `json:"request,omitempty"`
 }
 
 func (s Session) Closed() bool {

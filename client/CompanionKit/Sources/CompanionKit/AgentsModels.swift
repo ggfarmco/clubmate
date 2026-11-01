@@ -280,10 +280,11 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let id: String
     public let entryID: String
     public let turn: Int
+    public let at: Date?
     public let content: Content
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -292,6 +293,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         entryID = UUID().uuidString
         id = Self.outgoingPrefix + entryID
         turn = 0
+        at = nil
         content = .user(text: text, fromAgent: false, images: images)
     }
 
@@ -305,6 +307,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         entryID = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
         id = raw + "/" + entryID
         turn = try c.decodeIfPresent(Int.self, forKey: .turn) ?? 0
+        at = try? c.decodeIfPresent(Date.self, forKey: .at)
         let text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         switch TranscriptEntryKind(raw) {
         case .user:
@@ -325,7 +328,8 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
                 id: entryID,
                 toolCall: ToolCall(id: entryID, fields: (try? c.decodeIfPresent(JSONValue.self, forKey: .toolCall)) ?? .null),
                 options: PermissionOption.ordered((try? c.decodeIfPresent([PermissionOption].self, forKey: .options)) ?? []),
-                outcome: try? c.decodeIfPresent(PermissionOutcome.self, forKey: .outcome)
+                outcome: try? c.decodeIfPresent(PermissionOutcome.self, forKey: .outcome),
+                answeredAt: try? c.decodeIfPresent(Date.self, forKey: .answeredAt)
             ))
         case .elicitation:
             content = .elicitation(Elicitation(
@@ -439,6 +443,7 @@ public struct PermissionRequest: Sendable, Equatable {
     public let toolCall: ToolCall
     public let options: [PermissionOption]
     public let outcome: PermissionOutcome?
+    public let answeredAt: Date?
 
     public var answer: String? {
         guard let outcome else { return nil }

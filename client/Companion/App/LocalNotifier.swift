@@ -25,6 +25,10 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
             guard let alert = LocalAlert(item, computerName: name, now: .now) else { return }
             post(alert)
         }
+        model.withdrawn = { [weak self] ids in
+            self?.center.removeDeliveredNotifications(withIdentifiers: ids)
+            self?.center.removePendingNotificationRequests(withIdentifiers: ids)
+        }
         if !model.computers.isEmpty { requestAuthorization() }
     }
 

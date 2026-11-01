@@ -49,6 +49,9 @@ func (s *session) requestPermission(ctx context.Context, request string, params 
 	s.settleLocked()
 	s.mu.Unlock()
 	s.changed(changeStatus, true)
+	if s.resolved != nil {
+		s.resolved(id)
+	}
 	return out
 }
 

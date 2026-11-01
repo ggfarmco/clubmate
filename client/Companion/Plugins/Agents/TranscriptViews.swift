@@ -19,6 +19,8 @@ struct RowView: View {
             } else {
                 ToolGroupRow(group: group)
             }
+        case .thought(_, let text, let title):
+            ThoughtView(text: text, title: title)
         case .answered(let request):
             AnsweredRow(request: request)
         case .asked(let question):
@@ -37,7 +39,7 @@ struct EntryView: View {
         case .agent(let text):
             MarkdownView(blocks: Markdown.blocks(text))
         case .thought(let text):
-            ThoughtView(text: text)
+            ThoughtView(text: text, title: "Thought")
         case .tool(let tool):
             ToolRow(tool: tool)
         case .plan(let items):
@@ -175,6 +177,7 @@ struct MarkdownView: View {
 
 struct ThoughtView: View {
     let text: String
+    let title: String
     @State private var expanded = false
 
     var body: some View {
@@ -186,7 +189,7 @@ struct ThoughtView: View {
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.semibold))
                         .rotationEffect(.degrees(expanded ? 90 : 0))
-                    Text("Thought")
+                    Text(title)
                 }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -543,7 +546,7 @@ struct AnsweredRow: View {
 
     var body: some View {
         Label {
-            (Text(request.verdict + " · ") + Text(request.subject).font(.footnote.monospaced()))
+            (Text(request.verdict + " · ") + Text(request.subject).font(.footnote.monospaced()) + Text(time))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .accessibilityLabel(request.summary)
@@ -553,6 +556,10 @@ struct AnsweredRow: View {
         .font(.footnote)
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var time: String {
+        request.answeredAt.map { " · " + $0.formatted(date: .omitted, time: .shortened) } ?? ""
     }
 }
 
@@ -789,9 +796,12 @@ struct AlwaysAllowSheet: View {
     }
 
     private var scope: AttributedString {
-        let place = place.isEmpty ? "this workspace" : "**\(place)**"
         let what = request.toolCall.kind == .execute ? "run matching commands" : "do this"
-        return Markdown.inline("\(agentName) will \(what) in \(place) without asking, on this Mac, until you remove the rule.")
+        if request.alwaysForSession {
+            return Markdown.inline("\(agentName) will \(what) without asking until this session ends.")
+        }
+        let place = place.isEmpty ? "this workspace" : "**\(place)**"
+        return Markdown.inline("\(agentName) will \(what) in \(place) without asking, on this Mac, until you remove the rule from `.claude/settings.local.json`.")
     }
 }
 

@@ -1,6 +1,16 @@
 import Foundation
 import Observation
 
+public enum AnswerError: Error, Equatable, LocalizedError {
+    case alreadyAnswered
+
+    static let unknownRequest = "unknown permission request"
+
+    public var errorDescription: String? {
+        "Already answered"
+    }
+}
+
 @MainActor
 @Observable
 public final class AgentsStore {
@@ -176,7 +186,18 @@ public final class AgentsStore {
     }
 
     public func answer(_ session: String, request: String, option: String) async throws {
-        try await run("agents.permission", ["session": .string(session), "request": .string(request), "option": .string(option)])
+        guard let runner else { return }
+        sessions = try await runner.command(AgentCommand.sessions, workspace: workspace, args: nil).decode([AgentSession].self)
+        do {
+            guard self.session(session)?.pending.contains(request) == true else { throw AnswerError.alreadyAnswered }
+            try await run("agents.permission", ["session": .string(session), "request": .string(request), "option": .string(option)])
+        } catch RemoteError.server(_, let message) where message.contains(AnswerError.unknownRequest) {
+            await refreshSession(session)
+            throw AnswerError.alreadyAnswered
+        } catch AnswerError.alreadyAnswered {
+            await refreshSession(session)
+            throw AnswerError.alreadyAnswered
+        }
         await refreshSession(session)
     }
 

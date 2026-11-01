@@ -22,6 +22,7 @@ import (
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -517,6 +518,30 @@ func TestPermissionOutsidePrompt(t *testing.T) {
 	got := f.waitCall(t, "permission_response", func(fakeCall) bool { return true })
 	assert.JSONEq(t, `{"outcome":{"outcome":"selected","optionId":"allow"}}`, string(got.Params))
 	f.waitStatus(t, workspace, session, "done")
+}
+
+func TestAnsweredPermissionPublishesResolved(t *testing.T) {
+	f := start(t, map[string]any{"after": []map[string]any{{"permission": permissionScript()}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "waiting")
+	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
+	require.Len(t, perms, 1)
+	f.answerPermission(t, workspace, session, perms[0].ID)
+
+	want := api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: perms[0].ID}
+	testutil.Eventually(t, func() bool {
+		events, err := f.h.Bus.Read(t.Context(), api.TopicChanged, 0, 1000)
+		require.NoError(t, err)
+		return slices.ContainsFunc(events, func(e bus.Event) bool {
+			var got api.Changed
+			err := json.Unmarshal(e.Payload, &got)
+			got.Status = ""
+			return err == nil && got == want
+		})
+	}, wait)
 }
 
 func TestCancelAnswersPendingPermission(t *testing.T) {

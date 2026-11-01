@@ -20,7 +20,7 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(tools.detail, "read cart.go · edit cart.go")
         XCTAssertEqual(request.id, "permission-3")
         XCTAssertEqual(request.question, "Run a command?")
-        XCTAssertEqual(request.alwaysRule, "go test ./...")
+        XCTAssertEqual(request.alwaysRule, "Bash(go test:*)")
         XCTAssertEqual(request.toolCall.intent, "Run the shop tests")
     }
 
@@ -28,12 +28,13 @@ final class SessionScreenTests: XCTestCase {
         let json = #"""
         [{"kind":"permission","id":"p1","toolCall":{"kind":"execute","rawInput":{"command":"go vet ./..."}},
           "options":[{"optionId":"a","name":"Allow","kind":"allow_once"},{"optionId":"r","name":"Reject","kind":"reject_once"}],
-          "outcome":{"outcome":"selected","optionId":"a"}}]
+          "outcome":{"outcome":"selected","optionId":"a"},"at":"2026-10-31T09:41:00Z","answeredAt":"2026-10-31T09:42:00Z"}]
         """#
         let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
         let screen = SessionScreen(entries: entries, session: AgentSession(id: "s", status: .running))
         guard case .answered(let request) = screen.rows.first else { return XCTFail("unexpected rows \(screen.rows)") }
         XCTAssertEqual(request.summary, "Allowed once · go vet ./...")
+        XCTAssertEqual(request.answeredAt, Date.parseRFC3339("2026-10-31T09:42:00Z"))
         XCTAssertNil(screen.dock)
     }
 
@@ -47,6 +48,33 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(screen.rows.map(\.id), ["elicitation/elicitation-1"])
         guard case .elicitation(let question) = screen.dock else { return XCTFail("unexpected dock \(String(describing: screen.dock))") }
         XCTAssertEqual(question.request.url, "https://example.com")
+    }
+
+    func testThoughtRowSaysHowLongItTookUntilTheNextEntry() throws {
+        let json = #"""
+        [{"kind":"thought","id":"t1","text":"a","at":"2026-10-31T09:41:00Z"},{"kind":"agent","id":"a1","text":"b","at":"2026-10-31T09:41:03.4Z"},
+         {"kind":"thought","id":"t2","text":"c","at":"2026-10-31T09:41:05Z"},{"kind":"thought","id":"t3","text":"d"},{"kind":"agent","id":"a2","text":"e"}]
+        """#
+        let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
+        let rows = SessionScreen(entries: entries, session: AgentSession(id: "s", status: .running)).rows
+        XCTAssertEqual(rows.compactMap { if case .thought(_, _, let title) = $0 { title } else { nil } }, ["Thought for 3 s", "Thought", "Thought"])
+        XCTAssertEqual(rows.first?.id, "thought/t1")
+    }
+
+    func testAlwaysRuleIsReadFromTheAdaptersLabel() throws {
+        let cases: [(kind: String, command: String, name: String, rule: String, session: Bool)] = [
+            ("execute", "go test ./...", "Yes, and don't ask again for go test and npm run commands", "Bash(go test:*)\nBash(npm run:*)", false),
+            ("execute", "make app && make lint", "Yes, and don't ask again for similar commands", "Bash(make:*)", false),
+            ("execute", "  go vet ./...", "Always Allow", "Bash(go:*)", false),
+            ("fetch", "", "Yes, and don't ask again for example.com", "WebFetch(domain:example.com)", false),
+            ("edit", "", "Yes, allow all edits during this session", "Allow all edits during this session", true),
+        ]
+        for c in cases {
+            let json = #"{"kind":"permission","id":"p","toolCall":{"kind":"\#(c.kind)","rawInput":{"command":"\#(c.command)"}},"options":[{"optionId":"x","name":"\#(c.name)","kind":"allow_always"}]}"#
+            guard case .permission(let request) = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8)).content else { return XCTFail("not a permission") }
+            XCTAssertEqual(request.alwaysRule, c.rule, c.name)
+            XCTAssertEqual(request.alwaysForSession, c.session, c.name)
+        }
     }
 
     func testDockSaysWhatTheCardHides() throws {

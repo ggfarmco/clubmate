@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"time"
 
 	"clubmate/plugins/agents/acp"
 )
@@ -39,6 +40,7 @@ type transcriptState struct {
 	edited   bool
 	prompted bool
 	senders  []string
+	at       time.Time
 
 	subagents map[string]*subagent
 }
@@ -72,6 +74,8 @@ type entry struct {
 	Elicitation *elicitation             `json:"elicitation,omitempty"`
 	Response    *acp.ElicitationResponse `json:"response,omitempty"`
 	Completed   bool                     `json:"completed,omitempty"`
+	At          time.Time                `json:"at,omitzero"`
+	AnsweredAt  time.Time                `json:"answeredAt,omitzero"`
 
 	Compaction *compaction `json:"compaction,omitempty"`
 
@@ -255,6 +259,7 @@ func (s *session) notice(title, description string) {
 }
 
 func (s *session) apply(e envelope) {
+	s.at = e.TS
 	if e.Turn > s.turn {
 		s.turn = e.Turn
 	}
@@ -325,7 +330,7 @@ func (s *session) apply(e envelope) {
 		var p answerPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			if i, ok := s.index[key(entryPermission, p.Request)]; ok {
-				s.entries[i].Outcome, s.entries[i].node = &p.Outcome, nil
+				s.entries[i].Outcome, s.entries[i].AnsweredAt, s.entries[i].node = &p.Outcome, e.TS, nil
 			}
 		}
 	case kindElicitation:
@@ -496,7 +501,7 @@ func (s *session) upsert(kind, id string, turn int) *entry {
 		s.entries[i].node = nil
 		return s.entries[i]
 	}
-	en := &entry{Kind: kind, ID: id, Turn: turn}
+	en := &entry{Kind: kind, ID: id, Turn: turn, At: s.at}
 	s.index[k] = len(s.entries)
 	s.entries = append(s.entries, en)
 	return en

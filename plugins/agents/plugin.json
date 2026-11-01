@@ -408,7 +408,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, ...}]}. kind is user, agent, thought, tool, plan, permission, elicitation or notice. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
+        "description": "Read a session's transcript from Clubmate's own log: {session, modes, configOptions, commands, turns:[{turn, checkpointSha, stopReason, commits}], entries:[{kind, id, turn, at?, ...}]}. kind is user, agent, thought, tool, plan, permission, elicitation or notice. at is when the entry began (RFC 3339); a permission or elicitation entry also has answeredAt once answered. To read what a session did in its latest turn, pass last=true and compact=true. Non-destructive.",
         "args": {
           "properties": {
             "session": {"type": "string", "description": "Session id."},

@@ -96,19 +96,22 @@
           "type": "text",
           "text": "Refactor the cart total into its own function"
         }
-      ]
+      ],
+      "at": "2026-10-30T09:41:00Z"
     },
     {
       "kind": "thought",
       "id": "thought-1",
       "turn": 1,
-      "text": "The total is computed inline in cart.go."
+      "text": "The total is computed inline in cart.go.",
+      "at": "2026-10-30T09:41:00Z"
     },
     {
       "kind": "agent",
       "id": "agent-2",
       "turn": 1,
-      "text": "## Plan\n\nI'll move the total into `cartTotal` and keep **behaviour** the same:\n\n1. Extract the loop\n2. Add a test\n\n```go\nfunc cartTotal(items []Item) int {\n\treturn sum(items)\n}\n```\n"
+      "text": "## Plan\n\nI'll move the total into `cartTotal` and keep **behaviour** the same:\n\n1. Extract the loop\n2. Add a test\n\n```go\nfunc cartTotal(items []Item) int {\n\treturn sum(items)\n}\n```\n",
+      "at": "2026-10-30T09:41:00Z"
     },
     {
       "kind": "plan",
@@ -133,7 +136,8 @@
           }
         ],
         "sessionUpdate": "plan"
-      }
+      },
+      "at": "2026-10-30T09:41:00Z"
     },
     {
       "kind": "tool",
@@ -149,7 +153,8 @@
         "status": "completed",
         "title": "Read cart.go",
         "toolCallId": "read1"
-      }
+      },
+      "at": "2026-10-30T09:41:00Z"
     },
     {
       "kind": "tool",
@@ -174,13 +179,15 @@
         "status": "completed",
         "title": "Edit `/Users/me/src/shop/cart.go`",
         "toolCallId": "edit1"
-      }
+      },
+      "at": "2026-10-30T09:41:00Z"
     },
     {
       "kind": "compaction",
       "id": "compact1",
       "turn": 1,
       "text": "The user asked to move the cart total into cartTotal; cart.go is edited and a test is next.",
+      "at": "2026-10-30T09:41:00Z",
       "compaction": {
         "status": "completed"
       }
@@ -201,7 +208,7 @@
       "options": [
         {
           "optionId": "allow_always",
-          "name": "Always Allow",
+          "name": "Yes, and don't ask again for go test commands",
           "kind": "allow_always"
         },
         {
@@ -219,7 +226,8 @@
           "name": "Reject Always",
           "kind": "reject_always"
         }
-      ]
+      ],
+      "at": "2026-10-30T09:41:00Z"
     }
   ]
 }

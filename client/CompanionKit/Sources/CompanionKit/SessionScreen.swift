@@ -88,13 +88,14 @@ public enum TranscriptRow: Sendable, Equatable, Identifiable {
     case entry(TranscriptEntry)
     case agent(id: String, blocks: [MarkdownBlock])
     case tools(id: String, ToolGroup)
+    case thought(id: String, text: String, title: String)
     case answered(PermissionRequest)
     case asked(Elicitation)
 
     public var id: String {
         switch self {
         case .entry(let entry): entry.id
-        case .agent(let id, _), .tools(let id, _): id
+        case .agent(let id, _), .tools(let id, _), .thought(let id, _, _): id
         case .answered(let request): "permission/" + request.id
         case .asked(let question): "elicitation/" + question.id
         }
@@ -132,6 +133,9 @@ public struct SessionScreen: Sendable, Equatable {
                     blocks.removeLast()
                 }
                 if !blocks.isEmpty { rows.append(.agent(id: entry.id, blocks: blocks)) }
+            case .thought(let text):
+                let next = index + 1 < entries.count ? entries[index + 1].at : nil
+                rows.append(.thought(id: entry.id, text: text, title: Self.thoughtTitle(from: entry.at, to: next)))
             case .tool(let call):
                 if case .tools(let id, let group) = rows.last {
                     rows[rows.count - 1] = .tools(id: id, ToolGroup(calls: group.calls + [call]))
@@ -168,6 +172,12 @@ public struct SessionScreen: Sendable, Equatable {
         } else {
             dock = nil
         }
+    }
+
+    static func thoughtTitle(from start: Date?, to end: Date?) -> String {
+        guard let start, let end else { return "Thought" }
+        let seconds = max(1, Int(end.timeIntervalSince(start).rounded()))
+        return seconds < 60 ? "Thought for \(seconds) s" : "Thought for \(seconds / 60) min"
     }
 
     static func foldPlan(_ blocks: [MarkdownBlock]) -> [MarkdownBlock] {
@@ -274,8 +284,33 @@ extension PermissionRequest {
         toolCall.kind == .execute ? "Always allow this command?" : "Always allow this action?"
     }
 
+    public var alwaysForSession: Bool {
+        option(.allowAlways)?.name.lowercased().contains("during this session") ?? false
+    }
+
     public var alwaysRule: String {
         guard let name = option(.allowAlways)?.name else { return subject }
+        if alwaysForSession {
+            let rest = name.hasPrefix("Yes, ") ? String(name.dropFirst(5)) : name
+            return rest.prefix(1).uppercased() + rest.dropFirst()
+        }
+        if let range = name.range(of: "don't ask again for ") {
+            let target = String(name[range.upperBound...])
+            switch toolCall.kind {
+            case .execute where target.hasSuffix(" commands"):
+                let prefixes = Self.listed(String(target.dropLast(" commands".count)))
+                if prefixes != ["similar"] { return prefixes.map { "Bash(\($0):*)" }.joined(separator: "\n") }
+            case .execute:
+                break
+            case .fetch:
+                return "WebFetch(domain:\(target))"
+            default:
+                return target
+            }
+        }
+        if toolCall.kind == .execute, let word = toolCall.command?.split(whereSeparator: \.isWhitespace).first {
+            return "Bash(\(word):*)"
+        }
         let generic = ["always allow", "allow always", "always", "allow"]
         var rest = name.lowercased()
         for word in generic where rest.hasPrefix(word) {
@@ -283,6 +318,11 @@ extension PermissionRequest {
             break
         }
         return rest.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)).isEmpty ? subject : name
+    }
+
+    private static func listed(_ text: String) -> [String] {
+        let joined = text.replacingOccurrences(of: ", and ", with: ", ")
+        return (joined.contains(", ") ? joined.components(separatedBy: ", ") : joined.components(separatedBy: " and ")).filter { !$0.isEmpty }
     }
 
     public var verdict: String {

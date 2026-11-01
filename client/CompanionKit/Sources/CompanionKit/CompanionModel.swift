@@ -8,6 +8,7 @@ public final class CompanionModel {
     public private(set) var connections: [String: ComputerConnection] = [:]
     public var inbox = Inbox()
     @ObservationIgnored public var posted: (@MainActor (InboxItem) -> Void)?
+    @ObservationIgnored public var withdrawn: (@MainActor ([String]) -> Void)?
 
     @ObservationIgnored public let device: DeviceIdentity
     @ObservationIgnored public let policy: HostPolicy
@@ -20,6 +21,7 @@ public final class CompanionModel {
     @ObservationIgnored private var observers: [String: UUID] = [:]
     @ObservationIgnored private var lastSignal = ContinuousClock.now
     @ObservationIgnored private var receiving = 0
+    @ObservationIgnored private var resolvedAt: [String: Int] = [:]
 
     public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.store = store
@@ -128,6 +130,8 @@ public final class CompanionModel {
         backlogs = backlogs.filter { !$0.key.hasPrefix(id + "|") }
     }
 
+    private static let resolvedKind = "resolved"
+
     private static func cursorKey(_ computer: String) -> String {
         "companion.cursor." + computer
     }
@@ -140,10 +144,16 @@ public final class CompanionModel {
         if case .event = signal, let seq = connections[computer]?.lastEventID {
             cursors?.set(seq, forKey: Self.cursorKey(computer))
         }
+        if case .event(let event) = signal, event.topic == Topic.agentsChanged, event.payload["kind"]?.stringValue == Self.resolvedKind,
+           let session = event.payload["session"]?.stringValue {
+            resolvedAt[computer + "|" + session] = event.seq
+            let ids = inbox.resolve(computer: computer, session: session)
+            if !ids.isEmpty { withdrawn?(ids) }
+        }
         if case .event(let event) = signal, let item = InboxItem(event, computerID: computer, received: .now) {
             receiving += 1
             Task {
-                await receive(item)
+                await receive(item, seq: event.seq)
                 receiving -= 1
                 lastSignal = .now
             }
@@ -156,10 +166,11 @@ public final class CompanionModel {
         }
     }
 
-    private func receive(_ item: InboxItem) async {
+    private func receive(_ item: InboxItem, seq: Int) async {
         let allowed = await policy(item).allows(item.kind)
         guard inbox.add(item) else { return }
-        if allowed {
+        let resolved = item.kind == .permission && (item.session.flatMap { resolvedAt[item.computerID + "|" + $0] } ?? 0) > seq
+        if allowed && !resolved {
             posted?(item)
         } else {
             inbox.markRead(item)

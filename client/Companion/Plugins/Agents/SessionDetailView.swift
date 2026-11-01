@@ -12,6 +12,7 @@ struct SessionDetailView: View {
     @State private var sending = false
     @State private var sent = 0
     @State private var failure: String?
+    @State private var answeredElsewhere = 0
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var confirmingClose = false
     @State private var confirmingStop = false
@@ -71,6 +72,14 @@ struct SessionDetailView: View {
                     RefreshFailedBanner(message: failure) {
                         Task { await store.loadTranscript(sessionID, incremental: true) }
                     }
+                }
+                if answeredElsewhere > 0 {
+                    AnsweredElsewhereBanner()
+                        .transition(.opacity)
+                        .task(id: answeredElsewhere) {
+                            try? await Task.sleep(for: .seconds(3))
+                            withAnimation { answeredElsewhere = 0 }
+                        }
                 }
                 if let session, !session.isClosed, let dock = screen.dock {
                     Group {
@@ -195,7 +204,12 @@ struct SessionDetailView: View {
     }
 
     private func answer(request: String, option: String) async throws {
-        try await store.answer(sessionID, request: request, option: option)
+        do {
+            try await store.answer(sessionID, request: request, option: option)
+        } catch AnswerError.alreadyAnswered {
+            withAnimation { answeredElsewhere += 1 }
+            return
+        }
         sent += 1
     }
 
@@ -232,6 +246,17 @@ struct SessionHeader: View {
         }
         .frame(maxWidth: 260)
         .accessibilityElement(children: .combine)
+    }
+}
+
+struct AnsweredElsewhereBanner: View {
+    var body: some View {
+        Label("Already answered", systemImage: "checkmark.circle")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .glassEffect(in: .capsule)
     }
 }
 

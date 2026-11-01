@@ -275,6 +275,53 @@ final class TranscriptRefreshTests: XCTestCase {
 }
 
 @MainActor
+final class PermissionAnswerTests: XCTestCase {
+    func testAnswerToARequestNoLongerPendingIsNotSent() async throws {
+        let runner = AnswerRunner(pending: [], failure: nil)
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await XCTAssertThrowsAsync(try await store.answer("s", request: "permission-1", option: "a"), AnswerError.alreadyAnswered)
+        XCTAssertFalse(runner.commands.contains("agents.permission"))
+    }
+
+    func testRequestTheMacNoLongerKnowsReadsAsAlreadyAnswered() async throws {
+        let runner = AnswerRunner(pending: ["permission-1"], failure: RemoteError.server(code: "internal", message: "agents.permission: unknown permission request"))
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await XCTAssertThrowsAsync(try await store.answer("s", request: "permission-1", option: "a"), AnswerError.alreadyAnswered)
+    }
+}
+
+@MainActor
+final class AnswerRunner: CommandRunner {
+    let pending: [String]
+    let failure: RemoteError?
+    private(set) var commands: [String] = []
+
+    init(pending: [String], failure: RemoteError?) {
+        self.pending = pending
+        self.failure = failure
+    }
+
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        commands.append(id)
+        switch id {
+        case "agents.sessions": return .array([.object(["id": .string("s"), "status": .string("waiting"), "pending": .array(pending.map(JSONValue.string))])])
+        case "agents.permission": if let failure { throw failure } else { return .null }
+        default: return .array([])
+        }
+    }
+}
+
+@MainActor
+func XCTAssertThrowsAsync<E: Error & Equatable>(_ work: @autoclosure @MainActor () async throws -> Void, _ expected: E, file: StaticString = #filePath, line: UInt = #line) async {
+    do {
+        try await work()
+        XCTFail("no error", file: file, line: line)
+    } catch {
+        XCTAssertEqual(error as? E, expected, file: file, line: line)
+    }
+}
+
+@MainActor
 final class ScriptedRunner: CommandRunner {
     private var replies: [String]
     private var sessions: [String]

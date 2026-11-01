@@ -91,6 +91,19 @@ final class ModelTests: XCTestCase {
         XCTAssertFalse(inbox.showsDot(done, in: sections))
     }
 
+    func testResolvedSessionLeavesWaitingAndReturnsItsPermissionAlerts() {
+        var inbox = Inbox()
+        let item = { (id: String, computer: String, session: String, kind: NotificationKind) in
+            InboxItem(notificationID: id, computerID: computer, workspace: "w", session: session, message: "", kind: kind, date: .distantPast)
+        }
+        let resolved = item("p", "m", "agt_1", .permission)
+        let others = [item("q", "m", "agt_1", .needsInput), item("o", "m", "agt_2", .permission), item("x", "other", "agt_1", .permission)]
+        for entry in [resolved] + others { inbox.add(entry) }
+        XCTAssertEqual(inbox.resolve(computer: "m", session: "agt_1"), [resolved.id])
+        XCTAssertFalse(inbox.isUnread(resolved))
+        XCTAssertTrue(others.allSatisfy(inbox.isUnread))
+    }
+
     func testInboxAgeIsCompact() {
         let now = Date(timeIntervalSince1970: 200_000)
         let ages = [30, 600, 3_700, 90_000].map { InboxItem(notificationID: "n", computerID: "m", workspace: "w", message: "", date: now.addingTimeInterval(-TimeInterval($0))).age(now: now) }
@@ -183,6 +196,37 @@ final class ModelTests: XCTestCase {
         let connection = ComputerConnection(computer: ComputerStore(file: file, vault: vault).computers[0], token: "t", transport: FakeTransport())
         XCTAssertEqual(connection.presence, "offline since " + ComputerConnection.clock(seen))
         XCTAssertEqual(connection.blocked, "Can't answer — Mac is offline · as of " + ComputerConnection.clock(seen))
+    }
+
+    @MainActor
+    func testRequestResolvedElsewhereLeavesNoAlertOrUnreadItem() async throws {
+        let store = ComputerStore(file: nil, vault: MemoryTokenVault())
+        try store.save(Computer(id: "m", name: "Mac", hosts: ["100.64.0.1"], port: 1), token: "t")
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            case AgentCommand.sessions: (FakeTransport.result("[]"), 200)
+            default: (FakeTransport.result(helloJSON), 200)
+            }
+        }, stream: { _ in
+            let wire = [
+                #"{"seq":1,"topic":"notify.posted","workspace":"w","payload":{"id":"n1","session":"agt_1","message":"m","kind":"permission"}}"#,
+                #"{"seq":2,"topic":"agents.changed","workspace":"w","payload":{"workspace":"w","session":"agt_1","kind":"resolved","request":"permission-1"}}"#,
+            ].enumerated().map { "id: \($0.offset + 1)\nevent: bus\ndata: \($0.element)\n\n" }.joined()
+            return (200, AsyncThrowingStream { $0.yield(Data((": connected\n\n" + wire).utf8)) })
+        })
+        let model = CompanionModel(store: store, transport: transport, device: DeviceIdentity(id: "d", name: "P", model: "iPhone"), sleep: { _ in })
+        let posted = Recorder<String>()
+        let withdrawn = Recorder<String>()
+        model.posted = { posted.add($0.id) }
+        model.withdrawn = { $0.forEach(withdrawn.add) }
+
+        model.start()
+
+        try await waitUntil { model.inbox.items.count == 1 }
+        XCTAssertEqual(posted.values, withdrawn.values)
+        XCTAssertEqual(model.inbox.unread, [])
+        try model.remove("m")
     }
 
     @MainActor

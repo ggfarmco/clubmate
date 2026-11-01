@@ -80,7 +80,13 @@ actor FixtureServer {
             others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600)]
         }
         var transcripts: [String: [String: JSONValue]] = [:]
-        if case .object(let first) = decode("agents-transcript.json"), let id = sessions.first?["id"]?.stringValue {
+        if case .object(var first) = decode("agents-transcript.json"), let id = sessions.first?["id"]?.stringValue {
+            let entries = first["entries"]?.arrayValue ?? []
+            first["entries"] = .array(entries.enumerated().map { index, entry in
+                guard case .object(var fields) = entry else { return entry }
+                fields["at"] = Self.stamp(ago: Double(entries.count - index) * 3)
+                return .object(fields)
+            })
             transcripts[id] = first
         }
         if sessions.count > 1, let id = sessions[1]["id"]?.stringValue {
@@ -303,10 +309,12 @@ actor FixtureServer {
         for index in entries.indices where entries[index]["id"]?.stringValue == request {
             guard case .object(var fields) = entries[index] else { continue }
             fields["outcome"] = .object(["outcome": .string("selected"), "optionId": .string(option)])
+            fields["answeredAt"] = Self.stamp(ago: 0)
             entries[index] = .object(fields)
         }
         transcripts[session]?["entries"] = .array(entries)
         update(session) { $0["status"] = .string("running"); $0["pending"] = nil }
+        publish("agents.changed", ["workspace": .string(Self.workspace), "session": .string(session), "kind": .string("resolved"), "request": .string(request)])
         Task {
             try? await Task.sleep(for: .milliseconds(1500))
             append(session, .object(["kind": .string("tool"), "id": .string("run1"), "turn": .number(1), "tool": .object([

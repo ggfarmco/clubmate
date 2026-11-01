@@ -293,7 +293,7 @@ func (s *session) applyElicitationAnswer(e envelope) {
 		return
 	}
 	if i, ok := s.index[key(entryElicitation, p.Request)]; ok {
-		s.entries[i].Response, s.entries[i].node = &p.Response, nil
+		s.entries[i].Response, s.entries[i].AnsweredAt, s.entries[i].node = &p.Response, e.TS, nil
 	}
 }
 

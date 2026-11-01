@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	changeUpdate  = "update"
-	changeStatus  = api.ChangeStatus
-	changeCreated = api.ChangeCreated
-	changeDeleted = api.ChangeDeleted
+	changeUpdate   = "update"
+	changeStatus   = api.ChangeStatus
+	changeCreated  = api.ChangeCreated
+	changeDeleted  = api.ChangeDeleted
+	changeResolved = api.ChangeResolved
 )
 
 type notifier struct {
@@ -30,6 +31,7 @@ type notifier struct {
 type change struct {
 	session *session
 	kind    string
+	request string
 }
 
 func newNotifier(h *pluginsdk.Host) *notifier {
@@ -52,6 +54,13 @@ func (n *notifier) mark(s *session, kind string, save bool) {
 	if save {
 		n.saves[s] = true
 	}
+	n.mu.Unlock()
+	n.poke()
+}
+
+func (n *notifier) resolved(s *session, request string) {
+	n.mu.Lock()
+	n.order = append(n.order, change{session: s, kind: changeResolved, request: request})
 	n.mu.Unlock()
 	n.poke()
 }
@@ -82,7 +91,7 @@ func (n *notifier) run() {
 		}
 		for _, c := range order {
 			rec := c.session.snapshot()
-			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind, Status: rec.Status}); err != nil {
+			if _, err := n.host.Publish(ctx, api.TopicChanged, api.Changed{Workspace: rec.Workspace, Session: rec.ID, Kind: c.kind, Status: rec.Status, Request: c.request}); err != nil {
 				fmt.Fprintln(os.Stderr, "agents: publish:", err)
 			}
 		}
