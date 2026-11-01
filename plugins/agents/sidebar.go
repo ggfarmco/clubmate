@@ -16,8 +16,6 @@ import (
 const (
 	groupPrefix  = "wt:"
 	expandPrefix = "s:"
-	needsPrefix  = "needs:"
-	needsKey     = "needs"
 	closedKey    = "closed:"
 	runPrefix    = "run:"
 	graphIcon    = "point.3.connected.trianglepath.dotted"
@@ -26,6 +24,13 @@ const (
 	noSessions    = "No agent sessions"
 	deleteConfirm = "Delete this agent session, its transcript and its checkpoints?"
 	deleteTree    = "Delete this agent session and its %d child sessions, their transcripts and checkpoints?"
+	noneNeedYou   = "Nothing needs you"
+	noneRunning   = "No running sessions"
+
+	filterNode    = "filter"
+	filterAll     = "all"
+	filterNeeds   = "needs"
+	filterRunning = "running"
 
 	childrenRunning = "childrenRunning"
 	childrenWaiting = "childrenWaiting"
@@ -55,6 +60,7 @@ var (
 		childrenWaiting: "Child session waiting",
 	}
 	childDisplay = map[string]string{statusRunning: childrenRunning, statusWaiting: childrenWaiting}
+	filterEmpty  = map[string]string{filterNeeds: noneNeedYou, filterRunning: noneRunning}
 	notifyLabels = map[string]string{notifyNeedsInput: "Input only", notifyMuted: "Muted"}
 	notifyMenu   = []notifyChoice{
 		{action: actNotifyAll, policy: notifyAll, label: "Notify About Everything"},
@@ -79,7 +85,7 @@ type notifyChoice struct {
 	label  string
 }
 
-func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, branchOpen bool) sdui.Node {
+func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, branchOpen bool, filter string) sdui.Node {
 	top := sdui.HStack(sdui.WithAction(sdui.Button("new", "New", "plus"), actNew), sdui.WithAction(sdui.Button("branch", "New in worktree…", "arrow.triangle.branch"), actShowBranch))
 	if branchOpen {
 		top = sdui.WithAction(sdui.Form(actNewBranch,
@@ -103,13 +109,19 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		}
 		roots = append(roots, row)
 	}
+	filter = cmp.Or(filter, filterAll)
+	tabs := filterTabs(roots, filter)
+	roots = slices.DeleteFunc(roots, func(row sessionRow) bool { return !matchesFilter(row, filter) })
+	if len(roots) == 0 {
+		all := sdui.WithAction(sdui.Button("filterAll", "Show all", ""), actFilterAll)
+		return sdui.VStack(top, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
+	}
 	type bucket struct {
 		label        string
 		open, closed []sessionRow
 	}
 	var order []string
 	buckets := map[string]*bucket{}
-	var needs []sdui.TreeItem
 	for _, row := range roots {
 		wt := row.Rec.Worktree
 		b, ok := buckets[wt]
@@ -118,24 +130,13 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			buckets[wt] = b
 			order = append(order, wt)
 		}
-		child := row.Rec.ParentSession != ""
-		if row.Rec.closed() && !child {
+		if row.Rec.closed() && row.Rec.ParentSession == "" {
 			b.closed = append(b.closed, row)
 			continue
 		}
 		b.open = append(b.open, row)
-		if !child && needsYou(row.Rec) {
-			item := sessionItem(row, descendantCount(row.Rec.ID, kids, map[string]bool{}), now)
-			item.ID = needsPrefix + item.ID
-			needs = append(needs, item)
-		}
 	}
 	var groups []sdui.TreeItem
-	if len(needs) > 0 {
-		group := groupItem(needsKey, fmt.Sprintf("Needs you · %d", len(needs)), "bell", needs, !collapsed[needsKey])
-		group.Tone = statusTones[statusWaiting]
-		groups = append(groups, group)
-	}
 	for _, wt := range order {
 		b := buckets[wt]
 		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{})
@@ -149,10 +150,40 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		group.Truncate = "middle"
 		groups = append(groups, group)
 	}
-	if !slices.ContainsFunc(needs, func(item sdui.TreeItem) bool { return item.ID == selected }) {
-		selected = strings.TrimPrefix(selected, needsPrefix)
+	return sdui.VStack(top, tabs, sdui.Tree("sessions", groups, selected))
+}
+
+func filterTabs(roots []sessionRow, filter string) sdui.Node {
+	counts := map[string]int{}
+	for _, row := range roots {
+		if row.Rec.closed() {
+			continue
+		}
+		for _, f := range []string{filterAll, filterNeeds, filterRunning} {
+			if matchesFilter(row, f) {
+				counts[f]++
+			}
+		}
 	}
-	return sdui.VStack(top, sdui.Tree("sessions", groups, selected))
+	needs := sdui.Item{ID: filterNeeds, Label: "Needs you", Icon: statusIcons[statusWaiting], Badge: strconv.Itoa(counts[filterNeeds])}
+	if counts[filterNeeds] > 0 {
+		needs.Tone = statusTones[statusWaiting]
+	}
+	return sdui.WithAction(sdui.Tabs(filterNode, []sdui.Item{
+		{ID: filterAll, Label: "All", Badge: strconv.Itoa(counts[filterAll])},
+		needs,
+		{ID: filterRunning, Label: "Running", Icon: statusIcons[statusRunning], Badge: strconv.Itoa(counts[filterRunning])},
+	}, filter), actFilter)
+}
+
+func matchesFilter(row sessionRow, filter string) bool {
+	switch filter {
+	case filterNeeds:
+		return row.Rec.ParentSession == "" && needsYou(row.Rec)
+	case filterRunning:
+		return row.Rec.Status == statusRunning || row.Children == statusRunning
+	}
+	return true
 }
 
 func nestedItem(row sessionRow, kids map[string][]sessionRow, collapsed map[string]bool, now time.Time, path map[string]bool) sdui.TreeItem {

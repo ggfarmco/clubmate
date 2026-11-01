@@ -69,6 +69,18 @@ final class TreeKeysTests: XCTestCase {
         XCTAssertNil(TreeKeys.action(keyCode: 40, control: false, command: true, side: .left))
     }
 
+    func testAngleBracketsCycleTheSidebarTabs() {
+        XCTAssertEqual(TreeKeys.action(keyCode: 43, control: false, command: false, side: .left, shift: true), .cycleTabs(-1))
+        XCTAssertEqual(TreeKeys.action(keyCode: 47, control: false, command: false, side: .left, shift: true), .cycleTabs(1))
+        XCTAssertNil(TreeKeys.action(keyCode: 47, control: false, command: false, side: .left))
+        let sidebar = SDUINode(type: "stack", children: [SDUINode(type: "tabs", id: "filter"), SDUINode(type: "tree", id: "sessions")])
+        XCTAssertEqual(sidebar.firstTabs?.id, "filter")
+        let ids = ["all", "needs", "running"]
+        XCTAssertEqual(TabCycle.next(ids, from: "running", by: 1), "all")
+        XCTAssertEqual(TabCycle.next(ids, from: "all", by: -1), "running")
+        XCTAssertEqual(TabCycle.next(ids, from: nil, by: 1), "all")
+    }
+
     func testTreeEdgeKeyFollowsSide() {
         XCTAssertEqual(TreeKeys.action(keyCode: 37, control: true, command: false, side: .left), .focusMain)
         XCTAssertNil(TreeKeys.action(keyCode: 4, control: true, command: false, side: .left))

@@ -80,7 +80,7 @@
             "selected": "overview",
             "items": [
               {"id": "overview", "label": "Overview", "icon": "square.grid.2x2"},
-              {"id": "terminals", "label": "Terminals", "badge": "2"},
+              {"id": "terminals", "label": "Terminals", "badge": "2", "icon": "terminal", "tone": "warning"},
               {"id": "settings", "label": "Settings"}
             ]
           }

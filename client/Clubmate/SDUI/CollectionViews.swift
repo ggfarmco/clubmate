@@ -11,27 +11,35 @@ struct TabsNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(node.items()) { item in
-                TabButton(label: item.label, icon: item.icon, badge: item.badge, selected: item.id == selected) {
-                    selected = item.id
-                    dispatch(node, .select(item.id))
-                }
-            }
-            Spacer(minLength: 0)
+        let items = node.items()
+        ViewThatFits(in: .horizontal) {
+            chips(items, compact: false)
+            chips(items, compact: true)
         }
-        .frame(height: theme.rowHeight + 4)
-        .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, theme.gutter)
+        .padding(.vertical, theme.spacing.s)
         .onChange(of: node.string("selected"), initial: true) { _, value in
             selected = value ?? ""
         }
     }
+
+    private func chips(_ items: [SDUIItem], compact: Bool) -> some View {
+        HStack(spacing: theme.spacing.s) {
+            ForEach(items) { item in
+                TabButton(item: item, compact: compact, selected: item.id == selected) {
+                    selected = item.id
+                    dispatch(node, .select(item.id))
+                }
+            }
+        }
+        .fixedSize()
+    }
 }
 
 struct TabButton: View {
-    let label: String
-    var icon: String?
-    var badge: String?
+    let item: SDUIItem
+    let compact: Bool
     let selected: Bool
     let action: () -> Void
 
@@ -39,27 +47,34 @@ struct TabButton: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
+        let ink = theme.tone(item.tone)
+        let icon = compact ? item.icon.flatMap { $0.isEmpty ? nil : $0 } : nil
         Button(action: action) {
-            HStack(spacing: theme.spacing.m) {
+            HStack(spacing: theme.spacing.s) {
                 if let icon {
                     Image(systemName: SymbolName.resolve(icon))
+                } else {
+                    Text(item.label)
                 }
-                Text(label)
-                if let badge {
-                    BadgeLabel(text: badge, tone: nil)
+                if let badge = item.badge {
+                    Text(badge).monospacedDigit()
                 }
             }
-            .font(theme.ui)
-            .foregroundStyle(selected || hovering ? theme.foreground : theme.muted)
-            .padding(.horizontal, theme.gutter * 1.5)
-            .frame(maxHeight: .infinity)
-            .background(selected ? theme.hover : .clear, ignoresSafeAreaEdges: [])
-            .overlay(alignment: .bottom) {
-                if selected { theme.accent.frame(height: 1) }
+            .font(theme.uiSmall)
+            .lineLimit(1)
+            .foregroundStyle(ink ?? (selected || hovering ? theme.foreground : theme.text2))
+            .padding(.horizontal, theme.spacing.l)
+            .frame(height: theme.rowHeight)
+            .background(Capsule().fill(ink.map(theme.toneBg) ?? (hovering ? theme.pressed : theme.hover)))
+            .overlay {
+                if selected { Capsule().strokeBorder(theme.accent, lineWidth: 1) }
             }
-            .contentShape(Rectangle())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .help(item.label)
+        .accessibilityLabel([item.label, item.badge].compactMap { $0 }.joined(separator: " "))
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .onHover { hovering = $0 }
     }
 }
@@ -75,7 +90,7 @@ struct ListNodeView: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(node.items()) { item in
-                ItemRow(item: item, selected: item.id == selected, active: focused) {
+                ItemRow(item: item, selected: item.id == selected, active: focused, tone: item.tone) {
                     selected = item.id
                     focused = true
                     dispatch(node, .select(item.id))
@@ -108,6 +123,7 @@ struct TreeNodeView: View {
     @Environment(\.sidebarSide) private var side
     @Environment(\.sidebarSlot) private var sidebarSlot
     @Environment(\.sidebarHasField) private var sidebarHasField
+    @Environment(\.sidebarTabs) private var sidebarTabs
 
     private static let stickyLimit = 4
 
@@ -204,7 +220,7 @@ struct TreeNodeView: View {
             return true
         }
         let rows = TreeCursor.rows(node.treeItems())
-        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side) else { return false }
+        guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift)) else { return false }
         switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
         case .cursor(let id):
             if let target = TreeCursor.scrollTarget(id, from: cursor, in: rows, limit: Self.stickyLimit) { scroll?.scrollTo(target) }
@@ -213,9 +229,15 @@ struct TreeNodeView: View {
         case .expand(let id): dispatch(node, .expand(id))
         case .collapse(let id): dispatch(node, .collapse(id))
         case .focusMain: router?.requestMain(from: sidebarSlot ?? dispatch.slot)
+        case .cycleTabs(let delta): cycleTabs(by: delta)
         case nil: break
         }
         return true
+    }
+
+    private func cycleTabs(by delta: Int) {
+        guard let tabs = sidebarTabs, let next = TabCycle.next(tabs.items().map(\.id), from: tabs.string("selected"), by: delta) else { return }
+        dispatch(tabs, .select(next))
     }
 
     private func chord(_ chord: TreeChord?) {
@@ -383,7 +405,7 @@ private struct ItemMenu: ViewModifier {
 }
 
 extension ItemRow where Leading == EmptyView {
-    init(item: SDUIItem, selected: Bool, active: Bool, action: @escaping () -> Void) {
-        self.init(item: item, selected: selected, active: active, action: action) { EmptyView() }
+    init(item: SDUIItem, selected: Bool, active: Bool, tone: String? = nil, action: @escaping () -> Void) {
+        self.init(item: item, selected: selected, active: active, tone: tone, action: action) { EmptyView() }
     }
 }

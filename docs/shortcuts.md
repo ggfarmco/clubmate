@@ -61,6 +61,7 @@ Pickers are the fuzzy lists for worktrees: the worktree switcher in the window t
 | ↩ | Select a leaf item, or expand / collapse an item with children |
 | o | Same as ↩, but an item with children gets selected instead |
 | gc | Focus the sidebar's text field, when it has one |
+| < / > | Previous / next chip of the sidebar's filter row, when it has one (Agents: All · Needs you · Running) |
 | Esc | Back to the main pane |
 | ⌃L (sidebar on the left), ⌃H (sidebar on the right) | Back to the main pane |
 

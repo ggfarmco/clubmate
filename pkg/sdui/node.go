@@ -13,6 +13,7 @@ type Item struct {
 	Detail   string      `json:"detail,omitempty"`
 	Icon     string      `json:"icon,omitempty"`
 	Badge    string      `json:"badge,omitempty"`
+	Tone     string      `json:"tone,omitempty"`
 	Menu     []MenuEntry `json:"menu,omitempty"`
 	Truncate string      `json:"truncate,omitempty"`
 }

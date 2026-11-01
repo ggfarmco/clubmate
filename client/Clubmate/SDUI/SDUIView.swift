@@ -155,6 +155,17 @@ extension EnvironmentValues {
     }
 }
 
+private struct SidebarTabsKey: EnvironmentKey {
+    static let defaultValue: SDUINode? = nil
+}
+
+extension EnvironmentValues {
+    var sidebarTabs: SDUINode? {
+        get { self[SidebarTabsKey.self] }
+        set { self[SidebarTabsKey.self] = newValue }
+    }
+}
+
 private struct SidebarSlotKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }

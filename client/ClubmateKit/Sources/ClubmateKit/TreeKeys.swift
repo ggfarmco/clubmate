@@ -32,6 +32,8 @@ public enum TreeCursor {
             return move(cursor, by: delta, in: rows).map(TreeCommand.cursor)
         case .focusMain:
             return .focusMain
+        case .cycleTabs(let delta):
+            return .cycleTabs(delta)
         case .activate:
             return index.map { .select(rows[$0].id) }
         case .open:
@@ -109,6 +111,7 @@ public enum TreeKeyAction: Equatable, Sendable {
     case expand
     case collapse
     case focusMain
+    case cycleTabs(Int)
 }
 
 public enum TreeCommand: Equatable, Sendable {
@@ -117,6 +120,15 @@ public enum TreeCommand: Equatable, Sendable {
     case expand(String)
     case collapse(String)
     case focusMain
+    case cycleTabs(Int)
+}
+
+public enum TabCycle {
+    public static func next(_ ids: [String], from selected: String?, by delta: Int) -> String? {
+        guard !ids.isEmpty else { return nil }
+        guard let selected, let index = ids.firstIndex(of: selected) else { return ids[0] }
+        return ids[((index + delta) % ids.count + ids.count) % ids.count]
+    }
 }
 
 public enum TreeChord: Equatable, Sendable {
@@ -130,9 +142,11 @@ public enum TreeChord: Equatable, Sendable {
 }
 
 public enum TreeKeys {
-    public static func action(keyCode: UInt16, control: Bool, command: Bool, side: SidebarSide) -> TreeKeyAction? {
+    public static func action(keyCode: UInt16, control: Bool, command: Bool, side: SidebarSide, shift: Bool = false) -> TreeKeyAction? {
         guard !command else { return nil }
         switch keyCode {
+        case 43: return shift ? .cycleTabs(-1) : nil
+        case 47: return shift ? .cycleTabs(1) : nil
         case 38, 125: return .move(1)
         case 40, 126: return .move(-1)
         case 37: return control ? (side == .left ? .focusMain : nil) : .expand

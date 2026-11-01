@@ -88,7 +88,7 @@ struct TableNodeView: View {
             select(id)
         case .expand(let id): dispatch(node, .expand(id))
         case .collapse(let id): dispatch(node, .collapse(id))
-        case .select, .focusMain, nil: break
+        case .select, .focusMain, .cycleTabs, nil: break
         }
         return true
     }

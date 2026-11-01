@@ -65,7 +65,7 @@ var (
 
 	itemFields = map[string]propCheck{
 		"id": uniqueItemID, "label": isString, "detail": isString, "icon": isString, "badge": isString, "menu": listOf(menuEntryCheck),
-		"truncate": oneOf(truncates),
+		"truncate": oneOf(truncates), "tone": oneOf(badgeTones),
 	}
 	itemRequired = []string{"id", "label"}
 
@@ -579,7 +579,6 @@ func treeItemCheck(c *validator, v any) error {
 	}
 	fields := map[string]propCheck{
 		"muted": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
-		"tone": oneOf(badgeTones),
 	}
 	for k, f := range itemFields {
 		fields[k] = f

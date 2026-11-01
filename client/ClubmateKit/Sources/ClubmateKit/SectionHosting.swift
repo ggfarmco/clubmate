@@ -38,4 +38,8 @@ extension SDUINode {
     public var hasTextField: Bool {
         type == "textField" || children.contains { $0.hasTextField }
     }
+
+    public var firstTabs: SDUINode? {
+        type == "tabs" ? self : children.lazy.compactMap(\.firstTabs).first
+    }
 }

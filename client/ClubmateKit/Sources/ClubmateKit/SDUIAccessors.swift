@@ -12,6 +12,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
     public let detail: String?
     public let icon: String?
     public let badge: String?
+    public let tone: String?
     public let menu: [SDUIMenuEntry]
     public let truncate: SDUITruncate
 
@@ -22,6 +23,7 @@ public struct SDUIItem: Sendable, Equatable, Identifiable {
         detail = fields["detail"]?.stringValue
         icon = fields["icon"]?.stringValue
         badge = fields["badge"]?.stringValue
+        tone = fields["tone"]?.stringValue
         menu = fields["menu"]?.arrayValue?.compactMap(SDUIMenuEntry.init) ?? []
         truncate = fields["truncate"]?.stringValue.flatMap(SDUITruncate.init) ?? .tail
     }

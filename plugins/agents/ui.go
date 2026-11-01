@@ -70,7 +70,7 @@ type workspaceUI struct {
 	throttle  *throttle
 	tick      *ticker
 	selected  string
-	row       string
+	filter    string
 	restored  bool
 	collapsed map[string]bool
 	folds     bool
@@ -238,12 +238,9 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	a.uiMu.Lock()
 	collapsed := maps.Clone(p.collapsed)
 	branchOpen := p.branch
-	row := selected
-	if p.row == needsPrefix+selected {
-		row = p.row
-	}
+	filter := p.filter
 	a.uiMu.Unlock()
-	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, row, collapsed, time.Now(), branchOpen)); err != nil {
+	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), branchOpen, filter)); err != nil {
 		return err
 	}
 	var shown *screen
@@ -563,7 +560,7 @@ func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []re
 func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error {
 	p := a.workspaceState(workspaceID)
 	a.uiMu.Lock()
-	p.restored, p.selected, p.row = true, sid, sid
+	p.restored, p.selected = true, sid
 	a.uiMu.Unlock()
 	if err := a.host.StorageSet(ctx, selectedKey+workspaceID, sid); err != nil {
 		return err

@@ -24,6 +24,8 @@ const (
 	actCodeNew     = "codeNew"
 	actCodeSelect  = "codeSelect"
 	actSelect      = "select"
+	actFilter      = "filter"
+	actFilterAll   = "filterAll"
 	actExpand      = "expand"
 	actCollapse    = "collapse"
 	actClose       = "close"
@@ -73,6 +75,7 @@ var (
 	errNoSelection   = errors.New("no selection in the editor")
 	errNoCheckpoint  = errors.New("no checkpoint to review yet")
 	errNoOutput      = errors.New("tool has no output")
+	errUnknownFilter = errors.New("unknown filter")
 )
 
 type textValue struct {
@@ -198,18 +201,29 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
-		sid := strings.TrimPrefix(id, needsPrefix)
-		s, err := a.lookup(ev.WorkspaceID, sid)
+		s, err := a.lookup(ev.WorkspaceID, id)
 		if err != nil {
 			return err
 		}
 		s.invalidateChanges()
-		if err := a.selectSession(ctx, ev.WorkspaceID, sid); err != nil {
+		return a.selectSession(ctx, ev.WorkspaceID, id)
+	case actFilterAll:
+		p := a.workspaceState(ev.WorkspaceID)
+		a.uiMu.Lock()
+		p.filter = filterAll
+		a.uiMu.Unlock()
+		return nil
+	case actFilter:
+		id, err := itemID(ev)
+		if err != nil {
 			return err
+		}
+		if !slices.Contains([]string{filterAll, filterNeeds, filterRunning}, id) {
+			return fmt.Errorf("%w: %s", errUnknownFilter, id)
 		}
 		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
-		p.row = id
+		p.filter = id
 		a.uiMu.Unlock()
 		return nil
 	case actExpand, actCollapse:
@@ -265,7 +279,7 @@ func (a *app) rowSession(ev pluginsdk.UIEvent) (*session, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.lookup(ev.WorkspaceID, strings.TrimPrefix(id, needsPrefix))
+	return a.lookup(ev.WorkspaceID, id)
 }
 
 func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, node string) error {

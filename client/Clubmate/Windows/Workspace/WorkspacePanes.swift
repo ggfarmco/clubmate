@@ -33,6 +33,7 @@ struct SidebarPane: View {
             SlotPane(store: store, slot: slot)
                 .environment(\.sidebarSlot, slot)
                 .environment(\.sidebarHasField, store.slot(slot)?.tree.hasTextField ?? false)
+                .environment(\.sidebarTabs, store.slot(slot)?.tree.firstTabs)
                 .background(theme.surface1, ignoresSafeAreaEdges: [])
         }
     }
