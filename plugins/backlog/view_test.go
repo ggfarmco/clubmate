@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,8 +29,7 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 		{ID: 1, Title: "Plan", Status: statusTodo, Priority: priorityNormal},
 		{ID: 2, Title: "Shipped", Status: statusDone, Priority: priorityNormal},
 	}
-	owners := map[string]string{"agt_a": ownerLabel("agt_a", "Fix bug", false), "agt_b": ownerLabel("agt_b", "Refactor", true)}
-	tree, ok := findNode(sidebarView(tasks, owners, "", map[string]bool{statusDone: true}, 0), "tasks")
+	tree, ok := findNode(sidebarView(tasks, "", map[string]bool{statusDone: true}, 0), "tasks")
 	require.True(t, ok)
 	groups := tree.Props["items"].([]sdui.TreeItem)
 	require.Len(t, groups, 3)
@@ -37,11 +37,10 @@ func TestSidebarGroupsByStatus(t *testing.T) {
 	rows := groups[0].Children
 	require.Len(t, rows, 2)
 	assert.Equal(t, "3", rows[0].ID)
-	assert.Equal(t, "#3 Fix x", rows[0].Label)
-	assert.Equal(t, "Fix bug", rows[0].Detail)
-	assert.Equal(t, "high", rows[0].Badge)
-	assert.Equal(t, "Refactor (closed)", rows[1].Detail)
-	assert.Empty(t, rows[1].Badge)
+	assert.Equal(t, "Fix x", rows[0].Label)
+	assert.Equal(t, "#3", rows[0].Detail)
+	assert.Equal(t, "exclamationmark.2", rows[0].Icon)
+	assert.Empty(t, rows[1].Icon)
 	assert.Equal(t, "group:done", groups[2].ID)
 	assert.False(t, groups[2].Expanded)
 	assert.Empty(t, groups[2].Children)
@@ -79,4 +78,12 @@ func TestMainFormAutosaves(t *testing.T) {
 	assert.Equal(t, "Saved", saved.Props["label"])
 	assert.Equal(t, sdui.VariantGhost, saved.Props["variant"])
 	assert.Equal(t, "cmd+s", saved.Props["shortcut"])
+}
+
+func TestMainNamesClosedClaimer(t *testing.T) {
+	owners := map[string]string{"agt_b": ownerLabel("agt_b", "Refactor", true)}
+	main := mainView(&Task{ID: 4, Title: "Old", Status: statusInProgress, Priority: priorityNormal, ClaimedBy: "agt_b"}, owners, true, "")
+	raw, err := json.Marshal(main)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"In progress by Refactor (closed)"`)
 }

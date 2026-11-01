@@ -136,8 +136,8 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if current != nil {
 		selectedID = strconv.Itoa(current.ID)
 	}
-	owners := b.ownerLabels(ctx, workspaceID, tasks, current)
-	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, owners, selectedID, collapsed, rev)); err != nil {
+	owners := b.ownerLabels(ctx, workspaceID, current)
+	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev)); err != nil {
 		return err
 	}
 	if titleError.task != selected {
@@ -167,12 +167,10 @@ func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot st
 	return nil
 }
 
-func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, tasks []Task, current *Task) map[string]string {
+func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, current *Task) map[string]string {
 	ids := map[string]bool{}
-	for _, t := range tasks {
-		if t.Status == statusInProgress {
-			ids[t.ClaimedBy] = true
-		}
+	if current != nil && current.Status == statusInProgress {
+		ids[current.ClaimedBy] = true
 	}
 	if current != nil && current.LastClaimedBy != "" {
 		ids[current.LastClaimedBy] = true

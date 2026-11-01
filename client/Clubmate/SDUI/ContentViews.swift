@@ -164,8 +164,15 @@ struct HeaderNodeView: View {
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: theme.spacing.m) {
                             filter
-                            ForEach(node.headerButtons) { child in
+                            ForEach(node.headerButtons.filter { $0.node.string("variant") != "danger" }) { child in
                                 SDUINodeView(node: child.node).equatable()
+                            }
+                            let danger = node.headerButtons.filter { $0.node.string("variant") == "danger" }
+                            if !danger.isEmpty {
+                                Spacer(minLength: theme.spacing.m)
+                                ForEach(danger) { child in
+                                    SDUINodeView(node: child.node).equatable()
+                                }
                             }
                         }
                         overflowRow

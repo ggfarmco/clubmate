@@ -23,8 +23,8 @@ var (
 	groupOrder   = []string{statusInProgress, statusTodo, statusIdea, statusNotNow, statusDone}
 	statusLabels = map[string]string{statusInProgress: "In progress", statusTodo: "Todo", statusIdea: "Idea", statusNotNow: "Not now", statusDone: "Done"}
 	statusIcons  = map[string]string{statusInProgress: "play.circle", statusTodo: "circle", statusIdea: "lightbulb", statusNotNow: "moon.zzz", statusDone: "checkmark.circle"}
-	statusTones  = map[string]string{statusInProgress: "accent", statusDone: "success"}
-	priorityTone = map[string]string{priorityHigh: "warning"}
+	priorityIcon = map[string]string{priorityHigh: "exclamationmark.2", priorityLow: "arrow.down"}
+	priorityText = map[string]string{priorityHigh: "!! High", priorityNormal: "Normal", priorityLow: "↓ Low"}
 	moveTargets  = []string{statusTodo, statusIdea, statusNotNow}
 	priorities   = []string{priorityHigh, priorityNormal, priorityLow}
 	editStatuses = []string{statusTodo, statusIdea, statusNotNow, statusDone}
@@ -51,7 +51,7 @@ func labelOf(owners map[string]string, owner string) string {
 	return ownerLabel(owner, "", false)
 }
 
-func sidebarView(tasks []Task, owners map[string]string, selected string, collapsed map[string]bool, formRev int) sdui.Node {
+func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int) sdui.Node {
 	add := sdui.WithAction(sdui.Form("new", sdui.TextField("title", "", "New task…"), sdui.Button("add", "Add", "plus")), "add")
 	form := sdui.VStack(add)
 	form.ID = fmt.Sprintf("new-%d", formRev)
@@ -60,7 +60,7 @@ func sidebarView(tasks []Task, owners map[string]string, selected string, collap
 	}
 	byStatus := map[string][]sdui.TreeItem{}
 	for _, t := range tasks {
-		byStatus[t.Status] = append(byStatus[t.Status], taskItem(t, owners))
+		byStatus[t.Status] = append(byStatus[t.Status], taskItem(t))
 	}
 	groups := make([]sdui.TreeItem, 0, len(groupOrder))
 	for _, status := range groupOrder {
@@ -83,16 +83,8 @@ func sidebarView(tasks []Task, owners map[string]string, selected string, collap
 	return sdui.VStack(form, sdui.Scroll(sdui.Tree("tasks", groups, selected)))
 }
 
-func taskItem(t Task, owners map[string]string) sdui.TreeItem {
-	detail, _, _ := strings.Cut(t.Note, "\n")
-	if t.Status == statusInProgress {
-		detail = labelOf(owners, t.ClaimedBy)
-	}
-	item := sdui.TreeItem{ID: strconv.Itoa(t.ID), Label: fmt.Sprintf("#%d %s", t.ID, t.Title), Detail: detail, Menu: taskMenu(t)}
-	if t.Priority != priorityNormal {
-		item.Badge = t.Priority
-	}
-	return item
+func taskItem(t Task) sdui.TreeItem {
+	return sdui.TreeItem{ID: strconv.Itoa(t.ID), Label: t.Title, Detail: fmt.Sprintf("#%d", t.ID), Icon: priorityIcon[t.Priority], Menu: taskMenu(t)}
 }
 
 func taskMenu(t Task) []sdui.MenuEntry {
@@ -136,11 +128,7 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 	case t == nil:
 		return sdui.Empty(noTasks)
 	}
-	badges := []sdui.HeaderBadge{{Text: strings.ToLower(statusLabels[t.Status]), Tone: statusTones[t.Status]}}
-	if t.Priority != "normal" {
-		badges = append(badges, sdui.HeaderBadge{Text: t.Priority, Tone: priorityTone[t.Priority]})
-	}
-	nodes := []sdui.Node{sdui.Header(fmt.Sprintf("#%d %s", t.ID, t.Title), sdui.HeaderProps{Icon: statusIcons[t.Status], Badges: badges}, actions(t)...)}
+	nodes := []sdui.Node{sdui.Header(fmt.Sprintf("#%d %s", t.ID, t.Title), sdui.HeaderProps{Icon: statusIcons[t.Status]}, actions(t)...)}
 	if t.Status == statusInProgress {
 		line := "In progress by " + labelOf(owners, t.ClaimedBy)
 		if !t.ClaimedAt.IsZero() {
@@ -167,7 +155,7 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
 	}
 	fields = append(fields,
-		sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, nil), t.Priority)),
+		sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, priorityText), t.Priority)),
 		sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)),
 		sdui.WithShortcut(sdui.WithVariant(saved, sdui.VariantGhost), "cmd+s"),
 	)

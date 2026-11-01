@@ -190,3 +190,25 @@ func TestProcessTableCapped(t *testing.T) {
 	assert.True(t, more.Muted)
 	assert.Equal(t, "… 1002 more", more.Cells[len(more.Cells)-1].Text)
 }
+
+func TestSidebarShowsOwnerIconAndCPU(t *testing.T) {
+	groups := []group{{ID: "ses_a", Title: "Terminal 1", Owner: "terminals"}, {ID: "reg", Title: "Hook", Owner: "hooks"}, coreGroup("w")}
+	nodes := []pluginsdk.ProcessNode{
+		{Process: pluginsdk.ProcessInfo{PID: 10, CPU: 1.25}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 11, CPU: 2}, SessionID: "ses_a"},
+		{Process: pluginsdk.ProcessInfo{PID: 316, CPU: 0.4}, SessionID: coreID},
+	}
+	items := sidebarView(groups, sessionCPU(groups, nodes), len(nodes), "").Props["items"].([]sdui.Item)
+	var got []string
+	for _, it := range items {
+		got = append(got, fmt.Sprintf("%s|%s|%s", it.Icon, it.Label, it.Detail))
+	}
+	assert.Equal(t, []string{"|All|3", "terminal|Terminal 1|3.2%", "gearshape|Hook|0.0%", "cpu|Clubmate core|0.4%"}, got)
+}
+
+func TestCommandShortensPathsKeepingExecutableAndArgs(t *testing.T) {
+	n := pluginsdk.ProcessNode{Process: pluginsdk.ProcessInfo{Args: []string{
+		"/Users/cali/develop/clubmate/build/bin/nvim", "--embed", "--listen=/Users/cali/Library/Caches/clubmate/editor-nvim/prj_1a3983d56.sock", "/tmp/x",
+	}}}
+	assert.Equal(t, "/Users/…/bin/nvim --embed --listen=/Users/…/editor-nvim/prj_1a3983d56.sock /tmp/x", displayCommand(n, cellRunes))
+}

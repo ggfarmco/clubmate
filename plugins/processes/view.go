@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
@@ -54,6 +53,15 @@ var (
 	defaultSort = sdui.Sort{Column: colCPU, Desc: true}
 	columnIDs   = []string{colPID, colCPU, colMem, colTime, colHistory, colCommand}
 	ownerLabels = map[string]string{"terminals": "Terminals", "agents": "Agents", "editor-nvim": "Code"}
+	ownerIcons  = map[string]string{
+		coreID:        "cpu",
+		"terminals":   "terminal",
+		"agents":      "sparkles",
+		"editor-nvim": "chevron.left.forwardslash.chevron.right",
+		"cron":        "clock",
+		"triggers":    "bolt",
+		"graphs":      "point.3.connected.trianglepath.dotted",
+	}
 )
 
 type viewModel struct {
@@ -97,15 +105,27 @@ type ownerGroup struct {
 	titles map[string]string
 }
 
-func sidebarView(sessions []group, selected string) sdui.Node {
-	items := []sdui.Item{{ID: allID, Label: "All"}}
+func sidebarView(sessions []group, cpu map[string]string, total int, selected string) sdui.Node {
+	items := []sdui.Item{{ID: allID, Label: "All", Detail: strconv.Itoa(total)}}
 	for _, s := range sessions {
-		items = append(items, sdui.Item{ID: s.ID, Label: s.Title, Detail: s.Owner})
+		items = append(items, sdui.Item{ID: s.ID, Label: s.Title, Icon: cmp.Or(ownerIcons[s.Owner], "gearshape"), Detail: cpu[s.ID], Truncate: "tail"})
 	}
 	if selected == "" {
 		selected = allID
 	}
 	return sdui.List(sessionsID, items, selected)
+}
+
+func sessionCPU(sessions []group, nodes []pluginsdk.ProcessNode) map[string]string {
+	sums := make(map[string]float64, len(sessions))
+	for _, n := range nodes {
+		sums[n.SessionID] += n.Process.CPU
+	}
+	out := make(map[string]string, len(sessions))
+	for _, s := range sessions {
+		out[s.ID] = strconv.FormatFloat(sums[s.ID], 'f', 1, 64) + "%"
+	}
+	return out
 }
 
 func mainView(m viewModel) (sdui.Node, int) {
@@ -341,7 +361,7 @@ func filterNodes(nodes []pluginsdk.ProcessNode, groups []group, query string) []
 	}
 	keep := make(map[int]bool, len(nodes))
 	for _, n := range nodes {
-		text := strings.ToLower(strconv.Itoa(n.Process.PID) + " " + command(n, cellRunes) + " " + labels[n.SessionID])
+		text := strings.ToLower(strconv.Itoa(n.Process.PID) + " " + command(n) + " " + labels[n.SessionID])
 		if !strings.Contains(text, query) {
 			continue
 		}
@@ -410,7 +430,7 @@ func treeEntries(m viewModel, nodes []pluginsdk.ProcessNode, titles map[string]s
 func (m viewModel) procRow(n pluginsdk.ProcessNode) procRow {
 	recent := m.hist.cpu(processKey(n), recentLen)
 	_, avg := peakAvg(recent)
-	return procRow{node: n, id: strconv.Itoa(n.Process.PID), command: command(n, cellRunes), recent: recent, avg: avg}
+	return procRow{node: n, id: strconv.Itoa(n.Process.PID), command: displayCommand(n, cellRunes), recent: recent, avg: avg}
 }
 
 func (m viewModel) comparator() func(a, b *procRow) int {
@@ -487,15 +507,42 @@ func cpuScale(values []float64) float64 {
 	return max(peak, 100)
 }
 
-func command(n pluginsdk.ProcessNode, limit int) string {
-	text := n.Process.Comm
-	if len(n.Process.Args) > 0 {
-		text = strings.Join(n.Process.Args, " ")
+func command(n pluginsdk.ProcessNode) string {
+	if len(n.Process.Args) == 0 {
+		return n.Process.Comm
 	}
-	if len(text) <= limit || utf8.RuneCountInString(text) <= limit {
-		return text
+	return strings.Join(n.Process.Args, " ")
+}
+
+func displayCommand(n pluginsdk.ProcessNode, limit int) string {
+	if len(n.Process.Args) == 0 {
+		return middle(n.Process.Comm, limit)
 	}
-	return string([]rune(text)[:limit-1]) + "…"
+	return middle(strings.Join(shortArgs(n.Process.Args), " "), limit)
+}
+
+func shortArgs(argv []string) []string {
+	args := make([]string, len(argv))
+	for i, arg := range argv {
+		key, value, ok := strings.Cut(arg, "=")
+		if ok && filepath.IsAbs(value) {
+			args[i] = key + "=" + shortPath(value)
+			continue
+		}
+		args[i] = shortPath(arg)
+	}
+	return args
+}
+
+func shortPath(path string) string {
+	if !filepath.IsAbs(path) {
+		return path
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) <= 5 {
+		return path
+	}
+	return strings.Join([]string{"", parts[1], "…", parts[len(parts)-2], parts[len(parts)-1]}, "/")
 }
 
 func titleText(text string) sdui.Node {
@@ -533,7 +580,9 @@ func shortCommand(n pluginsdk.ProcessNode) string {
 	if len(n.Process.Args) == 0 {
 		return n.Process.Comm
 	}
-	return strings.Join(append([]string{filepath.Base(n.Process.Args[0])}, n.Process.Args[1:]...), " ")
+	args := shortArgs(n.Process.Args)
+	args[0] = filepath.Base(n.Process.Args[0])
+	return strings.Join(args, " ")
 }
 
 func middle(text string, limit int) string {

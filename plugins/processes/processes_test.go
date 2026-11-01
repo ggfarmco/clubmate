@@ -49,15 +49,14 @@ func TestMainRendersOnlyWhileVisible(t *testing.T) {
 		require.NoError(t, c.Call(t.Context(), "ui.state.set", map[string]any{"workspaceId": p.ID, "state": map[string]string{"section": id}}, nil))
 	}
 	h.WaitSlot(t, p.ID, "processes.main", func(n sdui.Node) bool { return n.Type == "stack" })
-	sidebar := slotRev("processes.sidebar")
 	section("terminals")
 	time.Sleep(1500 * time.Millisecond)
-	hidden := rev()
+	hidden, sidebar := rev(), slotRev("processes.sidebar")
 	time.Sleep(2500 * time.Millisecond)
 	assert.Equal(t, hidden, rev())
+	assert.Equal(t, sidebar, slotRev("processes.sidebar"))
 	section("processes")
 	testutil.Eventually(t, func() bool { return rev() > hidden+1 }, 5*time.Second)
-	assert.Equal(t, sidebar, slotRev("processes.sidebar"))
 }
 
 func TestInitRendersOnlyOpenWorkspaces(t *testing.T) {

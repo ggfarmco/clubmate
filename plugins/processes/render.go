@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"time"
 
@@ -145,7 +146,7 @@ func (a *app) draw(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 		shown = slices.DeleteFunc(slices.Clone(nodes), func(n pluginsdk.ProcessNode) bool { return n.SessionID != snap.session })
 	}
 	a.forgetGone(st, &snap, nodes, shown)
-	if err := a.showSidebar(ctx, h, id, st, snap.sidebar, sessions, snap.session); err != nil {
+	if err := a.showSidebar(ctx, h, id, st, snap.sidebar, sessions, nodes, snap.session); err != nil {
 		return cleared, err
 	}
 	view, depth := mainView(viewModel{
@@ -173,15 +174,16 @@ func (a *app) draw(ctx context.Context, h *pluginsdk.Host, id string, sessions [
 	return cleared, err
 }
 
-func (a *app) showSidebar(ctx context.Context, h *pluginsdk.Host, id string, st *workspaceState, sent *sidebarInputs, sessions []group, selected string) error {
-	if sent != nil && sent.selected == selected && slices.Equal(sent.sessions, sessions) {
+func (a *app) showSidebar(ctx context.Context, h *pluginsdk.Host, id string, st *workspaceState, sent *sidebarInputs, sessions []group, nodes []pluginsdk.ProcessNode, selected string) error {
+	cpu := sessionCPU(sessions, nodes)
+	if sent != nil && sent.selected == selected && sent.total == len(nodes) && slices.Equal(sent.sessions, sessions) && maps.Equal(sent.cpu, cpu) {
 		return nil
 	}
-	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(sessions, selected)); err != nil {
+	if _, err := h.Render(ctx, id, sidebarSlot, sidebarView(sessions, cpu, len(nodes), selected)); err != nil {
 		return err
 	}
 	a.mu.Lock()
-	st.sidebar = &sidebarInputs{sessions: slices.Clone(sessions), selected: selected}
+	st.sidebar = &sidebarInputs{sessions: slices.Clone(sessions), cpu: cpu, total: len(nodes), selected: selected}
 	a.mu.Unlock()
 	return nil
 }

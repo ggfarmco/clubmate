@@ -334,6 +334,7 @@ struct ItemRow<Leading: View>: View {
                     .lineLimit(1)
                     .truncationMode(.label)
                     .help(detail)
+                    .frame(minWidth: detailIdeal <= theme.uiSize * 3 ? detailIdeal : nil)
                     .opacity(detailWidth + 0.5 < min(detailIdeal, theme.uiSize * 3) ? 0 : 1)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .background {

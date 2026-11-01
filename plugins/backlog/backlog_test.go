@@ -241,7 +241,7 @@ func TestAddFromSidebar(t *testing.T) {
 	e.h.Event(t, e.p, "backlog.sidebar", "new", "add", map[string]any{"title": "From UI"})
 	e.h.WaitSlot(t, e.p, "backlog.sidebar", func(n sdui.Node) bool {
 		raw, err := json.Marshal(n)
-		return err == nil && strings.Contains(string(raw), `"#1 From UI"`)
+		return err == nil && strings.Contains(string(raw), `"label":"From UI"`)
 	})
 	e.h.WaitSlot(t, e.p, "backlog.main", func(n sdui.Node) bool {
 		raw, err := json.Marshal(n)

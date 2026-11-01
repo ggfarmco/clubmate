@@ -28,6 +28,8 @@ type workspaceState struct {
 
 type sidebarInputs struct {
 	sessions []group
+	cpu      map[string]string
+	total    int
 	selected string
 }
 
