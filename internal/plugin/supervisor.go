@@ -237,6 +237,7 @@ func (s *Supervisor) Statuses() []Status {
 		st := inst.status
 		st.Manifest.Contributes.Sections = nonNil(st.Manifest.Contributes.Sections)
 		st.Manifest.Contributes.Commands = nonNil(st.Manifest.Contributes.Commands)
+		st.Manifest.Contributes.Shortcuts = nonNil(st.Manifest.Contributes.Shortcuts)
 		out = append(out, st)
 	}
 	s.mu.Unlock()

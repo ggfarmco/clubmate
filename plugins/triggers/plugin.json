@@ -5,6 +5,12 @@
   "protocol": 1,
   "command": ["triggers"],
   "contributes": {
+    "shortcuts": [
+      {"keys": "cmd+r", "action": "Run the trigger now"},
+      {"keys": "p", "action": "Pause or resume the trigger"},
+      {"keys": "g", "action": "Open the graph run that created the trigger"},
+      {"keys": "cmd+delete", "action": "Delete the trigger (confirmed)"}
+    ],
     "sections": [{"id": "triggers", "title": "Triggers", "icon": "bolt", "order": 36}],
     "commands": [
       {

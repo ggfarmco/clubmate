@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/shortcuttest"
 )
 
 func findNode(n sdui.Node, id string) (sdui.Node, bool) {
@@ -149,4 +150,8 @@ func TestMainDescriptionIsADocumentUntilEdited(t *testing.T) {
 	assert.True(t, ok)
 	_, ok = findNode(empty, "describe")
 	assert.False(t, ok)
+}
+
+func TestViewShortcutsDeclared(t *testing.T) {
+	shortcuttest.RequireDeclared(t, mainView(&Task{ID: 1, Title: "a", Status: statusTodo, Priority: priorityNormal}, nil, true, nil, false))
 }

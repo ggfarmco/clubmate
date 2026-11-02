@@ -19,6 +19,7 @@ import (
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/shortcuttest"
 )
 
 func nodesOf(n sdui.Node, typ string) []sdui.Node {
@@ -983,4 +984,16 @@ func TestReviewStatusYieldsToAsks(t *testing.T) {
 	assert.Equal(t, "review", activity(sessionRow{Rec: rec}, time.Now()))
 	rec.Asks = true
 	assert.Equal(t, statusAsks, displayStatus(rec, ""))
+}
+
+func TestViewShortcutsDeclared(t *testing.T) {
+	options := make([]elicitOption, maxOptionShortcut+1)
+	for i := range options {
+		options[i] = elicitOption{Value: strconv.Itoa(i), Label: strconv.Itoa(i)}
+	}
+	toggle, ok := contextButton(screen{View: transcriptView{Session: record{ID: "agt_1", Agent: agentClaude, AgentSessionID: "s"}}})
+	require.True(t, ok)
+	en := &entry{Options: []acp.PermissionOption{{OptionID: "once", Kind: "allow_once"}, {OptionID: "always", Kind: "allow_always"}, {OptionID: "reject", Kind: "reject_once"}, {OptionID: "never", Kind: "reject_always"}}}
+	card := sdui.PermissionCard("p", "permission-1", sdui.PermissionCardProps{Text: "Run?", Options: permissionOptions("ws", en, toolFields{})})
+	shortcuttest.RequireDeclared(t, append(optionButtons("q", 0, elicitField{Options: options}), toggle, card)...)
 }

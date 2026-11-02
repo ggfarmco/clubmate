@@ -10,6 +10,7 @@ import (
 	isdui "clubmate/internal/sdui"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/shortcuttest"
 )
 
 func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
@@ -42,6 +43,7 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	assert.Contains(t, got, "Send a prompt to Review loop · Reviewer")
 
 	assert.Equal(t, "tr_2/delete", childIDs(mainView(mine, nil, automation.Open{}).Children[0])[2])
+	shortcuttest.RequireDeclared(t, view)
 }
 
 func texts(n sdui.Node) []string {

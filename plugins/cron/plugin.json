@@ -5,6 +5,13 @@
   "protocol": 1,
   "command": ["cron"],
   "contributes": {
+    "shortcuts": [
+      {"keys": "cmd+r", "action": "Run the job now"},
+      {"keys": "p", "action": "Pause or resume the job"},
+      {"keys": "e", "action": "Edit the job; in the form, cancel the edit"},
+      {"keys": "cmd+s", "action": "Save the job's edit form"},
+      {"keys": "cmd+delete", "action": "Delete the job (confirmed)"}
+    ],
     "sections": [{"id": "cron", "title": "Cron", "icon": "clock", "order": 35}],
     "commands": [
       {

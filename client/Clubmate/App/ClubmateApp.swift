@@ -149,12 +149,12 @@ private struct WorkspaceCommands: Commands {
         }
         CommandGroup(replacing: .newItem) {
             Button("New") { newItem() }
-                .keyboardShortcut("n")
+                .keyboardShortcut(AppShortcuts.new)
                 .disabled(store == nil && !welcome)
             Button("New Home Terminal") { actions.newHomeTerminal(in: windowID) }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .keyboardShortcut(AppShortcuts.newHomeTerminal)
             Button("Open Folder…") { actions.openFolder(in: windowID) }
-                .keyboardShortcut("o")
+                .keyboardShortcut(AppShortcuts.openFolder)
             Menu("Open Recent") {
                 ForEach(recents, id: \.id) { workspace in
                     Button(workspace.name) { windows.open(workspace.id, in: windowID) }
@@ -164,10 +164,10 @@ private struct WorkspaceCommands: Commands {
                     .disabled(recents.isEmpty)
             }
             Button("Open Doc…") { session?.chooseDoc() }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .keyboardShortcut(AppShortcuts.openDoc)
                 .disabled(session == nil || !app.commands.contains { $0.id == DocsPicker.listCommand })
             Button("Switch Popup Focus") { session?.switchPopupFocus() }
-                .keyboardShortcut("j")
+                .keyboardShortcut(AppShortcuts.switchPopupFocus)
                 .disabled(store?.popup == nil)
             Divider()
             Button("Add Folder to Workspace…") { active.map(actions.addFolder) }
@@ -182,39 +182,39 @@ private struct WorkspaceCommands: Commands {
             Button("Close Session") {
                 run { .close(section: $0.selectedSection, main: $0.selectedSection.flatMap($0.mainTree), commands: $1) }
             }
-            .keyboardShortcut("w", modifiers: [.command, .shift])
+            .keyboardShortcut(AppShortcuts.closeSession)
             .disabled(store == nil)
             Button(session != nil ? CloseKeyOwner.terminalTitle : CloseKeyOwner.windowTitle) { closeTerminal() }
-                .keyboardShortcut("w")
+                .keyboardShortcut(AppShortcuts.close)
         }
         CommandGroup(replacing: .printItem) {}
         CommandGroup(before: .toolbar) {
             Button("Command Palette") { shortcut(.palette) }
-                .keyboardShortcut("k")
+                .keyboardShortcut(AppShortcuts.palette)
                 .disabled(session == nil)
             Button(store?.togglesChat == true ? "Toggle Chat" : "Toggle Sidebar") { store?.toggleSidebar() }
-                .keyboardShortcut("b")
+                .keyboardShortcut(AppShortcuts.toggleSidebar)
                 .disabled(store == nil)
             Divider()
             Button("Increase Font Size") { app.stepFont(1, panes: session?.panes, store: store) }
-                .keyboardShortcut("=")
+                .keyboardShortcut(AppShortcuts.fontIncrease)
             Button("Decrease Font Size") { app.stepFont(-1, panes: session?.panes, store: store) }
-                .keyboardShortcut("-")
+                .keyboardShortcut(AppShortcuts.fontDecrease)
             Button("Reset Font Size") { app.resetFont(panes: session?.panes, store: store) }
-                .keyboardShortcut("0")
+                .keyboardShortcut(AppShortcuts.fontReset)
         }
         CommandGroup(after: .windowArrangement) {
             Button("Next Workspace") { windowID.map(windows.next) }
-                .keyboardShortcut(.rightArrow, modifiers: [.control, .command])
+                .keyboardShortcut(AppShortcuts.nextWorkspace)
                 .disabled(!canSwitchWorkspace)
             Button("Previous Workspace") { windowID.map(windows.previous) }
-                .keyboardShortcut(.leftArrow, modifiers: [.control, .command])
+                .keyboardShortcut(AppShortcuts.previousWorkspace)
                 .disabled(!canSwitchWorkspace)
             Button("Workspace Switcher") { windowID.map(windows.toggleSwitcher) }
-                .keyboardShortcut("w", modifiers: [.control, .command])
+                .keyboardShortcut(AppShortcuts.workspaceSwitcher)
                 .disabled(windowID == nil)
             Button("Notifications") { windowID.map(windows.toggleInbox) }
-                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .keyboardShortcut(AppShortcuts.notifications)
                 .disabled(windowID == nil)
         }
         CommandGroup(after: .help) {
@@ -223,7 +223,7 @@ private struct WorkspaceCommands: Commands {
         CommandMenu("Section") {
             ForEach(1..<10, id: \.self) { index in
                 Button(sectionTitle(index)) { selectSection(index) }
-                    .keyboardShortcut(KeyEquivalent(Character("\(index)")))
+                    .keyboardShortcut(AppShortcuts.section, key: AppShortcuts.section(index))
                     .disabled(section(index) == nil)
             }
         }

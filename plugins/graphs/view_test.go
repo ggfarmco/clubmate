@@ -11,6 +11,7 @@ import (
 	sdk "clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/shortcuttest"
 )
 
 func TestExecutionView(t *testing.T) {
@@ -73,6 +74,12 @@ func TestStoppedRunOffersRemove(t *testing.T) {
 	remove := header.Children[len(header.Children)-1]
 	assert.Equal(t, "gr_1/remove", remove.ID)
 	assert.Equal(t, true, remove.Props["overflow"])
+}
+
+func TestViewShortcutsDeclared(t *testing.T) {
+	running := &Run{ID: "gr_1", Title: "Review loop", Status: statusRunning, Nodes: []RunNode{{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"}}}
+	stopped := &Run{ID: "gr_2", Title: "Review loop", Status: statusStopped}
+	shortcuttest.RequireDeclared(t, mainView(running, map[string]api.Session{"agt_1": {ID: "agt_1", Status: "waiting"}}), mainView(stopped, nil))
 }
 
 func TestBuiltinRunDefinition(t *testing.T) {

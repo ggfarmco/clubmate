@@ -7,6 +7,12 @@
     "backlog"
   ],
   "contributes": {
+    "shortcuts": [
+      {"keys": "cmd+return", "action": "Start an agent on the task"},
+      {"keys": "d", "action": "Mark the task done"},
+      {"keys": "cmd+s", "action": "Save the task now (the form also autosaves)"},
+      {"keys": "cmd+delete", "action": "Delete the task (confirmed)"}
+    ],
     "sections": [
       {
         "id": "backlog",

@@ -50,9 +50,9 @@ struct WorkspaceLayout: View {
             .background {
                 Group {
                     Button("Toggle Sidebar") { store.toggleSidebar() }
-                        .keyboardShortcut("s", modifiers: [.command, .control])
+                        .keyboardShortcut(AppShortcuts.toggleSidebar, key: AppShortcuts.toggleSidebar.keys[1])
                     Button("Increase Font Size") { [panes, store] in app.stepFont(1, panes: panes, store: store) }
-                        .keyboardShortcut("+")
+                        .keyboardShortcut(AppShortcuts.fontIncrease, key: AppShortcuts.fontIncrease.keys[1])
                 }
                 .opacity(0)
                 .allowsHitTesting(false)

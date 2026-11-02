@@ -12,6 +12,7 @@ import (
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/automation"
+	"clubmate/plugins/internal/shortcuttest"
 )
 
 func TestSidebarDetailAndMenu(t *testing.T) {
@@ -155,4 +156,9 @@ func TestEditArgsKeepTheAgentArgsAndSendOnlyChanges(t *testing.T) {
 	args, err := editArgs(j, values)
 	require.NoError(t, err)
 	assert.Equal(t, jobArgs{ID: "cj_a", Name: "Nightly", Missed: missedOnce, Args: `{"agent":"claude","prompt":"Audit again"}`}, args)
+}
+
+func TestViewShortcutsDeclared(t *testing.T) {
+	j := &Job{ID: "cj_a", Name: "a", Enabled: true, Command: agentNewCommand, Schedule: Schedule{Every: "1m"}}
+	shortcuttest.RequireDeclared(t, mainView(j, nil, automation.Open{}, draft{}, time.Now()), editView(j, draft{}))
 }

@@ -5,6 +5,11 @@
   "protocol": 1,
   "command": ["graphs"],
   "contributes": {
+    "shortcuts": [
+      {"keys": "cmd+return", "action": "Open the session of the step that needs you (else the running or start step)"},
+      {"keys": "cmd+.", "action": "Stop the run (confirmed)"},
+      {"keys": "cmd+delete", "action": "Remove the finished run (confirmed)"}
+    ],
     "sections": [{"id": "graphs", "title": "Graphs", "icon": "point.3.connected.trianglepath.dotted", "order": 37}],
     "commands": [
       {

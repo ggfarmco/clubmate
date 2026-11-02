@@ -13,6 +13,7 @@ import (
 	internalsdui "clubmate/internal/sdui"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/shortcuttest"
 )
 
 func TestHeaderAndActionStrip(t *testing.T) {
@@ -41,6 +42,7 @@ func TestHeaderAndActionStrip(t *testing.T) {
 	assert.Nil(t, strip.Children[2].Props["disabled"])
 	assert.Equal(t, "Kill nvim (2) and its children?", strip.Children[3].Props["confirm"])
 	assert.Equal(t, killKey, strip.Children[3].Props["shortcut"])
+	shortcuttest.RequireDeclared(t, view)
 
 	rows, _ := processRows(viewModel{nodes: nodes, sort: defaultSort, hist: newHistory()})
 	long := rows[1].Cells[len(columnIDs)-1].Text

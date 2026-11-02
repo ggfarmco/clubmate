@@ -1,6 +1,8 @@
 # Keyboard shortcuts
 
-The single list of every Clubmate shortcut. Any change that adds, removes or rebinds a key updates this file in the same commit.
+The single list of every Clubmate shortcut; the app's own keys and the ones plugins declare are also listed, searchable, in Settings → Shortcuts (`ClubmateKit/Shortcuts.swift`, a test checks each is in this file). Any change that adds, removes or rebinds a key updates this file in the same commit.
+
+Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`) and listed in Settings → Shortcuts; a test checks that every declared key appears here.
 
 ## App and windows
 
@@ -153,7 +155,7 @@ A pending question (AskUserQuestion or an MCP form) is docked above the composer
 
 | Keys | Action |
 |---|---|
-| ⌥1 … ⌥9 | Answer with that option (printed on each option button) when the question has a single list of options; the answer is sent at once |
+| ⌥1 ⌥2 ⌥3 ⌥4 ⌥5 ⌥6 ⌥7 ⌥8 ⌥9 | Answer with that option (printed on each option button) when the question has a single list of options; the answer is sent at once |
 | ↩ | In a text field of the question (e.g. "Other"): send the form |
 
 Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.

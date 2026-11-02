@@ -253,6 +253,10 @@ func Validate(n sdui.Node) error {
 	return v.node(n, n.Type, 1)
 }
 
+func CheckShortcut(combo string) error {
+	return shortcutCheck(nil, combo)
+}
+
 func (v *validator) countNode() error {
 	v.nodes++
 	if v.nodes > maxNodes {

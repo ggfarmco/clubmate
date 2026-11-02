@@ -16,6 +16,8 @@ struct SettingsView: View {
             List(selection: $page) {
                 Label("General", systemImage: "gearshape")
                     .tag(SettingsPage.general)
+                Label("Shortcuts", systemImage: "command")
+                    .tag(SettingsPage.shortcuts)
                 Section("Plugins") {
                     ForEach(plugins.sorted) { plugin in
                         PluginSidebarRow(plugin: plugin, icon: plugins.icon(plugin.id))
@@ -42,6 +44,8 @@ struct SettingsView: View {
         switch page {
         case .general:
             GeneralSettings(settings: settings)
+        case .shortcuts:
+            ShortcutsSettings(plugins: plugins)
         case .plugin(let id):
             if let plugin = plugins.list?.first(where: { $0.id == id }) {
                 PluginSettingsPage(plugin: plugin, plugins: plugins, settings: settings) { page = $0 }

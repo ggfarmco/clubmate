@@ -141,6 +141,7 @@ struct PluginSettingsPage: View {
                     if plugin.id == "agents" {
                         ClaudeCodeSettings()
                     }
+                    shortcuts
                 }
                 .formStyle(.grouped)
                 .task(id: plugin.id) { if plugin.id == "agents" { await app.claude.refresh() } }
@@ -157,6 +158,14 @@ struct PluginSettingsPage: View {
     }
 
     private var slot: String { SettingsPage.slot(plugin: plugin.id) }
+
+    @ViewBuilder private var shortcuts: some View {
+        if !plugin.shortcuts.shortcuts.isEmpty {
+            Section("Shortcuts") {
+                ShortcutRows(group: plugin.shortcuts)
+            }
+        }
+    }
 
     @ViewBuilder private var pluginView: some View {
         if let store = plugins.store, let view = store.slot(slot) {

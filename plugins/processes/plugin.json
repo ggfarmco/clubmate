@@ -5,6 +5,10 @@
   "protocol": 1,
   "command": ["processes"],
   "contributes": {
+    "shortcuts": [
+      {"keys": "shift+k", "action": "Kill the selected process and its children (confirmed)"},
+      {"keys": "cmd+shift+r", "action": "Reveal the selected process's executable in Finder"}
+    ],
     "sections": [{"id": "processes", "title": "Processes", "icon": "cpu", "order": 30}],
     "commands": [
       {

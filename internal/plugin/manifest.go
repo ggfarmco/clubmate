@@ -46,13 +46,20 @@ type Manifest struct {
 }
 
 type Contributes struct {
-	Sections []sdui.SectionDef `json:"sections"`
-	Commands []rpc.CommandDef  `json:"commands"`
-	Views    []View            `json:"views"`
+	Sections  []sdui.SectionDef `json:"sections"`
+	Commands  []rpc.CommandDef  `json:"commands"`
+	Views     []View            `json:"views"`
+	Shortcuts []Shortcut        `json:"shortcuts"`
 }
 
 type View struct {
 	Slot string `json:"slot"`
+}
+
+type Shortcut struct {
+	Keys   string `json:"keys"`
+	Action string `json:"action"`
+	When   string `json:"when,omitempty"`
 }
 
 func Load(dir string) (Manifest, error) {
@@ -180,6 +187,23 @@ func (m Manifest) validate() error {
 		if owner, ok := sdui.SettingsPlugin(v.Slot); !ok || owner != m.ID {
 			return invalid(m.Dir, "invalid view slot %q", v.Slot)
 		}
+	}
+	return m.validateShortcuts()
+}
+
+func (m Manifest) validateShortcuts() error {
+	seen := make(map[string]bool, len(m.Contributes.Shortcuts))
+	for _, s := range m.Contributes.Shortcuts {
+		if err := sdui.CheckShortcut(s.Keys); err != nil {
+			return invalid(m.Dir, "shortcut %q: %v", s.Keys, err)
+		}
+		if strings.TrimSpace(s.Action) == "" {
+			return invalid(m.Dir, "shortcut %q has no action", s.Keys)
+		}
+		if seen[s.Keys] {
+			return invalid(m.Dir, "duplicate shortcut %q", s.Keys)
+		}
+		seen[s.Keys] = true
 	}
 	return nil
 }

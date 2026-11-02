@@ -5,6 +5,18 @@
   "protocol": 1,
   "command": ["agents"],
   "contributes": {
+    "shortcuts": [
+      {"keys": "cmd+i", "action": "Show the session's context, or back to the transcript"},
+      {"keys": "opt+1", "action": "Allow the permission request once, or pick the question's 1st option", "when": "a permission request or question is pending"},
+      {"keys": "opt+2", "action": "Always allow… the permission request (asks to confirm), or pick the question's 2nd option", "when": "a permission request or question is pending"},
+      {"keys": "opt+3", "action": "Reject the permission request, or pick the question's 3rd option", "when": "a permission request or question is pending"},
+      {"keys": "opt+4", "action": "Pick the question's 4th option", "when": "a question is pending"},
+      {"keys": "opt+5", "action": "Pick the question's 5th option", "when": "a question is pending"},
+      {"keys": "opt+6", "action": "Pick the question's 6th option", "when": "a question is pending"},
+      {"keys": "opt+7", "action": "Pick the question's 7th option", "when": "a question is pending"},
+      {"keys": "opt+8", "action": "Pick the question's 8th option", "when": "a question is pending"},
+      {"keys": "opt+9", "action": "Pick the question's 9th option", "when": "a question is pending"}
+    ],
     "sections": [{"id": "agents", "title": "Agents", "icon": "sparkles", "order": 25}],
     "views": [{"slot": "editor-nvim.sidebar"}, {"slot": "agents.settings"}],
     "commands": [

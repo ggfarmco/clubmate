@@ -19,9 +19,10 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
         public let sections: [Item]
         public let commands: [Item]
         public let views: [View]
+        public let shortcuts: [DeclaredShortcut]
 
         private enum CodingKeys: String, CodingKey {
-            case sections, commands, views
+            case sections, commands, views, shortcuts
         }
 
         public init(from decoder: Decoder) throws {
@@ -29,7 +30,14 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
             sections = try container.decode([Item].self, forKey: .sections)
             commands = try container.decode([Item].self, forKey: .commands)
             views = try container.decodeIfPresent([View].self, forKey: .views) ?? []
+            shortcuts = try container.decodeIfPresent([DeclaredShortcut].self, forKey: .shortcuts) ?? []
         }
+    }
+
+    public struct DeclaredShortcut: Decodable, Sendable, Equatable {
+        public let keys: String
+        public let action: String
+        public let when: String?
     }
 
     public struct View: Decodable, Sendable, Equatable {
@@ -55,6 +63,14 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
 
     public var declaresSettings: Bool {
         manifest.contributes.views.contains { $0.slot == SettingsPage.slot(plugin: id) }
+    }
+
+    public static let shortcutGroupPrefix = "plugin."
+
+    public var shortcuts: ShortcutGroup {
+        ShortcutGroup(id: Self.shortcutGroupPrefix + id, title: name, shortcuts: manifest.contributes.shortcuts.enumerated().map { index, declared in
+            Shortcut("\(id).\(index)", [declared.keys], declared.action, when: declared.when ?? "")
+        })
     }
 
     public var healthy: Bool {
