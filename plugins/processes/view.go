@@ -416,19 +416,34 @@ func treeEntries(m viewModel, nodes []pluginsdk.ProcessNode, titles map[string]s
 		}
 		roots = append(roots, &procs[i])
 	}
+	var sum func(p *procRow) (float64, int64)
+	sum = func(p *procRow) (float64, int64) {
+		cpu, rss := p.node.Process.CPU, p.node.Process.RSSKiB
+		for _, k := range children[p.node.Process.PID] {
+			c, r := sum(k)
+			cpu, rss = cpu+c, rss+r
+		}
+		return cpu, rss
+	}
+	open := func(p *procRow, depth int) bool {
+		if depth == base && p.node.SessionID == coreID {
+			return m.coreOpen
+		}
+		return !m.collapsed[p.node.Process.PID]
+	}
 	compare := m.comparator()
 	entries := make([]treeEntry, 0, len(nodes))
 	var walk func(siblings []*procRow, depth int)
 	walk = func(siblings []*procRow, depth int) {
+		for _, p := range siblings {
+			if len(children[p.node.Process.PID]) > 0 && !open(p, depth) {
+				p.node.Process.CPU, p.node.Process.RSSKiB = sum(p)
+			}
+		}
 		slices.SortFunc(siblings, compare)
 		for _, p := range siblings {
-			pid := p.node.Process.PID
-			kids := children[pid]
-			open := !m.collapsed[pid]
-			if depth == base && p.node.SessionID == coreID {
-				open = m.coreOpen
-			}
-			expanded := len(kids) > 0 && open
+			kids := children[p.node.Process.PID]
+			expanded := len(kids) > 0 && open(p, depth)
 			entries = append(entries, treeEntry{proc: p, depth: min(depth, maxDepth), hasChildren: len(kids) > 0, expanded: expanded})
 			if expanded {
 				walk(kids, depth+1)

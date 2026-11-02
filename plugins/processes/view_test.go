@@ -158,6 +158,28 @@ func TestCoreMembersSkipSessionHostsAndTrackedTrees(t *testing.T) {
 	assert.Equal(t, []int{316, 324}, got)
 }
 
+func TestFoldedRowShowsSubtreeTotals(t *testing.T) {
+	nodes := []pluginsdk.ProcessNode{
+		{Process: pluginsdk.ProcessInfo{PID: 1, CPU: 1, RSSKiB: 50 * kibPerMiB}, SessionID: coreID},
+		{Process: pluginsdk.ProcessInfo{PID: 2, PPID: 1, CPU: 0, RSSKiB: 5 * kibPerMiB}, SessionID: coreID},
+		{Process: pluginsdk.ProcessInfo{PID: 3, PPID: 2, CPU: 30, RSSKiB: 350 * kibPerMiB}, SessionID: coreID},
+		{Process: pluginsdk.ProcessInfo{PID: 4, PPID: 1, CPU: 2, RSSKiB: 200 * kibPerMiB}, SessionID: coreID},
+	}
+	m := viewModel{nodes: nodes, sort: defaultSort, hist: newHistory(), collapsed: map[int]bool{2: true}}
+	cells := func(rows []sdui.TableRow) []string {
+		var out []string
+		for _, r := range rows {
+			out = append(out, r.ID+" "+r.Cells[1].Text+" "+r.Cells[2].Text)
+		}
+		return out
+	}
+	folded, _ := processRows(m)
+	assert.Equal(t, []string{"1 33.0 605 MB"}, cells(folded))
+	m.coreOpen = true
+	open, _ := processRows(m)
+	assert.Equal(t, []string{"1 1.0 50 MB", "2 30.0 355 MB", "4 2.0 200 MB"}, cells(open))
+}
+
 func TestProcessTableSortsSiblings(t *testing.T) {
 	nodes := []pluginsdk.ProcessNode{
 		{Process: pluginsdk.ProcessInfo{PID: 2, PPID: 1, CPU: 1}},
