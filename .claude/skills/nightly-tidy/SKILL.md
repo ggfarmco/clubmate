@@ -18,7 +18,7 @@ Every night:
 2. Whole repo: `go vet`, `staticcheck`, `govulncheck ./...`.
 3. Benchmarks against the previous night.
 
-Plus one deep dive over the whole repo, by weekday: Mon security, Tue performance, Wed ARCHITECTURE.md, Thu docs, Fri CLAUDE.md and skills, Sat code quality, Sun none.
+Plus one deep dive over the whole repo, by weekday: Mon security, Tue performance, Wed ARCHITECTURE.md, Thu docs, Fri CLAUDE.md, skills and the MCP guide, Sat code quality, Sun none.
 
 ## Lenses
 
@@ -28,13 +28,14 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 - **ARCHITECTURE.md**: every process, package and plugin it lists exists and does what it says; new ones are missing from it; the rules it states hold in code (core owns state, plugins speak JSON-RPC, UI is SDUI, clients render fields the plugin sends and never re-derive a rule).
 - **Docs**: `docs/*.md` against code — commands, args, MCP tool names, Makefile targets, paths, `docs/shortcuts.md` against the real key bindings, `docs/agents.md` sections CLAUDE.md points to. Code is the truth unless the code is clearly the bug.
 - **CLAUDE.md and skills**: rules that recent commits or `fix:` messages keep re-learning but no CLAUDE.md or skill says, stale rules, broken file references. Propose only: the exact text goes in the report, never edit CLAUDE.md.
+- **MCP guide for agents**: what every agent gets from Clubmate's MCP server — `internal/mcp/clubmate.md` (the "Working in Clubmate" instructions) and the agent-visible commands' `description`s and arg descriptions in `plugins/*/plugin.json`. Every agent-visible command is reachable from the guide or a sibling tool's description when it belongs to a workflow (new plugins, new tools nobody mentions); descriptions match the behaviour, return shape, destructive flag and limits in code; no guide line names a tool, arg or behaviour that is gone; the docs in `docs/*.md` and the descriptions agree. Fixing a description or a guide line is a docs fix; a new rule in `clubmate.md` is a proposal in the report, like CLAUDE.md.
 
 ## Run
 
 1. **Triage, read-only.** The main checkout holds other sessions' uncommitted work, so check `main` in a throwaway tree: `git worktree add --detach <scratchpad>/tidy HEAD`, run all checks and benchmarks there (`mkdir -p $NOTES/tidy/bench` first), read the night's commits with `git log`/`git show`. Collect findings, drop duplicates of open backlog items (`backlog_list`).
 2. **Fix in children.** You edit nothing in the main checkout. Start at most 4 children with `agents_new`, `branch: tidy/<YYYY-MM-DD>-<area>`, one area each. The prompt stands alone: the findings, the fix rules, the test commands, "AFK: never ask the user, a finding you can't fix without them goes back to me in your reply; run tests in the foreground, rebase on current main, stop at one conventional commit and reply with its sha".
 3. **Fix rules** (put them in every child prompt):
-   - Go code and docs only. Swift, views and plugin-rendered UI need `make app` and a look → backlog.
+   - Go code and docs only; docs include `internal/mcp/clubmate.md` and the `description` texts in `plugin.json` (not arg names, types or flags). Swift, views and plugin-rendered UI need `make app` and a look → backlog.
    - Mechanical, verifiable fixes. No protocol, wire, MCP schema or public API changes; no dependency bumps except a module `govulncheck` flags.
    - At most 10 files and 300 changed lines; over that, commit nothing and report.
    - Every behaviour fix comes with a test; docs fixes need none.
