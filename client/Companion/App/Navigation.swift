@@ -25,6 +25,8 @@ final class AppNavigation {
     var needsYouList = false
     var workspaces: [String: String] = [:]
     var showingAddComputer = false
+    @ObservationIgnored private(set) var pairingSheetUp = false
+    @ObservationIgnored private var pairedUnderSheet: String?
     var doc: OpenDoc?
     var voiceDock: CGRect?
     var preferredColumn: NavigationSplitViewColumn = .sidebar
@@ -46,6 +48,26 @@ final class AppNavigation {
         sidebar = SidebarItem(computer: computer, plugin: plugin)
         self.detail = detail
         preferredColumn = detail == nil ? .content : .detail
+    }
+
+    func openPaired(_ computer: String) {
+        showingAddComputer = false
+        guard pairingSheetUp else {
+            open(computer: computer, plugin: AgentsPluginInfo.id)
+            return
+        }
+        pairedUnderSheet = computer
+    }
+
+    func pairingSheetAppeared() {
+        pairingSheetUp = true
+    }
+
+    func pairingSheetDismissed() {
+        pairingSheetUp = false
+        guard let computer = pairedUnderSheet else { return }
+        pairedUnderSheet = nil
+        open(computer: computer, plugin: AgentsPluginInfo.id)
     }
 
     func openDoc(computer: String, workspace: String, path: String) {
@@ -148,8 +170,7 @@ final class PairingFlow {
                 let computer = try await model.pair(link)
                 phase = .idle
                 paired = computer
-                navigation.showingAddComputer = false
-                navigation.open(computer: computer.id, plugin: AgentsPluginInfo.id)
+                navigation.openPaired(computer.id)
             } catch {
                 phase = .failed((error as? RemoteError)?.message ?? error.localizedDescription)
             }

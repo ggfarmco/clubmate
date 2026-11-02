@@ -5,9 +5,41 @@ final class CompanionUITests: XCTestCase {
     private static let fixtures = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .appending(path: "CompanionKit/Tests/CompanionKitTests/Fixtures").path()
     private static let pairLink = "clubmate://pair?v=1&c=ABCDEF&h=100.101.1.2&p=47622&id=mac-mock&n=Mac%20Studio&e=4000000000"
+    private static let proLink = "clubmate://pair?v=1&c=ABCDEF&h=100.101.1.3&p=47622&id=mac-pro&n=MacBook%20Pro&e=4000000000"
 
     override func setUp() {
         continueAfterFailure = false
+    }
+
+    func testScanningTheFirstMacOpensItsSessions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-scan", Self.pairLink]
+        app.launch()
+        app.buttons["Scan pairing code"].tap()
+        app.buttons["Scan QR Code"].tap()
+        XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+    }
+
+    func testConfirmingALinkOpensItsSessions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-pair", Self.pairLink]
+        app.launch()
+        let pair = app.buttons["Pair"]
+        XCTAssertTrue(pair.waitForExistence(timeout: 10))
+        pair.tap()
+        XCTAssertTrue(app.staticTexts["Explain the checkout flow"].waitForExistence(timeout: 10))
+    }
+
+    func testScanningAnotherMacOpensItsSessions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixtures", Self.fixtures, "-latency", "20", "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", "sidebar", "-scan", Self.proLink]
+        app.launch()
+        let add = app.navigationBars.buttons["Pair a Mac"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        sleep(2)
+        add.tap()
+        app.buttons["Scan QR Code"].tap()
+        XCTAssertTrue(app.staticTexts["Move the state bucket to the new account"].waitForExistence(timeout: 10))
     }
 
     func testNewSessionSendsPhoto() {

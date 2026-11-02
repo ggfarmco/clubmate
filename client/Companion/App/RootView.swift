@@ -35,11 +35,13 @@ struct RootView: View {
                 navigation.needsYouList = false
             }
         }
-        .sheet(isPresented: $navigation.showingAddComputer) {
+        .sheet(isPresented: $navigation.showingAddComputer, onDismiss: navigation.pairingSheetDismissed) {
             AddComputerView()
+                .onAppear { navigation.pairingSheetAppeared() }
         }
-        .sheet(item: Binding(get: { navigation.showingAddComputer ? nil : pairing.review }, set: { pairing.review = $0 })) { review in
+        .sheet(item: Binding(get: { navigation.showingAddComputer ? nil : pairing.review }, set: { pairing.review = $0 }), onDismiss: navigation.pairingSheetDismissed) { review in
             PairingConfirmView(review: review)
+                .onAppear { navigation.pairingSheetAppeared() }
         }
         .fullScreenCover(item: $navigation.doc) { doc in
             DocumentSheet(doc: doc)
@@ -96,7 +98,7 @@ struct RootView: View {
     }
 
     private func selectDefault() {
-        if navigation.needsYouList { return }
+        if navigation.needsYouList || navigation.pairingSheetUp { return }
         if let item = navigation.sidebar, model.connection(item.computer) != nil { return }
         navigation.sidebar = nil
         guard model.computers.count == 1, let computer = model.computers.first else { return }

@@ -8,12 +8,14 @@ final class FixtureTransport: HTTPTransport {
     private let servers: [String: FixtureServer]
     private let fallback: FixtureServer
     private let offline: ContinuousClock.Instant?
+    private let latency: Duration
     private let offlineHosts = Mutex<[String: ContinuousClock.Instant]>([:])
 
     init(directory: URL, offlineAfter: Duration? = nil) {
         fallback = FixtureServer(directory: directory, mac: .studio)
         servers = [FixtureMac.pro.host: FixtureServer(directory: directory, mac: .pro), FixtureMac.air.host: FixtureServer(directory: directory, mac: .air)]
         offline = offlineAfter.map { .now + $0 }
+        latency = .milliseconds(UserDefaults.standard.object(forKey: "latency") == nil ? 120 : UserDefaults.standard.integer(forKey: "latency"))
     }
 
     private func server(_ request: URLRequest) -> FixtureServer {
@@ -31,7 +33,7 @@ final class FixtureTransport: HTTPTransport {
     }
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: latency)
         try reachable(request)
         let (status, body) = await server(request).handle(path: request.url?.path() ?? "", body: request.httpBody ?? Data())
         return (body, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!)

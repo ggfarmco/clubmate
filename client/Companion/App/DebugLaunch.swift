@@ -10,6 +10,12 @@ enum DebugLaunch {
         UserDefaults.standard.string(forKey: "sdui-gallery")
     }
 
+    static func forgetMacs(_ file: URL) {
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: "fixtures") != nil, defaults.string(forKey: "pair") != nil || defaults.string(forKey: "scan") != nil else { return }
+        try? FileManager.default.removeItem(at: file)
+    }
+
     static func transport() -> (any HTTPTransport)? {
         let defaults = UserDefaults.standard
         let offline = defaults.object(forKey: "offline") == nil ? nil : Duration.seconds(defaults.double(forKey: "offline"))

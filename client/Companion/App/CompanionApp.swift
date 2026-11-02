@@ -19,6 +19,9 @@ struct CompanionApp: App {
     init() {
         let support = URL.applicationSupportDirectory.appending(path: "Companion", directoryHint: .isDirectory)
         let device = DeviceIdentity.stable(defaults: .standard, name: UIDevice.current.name, model: UIDevice.current.model)
+        #if DEBUG
+        DebugLaunch.forgetMacs(support.appending(path: "computers.json"))
+        #endif
         let store = ComputerStore(file: support.appending(path: "computers.json"), vault: KeychainTokenVault())
         #if DEBUG
         let policy = HostPolicy.tailnetAndLoopback

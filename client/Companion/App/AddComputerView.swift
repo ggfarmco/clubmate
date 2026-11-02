@@ -36,7 +36,7 @@ struct AddComputerView: View {
                     } label: {
                         Label("Scan QR Code", systemImage: "qrcode.viewfinder")
                     }
-                    .disabled(!QRScannerView.isAvailable)
+                    .disabled(!QRScannerView.isAvailable && QRScannerView.fixtureCode == nil)
                     PasteButton(payloadType: String.self) { strings in
                         guard let text = strings.first else { return }
                         pair(text)
@@ -96,6 +96,11 @@ struct ScannerSheet: View {
     var body: some View {
         NavigationStack {
             QRScannerView(found: found)
+                .task {
+                    guard let code = QRScannerView.fixtureCode else { return }
+                    try? await Task.sleep(for: .seconds(1))
+                    found(code)
+                }
                 .ignoresSafeArea()
                 .overlay(alignment: .bottom) {
                     Text("Point the camera at the code in Clubmate on your Mac.")
@@ -119,6 +124,14 @@ struct QRScannerView: UIViewControllerRepresentable {
 
     static var isAvailable: Bool {
         DataScannerViewController.isSupported && DataScannerViewController.isAvailable
+    }
+
+    static var fixtureCode: String? {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "scan")
+        #else
+        nil
+        #endif
     }
 
     func makeUIViewController(context: Context) -> DataScannerViewController {
