@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/bus"
 	"clubmate/internal/testutil"
 )
 
@@ -126,7 +128,7 @@ func TestChildQuestionGoesToParent(t *testing.T) {
 	assert.NotEqual(t, "waiting", f.session(t, workspace, parent).ChildStatus)
 	events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
 	require.NoError(t, err)
-	assert.Empty(t, events)
+	assert.False(t, slices.ContainsFunc(events, func(e bus.Event) bool { return strings.Contains(string(e.Payload), kid) }))
 
 	answer := map[string]any{"session": kid, "request": asking.Pending[0], "action": "accept", "answers": []map[string]any{{"key": "question_0", "value": "Redis"}}}
 	require.NoError(t, f.runAs(t, workspace, parent, "agents.elicitation", answer, nil))

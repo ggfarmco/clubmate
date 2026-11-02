@@ -17,7 +17,7 @@ const (
 	netGiveUpHint    = "send a message to continue"
 )
 
-func (a *app) retryNetwork(s *session, err error) {
+func (a *app) retryNetwork(s *session, err error) bool {
 	f, ok := classifyFailure(err)
 	rec := s.snapshot()
 	w := &a.watchdog
@@ -26,7 +26,7 @@ func (a *app) retryNetwork(s *session, err error) {
 		if ok {
 			s.notice(f.title, f.description())
 		}
-		return
+		return false
 	}
 	w.mu.Lock()
 	attempt := w.retries[rec.ID] + 1
@@ -34,7 +34,7 @@ func (a *app) retryNetwork(s *session, err error) {
 		delete(w.retries, rec.ID)
 		w.mu.Unlock()
 		s.notice(fmt.Sprintf(netGiveUpNotice, f.label()), netGiveUpHint)
-		return
+		return false
 	}
 	w.retries[rec.ID] = attempt
 	delay := netRetryDelay(attempt)
@@ -44,6 +44,7 @@ func (a *app) retryNetwork(s *session, err error) {
 	w.retryTimers[rec.ID] = time.AfterFunc(delay, func() { a.fireNetRetry(s, f.detail) })
 	w.mu.Unlock()
 	s.notice(fmt.Sprintf(netRetryNotice, f.label(), delay.Round(time.Second)), fmt.Sprintf(netRetryHint, attempt, netRetryMax, f.detail))
+	return true
 }
 
 func (a *app) fireNetRetry(s *session, reason string) {

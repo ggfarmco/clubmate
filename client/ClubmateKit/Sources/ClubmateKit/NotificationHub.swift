@@ -81,7 +81,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     var coveredByAgentsSection: Bool {
-        source == .bus && !viaAgent && (kind == .needsInput || kind == .permission || kind == .question) && isAgentSession
+        source == .bus && !viaAgent && (kind == .permission || kind == .question) && isAgentSession
     }
 
     public func headline(workspaceName: String?) -> String {
@@ -212,7 +212,7 @@ public enum ClaudeHooks {
                 "hooks": [
                   {
                     "type": "command",
-                    "command": "jq -r '.message // empty' | \(command) notify --quiet --kind needs-input --title Claude -"
+                    "command": "[ -n \\"$CLUBMATE_AGENT_SESSION\\" ] || jq -r '.message // empty' | \(command) notify --quiet --kind needs-input --title Claude -"
                   }
                 ]
               }
@@ -222,7 +222,7 @@ public enum ClaudeHooks {
                 "hooks": [
                   {
                     "type": "command",
-                    "command": "\(command) notify --quiet --kind done --title Claude Finished"
+                    "command": "[ -n \\"$CLUBMATE_AGENT_SESSION\\" ] || \(command) notify --quiet --kind done --title Claude Finished"
                   }
                 ]
               }

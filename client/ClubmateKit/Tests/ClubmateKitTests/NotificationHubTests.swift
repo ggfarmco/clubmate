@@ -47,14 +47,15 @@ final class NotificationHubTests: XCTestCase {
         XCTAssertEqual(hub.unseenTotal, 1)
     }
 
-    func testDropsAgentSessionNeedsInputButKeepsDone() {
+    func testDropsAgentSessionRequestsButKeepsTurnEnds() {
         var hub = NotificationHub()
         let away = HubFocus(appActive: false, workspace: nil)
-        for kind in [NotificationKind.needsInput, .permission] {
+        for kind in [NotificationKind.permission, .question] {
             XCTAssertFalse(hub.receive(HubNotification(id: kind.rawValue, workspace: "w", session: "agt_1", message: "?", kind: kind), focus: away))
         }
-        XCTAssertTrue(hub.receive(HubNotification(id: "d", workspace: "w", session: "agt_1", message: "Finished", kind: .done), focus: away))
-        XCTAssertTrue(hub.receive(HubNotification(id: "q", workspace: "w", session: "agt_1", message: "Which?", kind: .needsInput, viaAgent: true), focus: away))
+        for kind in [NotificationKind.needsInput, .done] {
+            XCTAssertTrue(hub.receive(HubNotification(id: kind.rawValue, workspace: "w", session: "agt_1", message: "m", kind: kind), focus: away))
+        }
         XCTAssertEqual(hub.unseen("w"), 2)
     }
 
@@ -94,5 +95,29 @@ final class NotificationHubTests: XCTestCase {
 
         let next = AgentSession(id: "agt_1", workspace: "w", agent: "claude", title: "Fix", status: .waiting, pending: ["permission-1", "permission-2"])
         XCTAssertEqual(notifier.pending([next], shown: { _ in false }).map(\.request), ["permission-2"])
+    }
+
+    func testClaudeHooksSkipAgentSessions() throws {
+        let json = try JSONSerialization.jsonObject(with: Data(ClaudeHooks.snippet(command: "exit 3 #").utf8)) as? [String: Any]
+        let hooks = try XCTUnwrap(json?["hooks"] as? [String: [[String: Any]]])
+        let commands = hooks.values.flatMap { $0.flatMap { ($0["hooks"] as? [[String: String]] ?? []).compactMap { $0["command"] } } }
+        XCTAssertEqual(commands.count, 2)
+        for command in commands {
+            XCTAssertEqual(try run(command, env: ["CLUBMATE_AGENT_SESSION": "agt_1"]), 0)
+            XCTAssertEqual(try run(command, env: [:]), 3)
+        }
+    }
+
+    private func run(_ command: String, env: [String: String]) throws -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.environment = env.merging(["PATH": "/usr/bin:/bin"]) { a, _ in a }
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 }

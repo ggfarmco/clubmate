@@ -288,15 +288,20 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 			finished = true
 		}
 	}
-	closed, ended := s.rec.closed(), s.turnLocked()
+	closed, ended, cancelled := s.rec.closed(), s.turnLocked(), s.cancelRequested || res.StopReason == acp.StopCancelled
 	s.mu.Unlock()
 	if !closed {
 		s.turned(ended)
 	}
 	if err != nil {
-		a.retryNetwork(s, err)
+		if !a.retryNetwork(s, err) && !closed && !cancelled {
+			a.notifyEnd(s, ended)
+		}
 	} else {
 		a.resetNetRetry(rec.ID)
+	}
+	if finished && !cancelled {
+		a.notifyEnd(s, ended)
 	}
 	s.changed(changeStatus, true)
 	if edited {

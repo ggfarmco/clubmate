@@ -125,6 +125,7 @@ func (a *app) procExited(p *agentProc, reason string) {
 			s.mu.Unlock()
 			continue
 		}
+		running := s.running
 		s.proc = nil
 		s.dropBackgroundLocked()
 		s.cancelPermissionsLocked()
@@ -141,6 +142,9 @@ func (a *app) procExited(p *agentProc, reason string) {
 		if !quiet {
 			s.turned(ended)
 			s.changed(changeStatus, true)
+		}
+		if !quiet && running {
+			a.notifyEnd(s, ended)
 		}
 	}
 }

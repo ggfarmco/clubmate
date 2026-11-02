@@ -1,10 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"sync"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
@@ -19,9 +23,19 @@ const (
 
 	notifyPermission = "permission"
 	notifyQuestion   = "question"
+	notifyAsks       = "needs-input"
+	notifyDone       = "done"
+	notifyStuck      = "stuck"
+
+	endPostMax    = 2
+	endPostWindow = 10 * time.Second
 )
 
-var permObjects = map[string]string{"execute": "a command", "edit": "a file", "delete": "a file", "move": "a file", "read": "a file", "fetch": "a URL"}
+var (
+	permObjects = map[string]string{"execute": "a command", "edit": "a file", "delete": "a file", "move": "a file", "read": "a file", "fetch": "a URL"}
+	endMessages = map[string]string{notifyAsks: "Asks you a question", notifyStuck: "Stopped with an error", notifyDone: "Finished"}
+	endKinds    = []string{notifyAsks, notifyStuck, notifyDone}
+)
 
 type notifier struct {
 	host  *pluginsdk.Host
@@ -31,7 +45,23 @@ type notifier struct {
 	saves map[*session]bool
 	turns []api.Turn
 	asks  []change
+	ends  []ending
+	endq  endQueue
+	timer *time.Timer
 	wake  chan struct{}
+}
+
+type ending struct {
+	workspace string
+	session   string
+	title     string
+	kind      string
+	policy    string
+}
+
+type endQueue struct {
+	held map[string][]ending
+	sent map[string][]time.Time
 }
 
 type notifyPost struct {
@@ -50,7 +80,7 @@ type change struct {
 }
 
 func newNotifier(h *pluginsdk.Host) *notifier {
-	n := &notifier{host: h, seen: map[change]bool{}, saves: map[*session]bool{}, wake: make(chan struct{}, 1)}
+	n := &notifier{host: h, seen: map[change]bool{}, saves: map[*session]bool{}, endq: newEndQueue(), wake: make(chan struct{}, 1)}
 	go n.run()
 	return n
 }
@@ -94,6 +124,13 @@ func (n *notifier) turn(p api.Turn) {
 	n.poke()
 }
 
+func (n *notifier) ended(e ending) {
+	n.mu.Lock()
+	n.ends = append(n.ends, e)
+	n.mu.Unlock()
+	n.poke()
+}
+
 func (n *notifier) poke() {
 	select {
 	case n.wake <- struct{}{}:
@@ -104,8 +141,8 @@ func (n *notifier) poke() {
 func (n *notifier) run() {
 	for range n.wake {
 		n.mu.Lock()
-		order, saves, turns, asks := n.order, n.saves, n.turns, n.asks
-		n.order, n.seen, n.saves, n.turns, n.asks = nil, map[change]bool{}, map[*session]bool{}, nil, nil
+		order, saves, turns, asks, ends := n.order, n.saves, n.turns, n.asks, n.ends
+		n.order, n.seen, n.saves, n.turns, n.asks, n.ends = nil, map[change]bool{}, map[*session]bool{}, nil, nil, nil
 		n.mu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		for s := range saves {
@@ -125,6 +162,19 @@ func (n *notifier) run() {
 		for _, c := range asks {
 			n.notify(ctx, c)
 		}
+		for _, e := range ends {
+			n.endq.add(e)
+		}
+		posts, wait := n.endq.take(time.Now())
+		for _, p := range posts {
+			n.post(ctx, p)
+		}
+		if n.timer != nil {
+			n.timer.Stop()
+		}
+		if wait > 0 {
+			n.timer = time.AfterFunc(wait, n.poke)
+		}
 		cancel()
 	}
 }
@@ -142,10 +192,93 @@ func (n *notifier) notify(ctx context.Context, c change) {
 	if c.requestKind == entryElicitation {
 		kind, message = notifyQuestion, "Has a question"
 	}
-	req := notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Title: rec.Title, Message: message, Kind: kind}
+	n.post(ctx, notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Title: rec.Title, Message: message, Kind: kind})
+}
+
+func (n *notifier) post(ctx context.Context, req notifyPost) {
 	if err := n.host.Call(ctx, "notify.post", req, nil); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: notify:", err)
 	}
+}
+
+func (a *app) notifyEnd(s *session, t api.Turn) {
+	kind := notifyDone
+	switch {
+	case t.Status == statusError:
+		kind = notifyStuck
+	case t.Status != statusDone:
+		return
+	case t.Asks:
+		kind = notifyAsks
+	}
+	rec := s.snapshot()
+	if rec.ParentSession != "" || rec.restricted() || rec.Run != nil && kind != notifyAsks || kind == notifyDone && a.runningChildren(rec.ID) > 0 {
+		return
+	}
+	a.notes.ended(ending{workspace: rec.Workspace, session: rec.ID, title: rec.Title, kind: kind, policy: a.effectiveNotify(rec)})
+}
+
+func (e ending) allowed() bool {
+	return e.policy == notifyAll || e.policy == notifyNeedsInput && e.kind == notifyAsks
+}
+
+func newEndQueue() endQueue {
+	return endQueue{held: map[string][]ending{}, sent: map[string][]time.Time{}}
+}
+
+func (q *endQueue) add(e ending) {
+	held := slices.DeleteFunc(q.held[e.workspace], func(h ending) bool { return h.session == e.session })
+	q.held[e.workspace] = append(held, e)
+}
+
+func (q *endQueue) take(now time.Time) ([]notifyPost, time.Duration) {
+	var posts []notifyPost
+	var wait time.Duration
+	for ws, held := range q.held {
+		sent := slices.DeleteFunc(q.sent[ws], func(t time.Time) bool { return !t.After(now.Add(-endPostWindow)) })
+		if len(sent) >= endPostMax {
+			q.sent[ws] = sent
+			if d := sent[0].Add(endPostWindow).Sub(now); wait == 0 || d < wait {
+				wait = d
+			}
+			continue
+		}
+		delete(q.held, ws)
+		if post, ok := endPost(held); ok {
+			posts = append(posts, post)
+			q.sent[ws] = append(sent, now)
+		}
+	}
+	return posts, wait
+}
+
+func endPost(held []ending) (notifyPost, bool) {
+	if len(held) > 1 {
+		held = slices.DeleteFunc(held, func(e ending) bool { return !e.allowed() })
+	}
+	switch len(held) {
+	case 0:
+		return notifyPost{}, false
+	case 1:
+		e := held[0]
+		return notifyPost{WorkspaceID: e.workspace, Session: e.session, Title: e.title, Message: endMessages[e.kind], Kind: e.kind}, true
+	}
+	post := notifyPost{WorkspaceID: held[0].workspace, Title: fmt.Sprintf("%d agent sessions", len(held))}
+	var lines []string
+	for _, kind := range endKinds {
+		var titles []string
+		for _, e := range held {
+			if e.kind == kind {
+				titles = append(titles, e.title)
+			}
+		}
+		if len(titles) > 0 {
+			post.Kind = cmp.Or(post.Kind, kind)
+			lines = append(lines, endMessages[kind]+": "+strings.Join(titles, ", "))
+		}
+	}
+	post.Message = strings.Join(lines, "\n")
+	return post, true
 }
 
 func (n *notifier) persist(ctx context.Context, s *session) {

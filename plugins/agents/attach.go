@@ -28,6 +28,7 @@ func (a *app) fail(s *session, text string) {
 		s.mu.Unlock()
 		return
 	}
+	running := s.running
 	s.running = false
 	s.recordLocked(actorClubmate, kindError, turnEndPayload{Error: text})
 	s.setStatusLocked(statusError, text)
@@ -35,6 +36,9 @@ func (a *app) fail(s *session, text string) {
 	s.mu.Unlock()
 	s.turned(ended)
 	s.changed(changeStatus, true)
+	if running {
+		a.notifyEnd(s, ended)
+	}
 }
 
 func (a *app) resume(s *session) {
