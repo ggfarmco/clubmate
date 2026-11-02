@@ -130,7 +130,7 @@ func TestStartArgs(t *testing.T) {
 	require.NoError(t, err)
 	args := string(raw)
 	assert.Contains(t, args, "--host 127.0.0.1")
-	assert.Contains(t, args, "--disable-workspace-trust")
+	assert.NotContains(t, args, "--disable-workspace-trust")
 	assert.Contains(t, args, "--connection-token-file")
 	assert.NotContains(t, args, token)
 	assert.Equal(t, port, kv.port)

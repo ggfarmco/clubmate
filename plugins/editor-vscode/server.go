@@ -234,7 +234,6 @@ func (s *vscodeServer) Start(ctx context.Context, dark bool) error {
 		"--port", strconv.Itoa(port),
 		"--connection-token-file", tokenFile,
 		"--accept-server-license-terms",
-		"--disable-workspace-trust",
 		"--server-data-dir", s.serverDir())
 	if err != nil {
 		return fmt.Errorf("vscode server: %w", err)
