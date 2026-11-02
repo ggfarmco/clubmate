@@ -1,7 +1,7 @@
 import Foundation
 
 public enum PhoneSections {
-    public static let native: Set<String> = [AgentsPluginInfo.id, BacklogPluginInfo.id, DocsPluginInfo.id, "terminals", "editor-nvim"]
+    public static let native: Set<String> = [AgentsPluginInfo.id, BacklogPluginInfo.id, DocsPluginInfo.id, "terminals", "editor-nvim", "editor-vscode"]
 
     public static func more(_ sections: [SectionInfo]) -> [SectionInfo] {
         sections

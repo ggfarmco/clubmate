@@ -45,7 +45,7 @@ func (a *app) quickfix(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 	if err := validQuickfix(args); err != nil {
 		return err
 	}
-	e, c, err := a.attachNvim(ctx, h, workspaceID, args.Items[0].Path)
+	e, c, err := a.attach(ctx, h, workspaceID, args.Items[0].Path)
 	if c == nil || err != nil {
 		return err
 	}

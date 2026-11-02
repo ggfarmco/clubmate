@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,7 +43,7 @@ func themeFile() string {
 	return filepath.Join(dir, themeFileName)
 }
 
-func (a *app) themeChanged(ctx context.Context, h *pluginsdk.Host, payload json.RawMessage) {
+func (a *app) themeChanged(payload json.RawMessage) {
 	t, err := decodeTheme(payload)
 	if err != nil {
 		logError(themeTopic, err)
@@ -58,7 +57,6 @@ func (a *app) themeChanged(ctx context.Context, h *pluginsdk.Host, payload json.
 	for _, c := range a.connectedClients() {
 		pushTheme(c, t)
 	}
-	a.vscodeTheme(ctx, h, t.Dark)
 }
 
 func (a *app) applyTheme(c *client) {

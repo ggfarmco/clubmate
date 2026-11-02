@@ -15,6 +15,7 @@ client/Clubmate/Resources/terminfo
 /plugins/agents/agents
 /agents
 /editor-nvim
+/editor-vscode
 /backlog
 /cron
 /git

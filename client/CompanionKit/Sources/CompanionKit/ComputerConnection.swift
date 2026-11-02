@@ -228,6 +228,11 @@ public final class ComputerConnection: CommandRunner {
                         emit(.online)
                     case .event(let event):
                         lastEventID = event.seq
+                        if event.topic == Topic.pluginChanged {
+                            for ui in interfaces.values.compactMap(\.value) {
+                                ui.reloadSections()
+                            }
+                        }
                         if event.topic == Topic.pluginChanged, let fresh = try? await client.hello() {
                             if Task.isCancelled { return }
                             self.hello = fresh

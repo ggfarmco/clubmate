@@ -162,7 +162,7 @@ func TestRestartReplacesRunningPlugin(t *testing.T) {
 	for _, ev := range events {
 		payloads = append(payloads, string(ev.Payload))
 	}
-	assert.Equal(t, []string{`{"id":"echo","running":true}`, `{"id":"echo","running":false}`, `{"id":"echo","running":true}`}, payloads)
+	assert.Equal(t, []string{`{"id":"echo","running":true,"enabled":true}`, `{"id":"echo","running":false,"enabled":true}`, `{"id":"echo","running":true,"enabled":true}`}, payloads)
 	var echoed map[string]any
 	require.NoError(t, c.Call(t.Context(), "command.run", map[string]any{"id": "echo.say", "workspaceId": p.ID, "args": map[string]any{"text": "hi"}}, &echoed))
 	assert.Equal(t, "echo", echoed["plugin"])

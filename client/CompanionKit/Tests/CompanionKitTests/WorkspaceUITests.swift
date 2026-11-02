@@ -56,6 +56,18 @@ final class WorkspaceUITests: XCTestCase {
         server.connection.stop()
     }
 
+    func testPluginChangeRefetchesTheSections() async throws {
+        let server = try UIServer()
+        let ui = try await server.started(["cron.main"])
+        XCTAssertTrue(ui.sections.contains { $0.id == "cron" })
+
+        server.disable("cron")
+
+        try await waitUntil { !ui.sections.contains { $0.id == "cron" } }
+        XCTAssertEqual(ui.sections.count, 7)
+        server.connection.stop()
+    }
+
     func testMoreListsTheSectionsWithoutANativeScreen() throws {
         let sections = try JSONDecoder().decode(JSONValue.self, from: fixture("sdui"))["sections"] ?? .array([])
         let decoded = try JSONDecoder().decode([SectionInfo].self, from: JSONEncoder().encode(sections))
@@ -93,13 +105,14 @@ private final class UIServer {
     private let getLog = Recorder<[String]>()
     private let eventLog = Recorder<JSONValue>()
     private let streams = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+    private let disabled = Recorder<String>()
     let connection: ComputerConnection
 
     init() throws {
         let fixture = try JSONDecoder().decode(JSONValue.self, from: fixture("sdui"))
         let sections = fixture["sections"] ?? .array([])
         let views = fixture["views"]?.objectValue ?? [:]
-        let (watches, gets, events, streams) = (watchLog, getLog, eventLog, streams)
+        let (watches, gets, events, streams, disabled) = (watchLog, getLog, eventLog, streams, disabled)
         let hello = #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.21","commands":[],"topics":[],"ui":true}"#
         let transport = FakeTransport(reply: { request in
             let body = (try? JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())) ?? .null
@@ -107,7 +120,10 @@ private final class UIServer {
             switch FakeTransport.rpc(request) {
             case "hello": return (FakeTransport.result(hello), 200)
             case "workspaces": return (FakeTransport.result(workspacesJSON), 200)
-            case "uiSections": return (try JSONEncoder().encode(JSONValue.object(["result": sections])), 200)
+            case "uiSections":
+                let off = Set(disabled.values)
+                let on = sections.arrayValue?.filter { !off.contains($0["id"]?.stringValue ?? "") } ?? []
+                return (try JSONEncoder().encode(JSONValue.object(["result": .array(on)])), 200)
             case "uiWatch":
                 watches.add(Watch(stream: params["stream"]?.stringValue ?? "", slots: params["slots"]?.arrayValue?.compactMap(\.stringValue) ?? []))
                 return (FakeTransport.result("null"), 200)
@@ -146,6 +162,11 @@ private final class UIServer {
 
     func push(_ slot: String, rev: Int, tree: String, workspace: String = "w") {
         streams.values.last?.yield(Data("event: ui\ndata: {\"workspace\":\"\(workspace)\",\"slot\":\"\(slot)\",\"rev\":\(rev),\"tree\":\(tree)}\n\n".utf8))
+    }
+
+    func disable(_ plugin: String) {
+        disabled.add(plugin)
+        streams.values.last?.yield(Data("event: bus\ndata: {\"seq\":1,\"topic\":\"plugin.changed\",\"payload\":{\"id\":\"\(plugin)\",\"running\":false,\"enabled\":false}}\n\n".utf8))
     }
 
     func drop() {

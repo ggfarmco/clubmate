@@ -37,6 +37,7 @@ var (
 	ErrInvalidParams     = errors.New("invalid params")
 	ErrMethodNotFound    = errors.New("method not found")
 	ErrPluginUnavailable = errors.New("plugin unavailable")
+	ErrPluginDisabled    = errors.New("plugin disabled")
 	ErrPluginError       = errors.New("plugin error")
 	ErrUnknownPlugin     = errors.New("unknown plugin")
 	ErrDenied            = errors.New("denied")
@@ -122,7 +123,7 @@ func errorCode(err error) int64 {
 		errors.Is(err, errUnknownCommand),
 		errors.Is(err, ErrUnknownPlugin):
 		return codeNotFound
-	case errors.Is(err, ErrPluginUnavailable):
+	case errors.Is(err, ErrPluginUnavailable), errors.Is(err, ErrPluginDisabled):
 		return codePluginUnavailable
 	case errors.Is(err, ErrPluginError):
 		return codePluginError

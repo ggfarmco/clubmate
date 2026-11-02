@@ -159,7 +159,7 @@ func (s *Server) uiSections(context.Context, empty) ([]sdui.Section, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nonNil(u.sections.List()), nil
+	return nonNil(slices.DeleteFunc(u.sections.List(), func(sec sdui.Section) bool { return !s.pluginEnabled(sec.Plugin) })), nil
 }
 
 func (s *Server) uiGet(_ context.Context, p workspaceParams) ([]sdui.SlotView, error) {
@@ -220,8 +220,12 @@ func (s *Server) uiFocus(ctx context.Context, p focusParams) (deliveredResult, e
 		}
 		return deliveredResult{}, err
 	}
-	if _, ok := u.sections.Owner(p.Section); !ok {
+	owner, ok := u.sections.Owner(p.Section)
+	if !ok {
 		return deliveredResult{}, invalidParams(fmt.Sprintf("unknown section: %q", p.Section))
+	}
+	if !s.pluginEnabled(owner) {
+		return deliveredResult{}, fmt.Errorf("%w: %s", ErrPluginDisabled, owner)
 	}
 	if scope, _ := u.sections.SlotScope(p.Section + ".main"); scope == sdui.ScopeApp {
 		return deliveredResult{}, invalidParams(fmt.Sprintf("section %q is app-scope", p.Section))

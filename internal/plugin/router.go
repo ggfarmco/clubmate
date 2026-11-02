@@ -29,8 +29,9 @@ type Router struct {
 	mu     sync.Mutex
 	warned map[string]bool
 
-	tableMu sync.Mutex
-	table   *routeTable
+	tableMu  sync.Mutex
+	table    *routeTable
+	defaults map[string]string
 }
 
 type routeTable struct {
@@ -41,7 +42,31 @@ type routeTable struct {
 }
 
 func NewRouter(sup *Supervisor) *Router {
-	return &Router{sup: sup, warned: map[string]bool{}}
+	return &Router{sup: sup, warned: map[string]bool{}, defaults: map[string]string{}}
+}
+
+func (r *Router) SetDefault(capability, pluginID string) {
+	r.tableMu.Lock()
+	defer r.tableMu.Unlock()
+	if pluginID == "" {
+		delete(r.defaults, capability)
+	} else {
+		r.defaults[capability] = pluginID
+	}
+	r.table = nil
+}
+
+func (r *Router) Providers(capability string) rpc.CapabilityProviders {
+	out := rpc.CapabilityProviders{Providers: []rpc.CapabilityProvider{}}
+	if c, ok := r.routes().capabilities[capability]; ok {
+		out.Default = c.Plugin
+	}
+	for _, st := range r.sup.Statuses() {
+		if slices.ContainsFunc(st.Manifest.Contributes.Commands, func(c rpc.CommandDef) bool { return slices.Contains(c.Provides, capability) }) {
+			out.Providers = append(out.Providers, rpc.CapabilityProvider{Plugin: st.ID, Name: st.Manifest.Name, Enabled: st.Enabled})
+		}
+	}
+	return out
 }
 
 func (r *Router) UIEvent(ctx context.Context, pluginID string, ev json.RawMessage) (json.RawMessage, error) {
@@ -92,6 +117,9 @@ func (r *Router) routes() *routeTable {
 	}
 	t := &routeTable{gen: gen, byID: map[string]rpc.Command{}, capabilities: r.capabilities()}
 	for _, st := range r.sup.Statuses() {
+		if !st.Enabled {
+			continue
+		}
 		for _, c := range st.Manifest.Contributes.Commands {
 			cmd := command(st, c)
 			t.commands = append(t.commands, cmd)
@@ -122,8 +150,11 @@ func (r *Router) capabilities() map[string]rpc.Command {
 				break
 			}
 		}
+		if i := slices.IndexFunc(cs, func(c rpc.Command) bool { return c.Plugin == r.defaults[name] }); i >= 0 {
+			chosen = cs[i]
+		}
 		out[name] = chosen
-		if len(cs) > 1 {
+		if len(cs) > 1 && r.defaults[name] == "" {
 			ids := make([]string, 0, len(cs))
 			for _, c := range cs {
 				ids = append(ids, c.ID)

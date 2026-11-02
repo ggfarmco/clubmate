@@ -10,8 +10,9 @@ final class SettingsPlugins {
     private(set) var list: [PluginStatus]?
     private(set) var error: String?
     private(set) var restarting: Set<String> = []
+    private(set) var switching: [String: Bool] = [:]
+    private(set) var editors: CapabilityProviders?
     private(set) var store: WorkspaceUIStore?
-    private var icons: [String: String] = [:]
 
     @ObservationIgnored private var client: CoreClient?
 
@@ -20,8 +21,9 @@ final class SettingsPlugins {
     }
 
     func icon(_ plugin: String) -> String {
-        let declared = list?.first { $0.id == plugin }?.manifest.icon
-        return SymbolName.resolve(declared ?? icons[plugin], fallback: SymbolName.resolve(icons[plugin], fallback: "puzzlepiece.extension"))
+        let manifest = list?.first { $0.id == plugin }?.manifest
+        let section = manifest?.contributes.sections.first?.icon
+        return SymbolName.resolve(manifest?.icon ?? section, fallback: SymbolName.resolve(section, fallback: "puzzlepiece.extension"))
     }
 
     func follow(_ client: CoreClient?, active: Bool) async {
@@ -44,6 +46,39 @@ final class SettingsPlugins {
         }
     }
 
+    static let editorCapability = "editor.open"
+
+    func isEnabled(_ plugin: PluginStatus) -> Bool {
+        switching[plugin.id] ?? plugin.isEnabled
+    }
+
+    func setEnabled(_ id: String, _ enabled: Bool) async -> String? {
+        guard let client else { return "Not connected to the core" }
+        switching[id] = enabled
+        defer { switching[id] = nil }
+        do {
+            try await client.pluginSetEnabled(id: id, enabled: enabled)
+            await load(client)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    func setDefaultEditor(_ plugin: String) async -> String? {
+        guard let client else { return "Not connected to the core" }
+        let previous = editors
+        editors?.default = plugin
+        do {
+            try await client.capabilitySetDefault(name: Self.editorCapability, plugin: plugin)
+            await load(client)
+            return nil
+        } catch {
+            editors = previous
+            return error.localizedDescription
+        }
+    }
+
     func restart(_ id: String) async -> String? {
         guard let client else { return "Not connected to the core" }
         restarting.insert(id)
@@ -61,9 +96,8 @@ final class SettingsPlugins {
         do {
             let plugins = try await client.pluginList()
             if plugins != list { list = plugins }
-            if icons.isEmpty, let sections = try? await client.uiSections() {
-                for section in sections.reversed() { icons[section.plugin] = section.icon }
-            }
+            let editors = try? await client.capabilityProviders(name: Self.editorCapability)
+            if editors != self.editors { self.editors = editors }
             if error != nil { error = nil }
         } catch {
             self.error = error.localizedDescription
@@ -101,6 +135,7 @@ struct PluginSidebarRow: View {
         HStack {
             Label(plugin.name, systemImage: icon)
                 .lineLimit(1)
+                .foregroundStyle(plugin.isEnabled ? .primary : .secondary)
             Spacer(minLength: 4)
             Circle()
                 .fill(plugin.statusColor)
@@ -122,13 +157,22 @@ struct PluginSettingsPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PluginSettingsHeader(plugin: plugin, icon: plugins.icon(plugin.id), restarting: plugins.restarting.contains(plugin.id)) {
+            PluginSettingsHeader(plugin: plugin, icon: plugins.icon(plugin.id), restarting: plugins.restarting.contains(plugin.id), switching: plugins.switching[plugin.id] != nil, enabled: enabled) {
                 Task {
                     if let error = await plugins.restart(plugin.id) { banner?.show(error) }
                 }
             }
             Divider()
-            if plugin.id == "remote" {
+            if !plugin.isEnabled {
+                Form {
+                    Section {
+                        Text("\(plugin.name) is off. It doesn't run, and its section, commands and agent tools are gone until you turn it on.")
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .formStyle(.grouped)
+            } else if plugin.id == "remote" {
                 DevicesSettings(model: app.remoteDevices, client: app.supervisor.client, active: true)
             } else {
                 Form {
@@ -145,6 +189,14 @@ struct PluginSettingsPage: View {
                 }
                 .formStyle(.grouped)
                 .task(id: plugin.id) { if plugin.id == "agents" { await app.claude.refresh() } }
+            }
+        }
+    }
+
+    private var enabled: Binding<Bool> {
+        Binding { plugins.isEnabled(plugin) } set: { [plugins, banner, id = plugin.id] on in
+            Task {
+                if let error = await plugins.setEnabled(id, on) { banner?.show(error) }
             }
         }
     }
@@ -187,6 +239,8 @@ private struct PluginSettingsHeader: View {
     let plugin: PluginStatus
     let icon: String
     let restarting: Bool
+    let switching: Bool
+    @Binding var enabled: Bool
     let restart: () -> Void
 
     var body: some View {
@@ -209,11 +263,18 @@ private struct PluginSettingsHeader: View {
                     Text(plugin.stateLabel).lineLimit(1)
                 }
                 .font(.caption)
-                Button("Restart", action: restart)
-                    .disabled(restarting || plugin.state == "starting")
-                    .help("Stop \(plugin.name) and start it again")
+                if plugin.isEnabled {
+                    Button("Restart", action: restart)
+                        .disabled(restarting || switching || plugin.state == "starting")
+                        .help("Stop \(plugin.name) and start it again")
+                }
+                Toggle("Enabled", isOn: $enabled)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .disabled(switching)
+                    .help(enabled ? "Turn \(plugin.name) off" : "Turn \(plugin.name) on")
             }
-            if !plugin.healthy, !plugin.lastError.isEmpty {
+            if plugin.isEnabled, !plugin.healthy, !plugin.lastError.isEmpty {
                 Text(plugin.lastError)
                     .font(.caption)
                     .foregroundStyle(.red)

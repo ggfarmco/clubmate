@@ -32,14 +32,15 @@ const (
 )
 
 type PluginHarness struct {
-	Svc    *core.Service
-	Bus    *bus.Bus
-	Srv    *rpc.Server
-	Sup    *plugin.Supervisor
-	Store  *internalsdui.Store
-	KV     *kv.Store
-	Dirs   paths.Dirs
-	client *rpc.Client
+	Svc     *core.Service
+	Bus     *bus.Bus
+	Srv     *rpc.Server
+	Sup     *plugin.Supervisor
+	Store   *internalsdui.Store
+	KV      *kv.Store
+	Control *plugin.Control
+	Dirs    paths.Dirs
+	client  *rpc.Client
 }
 
 type noopHandler struct{}
@@ -61,7 +62,7 @@ func NewHarness(t *testing.T, opts ...plugin.SupervisorOption) *PluginHarness {
 	t.Cleanup(func() { store.Close() })
 	h.KV = store
 	h.Srv = rpc.NewServer(h.Svc, h.Bus, rpc.WithKV(store))
-	opts = append([]plugin.SupervisorOption{plugin.WithOnStop(h.Store.ClearOwner), plugin.WithBus(h.Bus)}, opts...)
+	opts = append([]plugin.SupervisorOption{plugin.WithOnStop(h.Store.ClearOwner), plugin.WithBus(h.Bus), plugin.WithEnabled(func(m plugin.Manifest) bool { return h.Control.StartEnabled(m) })}, opts...)
 	h.Sup = plugin.NewSupervisor(h.Srv, h.Dirs, slog.New(slog.DiscardHandler), opts...)
 	h.Srv.SetPluginRestart(h.Sup.Restart)
 	return h
@@ -71,7 +72,13 @@ func (h *PluginHarness) Start(t *testing.T, searchPath ...string) {
 	t.Helper()
 	manifests, errs := plugin.Discover(searchPath)
 	require.Empty(t, errs)
-	h.Srv.SetUI(h.Store, internalsdui.NewSections(plugin.SectionDefs(manifests), plugin.ViewDefs(manifests, slog.New(slog.DiscardHandler))...), plugin.NewRouter(h.Sup))
+	control, err := plugin.NewControl(context.Background(), h.KV, manifests)
+	require.NoError(t, err)
+	h.Control = control
+	router := plugin.NewRouter(h.Sup)
+	require.NoError(t, control.Attach(h.Sup, router))
+	h.Srv.SetPluginControl(control)
+	h.Srv.SetUI(h.Store, internalsdui.NewSections(plugin.SectionDefs(manifests), plugin.ViewDefs(manifests, slog.New(slog.DiscardHandler))...), router)
 	h.Sup.Start(context.Background(), manifests)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), harnessStopTimeout)

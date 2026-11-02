@@ -54,7 +54,7 @@ const (
 var (
 	defaultSort = sdui.Sort{Column: colCPU, Desc: true}
 	columnIDs   = []string{colPID, colCPU, colMem, colTime, colHistory, colCommand}
-	ownerLabels = map[string]string{"terminals": "Terminals", "agents": "Agents", "editor-nvim": "Code"}
+	ownerLabels = map[string]string{"terminals": "Terminals", "agents": "Agents", "editor-nvim": "Neovim"}
 	ownerIcons  = map[string]string{
 		coreID:        "cpu",
 		"terminals":   "terminal",

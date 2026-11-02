@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	timeout   = 10 * time.Second
-	waitDelay = 2 * time.Second
+	timeout       = 10 * time.Second
+	waitDelay     = 2 * time.Second
+	branchTimeout = 2 * time.Second
 )
 
 var (
@@ -114,6 +115,20 @@ func Branch(ctx context.Context, repo string) (string, error) {
 		return "", err
 	}
 	return "(detached " + strings.TrimSpace(string(out)) + ")", nil
+}
+
+func BranchAt(ctx context.Context, dir string) string {
+	repo, ok := RepoRoot(dir)
+	if !ok {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(ctx, branchTimeout)
+	defer cancel()
+	branch, err := Branch(ctx, repo)
+	if err != nil {
+		return ""
+	}
+	return branch
 }
 
 func DefaultBase(ctx context.Context, repo string) (string, error) {

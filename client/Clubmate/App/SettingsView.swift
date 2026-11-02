@@ -43,7 +43,8 @@ struct SettingsView: View {
     @ViewBuilder private var detail: some View {
         switch page {
         case .general:
-            GeneralSettings(settings: settings)
+            GeneralSettings(settings: settings, plugins: plugins)
+                .eventBanner()
         case .shortcuts:
             ShortcutsSettings(plugins: plugins)
         case .plugin(let id):
@@ -94,6 +95,9 @@ struct SettingsNotice: View {
 
 private struct GeneralSettings: View {
     @Bindable var settings: AppSettings
+    let plugins: SettingsPlugins
+
+    @Environment(EventBanner.self) private var banner: EventBanner?
 
     var body: some View {
         Form {
@@ -114,8 +118,29 @@ private struct GeneralSettings: View {
                         .disabled(settings.zoomedPaneCount == 0)
                 }
             }
+            if let editors = plugins.editors, editors.enabled.count > 1 {
+                Section("Files") {
+                    SettingsRow(title: "Default editor", detail: "Files you open from a chat, a link or the palette open here.") {
+                        Picker("Default editor", selection: defaultEditor(editors)) {
+                            ForEach(editors.enabled) { editor in
+                                Text(editor.name).tag(editor.plugin)
+                            }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private func defaultEditor(_ editors: CapabilityProviders) -> Binding<String> {
+        Binding { editors.default } set: { [plugins, banner] plugin in
+            Task {
+                if let error = await plugins.setDefaultEditor(plugin) { banner?.show(error) }
+            }
+        }
     }
 
     private var zoomed: String {

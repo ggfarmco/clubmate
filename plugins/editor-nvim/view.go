@@ -37,13 +37,6 @@ var modeNames = map[byte]string{
 	'R':  "REPLACE",
 }
 
-func (a *app) renderNvim(ctx context.Context, h *pluginsdk.Host, e *editor, n sdui.Node) error {
-	if a.vscodeShown(e.id) {
-		return nil
-	}
-	return a.render(ctx, h, e, mainSlot, n)
-}
-
 func (a *app) render(ctx context.Context, h *pluginsdk.Host, e *editor, slot string, n sdui.Node) error {
 	a.slotMu.Lock()
 	defer a.slotMu.Unlock()
@@ -68,22 +61,10 @@ func (a *app) scheduleStatus(h *pluginsdk.Host, e *editor) {
 		e.pending = false
 		st := e.status
 		e.mu.Unlock()
-		if err := a.render(context.Background(), h, e, statusSlot, a.statusNode(e, st)); err != nil {
+		if err := a.render(context.Background(), h, e, statusSlot, statusView(st, a.workspaceFolders(e.id))); err != nil {
 			logError("render status", err)
 		}
 	})
-}
-
-func (a *app) statusNode(e *editor, st status) sdui.Node {
-	if !a.usesVSCode() {
-		return statusView(st, a.workspaceFolders(e.id))
-	}
-	if a.vscodeShown(e.id) {
-		return vscodeStatusView(gitBranch(context.Background(), e.root))
-	}
-	n := statusView(st, a.workspaceFolders(e.id))
-	n.Children = append(n.Children, backToVSCodeButton())
-	return n
 }
 
 func startingView() sdui.Node {

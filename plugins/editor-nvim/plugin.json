@@ -1,12 +1,11 @@
 {
   "id": "editor-nvim",
-  "name": "Code",
+  "name": "Neovim",
   "version": "0.1.0",
   "protocol": 1,
   "command": ["editor-nvim"],
   "contributes": {
-    "views": [{"slot": "editor-nvim.settings"}],
-    "sections": [{"id": "editor-nvim", "title": "Code", "icon": "chevron.left.forwardslash.chevron.right", "order": 10}],
+    "sections": [{"id": "editor-nvim", "title": "Neovim", "icon": "chevron.left.forwardslash.chevron.right", "order": 10}],
     "commands": [
       {
         "id": "editor-nvim.open",
@@ -14,12 +13,13 @@
         "title": "Open file",
         "hidden": true,
         "agent": true,
-        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column; with the VS Code editor setting, in VS Code in the Code section. An absolute path inside another git worktree of a workspace folder switches that folder to the worktree first and opens the file there.",
+        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column. An absolute path inside another git worktree of a workspace folder switches that folder to the worktree first and opens the file there.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "File to open; absolute, or relative to Neovim's working directory (the selected worktree of the first workspace folder that exists, else home)."},
             "line": {"type": "integer", "description": "1-based line to put the cursor on; 0 or absent keeps the default position."},
-            "col": {"type": "integer", "description": "1-based byte column on that line, clamped to the line length; 0 or absent puts the cursor at the line start. Ignored without line."}
+            "col": {"type": "integer", "description": "1-based byte column on that line, clamped to the line length; 0 or absent puts the cursor at the line start. Ignored without line."},
+            "focus": {"type": "boolean", "description": "Also show the Neovim section and focus Neovim."}
           },
           "required": ["path"]
         }
@@ -30,7 +30,7 @@
         "title": "Show in quickfix",
         "hidden": true,
         "agent": true,
-        "description": "Replace the workspace Neovim's quickfix list with the given locations, open the quickfix window and show the Code section. Returns once validated; nvim fills the list asynchronously in small batches. Takes 1 to 10000 items; only items in the first 1000 distinct files are kept, and the title then gets \" (first 1000 files)\". Unknown fields are rejected.",
+        "description": "Replace the workspace Neovim's quickfix list with the given locations, open the quickfix window and show the Neovim section. Returns once validated; nvim fills the list asynchronously in small batches. Takes 1 to 10000 items; only items in the first 1000 distinct files are kept, and the title then gets \" (first 1000 files)\". Unknown fields are rejected.",
         "args": {
           "properties": {
             "title": {"type": "string", "description": "Quickfix list title, at most 512 chars without line breaks or NUL."},
@@ -57,7 +57,7 @@
         "title": "Open Diffview",
         "hidden": true,
         "agent": false,
-        "description": "Switch the workspace folder to the git worktree containing cwd when it is not the selected one, run DiffviewOpen -C<cwd> <rev> --untracked-scoped in that worktree's Neovim and show the Code section. The working tree, uncommitted and untracked files included, is compared against rev. When DiffviewOpen fails, for example because diffview is not installed, Neovim's error shows as the open failed badge.",
+        "description": "Switch the workspace folder to the git worktree containing cwd when it is not the selected one, run DiffviewOpen -C<cwd> <rev> --untracked-scoped in that worktree's Neovim and show the Neovim section. The working tree, uncommitted and untracked files included, is compared against rev. When DiffviewOpen fails, for example because diffview is not installed, Neovim's error shows as the open failed badge.",
         "args": {
           "properties": {
             "cwd": {"type": "string", "description": "Absolute path of the worktree root."},
@@ -71,7 +71,7 @@
         "title": "Current selection",
         "hidden": true,
         "agent": false,
-        "description": "The current or last visual selection of the current root's Neovim: {path, startLine, endLine, text}. Fails with no selection when there is none, and with Not available with VS Code yet while the Code section shows VS Code."
+        "description": "The current or last visual selection of the current root's Neovim: {path, startLine, endLine, text}. Fails with no selection when there is none or Neovim is not running."
       },
       {
         "id": "editor-nvim.checktime",
@@ -148,13 +148,13 @@
         "provides": ["editor.reveal"],
         "title": "Reveal file in Finder",
         "agent": true,
-        "description": "Reveal the file currently open in Neovim in Finder. Fails with Not available with VS Code yet while the Code section shows VS Code."
+        "description": "Reveal the file currently open in Neovim in Finder."
       },
       {
         "id": "editor-nvim.terminal",
         "title": "Open terminal here",
         "agent": true,
-        "description": "Open a new terminal in the directory of the file open in Neovim, or in the first workspace folder; with VS Code, in the current root."
+        "description": "Open a new terminal in the directory of the file open in Neovim, or in the current root."
       },
       {
         "id": "editor-nvim.import-config",
@@ -167,38 +167,10 @@
         "title": "Restart Neovim",
         "agent": true,
         "destructive": true,
-        "description": "With VS Code: restart the VS Code server and show it again (force is ignored; VS Code keeps unsaved edits). With Neovim: restart every running Neovim of the workspace (one per worktree). Fails while file buffers in any of them have unsaved changes, or while a running Neovim does not answer (unsaved buffers: unknown), unless force is true.",
+        "description": "Restart every running Neovim of the workspace (one per worktree). Fails while file buffers in any of them have unsaved changes, or while a running Neovim does not answer (unsaved buffers: unknown), unless force is true.",
         "args": {
           "properties": {
             "force": {"type": "boolean", "description": "Restart even with unsaved buffers, discarding their changes."}
-          }
-        }
-      },
-      {
-        "id": "editor-nvim.settings",
-        "title": "Editor settings",
-        "hidden": true,
-        "remote": true,
-        "agent": true,
-        "scope": "app",
-        "description": "Which editor the Code section shows and whether the VS Code Server License Terms were accepted: {editor, vscodeAccepted}. editor is nvim (default) or vscode. Changes publish editor-nvim.settings-changed with the same shape.",
-        "result": {
-          "properties": {
-            "editor": {"type": "string", "description": "nvim or vscode."},
-            "vscodeAccepted": {"type": "boolean", "description": "The user accepted the VS Code Server License Terms."}
-          }
-        }
-      },
-      {
-        "id": "editor-nvim.settings-set",
-        "title": "Set editor settings",
-        "hidden": true,
-        "agent": true,
-        "scope": "app",
-        "description": "Choose the editor of the Code section; returns the settings as stored. License consent comes only from the user's Accept & Download in the Code section. Switching to vscode stops every running Neovim and fails with Save or discard unsaved changes first: <files> while any of them has unsaved buffers.",
-        "args": {
-          "properties": {
-            "editor": {"type": "string", "description": "nvim or vscode."}
           }
         }
       }

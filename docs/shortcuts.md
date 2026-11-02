@@ -15,7 +15,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⇧⌘W | Close Session | `ClubmateApp.swift` |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
-| ⌘B, ⌃⌘S | Toggle Sidebar; in Code, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
+| ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. a sidebar tree) only that pane. The terminal font is Settings → Terminals → Font size and the chat font Settings → Agents → Chat font size; any other pane follows Settings → General → Interface font size until zoomed, ⌘0 puts it back (General → Zoomed panes resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
@@ -178,7 +178,7 @@ Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/
 
 Starters have no keys: ⌥1–⌥3 answer permission requests only. A click sends the starter prompt; "Explain" and "Write a test" attach the file open in Neovim. Defined by the agents plugin (`plugins/agents/view.go`).
 
-## VS Code (Code section)
+## VS Code (VS Code section)
 
 While a VS Code page (a `webview` node) has focus, these keys go to it instead of the app menu. Every other app menu key stays with Clubmate, as over nvim and terminals; keys the menu doesn't use reach VS Code.
 
@@ -186,7 +186,7 @@ While a VS Code page (a `webview` node) has focus, these keys go to it instead o
 |---|---|---|
 | ⌘W, ⌘N, ⌘O, ⌘P, ⇧⌘P | Go to VS Code (close editor, new file, open, quick open, command palette) | `WebViewHost.swift` (`CodeWebView`) |
 | ⌘K | Stays the Command Palette, so VS Code's ⌘K chords don't work | `ClubmateApp.swift` |
-| ⌘B | Stays Toggle Chat, so VS Code's sidebar toggle is shadowed | `ClubmateApp.swift` |
+| ⌘B | Stays Toggle Sidebar (the chat panel is only in the Neovim section), so VS Code's sidebar toggle is shadowed | `ClubmateApp.swift` |
 | ⌘J | Stays Switch Popup Focus; use ⌃` for VS Code's panel | `ClubmateApp.swift` |
 
 ## nvim (Clubmate distribution, leader `,`)

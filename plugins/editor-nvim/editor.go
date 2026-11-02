@@ -29,7 +29,7 @@ type editor struct {
 func (a *app) editorAt(workspaceID, root string) *editor {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.deleted[workspaceID] {
+	if a.roots.Deleted(workspaceID) {
 		return nil
 	}
 	return a.editorLocked(workspaceID, root)
@@ -88,7 +88,8 @@ func (a *app) connectedClients() []*client {
 func (a *app) isCurrent(e *editor) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return !a.deleted[e.id] && a.current[e.id] == e.root && a.editors[editorKey{workspace: e.id, root: e.root}] == e
+	root, ok := a.roots.Current(e.id)
+	return ok && root == e.root && a.editors[editorKey{workspace: e.id, root: e.root}] == e
 }
 
 func (a *app) drop(workspaceID string) {
@@ -100,16 +101,12 @@ func (a *app) drop(workspaceID string) {
 			delete(a.editors, k)
 		}
 	}
-	delete(a.current, workspaceID)
-	delete(a.workspaces, workspaceID)
-	delete(a.nvimShown, workspaceID)
-	delete(a.vsOpen, workspaceID)
 	for k := range a.stopping {
 		if k.workspace == workspaceID {
 			delete(a.stopping, k)
 		}
 	}
-	a.deleted[workspaceID] = true
+	a.roots.Drop(workspaceID)
 	a.mu.Unlock()
 	for _, e := range editors {
 		go func() {
@@ -125,7 +122,7 @@ func (a *app) drop(workspaceID string) {
 func (a *app) isDeleted(workspaceID string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.deleted[workspaceID]
+	return a.roots.Deleted(workspaceID)
 }
 
 func (a *app) setStopping(workspaceID, root string, on bool) {

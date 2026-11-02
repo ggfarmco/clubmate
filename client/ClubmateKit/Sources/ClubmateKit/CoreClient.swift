@@ -144,6 +144,18 @@ public final class CoreClient {
         let _: NoParams = try await connection.call("plugin.restart", IDParams(id: id))
     }
 
+    public func pluginSetEnabled(id: String, enabled: Bool) async throws {
+        let _: NoParams = try await connection.call("plugin.set-enabled", EnabledParams(id: id, enabled: enabled), timeout: .seconds(60))
+    }
+
+    public func capabilityProviders(name: String) async throws -> CapabilityProviders {
+        try await connection.call("capability.providers", CapabilityParams(name: name))
+    }
+
+    public func capabilitySetDefault(name: String, plugin: String) async throws {
+        let _: NoParams = try await connection.call("capability.set-default", CapabilityDefaultParams(name: name, plugin: plugin))
+    }
+
     public func commandList() async throws -> [Command] {
         try await connection.call("command.list", NoParams())
     }
@@ -269,6 +281,20 @@ private struct RegisterParams: Encodable, Sendable {
 
 private struct IDParams: Encodable, Sendable {
     let id: String
+}
+
+private struct EnabledParams: Encodable, Sendable {
+    let id: String
+    let enabled: Bool
+}
+
+private struct CapabilityParams: Encodable, Sendable {
+    let name: String
+}
+
+private struct CapabilityDefaultParams: Encodable, Sendable {
+    let name: String
+    let plugin: String
 }
 
 private struct FoldersParams: Encodable, Sendable {

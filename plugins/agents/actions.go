@@ -99,8 +99,9 @@ type configValue struct {
 }
 
 type pathValue struct {
-	Path string `json:"path"`
-	Line int    `json:"line,omitempty"`
+	Path  string `json:"path"`
+	Line  int    `json:"line,omitempty"`
+	Focus bool   `json:"focus,omitempty"`
 }
 
 type docsOpenArgs struct {
@@ -369,10 +370,8 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err := decode(ev.Value, &v); err != nil {
 			return err
 		}
-		if err := a.host.RunCommand(ctx, openCmd, ev.WorkspaceID, v, nil); err != nil {
-			return err
-		}
-		return a.host.Focus(ctx, ev.WorkspaceID, editorSection, editorSlot)
+		v.Focus = true
+		return a.host.RunCommand(ctx, openCmd, ev.WorkspaceID, v, nil)
 	case actOpenDoc:
 		var path string
 		if err := decode(ev.Value, &path); err != nil {
@@ -408,10 +407,7 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		if err != nil {
 			return err
 		}
-		if err := a.host.RunCommand(ctx, openCmd, ev.WorkspaceID, pathValue{Path: path}, nil); err != nil {
-			return err
-		}
-		return a.host.Focus(ctx, ev.WorkspaceID, editorSection, editorSlot)
+		return a.host.RunCommand(ctx, openCmd, ev.WorkspaceID, pathValue{Path: path, Focus: true}, nil)
 	case actStopSubagent:
 		tool, ok := strings.CutPrefix(node, "tool/")
 		if !ok {

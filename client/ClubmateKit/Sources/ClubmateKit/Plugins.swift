@@ -7,6 +7,7 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
     public let restarts: Int
     public let lastError: String
     public let manifest: Manifest
+    private let enabled: Bool?
 
     public struct Manifest: Decodable, Sendable, Equatable {
         public let name: String
@@ -47,6 +48,7 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
     public struct Item: Decodable, Sendable, Equatable {
         public let id: String
         public let title: String
+        public let icon: String?
     }
 
     public var name: String {
@@ -57,6 +59,7 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
         switch state {
         case "backoff": "crashed, restarting"
         case "failed": "crashed"
+        case "disabled": "off"
         default: state
         }
     }
@@ -75,5 +78,26 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
 
     public var healthy: Bool {
         state == "running"
+    }
+
+    public var isEnabled: Bool {
+        enabled ?? true
+    }
+}
+
+public struct CapabilityProviders: Decodable, Sendable, Equatable {
+    public var `default`: String
+    public let providers: [Provider]
+
+    public struct Provider: Decodable, Sendable, Equatable, Identifiable {
+        public let plugin: String
+        public let name: String
+        public let enabled: Bool
+
+        public var id: String { plugin }
+    }
+
+    public var enabled: [Provider] {
+        providers.filter(\.enabled)
     }
 }

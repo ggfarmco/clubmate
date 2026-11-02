@@ -1230,13 +1230,10 @@ func TestOpenLocationShowsEditor(t *testing.T) {
 	f.prompt(t, workspace, session, "read it")
 	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "toolCard")) == 1 })
 	card := cardsOf(main, "toolCard")[0]
-	c := f.h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
 
 	f.h.Event(t, workspace, "agents.main", card.ID, "openLocation", map[string]any{"path": path, "line": 1})
 
-	assert.JSONEq(t, `{"path":"`+path+`","line":1}`, string(echoed(t, f, "editor-nvim.open")))
-	waitFocus(t, c, "editor-nvim", "editor-nvim.main")
+	assert.JSONEq(t, `{"path":"`+path+`","line":1,"focus":true}`, string(echoed(t, f, "editor-nvim.open")))
 }
 
 func TestOpenDocRunsDocsOpenForTheSession(t *testing.T) {
@@ -1284,18 +1281,19 @@ func TestOpenOutputWritesFullOutputAndOpensIt(t *testing.T) {
 	f.prompt(t, workspace, session, "run it")
 	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "toolCard")) == 1 })
 	card := cardsOf(main, "toolCard")[0]
-	c := f.h.Client(t)
-	require.NoError(t, c.Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": workspace}, nil))
 
 	f.h.Event(t, workspace, "agents.main", card.ID, "openOutput", nil)
 
-	var args struct{ Path string }
+	var args struct {
+		Path  string
+		Focus bool
+	}
 	require.NoError(t, json.Unmarshal(echoed(t, f, "editor-nvim.open"), &args))
 	assert.Equal(t, session+"-x1.log", filepath.Base(args.Path))
+	assert.True(t, args.Focus)
 	got, err := os.ReadFile(args.Path)
 	require.NoError(t, err)
 	assert.Equal(t, output, string(got))
-	waitFocus(t, c, "editor-nvim", "editor-nvim.main")
 }
 
 func TestRevealSelectsTheSessionAndFocusesAgents(t *testing.T) {

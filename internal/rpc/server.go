@@ -44,6 +44,7 @@ type Server struct {
 	methods       map[string]handlerFunc
 	pluginList    atomic.Pointer[func() any]
 	pluginRestart atomic.Pointer[func(id string) error]
+	pluginControl atomic.Pointer[PluginControl]
 	ui            atomic.Pointer[uiState]
 	presence      presence
 	uiStateMu     sync.Mutex

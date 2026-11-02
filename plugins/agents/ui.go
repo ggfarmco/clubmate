@@ -27,7 +27,6 @@ const (
 	sectionID     = "agents"
 	codeSlot      = "editor-nvim.sidebar"
 	editorSection = "editor-nvim"
-	editorSlot    = "editor-nvim.main"
 
 	renderEvery    = 100 * time.Millisecond
 	tickEvery      = 30 * time.Second

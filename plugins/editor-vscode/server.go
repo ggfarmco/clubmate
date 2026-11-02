@@ -41,7 +41,7 @@ const (
 )
 
 var (
-	errCodeMissing      = errors.New("VS Code not found — install it or switch the editor to Neovim in Settings → Code")
+	errCodeMissing      = errors.New("VS Code not found — install it or turn VS Code off in Settings → VS Code")
 	errServerMissing    = errors.New("vscode: server not downloaded")
 	errServerExited     = errors.New("vscode: server exited")
 	errStartTimeout     = errors.New("vscode: server did not start in time")

@@ -29,6 +29,7 @@ const (
 	StateBackoff  = "backoff"
 	StateFailed   = "failed"
 	StateStopped  = "stopped"
+	StateDisabled = "disabled"
 
 	defaultBackoffBase = time.Second
 	defaultBackoffMax  = 30 * time.Second
@@ -55,11 +56,15 @@ var (
 	errExited     = errors.New("plugin exited")
 	errConnClosed = errors.New("plugin connection closed")
 	errRestart    = errors.New("plugin restart requested")
+	errNotStarted = errors.New("plugin supervisor not running")
+
+	ErrPluginDisabled = rpc.ErrPluginDisabled
 )
 
 type Status struct {
 	ID        string   `json:"id"`
 	State     string   `json:"state"`
+	Enabled   bool     `json:"enabled"`
 	PID       int      `json:"pid"`
 	Restarts  int      `json:"restarts"`
 	LastError string   `json:"lastError"`
@@ -71,6 +76,7 @@ type SupervisorOption func(*Supervisor)
 type changedEvent struct {
 	ID      string `json:"id"`
 	Running bool   `json:"running"`
+	Enabled bool   `json:"enabled"`
 }
 
 type Supervisor struct {
@@ -84,12 +90,16 @@ type Supervisor struct {
 	onStop      func(id string)
 	resourceDir string
 	bus         *bus.Bus
+	enabled     func(Manifest) bool
 
 	hurryCtx context.Context
 	hurry    context.CancelFunc
 	wg       sync.WaitGroup
 
+	toggleMu sync.Mutex
+
 	mu      sync.Mutex
+	ctx     context.Context
 	cancel  context.CancelFunc
 	plugins map[string]*instance
 	order   []string
@@ -97,10 +107,13 @@ type Supervisor struct {
 }
 
 type instance struct {
-	status  Status
-	conn    *jsonrpc2.Conn
-	crashes []time.Time
-	restart chan struct{}
+	status   Status
+	manifest Manifest
+	conn     *jsonrpc2.Conn
+	crashes  []time.Time
+	restart  chan struct{}
+	stop     context.CancelFunc
+	done     chan struct{}
 }
 
 type process struct {
@@ -146,6 +159,10 @@ func WithBus(b *bus.Bus) SupervisorOption {
 	return func(s *Supervisor) { s.bus = b }
 }
 
+func WithEnabled(fn func(Manifest) bool) SupervisorOption {
+	return func(s *Supervisor) { s.enabled = fn }
+}
+
 func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts ...SupervisorOption) *Supervisor {
 	s := &Supervisor{
 		srv:         srv,
@@ -156,6 +173,7 @@ func NewSupervisor(srv *rpc.Server, dirs paths.Dirs, logger *slog.Logger, opts .
 		crashLimit:  defaultCrashLimit,
 		crashWindow: defaultCrashWindow,
 		plugins:     map[string]*instance{},
+		enabled:     Manifest.DefaultEnabled,
 	}
 	s.hurryCtx, s.hurry = context.WithCancel(context.Background())
 	for _, opt := range opts {
@@ -171,26 +189,86 @@ func (s *Supervisor) Start(ctx context.Context, manifests []Manifest) {
 		s.logger.Warn("plugin supervisor already started, ignoring Start")
 		return
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
+	s.ctx, s.cancel = context.WithCancel(ctx)
 	for _, m := range manifests {
-		s.plugins[m.ID] = &instance{status: Status{ID: m.ID, State: StateStarting, Manifest: m}, restart: make(chan struct{}, 1)}
+		inst := &instance{status: Status{ID: m.ID, State: StateDisabled, Manifest: m}, manifest: m, restart: make(chan struct{}, 1)}
+		s.plugins[m.ID] = inst
 		s.order = append(s.order, m.ID)
+		if s.enabled(m) {
+			s.launch(inst)
+		}
 	}
 	s.gen++
 	s.mu.Unlock()
-	for _, m := range manifests {
-		restart := s.plugins[m.ID].restart
-		s.wg.Go(func() { s.supervise(ctx, m, restart) })
+}
+
+func (s *Supervisor) launch(inst *instance) {
+	ctx, stop := context.WithCancel(s.ctx)
+	done := make(chan struct{})
+	inst.status.Enabled = true
+	inst.status.State = StateStarting
+	inst.stop, inst.done = stop, done
+	m, restart := inst.manifest, inst.restart
+	s.wg.Go(func() {
+		defer close(done)
+		s.supervise(ctx, m, restart)
+	})
+}
+
+func (s *Supervisor) SetEnabled(ctx context.Context, id string, enabled bool) error {
+	s.toggleMu.Lock()
+	defer s.toggleMu.Unlock()
+	s.mu.Lock()
+	inst, ok := s.plugins[id]
+	switch {
+	case !ok:
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrUnknownPlugin, id)
+	case s.ctx == nil || s.ctx.Err() != nil:
+		s.mu.Unlock()
+		return errNotStarted
+	case inst.status.Enabled == enabled:
+		s.mu.Unlock()
+		return nil
+	case enabled:
+		inst.crashes = nil
+		inst.status.Restarts = 0
+		inst.status.LastError = ""
+		select {
+		case <-inst.restart:
+		default:
+		}
+		s.launch(inst)
+		s.gen++
+		s.mu.Unlock()
+		s.changed(id, false)
+		return nil
 	}
+	inst.status.Enabled = false
+	stop, done := inst.stop, inst.done
+	s.gen++
+	s.mu.Unlock()
+	stop()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	s.update(id, func(inst *instance) { inst.status.State = StateDisabled })
+	s.changed(id, false)
+	return nil
 }
 
 func (s *Supervisor) Restart(id string) error {
 	s.mu.Lock()
 	inst, ok := s.plugins[id]
+	enabled := ok && inst.status.Enabled
 	s.mu.Unlock()
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownPlugin, id)
+	}
+	if !enabled {
+		return fmt.Errorf("%w: %s", ErrPluginDisabled, id)
 	}
 	select {
 	case inst.restart <- struct{}{}:
@@ -202,11 +280,10 @@ func (s *Supervisor) Restart(id string) error {
 func (s *Supervisor) Stop(ctx context.Context) {
 	defer s.hurry()
 	s.mu.Lock()
-	cancel := s.cancel
-	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if s.cancel != nil {
+		s.cancel()
 	}
+	s.mu.Unlock()
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()
@@ -250,7 +327,9 @@ func (s *Supervisor) loaded() []Status {
 	defer s.mu.Unlock()
 	out := make([]Status, 0, len(s.order))
 	for _, id := range s.order {
-		out = append(out, s.plugins[id].status)
+		if st := s.plugins[id].status; st.Enabled {
+			out = append(out, st)
+		}
 	}
 	return out
 }
@@ -277,7 +356,7 @@ func (s *Supervisor) supervise(ctx context.Context, m Manifest, restart <-chan s
 		requested, ok := pause(ctx, delay, retry, restart)
 		if !ok {
 			if retry {
-				s.update(m.ID, func(inst *instance) { inst.status.State = StateStopped })
+				s.update(m.ID, func(inst *instance) { inst.status.State = inst.stoppedState() })
 			}
 			return
 		}
@@ -390,7 +469,10 @@ func (s *Supervisor) changed(id string, running bool) {
 	if s.bus == nil {
 		return
 	}
-	raw, err := json.Marshal(changedEvent{ID: id, Running: running})
+	s.mu.Lock()
+	enabled := s.plugins[id].status.Enabled
+	s.mu.Unlock()
+	raw, err := json.Marshal(changedEvent{ID: id, Running: running, Enabled: enabled})
 	if err != nil {
 		s.logger.Error("marshal plugin event", "id", id, "err", err)
 		return
@@ -426,7 +508,7 @@ func (s *Supervisor) settle(ctx context.Context, id string, cause error) (time.D
 	inst.conn = nil
 	inst.status.PID = 0
 	if ctx.Err() != nil {
-		inst.status.State = StateStopped
+		inst.status.State = inst.stoppedState()
 		s.mu.Unlock()
 		return 0, false
 	}
@@ -453,6 +535,13 @@ func (s *Supervisor) settle(ctx context.Context, id string, cause error) (time.D
 	delay := s.backoff(recent)
 	s.logger.Warn("plugin crashed", "id", id, "err", cause, "restarts", restarts, "retryIn", delay)
 	return delay, true
+}
+
+func (inst *instance) stoppedState() string {
+	if inst.status.Enabled {
+		return StateStopped
+	}
+	return StateDisabled
 }
 
 func (s *Supervisor) backoff(crashes int) time.Duration {

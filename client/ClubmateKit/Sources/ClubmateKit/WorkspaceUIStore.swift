@@ -48,6 +48,7 @@ public final class WorkspaceUIStore {
     @ObservationIgnored private var revs: [String: Int64] = [:]
     @ObservationIgnored private var cells: [String: SlotCell] = [:]
     @ObservationIgnored private var listener: Task<Void, Never>?
+    @ObservationIgnored private var pluginWatch: Task<Void, Never>?
     @ObservationIgnored private var saving: Task<Void, Never>?
     @ObservationIgnored private var restoring = false
     @ObservationIgnored private var focusSerial = 0
@@ -80,14 +81,17 @@ public final class WorkspaceUIStore {
             guard !Task.isCancelled else { return }
             self?.connected = false
         }
+        let client = self.client
+        pluginWatch = Task { [weak self] in
+            guard let events = try? await client.busEvents(pattern: Topic.pluginChanged) else { return }
+            for await _ in events {
+                await self?.refreshSections(generation)
+            }
+        }
         do {
             let sections = try await client.uiSections()
             guard generation == self.generation else { return }
-            let scoped = sections.filter { $0.scope == scope }
-            self.sections = SectionHosting.rail(scoped)
-            hostedSections = SectionHosting.hosted(scoped)
-            popupSections = scoped.filter { !Popups.slots([$0]).isEmpty }
-            popupSlots = Popups.slots(popupSections)
+            adopt(sections)
             let views = try await client.uiGet(workspaceID: workspaceID)
             guard generation == self.generation else { return }
             replace(with: views)
@@ -108,6 +112,24 @@ public final class WorkspaceUIStore {
         failure = nil
         applyRequestedSection()
         openGate()
+    }
+
+    private func adopt(_ sections: [SectionInfo]) {
+        let scoped = sections.filter { $0.scope == scope }
+        let rail = SectionHosting.rail(scoped)
+        let hosted = SectionHosting.hosted(scoped)
+        if self.sections != rail { self.sections = rail }
+        if hostedSections != hosted { hostedSections = hosted }
+        popupSections = scoped.filter { !Popups.slots([$0]).isEmpty }
+        let popups = Popups.slots(popupSections)
+        if popupSlots != popups { popupSlots = popups }
+    }
+
+    private func refreshSections(_ generation: Int) async {
+        guard generation == self.generation, let sections = try? await client.uiSections(), generation == self.generation else { return }
+        adopt(sections)
+        guard connected, !self.sections.contains(where: { $0.id == selectedSection }) else { return }
+        selectedSection = order(self.sections).first?.id
     }
 
     public func show(section: String) {
@@ -275,6 +297,8 @@ public final class WorkspaceUIStore {
         generation += 1
         listener?.cancel()
         listener = nil
+        pluginWatch?.cancel()
+        pluginWatch = nil
         subscription = nil
         connected = false
         openGate()

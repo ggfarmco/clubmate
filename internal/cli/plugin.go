@@ -11,8 +11,8 @@ import (
 )
 
 func (a *app) pluginCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "plugin", Short: "Inspect and restart plugins"}
-	cmd.AddCommand(a.pluginListCmd(), a.pluginRestartCmd())
+	cmd := &cobra.Command{Use: "plugin", Short: "Inspect, restart, enable and disable plugins"}
+	cmd.AddCommand(a.pluginListCmd(), a.pluginRestartCmd(), a.pluginEnableCmd("enable", true), a.pluginEnableCmd("disable", false))
 	return cmd
 }
 
@@ -49,6 +49,22 @@ func (a *app) pluginRestartCmd() *cobra.Command {
 				return err
 			}
 			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, "restarting", args[0]) })
+		},
+	}
+}
+
+func (a *app) pluginEnableCmd(use string, enabled bool) *cobra.Command {
+	short := map[bool]string{true: "Turn a plugin on and start it", false: "Stop a plugin and keep it off"}[enabled]
+	return &cobra.Command{
+		Use:   use + " <id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var res struct{}
+			if err := a.call(cmd.Context(), "plugin.set-enabled", map[string]any{"id": args[0], "enabled": enabled}, &res); err != nil {
+				return err
+			}
+			return a.render(res, func(w io.Writer) { fmt.Fprintln(w, use+"d", args[0]) })
 		},
 	}
 }

@@ -142,11 +142,20 @@ func run(logger *slog.Logger) error {
 	if err := srv.MigrateUIState(context.Background()); err != nil {
 		logger.Error("migrate ui state", "err", err)
 	}
+	control, err := plugin.NewControl(context.Background(), pluginKV, manifests)
+	if err != nil {
+		return fmt.Errorf("load plugin preferences: %w", err)
+	}
 	uiStore := sdui.NewStore()
-	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithBus(eventBus), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))))
+	sup = plugin.NewSupervisor(srv, dirs, logger, plugin.WithOnStop(uiStore.ClearOwner), plugin.WithBus(eventBus), plugin.WithResourcesDir(filepath.Dir(filepath.Dir(exe))), plugin.WithEnabled(control.StartEnabled))
+	router := plugin.NewRouter(sup)
+	if err := control.Attach(sup, router); err != nil {
+		return err
+	}
 	srv.SetPluginList(func() any { return sup.Statuses() })
 	srv.SetPluginRestart(sup.Restart)
-	srv.SetUI(uiStore, sdui.NewSections(plugin.SectionDefs(manifests), plugin.ViewDefs(manifests, logger)...), plugin.NewRouter(sup))
+	srv.SetPluginControl(control)
+	srv.SetUI(uiStore, sdui.NewSections(plugin.SectionDefs(manifests), plugin.ViewDefs(manifests, logger)...), router)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -14,10 +14,10 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
         │ JSON-RPC over stdio                     │ spawns, attaches
         ▼                                         ▼
   plugins (one process each)               clubmate-session (one per PTY)
-  editor-nvim · git · search                terminals, nvim TUI; survives
-  terminals · processes · agents · cron     app and core restarts
-  backlog · triggers · graphs · docs
-  voice · remote
+  editor-nvim · editor-vscode · git        terminals, nvim TUI; survives
+  search · terminals · processes            app and core restarts
+  agents · cron · backlog · triggers
+  graphs · docs · voice · remote
 ```
 
 ## Processes
@@ -65,7 +65,8 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 ## Plugins (`plugins/`)
 | Plugin | Does |
 |---|---|
-| `editor-nvim` | Runs the bundled nvim 0.12.6 with the Clubmate distribution (`NVIM_APPNAME=clubmate`/`clubmate-dev`, else the `nvim` in `PATH`) in a session, one per worktree. It drives nvim over RPC: open/quickfix/diffview/checktime/selection/unsaved, pushes the app's `theme.changed` into running nvims and offers the config import. Hosts the Code section. Settings → Code → Editor can show VS Code there instead: it runs the user's VS Code server on loopback. See `docs/vscode-integration.md`. |
+| `editor-nvim` | Runs the bundled nvim 0.12.6 with the Clubmate distribution (`NVIM_APPNAME=clubmate`/`clubmate-dev`, else the `nvim` in `PATH`) in a session, one per worktree. It drives nvim over RPC: open/quickfix/diffview/checktime/selection/unsaved, pushes the app's `theme.changed` into running nvims and offers the config import. Hosts the Neovim section. |
+| `editor-vscode` | Off by default (Settings → VS Code). Runs the VS Code server from the user's installed `code` CLI, after the user accepts its license terms, as one loopback child process for every workspace, and shows the current root's workbench as a `webview` in the VS Code section. See `docs/vscode-integration.md`. |
 | `git` | Worktrees and branches behind the switcher in the window title, and a watch that moves folders off worktrees removed outside Clubmate. No section. |
 | `search` | File index and fuzzy path search behind the agents composer's file picker. No section. |
 | `terminals` | Terminal sessions. |

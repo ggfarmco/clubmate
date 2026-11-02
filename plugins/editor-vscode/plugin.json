@@ -1,0 +1,57 @@
+{
+  "id": "editor-vscode",
+  "name": "VS Code",
+  "version": "0.1.0",
+  "protocol": 1,
+  "enabledByDefault": false,
+  "command": ["editor-vscode"],
+  "contributes": {
+    "sections": [{"id": "editor-vscode", "title": "VS Code", "icon": "curlybraces", "order": 11}],
+    "commands": [
+      {
+        "id": "editor-vscode.open",
+        "provides": ["editor.open"],
+        "title": "Open file",
+        "hidden": true,
+        "agent": true,
+        "description": "Open a file in the workspace's VS Code, starting the VS Code server if needed, optionally at a line and column; this reloads the workbench. An absolute path inside another git worktree of a workspace folder switches that folder to the worktree first and opens the file there.",
+        "args": {
+          "properties": {
+            "path": {"type": "string", "description": "File to open; absolute, or relative to the current root (the selected worktree of the first workspace folder that exists, else home)."},
+            "line": {"type": "integer", "description": "1-based line to put the cursor on; 0 or absent keeps the default position."},
+            "col": {"type": "integer", "description": "1-based column on that line; 0 or absent puts the cursor at the line start. Ignored without line."},
+            "focus": {"type": "boolean", "description": "Also show the VS Code section and focus VS Code."}
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "id": "editor-vscode.terminal",
+        "title": "Open terminal here",
+        "agent": true,
+        "description": "Open a new terminal in the current root: the selected worktree of the first workspace folder that exists, else home."
+      },
+      {
+        "id": "editor-vscode.restart",
+        "title": "Restart VS Code",
+        "agent": true,
+        "destructive": true,
+        "description": "Restart the VS Code server and show it again in every workspace, clearing a shown failure; VS Code's hot exit keeps unsaved edits."
+      },
+      {
+        "id": "editor-vscode.settings",
+        "title": "VS Code settings",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "scope": "app",
+        "description": "Whether the user accepted the VS Code Server License Terms: {accepted}. Read-only; consent comes only from the user's Accept & Download in the VS Code section.",
+        "result": {
+          "properties": {
+            "accepted": {"type": "boolean", "description": "The user accepted the VS Code Server License Terms."}
+          }
+        }
+      }
+    ]
+  }
+}

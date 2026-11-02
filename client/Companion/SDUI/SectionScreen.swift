@@ -43,6 +43,9 @@ struct SectionScreen: View {
         } message: {
             Text(error ?? "")
         }
+        .onChange(of: ui.sections) { _, sections in
+            if navigation.detail == section, !sections.contains(where: { $0.id == section }) { navigation.detail = nil }
+        }
         .onAppear { ui.show([sidebar, main], owner: owner) }
         .onDisappear { ui.hide(owner: owner) }
     }

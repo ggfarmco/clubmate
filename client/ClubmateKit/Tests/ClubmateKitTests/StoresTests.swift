@@ -98,6 +98,26 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testDisablingThePluginOfTheSelectedSectionDropsItAndFallsBack() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        store.show(section: "echo")
+        try await store.start()
+        XCTAssertEqual(store.selectedSection, "echo")
+
+        try await client.pluginSetEnabled(id: "echo", enabled: false)
+
+        try await waitUntil { store.sections.map(\.id) == ["terminals"] }
+        XCTAssertEqual(store.selectedSection, "terminals")
+
+        try await client.pluginSetEnabled(id: "echo", enabled: true)
+
+        try await waitUntil { store.sections.map(\.id) == ["terminals", "echo"] }
+        await store.stop()
+        await client.close()
+    }
+
     func testShownSectionWinsOverSaved() async throws {
         let client = try await startCore()
         let workspace = try await client.createWorkspace(name: "demo")

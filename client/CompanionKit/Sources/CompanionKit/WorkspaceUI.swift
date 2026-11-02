@@ -41,6 +41,11 @@ public final class WorkspaceUI {
         return try await connection.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value)
     }
 
+    func reloadSections() {
+        sectionsStream = nil
+        sync()
+    }
+
     func reload() {
         stale = Set(views.keys)
         sync()
@@ -66,11 +71,16 @@ public final class WorkspaceUI {
     private func drain() async {
         while let connection, connection.supportsUI, let stream = connection.streamID {
             let target = desired
-            if sentStream == stream, sent == target { return }
+            if sentStream == stream, sent == target, sectionsStream == stream { return }
             do {
                 if sectionsStream != stream {
-                    sections = try await connection.uiSections()
                     sectionsStream = stream
+                    do {
+                        sections = try await connection.uiSections()
+                    } catch {
+                        sectionsStream = nil
+                        throw error
+                    }
                 }
                 let previous = sentStream == stream ? sent : []
                 try await connection.uiWatch(stream: stream, workspace: workspace, slots: target.sorted())
