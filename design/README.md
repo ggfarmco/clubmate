@@ -18,4 +18,4 @@ The `Artifact` tool reads and writes the project. The interactive `claude` has i
 
 ## Sending screenshots for a check
 
-`Artifact publish url=<project> asset=true file_paths=[…]` uploads up to 25 PNGs per call into the project's assets (`list scope=assets` shows them). Read the project in the same session first: a publish to an artifact the session hasn't read is refused. Not tried yet: whether the Design chat picks up these assets for a check the way it does attached images.
+`Artifact publish url=<project> asset=true file_paths=[…]` uploads up to 25 PNGs per call into the project's assets (`list scope=assets` shows them). Read the project in the same session first: a publish to an artifact the session hasn't read is refused. An asset keeps no file name, only `/_blob/<id>`: in the Design chat name each id with its board ("compare `/_blob/<id>` with Mac-AlwaysAllow"), and the chat reads it like an attached image.
