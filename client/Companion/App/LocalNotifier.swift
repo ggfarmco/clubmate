@@ -68,18 +68,27 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         background = .invalid
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let remote = notification.request.trigger is UNPushNotificationTrigger
-        let active = await MainActor.run { UIApplication.shared.applicationState == .active }
-        return remote && active ? [] : [.banner, .list, .sound]
+        nonisolated(unsafe) let done = completionHandler
+        DispatchQueue.main.async {
+            let active = MainActor.assumeIsolated { UIApplication.shared.applicationState == .active }
+            done(remote && active ? [] : [.banner, .list, .sound])
+        }
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
-        guard let computer = info["computer"] as? String else { return }
+        let computer = info["computer"] as? String
         let workspace = info["workspace"] as? String ?? ""
         let session = info["session"] as? String
-        await MainActor.run { opened?(computer, workspace, session) }
+        nonisolated(unsafe) let done = completionHandler
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if let computer { self.opened?(computer, workspace, session) }
+            }
+            done()
+        }
     }
 
     private func post(_ alert: LocalAlert) {
