@@ -254,6 +254,9 @@ func TestServerExitRestartsOnceThenFails(t *testing.T) {
 }
 
 func TestSwitchToNvimStopsServer(t *testing.T) {
+	if _, err := exec.LookPath("nvim"); err != nil {
+		t.Skip("nvim not in PATH")
+	}
 	e := startVSCode(t, true)
 	e.waitWebview(t)
 	pid := serverPID(t, e.state())
