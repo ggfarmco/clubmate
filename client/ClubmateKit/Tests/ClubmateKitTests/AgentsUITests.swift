@@ -163,4 +163,12 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(origins, [CGPoint(x: 0, y: 0), CGPoint(x: 64, y: 0), CGPoint(x: 0, y: 20), CGPoint(x: 0, y: 42)])
         XCTAssertEqual(FlowRows.size(sizes: sizes, width: 200, spacing: 4), CGSize(width: 250, height: 58))
     }
+
+    func testDocCardGridFallsBackToIdealWidthWhenProposedInfinity() {
+        let grid = DocCardGrid(count: 4, proposed: .infinity, spacing: 8, minWidth: 200, maxWidth: 270)
+        XCTAssertEqual(grid.columns, 4)
+        XCTAssertEqual(grid.width, 1080)
+        XCTAssertEqual(grid.cardWidth, 264)
+        XCTAssertEqual(DocCardGrid(count: 4, proposed: 500, spacing: 8, minWidth: 200, maxWidth: 270).cardWidth, 246)
+    }
 }

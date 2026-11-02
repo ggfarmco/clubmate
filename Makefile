@@ -82,6 +82,11 @@ nvim-test: nvim-distro
 bundle-smoke:
 	$(GO_ENV) CLUBMATE_TEST_RESOURCES="$(RESOURCES)" CLUBMATE_TEST_BUNDLE=1 go test -count=1 -run '^TestBundledAppSmoke$$' ./nvim-distro/
 
+gallery-smoke:
+	rm -rf build/gallery-smoke && mkdir -p build/gallery-smoke
+	scripts/test-app.sh start gallery-smoke -- --sdui-gallery
+	scripts/test-app.sh cm gallery-smoke -- ui snapshot --out $(CURDIR)/build/gallery-smoke; status=$$?; scripts/test-app.sh stop gallery-smoke; exit $$status
+
 companion-kit-test:
 	cd client/CompanionKit && swift test
 
@@ -104,4 +109,4 @@ companion-ui-test:
 	xcodebuild test -project Companion.xcodeproj -scheme Companion -destination id=$$udid -parallel-testing-enabled NO -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual; \
 	status=$$?; xcrun simctl shutdown $$udid; exit $$status
 
-.PHONY: build run-core test lint push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion companion-ui-test
+.PHONY: build run-core test lint push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke gallery-smoke companion-kit-test companion companion-ui-test

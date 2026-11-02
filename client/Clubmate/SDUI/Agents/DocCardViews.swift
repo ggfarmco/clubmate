@@ -23,37 +23,29 @@ struct DocCardsLayout: Layout {
     let minWidth: CGFloat
     let maxWidth: CGFloat
 
-    private func columns(_ count: Int, width: CGFloat) -> (count: Int, width: CGFloat) {
-        let fit = max(1, Int((width + spacing) / (minWidth + spacing)))
-        guard fit > 1 else { return (1, width) }
-        let count = max(1, min(count, fit))
-        return (count, min(maxWidth, (width - spacing * CGFloat(count - 1)) / CGFloat(count)))
-    }
-
-    private func rows(_ subviews: Subviews, width: CGFloat) -> (columns: Int, cardWidth: CGFloat, heights: [CGFloat]) {
-        let (count, cardWidth) = columns(subviews.count, width: width)
-        let heights = stride(from: 0, to: subviews.count, by: count).map { start in
-            subviews[start..<min(start + count, subviews.count)].map { $0.sizeThatFits(ProposedViewSize(width: cardWidth, height: nil)).height }.max() ?? 0
+    private func rows(_ subviews: Subviews, width: CGFloat?) -> (grid: DocCardGrid, heights: [CGFloat]) {
+        let grid = DocCardGrid(count: subviews.count, proposed: width, spacing: spacing, minWidth: minWidth, maxWidth: maxWidth)
+        let heights = stride(from: 0, to: subviews.count, by: grid.columns).map { start in
+            subviews[start..<min(start + grid.columns, subviews.count)].map { $0.sizeThatFits(ProposedViewSize(width: grid.cardWidth, height: nil)).height }.max() ?? 0
         }
-        return (count, cardWidth, heights)
+        return (grid, heights)
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? maxWidth * CGFloat(subviews.count)
-        let layout = rows(subviews, width: width)
+        let layout = rows(subviews, width: proposal.width)
         let height = layout.heights.reduce(0, +) + spacing * CGFloat(max(0, layout.heights.count - 1))
-        return CGSize(width: width, height: height)
+        return CGSize(width: layout.grid.width, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let layout = rows(subviews, width: bounds.width)
         var y = bounds.minY
         for (row, height) in layout.heights.enumerated() {
-            for column in 0..<layout.columns {
-                let index = row * layout.columns + column
+            for column in 0..<layout.grid.columns {
+                let index = row * layout.grid.columns + column
                 guard index < subviews.count else { break }
-                let x = bounds.minX + CGFloat(column) * (layout.cardWidth + spacing)
-                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: layout.cardWidth, height: height))
+                let x = bounds.minX + CGFloat(column) * (layout.grid.cardWidth + spacing)
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: layout.grid.cardWidth, height: height))
             }
             y += height + spacing
         }

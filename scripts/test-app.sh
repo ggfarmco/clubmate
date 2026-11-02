@@ -100,6 +100,9 @@ start() {
       if [[ -n "$pid" ]]; then echo "$pid" > "$dir/app.pid"; fi
     fi
     alive "$dir" && break
+    if [[ -f "$dir/app.pid" ]] && ! ps -p "$(cat "$dir/app.pid")" >/dev/null 2>&1; then
+      echo "instance $name: app exited before the core started (crash? see ~/Library/Logs/DiagnosticReports or run its binary under lldb)" >&2; exit 1
+    fi
     sleep 0.2
   done
   alive "$dir" || { kill_app "$dir"; echo "instance $name: core did not start; app stopped" >&2; exit 1; }
