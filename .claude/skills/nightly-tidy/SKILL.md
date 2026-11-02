@@ -5,7 +5,9 @@ description: Use when running the nightly tidy (started by the "Nightly tidy" cr
 
 # Nightly tidy
 
-Nobody is watching. The user should wake to a few small squashed commits on `main`, one short report and backlog items, never a red `main` or a big diff. When in doubt, report instead of editing. Decide yourself, ask the advisor on non-trivial calls, never ask the user.
+Nobody is watching. The user should wake to a few small squashed commits on `main`, one short report and backlog items, never a red `main` or a big diff. When in doubt, report instead of editing.
+
+This is an AFK session: first call `agents_afk on=true` for yourself, so you and every child work under `[Clubmate AFK mode]`. Never ask the user and never wait for them (no AskUserQuestion, no elicitation). Decide yourself and ask the advisor (Fable) on every non-trivial call; what still needs the user after that — a product or design choice, their hardware, accounts or keys, a risky change — goes to the backlog tagged `needs-you`, and the run moves on.
 
 `NOTES` is `clubmate-notes` next to the main checkout (`<main checkout>/../clubmate-notes`); use absolute paths, the `docs/superpowers` symlink breaks in worktrees.
 
@@ -29,8 +31,8 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 
 ## Run
 
-1. **Triage, read-only.** Run the checks yourself, collect findings, drop duplicates of open backlog items (`backlog_list`).
-2. **Fix in children.** You edit nothing in the main checkout. Start at most 4 children with `agents_new`, `branch: tidy/<YYYY-MM-DD>-<area>`, one area each. The prompt stands alone: the findings, the fix rules, the test commands, "run tests in the foreground, rebase on current main, stop at one conventional commit and reply with its sha".
+1. **Triage, read-only.** The main checkout holds other sessions' uncommitted work, so check `main` in a throwaway tree: `git worktree add --detach <scratchpad>/tidy HEAD`, run all checks and benchmarks there (`mkdir -p $NOTES/tidy/bench` first), read the night's commits with `git log`/`git show`. Collect findings, drop duplicates of open backlog items (`backlog_list`).
+2. **Fix in children.** You edit nothing in the main checkout. Start at most 4 children with `agents_new`, `branch: tidy/<YYYY-MM-DD>-<area>`, one area each. The prompt stands alone: the findings, the fix rules, the test commands, "AFK: never ask the user, a finding you can't fix without them goes back to me in your reply; run tests in the foreground, rebase on current main, stop at one conventional commit and reply with its sha".
 3. **Fix rules** (put them in every child prompt):
    - Go code and docs only. Swift, views and plugin-rendered UI need `make app` and a look → backlog.
    - Mechanical, verifiable fixes. No protocol, wire, MCP schema or public API changes; no dependency bumps except a module `govulncheck` flags.
@@ -38,9 +40,10 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
    - Every behaviour fix comes with a test; docs fixes need none.
    - Never edit CLAUDE.md.
 4. **Tests**: `env $(env | grep -o '^CLUBMATE_[A-Z_]*' | sed 's/^/-u /') go test $(go list ./... | grep -v -e /dist/ -e /.worktrees/)` and `cd third_party/jsonrpc2 && go test ./...`; plus `go vet` and `staticcheck` on the touched packages.
-5. **Merge.** For each child: its branch tip equals the sha it reported; right before, in the main checkout, the index is empty (`git diff --cached --quiet`) and no uncommitted file is one the branch changes (other sessions' work in progress lives there; otherwise stop merging, leave the branches, say so in the report). Squash and commit in one guarded command: `git merge --squash <branch> && git commit -m "<type>(<scope>): …"`. After the last squash run the tests on `main`; red → `git revert` the tidy commits of this run and file why. Then remove each merged worktree and `git branch -D` it; leave a worktree with uncommitted changes or a running process.
-6. **File the rest**: `backlog_add` as `idea`, title starting `tidy:`, one item per finding with file:line and the suggested fix.
-7. **Report** `$NOTES/tidy/<date>.md`: per lens — fixed (sha), filed (backlog id), CLAUDE.md proposals, benchmark deltas; at most a screen. Commit it in clubmate-notes. `docs_present` it, then `notify_post` one line: `Tidy: N fixed, M filed[, K security]`.
+5. **Merge.** For each child: its branch tip equals the sha it reported; right before, in the main checkout, the index is empty (`git diff --cached --quiet`) and no uncommitted file is one the branch changes (other sessions' work in progress lives there; otherwise stop merging, leave the branches, say so in the report). Squash and commit in one guarded command: `git merge --squash <branch> && git commit -m "<type>(<scope>): …"`. After the last squash run the tests on `main`; red → `git revert` the tidy commits of this run and file why.
+6. **File the rest**: `backlog_add` as `idea` with tag `tidy`, one item per finding with file:line and the suggested fix; add tag `needs-you` when the user has to decide or act (say what exactly in the description), `security` for security findings.
+7. **Report** `$NOTES/tidy/<date>.md`: per lens — fixed (sha), filed (backlog id), CLAUDE.md proposals, benchmark deltas; at most a screen. Commit it in clubmate-notes. `docs_present` it, then `notify_post` one line: `Tidy: N fixed, M filed[, K need you][, S security]`.
+8. **Clean up last** (an approval may stall here, the report is already out): remove the triage tree, each merged worktree and `git branch -D` its branch; leave a worktree with uncommitted changes or a running process.
 
 ## Cron job
 
@@ -48,7 +51,7 @@ Lives in the cron plugin, not in git; recreate it if it is gone:
 
 ```
 cron_add name="Nightly tidy" command=agents.new cron="30 3 * * *" owner=none missed=once
-  args={"title":"Nightly tidy","notify":"needs-input","prompt":"Run the nightly tidy: invoke the nightly-tidy skill and follow it."}
+  args={"title":"Nightly tidy","notify":"needs-input","prompt":"Run the nightly tidy: invoke the nightly-tidy skill and follow it. You are AFK: turn AFK mode on for yourself first and never ask the user."}
 ```
 
 `missed: once` runs it after a night the Mac slept, possibly while the user works; step 5's checks are what keep that safe.
