@@ -44,6 +44,7 @@ type app struct {
 	srvErr error
 	rev    int
 	dark   bool
+	imp    importStatus
 }
 
 type settings struct {
@@ -102,6 +103,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, themeTopic, themeSeq); err != nil {
 		return err
 	}
+	a.renderSettings(ctx, h)
 	for _, id := range present {
 		go a.showLogged(ctx, h, id)
 	}
@@ -157,14 +159,27 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case "vscode-retry":
 		a.retry(ctx, h)
 		return nil, nil
+	case importAction:
+		if ev.Slot != settingsSlot {
+			return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+		}
+		go func() {
+			if _, err := a.importExtensions(context.WithoutCancel(ctx), h); err != nil && !errors.Is(err, errImportRunning) {
+				logError("import extensions", err)
+			}
+		}()
+		return nil, nil
 	}
 	return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
 func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
 	name := strings.TrimPrefix(cmd.ID, h.PluginID()+".")
-	if name == "settings" {
+	switch name {
+	case "settings":
 		return a.loadSettings(ctx, h)
+	case importAction:
+		return a.importExtensions(ctx, h)
 	}
 	if a.isDeleted(cmd.WorkspaceID) {
 		return nil, nil

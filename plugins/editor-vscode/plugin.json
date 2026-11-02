@@ -6,6 +6,7 @@
   "enabledByDefault": false,
   "command": ["editor-vscode"],
   "contributes": {
+    "views": [{"slot": "editor-vscode.settings"}],
     "sections": [{"id": "editor-vscode", "title": "VS Code", "icon": "curlybraces", "order": 11}],
     "commands": [
       {
@@ -49,6 +50,21 @@
         "result": {
           "properties": {
             "accepted": {"type": "boolean", "description": "The user accepted the VS Code Server License Terms."}
+          }
+        }
+      },
+      {
+        "id": "editor-vscode.import-extensions",
+        "title": "Import extensions from VS Code",
+        "hidden": true,
+        "agent": true,
+        "scope": "app",
+        "description": "Install every extension of the desktop VS Code (code --list-extensions) that the VS Code in Clubmate doesn't have yet, from the Marketplace, one by one; returns {installed, skipped, failed: [{id, error}]} once done and reloads the VS Code section if anything was installed. Fails when the VS Code server isn't downloaded yet or an import is already running. Settings → VS Code shows the progress and the result.",
+        "result": {
+          "properties": {
+            "installed": {"type": "array", "items": {"type": "string"}, "description": "Extension ids installed now."},
+            "skipped": {"type": "array", "items": {"type": "string"}, "description": "Extension ids already installed."},
+            "failed": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string", "description": "Extension id."}, "error": {"type": "string", "description": "Why the install failed."}}}, "description": "{id, error} for each extension that failed to install."}
           }
         }
       }
