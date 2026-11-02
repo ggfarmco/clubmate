@@ -27,7 +27,7 @@
         "title": "List backlog tasks",
         "hidden": true,
         "agent": true,
-        "description": "List this workspace's backlog tasks ordered by priority, then oldest first (done: newest first). Workflow: list status todo, pick the first, claim it, record progress with backlog.update note, finish with backlog.done and a note naming the commit, or backlog.release when you give up. Only the user puts tasks into todo; tasks you find yourself go in as idea.",
+        "description": "List this workspace's backlog tasks ordered by priority, then oldest first (done: newest first). Workflow: list status todo, pick the first, claim it, record progress with backlog.update note, finish with backlog.done and a note naming the commit, or backlog.release when you give up. Tasks you find yourself go in as idea; use todo only when the user asked for the task to be done.",
         "args": {
           "properties": {
             "status": {
@@ -276,7 +276,7 @@
                 "todo",
                 "not_now"
               ],
-              "description": "Default todo from the user, idea from an agent (agents may not use todo)."
+              "description": "Default todo from the user, idea from an agent; an agent passes todo when the user asked for the task to be done."
             }
           },
           "required": [
