@@ -64,6 +64,24 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Fix the layout"].waitForExistence(timeout: 5))
     }
 
+    func testNewSessionPastesAnImageFromTheClipboard() {
+        UIPasteboard.general.image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { context in
+            UIColor.systemRed.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        }
+        let app = launch(open: "agents")
+        app.navigationBars.buttons["New Session"].tap()
+        let composer = app.textFields["composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        let paste = app.buttons["Paste"]
+        XCTAssertTrue(paste.waitForExistence(timeout: 5))
+        add(screenshot(app, "paste-button"))
+        paste.tap()
+        XCTAssertTrue(app.buttons["Remove"].waitForExistence(timeout: 10))
+        XCTAssertTrue(wait(for: paste, "exists == false"))
+        add(screenshot(app, "pasted"))
+    }
+
     func testNewSessionSendsFile() {
         let app = launch(open: "agents")
         app.navigationBars.buttons["New Session"].tap()

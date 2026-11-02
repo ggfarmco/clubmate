@@ -549,6 +549,8 @@ struct ComposerView: View {
     @State private var choosingPhotos = false
     @State private var choosingFiles = false
     @State private var tooLarge = false
+    @State private var clipboardImage = false
+    @State private var pastedChange = -1
 
     private var attachedBytes: Int {
         attachments.reduce(0) { $0 + $1.bytes }
@@ -577,6 +579,14 @@ struct ComposerView: View {
         } else {
             GlassEffectContainer(spacing: 10) {
                 VStack(alignment: .leading, spacing: 8) {
+                    if clipboardImage && focused.wrappedValue && enabled {
+                        PasteButton(payloadType: PastedImage.self) { images in
+                            Task { @MainActor in paste(images) }
+                        }
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
+                        .padding(.leading, 4)
+                    }
                     if !attachments.isEmpty || importing > 0 {
                         AttachmentsRow(attachments: $attachments, importing: importing)
                             .disabled(!enabled)
@@ -636,7 +646,13 @@ struct ComposerView: View {
                     }
                 }
             }
-            .onAppear { if session == nil { focused.wrappedValue = true } }
+            .onAppear {
+                refreshClipboard()
+                if session == nil { focused.wrappedValue = true }
+            }
+            .onChange(of: focused.wrappedValue) { refreshClipboard() }
+            .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in refreshClipboard() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in refreshClipboard() }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
             .frame(maxWidth: 820)
@@ -686,5 +702,11 @@ struct ComposerView: View {
 
     private func paste(_ images: [PastedImage]) {
         attachments += images.compactMap { PhotoEncoder.jpeg($0.data).map(ComposerAttachment.photo) }
+        pastedChange = UIPasteboard.general.changeCount
+        refreshClipboard()
+    }
+
+    private func refreshClipboard() {
+        clipboardImage = UIPasteboard.general.hasImages && UIPasteboard.general.changeCount != pastedChange
     }
 }
