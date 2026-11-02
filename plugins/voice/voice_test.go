@@ -187,6 +187,21 @@ func TestCancelStopsUtterance(t *testing.T) {
 	assert.Equal(t, []string{uid}, rec.cancelled)
 }
 
+func TestStartCancelsUtteranceLeftListening(t *testing.T) {
+	v, _, rec := newTestVoice(t)
+	left := start(t, v)
+
+	next := start(t, v)
+
+	st, err := v.state(testWorkspace, left)
+	require.NoError(t, err)
+	assert.Equal(t, phaseCancelled, st.Phase)
+	assert.Equal(t, []string{left}, rec.cancelled)
+	st, err = v.state(testWorkspace, next)
+	require.NoError(t, err)
+	assert.Equal(t, phaseListening, st.Phase)
+}
+
 func TestRecognizerCrashEndsUtterance(t *testing.T) {
 	v, _, _ := newTestVoice(t)
 	proc := newProcRecognizer(fakeASRCommand, v.lost)

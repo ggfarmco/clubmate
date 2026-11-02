@@ -131,6 +131,7 @@ func (v *voice) start(ctx context.Context, workspace string, args startArgs) (st
 	}
 	where, err := resolve(ctx, v.h, workspace, args.Pointer)
 	logError("resolve context", err)
+	v.cancelListening()
 	uid := id.New(utterancePrefix)
 	if err := v.recognizer().Start(uid, lang, hintWords(where)); err != nil {
 		return startResult{}, err
@@ -206,6 +207,22 @@ func (v *voice) cancel(workspace, uid string) error {
 		v.recognizer().Cancel(uid)
 	}
 	return nil
+}
+
+func (v *voice) cancelListening() {
+	v.mu.Lock()
+	var open []*utterance
+	for _, u := range v.utterances {
+		if u.accepting() {
+			open = append(open, u)
+		}
+	}
+	v.mu.Unlock()
+	for _, u := range open {
+		if v.update(u, func(s *State) { s.Phase = phaseCancelled }) {
+			v.recognizer().Cancel(u.state.Utterance)
+		}
+	}
 }
 
 func (v *voice) state(workspace, uid string) (State, error) {

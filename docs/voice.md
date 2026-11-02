@@ -36,7 +36,7 @@ All are hidden. The client commands are `remote: true`, so the phone calls them 
 
 | Command | Args | Result |
 |---|---|---|
-| `voice.start` | `{pointer: {device: "mac"\|"phone", section, selection: {session?, task?, file?, line?}}, lang?: "ru"\|"auto"}` (default `ru`) | `{utterance: "vu_…"}`; phase `loading` while the model loads (audio is kept, at most 60 s), else `listening`. Fails with `voice needs uv (https://docs.astral.sh/uv/)` when `uv` is missing. |
+| `voice.start` | `{pointer: {device: "mac"\|"phone", section, selection: {session?, task?, file?, line?}}, lang?: "ru"\|"auto"}` (default `ru`) | `{utterance: "vu_…"}`; phase `loading` while the model loads (audio is kept, at most 60 s), else `listening`. Cancels any utterance still `loading` or `listening` on any device or workspace, so one a client left open never blocks the next. Fails with `voice needs uv (https://docs.astral.sh/uv/)` when `uv` is missing. |
 | `voice.audio` | `{utterance, pcm}`: base64 PCM s16le, 16 kHz mono; 320 ms chunks (10 240 bytes) recommended, at most 64 KiB raw per call | `{partial}`. Audio beyond 60 s is dropped; the utterance still waits for `voice.end`. `unknown utterance` once it ended or was cancelled. |
 | `voice.end` | `{utterance}` | `{heard}`; phase `sending` for 1 s, then routing goes on in the background, or `error` "nothing heard". The plugin logs one stderr line per utterance: id, device, audio bytes and seconds, peak level, heard length, final ms. |
 | `voice.cancel` | `{utterance}` | `null`; in `sending` nothing is sent; a pending confirmation is declined. |
@@ -74,7 +74,7 @@ The pointer carries ids only; the plugin resolves them:
 - **Overrides:** `CLUBMATE_VOICE_ASR_DIR` (folder with `server.py`), `CLUBMATE_VOICE_ENGINE` (replaces the chosen model's engine, e.g. `fake`; voice still has to be on).
 - **Runtime:** [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) (ggml, Metal) through its Python package `transcribe-cpp`, the same runtime and GGUF files Handy uses (`plugins/voice/asr/transcribe_engine.py`). Models download from Hugging Face (`handy-computer/*-gguf`, Q8_0) into the HF cache on first use, pinned to a repo commit with the file's SHA-256 checked before the native loader opens it (`revision`/`sha256` in `models`; `server.py` refuses a `transcribe` model without both); weights are memory-mapped, so the process stays small.
 - **Models** (`models` in `plugins/voice/settings.go`; memory is the recognizer's peak footprint on an M-series Mac, as Activity Monitor shows it; a stored model that is no longer listed falls back to `nemotron`):
-  - `nemotron` (default): Nemotron 3.5 ASR streaming 0.6B, 751 MB download, ~0.35 GB. Real streaming with `att_context_right` 3 for 320 ms chunks: partials ~20 ms after a chunk, final ~30–45 ms after end. One utterance at a time: a second `start` while one streams fails with `another utterance is being recognized`. Takes no hint.
+  - `nemotron` (default): Nemotron 3.5 ASR streaming 0.6B, 751 MB download, ~0.35 GB. Real streaming with `att_context_right` 3 for 320 ms chunks: partials ~20 ms after a chunk, final ~30–45 ms after end. One utterance at a time. Takes no hint.
   - `whisper-turbo` (batch): Whisper large-v3 turbo, 886 MB download, ~0.75 GB, the most accurate. Partials come from re-decoding the audio so far, at most once a second; final ~300 ms. Takes the hint as `initial_prompt`.
 - **Protocol:** JSON lines over stdin/stdout.
   - In: `{"op":"start","id","lang","hint"}`, `{"op":"audio","id","pcm"}`, `{"op":"end","id"}`, `{"op":"cancel","id"}`.
