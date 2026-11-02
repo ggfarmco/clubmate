@@ -1739,6 +1739,28 @@ func TestInternalErrorAfterRetryFailsTurn(t *testing.T) {
 	assert.Contains(t, got.Error, "no results for tool calls")
 }
 
+func TestToolCallsOpenAtSteerDoNotFailTurn(t *testing.T) {
+	f := start(t, map[string]any{"steering": true, "prompt": []map[string]any{
+		{"update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "srvtoolu_a", "title": "advisor", "kind": "other", "status": "pending"}},
+		{"sleep": 1500},
+		{"fail": "Internal error: Claude ended the turn without returning results for tool calls: srvtoolu_a", "errorKind": "incomplete_tool_call"},
+	}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
+		c := cardsOf(n, "composer")
+		return len(c) == 1 && c[0].Props["steers"] == true
+	})
+
+	f.prompt(t, workspace, session, "two")
+
+	f.waitCall(t, "_session/steering", func(c fakeCall) bool { return promptText(t, c) == "two" })
+	f.waitStatus(t, workspace, session, "done")
+	assert.Len(t, f.calls(t, "session/prompt"), 1)
+}
+
 func TestCancelKeepsQueue(t *testing.T) {
 	f, workspace, session := startQueued(t, "two")
 

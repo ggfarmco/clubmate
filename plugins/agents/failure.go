@@ -67,6 +67,7 @@ const (
 var (
 	exitStatusRe = regexp.MustCompile(`exit status (-?\d+)`)
 	acpErrorRe   = regexp.MustCompile(`^acp error -?\d+: `)
+	stuckToolsRe = regexp.MustCompile(`without returning results for tool calls: (.+)$`)
 
 	textKinds = []textKind{
 		{text: "No response from API", kind: failureNetwork},

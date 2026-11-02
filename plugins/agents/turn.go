@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -37,6 +39,7 @@ type runState struct {
 	perms           map[string]*pendingPermission
 	queue           []queuedPrompt
 	queueSeq        int
+	superseded      map[string]bool
 }
 
 func (a *app) prompt(workspaceID string, args promptArgs) error {
@@ -141,6 +144,12 @@ func (a *app) steerText(s *session, text string) {
 	var res acp.SteerResponse
 	if err := p.conn.Call(ctx, acp.MethodSessionSteering, acp.NewSteerRequest(agentID, []acp.ContentBlock{{Type: "text", Text: text}}), &res); err != nil {
 		fmt.Fprintln(os.Stderr, "agents: steer:", err)
+		return
+	}
+	if res.Outcome == acp.SteerInjected {
+		s.mu.Lock()
+		s.supersedeLocked()
+		s.mu.Unlock()
 	}
 }
 
@@ -163,6 +172,7 @@ func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool 
 		return false
 	}
 	s.mu.Lock()
+	s.supersedeLocked()
 	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Steered: true, Voice: args.Voice})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
@@ -226,6 +236,9 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	req.Prompt = sendable(req.Prompt)
 	var res acp.PromptResponse
 	err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, req, &res)
+	if s.supersededOnly(err) {
+		err, res = nil, acp.PromptResponse{StopReason: acp.StopEndTurn}
+	}
 	if retry, ok := a.retryTurn(s, rec, err); ok {
 		res = acp.PromptResponse{}
 		err = p.conn.Call(context.Background(), acp.MethodSessionPrompt, retry, &res)
@@ -361,8 +374,44 @@ func (s *session) beginTurnLocked() int {
 	s.cancelRequested = false
 	s.started = time.Now()
 	s.turn++
+	s.superseded = nil
 	s.settleLocked()
 	return s.turn
+}
+
+func (s *session) supersedeLocked() {
+	for _, en := range slices.Backward(s.entries) {
+		if en.Turn != s.turn {
+			break
+		}
+		var status string
+		if en.Kind != entryTool || json.Unmarshal(en.Tool["status"], &status) == nil && (status == "completed" || status == "failed") {
+			continue
+		}
+		if s.superseded == nil {
+			s.superseded = map[string]bool{}
+		}
+		s.superseded[en.ID] = true
+	}
+}
+
+func (s *session) supersededOnly(err error) bool {
+	rpcErr, ok := errors.AsType[*acp.Error](err)
+	if !ok || rpcErr.Code != acp.CodeInternal {
+		return false
+	}
+	m := stuckToolsRe.FindStringSubmatch(firstLine(rpcErr.Message))
+	if m == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id := range strings.SplitSeq(m[1], ", ") {
+		if !s.superseded[id] {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *app) senderTitle(id string) string {
