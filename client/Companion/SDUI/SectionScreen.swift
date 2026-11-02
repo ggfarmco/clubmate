@@ -4,6 +4,8 @@ import CompanionKit
 
 struct SectionScreen: View {
     let section: String
+    let connection: ComputerConnection
+    @Environment(AppNavigation.self) private var navigation
     @State private var ui: WorkspaceUI
     @State private var owner = UUID()
     @State private var path: [String] = []
@@ -11,6 +13,7 @@ struct SectionScreen: View {
 
     init(connection: ComputerConnection, workspace: String, section: String) {
         self.section = section
+        self.connection = connection
         _ui = State(initialValue: connection.workspaceUI(workspace))
     }
 
@@ -43,6 +46,11 @@ struct SectionScreen: View {
         .onDisappear { ui.hide(owner: owner) }
     }
 
+    private var docOpener: ((String) -> Void)? {
+        guard connection.supports(DocsCommand.read) else { return nil }
+        return { [navigation, connection, ui] path in navigation.openDoc(computer: connection.computer.id, workspace: ui.workspace, path: path) }
+    }
+
     private var title: String {
         ui.sections.first { $0.id == section }?.title ?? section
     }
@@ -56,7 +64,7 @@ struct SectionScreen: View {
                 } catch {
                     self.error = (error as? RemoteError)?.message ?? error.localizedDescription
                 }
-            }, open: open))
+            }, open: open, openDoc: docOpener))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
             ProgressView()
