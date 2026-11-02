@@ -134,7 +134,8 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
   - the Mac minimum width is 800pt;
   - diff fills at 15%;
   - Backlog autosave with "✓ Saved ⌘S";
-  - the accent and Mac-colour rules.
+  - the accent and Mac-colour rules;
+  - decided during the fixes (1–2 Nov): done plan steps fold behind "Show done" on the Mac, iPhone and iPad, and the plan count is steps done ("1 of 3"), not the phone board's "2 of 3"; on iPad the actions card lists its first three calls (like the Mac's open group) while the iPhone keeps one folded row; Cron edits save explicitly with ⌘S (no autosave); board keys that clash with `docs/shortcuts.md` are not bound (⌘8 Open in Graphs, ⌘N New chat, ⌘J/⌘L chat, ⌘O Open in nvim; Processes Kill stays ⇧K); command titles are sentence case at the source (`plugin.json`); the iPad section switch (Agents / Backlog / Docs) lives in the folder menu.
 - Gaps already tracked in Graphs, Processes, the Code chat, the Agents graph row and the Plan caption.
 - What the boards took from the build (class d):
   - the Settings → Remote native form;
@@ -158,6 +159,9 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
 5. Processes-640, x-Palette, x-Switcher and the Processes action bar with a row selected: re-capture them with the rest.
 6. Duo boards are out of scope for now; iPad is in scope again since 1 Nov (the user started testing it).
 7. Processes Kill stays on ⇧K (the board's bare K is not taken).
+8. The phone gets the Mac's recovery actions under a failed session where they work remotely (from the `failure` field the Go plugin sends); Mac-local flows such as sign-in read "Sign in on ‹Mac›".
+9. The "Notifications" row in `C-MacInfo` is not built: no per-Mac notification setting exists yet (board change / later; backlog #115).
+10. Remaining Title Case in themed UI (Welcome, workspace switcher) goes to sentence case; app menus and system dialogs keep Title Case.
 
 ## 6. Done when
 
