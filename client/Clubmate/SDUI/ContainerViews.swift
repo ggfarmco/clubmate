@@ -102,61 +102,17 @@ extension EnvironmentValues {
     }
 }
 
-@MainActor
-@Observable
-final class FormState {
-    static let typingDelay = Duration.milliseconds(600)
-
-    var values: [String: JSONValue] = [:]
-    private(set) var submissions = 0
-    private(set) var save = UIFormSave()
-    @ObservationIgnored var autosave = false
-    @ObservationIgnored private var pending: Task<Void, Never>?
-
-    var dirty: Bool { save.dirty }
-    var saving: Bool { save.saving && autosave }
-
-    func submit() {
-        pending?.cancel()
-        pending = nil
-        submissions += 1
-    }
-
-    func edited(after delay: Duration? = nil) {
-        guard autosave else { return }
-        if !save.dirty { save.edited() }
-        pending?.cancel()
-        guard let delay else { return submit() }
-        pending = Task { [weak self] in
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled else { return }
-            self?.submit()
-        }
-    }
-
-    func flush() {
-        if dirty { submit() }
-    }
-
-    func sent() {
-        pending?.cancel()
-        pending = nil
-        save.sent()
-    }
-
-    func answered() {
-        save.answered()
-    }
-}
-
 struct FormNodeView: View {
     let node: SDUINode
 
-    @State private var state = FormState()
+    @State private var local = FormState()
+    @Environment(\.composerDrafts) private var drafts
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
     @State private var width: CGFloat = 0
+
+    private var state: FormState { node.id.flatMap { drafts?.form(for: $0) } ?? local }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.gutter) {
@@ -175,6 +131,7 @@ struct FormNodeView: View {
         }
         .onDisappear {
             if state.dirty { send() }
+            if let id = node.id { drafts?.left(form: id) }
         }
         .onChange(of: UIForm.fieldIDs(in: node)) { old, ids in
             if state.dirty, !old.isSubset(of: ids) {

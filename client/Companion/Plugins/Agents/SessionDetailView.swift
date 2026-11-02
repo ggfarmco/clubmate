@@ -143,7 +143,7 @@ struct SessionDetailView: View {
                             }
                             .id(request.id)
                         case .elicitation(let question):
-                            ElicitationCard(question: question, agentName: session.agentName, blocked: blocked) { action, answers in
+                            ElicitationCard(question: question, agentName: session.agentName, blocked: blocked, draft: Binding(get: { store.elicitationDraft(sessionID, request: question.id) }, set: { store.setElicitationDraft($0, session: sessionID, request: question.id) })) { action, answers in
                                 try await store.respond(sessionID, request: question.id, action: action, answers: answers)
                             }
                             .id(question.id)

@@ -713,6 +713,44 @@ public struct Elicitation: Sendable, Equatable {
     }
 }
 
+public struct ElicitationDraft: Sendable, Equatable {
+    public var picks: [String: Set<String>] = [:]
+    public var texts: [String: String] = [:]
+    public var toggles: [String: Bool] = [:]
+
+    public init() {}
+
+    public var isEmpty: Bool {
+        picks.isEmpty && texts.isEmpty && toggles.isEmpty
+    }
+
+    public mutating func toggle(_ field: Elicitation.Field, _ option: Elicitation.Option) {
+        var set = picks[field.key, default: []]
+        if set.contains(option.value) {
+            set.remove(option.value)
+        } else if field.type == "choice" {
+            set = [option.value]
+        } else {
+            set.insert(option.value)
+        }
+        picks[field.key] = set.isEmpty ? nil : set
+    }
+
+    public func answers(_ fields: [Elicitation.Field]) -> [Elicitation.Answer] {
+        fields.flatMap { field -> [Elicitation.Answer] in
+            switch field.type {
+            case "choice", "multi":
+                return field.options.filter { picks[field.key, default: []].contains($0.value) }.map { Elicitation.Answer(key: field.key, value: $0.value) }
+            case "boolean":
+                return toggles[field.key].map { [Elicitation.Answer(key: field.key, value: $0 ? "true" : "false")] } ?? []
+            default:
+                let text = texts[field.key] ?? ""
+                return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [Elicitation.Answer(key: field.key, value: text)]
+            }
+        }
+    }
+}
+
 public struct Compaction: Sendable, Equatable {
     public let status: String
     public let summary: String

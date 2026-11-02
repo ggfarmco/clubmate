@@ -434,7 +434,7 @@ struct TextFieldNodeView: View {
             }
             .onChange(of: node.string("value"), initial: true) { _, value in
                 if form?.autosave == true || live, focused { return }
-                text = value ?? ""
+                text = node.id.flatMap { form?.draft($0)?.stringValue } ?? value ?? ""
             }
             .onChange(of: text, initial: true) { _, value in
                 if lines == nil, value.contains(where: \.isNewline) {
@@ -460,6 +460,7 @@ struct TextFieldNodeView: View {
         Binding(get: { text }, set: { value in
             guard value != text else { return }
             text = value
+            if let id = node.id { form?.touch(id) }
             form?.edited(after: FormState.typingDelay)
             if live { schedule(value) }
         })
@@ -497,7 +498,7 @@ struct ToggleNodeView: View {
             .tint(theme.accent)
             .padding(.horizontal, theme.gutter)
             .onChange(of: node.bool("value"), initial: true) { _, value in
-                isOn = value ?? false
+                isOn = node.id.flatMap { form?.draft($0)?.boolValue } ?? value ?? false
             }
             .onChange(of: isOn, initial: true) { _, value in
                 guard let id = node.id else { return }
@@ -507,7 +508,10 @@ struct ToggleNodeView: View {
 
     private func change(_ value: Bool) {
         isOn = value
-        if let id = node.id { form?.values[id] = .bool(value) }
+        if let id = node.id {
+            form?.values[id] = .bool(value)
+            form?.touch(id)
+        }
         form?.edited()
         if form == nil || node.string("action") != nil { dispatch(node, .toggle(value)) }
     }
@@ -538,7 +542,7 @@ struct SelectNodeView: View {
         .fieldChrome(focused: false, error: node.string("error"))
         .padding(.horizontal, theme.gutter)
         .onChange(of: node.string("value"), initial: true) { _, current in
-            value = current ?? options.first?.value ?? ""
+            value = node.id.flatMap { form?.draft($0)?.stringValue } ?? current ?? options.first?.value ?? ""
         }
         .onChange(of: value, initial: true) { _, current in
             guard let id = node.id else { return }
@@ -563,7 +567,10 @@ struct SelectNodeView: View {
 
     private func choose(_ option: String) {
         value = option
-        if let id = node.id { form?.values[id] = .string(option) }
+        if let id = node.id {
+            form?.values[id] = .string(option)
+            form?.touch(id)
+        }
         form?.edited()
         if form == nil || node.string("action") != nil { dispatch(node, .change(option)) }
     }

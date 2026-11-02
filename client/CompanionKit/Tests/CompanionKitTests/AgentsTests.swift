@@ -385,6 +385,20 @@ final class PermissionAnswerTests: XCTestCase {
 }
 
 @MainActor
+final class ElicitationDraftTests: XCTestCase {
+    func testDraftOutlivesTheCardUntilTheAnswerIsSent() async throws {
+        let store = AgentsStore(workspace: "w", runner: ScriptedRunner(replies: []))
+        var draft = ElicitationDraft()
+        draft.picks["stores"] = ["pg", "redis"]
+        draft.texts["note"] = "HA"
+        store.setElicitationDraft(draft, session: "s", request: "elicitation-1")
+        XCTAssertEqual(store.elicitationDraft("s", request: "elicitation-1"), draft)
+        try await store.respond("s", request: "elicitation-1", action: "accept", answers: draft.answers([]))
+        XCTAssertEqual(store.elicitationDraft("s", request: "elicitation-1"), ElicitationDraft())
+    }
+}
+
+@MainActor
 final class AnswerRunner: CommandRunner {
     let pending: [String]
     let failure: RemoteError?

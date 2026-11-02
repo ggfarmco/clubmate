@@ -1389,10 +1389,8 @@ struct ElicitationCard: View {
     let question: Elicitation
     let agentName: String
     let blocked: String?
+    @Binding var draft: ElicitationDraft
     let send: @MainActor (String, [Elicitation.Answer]) async throws -> Void
-    @State private var picks: [String: Set<String>] = [:]
-    @State private var texts: [String: String] = [:]
-    @State private var toggles: [String: Bool] = [:]
     @State private var sending = false
     @State private var failure: String?
     @State private var fieldsHeight: CGFloat = 0
@@ -1484,12 +1482,12 @@ struct ElicitationCard: View {
         switch field.type {
         case "choice", "multi":
             ForEach(field.options) { option in
-                let selected = picks[field.key, default: []].contains(option.value)
+                let selected = draft.picks[field.key, default: []].contains(option.value)
                 Button {
                     if single {
                         submit("accept", [Elicitation.Answer(key: field.key, value: option.value)])
                     } else {
-                        toggle(field, option)
+                        draft.toggle(field, option)
                     }
                 } label: {
                     optionRow(option, symbol: single ? nil : selected ? "checkmark.circle.fill" : "circle")
@@ -1498,9 +1496,9 @@ struct ElicitationCard: View {
                 .disabled(!answerable)
             }
         case "boolean":
-            Toggle(field.label, isOn: Binding(get: { toggles[field.key] ?? false }, set: { toggles[field.key] = $0 }))
+            Toggle(field.label, isOn: Binding(get: { draft.toggles[field.key] ?? false }, set: { draft.toggles[field.key] = $0 }))
         default:
-            TextField(field.type == "text" ? (field.description.isEmpty ? field.label : field.description) : field.label, text: Binding(get: { texts[field.key] ?? "" }, set: { texts[field.key] = $0 }), axis: .vertical)
+            TextField(field.type == "text" ? (field.description.isEmpty ? field.label : field.description) : field.label, text: Binding(get: { draft.texts[field.key] ?? "" }, set: { draft.texts[field.key] = $0 }), axis: .vertical)
                 .lineLimit(1...4)
                 .keyboardType(field.type == "text" ? .default : .decimalPad)
                 .padding(.horizontal, 14)
@@ -1546,7 +1544,7 @@ struct ElicitationCard: View {
         } else {
             HStack(spacing: 10) {
                 if question.singleChoice == nil || question.request.fields.count > 1 {
-                    primary("Send") { submit("accept", answers) }
+                    primary("Send") { submit("accept", draft.answers(question.request.fields)) }
                 }
                 PlainCapsule(title: "Skip", tint: .primary) { submit("decline", []) }
             }
@@ -1563,32 +1561,6 @@ struct ElicitationCard: View {
                 .contentShape(.capsule)
         }
         .buttonStyle(.plain)
-    }
-
-    private var answers: [Elicitation.Answer] {
-        question.request.fields.flatMap { field -> [Elicitation.Answer] in
-            switch field.type {
-            case "choice", "multi":
-                return field.options.filter { picks[field.key, default: []].contains($0.value) }.map { Elicitation.Answer(key: field.key, value: $0.value) }
-            case "boolean":
-                return toggles[field.key].map { [Elicitation.Answer(key: field.key, value: $0 ? "true" : "false")] } ?? []
-            default:
-                let text = texts[field.key] ?? ""
-                return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [Elicitation.Answer(key: field.key, value: text)]
-            }
-        }
-    }
-
-    private func toggle(_ field: Elicitation.Field, _ option: Elicitation.Option) {
-        var set = picks[field.key, default: []]
-        if set.contains(option.value) {
-            set.remove(option.value)
-        } else if field.type == "choice" {
-            set = [option.value]
-        } else {
-            set.insert(option.value)
-        }
-        picks[field.key] = set
     }
 
     private func submit(_ action: String, _ answers: [Elicitation.Answer]) {

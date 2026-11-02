@@ -112,6 +112,7 @@ public final class ComposerModel {
 @MainActor
 public final class ComposerDrafts {
     private var models: [String: ComposerModel] = [:]
+    private var forms: [String: FormState] = [:]
     public private(set) var focused: String?
 
     public init() {}
@@ -144,6 +145,17 @@ public final class ComposerDrafts {
         let model = ComposerModel()
         models[id] = model
         return model
+    }
+
+    public func form(for id: String) -> FormState {
+        if let form = forms[id] { return form }
+        let form = FormState()
+        forms[id] = form
+        return form
+    }
+
+    public func left(form id: String) {
+        if forms[id]?.unsent == false { forms[id] = nil }
     }
 
     public func clear(_ id: String, sent: String) {

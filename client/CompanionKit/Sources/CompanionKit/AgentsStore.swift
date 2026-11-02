@@ -23,6 +23,7 @@ public final class AgentsStore {
     public private(set) var openedDocs: [String: String] = [:]
     public var expanded: Set<String> = []
     private var outgoing: [String: [Outgoing]] = [:]
+    private var elicitationDrafts: [String: [String: ElicitationDraft]] = [:]
 
     public static let followInterval: Duration = .seconds(2)
 
@@ -228,7 +229,17 @@ public final class AgentsStore {
             args["answers"] = .array(answers.map { .object(["key": .string($0.key), "value": .string($0.value)]) })
         }
         try await run("agents.elicitation", args)
+        setElicitationDraft(ElicitationDraft(), session: session, request: request)
         await refreshSession(session)
+    }
+
+    public func elicitationDraft(_ session: String, request: String) -> ElicitationDraft {
+        elicitationDrafts[session]?[request] ?? ElicitationDraft()
+    }
+
+    public func setElicitationDraft(_ draft: ElicitationDraft, session: String, request: String) {
+        elicitationDrafts[session, default: [:]][request] = draft.isEmpty ? nil : draft
+        if elicitationDrafts[session]?.isEmpty == true { elicitationDrafts[session] = nil }
     }
 
     public func setMode(_ session: String, mode: String) async throws {

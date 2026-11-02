@@ -42,6 +42,21 @@ final class AgentsUITests: XCTestCase {
         XCTAssertEqual(drafts.model(for: "b/composer/0").text, "next prompt")
     }
 
+    func testUnsentFormAnswersSurviveLeavingUntilSent() {
+        let drafts = ComposerDrafts()
+        let form = drafts.form(for: "a/elicitation/1")
+        form.values["a/elicitation/1/f/0"] = .string("default")
+        form.values["a/elicitation/1/f/1"] = .string("typed")
+        form.touch("a/elicitation/1/f/1")
+        drafts.left(form: "a/elicitation/1")
+        let back = drafts.form(for: "a/elicitation/1")
+        XCTAssertNil(back.draft("a/elicitation/1/f/0"))
+        XCTAssertEqual(back.draft("a/elicitation/1/f/1"), .string("typed"))
+        back.sent()
+        drafts.left(form: "a/elicitation/1")
+        XCTAssertNil(drafts.form(for: "a/elicitation/1").draft("a/elicitation/1/f/1"))
+    }
+
     func testFocusedEmptyComposerIsPerSession() {
         let drafts = ComposerDrafts()
         XCTAssertFalse(drafts.focusedEmpty(session: "a"))
