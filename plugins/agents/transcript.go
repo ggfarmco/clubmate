@@ -186,12 +186,12 @@ func (s *session) viewSince(fromTurn int, since int64) transcriptView {
 		c := *en
 		c.sub = nil
 		closed := false
-		if en.Tool != nil && (en.sub == nil && !s.running || en.sub != nil && s.proc == nil) {
+		if en.Tool != nil && (en.sub == nil && !s.workingLocked() || en.sub != nil && s.proc == nil) {
 			if tool, ok := closeTool(en.Tool); ok {
 				c.Tool, c.node, c.Stoppable, closed = tool, nil, false, true
 			}
 		}
-		if !s.running && c.Compaction != nil && c.Compaction.Status == compactionRunning {
+		if !s.workingLocked() && c.Compaction != nil && c.Compaction.Status == compactionRunning {
 			c.Compaction, c.node, closed = &compaction{Status: compactionCancelled}, nil, true
 		}
 		if closed != en.closed {
@@ -308,9 +308,19 @@ func (s *session) update(params json.RawMessage) {
 	}
 	title, mode := s.rec.Title, s.rec.Mode
 	s.apply(e)
+	var started, ended bool
+	if e.AgentSession == "" {
+		started, ended = s.trackLocked(head.SessionUpdate, n.Update)
+	}
 	meta := title != s.rec.Title || mode != s.rec.Mode
 	s.mu.Unlock()
 	s.changed(changeUpdate, meta)
+	if started {
+		s.changed(changeStatus, true)
+	}
+	if ended && s.idled != nil {
+		go s.idled()
+	}
 }
 
 func (s *session) notice(title, description string) {

@@ -126,6 +126,7 @@ func (a *app) procExited(p *agentProc, reason string) {
 			continue
 		}
 		s.proc = nil
+		s.dropBackgroundLocked()
 		s.cancelPermissionsLocked()
 		quiet := p.quiet.Load() || s.rec.closed()
 		var ended api.Turn

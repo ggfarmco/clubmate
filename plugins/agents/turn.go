@@ -29,6 +29,8 @@ const (
 type runState struct {
 	proc            *agentProc
 	running         bool
+	cycle           bool
+	background      map[string]bool
 	cancelRequested bool
 	prior           string
 	started         time.Time
@@ -102,13 +104,17 @@ func (a *app) runQueuedLocked(s *session) {
 
 func (a *app) cancel(s *session) {
 	s.mu.Lock()
-	p, running, agentID := s.proc, s.running, s.rec.AgentSessionID
+	p, running, cycle, agentID := s.proc, s.running, s.cycle, s.rec.AgentSessionID
+	idle := !running && s.busyLocked()
 	if running {
 		s.cancelRequested = true
 		s.recordLocked(actorUser, kindCancel, acp.SessionRequest{SessionID: agentID})
 	}
+	if idle {
+		s.dropBackgroundLocked()
+	}
 	s.mu.Unlock()
-	if p != nil && running {
+	if p != nil && (running || cycle) {
 		if err := p.conn.Notify(acp.MethodSessionCancel, acp.SessionRequest{SessionID: agentID}); err != nil {
 			fmt.Fprintln(os.Stderr, "agents: cancel:", err)
 		}
@@ -117,6 +123,9 @@ func (a *app) cancel(s *session) {
 	s.cancelPermissionsLocked()
 	s.mu.Unlock()
 	s.changed(changeUpdate, false)
+	if idle {
+		a.settleBackground(s)
+	}
 }
 
 func (a *app) steerText(s *session, text string) {
@@ -234,6 +243,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	}
 	a.endSnapshot(s, rec, turn, sha)
 	commits := a.attributeTurn(rec, turn, sha, args.Text)
+	a.pruneBackground(s)
 	s.mu.Lock()
 	s.log.flush()
 	if len(commits) > 0 {
@@ -255,9 +265,12 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		nextTurn = s.beginTurnLocked()
 	default:
 		s.recordLocked(s.actor(), kindTurnEnd, turnEndPayload{StopReason: res.StopReason})
-		if s.rec.Status == statusWaiting {
+		switch {
+		case s.rec.Status == statusWaiting:
 			s.prior = statusDone
-		} else {
+		case len(s.background) > 0:
+			s.setStatusLocked(statusRunning, "")
+		default:
 			s.setStatusLocked(statusDone, "")
 			finished = true
 		}
@@ -343,6 +356,7 @@ func (a *app) checktime(rec record) {
 
 func (s *session) beginTurnLocked() int {
 	s.running = true
+	s.cycle = false
 	s.cancelRequested = false
 	s.started = time.Now()
 	s.turn++

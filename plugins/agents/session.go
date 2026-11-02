@@ -20,6 +20,7 @@ type session struct {
 	deleted   bool
 	changed   func(kind string, save bool)
 	turned    func(api.Turn)
+	idled     func()
 	resolved  func(kind, request string)
 	setup     *setup
 
@@ -104,7 +105,7 @@ func (s *session) settleLocked() {
 			s.prior = s.rec.Status
 		}
 		s.setStatusLocked(statusWaiting, "")
-	case s.running:
+	case s.busyLocked():
 		s.setStatusLocked(statusRunning, "")
 	case s.rec.Status == statusWaiting:
 		s.setStatusLocked(cmpStatus(s.prior), "")
