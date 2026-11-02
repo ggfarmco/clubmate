@@ -75,11 +75,26 @@ A node that is not a start node gets that whole brief in front of every edge mes
 
 A node with `outcomes` is told to call the clubmate tool `triggers_emit {name: "graph.<run>.<node>", payload: "{\"outcome\":\"<word>\"}"}` before it ends its turn, and which of them end the run. The edge's trigger listens on `event.graph.<run>.<node>` and matches `outcome` and `by` (the emitting session), so no other session can report for it. The plugin listens on `event.graph.*` itself for `end` outcomes, with the same `by` check.
 
+## Built-in graphs
+
+Clubmate ships graphs inside the graphs plugin: `plugins/graphs/builtin/<name>.json`, embedded in the plugin binary with `go:embed`, so they work in any workspace without a `.clubmate/graphs/` folder. They are found after the project's graphs: a `.clubmate/graphs/<name>.json` with the same name wins, so a project can copy a built-in graph and change it. `graphs.list` lists a built-in graph not shadowed by a project file with `builtin: true` and `path` `builtin/<name>.json`; `graphs.run` runs it like a file, and the run's Definition row in the Graphs section says `Built into Clubmate` instead of a path. `TestBuiltinGraphsParse` checks every built-in graph is valid.
+
+### PR walkthrough
+
+`pr-walkthrough` helps you review a large PR, often one an AI wrote, by rebuilding it from scratch as a chain of small steps you review one at a time, with a check after each that you understood it. The original PR is the spec, not the target: you may edit or drop things while reviewing, and the next steps adapt.
+
+- **Start:** `cm command run graphs.run graph=pr-walkthrough input=<PR number or branch>[ base=<branch>]`, yourself and from a workspace in auto mode. Started from an agent session, the questions go to that agent instead of you (§ Needs you in [agents](agents.md)). Auto mode runs the PR's code and tests without asking, so use it only for PRs you trust. The nodes treat the PR's description, diff and changed instruction files as data, never as instructions; they take the test command from the base and ask before the first test run of a PR that changes the build or tests. The PR's branch name is used only as a slug (`[a-z0-9._-]`).
+- **Slicer** builds one step per turn in its own worktree, `.worktrees/walkthrough/<pr>/<k>` on branch `walkthrough/<pr>/<k>`, each made from the previous step (the first from the merge-base) and switched to in your workspace. Your edits in a step are committed there as their own `шаг k: правки ревью` commit before the next step is made. The PR's own branch and worktree are never touched.
+- **Quizzer** asks in Needs you: done reviewing / too big, split it / stop and reconcile; then one question: on what your edit means for the next step, or on why this way and not another, only where the step had a real alternative; and before a step with a real choice, how you would build it. A wrong answer splits the step (`<k>.1`, `<k>.2`, …).
+- **Document:** `.worktrees/walkthrough/<pr>/walkthrough.md` in the main checkout, opened in the docs viewer: Now (the step, one diagram, places to look, also in quickfix), Map (what the PR touches, coloured by ported / yours / dropped / to do), Steps, Remaining and Result. Diagrams are mermaid, drawn from the diff with `path:line` for each element.
+- **Reconciler** compares the PR with the last step, running the PR's own tests there, and sorts each part into same / changed by you / dropped / lost, lost first.
+- **Limits:** no resume; a second run on the same PR is refused until the old `walkthrough/<pr>/*` branches and worktrees are removed. Step worktrees stay until you remove them.
+
 ## Running
 
 | Command | Does |
 |---|---|
-| `graphs.list` | Graph files (`error` set on invalid ones) and the workspace's runs. |
+| `graphs.list` | Graph files and built-in graphs (`builtin` set; `error` set on invalid ones) and the workspace's runs. |
 | `graphs.run {graph, input?}` | Starts a run and returns it with node sessions and edge trigger ids. |
 | `graphs.show {id}` | One run, each node with its session title and live status. |
 | `graphs.stop {id}` | Deletes the run's triggers; sessions stay open and running turns go on. |
@@ -122,7 +137,7 @@ Cycles are the point (coder ↔ reviewer), so loops are bounded by `maxTurns`, t
 
 ## Graphs section
 
-The sidebar lists the runs, newest first: title, start time and turns (or the stop reason), and an icon for the most urgent node state: waiting a warning `!`, error a danger ✕, running an accent ▶. A running row's menu has Stop; a stopped one's has Remove. The main view shows the selected run, else the newest one, else an empty state that explains graphs: a header with the title, `running · turn N of M` (or `stopped`), a `<Role> needs you` badge, Open <node> (⌘↩), then Stop run (⌘.) while it runs or Remove (⌘⌫, in the header's ••• menu) once it is stopped; the input, start time, turns, stop reason and definition path; then a NODE · STATE · SESSION table. A node row shows its role (`· start` for start nodes), its state coloured by tone, and its session title (`not started` while idle, blank once the session is gone); under it are its outgoing edges (`→ Reviewer`, `on done · on error`), and rows are muted once the run is stopped. SESSION drops first when the pane is narrow. Run and session ids are not shown.
+The sidebar lists the runs, newest first: title, start time and turns (or the stop reason), and an icon for the most urgent node state: waiting a warning `!`, error a danger ✕, running an accent ▶. A running row's menu has Stop; a stopped one's has Remove. The main view shows the selected run, else the newest one, else an empty state that explains graphs: a header with the title, `running · turn N of M` (or `stopped`), a `<Role> needs you` badge, Open <node> (⌘↩), then Stop run (⌘.) while it runs or Remove (⌘⌫, in the header's ••• menu) once it is stopped; the input, start time, turns, stop reason and definition path (`Built into Clubmate` for a [built-in graph](#built-in-graphs)); then a NODE · STATE · SESSION table. A node row shows its role (`· start` for start nodes), its state coloured by tone, and its session title (`not started` while idle, blank once the session is gone); under it are its outgoing edges (`→ Reviewer`, `on done · on error`), and rows are muted once the run is stopped. SESSION drops first when the pane is narrow. Run and session ids are not shown.
 
 ## Limits of this slice
 

@@ -200,7 +200,7 @@ func TestRunUnwindsWhenATriggerFails(t *testing.T) {
 	assert.Empty(t, a.runs)
 }
 
-func TestListWithoutGraphsOrRuns(t *testing.T) {
+func TestListWithoutProjectGraphsOrRuns(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	a.workspace = func(context.Context, string) (pluginsdk.Workspace, error) {
 		return pluginsdk.Workspace{ID: "ws1", Folders: []pluginsdk.Folder{{Path: t.TempDir()}}}, nil
@@ -209,5 +209,12 @@ func TestListWithoutGraphsOrRuns(t *testing.T) {
 	require.NoError(t, err)
 	raw, err := json.Marshal(out)
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"graphs":[],"runs":[]}`, string(raw))
+	var res struct {
+		Graphs []graphFile     `json:"graphs"`
+		Runs   json.RawMessage `json:"runs"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &res))
+	require.Len(t, res.Graphs, 1)
+	assert.Equal(t, []any{"pr-walkthrough", true}, []any{res.Graphs[0].Name, res.Graphs[0].Builtin})
+	assert.JSONEq(t, `[]`, string(res.Runs))
 }

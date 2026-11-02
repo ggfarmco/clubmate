@@ -63,7 +63,11 @@ func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
 		}
 		rows = append(rows, automation.Property("Stopped", stopped, ""))
 	}
-	rows = append(rows, automation.Property("Definition", graphsDir+"/"+r.Graph+graphExt, ""))
+	definition := graphsDir + "/" + r.Graph + graphExt
+	if r.Builtin {
+		definition = "Built into Clubmate"
+	}
+	rows = append(rows, automation.Property("Definition", definition, ""))
 	nodes := sdui.Table(tableID, nodeColumns, nodeRows(r, sessions), "", sdui.Sort{})
 	return sdui.VStack(runHeader(r, sessions), automation.Properties(rows...), sdui.Scroll(nodes))
 }

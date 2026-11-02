@@ -10,6 +10,7 @@ import (
 	"clubmate/internal/sdui"
 	sdk "clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
+	"clubmate/plugins/internal/automation"
 )
 
 func TestExecutionView(t *testing.T) {
@@ -72,6 +73,13 @@ func TestStoppedRunOffersRemove(t *testing.T) {
 	remove := header.Children[len(header.Children)-1]
 	assert.Equal(t, "gr_1/remove", remove.ID)
 	assert.Equal(t, true, remove.Props["overflow"])
+}
+
+func TestBuiltinRunDefinition(t *testing.T) {
+	r := &Run{ID: "gr_1", Graph: "pr-walkthrough", Title: "PR walkthrough", Status: statusRunning, Builtin: true, StartedAt: time.Now()}
+
+	props := mainView(r, nil).Children[1].Children
+	assert.Equal(t, automation.Property("Definition", "Built into Clubmate", ""), props[len(props)-1])
 }
 
 func cellTexts(row sdk.TableRow) []string {

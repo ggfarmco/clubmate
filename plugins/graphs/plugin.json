@@ -12,14 +12,14 @@
         "title": "List agent graphs",
         "hidden": true,
         "agent": true,
-        "description": "List the agent graphs in .clubmate/graphs/*.json of your worktree (else of the workspace's folders) and this workspace's graph runs: {graphs: [{name, title?, description?, path, nodes, error?}], runs: [{id, graph, title, status, reason?, turns, maxTurns, startedAt}]}. A graph whose file is invalid has error set. Non-destructive."
+        "description": "List the agent graphs in .clubmate/graphs/*.json of your worktree (else of the workspace's folders), the graphs built into Clubmate (builtin: true; a project file with the same name replaces one) and this workspace's graph runs: {graphs: [{name, title?, description?, path, nodes, builtin?, error?}], runs: [{id, graph, title, status, reason?, turns, maxTurns, startedAt}]}. A graph whose file is invalid has error set. Non-destructive."
       },
       {
         "id": "graphs.run",
         "title": "Run agent graph",
         "hidden": true,
         "agent": true,
-        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json: one idle agent session per node (your child sessions when you call it), one trigger per edge (on the source node's turn end or reported outcome, prompt the target node), then the start nodes get their prompt with input. The run stops itself when a node reports an outcome listed in its end, after the graph's maxTurns turns (default 20) or when your session closes; graphs.stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, status, turns, maxTurns, nodes: [{id, role, start?, session}], edges: [{from, to, on, outcome?, trigger}]}. Watch nodes with agents.wait on their sessions. Non-destructive.",
+        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json, else of the built-in graph <graph> (see graphs.list): one idle agent session per node (your child sessions when you call it), one trigger per edge (on the source node's turn end or reported outcome, prompt the target node), then the start nodes get their prompt with input. The run stops itself when a node reports an outcome listed in its end, after the graph's maxTurns turns (default 20) or when your session closes; graphs.stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, builtin?, status, turns, maxTurns, nodes: [{id, role, start?, session}], edges: [{from, to, on, outcome?, trigger}]}. Watch nodes with agents.wait on their sessions. Non-destructive.",
         "args": {
           "properties": {
             "graph": {"type": "string", "description": "Graph name: the file name in .clubmate/graphs/ without .json, e.g. review-loop."},

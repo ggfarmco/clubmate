@@ -105,7 +105,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
-	g, _, err := loadGraph(dirs, args.Graph)
+	g, builtin, err := loadGraph(dirs, args.Graph)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +113,7 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
+	r.Builtin = builtin
 	x := &runner{call: a.runCommand, run: r}
 	if err := x.start(ctx, g); err != nil {
 		cleanup := context.WithoutCancel(ctx)

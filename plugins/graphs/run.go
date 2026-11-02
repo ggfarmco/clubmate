@@ -33,6 +33,7 @@ type Run struct {
 	Title     string     `json:"title"`
 	Workspace string     `json:"workspace"`
 	Input     string     `json:"input,omitempty"`
+	Builtin   bool       `json:"builtin,omitempty"`
 	Agent     bool       `json:"agent,omitempty"`
 	Caller    string     `json:"caller,omitempty"`
 	Status    string     `json:"status"`

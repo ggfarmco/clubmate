@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 
 const (
 	graphsDir       = ".clubmate/graphs"
+	builtinDir      = "builtin"
 	graphExt        = ".json"
 	maxNodes        = 8
 	maxEdges        = 32
@@ -27,6 +29,9 @@ const (
 	onAsks    = "asks"
 	onOutcome = "outcome"
 )
+
+//go:embed builtin/*.json
+var builtinGraphs embed.FS
 
 var (
 	nameRe        = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
@@ -68,15 +73,16 @@ type graphFile struct {
 	Description string `json:"description,omitempty"`
 	Path        string `json:"path"`
 	Nodes       int    `json:"nodes"`
+	Builtin     bool   `json:"builtin,omitempty"`
 	Error       string `json:"error,omitempty"`
 }
 
-func loadGraph(dirs []string, name string) (*Graph, string, error) {
+func loadGraph(dirs []string, name string) (*Graph, bool, error) {
 	if name == "" {
-		return nil, "", errNoGraph
+		return nil, false, errNoGraph
 	}
 	if !nameRe.MatchString(name) {
-		return nil, "", fmt.Errorf("graph %q: use lowercase letters, digits, - and _", name)
+		return nil, false, fmt.Errorf("graph %q: use lowercase letters, digits, - and _", name)
 	}
 	for _, dir := range dirs {
 		path := filepath.Join(dir, graphsDir, name+graphExt)
@@ -85,15 +91,24 @@ func loadGraph(dirs []string, name string) (*Graph, string, error) {
 			continue
 		}
 		if err != nil {
-			return nil, "", fmt.Errorf("read graph %s: %w", path, err)
+			return nil, false, fmt.Errorf("read graph %s: %w", path, err)
 		}
 		g, err := parseGraph(name, data)
 		if err != nil {
-			return nil, "", fmt.Errorf("%s: %w", path, err)
+			return nil, false, fmt.Errorf("%s: %w", path, err)
 		}
-		return g, path, nil
+		return g, false, nil
 	}
-	return nil, "", fmt.Errorf("no graph %q in %s/ of %s", name, graphsDir, strings.Join(dirs, ", "))
+	path := builtinPath(name)
+	data, err := builtinGraphs.ReadFile(path)
+	if err != nil {
+		return nil, false, fmt.Errorf("no graph %q in %s/ of %s, nor built in", name, graphsDir, strings.Join(dirs, ", "))
+	}
+	g, err := parseGraph(name, data)
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: %w", path, err)
+	}
+	return g, true, nil
 }
 
 func listGraphs(dirs []string) []graphFile {
@@ -110,22 +125,39 @@ func listGraphs(dirs []string) []graphFile {
 				continue
 			}
 			seen[name] = true
-			f := graphFile{Name: name, Path: path}
 			data, err := os.ReadFile(path)
-			if err == nil {
-				var g *Graph
-				if g, err = parseGraph(name, data); err == nil {
-					f.Title, f.Description, f.Nodes = g.Title, g.Description, len(g.Nodes)
-				}
-			}
-			if err != nil {
-				f.Error = err.Error()
-			}
-			files = append(files, f)
+			files = append(files, describeGraph(graphFile{Name: name, Path: path}, data, err))
 		}
+	}
+	entries, _ := builtinGraphs.ReadDir(builtinDir)
+	for _, e := range entries {
+		name := strings.TrimSuffix(e.Name(), graphExt)
+		if seen[name] {
+			continue
+		}
+		path := builtinPath(name)
+		data, err := builtinGraphs.ReadFile(path)
+		files = append(files, describeGraph(graphFile{Name: name, Path: path, Builtin: true}, data, err))
 	}
 	slices.SortFunc(files, func(x, y graphFile) int { return strings.Compare(x.Name, y.Name) })
 	return files
+}
+
+func describeGraph(f graphFile, data []byte, err error) graphFile {
+	if err == nil {
+		var g *Graph
+		if g, err = parseGraph(f.Name, data); err == nil {
+			f.Title, f.Description, f.Nodes = g.Title, g.Description, len(g.Nodes)
+		}
+	}
+	if err != nil {
+		f.Error = err.Error()
+	}
+	return f
+}
+
+func builtinPath(name string) string {
+	return builtinDir + "/" + name + graphExt
 }
 
 func parseGraph(name string, data []byte) (*Graph, error) {

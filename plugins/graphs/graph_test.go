@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +16,44 @@ func TestLoadGraph(t *testing.T) {
 	assert.Equal(t, "review-loop", g.Name)
 	assert.Len(t, g.Nodes, 2)
 	assert.Equal(t, onDone, g.Edges[0].On)
-	assert.Equal(t, []graphFile{{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2}}, listGraphs([]string{"testdata"}))
+
+	_, builtin, err := loadGraph([]string{t.TempDir()}, "pr-walkthrough")
+	require.NoError(t, err)
+	assert.True(t, builtin)
+
+	files := listGraphs([]string{"testdata"})
+	require.Len(t, files, 2)
+	assert.Equal(t, []string{"pr-walkthrough", "review-loop"}, []string{files[0].Name, files[1].Name})
+	assert.Equal(t, graphFile{Name: "pr-walkthrough", Title: "PR walkthrough", Description: files[0].Description, Path: "builtin/pr-walkthrough.json", Nodes: files[0].Nodes, Builtin: true}, files[0])
+	assert.Equal(t, graphFile{Name: "review-loop", Title: "Review loop", Description: g.Description, Path: "testdata/.clubmate/graphs/review-loop.json", Nodes: 2}, files[1])
+}
+
+func TestProjectGraphOverridesBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, graphsDir), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, graphsDir, "pr-walkthrough.json"), []byte(`{"title":"Mine","nodes":[{"id":"a","prompt":"p","start":true}]}`), 0o644))
+
+	g, builtin, err := loadGraph([]string{dir}, "pr-walkthrough")
+	require.NoError(t, err)
+	assert.Equal(t, "Mine", g.Title)
+	assert.False(t, builtin)
+
+	files := listGraphs([]string{dir})
+	require.Len(t, files, 1)
+	assert.Equal(t, "Mine", files[0].Title)
+	assert.False(t, files[0].Builtin)
+}
+
+func TestBuiltinGraphsParse(t *testing.T) {
+	entries, err := builtinGraphs.ReadDir(builtinDir)
+	require.NoError(t, err)
+	require.NotEmpty(t, entries)
+	for _, e := range entries {
+		data, err := builtinGraphs.ReadFile(builtinPath(strings.TrimSuffix(e.Name(), graphExt)))
+		require.NoError(t, err)
+		_, err = parseGraph(strings.TrimSuffix(e.Name(), graphExt), data)
+		assert.NoError(t, err, e.Name())
+	}
 }
 
 func TestParseGraphRejects(t *testing.T) {
