@@ -112,7 +112,9 @@ struct FormNodeView: View {
 
     @State private var width: CGFloat = 0
 
-    private var state: FormState { node.id.flatMap { drafts?.form(for: $0) } ?? local }
+    private var key: String? { node.id.map { dispatch.slot + "|" + $0 } }
+
+    private var state: FormState { key.flatMap { drafts?.form(for: $0) } ?? local }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.gutter) {
@@ -131,7 +133,7 @@ struct FormNodeView: View {
         }
         .onDisappear {
             if state.dirty { send() }
-            if let id = node.id { drafts?.left(form: id) }
+            if let key { drafts?.left(form: key) }
         }
         .onChange(of: UIForm.fieldIDs(in: node)) { old, ids in
             if state.dirty, !old.isSubset(of: ids) {
