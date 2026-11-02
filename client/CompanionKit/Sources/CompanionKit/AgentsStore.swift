@@ -35,6 +35,7 @@ public final class AgentsStore {
 
     public static let followInterval: Duration = .seconds(2)
     public static let imageCommand = "agents.image"
+    public static let reviewedCommand = "agents.reviewed"
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
@@ -297,6 +298,11 @@ public final class AgentsStore {
 
     public func close(_ session: String) async throws {
         try await run("agents.close", ["session": .string(session)])
+        await refreshSession(session)
+    }
+
+    public func reviewed(_ session: String) async throws {
+        try await run(Self.reviewedCommand, ["session": .string(session)])
         await refreshSession(session)
     }
 

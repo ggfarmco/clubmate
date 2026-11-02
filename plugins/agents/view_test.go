@@ -936,3 +936,12 @@ func TestShownPromptDropsIDs(t *testing.T) {
 	head := fmt.Sprintf(handoffHead, "Old", "agt_0123abcd", "/r/a", "agt_0123abcd")
 	assert.Equal(t, `[Clubmate handoff] You continue agent session "Old" in /r/a; it is closed now.`, shownPrompt(head))
 }
+
+func TestReviewStatusYieldsToAsks(t *testing.T) {
+	rec := record{ID: "agt_1", Status: statusDone, Review: true}
+
+	assert.Equal(t, statusReview, displayStatus(rec, ""))
+	assert.Equal(t, "review", activity(sessionRow{Rec: rec}, time.Now()))
+	rec.Asks = true
+	assert.Equal(t, statusAsks, displayStatus(rec, ""))
+}

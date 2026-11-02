@@ -45,6 +45,7 @@ var (
 		statusWaiting:   "exclamationmark.circle",
 		statusAsks:      "exclamationmark.circle",
 		statusDone:      "checkmark.circle",
+		statusReview:    "eye.circle",
 		statusIdle:      "circle",
 		statusError:     "xmark.circle",
 		statusClosed:    "archivebox",
@@ -56,6 +57,7 @@ var (
 		statusWaiting:   "warning",
 		statusAsks:      "warning",
 		statusError:     "danger",
+		statusReview:    "accent",
 		childrenRunning: "accent",
 		childrenWaiting: "warning",
 	}
@@ -64,6 +66,7 @@ var (
 		statusWaiting:   "waiting",
 		statusAsks:      "asking",
 		statusDone:      "Done",
+		statusReview:    "review",
 		statusIdle:      "idle",
 		statusError:     "Stopped",
 		statusClosed:    "Closed",
@@ -405,6 +408,9 @@ func displayStatus(rec record, children string) string {
 	if needsYou(rec) && rec.Status == statusDone {
 		return statusAsks
 	}
+	if rec.Review && rec.Status == statusDone {
+		return statusReview
+	}
 	return rec.Status
 }
 
@@ -422,7 +428,7 @@ func activity(row sessionRow, now time.Time) string {
 			return statusLabels[statusAsks]
 		}
 		return label
-	case childrenRunning, childrenWaiting, statusAsks, statusIdle:
+	case childrenRunning, childrenWaiting, statusAsks, statusIdle, statusReview:
 		return label
 	case statusRunning:
 		var parts []string

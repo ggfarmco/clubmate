@@ -83,5 +83,5 @@ func (a *app) jobOwners(ctx context.Context, workspace string) map[string]bool {
 func (s *session) settled(after time.Duration) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.rec.closed() || s.rec.Status == statusDone && s.idleLocked(after) && !s.asksLocked()
+	return s.rec.closed() || s.rec.Status == statusDone && !s.rec.Review && s.idleLocked(after) && !s.asksLocked()
 }

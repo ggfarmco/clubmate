@@ -7,6 +7,7 @@ public enum SessionState: String, Sendable, CaseIterable {
     case askingYou
     case running
     case stopped
+    case review
     case done
     case closed
 
@@ -16,6 +17,7 @@ public enum SessionState: String, Sendable, CaseIterable {
         case .askingYou: "Asking you"
         case .running: "Running"
         case .stopped: "Stopped"
+        case .review: "Review"
         case .done: "Done"
         case .closed: "Closed"
         }
@@ -32,6 +34,7 @@ extension AgentSession {
         if needsYou { return status == .waiting || !pending.isEmpty ? .waitingForYou : .askingYou }
         if status == .running { return .running }
         if status == .error { return .stopped }
+        if review { return .review }
         return .done
     }
 

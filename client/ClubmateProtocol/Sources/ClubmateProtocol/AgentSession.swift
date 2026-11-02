@@ -35,6 +35,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let failure: SessionFailure?
     public let modeLabel: String?
     public let autoClosed: Bool
+    public let review: Bool
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -44,7 +45,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, modeLabel: String? = nil,
-        autoClosed: Bool = false
+        autoClosed: Bool = false, review: Bool = false
     ) {
         self.id = id
         self.workspace = workspace
@@ -80,6 +81,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.failure = failure
         self.modeLabel = modeLabel
         self.autoClosed = autoClosed
+        self.review = review
     }
 
     public var isClosed: Bool { status == .closed }
@@ -87,7 +89,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review
     }
 
     public init(from decoder: any Decoder) throws {
@@ -131,7 +133,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             activity: try? c.decodeIfPresent(SessionActivity.self, forKey: .activity),
             failure: try? c.decodeIfPresent(SessionFailure.self, forKey: .failure),
             modeLabel: try optional(.modeLabel),
-            autoClosed: try flag(.autoClosed)
+            autoClosed: try flag(.autoClosed),
+            review: try flag(.review)
         )
     }
 
@@ -173,6 +176,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(failure, forKey: .failure)
         try c.encodeIfPresent(modeLabel, forKey: .modeLabel)
         try c.encode(autoClosed, forKey: .autoClosed)
+        try c.encode(review, forKey: .review)
     }
 }
 

@@ -70,7 +70,7 @@ var (
 	itemRequired = []string{"id", "label"}
 
 	messageRoles     = []string{"user", "agent", "thought"}
-	sessionStatuses  = []string{"running", "waiting", "asks", "done", "idle", "error", "closed", "childrenRunning", "childrenWaiting"}
+	sessionStatuses  = []string{"running", "waiting", "asks", "review", "done", "idle", "error", "closed", "childrenRunning", "childrenWaiting"}
 	planStatuses     = []string{"pending", "in_progress", "completed"}
 	toolKinds        = []string{"read", "edit", "delete", "move", "search", "execute", "think", "agent", "fetch", "switch_mode", "other"}
 	toolStatuses     = []string{"pending", "in_progress", "completed", "failed", "cancelled"}

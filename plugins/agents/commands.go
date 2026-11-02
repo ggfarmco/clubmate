@@ -49,6 +49,7 @@ var (
 		"agents.delete":         withSession((*app).deleteCommand),
 		"agents.resume":         withSession((*app).resumeCommand),
 		"agents.reveal":         withSession((*app).revealCommand),
+		"agents.reviewed":       withSession((*app).reviewedCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")

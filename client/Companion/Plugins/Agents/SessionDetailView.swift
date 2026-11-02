@@ -65,6 +65,11 @@ struct SessionDetailView: View {
                         }
                     }
                 }
+                if reviewable {
+                    ReviewedActionView(blocked: blocked) {
+                        perform { try await store.reviewed(sessionID) }
+                    }
+                }
                 if session?.status == .running {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -167,7 +172,7 @@ struct SessionDetailView: View {
                         focused: $composerFocused,
                         session: session,
                         enabled: blocked == nil,
-                        blocked: answerDocked || !failureButtons.isEmpty ? nil : blocked,
+                        blocked: answerDocked || !failureButtons.isEmpty || reviewable ? nil : blocked,
                         sending: sending,
                         wide: stopInHeader,
                         send: send
@@ -290,6 +295,10 @@ struct SessionDetailView: View {
 
     private var failureButtons: [FailureAction] {
         store.session(sessionID)?.failureButtons(supported: context.connection.supports) ?? []
+    }
+
+    private var reviewable: Bool {
+        store.session(sessionID)?.review == true && context.connection.supports(AgentsStore.reviewedCommand)
     }
 
     private var stopInHeader: Bool {
@@ -429,6 +438,29 @@ struct FailureActionsView: View {
                     .foregroundStyle(.secondary)
             }
             if let blocked, !buttons.isEmpty {
+                Text(blocked)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.leading, 2)
+    }
+}
+
+struct ReviewedActionView: View {
+    let blocked: String?
+    let run: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: run) {
+                Label("Reviewed", systemImage: "checkmark")
+                    .font(.footnote.weight(.semibold))
+            }
+            .buttonStyle(.glass)
+            .disabled(blocked != nil)
+            if let blocked {
                 Text(blocked)
                     .font(.footnote)
                     .foregroundStyle(.secondary)

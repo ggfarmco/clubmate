@@ -383,6 +383,19 @@
         }
       },
       {
+        "id": "agents.reviewed",
+        "title": "Mark agent session reviewed",
+        "hidden": true,
+        "remote": true,
+        "description": "Mark a session in review (Finish not merge, its turn done with changes) as reviewed: it becomes done and Clubmate may close it an hour later.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session id."}
+          },
+          "required": ["session"]
+        }
+      },
+      {
         "id": "agents.finish-default",
         "title": "Default finish mode",
         "hidden": true,

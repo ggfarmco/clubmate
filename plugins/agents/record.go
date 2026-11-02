@@ -55,6 +55,7 @@ type record struct {
 	AFK             bool      `json:"afk,omitempty"`
 	Suspended       bool      `json:"suspended,omitempty"`
 	AutoClosed      bool      `json:"autoClosed,omitempty"`
+	Review          bool      `json:"review,omitempty"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 	Asks            bool      `json:"asks"`

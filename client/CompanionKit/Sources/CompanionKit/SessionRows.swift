@@ -8,6 +8,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case childWaiting
     case running
     case stopped
+    case review
     case done
     case closed
 
@@ -49,6 +50,7 @@ extension AgentSession {
         if childStatus == .waiting { return .childWaiting }
         if displayStatus == .running { return .running }
         if status == .error { return .stopped }
+        if review { return .review }
         return .done
     }
 
@@ -88,6 +90,8 @@ extension AgentSession {
             return SessionStateLine(text: SessionState.running.label, age: age(turnStartedAt ?? updatedAt))
         case .stopped:
             return SessionStateLine(text: stopped.word, tone: .danger)
+        case .review:
+            return SessionStateLine(text: SessionState.review.label, age: age(updatedAt))
         case .done:
             return SessionStateLine(text: SessionState.done.label, age: age(updatedAt))
         case .closed:

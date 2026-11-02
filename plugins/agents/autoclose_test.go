@@ -2,6 +2,8 @@ package main_test
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/internal/testutil"
+	"clubmate/pkg/sdui"
 )
 
 func TestDoneTreeClosesItselfUnlessItAsksOrOwnsJobs(t *testing.T) {
@@ -47,4 +50,39 @@ func closeActor(t *testing.T, lines []map[string]json.RawMessage) string {
 		}
 	}
 	return actor
+}
+
+func TestChangedAskSessionWaitsForReviewBeforeClosing(t *testing.T) {
+	const after = 2 * time.Second
+	t.Setenv("CLUBMATE_AGENTS_CLOSE_AFTER", after.String())
+	repo := newRepo(t)
+	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}},
+		testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"),
+		testutil.BuildPluginDir(t, "clubmate/plugins/triggers", "plugins/triggers/plugin.json"))
+	workspace := f.workspace(t, repo)
+	review := f.newSession(t, workspace)
+	merge := f.newSession(t, workspace)
+	require.NoError(t, f.run(t, workspace, "agents.config", map[string]any{"session": merge, "id": "finish", "value": "merge"}, nil))
+	reviewed := func(n sdui.Node) bool {
+		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == review+"/reviewed" })
+	}
+	f.prompt(t, workspace, review, "one")
+	f.prompt(t, workspace, merge, "one")
+	f.waitStatus(t, workspace, review, "done")
+	f.waitStatus(t, workspace, merge, "done")
+
+	write(t, filepath.Join(repo, "new.txt"), "x\n")
+	f.prompt(t, workspace, review, "two")
+	f.prompt(t, workspace, merge, "two")
+
+	assert.True(t, f.waitStatus(t, workspace, merge, "closed").AutoClosed)
+	assert.True(t, f.session(t, workspace, review).Review)
+	f.h.Event(t, workspace, "agents.sidebar", review, "select", review)
+	f.h.WaitSlot(t, workspace, "agents.main", reviewed)
+	time.Sleep(after)
+	assert.Equal(t, "done", f.session(t, workspace, review).Status)
+
+	require.NoError(t, f.run(t, workspace, "agents.reviewed", map[string]any{"session": review}, nil))
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return !reviewed(n) })
+	assert.True(t, f.waitStatus(t, workspace, review, "closed").AutoClosed)
 }

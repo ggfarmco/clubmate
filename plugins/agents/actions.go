@@ -47,6 +47,7 @@ const (
 	actOpenLocation    = "openLocation"
 	actOpenDoc         = "openDoc"
 	actReview          = "review"
+	actReviewed        = "reviewed"
 	actShowEarlier     = "showEarlier"
 	actShowAll         = "showAll"
 	actOpenOutput      = "openOutput"
@@ -307,6 +308,9 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return a.send(ev.WorkspaceID, s, st, v.Text)
 	case actStop:
 		a.cancel(s)
+		return nil
+	case actReviewed:
+		a.setReviewed(s)
 		return nil
 	case actSelectParent:
 		parent := s.snapshot().ParentSession

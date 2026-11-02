@@ -246,6 +246,9 @@ func header(sc screen) sdui.Node {
 	if sc.Changes {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
 	}
+	if display == statusReview {
+		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/"+reviewedNode, reviewedLabel, "checkmark"), actReviewed))
+	}
 	var top sdui.Node
 	if sc.Code != nil {
 		icon := cmp.Or(statusIcons[display], statusIcons[statusIdle])

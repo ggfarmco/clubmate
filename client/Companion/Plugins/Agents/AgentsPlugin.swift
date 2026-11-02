@@ -303,6 +303,7 @@ struct SessionGlyphView: View {
         case .childWaiting: "exclamationmark"
         case .running: "play.fill"
         case .stopped: "xmark"
+        case .review: "eye"
         case .done: "checkmark"
         case .closed: "archivebox"
         }
@@ -312,7 +313,7 @@ struct SessionGlyphView: View {
         switch glyph {
         case .permission, .question: Color.onWarning
         case .childWaiting: Color.warningInk
-        case .running: .accentColor
+        case .running, .review: .accentColor
         case .stopped: Color.dangerInk
         case .done, .closed: .secondary
         }
@@ -322,7 +323,7 @@ struct SessionGlyphView: View {
         switch glyph {
         case .permission, .question: Color.warning
         case .childWaiting: Color.warning.opacity(0.18)
-        case .running: Color.accentColor.opacity(0.18)
+        case .running, .review: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)
         case .done, .closed: Color(.tertiarySystemFill)
         }

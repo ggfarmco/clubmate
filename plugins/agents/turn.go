@@ -290,6 +290,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 		a.checktime(rec)
 	}
 	if finished {
+		a.markReview(s)
 		a.cleanupChild(s)
 		a.closeVanishedChildren(s)
 	}

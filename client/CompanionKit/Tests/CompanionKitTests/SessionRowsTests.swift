@@ -25,6 +25,7 @@ final class SessionRowsTests: XCTestCase {
             (AgentSession(id: "i", status: .error, error: "boom"), .stopped, SessionStateLine(text: "Stopped", tone: .danger)),
             (AgentSession(id: "i2", status: .error, failure: Self.exit1), .stopped, SessionStateLine(text: "exit 1", tone: .danger)),
             (AgentSession(id: "j", status: .done, updatedAt: ago(3_700)), .done, SessionStateLine(text: "Done", age: "1 h")),
+            (AgentSession(id: "j2", status: .done, updatedAt: ago(3_700), review: true), .review, SessionStateLine(text: "Review", age: "1 h")),
             (AgentSession(id: "k", status: .closed, updatedAt: ago(200_000)), .closed, SessionStateLine(text: "Closed", age: "2 d")),
             (AgentSession(id: "k2", status: .closed, updatedAt: ago(200_000), autoClosed: true), .closed, SessionStateLine(text: "Auto-closed", age: "2 d")),
         ]
@@ -34,6 +35,18 @@ final class SessionRowsTests: XCTestCase {
         }
         XCTAssertEqual(AgentSession(id: "i", status: .error).headerState, "Stopped · error")
         XCTAssertEqual(AgentSession(id: "i2", status: .error, failure: Self.exit1).headerState, "Stopped · exit 1")
+    }
+
+    func testReviewOnlyOutranksDone() {
+        let review = [
+            AgentSession(id: "closed", status: .closed, review: true),
+            AgentSession(id: "asks", status: .done, asks: true, review: true),
+            AgentSession(id: "child", status: .done, childStatus: .waiting, review: true),
+            AgentSession(id: "running", status: .running, review: true),
+            AgentSession(id: "stopped", status: .error, review: true),
+        ]
+        XCTAssertEqual(review.map(\.glyph), [.closed, .question, .childWaiting, .running, .stopped])
+        XCTAssertFalse(SessionGlyph.review.needsYou)
     }
 
     private static let exit1 = SessionFailure(word: "exit 1", badge: "Stopped · exit 1", line: "Claude exited with status 1.")

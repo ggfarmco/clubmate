@@ -129,7 +129,9 @@ actor FixtureServer {
                 ("agt_0000000000000006", "Bump Go to 1.25", "done", 3_700, nil),
             ]
             for (id, title, status, ago, activity) in extra {
-                sessions.append(Self.session(template, id: id, title: title, status: status, ago: ago, activity: activity))
+                var record = Self.session(template, id: id, title: title, status: status, ago: ago, activity: activity)
+                if id == "agt_0000000000000006" { record["review"] = .bool(true) }
+                sessions.append(record)
             }
             others = [Self.session(template, id: "agt_0000000000000007", title: "Draft the companion brief", status: "running", ago: 600, activity: "Reading prompt.md")]
         }
@@ -237,7 +239,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -339,6 +341,9 @@ actor FixtureServer {
             return .null
         case "agents.close":
             update(session) { $0["status"] = .string("closed") }
+            return .null
+        case "agents.reviewed":
+            update(session) { $0["review"] = nil }
             return .null
         case "agents.resume":
             update(session) { $0["status"] = .string("idle"); $0["error"] = nil; $0["failure"] = nil }

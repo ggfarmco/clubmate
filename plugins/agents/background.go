@@ -123,6 +123,7 @@ func (a *app) settleBackground(s *session) {
 	s.mu.Unlock()
 	s.turned(ended)
 	s.changed(changeStatus, true)
+	a.markReview(s)
 	a.cleanupChild(s)
 	a.closeVanishedChildren(s)
 }
