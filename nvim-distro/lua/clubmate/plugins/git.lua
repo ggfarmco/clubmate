@@ -107,6 +107,21 @@ return {
           },
         },
         file_panel = {
+          filters = {
+            generated = {
+              extend = {
+                "vendor/",
+                "node_modules/",
+                "bower_components/",
+                "jspm_packages/",
+                "Pods/",
+                "Carthage/",
+                ".venv/",
+                "venv/",
+                "site-packages/",
+              },
+            },
+          },
           listing_style = "tree",
           win_config = {
             position = "right",

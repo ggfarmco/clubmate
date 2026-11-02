@@ -469,6 +469,21 @@ func TestNrevOnPath(t *testing.T) {
 	require.NoError(t, err, string(out))
 }
 
+func TestDiffviewDependencyDirsGenerated(t *testing.T) {
+	v := startDistro(t, opts{})
+	var kinds []string
+	require.NoError(t, v.ExecLua(`
+require("lazy").load({ plugins = { "diffview.nvim" } })
+local filters = require("diffview.config").get_config().file_panel.filters
+local classify = require("diffview.review.classify")
+return {
+  classify.kind("vendor/github.com/x/y.go", {}, filters),
+  classify.kind("web/node_modules/a/index.js", {}, filters),
+  classify.kind("cmd/vendor.go", {}, filters),
+}`, &kinds))
+	assert.Equal(t, []string{"generated", "generated", "code"}, kinds)
+}
+
 const notifierWarnings = `
 local notifier = package.loaded["snacks.notifier"]
 local out = {}
