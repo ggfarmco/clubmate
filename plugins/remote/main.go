@@ -245,7 +245,7 @@ func (a *app) busEvent(_ context.Context, _ *pluginsdk.Host, _ string, ev plugin
 		a.srv.forgetCommands()
 	}
 	a.srv.hub.publish(ev)
-	if enabled && (ev.Topic == notifyTopic || ev.Topic == agentsChangedTopic) {
+	if enabled && (ev.Topic == notifyTopic || ev.Topic == agentsChangedTopic) && a.srv.relay.configured() {
 		go func() {
 			ctx, cancel := context.WithTimeout(a.ctx, pushTimeout)
 			defer cancel()

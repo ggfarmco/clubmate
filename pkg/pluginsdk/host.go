@@ -221,12 +221,15 @@ func (h *Host) Render(ctx context.Context, workspaceID, slot string, n sdui.Node
 	if err != nil {
 		return 0, err
 	}
-	return h.RenderJSON(ctx, workspaceID, slot, tree)
+	return h.renderOwned(ctx, workspaceID, slot, tree)
 }
 
 func (h *Host) RenderJSON(ctx context.Context, workspaceID, slot string, tree json.RawMessage) (int64, error) {
+	return h.renderOwned(ctx, workspaceID, slot, slices.Clone(tree))
+}
+
+func (h *Host) renderOwned(ctx context.Context, workspaceID, slot string, tree json.RawMessage) (int64, error) {
 	key := slotRef{workspace: workspaceID, slot: slot}
-	tree = slices.Clone(tree)
 	next, err := sdui.IndexTree(tree)
 	if prev, ok := h.lastRender(key); ok && err == nil {
 		if delta, ok := next.DeltaFrom(prev.index, sdui.DeltaOptions{Appends: true, Keeps: true}); ok {

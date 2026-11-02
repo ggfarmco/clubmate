@@ -21,6 +21,7 @@ import (
 	"syscall"
 	"time"
 
+	sysproc "clubmate/internal/proc"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -321,8 +322,7 @@ func (s *vscodeServer) killOrphan() {
 	if err != nil || pid <= 0 {
 		return
 	}
-	out, err := exec.Command("ps", "-o", "command=", "-p", strconv.Itoa(pid)).Output()
-	if err != nil || !strings.Contains(string(out), s.serverDir()) {
+	if !strings.Contains(strings.Join(sysproc.ReadArgs(pid), " "), s.serverDir()) {
 		return
 	}
 	for _, sig := range []syscall.Signal{syscall.SIGTERM, syscall.SIGKILL} {

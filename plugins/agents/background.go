@@ -29,11 +29,11 @@ func (s *session) workingLocked() bool {
 }
 
 func (s *session) trackLocked(kind string, payload json.RawMessage) (started, ended bool) {
-	var u backgroundUpdate
-	_ = json.Unmarshal(payload, &u)
 	switch {
 	case s.rec.closed():
 	case kind == acp.UpdateToolCallUpdate:
+		var u backgroundUpdate
+		_ = json.Unmarshal(payload, &u)
 		var res struct {
 			BackgroundTaskID string `json:"backgroundTaskId"`
 		}
@@ -43,7 +43,7 @@ func (s *session) trackLocked(kind string, payload json.RawMessage) (started, en
 			}
 			s.background[res.BackgroundTaskID] = true
 		}
-	case kind == acp.UpdateUsage && s.cycle && !s.running && len(u.Cost) > 0 && string(u.Cost) != "null":
+	case kind == acp.UpdateUsage && s.cycle && !s.running && hasCost(payload):
 		s.cycle = false
 		return false, true
 	case slices.Contains(cycleKinds, kind) && !s.workingLocked() && s.proc != nil:
@@ -54,6 +54,12 @@ func (s *session) trackLocked(kind string, payload json.RawMessage) (started, en
 		return true, false
 	}
 	return false, false
+}
+
+func hasCost(payload json.RawMessage) bool {
+	var u backgroundUpdate
+	_ = json.Unmarshal(payload, &u)
+	return len(u.Cost) > 0 && string(u.Cost) != "null"
 }
 
 func (s *session) dropBackgroundLocked() {
