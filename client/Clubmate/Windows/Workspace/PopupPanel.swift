@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import WebKit
 
+import ClubmateDocument
 import ClubmateKit
 
 extension View {
@@ -23,10 +24,11 @@ private struct SlotPopup: ViewModifier {
             .background(ResponderAnchor(responder: responder))
             .overlay {
                 if let store = session.store, let slot = presentation.slot, !session.popupPoppedOut {
-                    PopupPanel(store: store, slot: slot, active: session.overlay == nil) { [session] action in
+                    PopupPanel(store: store, slot: slot, zoom: session.popupZoom, active: session.overlay == nil) { [session] action in
                         switch action {
                         case .popOut: popOut()
                         case .close: session.closePopup(slot)
+                        case .resetZoom: break
                         }
                     }
                 }
@@ -46,6 +48,7 @@ private struct SlotPopup: ViewModifier {
             if session.popupPoppedOut { return host.show() }
             router?.request(slot)
         case .closed:
+            session.popupZoom.apply(.fit)
             if session.popupPoppedOut { return host.hide() }
             returnFocus()
         case nil:
@@ -75,11 +78,13 @@ private struct SlotPopup: ViewModifier {
 enum PopupAction: String {
     case popOut
     case close
+    case resetZoom
 }
 
 struct PopupPanel: View {
     let store: WorkspaceUIStore
     let slot: String
+    let zoom: DocumentZoom
     let active: Bool
     let perform: @MainActor (PopupAction) -> Void
 
@@ -91,7 +96,7 @@ struct PopupPanel: View {
                 Color.black.opacity(theme.isDark ? 0.45 : 0.25)
                     .contentShape(Rectangle())
                     .onTapGesture { perform(.close) }
-                PopupContent(store: store, slot: slot, poppedOut: false, perform: perform)
+                PopupContent(store: store, slot: slot, zoom: zoom, poppedOut: false, perform: perform)
                     .frame(width: proxy.size.width * 0.8, height: proxy.size.height * 0.8)
                     .background(theme.background)
                     .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
@@ -100,43 +105,63 @@ struct PopupPanel: View {
             }
         }
         .keyMonitor(active: active) { event in
-            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock)
-            guard (event.keyCode == Self.escape && modifiers.isEmpty) || (event.charactersIgnoringModifiers?.lowercased() == "w" && modifiers == .command) else { return false }
-            perform(.close)
-            return true
+            Self.handle(event, store: store, slot: slot, zoom: zoom) { perform(.close) }
         }
         .modifier(PopupFocus(slot: slot))
         .transition(.opacity)
     }
 
-    static let escape: UInt16 = 53
+    static func handle(_ event: NSEvent, store: WorkspaceUIStore, slot: String, zoom: DocumentZoom, close: () -> Void) -> Bool {
+        let flags = event.modifierFlags
+        let key = PopupKeys.key(
+            keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
+            command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift),
+            document: store.slot(slot)?.tree.hasDocument == true, lightbox: zoom.lightbox
+        )
+        switch key {
+        case .close: close()
+        case .zoomIn: zoom.apply(.zoomIn)
+        case .zoomOut: zoom.apply(.zoomOut)
+        case .zoomReset: zoom.apply(.fit)
+        case nil: return false
+        }
+        return true
+    }
 }
 
 struct PopupContent: View {
     let store: WorkspaceUIStore
     let slot: String
+    let zoom: DocumentZoom
     let poppedOut: Bool
     let perform: @MainActor (PopupAction) -> Void
 
     @Environment(\.theme) private var theme
+    @State private var measured: CGFloat?
 
     var body: some View {
         SlotPane(store: store, slot: slot)
-            .environment(\.headerTrailingInset, chromeWidth)
+            .environment(\.headerTrailingInset, measured ?? chromeWidth)
+            .environment(\.documentZoom, zoom)
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: theme.spacing.s) {
                     ForEach(buttons, id: \.id) { button in
                         SDUINodeView(node: button)
+                            .environment(\.buttonKeyHint, button.id == PopupAction.resetZoom.rawValue ? Self.resetZoomHint : nil)
                     }
                 }
                 .padding(.horizontal, theme.gutter)
                 .padding(.vertical, theme.spacing.l)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { measured = $0 }
                 .environment(\.sduiDispatch, dispatch)
             }
     }
 
     private var buttons: [SDUINode] {
         var buttons: [SDUINode] = []
+        if zoom.scale != 1, store.slot(slot)?.tree.hasDocument == true {
+            buttons.append(SDUINode(type: "button", id: PopupAction.resetZoom.rawValue, props: ["label": .string("\(Int((zoom.scale * 100).rounded()))%"), "variant": .string("ghost")]))
+        }
         if !poppedOut { buttons.append(Self.button(.popOut, label: "Pop out", icon: "rectangle.portrait.on.rectangle.portrait", shortcut: Self.popOutKey)) }
         buttons.append(Self.button(.close, label: "Close", icon: "xmark", shortcut: nil))
         return buttons
@@ -148,13 +173,21 @@ struct PopupContent: View {
 
     private var dispatch: SDUIDispatch {
         let perform = perform
+        let zoom = zoom
         return SDUIDispatch(slot: slot, workspaceID: store.workspaceID, sink: { event in
-            await MainActor.run { PopupAction(rawValue: event.nodeId).map(perform) }
+            await MainActor.run {
+                switch PopupAction(rawValue: event.nodeId) {
+                case .resetZoom: zoom.apply(.fit)
+                case let action?: perform(action)
+                case nil: break
+                }
+            }
             return .success(.null)
         })
     }
 
     static let popOutKey = "cmd+shift+o"
+    static let resetZoomHint = "⌘0"
 
     private static func button(_ action: PopupAction, label: String, icon: String, shortcut: String?) -> SDUINode {
         var props: [String: JSONValue] = ["label": .string(label), "icon": .string(icon), "variant": .string("ghost"), "iconOnly": .bool(true)]

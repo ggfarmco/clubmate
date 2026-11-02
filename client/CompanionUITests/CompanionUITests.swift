@@ -214,6 +214,14 @@ final class CompanionUITests: XCTestCase {
         }
     }
 
+    func testMessageDocLinkOpensTheDocSheet() {
+        let app = launch(open: "agents/agt_0000000000000002")
+        let link = app.links["the retries plan"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+        XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
+    }
+
     func testDocLinkPushesUpdatesLiveAndBackReturns() {
         let app = launch(open: "agents", ["-doc", "/Users/me/src/shop/docs/checkout-retries.md"])
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))

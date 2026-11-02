@@ -73,7 +73,7 @@ private struct PopupWindowRoot: View {
     var body: some View {
         Group {
             if let store = session.store, let slot = store.popup {
-                PopupContent(store: store, slot: slot, poppedOut: true) { action in
+                PopupContent(store: store, slot: slot, zoom: session.popupZoom, poppedOut: true) { action in
                     if action == .close { close() }
                 }
                 .onChange(of: heading(store, slot), initial: true) { _, heading in title(heading) }
@@ -84,9 +84,8 @@ private struct PopupWindowRoot: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.background)
         .keyMonitor(active: true) { event in
-            guard event.keyCode == PopupPanel.escape, event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock).isEmpty else { return false }
-            close()
-            return true
+            guard let store = session.store, let slot = store.popup else { return false }
+            return PopupPanel.handle(event, store: store, slot: slot, zoom: session.popupZoom, close: close)
         }
     }
 

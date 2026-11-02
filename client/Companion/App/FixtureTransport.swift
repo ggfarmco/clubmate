@@ -146,7 +146,7 @@ actor FixtureServer {
         if sessions.count > 1, let id = sessions[1]["id"]?.stringValue {
             transcripts[id] = ["entries": .array([
                 Self.entry("user", "prompt-1", text: "Explain the checkout flow"),
-                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge*.\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider\n\nShould I add retries to the charge step?"),
+                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge* ([the retries plan](docs/checkout-retries.md)).\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider, see `docs/payments.md`\n\nShould I add retries to the charge step?", docLinks: ["docs/checkout-retries.md": "/Users/me/src/shop/docs/checkout-retries.md", "docs/payments.md": "/Users/me/src/shop/docs/payments.md"]),
             ])]
         }
         transcripts["agt_00000000000000a1"] = ["session": .object(Self.session(sessions.first ?? [:], id: "agt_00000000000000a1", title: "Voice", status: "idle", ago: 60)), "entries": .array([
@@ -650,8 +650,10 @@ actor FixtureServer {
         return .object(["kind": .string("user"), "id": .string(id), "turn": .number(1), "from": .string("voice"), "text": .string(text), "voice": .object(["heard": .string(heard), "utterance": .string("vu_fixture")])])
     }
 
-    private static func entry(_ kind: String, _ id: String, text: String) -> JSONValue {
-        .object(["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)])
+    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:]) -> JSONValue {
+        var fields: [String: JSONValue] = ["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)]
+        if !docLinks.isEmpty { fields["docLinks"] = .object(docLinks.mapValues(JSONValue.string)) }
+        return .object(fields)
     }
 
     private static func session(_ template: [String: JSONValue], id: String, title: String, status: String, ago: TimeInterval, activity: String? = nil) -> [String: JSONValue] {

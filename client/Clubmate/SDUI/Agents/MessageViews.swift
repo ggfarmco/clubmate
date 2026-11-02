@@ -10,6 +10,7 @@ struct MessageNodeView: View, Equatable {
     }
 
     @Environment(\.theme) private var theme
+    @Environment(\.sduiDispatch) private var dispatch
 
     var body: some View {
         let text = node.string("text") ?? ""
@@ -23,9 +24,11 @@ struct MessageNodeView: View, Equatable {
         case .thought:
             ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init))
         case .agent:
-            MarkdownText(text: text)
-                .equatable()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            MarkdownText(text: text, docLinks: node.docLinks) { [node, dispatch] target in
+                dispatch(node, .named("openDoc", .string(target)))
+            }
+            .equatable()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

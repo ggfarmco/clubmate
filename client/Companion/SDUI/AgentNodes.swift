@@ -69,6 +69,7 @@ struct TranscriptNode: View {
 
 struct MessageNode: View {
     let node: SDUINode
+    let context: SDUIContext
     @Environment(\.sduiInset) private var inset
 
     private var attachments: [String] {
@@ -91,7 +92,11 @@ struct MessageNode: View {
             switch MessageRole(node.string("role")) {
             case .user: UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments)
             case .thought: ThoughtView(text: text, title: thought)
-            case .agent: MarkdownView(text: text)
+            case .agent:
+                MarkdownView(text: text, docLinks: node.docLinks)
+                    .environment(\.openDoc, { target in
+                        context.run { await $0.fire(node, .named("openDoc", .string(target))) }
+                    })
             }
         }
         .padding(.horizontal, inset)

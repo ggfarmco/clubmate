@@ -91,4 +91,41 @@ final class DocumentTests: XCTestCase {
         XCTAssertTrue((state?[3] as? String ?? "").contains("Parse error"), "\(state?[3] ?? "")")
         XCTAssertEqual(state?[4] as? String, "after")
     }
+
+    func testZoomSteps() {
+        XCTAssertEqual(DocumentZoom.step(1, .zoomIn), 1.25)
+        XCTAssertEqual(DocumentZoom.step(DocumentZoom.step(1, .zoomOut), .zoomIn), 1)
+        XCTAssertEqual((0..<10).reduce(1) { scale, _ in DocumentZoom.step(scale, .zoomIn) }, 3)
+        XCTAssertEqual((0..<10).reduce(1) { scale, _ in DocumentZoom.step(scale, .zoomOut) }, 0.5)
+        XCTAssertEqual(DocumentZoom.step(2, .fit), 1)
+    }
+
+    func testMermaidLightbox() async throws {
+        let page = DocumentController()
+        let zoom = DocumentZoom()
+        page.zoom = zoom
+        page.webView.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+        page.show(DocumentContent(path: "/r/a.md", html: "<pre class=\"mermaid\">flowchart LR\n  A --&gt; B</pre>", rev: 1), theme: .mate(dark: true), size: .fill)
+        await page.settled()
+        let opened = try await page.webView.callAsyncJavaScript("""
+            document.querySelector('.mermaid-diagram svg').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            const box = document.querySelector('.lightbox');
+            const scale = () => new DOMMatrix(box.querySelector('.lightbox-stage').style.transform).a;
+            const before = scale();
+            box.querySelector('button[aria-label="Zoom in"]').click();
+            return [!box.hidden, box.querySelectorAll('svg').length, scale() / before];
+            """, contentWorld: .page) as? [Any]
+        XCTAssertEqual(opened?[0] as? Bool, true)
+        XCTAssertEqual(opened?[1] as? Int, 1)
+        XCTAssertEqual(opened?[2] as? Double ?? 0, 1.25, accuracy: 0.001)
+        for _ in 0..<50 where !zoom.lightbox { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(zoom.lightbox)
+        let closed = try await page.webView.callAsyncJavaScript("""
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            return document.querySelector('.lightbox').hidden;
+            """, contentWorld: .page) as? Bool
+        XCTAssertEqual(closed, true)
+        for _ in 0..<50 where zoom.lightbox { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(zoom.lightbox)
+    }
 }

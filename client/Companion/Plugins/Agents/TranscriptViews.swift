@@ -12,8 +12,8 @@ struct RowView: View {
         case .entry(let entry):
             EntryView(entry: entry)
                 .opacity(entry.isOutgoing ? 0.6 : 1)
-        case .agent(_, let blocks):
-            MarkdownView(blocks: blocks)
+        case .agent(_, let blocks, let docLinks):
+            MarkdownView(blocks: blocks, docLinks: docLinks)
         case .tools(_, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0])
@@ -40,7 +40,7 @@ struct EntryView: View {
         case .voice(let prompt):
             VoicePromptRow(prompt: prompt)
         case .agent(let text):
-            MarkdownView(blocks: Markdown.blocks(text))
+            MarkdownView(text: text, docLinks: entry.docLinks)
         case .thought(let text):
             ThoughtView(text: text, title: "Thought")
         case .tool(let tool):
@@ -215,13 +215,22 @@ private struct UserText: View {
 
 struct MarkdownView: View {
     let blocks: [MarkdownBlock]
+    var docLinks: [String: String] = [:]
+    @Environment(\.openDoc) private var openDoc
+    @Environment(\.openURL) private var openURL
 
-    init(blocks: [MarkdownBlock]) {
+    init(blocks: [MarkdownBlock], docLinks: [String: String] = [:]) {
         self.blocks = blocks
+        self.docLinks = docLinks
     }
 
-    init(text: String) {
+    init(text: String, docLinks: [String: String] = [:]) {
         blocks = Markdown.blocks(text)
+        self.docLinks = docLinks
+    }
+
+    private func inline(_ text: String) -> AttributedString {
+        Markdown.inline(text, docLinks: docLinks)
     }
 
     var body: some View {
@@ -229,10 +238,10 @@ struct MarkdownView: View {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .heading(let level, let text):
-                    Text(Markdown.inline(text))
+                    Text(inline(text))
                         .font(level <= 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
                 case .paragraph(let text):
-                    Text(Markdown.inline(text))
+                    Text(inline(text))
                 case .list(let items):
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(Array(items.enumerated()), id: \.offset) { _, item in
@@ -241,13 +250,13 @@ struct MarkdownView: View {
                                     .font(.body)
                                     .monospacedDigit()
                                     .foregroundStyle(.primary)
-                                Text(Markdown.inline(item.text))
+                                Text(inline(item.text))
                             }
                             .padding(.leading, CGFloat(item.depth) * 16)
                         }
                     }
                 case .quote(let text):
-                    Text(Markdown.inline(text))
+                    Text(inline(text))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 12)
                         .overlay(alignment: .leading) {
@@ -267,6 +276,14 @@ struct MarkdownView: View {
         }
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .environment(\.openURL, OpenURLAction { url in
+            if let target = MarkdownDocLink.target(url) {
+                openDoc?(target)
+            } else {
+                openURL(url)
+            }
+            return .handled
+        })
     }
 }
 

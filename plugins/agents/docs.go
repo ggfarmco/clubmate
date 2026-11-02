@@ -1,12 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"maps"
+	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
+
+	"clubmate/pkg/docext"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -71,4 +81,86 @@ func (s *session) docs() []docRef {
 		}
 	}
 	return out
+}
+
+func (s *session) linkDocs(turn int) {
+	for _, en := range s.entries {
+		if en.Kind != entryAgent || en.Turn != turn {
+			continue
+		}
+		if links := docLinks(en.Text, s.rec.Worktree); !maps.Equal(links, en.DocLinks) {
+			en.DocLinks, en.node = links, nil
+		}
+	}
+}
+
+func docLinks(markdown, root string) map[string]string {
+	src := []byte(markdown)
+	links := map[string]string{}
+	add := func(target string) {
+		if path, ok := resolveDoc(target, root); ok {
+			links[target] = path
+		}
+	}
+	_ = ast.Walk(goldmark.DefaultParser().Parse(text.NewReader(src)), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch n := n.(type) {
+		case *ast.Link:
+			if u, err := url.Parse(string(n.Destination)); err == nil && u.Scheme == "" {
+				add(string(n.Destination))
+			}
+		case *ast.CodeSpan:
+			var code bytes.Buffer
+			for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+				switch c := c.(type) {
+				case *ast.Text:
+					code.Write(c.Value(src))
+				case *ast.String:
+					code.Write(c.Value)
+				}
+			}
+			if !bytes.ContainsAny(code.Bytes(), " \t\n") {
+				add(code.String())
+			}
+			return ast.WalkSkipChildren, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	if len(links) == 0 {
+		return nil
+	}
+	return links
+}
+
+func resolveDoc(target, root string) (string, bool) {
+	path, anchor, _ := strings.Cut(target, "#")
+	if unescaped, err := url.PathUnescape(path); err == nil {
+		path = unescaped
+	}
+	if rest, ok := strings.CutPrefix(path, "~/"); ok {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", false
+		}
+		path = filepath.Join(home, rest)
+	}
+	if !filepath.IsAbs(path) {
+		if root == "" {
+			return "", false
+		}
+		path = filepath.Join(root, path)
+	}
+	path = filepath.Clean(path)
+	if !docext.Is(path) && !docext.IsArtifact(path) {
+		return "", false
+	}
+	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+		return "", false
+	}
+	if anchor != "" {
+		path += "#" + anchor
+	}
+	return path, true
 }

@@ -85,7 +85,7 @@ struct SDUINodeView: View {
         case .toggle: ToggleNode(node: node, context: context)
         case .select: SelectNode(node: node, context: context)
         case .transcript: TranscriptNode(node: node, context: context)
-        case .message: MessageNode(node: node)
+        case .message: MessageNode(node: node, context: context)
         case .plan: PlanNode(node: node)
         case .toolCard: ToolCardNode(node: node, context: context)
         case .permissionCard: PermissionCardNode(node: node, context: context)

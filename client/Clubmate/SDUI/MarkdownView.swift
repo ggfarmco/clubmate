@@ -26,9 +26,11 @@ extension View {
 struct MarkdownText: View, Equatable {
     let text: String
     var muted = false
+    var docLinks: [String: String] = [:]
+    var openDoc: ((String) -> Void)?
 
     nonisolated static func == (lhs: MarkdownText, rhs: MarkdownText) -> Bool {
-        lhs.text == rhs.text && lhs.muted == rhs.muted
+        lhs.text == rhs.text && lhs.muted == rhs.muted && lhs.docLinks == rhs.docLinks
     }
 
     @Environment(\.theme) private var theme
@@ -38,7 +40,7 @@ struct MarkdownText: View, Equatable {
             ForEach(Array(MarkdownSection.split(Markdown.blocks(text)).enumerated()), id: \.offset) { _, section in
                 switch section {
                 case .prose(let blocks):
-                    ProseText(content: theme.prose(blocks, muted: muted), linkColor: NSColor(theme.accent))
+                    ProseText(content: theme.prose(blocks, muted: muted, docLinks: docLinks), linkColor: NSColor(theme.accent), openDoc: openDoc)
                 case .code(let language, let text):
                     CodeBlock(language: language, text: text)
                 case .mermaid(let source):
@@ -81,6 +83,7 @@ private enum ProseCache {
         let block: MarkdownBlock
         let first: Bool
         let muted: Bool
+        let docLinks: [String: String]
         let theme: String
     }
 
@@ -98,34 +101,34 @@ private enum ProseCache {
 
 extension Theme {
     @MainActor
-    func prose(_ blocks: [MarkdownBlock], muted: Bool) -> NSAttributedString {
+    func prose(_ blocks: [MarkdownBlock], muted: Bool, docLinks: [String: String] = [:]) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let body = nsFont(size: uiSize, bold: false)
         let theme = [fontFamily ?? "", "\(uiSize)", foregroundHex, backgroundHex].joined(separator: "\u{1}")
         for (index, block) in blocks.enumerated() {
             if index > 0 { result.append(NSAttributedString(string: "\n", attributes: [.font: body])) }
-            let key = ProseCache.Key(block: block, first: index == 0, muted: muted, theme: theme)
-            result.append(ProseCache.piece(key) { prose(block, gap: index == 0 ? 0 : spacing.l, muted: muted) })
+            let key = ProseCache.Key(block: block, first: index == 0, muted: muted, docLinks: docLinks, theme: theme)
+            result.append(ProseCache.piece(key) { prose(block, gap: index == 0 ? 0 : spacing.l, muted: muted, docLinks: docLinks) })
         }
         return result
     }
 
-    private func prose(_ block: MarkdownBlock, gap: CGFloat, muted: Bool) -> NSAttributedString {
+    private func prose(_ block: MarkdownBlock, gap: CGFloat, muted: Bool, docLinks: [String: String]) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let body = nsFont(size: uiSize, bold: false)
         let color = NSColor(muted ? self.muted : foreground)
         switch block {
         case .heading(let level, let text):
             let font = level <= 2 ? nsFont(size: uiSize + 1, bold: true) : nsFont(size: uiSize, bold: true)
-            result.append(paragraph(text, font: font, color: color, indent: 0, before: gap))
+            result.append(paragraph(text, font: font, color: color, indent: 0, before: gap, docLinks: docLinks))
         case .paragraph(let text):
-            result.append(paragraph(text, font: body, color: color, indent: 0, before: gap))
+            result.append(paragraph(text, font: body, color: color, indent: 0, before: gap, docLinks: docLinks))
         case .list(let items):
             for (number, item) in items.enumerated() {
                 if number > 0 { result.append(NSAttributedString(string: "\n", attributes: [.font: body])) }
                 let lead = CGFloat(item.depth) * indent
                 let hang = lead + (item.marker as NSString).size(withAttributes: [.font: body]).width + spacing.m
-                let line = paragraph(item.text, font: body, color: color, indent: hang, before: number == 0 ? gap : spacing.xs)
+                let line = paragraph(item.text, font: body, color: color, indent: hang, before: number == 0 ? gap : spacing.xs, docLinks: docLinks)
                 let first = paragraphStyle(lead: lead, hang: hang, before: number == 0 ? gap : spacing.xs)
                 first.tabStops = [NSTextTab(textAlignment: .natural, location: hang)]
                 let marker = NSMutableAttributedString(string: item.marker + "\t", attributes: [.font: body, .foregroundColor: NSColor(self.muted)])
@@ -135,7 +138,7 @@ extension Theme {
                 result.append(marker)
             }
         case .quote(let text):
-            let quote = NSMutableAttributedString(attributedString: paragraph(text, font: body, color: NSColor(self.muted), indent: 0, before: gap))
+            let quote = NSMutableAttributedString(attributedString: paragraph(text, font: body, color: NSColor(self.muted), indent: 0, before: gap, docLinks: docLinks))
             let range = NSRange(location: 0, length: quote.length)
             quote.enumerateAttribute(.paragraphStyle, in: range) { value, range, _ in
                 guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
@@ -151,8 +154,8 @@ extension Theme {
         return result
     }
 
-    private func paragraph(_ text: String, font: NSFont, color: NSColor, indent: CGFloat, before: CGFloat) -> NSAttributedString {
-        let source = Markdown.inline(text)
+    private func paragraph(_ text: String, font: NSFont, color: NSColor, indent: CGFloat, before: CGFloat, docLinks: [String: String]) -> NSAttributedString {
+        let source = Markdown.inline(text, docLinks: docLinks)
         let result = NSMutableAttributedString()
         for run in source.runs {
             let intent = run.inlinePresentationIntent ?? []
@@ -162,7 +165,7 @@ extension Theme {
             var attributes: [NSAttributedString.Key: Any] = [.font: runFont, .foregroundColor: color, .paragraphStyle: paragraphStyle(lead: indent, hang: indent, before: 0)]
             if intent.contains(.code) { attributes[.backgroundColor] = NSColor(pressed) }
             if intent.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
-            if let link = run.link, MarkdownLinkPolicy.allows(link) { attributes[.link] = link }
+            if let link = run.link, MarkdownLinkPolicy.allows(link) || MarkdownDocLink.target(link) != nil { attributes[.link] = link }
             result.append(NSAttributedString(string: String(source[run.range].characters), attributes: attributes))
         }
         if result.length == 0 { return result }
@@ -203,9 +206,25 @@ private final class ProseTextView: NSTextView {
 private struct ProseText: NSViewRepresentable {
     let content: NSAttributedString
     let linkColor: NSColor
+    let openDoc: ((String) -> Void)?
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var openDoc: ((String) -> Void)?
+
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            guard let url = link as? URL, let target = MarkdownDocLink.target(url) else { return false }
+            openDoc?(target)
+            return true
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
 
     func makeNSView(context: Context) -> ProseTextView {
         let view = ProseTextView(usingTextLayoutManager: false)
+        view.delegate = context.coordinator
         view.isEditable = false
         view.isSelectable = true
         view.isRichText = false
@@ -219,6 +238,7 @@ private struct ProseText: NSViewRepresentable {
     }
 
     func updateNSView(_ view: ProseTextView, context: Context) {
+        context.coordinator.openDoc = openDoc
         view.linkTextAttributes = [.foregroundColor: linkColor, .cursor: NSCursor.pointingHand]
         guard let storage = view.textStorage, !storage.isEqual(to: content) else { return }
         storage.setAttributedString(content)

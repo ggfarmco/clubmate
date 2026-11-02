@@ -14,7 +14,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⇧⌘W | Close Session | `ClubmateApp.swift` |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Code, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
-| ⌘= (⌘+), ⌘-, ⌘0 | Terminal font size up, down, reset | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
+| ⌘= (⌘+), ⌘-, ⌘0 | Terminal font size up, down, reset (zoom the doc instead while the popup shows one and has focus, see below) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
@@ -22,9 +22,11 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌥Space | Voice: hold to talk, release to send; a tap (under 600 ms) starts listening and the next ⌥Space sends. Nothing is sent before that end. Taken before terminals, nvim and text fields, so it never types a character there. The mic button at the left of the status bar does the same with a click or a press-and-hold. While voice is off (Settings → General → Voice) ⌥Space is not taken and reaches the focused view as usual | `Windows/VoiceButton.swift` (`VoiceHotkeys`), `ClubmateKit/Voice.swift` |
 | ↩, Esc | In the voice panel's confirmation of a dangerous action: Yes, No. The panel takes key focus when the confirmation shows (↩ is ignored for its first 0.6 s and while held, so a Return typed for a terminal does not approve); once focus moves elsewhere, ↩ and Esc go there again | `Windows/VoicePanel.swift` |
 | Esc, ⌥Space | In the voice panel during the 1 s before an utterance is sent ("Sending"): cancel it, nothing reaches the assistant; ⌥Space then starts nothing new. The panel takes key focus only for that second | `Windows/VoicePanel.swift`, `ClubmateKit/Voice.swift` |
-| Esc | Close the popup a plugin shows over the workspace (e.g. a doc), in the panel or its popped-out window; focus goes back to where it was | `PopupPanel.swift`, `PopupWindow.swift` |
+| Esc | Close the popup a plugin shows over the workspace (e.g. a doc), in the panel or its popped-out window; focus goes back to where it was. While a doc's diagram is enlarged, Esc closes only the diagram | `PopupPanel.swift`, `PopupWindow.swift` (`ClubmateKit/PopupKeys.swift`) |
 | Esc | Close an enlarged mermaid diagram from the transcript | `SDUI/MarkdownView.swift` |
-| ⌘W | Close the popup over the workspace while it has focus, instead of the terminal or window | `PopupPanel.swift` |
+| ⌘W | Close the popup over the workspace (or its popped-out window) while it has focus, instead of the terminal or window | `PopupPanel.swift`, `PopupWindow.swift` |
+| ⌘= (⌘+), ⌘-, ⌘0 | While the popup or its popped-out window shows a doc or artifact and has focus: zoom the page in, out (×1.25, 50…300%), reset; the popup header shows the level (e.g. `125% ⌘0`, click resets) while it is not 100%. Trackpad pinch magnifies too | `PopupPanel.swift`, `PopupWindow.swift` (`ClubmateKit/PopupKeys.swift`) |
+| Click, + (=), -, 0, Esc | In a Markdown doc (Mac popup, phone): click or tap a mermaid diagram to enlarge it over the page; + and - zoom, 0 fits, Esc closes; drag pans, wheel scrolls, ⌘/⌃+wheel or pinch zooms; the − + Fit ✕ buttons do the same | `ClubmateDocument/Web/document.js` |
 | ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).

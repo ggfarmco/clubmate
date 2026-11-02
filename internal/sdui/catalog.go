@@ -196,7 +196,7 @@ var (
 		"transcript": {props: map[string]propCheck{"center": isBool}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
-			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString},
+			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString, "docLinks": stringMap},
 			children: noChildren,
 		},
 		"plan": {required: []string{"entries"}, props: map[string]propCheck{"entries": listOf(planEntryCheck)}, children: noChildren},
@@ -390,6 +390,19 @@ func invalid(path, format string, args ...any) error {
 func isString(_ *validator, v any) error {
 	if _, ok := v.(string); !ok {
 		return errors.New("must be a string")
+	}
+	return nil
+}
+
+func stringMap(_ *validator, v any) error {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return errors.New("must be an object")
+	}
+	for name, value := range obj {
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("%s: must be a string", name)
+		}
 	}
 	return nil
 }

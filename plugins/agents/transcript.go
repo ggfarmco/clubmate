@@ -92,9 +92,10 @@ type entry struct {
 	At          time.Time                `json:"at,omitzero"`
 	AnsweredAt  time.Time                `json:"answeredAt,omitzero"`
 
-	Compaction *compaction  `json:"compaction,omitempty"`
-	Doc        string       `json:"doc,omitempty"`
-	Voice      *voicePrompt `json:"voice,omitempty"`
+	Compaction *compaction       `json:"compaction,omitempty"`
+	Doc        string            `json:"doc,omitempty"`
+	DocLinks   map[string]string `json:"docLinks,omitempty"`
+	Voice      *voicePrompt      `json:"voice,omitempty"`
 
 	node   *nodeCache
 	sub    *subagent
@@ -367,6 +368,7 @@ func (s *session) apply(e envelope) {
 		s.applyPrompt(e)
 	case kindTurnEnd:
 		s.changesFresh = false
+		s.linkDocs(e.Turn)
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			s.turnInfo(e.Turn).StopReason = p.StopReason

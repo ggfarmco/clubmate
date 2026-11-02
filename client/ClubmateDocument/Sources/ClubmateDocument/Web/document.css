@@ -143,6 +143,64 @@ pre.mermaid:not(.mermaid-failed) { visibility: hidden; }
 
 .mermaid-diagram svg { max-width: 100%; height: auto; }
 
+html.fill .mermaid-diagram { cursor: zoom-in; }
+
+html.lightbox-open, html.lightbox-open body { overflow: hidden; }
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  background: var(--bg);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lightbox[hidden] { display: none; }
+.lightbox:active { cursor: grabbing; }
+
+.lightbox-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.lightbox-stage svg { display: block; max-width: none; }
+
+.lightbox-bar {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  cursor: default;
+}
+
+.lightbox-button {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9em;
+  line-height: 28px;
+  cursor: pointer;
+}
+
+.lightbox-button:hover { background: var(--hover); }
+.lightbox-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 pre.mermaid-failed {
   margin-bottom: 0;
   border-color: var(--danger);

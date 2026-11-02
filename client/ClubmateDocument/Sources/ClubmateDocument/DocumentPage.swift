@@ -46,6 +46,7 @@ enum DocumentPage {
         let template = (try? String(contentsOf: web.appendingPathComponent("document.html"), encoding: .utf8)) ?? ""
         let page = template
             .replacingOccurrences(of: "{{size}}", with: size == .fit ? "fit" : "fill")
+            .replacingOccurrences(of: "{{scale}}", with: size == .fit ? "maximum-scale=1, user-scalable=no" : "minimum-scale=1, maximum-scale=4")
             .replacingOccurrences(of: "{{theme}}", with: theme.css)
         guard let body = page.range(of: "{{body}}") else { return page }
         return page.replacingCharacters(in: body, with: content.html)

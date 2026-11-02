@@ -88,6 +88,21 @@ public enum Markdown {
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 
+    public static func inline(_ text: String, docLinks: [String: String]) -> AttributedString {
+        var content = inline(text)
+        guard !docLinks.isEmpty else { return content }
+        var linked: [(Range<AttributedString.Index>, URL)] = []
+        for run in content.runs {
+            let code = run.inlinePresentationIntent?.contains(.code) == true ? String(content[run.range].characters) : nil
+            guard let key = run.link?.relativeString ?? code, let path = docLinks[key], let url = MarkdownDocLink.url(path) else { continue }
+            linked.append((run.range, url))
+        }
+        for (range, url) in linked {
+            content[range].link = url
+        }
+        return content
+    }
+
     private static func fenceMarker(_ line: String) -> String? {
         for marker in ["```", "~~~"] where line.hasPrefix(marker) {
             return marker
@@ -124,5 +139,23 @@ public enum MarkdownLinkPolicy {
 
     public static func allows(_ url: URL) -> Bool {
         url.scheme.map { schemes.contains($0.lowercased()) } ?? false
+    }
+}
+
+public enum MarkdownDocLink {
+    private static let scheme = "clubmate-doc"
+
+    public static func url(_ target: String) -> URL? {
+        let parts = target.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+        var components = URLComponents()
+        components.scheme = scheme
+        components.path = String(parts[0])
+        components.fragment = parts.count > 1 ? String(parts[1]) : nil
+        return components.url
+    }
+
+    public static func target(_ url: URL) -> String? {
+        guard url.scheme?.lowercased() == scheme, let components = URLComponents(url: url, resolvingAgainstBaseURL: false), !components.path.isEmpty else { return nil }
+        return components.fragment.map { "\(components.path)#\($0)" } ?? components.path
     }
 }

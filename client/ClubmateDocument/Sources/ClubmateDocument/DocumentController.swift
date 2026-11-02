@@ -13,6 +13,9 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     let kind: DocumentKind
     var onLink: (DocumentLink) -> Void = { _ in }
     var onHeight: (CGFloat) -> Void = { _ in }
+    var zoom: DocumentZoom? {
+        didSet { zoom?.controller = self }
+    }
 
     private var wanted: Request?
     private var shown: Request?
@@ -34,6 +37,9 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
             if configuration.preferences.responds(to: NSSelectorFromString("_setPeerConnectionEnabled:")) {
                 configuration.preferences.setValue(false, forKey: "peerConnectionEnabled")
             }
+            #if os(iOS)
+            configuration.ignoresViewportScaleLimits = true
+            #endif
         }
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
@@ -68,6 +74,28 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         work = Task { await drain() }
     }
 
+    func setScale(_ scale: Double) {
+        #if os(macOS)
+        let zoom = wanted?.size == .fill ? scale : 1
+        if webView.pageZoom != zoom { webView.pageZoom = zoom }
+        updateMagnification()
+        #endif
+    }
+
+    private func updateMagnification() {
+        #if os(macOS)
+        webView.allowsMagnification = wanted?.size == .fill && zoom?.lightbox != true
+        #endif
+    }
+
+    func resetMagnification() {
+        #if os(macOS)
+        webView.magnification = 1
+        #else
+        webView.scrollView.setZoomScale(webView.scrollView.minimumZoomScale, animated: false)
+        #endif
+    }
+
     func settled() async {
         await work?.value
     }
@@ -78,6 +106,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         }
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
+        zoom?.lightbox = false
         loading?.resume()
         loading = nil
     }
@@ -107,6 +136,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     private func load(_ request: Request) async {
+        zoom?.lightbox = false
         await withCheckedContinuation { continuation in
             loading?.resume()
             loading = continuation
@@ -166,8 +196,18 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     fileprivate func receive(_ body: Any) {
-        guard let message = body as? [String: Any], message["type"] as? String == "height", let value = message["value"] as? Double else { return }
-        onHeight(CGFloat(value))
+        guard let message = body as? [String: Any] else { return }
+        switch message["type"] as? String {
+        case "height":
+            if let value = message["value"] as? Double { onHeight(CGFloat(value)) }
+        case "lightbox":
+            let open = message["open"] as? Bool == true
+            zoom?.lightbox = open
+            if open { resetMagnification() }
+            updateMagnification()
+        default:
+            break
+        }
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {

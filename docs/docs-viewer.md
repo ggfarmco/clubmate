@@ -46,7 +46,7 @@ Images: `png jpg jpeg gif webp svg` whose first bytes match the type, at most 2 
 The plugin declares section `docs` with `rail: false` and slot `popup`, so it has no rail entry and only `docs.popup` shows.
 
 - The tree is a vertical `stack` of a `header` (the file name, since the doc's own `# heading` is the first line of the page; a ghost icon-only `button` id `back`, action `back`, icon `chevron.left`, only while the back stack has more than one doc) and a `document` id `doc` (`path`, `rev`, `size: fill`, `anchor` when the doc was opened at one, `kind: artifact` for an artifact).
-- Esc and ⌘W close the popup while it has focus; ⌘W does not reach the terminal or window under it.
+- Esc and ⌘W close the popup while it has focus (also in its popped-out window); ⌘W does not reach the terminal or window under it. While a diagram is enlarged (§ Zoom), Esc closes only the diagram.
 - `docs.open` replaces the back stack with the doc and calls `ui.focus` on `docs.popup`. From an agent it also publishes `docs.opened`.
 - A `#anchor` is split off a path only when the part before it is a doc (`a.md#intro`; `notes#1.md` stays a file name). Each back stack entry keeps its anchor: the doc loads at that heading, or at the top when no element has that id; a live reload keeps the scroll position.
 - Events on `docs.popup`: `openDoc` (value the path with an optional `#anchor`) pushes the doc, or for the doc already on top only moves to the anchor, `back` pops, `close` clears the stack and renders `empty`; `openFile` opens the file in the editor.
@@ -62,6 +62,12 @@ An artifact is one self-contained `.html`/`.htm` file, for interactive reports a
 - Theme: the app's `--bg --text --muted --accent --border --code-bg --success --warning --danger --font --code-font` are set on `:root` at document start.
 - A change to the file bumps `rev` like a doc and reloads the page; page state is lost.
 - Not supported: sibling files (its own css/js/images next to it), `size: fit`, editing.
+
+## Zoom
+
+- Diagrams: clicking or tapping a mermaid diagram in a Markdown doc enlarges it over the page (`document.js`, the same on Mac and phone, no native code): it fits the view, drag pans, wheel scrolls, ⌘/⌃+wheel or pinch zooms (×0.1…10), the − + Fit ✕ buttons and the keys + (=), -, 0 and Esc do the same. A live reload closes it. Not in `size: fit` docs (SDUI cards) and not in artifacts: the client never injects UI into an artifact.
+- Page, Mac: while the popup or its popped-out window shows a doc or artifact and has focus, ⌘= (⌘+), ⌘- and ⌘0 set the web view's `pageZoom` (×1.25 steps, 50…300%, reset to 100%) instead of the terminal font; the header shows the level as a ghost button (`125% ⌘0`) while it is not 100%, a click resets. Trackpad pinch magnifies the page (`allowsMagnification`, off while a diagram is enlarged so the pinch reaches it); ⌘0 resets that too. The level belongs to the popup: it stays across links, Back and pop-out, and resets when the popup closes. Nothing is persisted.
+- Page, phone: pinch zooms a Markdown doc 1…4× (viewport `minimum-scale=1, maximum-scale=4`) and an artifact whatever its own viewport says (`ignoresViewportScaleLimits`); a `size: fit` doc does not zoom. Enlarging a diagram resets the page zoom first.
 
 ## Live reload
 
@@ -81,6 +87,7 @@ Both are forwarded to paired phones by `remote` (see [remote](remote.md)).
 - an agent calls `docs_open`
 - Open Doc… (⇧⌘D or the command palette, Mac): a fuzzy picker over `docs.list` in the plugin's order (agent docs first; `sparkles` for an agent doc, `chart.bar.doc.horizontal` for an artifact, `doc.richtext` for Markdown), filtered on `rel` in the client; ↩ runs `docs.open {path}`. The list is read once per opening.
 - Open on a transcript card or tool row whose entry has `doc` (Mac and phone, see [agents](agents.md#docs-in-the-transcript))
+- a link or `path` code span in an agent message that the plugin resolved into the entry's `docLinks` (Mac and phone, see [agents](agents.md#docs-in-the-transcript))
 - on the phone, the "Opened <file name>" banner shown for `docs.opened` on that session's screen when the Mac has no UI bridge (`hello.ui`); with it, the doc arrives as the `docs.popup` sheet instead
 
 ## Phone

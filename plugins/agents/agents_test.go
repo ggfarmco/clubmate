@@ -1164,6 +1164,27 @@ func TestOpenDocRunsDocsOpenForTheSession(t *testing.T) {
 	assert.JSONEq(t, `{"path":"`+path+`","session":"`+session+`"}`, string(echoed(t, f, "docs.open")))
 }
 
+func TestMessageDocLinkOpensTheDoc(t *testing.T) {
+	repo := newRepo(t)
+	path := filepath.Join(repo, "a.md")
+	require.NoError(t, os.WriteFile(path, []byte("# A"), 0o600))
+	reply := map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "Wrote `a.md`."}}
+	f := start(t, map[string]any{"prompt": []map[string]any{{"update": reply}}}, testutil.EchoPluginDirAs(t, docsManifest))
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "write it")
+	linked := func(n sdui.Node) []sdui.Node {
+		return slices.DeleteFunc(cardsOf(n, "message"), func(m sdui.Node) bool { return m.Props["docLinks"] == nil })
+	}
+	main := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(linked(n)) == 1 })
+	msg := linked(main)[0]
+	assert.Equal(t, map[string]any{"a.md": path}, msg.Props["docLinks"])
+
+	f.h.Event(t, workspace, "agents.main", msg.ID, "openDoc", path)
+
+	assert.JSONEq(t, `{"path":"`+path+`","session":"`+session+`"}`, string(echoed(t, f, "docs.open")))
+}
+
 func TestOpenOutputWritesFullOutputAndOpensIt(t *testing.T) {
 	output := strings.Repeat("line\n", 300)
 	run := map[string]any{"sessionUpdate": "tool_call", "toolCallId": "x1", "title": "make", "kind": "execute", "status": "completed", "content": []map[string]any{{"type": "content", "content": map[string]string{"type": "text", "text": output}}}}

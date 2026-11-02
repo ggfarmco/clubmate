@@ -54,6 +54,14 @@ final class ClubmateProtocolTests: XCTestCase {
         }
     }
 
+    func testDocLinksBecomeDocURLsOnLinksAndCodeSpans() {
+        let text = "See [the plan](docs/plan.md#goals), `my plan.md`, [web](https://x.dev/a.md) and `other.md`."
+        let content = Markdown.inline(text, docLinks: ["docs/plan.md#goals": "/w/docs/plan.md#goals", "my plan.md": "/w/my plan.md"])
+        let links = content.runs.compactMap { run in run.link.map { (String(content[run.range].characters), MarkdownDocLink.target($0)) } }
+        XCTAssertEqual(links.map(\.0), ["the plan", "my plan.md", "web"])
+        XCTAssertEqual(links.map(\.1), ["/w/docs/plan.md#goals", "/w/my plan.md", nil])
+    }
+
     func testDiffLineKinds() {
         let text = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n ctx\n\n"
         XCTAssertEqual(DiffLine.parse(text), [

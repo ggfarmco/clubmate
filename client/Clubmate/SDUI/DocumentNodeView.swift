@@ -4,11 +4,16 @@ import SwiftUI
 import ClubmateDocument
 import ClubmateKit
 
+extension EnvironmentValues {
+    @Entry var documentZoom: DocumentZoom?
+}
+
 struct DocumentNodeView: View {
     let node: SDUINode
 
     @Environment(\.theme) private var theme
     @Environment(\.sduiDispatch) private var dispatch
+    @Environment(\.documentZoom) private var zoom
 
     private var content: DocumentContent {
         DocumentContent(path: node.string("path") ?? "", html: node.string("html") ?? "", rev: Int(node.props["rev"]?.numberValue ?? 0), anchor: node.string("anchor"), kind: node.string("kind") == "artifact" ? .artifact : .markdown)
@@ -19,7 +24,7 @@ struct DocumentNodeView: View {
     }
 
     var body: some View {
-        DocumentWebView(content: content, theme: theme.document, size: fit ? .fit : .fill) { link in
+        DocumentWebView(content: content, theme: theme.document, size: fit ? .fit : .fill, zoom: fit ? nil : zoom) { link in
             open(link)
         }
         .padding(.horizontal, fit ? theme.gutter : 0)

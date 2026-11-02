@@ -108,3 +108,40 @@ func TestDocOnlyForCompletedDocTools(t *testing.T) {
 	assert.Equal(t, sdui.CardAction{Action: actOpenDoc, Label: "Open", Icon: "doc.richtext", Value: "/r/docs/a.md"}, actions[0])
 	assert.Equal(t, actOpenLocation, actions[1].Action)
 }
+
+func TestDocLinksResolveWhenTheTurnEnds(t *testing.T) {
+	wt, home := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	for _, p := range []string{filepath.Join(wt, "docs", "plan.md"), filepath.Join(wt, "out", "report.html"), filepath.Join(wt, "main.go"), filepath.Join(home, "notes.md")} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o600))
+	}
+	report := filepath.Join(wt, "out", "report.html")
+	text := "See [the plan](docs/plan.md#goals), `docs/plan.md`, [report](" + report + "), [web](https://x.dev/a.md), [gone](docs/missing.md), `main.go`, `docs/`, `~/notes.md`.\n\n```\ndocs/plan.md\n```\n"
+	chunk, err := json.Marshal(map[string]any{"turn": 1, "kind": "session/update", "payload": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": text}}})
+	require.NoError(t, err)
+	lines := []string{`{"turn":1,"kind":"session/prompt","payload":{"prompt":[{"type":"text","text":"go"}]}}`, string(chunk)}
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	s := newSession(record{Worktree: wt}, newEventLog(path), false, func(string, bool) {})
+
+	before := s.view(0)
+	require.Len(t, before.Entries, 2)
+	assert.Nil(t, before.Entries[1].DocLinks)
+	cursor, ok := parseCursor(before.Cursor)
+	require.True(t, ok)
+
+	s.mu.Lock()
+	s.recordLocked(actorClubmate, kindTurnEnd, turnEndPayload{StopReason: "end_turn"})
+	s.mu.Unlock()
+	after := s.viewSince(0, cursor)
+	require.Len(t, after.Entries, 1)
+	assert.Equal(t, map[string]string{
+		"docs/plan.md#goals": filepath.Join(wt, "docs", "plan.md") + "#goals",
+		"docs/plan.md":       filepath.Join(wt, "docs", "plan.md"),
+		report:               report,
+		"~/notes.md":         filepath.Join(home, "notes.md"),
+	}, after.Entries[0].DocLinks)
+	node, _ := buildEntryNode(screen{View: after}, after.Entries[0], "")
+	assert.Equal(t, after.Entries[0].DocLinks, node.Props["docLinks"])
+}

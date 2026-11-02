@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 
+import ClubmateDocument
 import ClubmateKit
 
 enum WorkspaceOverlay: Equatable {
@@ -28,6 +29,7 @@ final class WorkspaceSession {
     var autoNewRequest = 0
     var popupPoppedOut = false
     @ObservationIgnored var popupHost: PopupWindowHost?
+    let popupZoom = DocumentZoom()
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: WorkspaceUIStore?
     @ObservationIgnored private let lookup: @MainActor () -> Workspace?

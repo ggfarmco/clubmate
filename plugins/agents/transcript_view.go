@@ -298,6 +298,9 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 			return sdui.Node{}, false
 		}
 		n := sdui.Message(en.Kind, en.Text, nil)
+		if en.Kind == entryAgent && len(en.DocLinks) > 0 {
+			n.Props["docLinks"] = en.DocLinks
+		}
 		n.ID = sid + "/msg/" + en.Kind + "/" + en.ID
 		return n, true
 	case entryPlan:
