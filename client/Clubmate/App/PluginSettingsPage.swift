@@ -202,7 +202,6 @@ private struct PluginSettingsHeader: View {
                 }
                 .font(.caption)
                 Button("Restart", action: restart)
-                    .controlSize(.small)
                     .disabled(restarting || plugin.state == "starting")
                     .help("Stop \(plugin.name) and start it again")
             }
@@ -263,11 +262,8 @@ private struct PluginNativeRows: View {
                 }
             }
         case "editor-nvim":
-            LabeledContent {
+            SettingsActionRow(title: "Font size", detail: "nvim runs in a terminal and uses Terminals → Font size.") {
                 Button("Open Terminals") { select(.plugin("terminals")) }
-            } label: {
-                Text("Font size")
-                Text("nvim runs in a terminal and uses Terminals → Font size.")
             }
         default:
             EmptyView()
@@ -280,6 +276,26 @@ private struct PluginNativeRows: View {
 
     private var usesGhosttyConfig: Binding<Bool> {
         Binding { settings.terminalFontSize == nil } set: { settings.terminalFontSize = $0 ? nil : app.terminalFontSize }
+    }
+}
+
+private struct SettingsActionRow<Action: View>: View {
+    let title: String
+    let detail: String
+    @ViewBuilder let action: Action
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .layoutPriority(1)
+            Spacer(minLength: 10)
+            action.fixedSize()
+        }
     }
 }
 
@@ -315,11 +331,8 @@ private struct ClaudeCodeSettings: View {
                         }
                     }
                 }
-                LabeledContent {
+                SettingsActionRow(title: "Notification hooks", detail: "Merge into ~/.claude/settings.json; needs the “\(Self.tool)” command and jq.") {
                     Button(hooksCopied ? "Copied" : "Copy Hooks") { copyHooks() }
-                } label: {
-                    Text("Notification hooks")
-                    Text("Merge into ~/.claude/settings.json; needs the “\(Self.tool)” command and jq.")
                 }
                 if !app.claude.output.isEmpty {
                     Text(app.claude.output)
