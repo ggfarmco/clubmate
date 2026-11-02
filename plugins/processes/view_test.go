@@ -182,6 +182,33 @@ func TestFoldedRowShowsSubtreeTotals(t *testing.T) {
 	assert.Equal(t, []string{"1 1.0 50 MB", "2 30.0 355 MB", "4 2.0 200 MB"}, cells(open))
 }
 
+func TestFoldedRowHistoryIsSubtreeHistory(t *testing.T) {
+	parent := pluginsdk.ProcessNode{Process: pluginsdk.ProcessInfo{PID: 1, CPU: 10}, SessionID: "s"}
+	child := pluginsdk.ProcessNode{Process: pluginsdk.ProcessInfo{PID: 2, PPID: 1, CPU: 30}, SessionID: "s"}
+	sibling := pluginsdk.ProcessNode{Process: pluginsdk.ProcessInfo{PID: 3, CPU: 20}, SessionID: "s"}
+	hist := newHistory()
+	now := time.Now()
+	for i, nodes := range [][]pluginsdk.ProcessNode{{parent, sibling}, {parent, sibling}, {parent, child, sibling}, {parent, child, sibling}} {
+		hist.record(nil, nodes, nil, nil, now.Add(time.Duration(i)*time.Second))
+	}
+	m := viewModel{nodes: []pluginsdk.ProcessNode{parent, child, sibling}, sort: sdui.Sort{Column: colHistory, Desc: true}, hist: hist}
+	history := func(rows []sdui.TableRow) []string {
+		var out []string
+		for _, r := range rows {
+			out = append(out, fmt.Sprint(r.ID, r.Cells[4].Spark.Values))
+		}
+		return out
+	}
+
+	m.collapsed = map[int]bool{1: true}
+	folded, _ := processRows(m)
+	assert.Equal(t, []string{"1[10 10 40 40]", "3[20 20 20 20]"}, history(folded))
+
+	m.collapsed = nil
+	open, _ := processRows(m)
+	assert.Equal(t, []string{"3[20 20 20 20]", "1[10 10 10 10]", "2[30 30]"}, history(open))
+}
+
 func TestProcessTableSortsSiblings(t *testing.T) {
 	nodes := []pluginsdk.ProcessNode{
 		{Process: pluginsdk.ProcessInfo{PID: 2, PPID: 1, CPU: 1}},

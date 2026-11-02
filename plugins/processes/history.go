@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"slices"
 	"time"
 
 	"clubmate/pkg/pluginsdk"
@@ -19,6 +20,7 @@ const (
 	kindProcess seriesKind = iota + 1
 	kindSession
 	kindWorkspace
+	kindSubtree
 )
 
 type seriesKey struct {
@@ -49,6 +51,7 @@ func newHistory() *history {
 
 func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
 	type total struct{ cpu, mb float64 }
+	h.recordSubtrees(now, nodes, core)
 	workspaceOf := sessionWorkspaces(sessions)
 	totals := make(map[seriesKey]*total, 2*len(sessions)+len(workspaces)+1)
 	for _, s := range sessions {
@@ -92,6 +95,53 @@ func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, 
 	h.prune(now)
 }
 
+func (h *history) recordSubtrees(now time.Time, sets ...[]pluginsdk.ProcessNode) {
+	type link struct {
+		session string
+		pid     int
+	}
+	var nodes []*pluginsdk.ProcessNode
+	for _, set := range sets {
+		for i := range set {
+			nodes = append(nodes, &set[i])
+		}
+	}
+	present := make(map[link]bool, len(nodes))
+	for _, n := range nodes {
+		present[link{n.SessionID, n.Process.PID}] = true
+	}
+	children := make(map[link][]*pluginsdk.ProcessNode, len(nodes))
+	var roots []*pluginsdk.ProcessNode
+	for _, n := range nodes {
+		parent := link{n.SessionID, n.Process.PPID}
+		if present[parent] && n.Process.PPID != n.Process.PID {
+			children[parent] = append(children[parent], n)
+			continue
+		}
+		roots = append(roots, n)
+	}
+	var walk func(n *pluginsdk.ProcessNode) (cpu, mb float64)
+	walk = func(n *pluginsdk.ProcessNode) (float64, float64) {
+		cpu, mb := n.Process.CPU, float64(n.Process.RSSKiB)/kibPerMiB
+		kids := children[link{n.SessionID, n.Process.PID}]
+		for _, k := range kids {
+			c, m := walk(k)
+			cpu, mb = cpu+c, mb+m
+		}
+		key := subtreeKey(*n)
+		if _, ok := h.series[key]; !ok && len(kids) > 0 {
+			h.series[key] = h.series[processKey(*n)].clone()
+		}
+		if _, ok := h.series[key]; ok {
+			h.push(key, cpu, mb, now)
+		}
+		return cpu, mb
+	}
+	for _, n := range roots {
+		walk(n)
+	}
+}
+
 func (h *history) push(key seriesKey, cpu, memMB float64, now time.Time) {
 	s, ok := h.series[key]
 	if !ok {
@@ -125,6 +175,17 @@ func (h *history) mem(key seriesKey, n int) []float64 {
 	return nil
 }
 
+func (s *series) clone() *series {
+	if s == nil {
+		return &series{}
+	}
+	return &series{cpu: s.cpu.clone(), mem: s.mem.clone(), seen: s.seen}
+}
+
+func (r ring) clone() ring {
+	return ring{values: slices.Clone(r.values), head: r.head}
+}
+
 func (r *ring) push(v float64) {
 	if len(r.values) < historyLen {
 		r.values = append(r.values, v)
@@ -148,6 +209,10 @@ func (r *ring) tail(n int) []float64 {
 
 func processKey(n pluginsdk.ProcessNode) seriesKey {
 	return seriesKey{kind: kindProcess, pid: n.Process.PID, start: n.Process.StartTime.UnixNano()}
+}
+
+func subtreeKey(n pluginsdk.ProcessNode) seriesKey {
+	return seriesKey{kind: kindSubtree, pid: n.Process.PID, start: n.Process.StartTime.UnixNano()}
 }
 
 func sessionKey(id string) seriesKey {

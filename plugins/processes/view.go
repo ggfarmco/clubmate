@@ -438,6 +438,10 @@ func treeEntries(m viewModel, nodes []pluginsdk.ProcessNode, titles map[string]s
 		for _, p := range siblings {
 			if len(children[p.node.Process.PID]) > 0 && !open(p, depth) {
 				p.node.Process.CPU, p.node.Process.RSSKiB = sum(p)
+				if recent := m.hist.cpu(subtreeKey(p.node), recentLen); len(recent) > 0 {
+					p.recent = recent
+					_, p.avg = peakAvg(recent)
+				}
 			}
 		}
 		slices.SortFunc(siblings, compare)
