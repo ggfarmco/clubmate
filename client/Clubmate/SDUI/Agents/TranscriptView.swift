@@ -18,7 +18,7 @@ struct TranscriptNodeView: View {
         let items = node.transcriptItems()
         let fullDiff = node.fullDiffCard
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: theme.gutter + theme.spacing.s) {
+            VStack(alignment: .leading, spacing: theme.gutter + theme.spacing.s) {
                 ForEach(items) { item in
                     TranscriptItemView(item: item).equatable()
                 }
