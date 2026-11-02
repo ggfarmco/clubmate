@@ -72,13 +72,14 @@ final class WebViewDeck: NSObject, WKNavigationDelegate, WKUIDelegate {
     func show(_ key: String, url: URL, rev: Int) -> CodeWebView? {
         guard !closed else { return nil }
         let view = views[key] ?? mount(key)
-        switch WebViewNavigation.decide(current: view.requested, currentRev: view.rev, url: url, rev: rev) {
+        let navigation = WebViewNavigation.decide(current: view.requested, currentRev: view.rev, url: url, rev: rev)
+        view.requested = url
+        view.rev = rev
+        switch navigation {
         case .none: break
         case .load(let url): view.load(URLRequest(url: url))
         case .reload: view.reload()
         }
-        view.requested = url
-        view.rev = rev
         return view
     }
 
@@ -94,6 +95,7 @@ final class WebViewDeck: NSObject, WKNavigationDelegate, WKUIDelegate {
     private func mount(_ key: String) -> CodeWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         let view = CodeWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         view.uiDelegate = self
@@ -102,11 +104,12 @@ final class WebViewDeck: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
-        guard action.targetFrame?.isMainFrame != false, let url = action.request.url, !Self.isLoopback(url) else {
+        guard action.targetFrame?.isMainFrame != false, let url = action.request.url,
+              !Self.sameOrigin(url, (webView as? CodeWebView)?.requested), url.scheme != "about" else {
             return decisionHandler(.allow)
         }
         decisionHandler(.cancel)
-        openExternal(url)
+        if action.navigationType == .linkActivated { openExternal(url) }
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -119,8 +122,9 @@ final class WebViewDeck: NSObject, WKNavigationDelegate, WKUIDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    private static func isLoopback(_ url: URL) -> Bool {
-        (url.scheme == "http" && url.host() == "127.0.0.1") || url.scheme == "about" || url.scheme == "blob" || url.scheme == "data"
+    private static func sameOrigin(_ url: URL, _ requested: URL?) -> Bool {
+        guard let requested else { return false }
+        return url.scheme == requested.scheme && url.host() == requested.host() && url.port == requested.port
     }
 }
 
