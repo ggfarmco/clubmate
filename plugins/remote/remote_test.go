@@ -569,7 +569,7 @@ func newFixture(t *testing.T) *fixture {
 		pairing:  newPairing(f.clock.Now),
 		hub:      newHub(func() {}),
 		identity: &identity{kv: f.kv, publish: f.topics.add, comp: computer{ID: "cmp", Name: "Mac"}},
-		apns:     newAPNSClient(f.kv, f.clock.Now, nil),
+		relay:    newRelayClient(f.kv, http.DefaultClient),
 		changed:  func() {},
 		watching: f.watched.add,
 		ping:     time.Hour,

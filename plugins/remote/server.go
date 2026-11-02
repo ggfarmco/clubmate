@@ -45,7 +45,7 @@ type server struct {
 	pairing  *pairing
 	hub      *hub
 	identity *identity
-	apns     *apnsClient
+	relay    *relayClient
 	changed  func()
 	watching func(contract.RemoteWatching)
 	ping     time.Duration

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"net/netip"
 	"os"
 	"slices"
@@ -102,10 +103,9 @@ type revokeArgs struct {
 	Device string `json:"device"`
 }
 
-type apnsArgs struct {
-	Path   string `json:"path"`
-	KeyID  string `json:"keyID"`
-	TeamID string `json:"teamID"`
+type relayArgs struct {
+	URL   string `json:"url"`
+	Token string `json:"token"`
 }
 
 func main() {
@@ -138,9 +138,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	a.enabled, a.port, a.titleBar = enabled, port, titleBar
 	a.ident = &identity{kv: h, publish: a.publish, comp: comp}
-	apns := newAPNSClient(h, time.Now, apnsHosts)
-	if err := apns.load(ctx); err != nil {
-		logf("load APNs key: %v", err)
+	relay := newRelayClient(h, &http.Client{Timeout: relayTimeout})
+	if err := relay.load(ctx); err != nil {
+		logf("load push relay: %v", err)
 	}
 	a.srv = &server{
 		backend:  hostBackend{host: h},
@@ -148,7 +148,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		pairing:  newPairing(time.Now),
 		hub:      newHub(a.changed),
 		identity: a.ident,
-		apns:     apns,
+		relay:    relay,
 		changed:  a.changed,
 		watching: a.watching,
 		ping:     pingInterval,
@@ -223,12 +223,12 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return nil, a.srv.revoke(ctx, args.Device)
-	case "remote.set-apns":
-		var args apnsArgs
+	case "remote.set-push-relay":
+		var args relayArgs
 		if err := decodeArgs(cmd.Args, &args); err != nil {
 			return nil, err
 		}
-		if err := a.srv.apns.configure(ctx, args.Path, args.KeyID, args.TeamID); err != nil {
+		if err := a.srv.relay.configure(ctx, args.URL, args.Token); err != nil {
 			return nil, err
 		}
 		return a.status(), nil
@@ -455,7 +455,7 @@ func (a *app) status() status {
 		TitleBarColour: a.titleBar,
 		OtherMacs:      others,
 		TitleDot:       a.titleBar && len(others) > 0,
-		Push:           a.srv.apns.configured(),
+		Push:           a.srv.relay.configured(),
 	}
 	dns := a.dns
 	a.mu.Unlock()

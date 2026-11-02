@@ -48,6 +48,12 @@ test:
 lint:
 	go vet ./...
 
+push-relay:
+	go build -o bin/clubmate-push-relay ./cmd/clubmate-push-relay
+
+push-relay-linux:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o bin/linux-amd64/clubmate-push-relay ./cmd/clubmate-push-relay
+
 ghostty:
 	scripts/build-ghostty.sh
 
@@ -98,4 +104,4 @@ companion-ui-test:
 	xcodebuild test -project Companion.xcodeproj -scheme Companion -destination id=$$udid -parallel-testing-enabled NO -configuration Debug -derivedDataPath ../build/CompanionDerivedData CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual; \
 	status=$$?; xcrun simctl shutdown $$udid; exit $$status
 
-.PHONY: build run-core test lint ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion companion-ui-test
+.PHONY: build run-core test lint push-relay push-relay-linux ghostty app app-release run-app protocol-test kit-test nvim-distro nvim-test bundle-smoke companion-kit-test companion companion-ui-test

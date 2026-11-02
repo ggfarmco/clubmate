@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
 
+	"clubmate/pkg/apns"
 	"clubmate/pkg/pluginsdk"
 )
 
@@ -19,8 +19,6 @@ const (
 	requestPermission  = "permission"
 	agentSessionPrefix = "agt_"
 	sessionsCommand    = "agents.sessions"
-	maxPushToken       = 200
-	maxCollapseID      = 64
 	pushMaxAge         = time.Hour
 
 	policyNeedsInput = "needs-input"
@@ -111,17 +109,17 @@ type resolvedPush struct {
 func (s *server) pushToken(ctx context.Context, d device, p pushTokenRequest) (pushTokenResult, error) {
 	if p.Token == "" {
 		p.Environment = ""
-	} else if !validPushToken(p.Token) || p.Environment != envDevelopment && p.Environment != envProduction {
+	} else if !apns.ValidDeviceToken(p.Token) || p.Environment != apns.EnvDevelopment && p.Environment != apns.EnvProduction {
 		return pushTokenResult{}, &apiError{Code: codeInvalidParams, Message: "token must be hex, at most 200 characters; environment development or production"}
 	}
 	if err := s.devices.setPush(ctx, d.ID, p.Token, p.Environment); err != nil {
 		return pushTokenResult{}, err
 	}
-	return pushTokenResult{Push: s.apns.configured()}, nil
+	return pushTokenResult{Push: s.relay.configured()}, nil
 }
 
 func (s *server) push(ctx context.Context, ev pluginsdk.Event) {
-	if !s.apns.configured() {
+	if !s.relay.configured() {
 		return
 	}
 	switch ev.Topic {
@@ -168,7 +166,7 @@ func (s *server) pushNotification(ctx context.Context, ev pluginsdk.Event) {
 	if err != nil {
 		return
 	}
-	s.pushAll(ctx, apnsPush{pushType: "alert", priority: "10", collapseID: truncate(n.ID, maxCollapseID), body: body})
+	s.pushAll(ctx, relayPush{pushType: apns.TypeAlert, collapseID: truncate(n.ID, apns.MaxCollapseID), payload: body})
 }
 
 func (s *server) pushResolved(ctx context.Context, ev pluginsdk.Event) {
@@ -186,27 +184,27 @@ func (s *server) pushResolved(ctx context.Context, ev pluginsdk.Event) {
 	if err != nil {
 		return
 	}
-	s.pushAll(ctx, apnsPush{pushType: "background", priority: "5", body: body})
+	s.pushAll(ctx, relayPush{pushType: apns.TypeBackground, payload: body})
 }
 
-func (s *server) pushAll(ctx context.Context, p apnsPush) {
+func (s *server) pushAll(ctx context.Context, p relayPush) {
 	for _, d := range s.devices.list() {
 		if d.PushToken == "" || s.hub.connected(d.ID) {
 			continue
 		}
-		reply, err := s.apns.send(ctx, d.PushEnvironment, d.PushToken, p)
+		reply, err := s.relay.send(ctx, d.PushEnvironment, d.PushToken, p)
 		if err != nil {
 			logf("push to %s: %v", d.ID, err)
 			continue
 		}
-		if reply.goneToken() {
+		if reply.GoneToken() {
 			if err := s.devices.dropPush(ctx, d.PushToken); err != nil {
 				logf("drop push token of %s: %v", d.ID, err)
 			}
 			continue
 		}
-		if reply.status != http.StatusOK {
-			logf("push to %s: %d %s", d.ID, reply.status, reply.reason)
+		if reply.Status != http.StatusOK {
+			logf("push to %s: %d %s", d.ID, reply.Status, reply.Reason)
 		}
 	}
 }
@@ -257,14 +255,6 @@ func allows(policy, kind string) bool {
 func stale(ts string) bool {
 	t, err := time.Parse(time.RFC3339, ts)
 	return err == nil && time.Since(t) > pushMaxAge
-}
-
-func validPushToken(token string) bool {
-	if len(token) > maxPushToken {
-		return false
-	}
-	_, err := hex.DecodeString(token)
-	return err == nil
 }
 
 func truncate(s string, n int) string {

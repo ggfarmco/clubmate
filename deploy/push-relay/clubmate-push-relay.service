@@ -1,0 +1,25 @@
+[Unit]
+Description=Clubmate push relay: forwards Mac pushes to APNs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=REPLACE_ME_USER
+WorkingDirectory=/home/REPLACE_ME_USER/push-relay
+EnvironmentFile=/home/REPLACE_ME_USER/push-relay/relay.env
+Environment=PUSH_RELAY_LISTEN=0.0.0.0:8000
+Environment=PUSH_RELAY_TOKENS=/home/REPLACE_ME_USER/push-relay/tokens
+ExecStart=/home/REPLACE_ME_USER/push-relay/clubmate-push-relay
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

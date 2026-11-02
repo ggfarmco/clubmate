@@ -11,7 +11,7 @@
         "title": "Companion status",
         "hidden": true,
         "scope": "app",
-        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether an APNs key is set for push: {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push}."
+        "description": "Whether companion access is on, the port, the addresses it listens on, the hosts a pairing link carries, why it is not listening, this Mac's identity, the title-bar colour setting, the other Macs paired phones reported and whether the title bar shows this Mac's dot and whether a push relay is set: {enabled, port, listening, hosts, error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices}], titleDot, push}."
       },
       {
         "id": "remote.enable",
@@ -104,18 +104,17 @@
         }
       },
       {
-        "id": "remote.set-apns",
-        "title": "Set APNs key",
+        "id": "remote.set-push-relay",
+        "title": "Set push relay",
         "hidden": true,
         "scope": "app",
-        "description": "Set the APNs auth key paired phones get push notifications with: reads the .p8 (PKCS8 P-256) at path and stores it with its key id and team id. keyID may be omitted when the file is named AuthKey_<KEYID>.p8; an empty path clears the key. Returns the status.",
+        "description": "Set the push relay paired phones get push notifications through: the relay's https url and this Mac's relay token (cmr_…, from `clubmate-push-relay token add` on the relay host). An empty url clears both. Returns the status.",
         "args": {
           "properties": {
-            "path": {"type": "string", "description": "Path to the AuthKey_<KEYID>.p8 file; empty clears the key."},
-            "keyID": {"type": "string", "description": "APNs key id; defaults to the one in the file name."},
-            "teamID": {"type": "string", "description": "Apple Developer team id."}
+            "url": {"type": "string", "description": "Relay base url, https://<host>[:port]; empty clears the relay."},
+            "token": {"type": "string", "description": "This Mac's relay token."}
           },
-          "required": ["path"]
+          "required": ["url"]
         }
       }
     ]
