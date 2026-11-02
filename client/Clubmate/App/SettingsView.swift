@@ -94,26 +94,20 @@ private struct GeneralSettings: View {
     var body: some View {
         Form {
             Section("Appearance") {
-                Stepper(value: $settings.interfaceFontSize, in: AppSettings.interfaceFontRange, step: 1) {
-                    LabeledContent {
-                        Text(settingsPoints(settings.interfaceFontSize))
-                    } label: {
-                        Text("Interface font size")
-                        Text("Sidebars, lists and forms. A pane you zoomed with ⌘+ keeps its own size.")
+                SettingsStepper(title: "Interface font size", detail: "Sidebars, lists and forms. A pane you zoomed with ⌘+ keeps its own size.", value: $settings.interfaceFontSize, range: AppSettings.interfaceFontRange)
+                SettingsRow(title: "Sidebar side") {
+                    Picker("Sidebar side", selection: $settings.sidebarSide) {
+                        ForEach(SidebarSide.allCases, id: \.self) { side in
+                            Text(side.rawValue.capitalized).tag(side)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                Picker("Sidebar side", selection: $settings.sidebarSide) {
-                    ForEach(SidebarSide.allCases, id: \.self) { side in
-                        Text(side.rawValue.capitalized).tag(side)
-                    }
-                }
-                .pickerStyle(.segmented)
-                LabeledContent {
+                SettingsRow(title: "Zoomed panes", detail: zoomed) {
                     Button("Reset All") { settings.resetPaneFonts() }
                         .disabled(settings.zoomedPaneCount == 0)
-                } label: {
-                    Text("Zoomed panes")
-                    Text(zoomed)
                 }
             }
         }

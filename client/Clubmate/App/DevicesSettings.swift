@@ -59,7 +59,7 @@ struct DevicesSettings: View {
 
     @ViewBuilder private var status: some View {
         Section {
-            Toggle("Allow companion devices", isOn: enabled)
+            SettingsToggle(title: "Allow companion devices", isOn: enabled)
                 .disabled(model.busy || model.status == nil)
             if let status = model.status {
                 HStack(spacing: theme.spacing.s) {
@@ -70,12 +70,9 @@ struct DevicesSettings: View {
                         .help(status.summary)
                         .textSelection(.enabled)
                 }
-                .font(.caption)
+                .font(.subheadline)
                 if model.needsTailscale {
-                    Text(RemoteDevicesModel.tailscaleHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    SettingsDetail(RemoteDevicesModel.tailscaleHint)
                 }
             }
             if let notice = model.notice {
@@ -84,7 +81,7 @@ struct DevicesSettings: View {
                     .lineLimit(1)
                     .truncationMode(.label)
             }
-            LabeledContent("Pair an iPhone or iPad") {
+            SettingsRow(title: "Pair an iPhone or iPad") {
                 Button("Pair Device…") { Task { await model.pair() } }
                     .disabled(model.busy)
             }
@@ -96,10 +93,7 @@ struct DevicesSettings: View {
             if model.devices.isEmpty {
                 VStack(alignment: .leading, spacing: theme.spacing.xs) {
                     Text("No devices paired yet").foregroundStyle(.secondary)
-                    Text("Install Clubmate on your iPhone or iPad. Both devices must be on the same Tailscale tailnet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    SettingsDetail("Install Clubmate on your iPhone or iPad. Both devices must be on the same Tailscale tailnet.")
                 }
             }
             ForEach(model.devices) { device in
@@ -153,15 +147,13 @@ private struct ThisMacSection: View {
                         }
                     }
                 }
-                Text(caption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                SettingsDetail(caption)
             }
-            Toggle(isOn: Binding { status.titleBarColour } set: { setTitleBar($0) }) {
-                Text("Title bar")
-                Text(status.titleBarColour && !status.titleDot ? "Show the colour in the workspace pill once a phone has another Mac paired" : "Show the colour in the workspace pill")
-            }
+            SettingsToggle(
+                title: "Title bar",
+                detail: status.titleBarColour && !status.titleDot ? "Show the colour in the workspace pill once a phone has another Mac paired" : "Show the colour in the workspace pill",
+                isOn: Binding { status.titleBarColour } set: { setTitleBar($0) }
+            )
             .disabled(busy)
             preview
         }
@@ -308,7 +300,7 @@ private struct DeviceRow: View {
                             .truncationMode(.label)
                             .help(detail)
                     }
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                 }
             }

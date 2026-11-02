@@ -99,7 +99,7 @@ struct Theme: Sendable {
     var control: CGFloat { (uiSize * 2).rounded() }
     var header: CGFloat { (uiSize * 8 / 3).rounded() }
     let rail: CGFloat = 40
-    let gutter: CGFloat = 8
+    private(set) var gutter: CGFloat = 8
     let indent: CGFloat = 12
     let spacing = Spacing()
     let radius = Radius()
@@ -176,6 +176,12 @@ struct Theme: Sendable {
     func withSystemFonts(size: Double) -> Theme {
         var theme = scaled(size)
         theme.systemFonts = true
+        return theme
+    }
+
+    func withoutGutter() -> Theme {
+        var theme = self
+        theme.gutter = 0
         return theme
     }
 

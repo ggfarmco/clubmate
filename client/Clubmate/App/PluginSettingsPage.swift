@@ -160,11 +160,10 @@ struct PluginSettingsPage: View {
 
     @ViewBuilder private var pluginView: some View {
         if let store = plugins.store, let view = store.slot(slot) {
-            SDUIView(node: view.tree, slot: slot, workspaceID: "", rev: view.rev) { [store] event in
+            SDUISettingsRows(tree: view.tree, slot: slot, rev: view.rev) { [store] event in
                 await store.send(event)
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .environment(\.theme, theme.withSystemFonts(size: NSFont.systemFontSize))
+            .environment(\.theme, theme.withSystemFonts(size: NSFont.systemFontSize).withoutGutter())
         } else if plugin.declaresSettings, plugin.healthy || plugin.state == "starting" {
             ProgressView().controlSize(.small)
         } else if plugin.declaresSettings {
@@ -232,37 +231,25 @@ private struct PluginNativeRows: View {
     var body: some View {
         switch plugin {
         case "terminals":
-            Toggle(isOn: usesGhosttyConfig) {
-                Text("Use ghostty config")
-                Text("Font and size come from your ghostty config.")
-            }
-            Stepper(value: terminalFontSize, in: AppSettings.terminalFontRange, step: 1) {
-                LabeledContent {
-                    Text(settingsPoints(app.terminalFontSize))
-                } label: {
-                    Text("Font size")
-                    Text("Every terminal and nvim. ⌘+ in a terminal changes this too.")
-                }
-            }
-            .disabled(settings.terminalFontSize == nil)
+            SettingsToggle(title: "Use ghostty config", detail: "Font and size come from your ghostty config.", isOn: usesGhosttyConfig)
+            SettingsStepper(title: "Font size", detail: "Every terminal and nvim. ⌘+ in a terminal changes this too.", value: terminalFontSize, range: AppSettings.terminalFontRange)
+                .disabled(settings.terminalFontSize == nil)
         case "agents":
-            Stepper(value: $settings.chatFontSize, in: AppSettings.interfaceFontRange, step: 1) {
-                LabeledContent {
-                    HStack {
-                        Text(settingsPoints(settings.chatFontSize))
-                        if settings.paneFontSizes[PaneFont.chat] != nil {
-                            Button("Reset") { settings.resetPaneFont(PaneFont.chat) }
-                                .controlSize(.small)
-                                .help("Follow the interface font size again")
-                        }
+            SettingsRow(title: "Chat font size", detail: "Every agent chat. ⌘+ in the chat changes this too.") {
+                HStack(spacing: 10) {
+                    if settings.paneFontSizes[PaneFont.chat] != nil {
+                        Button("Reset") { settings.resetPaneFont(PaneFont.chat) }
+                            .help("Follow the interface font size again")
                     }
-                } label: {
-                    Text("Chat font size")
-                    Text("Every agent chat. ⌘+ in the chat changes this too.")
+                    Text(settingsPoints(settings.chatFontSize))
+                        .monospacedDigit()
+                    Stepper("Chat font size", value: $settings.chatFontSize, in: AppSettings.interfaceFontRange, step: 1)
+                        .labelsHidden()
                 }
+                .fixedSize()
             }
         case "editor-nvim":
-            SettingsActionRow(title: "Font size", detail: "nvim runs in a terminal and uses Terminals → Font size.") {
+            SettingsRow(title: "Font size", detail: "nvim runs in a terminal and uses Terminals → Font size.") {
                 Button("Open Terminals") { select(.plugin("terminals")) }
             }
         default:
@@ -276,26 +263,6 @@ private struct PluginNativeRows: View {
 
     private var usesGhosttyConfig: Binding<Bool> {
         Binding { settings.terminalFontSize == nil } set: { settings.terminalFontSize = $0 ? nil : app.terminalFontSize }
-    }
-}
-
-private struct SettingsActionRow<Action: View>: View {
-    let title: String
-    let detail: String
-    @ViewBuilder let action: Action
-
-    var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .layoutPriority(1)
-            Spacer(minLength: 10)
-            action.fixedSize()
-        }
     }
 }
 
@@ -331,7 +298,7 @@ private struct ClaudeCodeSettings: View {
                         }
                     }
                 }
-                SettingsActionRow(title: "Notification hooks", detail: "Merge into ~/.claude/settings.json; needs the “\(Self.tool)” command and jq.") {
+                SettingsRow(title: "Notification hooks", detail: "Merge into ~/.claude/settings.json; needs the “\(Self.tool)” command and jq.") {
                     Button(hooksCopied ? "Copied" : "Copy Hooks") { copyHooks() }
                 }
                 if !app.claude.output.isEmpty {
