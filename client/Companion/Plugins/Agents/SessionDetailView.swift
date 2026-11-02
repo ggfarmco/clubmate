@@ -607,7 +607,7 @@ struct ComposerView: View {
                             .pasteDestination(for: PastedImage.self, action: paste)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
-                            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
+                            .glassEffect(.regular, in: .rect(cornerRadius: 22))
                             .disabled(!enabled)
                         if !(wide && empty && !sending) {
                             sendButton
