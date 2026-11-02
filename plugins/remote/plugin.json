@@ -2,6 +2,7 @@
   "id": "remote",
   "name": "Remote",
   "version": "0.1.0",
+  "icon": "iphone",
   "protocol": 1,
   "command": ["remote"],
   "contributes": {

@@ -2,6 +2,7 @@
   "id": "search",
   "name": "Search",
   "version": "0.1.0",
+  "icon": "magnifyingglass",
   "protocol": 1,
   "command": ["search"],
   "contributes": {

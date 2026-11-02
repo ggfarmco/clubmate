@@ -20,7 +20,8 @@ final class SettingsPlugins {
     }
 
     func icon(_ plugin: String) -> String {
-        SymbolName.resolve(icons[plugin] ?? "", fallback: "puzzlepiece.extension")
+        let declared = list?.first { $0.id == plugin }?.manifest.icon
+        return SymbolName.resolve(declared ?? icons[plugin], fallback: SymbolName.resolve(icons[plugin], fallback: "puzzlepiece.extension"))
     }
 
     func follow(_ client: CoreClient?, active: Bool) async {
@@ -43,15 +44,16 @@ final class SettingsPlugins {
         }
     }
 
-    func restart(_ id: String) async {
-        guard let client else { return }
+    func restart(_ id: String) async -> String? {
+        guard let client else { return "Not connected to the core" }
         restarting.insert(id)
         defer { restarting.remove(id) }
         do {
             try await client.pluginRestart(id: id)
             await load(client)
+            return nil
         } catch {
-            self.error = error.localizedDescription
+            return error.localizedDescription
         }
     }
 
@@ -115,12 +117,15 @@ struct PluginSettingsPage: View {
     let select: (SettingsPage) -> Void
 
     @Environment(AppModel.self) private var app
+    @Environment(EventBanner.self) private var banner: EventBanner?
     @Environment(\.theme) private var theme
 
     var body: some View {
         VStack(spacing: 0) {
             PluginSettingsHeader(plugin: plugin, icon: plugins.icon(plugin.id), restarting: plugins.restarting.contains(plugin.id)) {
-                Task { await plugins.restart(plugin.id) }
+                Task {
+                    if let error = await plugins.restart(plugin.id) { banner?.show(error) }
+                }
             }
             Divider()
             if plugin.id == "remote" {

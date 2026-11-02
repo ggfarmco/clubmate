@@ -38,6 +38,7 @@ type Manifest struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
 	Version     string      `json:"version"`
+	Icon        string      `json:"icon,omitempty"`
 	Protocol    int         `json:"protocol"`
 	Command     []string    `json:"command"`
 	Contributes Contributes `json:"contributes"`

@@ -2,6 +2,7 @@
   "id": "git",
   "name": "Git",
   "version": "0.1.0",
+  "icon": "arrow.triangle.branch",
   "protocol": 1,
   "command": ["git"],
   "contributes": {

@@ -45,6 +45,7 @@ struct SettingsView: View {
         case .plugin(let id):
             if let plugin = plugins.list?.first(where: { $0.id == id }) {
                 PluginSettingsPage(plugin: plugin, plugins: plugins, settings: settings) { page = $0 }
+                    .eventBanner()
                     .id(id)
             } else if let error = plugins.error {
                 SettingsNotice(text: error)

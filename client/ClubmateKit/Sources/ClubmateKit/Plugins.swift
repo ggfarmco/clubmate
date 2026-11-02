@@ -11,6 +11,7 @@ public struct PluginStatus: Decodable, Sendable, Equatable, Identifiable {
     public struct Manifest: Decodable, Sendable, Equatable {
         public let name: String
         public let version: String
+        public let icon: String?
         public let contributes: Contributes
     }
 

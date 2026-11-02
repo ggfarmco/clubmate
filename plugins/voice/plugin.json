@@ -2,6 +2,7 @@
   "id": "voice",
   "name": "Voice",
   "version": "0.1.0",
+  "icon": "mic",
   "protocol": 1,
   "command": ["voice"],
   "contributes": {
