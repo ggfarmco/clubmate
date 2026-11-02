@@ -23,11 +23,12 @@ private struct SlotPopup: ViewModifier {
         content
             .background(ResponderAnchor(responder: responder))
             .overlay {
-                if let store = session.store, let slot = presentation.slot, !session.popupPoppedOut {
+                if let store = session.store, let slot = presentation.slot, !session.popupPoppedOut, !session.popupHidden {
                     PopupPanel(store: store, slot: slot, zoom: session.popupZoom, active: session.overlay == nil) { [session] action in
                         switch action {
                         case .popOut: popOut()
                         case .close: session.closePopup(slot)
+                        case .switchFocus: session.switchPopupFocus()
                         case .resetZoom: break
                         }
                     }
@@ -36,23 +37,54 @@ private struct SlotPopup: ViewModifier {
             .onChange(of: session.store?.popup, initial: true) { _, current in
                 apply(presentation.update(current))
             }
+            .onChange(of: session.popupFocusRequest) { switchFocus() }
+            .onChange(of: router?.pending) { _, pending in
+                guard session.popupHidden, let slot = presentation.slot, pending?.slot == slot else { return }
+                responder.remember()
+                session.popupHidden = false
+            }
     }
 
     private func apply(_ change: PopupPresentation.Change?) {
         switch change {
         case .opened(let slot):
-            if session.popupPoppedOut { return host.show() }
             responder.remember()
+            if session.popupPoppedOut { return host.show() }
             router?.request(slot)
         case .switched(let slot):
             if session.popupPoppedOut { return host.show() }
+            if session.popupHidden {
+                responder.remember()
+                session.popupHidden = false
+            }
             router?.request(slot)
         case .closed:
             session.popupZoom.apply(.fit)
             if session.popupPoppedOut { return host.hide() }
+            if session.popupHidden { return session.popupHidden = false }
             returnFocus()
         case nil:
             break
+        }
+    }
+
+    private func switchFocus() {
+        guard let slot = presentation.slot else { return }
+        if session.popupPoppedOut {
+            guard host.isKey else {
+                responder.remember()
+                return host.show()
+            }
+            responder.anchor?.window?.makeKeyAndOrderFront(nil)
+            return returnFocus()
+        }
+        if session.popupHidden {
+            responder.remember()
+            session.popupHidden = false
+            router?.request(slot)
+        } else {
+            session.popupHidden = true
+            returnFocus()
         }
     }
 
@@ -78,6 +110,7 @@ private struct SlotPopup: ViewModifier {
 enum PopupAction: String {
     case popOut
     case close
+    case switchFocus
     case resetZoom
 }
 
@@ -105,13 +138,13 @@ struct PopupPanel: View {
             }
         }
         .keyMonitor(active: active) { event in
-            Self.handle(event, store: store, slot: slot, zoom: zoom) { perform(.close) }
+            Self.handle(event, store: store, slot: slot, zoom: zoom, perform: perform)
         }
         .modifier(PopupFocus(slot: slot))
         .transition(.opacity)
     }
 
-    static func handle(_ event: NSEvent, store: WorkspaceUIStore, slot: String, zoom: DocumentZoom, close: () -> Void) -> Bool {
+    static func handle(_ event: NSEvent, store: WorkspaceUIStore, slot: String, zoom: DocumentZoom, perform: (PopupAction) -> Void) -> Bool {
         let flags = event.modifierFlags
         let key = PopupKeys.key(
             keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
@@ -119,7 +152,8 @@ struct PopupPanel: View {
             document: store.slot(slot)?.tree.hasDocument == true, lightbox: zoom.lightbox
         )
         switch key {
-        case .close: close()
+        case .close: perform(.close)
+        case .switchFocus: perform(.switchFocus)
         case .zoomIn: zoom.apply(.zoomIn)
         case .zoomOut: zoom.apply(.zoomOut)
         case .zoomReset: zoom.apply(.fit)

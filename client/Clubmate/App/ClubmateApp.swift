@@ -166,6 +166,9 @@ private struct WorkspaceCommands: Commands {
             Button("Open Doc…") { session?.chooseDoc() }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
                 .disabled(session == nil || !app.commands.contains { $0.id == DocsPicker.listCommand })
+            Button("Switch Popup Focus") { session?.switchPopupFocus() }
+                .keyboardShortcut("j")
+                .disabled(store?.popup == nil)
             Divider()
             Button("Add Folder to Workspace…") { active.map(actions.addFolder) }
                 .disabled(active == nil)

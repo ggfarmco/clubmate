@@ -2,6 +2,7 @@ import Foundation
 
 public enum PopupKey: Equatable, Sendable {
     case close
+    case switchFocus
     case zoomIn
     case zoomOut
     case zoomReset
@@ -17,6 +18,7 @@ public enum PopupKeys {
         guard command, !control, !option, let characters = characters?.lowercased() else { return nil }
         switch (characters, shift) {
         case ("w", false): return .close
+        case ("j", false): return .switchFocus
         case ("=", false), ("+", _): return document ? .zoomIn : nil
         case ("-", false): return document ? .zoomOut : nil
         case ("0", false): return document ? .zoomReset : nil

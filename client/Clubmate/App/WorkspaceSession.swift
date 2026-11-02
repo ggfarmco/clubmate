@@ -28,6 +28,8 @@ final class WorkspaceSession {
     var thumbnail: NSImage?
     var autoNewRequest = 0
     var popupPoppedOut = false
+    var popupHidden = false
+    private(set) var popupFocusRequest = 0
     @ObservationIgnored var popupHost: PopupWindowHost?
     let popupZoom = DocumentZoom()
     @ObservationIgnored var autoNew = AutoNewGate()
@@ -140,6 +142,10 @@ final class WorkspaceSession {
             picker?.model.cancel()
             picker = nil
         }
+    }
+
+    func switchPopupFocus() {
+        popupFocusRequest += 1
     }
 
     func closePopup(_ slot: String) {

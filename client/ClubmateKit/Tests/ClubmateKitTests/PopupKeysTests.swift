@@ -23,4 +23,9 @@ final class PopupKeysTests: XCTestCase {
         XCTAssertNil(key("esc", lightbox: true))
         XCTAssertEqual(key("cmd+w", lightbox: true), .close)
     }
+
+    func testCmdJSwitchesFocusOverAnyPopup() {
+        XCTAssertEqual(key("cmd+j", document: false), .switchFocus)
+        XCTAssertNil(key("cmd+shift+j"))
+    }
 }

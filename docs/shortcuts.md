@@ -27,10 +27,11 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌘W | Close the popup over the workspace (or its popped-out window) while it has focus, instead of the terminal or window | `PopupPanel.swift`, `PopupWindow.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | While the popup or its popped-out window shows a doc or artifact and has focus: zoom the page in, out (×1.25, 50…300%), reset; the popup header shows the level (e.g. `125% ⌘0`, click resets) while it is not 100%. Trackpad pinch magnifies too | `PopupPanel.swift`, `PopupWindow.swift` (`ClubmateKit/PopupKeys.swift`) |
 | Click, + (=), -, 0, Esc | In a Markdown doc (Mac popup, phone): click or tap a mermaid diagram to enlarge it over the page; + and - zoom, 0 fits, Esc closes; drag pans, wheel scrolls, ⌘/⌃+wheel or pinch zooms; the − + Fit ✕ buttons do the same | `ClubmateDocument/Web/document.js` |
+| ⌘J | Switch Popup Focus: while a popup (e.g. a doc) is open, go from it back to where focus was and back again. The panel over the workspace hides on the way out, keeping its doc, Back stack and zoom, and shows again on the way in; a popped-out popup window stays open and only focus moves between it and the workspace window. `docs.open` while the panel is hidden shows it again. A menu key, so it also works from a terminal or nvim (shadows any ⌘J mapping there) | `ClubmateApp.swift`, `PopupPanel.swift`, `PopupWindow.swift` (`ClubmateKit/PopupKeys.swift`) |
 | ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
-⇧⌘I and ⇧⌘D are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
+⇧⌘I, ⇧⌘D and ⌘J are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
 
 ## Plugin buttons
 
