@@ -41,6 +41,7 @@ var (
 	errUtteranceOver     = errors.New("the utterance is over")
 	errDeclined          = errors.New("the user declined")
 	errNothingToConfirm  = errors.New("nothing to confirm")
+	errConfirmChanged    = errors.New("the confirmation changed; answer the one shown now")
 	errConfirmPending    = errors.New("another action is waiting for the user's confirmation")
 	errUnknownPermission = errors.New("no pending permission request with this id and option")
 	errEmptyAnswer       = errors.New("give text, or request with answers or option")
@@ -124,6 +125,7 @@ type doneArgs struct {
 type confirmArgs struct {
 	Utterance string `json:"utterance"`
 	Approve   bool   `json:"approve"`
+	Confirm   int    `json:"confirm"`
 }
 
 type elicitationArgs struct {
@@ -250,10 +252,7 @@ func (v *voice) confirmed(workspace string, args confirmArgs) error {
 	if u == nil {
 		return errUnknownUtterance
 	}
-	if !v.resolveConfirm(u, args.Approve) {
-		return errNothingToConfirm
-	}
-	return nil
+	return v.resolveConfirm(u, args.Approve, args.Confirm)
 }
 
 func (v *voice) routeAsync(u *utterance) {
@@ -418,13 +417,15 @@ func (v *voice) confirm(ctx context.Context, u *utterance, c Confirm) error {
 	}
 	ch := make(chan bool, 1)
 	if !v.update(u, func(s *State) {
+		u.confirms++
+		c.ID = u.confirms
 		s.Phase = phaseConfirm
 		s.Confirm = &c
 		u.confirm = ch
 	}) {
 		return errUtteranceOver
 	}
-	timer := v.after(confirmTimeout, func() { v.resolveConfirm(u, false) })
+	timer := v.after(confirmTimeout, func() { _ = v.resolveConfirm(u, false, 0) })
 	defer timer.Stop()
 	select {
 	case approve := <-ch:
@@ -450,16 +451,20 @@ func (v *voice) confirm(ctx context.Context, u *utterance, c Confirm) error {
 	return nil
 }
 
-func (v *voice) resolveConfirm(u *utterance, approve bool) bool {
+func (v *voice) resolveConfirm(u *utterance, approve bool, id int) error {
 	v.mu.Lock()
 	ch := u.confirm
+	if ch != nil && id != 0 && (u.state.Confirm == nil || u.state.Confirm.ID != id) {
+		v.mu.Unlock()
+		return errConfirmChanged
+	}
 	u.confirm = nil
 	v.mu.Unlock()
 	if ch == nil {
-		return false
+		return errNothingToConfirm
 	}
 	ch <- approve
-	return true
+	return nil
 }
 
 func (v *voice) armTurn(u *utterance) {

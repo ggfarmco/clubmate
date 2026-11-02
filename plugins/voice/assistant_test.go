@@ -135,6 +135,28 @@ func TestAnswerPermissionOutsideContextWaitsForConfirm(t *testing.T) {
 	assert.ErrorIs(t, <-errs, errUtteranceOver)
 }
 
+func TestConfirmForAnotherActionIsRefused(t *testing.T) {
+	v, h, _ := newTestVoice(t)
+	h.commands["git.worktree-remove"] = func(json.RawMessage) (any, error) { return map[string]bool{"removed": true}, nil }
+	uid := routed(t, v, h)
+	errs := make(chan error, 1)
+	go func() {
+		_, err := v.command(t.Context(), nil, voiceCall("voice.run", map[string]any{"utterance": uid, "command": "git.worktree-remove", "args": `{"path":"/tmp/wt"}`, "summary": "удалить worktree"}))
+		errs <- err
+	}()
+	require.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second, time.Millisecond)
+
+	_, err := v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.confirm", WorkspaceID: testWorkspace, Args: raw(t, map[string]any{"utterance": uid, "approve": true, "confirm": 2})})
+	require.ErrorIs(t, err, errConfirmChanged)
+	assert.Empty(t, h.calls("git.worktree-remove"))
+	assert.Equal(t, phaseConfirm, phaseOf(t, v, uid))
+
+	_, err = v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.confirm", WorkspaceID: testWorkspace, Args: raw(t, map[string]any{"utterance": uid, "approve": true, "confirm": 1})})
+	require.NoError(t, err)
+	require.NoError(t, <-errs)
+	assert.Len(t, h.calls("git.worktree-remove"), 1)
+}
+
 func TestRunDangerousWaitsForConfirm(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -159,7 +181,7 @@ func TestRunDangerousWaitsForConfirm(t *testing.T) {
 			require.Eventually(t, func() bool { return phaseOf(t, v, uid) == phaseConfirm }, 5*time.Second, time.Millisecond)
 			st, err := v.state(testWorkspace, uid)
 			require.NoError(t, err)
-			assert.Equal(t, &Confirm{Title: "удалить worktree", Command: "git.worktree-remove", Args: json.RawMessage(`{"path":"/tmp/wt"}`)}, st.Confirm)
+			assert.Equal(t, &Confirm{ID: 1, Title: "удалить worktree", Command: "git.worktree-remove", Args: json.RawMessage(`{"path":"/tmp/wt"}`)}, st.Confirm)
 			assert.Empty(t, h.calls("git.worktree-remove"))
 
 			_, err = v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.confirm", WorkspaceID: testWorkspace, Args: raw(t, map[string]any{"utterance": uid, "approve": tt.approve})})

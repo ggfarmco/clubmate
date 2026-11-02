@@ -67,6 +67,7 @@ type State struct {
 }
 
 type Confirm struct {
+	ID      int             `json:"id"`
 	Title   string          `json:"title"`
 	Command string          `json:"command"`
 	Args    json.RawMessage `json:"args,omitempty"`
@@ -107,6 +108,7 @@ type utterance struct {
 	ended      time.Time
 	done       chan struct{}
 	confirm    chan bool
+	confirms   int
 	turn       stopper
 	feed       sync.Mutex
 }

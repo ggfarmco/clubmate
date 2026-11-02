@@ -73,7 +73,7 @@ final class VoiceTests: XCTestCase {
         let core = FakeVoiceCore()
         core.states = [
             #"{"utterance":"vu_1","phase":"thinking","heard":"удали ворктри","rev":2}"#,
-            #"{"utterance":"vu_1","phase":"confirm","confirm":{"title":"Удалить worktree old","command":"git.worktree-remove","args":{"name":"old"}},"rev":3}"#,
+            #"{"utterance":"vu_1","phase":"confirm","confirm":{"id":7,"title":"Удалить worktree old","command":"git.worktree-remove","args":{"name":"old"}},"rev":3}"#,
         ]
         let voice = core.controller()
         voice.begin()
@@ -89,12 +89,16 @@ final class VoiceTests: XCTestCase {
 
         try await waitUntil { core.calls.contains { $0.id == "voice.confirm" } }
         XCTAssertEqual(core.calls.filter { $0.id == "voice.confirm" }.map { $0.args["approve"] }, [.bool(true)])
+        XCTAssertEqual(core.calls.first { $0.id == "voice.confirm" }?.args["confirm"], .number(7))
         XCTAssertFalse(voice.acceptsConfirmKeys)
     }
 
     func testReturnIgnoredRightAfterConfirmShows() async throws {
         let core = FakeVoiceCore()
-        core.states = [#"{"utterance":"vu_1","phase":"confirm","confirm":{"title":"Отправить в терминал","command":"session.send","args":{"text":"ls\nrm -rf ~"}},"rev":2}"#]
+        core.states = [
+            #"{"utterance":"vu_1","phase":"confirm","confirm":{"title":"Отправить в терминал","command":"session.send","args":{"text":"ls\nrm -rf ~"}},"rev":2}"#,
+            #"{"utterance":"vu_1","phase":"confirm","confirm":{"title":"Закрыть","command":"terminals.close","args":{"count":1e300,"a\nb":1}},"rev":3}"#,
+        ]
         core.now = 100
         let voice = core.controller()
         voice.begin()
@@ -103,7 +107,13 @@ final class VoiceTests: XCTestCase {
         voice.confirmKey(true, at: 100.2)
         XCTAssertTrue(voice.acceptsConfirmKeys)
         XCTAssertEqual(voice.state?.confirm?.line, #"session.send text="ls\nrm -rf ~""#)
-        voice.confirmKey(true, at: 101)
+        core.now = 101
+        voice.busEvent(BusEvent(seq: 1, topic: VoiceController.changedTopic, payload: .object(["utterance": .string("vu_1"), "rev": .number(3)])))
+        try await waitUntil { voice.state?.rev == 3 }
+        XCTAssertEqual(voice.state?.confirm?.line, #"terminals.close "a\nb"=1 count=1e+300"#)
+        voice.confirmKey(true, at: 101.2)
+        XCTAssertFalse(core.calls.contains { $0.id == "voice.confirm" })
+        voice.confirmKey(true, at: 102)
 
         try await waitUntil { core.calls.contains { $0.id == "voice.confirm" } }
         XCTAssertEqual(core.calls.filter { $0.id == "voice.confirm" }.count, 1)

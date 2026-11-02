@@ -117,19 +117,23 @@ struct VoicePanel: View {
                 .foregroundStyle(theme.foreground)
                 .lineLimit(2)
                 .help(confirm.title)
-            Text(confirm.line)
-                .font(theme.uiSmall)
-                .foregroundStyle(theme.text2)
-                .lineLimit(6)
-                .fixedSize(horizontal: false, vertical: true)
-                .help(confirm.line)
-                .padding(.horizontal, theme.spacing.l)
-                .padding(.vertical, theme.spacing.s)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
+            ScrollView(.vertical) {
+                Text(confirm.line)
+                    .font(theme.uiSmall)
+                    .foregroundStyle(theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, theme.spacing.l)
+                    .padding(.vertical, theme.spacing.s)
+            }
+            .frame(maxHeight: theme.rowHeight * 6)
+            .fixedSize(horizontal: false, vertical: true)
+            .clipped()
+            .help(confirm.line)
+            .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(theme.background))
                 .overlay(RoundedRectangle(cornerRadius: theme.radius.m).stroke(theme.border, lineWidth: 1))
             HStack(spacing: theme.spacing.m) {
-                CardButton(label: "Yes", shortcut: "↩", tone: .primary, disabled: !voice.acceptsConfirmKeys) { voice.confirm(true) }
+                CardButton(label: "Yes", shortcut: "↩", tone: .primary, disabled: !voice.acceptsConfirmKeys) { voice.confirmKey(true, at: ProcessInfo.processInfo.systemUptime) }
                     .overlay {
                         if keyFocus {
                             RoundedRectangle(cornerRadius: theme.radius.m + 2)

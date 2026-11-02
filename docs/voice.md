@@ -14,7 +14,7 @@ The `voice` plugin (`plugins/voice`) owns utterances. A Python recognizer (`plug
 ## Mac
 - **Trigger:** the mic at the left of the status bar, or ⌥Space while Clubmate is frontmost. Hold to talk and release to send; a click or a tap under 250 ms starts listening and the next one sends. ⌥Space is taken before terminals, nvim and text fields.
 - **Pointer:** `{device: "mac", section: <selected section>}`; the plugin finds the selection itself (see Context).
-- **Panel:** at the bottom centre of the workspace window, over the content. It shows the phase, a level meter while listening, the partial text and then `heard`, the plan, the confirmation with Yes ↩ / No Esc, and the result or error. Open Voice session reveals the Voice session in Agents. It hides itself 4 s after `done`; an error stays until closed (×) or the next utterance. A confirmation takes key focus, so ↩ and Esc answer it only until focus moves elsewhere; ↩ is ignored for the first 0.6 s. String args show JSON-quoted, so a newline in them can't fake another line.
+- **Panel:** at the bottom centre of the workspace window, over the content. It shows the phase, a level meter while listening, the partial text and then `heard`, the plan, the confirmation with Yes ↩ / No Esc, and the result or error. Open Voice session reveals the Voice session in Agents. It hides itself 4 s after `done`; an error stays until closed (×) or the next utterance. A confirmation takes key focus, so ↩ and Esc answer it only until focus moves elsewhere; ↩ is ignored for the first 0.6 s. String args show JSON-quoted, so a newline in them can't fake another line, and the whole command scrolls rather than being cut; a changed confirmation re-arms the 0.6 s delay, which also holds for a click on Yes; keys that aren't plain words are quoted too. Yes and No send the `id` of the confirmation on screen, so an answer never lands on a newer one.
 - **Audio:** the microphone through `AVAudioEngine`, converted to 16 kHz mono s16le and sent in 320 ms chunks. The app asks for microphone access on first use; denied shows a button to the Privacy settings.
 - **Test hook:** `CLUBMATE_VOICE_FILE=<raw 16 kHz s16le file>` makes the app stream that file in real time instead of the microphone, then send. `scripts/test-app.sh` passes `CLUBMATE_VOICE_*`, `HF_HOME` and `UV_CACHE_DIR` through, so the test instance reuses the cached model.
 - **Code:** `VoiceController` in ClubmateKit (`Voice.swift`) owns the utterance; the app's `VoiceCapture`, `VoiceButton` (with `VoiceHotkeys`) and `VoicePanel` are thin.
@@ -29,11 +29,11 @@ All are hidden. The client commands are `remote: true`, so the phone calls them 
 | `voice.end` | `{utterance}` | `{heard}`; routing goes on in the background. |
 | `voice.cancel` | `{utterance}` | `null`; a pending confirmation is declined. |
 | `voice.state` | `{utterance}` | `State` |
-| `voice.confirm` | `{utterance, approve}` | `null`; `false` ends with result `cancelled`. |
+| `voice.confirm` | `{utterance, approve, confirm?}` | `null`; `false` ends with result `cancelled`. `confirm` is the `id` of the confirmation the user saw; when another one is pending it fails with `the confirmation changed; answer the one shown now` and nothing runs. |
 | `voice.dictionary` (app) | – | `{entries: [{from, to}]}` |
 | `voice.dictionary-set` (app) | `{entries}` | the stored dictionary. Matching is whole-word, case-insensitive, longest `from` first. |
 
-`State` = `{utterance, phase, partial?, heard?, plan?, result?, error?, confirm?: {title, command, args}, session?, rev}`. `phase` is `loading`, `listening`, `thinking`, `confirm`, `done`, `error` or `cancelled`. `session` is the Voice session's id, so a client can open its transcript. Every change publishes `voice.changed {workspace, utterance, rev}`, and the `remote` plugin forwards it to the phone.
+`State` = `{utterance, phase, partial?, heard?, plan?, result?, error?, confirm?: {id, title, command, args}, session?, rev}`. `phase` is `loading`, `listening`, `thinking`, `confirm`, `done`, `error` or `cancelled`. `session` is the Voice session's id, so a client can open its transcript. Every change publishes `voice.changed {workspace, utterance, rev}`, and the `remote` plugin forwards it to the phone.
 
 ## Context
 The pointer carries ids only; the plugin resolves them:

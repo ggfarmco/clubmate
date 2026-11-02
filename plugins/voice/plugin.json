@@ -88,7 +88,8 @@
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…)."},
-            "approve": {"type": "boolean", "description": "true runs the action, false declines it."}
+            "approve": {"type": "boolean", "description": "true runs the action, false declines it."},
+            "confirm": {"type": "integer", "description": "The id of the confirmation the user saw (State.confirm.id); a different pending one fails with \"the confirmation changed\". Omit to answer whatever is pending."}
           },
           "required": ["utterance", "approve"]
         }

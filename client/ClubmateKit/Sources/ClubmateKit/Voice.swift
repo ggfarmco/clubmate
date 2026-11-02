@@ -36,19 +36,25 @@ public struct VoiceState: Decodable, Sendable, Equatable {
     }
 
     public struct Confirm: Decodable, Sendable, Equatable {
+        public let id: Int?
         public let title: String
         public let command: String
         public let args: JSONValue?
 
         public var line: String {
             guard case .object(let fields)? = args, !fields.isEmpty else { return command }
-            return ([command] + fields.keys.sorted().map { "\($0)=\(Self.text(fields[$0] ?? .null))" }).joined(separator: " ")
+            return ([command] + fields.keys.sorted().map { "\(Self.key($0))=\(Self.text(fields[$0] ?? .null))" }).joined(separator: " ")
+        }
+
+        private static func key(_ name: String) -> String {
+            let plain = !name.isEmpty && name.unicodeScalars.allSatisfy { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "_.-".unicodeScalars.contains($0)) }
+            return plain ? name : text(.string(name))
         }
 
         private static func text(_ value: JSONValue) -> String {
             switch value {
             case .bool(let flag): String(flag)
-            case .number(let number): number.rounded() == number ? String(Int(number)) : String(number)
+            case .number(let number): Int(exactly: number).map(String.init) ?? String(number)
             default: (try? encoder.encode(value)).map { String(decoding: $0, as: UTF8.self) } ?? ""
             }
         }
@@ -238,8 +244,10 @@ public final class VoiceController {
     public func confirm(_ approve: Bool) {
         guard acceptsConfirmKeys, let id = utterance else { return }
         confirming = true
+        var args: [String: JSONValue] = ["utterance": .string(id), "approve": .bool(approve)]
+        if let shown = state?.confirm?.id { args["confirm"] = .number(Double(shown)) }
         Task {
-            if case .failure(let error) = await run(CommandInvocation(id: "voice.confirm", args: .object(["utterance": .string(id), "approve": .bool(approve)]))) {
+            if case .failure(let error) = await run(CommandInvocation(id: "voice.confirm", args: .object(args))) {
                 failure = error.commandText
             }
         }
@@ -318,8 +326,9 @@ public final class VoiceController {
         guard case .success(let value) = await run(CommandInvocation(id: "voice.state", args: .object(["utterance": .string(id)]))),
               let next = try? value.decode(VoiceState.self),
               next.utterance == utterance, next.rev >= state?.rev ?? -1 else { return }
-        if next.phase == .confirm, state?.phase != .confirm {
+        if next.phase == .confirm, state?.phase != .confirm || state?.confirm != next.confirm {
             confirmShownAt = uptime()
+            confirming = false
             visible = true
         }
         state = next
