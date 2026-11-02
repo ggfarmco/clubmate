@@ -2,6 +2,8 @@ module clubmate
 
 go 1.27.0
 
+toolchain go1.27.3
+
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/creack/pty v1.1.24

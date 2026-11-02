@@ -41,13 +41,13 @@ func BenchmarkRenderJSON(b *testing.B) {
 }
 
 func tickTrees(b *testing.B) ([]byte, []byte) {
-	sessions, nodes, hist, now := benchFixture()
+	sessions, nodes, _, now := benchFixture()
 	for i := range nodes {
 		if i%10 != 0 {
 			nodes[i].Process.CPU = 0
 		}
 	}
-	hist = newHistory()
+	hist := newHistory()
 	start := now.Add(-historyLen * time.Second)
 	for i := range historyLen {
 		hist.record(sessions, nodes, nil, nil, start.Add(time.Duration(i)*time.Second))
