@@ -31,6 +31,12 @@ public struct VoiceTarget: Equatable, Sendable {
     }
 }
 
+public struct VoiceDictation: Equatable, Sendable {
+    public let utterance: String
+    public let composer: String
+    public let text: String
+}
+
 public enum VoicePermission: Sendable {
     case granted, denied, prompted
 }
@@ -62,6 +68,8 @@ public final class VoiceSession {
     public private(set) var holding = false
     public private(set) var micDenied = false
     public private(set) var target: VoiceTarget?
+    public private(set) var composer: String?
+    public private(set) var dictated: VoiceDictation?
     public private(set) var levels: [Double] = Array(repeating: 0, count: VoiceSession.meterBars)
     public private(set) var sendingSince: TimeInterval?
     private var failure: String?
@@ -92,6 +100,14 @@ public final class VoiceSession {
         self.source = source
         self.uptime = uptime
         current = target
+    }
+
+    public var dictating: Bool {
+        composer != nil
+    }
+
+    public var title: String {
+        dictating ? "Dictation" : "Voice"
     }
 
     public var phase: VoiceState.Phase? {
@@ -134,19 +150,20 @@ public final class VoiceSession {
         case .loading: "Loading the speech model…"
         case .listening, nil: "Listening"
         case .sending: "Sending"
-        case .thinking: "Thinking"
+        case .thinking: dictating ? "Cleaning up" : "Thinking"
         case .confirm: "Confirm"
-        case .done: "Done"
+        case .done: dictating ? "Inserted" : "Done"
         case .error: "Didn't work"
         case .cancelled: "Cancelled"
         }
     }
 
     public var hint: String {
-        holding ? "Release to send" : "Tap the mic to send"
+        if dictating { return holding ? "Release to insert" : "Tap the mic to insert" }
+        return holding ? "Release to send" : "Tap the mic to send"
     }
 
-    public func press(at time: TimeInterval) {
+    public func press(at time: TimeInterval, into composer: String? = nil) {
         if !active, phase == .sending {
             swallowRelease = true
             pressedAt = nil
@@ -162,7 +179,7 @@ public final class VoiceSession {
         }
         swallowRelease = false
         pressedAt = time
-        begin()
+        begin(into: composer)
         holding = active
     }
 
@@ -176,10 +193,12 @@ public final class VoiceSession {
         finish()
     }
 
-    public func begin() {
+    public func begin(into composer: String? = nil) {
         guard !active, let target = current() else { return }
         generation += 1
         self.target = target
+        self.composer = composer
+        dictated = nil
         state = nil
         partial = ""
         failure = nil
@@ -194,7 +213,8 @@ public final class VoiceSession {
         active = true
         visible = true
         let generation = generation
-        enqueue { await self.start(target, generation) }
+        let mode = composer == nil ? nil : Dictation.mode
+        enqueue { await self.start(target, mode, generation) }
     }
 
     public func send(_ pcm: Data) {
@@ -244,6 +264,12 @@ public final class VoiceSession {
             guard pending, let target, let id = id ?? (self.generation == cancelled ? self.utterance : nil) else { return }
             _ = try? await self.runner(target.computer)?.command("voice.cancel", workspace: target.workspace, args: .object(["utterance": .string(id)]))
         }
+    }
+
+    public func take(_ composer: String) -> String? {
+        guard let dictated, dictated.composer == composer else { return nil }
+        self.dictated = nil
+        return dictated.text
     }
 
     public func dismiss() {
@@ -300,7 +326,7 @@ public final class VoiceSession {
         }
     }
 
-    private func start(_ target: VoiceTarget, _ generation: Int) async {
+    private func start(_ target: VoiceTarget, _ mode: String?, _ generation: Int) async {
         guard generation == self.generation else { return }
         switch await source.permission() {
         case .granted:
@@ -326,7 +352,9 @@ public final class VoiceSession {
             await fail(error.localizedDescription)
             return
         }
-        switch await call(target, "voice.start", ["pointer": (try? JSONValue.encoding(target.pointer)) ?? .null]) {
+        var args: [String: JSONValue] = ["pointer": (try? JSONValue.encoding(target.pointer)) ?? .null]
+        if let mode { args["mode"] = .string(mode) }
+        switch await call(target, "voice.start", args) {
         case .success(let value):
             guard let id = value["utterance"]?.stringValue else { return await fail("voice.start returned no utterance") }
             utterance = id
@@ -376,7 +404,12 @@ public final class VoiceSession {
         if next.phase == .sending, state?.phase != .sending {
             sendingSince = uptime()
         }
+        let finishing = state?.phase != .done
         state = next
+        if next.phase == .done, finishing, let composer, let text = next.text, !text.isEmpty {
+            dictated = VoiceDictation(utterance: next.utterance, composer: composer, text: text)
+            visible = false
+        }
         if active, !next.phase.capturing {
             active = false
             holding = false

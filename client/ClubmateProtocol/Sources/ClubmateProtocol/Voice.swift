@@ -26,6 +26,21 @@ public struct VoicePointer: Encodable, Sendable, Equatable {
     }
 }
 
+public enum Dictation {
+    public static let mode = "dictation"
+
+    public static func insert(_ dictated: String, into text: String, at caret: Int?) -> (text: String, caret: Int) {
+        var text = text
+        let at = caret.map { text.index(text.startIndex, offsetBy: min(max($0, 0), text.count)) } ?? text.endIndex
+        var piece = dictated
+        if at > text.startIndex, !text[text.index(before: at)].isWhitespace { piece = " " + piece }
+        if at < text.endIndex, !text[at].isWhitespace { piece += " " }
+        let offset = text.distance(from: text.startIndex, to: at)
+        text.insert(contentsOf: piece, at: at)
+        return (text, offset + piece.count)
+    }
+}
+
 public struct VoiceState: Decodable, Sendable, Equatable {
     public enum Phase: String, Decodable, Sendable {
         case loading, listening, sending, thinking, confirm, done, error, cancelled
@@ -79,7 +94,7 @@ public struct VoiceState: Decodable, Sendable, Equatable {
     public let session: String?
     public let rev: Int
 
-    public var dictation: Bool { mode == "dictation" }
+    public var dictation: Bool { mode == Dictation.mode }
 
     public var sendDate: Date? {
         guard let sendAt else { return nil }

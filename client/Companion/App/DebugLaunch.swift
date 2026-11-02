@@ -48,7 +48,7 @@ enum DebugLaunch {
                 try? await Task.sleep(for: .milliseconds(100))
             }
             try? await Task.sleep(for: .seconds(defaults.double(forKey: "voiceDelay")))
-            voice.begin()
+            voice.begin(into: defaults.bool(forKey: "voiceDictation") ? navigation.detail : nil)
         }
         if let path = defaults.string(forKey: "doc"), let computer = model.computers.first {
             for _ in 0..<50 where model.connection(computer.id)?.state != .online {

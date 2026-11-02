@@ -14,6 +14,28 @@ final class VoiceTests: XCTestCase {
         try await waitUntil { voice.partial == "при" }
     }
 
+    func testDictationDeliversCleanedTextOnceToItsComposer() async throws {
+        let mac = VoiceMac()
+        mac.states = [
+            #"{"utterance":"vu_1","mode":"dictation","phase":"listening","rev":1}"#,
+            #"{"utterance":"vu_1","mode":"dictation","phase":"done","heard":"ну сделай мерж","text":"Сделай merge.","rev":3}"#,
+        ]
+        let voice = mac.session()
+        voice.press(at: 0, into: "agt_x")
+        try await waitUntil { voice.state?.phase == .listening }
+        XCTAssertEqual(voice.title, "Dictation")
+        XCTAssertEqual(mac.calls.first { $0.id == "voice.start" }?.args?["mode"], .string("dictation"))
+        voice.release(at: 1)
+        try await waitUntil { voice.phase == .done }
+        voice.handle(.event(BusEvent(seq: 1, topic: "voice.changed", payload: .object(["utterance": .string("vu_1"), "rev": .number(4)]))), from: "mac1")
+        try await waitUntil { mac.ids.filter { $0 == "voice.state" }.count >= 3 }
+
+        XCTAssertNil(voice.take("agt_other"))
+        XCTAssertEqual(voice.take("agt_x"), "Сделай merge.")
+        XCTAssertNil(voice.take("agt_x"))
+        XCTAssertFalse(voice.visible)
+    }
+
     func testStateRefetchOnVoiceChanged() async throws {
         let mac = VoiceMac()
         mac.states = [#"{"utterance":"vu_1","phase":"listening","rev":1}"#, #"{"utterance":"vu_1","phase":"thinking","plan":"→ answer","rev":2}"#]

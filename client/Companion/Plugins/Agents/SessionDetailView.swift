@@ -168,6 +168,7 @@ struct SessionDetailView: View {
                 if let session {
                     ComposerView(
                         draft: $draft,
+                        dictation: sessionID,
                         attachments: $attachments,
                         focused: $composerFocused,
                         session: session,
@@ -573,6 +574,7 @@ struct RefreshFailedBanner: View {
 
 struct ComposerView: View {
     @Binding var draft: String
+    let dictation: String
     @Binding var attachments: [ComposerAttachment]
     var focused: FocusState<Bool>.Binding
     let session: AgentSession?
@@ -588,6 +590,8 @@ struct ComposerView: View {
     @State private var tooLarge = false
     @State private var clipboardImage = false
     @State private var pastedChange = -1
+    @State private var selection: TextSelection?
+    @Environment(VoiceSession.self) private var voice
 
     private var attachedBytes: Int {
         attachments.reduce(0) { $0 + $1.bytes }
@@ -629,7 +633,7 @@ struct ComposerView: View {
                             .disabled(!enabled)
                     }
                     HStack(alignment: .bottom, spacing: 10) {
-                        ComposerMic()
+                        ComposerMic(into: dictation)
                         Menu {
                             Button("Photos or Videos", systemImage: "photo.on.rectangle") { choosingPhotos = true }
                             Button("Files", systemImage: "folder") { choosingFiles = true }
@@ -647,7 +651,7 @@ struct ComposerView: View {
                         .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                             if case .success(let urls) = result { addFiles(urls) }
                         }
-                        TextField(placeholder, text: $draft, axis: .vertical)
+                        TextField(placeholder, text: $draft, selection: $selection, axis: .vertical)
                             .lineLimit(1...6)
                             .focused(focused)
                             .accessibilityIdentifier("composer")
@@ -688,6 +692,7 @@ struct ComposerView: View {
                 if session == nil { focused.wrappedValue = true }
             }
             .onChange(of: focused.wrappedValue) { refreshClipboard() }
+            .onChange(of: voice.dictated, initial: true) { insertDictation() }
             .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in refreshClipboard() }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in refreshClipboard() }
             .padding(.horizontal, 12)
@@ -711,6 +716,17 @@ struct ComposerView: View {
         .buttonBorderShape(.circle)
         .disabled(empty || sending || importing > 0 || attachedBytes > ComposerAttachment.maxBytes)
         .accessibilityLabel(session?.sendLabel ?? "Send")
+    }
+
+    private func insertDictation() {
+        guard let text = voice.take(dictation) else { return }
+        var caret: Int?
+        if case .selection(let range)? = selection?.indices, let at = String.Index(range.upperBound, within: draft) {
+            caret = draft.distance(from: draft.startIndex, to: at)
+        }
+        let inserted = Dictation.insert(text, into: draft, at: caret)
+        draft = inserted.text
+        selection = TextSelection(insertionPoint: draft.index(draft.startIndex, offsetBy: inserted.caret))
     }
 
     private func submit() {

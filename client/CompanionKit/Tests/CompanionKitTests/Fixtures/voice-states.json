@@ -33,5 +33,10 @@
       "session": "agt_00000000000000a1"
     },
     "cancelled": {"phase": "cancelled", "result": "cancelled", "session": "agt_00000000000000a1"}
+  },
+  "dictation": {
+    "listening": {"phase": "listening"},
+    "thinking": {"phase": "thinking", "heard": "ну э добавь ретраи к шагу оплаты и это покрой тестом"},
+    "done": {"phase": "done", "heard": "ну э добавь ретраи к шагу оплаты и это покрой тестом", "text": "Добавь ретраи к шагу оплаты и покрой это тестом."}
   }
 }

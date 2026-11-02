@@ -418,6 +418,7 @@ struct NewSessionView: View {
             .safeAreaInset(edge: .bottom) {
                 ComposerView(
                     draft: $draft,
+                    dictation: AgentsPluginInfo.newSession,
                     attachments: $attachments,
                     focused: $composerFocused,
                     session: nil,

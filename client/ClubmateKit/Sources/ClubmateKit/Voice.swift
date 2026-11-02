@@ -179,7 +179,7 @@ public final class VoiceController {
         visible = true
         let pointer = pointer()
         let generation = generation
-        let mode = composer == nil ? nil : "dictation"
+        let mode = composer == nil ? nil : Dictation.mode
         enqueue { await self.start(pointer, mode, generation) }
     }
 

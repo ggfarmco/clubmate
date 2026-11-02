@@ -76,7 +76,7 @@ struct VoicePanel: View {
         HStack(spacing: 8) {
             Image(systemName: voice.active ? "mic.fill" : "mic")
                 .foregroundStyle(voice.active ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-            Text("Voice · \(voice.status)")
+            Text("\(voice.title) · \(voice.status)")
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 8)

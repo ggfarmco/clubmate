@@ -95,6 +95,7 @@ actor FixtureServer {
     private var notified = false
     private var voice: JSONValue = .null
     private var voicePhase = "listening"
+    private var voiceMode = "assistant"
     private var voiceRev = 0
     private var voiceChunks = 0
 
@@ -410,6 +411,7 @@ actor FixtureServer {
             return .object(["enabled": .bool(!UserDefaults.standard.bool(forKey: "voiceOff")), "model": .string("nemotron"), "models": .array([])])
         case "voice.start":
             voicePhase = UserDefaults.standard.string(forKey: "voicePhase") ?? "listening"
+            voiceMode = args["mode"]?.stringValue ?? "assistant"
             voiceRev = 1
             voiceChunks = 0
             return .object(["utterance": .string(Self.utterance)])
@@ -417,7 +419,14 @@ actor FixtureServer {
             voiceChunks += 1
             return .object(["partial": .string(voicePartial)])
         case "voice.end":
-            if UserDefaults.standard.string(forKey: "voicePhase") == nil {
+            if UserDefaults.standard.string(forKey: "voicePhase") == nil, voiceMode == Dictation.mode {
+                setVoice("thinking")
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard voicePhase == "thinking" else { return }
+                    setVoice("done")
+                }
+            } else if UserDefaults.standard.string(forKey: "voicePhase") == nil {
                 setVoice("sending")
                 Task {
                     try? await Task.sleep(for: .seconds(1))
@@ -435,8 +444,10 @@ actor FixtureServer {
             setVoice(args["approve"] == .bool(true) ? "done" : "cancelled")
             return .null
         case "voice.state":
-            guard case .object(var state) = voice["states"]?[voicePhase] ?? .null else { return .null }
+            let states = voiceMode == Dictation.mode ? voice["dictation"] : voice["states"]
+            guard case .object(var state) = states?[voicePhase] ?? voice["states"]?[voicePhase] ?? .null else { return .null }
             state["utterance"] = .string(Self.utterance)
+            state["mode"] = .string(voiceMode)
             state["rev"] = .number(Double(voiceRev))
             if voiceChunks > 0, state["heard"] == nil { state["partial"] = .string(voicePartial) }
             if voicePhase == "sending" { state["sendAt"] = Self.stamp(ago: -1) }

@@ -42,12 +42,14 @@ struct VoiceOverlay: View {
 }
 
 struct ComposerMic: View {
+    var into: String?
+
     @Environment(CompanionModel.self) private var model
     @Environment(AppNavigation.self) private var navigation
 
     var body: some View {
         if let target = navigation.voiceTarget(model) {
-            VoiceButton(size: VoiceButton.inComposer, online: model.connection(target.computer)?.state == .online)
+            VoiceButton(size: VoiceButton.inComposer, online: model.connection(target.computer)?.state == .online, into: into)
         }
     }
 }
@@ -59,6 +61,7 @@ struct VoiceButton: View {
 
     let size: CGFloat
     let online: Bool
+    var into: String?
 
     @Environment(VoiceSession.self) private var voice
     @State private var hint = 0
@@ -84,11 +87,11 @@ struct VoiceButton: View {
                 .contentShape(.circle)
         }
         .buttonStyle(VoicePressStyle(
-            press: { if enabled { voice.press(at: ProcessInfo.processInfo.systemUptime) } },
+            press: { if enabled { voice.press(at: ProcessInfo.processInfo.systemUptime, into: into) } },
             release: { if enabled { voice.release(at: ProcessInfo.processInfo.systemUptime) } }
         ))
-        .accessibilityLabel(voice.active ? "Stop listening" : enabled ? "Talk to Clubmate" : "Talk to Clubmate, Mac offline")
-        .accessibilityAction { if enabled { voice.active ? voice.finish() : voice.begin() } }
+        .accessibilityLabel(voice.active ? "Stop listening" : enabled ? label : "\(label), Mac offline")
+        .accessibilityAction { if enabled { voice.active ? voice.finish() : voice.begin(into: into) } }
         .overlay(alignment: .bottomLeading) {
             if hint > 0 {
                 Text("Mac offline")
@@ -110,6 +113,10 @@ struct VoiceButton: View {
         }
         .sensoryFeedback(.start, trigger: voice.active) { _, active in active }
         .sensoryFeedback(.warning, trigger: hint) { _, count in count > 0 }
+    }
+
+    private var label: String {
+        into == nil ? "Talk to Clubmate" : "Dictate"
     }
 
     private var enabled: Bool {
