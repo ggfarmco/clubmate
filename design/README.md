@@ -19,3 +19,7 @@ The `Artifact` tool reads and writes the project. The interactive `claude` has i
 ## Sending screenshots for a check
 
 `Artifact publish url=<project> asset=true file_paths=[…]` uploads up to 25 PNGs per call into the project's assets (`list scope=assets` shows them). Read the project in the same session first: a publish to an artifact the session hasn't read is refused. An asset keeps no file name, only `/_blob/<id>`: in the Design chat name each id with its board ("compare `/_blob/<id>` with Mac-AlwaysAllow"), and the chat reads it like an attached image.
+
+## Nightly check
+
+The "Nightly design check" cron job runs the `nightly-design-check` skill: it captures the screens whose UI changed (every board on Sundays), judges them against the boards with Claude Design's craft rules, fixes small token and copy drift, files the rest with tag `design-check` and leaves a request for the Design chat in `clubmate-notes/design-check/<date>.md`.
