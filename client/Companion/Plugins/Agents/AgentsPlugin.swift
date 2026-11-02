@@ -419,6 +419,7 @@ struct NewSessionView: View {
                     sending: sending,
                     send: send
                 )
+                .voiceDock()
             }
             .navigationTitle("New Session")
             .navigationBarTitleDisplayMode(.inline)

@@ -9,6 +9,7 @@ public final class CompanionModel {
     public var inbox = Inbox()
     @ObservationIgnored public var posted: (@MainActor (InboxItem) -> Void)?
     @ObservationIgnored public var withdrawn: (@MainActor ([String]) -> Void)?
+    @ObservationIgnored public var received: (@MainActor (String, ConnectionSignal) -> Void)?
 
     @ObservationIgnored public let device: DeviceIdentity
     @ObservationIgnored public let policy: HostPolicy
@@ -235,6 +236,7 @@ public final class CompanionModel {
         for (key, store) in docsLists where key.hasPrefix(computer + "|") {
             store.handle(signal)
         }
+        received?(computer, signal)
     }
 
     private func receive(_ item: InboxItem, seq: Int) async {

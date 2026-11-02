@@ -171,6 +171,7 @@ struct SessionDetailView: View {
             }
             .animation(.snappy, value: screen.dock)
             .animation(.snappy, value: store.openedDocs[sessionID])
+            .voiceDock()
         }
         .navigationTitle(session?.displayTitle ?? "Session")
         .toolbarTitleDisplayMode(stopInHeader ? .inlineLarge : .inline)
@@ -563,20 +564,25 @@ struct ComposerView: View {
 
     var body: some View {
         if session?.isClosed == true {
-            Label("This session is closed", systemImage: "archivebox")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .glassEffect()
-                .padding(.bottom, 8)
+            HStack(spacing: 10) {
+                ComposerMic()
+                Label("This session is closed", systemImage: "archivebox")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .glassEffect()
+            }
+            .padding(.bottom, 8)
         } else {
             GlassEffectContainer(spacing: 10) {
                 VStack(alignment: .leading, spacing: 8) {
                     if !attachments.isEmpty || importing > 0 {
                         AttachmentsRow(attachments: $attachments, importing: importing)
+                            .disabled(!enabled)
                     }
                     HStack(alignment: .bottom, spacing: 10) {
+                        ComposerMic()
                         Menu {
                             Button("Photos or Videos", systemImage: "photo.on.rectangle") { choosingPhotos = true }
                             Button("Files", systemImage: "folder") { choosingFiles = true }
@@ -589,6 +595,7 @@ struct ComposerView: View {
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
                         .accessibilityLabel("Attach")
+                        .disabled(!enabled)
                         .photosPicker(isPresented: $choosingPhotos, selection: $picked, maxSelectionCount: 4, matching: .any(of: [.images, .videos]))
                         .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                             if case .success(let urls) = result { addFiles(urls) }
@@ -601,8 +608,10 @@ struct ComposerView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
                             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
+                            .disabled(!enabled)
                         if !(wide && empty && !sending) {
                             sendButton
+                                .disabled(!enabled)
                         }
                     }
                     if let caption = blocked ?? sizeCaption ?? session?.composerCaption(stopInHeader: wide) {
@@ -628,7 +637,6 @@ struct ComposerView: View {
                 }
             }
             .onAppear { if session == nil { focused.wrappedValue = true } }
-            .disabled(!enabled)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
             .frame(maxWidth: 820)

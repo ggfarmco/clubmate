@@ -1,0 +1,33 @@
+{
+  "partial": "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом",
+  "states": {
+    "loading": {"phase": "loading"},
+    "listening": {"phase": "listening"},
+    "thinking": {
+      "phase": "thinking",
+      "heard": "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом",
+      "plan": "→ answer «Explain the checkout flow»: «да, добавь ретраи к шагу оплаты и покрой это тестом»"
+    },
+    "confirm": {
+      "phase": "confirm",
+      "heard": "Удали ворктри old-cart",
+      "plan": "→ git.worktree-remove name=\"old-cart\"",
+      "confirm": {"id": 3, "title": "Remove the worktree old-cart?", "command": "git.worktree-remove", "args": {"name": "old-cart", "force": true}},
+      "session": "agt_00000000000000a1"
+    },
+    "done": {
+      "phase": "done",
+      "heard": "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом",
+      "plan": "→ answer «Explain the checkout flow»: «да, добавь ретраи к шагу оплаты и покрой это тестом»",
+      "result": "Sent to «Explain the checkout flow»",
+      "session": "agt_00000000000000a1"
+    },
+    "error": {
+      "phase": "error",
+      "heard": "Ответь агенту в checkout",
+      "error": "the assistant did not answer",
+      "session": "agt_00000000000000a1"
+    },
+    "cancelled": {"phase": "cancelled", "result": "cancelled", "session": "agt_00000000000000a1"}
+  }
+}

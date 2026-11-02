@@ -16,7 +16,7 @@ enum DebugLaunch {
         return defaults.string(forKey: "fixtures").map { FixtureTransport(directory: URL(filePath: $0), offlineAfter: offline) }
     }
 
-    static func apply(model: CompanionModel, navigation: AppNavigation, pairing: PairingFlow) async {
+    static func apply(model: CompanionModel, navigation: AppNavigation, pairing: PairingFlow, voice: VoiceSession) async {
         let defaults = UserDefaults.standard
         if defaults.string(forKey: "orientation") == "landscape" {
             for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
@@ -37,6 +37,13 @@ enum DebugLaunch {
             }
         }
         await navigate(model: model, navigation: navigation)
+        if defaults.bool(forKey: "voice"), let computer = model.computers.first {
+            for _ in 0..<50 where model.connection(computer.id)?.state != .online {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            try? await Task.sleep(for: .seconds(defaults.double(forKey: "voiceDelay")))
+            voice.begin()
+        }
         if let path = defaults.string(forKey: "doc"), let computer = model.computers.first {
             for _ in 0..<50 where model.connection(computer.id)?.state != .online {
                 try? await Task.sleep(for: .milliseconds(100))

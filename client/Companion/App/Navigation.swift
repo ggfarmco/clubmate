@@ -26,6 +26,7 @@ final class AppNavigation {
     var workspaces: [String: String] = [:]
     var showingAddComputer = false
     var doc: OpenDoc?
+    var voiceDock: CGRect?
     var preferredColumn: NavigationSplitViewColumn = .sidebar
     var layout: CompanionLayout = .compact
     var visibility: NavigationSplitViewVisibility

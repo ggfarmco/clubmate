@@ -44,6 +44,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan the pairing QR code that Clubmate shows on your Mac.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Speak to Clubmate: your voice goes to your Mac, which turns it into text and acts on it.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Clubmate connects to your Macs over your Tailscale network to control their agents.</string>
 	<key>UIBackgroundModes</key>

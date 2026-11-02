@@ -91,6 +91,10 @@ actor FixtureServer {
     private var streams = 0
     private var seq = 100
     private var notified = false
+    private var voice: JSONValue = .null
+    private var voicePhase = "listening"
+    private var voiceRev = 0
+    private var voiceChunks = 0
 
     init(directory: URL, mac: FixtureMac) {
         self.mac = mac
@@ -170,6 +174,7 @@ actor FixtureServer {
             uiViews[slot] = (1, slot == "docs.popup" ? .object(["type": .string("empty")]) : tree)
         }
         openedDoc = sdui["views"]?["docs.popup"] ?? .null
+        voice = decode("voice-states.json")
         guard mac.id != FixtureMac.studio.id else { return }
         uiViews = [:]
         docs = [:]
@@ -219,8 +224,8 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list"].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm"].map(JSONValue.string)
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
         case "uiGet":
@@ -380,9 +385,51 @@ actor FixtureServer {
             return .object(task)
         case "backlog.update", "backlog.claim", "backlog.release", "backlog.done":
             return updateTask(id, args)
+        case "voice.start":
+            voicePhase = UserDefaults.standard.string(forKey: "voicePhase") ?? "listening"
+            voiceRev = 1
+            voiceChunks = 0
+            return .object(["utterance": .string(Self.utterance)])
+        case "voice.audio":
+            voiceChunks += 1
+            return .object(["partial": .string(voicePartial)])
+        case "voice.end":
+            if UserDefaults.standard.string(forKey: "voicePhase") == nil {
+                setVoice("thinking")
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    setVoice("confirm")
+                }
+            }
+            return .object(["heard": .string(voicePartial)])
+        case "voice.cancel":
+            setVoice("cancelled")
+            return .null
+        case "voice.confirm":
+            setVoice(args["approve"] == .bool(true) ? "done" : "cancelled")
+            return .null
+        case "voice.state":
+            guard case .object(var state) = voice["states"]?[voicePhase] ?? .null else { return .null }
+            state["utterance"] = .string(Self.utterance)
+            state["rev"] = .number(Double(voiceRev))
+            if voiceChunks > 0, state["heard"] == nil { state["partial"] = .string(voicePartial) }
+            return .object(state)
         default:
             return .null
         }
+    }
+
+    private static let utterance = "vu_fixture"
+
+    private var voicePartial: String {
+        let words = (voice["partial"]?.stringValue ?? "").split(separator: " ")
+        return words.prefix(voiceChunks).joined(separator: " ")
+    }
+
+    private func setVoice(_ phase: String) {
+        voicePhase = phase
+        voiceRev += 1
+        publish("voice.changed", ["workspace": .string(workspace), "utterance": .string(Self.utterance), "rev": .number(Double(voiceRev))])
     }
 
     private func read(_ path: String) -> [String: JSONValue] {

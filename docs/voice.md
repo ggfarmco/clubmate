@@ -1,6 +1,6 @@
 # Voice
 
-Press the mic or hold ⌥Space on the Mac (the phone's button comes with the phone slice), speak, and Clubmate's Voice assistant answers the agent you are looking at or runs the command you said. The text shows up while you speak. Dangerous actions wait for your Yes on the device you spoke from.
+Press the mic on the Mac or the phone, or hold ⌥Space on the Mac, speak, and Clubmate's Voice assistant answers the agent you are looking at or runs the command you said. The text shows up while you speak. Dangerous actions wait for your Yes on the device you spoke from.
 
 The `voice` plugin (`plugins/voice`) owns utterances. A Python recognizer (`plugins/voice/asr`) turns speech into text on the Mac. One Voice agent session per workspace decides what to do.
 
@@ -18,6 +18,15 @@ The `voice` plugin (`plugins/voice`) owns utterances. A Python recognizer (`plug
 - **Audio:** the microphone through `AVAudioEngine`, converted to 16 kHz mono s16le and sent in 320 ms chunks. The app asks for microphone access on first use; denied shows a button to the Privacy settings.
 - **Test hook:** `CLUBMATE_VOICE_FILE=<raw 16 kHz s16le file>` makes the app stream that file in real time instead of the microphone, then send. `scripts/test-app.sh` passes `CLUBMATE_VOICE_*`, `HF_HOME` and `UV_CACHE_DIR` through, so the test instance reuses the cached model.
 - **Code:** `VoiceController` in ClubmateKit (`Voice.swift`) owns the utterance; the app's `VoiceCapture`, `VoiceButton` (with `VoiceHotkeys`) and `VoicePanel` are thin.
+
+## Phone
+- **Trigger:** a mic on every screen of a paired Mac. Where the screen has a composer (a session, a new session) it is the first button of the composer row, left of Attach; elsewhere it floats bottom-left and scroll views get a bottom content margin so the last row can scroll clear of it. Tap to start and tap again to send; press and hold to talk while held (the same 250 ms rule as the Mac). While the Mac is unreachable it shows a crossed-out mic, and a tap shows "Mac offline" for 2 s. Hidden on the Macs list with two or more Macs and for a Mac whose `hello` does not list `voice.start`.
+- **Target:** the utterance goes to the Mac of the current screen and its selected workspace; `voice.changed` from other Macs is ignored.
+- **Pointer:** `{device: "phone", section}`: `agents` with `selection.session` while a session is open, `backlog` with `selection.task` on a task, the plugin section's id on a More screen (`cron`, `processes`, …), otherwise the plugin id (`docs`, `inbox`). The Macs list of a single paired Mac points at `agents` with no selection.
+- **Panel:** a card over the screen, above the composer and a docked request card in the composer's column (iPad: at most 480 pt wide), or above the floating mic, the same content as the Mac's panel; a long confirmation scrolls inside it. Yes (filled) and No; with a hardware keyboard ⌥↩ and Esc. Yes is ignored for 0.6 s after a confirmation shows; Yes and No send the `id` of the confirmation on screen.
+- **Audio:** `AVAudioSession` `.record` and `AVAudioEngine`, 16 kHz mono s16le in 320 ms chunks. Each `voice.audio` call takes everything captured since the last one (at most 64 KiB), so on a slow link chunks batch instead of falling behind. The audio session is released when listening stops, so music and calls resume. An interruption (a call) or the app going to the background ends the utterance with `voice.end`; going to the background holds a `UIApplication` background task until that call returns, so it reaches the Mac before the app is suspended. A failed `voice.audio` stops capture and shows the error; nothing is retried.
+- **Test hook:** Debug builds stream `CLUBMATE_VOICE_FILE` like the Mac (`SIMCTL_CHILD_CLUBMATE_VOICE_FILE` with `simctl launch`). The fixture server (`-fixtures`) answers the voice commands from `Fixtures/voice-states.json`: `-voice YES` starts an utterance once the Mac is online, `-voicePhase <phase>` pins `voice.state` to that phase; without it the utterance goes listening → thinking → confirm.
+- **Code:** `VoiceSession` in CompanionKit (`Voice.swift`) owns the utterance; `VoiceCapture`, `VoiceButton` (with `ComposerMic`, `VoiceOverlay` and `.voiceDock()`, which every bottom composer calls) and `VoicePanel` in `client/Companion/App` are thin. `VoiceState`, `VoicePointer` and `VoiceAudio` live in ClubmateProtocol, shared with the Mac, so both format a confirmation the same way.
 
 ## Commands
 All are hidden. The client commands are `remote: true`, so the phone calls them through the `remote` plugin.

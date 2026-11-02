@@ -21,6 +21,8 @@ struct RootView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
+        .contentMargins(.bottom, navigation.floatingMic(model) ? VoiceButton.floating + 16 : 0, for: .scrollContent)
+        .overlay { VoiceOverlay() }
         .onGeometryChange(for: Double.self) { $0.size.width } action: { width = $0 }
         .onChange(of: CompanionLayout(width: width, compactClass: sizeClass == .compact), initial: true) { _, layout in navigation.layout = layout }
         .onChange(of: navigation.layout) { _, _ in navigation.arrange() }

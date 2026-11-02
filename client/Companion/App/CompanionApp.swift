@@ -13,6 +13,7 @@ struct CompanionApp: App {
     @State private var navigation: AppNavigation
     @State private var pairing = PairingFlow()
     @State private var notifier: LocalNotifier
+    @State private var voice: VoiceSession
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -29,7 +30,10 @@ struct CompanionApp: App {
         let model = CompanionModel(store: store, transport: transport, device: device, policy: policy, cursors: .standard)
         let navigation = AppNavigation()
         let notifier = LocalNotifier()
+        let voice = VoiceSession(runner: { model.connection($0) }, source: VoiceCapture(), target: { navigation.voiceTarget(model) })
+        model.received = { [weak voice] computer, signal in voice?.handle(signal, from: computer) }
         _model = State(initialValue: model)
+        _voice = State(initialValue: voice)
         _navigation = State(initialValue: navigation)
         _notifier = State(initialValue: notifier)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTask, using: .main) { task in
@@ -72,6 +76,7 @@ struct CompanionApp: App {
                 notifier.endBackground()
                 model.reconnectAll()
             case .background:
+                voice.background(hold: BackgroundHold.begin)
                 notifier.enteredBackground()
                 Self.scheduleRefresh(model)
             default:
@@ -85,6 +90,7 @@ struct CompanionApp: App {
             .environment(model)
             .environment(navigation)
             .environment(pairing)
+            .environment(voice)
             .onOpenURL { url in
                 guard PairingLink.isPairingURL(url) else { return }
                 pairing.received(url.absoluteString, from: .link, model: model, navigation: navigation)
@@ -94,8 +100,25 @@ struct CompanionApp: App {
                 notifier.attach(model: model, navigation: navigation)
                 model.start()
                 #if DEBUG
-                await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing)
+                await DebugLaunch.apply(model: model, navigation: navigation, pairing: pairing, voice: voice)
                 #endif
             }
+    }
+}
+
+@MainActor
+final class BackgroundHold {
+    private var task = UIBackgroundTaskIdentifier.invalid
+
+    static func begin() -> @MainActor () -> Void {
+        let hold = BackgroundHold()
+        hold.task = UIApplication.shared.beginBackgroundTask(withName: "voice.end") { MainActor.assumeIsolated { hold.end() } }
+        return { hold.end() }
+    }
+
+    private func end() {
+        guard task != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(task)
+        task = .invalid
     }
 }
