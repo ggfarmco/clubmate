@@ -1,6 +1,8 @@
 # /// script
 # requires-python = "==3.12.*"
 # dependencies = []
+# [tool.uv]
+# exclude-newer = "2026-11-02T00:00:00Z"
 # ///
 import argparse
 import base64

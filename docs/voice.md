@@ -90,5 +90,6 @@ The pointer carries ids only; the plugin resolves them:
 - **Protocol:** JSON lines over stdin/stdout.
   - In: `{"op":"start","id","lang","hint"}`, `{"op":"audio","id","pcm"}`, `{"op":"end","id"}`, `{"op":"cancel","id"}`.
   - Out: `{"ev":"ready","engine","streaming"}`, `{"ev":"partial","id","text"}`, `{"ev":"final","id","text","ms"}`, `{"ev":"error","id","message"}`.
+- **Python dependencies:** the engine's packages are pinned by version in `DEPS` (`plugins/voice/asr/engines.py`) and `server.py`'s script header sets `[tool.uv] exclude-newer`, so uv resolves them and every transitive dependency only from releases uploaded before that date; bump the date deliberately together with `DEPS`.
 - **Startup:** under 2 s with the model cached (a warm-up utterance compiles the Metal kernels); the first run downloads the model and `transcribe-cpp`.
 - **Measuring:** `plugins/voice/asr/smoke.py` measures partial latency again. `scripts/voicebench/` compares models on recorded phrases.
