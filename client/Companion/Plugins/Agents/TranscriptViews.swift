@@ -12,8 +12,8 @@ struct RowView: View {
         case .entry(let entry):
             EntryView(entry: entry)
                 .opacity(entry.isOutgoing ? 0.6 : 1)
-        case .agent(_, let blocks, let docLinks, let docCards):
-            AgentMessage(cards: docCards) { MarkdownView(blocks: blocks, docLinks: docLinks) }
+        case .agent(let id, let blocks, let docLinks, let docCards, let images):
+            AgentMessage(cards: docCards, entry: id, images: images) { MarkdownView(blocks: blocks, docLinks: docLinks) }
         case .tools(_, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0])
@@ -40,7 +40,7 @@ struct EntryView: View {
         case .voice(let prompt):
             VoicePromptRow(prompt: prompt)
         case .agent(let text):
-            AgentMessage(cards: entry.docCards) { MarkdownView(text: text, docLinks: entry.docLinks) }
+            AgentMessage(cards: entry.docCards, entry: entry.id, images: entry.images) { MarkdownView(text: text, docLinks: entry.docLinks) }
         case .thought(let text):
             ThoughtView(text: text, title: "Thought")
         case .tool(let tool):
@@ -215,11 +215,17 @@ private struct UserText: View {
 
 struct AgentMessage<Content: View>: View {
     let cards: [DocCard]
+    var entry = ""
+    var images: [ImageRef] = []
     @ViewBuilder let text: Content
     @Environment(\.openDoc) private var openDoc
+    @Environment(\.imageStore) private var imageStore
+    @Environment(\.imageSession) private var imageSession
 
     var body: some View {
-        if cards.isEmpty || openDoc == nil {
+        let cards = openDoc == nil ? [] : cards
+        let images = imageStore == nil || imageSession.isEmpty ? [] : images
+        if cards.isEmpty && images.isEmpty {
             text
         } else {
             let groups = DocCardGroups(cards)
@@ -230,6 +236,11 @@ struct AgentMessage<Content: View>: View {
                 }
                 if let plate = groups.plate {
                     MentionedDocs(label: plate, cards: groups.mentioned) { openDoc?($0) }
+                }
+                if let imageStore {
+                    ForEach(images) { ref in
+                        TranscriptImageRow(ref: ref, entry: entry, session: imageSession, store: imageStore)
+                    }
                 }
             }
         }

@@ -11,6 +11,12 @@ public enum AnswerError: Error, Equatable, LocalizedError {
     }
 }
 
+public enum TranscriptImage: Sendable, Equatable {
+    case loading
+    case loaded(Data)
+    case missing
+}
+
 @MainActor
 @Observable
 public final class AgentsStore {
@@ -22,10 +28,13 @@ public final class AgentsStore {
     public private(set) var transcriptErrors: [String: String] = [:]
     public private(set) var openedDocs: [String: String] = [:]
     public var expanded: Set<String> = []
+    public private(set) var openImages: Set<String> = []
+    public private(set) var images: [String: TranscriptImage] = [:]
     private var outgoing: [String: [Outgoing]] = [:]
     private var elicitationDrafts: [String: [String: ElicitationDraft]] = [:]
 
     public static let followInterval: Duration = .seconds(2)
+    public static let imageCommand = "agents.image"
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
@@ -85,6 +94,35 @@ public final class AgentsStore {
             openedDocs[session] = path
         case .event:
             break
+        }
+    }
+
+    public func isOpen(image path: String, entry: String, in session: String) -> Bool {
+        openImages.contains(session + "|" + entry + "|" + path)
+    }
+
+    public func toggle(image path: String, entry: String, in session: String) {
+        let key = session + "|" + entry + "|" + path
+        if openImages.contains(key) { openImages.remove(key) } else { openImages.insert(key) }
+    }
+
+    public func image(_ path: String, entry: String, in session: String) -> TranscriptImage? {
+        images[session + "|" + entry + "|" + path]
+    }
+
+    public func loadImage(_ path: String, entry: String, in session: String) async {
+        let key = session + "|" + entry + "|" + path
+        switch images[key] {
+        case .loading, .loaded: return
+        case .missing, nil: break
+        }
+        guard let runner else { return }
+        images[key] = .loading
+        do {
+            let reply = try await runner.command(Self.imageCommand, workspace: workspace, args: .object(["session": .string(session), "path": .string(path)]))
+            images[key] = reply["data"]?.stringValue.flatMap { Data(base64Encoded: $0) }.map(TranscriptImage.loaded) ?? .missing
+        } catch {
+            images[key] = .missing
         }
     }
 

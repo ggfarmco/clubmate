@@ -81,6 +81,14 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertNil(DocCardGroups([card("spec.md", true)]).plate)
     }
 
+    func testMessageImagesDecodeWithNameAndAspect() throws {
+        let json = #"{"type":"message","props":{"role":"agent","text":"x","images":[{"path":"/w/shots/a.png","rel":"shots/a.png","width":300,"height":200},{"path":"/tmp/b.jpg","rel":""},{"rel":"x"}]}}"#
+        let node = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
+        XCTAssertEqual(node.images, [ImageRef(path: "/w/shots/a.png", rel: "shots/a.png", width: 300, height: 200), ImageRef(path: "/tmp/b.jpg", rel: "/tmp/b.jpg")])
+        XCTAssertEqual(node.images.map(\.name), ["a.png", "b.jpg"])
+        XCTAssertEqual(node.images.map(\.aspect), [1.5, nil])
+    }
+
     func testDiffLineKinds() {
         let text = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n ctx\n\n"
         XCTAssertEqual(DiffLine.parse(text), [

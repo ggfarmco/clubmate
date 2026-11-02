@@ -39,6 +39,7 @@ var (
 		"agents.blame":          typed((*app).blameCommand),
 		"agents.trace":          typed((*app).traceCommand),
 		"agents.docs":           withArgs((*app).docsCommand),
+		"agents.image":          withArgs((*app).imageCommand),
 		"agents.export":         withArgs((*app).exportCommand),
 		"agents.import":         withArgs((*app).importCommand),
 		"agents.handoff":        withArgs((*app).handoffCommand),

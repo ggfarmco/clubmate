@@ -11,7 +11,7 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(session.state, .waitingForYou)
         XCTAssertEqual(session.headerDetail, "shop")
         XCTAssertEqual(screen.rows.map(\.id), ["user/prompt-1", "thought/thought-1", "agent/agent-2", "plan/plan-1", "tool/read1", "tool/sub-1", "compaction/compact1"])
-        guard case .agent(_, let blocks, _, _) = screen.rows[2], case .tools(_, let tools) = screen.rows[4],
+        guard case .agent(_, let blocks, _, _, _) = screen.rows[2], case .tools(_, let tools) = screen.rows[4],
               case .tools(_, let subagent) = screen.rows[5],
               case .permission(let request, 0) = screen.dock
         else { return XCTFail("unexpected screen \(screen)") }
@@ -118,18 +118,19 @@ final class SessionScreenTests: XCTestCase {
         XCTAssertEqual(session.headerDetail, "")
         XCTAssertEqual(session.composerPlaceholder, "Answer Claude…")
         XCTAssertEqual(screen.dock, .question("Should I add retries to the charge step?"))
-        guard case .agent(_, let blocks, _, _) = screen.rows.first else { return XCTFail("unexpected rows \(screen.rows)") }
+        guard case .agent(_, let blocks, _, _, _) = screen.rows.first else { return XCTFail("unexpected rows \(screen.rows)") }
         XCTAssertEqual(blocks.count, 2)
     }
 
-    func testAgentRowCarriesTheMessageDocLinksAndCards() throws {
+    func testAgentRowCarriesTheMessageDocLinksCardsAndImages() throws {
         let json = #"""
-        [{"kind":"agent","id":"a1","text":"Wrote `docs/plan.md`.","docLinks":{"docs/plan.md":"/w/docs/plan.md"},"docCards":[{"path":"/w/docs/plan.md","kind":"markdown","title":"Plan","rel":"docs/plan.md","presented":true}]}]
+        [{"kind":"agent","id":"a1","text":"Wrote `docs/plan.md`.","docLinks":{"docs/plan.md":"/w/docs/plan.md"},"docCards":[{"path":"/w/docs/plan.md","kind":"markdown","title":"Plan","rel":"docs/plan.md","presented":true}],"images":[{"path":"/w/shot.png","rel":"shot.png","width":640,"height":480}]}]
         """#
         let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
-        guard case .agent(_, _, let docLinks, let docCards) = SessionScreen(entries: entries, session: nil).rows.first else { return XCTFail("no agent row") }
+        guard case .agent(_, _, let docLinks, let docCards, let images) = SessionScreen(entries: entries, session: nil).rows.first else { return XCTFail("no agent row") }
         XCTAssertEqual(docLinks, ["docs/plan.md": "/w/docs/plan.md"])
         XCTAssertEqual(docCards, [DocCard(path: "/w/docs/plan.md", kind: .markdown, title: "Plan", rel: "docs/plan.md", presented: true)])
+        XCTAssertEqual(images, [ImageRef(path: "/w/shot.png", rel: "shot.png", width: 640, height: 480)])
     }
 
     func testMessageThatIsOnlyAPlanFoldsIntoThePlanCard() throws {

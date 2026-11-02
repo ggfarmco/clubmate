@@ -137,9 +137,10 @@ func (s *session) present(turn int, p presentedDoc) {
 
 func (s *session) linkDocs(turn int) {
 	type message struct {
-		en    *entry
-		links map[string]string
-		cards []sdui.DocCard
+		en     *entry
+		links  map[string]string
+		cards  []sdui.DocCard
+		images []sdui.ImageRef
 	}
 	var messages []message
 	mentioned := map[string]bool{}
@@ -147,12 +148,12 @@ func (s *session) linkDocs(turn int) {
 		if en.Kind != entryAgent || en.Turn != turn {
 			continue
 		}
-		links, cards := docRefs(en.Text, s.rec.Worktree)
+		links, cards, images := docRefs(en.Text, s.rec.Worktree)
 		for i, c := range cards {
 			cards[i] = presentCard(c, s.presented[turn])
 			mentioned[gitrepo.Canonical(c.Path)] = true
 		}
-		messages = append(messages, message{en: en, links: links, cards: cards})
+		messages = append(messages, message{en: en, links: links, cards: cards, images: images})
 	}
 	if len(messages) == 0 {
 		return
@@ -175,8 +176,8 @@ func (s *session) linkDocs(turn int) {
 		if len(cards) == 0 {
 			cards = nil
 		}
-		if !maps.Equal(m.links, m.en.DocLinks) || !slices.Equal(cards, m.en.DocCards) {
-			m.en.DocLinks, m.en.DocCards, m.en.node = m.links, cards, nil
+		if !maps.Equal(m.links, m.en.DocLinks) || !slices.Equal(cards, m.en.DocCards) || !slices.Equal(m.images, m.en.Images) {
+			m.en.DocLinks, m.en.DocCards, m.en.Images, m.en.node = m.links, cards, m.images, nil
 		}
 	}
 }
@@ -196,11 +197,18 @@ func boolRank(b bool) int {
 	return 0
 }
 
-func docRefs(markdown, root string) (map[string]string, []sdui.DocCard) {
+func docRefs(markdown, root string) (map[string]string, []sdui.DocCard, []sdui.ImageRef) {
 	src := []byte(markdown)
 	links := map[string]string{}
 	var cards []sdui.DocCard
+	var images []sdui.ImageRef
 	add := func(target string) {
+		if path, ok := resolveImage(target, root); ok {
+			if len(images) < maxImages && !slices.ContainsFunc(images, func(r sdui.ImageRef) bool { return r.Path == path }) {
+				images = append(images, imageRef(path, root))
+			}
+			return
+		}
 		path, ok := resolveDoc(target, root)
 		if !ok {
 			return
@@ -238,22 +246,36 @@ func docRefs(markdown, root string) (map[string]string, []sdui.DocCard) {
 		return ast.WalkContinue, nil
 	})
 	if len(links) == 0 {
-		return nil, nil
+		return nil, nil, images
 	}
-	return links, cards
+	return links, cards, images
 }
 
 func docCard(path, root string) sdui.DocCard {
-	rel := path
+	return sdui.DocCard{Path: path, Kind: docext.Kind(path), Title: docext.Title(path), Rel: relTo(root, path)}
+}
+
+func relTo(root, path string) string {
 	if root != "" {
 		if r, err := filepath.Rel(root, path); err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) {
-			rel = r
+			return r
 		}
 	}
-	return sdui.DocCard{Path: path, Kind: docext.Kind(path), Title: docext.Title(path), Rel: rel}
+	return path
 }
 
 func resolveDoc(target, root string) (string, bool) {
+	path, anchor, ok := resolveTarget(target, root)
+	if !ok || !docext.Is(path) && !docext.IsArtifact(path) || !isFile(path) {
+		return "", false
+	}
+	if anchor != "" {
+		path += "#" + anchor
+	}
+	return path, true
+}
+
+func resolveTarget(target, root string) (string, string, bool) {
 	path, anchor, _ := strings.Cut(target, "#")
 	if unescaped, err := url.PathUnescape(path); err == nil {
 		path = unescaped
@@ -261,25 +283,20 @@ func resolveDoc(target, root string) (string, bool) {
 	if rest, ok := strings.CutPrefix(path, "~/"); ok {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", false
+			return "", "", false
 		}
 		path = filepath.Join(home, rest)
 	}
 	if !filepath.IsAbs(path) {
 		if root == "" {
-			return "", false
+			return "", "", false
 		}
 		path = filepath.Join(root, path)
 	}
-	path = filepath.Clean(path)
-	if !docext.Is(path) && !docext.IsArtifact(path) {
-		return "", false
-	}
-	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
-		return "", false
-	}
-	if anchor != "" {
-		path += "#" + anchor
-	}
-	return path, true
+	return filepath.Clean(path), anchor, true
+}
+
+func isFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }

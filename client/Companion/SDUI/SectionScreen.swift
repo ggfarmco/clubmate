@@ -6,6 +6,7 @@ struct SectionScreen: View {
     let section: String
     let connection: ComputerConnection
     @Environment(AppNavigation.self) private var navigation
+    @Environment(CompanionModel.self) private var model
     @State private var ui: WorkspaceUI
     @State private var owner = UUID()
     @State private var path: [String] = []
@@ -65,6 +66,7 @@ struct SectionScreen: View {
                     self.error = (error as? RemoteError)?.message ?? error.localizedDescription
                 }
             }, open: open, openDoc: docOpener))
+            .environment(\.imageStore, connection.supports(AgentsStore.imageCommand) ? model.agents(computer: connection.computer.id, workspace: ui.workspace) : nil)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
             ProgressView()

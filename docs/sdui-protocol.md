@@ -65,7 +65,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | header | title* (string), icon (string), meta (string), badges (`[{text*, tone}]`), status (session state), agent, branch, mode (strings), field (non-empty string, a form field id), error (string) | 0-9: `button`, at most one `textField` | no |
 | empty | text* (string), title (string), icon (string), hint (string) | 0-1 `button` | no |
 | transcript | center (bool) | any | no |
-| message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]), from (string), seconds (int ≥ 0), docLinks (object of string → string), docCards ([{path*, kind* (`markdown`\|`mermaid`\|`artifact`), title*, rel*, presented (bool)}]) | none | no |
+| message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]), from (string), seconds (int ≥ 0), docLinks (object of string → string), docCards ([{path*, kind* (`markdown`\|`mermaid`\|`artifact`), title*, rel*, presented (bool)}]), images ([{path*, rel*, width (int ≥ 0), height (int ≥ 0)}], folded image rows, see [Agents](agents.md#docs-in-the-transcript)) | none | no |
 | plan | entries* (plan entry[]) | none | no |
 | toolCard | kind* (`read`\|`edit`\|`delete`\|`move`\|`search`\|`execute`\|`think`\|`agent`\|`fetch`\|`switch_mode`\|`other`), title* (string), status (`pending`\|`in_progress`\|`completed`\|`failed`\|`cancelled`), body (tool body), truncated (bool), standalone (bool), actions (card action[]) | none | yes |
 | card | tone (`neutral`\|`accent`\|`success`\|`warning`\|`danger`), icon (string) | 1+ | no |

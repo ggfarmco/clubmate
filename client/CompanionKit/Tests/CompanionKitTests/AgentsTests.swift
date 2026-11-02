@@ -243,6 +243,43 @@ final class SlowSessionsRunner: CommandRunner {
 }
 
 @MainActor
+final class ImageRunner: CommandRunner {
+    var calls = 0
+    var data: String?
+
+    func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
+        calls += 1
+        guard let data else { throw RemoteError.server(code: "error", message: "no such image") }
+        return .object(["mimeType": .string("image/png"), "data": .string(data)])
+    }
+}
+
+@MainActor
+final class TranscriptImageTests: XCTestCase {
+    func testImageLoadsOncePerMessageAndRetriesAfterAMiss() async {
+        let runner = ImageRunner()
+        let store = AgentsStore(workspace: "w", runner: runner)
+        await store.loadImage("/w/a.png", entry: "e", in: "s")
+        XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "s"), .missing)
+        runner.data = Data("png".utf8).base64EncodedString()
+        await store.loadImage("/w/a.png", entry: "e", in: "s")
+        await store.loadImage("/w/a.png", entry: "e", in: "s")
+        XCTAssertEqual(store.image("/w/a.png", entry: "e", in: "s"), .loaded(Data("png".utf8)))
+        XCTAssertEqual(runner.calls, 2)
+        await store.loadImage("/w/a.png", entry: "later", in: "s")
+        XCTAssertEqual(runner.calls, 3)
+    }
+
+    func testTappingAnImageRowOpensAndFoldsIt() {
+        let store = AgentsStore(workspace: "w", runner: ImageRunner())
+        store.toggle(image: "/w/a.png", entry: "agent/a1", in: "s")
+        XCTAssertTrue(store.isOpen(image: "/w/a.png", entry: "agent/a1", in: "s"))
+        store.toggle(image: "/w/a.png", entry: "agent/a1", in: "s")
+        XCTAssertFalse(store.isOpen(image: "/w/a.png", entry: "agent/a1", in: "s"))
+    }
+}
+
+@MainActor
 final class FakeRunner: CommandRunner {
     let calls = Recorder<String>()
 

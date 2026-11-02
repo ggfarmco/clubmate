@@ -98,6 +98,13 @@ type DocCard struct {
 	Presented bool   `json:"presented,omitempty"`
 }
 
+type ImageRef struct {
+	Path   string `json:"path"`
+	Rel    string `json:"rel"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
+}
+
 type PlanEntry struct {
 	Content string `json:"content"`
 	Status  string `json:"status"`

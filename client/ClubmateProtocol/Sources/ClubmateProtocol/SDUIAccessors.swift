@@ -279,6 +279,10 @@ extension SDUINode {
         DocCard.list(props["docCards"])
     }
 
+    public var images: [ImageRef] {
+        ImageRef.list(props["images"])
+    }
+
     public func items() -> [SDUIItem] {
         props["items"]?.arrayValue?.compactMap(SDUIItem.init) ?? []
     }

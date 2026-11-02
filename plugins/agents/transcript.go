@@ -99,6 +99,7 @@ type entry struct {
 	Doc        string            `json:"doc,omitempty"`
 	DocLinks   map[string]string `json:"docLinks,omitempty"`
 	DocCards   []sdui.DocCard    `json:"docCards,omitempty"`
+	Images     []sdui.ImageRef   `json:"images,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 
 	node   *nodeCache

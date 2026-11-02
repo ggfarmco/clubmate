@@ -1,6 +1,7 @@
 #if DEBUG
 import Foundation
 import Synchronization
+import UIKit
 
 import CompanionKit
 
@@ -145,10 +146,14 @@ actor FixtureServer {
         if sessions.count > 1, let id = sessions[1]["id"]?.stringValue {
             transcripts[id] = ["entries": .array([
                 Self.entry("user", "prompt-1", text: "Explain the checkout flow"),
-                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge* ([the retries plan](docs/checkout-retries.md)).\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider, see `docs/payments.md`\n\nThe flow is drawn in `docs/checkout-flow.mmd`, the numbers are in `docs/conversion.html`.\n\nShould I add retries to the charge step?", docLinks: ["docs/checkout-retries.md": "/Users/me/src/shop/docs/checkout-retries.md", "docs/payments.md": "/Users/me/src/shop/docs/payments.md", "docs/checkout-flow.mmd": "/Users/me/src/shop/docs/checkout-flow.mmd", "docs/conversion.html": "/Users/me/src/shop/docs/conversion.html"], docCards: [
+                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge* ([the retries plan](docs/checkout-retries.md)).\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider, see `docs/payments.md`\n\nThe flow is drawn in `docs/checkout-flow.mmd`, the numbers are in `docs/conversion.html`, the funnel in `docs/checkout-funnel.png` and the screen in `build/screens/checkout.png` (the old `docs/old-flow.png` is gone).\n\nShould I add retries to the charge step?", docLinks: ["docs/checkout-retries.md": "/Users/me/src/shop/docs/checkout-retries.md", "docs/payments.md": "/Users/me/src/shop/docs/payments.md", "docs/checkout-flow.mmd": "/Users/me/src/shop/docs/checkout-flow.mmd", "docs/conversion.html": "/Users/me/src/shop/docs/conversion.html"], docCards: [
                     Self.docCard("/Users/me/src/shop/docs/checkout-retries.md", kind: "markdown", title: "Checkout retries", presented: true),
                     Self.docCard("/Users/me/src/shop/docs/checkout-flow.mmd", kind: "mermaid", title: "checkout-flow"),
                     Self.docCard("/Users/me/src/shop/docs/conversion.html", kind: "artifact", title: "Checkout conversion"),
+                ], images: [
+                    Self.imageRef("/Users/me/src/shop/docs/checkout-funnel.png", width: 1200, height: 750),
+                    Self.imageRef("/Users/me/src/shop/build/screens/checkout.png"),
+                    Self.imageRef("/Users/me/src/shop/docs/old-flow.png"),
                 ]),
             ])]
         }
@@ -232,7 +237,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -254,6 +259,11 @@ actor FixtureServer {
             colour = params["colour"]?.stringValue ?? colour
             publish("remote.identity", ["computer": computer])
             return (200, Self.json(["result": .object(["computer": computer])]))
+        case "command" where params["id"]?.stringValue == "agents.image":
+            guard let image = Self.image(params["args"]?["path"]?.stringValue ?? "") else {
+                return (200, Self.json(["error": .object(["code": .string("internal"), "message": .string("open: no such file or directory")])]))
+            }
+            return (200, Self.json(["result": .object(["mimeType": .string("image/png"), "data": .string(image.base64EncodedString())])]))
         case "command" where params["id"]?.stringValue == "docs.read":
             return (200, Self.json(read(params["args"]?["path"]?.stringValue ?? "")))
         case "command":
@@ -639,11 +649,48 @@ actor FixtureServer {
         return .object(["kind": .string("user"), "id": .string(id), "turn": .number(1), "from": .string("voice"), "text": .string(text), "voice": .object(["heard": .string(heard), "utterance": .string("vu_fixture")])])
     }
 
-    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = []) -> JSONValue {
+    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = [], images: [JSONValue] = []) -> JSONValue {
         var fields: [String: JSONValue] = ["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)]
         if !docLinks.isEmpty { fields["docLinks"] = .object(docLinks.mapValues(JSONValue.string)) }
         if !docCards.isEmpty { fields["docCards"] = .array(docCards) }
+        if !images.isEmpty { fields["images"] = .array(images) }
         return .object(fields)
+    }
+
+    private static func imageRef(_ path: String, width: Int? = nil, height: Int? = nil) -> JSONValue {
+        var fields: [String: JSONValue] = ["path": .string(path), "rel": .string(path.replacingOccurrences(of: "/Users/me/src/shop/", with: ""))]
+        if let width, let height {
+            fields["width"] = .number(Double(width))
+            fields["height"] = .number(Double(height))
+        }
+        return .object(fields)
+    }
+
+    private static func image(_ path: String) -> Data? {
+        switch URL(filePath: path).lastPathComponent {
+        case "checkout-funnel.png":
+            return funnel(CGSize(width: 1200, height: 750), bars: [1.0, 0.72, 0.51, 0.38])
+        case "checkout.png":
+            return funnel(CGSize(width: 780, height: 1688), bars: [0.9, 0.6, 0.3])
+        default:
+            return nil
+        }
+    }
+
+    private static func funnel(_ size: CGSize, bars: [Double]) -> Data {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).pngData { context in
+            UIColor(red: 0.16, green: 0.2, blue: 0.27, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let inset = size.width * 0.08
+            let slot = (size.height - inset * 2) / Double(bars.count)
+            for (index, bar) in bars.enumerated() {
+                UIColor(red: 0.65, green: 0.85, blue: 0.36, alpha: 1 - Double(index) * 0.18).setFill()
+                let rect = CGRect(x: inset, y: inset + slot * Double(index) + slot * 0.15, width: (size.width - inset * 2) * bar, height: slot * 0.7)
+                UIBezierPath(roundedRect: rect, cornerRadius: slot * 0.12).fill()
+            }
+        }
     }
 
     private static func docCard(_ path: String, kind: String, title: String, presented: Bool = false) -> JSONValue {

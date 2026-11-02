@@ -172,6 +172,18 @@ final class AgentsUITests: XCTestCase {
         XCTAssertTrue(state.isExpanded(group: ["s/tool/d", "s/tool/e"]))
     }
 
+    func testImageExpansionIsPerMessageAndPath() {
+        var state = ImageExpansionState()
+        let opened = ImageExpansionState.key(message: "s/msg/1", path: "/r/a.png")
+
+        XCTAssertTrue(state.toggle(opened))
+        XCTAssertTrue(state.isOpen(opened))
+        XCTAssertFalse(state.isOpen(ImageExpansionState.key(message: "s/msg/1", path: "/r/b.png")))
+        XCTAssertFalse(state.isOpen(ImageExpansionState.key(message: "s/msg/2", path: "/r/a.png")))
+        XCTAssertFalse(state.toggle(opened))
+        XCTAssertFalse(state.isOpen(opened))
+    }
+
     func testFlowRowsWrapOnlyWhenTheNextChipDoesNotFit() {
         let sizes = [CGSize(width: 60, height: 16), CGSize(width: 80, height: 16), CGSize(width: 70, height: 18), CGSize(width: 250, height: 16)]
         let origins = FlowRows.origins(sizes: sizes, width: 200, spacing: 4)

@@ -165,7 +165,7 @@ func TestDocCardsListMentionedDocsInOrder(t *testing.T) {
 	outside := filepath.Join(other, "x.md")
 	text := "[plan](docs/plan.md#goals), `docs/plan.md`, `flow.mmd`, [report](out/report.html), `" + outside + "`, `notes.md`."
 
-	_, cards := docRefs(text, wt)
+	_, cards, _ := docRefs(text, wt)
 
 	assert.Equal(t, []sdui.DocCard{
 		{Path: filepath.Join(wt, "docs", "plan.md"), Kind: "markdown", Title: "Retry plan", Rel: "docs/plan.md"},

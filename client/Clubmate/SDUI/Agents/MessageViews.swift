@@ -33,6 +33,10 @@ struct MessageNodeView: View, Equatable {
                 if !cards.isEmpty {
                     MessageDocCards(id: (node.id ?? cards[0].path) + "/docs", groups: DocCardGroups(cards), open: open)
                 }
+                let images = node.images
+                if !images.isEmpty {
+                    MessageImages(message: node.id ?? "", images: images)
+                }
             }
         }
     }

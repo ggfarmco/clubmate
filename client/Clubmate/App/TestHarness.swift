@@ -61,6 +61,10 @@ final class TestHarness {
             ToolExpansion.shared.set(card: String(request.target.dropFirst(5)), expanded: request.shown)
             return request.shown
         }
+        if request.target.hasPrefix("image:") {
+            ImageExpansion.shared.set(String(request.target.dropFirst(6)), open: request.shown)
+            return request.shown
+        }
         if request.target.hasPrefix("message:") {
             MessageExpansion.shared.set(String(request.target.dropFirst(8)), expanded: request.shown)
             return request.shown

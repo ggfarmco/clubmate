@@ -86,6 +86,16 @@ struct MessageNode: View {
         return value < 60 ? "Thought for \(value) s" : "Thought for \(value / 60) min"
     }
 
+    private var session: String {
+        guard let id = node.id, let range = id.range(of: "/msg/") else { return "" }
+        return String(id[..<range.lowerBound])
+    }
+
+    private var entry: String {
+        guard let id = node.id, let range = id.range(of: "/msg/") else { return "" }
+        return String(id[range.upperBound...])
+    }
+
     var body: some View {
         let text = node.string("text") ?? ""
         Group {
@@ -93,10 +103,11 @@ struct MessageNode: View {
             case .user: UserBubble(text: text, fromAgent: node.string("from")?.isEmpty == false, images: [], files: attachments)
             case .thought: ThoughtView(text: text, title: thought)
             case .agent:
-                AgentMessage(cards: node.docCards) { MarkdownView(text: text, docLinks: node.docLinks) }
+                AgentMessage(cards: node.docCards, entry: entry, images: node.images) { MarkdownView(text: text, docLinks: node.docLinks) }
                     .environment(\.openDoc, { target in
                         context.run { await $0.fire(node, .named("openDoc", .string(target))) }
                     })
+                    .environment(\.imageSession, session)
             }
         }
         .padding(.horizontal, inset)

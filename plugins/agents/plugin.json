@@ -466,6 +466,26 @@
         }
       },
       {
+        "id": "agents.image",
+        "title": "Agent image",
+        "hidden": true,
+        "remote": true,
+        "description": "An image an agent message of the session names (an images entry of agents.transcript), for clients that can't read the Mac's files. Returns {mimeType, data} with data base64; fails for any other path and for files over 8 MiB. Non-destructive.",
+        "args": {
+          "properties": {
+            "session": {"type": "string", "description": "Session whose agent message names the image."},
+            "path": {"type": "string", "description": "Absolute path, as in the entry's images."}
+          },
+          "required": ["session", "path"]
+        },
+        "result": {
+          "properties": {
+            "mimeType": {"type": "string", "description": "Sniffed content type, e.g. image/png."},
+            "data": {"type": "string", "description": "File content, base64."}
+          }
+        }
+      },
+      {
         "id": "agents.docs",
         "title": "Agent docs",
         "hidden": true,
