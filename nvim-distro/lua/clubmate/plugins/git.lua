@@ -9,6 +9,60 @@ local function diff_against_merge_base(base)
   vim.cmd("DiffviewOpen " .. merge_base)
 end
 
+local commit_labels = {}
+
+local function git_out(top, args)
+  local res = vim.system(vim.list_extend({ "git", "-C", top }, args), { text = true }):wait()
+  if res.code ~= 0 then
+    return nil
+  end
+  return vim.trim(res.stdout)
+end
+
+local function commit_label(top, sha)
+  local key = top .. "\0" .. sha
+  if commit_labels[key] then
+    return commit_labels[key]
+  end
+  local label = sha:sub(1, 10)
+  local log = git_out(top, { "log", "-1", "--format=%h%x00%s%x00%cr", sha })
+  if log then
+    local short, subject, when = unpack(vim.split(log, "\0", { plain = true }))
+    local turn = subject:match("^clubmate checkpoint %S+ turn (%d+)$")
+    local ended = subject:match("^clubmate turn end %S+ turn (%d+)$")
+    if turn then
+      subject = "before agent turn " .. turn
+    elseif ended then
+      subject = "after agent turn " .. ended
+    end
+    local head = git_out(top, { "symbolic-ref", "-q", "HEAD" })
+    local name = head and git_out(top, { "name-rev", "--name-only", "--no-undefined", "--refs=" .. head, sha })
+      or git_out(top, { "name-rev", "--name-only", "--no-undefined", "--refs=refs/heads/*", sha })
+    label = table.concat({ name and (name .. " " .. short) or short, when, subject }, " · ")
+  end
+  commit_labels[key] = label
+  return label
+end
+
+local function file_winbar(file)
+  local RevType = require("diffview.vcs.rev").RevType
+  local label
+  if file.rev.type == RevType.LOCAL then
+    label = "Working tree"
+  elseif file.rev.type == RevType.STAGE then
+    label = "Index"
+  elseif file.rev.type == RevType.COMMIT then
+    label = commit_label(file.adapter.ctx.toplevel, file.rev.commit)
+  else
+    return file.winbar
+  end
+  if file.nulled then
+    label = label .. " · no file"
+  end
+  local esc = function(s) return (s:gsub("%%", "%%%%")) end
+  return "%#DiffviewWinBarRev# " .. esc(label) .. " %#DiffviewWinBarPath#%<" .. esc(file.path)
+end
+
 return {
   pin("lewis6991/gitsigns.nvim", {
     event = { "BufReadPost", "BufNewFile" },
@@ -90,9 +144,23 @@ return {
         return original_with_layout(layout_class, opt)
       end
 
+      local Window = require("diffview.scene.window").Window
+      local original_show_winbar_info = Window.show_winbar_info
+
+      Window.show_winbar_info = function(self)
+        local show = original_show_winbar_info(self)
+        if show and self.file.rev and self.file.kind ~= "conflicting" then
+          self.file.winbar = file_winbar(self.file)
+        end
+        return show
+      end
+
       require("diffview").setup({
         enhanced_diff_hl = true,
         hooks = {
+          view_opened = function()
+            commit_labels = {}
+          end,
           diff_buf_read = function()
             vim.opt_local.wrap = false
             vim.opt_local.foldenable = false
@@ -104,6 +172,7 @@ return {
         view = {
           default = {
             layout = "diff2_horizontal",
+            winbar_info = true,
           },
         },
         file_panel = {

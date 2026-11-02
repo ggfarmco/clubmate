@@ -484,6 +484,46 @@ return {
 	assert.Equal(t, []string{"generated", "generated", "code"}, kinds)
 }
 
+func TestDiffviewWinbarNamesBothSides(t *testing.T) {
+	v := startDistro(t, opts{})
+	repo := t.TempDir()
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q", "-b", "main")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.txt"), []byte("one\n"), 0o644))
+	git("add", ".")
+	git("commit", "-qm", "init")
+	cp := git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "clubmate checkpoint 0b1c turn 2")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.txt"), []byte("two\n"), 0o644))
+
+	git("branch", "a-side")
+	open := func(rev string) []string {
+		require.NoError(t, v.Command("DiffviewClose"))
+		require.NoError(t, v.Command("DiffviewOpen -C"+repo+" "+rev))
+		var bars []string
+		testutil.Eventually(t, func() bool {
+			require.NoError(t, v.ExecLua(`
+local out = {}
+for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+  local bar = vim.wo[w].winbar
+  if bar:find("a.txt", 1, true) then out[#out + 1] = bar end
+end
+return out`, &bars))
+			return len(bars) == 2
+		}, 10*time.Second)
+		return bars
+	}
+
+	bars := open(cp)
+	assert.Contains(t, bars[0], cp[:7]+" · ")
+	assert.Contains(t, bars[0], " · before agent turn 2 ")
+	assert.Contains(t, bars[1], " Working tree ")
+	assert.Contains(t, open("HEAD")[0], " main "+git("rev-parse", "--short", "HEAD")+" · ")
+}
+
 const notifierWarnings = `
 local notifier = package.loaded["snacks.notifier"]
 local out = {}
