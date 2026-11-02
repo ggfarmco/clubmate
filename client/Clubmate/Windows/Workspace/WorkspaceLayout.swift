@@ -51,7 +51,7 @@ struct WorkspaceLayout: View {
                 Group {
                     Button("Toggle Sidebar") { store.toggleSidebar() }
                         .keyboardShortcut("s", modifiers: [.command, .control])
-                    Button("Increase Font Size") { app.stepTerminalFont(1) }
+                    Button("Increase Font Size") { [panes, store] in app.stepFont(1, panes: panes, store: store) }
                         .keyboardShortcut("+")
                 }
                 .opacity(0)

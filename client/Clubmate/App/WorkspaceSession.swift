@@ -21,6 +21,7 @@ struct PickerRequest {
 final class WorkspaceSession {
     let workspaceID: String
     let deck = SurfaceDeck()
+    let panes = PaneFocus()
     let banner = EventBanner()
     var overlay: WorkspaceOverlay?
     private(set) var picker: PickerRequest?

@@ -29,4 +29,16 @@ final class PaneFocusTests: XCTestCase {
         XCTAssertEqual(FocusedPane.composer(running: true, queues: true).hints, "⌘↩ queue · Esc stop")
         XCTAssertNil(FocusedPane.terminal.hints)
     }
+
+    func testFontSlotFollowsFocusAndSkipsTerminals() {
+        let focus = PaneFocus()
+        focus.report(.terminal, from: "t", slot: "editor-nvim.main", focused: true)
+        XCTAssertNil(focus.fontSlot)
+
+        focus.report(.composer(running: false, queues: false), from: "c", slot: "agents.main", focused: true)
+        XCTAssertEqual(focus.fontSlot, "agents.main")
+
+        focus.report(.field, from: "f", slot: "agents.sidebar.field", focused: true)
+        XCTAssertEqual(focus.fontSlot, "agents.sidebar")
+    }
 }

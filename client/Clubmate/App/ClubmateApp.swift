@@ -196,11 +196,11 @@ private struct WorkspaceCommands: Commands {
                 .keyboardShortcut("b")
                 .disabled(store == nil)
             Divider()
-            Button("Increase Font Size") { app.stepTerminalFont(1) }
+            Button("Increase Font Size") { app.stepFont(1, panes: session?.panes, store: store) }
                 .keyboardShortcut("=")
-            Button("Decrease Font Size") { app.stepTerminalFont(-1) }
+            Button("Decrease Font Size") { app.stepFont(-1, panes: session?.panes, store: store) }
                 .keyboardShortcut("-")
-            Button("Reset Font Size") { app.settings.terminalFontSize = nil }
+            Button("Reset Font Size") { app.resetFont(panes: session?.panes, store: store) }
                 .keyboardShortcut("0")
         }
         CommandGroup(after: .windowArrangement) {

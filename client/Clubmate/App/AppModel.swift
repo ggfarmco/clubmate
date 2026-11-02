@@ -149,8 +149,25 @@ final class AppModel {
         settings.terminalFontSize ?? GhosttyApp.shared.configFontSize
     }
 
-    func stepTerminalFont(_ delta: Double) {
-        settings.terminalFontSize = AppSettings.fontSteps(current: terminalFontSize, delta: delta, range: AppSettings.terminalFontRange)
+    func stepFont(_ delta: Double, panes: PaneFocus?, store: WorkspaceUIStore?) {
+        guard let pane = fontPane(panes, store) else {
+            settings.terminalFontSize = AppSettings.fontSteps(current: terminalFontSize, delta: delta, range: AppSettings.terminalFontRange)
+            return
+        }
+        settings.stepPaneFont(pane, by: delta)
+    }
+
+    func resetFont(panes: PaneFocus?, store: WorkspaceUIStore?) {
+        guard let pane = fontPane(panes, store) else {
+            settings.terminalFontSize = nil
+            return
+        }
+        settings.resetPaneFont(pane)
+    }
+
+    private func fontPane(_ panes: PaneFocus?, _ store: WorkspaceUIStore?) -> String? {
+        guard let slot = panes?.fontSlot, let store else { return nil }
+        return PaneFont.key(slot: slot, composer: store.hasComposer(slot))
     }
 
     private func runCommand(_ invocation: CommandInvocation, in workspace: String?) async -> Result<JSONValue, ClubmateError> {

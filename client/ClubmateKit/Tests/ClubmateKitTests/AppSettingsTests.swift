@@ -27,6 +27,24 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertNil(cleared.terminalFontSize)
     }
 
+    func testPaneFontStepsOnlyThatPaneAndResetFollowsInterface() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        for _ in 0..<20 { settings.stepPaneFont("chat", by: 1) }
+        settings.stepPaneFont("agents.sidebar", by: -1)
+
+        let saved = AppSettings(defaults: defaults)
+        XCTAssertEqual(saved.paneFontSize("chat"), AppSettings.interfaceFontRange.upperBound)
+        XCTAssertEqual(saved.paneFontSize("agents.sidebar"), 11)
+        XCTAssertEqual(saved.paneFontSize("agents.main"), 12)
+
+        saved.resetPaneFont("chat")
+        saved.interfaceFontSize = 14
+        XCTAssertEqual(saved.paneFontSize("chat"), 14)
+    }
+
     func testCodeChatStacksUnderTheEditorBelow1100() {
         XCTAssertEqual([0, 900, 1099, 1100, 1280].map(CodeSection.stacksChat), [false, true, true, false, false])
     }

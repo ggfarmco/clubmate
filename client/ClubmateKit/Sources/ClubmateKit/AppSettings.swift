@@ -28,6 +28,9 @@ public final class AppSettings {
     public var terminalFontSize: Double? {
         didSet { save(terminalFontSize, Key.terminalFontSize) }
     }
+    public private(set) var paneFontSizes: [String: Double] {
+        didSet { save(paneFontSizes.isEmpty ? nil : paneFontSizes, Key.paneFontSizes) }
+    }
     public var recentsClearedAt: Date? {
         didSet { save(recentsClearedAt, Key.recentsClearedAt) }
     }
@@ -42,6 +45,7 @@ public final class AppSettings {
         sidebarSide = defaults.string(forKey: Key.sidebarSide).flatMap(SidebarSide.init(rawValue:)) ?? .left
         interfaceFontSize = defaults.object(forKey: Key.interfaceFontSize) as? Double ?? 12
         terminalFontSize = defaults.object(forKey: Key.terminalFontSize) as? Double
+        paneFontSizes = defaults.dictionary(forKey: Key.paneFontSizes) as? [String: Double] ?? [:]
         recentsClearedAt = defaults.object(forKey: Key.recentsClearedAt) as? Date
         sectionOrder = defaults.stringArray(forKey: Key.sectionOrder)
     }
@@ -53,6 +57,18 @@ public final class AppSettings {
         min(max(current + delta, range.lowerBound), range.upperBound)
     }
 
+    public func paneFontSize(_ pane: String) -> Double {
+        paneFontSizes[pane] ?? interfaceFontSize
+    }
+
+    public func stepPaneFont(_ pane: String, by delta: Double) {
+        paneFontSizes[pane] = Self.fontSteps(current: paneFontSize(pane), delta: delta, range: Self.interfaceFontRange)
+    }
+
+    public func resetPaneFont(_ pane: String) {
+        paneFontSizes[pane] = nil
+    }
+
     private func save(_ value: Any?, _ key: String) {
         if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
     }
@@ -61,6 +77,7 @@ public final class AppSettings {
         static let sidebarSide = "sidebarSide"
         static let interfaceFontSize = "interfaceFontSize"
         static let terminalFontSize = "terminalFontSize"
+        static let paneFontSizes = "paneFontSizes"
         static let recentsClearedAt = "recentsClearedAt"
         static let sectionOrder = "sectionOrder"
     }

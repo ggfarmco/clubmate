@@ -14,7 +14,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⇧⌘W | Close Session | `ClubmateApp.swift` |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Code, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
-| ⌘= (⌘+), ⌘-, ⌘0 | Terminal font size up, down, reset (zoom the doc instead while the popup shows one and has focus, see below) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
+| ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. a sidebar tree) only that pane. A pane follows Settings → Interface font size until zoomed, ⌘0 puts it back; sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |

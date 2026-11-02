@@ -32,6 +32,13 @@ public final class PaneFocus {
 
     public var hints: String? { pane?.hints }
 
+    public var fontSlot: String? {
+        guard let pane, pane != .terminal, let slot else { return nil }
+        return slot.hasSuffix(Self.fieldSuffix) ? String(slot.dropLast(Self.fieldSuffix.count)) : slot
+    }
+
+    private static let fieldSuffix = ".field"
+
     public func report(_ pane: FocusedPane, from id: String, slot: String? = nil, focused: Bool) {
         if focused {
             owner = id
@@ -42,5 +49,13 @@ public final class PaneFocus {
             self.pane = nil
             self.slot = nil
         }
+    }
+}
+
+public enum PaneFont {
+    public static let chat = "chat"
+
+    public static func key(slot: String, composer: Bool) -> String {
+        composer ? chat : slot
     }
 }

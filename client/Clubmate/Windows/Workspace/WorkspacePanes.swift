@@ -7,12 +7,16 @@ struct SlotPane: View {
     let store: WorkspaceUIStore
     let slot: String
 
+    @Environment(AppModel.self) private var app
+    @Environment(\.theme) private var theme
+
     var body: some View {
         if let view = store.slot(slot) {
             SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store] event in
                 await store.send(event)
             }
             .equatable()
+            .environment(\.theme, theme.scaled(app.settings.paneFontSize(PaneFont.key(slot: slot, composer: store.hasComposer(slot)))))
         } else {
             EmptyNodeView(text: "")
         }
