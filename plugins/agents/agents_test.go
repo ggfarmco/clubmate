@@ -2476,7 +2476,7 @@ func TestAsksUser(t *testing.T) {
 	assert.Equal(t, "Ship it?", restarted.PendingSummary.Text)
 }
 
-func TestNewInWorktreeThenMergeToMain(t *testing.T) {
+func TestNewInWorktree(t *testing.T) {
 	f := start(t, map[string]any{"prompt": []map[string]any{{"echo": true}}}, testutil.BuildPluginDir(t, "clubmate/plugins/git", "plugins/git/plugin.json"))
 	repo := newRepo(t)
 	workspace := f.workspace(t, repo)
@@ -2488,27 +2488,8 @@ func TestNewInWorktreeThenMergeToMain(t *testing.T) {
 	var list []record
 	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
 	require.Len(t, list, 1)
-	session := list[0].ID
 	assert.Equal(t, tree, list[0].Worktree)
 	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 0 })
-	f.prompt(t, workspace, session, "work")
-	f.waitStatus(t, workspace, session, "done")
-	write(t, filepath.Join(tree, "new.txt"), "x\n")
-	f.h.Event(t, workspace, "agents.sidebar", session, "select", session)
-	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool {
-		return slices.ContainsFunc(cardsOf(n, "button"), func(b sdui.Node) bool { return b.ID == session+"/merge" })
-	})
-
-	write(t, filepath.Join(repo, "dirty.txt"), "x\n")
-	merge := map[string]any{"workspaceId": workspace, "slot": "agents.main", "nodeId": session + "/merge", "action": "merge", "value": nil}
-	require.ErrorContains(t, f.h.Client(t).Call(t.Context(), "ui.event", merge, nil), "uncommitted changes")
-	require.NoError(t, os.Remove(filepath.Join(repo, "dirty.txt")))
-
-	f.h.Event(t, workspace, "agents.main", session+"/merge", "merge", nil)
-	id := f.session(t, workspace, session).AgentSessionID
-	f.waitCall(t, "session/prompt", func(c fakeCall) bool {
-		return strings.Contains(string(c.Params), id) && strings.Contains(promptText(t, c), "Merge this task into main now")
-	})
 }
 
 func TestSessionsCarryRunningToolActivity(t *testing.T) {

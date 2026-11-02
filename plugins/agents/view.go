@@ -29,7 +29,6 @@ const (
 	queuedNote     = "Queued, sent when the turn ends"
 	heldNote       = "Queued, not sent"
 	queuePrefix    = "queue/"
-	mergeConfirm   = "Ask the agent to run the tests, squash its branch into main as one commit and remove its worktree and branch?"
 
 	advisorHelp = "Advisor model for new sessions in this worktree"
 	finishHelp  = "What the agent does once the task is done"
@@ -246,9 +245,6 @@ func header(sc screen) sdui.Node {
 	}
 	if sc.Changes {
 		buttons = append(buttons, sdui.WithAction(sdui.Button(sid+"/review", "Review changes", "doc.text.magnifyingglass"), actReview))
-	}
-	if mergeable(rec, sc.Changes) {
-		buttons = append(buttons, sdui.WithConfirm(sdui.WithAction(sdui.Button(sid+"/merge", "Merge to main", "arrow.triangle.merge"), actMerge), mergeConfirm))
 	}
 	var top sdui.Node
 	if sc.Code != nil {

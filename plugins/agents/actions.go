@@ -56,7 +56,6 @@ const (
 	actSignIn          = "signIn"
 	actUnqueue         = "unqueue"
 	actSendQueued      = "sendQueued"
-	actMerge           = "merge"
 	actStarter         = "starter"
 	actStopSubagent    = "stopSubagent"
 
@@ -438,8 +437,6 @@ func (a *app) sessionAct(ctx context.Context, ev pluginsdk.UIEvent, s *session, 
 		return nil
 	case actSendQueued:
 		return a.submit(s, nil)
-	case actMerge:
-		return a.mergeToMain(ctx, ev.WorkspaceID, s)
 	case actStarter:
 		return a.start(ev.WorkspaceID, s, node)
 	}

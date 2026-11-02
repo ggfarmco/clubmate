@@ -599,22 +599,6 @@ func TestComposerClipsCommandDescriptions(t *testing.T) {
 	assert.Equal(t, strings.Repeat("é", commandRunes)+"…", got[1].Description)
 }
 
-func TestMergeableGates(t *testing.T) {
-	ok := record{Worktree: "/r/.worktrees/feat/x", Status: statusDone, Finish: finishAsk}
-	assert.True(t, mergeable(ok, true))
-	assert.False(t, mergeable(ok, false))
-	for _, change := range []func(*record){
-		func(r *record) { r.Worktree = "/r" },
-		func(r *record) { r.ParentSession = "agt_p" },
-		func(r *record) { r.Status = statusRunning },
-		func(r *record) { r.Finish = finishMerge },
-	} {
-		rec := ok
-		change(&rec)
-		assert.False(t, mergeable(rec, true), "%+v", rec)
-	}
-}
-
 func TestPromptBlocksImage(t *testing.T) {
 	args := promptArgs{Text: "look", Attachments: []attachment{{Kind: "image", MimeType: "image/jpeg", Data: "AAAA"}}}
 	assert.Equal(t, []acp.ContentBlock{{Type: "text", Text: "look"}, {Type: "image", Data: "AAAA", MimeType: "image/jpeg"}}, promptBlocks(args, "/r", acp.PromptCapabilities{Image: true}))
