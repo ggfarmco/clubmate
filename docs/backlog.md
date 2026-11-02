@@ -23,7 +23,7 @@ Agents use the MCP tools `backlog_list`, `backlog_get`, `backlog_add`, `backlog_
 
 `backlog_list` defaults to `status: open` (idea + todo + in progress); `tag` keeps only tasks with that tag. `backlog.get` from the app or the phone also returns `descriptionHtml`, the description rendered; agents don't get it.
 
-Only the user puts tasks into `todo`. A task an agent finds goes in with `backlog_add` as `idea`, and the user promotes it. Agents may not add or set `todo`, and cannot set `in_progress` through update (claim does that). To park a task use `not_now`.
+A task an agent finds goes in with `backlog_add` as `idea` by default; an agent may add or move a task to `todo` (e.g. when the user asks it to). Nobody sets `in_progress` through update (claim does that). To park a task use `not_now`.
 
 ## Owners
 

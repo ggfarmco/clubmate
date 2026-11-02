@@ -31,7 +31,6 @@ var (
 	errUnknownCommand = errors.New("unknown command")
 	errNoWorkspace    = errors.New("command needs a workspace")
 	errNeedOwner      = errors.New("pass owner: a name unique to you, e.g. your session id")
-	errAgentTodo      = errors.New("only the user puts tasks into todo; add it as idea")
 	errStartViaClaim  = errors.New("status in_progress is set by backlog.claim")
 	errNotHolder      = errors.New("only the owner, an ancestor of the owner or the user can do this")
 	errNotClaimed     = errors.New("task is not in progress")
@@ -177,9 +176,6 @@ func (b *backlog) addCmd(ctx context.Context, cmd pluginsdk.CommandRun, args com
 	if status != statusIdea && status != statusTodo && status != statusNotNow {
 		return nil, errAddStatus
 	}
-	if isAgent && status == statusTodo {
-		return nil, errAgentTodo
-	}
 	priority := priorityNormal
 	if args.Priority != nil && *args.Priority != "" {
 		priority = *args.Priority
@@ -242,8 +238,6 @@ func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args 
 			return errBadStatus
 		case status == statusInProgress:
 			return errStartViaClaim
-		case isAgent && status == statusTodo:
-			return errAgentTodo
 		case isAgent && t.Status == statusInProgress && t.ClaimedBy != self:
 			return errForeignStatus
 		}

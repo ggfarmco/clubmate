@@ -99,9 +99,8 @@ func TestAddAndListOrder(t *testing.T) {
 	assert.Equal(t, []int{high.ID, normal.ID, low.ID}, ids)
 
 	assert.Equal(t, "idea", e.must(e.agent("agt_a", "backlog.add", map[string]any{"title": "agent task"})).Status)
-	_, err := e.agent("agt_a", "backlog.add", map[string]any{"title": "x", "status": "todo"})
-	assert.ErrorContains(t, err, "only the user")
-	_, err = e.user("backlog.add", map[string]any{"title": "a\nb"})
+	assert.Equal(t, "todo", e.must(e.agent("agt_a", "backlog.add", map[string]any{"title": "x", "status": "todo"})).Status)
+	_, err := e.user("backlog.add", map[string]any{"title": "a\nb"})
 	assert.Error(t, err)
 	_, err = e.user("backlog.add", map[string]any{"title": "  "})
 	assert.Error(t, err)
@@ -178,7 +177,7 @@ func TestUpdateCannotStartWork(t *testing.T) {
 	_, err = e.agent("agt_b", "backlog.update", map[string]any{"id": tk.ID, "status": "not_now"})
 	assert.Error(t, err)
 
-	moved := e.must(e.user("backlog.update", map[string]any{"id": tk.ID, "status": "todo"}))
+	moved := e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": tk.ID, "status": "todo"}))
 	assert.Equal(t, "todo", moved.Status)
 	assert.Empty(t, moved.ClaimedBy)
 	assert.Equal(t, "agt_a", moved.LastClaimedBy)

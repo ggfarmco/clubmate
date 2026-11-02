@@ -242,7 +242,7 @@
         "title": "Add backlog task",
         "hidden": true,
         "agent": true,
-        "description": "Add a backlog task. From an agent it is added as idea; only the user puts tasks into todo, so ask the user to promote it. Use not_now to park a task.",
+        "description": "Add a backlog task. From an agent it is added as idea unless status says otherwise; pass status todo when the user asked for the task to be done. Use not_now to park a task.",
         "args": {
           "properties": {
             "title": {
@@ -365,7 +365,7 @@
         "title": "Update backlog task",
         "hidden": true,
         "agent": true,
-        "description": "Change a task's title, description, priority, tags, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not set todo and may not change the status of a task claimed by someone else. Delete is not available; use not_now.",
+        "description": "Change a task's title, description, priority, tags, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not change the status of a task claimed by someone else. Delete is not available; use not_now.",
         "args": {
           "properties": {
             "id": {
