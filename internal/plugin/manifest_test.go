@@ -1,6 +1,7 @@
 package plugin_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -82,11 +83,27 @@ func TestLoadRejectsSelfHostedSection(t *testing.T) {
 }
 
 func TestLoadRejectsInvalidExtraSlot(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
-	writeManifest(t, dir, `{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","slots":["main"]}]}}`)
-	_, err := plugin.Load(dir)
-	assert.ErrorIs(t, err, plugin.ErrInvalidManifest)
+	for _, slot := range []string{"main", "settings"} {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+		writeManifest(t, dir, fmt.Sprintf(`{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"sections":[{"id":"beta","title":"Beta","slots":[%q]}]}}`, slot))
+		_, err := plugin.Load(dir)
+		assert.ErrorIs(t, err, plugin.ErrInvalidManifest, slot)
+	}
+}
+
+func TestLoadSettingsSlotOnlyForOwnID(t *testing.T) {
+	for slot, ok := range map[string]bool{"beta.settings": true, "alpha.settings": false} {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "run"), []byte("#!/bin/sh\n"), 0o700))
+		writeManifest(t, dir, fmt.Sprintf(`{"id":"beta","name":"Beta","version":"0.1.0","protocol":1,"command":["run"],"contributes":{"views":[{"slot":%q}]}}`, slot))
+		_, err := plugin.Load(dir)
+		if ok {
+			assert.NoError(t, err, slot)
+		} else {
+			assert.ErrorIs(t, err, plugin.ErrInvalidManifest, slot)
+		}
+	}
 }
 
 func TestLoadRejectsCommandTimeoutOutOfRange(t *testing.T) {

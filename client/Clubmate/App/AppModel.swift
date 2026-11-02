@@ -50,10 +50,6 @@ final class AppModel {
         self?.workspace(id)
     }
 
-    @ObservationIgnored private(set) lazy var agentFinish = AgentFinishModel { [weak self] workspace, invocation in
-        await self?.runCommand(invocation, in: workspace) ?? .failure(.notRunning)
-    }
-
     @ObservationIgnored private(set) lazy var remoteDevices = makeRemoteDevices()
 
     @ObservationIgnored private(set) lazy var voiceSettings = VoiceSettingsModel { [weak self] invocation in

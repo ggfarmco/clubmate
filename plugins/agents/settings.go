@@ -3,10 +3,14 @@ package main
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 
+	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/acp"
 )
 
@@ -18,6 +22,9 @@ const (
 	afkID       = "afk"
 	afkOn       = "on"
 	afkOff      = "off"
+
+	settingsSlot = "agents.settings"
+	finishHint   = "Default for new sessions; change it per session in the composer options. Merge runs the tests, merges into main and removes the worktree."
 )
 
 var afkValues = map[string]bool{afkOn: true, "true": true, afkOff: false, "false": false}
@@ -170,6 +177,41 @@ func (a *app) finishDefault(ctx context.Context) string {
 		return finishAsk
 	}
 	return value
+}
+
+func (a *app) setFinishDefault(ctx context.Context, value string) error {
+	if !validFinish(value) {
+		return fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, value)
+	}
+	if err := a.host.StorageSet(ctx, finishKey, value); err != nil {
+		return err
+	}
+	if err := a.renderSettings(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: render settings:", err)
+	}
+	return nil
+}
+
+func (a *app) renderSettings(ctx context.Context) error {
+	options := make([]sdui.Option, 0, len(finishChoices))
+	for _, c := range finishChoices {
+		options = append(options, sdui.Option{Value: c.value, Label: c.label})
+	}
+	_, err := a.host.Render(ctx, "", settingsSlot, sdui.VStack(
+		sdui.SettingRow("When a task is done", finishHint, sdui.WithAction(sdui.Select(finishID, options, a.finishDefault(ctx)), finishID)),
+	))
+	return err
+}
+
+func (a *app) settingsEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
+	if ev.Action != finishID {
+		return fmt.Errorf("unknown action %q", ev.Action)
+	}
+	var value string
+	if err := json.Unmarshal(ev.Value, &value); err != nil {
+		return fmt.Errorf("%s: %w", finishID, err)
+	}
+	return a.setFinishDefault(ctx, value)
 }
 
 func validFinish(value string) bool {

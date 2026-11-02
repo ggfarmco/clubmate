@@ -9,6 +9,8 @@ import (
 const (
 	ScopeWorkspace = "workspace"
 	ScopeApp       = "app"
+
+	SettingsSuffix = ".settings"
 )
 
 type SectionDef struct {
@@ -107,6 +109,9 @@ func (s *Sections) SlotOwner(slot string) (string, bool) {
 }
 
 func (s *Sections) SlotScope(slot string) (string, bool) {
+	if s.isSettings(slot) {
+		return ScopeApp, true
+	}
 	section, ok := s.SlotSection(slot)
 	if !ok {
 		return "", false
@@ -120,6 +125,26 @@ func (s *Sections) SlotSection(slot string) (string, bool) {
 		return section, true
 	}
 	return SlotSection(slot)
+}
+
+func (s *Sections) Known(slot string) bool {
+	if _, ok := s.SlotSection(slot); ok {
+		return true
+	}
+	return s.isSettings(slot)
+}
+
+func (s *Sections) isSettings(slot string) bool {
+	plugin, ok := SettingsPlugin(slot)
+	return ok && s.views[slot] == plugin
+}
+
+func SettingsPlugin(slot string) (string, bool) {
+	plugin, ok := strings.CutSuffix(slot, SettingsSuffix)
+	if !ok || plugin == "" {
+		return "", false
+	}
+	return plugin, true
 }
 
 func SlotSection(slot string) (string, bool) {

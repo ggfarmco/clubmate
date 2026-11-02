@@ -151,4 +151,4 @@ The simulator covers loopback only. On a device, check:
 9. **Notifications**: allow notifications, switch to another app, make an agent ask for permission within ~30 s; a notification appears and opens the session when tapped.
 10. **MagicDNS off**: pairing still works via the IP hosts in the link.
 11. **Background refresh**: put the app in the background for over a minute (stream gone), make an agent ask for permission, then pause in Xcode and run the `_simulateLaunchForTaskWithIdentifier` command above; the notification appears. Also: Control Center pulled over the app shows a banner for a new notification.
-12. **Plugin restart**: with the Agents tab open, restart the `agents` plugin on the Mac (Settings → Plugins); the tab disappears and comes back without reconnecting.
+12. **Plugin restart**: with the Agents tab open, restart the `agents` plugin on the Mac (Settings → Agents → Restart); the tab disappears and comes back without reconnecting.

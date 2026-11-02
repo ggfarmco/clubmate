@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 )
 
 const (
@@ -35,6 +36,13 @@ type fakeHost struct {
 	methods   map[string]func(params any) (any, error)
 	runs      []commandCall
 	clock     *fakeClock
+	renders   []renderCall
+}
+
+type renderCall struct {
+	workspace string
+	slot      string
+	node      sdui.Node
 }
 
 type commandCall struct {
@@ -293,6 +301,25 @@ func TestSettingsTurnVoiceOnSwitchModelAndOff(t *testing.T) {
 	assert.Len(t, h.settings, 3)
 }
 
+func TestSettingsViewFollowsSettings(t *testing.T) {
+	v, h, _ := newTestVoice(t)
+	v.asr = func(model) func() (*exec.Cmd, error) { return fakeASRCommand }
+	t.Cleanup(func() { v.shutdown(t.Context(), nil) })
+	require.NoError(t, v.renderSettings(t.Context(), settings{Model: defaultModel}))
+	_, err := v.uiEvent(t.Context(), nil, pluginsdk.UIEvent{Slot: settingsSlot, NodeID: "model", Action: "model", Value: json.RawMessage(`"whisper-turbo"`)})
+	require.NoError(t, err)
+	on := true
+	_, err = v.setSettings(t.Context(), settingsArgs{Enabled: &on})
+	require.NoError(t, err)
+	last := h.lastRender(t)
+	assert.Equal(t, "", last.workspace)
+	assert.Equal(t, settingsSlot, last.slot)
+	assert.Equal(t, true, findNode(last.node, "enabled").Props["value"])
+	assert.Equal(t, "whisper-turbo", findNode(last.node, "model").Props["value"])
+	_, err = v.uiEvent(t.Context(), nil, pluginsdk.UIEvent{Slot: settingsSlot, NodeID: "x", Action: "x"})
+	assert.Error(t, err)
+}
+
 func newTestVoice(t *testing.T) (*voice, *fakeHost, *fakeRecognizer) {
 	h := &fakeHost{
 		storage:  map[string]json.RawMessage{},
@@ -420,6 +447,33 @@ func (h *fakeHost) Publish(_ context.Context, topic string, payload any) (plugin
 		h.mu.Unlock()
 	}
 	return pluginsdk.Event{Topic: topic}, nil
+}
+
+func (h *fakeHost) Render(_ context.Context, workspaceID, slot string, n sdui.Node) (int64, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.renders = append(h.renders, renderCall{workspace: workspaceID, slot: slot, node: n})
+	return int64(len(h.renders)), nil
+}
+
+func (h *fakeHost) lastRender(t *testing.T) renderCall {
+	t.Helper()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	require.NotEmpty(t, h.renders)
+	return h.renders[len(h.renders)-1]
+}
+
+func findNode(n sdui.Node, id string) sdui.Node {
+	if n.ID == id {
+		return n
+	}
+	for _, c := range n.Children {
+		if found := findNode(c, id); found.ID == id {
+			return found
+		}
+	}
+	return sdui.Node{}
 }
 
 func (h *fakeHost) StorageGet(_ context.Context, key string, out any) (bool, error) {

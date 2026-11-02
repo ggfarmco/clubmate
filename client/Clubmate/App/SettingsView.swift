@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 import ClubmateKit
@@ -7,348 +6,128 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
 
     @Environment(AppModel.self) private var app
-    @State private var hooksCopied = false
-    @State private var tab = SettingsTab.initial
     @Environment(\.appearsActive) private var appearsActive
-
-    private static let tool = CommandLineTool.name(flavor: ClaudeConnector.bundleFlavor())
+    @Environment(\.theme) private var theme
+    @State private var page = SettingsPage.initial
+    @State private var plugins = SettingsPlugins()
 
     var body: some View {
-        TabView(selection: $tab) {
-            general
-                .tabItem { Label("General", systemImage: "gearshape") }
-                .tag(SettingsTab.general)
-            PluginsSettings(supervisor: app.supervisor, active: appearsActive && tab == .plugins)
-                .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
-                .tag(SettingsTab.plugins)
-            DevicesSettings(model: app.remoteDevices, client: app.supervisor.client, active: tab == .remote)
-                .tabItem { Label("Remote", systemImage: "iphone") }
-                .tag(SettingsTab.remote)
+        HStack(spacing: 0) {
+            List(selection: $page) {
+                Label("General", systemImage: "gearshape")
+                    .tag(SettingsPage.general)
+                Section("Plugins") {
+                    ForEach(plugins.sorted) { plugin in
+                        PluginSidebarRow(plugin: plugin, icon: plugins.icon(plugin.id))
+                            .tag(SettingsPage.plugin(plugin.id))
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .background(theme.surface1)
+            .frame(width: 190)
+            Divider()
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 460, height: 560)
-        .onAppear { if tab == .general { tab = .initial } }
-    }
-
-    private var general: some View {
-        Form {
-            Section("Fonts") {
-                Stepper(value: $settings.interfaceFontSize, in: AppSettings.interfaceFontRange, step: 1) {
-                    LabeledContent("Interface font size", value: points(settings.interfaceFontSize))
-                }
-                Stepper(value: terminalFontSize, in: AppSettings.terminalFontRange, step: 1) {
-                    LabeledContent("Terminal & editor font size", value: points(app.terminalFontSize))
-                }
-                .disabled(settings.terminalFontSize == nil)
-                Toggle("Use ghostty config", isOn: usesGhosttyConfig)
-            }
-            Section("Sidebar") {
-                Picker("Side", selection: $settings.sidebarSide) {
-                    ForEach(SidebarSide.allCases, id: \.self) { side in
-                        Text(side.rawValue.capitalized).tag(side)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            Section("Voice") {
-                VoiceSettingsRows(model: app.voiceSettings)
-            }
-            if app.claude.phase != .missing {
-                Section("Agents") {
-                    LabeledContent("Claude Code") {
-                        switch app.claude.phase {
-                        case .checking, .missing:
-                            ProgressView().controlSize(.small)
-                        case .disconnected:
-                            Button("Connect Claude Code") { Task { await app.claude.connect() } }
-                                .disabled(app.claude.busy)
-                        case .other(let command):
-                            HStack {
-                                Text("\(app.claude.serverName) runs \(command.isEmpty ? "another command" : command)")
-                                    .lineLimit(1)
-                                    .truncationMode(.label)
-                                Button("Reconnect") { Task { await app.claude.connect() } }
-                                    .disabled(app.claude.busy)
-                            }
-                        case .connected:
-                            HStack {
-                                Text("Connected")
-                                Button("Reconnect") { Task { await app.claude.connect() } }
-                                    .disabled(app.claude.busy)
-                            }
-                        }
-                    }
-                    AgentFinishSettings(model: app.agentFinish)
-                    LabeledContent("Notifications") {
-                        Button(hooksCopied ? "Copied" : "Copy notification hooks") { copyHooks() }
-                    }
-                    Text("Merge into ~/.claude/settings.json; needs the “\(Self.tool)” command and jq.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if !app.claude.output.isEmpty {
-                        Text(app.claude.output)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                    }
-                }
-            }
-        }
-        .task { await app.claude.refresh() }
-        .task { await app.agentFinish.load() }
-        .task { await app.voiceSettings.load() }
-        .formStyle(.grouped)
-    }
-
-    private func copyHooks() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(ClaudeHooks.snippet(command: Self.tool), forType: .string)
-        hooksCopied = true
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            hooksCopied = false
+        .frame(width: 720, height: 560)
+        .onAppear { if page == .general { page = .initial } }
+        .task(id: SettingsFollowKey(client: app.supervisor.client.map(ObjectIdentifier.init), active: appearsActive)) {
+            await plugins.follow(app.supervisor.client, active: appearsActive)
         }
     }
 
-    private var terminalFontSize: Binding<Double> {
-        Binding { app.terminalFontSize } set: { settings.terminalFontSize = $0 }
-    }
-
-    private var usesGhosttyConfig: Binding<Bool> {
-        Binding { settings.terminalFontSize == nil } set: { settings.terminalFontSize = $0 ? nil : app.terminalFontSize }
-    }
-
-    private func points(_ size: Double) -> String {
-        "\(size.formatted()) pt"
+    @ViewBuilder private var detail: some View {
+        switch page {
+        case .general:
+            GeneralSettings(settings: settings)
+        case .plugin(let id):
+            if let plugin = plugins.list?.first(where: { $0.id == id }) {
+                PluginSettingsPage(plugin: plugin, plugins: plugins, settings: settings) { page = $0 }
+                    .id(id)
+            } else if let error = plugins.error {
+                SettingsNotice(text: error)
+            } else if plugins.list == nil {
+                ProgressView().controlSize(.small)
+            } else {
+                SettingsNotice(text: "No plugin “\(id)”")
+            }
+        }
     }
 }
 
-private enum SettingsTab: String, Hashable {
-    case general
-    case plugins
-    case remote
-
-    static var initial: SettingsTab {
+extension SettingsPage {
+    static var initial: SettingsPage {
         #if DEBUG
-        if DevicesPreview.state == "settings" { return .remote }
+        if DevicesPreview.state == "settings" { return .plugin("remote") }
         let arguments = CommandLine.arguments
         guard let index = arguments.firstIndex(of: "--settings-tab"), arguments.indices.contains(index + 1) else { return .general }
-        let name = arguments[index + 1]
-        return SettingsTab(rawValue: name == "devices" ? "remote" : name) ?? .general
+        return SettingsPage(argument: arguments[index + 1])
         #else
         .general
         #endif
     }
 }
 
-private struct PluginsSettings: View {
-    let supervisor: ConnectionSupervisor
-    let active: Bool
-
-    @State private var plugins: [PluginStatus]?
-    @State private var restarting: Set<String> = []
-    @State private var error: String?
-
-    var body: some View {
-        Form {
-            if let plugins {
-                if plugins.isEmpty {
-                    Text("No plugins found").foregroundStyle(.secondary)
-                }
-                ForEach(plugins) { plugin in
-                    PluginRow(plugin: plugin, restarting: restarting.contains(plugin.id)) {
-                        Task { await restart(plugin.id) }
-                    }
-                }
-            } else if error == nil {
-                ProgressView().controlSize(.small)
-            }
-            if let error {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-            }
-        }
-        .formStyle(.grouped)
-        .task(id: FollowKey(client: supervisor.client.map(ObjectIdentifier.init), active: active)) { await follow() }
-    }
-
-    private func follow() async {
-        guard active, let client = supervisor.client else {
-            if plugins == nil { await load() }
-            return
-        }
-        let events = try? await client.busEvents(pattern: Topic.pluginChanged)
-        await load()
-        guard let events else { return }
-        for await _ in events {
-            await load()
-        }
-    }
-
-    private func restart(_ id: String) async {
-        guard let client = supervisor.client else {
-            error = "Not connected to the core"
-            return
-        }
-        restarting.insert(id)
-        defer { restarting.remove(id) }
-        do {
-            try await client.pluginRestart(id: id)
-            await load()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    private func load() async {
-        guard let client = supervisor.client else {
-            error = "Not connected to the core"
-            return
-        }
-        do {
-            let list = try await client.pluginList()
-            if list != plugins { plugins = list }
-            if error != nil { error = nil }
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-}
-
-private struct FollowKey: Equatable {
+private struct SettingsFollowKey: Equatable {
     let client: ObjectIdentifier?
     let active: Bool
 }
 
-private struct PluginRow: View {
-    let plugin: PluginStatus
-    let restarting: Bool
-    let restart: () -> Void
-
-    @Environment(\.theme) private var theme
+struct SettingsNotice: View {
+    let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.xs) {
-            HStack(spacing: theme.spacing.l) {
-                Text(plugin.name)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                Text("\(plugin.id) \(plugin.manifest.version)")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.label)
-                Spacer(minLength: theme.spacing.l)
-                HStack(spacing: theme.spacing.s) {
-                    Circle().fill(color).frame(width: 7, height: 7)
-                    Text(plugin.stateLabel).lineLimit(1)
+        Text(text)
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct GeneralSettings: View {
+    @Bindable var settings: AppSettings
+
+    var body: some View {
+        Form {
+            Section("Appearance") {
+                Stepper(value: $settings.interfaceFontSize, in: AppSettings.interfaceFontRange, step: 1) {
+                    LabeledContent {
+                        Text(settingsPoints(settings.interfaceFontSize))
+                    } label: {
+                        Text("Interface font size")
+                        Text("Sidebars, lists and forms. A pane you zoomed with ⌘+ keeps its own size.")
+                    }
                 }
-                .font(.caption)
-                Button("Restart", action: restart)
-                    .controlSize(.small)
-                    .disabled(restarting || plugin.state == "starting")
-                    .help("Stop \(plugin.name) and start it again")
-            }
-            Text(summary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if !plugin.healthy, !plugin.lastError.isEmpty {
-                Text(plugin.lastError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
-                    .textSelection(.enabled)
+                Picker("Sidebar side", selection: $settings.sidebarSide) {
+                    ForEach(SidebarSide.allCases, id: \.self) { side in
+                        Text(side.rawValue.capitalized).tag(side)
+                    }
+                }
+                .pickerStyle(.segmented)
+                LabeledContent {
+                    Button("Reset All") { settings.resetPaneFonts() }
+                        .disabled(settings.zoomedPaneCount == 0)
+                } label: {
+                    Text("Zoomed panes")
+                    Text(zoomed)
+                }
             }
         }
+        .formStyle(.grouped)
     }
 
-    private var summary: String {
-        let sections = plugin.manifest.contributes.sections.map(\.title)
-        let commands = plugin.manifest.contributes.commands.count
-        var parts = [sections.isEmpty ? "No sections" : "Sections: \(sections.joined(separator: ", "))"]
-        parts.append(commands == 1 ? "1 command" : "\(commands) commands")
-        if plugin.restarts > 0 { parts.append(plugin.restarts == 1 ? "1 restart" : "\(plugin.restarts) restarts") }
-        return parts.joined(separator: " · ")
-    }
-
-    private var color: Color {
-        switch plugin.state {
-        case "running": .green
-        case "starting", "backoff": .orange
-        case "failed": .red
-        default: .secondary
+    private var zoomed: String {
+        switch settings.zoomedPaneCount {
+        case 0: "No pane has its own size."
+        case 1: "1 pane has its own size."
+        case let count: "\(count) panes have their own size."
         }
     }
 }
 
-private struct VoiceSettingsRows: View {
-    let model: VoiceSettingsModel
-
-    var body: some View {
-        Toggle("Voice input", isOn: enabled)
-            .disabled(model.enabled == nil)
-        Picker("Model", selection: chosen) {
-            ForEach(model.models) { option in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(option.title)
-                    Text(option.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .tag(Optional(option.id))
-            }
-        }
-        .pickerStyle(.radioGroup)
-        .disabled(model.model == nil)
-        Text("Hold ⌥Space or click the mic in the status bar to talk. Off stops the recognizer and frees its memory.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        if let error = model.error {
-            Text(error)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .textSelection(.enabled)
-        }
-    }
-
-    private var enabled: Binding<Bool> {
-        Binding { model.isOn } set: { on in Task { await model.setEnabled(on) } }
-    }
-
-    private var chosen: Binding<String?> {
-        Binding { model.model } set: { id in
-            guard let id else { return }
-            Task { await model.setModel(id) }
-        }
-    }
-}
-
-private struct AgentFinishSettings: View {
-    let model: AgentFinishModel
-
-    var body: some View {
-        Picker("When a task is done", selection: mode) {
-            ForEach(AgentFinishMode.allCases, id: \.self) { mode in
-                Text(mode.label).tag(Optional(mode))
-            }
-        }
-        .disabled(model.mode == nil)
-        Text("Default for new sessions; change it per session in the composer options. Merge runs the tests, merges into main and removes the worktree.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        if let error = model.error {
-            Text(error)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .textSelection(.enabled)
-        }
-    }
-
-    private var mode: Binding<AgentFinishMode?> {
-        Binding { model.mode } set: { mode in
-            guard let mode else { return }
-            Task { await model.choose(mode) }
-        }
-    }
+func settingsPoints(_ size: Double) -> String {
+    "\(size.formatted()) pt"
 }

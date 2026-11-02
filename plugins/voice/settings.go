@@ -2,19 +2,24 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
+
+	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 )
 
 const (
 	settingsKey   = "settings"
+	settingsSlot  = "voice.settings"
 	settingsTopic = "voice.settings-changed"
 	defaultModel  = "nemotron"
 )
 
 var (
-	errVoiceOff = errors.New("voice is off; turn it on in Settings → General → Voice")
+	errVoiceOff = errors.New("voice is off; turn it on in Settings → Voice")
 
 	models = []model{
 		{ID: "nemotron", Title: "Nemotron 0.6B", Detail: "Shows text while you speak · about 0.35 GB of memory", engine: "transcribe", repo: "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf", revision: "53ce288f69326b415aeef030cfcb02a08a8096dd", sha256: "b94545b313b3223fda7b2857a52681da813935c2127643d1e9ff0c23d988089c"},
@@ -86,10 +91,44 @@ func (v *voice) setSettings(ctx context.Context, args settingsArgs) (settingsRes
 		return settingsResult{}, err
 	}
 	v.apply(s)
+	logError("render settings", v.renderSettings(ctx, s))
 	res := settingsResult{settings: s, Models: models}
 	_, err = v.h.Publish(ctx, settingsTopic, res)
 	logError("publish "+settingsTopic, err)
 	return res, nil
+}
+
+func (v *voice) renderSettings(ctx context.Context, s settings) error {
+	options := make([]sdui.Option, 0, len(models))
+	for _, m := range models {
+		options = append(options, sdui.Option{Value: m.ID, Label: m.Title + " · " + m.Detail})
+	}
+	_, err := v.h.Render(ctx, "", settingsSlot, sdui.VStack(
+		sdui.SettingRow("Voice input", "Hold ⌥Space or click the mic in the status bar to talk. Off stops the recognizer and frees its memory.", sdui.WithAction(sdui.Toggle("enabled", s.Enabled), "enabled")),
+		sdui.SettingRow("Model", "", sdui.WithAction(sdui.Select("model", options, s.Model), "model")),
+	))
+	return err
+}
+
+func (v *voice) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
+	var args settingsArgs
+	switch {
+	case ev.Slot == settingsSlot && ev.Action == "enabled":
+		var on bool
+		if err := json.Unmarshal(ev.Value, &on); err != nil {
+			return nil, fmt.Errorf("enabled: %w", err)
+		}
+		args.Enabled = &on
+	case ev.Slot == settingsSlot && ev.Action == "model":
+		var id string
+		if err := json.Unmarshal(ev.Value, &id); err != nil {
+			return nil, fmt.Errorf("model: %w", err)
+		}
+		args.Model = &id
+	default:
+		return nil, fmt.Errorf("unknown action %q", ev.Action)
+	}
+	return v.setSettings(ctx, args)
 }
 
 func (v *voice) loadSettings(ctx context.Context) (settings, error) {

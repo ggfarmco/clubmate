@@ -5,6 +5,7 @@
   "protocol": 1,
   "command": ["voice"],
   "contributes": {
+    "views": [{"slot": "voice.settings"}],
     "commands": [
       {
         "id": "voice.start",

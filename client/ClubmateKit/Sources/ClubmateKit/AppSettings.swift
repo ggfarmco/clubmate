@@ -69,6 +69,19 @@ public final class AppSettings {
         paneFontSizes[pane] = nil
     }
 
+    public var chatFontSize: Double {
+        get { paneFontSize(PaneFont.chat) }
+        set { paneFontSizes[PaneFont.chat] = min(max(newValue, Self.interfaceFontRange.lowerBound), Self.interfaceFontRange.upperBound) }
+    }
+
+    public var zoomedPaneCount: Int {
+        paneFontSizes.count
+    }
+
+    public func resetPaneFonts() {
+        paneFontSizes = [:]
+    }
+
     private func save(_ value: Any?, _ key: String) {
         if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
     }

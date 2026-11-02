@@ -45,6 +45,32 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(saved.paneFontSize("chat"), 14)
     }
 
+    func testChatFontFollowsInterfaceUntilSet() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        settings.interfaceFontSize = 14
+        XCTAssertEqual(settings.chatFontSize, 14)
+        settings.chatFontSize = 40
+        settings.interfaceFontSize = 12
+        XCTAssertEqual(AppSettings(defaults: defaults).chatFontSize, AppSettings.interfaceFontRange.upperBound)
+        settings.resetPaneFont(PaneFont.chat)
+        XCTAssertEqual(settings.chatFontSize, 12)
+    }
+
+    func testResetPaneFontsClearsAll() throws {
+        let name = "AppSettingsTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        settings.stepPaneFont("agents.sidebar", by: 1)
+        settings.chatFontSize = 16
+        XCTAssertEqual(settings.zoomedPaneCount, 2)
+        settings.resetPaneFonts()
+        XCTAssertEqual(AppSettings(defaults: defaults).zoomedPaneCount, 0)
+    }
+
     func testCodeChatStacksUnderTheEditorBelow1100() {
         XCTAssertEqual([0, 900, 1099, 1100, 1280].map(CodeSection.stacksChat), [false, true, true, false, false])
     }

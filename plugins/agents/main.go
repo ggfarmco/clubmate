@@ -150,6 +150,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	close(a.loaded)
+	if err := a.renderSettings(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: render settings:", err)
+	}
 	go a.suspendIdleLoop(envDelay(suspendAfterEnv, suspendAfter))
 	go a.closeDoneLoop(envDelay(closeAfterEnv, closeAfter))
 	go a.continueCutOff(cut)

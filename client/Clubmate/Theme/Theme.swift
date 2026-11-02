@@ -14,6 +14,7 @@ struct Theme: Sendable {
     var onWarning: Color
     var danger: Color
     var fontFamily: String?
+    var systemFonts = false
     var uiSize: CGFloat = 12
     var name: String?
     var isDark: Bool
@@ -172,6 +173,12 @@ struct Theme: Sendable {
         return theme
     }
 
+    func withSystemFonts(size: Double) -> Theme {
+        var theme = scaled(size)
+        theme.systemFonts = true
+        return theme
+    }
+
     func nsFont(size: CGFloat, bold: Bool) -> NSFont {
         let weight: NSFont.Weight = bold ? .semibold : .regular
         guard let fontFamily, !fontFamily.isEmpty, let font = NSFont(name: fontFamily, size: size) else { return .monospacedSystemFont(ofSize: size, weight: weight) }
@@ -179,6 +186,7 @@ struct Theme: Sendable {
     }
 
     private func font(size: CGFloat) -> Font {
+        if systemFonts { return .system(size: size) }
         guard let fontFamily, !fontFamily.isEmpty else { return .system(size: size, design: .monospaced) }
         return .custom(fontFamily, size: size)
     }

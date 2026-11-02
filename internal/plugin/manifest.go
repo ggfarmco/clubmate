@@ -29,7 +29,7 @@ var (
 	idPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{1,31}$`)
 	slotPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	nounPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*(\.[a-z][a-z0-9]*(-[a-z0-9]+)*)?$`)
-	fixedSlots  = []string{"sidebar", "main", "status"}
+	fixedSlots  = []string{"sidebar", "main", "status", "settings"}
 
 	reservedIDs = []string{"core", "session", "workspace", "process", "ui", "diagnostics"}
 )
@@ -96,7 +96,7 @@ func ViewDefs(manifests []Manifest, logger *slog.Logger) []sdui.ViewDef {
 	for _, m := range manifests {
 		for _, v := range m.Contributes.Views {
 			section, _ := sdui.SlotSection(v.Slot)
-			if !sections[section] {
+			if _, settings := sdui.SettingsPlugin(v.Slot); !settings && !sections[section] {
 				logger.Warn("view ignored: section not registered", "plugin", m.ID, "slot", v.Slot)
 				continue
 			}
@@ -173,7 +173,10 @@ func (m Manifest) validate() error {
 		}
 	}
 	for _, v := range m.Contributes.Views {
-		if _, ok := sdui.SlotSection(v.Slot); !ok {
+		if _, ok := sdui.SlotSection(v.Slot); ok {
+			continue
+		}
+		if owner, ok := sdui.SettingsPlugin(v.Slot); !ok || owner != m.ID {
 			return invalid(m.Dir, "invalid view slot %q", v.Slot)
 		}
 	}

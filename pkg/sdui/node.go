@@ -232,6 +232,14 @@ func SparklineSized(id string, values []float64, maxValue, height float64) Node 
 	return n
 }
 
+func SettingRow(label, hint string, control Node) Node {
+	text := []Node{Text(label)}
+	if hint != "" {
+		text = append(text, MutedText(hint))
+	}
+	return HStack(VStack(text...), control)
+}
+
 func Text(text string) Node {
 	return Node{Type: "text", Props: map[string]any{"text": text}}
 }

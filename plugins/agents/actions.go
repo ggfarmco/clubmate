@@ -133,6 +133,9 @@ func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+	if ev.Slot == settingsSlot {
+		return nil, a.settingsEvent(ctx, ev)
+	}
 	err := a.act(ctx, ev)
 	if rerr := a.render(ctx, ev.WorkspaceID); err == nil {
 		err = rerr

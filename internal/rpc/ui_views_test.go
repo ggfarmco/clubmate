@@ -56,6 +56,39 @@ func TestViewOwnsForeignSlot(t *testing.T) {
 	assert.Equal(t, "beta", res["plugin"])
 }
 
+func TestSettingsSlotIsAppScopeAndRoutesEvents(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t,
+		manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha"}]}`),
+		manifestJSON("beta", `{"views":[{"slot":"beta.settings"}]}`),
+	))
+	testutil.Eventually(t, func() bool {
+		st := h.Sup.Statuses()
+		return len(st) == 2 && st[0].State == plugin.StateRunning && st[1].State == plugin.StateRunning
+	}, 5*time.Second)
+	p := h.CreateWorkspace(t, "demo")
+	c := h.Client(t)
+	tree := map[string]any{"type": "empty", "props": map[string]any{"text": "x"}}
+	render := func(plugin, workspaceID string) error {
+		return h.PluginCall(t, plugin, "ui.render", map[string]any{"workspaceId": workspaceID, "slot": "beta.settings", "tree": tree})
+	}
+	require.NoError(t, render("beta", ""))
+	assert.ErrorIs(t, render("alpha", ""), rpc.ErrInvalidParams)
+	assert.ErrorIs(t, render("beta", p.ID), rpc.ErrInvalidParams)
+	var views []internalsdui.SlotView
+	require.NoError(t, c.Call(t.Context(), "ui.get", map[string]string{"workspaceId": ""}, &views))
+	i := slices.IndexFunc(views, func(v internalsdui.SlotView) bool { return v.Slot == "beta.settings" })
+	require.GreaterOrEqual(t, i, 0)
+	assert.Equal(t, "beta", views[i].Owner)
+	event := func(workspaceID string, res any) error {
+		return c.Call(t.Context(), "ui.event", map[string]any{"workspaceId": workspaceID, "slot": "beta.settings", "nodeId": "x", "action": "say", "value": "hi"}, res)
+	}
+	var res map[string]any
+	require.NoError(t, event("", &res))
+	assert.Equal(t, "beta", res["plugin"])
+	assert.ErrorIs(t, event(p.ID, &res), rpc.ErrInvalidParams)
+}
+
 func TestDeclaredExtraSlot(t *testing.T) {
 	h := testutil.NewHarness(t)
 	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("alpha", `{"sections":[{"id":"alpha","title":"Alpha","slots":["review"]}]}`)))

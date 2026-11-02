@@ -25,3 +25,9 @@ func TestSparkValuesClamped(t *testing.T) {
 	assert.Equal(t, want, sdui.Sparkline("s", values, 100).Props["values"])
 	assert.Equal(t, want, sdui.NewSpark(values, 100).Values)
 }
+
+func TestSettingRowOmitsEmptyHint(t *testing.T) {
+	label := func(n sdui.Node) []sdui.Node { return n.Children[0].Children }
+	assert.Len(t, label(sdui.SettingRow("A", "", sdui.Toggle("t", true))), 1)
+	assert.Len(t, label(sdui.SettingRow("A", "hint", sdui.Toggle("t", true))), 2)
+}

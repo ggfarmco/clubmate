@@ -19,6 +19,7 @@ import (
 
 	"clubmate/internal/bus"
 	"clubmate/internal/rpc"
+	internalsdui "clubmate/internal/sdui"
 	"clubmate/internal/session"
 	"clubmate/internal/testutil"
 	"clubmate/pkg/sdui"
@@ -910,6 +911,30 @@ func TestFinishMode(t *testing.T) {
 	for _, e := range ofKind(f.transcript(t, workspace, first).Entries, "user") {
 		assert.NotContains(t, e.Text, "Clubmate finish mode")
 	}
+}
+
+func TestSettingsViewFinishDefault(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	view := func() string {
+		var views []internalsdui.SlotView
+		require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.get", map[string]string{"workspaceId": ""}, &views))
+		i := slices.IndexFunc(views, func(v internalsdui.SlotView) bool { return v.Slot == "agents.settings" })
+		if i < 0 {
+			return ""
+		}
+		return string(views[i].Tree)
+	}
+	testutil.Eventually(t, func() bool { return strings.Contains(view(), `"value":"ask"`) }, 5*time.Second)
+	require.NoError(t, f.run(t, workspace, "agents.finish-default", map[string]any{"value": "merge"}, nil))
+	testutil.Eventually(t, func() bool { return strings.Contains(view(), `"value":"merge"`) }, 5*time.Second)
+	require.NoError(t, f.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": "", "slot": "agents.settings", "nodeId": "finish", "action": "finish", "value": "ask"}, nil))
+	var got struct {
+		Value string `json:"value"`
+	}
+	require.NoError(t, f.run(t, workspace, "agents.finish-default", map[string]any{}, &got))
+	assert.Equal(t, "ask", got.Value)
+	assert.Contains(t, view(), `"value":"ask"`)
 }
 
 func TestAFKMode(t *testing.T) {

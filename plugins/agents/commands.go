@@ -295,10 +295,10 @@ func (a *app) finishDefaultCommand(ctx context.Context, _ pluginsdk.CommandRun, 
 	if args.Value == "" {
 		return finishResult{Value: a.finishDefault(ctx)}, nil
 	}
-	if !validFinish(args.Value) {
-		return finishResult{}, fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, args.Value)
+	if err := a.setFinishDefault(ctx, args.Value); err != nil {
+		return finishResult{}, err
 	}
-	return finishResult(args), a.host.StorageSet(ctx, finishKey, args.Value)
+	return finishResult(args), nil
 }
 
 func (a *app) afkCommand(_ context.Context, cmd pluginsdk.CommandRun, args afkArgs) (any, error) {

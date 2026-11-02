@@ -259,7 +259,7 @@ func (s *Server) uiRender(ctx context.Context, p renderParams) (revResult, error
 	if err != nil {
 		return revResult{}, err
 	}
-	if _, ok := u.sections.SlotSection(p.Slot); !ok {
+	if !u.sections.Known(p.Slot) {
 		return revResult{}, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
 	if owner, _ := u.sections.SlotOwner(p.Slot); owner != caller.PluginID {
@@ -287,12 +287,12 @@ func (s *Server) uiEvent(ctx context.Context, p uiEventParams) (json.RawMessage,
 	if p.Action == "" {
 		return nil, invalidParams("action is required")
 	}
-	section, ok := u.sections.SlotSection(p.Slot)
-	if !ok {
+	if !u.sections.Known(p.Slot) {
 		return nil, invalidParams(fmt.Sprintf("invalid slot: %q", p.Slot))
 	}
 	owner, ok := u.sections.SlotOwner(p.Slot)
 	if !ok {
+		section, _ := u.sections.SlotSection(p.Slot)
 		return nil, fmt.Errorf("%w: %s", errUnknownSection, section)
 	}
 	if err := s.requireSlotScope(ctx, u, p.Slot, p.WorkspaceID); err != nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 )
 
 const changedTopic = "voice.changed"
@@ -20,6 +21,7 @@ type host interface {
 	Publish(ctx context.Context, topic string, payload any) (pluginsdk.Event, error)
 	StorageGet(ctx context.Context, key string, out any) (bool, error)
 	StorageSet(ctx context.Context, key string, v any) error
+	Render(ctx context.Context, workspaceID, slot string, n sdui.Node) (int64, error)
 }
 
 type voice struct {
@@ -45,7 +47,7 @@ type changedEvent struct {
 
 func main() {
 	v := newVoice()
-	pluginsdk.Main(pluginsdk.Plugin{Init: v.init, Command: v.command, Shutdown: v.shutdown})
+	pluginsdk.Main(pluginsdk.Plugin{Init: v.init, Command: v.command, UIEvent: v.uiEvent, Shutdown: v.shutdown})
 }
 
 func newVoice() *voice {
@@ -58,6 +60,7 @@ func (v *voice) init(ctx context.Context, h *pluginsdk.Host) error {
 	s, err := v.loadSettings(ctx)
 	logError("load settings", err)
 	v.apply(s)
+	logError("render settings", v.renderSettings(ctx, s))
 	_, err = h.Publish(ctx, h.PluginID()+".ready", nil)
 	return err
 }
