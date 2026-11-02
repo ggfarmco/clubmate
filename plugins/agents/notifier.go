@@ -21,6 +21,8 @@ const (
 	notifyQuestion   = "question"
 )
 
+var permObjects = map[string]string{"execute": "a command", "edit": "a file", "delete": "a file", "move": "a file", "read": "a file", "fetch": "a URL"}
+
 type notifier struct {
 	host  *pluginsdk.Host
 	mu    sync.Mutex
@@ -133,12 +135,12 @@ func (n *notifier) notify(ctx context.Context, c change) {
 		return
 	}
 	rec := c.session.snapshot()
-	kind, message := notifyPermission, "Permission needed"
-	if c.requestKind == entryElicitation {
-		kind, message = notifyQuestion, "Question"
+	kind, message := notifyPermission, "Wants permission"
+	if verb, ok := permVerbs[summary.Tool]; ok {
+		message = "Wants to " + verb + " " + permObjects[summary.Tool]
 	}
-	if summary.Text != "" {
-		message = summary.Text
+	if c.requestKind == entryElicitation {
+		kind, message = notifyQuestion, "Has a question"
 	}
 	req := notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Title: rec.Title, Message: message, Kind: kind}
 	if err := n.host.Call(ctx, "notify.post", req, nil); err != nil {

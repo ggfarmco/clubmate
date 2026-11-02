@@ -590,8 +590,8 @@ func TestPendingRequestsPostNotifications(t *testing.T) {
 		Workspace, Session, Title, Message, Kind string
 	}
 	want := []posted{
-		{workspace, session, title, "Run tests", "permission"},
-		{workspace, session, title, "Which store?", "question"},
+		{workspace, session, title, "Wants to run a command", "permission"},
+		{workspace, session, title, "Has a question", "question"},
 	}
 	var got []posted
 	testutil.Eventually(t, func() bool {
