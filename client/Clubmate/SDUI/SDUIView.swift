@@ -111,21 +111,27 @@ extension EnvironmentValues {
 private struct PaneFocusReport: ViewModifier {
     let pane: FocusedPane
     let focused: Bool
+    let slot: String?
 
     @State private var id = UUID().uuidString
     @Environment(\.paneFocus) private var panes
+    @Environment(\.sduiDispatch) private var dispatch
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: focused, initial: true) { panes?.report(pane, from: id, focused: focused) }
-            .onChange(of: pane) { panes?.report(pane, from: id, focused: focused) }
-            .onDisappear { panes?.report(pane, from: id, focused: false) }
+            .onChange(of: focused, initial: true) { report(focused) }
+            .onChange(of: pane) { report(focused) }
+            .onDisappear { report(false) }
+    }
+
+    private func report(_ focused: Bool) {
+        panes?.report(pane, from: id, slot: slot ?? dispatch.slot, focused: focused)
     }
 }
 
 extension View {
-    func reportsFocus(_ pane: FocusedPane, _ focused: Bool) -> some View {
-        modifier(PaneFocusReport(pane: pane, focused: focused))
+    func reportsFocus(_ pane: FocusedPane, _ focused: Bool, slot: String? = nil) -> some View {
+        modifier(PaneFocusReport(pane: pane, focused: focused, slot: slot))
     }
 }
 

@@ -46,6 +46,9 @@ struct WorkspaceView: View {
             .onChange(of: session.store?.selectedSection) {
                 app.notifications.focusChanged()
             }
+            .onChange(of: panes.slot) { _, slot in
+                if let slot { session.store?.rememberFocus(slot) }
+            }
             .onChange(of: autoNewKey, initial: true) { old, new in
                 let store = session.store
                 let section = store?.sections.first { $0.id == new.section }

@@ -66,7 +66,7 @@ struct ComposerNodeView: View {
         .padding(.vertical, theme.gutter + theme.spacing.s)
         .overlay(alignment: .top) { theme.border.frame(height: 1) }
         .keyMonitor(active: focused && !disabled, handle: handle)
-        .reportsFocus(pane, focused)
+        .reportsFocus(pane, focused, slot: focusSlot)
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
         .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }

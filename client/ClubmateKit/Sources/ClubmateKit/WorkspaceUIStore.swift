@@ -18,6 +18,7 @@ public final class WorkspaceUIStore {
         didSet {
             guard !restoring, selectedSection != oldValue, let selectedSection else { return }
             updateState("section", .string(selectedSection))
+            refocus(selectedSection)
         }
     }
     public var sidebarWidth: Double? {
@@ -50,6 +51,7 @@ public final class WorkspaceUIStore {
     @ObservationIgnored private var saving: Task<Void, Never>?
     @ObservationIgnored private var restoring = false
     @ObservationIgnored private var focusSerial = 0
+    @ObservationIgnored private var focusedSlots: [String: String] = [:]
     @ObservationIgnored private var requestedSection: String?
     @ObservationIgnored private var legacyChat: LegacyChat?
     @ObservationIgnored private let order: @MainActor ([SectionInfo]) -> [SectionInfo]
@@ -302,9 +304,21 @@ public final class WorkspaceUIStore {
         focusRequest = FocusRequest(slot: slot, serial: focusSerial)
     }
 
+    public func rememberFocus(_ slot: String) {
+        guard let section = slot.split(separator: ".", maxSplits: 1).first, !section.isEmpty else { return }
+        focusedSlots[String(section)] = slot
+    }
+
+    private func refocus(_ section: String) {
+        guard let slot = focusedSlots[section], !slot.hasPrefix("\(section).sidebar") || !isSidebarHidden(section) else { return }
+        focusSerial += 1
+        focusRequest = FocusRequest(slot: slot, serial: focusSerial)
+    }
+
     private func focus(_ params: UIFocusNotification) {
         guard params.subscription == subscription else { return }
         let slot = select(params.section, slot: params.slot)
+        guard !slot.isEmpty else { return }
         focusSerial += 1
         focusRequest = FocusRequest(slot: slot, serial: focusSerial, field: params.field ?? false)
     }

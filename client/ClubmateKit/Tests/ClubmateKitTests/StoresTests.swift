@@ -230,6 +230,31 @@ final class StoresTests: XCTestCase {
         await client.close()
     }
 
+    func testReturningToASectionRefocusesItsLastFocusedSlot() async throws {
+        let client = try await startCore()
+        let workspace = try await client.createWorkspace(name: "demo")
+        let store = WorkspaceUIStore(client: client, workspaceID: workspace.id)
+        try await store.start()
+        store.selectedSection = "echo"
+        store.rememberFocus("echo.main")
+        store.rememberFocus("terminals.sidebar")
+
+        store.selectedSection = "terminals"
+        XCTAssertEqual(store.focusRequest?.slot, "terminals.sidebar")
+
+        store.toggleSidebar()
+        store.selectedSection = "echo"
+        let echo = store.focusRequest
+        XCTAssertEqual(echo?.slot, "echo.main")
+        store.selectedSection = "terminals"
+        XCTAssertEqual(store.focusRequest, echo)
+
+        store.requestFocus(section: "echo", slot: "echo.sidebar")
+        XCTAssertEqual(store.focusRequest?.slot, "echo.sidebar")
+        await store.stop()
+        await client.close()
+    }
+
     func testPluginCrashEmptiesThenRerenders() async throws {
         let client = try await startCore()
         let workspace = try await client.createWorkspace(name: "demo")

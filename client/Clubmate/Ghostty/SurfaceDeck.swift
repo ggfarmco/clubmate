@@ -16,6 +16,7 @@ final class SurfaceDeck {
     @ObservationIgnored let container = SurfaceDeckView()
     @ObservationIgnored private var views: [String: TerminalSurfaceView] = [:]
     @ObservationIgnored private var selected: String?
+    @ObservationIgnored private var slots: [String: String] = [:]
     @ObservationIgnored private var closed = false
 
     init() {
@@ -32,7 +33,8 @@ final class SurfaceDeck {
         owner = nil
     }
 
-    func select(_ sessionID: String) {
+    func select(_ sessionID: String, slot: String) {
+        slots[sessionID] = slot
         guard !closed, selected != sessionID || views[sessionID] == nil else { return }
         selected = sessionID
         if views[sessionID] == nil { mount(sessionID) }
@@ -45,6 +47,7 @@ final class SurfaceDeck {
     }
 
     func surfaceClosed(_ sessionID: String) {
+        slots[sessionID] = nil
         guard let view = views.removeValue(forKey: sessionID) else { return }
         view.destroy()
         view.removeFromSuperview()
@@ -61,7 +64,7 @@ final class SurfaceDeck {
     private func mount(_ sessionID: String) {
         let view = TerminalSurfaceView(sessionID: sessionID, fontSize: fontSize)
         view.onClose = { [weak self] in self?.surfaceClosed(sessionID) }
-        view.onFocus = { [weak self] focused in self?.panes?.report(.terminal, from: "terminal:" + sessionID, focused: focused) }
+        view.onFocus = { [weak self] focused in self?.panes?.report(.terminal, from: "terminal:" + sessionID, slot: self?.slots[sessionID], focused: focused) }
         view.frame = container.bounds
         view.autoresizingMask = [.width, .height]
         view.setVisible(false)

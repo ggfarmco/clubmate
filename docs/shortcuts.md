@@ -105,7 +105,7 @@ Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defi
 
 ## Agent composer (Agents section or Code chat panel, prompt focused)
 
-Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H from the sessions tree) lands in the prompt when the session shows one.
+Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H from the sessions tree) lands in the prompt when the session shows one. Switching back to a section returns focus to where it was when you left it (the prompt, the sessions tree, the terminal), unless that sidebar has been hidden since.
 
 | Keys | Action |
 |---|---|

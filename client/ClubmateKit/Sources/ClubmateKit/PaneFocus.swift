@@ -25,19 +25,22 @@ public enum FocusedPane: Equatable, Sendable {
 @Observable
 public final class PaneFocus {
     public private(set) var pane: FocusedPane?
+    public private(set) var slot: String?
     @ObservationIgnored private var owner: String?
 
     public init() {}
 
     public var hints: String? { pane?.hints }
 
-    public func report(_ pane: FocusedPane, from id: String, focused: Bool) {
+    public func report(_ pane: FocusedPane, from id: String, slot: String? = nil, focused: Bool) {
         if focused {
             owner = id
             if self.pane != pane { self.pane = pane }
+            if self.slot != slot { self.slot = slot }
         } else if owner == id {
             owner = nil
             self.pane = nil
+            self.slot = nil
         }
     }
 }

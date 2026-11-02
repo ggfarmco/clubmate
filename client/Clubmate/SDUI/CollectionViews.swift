@@ -126,7 +126,7 @@ struct ListNodeView: View {
         .focusEffectDisabled()
         .focused($focused)
         .keyMonitor(active: focused, handle: handle)
-        .reportsFocus(.list, focused)
+        .reportsFocus(.list, focused, slot: sidebarSlot)
         .onChange(of: node.string("selected"), initial: true) { _, value in
             guard value != selected else { return }
             selected = value
@@ -227,7 +227,7 @@ struct TreeNodeView: View {
         .focusEffectDisabled()
         .focused($focused)
         .keyMonitor(active: focused, handle: handle)
-        .reportsFocus(.tree(field: sidebarHasField), focused)
+        .reportsFocus(.tree(field: sidebarHasField), focused, slot: sidebarSlot)
         .onChange(of: focused) { _, focused in
             if !focused { leader = false }
         }
