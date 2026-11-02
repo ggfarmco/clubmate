@@ -180,21 +180,20 @@ final class VoiceTests: XCTestCase {
         XCTAssertFalse(voice.visible)
     }
 
-    func testPressWhileSendingCancelsItAndListensAgain() async throws {
+    func testPressWhileSendingCancelsIt() async throws {
         let core = FakeVoiceCore()
-        core.states = [
-            #"{"utterance":"vu_1","phase":"sending","heard":"смержи","sendAt":"2026-11-02T10:00:01.500Z","rev":3}"#,
-            #"{"utterance":"vu_1","phase":"listening","rev":1}"#,
-        ]
+        core.states = [#"{"utterance":"vu_1","phase":"sending","heard":"смержи","sendAt":"2026-11-02T10:00:01.500Z","rev":3}"#]
         let voice = core.controller()
         voice.begin()
         try await waitUntil { voice.phase == .sending }
 
         voice.press(at: 10)
+        voice.release(at: 11)
 
-        try await waitUntil { core.calls.filter { $0.id == "voice.start" }.count == 2 }
+        try await waitUntil { core.calls.contains { $0.id == "voice.cancel" } }
         XCTAssertEqual(core.calls.first { $0.id == "voice.cancel" }?.args["utterance"]?.stringValue, "vu_1")
-        XCTAssertTrue(voice.active)
+        XCTAssertEqual(core.calls.filter { $0.id == "voice.start" }.count, 1)
+        XCTAssertFalse(voice.active)
     }
 
     func testReleaseDuringPermissionPromptCancels() async throws {

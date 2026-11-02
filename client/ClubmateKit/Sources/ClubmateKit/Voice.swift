@@ -111,6 +111,13 @@ public final class VoiceController {
     }
 
     public func press(at time: TimeInterval) {
+        if acceptsCancelKey {
+            swallowRelease = true
+            pressedAt = nil
+            holding = false
+            cancel()
+            return
+        }
         if active {
             swallowRelease = true
             pressedAt = nil

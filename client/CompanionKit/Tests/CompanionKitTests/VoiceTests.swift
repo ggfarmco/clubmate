@@ -168,6 +168,21 @@ final class VoiceTests: XCTestCase {
         XCTAssertFalse(voice.visible)
     }
 
+    func testPressWhileSendingCancelsIt() async throws {
+        let mac = VoiceMac()
+        mac.states = [#"{"utterance":"vu_1","phase":"listening","rev":1}"#, #"{"utterance":"vu_1","phase":"sending","heard":"привет","sendAt":"2026-11-02T10:00:01.5Z","rev":2}"#]
+        let voice = mac.session()
+        voice.begin()
+        try await waitUntil { voice.state?.rev == 1 }
+        voice.finish()
+        try await waitUntil { voice.phase == .sending }
+        voice.press(at: 20)
+        voice.release(at: 21)
+        try await waitUntil { mac.ids.contains("voice.cancel") }
+        XCTAssertEqual(mac.ids.filter { $0 == "voice.start" }.count, 1)
+        XCTAssertFalse(voice.active)
+    }
+
     func testPointerFromPhoneScreen() {
         XCTAssertEqual(VoiceTarget.phone(computer: "m", workspace: "w", plugin: "agents", detail: "agt_1").pointer, VoicePointer(device: "phone", section: "agents", selection: .init(session: "agt_1")))
         XCTAssertEqual(VoiceTarget.phone(computer: "m", workspace: "w", plugin: "backlog", detail: "12").pointer, VoicePointer(device: "phone", section: "backlog", selection: .init(task: 12)))

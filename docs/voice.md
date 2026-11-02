@@ -8,7 +8,7 @@ The `voice` plugin (`plugins/voice`) owns utterances. A Python recognizer (`plug
 1. The client calls `voice.start` with a pointer to where the user is. The plugin resolves the pointer into context (below) before recognition starts, and passes words from it to the recognizer as a hint.
 2. The client streams audio with `voice.audio`; every call returns the partial text so far.
 3. `voice.end` returns `heard`: the final text with the user dictionary applied. Partials are raw; the dictionary applies to `heard` only. Only the user ends an utterance (release after a hold, the second press after a tap); nothing is sent before.
-4. A `heard` with no word, or under 0.5 s of audio, ends in phase `error` "nothing heard" and goes nowhere. Otherwise the utterance waits 1 s in phase `sending` (`sendAt`), where `voice.cancel` still stops it.
+4. A `heard` with no word, or under 0.5 s of audio, ends in phase `error` "nothing heard" and goes nowhere. Otherwise the utterance waits 1 s in phase `sending` (`sendAt`), where `voice.cancel` still stops it. On the Mac and the phone, pressing ⌥Space or the mic during that second cancels it (and starts nothing new); Esc, × and Cancel do the same.
 5. The plugin prompts the workspace's Voice session with `{utterance, device, heard, context}`. The session calls `voice.plan`, acts, and always ends with `voice.done`.
 6. The client follows `voice.changed` and reads `voice.state` to show the plan, a confirmation and the result.
 
