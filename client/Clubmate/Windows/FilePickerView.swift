@@ -127,6 +127,7 @@ extension View {
         overlay(alignment: .top) {
             if let session, session.overlay == .pickFile, let model = session.filePicker {
                 FilePickerView(model: model) { [weak session] in session?.close(.pickFile) }
+                    .onClickOutside { [weak session] in session?.close(.pickFile) }
                     .id(ObjectIdentifier(model))
                     .padding(.top, Theme.fallback.spacing.overlay)
             }

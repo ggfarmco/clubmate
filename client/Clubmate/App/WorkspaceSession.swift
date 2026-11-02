@@ -132,6 +132,10 @@ final class WorkspaceSession {
         self.overlay = self.overlay == overlay ? nil : overlay
     }
 
+    func closeOverlay() {
+        if let overlay { close(overlay) }
+    }
+
     func close(_ overlay: WorkspaceOverlay) {
         guard self.overlay == overlay else { return }
         self.overlay = nil

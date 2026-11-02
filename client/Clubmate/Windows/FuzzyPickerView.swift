@@ -133,6 +133,7 @@ extension View {
                 FuzzyPickerList(model: request.model, choose: request.choose) { session.close(.picker) }
                     .frame(width: 480)
                     .modifier(PickerChrome())
+                    .onClickOutside { session.close(.picker) }
                     .id(ObjectIdentifier(request.model))
                     .padding(.top, Theme.fallback.spacing.overlay)
             }

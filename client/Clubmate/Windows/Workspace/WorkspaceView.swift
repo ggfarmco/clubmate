@@ -29,6 +29,7 @@ struct WorkspaceView: View {
             .focusedSceneValue(\.workspaceSession, session)
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }
+                session.closeOverlay()
                 if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
@@ -43,6 +44,7 @@ struct WorkspaceView: View {
                 Task { await session.worktrees.load(retrying: true) }
             }
             .onChange(of: session.store?.selectedSection) {
+                session.closeOverlay()
                 app.notifications.focusChanged()
             }
             .onChange(of: session.panes.slot) { _, slot in

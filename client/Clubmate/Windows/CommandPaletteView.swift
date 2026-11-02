@@ -235,6 +235,7 @@ extension View {
         overlay(alignment: .top) {
             if let session, session.overlay == .palette {
                 CommandPaletteView(entries: entries(), run: run) { session.close(.palette) }
+                    .onClickOutside { session.close(.palette) }
                     .padding(.top, Theme.fallback.spacing.overlay)
             }
         }
