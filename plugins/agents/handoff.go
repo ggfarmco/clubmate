@@ -56,11 +56,13 @@ func (a *app) handoff(ctx context.Context, s *session, args handoffArgs, from st
 			HandoffFrom:   old.ID,
 		},
 		Run:      old.Run,
+		CronJob:  old.CronJob,
+		Trigger:  old.Trigger,
 		Notify:   old.Notify,
 		Title:    old.Title,
 		TitleSet: old.TitleSet,
 		Finish:   finish,
-		AFK:      afk,
+		AFK:      afk || old.AFK,
 	}, first, nil)
 	s.mu.Lock()
 	s.rec.HandoffTo = next.snapshot().ID

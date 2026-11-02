@@ -54,7 +54,10 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	if err != nil {
 		return newResult{}, err
 	}
-	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode, StartModel: args.Model}
+	if args.Finish != "" && !validFinish(args.Finish) {
+		return newResult{}, fmt.Errorf("%w: %s=%s", errUnknownValue, finishID, args.Finish)
+	}
+	rec := record{Workspace: workspaceID, Agent: agent, Title: titleOf(args.Title), TitleSet: args.Title != "", Notify: storedNotify(args.Notify), DisallowedTools: args.DisallowedTools, SystemPrompt: args.SystemPrompt, StartMode: args.Mode, StartModel: args.Model, CronJob: args.CronJob, Trigger: args.Trigger}
 	if args.Run != "" {
 		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
 	}
@@ -73,6 +76,10 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 	}
 	rec.Worktree = root
 	rec.Finish, rec.AFK = a.sessionDefaults(ctx, rec.ParentSession)
+	rec.Finish = cmp.Or(args.Finish, rec.Finish)
+	if args.AFK != nil {
+		rec.AFK = *args.AFK
+	}
 	s, err := a.spawn(rec, promptArgs{Text: args.Prompt, From: from}, ready)
 	if ready != nil && s != nil {
 		go a.createWorktree(s, ready)

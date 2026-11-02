@@ -53,6 +53,7 @@ type record struct {
 	Mode           string   `json:"mode"`
 	Finish         string   `json:"finish"`
 	AFK            bool     `json:"afk"`
+	CronJob        string   `json:"cronJob"`
 	Error          string   `json:"error"`
 	Pending        []string `json:"pending"`
 	Asks           bool     `json:"asks"`
@@ -1613,7 +1614,9 @@ func TestHandoff(t *testing.T) {
 	reply := map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "half done"}}}
 	f := start(t, map[string]any{"prompt": []map[string]any{{"sleep": 800}, reply}})
 	workspace := f.workspace(t, newRepo(t))
-	old := f.newSession(t, workspace)
+	var started child
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"afk": true}, &started))
+	old := started.Session
 	f.prompt(t, workspace, old, "fix refunds")
 	f.waitCall(t, "session/prompt", func(fakeCall) bool { return true })
 
@@ -1629,6 +1632,7 @@ func TestHandoff(t *testing.T) {
 	next := f.session(t, workspace, out.Session)
 	assert.Equal(t, old, next.HandoffFrom)
 	assert.Equal(t, "muted", next.Notify)
+	assert.True(t, next.AFK)
 	closed := f.waitStatus(t, workspace, old, "closed")
 	assert.Equal(t, out.Session, closed.HandoffTo)
 	sent := f.waitCall(t, "session/prompt", func(c fakeCall) bool { return strings.HasSuffix(promptText(t, c), "finish it") })
@@ -2660,4 +2664,67 @@ func TestSessionsCarryRunningToolActivity(t *testing.T) {
 	}, wait)
 	assert.Equal(t, "Editing reserve.go", got.Title)
 	assert.False(t, got.At.IsZero())
+}
+
+func (f *fixture) turns(t *testing.T, session string) []api.Turn {
+	t.Helper()
+	events, err := f.h.Bus.Read(t.Context(), api.TopicTurn, 0, 1000)
+	require.NoError(t, err)
+	var out []api.Turn
+	for _, e := range events {
+		var turn api.Turn
+		require.NoError(t, json.Unmarshal(e.Payload, &turn))
+		if turn.Session == session {
+			out = append(out, turn)
+		}
+	}
+	return out
+}
+
+func TestCronStartedSessionCarriesFlagsAndOrigin(t *testing.T) {
+	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"))
+	workspace := f.workspace(t, newRepo(t))
+	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", map[string]any{"cronJob": "cj_1"}, nil), "only the cron plugin may set cronJob")
+	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", map[string]any{"finish": "merge"}, nil), "only the user may set finish")
+	var merging child
+	require.NoError(t, f.run(t, workspace, "agents.new", map[string]any{"finish": "merge"}, &merging))
+	assert.Equal(t, "merge", f.session(t, workspace, merging.Session).Finish)
+
+	var job struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, f.run(t, workspace, "cron.add", map[string]any{"name": "Tidy", "command": "agents.new", "args": `{"prompt":"tidy","afk":true}`, "every": "1h"}, &job))
+	require.NoError(t, f.run(t, workspace, "cron.run", map[string]any{"id": job.ID}, nil))
+	var started record
+	testutil.Eventually(t, func() bool {
+		var list []record
+		require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
+		i := slices.IndexFunc(list, func(r record) bool { return r.CronJob == job.ID })
+		if i >= 0 {
+			started = list[i]
+		}
+		return i >= 0
+	}, wait)
+	f.waitStatus(t, workspace, started.ID, "done")
+
+	assert.True(t, started.AFK)
+	assert.Contains(t, string(f.calls(t, "session/prompt")[0].Params), "[Clubmate AFK mode]")
+	testutil.Eventually(t, func() bool { return len(f.turns(t, started.ID)) > 0 }, wait)
+	assert.Equal(t, api.Turn{Workspace: workspace, Session: started.ID, Status: "done", Finished: true, CronJob: job.ID}, f.turns(t, started.ID)[0])
+}
+
+func TestTurnFinishedOnlyWithoutActiveChildren(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "slow", "sleep": 3000}}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "slow"}).Session
+	f.prompt(t, workspace, parent, "quick")
+	f.waitStatus(t, workspace, kid, "done")
+
+	testutil.Eventually(t, func() bool { return len(f.turns(t, parent)) >= 2 }, wait)
+	finished := []bool{}
+	for _, turn := range f.turns(t, parent) {
+		finished = append(finished, turn.Finished)
+	}
+	assert.Equal(t, []bool{false, true}, finished[:2])
 }

@@ -15,6 +15,8 @@ import (
 
 const (
 	PromptCommand = "agents.prompt"
+	OriginCronJob = "cronJob"
+	OriginTrigger = "trigger"
 	OwnerNone     = "none"
 	nobody        = "nobody — results go to the inbox"
 )
@@ -55,6 +57,7 @@ type IDArgs struct {
 }
 
 type Executor struct {
+	Origin     string
 	Sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
 	RunCommand func(ctx context.Context, req CommandRequest) (json.RawMessage, error)
 	Log        func(error)
@@ -96,7 +99,12 @@ func (x Executor) Guard(ctx context.Context, act Action) ([]api.Session, string)
 }
 
 func (x Executor) Execute(ctx context.Context, act Action, r Run) Run {
-	raw, err := x.RunCommand(ctx, CommandRequest{ID: act.Command, WorkspaceID: act.Workspace, Args: act.Args, Agent: true, Caller: act.Owner})
+	args, err := x.withOrigin(act)
+	if err != nil {
+		r.Status, r.Reason = StatusError, err.Error()
+		return r
+	}
+	raw, err := x.RunCommand(ctx, CommandRequest{ID: act.Command, WorkspaceID: act.Workspace, Args: args, Agent: true, Caller: act.Owner})
 	switch {
 	case err == nil:
 		r.Status, r.Result = StatusOK, Truncate(string(raw), MaxResult)
@@ -106,6 +114,20 @@ func (x Executor) Execute(ctx context.Context, act Action, r Run) Run {
 		r.Status, r.Reason = StatusError, err.Error()
 	}
 	return r
+}
+
+func (x Executor) withOrigin(act Action) (json.RawMessage, error) {
+	if x.Origin == "" || act.Command != agentNew {
+		return act.Args, nil
+	}
+	fields := map[string]json.RawMessage{}
+	if len(act.Args) > 0 {
+		if err := json.Unmarshal(act.Args, &fields); err != nil {
+			return nil, fmt.Errorf("%s args: %w", act.Command, err)
+		}
+	}
+	fields[x.Origin], _ = json.Marshal(act.ID)
+	return json.Marshal(fields)
 }
 
 func BusyTarget(sessions []api.Session, act Action) (string, bool) {

@@ -48,7 +48,10 @@ type Turn struct {
 	Session   string `json:"session"`
 	Status    string `json:"status"`
 	Asks      bool   `json:"asks"`
+	Finished  bool   `json:"finished"`
 	Reply     string `json:"reply"`
+	CronJob   string `json:"cronJob,omitempty"`
+	Trigger   string `json:"trigger,omitempty"`
 }
 
 type Changed struct {

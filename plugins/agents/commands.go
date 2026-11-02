@@ -15,6 +15,8 @@ import (
 const (
 	remotePlugin  = "remote"
 	voicePlugin   = "voice"
+	cronPlugin    = "cron"
+	triggerPlugin = "triggers"
 	unknownCaller = "unknown"
 )
 
@@ -57,6 +59,8 @@ var (
 	errRelativeRoot  = errors.New("stop-root: path must be absolute")
 	errNotDescendant = errors.New("the session was not started by this agent")
 	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model")
+	errOriginOnly    = errors.New("invalid_params: only the cron plugin may set cronJob and only the triggers plugin may set trigger")
+	errFinishUser    = errors.New("invalid_params: only the user may set finish")
 )
 
 type commandFunc func(a *app, ctx context.Context, cmd pluginsdk.CommandRun) (any, error)
@@ -88,6 +92,10 @@ type newArgs struct {
 	SystemPrompt    string         `json:"systemPrompt"`
 	Mode            string         `json:"mode"`
 	Model           string         `json:"model"`
+	AFK             *bool          `json:"afk"`
+	Finish          string         `json:"finish"`
+	CronJob         string         `json:"cronJob"`
+	Trigger         string         `json:"trigger"`
 }
 
 type newResult struct {
@@ -218,6 +226,12 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 	restricted := args.restricted()
 	if restricted && (cmd.Agent || cmd.Via != voicePlugin) {
 		return nil, errVoiceOnly
+	}
+	if args.CronJob != "" && cmd.Via != cronPlugin || args.Trigger != "" && cmd.Via != triggerPlugin {
+		return nil, errOriginOnly
+	}
+	if args.Finish != "" && cmd.Agent {
+		return nil, errFinishUser
 	}
 	res, err := a.newSession(ctx, a.host, cmd.WorkspaceID, origin(cmd), args)
 	if err != nil {

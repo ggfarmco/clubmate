@@ -4,6 +4,8 @@ import (
 	"iter"
 	"maps"
 	"slices"
+
+	"clubmate/plugins/agents/api"
 )
 
 type lineage struct {
@@ -85,13 +87,22 @@ func (a *app) ancestry(rec record) iter.Seq[record] {
 	}
 }
 
-func childStatuses(recs []record) map[string]string {
+func (a *app) finished(t api.Turn) bool {
+	return t.Status == statusDone && activeDescendant(t.Session, kidsOf(a.list(t.Workspace)), map[string]bool{}) == ""
+}
+
+func kidsOf(recs []record) map[string][]record {
 	kids := map[string][]record{}
 	for _, rec := range recs {
 		if rec.ParentSession != "" {
 			kids[rec.ParentSession] = append(kids[rec.ParentSession], rec)
 		}
 	}
+	return kids
+}
+
+func childStatuses(recs []record) map[string]string {
+	kids := kidsOf(recs)
 	out := map[string]string{}
 	for _, rec := range recs {
 		if rec.Status != statusDone && rec.Status != statusIdle || needsYou(rec) {

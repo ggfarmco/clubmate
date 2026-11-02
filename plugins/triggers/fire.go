@@ -197,7 +197,7 @@ func (a *app) notifyPaused(ctx context.Context, t *Trigger) {
 }
 
 func (a *app) executor() automation.Executor {
-	return automation.Executor{Sessions: a.sessions, RunCommand: a.runCommand, Log: logError}
+	return automation.Executor{Origin: automation.OriginTrigger, Sessions: a.sessions, RunCommand: a.runCommand, Log: logError}
 }
 
 func record(t *Trigger, r Run) (paused bool) {

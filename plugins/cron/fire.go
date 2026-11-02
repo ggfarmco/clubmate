@@ -127,7 +127,7 @@ func (a *app) drop(ctx context.Context, j *Job) error {
 }
 
 func (a *app) executor() automation.Executor {
-	return automation.Executor{Sessions: a.sessions, RunCommand: a.runCommand, Log: logError}
+	return automation.Executor{Origin: automation.OriginCronJob, Sessions: a.sessions, RunCommand: a.runCommand, Log: logError}
 }
 
 func logError(err error) {

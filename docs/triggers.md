@@ -105,6 +105,13 @@ triggers.add {
 }
 ```
 
+A release after every nightly run: the cron job starts the session in AFK mode, and the trigger fires once that session (with all its children) is done, whichever session id it got that night. A parent ends many turns while it waits for its children; only the last one is `finished`.
+
+```json
+cron.add {"name": "Nightly tidy", "command": "agents.new", "args": "{\"prompt\":\"Tidy\",\"afk\":true}", "cron": "0 2 * * *", "owner": "none"}
+triggers.add {"name": "Nightly release", "on": "agents.turn", "match": "{\"cronJob\":\"cj_…\",\"finished\":true}", "command": "agents.new", "args": "{\"prompt\":\"Release if {{payload.session}} changed main\",\"afk\":true}", "owner": "none"}
+```
+
 Cron and triggers together: cron emits `event.nightly` at 02:00, and any number of triggers react to it:
 
 ```json

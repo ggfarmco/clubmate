@@ -1,6 +1,8 @@
 package automation
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,4 +30,16 @@ func TestAllowed(t *testing.T) {
 			assert.Equal(t, tt.want, Allowed(tt.cmd, tt.act, tt.parents))
 		})
 	}
+}
+
+func TestExecuteNamesOriginOfNewSessions(t *testing.T) {
+	var got []string
+	x := Executor{Origin: OriginCronJob, RunCommand: func(_ context.Context, req CommandRequest) (json.RawMessage, error) {
+		got = append(got, string(req.Args))
+		return nil, nil
+	}}
+	x.Execute(t.Context(), Action{ID: "cj_1", Command: agentNew, Args: json.RawMessage(`{"prompt":"tidy"}`)}, Run{})
+	x.Execute(t.Context(), Action{ID: "cj_1", Command: agentNew}, Run{})
+	x.Execute(t.Context(), Action{ID: "cj_1", Command: PromptCommand, Args: json.RawMessage(`{"session":"agt_1"}`)}, Run{})
+	assert.Equal(t, []string{`{"cronJob":"cj_1","prompt":"tidy"}`, `{"cronJob":"cj_1"}`, `{"session":"agt_1"}`}, got)
 }

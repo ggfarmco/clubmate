@@ -14,6 +14,7 @@ import (
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/agents/api"
 )
 
 const (
@@ -224,7 +225,10 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 		a.kick(rec.Workspace)
 	})
 	s.setup = ready
-	s.turned = a.notes.turn
+	s.turned = func(t api.Turn) {
+		t.Finished = a.finished(t)
+		a.notes.turn(t)
+	}
 	s.idled = func() { a.settleBackground(s) }
 	s.resolved = func(kind, request string) { a.notes.resolved(s, kind, request) }
 	s.requested = func(kind, request string) {
