@@ -19,13 +19,14 @@ const (
 	sectionAgents  = "agents"
 	sectionBacklog = "backlog"
 
-	maxViewBytes    = 8 << 10
-	maxHintBytes    = 800
-	maxSessions     = 50
-	resolveTimeout  = 3 * time.Second
-	truncatedView   = `{"truncated":true}`
-	entryPermission = "permission"
-	entryQuestion   = "elicitation"
+	maxViewBytes     = 8 << 10
+	maxHintBytes     = 800
+	maxSessions      = 50
+	maxOtherBranches = 10
+	resolveTimeout   = 3 * time.Second
+	truncatedView    = `{"truncated":true}`
+	entryPermission  = "permission"
+	entryQuestion    = "elicitation"
 )
 
 var fixedHints = []string{"MCP", "worktree", "merge", "squash", "commit", "backlog", "CI", "PR", "Clubmate", "Companion"}
@@ -139,7 +140,10 @@ type sduiNode struct {
 }
 
 type worktree struct {
-	Branch string `json:"branch"`
+	Branch    string    `json:"branch"`
+	Committed time.Time `json:"committed"`
+	Main      bool      `json:"main"`
+	Current   bool      `json:"current"`
 }
 
 func resolve(ctx context.Context, h host, workspace string, p Pointer) (Context, error) {
@@ -156,11 +160,7 @@ func resolve(ctx context.Context, h host, workspace string, p Pointer) (Context,
 	if err := h.RunCommand(ctx, "git.worktrees", workspace, struct{}{}, &worktrees); err != nil {
 		errs = append(errs, fmt.Errorf("worktrees: %w", err))
 	}
-	for _, wt := range worktrees {
-		if wt.Branch != "" && !slices.Contains(c.Workspace.Branches, wt.Branch) {
-			c.Workspace.Branches = append(c.Workspace.Branches, wt.Branch)
-		}
-	}
+	c.Workspace.Branches = branches(worktrees)
 	var sessions []agentSession
 	if err := h.RunCommand(ctx, "agents.sessions", workspace, struct{}{}, &sessions); err != nil {
 		errs = append(errs, fmt.Errorf("agent sessions: %w", err))
@@ -172,7 +172,7 @@ func resolve(ctx context.Context, h host, workspace string, p Pointer) (Context,
 		if len(c.Workspace.Sessions) < maxSessions {
 			c.Workspace.Sessions = append(c.Workspace.Sessions, brief(s))
 		}
-		if s.NeedsYou {
+		if s.NeedsYou && len(c.NeedsYou) < maxSessions {
 			c.NeedsYou = append(c.NeedsYou, brief(s))
 		}
 	}
@@ -197,7 +197,7 @@ func resolve(ctx context.Context, h host, workspace string, p Pointer) (Context,
 		if err := h.RunCommand(ctx, "backlog.get", workspace, map[string]int{"id": sel.Task}, &task); err != nil {
 			errs = append(errs, fmt.Errorf("task %d: %w", sel.Task, err))
 		}
-		c.Task = task
+		c.Task = cutTask(task)
 	}
 	return c, errors.Join(errs...)
 }
@@ -323,6 +323,54 @@ func mainView(slots []slotView, section string) json.RawMessage {
 		return json.RawMessage(truncatedView)
 	}
 	return slots[i].Tree
+}
+
+func cutTask(raw json.RawMessage) json.RawMessage {
+	if len(raw) <= maxViewBytes {
+		return raw
+	}
+	var t struct {
+		ID        int    `json:"id"`
+		Title     string `json:"title"`
+		Status    string `json:"status"`
+		Truncated bool   `json:"truncated"`
+	}
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return json.RawMessage(truncatedView)
+	}
+	t.Truncated = true
+	out, err := json.Marshal(t)
+	if err != nil {
+		return json.RawMessage(truncatedView)
+	}
+	return out
+}
+
+func branches(worktrees []worktree) []string {
+	var current []string
+	var others []worktree
+	for _, wt := range worktrees {
+		switch {
+		case wt.Branch == "":
+		case wt.Main || wt.Current:
+			if !slices.Contains(current, wt.Branch) {
+				current = append(current, wt.Branch)
+			}
+		default:
+			others = append(others, wt)
+		}
+	}
+	slices.SortStableFunc(others, func(a, b worktree) int { return b.Committed.Compare(a.Committed) })
+	list := current
+	for _, wt := range others {
+		if len(list) == len(current)+maxOtherBranches {
+			break
+		}
+		if !slices.Contains(list, wt.Branch) {
+			list = append(list, wt.Branch)
+		}
+	}
+	return list
 }
 
 func brief(s agentSession) SessionBrief {

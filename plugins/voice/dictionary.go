@@ -26,8 +26,12 @@ type dictionaryEntry struct {
 
 func (v *voice) dictionary(ctx context.Context) (dictionary, error) {
 	var d dictionary
-	if _, err := v.h.StorageGet(ctx, dictionaryKey, &d); err != nil {
+	found, err := v.h.StorageGet(ctx, dictionaryKey, &d)
+	if err != nil {
 		return dictionary{}, err
+	}
+	if !found {
+		return dictionary{Entries: slices.Clone(seedDictionary.Entries)}, nil
 	}
 	return d.wire(), nil
 }
@@ -105,3 +109,27 @@ func match(entries []dictionaryEntry, rest []rune) (dictionaryEntry, int) {
 func wordRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
+
+var seedDictionary = dictionary{Entries: []dictionaryEntry{
+	{From: "ворктри", To: "worktree"},
+	{From: "ворк три", To: "worktree"},
+	{From: "мсп", To: "MCP"},
+	{From: "эмсипи", To: "MCP"},
+	{From: "эм си пи", To: "MCP"},
+	{From: "бэклог", To: "backlog"},
+	{From: "баклог", To: "backlog"},
+	{From: "мерж", To: "merge"},
+	{From: "мёрж", To: "merge"},
+	{From: "мердж", To: "merge"},
+	{From: "сквош", To: "squash"},
+	{From: "пиар", To: "PR"},
+	{From: "пи ар", To: "PR"},
+	{From: "си ай", To: "CI"},
+	{From: "гит", To: "git"},
+	{From: "клод", To: "Claude"},
+	{From: "клабмейт", To: "Clubmate"},
+	{From: "клаб мейт", To: "Clubmate"},
+	{From: "компаньон", To: "Companion"},
+	{From: "нвим", To: "nvim"},
+	{From: "энвим", To: "nvim"},
+}}

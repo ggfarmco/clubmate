@@ -65,9 +65,9 @@ struct VoicePanel: View {
             Text("Voice · \(voice.status)")
                 .foregroundStyle(theme.muted)
                 .lineLimit(1)
-            if voice.active {
+            if let hint = voice.sendHint {
                 LevelMeter(levels: voice.levels)
-                Text("⌥Space to send")
+                Text(hint)
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)
             }

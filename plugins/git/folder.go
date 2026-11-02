@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/internal/gitrepo"
@@ -19,6 +20,11 @@ var (
 type folder struct {
 	*gitrepo.Folder
 	root string
+}
+
+type head struct {
+	short     string
+	committed time.Time
 }
 
 func gitFolder(ctx context.Context, h *pluginsdk.Host, workspaceID, repo string) (*folder, error) {
@@ -99,17 +105,22 @@ func (f *folder) treeName(ctx context.Context, t gitrepo.Worktree) string {
 	return strings.TrimSpace(string(out))
 }
 
-func (f *folder) shortHeads(ctx context.Context) (map[string]string, error) {
-	heads := map[string]string{}
+func (f *folder) heads(ctx context.Context) (map[string]head, error) {
+	heads := map[string]head{}
 	for _, t := range f.Trees {
 		if _, ok := heads[t.Head]; ok || t.Head == "" {
 			continue
 		}
-		out, err := run(ctx, f.Checkout.Path, "rev-parse", "--short", t.Head)
+		out, err := run(ctx, f.Checkout.Path, "show", "-s", "--format=%h %cI", t.Head)
 		if err != nil {
 			return nil, err
 		}
-		heads[t.Head] = strings.TrimSpace(string(out))
+		short, date, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+		committed, err := time.Parse(time.RFC3339, date)
+		if err != nil {
+			return nil, fmt.Errorf("commit date of %s: %w", short, err)
+		}
+		heads[t.Head] = head{short: short, committed: committed}
 	}
 	return heads, nil
 }

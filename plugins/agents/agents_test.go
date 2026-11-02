@@ -2068,6 +2068,26 @@ func TestNewSessionFromVoiceNotSelected(t *testing.T) {
 	})
 }
 
+func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": map[string]any{"systemPrompt": "Route the user's words."}}
+
+	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
+
+	voice := listedIDs(t, f, workspace)[0]
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
+		trees := cardsOf(n, "tree")
+		if len(trees) == 0 {
+			return false
+		}
+		raw, err := json.Marshal(trees[0].Props["items"])
+		require.NoError(t, err)
+		_, selected := trees[0].Props["selected"]
+		return strings.Contains(string(raw), voice) && !selected
+	})
+}
+
 func TestVoiceSessionGetsNoPolicyTexts(t *testing.T) {
 	f := start(t, nil)
 	workspace := f.workspace(t, newRepo(t))

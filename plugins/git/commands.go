@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 )
@@ -45,12 +46,13 @@ type worktreeArgs struct {
 }
 
 type worktreeInfo struct {
-	Repo    string `json:"repo"`
-	Path    string `json:"path"`
-	Branch  string `json:"branch"`
-	Head    string `json:"head"`
-	Main    bool   `json:"main"`
-	Current bool   `json:"current"`
+	Repo      string    `json:"repo"`
+	Path      string    `json:"path"`
+	Branch    string    `json:"branch"`
+	Head      string    `json:"head"`
+	Committed time.Time `json:"committed"`
+	Main      bool      `json:"main"`
+	Current   bool      `json:"current"`
 }
 
 type branchInfo struct {

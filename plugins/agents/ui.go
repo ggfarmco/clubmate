@@ -563,8 +563,8 @@ func (a *app) resolveSelected(ctx context.Context, workspaceID string, recs []re
 	resolved := selected
 	if !slices.ContainsFunc(recs, func(r record) bool { return r.ID == selected }) {
 		resolved = ""
-		if len(recs) > 0 {
-			resolved = recs[0].ID
+		if i := slices.IndexFunc(recs, func(r record) bool { return !r.restricted() }); i >= 0 {
+			resolved = recs[i].ID
 		}
 	}
 	a.uiMu.Lock()

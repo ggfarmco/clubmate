@@ -145,6 +145,7 @@ final class VoiceTests: XCTestCase {
         let voice = core.controller()
 
         voice.press(at: 0)
+        XCTAssertEqual(voice.sendHint, "Release to send")
         try await waitUntil { core.source.started }
         voice.release(at: 1)
         XCTAssertFalse(voice.active)
@@ -153,6 +154,7 @@ final class VoiceTests: XCTestCase {
         voice.press(at: 2)
         voice.release(at: 2.1)
         XCTAssertTrue(voice.active)
+        XCTAssertEqual(voice.sendHint, "⌥Space to send")
         voice.press(at: 5)
         voice.release(at: 5.05)
         XCTAssertFalse(voice.active)

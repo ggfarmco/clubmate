@@ -11,7 +11,7 @@
         "title": "List worktrees",
         "hidden": true,
         "agent": true,
-        "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, main, current}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, and current marks the worktree the folder is switched to."
+        "description": "List the git worktrees of every git folder of the workspace, the main checkout first. Returns [{repo, path, branch, head, committed, main, current}]: repo is the workspace folder, path the worktree root, branch is empty when detached, head is the short SHA, committed its committer date, and current marks the worktree the folder is switched to."
       },
       {
         "id": "git.worktree-switch",

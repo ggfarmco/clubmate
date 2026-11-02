@@ -41,7 +41,7 @@ var (
 func listWorktrees(ctx context.Context, h *pluginsdk.Host, workspaceID string) ([]worktreeInfo, error) {
 	list := []worktreeInfo{}
 	err := eachFolder(ctx, h, workspaceID, func(f *folder) error {
-		heads, err := f.shortHeads(ctx)
+		heads, err := f.heads(ctx)
 		if err != nil {
 			return err
 		}
@@ -49,7 +49,7 @@ func listWorktrees(ctx context.Context, h *pluginsdk.Host, workspaceID string) (
 			if t.Bare {
 				continue
 			}
-			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head], Main: j == 0, Current: f.current(t)})
+			list = append(list, worktreeInfo{Repo: f.Repo, Path: t.Path, Branch: t.Branch, Head: heads[t.Head].short, Committed: heads[t.Head].committed, Main: j == 0, Current: f.current(t)})
 		}
 		return nil
 	})

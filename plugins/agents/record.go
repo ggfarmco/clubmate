@@ -151,6 +151,10 @@ func (r record) closed() bool {
 	return r.Status == statusClosed
 }
 
+func (r record) restricted() bool {
+	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != ""
+}
+
 func titleOf(text string) string {
 	return clipRunes(firstLine(text), titleRunes)
 }

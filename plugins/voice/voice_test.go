@@ -86,6 +86,22 @@ func TestStartAudioEndGivesHeard(t *testing.T) {
 	assert.Equal(t, "640", st.Partial)
 }
 
+func TestSeedDictionaryUntilUserSavesOwn(t *testing.T) {
+	v, _, rec := newTestVoice(t)
+	rec.final = "смержи ворк три в мсп"
+	uid := start(t, v)
+	res, err := v.end(t.Context(), testWorkspace, uid)
+	require.NoError(t, err)
+	assert.Equal(t, "смержи worktree в MCP", res.Heard)
+
+	_, err = v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.dictionary-set", Args: raw(t, map[string]any{"entries": []map[string]string{}})})
+	require.NoError(t, err)
+
+	got, err := v.dictionary(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, got.Entries)
+}
+
 func TestAudioAfterEndFails(t *testing.T) {
 	v, _, rec := newTestVoice(t)
 	uid := start(t, v)

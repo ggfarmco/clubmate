@@ -101,6 +101,7 @@ public final class VoiceController {
     public private(set) var active = false
     public private(set) var visible = false
     public private(set) var micDenied = false
+    public private(set) var holding = false
     public private(set) var levels: [Double] = Array(repeating: 0, count: VoiceController.meterBars)
     private var failure: String?
     private var confirming = false
@@ -153,6 +154,11 @@ public final class VoiceController {
         state?.phase == .confirm && failure == nil && !confirming
     }
 
+    public var sendHint: String? {
+        guard active else { return nil }
+        return holding ? "Release to send" : "⌥Space to send"
+    }
+
     public var status: String {
         switch phase {
         case .loading: "Loading the speech model…"
@@ -169,11 +175,13 @@ public final class VoiceController {
         if active {
             swallowRelease = true
             pressedAt = nil
+            holding = false
             finish()
             return
         }
         swallowRelease = false
         pressedAt = time
+        holding = true
         begin()
     }
 
@@ -181,6 +189,7 @@ public final class VoiceController {
         defer {
             pressedAt = nil
             swallowRelease = false
+            holding = false
         }
         guard !swallowRelease, let pressedAt, time - pressedAt >= Self.tapLimit else { return }
         finish()

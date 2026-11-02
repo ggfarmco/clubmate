@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,6 +50,19 @@ func TestResolveViewIsCut(t *testing.T) {
 	assert.True(t, json.Valid(c.View))
 }
 
+func TestResolveCutTaskKeepsIDTitleStatus(t *testing.T) {
+	_, h, _ := newTestVoice(t)
+	stubAgents(h, nil, nil)
+	h.commands["backlog.get"] = func(json.RawMessage) (any, error) {
+		return map[string]any{"id": 7, "title": "Voice polish", "status": "open", "description": strings.Repeat("x", 20<<10)}, nil
+	}
+
+	c, err := resolve(t.Context(), h, testWorkspace, Pointer{Device: "mac", Section: "backlog", Selection: Selection{Task: 7}})
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"id":7,"title":"Voice polish","status":"open","truncated":true}`, string(c.Task))
+}
+
 func TestResolveFallsBackToSelectedSession(t *testing.T) {
 	sessions := []map[string]any{
 		{"id": sessionA, "title": "A", "status": "waiting", "needsYou": true, "needsYouSince": "2026-11-01T10:00:00Z"},
@@ -77,6 +92,26 @@ func TestResolveFallsBackToSelectedSession(t *testing.T) {
 			assert.Equal(t, tt.want, c.Session.ID)
 		})
 	}
+}
+
+func TestResolveKeepsCurrentAndNewestBranches(t *testing.T) {
+	_, h, _ := newTestVoice(t)
+	stubAgents(h, nil, nil)
+	day := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	worktrees := []map[string]any{{"branch": "main", "main": true, "committed": day}, {"branch": "feat/here", "current": true, "committed": day}}
+	for i := range maxOtherBranches + 2 {
+		worktrees = append(worktrees, map[string]any{"branch": "feat/b" + strconv.Itoa(i), "committed": day.Add(time.Duration(i) * time.Hour)})
+	}
+	h.commands["git.worktrees"] = func(json.RawMessage) (any, error) { return worktrees, nil }
+
+	c, err := resolve(t.Context(), h, testWorkspace, Pointer{Device: "mac", Section: "cron"})
+
+	require.NoError(t, err)
+	want := []string{"main", "feat/here"}
+	for i := maxOtherBranches + 1; i > 1; i-- {
+		want = append(want, "feat/b"+strconv.Itoa(i))
+	}
+	assert.Equal(t, want, c.Workspace.Branches)
 }
 
 func stubAgents(h *fakeHost, sessions, slots []map[string]any) {
