@@ -43,6 +43,7 @@ Each agent session of the Agents section has a notification policy: **All** (def
 - `agents.sessions` lists each session's own `notify` (omitted for All) and the applied `notifyEffective`.
 - The Agents sidebar shows a policy other than All at the start of the session's row detail: `Muted · …` or `Input only · …` (the applied one, so children of a muted session show `Muted` too).
 - The phone companion applies the same policy: a held-back notification is added to its inbox as read and gets no local notification.
+- Push notifications the Mac sends to a paired phone (see [real push](remote.md#real-push)) apply the same policy on the Mac: a held-back notification is not pushed.
 - Notifications about terminals and editor sessions are not affected.
 
 ## Inbox

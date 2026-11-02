@@ -58,6 +58,7 @@ type fakeBackend struct {
 	unsubs      []string
 	uiEvents    []pluginsdk.UIEvent
 	views       []pluginsdk.SlotView
+	sessions    json.RawMessage
 }
 
 type runCall struct {
@@ -568,6 +569,7 @@ func newFixture(t *testing.T) *fixture {
 		pairing:  newPairing(f.clock.Now),
 		hub:      newHub(func() {}),
 		identity: &identity{kv: f.kv, publish: f.topics.add, comp: computer{ID: "cmp", Name: "Mac"}},
+		apns:     newAPNSClient(f.kv, f.clock.Now, nil),
 		changed:  func() {},
 		watching: f.watched.add,
 		ping:     time.Hour,
@@ -707,6 +709,9 @@ func (b *fakeBackend) Run(_ context.Context, id, workspace string, args json.Raw
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.runs = append(b.runs, runCall{id: id, workspace: workspace, args: string(args)})
+	if id == sessionsCommand && b.sessions != nil {
+		return b.sessions, nil
+	}
 	return json.RawMessage(`{"ran":"` + id + `"}`), nil
 }
 

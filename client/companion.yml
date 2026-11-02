@@ -38,6 +38,7 @@ targets:
         PRODUCT_MODULE_NAME: Companion
         PRODUCT_BUNDLE_IDENTIFIER: com.clubmate.companion
         INFOPLIST_FILE: Companion/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Companion/Companion.entitlements
         MARKETING_VERSION: "0.0.0-dev"
         CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

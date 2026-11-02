@@ -157,6 +157,10 @@ public actor RemoteClient {
         _ = try await rpc("macs", params: .object(["macs": try JSONValue.encoding(macs)]))
     }
 
+    public func pushToken(_ token: PushToken) async throws -> Bool {
+        try await rpc("pushToken", params: .object(["token": .string(token.token), "environment": .string(token.environment)]))["push"]?.boolValue ?? false
+    }
+
     public func setIdentityColour(_ colour: String) async throws -> ComputerInfo {
         try await rpc("setIdentityColour", params: .object(["colour": .string(colour)])).decode(IdentityReply.self).computer
     }

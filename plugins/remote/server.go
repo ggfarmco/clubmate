@@ -45,6 +45,7 @@ type server struct {
 	pairing  *pairing
 	hub      *hub
 	identity *identity
+	apns     *apnsClient
 	changed  func()
 	watching func(contract.RemoteWatching)
 	ping     time.Duration
@@ -247,6 +248,12 @@ func (s *server) call(ctx context.Context, d device, req rpcRequest) (any, error
 			return nil, err
 		}
 		return s.setIdentityColour(ctx, p.Colour)
+	case "pushToken":
+		var p pushTokenRequest
+		if err := decodeParams(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return s.pushToken(ctx, d, p)
 	case "uiSections":
 		return s.uiSections(ctx)
 	case "uiGet":

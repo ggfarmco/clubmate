@@ -8,9 +8,11 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
     private let center = UNUserNotificationCenter.current()
     private var opened: ((_ computer: String, _ workspace: String, _ session: String?) -> Void)?
     private var background: UIBackgroundTaskIdentifier = .invalid
+    private weak var model: CompanionModel?
 
     func attach(model: CompanionModel, navigation: AppNavigation) {
         center.delegate = self
+        self.model = model
         opened = { computer, workspace, session in
             if let session {
                 navigation.workspaces[computer] = workspace
@@ -28,8 +30,11 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
             post(alert)
         }
         model.withdrawn = { [weak self] ids in
-            self?.center.removeDeliveredNotifications(withIdentifiers: ids)
             self?.center.removePendingNotificationRequests(withIdentifiers: ids)
+            Task { [weak self] in
+                guard let self else { return }
+                center.removeDeliveredNotifications(withIdentifiers: DeliveredNotice.withdrawn(Set(ids), from: await center.delivered()))
+            }
         }
         if !model.computers.isEmpty { requestAuthorization() }
     }
@@ -38,14 +43,23 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         #if DEBUG
         if UserDefaults.standard.string(forKey: "fixtures") != nil { return }
         #endif
-        Task { _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge]) }
+        Task {
+            guard (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) == true else { return }
+            UIApplication.shared.registerForRemoteNotifications()
+        }
     }
 
     func enteredBackground() {
         guard background == .invalid else { return }
         background = UIApplication.shared.beginBackgroundTask(withName: "Clubmate events") { [weak self] in
-            MainActor.assumeIsolated { self?.endBackground() }
+            MainActor.assumeIsolated { self?.expire() }
         }
+    }
+
+    func expire() {
+        guard background != .invalid else { return }
+        model?.disconnectAll()
+        endBackground()
     }
 
     func endBackground() {
@@ -55,7 +69,9 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        let remote = notification.request.trigger is UNPushNotificationTrigger
+        let active = await MainActor.run { UIApplication.shared.applicationState == .active }
+        return remote && active ? [] : [.banner, .list, .sound]
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
@@ -73,9 +89,15 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         content.body = alert.body
         content.sound = .default
         content.threadIdentifier = alert.computerID
-        var info: [String: String] = ["computer": alert.computerID, "workspace": alert.workspace]
+        var info: [String: String] = ["id": alert.id, "computer": alert.computerID, "workspace": alert.workspace, "kind": alert.kind.rawValue]
         if let session = alert.session { info["session"] = session }
         content.userInfo = info
         center.add(UNNotificationRequest(identifier: alert.id, content: content, trigger: nil)) { _ in }
+    }
+}
+
+extension UNUserNotificationCenter {
+    @MainActor func delivered() async -> [DeliveredNotice] {
+        await deliveredNotifications().map { DeliveredNotice(identifier: $0.request.identifier, userInfo: $0.request.content.userInfo) }
     }
 }

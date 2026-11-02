@@ -105,6 +105,7 @@ public struct LocalAlert: Sendable, Equatable {
     public let computerID: String
     public let workspace: String
     public let session: String?
+    public let kind: NotificationKind
 
     public init?(_ item: InboxItem, computerName: String, workspaceName: String?, now: Date) {
         guard Self.kinds.contains(item.kind), now.timeIntervalSince(item.date) < Self.window else { return nil }
@@ -115,6 +116,7 @@ public struct LocalAlert: Sendable, Equatable {
         computerID = item.computerID
         workspace = item.workspace
         session = item.session
+        kind = item.kind
     }
 }
 

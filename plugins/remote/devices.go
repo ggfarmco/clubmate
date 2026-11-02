@@ -31,6 +31,9 @@ type device struct {
 	LastSeen  time.Time `json:"lastSeen"`
 	TokenHash string    `json:"tokenHash"`
 	Macs      []macInfo `json:"macs,omitempty"`
+
+	PushToken       string `json:"pushToken,omitempty"`
+	PushEnvironment string `json:"pushEnvironment,omitempty"`
 }
 
 type deviceStore struct {
@@ -177,6 +180,27 @@ func (s *deviceStore) setMacs(ctx context.Context, id string, macs []macInfo) (b
 	return true, nil
 }
 
+func (s *deviceStore) setPush(ctx context.Context, id, token, env string) error {
+	return s.editPush(ctx, id, func(d device) (string, string) {
+		switch {
+		case d.ID == id:
+			return token, env
+		case token != "" && d.PushToken == token:
+			return "", ""
+		}
+		return d.PushToken, d.PushEnvironment
+	})
+}
+
+func (s *deviceStore) dropPush(ctx context.Context, token string) error {
+	return s.editPush(ctx, "", func(d device) (string, string) {
+		if d.PushToken == token {
+			return "", ""
+		}
+		return d.PushToken, d.PushEnvironment
+	})
+}
+
 func (s *deviceStore) usedColours() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -208,6 +232,43 @@ func (s *deviceStore) undoAdd(added device, prev *device, prevSaved time.Time, h
 		s.saved[added.ID] = prevSaved
 	} else {
 		delete(s.saved, added.ID)
+	}
+}
+
+func (s *deviceStore) editPush(ctx context.Context, need string, edit func(device) (string, string)) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	if need != "" && !slices.ContainsFunc(s.devices, func(d device) bool { return d.ID == need }) {
+		s.mu.Unlock()
+		return errUnknownDevice
+	}
+	var prev []device
+	for i, d := range s.devices {
+		token, env := edit(d)
+		if token == d.PushToken && env == d.PushEnvironment {
+			continue
+		}
+		prev = append(prev, d)
+		s.devices[i].PushToken, s.devices[i].PushEnvironment = token, env
+	}
+	s.mu.Unlock()
+	for _, p := range prev {
+		if err := s.persist(ctx, p.ID); err != nil {
+			s.restorePush(prev)
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *deviceStore) restorePush(prev []device) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range prev {
+		if i := slices.IndexFunc(s.devices, func(d device) bool { return d.ID == p.ID }); i >= 0 {
+			s.devices[i].PushToken, s.devices[i].PushEnvironment = p.PushToken, p.PushEnvironment
+		}
 	}
 }
 

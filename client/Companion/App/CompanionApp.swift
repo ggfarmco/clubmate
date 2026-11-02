@@ -9,6 +9,7 @@ struct CompanionApp: App {
     static let refreshTask = "com.clubmate.companion.refresh"
     static let refreshEvery: TimeInterval = 15 * 60
 
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model: CompanionModel
     @State private var navigation: AppNavigation
     @State private var pairing = PairingFlow()
@@ -45,6 +46,7 @@ struct CompanionApp: App {
                 notifier.attach(model: model, navigation: navigation)
                 let work = Task { @MainActor in
                     await model.catchUp()
+                    if UIApplication.shared.applicationState == .background { model.disconnectAll() }
                     task.setTaskCompleted(success: !Task.isCancelled)
                 }
                 task.expirationHandler = { work.cancel() }
@@ -100,6 +102,7 @@ struct CompanionApp: App {
             }
             .onChange(of: pairing.paired) { _, _ in notifier.requestAuthorization() }
             .task {
+                delegate.registered = { model.registered($0) }
                 notifier.attach(model: model, navigation: navigation)
                 model.start()
                 #if DEBUG

@@ -24,6 +24,7 @@ public final class CompanionModel {
     @ObservationIgnored private var lastSignal = ContinuousClock.now
     @ObservationIgnored private var receiving = 0
     @ObservationIgnored private var resolvedAt: [String: Int] = [:]
+    @ObservationIgnored public private(set) var pushToken: PushToken?
 
     public init(store: ComputerStore, transport: any HTTPTransport, device: DeviceIdentity, policy: HostPolicy = .tailnet, cursors: UserDefaults? = nil, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.store = store
@@ -47,6 +48,20 @@ public final class CompanionModel {
     public func reconnectAll() {
         for connection in connections.values {
             connection.reconnectNow()
+        }
+    }
+
+    public func disconnectAll() {
+        for connection in connections.values {
+            connection.stop()
+        }
+    }
+
+    public func registered(_ token: PushToken) {
+        guard token != pushToken else { return }
+        pushToken = token
+        for connection in connections.values where connection.state == .online {
+            Task { await connection.sendPushToken(token) }
         }
     }
 
@@ -179,10 +194,6 @@ public final class CompanionModel {
 
     private static let resolvedKind = "resolved"
 
-    private static func resolvedNotifications(_ payload: JSONValue) -> [NotificationKind] {
-        payload["requestKind"]?.stringValue == "elicitation" ? [.question, .needsInput] : [.permission]
-    }
-
     private static func resolvedKey(_ computer: String, _ session: String, _ kind: NotificationKind) -> String {
         computer + "|" + session + "|" + kind.rawValue
     }
@@ -204,7 +215,11 @@ public final class CompanionModel {
             case .online:
                 identified(connection.computer)
                 let list = macs(excluding: computer)
-                Task { await connection.sendMacs(list) }
+                let token = pushToken
+                Task {
+                    await connection.sendMacs(list)
+                    if let token { await connection.sendPushToken(token) }
+                }
             case .event(let event) where event.topic == ComputerConnection.identityTopic:
                 identified(connection.computer)
             case .event:
@@ -213,7 +228,7 @@ public final class CompanionModel {
         }
         if case .event(let event) = signal, event.topic == Topic.agentsChanged, event.payload["kind"]?.stringValue == Self.resolvedKind,
            let session = event.payload["session"]?.stringValue {
-            let ids = Self.resolvedNotifications(event.payload).flatMap { kind in
+            let ids = NotificationKind.resolved(by: event.payload["requestKind"]?.stringValue).flatMap { kind in
                 resolvedAt[Self.resolvedKey(computer, session, kind)] = event.seq
                 return inbox.resolve(computer: computer, session: session, kind: kind)
             }

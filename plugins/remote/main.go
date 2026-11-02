@@ -23,6 +23,7 @@ const (
 	listenEnv    = "CLUBMATE_REMOTE_LISTEN"
 	defaultPort  = 47621
 	rescanEvery  = 30 * time.Second
+	pushTimeout  = time.Minute
 	changedTopic = "remote.changed"
 	computerKey  = "computer"
 	enabledKey   = "enabled"
@@ -66,6 +67,7 @@ type status struct {
 	TitleBarColour bool       `json:"titleBarColour"`
 	OtherMacs      []otherMac `json:"otherMacs"`
 	TitleDot       bool       `json:"titleDot"`
+	Push           bool       `json:"push"`
 }
 
 type otherMac struct {
@@ -100,6 +102,12 @@ type revokeArgs struct {
 	Device string `json:"device"`
 }
 
+type apnsArgs struct {
+	Path   string `json:"path"`
+	KeyID  string `json:"keyID"`
+	TeamID string `json:"teamID"`
+}
+
 func main() {
 	a := &app{ready: make(chan struct{})}
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, Command: a.command, BusEvent: a.busEvent, BusClosed: a.busClosed, UIUpdated: a.uiUpdated, Shutdown: a.shutdown})
@@ -130,12 +138,17 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	}
 	a.enabled, a.port, a.titleBar = enabled, port, titleBar
 	a.ident = &identity{kv: h, publish: a.publish, comp: comp}
+	apns := newAPNSClient(h, time.Now, apnsHosts)
+	if err := apns.load(ctx); err != nil {
+		logf("load APNs key: %v", err)
+	}
 	a.srv = &server{
 		backend:  hostBackend{host: h},
 		devices:  devices,
 		pairing:  newPairing(time.Now),
 		hub:      newHub(a.changed),
 		identity: a.ident,
+		apns:     apns,
 		changed:  a.changed,
 		watching: a.watching,
 		ping:     pingInterval,
@@ -210,6 +223,15 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, err
 		}
 		return nil, a.srv.revoke(ctx, args.Device)
+	case "remote.set-apns":
+		var args apnsArgs
+		if err := decodeArgs(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		if err := a.srv.apns.configure(ctx, args.Path, args.KeyID, args.TeamID); err != nil {
+			return nil, err
+		}
+		return a.status(), nil
 	}
 	return nil, fmt.Errorf("%w: %s", errUnknownCommand, cmd.ID)
 }
@@ -217,11 +239,19 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 func (a *app) busEvent(_ context.Context, _ *pluginsdk.Host, _ string, ev pluginsdk.Event) {
 	a.mu.Lock()
 	a.lastSeq = max(a.lastSeq, ev.Seq)
+	enabled := a.enabled
 	a.mu.Unlock()
 	if ev.Topic == pluginChangedTopic {
 		a.srv.forgetCommands()
 	}
 	a.srv.hub.publish(ev)
+	if enabled && (ev.Topic == notifyTopic || ev.Topic == agentsChangedTopic) {
+		go func() {
+			ctx, cancel := context.WithTimeout(a.ctx, pushTimeout)
+			defer cancel()
+			a.srv.push(ctx, ev)
+		}()
+	}
 }
 
 func (a *app) busClosed(ctx context.Context, h *pluginsdk.Host, sub string, cause error) {
@@ -425,6 +455,7 @@ func (a *app) status() status {
 		TitleBarColour: a.titleBar,
 		OtherMacs:      others,
 		TitleDot:       a.titleBar && len(others) > 0,
+		Push:           a.srv.apns.configured(),
 	}
 	dns := a.dns
 	a.mu.Unlock()

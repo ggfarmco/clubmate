@@ -149,6 +149,10 @@ public final class ComputerConnection: CommandRunner {
         try? await client.macs(macs)
     }
 
+    public func sendPushToken(_ token: PushToken) async {
+        _ = try? await client.pushToken(token)
+    }
+
     public func setColour(_ colour: MacColour) async throws -> Computer {
         do {
             identify(try await client.setIdentityColour(colour.rawValue))

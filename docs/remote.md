@@ -16,6 +16,7 @@ clubmate command run remote.revoke device=<id>
 clubmate command run remote.set-port port=<port>
 clubmate command run remote.set-colour colour=<token>
 clubmate command run remote.set-title-bar-colour enabled=false
+clubmate command run remote.set-apns path=$HOME/Downloads/AuthKey_ABC123DEFG.p8 teamID=<team id>
 ```
 
 ## A colour for each Mac
@@ -53,6 +54,7 @@ All bodies are JSON. Authenticated endpoints need `Authorization: Bearer <token>
   - `command {id, workspace, args}` → the command's result verbatim; ids missing from `hello.commands` (non-remote or plugin not running) fail with `not_allowed`. The plugin caches that list and drops it on every `plugin.changed`.
   - `macs {macs: [{name, colour}]}` → `null`; replaces this device's list of the other Macs it has paired. The phone sends it after every `hello` and whenever its Mac list or another Mac's colour changes.
   - `setIdentityColour {colour}` → `{computer}`; an unknown token fails with `invalid_params`.
+  - `pushToken {token, environment}` → `{push}`; stores this device's APNs device token (hex, at most 200 characters) and its `environment` (`development` or `production`) on its device record (`pushToken`, `pushEnvironment`); another device holding the same token loses it; an empty `token` clears it. `push` is true when the Mac has an APNs key (see [real push](#real-push)).
   - `uiSections` → the core's `ui.sections` entries with `scope: workspace`, verbatim (`[{id, title, icon, order, scope, autoNew, plugin, slots?, host?, rail?}]`).
   - `uiGet {workspace, slots}` → `[{workspaceId, slot, owner, rev, tree}]`, the core's `ui.get` views (full trees) of that workspace whose slot is in `slots`; `*.popup` in `slots` stands for every `<section>.popup` slot.
   - `uiEvent {workspace, slot, nodeId, action, value}` → core `ui.event` with `workspaceId: workspace`, result verbatim (`null` when empty). Any slot is allowed.
@@ -70,7 +72,7 @@ All hidden, app-scoped (`"scope": "app"`), never agent or remote. Call `command.
 
 | Command | Args | Result |
 |---|---|---|
-| `remote.status` | – | `{enabled, port, listening: ["100.x.y.z:47621"], hosts: ["mac.tailnet.ts.net", "100.x.y.z"], error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices: [deviceName]}], titleDot}`; `otherMacs` is the union of every device's `macs` by name (sorted by name; the most recently seen device's colour wins), `titleDot` = `titleBarColour` and `otherMacs` is not empty |
+| `remote.status` | – | `{enabled, port, listening: ["100.x.y.z:47621"], hosts: ["mac.tailnet.ts.net", "100.x.y.z"], error, computer: {id, name, colour}, titleBarColour, otherMacs: [{name, colour, devices: [deviceName]}], titleDot, push}`; `push` = an APNs key is set; `otherMacs` is the union of every device's `macs` by name (sorted by name; the most recently seen device's colour wins), `titleDot` = `titleBarColour` and `otherMacs` is not empty |
 | `remote.enable` | `{enabled}` | status |
 | `remote.set-port` | `{port}` (1–65535) | status; restarts listening, closes open streams, drops the active pairing code; destructive, confirm "Change the companion port? Paired devices stay offline until you pair them again." |
 | `remote.set-colour` | `{colour}` | status; publishes `remote.identity` |
@@ -79,6 +81,7 @@ All hidden, app-scoped (`"scope": "app"`), never agent or remote. Call `command.
 | `remote.cancel-pair` | – | `null` |
 | `remote.devices` | – | `[{id, name, model, pairedAt, lastSeen, connected, macs: [{name, colour}]}]`, newest first |
 | `remote.revoke` | `{device}` | `null`; destructive, confirm "Revoke this device's access to Clubmate?" |
+| `remote.set-apns` | `{path, keyID, teamID}` | status; reads the APNs auth key (`.p8`, PKCS8 P-256) at `path` and stores it with `keyID` (default: `<KEYID>` of a file named `AuthKey_<KEYID>.p8`) and `teamID` in plugin storage (`apnsKey`, `apnsKeyID`, `apnsTeamID`); an empty `path` clears them |
 
 The plugin publishes `remote.changed` `{}` when a device pairs, is revoked, connects or disconnects, reports a different `macs` list, when access is turned on or off or the listening addresses change, and when the colour or the title-bar setting changes.
 
@@ -103,22 +106,30 @@ The Companion app talks plain HTTP to the Mac's `remote` plugin. Its `Info.plist
 
 ## Companion app: notifications
 
-There is no push yet. The app posts **local** notifications from its own event stream:
+While its event stream is open the app posts **local** notifications from it; otherwise the Mac sends a [push](#real-push) when it has an APNs key:
 - When a `notify.posted` event arrives and the app is not active, it shows a notification for kinds `needs-input`, `permission`, `question`, `stuck` and `done` (not `info`) posted less than an hour ago. The identifier is `<computer id>|<notification id>`, so a replayed event does not alert twice. Tapping it opens the session (or the Inbox when the notification has no session). A notification posted while the app is inactive (e.g. Control Center pulled over it) is shown as a banner too.
 - A notification about an agent session first asks `agents.sessions` for the session's applied notification policy (`notifyEffective`); one the policy holds back goes into the Inbox as read and shows no notification (see [per-session policy](notifications.md#per-session-policy)). This applies to notifications replayed by the background refresh too.
 - The app asks for notification permission after the first pairing (or at launch when a Mac is already paired).
-- Limit: iOS suspends the app shortly after it goes to the background. The app asks for background time (about 30 s) to keep the stream open; after that the stream is gone and nothing arrives until the app is opened again, when `Last-Event-ID` replays the missed events into the Inbox. So this covers "switched to another app for a moment", not "phone in the pocket".
+- Limit: iOS suspends the app shortly after it goes to the background. The app asks for background time (about 30 s) to keep the stream open; after that the stream is gone and nothing arrives over it until the app is opened again, when `Last-Event-ID` replays the missed events into the Inbox. So without an APNs key on the Mac this covers "switched to another app for a moment", not "phone in the pocket".
 - Background refresh fallback: on going to the background the app schedules a `BGAppRefreshTask` (`com.clubmate.companion.refresh`, earliest in 15 min). When iOS runs it, the app reconnects to every Mac, replays the events since the last seen `seq` (kept per Mac in `UserDefaults`, so it survives the app being terminated), posts local notifications for what it missed and waits until each Mac is online and the stream has been quiet for 2 s (at most 20 s), then schedules the next run. iOS decides when (and whether) it runs, based on how often the app is used, so alerts can be late by much more than 15 min; it is a fallback, not push. Debug a run on a device from Xcode's debugger with `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.clubmate.companion.refresh"]`.
 
-### Real push: design (needs the user's Apple account)
-The no-backend model stays: the Mac sends pushes itself.
-- The phone registers for remote notifications and sends its APNs device token to the Mac (`POST /v1/push-token`, authenticated with the device token, stored next to the device; dropped on revoke).
-- The `remote` plugin sends an APNs request (HTTP/2 to `api.push.apple.com`, token-based auth with a JWT signed by the `.p8` key) for the same `notify.posted` kinds as the local notifications. Payload carries only title, body and `computer/workspace/session`; the app refetches the rest.
-- What only the user can provide:
-  1. A paid Apple Developer Program membership (free/personal teams can't enable Push Notifications).
-  2. The Push Notifications capability on the App ID `com.clubmate.companion` (plus the `aps-environment` entitlement in the app).
-  3. An APNs auth key (`.p8`, its Key ID and the Team ID) installed on the Mac for the plugin.
-- Until then the background refresh fallback above is the only way alerts reach a phone that has been in the pocket for a while.
+### Real push
+The no-backend model stays: the Mac sends pushes itself, straight to APNs.
+- The phone sends its APNs device token with the `pushToken` rpc; revoking the device drops it.
+- On `notify.posted` of kind `needs-input`, `permission`, `question`, `stuck` or `done` (not `info`, nothing posted over an hour ago) the `remote` plugin pushes an alert to every paired device that has a token and no open event stream right now (a device with an open stream gets the event over SSE and posts a local notification itself). Only while companion access is on.
+- The [per-session policy](notifications.md#per-session-policy) is applied on the Mac the same way the phone does: for a notification about an agent session (`agt_…`) it runs `agents.sessions {session}` in that workspace and reads `notifyEffective`; `muted` sends nothing, `needs-input` only `needs-input`, `permission` and `question`; no answer or an unknown session counts as All.
+- Alert: headers `apns-topic: com.clubmate.companion`, `apns-push-type: alert`, `apns-priority: 10`, `apns-collapse-id: <notification id>` (first 64 bytes); body `{"aps": {"alert": {"title", "subtitle", "body"}, "sound": "default", "thread-id": <computer id>}, "id": "<computer id>|<notification id>", "computer", "workspace", "session" (omitted without one), "kind"}`. Title = `<Mac name> · <workspace name>` (empty parts dropped), subtitle = the notification's title or the kind's label (Needs input, Permission needed, Question, Done, Stuck), body = the message. `id` is the local notification's identifier, so the push and a later replay do not alert twice.
+- Resolved: on `agents.changed` of kind `resolved` the same devices get a background push (`apns-push-type: background`, `apns-priority: 5`): `{"aps": {"content-available": 1}, "resolved": {"computer", "session", "requestKind"}}` (`requestKind` `permission` or `elicitation`), so the phone drops the delivered notification.
+- Environment: a device token from a development build (Xcode) goes to `api.sandbox.push.apple.com`, one from a TestFlight/App Store build to `api.push.apple.com`; the phone says which in `environment`. Requests are HTTP/2 `POST /3/device/<token>` with a JWT (ES256, `kid` = key id, `iss` = team id) signed with the `.p8` key and reused for 50 minutes.
+- A `410`, or `400` with `BadDeviceToken` or `Unregistered`, clears that device's token; other failures are logged and the push is dropped. Sends run in the background with a timeout and never hold up the event stream.
+
+Setup (user):
+1. A paid Apple Developer Program membership (done).
+2. The Push Notifications capability: Xcode's automatic signing adds it to the App ID `com.clubmate.companion` when the app is built with `-allowProvisioningUpdates`.
+3. Create an APNs auth key in developer.apple.com → Certificates, IDs & Profiles → Keys (enable Apple Push Notifications service) and download the `AuthKey_<KEYID>.p8`.
+4. On the Mac: `clubmate command run remote.set-apns path=<…/AuthKey_<KEYID>.p8> teamID=<team id>`; `remote.status` shows `push: true`.
+
+Without a key the background refresh fallback above is the only way alerts reach a phone that has been in the pocket for a while.
 
 ## Testing on a real iPhone
 
