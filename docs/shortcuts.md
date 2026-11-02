@@ -202,6 +202,7 @@ Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode 
 | Diff | ,dm / ,dM | Diff against the merge base with `main`, with a picked branch | `lua/clubmate/plugins/git.lua` |
 | Diff | ,dh / ,dq | File history, close Diffview | `lua/clubmate/plugins/git.lua` |
 | Diff | q / e (Diffview) | Close, edit the file; `s` stage, `r` mark reviewed in the file panel | `lua/clubmate/plugins/git.lua` |
+| Diff | zt / zg / zr (Diffview file panel) | Show or hide test files, generated files, reviewed files | diffview.nvim `config.lua` |
 | Review | ,rc (normal, visual) / ,rl | Add a review comment, list comments | diffview.nvim `nrev` |
 | Review | ]a / [a | Next, previous review comment | diffview.nvim `nrev` |
 | Review | ,rx / ,rd / ,re | Resolve or reopen, delete, export comments to the clipboard | diffview.nvim `nrev` |

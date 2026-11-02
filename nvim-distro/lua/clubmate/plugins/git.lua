@@ -1,19 +1,12 @@
 local pin = require("clubmate.pin")
 
-local EXCLUDES = table.concat({
-  ":(exclude)**/go.mod",
-  ":(exclude)**/go.sum",
-  ":(exclude)**/*-lock.json",
-  ":(exclude)**/*-lock.yaml",
-}, " ")
-
 local function diff_against_merge_base(base)
   local merge_base = vim.trim(vim.fn.system({ "git", "merge-base", base, "HEAD" }))
   if vim.v.shell_error ~= 0 then
     vim.notify("git merge-base " .. base .. " HEAD failed: " .. merge_base, vim.log.levels.ERROR)
     return
   end
-  vim.cmd("DiffviewOpen " .. merge_base .. " -- " .. EXCLUDES)
+  vim.cmd("DiffviewOpen " .. merge_base)
 end
 
 return {
@@ -55,7 +48,7 @@ return {
       {
         "<leader>dv",
         function()
-          vim.cmd("DiffviewOpen -- " .. EXCLUDES)
+          vim.cmd("DiffviewOpen")
         end,
         desc = "Diffview open",
       },
