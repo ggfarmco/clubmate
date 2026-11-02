@@ -380,7 +380,7 @@ A plugin may render a slot as `{workspaceId, slot, base, delta}` instead of `{tr
 
 - `tree` together with `delta`, or `delta` without a `base` ≥ 1, is invalid params; a delta that does not resolve (a ref outside the base tree, trailing data) or resolves to more than twice the base tree plus the delta's own size is an invalid tree.
 - A `base` that is not the slot's current rev (another render came in between, the slot was cleared, or the core restarted) fails with `-32016` ("delta base is not the slot's current rev") and leaves the slot as it is.
-- `pluginsdk.Host.Render` / `RenderJSON` do this on their own: after a slot's first successful render they send the delta against the last tree the core accepted for it, and on any error from a delta render resend the full `tree` once. A tree whose delta would not be smaller goes as a full `tree`.
+- `pluginsdk.Host.Render` / `RenderJSON` do this on their own: after a slot's first successful render they send the delta against the last tree the core accepted for it, and on any error from a delta render resend the full `tree` once. A tree whose delta would not be smaller goes as a full `tree`. The SDK remembers that tree for the 64 most recently rendered (workspace, slot) pairs; a slot it has forgotten (for example of a deleted workspace) goes as a full `tree` the next time.
 
 While an agent streams into the ~726 KB `agents.main` tree, each plugin→core render is ~10 KB (the same size as the app's frame) instead of the whole tree.
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -337,32 +338,13 @@ func TestWatchedSectionsKeepsLatestPerWorkspace(t *testing.T) {
 func TestSDKRenderSendsDeltaAndFallsBackToFullTree(t *testing.T) {
 	var renders []map[string]json.RawMessage
 	reject := false
-	core := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
-		if req.Method != "ui.render" {
-			return nil, nil
-		}
-		var p map[string]json.RawMessage
-		if err := json.Unmarshal(*req.Params, &p); err != nil {
-			return nil, err
-		}
+	h := renderHost(t, func(p map[string]json.RawMessage) (any, error) {
 		renders = append(renders, p)
 		if reject && p["delta"] != nil {
 			return nil, &jsonrpc2.Error{Code: -32016, Message: "stale base"}
 		}
 		return map[string]int{"rev": len(renders)}, nil
 	})
-	coreSide, pluginSide := net.Pipe()
-	conn := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), jsonrpc2.AsyncHandler(core))
-	t.Cleanup(func() { conn.Close() })
-	ready := make(chan *pluginsdk.Host, 1)
-	go func() {
-		_ = pluginsdk.RunConn(t.Context(), pluginSide, pluginsdk.Plugin{Init: func(_ context.Context, h *pluginsdk.Host) error {
-			ready <- h
-			return nil
-		}})
-	}()
-	require.NoError(t, conn.Call(t.Context(), "plugin.initialize", map[string]any{"protocol": 1, "pluginId": "echo"}, nil))
-	h := <-ready
 	tree := func(text string) json.RawMessage {
 		return json.RawMessage(`{"type":"stack","props":{"direction":"vertical"},"children":[{"type":"text","props":{"text":"a line that stays the same"}},{"type":"text","props":{"text":"` + text + `"}}]}`)
 	}
@@ -380,4 +362,52 @@ func TestSDKRenderSendsDeltaAndFallsBackToFullTree(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), rev)
 	assert.JSONEq(t, string(tree("a first line that keeps growing, then more and more")), string(renders[3]["tree"]))
+}
+
+func TestSDKRenderForgetsLeastRecentlyRenderedSlots(t *testing.T) {
+	var renders []map[string]json.RawMessage
+	h := renderHost(t, func(p map[string]json.RawMessage) (any, error) {
+		renders = append(renders, p)
+		return map[string]int{"rev": len(renders)}, nil
+	})
+	tree := json.RawMessage(`{"type":"text","props":{"text":"a line long enough to go as a ref"}}`)
+	ctx := t.Context()
+	_, err := h.RenderJSON(ctx, "prj_a", "a.main", tree)
+	require.NoError(t, err)
+	for i := range 64 {
+		_, err := h.RenderJSON(ctx, "prj_"+strconv.Itoa(i), "a.main", tree)
+		require.NoError(t, err)
+	}
+	_, err = h.RenderJSON(ctx, "prj_a", "a.main", tree)
+	require.NoError(t, err)
+	last := renders[len(renders)-1]
+	assert.JSONEq(t, string(tree), string(last["tree"]))
+	assert.NotContains(t, last, "base")
+	assert.NotContains(t, last, "delta")
+}
+
+func renderHost(t *testing.T, render func(map[string]json.RawMessage) (any, error)) *pluginsdk.Host {
+	t.Helper()
+	core := jsonrpc2.HandlerWithError(func(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (any, error) {
+		if req.Method != "ui.render" {
+			return nil, nil
+		}
+		var p map[string]json.RawMessage
+		if err := json.Unmarshal(*req.Params, &p); err != nil {
+			return nil, err
+		}
+		return render(p)
+	})
+	coreSide, pluginSide := net.Pipe()
+	conn := jsonrpc2.NewConn(t.Context(), jsonrpc2.NewPlainObjectStream(coreSide), jsonrpc2.AsyncHandler(core))
+	t.Cleanup(func() { conn.Close() })
+	ready := make(chan *pluginsdk.Host, 1)
+	go func() {
+		_ = pluginsdk.RunConn(t.Context(), pluginSide, pluginsdk.Plugin{Init: func(_ context.Context, h *pluginsdk.Host) error {
+			ready <- h
+			return nil
+		}})
+	}()
+	require.NoError(t, conn.Call(t.Context(), "plugin.initialize", map[string]any{"protocol": 1, "pluginId": "echo"}, nil))
+	return <-ready
 }

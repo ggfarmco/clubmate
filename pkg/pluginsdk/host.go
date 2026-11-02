@@ -23,14 +23,18 @@ type (
 	Event       = contract.Event
 )
 
-const busReadLimit = 1000
+const (
+	busReadLimit   = 1000
+	renderCacheCap = 64
+)
 
 type Host struct {
 	conn     *jsonrpc2.Conn
 	pluginID func() string
 
-	renderMu sync.Mutex
-	rendered map[slotRef]renderedTree
+	renderMu   sync.Mutex
+	rendered   map[slotRef]renderedTree
+	renderTick uint64
 }
 
 func (h *Host) PluginID() string {
@@ -391,6 +395,7 @@ type slotRef struct {
 type renderedTree struct {
 	rev   int64
 	index *sdui.TreeIndex
+	used  uint64
 }
 
 type approveParams struct {
@@ -455,6 +460,11 @@ func (h *Host) lastRender(key slotRef) (renderedTree, bool) {
 	h.renderMu.Lock()
 	defer h.renderMu.Unlock()
 	r, ok := h.rendered[key]
+	if ok {
+		h.renderTick++
+		r.used = h.renderTick
+		h.rendered[key] = r
+	}
 	return r, ok
 }
 
@@ -464,7 +474,20 @@ func (h *Host) remember(key slotRef, r renderedTree) {
 	if h.rendered == nil {
 		h.rendered = map[slotRef]renderedTree{}
 	}
-	if r.rev > h.rendered[key].rev {
-		h.rendered[key] = r
+	if r.rev <= h.rendered[key].rev {
+		return
 	}
+	h.renderTick++
+	r.used = h.renderTick
+	h.rendered[key] = r
+	if len(h.rendered) <= renderCacheCap {
+		return
+	}
+	oldest := key
+	for k, v := range h.rendered {
+		if v.used < h.rendered[oldest].used {
+			oldest = k
+		}
+	}
+	delete(h.rendered, oldest)
 }
