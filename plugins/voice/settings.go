@@ -17,17 +17,19 @@ var (
 	errVoiceOff = errors.New("voice is off; turn it on in Settings → General → Voice")
 
 	models = []model{
-		{ID: "nemotron", Title: "Nemotron 0.6B", Detail: "Shows text while you speak · about 0.35 GB of memory", engine: "transcribe", repo: "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf"},
-		{ID: "whisper-turbo", Title: "Whisper large-v3 turbo", Detail: "Most accurate, text comes once a second · about 0.75 GB of memory", engine: "transcribe", repo: "handy-computer/whisper-large-v3-turbo-gguf/whisper-large-v3-turbo-Q8_0.gguf"},
+		{ID: "nemotron", Title: "Nemotron 0.6B", Detail: "Shows text while you speak · about 0.35 GB of memory", engine: "transcribe", repo: "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf", revision: "53ce288f69326b415aeef030cfcb02a08a8096dd", sha256: "b94545b313b3223fda7b2857a52681da813935c2127643d1e9ff0c23d988089c"},
+		{ID: "whisper-turbo", Title: "Whisper large-v3 turbo", Detail: "Most accurate, text comes once a second · about 0.75 GB of memory", engine: "transcribe", repo: "handy-computer/whisper-large-v3-turbo-gguf/whisper-large-v3-turbo-Q8_0.gguf", revision: "18ada752005f5fddef499256f9a458d0b37a203a", sha256: "257aa7ec9121c22c167d5e2c49e3e76b4ba0e6e27ebc13074eba0a80f8190220"},
 	}
 )
 
 type model struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
-	engine string
-	repo   string
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Detail   string `json:"detail"`
+	engine   string
+	repo     string
+	revision string
+	sha256   string
 }
 
 type settings struct {

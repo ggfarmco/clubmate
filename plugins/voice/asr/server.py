@@ -89,12 +89,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--engine", choices=["transcribe", "fake"], required=True)
     p.add_argument("--model")
+    p.add_argument("--revision")
+    p.add_argument("--sha256")
     p.add_argument("--chunk-ms", type=int, default=320)
     a = p.parse_args()
     if a.engine != "fake" and not os.environ.get(MARKER):
         reexec(a.engine)
     emit = protocol_out()
-    engine = engines.load(a.engine, a.model, a.chunk_ms)
+    engine = engines.load(a.engine, a.model, a.revision, a.sha256, a.chunk_ms)
     emit(ev="ready", engine=a.engine, streaming=engine.streaming)
     serve(engine, emit, sys.stdin.buffer)
 

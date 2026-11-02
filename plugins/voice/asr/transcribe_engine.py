@@ -1,4 +1,5 @@
 import array
+import hashlib
 import os
 import time
 
@@ -26,11 +27,13 @@ class Stream:
 
 
 class TranscribeEngine(Engine):
-    def __init__(self, model, chunk_ms):
+    def __init__(self, model, revision, sha256, chunk_ms):
         if chunk_ms not in LOOKAHEAD:
             raise ValueError(f"transcribe supports --chunk-ms {sorted(LOOKAHEAD)}")
+        if not revision or not sha256:
+            raise ValueError("transcribe needs --revision and --sha256 for the model")
         repo, filename = os.path.split(model)
-        self.model = tc.Model(hf_hub_download(repo, filename))
+        self.model = tc.Model(verified(hf_hub_download(repo, filename, revision=revision), sha256))
         self.session = self.model.session()
         self.streaming = self.model.capabilities.supports_streaming
         self.family = tc.ParakeetStreamOptions(att_context_right=LOOKAHEAD[chunk_ms]) if self.streaming else None
@@ -82,3 +85,13 @@ class TranscribeEngine(Engine):
     def run(self, s):
         prompt = tc.WhisperRunOptions(initial_prompt=s.hint) if s.hint else None
         return self.session.run(s.audio, language=s.lang, family=prompt).text.strip()
+
+
+def verified(path, sha256):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    if h.hexdigest() != sha256:
+        raise ValueError(f"{os.path.basename(path)}: sha256 {h.hexdigest()} does not match the pinned {sha256}")
+    return path

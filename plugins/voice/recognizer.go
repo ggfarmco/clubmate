@@ -400,7 +400,7 @@ func asrCmd(m model) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"run", "--script", filepath.Join(dir, "server.py"), "--engine", m.engine, "--model", m.repo, "--chunk-ms", chunkMS}
+	args := []string{"run", "--script", filepath.Join(dir, "server.py"), "--engine", m.engine, "--model", m.repo, "--revision", m.revision, "--sha256", m.sha256, "--chunk-ms", chunkMS}
 	if engine := os.Getenv("CLUBMATE_VOICE_ENGINE"); engine != "" {
 		args = []string{"run", "--script", filepath.Join(dir, "server.py"), "--engine", engine, "--chunk-ms", chunkMS}
 	}

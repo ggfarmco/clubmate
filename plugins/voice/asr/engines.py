@@ -3,7 +3,11 @@ DEPS = {
 }
 
 MODELS = {
-    "transcribe": "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf",
+    "transcribe": (
+        "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf",
+        "53ce288f69326b415aeef030cfcb02a08a8096dd",
+        "b94545b313b3223fda7b2857a52681da813935c2127643d1e9ff0c23d988089c",
+    ),
 }
 
 
@@ -41,10 +45,11 @@ class FakeEngine(Engine):
         self.sizes.pop(id, None)
 
 
-def load(name, model, chunk_ms):
-    model = model or MODELS.get(name)
+def load(name, model, revision, sha256, chunk_ms):
+    if not model and name in MODELS:
+        model, revision, sha256 = MODELS[name]
     if name == "transcribe":
         from transcribe_engine import TranscribeEngine
 
-        return TranscribeEngine(model, chunk_ms)
+        return TranscribeEngine(model, revision, sha256, chunk_ms)
     return FakeEngine()
