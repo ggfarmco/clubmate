@@ -34,6 +34,7 @@ final class WorkspaceSession {
     private(set) var popupFocusRequest = 0
     @ObservationIgnored var popupHost: PopupWindowHost?
     let popupZoom = DocumentZoom()
+    let popupFind = DocumentFind()
     @ObservationIgnored var autoNew = AutoNewGate()
     private(set) var store: WorkspaceUIStore?
     @ObservationIgnored private let lookup: @MainActor () -> Workspace?

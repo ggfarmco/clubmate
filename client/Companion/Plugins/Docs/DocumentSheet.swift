@@ -30,6 +30,7 @@ private struct DocumentScreen: View {
     let doc: OpenDoc
     @State private var store: DocsStore
     @State private var observer: UUID?
+    @State private var find = DocumentFind()
     @Environment(AppNavigation.self) private var navigation
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openURL) private var openURL
@@ -48,6 +49,11 @@ private struct DocumentScreen: View {
                 if store.stack.count > 1 {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Back", systemImage: "chevron.backward") { store.back() }
+                    }
+                }
+                if !store.stack.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Find", systemImage: "magnifyingglass") { find.show() }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -82,7 +88,7 @@ private struct DocumentScreen: View {
     @ViewBuilder
     private var content: some View {
         if let page = store.stack.last {
-            DocumentWebView(content: DocumentContent(path: page.path, html: page.html, rev: page.rev, anchor: page.anchor, kind: page.isArtifact ? .artifact : .markdown), theme: .system(dark: scheme == .dark), size: .fill, onLink: follow)
+            DocumentWebView(content: DocumentContent(path: page.path, html: page.html, rev: page.rev, anchor: page.anchor, kind: page.isArtifact ? .artifact : .markdown), theme: .system(dark: scheme == .dark), size: .fill, find: find, onLink: follow)
                 .ignoresSafeArea(.container, edges: .bottom)
         } else if let error = store.error {
             ContentUnavailableView("Can't Open Document", systemImage: "doc.questionmark", description: Text(error))

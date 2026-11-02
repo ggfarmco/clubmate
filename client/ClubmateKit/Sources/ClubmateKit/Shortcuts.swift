@@ -79,6 +79,9 @@ public enum AppShortcuts {
             Shortcut("popup.close", ["esc", "cmd+w"], "Close the popup over the workspace", when: "Popup focused"),
             Shortcut("popup.zoom", ["cmd+=", "cmd+-", "cmd+0"], "Zoom the doc in, out, reset", when: "Popup shows a doc"),
             Shortcut("popup.pop-out", ["cmd+shift+o"], "Pop the popup out into its own window", when: "Popup focused"),
+            Shortcut("popup.find", ["cmd+f"], "Find in the doc", when: "Popup shows a doc"),
+            Shortcut("popup.find-step", ["return", "shift+return", "cmd+g", "cmd+shift+g"], "Next, previous match", when: "Find bar open"),
+            Shortcut("popup.find-close", ["esc"], "Close the find bar", when: "Find bar open"),
             Shortcut("doc.diagram", ["+", "-", "0", "esc"], "Enlarged diagram: zoom in, out, fit, close", when: "Markdown doc"),
         ]),
         ShortcutGroup(id: "lists", title: "Lists, palette and pickers", shortcuts: [

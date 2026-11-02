@@ -24,7 +24,7 @@ private struct SlotPopup: ViewModifier {
             .background(ResponderAnchor(responder: responder))
             .overlay {
                 if let store = session.store, let slot = presentation.slot, !session.popupPoppedOut, !session.popupHidden {
-                    PopupPanel(store: store, slot: slot, zoom: session.popupZoom, active: session.overlay == nil) { [session] action in
+                    PopupPanel(store: store, slot: slot, zoom: session.popupZoom, find: session.popupFind, active: session.overlay == nil) { [session] action in
                         switch action {
                         case .popOut: popOut()
                         case .close: session.closePopup(slot)
@@ -60,6 +60,7 @@ private struct SlotPopup: ViewModifier {
             router?.request(slot)
         case .closed:
             session.popupZoom.apply(.fit)
+            session.popupFind.hide()
             if session.popupPoppedOut { return host.hide() }
             if session.popupHidden { return session.popupHidden = false }
             returnFocus()
@@ -118,6 +119,7 @@ struct PopupPanel: View {
     let store: WorkspaceUIStore
     let slot: String
     let zoom: DocumentZoom
+    let find: DocumentFind
     let active: Bool
     let perform: @MainActor (PopupAction) -> Void
 
@@ -129,7 +131,7 @@ struct PopupPanel: View {
                 Color.black.opacity(theme.isDark ? 0.45 : 0.25)
                     .contentShape(Rectangle())
                     .onTapGesture { perform(.close) }
-                PopupContent(store: store, slot: slot, zoom: zoom, poppedOut: false, perform: perform)
+                PopupContent(store: store, slot: slot, zoom: zoom, find: find, poppedOut: false, perform: perform)
                     .frame(width: proxy.size.width * 0.8, height: proxy.size.height * 0.8)
                     .background(theme.background)
                     .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
@@ -138,18 +140,18 @@ struct PopupPanel: View {
             }
         }
         .keyMonitor(active: active) { event in
-            Self.handle(event, store: store, slot: slot, zoom: zoom, perform: perform)
+            Self.handle(event, store: store, slot: slot, zoom: zoom, find: find, perform: perform)
         }
         .modifier(PopupFocus(slot: slot))
         .transition(.opacity)
     }
 
-    static func handle(_ event: NSEvent, store: WorkspaceUIStore, slot: String, zoom: DocumentZoom, perform: (PopupAction) -> Void) -> Bool {
+    static func handle(_ event: NSEvent, store: WorkspaceUIStore, slot: String, zoom: DocumentZoom, find: DocumentFind, perform: (PopupAction) -> Void) -> Bool {
         let flags = event.modifierFlags
         let key = PopupKeys.key(
             keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
             command: flags.contains(.command), control: flags.contains(.control), option: flags.contains(.option), shift: flags.contains(.shift),
-            document: store.slot(slot)?.tree.hasDocument == true, lightbox: zoom.lightbox
+            document: store.slot(slot)?.tree.hasDocument == true, lightbox: zoom.lightbox, finding: find.visible
         )
         switch key {
         case .close: perform(.close)
@@ -157,6 +159,10 @@ struct PopupPanel: View {
         case .zoomIn: zoom.apply(.zoomIn)
         case .zoomOut: zoom.apply(.zoomOut)
         case .zoomReset: zoom.apply(.fit)
+        case .find: find.show()
+        case .findNext: Task { await find.next() }
+        case .findPrevious: Task { await find.previous() }
+        case .closeFind: find.hide()
         case nil: return false
         }
         return true
@@ -167,6 +173,7 @@ struct PopupContent: View {
     let store: WorkspaceUIStore
     let slot: String
     let zoom: DocumentZoom
+    let find: DocumentFind
     let poppedOut: Bool
     let perform: @MainActor (PopupAction) -> Void
 
@@ -177,6 +184,7 @@ struct PopupContent: View {
         SlotPane(store: store, slot: slot)
             .environment(\.headerTrailingInset, measured ?? chromeWidth)
             .environment(\.documentZoom, zoom)
+            .environment(\.documentFind, find)
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: theme.spacing.s) {
                     ForEach(buttons, id: \.id) { button in

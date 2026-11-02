@@ -77,7 +77,7 @@ private struct PopupWindowRoot: View {
     var body: some View {
         Group {
             if let store = session.store, let slot = store.popup {
-                PopupContent(store: store, slot: slot, zoom: session.popupZoom, poppedOut: true, perform: perform)
+                PopupContent(store: store, slot: slot, zoom: session.popupZoom, find: session.popupFind, poppedOut: true, perform: perform)
                 .onChange(of: heading(store, slot), initial: true) { _, heading in title(heading) }
             } else {
                 EmptyNodeView(text: "")
@@ -87,7 +87,7 @@ private struct PopupWindowRoot: View {
         .background(theme.background)
         .keyMonitor(active: true) { event in
             guard let store = session.store, let slot = store.popup else { return false }
-            return PopupPanel.handle(event, store: store, slot: slot, zoom: session.popupZoom, perform: perform)
+            return PopupPanel.handle(event, store: store, slot: slot, zoom: session.popupZoom, find: session.popupFind, perform: perform)
         }
     }
 

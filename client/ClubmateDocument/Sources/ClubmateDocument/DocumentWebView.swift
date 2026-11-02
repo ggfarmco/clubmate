@@ -6,20 +6,22 @@ public struct DocumentWebView: View {
     private let theme: DocumentTheme
     private let size: DocumentSize
     private let zoom: DocumentZoom?
+    private let find: DocumentFind?
     private let onLink: (DocumentLink) -> Void
     @State private var height: CGFloat = 0
 
-    public init(content: DocumentContent, theme: DocumentTheme, size: DocumentSize, zoom: DocumentZoom? = nil, onLink: @escaping (DocumentLink) -> Void) {
+    public init(content: DocumentContent, theme: DocumentTheme, size: DocumentSize, zoom: DocumentZoom? = nil, find: DocumentFind? = nil, onLink: @escaping (DocumentLink) -> Void) {
         self.content = content
         self.theme = theme
         self.size = size
         self.zoom = zoom
+        self.find = find
         self.onLink = onLink
     }
 
     public var body: some View {
         let size = content.kind == .artifact ? .fill : size
-        DocumentRepresentable(content: content, theme: theme, size: size, zoom: zoom, scale: zoom?.scale ?? 1, onLink: onLink) { height = $0 }
+        DocumentRepresentable(content: content, theme: theme, size: size, zoom: zoom, find: find, scale: zoom?.scale ?? 1, onLink: onLink) { height = $0 }
             .id(content.kind)
             .frame(height: size == .fit ? height : nil)
     }
@@ -31,6 +33,7 @@ private struct DocumentRepresentable {
     let theme: DocumentTheme
     let size: DocumentSize
     let zoom: DocumentZoom?
+    let find: DocumentFind?
     let scale: Double
     let onLink: (DocumentLink) -> Void
     let onHeight: (CGFloat) -> Void
@@ -43,6 +46,7 @@ private struct DocumentRepresentable {
         controller.onLink = onLink
         controller.onHeight = onHeight
         if controller.zoom !== zoom { controller.zoom = zoom }
+        if controller.finder !== find { controller.finder = find }
         controller.show(content, theme: theme, size: size)
         controller.setScale(scale)
     }

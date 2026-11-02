@@ -16,12 +16,16 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
     var zoom: DocumentZoom? {
         didSet { zoom?.controller = self }
     }
+    var finder: DocumentFind? {
+        didSet { finder?.controller = self }
+    }
 
     private var wanted: Request?
     private var shown: Request?
     private var work: Task<Void, Never>?
     private var loading: CheckedContinuation<Void, Never>?
     private let artifact = ArtifactScheme()
+    private static let findScript = (try? String(contentsOf: DocumentPage.web.appendingPathComponent("find.js"), encoding: .utf8)) ?? ""
     private var artifactLoad: URL?
 
     init(kind: DocumentKind = .markdown) {
@@ -49,6 +53,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         case .artifact:
             webView.uiDelegate = self
         }
+        installFind()
         webView.navigationDelegate = self
         webView.allowsLinkPreview = false
         webView.allowsBackForwardNavigationGestures = false
@@ -59,6 +64,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
             webView.underPageBackgroundColor = .clear
         }
         #else
+        webView.isFindInteractionEnabled = true
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
@@ -96,6 +102,21 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         #endif
     }
 
+    func find(_ command: FindCommand) async -> FindResult? {
+        let (script, arguments) = command.script
+        return FindResult(try? await webView.callAsyncJavaScript(script, arguments: arguments, contentWorld: .defaultClient))
+    }
+
+    #if os(iOS)
+    func presentFindNavigator() {
+        webView.findInteraction?.presentFindNavigator(showingReplace: false)
+    }
+    #endif
+
+    private func installFind() {
+        webView.configuration.userContentController.addUserScript(WKUserScript(source: Self.findScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+    }
+
     func settled() async {
         await work?.value
     }
@@ -118,6 +139,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
             let change = DocumentPage.update(old: previous?.content, new: next.content)
             if previous == nil || previous?.size != next.size || change == .load {
                 await load(next)
+                await finder?.refresh()
                 continue
             }
             if previous?.theme != next.theme {
@@ -126,6 +148,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
             switch change {
             case .replaceBody:
                 await call("return await window.clubmate.setBody(html)", ["html": next.content.html])
+                await finder?.refresh()
             case .scroll:
                 await scroll(to: next.content.anchor)
             case .load, .none:
@@ -160,6 +183,7 @@ final class DocumentController: NSObject, WKNavigationDelegate, WKUIDelegate {
         let css = String(data: (try? JSONEncoder().encode(theme.css)) ?? Data(), encoding: .utf8) ?? "''"
         let controller = webView.configuration.userContentController
         controller.removeAllUserScripts()
+        installFind()
         controller.addUserScript(WKUserScript(
             source: "const viewport = document.createElement('meta'); viewport.name = 'viewport'; viewport.content = 'width=device-width, initial-scale=1'; const style = document.createElement('style'); style.id = 'clubmate-theme'; style.textContent = \(css); document.documentElement.append(viewport, style)",
             injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .defaultClient
