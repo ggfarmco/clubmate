@@ -86,7 +86,9 @@ func cleanTags(tags []string) ([]string, error) {
 		switch {
 		case tag == "" || slices.Contains(out, tag):
 			continue
-		case strings.ContainsFunc(tag, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("-_./", r) }):
+		case strings.ContainsFunc(tag, func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("-_./", r)
+		}):
 			return nil, errTagChars
 		case utf8.RuneCountInString(tag) > maxTagChars:
 			return nil, errTagLong
