@@ -67,11 +67,19 @@ func TestFindCode(t *testing.T) {
 func TestDownloadFetchesServer(t *testing.T) {
 	state := t.TempDir()
 	var got atomic.Bool
+	root := filepath.Join(state, "vscode", "cli", "serve-web")
+	stale := filepath.Join(root, "old.staging", "bin", "code-server")
+	require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755))
+	require.NoError(t, os.WriteFile(stale, nil, 0o755))
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		got.Store(true)
-		bin := filepath.Join(state, "vscode", "cli", "serve-web", "abc", "bin", "code-server")
-		_ = os.MkdirAll(filepath.Dir(bin), 0o755)
-		_ = os.WriteFile(bin, nil, 0o755)
+		staging := filepath.Join(root, "abc.staging")
+		_ = os.MkdirAll(filepath.Join(staging, "bin"), 0o755)
+		_ = os.WriteFile(filepath.Join(staging, "bin", "code-server"), nil, 0o755)
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			_ = os.Rename(staging, filepath.Join(root, "abc"))
+		}()
 	}))
 	defer srv.Close()
 	pidFile := filepath.Join(t.TempDir(), "pid")
@@ -86,6 +94,8 @@ exec sleep 60
 
 	assert.True(t, got.Load())
 	assert.True(t, s.Downloaded())
+	assert.FileExists(t, filepath.Join(root, "abc", "bin", "code-server"))
+	assert.NoDirExists(t, filepath.Join(root, "old.staging"))
 	raw, err := os.ReadFile(pidFile)
 	require.NoError(t, err)
 	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))

@@ -36,6 +36,7 @@ const (
 	procTailSize    = 4096
 	orphanPoll      = 50 * time.Millisecond
 	pidFileName     = "server.pid"
+	stagingSuffix   = ".staging"
 )
 
 var (
@@ -104,6 +105,9 @@ func (s *vscodeServer) serverDir() string { return filepath.Join(s.dir, "server"
 func (s *vscodeServer) Download(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	defer cancel()
+	if err := s.removeStaging(); err != nil {
+		return err
+	}
 	_, tokenFile, err := s.writeToken()
 	if err != nil {
 		return err
@@ -163,6 +167,19 @@ func fetch(ctx context.Context, u string) error {
 	return nil
 }
 
+func (s *vscodeServer) removeStaging() error {
+	dirs, err := filepath.Glob(filepath.Join(s.cliDir(), "serve-web", "*"+stagingSuffix))
+	if err != nil {
+		return err
+	}
+	for _, d := range dirs {
+		if err := os.RemoveAll(d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *vscodeServer) Downloaded() bool {
 	return s.serverBin() != ""
 }
@@ -176,6 +193,9 @@ func (s *vscodeServer) serverBin() string {
 	var newest string
 	var newestTime time.Time
 	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), stagingSuffix) {
+			continue
+		}
 		bin := filepath.Join(root, e.Name(), "bin", "code-server")
 		info, err := os.Stat(bin)
 		if err != nil || info.IsDir() {
