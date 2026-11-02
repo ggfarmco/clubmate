@@ -65,7 +65,7 @@ struct VoicePanel: View {
         HStack(spacing: theme.spacing.m) {
             Image(systemName: voice.active ? "mic.fill" : "mic")
                 .foregroundStyle(voice.active ? theme.accentInk : theme.muted)
-            Text("Voice · \(voice.status)")
+            Text("\(voice.title) · \(voice.status)")
                 .foregroundStyle(theme.muted)
                 .lineLimit(1)
             if let hint = voice.sendHint {

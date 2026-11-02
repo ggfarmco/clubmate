@@ -64,6 +64,7 @@ public final class ComposerModel {
     }
     public var commands: [ComposerCommand] = []
     public var running = false
+    public var caret: Int?
     public private(set) var highlighted = 0
 
     public init() {}
@@ -106,6 +107,16 @@ public final class ComposerModel {
 
     public func choose(_ command: ComposerCommand) {
         text = "/\(command.name) "
+    }
+
+    public func insert(_ dictated: String) {
+        let at = caret.map { text.index(text.startIndex, offsetBy: min(max($0, 0), text.count)) } ?? text.endIndex
+        var piece = dictated
+        if at > text.startIndex, !text[text.index(before: at)].isWhitespace { piece = " " + piece }
+        if at < text.endIndex, !text[at].isWhitespace { piece += " " }
+        let offset = text.distance(from: text.startIndex, to: at)
+        text.insert(contentsOf: piece, at: at)
+        caret = offset + piece.count
     }
 }
 
@@ -156,6 +167,10 @@ public final class ComposerDrafts {
 
     public func left(form id: String) {
         if forms[id]?.unsent == false { forms[id] = nil }
+    }
+
+    public func dictate(_ id: String, _ text: String) {
+        model(for: id).insert(text)
     }
 
     public func clear(_ id: String, sent: String) {

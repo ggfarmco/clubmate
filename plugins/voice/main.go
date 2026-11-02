@@ -27,6 +27,7 @@ type host interface {
 type voice struct {
 	h          host
 	asr        func(model) func() (*exec.Cmd, error)
+	cleaner    func(dictionary) cleaner
 	recMu      sync.Mutex
 	rec        recognizer
 	applied    *settings
@@ -51,7 +52,7 @@ func main() {
 }
 
 func newVoice() *voice {
-	return &voice{asr: asrCommand, rec: offRecognizer{}, now: time.Now, after: afterFunc, utterances: map[string]*utterance{}}
+	return &voice{asr: asrCommand, cleaner: startCleaner, rec: offRecognizer{}, now: time.Now, after: afterFunc, utterances: map[string]*utterance{}}
 }
 
 func (v *voice) init(ctx context.Context, h *pluginsdk.Host) error {

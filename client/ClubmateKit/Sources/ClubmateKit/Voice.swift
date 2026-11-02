@@ -27,6 +27,7 @@ public final class VoiceController {
     public private(set) var visible = false
     public private(set) var micDenied = false
     public private(set) var holding = false
+    public private(set) var target: String?
     public private(set) var levels: [Double] = Array(repeating: 0, count: VoiceController.meterBars)
     private var failure: String?
     private var confirming = false
@@ -34,6 +35,9 @@ public final class VoiceController {
     @ObservationIgnored private let run: Run
     @ObservationIgnored private let source: VoiceAudioSource
     @ObservationIgnored private let pointer: @MainActor () -> VoicePointer
+    @ObservationIgnored private let focusedComposer: @MainActor () -> String?
+    @ObservationIgnored private let insert: @MainActor (String, String) -> Void
+    @ObservationIgnored private var inserted = false
     @ObservationIgnored private let uptime: @MainActor () -> TimeInterval
     @ObservationIgnored private var confirmShownAt: TimeInterval = 0
     @ObservationIgnored private var chain: Task<Void, Never>?
@@ -49,12 +53,24 @@ public final class VoiceController {
         run: @escaping Run,
         source: VoiceAudioSource,
         uptime: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        focusedComposer: @escaping @MainActor () -> String? = { nil },
+        insert: @escaping @MainActor (String, String) -> Void = { _, _ in },
         pointer: @escaping @MainActor () -> VoicePointer
     ) {
         self.run = run
         self.source = source
         self.uptime = uptime
+        self.focusedComposer = focusedComposer
+        self.insert = insert
         self.pointer = pointer
+    }
+
+    public var dictating: Bool {
+        target != nil
+    }
+
+    public var title: String {
+        dictating ? "Dictation" : "Voice"
     }
 
     public var phase: VoiceState.Phase? {
@@ -94,6 +110,7 @@ public final class VoiceController {
 
     public var sendHint: String? {
         guard active else { return nil }
+        if dictating { return holding ? "Release to insert" : "⌥Space to insert" }
         return holding ? "Release to send" : "⌥Space to send"
     }
 
@@ -102,15 +119,15 @@ public final class VoiceController {
         case .loading: "Loading the speech model…"
         case .listening, nil: "Listening"
         case .sending: "Sending"
-        case .thinking: "Thinking"
+        case .thinking: dictating ? "Cleaning up" : "Thinking"
         case .confirm: "Confirm"
-        case .done: "Done"
+        case .done: dictating ? "Inserted" : "Done"
         case .error: "Didn't work"
         case .cancelled: "Cancelled"
         }
     }
 
-    public func press(at time: TimeInterval) {
+    public func press(at time: TimeInterval, into composer: String? = nil) {
         if acceptsCancelKey {
             swallowRelease = true
             pressedAt = nil
@@ -128,7 +145,7 @@ public final class VoiceController {
         swallowRelease = false
         pressedAt = time
         holding = true
-        begin()
+        begin(into: composer ?? focusedComposer())
     }
 
     public func release(at time: TimeInterval) {
@@ -141,7 +158,7 @@ public final class VoiceController {
         finish()
     }
 
-    public func begin() {
+    public func begin(into composer: String? = nil) {
         guard !active else { return }
         if acceptsCancelKey, let pending = utterance {
             enqueue { _ = await self.run(CommandInvocation(id: "voice.cancel", args: .object(["utterance": .string(pending)]))) }
@@ -154,13 +171,16 @@ public final class VoiceController {
         confirming = false
         levels = Array(repeating: 0, count: Self.meterBars)
         utterance = nil
+        target = composer
+        inserted = false
         failed = false
         accepting = true
         active = true
         visible = true
         let pointer = pointer()
         let generation = generation
-        enqueue { await self.start(pointer, generation) }
+        let mode = composer == nil ? nil : "dictation"
+        enqueue { await self.start(pointer, mode, generation) }
     }
 
     public func send(_ pcm: Data) {
@@ -245,7 +265,7 @@ public final class VoiceController {
         }
     }
 
-    private func start(_ pointer: VoicePointer, _ generation: Int) async {
+    private func start(_ pointer: VoicePointer, _ mode: String?, _ generation: Int) async {
         guard generation == self.generation else { return }
         let prompted = source.permissionPrompts
         guard await source.permission() else {
@@ -266,7 +286,9 @@ public final class VoiceController {
             await fail(error.localizedDescription)
             return
         }
-        let args: JSONValue = .object(["pointer": (try? JSONValue.encoding(pointer)) ?? .null])
+        var fields: [String: JSONValue] = ["pointer": (try? JSONValue.encoding(pointer)) ?? .null]
+        if let mode { fields["mode"] = .string(mode) }
+        let args: JSONValue = .object(fields)
         switch await run(CommandInvocation(id: "voice.start", args: args)) {
         case .success(let value):
             guard let id = value["utterance"]?.stringValue else { return await fail("voice.start returned no utterance") }
@@ -310,6 +332,11 @@ public final class VoiceController {
             visible = true
         }
         state = next
+        if next.phase == .done, !inserted, let target, let text = next.text, !text.isEmpty {
+            inserted = true
+            insert(target, text)
+            visible = false
+        }
         if active, !next.phase.capturing {
             active = false
             accepting = false

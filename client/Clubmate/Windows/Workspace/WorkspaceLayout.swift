@@ -60,11 +60,11 @@ struct WorkspaceLayout: View {
             }
             .frame(maxHeight: .infinity)
             .clipped()
-            .overlay(alignment: .bottom) {
+            .overlay(alignment: voice?.dictating == true ? .top : .bottom) {
                 if let voice {
                     VoicePanel(voice: voice) { [app, store] session in app.revealSession(session, in: store.workspaceID) }
                         .frame(width: VoicePanel.width(row: rowWidth))
-                        .padding(.bottom, theme.spacing.xl)
+                        .padding(voice.dictating ? .top : .bottom, theme.spacing.xl)
                 }
             }
             StatusBar(voice: voice, connection: connection, agents: app.notifications.agents[store.workspaceID], usage: app.usage.usage, hints: panes?.hints) { [app] in
@@ -75,6 +75,7 @@ struct WorkspaceLayout: View {
                 }
             }
         }
+        .environment(\.voice, voice)
         .onChange(of: app.voiceSettings.isOn) { _, on in
             if !on { app.sessions.existing(store.workspaceID)?.voice.cancel() }
         }

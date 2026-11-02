@@ -76,6 +76,10 @@ func TestMain(m *testing.M) {
 		fakeASR()
 		return
 	}
+	if reply, ok := os.LookupEnv(fakeClaudeEnv); ok {
+		fakeClaude(reply)
+		return
+	}
 	os.Exit(m.Run())
 }
 
@@ -339,6 +343,7 @@ func newTestVoice(t *testing.T) (*voice, *fakeHost, *fakeRecognizer) {
 	h.clock = &fakeClock{}
 	v := newVoice()
 	v.h, v.rec, v.ctx, v.after = h, rec, t.Context(), h.clock.after
+	v.cleaner = func(dictionary) cleaner { return &fakeCleaner{err: errClaudeMissing} }
 	return v, h, rec
 }
 

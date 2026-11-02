@@ -4,6 +4,20 @@ import ClubmateKit
 
 @MainActor
 final class AgentsUITests: XCTestCase {
+    func testDictatedTextGoesInAtTheCaretWithSpaces() {
+        let model = ComposerModel()
+        model.text = "fix the test"
+        model.caret = 3
+
+        model.insert("flaky")
+        model.insert("voice")
+
+        XCTAssertEqual(model.text, "fix flaky voice the test")
+        model.caret = nil
+        model.insert("now")
+        XCTAssertEqual(model.text, "fix flaky voice the test now")
+    }
+
     func testComposerKeys() throws {
         let model = ComposerModel()
         model.commands = ["review", "compact", "context"].map { ComposerCommand(name: $0, description: "", hint: "") }

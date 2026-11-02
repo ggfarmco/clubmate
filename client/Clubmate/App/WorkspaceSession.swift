@@ -47,6 +47,8 @@ final class WorkspaceSession {
     @ObservationIgnored private(set) lazy var voice = VoiceController(
         run: storeRun,
         source: VoiceCapture(),
+        focusedComposer: { [weak self] in self?.store?.drafts.focused },
+        insert: { [weak self] composer, text in self?.store?.drafts.dictate(composer, text) },
         pointer: { [weak self] in VoicePointer(section: self?.store?.selectedSection ?? "") }
     )
 

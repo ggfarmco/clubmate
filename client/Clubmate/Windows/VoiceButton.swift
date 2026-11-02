@@ -3,6 +3,17 @@ import SwiftUI
 
 import ClubmateKit
 
+private struct VoiceControllerKey: EnvironmentKey {
+    static let defaultValue: VoiceController? = nil
+}
+
+extension EnvironmentValues {
+    var voice: VoiceController? {
+        get { self[VoiceControllerKey.self] }
+        set { self[VoiceControllerKey.self] = newValue }
+    }
+}
+
 struct VoiceButton: View {
     let voice: VoiceController
 
@@ -29,12 +40,12 @@ struct VoiceButton: View {
             press: { voice.press(at: ProcessInfo.processInfo.systemUptime) },
             release: { voice.release(at: ProcessInfo.processInfo.systemUptime) }
         ))
-        .help(voice.active ? "Stop listening (⌥Space)" : "Talk to Clubmate: click, or hold ⌥Space")
-        .accessibilityLabel(voice.active ? "Stop listening" : "Talk to Clubmate")
+        .help(voice.active ? (voice.dictating ? "Stop dictating (⌥Space)" : "Stop listening (⌥Space)") : "Talk to Clubmate: click, or hold ⌥Space; in a message field it dictates")
+        .accessibilityLabel(voice.active ? (voice.dictating ? "Stop dictating" : "Stop listening") : "Talk to Clubmate")
     }
 }
 
-private struct VoicePressStyle: ButtonStyle {
+struct VoicePressStyle: ButtonStyle {
     let press: () -> Void
     let release: () -> Void
 

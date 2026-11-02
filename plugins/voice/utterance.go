@@ -64,9 +64,11 @@ type Selection struct {
 
 type State struct {
 	Utterance string   `json:"utterance"`
+	Mode      string   `json:"mode"`
 	Phase     string   `json:"phase"`
 	Partial   string   `json:"partial,omitempty"`
 	Heard     string   `json:"heard,omitempty"`
+	Text      string   `json:"text,omitempty"`
 	SendAt    string   `json:"sendAt,omitempty"`
 	Plan      string   `json:"plan,omitempty"`
 	Result    string   `json:"result,omitempty"`
@@ -86,6 +88,7 @@ type Confirm struct {
 type startArgs struct {
 	Pointer Pointer `json:"pointer"`
 	Lang    string  `json:"lang"`
+	Mode    string  `json:"mode"`
 }
 
 type audioArgs struct {
@@ -112,6 +115,7 @@ type endResult struct {
 type utterance struct {
 	workspace  string
 	where      Context
+	clean      cleaner
 	state      State
 	audioBytes int
 	peak       int
@@ -129,8 +133,16 @@ func (v *voice) start(ctx context.Context, workspace string, args startArgs) (st
 	if !slices.Contains(languages, lang) {
 		return startResult{}, fmt.Errorf("unknown lang %q, want ru or auto", lang)
 	}
-	where, err := resolve(ctx, v.h, workspace, args.Pointer)
-	logError("resolve context", err)
+	mode := cmp.Or(args.Mode, modeAssistant)
+	if !slices.Contains(modes, mode) {
+		return startResult{}, fmt.Errorf("unknown mode %q, want assistant or dictation", mode)
+	}
+	where := Context{Device: args.Pointer.Device, Section: args.Pointer.Section}
+	if mode == modeAssistant {
+		var err error
+		where, err = resolve(ctx, v.h, workspace, args.Pointer)
+		logError("resolve context", err)
+	}
 	v.cancelListening()
 	uid := id.New(utterancePrefix)
 	if err := v.recognizer().Start(uid, lang, hintWords(where)); err != nil {
@@ -140,7 +152,10 @@ func (v *voice) start(ctx context.Context, workspace string, args startArgs) (st
 	if v.recognizer().Ready() {
 		phase = phaseListening
 	}
-	u := &utterance{workspace: workspace, where: where, done: make(chan struct{}), state: State{Utterance: uid, Phase: phase, Rev: 1}}
+	u := &utterance{workspace: workspace, where: where, done: make(chan struct{}), state: State{Utterance: uid, Mode: mode, Phase: phase, Rev: 1}}
+	if mode == modeDictation {
+		u.clean = v.cleaner(v.loadDictionary(ctx))
+	}
 	v.mu.Lock()
 	v.prune()
 	v.utterances[uid] = u
@@ -270,6 +285,16 @@ func (v *voice) finish(ctx context.Context, u *utterance) (string, error) {
 		v.fail(u, errNothingHeard)
 		return heard, nil
 	}
+	if u.state.Mode == modeDictation {
+		if !v.update(u, func(s *State) {
+			s.Heard = heard
+			s.Phase = phaseThinking
+		}) {
+			return "", errUnknownUtterance
+		}
+		go v.dictate(u, heard)
+		return heard, nil
+	}
 	if !v.update(u, func(s *State) {
 		s.Heard = heard
 		s.Phase = phaseSending
@@ -325,7 +350,8 @@ func (v *voice) update(u *utterance, change func(*State)) bool {
 	}
 	change(&u.state)
 	u.state.Rev++
-	if u.terminal() {
+	ended := u.terminal()
+	if ended {
 		u.ended = v.now()
 		close(u.done)
 		if u.turn != nil {
@@ -334,6 +360,9 @@ func (v *voice) update(u *utterance, change func(*State)) bool {
 	}
 	rev := u.state.Rev
 	v.mu.Unlock()
+	if ended && u.clean != nil {
+		u.clean.Close()
+	}
 	v.publish(u.workspace, u.state.Utterance, rev)
 	return true
 }

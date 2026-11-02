@@ -22,6 +22,28 @@ final class VoiceTests: XCTestCase {
         XCTAssertEqual(start.args["pointer"]?["selection"]?["session"]?.stringValue, "agt_x")
     }
 
+    func testDictationInsertsCleanedTextOnceIntoFocusedComposer() async throws {
+        let core = FakeVoiceCore()
+        core.composer = "agt_x/composer"
+        core.states = [
+            #"{"utterance":"vu_1","mode":"dictation","phase":"listening","rev":1}"#,
+            #"{"utterance":"vu_1","mode":"dictation","phase":"done","heard":"ну сделай мерж","text":"Сделай merge.","rev":3}"#,
+        ]
+        let voice = core.controller()
+
+        voice.press(at: 0)
+        try await waitUntil { voice.state?.phase == .listening }
+        XCTAssertEqual(voice.title, "Dictation")
+        XCTAssertEqual(core.calls.first { $0.id == "voice.start" }?.args["mode"], .string("dictation"))
+        voice.release(at: 1)
+        try await waitUntil { voice.phase == .done }
+        voice.busEvent(BusEvent(seq: 1, topic: VoiceController.changedTopic, payload: .object(["utterance": .string("vu_1"), "rev": .number(4)])))
+        try await waitUntil { core.calls.filter { $0.id == "voice.state" }.count >= 3 }
+
+        XCTAssertEqual(core.inserted.map { "\($0.0) \($0.1)" }, ["agt_x/composer Сделай merge."])
+        XCTAssertFalse(voice.visible)
+    }
+
     func testReleaseBeforeStartStillEnds() async throws {
         let core = FakeVoiceCore()
         core.holdStart = true
@@ -271,6 +293,8 @@ private final class FakeVoiceCore {
     var failing: Set<String> = []
     var holdStart = false
     var now: TimeInterval = 0
+    var composer: String?
+    var inserted: [(String, String)] = []
     private var startGate: CheckedContinuation<Void, Never>?
 
     func controller() -> VoiceController {
@@ -278,6 +302,8 @@ private final class FakeVoiceCore {
             run: { [unowned self] invocation in await self.run(invocation) },
             source: source,
             uptime: { [unowned self] in self.now },
+            focusedComposer: { [unowned self] in self.composer },
+            insert: { [unowned self] in self.inserted.append(($0, $1)) },
             pointer: { VoicePointer(section: "agents", selection: .init(session: "agt_x")) }
         )
     }

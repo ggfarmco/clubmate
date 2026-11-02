@@ -66,9 +66,11 @@ public struct VoiceState: Decodable, Sendable, Equatable {
     }
 
     public let utterance: String
+    public let mode: String?
     public let phase: Phase
     public let partial: String?
     public let heard: String?
+    public let text: String?
     public let sendAt: String?
     public let plan: String?
     public let result: String?
@@ -76,6 +78,8 @@ public struct VoiceState: Decodable, Sendable, Equatable {
     public let confirm: Confirm?
     public let session: String?
     public let rev: Int
+
+    public var dictation: Bool { mode == "dictation" }
 
     public var sendDate: Date? {
         guard let sendAt else { return nil }

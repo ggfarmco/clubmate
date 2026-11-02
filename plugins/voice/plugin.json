@@ -14,7 +14,7 @@
         "hidden": true,
         "remote": true,
         "timeout": 10,
-        "description": "Start an utterance: args {pointer: {device: \"mac\"|\"phone\", section, selection: {session?, task?, file?, line?}}, lang?: \"ru\"|\"auto\"} (default ru). Returns {utterance}. Phase is loading while the recognizer loads its model (audio is kept), else listening. Fails with \"voice needs uv (https://docs.astral.sh/uv/)\" when uv is not installed."
+        "description": "Start an utterance: args {pointer: {device: \"mac\"|\"phone\", section, selection: {session?, task?, file?, line?}}, lang?: \"ru\"|\"auto\", mode?: \"assistant\"|\"dictation\"} (default ru, assistant). dictation goes to no session: voice.end tidies the text with Claude Haiku and the utterance ends done with it as text. Returns {utterance}. Phase is loading while the recognizer loads its model (audio is kept), else listening. Fails with \"voice needs uv (https://docs.astral.sh/uv/)\" when uv is not installed."
       },
       {
         "id": "voice.audio",
@@ -73,7 +73,7 @@
         "title": "Voice input state",
         "hidden": true,
         "remote": true,
-        "description": "Current state of an utterance: {utterance, phase, partial?, heard?, plan?, result?, error?, confirm?: {title, command, args}, session?, rev}. phase is loading, listening, thinking, confirm, done, error or cancelled.",
+        "description": "Current state of an utterance: {utterance, mode, phase, partial?, heard?, text?, plan?, result?, error?, confirm?: {title, command, args}, session?, rev}. phase is loading, listening, sending, thinking, confirm, done, error or cancelled. A dictation goes listening, thinking (tidying), done with text.",
         "args": {
           "properties": {
             "utterance": {"type": "string", "description": "Utterance id (vu_…)."}

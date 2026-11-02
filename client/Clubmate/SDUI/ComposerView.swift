@@ -47,6 +47,7 @@ struct ComposerNodeView: View {
     @Environment(\.composerDrafts) private var shared
     @Environment(\.composerFocusSlot) private var focusSlot
     @Environment(\.focusRouter) private var router
+    @Environment(\.voice) private var voice
     @State private var local = ComposerDrafts()
 
     private var drafts: ComposerDrafts { shared ?? local }
@@ -70,6 +71,7 @@ struct ComposerNodeView: View {
         .onChange(of: node.composerCommands(), initial: true) { _, commands in model.commands = commands }
         .onChange(of: running, initial: true) { _, running in model.running = running }
         .onChange(of: focused, initial: true) { _, focused in drafts.focus(node.id ?? "", focused) }
+        .onChange(of: selection) { model.caret = caret.map { model.text.distance(from: model.text.startIndex, to: min($0, model.text.endIndex)) } }
         .onDisappear { drafts.focus(node.id ?? "", false) }
         .onChange(of: router?.pending, initial: true) {
             guard let focusSlot, router?.take(focusSlot) == true, !disabled else { return }
@@ -259,6 +261,27 @@ struct ComposerNodeView: View {
         }
         pickers
         attachMenu
+        mic
+    }
+
+    @ViewBuilder private var mic: some View {
+        if let voice {
+            let on = voice.active && voice.target == node.id
+            Button {} label: {
+                Image(systemName: on ? "mic.fill" : "mic")
+                    .foregroundStyle(on ? theme.accentInk : theme.foreground)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(VoicePressStyle(
+                press: {
+                    focused = true
+                    voice.press(at: ProcessInfo.processInfo.systemUptime, into: node.id)
+                },
+                release: { voice.release(at: ProcessInfo.processInfo.systemUptime) }
+            ))
+            .help(on ? "Stop dictating (⌥Space)" : "Dictate into this message: click, or hold ⌥Space while typing")
+            .accessibilityLabel(on ? "Stop dictating" : "Dictate")
+        }
     }
 
     private var hint: some View {
@@ -273,6 +296,7 @@ struct ComposerNodeView: View {
         CardButton(label: queues ? "Queue" : "Send", icon: "paperplane.fill", tone: node.bool("docked") == true ? .plain : .primary, disabled: disabled || model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
             if case .send(let text) = model.handle(.send) { send(text) }
         }
+        .fixedSize()
     }
 
     @ViewBuilder private var pickers: some View {
