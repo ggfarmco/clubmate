@@ -13,6 +13,7 @@ const (
 	wakeDelay   = time.Second
 	cutOffText  = "[Clubmate] Your turn was cut off by a restart; continue from where you stopped."
 	childFormat = "[Clubmate] Child %q (%s) is %s."
+	askFormat   = "[Clubmate] Child %q (%s) asks you, not the user: %q (agents_elicitation request %s). Answer it yourself; ask the user only when the decision is theirs."
 )
 
 type watchdog struct {
@@ -46,7 +47,7 @@ func (a *app) orchestrated(rec record) bool {
 
 func (a *app) statusChanged(s *session) {
 	rec, turn, running := s.progress()
-	key := progressKey(turn, rec.Status)
+	key := progressKey(turn, rec.Status, s.pending())
 	w := &a.watchdog
 	w.mu.Lock()
 	prev := w.last[rec.ID]
@@ -100,20 +101,19 @@ func (a *app) watchWait(caller string, ids []string) func() {
 }
 
 func (a *app) observed(caller string, out []waitResult) {
-	var kids []waitResult
+	keys := map[string]string{}
 	for _, r := range out {
 		if s := a.session(r.Session); s != nil && s.snapshot().ParentSession == caller {
-			kids = append(kids, r)
+			keys[r.Session] = progressKey(r.Turn, r.Status, s.pending())
 		}
 	}
 	w := &a.watchdog
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	for _, r := range kids {
-		key := progressKey(r.Turn, r.Status)
-		w.seen[r.Session] = key
-		if w.pending[caller][r.Session] == key {
-			delete(w.pending[caller], r.Session)
+	for kid, key := range keys {
+		w.seen[kid] = key
+		if w.pending[caller][kid] == key {
+			delete(w.pending[caller], kid)
 		}
 	}
 }
@@ -163,8 +163,17 @@ func (a *app) flushWake(id string) {
 	var lines []string
 	for _, kid := range a.children(id) {
 		k := kid.snapshot()
-		if key, ok := taken[k.ID]; ok && k.Status != statusRunning {
-			_, status, _ := strings.Cut(key, "/")
+		key, ok := taken[k.ID]
+		switch {
+		case !ok || k.Status == statusRunning:
+		case a.asksParent(kid, k):
+			if sum, ids := kid.permissionSummary(), kid.pending(); sum != nil && len(ids) > 0 {
+				lines = append(lines, fmt.Sprintf(askFormat, firstLine(k.Title), k.ID, sum.Text, ids[0]))
+				break
+			}
+			fallthrough
+		default:
+			status := strings.Split(key, "/")[1]
 			lines = append(lines, fmt.Sprintf(childFormat, firstLine(k.Title), k.ID, status))
 		}
 	}
@@ -208,8 +217,12 @@ func (s *session) progress() (record, int, bool) {
 	return s.rec, s.turn, s.running
 }
 
-func progressKey(turn int, status string) string {
-	return strconv.Itoa(turn) + "/" + status
+func progressKey(turn int, status string, pending []string) string {
+	key := strconv.Itoa(turn) + "/" + status
+	if status == statusWaiting && len(pending) > 0 {
+		key += "/" + pending[0]
+	}
+	return key
 }
 
 func reportable(status string) bool {

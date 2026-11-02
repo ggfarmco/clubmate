@@ -225,7 +225,11 @@ func (a *app) addSession(rec record, loaded bool, ready *setup) *session {
 	s.turned = a.notes.turn
 	s.idled = func() { a.settleBackground(s) }
 	s.resolved = func(kind, request string) { a.notes.resolved(s, kind, request) }
-	s.requested = func(kind, request string) { a.notes.requested(s, kind, request) }
+	s.requested = func(kind, request string) {
+		if kind != entryElicitation || !a.asksParent(s, s.snapshot()) {
+			a.notes.requested(s, kind, request)
+		}
+	}
 	a.mu.Lock()
 	a.sessions[rec.ID] = s
 	a.mu.Unlock()
@@ -258,6 +262,7 @@ func (a *app) list(workspaceID string) []record {
 	out := []record{}
 	for _, s := range all {
 		if rec := s.snapshot(); rec.Workspace == workspaceID {
+			rec.AsksParent = a.asksParent(s, rec)
 			out = append(out, rec)
 		}
 	}

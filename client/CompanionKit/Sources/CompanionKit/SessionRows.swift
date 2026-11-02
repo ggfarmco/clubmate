@@ -6,6 +6,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case permission
     case question
     case childWaiting
+    case asksParent
     case running
     case stopped
     case review
@@ -47,6 +48,7 @@ extension AgentSession {
             if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
             return status == .waiting || !pending.isEmpty ? .permission : .question
         }
+        if asksParent { return .asksParent }
         if childStatus == .waiting { return .childWaiting }
         if displayStatus == .running { return .running }
         if status == .error { return .stopped }
@@ -81,6 +83,9 @@ extension AgentSession {
         case .question:
             guard let question = askedQuestion else { return SessionStateLine(text: SessionState.askingYou.label, tone: .needsYou) }
             return SessionStateLine(lead: "Asks:", text: question, tone: .primary)
+        case .asksParent:
+            guard let question = askedQuestion else { return SessionStateLine(text: SessionState.askingParent.label) }
+            return SessionStateLine(lead: "Asks parent:", text: question, age: pendingSummary.map { age($0.at) })
         case .childWaiting:
             let count = max(waitingChildren, 1)
             return SessionStateLine(text: count == 1 ? "1 subagent waiting" : "\(count) subagents waiting")

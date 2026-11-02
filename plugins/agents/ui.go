@@ -418,6 +418,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 		go a.refreshChanges(s)
 	}
 	v := s.view(0)
+	v.Session.AsksParent = a.asksParent(s, v.Session)
 	if a.session(v.Session.HandoffFrom) == nil {
 		v.Session.HandoffFrom = ""
 	}

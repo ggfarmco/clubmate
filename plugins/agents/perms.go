@@ -82,6 +82,21 @@ func (s *session) pending() []string {
 	return ids
 }
 
+func (s *session) onlyQuestions() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.perms) == 0 {
+		return false
+	}
+	for id, perm := range s.perms {
+		i, ok := s.index[key(entryElicitation, id)]
+		if perm.elicit == nil || !ok || s.entries[i].Elicitation == nil || s.entries[i].Elicitation.Mode != acp.ElicitationForm {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *session) permissionSummary() *pendingSummary {
 	s.mu.Lock()
 	defer s.mu.Unlock()

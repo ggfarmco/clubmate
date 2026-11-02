@@ -109,3 +109,41 @@ func TestParentWaitingOnChildIsNotWoken(t *testing.T) {
 	time.Sleep(quiet)
 	assert.Empty(t, f.promptsTo(t, parentID, "[Clubmate] Child"))
 }
+
+func TestChildQuestionGoesToParent(t *testing.T) {
+	ask := map[string]any{"match": "pick a store", "elicitation": askScript(false)}
+	f := start(t, map[string]any{"prompt": []map[string]any{ask, ask}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	parentID := f.agentID(t, workspace, parent)
+	kid := f.newChild(t, workspace, parent, map[string]any{"title": "Kid", "prompt": "pick a store"}).Session
+
+	asking := f.waitStatus(t, workspace, kid, "waiting")
+	assert.True(t, asking.AsksParent)
+	assert.False(t, asking.NeedsYou)
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) > 0 }, wait)
+	assert.Contains(t, f.promptsTo(t, parentID, "[Clubmate] Child")[0], `Child "Kid" (`+kid+`) asks you, not the user: "Which store?" (agents_elicitation request `+asking.Pending[0]+")")
+	assert.NotEqual(t, "waiting", f.session(t, workspace, parent).ChildStatus)
+	events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
+	require.NoError(t, err)
+	assert.Empty(t, events)
+
+	answer := map[string]any{"session": kid, "request": asking.Pending[0], "action": "accept", "answers": []map[string]any{{"key": "question_0", "value": "Redis"}}}
+	require.NoError(t, f.runAs(t, workspace, parent, "agents.elicitation", answer, nil))
+	testutil.Eventually(t, func() bool { return len(f.promptsTo(t, parentID, "[Clubmate] Child")) == 2 }, wait)
+	again := f.session(t, workspace, kid)
+	require.Len(t, again.Pending, 1)
+	assert.NotEqual(t, asking.Pending[0], again.Pending[0])
+	assert.Contains(t, f.promptsTo(t, parentID, "[Clubmate] Child")[1], "agents_elicitation request "+again.Pending[0])
+}
+
+func TestChildSignInStaysWithUser(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"match": "sign in", "elicitation": map[string]any{"mode": "url", "elicitationId": "e1", "url": "https://example.com/login", "message": "Sign in"}}}})
+	workspace := f.workspace(t, newRepo(t))
+	parent := f.newSession(t, workspace)
+	kid := f.newChild(t, workspace, parent, map[string]any{"prompt": "sign in"}).Session
+
+	waiting := f.waitStatus(t, workspace, kid, "waiting")
+	assert.False(t, waiting.AsksParent)
+	assert.True(t, waiting.NeedsYou)
+}

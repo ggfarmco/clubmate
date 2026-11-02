@@ -855,6 +855,17 @@ func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {
 	assert.Equal(t, "agt_c", parent.Children[0].ID)
 }
 
+func TestChildAskingParentShowsAsAskingParent(t *testing.T) {
+	parent := record{ID: "agt_p", Status: statusDone}
+	kid := record{ID: "agt_c", Status: statusWaiting, AsksParent: true, lineage: lineage{ParentSession: "agt_p"}}
+
+	item := sessionItem(sessionRow{Rec: kid}, 0, time.Now())
+	assert.Equal(t, "arrow.up.circle", item.Icon)
+	assert.Equal(t, "asking parent", item.Detail)
+	assert.False(t, matchesFilter(sessionRow{Rec: kid}, filterNeeds))
+	assert.Equal(t, statusRunning, childStatuses([]record{parent, kid})["agt_p"])
+}
+
 func TestThoughtCarriesItsDuration(t *testing.T) {
 	at := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
 	v := transcriptView{

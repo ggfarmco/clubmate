@@ -29,6 +29,14 @@ func (a *app) children(id string) []*session {
 	return out
 }
 
+func (a *app) asksParent(s *session, rec record) bool {
+	if rec.Status != statusWaiting || rec.ParentSession == "" || !s.onlyQuestions() {
+		return false
+	}
+	parent := a.session(rec.ParentSession)
+	return parent != nil && !parent.snapshot().closed()
+}
+
 func (a *app) subtree(s *session) []*session {
 	out := []*session{s}
 	for i := 0; i < len(out); i++ {
@@ -101,7 +109,11 @@ func activeDescendant(id string, kids map[string][]record, seen map[string]bool)
 	found := ""
 	for _, kid := range kids[id] {
 		if !seen[kid.ID] {
-			found = moreUrgent(found, moreUrgent(kid.Status, activeDescendant(kid.ID, kids, seen)))
+			status := kid.Status
+			if kid.AsksParent {
+				status = statusRunning
+			}
+			found = moreUrgent(found, moreUrgent(status, activeDescendant(kid.ID, kids, seen)))
 		}
 	}
 	return found

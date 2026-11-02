@@ -32,46 +32,50 @@ const (
 	filterNeeds   = "needs"
 	filterRunning = "running"
 
-	statusAsks      = "asks"
-	childrenRunning = "childrenRunning"
-	childrenWaiting = "childrenWaiting"
-	stoppedDetail   = "error"
-	autoClosedLabel = "auto"
+	statusAsks       = "asks"
+	statusAsksParent = "asksParent"
+	childrenRunning  = "childrenRunning"
+	childrenWaiting  = "childrenWaiting"
+	stoppedDetail    = "error"
+	autoClosedLabel  = "auto"
 )
 
 var (
 	statusIcons = map[string]string{
-		statusRunning:   "play.circle",
-		statusWaiting:   "exclamationmark.circle",
-		statusAsks:      "exclamationmark.circle",
-		statusDone:      "checkmark.circle",
-		statusReview:    "eye.circle",
-		statusIdle:      "circle",
-		statusError:     "xmark.circle",
-		statusClosed:    "archivebox",
-		childrenRunning: "play.circle",
-		childrenWaiting: "exclamationmark.circle",
+		statusRunning:    "play.circle",
+		statusWaiting:    "exclamationmark.circle",
+		statusAsks:       "exclamationmark.circle",
+		statusAsksParent: "arrow.up.circle",
+		statusDone:       "checkmark.circle",
+		statusReview:     "eye.circle",
+		statusIdle:       "circle",
+		statusError:      "xmark.circle",
+		statusClosed:     "archivebox",
+		childrenRunning:  "play.circle",
+		childrenWaiting:  "exclamationmark.circle",
 	}
 	statusTones = map[string]string{
-		statusRunning:   "accent",
-		statusWaiting:   "warning",
-		statusAsks:      "warning",
-		statusError:     "danger",
-		statusReview:    "accent",
-		childrenRunning: "accent",
-		childrenWaiting: "warning",
+		statusRunning:    "accent",
+		statusWaiting:    "warning",
+		statusAsks:       "warning",
+		statusAsksParent: "accent",
+		statusError:      "danger",
+		statusReview:     "accent",
+		childrenRunning:  "accent",
+		childrenWaiting:  "warning",
 	}
 	statusLabels = map[string]string{
-		statusRunning:   "Running",
-		statusWaiting:   "waiting",
-		statusAsks:      "asking",
-		statusDone:      "Done",
-		statusReview:    "review",
-		statusIdle:      "idle",
-		statusError:     "Stopped",
-		statusClosed:    "Closed",
-		childrenRunning: "Waiting for child sessions",
-		childrenWaiting: "Child session waiting",
+		statusRunning:    "Running",
+		statusWaiting:    "waiting",
+		statusAsks:       "asking",
+		statusAsksParent: "asking parent",
+		statusDone:       "Done",
+		statusReview:     "review",
+		statusIdle:       "idle",
+		statusError:      "Stopped",
+		statusClosed:     "Closed",
+		childrenRunning:  "Waiting for child sessions",
+		childrenWaiting:  "Child session waiting",
 	}
 	childDisplay = map[string]string{statusRunning: childrenRunning, statusWaiting: childrenWaiting}
 	filterEmpty  = map[string]string{filterNeeds: noneNeedYou, filterRunning: noneRunning}
@@ -405,6 +409,9 @@ func displayStatus(rec record, children string) string {
 	if display, ok := childDisplay[children]; ok {
 		return display
 	}
+	if rec.AsksParent {
+		return statusAsksParent
+	}
 	if needsYou(rec) && rec.Status == statusDone {
 		return statusAsks
 	}
@@ -415,7 +422,7 @@ func displayStatus(rec record, children string) string {
 }
 
 func needsYou(rec record) bool {
-	return rec.Status == statusWaiting || rec.Status == statusDone && rec.Asks && rec.ParentSession == ""
+	return rec.Status == statusWaiting && !rec.AsksParent || rec.Status == statusDone && rec.Asks && rec.ParentSession == ""
 }
 
 func activity(row sessionRow, now time.Time) string {
@@ -428,7 +435,7 @@ func activity(row sessionRow, now time.Time) string {
 			return statusLabels[statusAsks]
 		}
 		return label
-	case childrenRunning, childrenWaiting, statusAsks, statusIdle, statusReview:
+	case childrenRunning, childrenWaiting, statusAsks, statusAsksParent, statusIdle, statusReview:
 		return label
 	case statusRunning:
 		var parts []string

@@ -22,6 +22,8 @@ final class SessionRowsTests: XCTestCase {
             (AgentSession(id: "f2", status: .running, turnStartedAt: ago(600), activity: SessionActivity(title: "Editing reserve.go", at: ago(240))), .running, SessionStateLine(text: "Editing reserve.go", age: "4 min")),
             (AgentSession(id: "g", status: .done, childStatus: .running), .running, SessionStateLine(text: "Waiting for subagents")),
             (AgentSession(id: "h", status: .done, childStatus: .waiting), .childWaiting, SessionStateLine(text: "1 subagent waiting")),
+            (AgentSession(id: "h2", parentSession: "p", status: .waiting, pending: ["elicitation-1"], pendingSummary: PendingSummary(kind: .question, text: "Merge it?", at: ago(90)), needsYou: false, asksParent: true),
+             .asksParent, SessionStateLine(lead: "Asks parent:", text: "Merge it?", age: "1 min")),
             (AgentSession(id: "i", status: .error, error: "boom"), .stopped, SessionStateLine(text: "Stopped", tone: .danger)),
             (AgentSession(id: "i2", status: .error, failure: Self.exit1), .stopped, SessionStateLine(text: "exit 1", tone: .danger)),
             (AgentSession(id: "j", status: .done, updatedAt: ago(3_700)), .done, SessionStateLine(text: "Done", age: "1 h")),

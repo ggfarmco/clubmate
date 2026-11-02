@@ -5,6 +5,7 @@ import ClubmateProtocol
 public enum SessionState: String, Sendable, CaseIterable {
     case waitingForYou
     case askingYou
+    case askingParent
     case running
     case stopped
     case review
@@ -15,6 +16,7 @@ public enum SessionState: String, Sendable, CaseIterable {
         switch self {
         case .waitingForYou: "Waiting for you"
         case .askingYou: "Asking you"
+        case .askingParent: "Asking parent"
         case .running: "Running"
         case .stopped: "Stopped"
         case .review: "Review"
@@ -32,6 +34,7 @@ extension AgentSession {
     public var state: SessionState {
         if isClosed { return .closed }
         if needsYou { return status == .waiting || !pending.isEmpty ? .waitingForYou : .askingYou }
+        if asksParent { return .askingParent }
         if status == .running { return .running }
         if status == .error { return .stopped }
         if review { return .review }
