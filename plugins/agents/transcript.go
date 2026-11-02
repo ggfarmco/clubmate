@@ -92,13 +92,19 @@ type entry struct {
 	At          time.Time                `json:"at,omitzero"`
 	AnsweredAt  time.Time                `json:"answeredAt,omitzero"`
 
-	Compaction *compaction `json:"compaction,omitempty"`
-	Doc        string      `json:"doc,omitempty"`
+	Compaction *compaction  `json:"compaction,omitempty"`
+	Doc        string       `json:"doc,omitempty"`
+	Voice      *voicePrompt `json:"voice,omitempty"`
 
 	node   *nodeCache
 	sub    *subagent
 	rev    int64
 	closed bool
+}
+
+type voicePrompt struct {
+	Heard     string `json:"heard"`
+	Utterance string `json:"utterance"`
 }
 
 type permissionContent struct {
@@ -121,6 +127,7 @@ type promptPayload struct {
 	From      string `json:"from,omitempty"`
 	FromTitle string `json:"fromTitle,omitempty"`
 	Steered   bool   `json:"steered,omitempty"`
+	Voice     bool   `json:"voice,omitempty"`
 }
 
 type permissionPayload struct {
@@ -436,6 +443,10 @@ func (s *session) applyPrompt(e envelope) {
 		if b.Type == "text" && en.Text == "" {
 			en.Text = b.Text
 		}
+	}
+	en.Voice = nil
+	if v := (voicePrompt{}); req.Voice && json.Unmarshal([]byte(en.Text), &v) == nil && v.Heard != "" {
+		en.Voice = &v
 	}
 	if s.rec.Title == "" {
 		s.rec.Title = titleOf(en.Text)

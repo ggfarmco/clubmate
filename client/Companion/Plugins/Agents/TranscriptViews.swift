@@ -37,6 +37,8 @@ struct EntryView: View {
         switch entry.content {
         case .user(let text, let fromAgent, let images, let files):
             UserBubble(text: text, fromAgent: fromAgent, images: images, files: files)
+        case .voice(let prompt):
+            VoicePromptRow(prompt: prompt)
         case .agent(let text):
             MarkdownView(blocks: Markdown.blocks(text))
         case .thought(let text):
@@ -122,6 +124,52 @@ struct UserBubble: View {
                     .padding(.vertical, 10)
                     .foregroundStyle(.primary)
                     .background(Color.surface2, in: .rect(cornerRadius: 20))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.leading, 48)
+    }
+}
+
+struct VoicePromptRow: View {
+    let prompt: VoicePrompt
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            Button {
+                Motion.disclose { expanded.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Text("🎙 \(prompt.heard)")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(Color.surface2, in: .capsule)
+                .contentShape(.capsule)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Voice: \(prompt.heard)")
+            .accessibilityHint(expanded ? "Hides the prompt sent to the Voice session" : "Shows the prompt sent to the Voice session")
+            if expanded {
+                ScrollView {
+                    Text(prompt.json)
+                        .font(.footnote.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                }
+                .frame(maxHeight: 480)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Color.surface2, in: .rect(cornerRadius: 16))
+                .clipShape(.rect(cornerRadius: 16))
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)

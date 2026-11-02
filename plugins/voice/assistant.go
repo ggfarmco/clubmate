@@ -19,6 +19,7 @@ import (
 const (
 	voiceTitle       = "Voice"
 	voiceMode        = "bypassPermissions"
+	voiceModel       = "sonnet"
 	notifyMuted      = "muted"
 	sessionKeyPrefix = "voice.session."
 	toolPrefix       = "mcp__clubmate__"
@@ -71,8 +72,14 @@ type newSessionArgs struct {
 	Title           string   `json:"title"`
 	Notify          string   `json:"notify"`
 	Mode            string   `json:"mode"`
+	Model           string   `json:"model"`
 	SystemPrompt    string   `json:"systemPrompt"`
 	DisallowedTools []string `json:"disallowedTools"`
+}
+
+type voiceSessionInfo struct {
+	api.Session
+	StartModel string `json:"startModel"`
 }
 
 type newSessionResult struct {
@@ -301,11 +308,11 @@ func (v *voice) voiceSession(ctx context.Context, workspace, stale string) (stri
 		return "", err
 	}
 	if sid != "" && sid != stale {
-		var sessions []api.Session
+		var sessions []voiceSessionInfo
 		if err := v.h.RunCommand(ctx, "agents.sessions", workspace, struct{}{}, &sessions); err != nil {
 			return "", err
 		}
-		if slices.ContainsFunc(sessions, func(s api.Session) bool { return s.ID == sid }) {
+		if slices.ContainsFunc(sessions, func(s voiceSessionInfo) bool { return s.ID == sid && s.StartModel == voiceModel }) {
 			return sid, nil
 		}
 	}
@@ -317,6 +324,7 @@ func (v *voice) voiceSession(ctx context.Context, workspace, stale string) (stri
 		Title:           voiceTitle,
 		Notify:          notifyMuted,
 		Mode:            voiceMode,
+		Model:           voiceModel,
 		SystemPrompt:    systemPrompt,
 		DisallowedTools: append(slices.Clone(builtinTools), tools...),
 	}

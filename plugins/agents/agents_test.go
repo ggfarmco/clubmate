@@ -82,6 +82,7 @@ type entry struct {
 	Notice    json.RawMessage            `json:"notice"`
 	Subagent  string                     `json:"subagent"`
 	Stoppable bool                       `json:"stoppable"`
+	Voice     json.RawMessage            `json:"voice"`
 }
 
 type transcript struct {
@@ -2031,23 +2032,33 @@ func TestPermissionFromVoicePluginIsUser(t *testing.T) {
 }
 
 func TestNewSessionOptionsOnlyFromPlugin(t *testing.T) {
-	f := start(t, map[string]any{"modes": map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "bypassPermissions", "name": "Bypass permissions"}}}})
+	f := start(t, map[string]any{
+		"modes": map[string]any{"currentModeId": "default", "availableModes": []map[string]string{{"id": "default", "name": "Manual"}, {"id": "bypassPermissions", "name": "Bypass permissions"}}},
+		"configs": []map[string]any{
+			{"id": "model", "name": "Model", "category": "model", "type": "select", "currentValue": "default", "options": []map[string]string{{"value": "default", "name": "Default"}, {"value": "sonnet", "name": "Sonnet"}}},
+		},
+	})
 	workspace := f.workspace(t, newRepo(t))
-	args := map[string]any{"disallowedTools": []string{"Bash"}, "mode": "bypassPermissions"}
+	args := map[string]any{"disallowedTools": []string{"Bash"}, "mode": "bypassPermissions", "model": "sonnet"}
 	params := map[string]any{"id": "agents.new", "workspaceId": workspace, "args": args}
 
-	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", args, nil), "only the voice plugin may set disallowedTools, systemPrompt or mode")
-	assert.ErrorContains(t, f.h.PluginCall(t, "remote", "command.run", params), "only the voice plugin may set disallowedTools, systemPrompt or mode")
+	assert.ErrorContains(t, f.runAs(t, workspace, "", "agents.new", args, nil), "only the voice plugin may set disallowedTools, systemPrompt, mode or model")
+	assert.ErrorContains(t, f.h.PluginCall(t, "remote", "command.run", params), "only the voice plugin may set disallowedTools, systemPrompt, mode or model")
 	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
 
 	voice := listedIDs(t, f, workspace)[0]
 	assert.Equal(t, []string{"Bash"}, f.session(t, workspace, voice).DisallowedTools)
 	got := f.waitCall(t, "session/set_mode", func(fakeCall) bool { return true })
 	assert.Contains(t, string(got.Params), `"modeId":"bypassPermissions"`)
-	assert.Contains(t, string(f.calls(t, "session/new")[0].Params), `"disallowedTools":["Bash"]`)
+	model := f.waitCall(t, "session/set_config_option", func(fakeCall) bool { return true })
+	assert.Contains(t, string(model.Params), `"configId":"model","value":"sonnet"`)
+	sent := string(f.calls(t, "session/new")[0].Params)
+	assert.Contains(t, sent, `"disallowedTools":["Bash"],"settingSources":[],"strictMcpConfig":true`)
+	assert.Contains(t, sent, `"CLAUDE_CODE_DISABLE_AUTO_MEMORY":"1"`)
 	kid := f.newChild(t, workspace, voice, map[string]any{"prompt": "go"}).Session
 	f.waitStatus(t, workspace, kid, "done")
 	assert.Len(t, f.calls(t, "session/set_mode"), 1)
+	assert.NotContains(t, string(f.calls(t, "session/new")[1].Params), "settingSources")
 }
 
 func TestNewSessionFromVoiceNotSelected(t *testing.T) {
@@ -2094,6 +2105,25 @@ func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
 		_, selected := trees[0].Props["selected"]
 		return strings.Contains(string(raw), voice) && !selected
 	})
+}
+
+func TestVoicePromptMarkedInTranscript(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	text := `{"utterance":"vu_1","device":"mac","heard":"открой бэклог","context":{}}`
+	params := map[string]any{"id": "agents.prompt", "workspaceId": workspace, "args": map[string]any{"session": session, "text": text}}
+
+	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
+	f.waitStatus(t, workspace, session, "done")
+	f.prompt(t, workspace, session, text)
+	testutil.Eventually(t, func() bool { return len(ofKind(f.transcript(t, workspace, session).Entries, "user")) == 2 }, wait)
+	f.restartPlugin(t, workspace)
+
+	users := ofKind(f.transcript(t, workspace, session).Entries, "user")
+	require.Len(t, users, 2)
+	assert.JSONEq(t, `{"heard":"открой бэклог","utterance":"vu_1"}`, string(users[0].Voice))
+	assert.Empty(t, users[1].Voice)
 }
 
 func TestVoiceSessionGetsNoPolicyTexts(t *testing.T) {

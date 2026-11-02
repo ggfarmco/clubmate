@@ -35,9 +35,10 @@ var (
 )
 
 type launch struct {
-	argv []string
-	env  []string
-	mcp  []acp.McpServer
+	argv       []string
+	env        []string
+	mcp        []acp.McpServer
+	registered bool
 }
 
 type agentProc struct {
@@ -229,6 +230,13 @@ func (p *agentProc) Notify(method string, params json.RawMessage) {
 	for _, params := range deliver {
 		s.update(params)
 	}
+}
+
+func (p *agentProc) mcpFor(rec record) []acp.McpServer {
+	if p.launch.registered && !rec.restricted() {
+		return []acp.McpServer{}
+	}
+	return p.mcp
 }
 
 func (p *agentProc) Request(ctx context.Context, id, method string, params json.RawMessage) (any, error) {

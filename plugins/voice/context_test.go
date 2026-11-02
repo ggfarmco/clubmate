@@ -94,6 +94,32 @@ func TestResolveFallsBackToSelectedSession(t *testing.T) {
 	}
 }
 
+func TestResolveKeepsActiveRecentAndSelectedSessions(t *testing.T) {
+	_, h, _ := newTestVoice(t)
+	now := time.Now()
+	old := now.Add(-3 * time.Hour)
+	sessions := []map[string]any{
+		{"id": sessionA, "title": "selected", "status": "idle", "updatedAt": old, "pendingSummary": map[string]string{"text": "Run tests?"}},
+		{"id": sessionB, "title": "stale", "status": "idle", "updatedAt": old},
+		{"id": "agt_000000000000000c", "title": "waiting", "status": "waiting", "updatedAt": old, "pendingSummary": map[string]string{"text": "Allow Bash?"}},
+	}
+	for i := range maxBriefSessions {
+		sessions = append(sessions, map[string]any{"id": "agt_00000000000001" + strconv.Itoa(10+i), "title": "recent", "status": "idle", "updatedAt": now.Add(-time.Duration(i+1) * time.Minute)})
+	}
+	stubAgents(h, sessions, nil)
+	h.commands["agents.transcript"] = func(json.RawMessage) (any, error) { return map[string]any{}, nil }
+
+	c, err := resolve(t.Context(), h, testWorkspace, Pointer{Device: "mac", Section: "agents", Selection: Selection{Session: sessionA}})
+
+	require.NoError(t, err)
+	require.Len(t, c.Workspace.Sessions, maxBriefSessions+1)
+	assert.Equal(t, SessionBrief{ID: sessionA, Title: "selected", Status: "idle", Waiting: "Run tests?"}, c.Workspace.Sessions[0])
+	assert.Equal(t, SessionBrief{ID: "agt_000000000000000c", Title: "waiting", Status: "waiting"}, c.Workspace.Sessions[1])
+	for _, s := range c.Workspace.Sessions[2:] {
+		assert.Equal(t, "recent", s.Title)
+	}
+}
+
 func TestResolveKeepsCurrentAndNewestBranches(t *testing.T) {
 	_, h, _ := newTestVoice(t)
 	stubAgents(h, nil, nil)

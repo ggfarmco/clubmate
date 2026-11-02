@@ -24,7 +24,7 @@ struct VoicePanel: View {
             .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .task(id: phase) {
-                guard phase == .done || phase == .cancelled else { return }
+                guard voice.autoHides else { return }
                 try? await Task.sleep(for: Self.hideAfter)
                 if voice.phase == phase { voice.dismiss() }
             }
@@ -40,6 +40,9 @@ struct VoicePanel: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
+            }
+            if phase == .sending {
+                sending
             }
             if phase == .confirm, let confirm = voice.state?.confirm {
                 confirmation(confirm)
@@ -78,7 +81,7 @@ struct VoicePanel: View {
                 .lineLimit(1)
             Spacer(minLength: 8)
             Button {
-                voice.active ? voice.cancel() : (voice.phase == .confirm ? voice.confirm(false) : voice.dismiss())
+                voice.close()
             } label: {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
@@ -91,7 +94,7 @@ struct VoicePanel: View {
             .buttonStyle(.plain)
             .padding(.vertical, -12)
             .padding(.trailing, -8)
-            .accessibilityLabel(voice.active ? "Cancel" : "Close")
+            .accessibilityLabel(voice.active || voice.phase == .sending ? "Cancel" : "Close")
         }
         .font(.subheadline)
     }
@@ -117,6 +120,17 @@ struct VoicePanel: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+        }
+    }
+
+    private var sending: some View {
+        HStack(spacing: 12) {
+            TimelineView(.animation(paused: voice.sendProgress(at: ProcessInfo.processInfo.systemUptime) >= 1)) { _ in
+                SendCountdown(progress: voice.sendProgress(at: ProcessInfo.processInfo.systemUptime))
+            }
+            PlainCapsule(title: "Cancel", tint: .primary) { voice.cancel() }
+                .frame(width: 104)
+                .keyboardShortcut(.cancelAction)
         }
     }
 
@@ -181,6 +195,25 @@ private struct VoiceResultLabel: LabelStyle {
                 .foregroundStyle(.secondary)
             configuration.title
         }
+    }
+}
+
+private struct SendCountdown: View {
+    let progress: Double
+
+    var body: some View {
+        Capsule()
+            .fill(Color(.tertiarySystemFill))
+            .frame(height: 4)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(.tint)
+                        .frame(width: proxy.size.width * (1 - progress))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("Sending in a second")
     }
 }
 

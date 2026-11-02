@@ -31,9 +31,13 @@ public struct VoiceTarget: Equatable, Sendable {
     }
 }
 
+public enum VoicePermission: Sendable {
+    case granted, denied, prompted
+}
+
 @MainActor
 public protocol VoiceAudioSource: AnyObject {
-    func permission() async -> Bool
+    func permission() async -> VoicePermission
     func start(onChunk: @escaping @MainActor (Data) -> Void, onEnd: @escaping @MainActor () -> Void) throws
     func stop() async
 }
@@ -45,8 +49,10 @@ public final class VoiceSession {
 
     public static let changedTopic = "voice.changed"
     public static let micDeniedMessage = "Microphone access is off — Settings → Privacy & Security → Microphone"
-    public static let tapLimit: TimeInterval = 0.25
+    public static let nothingHeard = "nothing heard"
+    public static let tapLimit: TimeInterval = 0.6
     public static let confirmArmDelay: TimeInterval = 0.6
+    public static let sendDelay: TimeInterval = 1
     static let meterBars = 16
 
     public private(set) var state: VoiceState?
@@ -57,6 +63,7 @@ public final class VoiceSession {
     public private(set) var micDenied = false
     public private(set) var target: VoiceTarget?
     public private(set) var levels: [Double] = Array(repeating: 0, count: VoiceSession.meterBars)
+    public private(set) var sendingSince: TimeInterval?
     private var failure: String?
     private var confirming = false
 
@@ -105,6 +112,19 @@ public final class VoiceSession {
         levels.last ?? 0
     }
 
+    public var autoHides: Bool {
+        switch phase {
+        case .done, .cancelled: true
+        case .error: error == Self.nothingHeard
+        default: false
+        }
+    }
+
+    public func sendProgress(at time: TimeInterval) -> Double {
+        guard phase == .sending, let sendingSince else { return 0 }
+        return min(1, max(0, (time - sendingSince) / Self.sendDelay))
+    }
+
     public var acceptsConfirm: Bool {
         state?.phase == .confirm && failure == nil && !confirming
     }
@@ -113,6 +133,7 @@ public final class VoiceSession {
         switch phase {
         case .loading: "Loading the speech model…"
         case .listening, nil: "Listening"
+        case .sending: "Sending"
         case .thinking: "Thinking"
         case .confirm: "Confirm"
         case .done: "Done"
@@ -157,6 +178,7 @@ public final class VoiceSession {
         failure = nil
         micDenied = false
         confirming = false
+        sendingSince = nil
         levels = Array(repeating: 0, count: Self.meterBars)
         utterance = nil
         buffered = Data()
@@ -222,6 +244,16 @@ public final class VoiceSession {
         visible = false
     }
 
+    public func close() {
+        if active || phase == .sending {
+            cancel()
+        } else if phase == .confirm {
+            confirm(false)
+        } else {
+            dismiss()
+        }
+    }
+
     public func confirm(_ approve: Bool) {
         guard acceptsConfirm, let id = utterance, let target else { return }
         confirming = true
@@ -263,9 +295,20 @@ public final class VoiceSession {
 
     private func start(_ target: VoiceTarget, _ generation: Int) async {
         guard generation == self.generation else { return }
-        guard await source.permission() else {
+        switch await source.permission() {
+        case .granted:
+            break
+        case .denied:
             micDenied = true
             await fail(Self.micDeniedMessage)
+            return
+        case .prompted:
+            guard generation == self.generation else { return }
+            active = false
+            holding = false
+            accepting = false
+            visible = false
+            buffered = Data()
             return
         }
         guard generation == self.generation else { return }
@@ -322,6 +365,9 @@ public final class VoiceSession {
             confirmShownAt = uptime()
             confirming = false
             visible = true
+        }
+        if next.phase == .sending, state?.phase != .sending {
+            sendingSince = uptime()
         }
         state = next
         if active, !next.phase.capturing {

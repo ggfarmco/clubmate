@@ -292,6 +292,7 @@ public struct AgentTranscript: Decodable, Sendable, Equatable {
 public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public enum Content: Sendable, Equatable {
         case user(text: String, fromAgent: Bool, images: [Data], files: [String] = [])
+        case voice(VoicePrompt)
         case agent(String)
         case thought(String)
         case tool(ToolCall)
@@ -310,7 +311,7 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
     public let content: Content
 
     enum CodingKeys: String, CodingKey {
-        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, card
+        case kind, id, turn, at, answeredAt, text, content, tool, plan, toolCall, options, outcome, notice, from, compaction, elicitation, response, completed, stoppable, doc, card, voice
     }
 
     static let outgoingPrefix = "outgoing/"
@@ -337,6 +338,10 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         let text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         switch TranscriptEntryKind(raw) {
         case .user:
+            if let voice = try? c.decodeIfPresent(VoicePrompt.Heard.self, forKey: .voice) {
+                content = .voice(VoicePrompt(heard: voice.heard, utterance: voice.utterance, prompt: text))
+                return
+            }
             let blocks = (try? c.decodeIfPresent([JSONValue].self, forKey: .content)) ?? []
             let images = blocks.compactMap { $0["type"]?.stringValue == "image" ? Data(base64Encoded: $0["data"]?.stringValue ?? "") ?? Data() : nil }
             let files = blocks.compactMap { block -> String? in
@@ -381,6 +386,27 @@ public struct TranscriptEntry: Decodable, Sendable, Equatable, Identifiable {
         case .other:
             content = .other(raw)
         }
+    }
+}
+
+public struct VoicePrompt: Sendable, Equatable {
+    struct Heard: Decodable {
+        let heard: String
+        let utterance: String
+    }
+
+    public let heard: String
+    public let utterance: String
+    public let json: String
+
+    init(heard: String, utterance: String, prompt: String) {
+        self.heard = heard
+        self.utterance = utterance
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        json = (try? JSONDecoder().decode(JSONValue.self, from: Data(prompt.utf8)))
+            .flatMap { try? encoder.encode($0) }
+            .map { String(decoding: $0, as: UTF8.self) } ?? prompt
     }
 }
 

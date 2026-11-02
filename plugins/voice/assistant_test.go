@@ -66,7 +66,9 @@ func TestEndPromptsVoiceSession(t *testing.T) {
 func TestPromptFailureRecreatesVoiceSession(t *testing.T) {
 	v, h, _ := newTestVoice(t)
 	require.NoError(t, h.StorageSet(t.Context(), sessionKeyPrefix+testWorkspace, sessionA))
-	h.commands["agents.sessions"] = func(json.RawMessage) (any, error) { return []map[string]string{{"id": sessionA}}, nil }
+	h.commands["agents.sessions"] = func(json.RawMessage) (any, error) {
+		return []map[string]string{{"id": sessionA, "startModel": voiceModel}}, nil
+	}
 	h.commands["agents.prompt"] = func(args json.RawMessage) (any, error) {
 		var p promptArgs
 		_ = json.Unmarshal(args, &p)
@@ -77,8 +79,10 @@ func TestPromptFailureRecreatesVoiceSession(t *testing.T) {
 	}
 
 	uid := start(t, v)
+	feed(t, v, uid, minAudioBytes)
 	_, err := v.end(t.Context(), testWorkspace, uid)
 	require.NoError(t, err)
+	h.clock.fire(sendDelay)
 
 	require.Eventually(t, func() bool { return len(h.calls("agents.prompt")) == 2 }, 5*time.Second, time.Millisecond)
 	assert.Len(t, h.calls("agents.new"), 1)
@@ -86,6 +90,19 @@ func TestPromptFailureRecreatesVoiceSession(t *testing.T) {
 		st, err := v.state(testWorkspace, uid)
 		return err == nil && st.Session == voiceSession && st.Phase == phaseThinking
 	}, 5*time.Second, time.Millisecond)
+}
+
+func TestOldVoiceSessionIsReplaced(t *testing.T) {
+	v, h, _ := newTestVoice(t)
+	require.NoError(t, h.StorageSet(t.Context(), sessionKeyPrefix+testWorkspace, sessionA))
+	h.commands["agents.sessions"] = func(json.RawMessage) (any, error) { return []map[string]string{{"id": sessionA}}, nil }
+
+	routed(t, v, h)
+
+	assert.Len(t, h.calls("agents.new"), 1)
+	var prompt promptArgs
+	require.NoError(t, json.Unmarshal(h.calls("agents.prompt")[0], &prompt))
+	assert.Equal(t, voiceSession, prompt.Session)
 }
 
 func TestAnswerRejectsOtherCaller(t *testing.T) {
@@ -204,11 +221,9 @@ func TestRunDangerousWaitsForConfirm(t *testing.T) {
 
 func TestTurnTimeoutEndsWithError(t *testing.T) {
 	v, h, _ := newTestVoice(t)
-	clk := &fakeClock{}
-	v.after = clk.after
 	uid := routed(t, v, h)
 
-	clk.fire(turnTimeout)
+	h.clock.fire(turnTimeout)
 
 	st, err := v.state(testWorkspace, uid)
 	require.NoError(t, err)
@@ -220,8 +235,10 @@ func routed(t *testing.T, v *voice, h *fakeHost) string {
 	t.Helper()
 	prompts := len(h.calls("agents.prompt"))
 	uid := start(t, v)
+	feed(t, v, uid, minAudioBytes)
 	_, err := v.end(t.Context(), testWorkspace, uid)
 	require.NoError(t, err)
+	h.clock.fire(sendDelay)
 	require.Eventually(t, func() bool { return len(h.calls("agents.prompt")) > prompts }, 5*time.Second, time.Millisecond)
 	return uid
 }

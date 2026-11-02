@@ -23,6 +23,9 @@ struct VoicePanel: View {
             VStack(alignment: .leading, spacing: theme.spacing.m) {
                 header(phase)
                 heard(phase)
+                if phase == .sending {
+                    SendCountdown(voice: voice)
+                }
                 if let plan = voice.state?.plan, !plan.isEmpty {
                     Text(plan)
                         .foregroundStyle(theme.text2)
@@ -49,7 +52,7 @@ struct VoicePanel: View {
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl))
             .overlay(RoundedRectangle(cornerRadius: theme.radius.xl).stroke(theme.borderStrong, lineWidth: 1))
             .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
-            .background(ConfirmKeys(active: voice.acceptsConfirmKeys, focused: $keyFocus) { approve, time in voice.confirmKey(approve, at: time) })
+            .background(ConfirmKeys(active: voice.acceptsConfirmKeys || voice.acceptsCancelKey, focused: $keyFocus) { approve, time in voice.confirmKey(approve, at: time) })
             .task(id: phase) {
                 guard phase == .done || phase == .cancelled else { return }
                 try? await Task.sleep(for: Self.hideAfter)
@@ -72,6 +75,11 @@ struct VoicePanel: View {
                     .lineLimit(1)
             }
             Spacer(minLength: theme.spacing.m)
+            if voice.acceptsCancelKey {
+                Text("Esc to cancel")
+                    .foregroundStyle(theme.muted)
+                    .lineLimit(1)
+            }
             if let session = voice.state?.session, !voice.active {
                 Button("Open Voice session") { openSession(session) }
                     .buttonStyle(.plain)
@@ -80,7 +88,7 @@ struct VoicePanel: View {
                     .help("Show the Voice session's transcript in Agents")
             }
             Button {
-                voice.active ? voice.cancel() : (voice.phase == .confirm ? voice.confirm(false) : voice.dismiss())
+                voice.close()
             } label: {
                 Image(systemName: "xmark")
                     .foregroundStyle(theme.muted)
@@ -88,7 +96,7 @@ struct VoicePanel: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(voice.active ? "Cancel" : "Close")
+            .help(voice.closeCancels ? "Cancel" : "Close")
         }
         .font(theme.uiSmall)
     }
@@ -157,6 +165,25 @@ struct VoicePanel: View {
                 CardButton(label: "Open Privacy Settings") { NSWorkspace.shared.open(Self.privacySettings) }
             }
         }
+    }
+}
+
+private struct SendCountdown: View {
+    let voice: VoiceController
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            GeometryReader { geometry in
+                Capsule()
+                    .fill(theme.accent)
+                    .frame(width: geometry.size.width * voice.sendRemaining(at: context.date))
+            }
+        }
+        .frame(height: 3)
+        .background(Capsule().fill(theme.border))
+        .accessibilityHidden(true)
     }
 }
 

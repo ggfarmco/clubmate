@@ -74,6 +74,15 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(entry.content, .user(text: "see", fromAgent: false, images: [Data([0, 1, 2]), Data()], files: ["logs.zip", "a.go"]))
     }
 
+    func testDecodesVoicePromptAsHeardWithPrettyJSON() throws {
+        let json = #"{"kind":"user","id":"prompt-2","turn":2,"from":"voice","text":"{\"heard\":\"удали ворктри\",\"context\":{\"path\":\"a/b\"}}","voice":{"heard":"удали ворктри","utterance":"vu_1"}}"#
+        let entry = try JSONDecoder.clubmate.decode(TranscriptEntry.self, from: Data(json.utf8))
+        guard case .voice(let prompt) = entry.content else { return XCTFail("unexpected \(entry.content)") }
+        XCTAssertEqual(prompt.heard, "удали ворктри")
+        XCTAssertEqual(prompt.utterance, "vu_1")
+        XCTAssertEqual(prompt.json, "{\n  \"context\" : {\n    \"path\" : \"a/b\"\n  },\n  \"heard\" : \"удали ворктри\"\n}")
+    }
+
     func testPromptTextNotesVideoFrames() {
         let video = ComposerAttachment.video(frames: [Data([1]), Data([2])], times: [1.5, 4.5], duration: 6)
         XCTAssertEqual(ComposerAttachment.promptText("why", [.photo(Data([0])), video]), "why\n\n[Video, 6.0 s — 2 frames in order at 1.5 s, 4.5 s]")

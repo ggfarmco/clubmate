@@ -31,6 +31,7 @@ type fakeHost struct {
 	commands  map[string]func(args json.RawMessage) (any, error)
 	methods   map[string]func(params any) (any, error)
 	runs      []commandCall
+	clock     *fakeClock
 }
 
 type commandCall struct {
@@ -68,22 +69,79 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartAudioEndGivesHeard(t *testing.T) {
-	v, _, rec := newTestVoice(t)
+	v, h, rec := newTestVoice(t)
 	rec.final = "поправь мсп"
 	_, err := v.command(t.Context(), nil, pluginsdk.CommandRun{ID: "voice.dictionary-set", Args: raw(t, map[string]any{"entries": []map[string]string{{"from": "мсп", "to": "MCP"}}})})
 	require.NoError(t, err)
 
 	uid := start(t, v)
 	assert.Equal(t, "320", feed(t, v, uid, 320))
-	assert.Equal(t, "640", feed(t, v, uid, 320))
+	assert.Equal(t, strconv.Itoa(320+minAudioBytes), feed(t, v, uid, minAudioBytes))
 	res, err := v.end(t.Context(), testWorkspace, uid)
 	require.NoError(t, err)
 
 	assert.Equal(t, "поправь MCP", res.Heard)
 	st, err := v.state(testWorkspace, uid)
 	require.NoError(t, err)
-	assert.Equal(t, phaseThinking, st.Phase)
-	assert.Equal(t, "640", st.Partial)
+	assert.Equal(t, phaseSending, st.Phase)
+	sendAt, err := time.Parse(time.RFC3339Nano, st.SendAt)
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now().Add(sendDelay), sendAt, time.Second)
+	assert.Empty(t, h.calls("agents.prompt"))
+}
+
+func TestCancelWhileSendingSendsNothing(t *testing.T) {
+	v, h, _ := newTestVoice(t)
+	uid := start(t, v)
+	feed(t, v, uid, minAudioBytes)
+	_, err := v.end(t.Context(), testWorkspace, uid)
+	require.NoError(t, err)
+
+	require.NoError(t, v.cancel(testWorkspace, uid))
+	h.clock.fire(sendDelay)
+
+	assert.Equal(t, phaseCancelled, phaseOf(t, v, uid))
+	assert.Empty(t, h.calls("agents.prompt"))
+}
+
+func TestNothingHeardIsNotSent(t *testing.T) {
+	tests := []struct {
+		name  string
+		final string
+		audio int
+	}{
+		{"no word", " … ", minAudioBytes},
+		{"too short", "да", minAudioBytes - 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, h, rec := newTestVoice(t)
+			rec.final = tt.final
+			uid := start(t, v)
+			feed(t, v, uid, tt.audio)
+			_, err := v.end(t.Context(), testWorkspace, uid)
+			require.NoError(t, err)
+			h.clock.fire(sendDelay)
+
+			st, err := v.state(testWorkspace, uid)
+			require.NoError(t, err)
+			assert.Equal(t, phaseError, st.Phase)
+			assert.Equal(t, msgNothingHeard, st.Error)
+			assert.Empty(t, h.calls("agents.prompt"))
+		})
+	}
+}
+
+func TestAudioOverLimitWaitsForEnd(t *testing.T) {
+	v, _, rec := newTestVoice(t)
+	uid := start(t, v)
+
+	for range maxAudioBytes/maxChunkBytes + 2 {
+		feed(t, v, uid, maxChunkBytes)
+	}
+
+	assert.Equal(t, phaseListening, phaseOf(t, v, uid))
+	assert.Equal(t, maxAudioBytes, rec.sizes[uid])
 }
 
 func TestSeedDictionaryUntilUserSavesOwn(t *testing.T) {
@@ -158,14 +216,15 @@ func newTestVoice(t *testing.T) (*voice, *fakeHost, *fakeRecognizer) {
 	stubAgents(h, nil, nil)
 	h.commands["agents.sessions"] = func(json.RawMessage) (any, error) { return sessions, nil }
 	h.commands["agents.new"] = func(json.RawMessage) (any, error) {
-		sessions = append(sessions, map[string]any{"id": voiceSession, "title": "Voice", "status": "idle"})
+		sessions = append(sessions, map[string]any{"id": voiceSession, "title": "Voice", "status": "idle", "startModel": voiceModel})
 		return map[string]string{"session": voiceSession}, nil
 	}
 	h.commands["agents.prompt"] = func(json.RawMessage) (any, error) { return nil, nil }
 	h.methods["command.list"] = func(any) (any, error) { return testCommands, nil }
-	rec := &fakeRecognizer{sizes: map[string]int{}}
+	rec := &fakeRecognizer{sizes: map[string]int{}, final: "ответь да"}
+	h.clock = &fakeClock{}
 	v := newVoice()
-	v.h, v.rec, v.ctx, v.after = h, rec, t.Context(), (&fakeClock{}).after
+	v.h, v.rec, v.ctx, v.after = h, rec, t.Context(), h.clock.after
 	return v, h, rec
 }
 

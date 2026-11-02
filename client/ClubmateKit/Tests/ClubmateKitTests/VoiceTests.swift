@@ -152,13 +152,64 @@ final class VoiceTests: XCTestCase {
         try await waitUntil { core.calls.filter { $0.id == "voice.end" }.count == 1 }
 
         voice.press(at: 2)
-        voice.release(at: 2.1)
+        voice.release(at: 2.5)
         XCTAssertTrue(voice.active)
         XCTAssertEqual(voice.sendHint, "⌥Space to send")
         voice.press(at: 5)
         voice.release(at: 5.05)
         XCTAssertFalse(voice.active)
         try await waitUntil { core.calls.filter { $0.id == "voice.end" }.count == 2 }
+    }
+
+    func testSendingTakesEscToCancel() async throws {
+        let core = FakeVoiceCore()
+        let sendAt = Date(timeIntervalSince1970: 1_793_613_601.5)
+        core.states = [#"{"utterance":"vu_1","phase":"sending","heard":"смержи","sendAt":"2026-11-02T10:00:01.500Z","rev":3}"#]
+        let voice = core.controller()
+        voice.begin()
+        try await waitUntil { voice.phase == .sending }
+
+        XCTAssertTrue(voice.acceptsCancelKey)
+        XCTAssertTrue(voice.closeCancels)
+        XCTAssertEqual(voice.sendRemaining(at: sendAt.addingTimeInterval(-0.25)), 0.25, accuracy: 0.001)
+        voice.confirmKey(true, at: 10)
+        voice.confirmKey(false, at: 10)
+
+        try await waitUntil { core.calls.contains { $0.id == "voice.cancel" } }
+        XCTAssertFalse(core.calls.contains { $0.id == "voice.confirm" })
+        XCTAssertFalse(voice.visible)
+    }
+
+    func testPressWhileSendingCancelsItAndListensAgain() async throws {
+        let core = FakeVoiceCore()
+        core.states = [
+            #"{"utterance":"vu_1","phase":"sending","heard":"смержи","sendAt":"2026-11-02T10:00:01.500Z","rev":3}"#,
+            #"{"utterance":"vu_1","phase":"listening","rev":1}"#,
+        ]
+        let voice = core.controller()
+        voice.begin()
+        try await waitUntil { voice.phase == .sending }
+
+        voice.press(at: 10)
+
+        try await waitUntil { core.calls.filter { $0.id == "voice.start" }.count == 2 }
+        XCTAssertEqual(core.calls.first { $0.id == "voice.cancel" }?.args["utterance"]?.stringValue, "vu_1")
+        XCTAssertTrue(voice.active)
+    }
+
+    func testReleaseDuringPermissionPromptCancels() async throws {
+        let core = FakeVoiceCore()
+        core.source.holdPermission = true
+        let voice = core.controller()
+
+        voice.press(at: 0)
+        try await waitUntil { core.source.asked }
+        voice.release(at: 3)
+        core.source.grant()
+
+        try await waitUntil { !voice.visible }
+        XCTAssertFalse(core.source.started)
+        XCTAssertFalse(core.calls.contains { $0.id == "voice.start" || $0.id == "voice.end" })
     }
 
     func testMicrophoneDeniedNeverStarts() async throws {
@@ -179,9 +230,24 @@ private final class FakeVoiceSource: VoiceAudioSource {
     var allowed = true
     var started = false
     var stopped = false
+    var holdPermission = false
+    var asked = false
     private var onChunk: (@MainActor (Data) -> Void)?
+    private var permissionGate: CheckedContinuation<Void, Never>?
 
-    func permission() async -> Bool { allowed }
+    var permissionPrompts: Bool { holdPermission }
+
+    func permission() async -> Bool {
+        asked = true
+        if holdPermission { await withCheckedContinuation { permissionGate = $0 } }
+        return allowed
+    }
+
+    func grant() {
+        holdPermission = false
+        permissionGate?.resume()
+        permissionGate = nil
+    }
 
     func start(onChunk: @escaping @MainActor (Data) -> Void, onEnd: @escaping @MainActor () -> Void) throws {
         started = true

@@ -33,12 +33,12 @@ final class VoiceCapture: VoiceAudioSource {
         #endif
     }
 
-    func permission() async -> Bool {
-        if file != nil { return true }
+    func permission() async -> VoicePermission {
+        if file != nil { return .granted }
         switch AVAudioApplication.shared.recordPermission {
-        case .granted: return true
-        case .undetermined: return await AVAudioApplication.requestRecordPermission()
-        default: return false
+        case .granted: return .granted
+        case .undetermined: return await AVAudioApplication.requestRecordPermission() ? .prompted : .denied
+        default: return .denied
         }
     }
 

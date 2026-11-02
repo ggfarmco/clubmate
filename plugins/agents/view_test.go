@@ -292,6 +292,19 @@ func TestChildHeaderAndAgentMessage(t *testing.T) {
 	assert.Equal(t, "another agent", msgs[1].Props["from"])
 }
 
+func TestVoicePromptRendersHeard(t *testing.T) {
+	text := `{"utterance":"vu_1","heard":"открой бэклог","context":{"section":"agents"}}`
+	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}, Entries: []*entry{{Kind: entryUser, ID: "prompt-1", Turn: 1, Text: text, Voice: &voicePrompt{Heard: "открой бэклог", Utterance: "vu_1"}}}}
+
+	tree := mainView(screen{View: v, Window: windowStep, Composer: "agt_1/composer/0"})
+
+	require.NoError(t, internalsdui.Validate(tree))
+	msgs := nodesOf(tree, "message")
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "открой бэклог", msgs[0].Props["heard"])
+	assert.Equal(t, text, msgs[0].Props["text"])
+}
+
 func TestTranscriptWindowAndShowEarlier(t *testing.T) {
 	v := transcriptView{Session: record{ID: "agt_1", Worktree: "/r", Agent: agentClaude, Status: statusDone}}
 	for turn := 1; turn <= 45; turn++ {

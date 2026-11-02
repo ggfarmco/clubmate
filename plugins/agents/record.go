@@ -63,6 +63,7 @@ type record struct {
 	DisallowedTools []string  `json:"disallowedTools,omitempty"`
 	SystemPrompt    string    `json:"systemPrompt,omitempty"`
 	StartMode       string    `json:"startMode,omitempty"`
+	StartModel      string    `json:"startModel,omitempty"`
 }
 
 type sessionInfo struct {
@@ -153,7 +154,7 @@ func (r record) closed() bool {
 }
 
 func (r record) restricted() bool {
-	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != ""
+	return len(r.DisallowedTools) > 0 || r.SystemPrompt != "" || r.StartMode != "" || r.StartModel != ""
 }
 
 func titleOf(text string) string {

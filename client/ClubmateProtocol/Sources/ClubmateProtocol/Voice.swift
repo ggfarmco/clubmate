@@ -28,7 +28,7 @@ public struct VoicePointer: Encodable, Sendable, Equatable {
 
 public struct VoiceState: Decodable, Sendable, Equatable {
     public enum Phase: String, Decodable, Sendable {
-        case loading, listening, thinking, confirm, done, error, cancelled
+        case loading, listening, sending, thinking, confirm, done, error, cancelled
 
         public var capturing: Bool { self == .loading || self == .listening }
         public var finished: Bool { self == .done || self == .error || self == .cancelled }
@@ -69,12 +69,19 @@ public struct VoiceState: Decodable, Sendable, Equatable {
     public let phase: Phase
     public let partial: String?
     public let heard: String?
+    public let sendAt: String?
     public let plan: String?
     public let result: String?
     public let error: String?
     public let confirm: Confirm?
     public let session: String?
     public let rev: Int
+
+    public var sendDate: Date? {
+        guard let sendAt else { return nil }
+        return (try? Date(sendAt, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)))
+            ?? (try? Date(sendAt, strategy: .iso8601))
+    }
 }
 
 public enum VoiceAudio {

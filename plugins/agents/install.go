@@ -33,6 +33,7 @@ const (
 	probeTimeout    = 15 * time.Second
 	mcpName         = "clubmate"
 	agentSessionEnv = "CLUBMATE_AGENT_SESSION"
+	autoMemoryEnv   = "CLAUDE_CODE_DISABLE_AUTO_MEMORY"
 	installMarker   = ".clubmate-installed"
 )
 
@@ -56,7 +57,8 @@ func launcherFor(ctx context.Context, stateDir, agent, workspace, root string, i
 	if err != nil {
 		return launch{}, err
 	}
-	return launch{argv: []string{node, script}, env: env, mcp: clubmateMCP(ctx, workspace, root)}, nil
+	mcp := clubmateMCP(workspace)
+	return launch{argv: []string{node, script}, env: env, mcp: mcp, registered: len(mcp) > 0 && registered(ctx, root)}, nil
 }
 
 var droppedEnv = []string{apiKeyEnv, contract.WorkspaceEnv, "CLUBMATE_PLUGIN_ID", "CLUBMATE_PLUGIN_STATE_DIR", "CLUBMATE_PLUGIN_RUNTIME_DIR", "CLUBMATE_FLAVOR", "CLUBMATE_RESOURCES"}
@@ -234,7 +236,7 @@ func (m packageManifest) bin() string {
 	return ""
 }
 
-func clubmateMCP(ctx context.Context, workspace, root string) []acp.McpServer {
+func clubmateMCP(workspace string) []acp.McpServer {
 	exe, err := os.Executable()
 	if err != nil {
 		return []acp.McpServer{}
@@ -244,9 +246,6 @@ func clubmateMCP(ctx context.Context, workspace, root string) []acp.McpServer {
 	}
 	cli := filepath.Join(filepath.Dir(exe), "..", "..", "clubmate")
 	if info, err := os.Stat(cli); err != nil || info.Mode().Perm()&0o111 == 0 {
-		return []acp.McpServer{}
-	}
-	if registered(ctx, root) {
 		return []acp.McpServer{}
 	}
 	return []acp.McpServer{{Name: mcpName, Command: cli, Args: []string{"mcp"}, Env: []acp.EnvVariable{{Name: contract.WorkspaceEnv, Value: workspace}}}}
@@ -273,6 +272,11 @@ func sessionMeta(rec record, advisor string) *acp.SessionMeta {
 	opts := acp.ClaudeCodeOptions{Env: map[string]string{agentSessionEnv: rec.ID}, DisallowedTools: rec.DisallowedTools}
 	if advisor != "" {
 		opts.Settings = &acp.ClaudeCodeSettings{AdvisorModel: advisor}
+	}
+	if rec.restricted() {
+		opts.Env[autoMemoryEnv] = "1"
+		opts.SettingSources = []string{}
+		opts.StrictMcpConfig = true
 	}
 	meta := &acp.SessionMeta{ClaudeCode: acp.ClaudeCodeMeta{Options: opts}}
 	switch {

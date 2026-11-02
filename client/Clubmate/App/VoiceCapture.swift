@@ -30,6 +30,10 @@ final class VoiceCapture: VoiceAudioSource {
         ProcessInfo.processInfo.environment["CLUBMATE_VOICE_FILE"].flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    var permissionPrompts: Bool {
+        file == nil && AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined
+    }
+
     func permission() async -> Bool {
         if file != nil { return true }
         switch AVCaptureDevice.authorizationStatus(for: .audio) {

@@ -18,10 +18,14 @@ import (
 const (
 	sectionAgents  = "agents"
 	sectionBacklog = "backlog"
+	statusRunning  = "running"
+	statusWaiting  = "waiting"
 
 	maxViewBytes     = 8 << 10
 	maxHintBytes     = 800
 	maxSessions      = 50
+	maxBriefSessions = 10
+	recentSession    = 2 * time.Hour
 	maxOtherBranches = 10
 	resolveTimeout   = 3 * time.Second
 	truncatedView    = `{"truncated":true}`
@@ -101,6 +105,7 @@ type agentSession struct {
 	Question       string     `json:"question"`
 	NeedsYou       bool       `json:"needsYou"`
 	NeedsYouSince  *time.Time `json:"needsYouSince"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
 	PendingSummary *struct {
 		Text string `json:"text"`
 	} `json:"pendingSummary"`
@@ -166,13 +171,7 @@ func resolve(ctx context.Context, h host, workspace string, p Pointer) (Context,
 		errs = append(errs, fmt.Errorf("agent sessions: %w", err))
 	}
 	for _, s := range sessions {
-		if s.Closed() {
-			continue
-		}
-		if len(c.Workspace.Sessions) < maxSessions {
-			c.Workspace.Sessions = append(c.Workspace.Sessions, brief(s))
-		}
-		if s.NeedsYou && len(c.NeedsYou) < maxSessions {
+		if s.NeedsYou && !s.Closed() && len(c.NeedsYou) < maxSessions {
 			c.NeedsYou = append(c.NeedsYou, brief(s))
 		}
 	}
@@ -185,6 +184,7 @@ func resolve(ctx context.Context, h host, workspace string, p Pointer) (Context,
 	if sel == (Selection{}) {
 		sel = fallbackSelection(slots, p.Section, sessions)
 	}
+	c.Workspace.Sessions = briefSessions(sessions, sel.Session, time.Now())
 	if sel.Session != "" {
 		info, err := sessionInfo(ctx, h, workspace, sessions, sel.Session)
 		if err != nil {
@@ -371,6 +371,41 @@ func branches(worktrees []worktree) []string {
 		}
 	}
 	return list
+}
+
+func briefSessions(sessions []agentSession, selected string, now time.Time) []SessionBrief {
+	var active []agentSession
+	var picked *agentSession
+	for i, s := range sessions {
+		switch {
+		case s.ID == selected:
+			picked = &sessions[i]
+		case s.Closed():
+		case s.busy(), now.Sub(s.UpdatedAt) < recentSession:
+			active = append(active, s)
+		}
+	}
+	slices.SortStableFunc(active, func(a, b agentSession) int {
+		if a.busy() != b.busy() {
+			if a.busy() {
+				return -1
+			}
+			return 1
+		}
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
+	var list []SessionBrief
+	if picked != nil {
+		list = append(list, brief(*picked))
+	}
+	for _, s := range active[:min(len(active), maxBriefSessions)] {
+		list = append(list, SessionBrief{ID: s.ID, Title: s.Title, Status: s.Status})
+	}
+	return list
+}
+
+func (s agentSession) busy() bool {
+	return s.Status == statusRunning || s.Status == statusWaiting || s.NeedsYou
 }
 
 func brief(s agentSession) SessionBrief {

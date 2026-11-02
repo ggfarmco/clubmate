@@ -95,7 +95,7 @@ final class VoiceTests: XCTestCase {
 
     func testSlowLinkBatchesChunks() async throws {
         let mac = VoiceMac()
-        mac.holdAudio = true
+        mac.held = ["voice.audio"]
         let voice = mac.session()
         voice.begin()
         try await waitUntil { mac.ids.contains("voice.state") }
@@ -103,11 +103,69 @@ final class VoiceTests: XCTestCase {
         mac.source.emit(chunk)
         try await waitUntil { mac.ids.contains("voice.audio") }
         for _ in 0..<7 { mac.source.emit(chunk) }
-        mac.releaseAudio()
+        mac.release("voice.audio")
         voice.finish()
         try await waitUntil { mac.ids.contains("voice.end") }
         let sent = mac.calls.filter { $0.id == "voice.audio" }.compactMap { $0.args?["pcm"]?.stringValue.flatMap { Data(base64Encoded: $0) }?.count }
         XCTAssertEqual(sent, [10_240, 65_536, 6_144])
+    }
+
+    func testAudioBeforeStartReturnsIsSent() async throws {
+        let mac = VoiceMac()
+        mac.held = ["voice.start"]
+        let voice = mac.session()
+        voice.begin()
+        try await waitUntil { mac.source.started && mac.ids.contains("voice.start") }
+        mac.source.emit(Data(repeating: 1, count: 640))
+        mac.release("voice.start")
+        try await waitUntil { mac.ids.contains("voice.audio") }
+        let audio = try XCTUnwrap(mac.calls.first { $0.id == "voice.audio" })
+        XCTAssertEqual(audio.args?["pcm"]?.stringValue.flatMap { Data(base64Encoded: $0) }?.count, 640)
+    }
+
+    func testShortPressTogglesLongPressHolds() async throws {
+        let mac = VoiceMac()
+        let voice = mac.session()
+        voice.press(at: 0)
+        voice.release(at: 0.5)
+        try await waitUntil { mac.ids.contains("voice.state") }
+        XCTAssertTrue(voice.active)
+        voice.press(at: 1)
+        voice.release(at: 1.1)
+        try await waitUntil { mac.ids.contains("voice.end") }
+        voice.press(at: 2)
+        voice.release(at: 2.7)
+        try await waitUntil { mac.ids.filter { $0 == "voice.end" }.count == 2 }
+        XCTAssertEqual(mac.ids.filter { $0 == "voice.start" }.count, 2)
+    }
+
+    func testPermissionPromptCancelsUtterance() async throws {
+        let mac = VoiceMac()
+        mac.source.answer = .prompted
+        let voice = mac.session()
+        voice.press(at: 0)
+        try await waitUntil { !voice.active }
+        voice.release(at: 3)
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertFalse(voice.visible)
+        XCTAssertFalse(mac.source.started)
+        XCTAssertEqual(mac.ids, [])
+    }
+
+    func testSendingCountsDownAndCancels() async throws {
+        let mac = VoiceMac()
+        mac.states = [#"{"utterance":"vu_1","phase":"listening","rev":1}"#, #"{"utterance":"vu_1","phase":"sending","heard":"привет","sendAt":"2026-11-02T10:00:01.5Z","rev":2}"#]
+        let voice = mac.session()
+        voice.begin()
+        try await waitUntil { voice.state?.rev == 1 }
+        mac.clock = 10
+        voice.finish()
+        try await waitUntil { voice.phase == .sending }
+        XCTAssertEqual(voice.sendProgress(at: 10.25), 0.25)
+        XCTAssertEqual(voice.sendProgress(at: 12), 1)
+        voice.close()
+        try await waitUntil { mac.ids.contains("voice.cancel") }
+        XCTAssertFalse(voice.visible)
     }
 
     func testPointerFromPhoneScreen() {
@@ -121,9 +179,10 @@ final class VoiceTests: XCTestCase {
 private final class FakeVoiceSource: VoiceAudioSource {
     var started = false
     var stopped = false
+    var answer = VoicePermission.granted
     private var onChunk: (@MainActor (Data) -> Void)?
 
-    func permission() async -> Bool { true }
+    func permission() async -> VoicePermission { answer }
 
     func start(onChunk: @escaping @MainActor (Data) -> Void, onEnd: @escaping @MainActor () -> Void) throws {
         started = true
@@ -146,33 +205,33 @@ private final class VoiceMac: CommandRunner {
     var calls: [(id: String, workspace: String?, args: JSONValue?)] = []
     var states: [String] = [#"{"utterance":"vu_1","phase":"listening","rev":1}"#]
     var failing: Set<String> = []
-    var holdAudio = false
-    private var audioGate: CheckedContinuation<Void, Never>?
+    var held: Set<String> = []
+    var clock: TimeInterval = 0
+    private var gates: [String: CheckedContinuation<Void, Never>] = [:]
 
     var ids: [String] {
         calls.map(\.id)
     }
 
     func session() -> VoiceSession {
-        VoiceSession(runner: { [unowned self] _ in self }, source: source, uptime: { 0 }, target: {
+        VoiceSession(runner: { [unowned self] _ in self }, source: source, uptime: { [unowned self] in clock }, target: {
             VoiceTarget(computer: "mac1", workspace: "w", pointer: VoicePointer(device: "phone", section: "agents"))
         })
     }
 
-    func releaseAudio() {
-        holdAudio = false
-        audioGate?.resume()
-        audioGate = nil
+    func release(_ id: String) {
+        held.remove(id)
+        gates.removeValue(forKey: id)?.resume()
     }
 
     func command(_ id: String, workspace: String?, args: JSONValue?) async throws -> JSONValue {
         calls.append((id, workspace, args))
         if failing.contains(id) { throw RemoteError.unreachable("The network connection was lost.") }
+        if held.contains(id) { await withCheckedContinuation { gates[id] = $0 } }
         switch id {
         case "voice.start":
             return .object(["utterance": .string("vu_1")])
         case "voice.audio":
-            if holdAudio { await withCheckedContinuation { audioGate = $0 } }
             return .object(["partial": .string("при")])
         case "voice.end":
             return .object(["heard": .string("привет")])

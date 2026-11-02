@@ -3,6 +3,10 @@
   "states": {
     "loading": {"phase": "loading"},
     "listening": {"phase": "listening"},
+    "sending": {
+      "phase": "sending",
+      "heard": "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом"
+    },
     "thinking": {
       "phase": "thinking",
       "heard": "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом",

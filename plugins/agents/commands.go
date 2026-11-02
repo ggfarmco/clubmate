@@ -53,7 +53,7 @@ var (
 	errUnknownCmd    = errors.New("unknown command")
 	errRelativeRoot  = errors.New("stop-root: path must be absolute")
 	errNotDescendant = errors.New("the session was not started by this agent")
-	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt or mode")
+	errVoiceOnly     = errors.New("invalid_params: only the voice plugin may set disallowedTools, systemPrompt, mode or model")
 )
 
 type commandFunc func(a *app, ctx context.Context, cmd pluginsdk.CommandRun) (any, error)
@@ -84,6 +84,7 @@ type newArgs struct {
 	DisallowedTools []string       `json:"disallowedTools"`
 	SystemPrompt    string         `json:"systemPrompt"`
 	Mode            string         `json:"mode"`
+	Model           string         `json:"model"`
 }
 
 type newResult struct {
@@ -97,6 +98,7 @@ type promptArgs struct {
 	Text        string       `json:"text"`
 	Attachments []attachment `json:"attachments"`
 	From        string       `json:"-"`
+	Voice       bool         `json:"-"`
 }
 
 type attachment struct {
@@ -229,6 +231,7 @@ func (a *app) newCommand(ctx context.Context, cmd pluginsdk.CommandRun, args new
 
 func (a *app) promptCommand(_ context.Context, cmd pluginsdk.CommandRun, args promptArgs) (any, error) {
 	args.From = origin(cmd)
+	args.Voice = !cmd.Agent && cmd.Via == voicePlugin
 	return nil, a.prompt(cmd.WorkspaceID, args)
 }
 
@@ -438,7 +441,7 @@ func (a *app) revealCommand(ctx context.Context, cmd pluginsdk.CommandRun, s *se
 }
 
 func (n newArgs) restricted() bool {
-	return len(n.DisallowedTools) > 0 || n.SystemPrompt != "" || n.Mode != ""
+	return len(n.DisallowedTools) > 0 || n.SystemPrompt != "" || n.Mode != "" || n.Model != ""
 }
 
 func asUser(cmd pluginsdk.CommandRun) bool {

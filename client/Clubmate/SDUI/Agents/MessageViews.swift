@@ -15,21 +15,10 @@ struct MessageNodeView: View, Equatable {
         let text = node.string("text") ?? ""
         switch node.messageRole {
         case .user:
-            HStack(spacing: 0) {
-                Spacer(minLength: theme.gutter * 8)
-                VStack(alignment: .leading, spacing: theme.spacing.s) {
-                    if let from = node.string("from") {
-                        Text("from \(from)")
-                            .font(theme.uiSmall)
-                            .foregroundStyle(theme.muted)
-                    }
-                    UserMessageText(id: node.id, text: text)
-                    AttachmentLabels(attachments: node.attachments())
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, theme.gutter + theme.spacing.s)
-                .padding(.vertical, theme.gutter)
-                .background(UnevenRoundedRectangle(topLeadingRadius: theme.radius.l, bottomLeadingRadius: theme.radius.l, bottomTrailingRadius: theme.radius.s, topTrailingRadius: theme.radius.l).fill(theme.surface1))
+            if let heard = node.string("heard"), let id = node.id {
+                VoicePromptView(id: id, heard: heard, text: text)
+            } else {
+                userMessage(text)
             }
         case .thought:
             ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init))
@@ -38,6 +27,81 @@ struct MessageNodeView: View, Equatable {
                 .equatable()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func userMessage(_ text: String) -> some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: theme.gutter * 8)
+            VStack(alignment: .leading, spacing: theme.spacing.s) {
+                if let from = node.string("from") {
+                    Text("from \(from)")
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.muted)
+                }
+                UserMessageText(id: node.id, text: text)
+                AttachmentLabels(attachments: node.attachments())
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, theme.gutter + theme.spacing.s)
+            .padding(.vertical, theme.gutter)
+            .background(UnevenRoundedRectangle(topLeadingRadius: theme.radius.l, bottomLeadingRadius: theme.radius.l, bottomTrailingRadius: theme.radius.s, topTrailingRadius: theme.radius.l).fill(theme.surface1))
+        }
+    }
+}
+
+private struct VoicePromptView: View {
+    let id: String
+    let heard: String
+    let text: String
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let expanded = MessageExpansion.shared.expanded.contains(id)
+        HStack(spacing: 0) {
+            Spacer(minLength: theme.gutter * 8)
+            VStack(alignment: .trailing, spacing: theme.spacing.s) {
+                Button { MessageExpansion.shared.toggle(id) } label: {
+                    HStack(spacing: theme.spacing.s) {
+                        DisclosureChevron(expanded: expanded)
+                            .foregroundStyle(theme.muted)
+                        Text("🎙 \(heard)")
+                            .foregroundStyle(hovering ? theme.foreground : theme.text2)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .padding(.horizontal, theme.gutter + theme.spacing.s)
+                    .padding(.vertical, theme.spacing.m)
+                    .background(Capsule().fill(theme.surface1))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering = $0 }
+                .help(heard)
+                .accessibilityLabel(heard)
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                if expanded {
+                    CappedScroll {
+                        Text(Self.pretty(text))
+                            .font(theme.ui.monospaced())
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(theme.gutter)
+                    }
+                    .background(RoundedRectangle(cornerRadius: theme.radius.l).fill(theme.surface1))
+                }
+            }
+        }
+    }
+
+    private static func pretty(_ text: String) -> String {
+        guard let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)),
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]),
+              let pretty = String(data: data, encoding: .utf8)
+        else { return text }
+        return pretty
     }
 }
 

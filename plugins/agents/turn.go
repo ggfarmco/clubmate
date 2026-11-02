@@ -154,7 +154,7 @@ func (a *app) steer(s *session, p *agentProc, rec record, args promptArgs) bool 
 		return false
 	}
 	s.mu.Lock()
-	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Steered: true})
+	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: blocks}, From: args.From, FromTitle: fromTitle, Steered: true, Voice: args.Voice})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 	return true
@@ -205,7 +205,7 @@ func (a *app) playTurn(s *session, turn int, args promptArgs) (int, promptArgs) 
 	req := acp.PromptRequest{SessionID: rec.AgentSessionID, Prompt: promptBlocks(args, rec.Worktree, p.caps.PromptCapabilities)}
 	fromTitle := a.senderTitle(args.From)
 	s.mu.Lock()
-	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: req, From: args.From, FromTitle: fromTitle})
+	s.recordLocked(promptActor(args.From), kindPrompt, promptPayload{PromptRequest: req, From: args.From, FromTitle: fromTitle, Voice: args.Voice})
 	s.mu.Unlock()
 	s.changed(changeUpdate, true)
 	ctx, cancel = context.WithTimeout(context.Background(), callTimeout)

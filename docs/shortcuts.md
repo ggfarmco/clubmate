@@ -19,8 +19,9 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
 | ⌃⌘W | Workspace switcher grid | `ClubmateApp.swift` |
 | ⇧⌘I | Notifications inbox (bell popover) | `ClubmateApp.swift` |
-| ⌥Space | Voice: hold to talk, release to send; a tap (under 250 ms) starts listening and the next ⌥Space sends. Taken before terminals, nvim and text fields, so it never types a character there. The mic button at the left of the status bar does the same with a click or a press-and-hold | `Windows/VoiceButton.swift` (`VoiceHotkeys`), `ClubmateKit/Voice.swift` |
+| ⌥Space | Voice: hold to talk, release to send; a tap (under 600 ms) starts listening and the next ⌥Space sends. Nothing is sent before that end. Taken before terminals, nvim and text fields, so it never types a character there. The mic button at the left of the status bar does the same with a click or a press-and-hold | `Windows/VoiceButton.swift` (`VoiceHotkeys`), `ClubmateKit/Voice.swift` |
 | ↩, Esc | In the voice panel's confirmation of a dangerous action: Yes, No. The panel takes key focus when the confirmation shows (↩ is ignored for its first 0.6 s and while held, so a Return typed for a terminal does not approve); once focus moves elsewhere, ↩ and Esc go there again | `Windows/VoicePanel.swift` |
+| Esc | In the voice panel during the 1 s before an utterance is sent ("Sending"): cancel it, nothing reaches the assistant. The panel takes key focus only for that second | `Windows/VoicePanel.swift`, `ClubmateKit/Voice.swift` |
 | Esc | Close the popup a plugin shows over the workspace (e.g. a doc), in the panel or its popped-out window; focus goes back to where it was | `PopupPanel.swift`, `PopupWindow.swift` |
 | Esc | Close an enlarged mermaid diagram from the transcript | `SDUI/MarkdownView.swift` |
 | ⌘W | Close the popup over the workspace while it has focus, instead of the terminal or window | `PopupPanel.swift` |
@@ -161,6 +162,7 @@ Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.
 | ⌥1 ⌥2 ⌥3 | The pending permission card's keys from the agents plugin (`shortcut` in its `card`): ⌥1 Allow once, ⌥2 opens the Always allow confirm sheet (nothing is stored until its Always allow button), ⌥3 Reject; Always reject in ••• has no key |
 | ⌘↩ | Send the composer's message (Session menu) |
 | ⌥↩, Esc | In the voice panel's confirmation of a dangerous action (any screen): Yes, No. ⌥↩ is ignored for the first 0.6 s, like a tap on Yes |
+| Esc | In the voice panel while an utterance waits its 1 s before going to the assistant (any screen): Cancel |
 
 Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`; the voice keys in `client/Companion/App/VoicePanel.swift`.
 

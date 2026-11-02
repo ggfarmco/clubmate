@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"clubmate/pkg/id"
 )
@@ -16,6 +19,7 @@ import (
 const (
 	phaseLoading   = "loading"
 	phaseListening = "listening"
+	phaseSending   = "sending"
 	phaseThinking  = "thinking"
 	phaseConfirm   = "confirm"
 	phaseDone      = "done"
@@ -25,16 +29,21 @@ const (
 	utterancePrefix = "vu"
 	bytesPerSecond  = 16000 * 2
 	maxAudioBytes   = 60 * bytesPerSecond
+	minAudioBytes   = bytesPerSecond / 2
+	sendDelay       = time.Second
+	sendAtLayout    = "2006-01-02T15:04:05.000Z07:00"
 	maxChunkBytes   = 64 << 10
 	finishedTTL     = 10 * time.Minute
 
 	msgRecognizerStopped = "recognizer stopped"
 	msgStillLoading      = "the recognizer is still loading"
+	msgNothingHeard      = "nothing heard"
 )
 
 var (
 	errUnknownUtterance  = errors.New("unknown utterance")
 	errRecognizerStopped = errors.New(msgRecognizerStopped)
+	errNothingHeard      = errors.New(msgNothingHeard)
 	errChunkTooLarge     = fmt.Errorf("pcm chunk over %d bytes", maxChunkBytes)
 
 	languages = []string{"ru", "auto"}
@@ -58,6 +67,7 @@ type State struct {
 	Phase     string   `json:"phase"`
 	Partial   string   `json:"partial,omitempty"`
 	Heard     string   `json:"heard,omitempty"`
+	SendAt    string   `json:"sendAt,omitempty"`
 	Plan      string   `json:"plan,omitempty"`
 	Result    string   `json:"result,omitempty"`
 	Error     string   `json:"error,omitempty"`
@@ -104,6 +114,7 @@ type utterance struct {
 	where      Context
 	state      State
 	audioBytes int
+	peak       int
 	closing    bool
 	ended      time.Time
 	done       chan struct{}
@@ -154,7 +165,7 @@ func (v *voice) audio(workspace string, args audioArgs) (audioResult, error) {
 	}
 	pcm := args.PCM[:min(len(args.PCM), maxAudioBytes-u.audioBytes)]
 	u.audioBytes += len(pcm)
-	full := u.audioBytes >= maxAudioBytes
+	u.peak = max(u.peak, peakLevel(pcm))
 	v.mu.Unlock()
 	partial, err := v.rec.Feed(u.state.Utterance, pcm)
 	if err != nil {
@@ -167,9 +178,6 @@ func (v *voice) audio(workspace string, args audioArgs) (audioResult, error) {
 	v.mu.Unlock()
 	if loaded {
 		v.update(u, func(s *State) { s.Phase = phaseListening })
-	}
-	if full {
-		go v.finishAsync(u)
 	}
 	return audioResult{Partial: partial}, nil
 }
@@ -230,27 +238,47 @@ func (v *voice) finish(ctx context.Context, u *utterance) (string, error) {
 	u.closing = true
 	v.mu.Unlock()
 	u.feed.Unlock()
+	began := v.now()
 	text, err := v.rec.Finish(ctx, u.state.Utterance)
 	if err != nil {
 		v.fail(u, err)
 		return "", err
 	}
 	heard := v.loadDictionary(ctx).apply(text)
+	v.logUtterance(u, heard, v.now().Sub(began))
+	v.mu.Lock()
+	short := u.audioBytes < minAudioBytes
+	v.mu.Unlock()
+	if short || strings.IndexFunc(heard, isWordRune) < 0 {
+		v.fail(u, errNothingHeard)
+		return heard, nil
+	}
 	if !v.update(u, func(s *State) {
 		s.Heard = heard
-		s.Phase = phaseThinking
+		s.Phase = phaseSending
+		s.SendAt = v.now().Add(sendDelay).UTC().Format(sendAtLayout)
+		u.turn = v.after(sendDelay, func() { v.send(u) })
 	}) {
 		return "", errUnknownUtterance
 	}
-	go v.routeAsync(u)
 	return heard, nil
 }
 
-func (v *voice) finishAsync(u *utterance) {
-	_, err := v.finish(v.ctx, u)
-	if !errors.Is(err, errUnknownUtterance) {
-		logError("end "+u.state.Utterance, err)
+func (v *voice) send(u *utterance) {
+	v.mu.Lock()
+	sending := u.state.Phase == phaseSending
+	v.mu.Unlock()
+	if !sending || !v.update(u, func(s *State) { s.Phase = phaseThinking }) {
+		return
 	}
+	v.routeAsync(u)
+}
+
+func (v *voice) logUtterance(u *utterance, heard string, final time.Duration) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	fmt.Fprintf(os.Stderr, "voice: utterance %s device=%s audio=%dB/%.1fs peak=%.2f heard=%d final=%dms\n",
+		u.state.Utterance, u.where.Device, u.audioBytes, float64(u.audioBytes)/bytesPerSecond, float64(u.peak)/32768, len([]rune(heard)), final.Milliseconds())
 }
 
 func (v *voice) fail(u *utterance, err error) {
@@ -309,6 +337,19 @@ func (v *voice) prune() {
 			delete(v.utterances, uid)
 		}
 	}
+}
+
+func peakLevel(pcm []byte) int {
+	peak := 0
+	for i := 0; i+1 < len(pcm); i += 2 {
+		sample := int(int16(uint16(pcm[i]) | uint16(pcm[i+1])<<8))
+		peak = max(peak, sample, -sample)
+	}
+	return peak
+}
+
+func isWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 func (u *utterance) accepting() bool {

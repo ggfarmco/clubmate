@@ -229,6 +229,8 @@ type ClaudeCodeOptions struct {
 	Env             map[string]string   `json:"env,omitempty"`
 	Settings        *ClaudeCodeSettings `json:"settings,omitempty"`
 	DisallowedTools []string            `json:"disallowedTools,omitempty"`
+	SettingSources  []string            `json:"settingSources,omitzero"`
+	StrictMcpConfig bool                `json:"strictMcpConfig,omitempty"`
 }
 
 type ClaudeCodeSettings struct {

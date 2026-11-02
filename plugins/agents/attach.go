@@ -86,7 +86,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 		return p, a.resumeOn(ctx, s, p, rec, extra)
 	}
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionNew, acp.NewSessionRequest{Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return nil, authErr
@@ -112,7 +112,7 @@ func (a *app) attach(s *session) (*agentProc, error) {
 	s.changed(changeStatus, true)
 	mode, value := a.startSettings(ctx, rec)
 	a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
-	a.applyConfigs(ctx, s, res.ConfigOptions, value)
+	a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, value))
 	return p, nil
 }
 
@@ -134,7 +134,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	}
 	mode, values := s.settings()
 	var raw json.RawMessage
-	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcp, Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
+	if err := p.conn.Call(ctx, acp.MethodSessionResume, acp.ResumeSessionRequest{SessionID: rec.AgentSessionID, Cwd: rec.Worktree, AdditionalDirectories: extra, McpServers: p.mcpFor(rec), Meta: sessionMeta(rec, a.sessionAdvisor(ctx, rec))}, &raw); err != nil {
 		a.release(p)
 		if authErr := a.authRequired(rec.ID, p, err); authErr != nil {
 			return authErr
@@ -154,7 +154,7 @@ func (a *app) resumeOn(ctx context.Context, s *session, p *agentProc, rec record
 	var res acp.ResumeSessionResponse
 	if json.Unmarshal(raw, &res) == nil {
 		a.applyMode(ctx, s, res.Modes, cmp.Or(rec.StartMode, mode))
-		a.applyConfigs(ctx, s, res.ConfigOptions, func(id string) string { return values[id] })
+		a.applyConfigs(ctx, s, res.ConfigOptions, withModel(res.ConfigOptions, rec.StartModel, func(id string) string { return values[id] }))
 	}
 	return nil
 }
@@ -215,5 +215,18 @@ func (a *app) applyConfigs(ctx context.Context, s *session, configs []acp.Sessio
 		if next != nil {
 			configs = next
 		}
+	}
+}
+
+func withModel(configs []acp.SessionConfigOption, model string, valueOf func(id string) string) func(id string) string {
+	i := slices.IndexFunc(configs, func(o acp.SessionConfigOption) bool { return o.Category == acp.CategoryModel })
+	if model == "" || i < 0 {
+		return valueOf
+	}
+	return func(id string) string {
+		if id == configs[i].ID {
+			return model
+		}
+		return valueOf(id)
 	}
 }

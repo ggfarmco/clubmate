@@ -3,6 +3,7 @@ import Observation
 
 @MainActor
 public protocol VoiceAudioSource: AnyObject {
+    var permissionPrompts: Bool { get }
     func permission() async -> Bool
     func start(onChunk: @escaping @MainActor (Data) -> Void, onEnd: @escaping @MainActor () -> Void) throws
     func stop() async
@@ -15,7 +16,8 @@ public final class VoiceController {
 
     public static let changedTopic = "voice.changed"
     public static let micDeniedMessage = "Microphone access is off — System Settings → Privacy → Microphone"
-    public static let tapLimit: TimeInterval = 0.25
+    public static let tapLimit: TimeInterval = 0.6
+    public static let sendGrace: TimeInterval = 1
     public static let confirmArmDelay: TimeInterval = 0.6
     static let meterBars = 16
 
@@ -77,6 +79,19 @@ public final class VoiceController {
         state?.phase == .confirm && failure == nil && !confirming
     }
 
+    public var acceptsCancelKey: Bool {
+        state?.phase == .sending && failure == nil
+    }
+
+    public var closeCancels: Bool {
+        active || acceptsCancelKey
+    }
+
+    public func sendRemaining(at now: Date) -> Double {
+        guard acceptsCancelKey, let sendDate = state?.sendDate else { return 0 }
+        return min(max(sendDate.timeIntervalSince(now) / Self.sendGrace, 0), 1)
+    }
+
     public var sendHint: String? {
         guard active else { return nil }
         return holding ? "Release to send" : "⌥Space to send"
@@ -86,6 +101,7 @@ public final class VoiceController {
         switch phase {
         case .loading: "Loading the speech model…"
         case .listening, nil: "Listening"
+        case .sending: "Sending"
         case .thinking: "Thinking"
         case .confirm: "Confirm"
         case .done: "Done"
@@ -120,6 +136,9 @@ public final class VoiceController {
 
     public func begin() {
         guard !active else { return }
+        if acceptsCancelKey, let pending = utterance {
+            enqueue { _ = await self.run(CommandInvocation(id: "voice.cancel", args: .object(["utterance": .string(pending)]))) }
+        }
         generation += 1
         state = nil
         partial = ""
@@ -173,6 +192,16 @@ public final class VoiceController {
         visible = false
     }
 
+    public func close() {
+        if closeCancels {
+            cancel()
+        } else if state?.phase == .confirm {
+            confirm(false)
+        } else {
+            dismiss()
+        }
+    }
+
     public func confirm(_ approve: Bool) {
         guard acceptsConfirmKeys, let id = utterance else { return }
         confirming = true
@@ -186,6 +215,10 @@ public final class VoiceController {
     }
 
     public func confirmKey(_ approve: Bool, at time: TimeInterval) {
+        if acceptsCancelKey {
+            if !approve { cancel() }
+            return
+        }
         guard !approve || time - confirmShownAt >= Self.confirmArmDelay else { return }
         confirm(approve)
     }
@@ -207,12 +240,18 @@ public final class VoiceController {
 
     private func start(_ pointer: VoicePointer, _ generation: Int) async {
         guard generation == self.generation else { return }
+        let prompted = source.permissionPrompts
         guard await source.permission() else {
             micDenied = true
             await fail(Self.micDeniedMessage)
             return
         }
         guard generation == self.generation else { return }
+        guard active || !prompted else {
+            accepting = false
+            visible = false
+            return
+        }
         do {
             try source.start(onChunk: { [weak self] pcm in self?.send(pcm) }, onEnd: { [weak self] in self?.finish() })
             capturing = true

@@ -147,6 +147,10 @@ actor FixtureServer {
                 Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge*.\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider\n\nShould I add retries to the charge step?"),
             ])]
         }
+        transcripts["agt_00000000000000a1"] = ["session": .object(Self.session(sessions.first ?? [:], id: "agt_00000000000000a1", title: "Voice", status: "idle", ago: 60)), "entries": .array([
+            Self.voiceEntry("voice-1", heard: "Ответь агенту в checkout: да, добавь ретраи к шагу оплаты и покрой это тестом"),
+            Self.entry("agent", "agent-v1", text: "Sent to «Explain the checkout flow»."),
+        ])]
         self.sessions = sessions
         self.transcripts = transcripts
         tasks = (decode("backlog-tasks.json")["tasks"]?.arrayValue ?? []).enumerated().compactMap { index, value in
@@ -395,8 +399,11 @@ actor FixtureServer {
             return .object(["partial": .string(voicePartial)])
         case "voice.end":
             if UserDefaults.standard.string(forKey: "voicePhase") == nil {
-                setVoice("thinking")
+                setVoice("sending")
                 Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard voicePhase == "sending" else { return }
+                    setVoice("thinking")
                     try? await Task.sleep(for: .seconds(2))
                     setVoice("confirm")
                 }
@@ -413,6 +420,7 @@ actor FixtureServer {
             state["utterance"] = .string(Self.utterance)
             state["rev"] = .number(Double(voiceRev))
             if voiceChunks > 0, state["heard"] == nil { state["partial"] = .string(voicePartial) }
+            if voicePhase == "sending" { state["sendAt"] = Self.stamp(ago: -1) }
             return .object(state)
         default:
             return .null
@@ -621,6 +629,21 @@ actor FixtureServer {
             return .object(image)
         })
         return .object(fields)
+    }
+
+    private static func voiceEntry(_ id: String, heard: String) -> JSONValue {
+        let prompt: JSONValue = .object([
+            "utterance": .string("vu_fixture"),
+            "device": .string("phone"),
+            "heard": .string(heard),
+            "context": .object([
+                "pointer": .object(["device": .string("phone"), "section": .string("agents"), "selection": .object(["session": .string("agt_0000000000000002")])]),
+                "session": .object(["id": .string("agt_0000000000000002"), "title": .string("Explain the checkout flow"), "status": .string("waiting"), "question": .object(["text": .string("Should I add retries to the charge step?")])]),
+                "workspace": .object(["name": .string("shop"), "branches": .array([.string("main"), .string("feat/checkout-retries")])]),
+            ]),
+        ])
+        let text = (try? JSONEncoder().encode(prompt)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+        return .object(["kind": .string("user"), "id": .string(id), "turn": .number(1), "from": .string("voice"), "text": .string(text), "voice": .object(["heard": .string(heard), "utterance": .string("vu_fixture")])])
     }
 
     private static func entry(_ kind: String, _ id: String, text: String) -> JSONValue {

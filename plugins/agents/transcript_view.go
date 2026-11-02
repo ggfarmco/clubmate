@@ -284,6 +284,10 @@ func buildEntryNode(sc screen, en *entry, sha string) (sdui.Node, bool) {
 	switch en.Kind {
 	case entryUser:
 		n := sdui.Message("user", shownPrompt(en.Text), promptAttachments(en.Content, root))
+		if en.Voice != nil {
+			n = sdui.Message("user", en.Text, nil)
+			n.Props["heard"] = en.Voice.Heard
+		}
 		if en.From != "" {
 			n.Props["from"] = cmp.Or(sc.FromTitles[en.From], fromAnother)
 		}
