@@ -53,6 +53,9 @@ type transcriptState struct {
 	senders  []string
 	at       time.Time
 
+	presented map[int][]presentedDoc
+	ended     map[int]bool
+
 	subagents map[string]*subagent
 }
 
@@ -379,10 +382,19 @@ func (s *session) apply(e envelope) {
 		s.applyPrompt(e)
 	case kindTurnEnd:
 		s.changesFresh = false
+		if s.ended == nil {
+			s.ended = map[int]bool{}
+		}
+		s.ended[e.Turn] = true
 		s.linkDocs(e.Turn)
 		var p turnEndPayload
 		if json.Unmarshal(e.Payload, &p) == nil {
 			s.turnInfo(e.Turn).StopReason = p.StopReason
+		}
+	case kindPresented:
+		var p presentedDoc
+		if json.Unmarshal(e.Payload, &p) == nil && p.Path != "" {
+			s.present(e.Turn, p)
 		}
 	case kindError:
 		s.changesFresh = false

@@ -82,7 +82,7 @@ var (
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
 	docCardKinds  = []string{"markdown", "mermaid", "artifact"}
-	docCardFields = map[string]propCheck{"path": nonEmptyString, "kind": oneOf(docCardKinds), "title": isString, "rel": isString}
+	docCardFields = map[string]propCheck{"path": nonEmptyString, "kind": oneOf(docCardKinds), "title": isString, "rel": isString, "presented": isBool}
 	docCardsCheck = listOf(objectCheck([]string{"path", "kind", "title", "rel"}, docCardFields))
 
 	documentSizes = []string{"fill", "fit"}

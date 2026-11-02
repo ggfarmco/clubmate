@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -171,5 +172,55 @@ func TestDocCardsListMentionedDocsInOrder(t *testing.T) {
 		{Path: filepath.Join(wt, "flow.mmd"), Kind: "mermaid", Title: "flow", Rel: "flow.mmd"},
 		{Path: filepath.Join(wt, "out", "report.html"), Kind: "artifact", Title: "Q3 report", Rel: "out/report.html"},
 		{Path: outside, Kind: "markdown", Title: "x", Rel: outside},
+		{Path: filepath.Join(wt, "notes.md"), Kind: "markdown", Title: "Notes", Rel: "notes.md"},
 	}, cards)
+}
+
+func TestPresentedDocsAreMarkedAndAddedWhenTheTurnEnds(t *testing.T) {
+	wt := t.TempDir()
+	for _, name := range []string{"spec.md", "notes.md", "report.html", "later.md"} {
+		require.NoError(t, os.WriteFile(filepath.Join(wt, name), []byte("# "+name+"\n"), 0o600))
+	}
+	canonical, err := filepath.EvalSymlinks(wt)
+	require.NoError(t, err)
+	s := newSession(record{Worktree: wt}, newEventLog(filepath.Join(t.TempDir(), "s.jsonl")), true, func(string, bool) {})
+	say := func(turn int, text string) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.apply(envelope{Turn: turn, Kind: kindUpdate, Payload: json.RawMessage(`{"sessionUpdate":"agent_message_chunk","messageId":"m` + strconv.Itoa(turn) + `","content":{"type":"text","text":` + strconv.Quote(text) + `}}`)})
+	}
+	record := func(turn int, kind string, payload any) {
+		raw, err := json.Marshal(payload)
+		require.NoError(t, err)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.apply(envelope{Turn: turn, Kind: kind, Payload: raw})
+	}
+	cards := func(turn int) []sdui.DocCard {
+		for _, en := range s.view(0).Entries {
+			if en.Kind == entryAgent && en.Turn == turn {
+				return en.DocCards
+			}
+		}
+		return nil
+	}
+
+	say(1, "Updated `notes.md` and `spec.md`.")
+	record(1, kindPresented, presentedDoc{Path: filepath.Join(canonical, "spec.md")})
+	record(1, kindPresented, presentedDoc{Path: filepath.Join(canonical, "report.html"), Title: "Q3 numbers"})
+	record(1, kindTurnEnd, turnEndPayload{StopReason: "end_turn"})
+	say(2, "Also `later.md`.")
+	record(2, kindPresented, presentedDoc{Path: filepath.Join(canonical, "notes.md")})
+	record(2, kindTurnEnd, turnEndPayload{StopReason: "end_turn"})
+	record(2, kindPresented, presentedDoc{Path: filepath.Join(canonical, "later.md")})
+
+	assert.Equal(t, []sdui.DocCard{
+		{Path: filepath.Join(wt, "spec.md"), Kind: "markdown", Title: "spec.md", Rel: "spec.md", Presented: true},
+		{Path: filepath.Join(canonical, "report.html"), Kind: "artifact", Title: "Q3 numbers", Rel: "report.html", Presented: true},
+		{Path: filepath.Join(wt, "notes.md"), Kind: "markdown", Title: "notes.md", Rel: "notes.md"},
+	}, cards(1))
+	assert.Equal(t, []sdui.DocCard{
+		{Path: filepath.Join(wt, "later.md"), Kind: "markdown", Title: "later.md", Rel: "later.md", Presented: true},
+		{Path: filepath.Join(canonical, "notes.md"), Kind: "markdown", Title: "notes.md", Rel: "notes.md", Presented: true},
+	}, cards(2))
 }

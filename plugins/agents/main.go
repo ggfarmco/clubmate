@@ -131,6 +131,11 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	if _, err := h.Subscribe(ctx, editorFileTopic, ready.Seq); err != nil {
 		return err
 	}
+	for _, topic := range []string{docsOpenedTopic, docsPresentedTopic} {
+		if _, err := h.Subscribe(ctx, topic, ready.Seq); err != nil {
+			return err
+		}
+	}
 	watched, err := h.WatchedSections(ctx, ready.Seq)
 	if err != nil {
 		return err
@@ -168,6 +173,11 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		var f editorFile
 		if json.Unmarshal(ev.Payload, &f) == nil && a.setEditorFile(f) {
 			a.kick(f.Workspace)
+		}
+	case docsOpenedTopic, docsPresentedTopic:
+		var p docsPresented
+		if json.Unmarshal(ev.Payload, &p) == nil {
+			a.docPresented(p)
 		}
 	case contract.TopicRemoteWatching:
 		var p contract.RemoteWatching

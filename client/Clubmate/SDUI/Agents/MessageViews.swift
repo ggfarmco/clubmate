@@ -31,7 +31,7 @@ struct MessageNodeView: View, Equatable {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 let cards = node.docCards
                 if !cards.isEmpty {
-                    DocCards(cards: cards, open: open)
+                    MessageDocCards(id: (node.id ?? cards[0].path) + "/docs", groups: DocCardGroups(cards), open: open)
                 }
             }
         }
@@ -122,6 +122,10 @@ private struct VoicePromptView: View {
         Motion.disclose {
             if expanded.remove(id) == nil { expanded.insert(id) }
         }
+    }
+
+    func set(_ id: String, expanded shown: Bool) {
+        if shown { expanded.insert(id) } else { expanded.remove(id) }
     }
 }
 

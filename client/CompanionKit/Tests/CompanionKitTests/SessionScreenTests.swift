@@ -124,12 +124,12 @@ final class SessionScreenTests: XCTestCase {
 
     func testAgentRowCarriesTheMessageDocLinksAndCards() throws {
         let json = #"""
-        [{"kind":"agent","id":"a1","text":"Wrote `docs/plan.md`.","docLinks":{"docs/plan.md":"/w/docs/plan.md"},"docCards":[{"path":"/w/docs/plan.md","kind":"markdown","title":"Plan","rel":"docs/plan.md"}]}]
+        [{"kind":"agent","id":"a1","text":"Wrote `docs/plan.md`.","docLinks":{"docs/plan.md":"/w/docs/plan.md"},"docCards":[{"path":"/w/docs/plan.md","kind":"markdown","title":"Plan","rel":"docs/plan.md","presented":true}]}]
         """#
         let entries = try JSONDecoder.clubmate.decode([TranscriptEntry].self, from: Data(json.utf8))
         guard case .agent(_, _, let docLinks, let docCards) = SessionScreen(entries: entries, session: nil).rows.first else { return XCTFail("no agent row") }
         XCTAssertEqual(docLinks, ["docs/plan.md": "/w/docs/plan.md"])
-        XCTAssertEqual(docCards, [DocCard(path: "/w/docs/plan.md", kind: .markdown, title: "Plan", rel: "docs/plan.md")])
+        XCTAssertEqual(docCards, [DocCard(path: "/w/docs/plan.md", kind: .markdown, title: "Plan", rel: "docs/plan.md", presented: true)])
     }
 
     func testMessageThatIsOnlyAPlanFoldsIntoThePlanCard() throws {

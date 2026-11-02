@@ -34,6 +34,7 @@ const (
 	kindCheckpoint = "checkpoint"
 	kindCommits    = "commits"
 	kindTurnEnd    = "turn_end"
+	kindPresented  = "doc_presented"
 	kindError      = "error"
 
 	actorUser     = "user"

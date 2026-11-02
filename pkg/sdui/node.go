@@ -91,10 +91,11 @@ type Attachment struct {
 }
 
 type DocCard struct {
-	Path  string `json:"path"`
-	Kind  string `json:"kind"`
-	Title string `json:"title"`
-	Rel   string `json:"rel"`
+	Path      string `json:"path"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Rel       string `json:"rel"`
+	Presented bool   `json:"presented,omitempty"`
 }
 
 type PlanEntry struct {

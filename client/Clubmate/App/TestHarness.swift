@@ -61,6 +61,10 @@ final class TestHarness {
             ToolExpansion.shared.set(card: String(request.target.dropFirst(5)), expanded: request.shown)
             return request.shown
         }
+        if request.target.hasPrefix("message:") {
+            MessageExpansion.shared.set(String(request.target.dropFirst(8)), expanded: request.shown)
+            return request.shown
+        }
         guard let present = presenters[request.target] else {
             throw TestModeError("unknown target \(request.target); known: \(presenters.keys.sorted().joined(separator: ", "))")
         }

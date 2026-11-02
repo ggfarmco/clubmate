@@ -49,6 +49,7 @@ The plugin declares section `docs` with `rail: false` and slot `popup`, so it ha
 - Esc and ⌘W close the popup while it has focus (also in its popped-out window); ⌘W does not reach the terminal or window under it. While a diagram is enlarged (§ Zoom), Esc closes only the diagram.
 - ⌘J (Switch Popup Focus) leaves the popup for where focus was before it and comes back: the panel hides on the way out (the plugin is not told; doc, Back stack and zoom stay) and shows on the way in; a popped-out window stays open and only key focus moves. A `ui.focus` on `docs.popup` (every `docs.open`) shows a hidden panel again; a `close` while it is hidden returns no focus.
 - `docs.open` replaces the back stack with the doc and calls `ui.focus` on `docs.popup`. From an agent it also publishes `docs.opened`.
+- `docs.present {path, title?, session?}` (agent tool `docs_present`, non-destructive) checks the path like `docs.open` (same scope, kinds, size and errors, an `#anchor` is dropped), opens nothing and publishes `docs.presented`; the agents plugin turns it into a card under the agent's reply (see [agents](agents.md#docs-in-the-transcript)). It returns `{path}`.
 - A `#anchor` is split off a path only when the part before it is a doc (`a.md#intro`; `notes#1.md` stays a file name). Each back stack entry keeps its anchor: the doc loads at that heading, or at the top when no element has that id; a live reload keeps the scroll position.
 - Events on `docs.popup`: `openDoc` (value the path with an optional `#anchor`) pushes the doc, or for the doc already on top only moves to the anchor, `back` pops, `close` clears the stack and renders `empty`; `openFile` opens the file in the editor.
 - When the open file is deleted or renamed away, the popup keeps its header and shows `File no longer exists` with the path as hint; it shows the doc again when the file comes back.
@@ -80,12 +81,14 @@ While a workspace has a doc open in the popup or read by `docs.read` (the last 1
 |---|---|---|
 | `docs.changed` | `{workspace, path, rev}` | a watched path re-rendered |
 | `docs.opened` | `{workspace, session, path}` | `docs.open` from an agent |
+| `docs.presented` | `{workspace, session, path, title?}` | `docs.present` |
 
-Both are forwarded to paired phones by `remote` (see [remote](remote.md)).
+`docs.changed` and `docs.opened` are forwarded to paired phones by `remote` (see [remote](remote.md)); `docs.presented` is not, the phone sees its card in the transcript.
 
 ## Entry points
 
 - an agent calls `docs_open`
+- a doc card under an agent message (Mac and phone, see [agents](agents.md#docs-in-the-transcript))
 - Open Doc… (⇧⌘D or the command palette, Mac): a fuzzy picker over `docs.list` in the plugin's order (agent docs first; `sparkles` for an agent doc, `chart.bar.doc.horizontal` for an artifact, `doc.richtext` for Markdown), filtered on `rel` in the client; ↩ runs `docs.open {path}`. The list is read once per opening.
 - Open on a transcript card or tool row whose entry has `doc` (Mac and phone, see [agents](agents.md#docs-in-the-transcript))
 - a link or `path` code span in an agent message that the plugin resolved into the entry's `docLinks` (Mac and phone, see [agents](agents.md#docs-in-the-transcript))

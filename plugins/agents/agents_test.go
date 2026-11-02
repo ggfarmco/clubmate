@@ -84,6 +84,7 @@ type entry struct {
 	Subagent  string                     `json:"subagent"`
 	Stoppable bool                       `json:"stoppable"`
 	Voice     json.RawMessage            `json:"voice"`
+	DocCards  []sdui.DocCard             `json:"docCards"`
 }
 
 type transcript struct {
@@ -515,6 +516,30 @@ func TestReaderNeverBlocks(t *testing.T) {
 	for _, e := range changed {
 		assert.NotContains(t, string(e.Payload), `"kind":"update"`)
 	}
+}
+
+func TestDocsAnAgentOpensOrPresentsBecomePresentedCards(t *testing.T) {
+	repo := newRepo(t)
+	for _, name := range []string{"spec.md", "plan.md"} {
+		write(t, filepath.Join(repo, name), "# "+name+"\n")
+	}
+	f := start(t, map[string]any{"prompt": []map[string]any{
+		{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "Wrote `spec.md`."}}},
+	}})
+	workspace := f.workspace(t, repo)
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "hi")
+	f.waitStatus(t, workspace, session, "done")
+
+	c := f.h.Client(t)
+	for topic, name := range map[string]string{"docs.opened": "spec.md", "docs.presented": "plan.md"} {
+		require.NoError(t, c.Call(t.Context(), "bus.publish", map[string]any{"topic": topic, "payload": map[string]string{"workspace": workspace, "session": session, "path": filepath.Join(repo, name)}}, nil))
+	}
+
+	testutil.Eventually(t, func() bool {
+		agent := ofKind(f.transcript(t, workspace, session).Entries, "agent")
+		return len(agent) == 1 && len(agent[0].DocCards) == 2 && agent[0].DocCards[0].Presented && agent[0].DocCards[1].Presented
+	}, wait)
 }
 
 func TestPermissionOutsidePrompt(t *testing.T) {

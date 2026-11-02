@@ -235,6 +235,15 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))
     }
 
+    func testMentionedDocsPlateOpensIntoCards() {
+        let app = launch(open: "agents/agt_0000000000000002")
+        let plate = app.buttons["2 docs mentioned"]
+        XCTAssertTrue(plate.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Open checkout-flow"].exists)
+        plate.tap()
+        XCTAssertTrue(app.buttons["Open checkout-flow"].waitForExistence(timeout: 5))
+    }
+
     func testDocLinkPushesUpdatesLiveAndBackReturns() {
         let app = launch(open: "agents", ["-doc", "/Users/me/src/shop/docs/checkout-retries.md"])
         XCTAssertTrue(app.navigationBars["Checkout retries"].waitForExistence(timeout: 10))

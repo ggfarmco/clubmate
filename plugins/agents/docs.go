@@ -19,6 +19,7 @@ import (
 	"clubmate/pkg/docext"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 type docsArgs struct {
@@ -84,17 +85,115 @@ func (s *session) docs() []docRef {
 	return out
 }
 
-const maxDocCards = 4
+const (
+	maxDocCards        = 8
+	docsOpenedTopic    = "docs.opened"
+	docsPresentedTopic = "docs.presented"
+)
+
+type presentedDoc struct {
+	Path  string `json:"path"`
+	Title string `json:"title,omitempty"`
+}
+
+type docsPresented struct {
+	Workspace string `json:"workspace"`
+	Session   string `json:"session"`
+	Path      string `json:"path"`
+	Title     string `json:"title"`
+}
+
+func (a *app) docPresented(p docsPresented) {
+	s := a.session(p.Session)
+	if s == nil || p.Path == "" || s.snapshot().Workspace != p.Workspace {
+		return
+	}
+	s.mu.Lock()
+	deleted := s.deleted
+	if !deleted {
+		s.recordLocked(actorClubmate, kindPresented, presentedDoc{Path: p.Path, Title: p.Title})
+	}
+	s.mu.Unlock()
+	if !deleted {
+		s.changed(changeUpdate, false)
+	}
+}
+
+func (s *session) present(turn int, p presentedDoc) {
+	p.Path = gitrepo.Canonical(p.Path)
+	if s.presented == nil {
+		s.presented = map[int][]presentedDoc{}
+	}
+	docs := s.presented[turn]
+	if i := slices.IndexFunc(docs, func(d presentedDoc) bool { return d.Path == p.Path }); i >= 0 {
+		docs[i].Title = cmp.Or(p.Title, docs[i].Title)
+	} else {
+		s.presented[turn] = append(docs, p)
+	}
+	if s.ended[turn] {
+		s.linkDocs(turn)
+	}
+}
 
 func (s *session) linkDocs(turn int) {
+	type message struct {
+		en    *entry
+		links map[string]string
+		cards []sdui.DocCard
+	}
+	var messages []message
+	mentioned := map[string]bool{}
 	for _, en := range s.entries {
 		if en.Kind != entryAgent || en.Turn != turn {
 			continue
 		}
-		if links, cards := docRefs(en.Text, s.rec.Worktree); !maps.Equal(links, en.DocLinks) || !slices.Equal(cards, en.DocCards) {
-			en.DocLinks, en.DocCards, en.node = links, cards, nil
+		links, cards := docRefs(en.Text, s.rec.Worktree)
+		for i, c := range cards {
+			cards[i] = presentCard(c, s.presented[turn])
+			mentioned[gitrepo.Canonical(c.Path)] = true
+		}
+		messages = append(messages, message{en: en, links: links, cards: cards})
+	}
+	if len(messages) == 0 {
+		return
+	}
+	root := s.rec.Worktree
+	if root != "" {
+		root = gitrepo.Canonical(root)
+	}
+	last := &messages[len(messages)-1]
+	for _, p := range s.presented[turn] {
+		if !mentioned[p.Path] {
+			last.cards = append(last.cards, presentCard(docCard(p.Path, root), []presentedDoc{p}))
 		}
 	}
+	for _, m := range messages {
+		slices.SortStableFunc(m.cards, func(x, y sdui.DocCard) int {
+			return cmp.Compare(boolRank(y.Presented), boolRank(x.Presented))
+		})
+		cards := m.cards[:min(len(m.cards), maxDocCards)]
+		if len(cards) == 0 {
+			cards = nil
+		}
+		if !maps.Equal(m.links, m.en.DocLinks) || !slices.Equal(cards, m.en.DocCards) {
+			m.en.DocLinks, m.en.DocCards, m.en.node = m.links, cards, nil
+		}
+	}
+}
+
+func presentCard(c sdui.DocCard, presented []presentedDoc) sdui.DocCard {
+	path := gitrepo.Canonical(c.Path)
+	if i := slices.IndexFunc(presented, func(p presentedDoc) bool { return p.Path == path }); i >= 0 {
+		c.Presented, c.Title = true, cmp.Or(presented[i].Title, c.Title)
+	}
+	return c
+}
+
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func docRefs(markdown, root string) (map[string]string, []sdui.DocCard) {
@@ -108,7 +207,7 @@ func docRefs(markdown, root string) (map[string]string, []sdui.DocCard) {
 		}
 		links[target] = path
 		file, _, _ := strings.Cut(path, "#")
-		if len(cards) < maxDocCards && !slices.ContainsFunc(cards, func(c sdui.DocCard) bool { return c.Path == file }) {
+		if !slices.ContainsFunc(cards, func(c sdui.DocCard) bool { return c.Path == file }) {
 			cards = append(cards, docCard(file, root))
 		}
 	}

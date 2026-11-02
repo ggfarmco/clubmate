@@ -153,6 +153,22 @@ func TestAgentOpenPublishesOpened(t *testing.T) {
 	assert.Equal(t, published{Topic: "docs.opened", Payload: map[string]any{"workspace": "ws", "session": "agt_a", "path": spec}}, e.core.lastPublished())
 }
 
+func TestPresentPublishesWithoutOpening(t *testing.T) {
+	e := newEnv(t)
+	spec := e.doc("spec.md", "# Spec")
+	e.core.sessions = []map[string]string{{"id": "agt_a", "worktree": e.dir}}
+
+	res, err := e.run(pluginsdk.CommandRun{ID: "docs.present", Agent: true, Caller: "agt_a", Args: e.args(map[string]any{"path": "spec.md#intro", "title": "The spec"})})
+	require.NoError(t, err)
+	assert.Equal(t, openResult{Path: spec}, res)
+	assert.Equal(t, published{Topic: "docs.presented", Payload: map[string]any{"workspace": "ws", "session": "agt_a", "path": spec, "title": "The spec"}}, e.core.lastPublished())
+	assert.Zero(t, e.core.renderCount())
+	assert.Empty(t, e.core.focus)
+
+	_, err = e.run(pluginsdk.CommandRun{ID: "docs.present", Agent: true, Caller: "agt_a", Args: e.args(map[string]any{"path": "/etc/hosts.md"})})
+	assert.ErrorIs(t, err, errNotInWorkspace)
+}
+
 func TestArtifactOpens(t *testing.T) {
 	e := newEnv(t)
 	src := "<!doctype html><title>Q3</title><script>document.title = 'x'</script>"

@@ -222,10 +222,54 @@ struct AgentMessage<Content: View>: View {
         if cards.isEmpty || openDoc == nil {
             text
         } else {
+            let groups = DocCardGroups(cards)
             VStack(alignment: .leading, spacing: 12) {
                 text
-                ForEach(cards) { card in
+                ForEach(groups.presented) { card in
                     DocCardButton(card: card) { openDoc?(card.path) }
+                }
+                if let plate = groups.plate {
+                    MentionedDocs(label: plate, cards: groups.mentioned) { openDoc?($0) }
+                }
+            }
+        }
+    }
+}
+
+private struct MentionedDocs: View {
+    let label: String
+    let cards: [DocCard]
+    let open: (String) -> Void
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                Motion.disclose { expanded.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.doc")
+                    Text(label)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(Color.surface2, in: .capsule)
+                .contentShape(.capsule)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            .accessibilityHint(expanded ? "Hides the docs this message mentions" : "Shows the docs this message mentions")
+            if expanded {
+                ForEach(cards) { card in
+                    DocCardButton(card: card) { open(card.path) }
                 }
             }
         }

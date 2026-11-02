@@ -18,6 +18,64 @@ struct DocCards: View {
     }
 }
 
+struct MessageDocCards: View {
+    let id: String
+    let groups: DocCardGroups
+    let open: (String) -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.m) {
+            if !groups.presented.isEmpty {
+                DocCards(cards: groups.presented, open: open)
+            }
+            if let plate = groups.plate {
+                MentionedDocs(id: id, label: plate, cards: groups.mentioned, open: open)
+            }
+        }
+    }
+}
+
+private struct MentionedDocs: View {
+    let id: String
+    let label: String
+    let cards: [DocCard]
+    let open: (String) -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let expanded = MessageExpansion.shared.expanded.contains(id)
+        VStack(alignment: .leading, spacing: theme.spacing.m) {
+            Button { MessageExpansion.shared.toggle(id) } label: {
+                HStack(spacing: theme.spacing.s) {
+                    Image(systemName: "doc.on.doc")
+                    Text(label)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    DisclosureChevron(expanded: expanded)
+                }
+                .font(theme.uiSmall)
+                .foregroundStyle(hovering ? theme.text2 : theme.muted)
+                .padding(.horizontal, theme.gutter)
+                .padding(.vertical, theme.spacing.s)
+                .background(RoundedRectangle(cornerRadius: theme.radius.m).fill(hovering ? theme.hover : theme.surface1))
+                .contentShape(RoundedRectangle(cornerRadius: theme.radius.m))
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .help(cards.map(\.rel).joined(separator: "\n"))
+            .accessibilityLabel(label)
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            if expanded {
+                DocCards(cards: cards, open: open)
+            }
+        }
+    }
+}
+
 struct DocCardsLayout: Layout {
     let spacing: CGFloat
     let minWidth: CGFloat

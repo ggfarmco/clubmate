@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	changedTopic = "docs.changed"
-	openedTopic  = "docs.opened"
+	changedTopic   = "docs.changed"
+	openedTopic    = "docs.opened"
+	presentedTopic = "docs.presented"
 )
 
 type docs struct {
@@ -31,6 +32,12 @@ type docs struct {
 
 type openArgs struct {
 	Path    string `json:"path"`
+	Session string `json:"session"`
+}
+
+type presentArgs struct {
+	Path    string `json:"path"`
+	Title   string `json:"title"`
 	Session string `json:"session"`
 }
 
@@ -48,6 +55,13 @@ type readResult struct {
 	HTML  string `json:"html"`
 	Rev   int    `json:"rev"`
 	Kind  string `json:"kind"`
+}
+
+type presentedEvent struct {
+	Workspace string `json:"workspace"`
+	Session   string `json:"session"`
+	Path      string `json:"path"`
+	Title     string `json:"title,omitempty"`
 }
 
 type changedEvent struct {
@@ -93,6 +107,12 @@ func (d *docs) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Com
 			return nil, err
 		}
 		return d.open(ctx, h, cmd, args)
+	case "docs.present":
+		var args presentArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return d.present(ctx, h, cmd, args)
 	case "docs.read":
 		var args readArgs
 		if err := decode(cmd.Args, &args); err != nil {
@@ -160,6 +180,23 @@ func (d *docs) open(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comman
 	if cmd.Agent {
 		_, err := h.Publish(ctx, openedTopic, openedEvent{Workspace: ws.ID, Session: session, Path: abs})
 		logError("publish "+openedTopic, err)
+	}
+	return openResult{Path: abs}, nil
+}
+
+func (d *docs) present(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.CommandRun, args presentArgs) (any, error) {
+	ws, err := h.GetWorkspace(ctx, cmd.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	session := cmp.Or(args.Session, cmd.Caller)
+	path, _ := splitAnchor(args.Path)
+	abs, _, err := load(d.absolute(ctx, h, ws, session, path), workspaceScope(ctx, ws, d.uploads))
+	if err != nil {
+		return nil, err
+	}
+	if _, err := h.Publish(ctx, presentedTopic, presentedEvent{Workspace: ws.ID, Session: session, Path: abs, Title: args.Title}); err != nil {
+		return nil, err
 	}
 	return openResult{Path: abs}, nil
 }

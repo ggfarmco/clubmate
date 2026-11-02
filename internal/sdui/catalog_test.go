@@ -113,7 +113,7 @@ func TestValidateAgentNodes(t *testing.T) {
 	}
 	linked := sdui.Message("agent", "**hi** `a.md`", nil)
 	linked.Props["docLinks"] = map[string]string{"a.md": "/r/a.md"}
-	linked.Props["docCards"] = []sdui.DocCard{{Path: "/r/a.md", Kind: "markdown", Title: "A", Rel: "a.md"}, {Path: "/r/f.mmd", Kind: "mermaid", Title: "f", Rel: "f.mmd"}}
+	linked.Props["docCards"] = []sdui.DocCard{{Path: "/r/a.md", Kind: "markdown", Title: "A", Rel: "a.md"}, {Path: "/r/f.mmd", Kind: "mermaid", Title: "f", Rel: "f.mmd", Presented: true}}
 	attachments := []sdui.Attachment{{Kind: "file", Path: "a.go"}, {ID: "s1", Kind: "selection", Path: "b.go", StartLine: 12, EndLine: 40}, {Kind: "image", Path: "image"}}
 	nodes := map[string]sdui.Node{
 		"transcript": sdui.Transcript("t", linked),
@@ -141,19 +141,20 @@ func TestValidateAgentNodes(t *testing.T) {
 		})
 	}
 	invalid := map[string]sdui.Node{
-		"bad role":             sdui.Message("system", "x", nil),
-		"bad doc link":         {Type: "message", Props: map[string]any{"role": "agent", "text": "x", "docLinks": map[string]any{"a.md": 1}}},
-		"bad doc card kind":    {Type: "message", Props: map[string]any{"role": "agent", "text": "x", "docCards": []any{map[string]any{"path": "/r/a.go", "kind": "code", "title": "a", "rel": "a.go"}}}},
-		"bad plan status":      sdui.Plan([]sdui.PlanEntry{{Content: "x", Status: "done"}}),
-		"card without id":      sdui.ToolCard("", sdui.ToolCardProps{Kind: "read", Title: "x"}),
-		"bad body format":      sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Body: &sdui.ToolBody{Format: "html", Text: "x"}}),
-		"nested action value":  sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Actions: []sdui.CardAction{{Action: "go", Label: "Go", Value: map[string]any{"a": []int{1}}}}}),
-		"empty card":           sdui.Card("warning", ""),
-		"bad card tone":        sdui.Card("orange", "", sdui.Text("x")),
-		"duplicate option":     sdui.PermissionCard("p", "r", sdui.PermissionCardProps{Text: "x", Options: []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}}),
-		"bad attach kind":      sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
-		"duplicate attachment": sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),
-		"menu bad action":      sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),
+		"bad role":               sdui.Message("system", "x", nil),
+		"bad doc link":           {Type: "message", Props: map[string]any{"role": "agent", "text": "x", "docLinks": map[string]any{"a.md": 1}}},
+		"bad doc card kind":      {Type: "message", Props: map[string]any{"role": "agent", "text": "x", "docCards": []any{map[string]any{"path": "/r/a.go", "kind": "code", "title": "a", "rel": "a.go"}}}},
+		"bad doc card presented": {Type: "message", Props: map[string]any{"role": "agent", "text": "x", "docCards": []any{map[string]any{"path": "/r/a.md", "kind": "markdown", "title": "a", "rel": "a.md", "presented": "yes"}}}},
+		"bad plan status":        sdui.Plan([]sdui.PlanEntry{{Content: "x", Status: "done"}}),
+		"card without id":        sdui.ToolCard("", sdui.ToolCardProps{Kind: "read", Title: "x"}),
+		"bad body format":        sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Body: &sdui.ToolBody{Format: "html", Text: "x"}}),
+		"nested action value":    sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Actions: []sdui.CardAction{{Action: "go", Label: "Go", Value: map[string]any{"a": []int{1}}}}}),
+		"empty card":             sdui.Card("warning", ""),
+		"bad card tone":          sdui.Card("orange", "", sdui.Text("x")),
+		"duplicate option":       sdui.PermissionCard("p", "r", sdui.PermissionCardProps{Text: "x", Options: []sdui.PermissionOption{{ID: "a", Label: "A"}, {ID: "a", Label: "B"}}}),
+		"bad attach kind":        sdui.Composer("m", sdui.ComposerProps{Attach: []string{"image"}}),
+		"duplicate attachment":   sdui.Composer("m", sdui.ComposerProps{Attachments: []sdui.Attachment{{ID: "a1", Kind: "file", Path: "a"}, {ID: "a1", Kind: "file", Path: "b"}}}),
+		"menu bad action":        sdui.List("l", []sdui.Item{{ID: "a", Label: "A", Menu: []sdui.MenuEntry{{Action: "Bad Action", Label: "x"}}}}, ""),
 	}
 	for name, n := range invalid {
 		t.Run(name, func(t *testing.T) {
