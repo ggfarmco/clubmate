@@ -129,7 +129,7 @@ func mainView(sc screen) sdui.Node {
 	if rec.closed() {
 		reopen := sdui.WithAction(sdui.Button(sid+"/reopen", "Reopen", "arrow.clockwise"), actRetry)
 		if sc.Continue {
-			reopen = continueButton(sid)
+			reopen = failureButton(sid, continueAction(sid))
 		}
 		children = append(children, sdui.HStack(sdui.MutedText("The session is closed; its transcript stays readable."), reopen))
 		return sdui.VStack(children...)
@@ -280,13 +280,8 @@ func header(sc screen) sdui.Node {
 		return sdui.VStack(children...)
 	}
 	problem := []sdui.Node{sdui.MutedText(failureOf(rec).Line)}
-	switch {
-	case sc.NeedsAuth:
-		problem = append(problem, sdui.WithAction(sdui.Button(sid+"/signin", "Sign in", "person.badge.key"), actSignIn))
-	case sc.Continue:
-		problem = append(problem, continueButton(sid))
-	default:
-		problem = append(problem, sdui.WithAction(sdui.Button(sid+"/retry", "Retry", "arrow.clockwise"), actRetry))
+	for _, act := range failureActions(sid, sc.NeedsAuth, sc.Continue) {
+		problem = append(problem, failureButton(sid, act))
 	}
 	return sdui.VStack(append(children, sdui.HStack(problem...))...)
 }
@@ -302,8 +297,8 @@ func modeWord(mode string, modes []acp.SessionMode) string {
 	return cmp.Or(modeLabels[mode], mode)
 }
 
-func continueButton(sid string) sdui.Node {
-	return sdui.WithAction(sdui.Button(sid+"/continue", "Hand off to a new session", "arrow.turn.down.right"), actContinue)
+func failureButton(sid string, act failureAction) sdui.Node {
+	return sdui.WithAction(sdui.Button(sid+"/"+act.ID, act.Label, act.Icon), act.action)
 }
 
 func queueView(sc screen) sdui.Node {

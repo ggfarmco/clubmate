@@ -37,6 +37,15 @@ final class SessionRowsTests: XCTestCase {
 
     private static let exit1 = SessionFailure(word: "exit 1", badge: "Stopped · exit 1", line: "Claude exited with status 1.")
 
+    func testFailedSessionOffersTheMacsRemoteActionsAndNamesTheRest() throws {
+        let json = #"{"id":"e","status":"error","failure":{"word":"Stopped","badge":"Stopped · error","line":"Sign in to continue using Claude.","actions":[{"id":"signin","label":"Sign in","icon":"person.badge.key"},{"id":"retry","label":"Retry","icon":"arrow.clockwise","command":"agents.resume","args":{"session":"e"}},{"id":"continue","label":"Hand off to a new session","icon":"arrow.turn.down.right","command":"agents.handoff","args":{"session":"e"}}]}}"#
+        let session = try JSONDecoder().decode(AgentSession.self, from: Data(json.utf8))
+        XCTAssertEqual(session.failureButtons { $0 == "agents.resume" }.map(\.id), ["retry"])
+        XCTAssertEqual(session.failureButtons { $0 == "agents.resume" }.first?.args, ["session": "e"])
+        XCTAssertEqual(session.failureOnMac("Mac Studio"), ["Sign in on Mac Studio"])
+        XCTAssertEqual(AgentSession(id: "old", status: .error, failure: Self.exit1).failureButtons { _ in true }, [])
+    }
+
     func testSubagentsFoldUnlessTheyNeedYou() throws {
         let tree = try XCTUnwrap(AgentSession.grouped([
             AgentSession(id: "p", status: .done),

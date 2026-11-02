@@ -808,6 +808,30 @@ func TestFailedSessionReadsInWords(t *testing.T) {
 	}
 }
 
+func TestFailedSessionOffersTheMacButtonsAsActions(t *testing.T) {
+	cases := []struct {
+		needsAuth, cannotResume bool
+		id, label, command      string
+	}{
+		{false, false, "retry", "Retry", "agents.resume"},
+		{true, false, "signin", "Sign in", ""},
+		{false, true, "continue", "Hand off to a new session", "agents.handoff"},
+	}
+	for _, tc := range cases {
+		rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusError, Error: "exit status 1"}
+		main := mainView(screen{View: transcriptView{Session: rec}, Composer: "agt_1/composer/0", NeedsAuth: tc.needsAuth, Continue: tc.cannotResume})
+		require.NoError(t, internalsdui.Validate(main))
+		require.True(t, slices.ContainsFunc(nodesOf(main, "button"), func(b sdui.Node) bool { return b.ID == "agt_1/"+tc.id }), tc.id)
+
+		acts := failureActions(rec.ID, tc.needsAuth, tc.cannotResume)
+		require.Len(t, acts, 1, tc.id)
+		assert.Equal(t, []string{tc.id, tc.label, tc.command}, []string{acts[0].ID, acts[0].Label, acts[0].Command}, tc.id)
+		if tc.command != "" {
+			assert.Equal(t, map[string]string{"session": "agt_1"}, acts[0].Args, tc.id)
+		}
+	}
+}
+
 func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {
 	now := time.Now()
 	rows := []sessionRow{

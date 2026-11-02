@@ -55,6 +55,15 @@ struct SessionDetailView: View {
                         .font(.footnote)
                         .foregroundStyle(Color.dangerInk)
                 }
+                if let session, !failureButtons.isEmpty || !session.failureOnMac(context.connection.computer.name).isEmpty {
+                    FailureActionsView(buttons: failureButtons, onMac: session.failureOnMac(context.connection.computer.name), blocked: blocked) { action in
+                        perform {
+                            if let next = try await store.recover(sessionID, with: action) {
+                                context.navigation.detail = next
+                            }
+                        }
+                    }
+                }
                 if session?.status == .running {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -153,7 +162,7 @@ struct SessionDetailView: View {
                         focused: $composerFocused,
                         session: session,
                         enabled: blocked == nil,
-                        blocked: answerDocked ? nil : blocked,
+                        blocked: answerDocked || !failureButtons.isEmpty ? nil : blocked,
                         sending: sending,
                         wide: stopInHeader,
                         send: send
@@ -273,6 +282,10 @@ struct SessionDetailView: View {
         }
     }
 
+    private var failureButtons: [FailureAction] {
+        store.session(sessionID)?.failureButtons(supported: context.connection.supports) ?? []
+    }
+
     private var stopInHeader: Bool {
         navigation.layout != .compact
     }
@@ -381,6 +394,42 @@ struct SessionHeader: View {
         let detail = [session.headerDetail, mode ? session.modeLabel ?? "" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
         return Text(session.headerState).foregroundStyle(session.state.needsYou ? Color.warning : .secondary)
             + (mac != nil || !detail.isEmpty ? Text(" · ") + mac.lead(detail) : Text("")).foregroundStyle(.secondary)
+    }
+}
+
+struct FailureActionsView: View {
+    let buttons: [FailureAction]
+    let onMac: [String]
+    let blocked: String?
+    let run: (FailureAction) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !buttons.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(buttons) { action in
+                        Button { run(action) } label: {
+                            Label(action.label, systemImage: action.icon)
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .buttonStyle(.glass)
+                    }
+                }
+                .disabled(blocked != nil)
+            }
+            ForEach(onMac, id: \.self) { line in
+                Label(line, systemImage: "desktopcomputer")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            if let blocked, !buttons.isEmpty {
+                Text(blocked)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.leading, 2)
     }
 }
 

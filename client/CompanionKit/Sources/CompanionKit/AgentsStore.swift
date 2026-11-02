@@ -251,6 +251,13 @@ public final class AgentsStore {
         await refreshSession(session)
     }
 
+    public func recover(_ session: String, with action: FailureAction) async throws -> String? {
+        guard let runner, let command = action.command else { return nil }
+        let result = try await runner.command(command, workspace: workspace, args: .object((action.args ?? [:]).mapValues(JSONValue.string)))
+        await refreshSession(session)
+        return result["session"]?.stringValue.flatMap { $0 == session ? nil : $0 }
+    }
+
     public func create(_ text: String, attachments: [ComposerAttachment] = []) async throws -> String? {
         guard let runner else { return nil }
         let prompt = attachments.isEmpty ? text : ""

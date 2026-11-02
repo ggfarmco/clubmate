@@ -436,9 +436,7 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	ctxScreen := a.contextScreen(st, v.Session)
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
-	_, needsAuth := a.auth[sid]
-	resumable, known := a.resumable[v.Session.Agent]
-	cannotResume := v.Session.AgentSessionID != "" && (a.noResume[sid] || known && !resumable)
+	needsAuth, cannotResume := a.recoveryLocked(v.Session)
 	return screen{
 		View:        v,
 		Pending:     pending,
@@ -665,6 +663,12 @@ func (a *app) setCollapsed(ctx context.Context, workspaceID string, keys map[str
 		return nil
 	}
 	return a.host.StorageSet(ctx, collapsedKey+workspaceID, collapsed)
+}
+
+func (a *app) recoveryLocked(rec record) (needsAuth, cannotResume bool) {
+	_, needsAuth = a.auth[rec.ID]
+	resumable, known := a.resumable[rec.Agent]
+	return needsAuth, rec.AgentSessionID != "" && (a.noResume[rec.ID] || known && !resumable)
 }
 
 func (a *app) setNoResume(sid string, on bool) {

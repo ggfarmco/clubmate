@@ -80,9 +80,10 @@ type sessionInfo struct {
 }
 
 type sessionFailure struct {
-	Word  string `json:"word"`
-	Badge string `json:"badge"`
-	Line  string `json:"line"`
+	Word    string          `json:"word"`
+	Badge   string          `json:"badge"`
+	Line    string          `json:"line"`
+	Actions []failureAction `json:"actions,omitempty"`
 }
 
 type toolActivity struct {

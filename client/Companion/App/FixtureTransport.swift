@@ -219,7 +219,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -319,6 +319,14 @@ actor FixtureServer {
         case "agents.close":
             update(session) { $0["status"] = .string("closed") }
             return .null
+        case "agents.resume":
+            update(session) { $0["status"] = .string("idle"); $0["error"] = nil; $0["failure"] = nil }
+            return .null
+        case "agents.handoff":
+            guard let old = sessions.first(where: { $0["id"]?.stringValue == session }) else { return .null }
+            let next = command("agents.new", workspace: workspace, args: .object(["title": old["title"] ?? .null]))
+            update(session) { $0["status"] = .string("closed"); $0["handoffTo"] = next["session"]; $0["error"] = nil; $0["failure"] = nil }
+            return .object(["session": next["session"] ?? .null])
         case "agents.mode":
             update(session) { $0["mode"] = args["mode"] ?? .null }
             return .null
@@ -585,9 +593,18 @@ actor FixtureServer {
         if status == "running" { fields["turnStartedAt"] = stamp(ago: ago) }
         if status == "error" {
             fields["error"] = .string("acp error -32603: exit status 1")
-            fields["failure"] = .object(["word": .string("exit 1"), "badge": .string("Stopped · exit 1"), "line": .string("Claude exited with status 1.")])
+            fields["failure"] = .object(["word": .string("exit 1"), "badge": .string("Stopped · exit 1"), "line": .string("Claude exited with status 1."), "actions": .array([failureAction(id)])])
         }
         return fields
+    }
+
+    private static func failureAction(_ session: String) -> JSONValue {
+        let args = JSONValue.object(["session": .string(session)])
+        return switch UserDefaults.standard.string(forKey: "failureAction") {
+        case "signin": .object(["id": .string("signin"), "label": .string("Sign in"), "icon": .string("person.badge.key")])
+        case "continue": .object(["id": .string("continue"), "label": .string("Hand off to a new session"), "icon": .string("arrow.turn.down.right"), "command": .string("agents.handoff"), "args": args])
+        default: .object(["id": .string("retry"), "label": .string("Retry"), "icon": .string("arrow.clockwise"), "command": .string("agents.resume"), "args": args])
+        }
     }
 
     private static func stamp(ago seconds: TimeInterval) -> JSONValue {

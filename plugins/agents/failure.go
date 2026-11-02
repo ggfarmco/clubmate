@@ -27,6 +27,10 @@ const (
 
 	internalErrorPrefix = "Internal error: "
 	newSessionHint      = "Start a new session or hand this one off to continue."
+
+	recoverSignIn   = "signin"
+	recoverRetry    = "retry"
+	recoverContinue = "continue"
 )
 
 type (
@@ -43,6 +47,15 @@ type (
 	textKind struct {
 		text string
 		kind string
+	}
+
+	failureAction struct {
+		ID      string            `json:"id"`
+		Label   string            `json:"label"`
+		Icon    string            `json:"icon"`
+		Command string            `json:"command,omitempty"`
+		Args    map[string]string `json:"args,omitempty"`
+		action  string
 	}
 )
 
@@ -185,4 +198,18 @@ func failureLine(agent, text string) string {
 		return agent + " stopped: " + strings.TrimPrefix(line[loc[1]:], internalErrorPrefix)
 	}
 	return cmp.Or(line, agent+" stopped with an error.")
+}
+
+func failureActions(sid string, needsAuth, cannotResume bool) []failureAction {
+	switch {
+	case needsAuth:
+		return []failureAction{{ID: recoverSignIn, Label: "Sign in", Icon: "person.badge.key", action: actSignIn}}
+	case cannotResume:
+		return []failureAction{continueAction(sid)}
+	}
+	return []failureAction{{ID: recoverRetry, Label: "Retry", Icon: "arrow.clockwise", Command: "agents.resume", Args: map[string]string{"session": sid}, action: actRetry}}
+}
+
+func continueAction(sid string) failureAction {
+	return failureAction{ID: recoverContinue, Label: "Hand off to a new session", Icon: "arrow.turn.down.right", Command: "agents.handoff", Args: map[string]string{"session": sid}, action: actContinue}
 }

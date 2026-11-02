@@ -271,6 +271,10 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 		info.NeedsYou = needsYou(info.record)
 		if rec.Status == statusError {
 			failure := failureOf(rec)
+			a.uiMu.Lock()
+			needsAuth, cannotResume := a.recoveryLocked(rec)
+			a.uiMu.Unlock()
+			failure.Actions = failureActions(rec.ID, needsAuth, cannotResume)
 			info.Failure = &failure
 		}
 		if info.PendingSummary == nil && info.Asks && rec.Question != "" {

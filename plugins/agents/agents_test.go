@@ -62,7 +62,12 @@ type record struct {
 	Suspended       bool     `json:"suspended"`
 	DisallowedTools []string `json:"disallowedTools"`
 	Failure         *struct {
-		Badge string `json:"badge"`
+		Badge   string `json:"badge"`
+		Actions []struct {
+			ID      string            `json:"id"`
+			Command string            `json:"command"`
+			Args    map[string]string `json:"args"`
+		} `json:"actions"`
 	} `json:"failure"`
 	ModeLabel string `json:"modeLabel"`
 }
@@ -587,6 +592,9 @@ func TestAgentCrash(t *testing.T) {
 	assert.Contains(t, got.Error, "fatal: adapter blew up")
 	require.NotNil(t, got.Failure)
 	assert.Contains(t, got.Failure.Badge, "Stopped · ")
+	require.Len(t, got.Failure.Actions, 1)
+	assert.Equal(t, "agents.handoff", got.Failure.Actions[0].Command)
+	assert.Equal(t, map[string]string{"session": session}, got.Failure.Actions[0].Args)
 	starts := f.calls(t, "start")
 	require.Len(t, starts, 1)
 	child := f.calls(t, "child")

@@ -39,6 +39,16 @@ extension AgentSession {
         failure ?? SessionFailure(word: SessionState.stopped.label, badge: SessionState.stopped.label + " · error", line: "")
     }
 
+    public func failureButtons(supported: (String) -> Bool) -> [FailureAction] {
+        guard status == .error else { return [] }
+        return stopped.actions.filter { $0.command.map(supported) ?? false }
+    }
+
+    public func failureOnMac(_ mac: String) -> [String] {
+        guard status == .error else { return [] }
+        return stopped.actions.filter { $0.command == nil }.map { "\($0.label) on \(mac)" }
+    }
+
     public var headerState: String {
         state == .stopped ? stopped.badge : state.label
     }

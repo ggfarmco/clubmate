@@ -175,11 +175,49 @@ public struct SessionFailure: Codable, Sendable, Hashable {
     public let word: String
     public let badge: String
     public let line: String
+    public let actions: [FailureAction]
 
-    public init(word: String, badge: String, line: String) {
+    public init(word: String, badge: String, line: String, actions: [FailureAction] = []) {
         self.word = word
         self.badge = badge
         self.line = line
+        self.actions = actions
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case word, badge, line, actions
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        word = try c.decode(String.self, forKey: .word)
+        badge = try c.decode(String.self, forKey: .badge)
+        line = try c.decode(String.self, forKey: .line)
+        actions = (try? c.decodeIfPresent([FailureAction].self, forKey: .actions)) ?? []
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(word, forKey: .word)
+        try c.encode(badge, forKey: .badge)
+        try c.encode(line, forKey: .line)
+        if !actions.isEmpty { try c.encode(actions, forKey: .actions) }
+    }
+}
+
+public struct FailureAction: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let label: String
+    public let icon: String
+    public let command: String?
+    public let args: [String: String]?
+
+    public init(id: String, label: String, icon: String, command: String? = nil, args: [String: String]? = nil) {
+        self.id = id
+        self.label = label
+        self.icon = icon
+        self.command = command
+        self.args = args
     }
 }
 

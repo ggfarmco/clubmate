@@ -372,6 +372,7 @@
         "id": "agents.resume",
         "title": "Resume agent session",
         "hidden": true,
+        "remote": true,
         "description": "Reattach a session whose agent process is gone (session/resume); fails when the agent cannot resume. Runs in the background.",
         "args": {
           "properties": {

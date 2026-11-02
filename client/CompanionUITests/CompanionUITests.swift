@@ -259,6 +259,17 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Hide done"].exists)
     }
 
+    func testHandOffAFailedSessionOpensTheNewOne() {
+        let app = launch(open: "agents/agt_0000000000000005", ["-failureAction", "continue"])
+        let handoff = app.buttons["Hand off to a new session"]
+        XCTAssertTrue(handoff.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Claude exited with status 1."].exists)
+        handoff.tap()
+        XCTAssertTrue(app.textFields["composer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(wait(for: app.staticTexts["Claude exited with status 1."], "exists == false"))
+        XCTAssertFalse(app.staticTexts["This session is closed"].exists)
+    }
+
     private func launch(open target: String, _ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-fixtures", Self.fixtures, "-autoConfirmPairing", "YES", "-pair", Self.pairLink, "-open", target] + extra
