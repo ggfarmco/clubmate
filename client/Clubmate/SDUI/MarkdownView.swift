@@ -148,8 +148,46 @@ extension Theme {
             }
             quote.addAttribute(.quoteBar, value: NSColor(border), range: range)
             result.append(quote)
+        case .table(let header, let align, let rows):
+            result.append(table(header: header, align: align, rows: rows, gap: gap, color: color, docLinks: docLinks))
         case .code, .mermaid:
             break
+        }
+        return result
+    }
+
+    private func table(header: [String], align: [MarkdownAlign], rows: [[String]], gap: CGFloat, color: NSColor, docLinks: [String: String]) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let table = NSTextTable()
+        table.numberOfColumns = header.count
+        table.layoutAlgorithm = .automaticLayoutAlgorithm
+        table.collapsesBorders = true
+        table.setWidth(gap, type: .absoluteValueType, for: .margin, edge: .minY)
+        let lines = [header] + rows
+        for (row, cells) in lines.enumerated() {
+            for (column, text) in cells.enumerated() {
+                let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1, startingColumn: column, columnSpan: 1)
+                block.setWidth(spacing.s, type: .absoluteValueType, for: .padding, edge: .minY)
+                block.setWidth(spacing.s, type: .absoluteValueType, for: .padding, edge: .maxY)
+                block.setWidth(column == 0 ? 0 : spacing.l, type: .absoluteValueType, for: .padding, edge: .minX)
+                if row < lines.count - 1 {
+                    block.setWidth(1, type: .absoluteValueType, for: .border, edge: .maxY)
+                    block.setBorderColor(NSColor(row == 0 ? borderStrong : border), for: .maxY)
+                }
+                let font = row == 0 ? nsFont(size: uiSize, bold: true) : nsFont(size: uiSize, bold: false)
+                let cell = NSMutableAttributedString(attributedString: paragraph(text, font: font, color: row == 0 ? NSColor(muted) : color, indent: 0, before: 0, docLinks: docLinks))
+                if cell.length == 0 { cell.append(NSAttributedString(string: " ", attributes: [.font: font])) }
+                if row < lines.count - 1 || column < cells.count - 1 { cell.append(NSAttributedString(string: "\n", attributes: [.font: font])) }
+                let style = paragraphStyle(lead: 0, hang: 0, before: 0)
+                style.textBlocks = [block]
+                style.alignment = switch align.indices.contains(column) ? align[column] : .none {
+                case .center: .center
+                case .right: .right
+                case .none, .left: .natural
+                }
+                cell.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: cell.length))
+                result.append(cell)
+            }
         }
         return result
     }

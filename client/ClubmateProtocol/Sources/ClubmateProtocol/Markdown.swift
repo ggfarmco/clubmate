@@ -12,11 +12,19 @@ public struct MarkdownListItem: Sendable, Hashable {
     }
 }
 
+public enum MarkdownAlign: Sendable, Hashable {
+    case none
+    case left
+    case center
+    case right
+}
+
 public enum MarkdownBlock: Sendable, Hashable {
     case heading(level: Int, text: String)
     case paragraph(String)
     case list([MarkdownListItem])
     case quote(String)
+    case table(header: [String], align: [MarkdownAlign], rows: [[String]])
     case code(language: String, text: String)
     case mermaid(String)
 }
@@ -27,18 +35,25 @@ public enum Markdown {
         var paragraph: [String] = []
         var items: [MarkdownListItem] = []
         var quote: [String] = []
+        var table: (header: [String], align: [MarkdownAlign], rows: [[String]])?
         var fence: (marker: String, language: String, lines: [String])?
 
         func flush() {
             if !paragraph.isEmpty { blocks.append(.paragraph(paragraph.joined(separator: "\n"))) }
             if !items.isEmpty { blocks.append(.list(items)) }
             if !quote.isEmpty { blocks.append(.quote(quote.joined(separator: "\n"))) }
+            if let open = table { blocks.append(.table(header: open.header, align: open.align, rows: open.rows)) }
             paragraph = []
             items = []
             quote = []
+            table = nil
         }
 
-        for line in source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            index += 1
             if let open = fence {
                 if line.trimmingCharacters(in: .whitespaces).hasPrefix(open.marker) {
                     let text = open.lines.joined(separator: "\n")
@@ -51,6 +66,13 @@ public enum Markdown {
             }
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if !quote.isEmpty, !trimmed.hasPrefix(">") { flush() }
+            if let open = table {
+                if trimmed.contains("|") {
+                    table?.rows.append(fit(cells(trimmed), open.header.count))
+                    continue
+                }
+                flush()
+            }
             if let marker = fenceMarker(trimmed) {
                 flush()
                 fence = (marker, String(trimmed.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces), [])
@@ -62,6 +84,10 @@ public enum Markdown {
             } else if trimmed.hasPrefix(">") {
                 if quote.isEmpty { flush() }
                 quote.append(trimmed.dropFirst().trimmingCharacters(in: .whitespaces))
+            } else if trimmed.contains("|"), index < lines.count, let align = delimiter(lines[index]), cells(trimmed).count == align.count {
+                flush()
+                table = (cells(trimmed), align, [])
+                index += 1
             } else if let item = listItem(line) {
                 if !paragraph.isEmpty {
                     blocks.append(.paragraph(paragraph.joined(separator: "\n")))
@@ -116,6 +142,53 @@ public enum Markdown {
         let rest = line.dropFirst(hashes)
         guard rest.isEmpty || rest.first == " " else { return nil }
         return .heading(level: hashes, text: rest.trimmingCharacters(in: .whitespaces))
+    }
+
+    private static func cells(_ row: String) -> [String] {
+        var body = Substring(row)
+        if body.hasPrefix("|") { body = body.dropFirst() }
+        if body.hasSuffix("|"), !body.hasSuffix("\\|") { body = body.dropLast() }
+        var cells: [String] = []
+        var cell = ""
+        var code = false
+        var escaped = false
+        for char in body {
+            if escaped {
+                cell.append(char == "|" ? "|" : "\\\(char)")
+                escaped = false
+            } else if char == "\\" {
+                escaped = true
+            } else if char == "`" {
+                code.toggle()
+                cell.append(char)
+            } else if char == "|", !code {
+                cells.append(cell.trimmingCharacters(in: .whitespaces))
+                cell = ""
+            } else {
+                cell.append(char)
+            }
+        }
+        if escaped { cell.append("\\") }
+        cells.append(cell.trimmingCharacters(in: .whitespaces))
+        return cells
+    }
+
+    private static func fit(_ row: [String], _ count: Int) -> [String] {
+        Array(row.prefix(count)) + Array(repeating: "", count: max(0, count - row.count))
+    }
+
+    private static func delimiter(_ line: String) -> [MarkdownAlign]? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.contains("-") else { return nil }
+        var align: [MarkdownAlign] = []
+        for cell in cells(trimmed) {
+            let left = cell.hasPrefix(":")
+            let right = cell.hasSuffix(":") && cell.count > 1
+            let dashes = cell.dropFirst(left ? 1 : 0).dropLast(right ? 1 : 0)
+            guard !dashes.isEmpty, dashes.allSatisfy({ $0 == "-" }) else { return nil }
+            align.append(left && right ? .center : left ? .left : right ? .right : .none)
+        }
+        return align
     }
 
     private static func listItem(_ line: String) -> MarkdownListItem? {

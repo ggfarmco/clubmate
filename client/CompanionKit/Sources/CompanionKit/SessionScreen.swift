@@ -241,7 +241,7 @@ public struct SessionScreen: Sendable, Equatable {
             case .paragraph(let text), .quote(let text): texts = [text]
             case .list(let items): texts = items.map(\.text)
             case .heading(_, let text): texts = [text]
-            case .code, .mermaid: continue
+            case .code, .mermaid, .table: continue
             }
             for text in texts.reversed() {
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

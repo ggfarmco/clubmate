@@ -400,6 +400,8 @@ struct MarkdownView: View {
                     .background(Color.surface1, in: .rect(cornerRadius: 16))
                 case .mermaid(let source):
                     MermaidBlock(source: source)
+                case .table(let header, let align, let rows):
+                    MarkdownTable(header: header, align: align, rows: rows, inline: inline)
                 }
             }
         }
@@ -413,6 +415,53 @@ struct MarkdownView: View {
             }
             return .handled
         })
+    }
+}
+
+private struct MarkdownTable: View {
+    let header: [String]
+    let align: [MarkdownAlign]
+    let rows: [[String]]
+    let inline: (String) -> AttributedString
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 8) {
+                GridRow {
+                    ForEach(Array(header.enumerated()), id: \.offset) { column, text in
+                        cell(text, column)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(alignment(column))
+                    }
+                }
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    Divider()
+                        .gridCellUnsizedAxes(.horizontal)
+                    GridRow {
+                        ForEach(Array(row.enumerated()), id: \.offset) { column, text in
+                            cell(text, column)
+                        }
+                    }
+                }
+            }
+            .monospacedDigit()
+        }
+    }
+
+    private func cell(_ text: String, _ column: Int) -> some View {
+        Text(inline(text))
+            .multilineTextAlignment(alignment(column) == .trailing ? .trailing : alignment(column) == .center ? .center : .leading)
+            .frame(maxWidth: 240, alignment: Alignment(horizontal: alignment(column), vertical: .top))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func alignment(_ column: Int) -> HorizontalAlignment {
+        switch align.indices.contains(column) ? align[column] : .none {
+        case .center: .center
+        case .right: .trailing
+        case .none, .left: .leading
+        }
     }
 }
 

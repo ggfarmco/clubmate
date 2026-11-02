@@ -45,6 +45,17 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(Markdown.blocks("```mermaid\ngraph TD"), [.code(language: "mermaid", text: "graph TD")])
     }
 
+    func testMarkdownTables() {
+        let source = "- item\n| Day | `a|b` | N |\n|---|:-:|--:|\n| Mon | x \\| y |\n| Tue | z | 2 | extra |\nafter"
+
+        XCTAssertEqual(Markdown.blocks(source), [
+            .list([MarkdownListItem(marker: "•", depth: 0, text: "item")]),
+            .table(header: ["Day", "`a|b`", "N"], align: [.none, .center, .right], rows: [["Mon", "x | y", ""], ["Tue", "z", "2"]]),
+            .paragraph("after"),
+        ])
+        XCTAssertEqual(Markdown.blocks("| a | b |\n| streaming"), [.paragraph("| a | b |\n| streaming")])
+    }
+
     func testMarkdownLinksOnlyOpenWebAndMail() throws {
         for allowed in ["https://example.com", "HTTP://example.com/a", "mailto:a@b.c"] {
             XCTAssertTrue(MarkdownLinkPolicy.allows(try XCTUnwrap(URL(string: allowed))), allowed)
