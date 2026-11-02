@@ -410,7 +410,7 @@ struct MarkdownView: View {
         .environment(\.openURL, OpenURLAction { url in
             if let target = MarkdownDocLink.target(url) {
                 openDoc?(target)
-            } else {
+            } else if MarkdownLinkPolicy.allows(url) {
                 openURL(url)
             }
             return .handled
@@ -1596,7 +1596,8 @@ struct ElicitationCard: View {
         if question.isURL {
             VStack(spacing: 10) {
                 primary("Open") {
-                    if let link = question.request.url, let url = URL(string: link) { openURL(url) }
+                    guard let link = question.request.url, let url = URL(string: link), MarkdownLinkPolicy.allows(url) else { return }
+                    openURL(url)
                     submit("accept", [])
                 }
                 PlainCapsule(title: "Decline", tint: Color.danger) { submit("decline", []) }

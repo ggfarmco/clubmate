@@ -110,18 +110,20 @@ public enum Markdown {
     }
 
     public static func inline(_ text: String) -> AttributedString {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+        inline(text, docLinks: [:])
     }
 
     public static func inline(_ text: String, docLinks: [String: String]) -> AttributedString {
-        var content = inline(text)
-        guard !docLinks.isEmpty else { return content }
-        var linked: [(Range<AttributedString.Index>, URL)] = []
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        var content = (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+        var linked: [(Range<AttributedString.Index>, URL?)] = []
         for run in content.runs {
             let code = run.inlinePresentationIntent?.contains(.code) == true ? String(content[run.range].characters) : nil
-            guard let key = run.link?.relativeString ?? code, let path = docLinks[key], let url = MarkdownDocLink.url(path) else { continue }
-            linked.append((run.range, url))
+            if let key = run.link?.relativeString ?? code, let path = docLinks[key], let url = MarkdownDocLink.url(path) {
+                linked.append((run.range, url))
+            } else if let link = run.link, !MarkdownLinkPolicy.allows(link) {
+                linked.append((run.range, nil))
+            }
         }
         for (range, url) in linked {
             content[range].link = url

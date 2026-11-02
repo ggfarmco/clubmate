@@ -65,8 +65,8 @@ final class ClubmateProtocolTests: XCTestCase {
         }
     }
 
-    func testDocLinksBecomeDocURLsOnLinksAndCodeSpans() {
-        let text = "See [the plan](docs/plan.md#goals), `my plan.md`, [web](https://x.dev/a.md) and `other.md`."
+    func testInlineLinksKeepDocsAndWebDropOthers() {
+        let text = "See [the plan](docs/plan.md#goals), `my plan.md`, [web](https://x.dev/a.md), [run](shortcuts://run), [rel](notes.md) and `other.md`."
         let content = Markdown.inline(text, docLinks: ["docs/plan.md#goals": "/w/docs/plan.md#goals", "my plan.md": "/w/my plan.md"])
         let links = content.runs.compactMap { run in run.link.map { (String(content[run.range].characters), MarkdownDocLink.target($0)) } }
         XCTAssertEqual(links.map(\.0), ["the plan", "my plan.md", "web"])
