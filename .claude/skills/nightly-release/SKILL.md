@@ -10,7 +10,7 @@ Nobody is watching. First call `agents_afk on=true` for yourself. Never ask the 
 Pushing a `v*` tag publishes at once (the `release` environment has no reviewers), so tag only through these steps.
 
 1. In the main checkout: `git fetch -q --tags origin`; `SHA=$(git rev-parse main)`. If a `v*` tag already points at `SHA`, there is nothing to release: say so in one line and stop.
-2. Version: the newest tag (`git tag -l 'v*' --sort=-v:refname | head -1`) with the patch number plus one.
+2. Version: the newest tag (`git tag -l 'v*' --sort=-v:refname | head -1`) with the patch number plus one, written without the `v` (`0.0.30`, not `v0.0.30`): `ship.sh` adds it, so `v0.0.30` would tag `vv0.0.30`.
 3. `git push origin main`. Rejected (not a fast-forward) → never force; file it and stop.
 4. Ship detached, so it outlives this session:
    `python3 -c 'import os,sys; os.setsid(); os.execv("/bin/bash", ["bash"] + sys.argv[1:])' scripts/release/ship.sh <version> $SHA $CLUBMATE_WORKSPACE_ID >>~/Library/Logs/clubmate-ship.log 2>&1 </dev/null &`
