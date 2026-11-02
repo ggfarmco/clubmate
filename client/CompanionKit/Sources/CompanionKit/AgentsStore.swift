@@ -28,6 +28,11 @@ public final class AgentsStore {
     public private(set) var transcriptErrors: [String: String] = [:]
     public private(set) var openedDocs: [String: String] = [:]
     public var expanded: Set<String> = []
+    public var searchQuery = "" {
+        didSet { if searchQuery != oldValue { scheduleSearch() } }
+    }
+    public private(set) var searchResults: [AgentSearchResult]?
+    public private(set) var searchError: String?
     public private(set) var openImages: Set<String> = []
     public private(set) var images: [String: TranscriptImage] = [:]
     private var outgoing: [String: [Outgoing]] = [:]
@@ -36,6 +41,8 @@ public final class AgentsStore {
     public static let followInterval: Duration = .seconds(2)
     public static let imageCommand = "agents.image"
     public static let reviewedCommand = "agents.reviewed"
+    public static let searchCommand = "agents.search"
+    public static let searchDelay: Duration = .milliseconds(250)
 
     @ObservationIgnored private weak var runner: (any CommandRunner)?
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
@@ -43,6 +50,7 @@ public final class AgentsStore {
     @ObservationIgnored private var followers: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var inflight: Set<String> = []
     @ObservationIgnored private var again: Set<String> = []
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
 
     public init(workspace: String, runner: any CommandRunner, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
@@ -154,6 +162,39 @@ public final class AgentsStore {
             self.error = Self.message(error)
         }
         loaded = true
+    }
+
+    public var searching: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func scheduleSearch() {
+        searchTask?.cancel()
+        searchResults = nil
+        searchError = nil
+        guard searching else { return }
+        let query = searchQuery
+        searchTask = Task { [weak self, sleep] in
+            do {
+                try await sleep(Self.searchDelay)
+            } catch {
+                return
+            }
+            await self?.search(query)
+        }
+    }
+
+    private func search(_ query: String) async {
+        guard let runner else { return }
+        do {
+            let results = try await runner.command(Self.searchCommand, workspace: workspace, args: .object(["query": .string(query)]), as: [AgentSearchResult].self)
+            guard query == searchQuery else { return }
+            searchResults = results
+        } catch {
+            guard query == searchQuery, !Task.isCancelled else { return }
+            searchResults = []
+            searchError = Self.message(error)
+        }
     }
 
     public func watch(_ session: String) {

@@ -78,6 +78,9 @@ enum DebugLaunch {
             try? await Task.sleep(for: .milliseconds(100))
         }
         navigation.open(computer: computer.id, plugin: parts[0], detail: parts.count > 1 ? parts[1] : nil)
+        if let query = defaults.string(forKey: "search"), let connection = model.connection(computer.id), let workspace = navigation.workspace(for: connection) {
+            model.agents(computer: computer.id, workspace: workspace.id)?.searchQuery = query
+        }
     }
 }
 #endif

@@ -26,6 +26,7 @@ const (
 	actSelect      = "select"
 	actFilter      = "filter"
 	actFilterAll   = "filterAll"
+	actSearch      = "search"
 	actExpand      = "expand"
 	actCollapse    = "collapse"
 	actClose       = "close"
@@ -216,6 +217,9 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		if strings.HasPrefix(id, groupPrefix) {
 			return nil
 		}
+		if session, ok := hitSession(id); ok {
+			id = session
+		}
 		s, err := a.lookup(ev.WorkspaceID, id)
 		if err != nil {
 			return err
@@ -226,6 +230,16 @@ func (a *app) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 		p := a.workspaceState(ev.WorkspaceID)
 		a.uiMu.Lock()
 		p.filter = filterAll
+		a.uiMu.Unlock()
+		return nil
+	case actSearch:
+		var query string
+		if err := json.Unmarshal(ev.Value, &query); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		p := a.workspaceState(ev.WorkspaceID)
+		a.uiMu.Lock()
+		p.query = strings.TrimSpace(query)
 		a.uiMu.Unlock()
 		return nil
 	case actFilter:

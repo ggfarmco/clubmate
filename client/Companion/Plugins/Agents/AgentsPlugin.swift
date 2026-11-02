@@ -88,46 +88,31 @@ struct SessionListView: View {
                     ConnectionBanner(connection: context.connection)
                 }
             }
-            ForEach(store.groups, id: \.group) { group in
-                let items = group.sessions.flatMap { $0.rows(expanded: store.expanded) }
-                let count = group.sessions.reduce(0) { $0 + 1 + $1.descendants }
-                if group.group.folds {
-                    let open = unfolded.contains(group.group)
-                    Section(isExpanded: Binding(get: { open }, set: { _ in })) {
-                        rows(items)
-                    } header: {
-                        Button {
-                            Motion.disclose {
-                                if unfolded.remove(group.group) == nil { unfolded.insert(group.group) }
-                            }
-                        } label: {
-                            HStack {
-                                Text("\(group.group.title) · \(count)")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .rotationEffect(.degrees(open ? 90 : 0))
-                            }
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                } else {
-                    Section {
-                        rows(items)
-                    } header: {
-                        HStack {
-                            Text(group.group.title)
-                            Spacer()
-                            Text("\(count)")
-                        }
-                    }
+            if store.searching {
+                ForEach(store.searchResults ?? []) { result in
+                    SearchResultRow(result: result, session: store.session(result.session))
+                        .listRowDensity()
+                        .listRowSeparator(wide ? .hidden : .automatic)
+                        .tag(result.session)
+                        .modifier(SelectedSessionRow(active: wide, selected: context.navigation.detail == result.session))
                 }
+            } else {
+                sections
             }
         }
         .listStyle(insetGrouped: context.navigation.layout == .compact)
+        .searchable(enabled: context.connection.supports(AgentsStore.searchCommand), text: Bindable(store).searchQuery, prompt: "Search sessions")
         .overlay {
             if !store.loaded {
                 ProgressView()
+            } else if store.searching {
+                if let error = store.searchError {
+                    ContentUnavailableView("Search Failed", systemImage: "magnifyingglass", description: Text(error))
+                } else if store.searchResults == nil {
+                    ProgressView()
+                } else if store.searchResults?.isEmpty == true {
+                    ContentUnavailableView.search(text: store.searchQuery)
+                }
             } else if store.sessions.isEmpty {
                 ContentUnavailableView {
                     Label("No Agent Sessions", systemImage: "sparkles")
@@ -141,6 +126,45 @@ struct SessionListView: View {
             }
         }
         .refreshable { await store.refresh() }
+    }
+
+    @ViewBuilder
+    private var sections: some View {
+        ForEach(store.groups, id: \.group) { group in
+            let items = group.sessions.flatMap { $0.rows(expanded: store.expanded) }
+            let count = group.sessions.reduce(0) { $0 + 1 + $1.descendants }
+            if group.group.folds {
+                let open = unfolded.contains(group.group)
+                Section(isExpanded: Binding(get: { open }, set: { _ in })) {
+                    rows(items)
+                } header: {
+                    Button {
+                        Motion.disclose {
+                            if unfolded.remove(group.group) == nil { unfolded.insert(group.group) }
+                        }
+                    } label: {
+                        HStack {
+                            Text("\(group.group.title) · \(count)")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .rotationEffect(.degrees(open ? 90 : 0))
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Section {
+                    rows(items)
+                } header: {
+                    HStack {
+                        Text(group.group.title)
+                        Spacer()
+                        Text("\(count)")
+                    }
+                }
+            }
+        }
     }
 
     private var wide: Bool {
@@ -185,6 +209,15 @@ struct SelectedSessionRow: ViewModifier {
 }
 
 extension View {
+    @ViewBuilder
+    func searchable(enabled: Bool, text: Binding<String>, prompt: String) -> some View {
+        if enabled {
+            searchable(text: text, prompt: prompt)
+        } else {
+            self
+        }
+    }
+
     @ViewBuilder
     func listStyle(insetGrouped: Bool) -> some View {
         if insetGrouped {
@@ -250,6 +283,45 @@ struct SessionRow: View {
                 }
             }
             .padding(.leading, CGFloat(min(depth, 2)) * 24)
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+struct SearchResultRow: View {
+    let result: AgentSearchResult
+    let session: AgentSession?
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { timeline in
+            HStack(alignment: .top, spacing: 12) {
+                SessionGlyphView(glyph: session?.glyph ?? result.glyph)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(result.displayTitle)
+                        .font(.body.weight(session?.glyph.needsYou == true ? .semibold : .regular))
+                        .foregroundStyle(result.status == .closed ? .secondary : .primary)
+                        .lineLimit(2)
+                    StateLineText(line: session?.stateLine(now: timeline.date) ?? result.stateLine(now: timeline.date))
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    ForEach(Array(result.snippets.enumerated()), id: \.offset) { _, hit in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: hit.kind == .prompt ? "person" : "bubble.left")
+                                .accessibilityLabel(hit.kind == .prompt ? "Prompt" : "Reply")
+                            Text(hit.snippet)
+                                .lineLimit(2)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                RowChevron()
+                    .frame(height: 22)
+            }
             .frame(minHeight: 44)
             .contentShape(.rect)
             .accessibilityElement(children: .combine)

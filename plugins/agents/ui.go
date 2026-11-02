@@ -71,6 +71,7 @@ type workspaceUI struct {
 	tick      *ticker
 	selected  string
 	filter    string
+	query     string
 	restored  bool
 	collapsed map[string]bool
 	folds     bool
@@ -244,8 +245,12 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	collapsed := maps.Clone(p.collapsed)
 	branchOpen := p.branch
 	filter := p.filter
+	search := sidebarSearch{query: p.query}
 	a.uiMu.Unlock()
-	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), branchOpen, filter)); err != nil {
+	if search.query != "" {
+		search.results = a.search(workspaceID, search.query)
+	}
+	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), branchOpen, filter, search)); err != nil {
 		return err
 	}
 	var shown *screen

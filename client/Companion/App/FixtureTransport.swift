@@ -240,7 +240,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -378,6 +378,8 @@ actor FixtureServer {
                 _ = command("agents.prompt", workspace: workspace, args: .object(["session": .string(id), "text": .string(prompt)]))
             }
             return .object(["session": .string(id), "worktree": record["worktree"] ?? .null])
+        case "agents.search":
+            return .array(search(args["query"]?.stringValue ?? "", in: workspace))
         case "docs.list":
             guard workspace == self.workspace else { return .object(["docs": .array([]), "truncated": .bool(false)]) }
             guard let session = args["session"]?.stringValue else { return .object(["docs": .array(docsList), "truncated": .bool(false)]) }
@@ -663,6 +665,30 @@ actor FixtureServer {
         ])
         let text = (try? JSONEncoder().encode(prompt)).map { String(decoding: $0, as: UTF8.self) } ?? ""
         return .object(["kind": .string("user"), "id": .string(id), "turn": .number(1), "from": .string("voice"), "text": .string(text), "voice": .object(["heard": .string(heard), "utterance": .string("vu_fixture")])])
+    }
+
+    private func search(_ query: String, in workspace: String) -> [JSONValue] {
+        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !needle.isEmpty else { return [] }
+        let snippet = { (text: String) -> String in
+            guard let range = text.lowercased().range(of: needle) else { return text }
+            let start = text.index(range.lowerBound, offsetBy: -min(30, text.distance(from: text.startIndex, to: range.lowerBound)))
+            let line = text[start...].replacingOccurrences(of: "\n", with: " ")
+            return (start == text.startIndex ? "" : "…") + line.prefix(120)
+        }
+        return (workspace == self.workspace ? sessions : others).compactMap { record in
+            let id = record["id"]?.stringValue ?? ""
+            let title = record["title"]?.stringValue ?? ""
+            var hits: [JSONValue] = title.lowercased().contains(needle) ? [.object(["kind": .string("title"), "snippet": .string(title)])] : []
+            for entry in transcripts[id]?["entries"]?.arrayValue ?? [] where hits.count < 3 {
+                guard let kind = ["user": "prompt", "agent": "reply"][entry["kind"]?.stringValue ?? ""], let text = entry["text"]?.stringValue, text.lowercased().contains(needle) else { continue }
+                hits.append(.object(["kind": .string(kind), "turn": entry["turn"] ?? .number(1), "snippet": .string(snippet(text))]))
+            }
+            guard !hits.isEmpty else { return nil }
+            var result: [String: JSONValue] = ["session": .string(id), "title": .string(title), "status": record["status"] ?? .string("done"), "worktree": record["worktree"] ?? .string(""), "updatedAt": record["updatedAt"] ?? .null, "hits": .array(hits)]
+            result["parentSession"] = record["parentSession"]
+            return .object(result)
+        }
     }
 
     private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = [], images: [JSONValue] = []) -> JSONValue {

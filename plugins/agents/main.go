@@ -39,6 +39,7 @@ type app struct {
 	codePanel bool
 	usage     usageTracker
 	branches  branchCache
+	texts     textIndex
 	watchdog  watchdog
 
 	sessionRevs sessionRevs
@@ -112,6 +113,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			cut = append(cut, s)
 		}
 	}
+	go a.texts.warm(a.stateDir, recs)
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err

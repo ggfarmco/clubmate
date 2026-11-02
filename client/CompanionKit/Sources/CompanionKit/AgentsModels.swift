@@ -140,6 +140,54 @@ public struct AgentTurn: Decodable, Sendable, Equatable {
     public let stopReason: String?
 }
 
+public struct AgentSearchResult: Decodable, Sendable, Equatable, Identifiable {
+    public struct Hit: Decodable, Sendable, Equatable {
+        public enum Kind: String, FallbackEnum {
+            case title
+            case prompt
+            case reply
+            case other
+
+            public static let fallback = Self.other
+        }
+
+        public let kind: Kind
+        public let turn: Int?
+        public let snippet: String
+    }
+
+    public let session: String
+    public let title: String
+    public let status: AgentSessionStatus
+    public let worktree: String
+    public let parentSession: String?
+    public let updatedAt: Date
+    public let hits: [Hit]
+
+    public var id: String { session }
+
+    public var displayTitle: String {
+        title.isEmpty ? "New Session" : title
+    }
+
+    public var snippets: [Hit] {
+        hits.filter { $0.kind == .prompt || $0.kind == .reply }
+    }
+
+    public var glyph: SessionGlyph {
+        switch status {
+        case .closed: .closed
+        case .running: .running
+        case .error: .stopped
+        default: .done
+        }
+    }
+
+    public func stateLine(now: Date) -> SessionStateLine {
+        SessionStateLine(text: status.label, age: ShortAge.since(updatedAt, now: now))
+    }
+}
+
 public struct AgentConfigOption: Decodable, Sendable, Equatable, Identifiable {
     public struct Choice: Decodable, Sendable, Equatable, Hashable {
         public let value: String

@@ -56,7 +56,7 @@ func TestSidebarGroupsByWorktree(t *testing.T) {
 		{Rec: record{ID: "agt_3", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 		{Rec: record{ID: "agt_4", Worktree: "/r/b", Agent: agentClaude, Title: "Docs", Status: statusDone, Asks: true, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "agt_2", nil, now, false, "")
+	tree := sidebarView(rows, "agt_2", nil, now, false, "", sidebarSearch{})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -92,7 +92,7 @@ func TestSidebarExpandedClosedGroup(t *testing.T) {
 		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 		{Rec: record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "", map[string]bool{closedKey + "/r/a": false}, now, false, "")
+	tree := sidebarView(rows, "", map[string]bool{closedKey + "/r/a": false}, now, false, "", sidebarSearch{})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -125,16 +125,16 @@ func TestSidebarFilter(t *testing.T) {
 		return out
 	}
 
-	needs := sidebarView(rows, "", nil, now, false, filterNeeds)
+	needs := sidebarView(rows, "", nil, now, false, filterNeeds, sidebarSearch{})
 	require.NoError(t, internalsdui.Validate(needs))
 	items := tabs(needs)
 	assert.Equal(t, []string{"5", "3", "1"}, []string{items[0].Badge, items[1].Badge, items[2].Badge})
 	assert.Equal(t, []string{"", "warning", ""}, []string{items[0].Tone, items[1].Tone, items[2].Tone})
 	assert.Equal(t, filterNeeds, nodesOf(needs, "tabs")[0].Props["selected"])
 	assert.Equal(t, []string{"agt_4", "agt_1", "agt_5"}, ids(needs))
-	assert.Equal(t, []string{"agt_2"}, ids(sidebarView(rows, "", nil, now, false, filterRunning)))
+	assert.Equal(t, []string{"agt_2"}, ids(sidebarView(rows, "", nil, now, false, filterRunning, sidebarSearch{})))
 
-	calm := sidebarView(rows[1:3], "", nil, now, false, filterNeeds)
+	calm := sidebarView(rows[1:3], "", nil, now, false, filterNeeds, sidebarSearch{})
 	assert.Empty(t, tabs(calm)[1].Tone)
 	assert.Empty(t, nodesOf(calm, "tree"))
 	require.NoError(t, internalsdui.Validate(calm))
@@ -191,12 +191,12 @@ func TestSidebarNestsChildren(t *testing.T) {
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now}},
 	}
 
-	folded := nodesOf(sidebarView(rows, "", map[string]bool{}, now, false, ""), "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
+	folded := nodesOf(sidebarView(rows, "", map[string]bool{}, now, false, "", sidebarSearch{}), "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
 	assert.True(t, folded.HasChildren)
 	assert.False(t, folded.Expanded)
 	assert.Empty(t, folded.Children)
 
-	tree := sidebarView(rows, "agt_c", map[string]bool{"s:agt_p": false}, now, false, "")
+	tree := sidebarView(rows, "agt_c", map[string]bool{"s:agt_p": false}, now, false, "", sidebarSearch{})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -219,7 +219,7 @@ func TestSidebarNestsGraphRunSessions(t *testing.T) {
 		{Rec: record{ID: "agt_k", Worktree: "/r/a", lineage: lineage{ParentSession: "agt_p"}, Run: &api.Run{ID: "gr_2", Title: "Fix"}, Title: "Fix · Tester", Status: statusRunning}},
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Title: "Boss", Status: statusDone, UpdatedAt: now}},
 	}
-	tree := sidebarView(rows, "", map[string]bool{"s:agt_p": false}, now, false, "")
+	tree := sidebarView(rows, "", map[string]bool{"s:agt_p": false}, now, false, "", sidebarSearch{})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -239,7 +239,7 @@ func TestSidebarNestsGraphRunSessions(t *testing.T) {
 	assert.Equal(t, statusLabels[statusRunning], fix[0].Detail)
 	assert.Equal(t, "Tester", fix[0].Children[0].Label)
 
-	folded := nodesOf(sidebarView(rows, "", map[string]bool{runGroupKey("/r/a", "gr_1"): true}, now, false, ""), "tree")[0].Props["items"].([]sdui.TreeItem)
+	folded := nodesOf(sidebarView(rows, "", map[string]bool{runGroupKey("/r/a", "gr_1"): true}, now, false, "", sidebarSearch{}), "tree")[0].Props["items"].([]sdui.TreeItem)
 	assert.Empty(t, folded[len(folded)-1].Children[0].Children)
 }
 
@@ -639,7 +639,7 @@ func TestSidebarShowsParentWaitingForChildren(t *testing.T) {
 		{statusWaiting, "exclamationmark.circle", "warning", "Child session waiting", false},
 	} {
 		rows := []sessionRow{{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusDone, UpdatedAt: now, AFK: tc.afk}, Children: tc.children}}
-		tree := sidebarView(rows, "", nil, now, false, "")
+		tree := sidebarView(rows, "", nil, now, false, "", sidebarSearch{})
 		require.NoError(t, internalsdui.Validate(tree))
 
 		groups := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
@@ -802,7 +802,7 @@ func TestFailedSessionReadsInWords(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rec := record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusError, Error: tc.err}
-		tree := sidebarView([]sessionRow{{Rec: rec}}, "", nil, time.Now(), false, "")
+		tree := sidebarView([]sessionRow{{Rec: rec}}, "", nil, time.Now(), false, "", sidebarSearch{})
 		require.NoError(t, internalsdui.Validate(tree))
 		item := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)[0].Children[0]
 		assert.Equal(t, []string{"xmark.circle", "danger", tc.detail}, []string{item.Icon, item.Tone, item.Detail}, tc.err)
@@ -845,7 +845,7 @@ func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {
 		{Rec: record{ID: "agt_p", Worktree: "/r/a", Agent: agentClaude, Status: statusRunning}},
 		{Rec: record{ID: "agt_c", Worktree: "/r/a", Agent: agentClaude, Status: statusWaiting, lineage: lineage{ParentSession: "agt_p"}}, Since: now},
 	}
-	tree := sidebarView(rows, "", map[string]bool{"/r/a": true, expandPrefix + "agt_p": true}, now, false, "")
+	tree := sidebarView(rows, "", map[string]bool{"/r/a": true, expandPrefix + "agt_p": true}, now, false, "", sidebarSearch{})
 	require.NoError(t, internalsdui.Validate(tree))
 
 	group := nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)[0]
@@ -864,11 +864,11 @@ func TestSidebarFoldsServiceSessions(t *testing.T) {
 		{Rec: record{ID: "agt_v", Worktree: "/r/a", Agent: agentClaude, Title: "Voice", Status: statusRunning, SystemPrompt: "route"}},
 	}
 	groups := func(rows []sessionRow) []sdui.TreeItem {
-		tree := sidebarView(rows, "", map[string]bool{"/r/a": true}, now, false, "")
+		tree := sidebarView(rows, "", map[string]bool{"/r/a": true}, now, false, "", sidebarSearch{})
 		require.NoError(t, internalsdui.Validate(tree))
 		return nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
 	}
-	tabs := nodesOf(sidebarView(rows, "", nil, now, false, ""), "tabs")[0].Props["items"].([]sdui.Item)
+	tabs := nodesOf(sidebarView(rows, "", nil, now, false, "", sidebarSearch{}), "tabs")[0].Props["items"].([]sdui.Item)
 	assert.Equal(t, []string{"1", "0", "1"}, []string{tabs[0].Badge, tabs[1].Badge, tabs[2].Badge})
 
 	quiet := groups(rows)[0]

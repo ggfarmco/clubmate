@@ -29,6 +29,11 @@ const (
 	noneNeedYou   = "Nothing needs you"
 	noneRunning   = "No running sessions"
 
+	searchNode = "search"
+	searchTree = "searchResults"
+	hitPrefix  = "hit:"
+	noMatches  = "No sessions match “%s”"
+
 	filterNode    = "filter"
 	filterAll     = "all"
 	filterNeeds   = "needs"
@@ -79,6 +84,7 @@ var (
 		childrenRunning:  "Waiting for child sessions",
 		childrenWaiting:  "Child session waiting",
 	}
+	hitIcons     = map[string]string{hitPrompt: "person", hitReply: "text.bubble"}
 	childDisplay = map[string]string{statusRunning: childrenRunning, statusWaiting: childrenWaiting}
 	filterEmpty  = map[string]string{filterNeeds: noneNeedYou, filterRunning: noneRunning}
 	notifyLabels = map[string]string{notifyNeedsInput: "Input only", notifyMuted: "Muted"}
@@ -101,13 +107,18 @@ type sessionRow struct {
 	Since    time.Time
 }
 
+type sidebarSearch struct {
+	query   string
+	results []searchResult
+}
+
 type notifyChoice struct {
 	action string
 	policy string
 	label  string
 }
 
-func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, branchOpen bool, filter string) sdui.Node {
+func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, now time.Time, branchOpen bool, filter string, search sidebarSearch) sdui.Node {
 	top := sdui.HStack(sdui.WithAction(sdui.Button("new", "New", "plus"), actNew), sdui.WithAction(sdui.Button("branch", "New in worktree…", "arrow.triangle.branch"), actShowBranch))
 	if branchOpen {
 		top = sdui.WithAction(sdui.Form(actNewBranch,
@@ -117,6 +128,10 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	if len(rows) == 0 {
 		return sdui.VStack(top, sdui.Empty(noSessions))
+	}
+	field := sdui.WithAction(sdui.WithLive(sdui.TextField(searchNode, search.query, "Search sessions")), actSearch)
+	if search.query != "" {
+		return sdui.VStack(top, field, searchResults(search, selected, now))
 	}
 	byID := make(map[string]bool, len(rows))
 	for _, row := range rows {
@@ -143,7 +158,7 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 	}
 	if len(roots) == 0 {
 		all := sdui.WithAction(sdui.Button("filterAll", "Show all", ""), actFilterAll)
-		return sdui.VStack(top, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
+		return sdui.VStack(top, field, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
 	}
 	type bucket struct {
 		label                 string
@@ -190,7 +205,36 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		group.Faint = b.detached
 		groups = append(groups, group)
 	}
-	return sdui.VStack(top, tabs, sdui.Tree("sessions", groups, selected))
+	return sdui.VStack(top, field, tabs, sdui.Tree("sessions", groups, selected))
+}
+
+func searchResults(search sidebarSearch, selected string, now time.Time) sdui.Node {
+	if len(search.results) == 0 {
+		return sdui.Empty(fmt.Sprintf(noMatches, search.query))
+	}
+	items := make([]sdui.TreeItem, 0, len(search.results))
+	for _, res := range search.results {
+		item := sdui.TreeItem{ID: res.Session, Label: cmp.Or(res.Title, "New session"), Detail: ago(res.UpdatedAt, now), Icon: statusIcons[res.Status], Tone: statusTones[res.Status]}
+		for i, hit := range res.Hits {
+			if hit.Kind == hitTitle {
+				continue
+			}
+			item.Children = append(item.Children, sdui.TreeItem{ID: hitPrefix + res.Session + ":" + strconv.Itoa(i), Label: hit.Snippet, Icon: hitIcons[hit.Kind], Muted: true})
+		}
+		item.HasChildren = len(item.Children) > 0
+		item.Expanded = item.HasChildren
+		items = append(items, item)
+	}
+	return sdui.Tree(searchTree, items, selected)
+}
+
+func hitSession(id string) (string, bool) {
+	rest, ok := strings.CutPrefix(id, hitPrefix)
+	if !ok {
+		return "", false
+	}
+	session, _, _ := strings.Cut(rest, ":")
+	return session, true
 }
 
 func filterTabs(roots []sessionRow, filter string) sdui.Node {

@@ -458,6 +458,20 @@
         }
       },
       {
+        "id": "agents.search",
+        "title": "Search agent sessions",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "description": "Search the workspace's agent sessions, closed ones included, by title and by the text of the conversation (the user's prompts and the agent's replies; not thoughts or tool output). Case-insensitive substring match of the whole query. Returns at most 50 sessions, the ones whose title matches first, then the most recently updated: [{session, title, status, worktree, parentSession?, updatedAt, hits: [{kind, turn?, snippet}]}]; kind is title, prompt or reply, turn the turn of a prompt or reply, snippet a line around the match; at most 3 hits per session. Non-destructive.",
+        "args": {
+          "properties": {
+            "query": {"type": "string", "description": "Text to look for; empty returns no sessions."}
+          },
+          "required": ["query"]
+        }
+      },
+      {
         "id": "agents.wait",
         "title": "Wait for agent sessions",
         "hidden": true,

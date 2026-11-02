@@ -2622,13 +2622,16 @@ func TestNewInWorktree(t *testing.T) {
 	tree := filepath.Join(repo, ".worktrees", "t1")
 
 	f.h.Event(t, workspace, "agents.sidebar", "branch", "showBranch", nil)
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 1 })
+	branchField := func(n sdui.Node) bool {
+		return slices.ContainsFunc(cardsOf(n, "textField"), func(f sdui.Node) bool { return f.ID == "branch" })
+	}
+	f.h.WaitSlot(t, workspace, "agents.sidebar", branchField)
 	f.h.Event(t, workspace, "agents.sidebar", "newBranch", "newBranch", map[string]string{"branch": " t1 "})
 	var list []record
 	require.NoError(t, f.run(t, workspace, "agents.sessions", map[string]any{}, &list))
 	require.Len(t, list, 1)
 	assert.Equal(t, tree, list[0].Worktree)
-	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return len(cardsOf(n, "textField")) == 0 })
+	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool { return !branchField(n) })
 }
 
 func TestSessionsCarryRunningToolActivity(t *testing.T) {

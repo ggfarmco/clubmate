@@ -28,6 +28,7 @@ var (
 		"agents.mode":           withArgs((*app).modeCommand),
 		"agents.config":         withArgs((*app).configCommand),
 		"agents.sessions":       withArgs((*app).sessionsCommand),
+		"agents.search":         withArgs((*app).searchCommand),
 		"agents.notify":         withArgs((*app).notifyCommand),
 		"agents.finish-default": withArgs((*app).finishDefaultCommand),
 		"agents.afk":            withArgs((*app).afkCommand),
@@ -455,4 +456,8 @@ func origin(cmd pluginsdk.CommandRun) string {
 		return unknownCaller
 	}
 	return cmd.Caller
+}
+
+func (a *app) searchCommand(_ context.Context, cmd pluginsdk.CommandRun, args searchArgs) (any, error) {
+	return a.search(cmd.WorkspaceID, args.Query), nil
 }
