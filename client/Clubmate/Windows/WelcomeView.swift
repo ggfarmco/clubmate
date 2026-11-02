@@ -36,8 +36,8 @@ struct WelcomeView: View {
                 .font(theme.title)
                 .foregroundStyle(theme.foreground)
             HStack(spacing: theme.gutter) {
-                WelcomeAction(title: "Open Folder…", icon: "folder", shortcut: "⌘O") { actions.openFolder(in: windowID) }
-                WelcomeAction(title: "New Terminal", icon: "terminal", shortcut: "⇧⌘N") { actions.newHomeTerminal(in: windowID) }
+                WelcomeAction(title: "Open folder…", icon: "folder", shortcut: "⌘O") { actions.openFolder(in: windowID) }
+                WelcomeAction(title: "New terminal", icon: "terminal", shortcut: "⇧⌘N") { actions.newHomeTerminal(in: windowID) }
             }
             if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: theme.gutter / 2) {
@@ -140,8 +140,8 @@ private struct RecentRow: View {
                         .foregroundStyle(theme.muted)
                 }
                 .buttonStyle(.plain)
-                .help("Remove Workspace…")
-                .accessibilityLabel("Remove Workspace…")
+                .help("Remove workspace…")
+                .accessibilityLabel("Remove workspace…")
             }
         }
         .padding(.horizontal, theme.gutter)

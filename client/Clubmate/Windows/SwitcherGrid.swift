@@ -85,7 +85,7 @@ struct SwitcherGridView: View {
                 if let workspace, workspace == windows.window(windowID)?.active {
                     Circle().fill(theme.accent).frame(width: 6, height: 6)
                 }
-                Text(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open Folder…")
+                Text(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")
                     .font(theme.ui)
                     .foregroundStyle(highlighted ? theme.foreground : theme.muted)
                     .lineLimit(1)
@@ -98,7 +98,7 @@ struct SwitcherGridView: View {
         .contentShape(Rectangle())
         .onTapGesture { choose(index) }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open Folder…")
+        .accessibilityLabel(workspace.map { app.workspace($0)?.name ?? $0 } ?? "Open folder…")
         .accessibilityAddTraits(workspace != nil && workspace == windows.window(windowID)?.active ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { choose(index) }
     }

@@ -56,7 +56,7 @@ struct StatusBar<Trailing: View>: View {
             Text("⌘K")
                 .foregroundStyle(theme.muted)
                 .fixedSize()
-                .help("Command Palette (⌘K)")
+                .help("Command palette (⌘K)")
         }
         .font(theme.uiSmall)
         .lineLimit(1)
