@@ -16,7 +16,7 @@ clubmate command run remote.revoke device=<id>
 clubmate command run remote.set-port port=<port>
 clubmate command run remote.set-colour colour=<token>
 clubmate command run remote.set-title-bar-colour enabled=false
-clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz:8000 token=cmr_…
+clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz token=cmr_…
 ```
 
 ## A colour for each Mac
@@ -128,7 +128,7 @@ Setup (user):
 1. A paid Apple Developer Program membership (done).
 2. The Push Notifications capability: Xcode's automatic signing adds it to the App ID `com.clubmate.companion` when the app is built with `-allowProvisioningUpdates`.
 3. Create an APNs auth key in developer.apple.com → Certificates, IDs & Profiles → Keys (enable Apple Push Notifications service) and download the `AuthKey_<KEYID>.p8`.
-4. Deploy the [push relay](push-relay.md#deploy-on-exedev) with that key, then [add each Mac](push-relay.md#adding-a-mac): `token add <mac name>` on the relay host, `clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz:8000 token=cmr_…` on the Mac; `remote.status` shows `push: true`.
+4. Deploy the [push relay](push-relay.md#deploy-on-exedev) with that key, then [add each Mac](push-relay.md#adding-a-mac): `token add <mac name>` on the relay host, `clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz token=cmr_…` on the Mac; `remote.status` shows `push: true`.
 
 Without a relay the background refresh fallback above is the only way alerts reach a phone that has been in the pocket for a while.
 

@@ -48,9 +48,9 @@ Every push logs one line, `push <mac name> <type> <APNs status> <reason>`, never
 
 ## Deploy on exe.dev
 
-exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A service listening on `0.0.0.0:<port>` is reachable at `https://<vm>.exe.xyz:<port>` with a Let's Encrypt `*.exe.xyz` certificate, so the relay itself serves plain HTTP on `0.0.0.0:8000`.
+exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A new VM's HTTPS proxy `https://<vm>.exe.xyz` (Let's Encrypt `*.exe.xyz` certificate) forwards to port 8000 (`ssh exe.dev share port <vm> 8000` sets it), so the relay itself serves plain HTTP on `0.0.0.0:8000`. The proxy is private (exe.dev login) until `ssh exe.dev share set-public <vm>`; Macs need it public, the relay checks their tokens itself.
 
-1. Create the VM: `ssh exe.dev new --name <vm>`.
+1. Create the VM: `ssh exe.dev new --name=<vm>`.
 2. From the repo: `scripts/deploy-push-relay.sh <vm>.exe.xyz`. It cross-builds a static linux/amd64 binary, copies it to `~/push-relay/` with `deploy/push-relay/clubmate-push-relay.service` (its `REPLACE_ME_USER` set to the VM login), creates an empty `~/push-relay/tokens` (mode 600), installs and enables the unit and restarts it once `~/push-relay/relay.env` exists. Run it again for every update; it never touches the key, `relay.env` or the tokens.
 3. Copy the key and write `relay.env` without either passing through a terminal:
 
@@ -61,7 +61,7 @@ exe.dev VMs are x86_64 Ubuntu 24.04 with systemd. A service listening on `0.0.0.
    ssh <vm>.exe.xyz 'sudo systemctl restart clubmate-push-relay'
    ```
 
-4. Check: `curl -fsS https://<vm>.exe.xyz:8000/healthz`.
+4. Check: `curl -fsS https://<vm>.exe.xyz/healthz`.
 
 The unit sets `PUSH_RELAY_LISTEN=0.0.0.0:8000` and `PUSH_RELAY_TOKENS=~/push-relay/tokens`, runs as the VM login with `NoNewPrivileges`, a read-only home and `Restart=always`.
 
@@ -72,7 +72,7 @@ Locally, `make push-relay` builds `bin/clubmate-push-relay` and `make push-relay
 ## Adding a Mac
 
 1. On the VM: `ssh <vm>.exe.xyz '~/push-relay/clubmate-push-relay token add <mac name> -tokens ~/push-relay/tokens'` prints `cmr_…`.
-2. On the Mac: `clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz:8000 token=cmr_…`; `remote.status` shows `push: true`.
+2. On the Mac: `clubmate command run remote.set-push-relay url=https://<vm>.exe.xyz token=cmr_…`; `remote.status` shows `push: true`.
 
 ## Revoking a Mac
 
