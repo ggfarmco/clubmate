@@ -110,6 +110,11 @@ func (a *app) unwatch(ctx context.Context, h *pluginsdk.Host, workspaceID string
 func (a *app) refreshBranches(h *pluginsdk.Host, workspaceID string) {
 	a.branchMu.Lock()
 	defer a.branchMu.Unlock()
+	if a.vscodeShown(workspaceID) {
+		if e := a.currentEditor(workspaceID); e != nil {
+			a.scheduleStatus(h, e)
+		}
+	}
 	for _, e := range a.workspaceEditors(workspaceID) {
 		if e.connected() == nil {
 			continue

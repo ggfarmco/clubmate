@@ -29,7 +29,11 @@ func (a *app) ensureLogged(ctx context.Context, h *pluginsdk.Host, workspaceID s
 		return
 	}
 	e, err := a.active(ctx, h, workspaceID)
-	if e != nil && err == nil {
+	switch {
+	case e == nil || err != nil:
+	case a.vscodeShown(workspaceID):
+		err = a.vscodeShow(ctx, h, e, nil)
+	default:
 		_, err = a.ensure(ctx, h, e)
 	}
 	if err != nil && !quiet(err) {
@@ -55,13 +59,13 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 	}
 	s, sock, err := a.session(ctx, h, e)
 	if errors.Is(err, errNvimNotInPATH) {
-		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, missingView()))
+		return nil, errors.Join(err, a.renderNvim(ctx, h, e, missingView()))
 	}
 	if err != nil {
-		return nil, errors.Join(err, a.render(ctx, h, e, mainSlot, failedView(err)))
+		return nil, errors.Join(err, a.renderNvim(ctx, h, e, failedView(err)))
 	}
 	e.setSession(s)
-	if err := a.render(ctx, h, e, mainSlot, runningView(s)); err != nil {
+	if err := a.renderNvim(ctx, h, e, runningView(s)); err != nil {
 		return nil, err
 	}
 	c, err := connect(ctx, sock, func(ev nvimEvent) { a.nvimEvent(h, e, ev) })
@@ -75,6 +79,9 @@ func (a *app) ensureLocked(ctx context.Context, h *pluginsdk.Host, e *editor) (*
 }
 
 func (a *app) show(ctx context.Context, h *pluginsdk.Host, e *editor) error {
+	if a.vscodeShown(e.id) {
+		return a.vscodeShow(ctx, h, e, nil)
+	}
 	e.life.Lock()
 	defer e.life.Unlock()
 	if !a.isCurrent(e) {
@@ -241,6 +248,12 @@ func (a *app) exited(ctx context.Context, h *pluginsdk.Host, ev contract.Session
 			go c.close()
 		}
 		a.scheduleStatus(h, e)
+		if a.usesVSCode() {
+			if a.isCurrent(e) && a.setNvimShown(ev.Workspace, false) {
+				go func() { logError("vscode", a.vscodeShow(ctx, h, e, nil)) }()
+			}
+			return
+		}
 		if err := a.render(ctx, h, e, mainSlot, exitedView(ev.ExitCode)); err != nil {
 			logError("render", err)
 		}
@@ -266,7 +279,7 @@ func (a *app) session(ctx context.Context, h *pluginsdk.Host, e *editor) (string
 	if err != nil {
 		return "", "", err
 	}
-	if err := a.render(ctx, h, e, mainSlot, startingView()); err != nil {
+	if err := a.renderNvim(ctx, h, e, startingView()); err != nil {
 		return "", "", err
 	}
 	for _, s := range sessions {

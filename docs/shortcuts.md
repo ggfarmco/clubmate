@@ -10,7 +10,7 @@ The single list of every Clubmate shortcut. Any change that adds, removes or reb
 | ⇧⌘N | New Home Terminal | `ClubmateApp.swift` |
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
-| ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below) | `ClubmateApp.swift` (`CloseKeyOwner`) |
+| ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⇧⌘W | Close Session | `ClubmateApp.swift` |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Code, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
@@ -173,6 +173,17 @@ Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/
 
 Starters have no keys: ⌥1–⌥3 answer permission requests only. A click sends the starter prompt; "Explain" and "Write a test" attach the file open in Neovim. Defined by the agents plugin (`plugins/agents/view.go`).
 
+## VS Code (Code section)
+
+While a VS Code page (a `webview` node) has focus, these keys go to it instead of the app menu. Every other app menu key stays with Clubmate, as over nvim and terminals; keys the menu doesn't use reach VS Code.
+
+| Keys | Action | Where defined |
+|---|---|---|
+| ⌘W, ⌘N, ⌘O, ⌘P, ⇧⌘P | Go to VS Code (close editor, new file, open, quick open, command palette) | `WebViewHost.swift` (`CodeWebView`) |
+| ⌘K | Stays the Command Palette, so VS Code's ⌘K chords don't work | `ClubmateApp.swift` |
+| ⌘B | Stays Toggle Chat, so VS Code's sidebar toggle is shadowed | `ClubmateApp.swift` |
+| ⌘J | Stays Switch Popup Focus; use ⌃` for VS Code's panel | `ClubmateApp.swift` |
+
 ## nvim (Clubmate distribution, leader `,`)
 
 Defaults of the bundled nvim distribution (`nvim-distro/`). Keys in normal mode unless noted. The user layer (`~/.config/clubmate/lua/user/keymaps.lua`) can add or override any of them.
@@ -235,7 +246,7 @@ Paths are relative to `nvim-distro/`.
 
 ## Ergonomics notes
 
-- ⌘W does three different things depending on focus: popup, terminal or window.
+- ⌘W does four different things depending on focus: popup, VS Code, terminal or window.
 - Toggle Sidebar has two bindings (⌘B and ⌃⌘S). Consider dropping one.
 - ↩ and o in a tree differ only on items with children (↩ toggles, o selects). Consider merging them.
 - nvim: `gr` (rename) waits for `timeoutlen` before firing, because nvim 0.12's built-in `grn`/`grr`/`gri`/`gra` start with it.

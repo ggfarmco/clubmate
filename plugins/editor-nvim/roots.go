@@ -28,6 +28,10 @@ func (a *app) active(ctx context.Context, h *pluginsdk.Host, workspaceID string)
 }
 
 func (a *app) target(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (*editor, error) {
+	return a.targetWith(ctx, h, workspaceID, path, a.show)
+}
+
+func (a *app) targetWith(ctx context.Context, h *pluginsdk.Host, workspaceID, path string, show func(context.Context, *pluginsdk.Host, *editor) error) (*editor, error) {
 	p, err := h.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, err
@@ -50,7 +54,7 @@ func (a *app) target(ctx context.Context, h *pluginsdk.Host, workspaceID, path s
 	if !moved && !switched {
 		return e, nil
 	}
-	if err := a.show(ctx, h, e); err != nil {
+	if err := show(ctx, h, e); err != nil {
 		return nil, err
 	}
 	if switched {
@@ -72,6 +76,9 @@ func (a *app) workspaceUpdated(ctx context.Context, h *pluginsdk.Host, p plugins
 		return
 	}
 	a.watch(ctx, h, p)
+	if moved {
+		a.setNvimShown(p.ID, false)
+	}
 	a.scheduleStatus(h, e)
 	if moved {
 		go func() {

@@ -5,6 +5,7 @@
   "protocol": 1,
   "command": ["editor-nvim"],
   "contributes": {
+    "views": [{"slot": "editor-nvim.settings"}],
     "sections": [{"id": "editor-nvim", "title": "Code", "icon": "chevron.left.forwardslash.chevron.right", "order": 10}],
     "commands": [
       {
@@ -13,7 +14,7 @@
         "title": "Open file",
         "hidden": true,
         "agent": true,
-        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column. An absolute path inside another git worktree of a workspace folder switches that folder to the worktree first and opens the file in its Neovim.",
+        "description": "Open a file in the workspace's Neovim, starting it if needed, optionally at a line and column; with the VS Code editor setting, in VS Code in the Code section. An absolute path inside another git worktree of a workspace folder switches that folder to the worktree first and opens the file there.",
         "args": {
           "properties": {
             "path": {"type": "string", "description": "File to open; absolute, or relative to Neovim's working directory (the selected worktree of the first workspace folder that exists, else home)."},
@@ -70,7 +71,7 @@
         "title": "Current selection",
         "hidden": true,
         "agent": false,
-        "description": "The current or last visual selection of the current root's Neovim: {path, startLine, endLine, text}. Fails with no selection when there is none."
+        "description": "The current or last visual selection of the current root's Neovim: {path, startLine, endLine, text}. Fails with no selection when there is none, and with Not available with VS Code yet while the Code section shows VS Code."
       },
       {
         "id": "editor-nvim.checktime",
@@ -147,13 +148,13 @@
         "provides": ["editor.reveal"],
         "title": "Reveal file in Finder",
         "agent": true,
-        "description": "Reveal the file currently open in Neovim in Finder."
+        "description": "Reveal the file currently open in Neovim in Finder. Fails with Not available with VS Code yet while the Code section shows VS Code."
       },
       {
         "id": "editor-nvim.terminal",
         "title": "Open terminal here",
         "agent": true,
-        "description": "Open a new terminal in the directory of the file open in Neovim, or in the first workspace folder."
+        "description": "Open a new terminal in the directory of the file open in Neovim, or in the first workspace folder; with VS Code, in the current root."
       },
       {
         "id": "editor-nvim.import-config",
@@ -166,10 +167,38 @@
         "title": "Restart Neovim",
         "agent": true,
         "destructive": true,
-        "description": "Restart every running Neovim of the workspace (one per worktree). Fails while file buffers in any of them have unsaved changes, or while a running Neovim does not answer (unsaved buffers: unknown), unless force is true.",
+        "description": "With VS Code: restart the VS Code server and show it again (force is ignored; VS Code keeps unsaved edits). With Neovim: restart every running Neovim of the workspace (one per worktree). Fails while file buffers in any of them have unsaved changes, or while a running Neovim does not answer (unsaved buffers: unknown), unless force is true.",
         "args": {
           "properties": {
             "force": {"type": "boolean", "description": "Restart even with unsaved buffers, discarding their changes."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.settings",
+        "title": "Editor settings",
+        "hidden": true,
+        "remote": true,
+        "agent": true,
+        "scope": "app",
+        "description": "Which editor the Code section shows and whether the VS Code Server License Terms were accepted: {editor, vscodeAccepted}. editor is nvim (default) or vscode. Changes publish editor-nvim.settings-changed with the same shape.",
+        "result": {
+          "properties": {
+            "editor": {"type": "string", "description": "nvim or vscode."},
+            "vscodeAccepted": {"type": "boolean", "description": "The user accepted the VS Code Server License Terms."}
+          }
+        }
+      },
+      {
+        "id": "editor-nvim.settings-set",
+        "title": "Set editor settings",
+        "hidden": true,
+        "agent": true,
+        "scope": "app",
+        "description": "Choose the editor of the Code section; returns the settings as stored. License consent comes only from the user's Accept & Download in the Code section. Switching to vscode stops every running Neovim and fails with Save or discard unsaved changes first: <files> while any of them has unsaved buffers.",
+        "args": {
+          "properties": {
+            "editor": {"type": "string", "description": "nvim or vscode."}
           }
         }
       }

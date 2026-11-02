@@ -21,6 +21,7 @@ struct PickerRequest {
 final class WorkspaceSession {
     let workspaceID: String
     let deck = SurfaceDeck()
+    let webDeck = WebViewDeck()
     let panes = PaneFocus()
     let banner = EventBanner()
     var overlay: WorkspaceOverlay?
@@ -214,6 +215,7 @@ final class WorkspaceSession {
 
     func close() async {
         deck.closeAll()
+        webDeck.closeAll()
         await store?.stop()
     }
 }

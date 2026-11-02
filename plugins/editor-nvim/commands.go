@@ -123,10 +123,34 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, a.releaseRoot(ctx, h, cmd.WorkspaceID, args.Root)
 	case "import-config":
 		return a.importConfig(ctx, h, cmd.WorkspaceID)
+	case "settings":
+		return a.loadSettings(ctx, h)
+	case "settings-set":
+		var args editorSettingsArgs
+		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+			return nil, fmt.Errorf("settings-set args: %w", err)
+		}
+		return a.setSettings(ctx, h, args)
 	}
 	e, err := a.active(ctx, h, cmd.WorkspaceID)
 	if e == nil || err != nil {
 		return nil, err
+	}
+	vscode := a.vscodeShown(cmd.WorkspaceID)
+	switch name {
+	case "reveal", "selection":
+		if vscode {
+			return nil, errNotInVSCode
+		}
+	case "terminal":
+		if vscode {
+			return nil, h.RunCommand(ctx, "terminals.new", e.id, terminalArgs{Cwd: e.root}, nil)
+		}
+	case "restart":
+		if a.usesVSCode() {
+			a.vscodeRestart(ctx, h)
+			return nil, nil
+		}
 	}
 	switch name {
 	case "reveal":
@@ -162,6 +186,9 @@ func (a *app) open(ctx context.Context, h *pluginsdk.Host, workspaceID string, a
 	if strings.ContainsAny(args.Path, "\n\r") {
 		return errBadPath
 	}
+	if a.usesVSCode() {
+		return a.vscodeOpen(ctx, h, workspaceID, args)
+	}
 	_, c, err := a.attach(ctx, h, workspaceID, args.Path)
 	if c == nil || err != nil {
 		return err
@@ -177,7 +204,7 @@ func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 		return errDiffviewRev
 	}
 	cwd := filepath.Clean(args.Cwd)
-	e, c, err := a.attach(ctx, h, workspaceID, cwd)
+	e, c, err := a.attachNvim(ctx, h, workspaceID, cwd)
 	if c == nil || err != nil {
 		return err
 	}
@@ -204,6 +231,18 @@ func (a *app) terminal(ctx context.Context, h *pluginsdk.Host, e *editor) error 
 		cwd = filepath.Dir(file)
 	}
 	return h.RunCommand(ctx, "terminals.new", e.id, terminalArgs{Cwd: cwd}, nil)
+}
+
+func (a *app) attachNvim(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (*editor, *client, error) {
+	if !a.usesVSCode() {
+		return a.attach(ctx, h, workspaceID, path)
+	}
+	a.setNvimShown(workspaceID, true)
+	e, c, err := a.attach(ctx, h, workspaceID, path)
+	if c == nil || err != nil {
+		return e, c, err
+	}
+	return e, c, a.show(ctx, h, e)
 }
 
 func (a *app) attach(ctx context.Context, h *pluginsdk.Host, workspaceID, path string) (*editor, *client, error) {

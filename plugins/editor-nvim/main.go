@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
@@ -34,6 +35,14 @@ type app struct {
 	watchMu    sync.Mutex
 	watches    map[string]workspaceWatch
 	branchMu   sync.Mutex
+	settingsMu sync.Mutex
+	vscode     atomic.Bool
+	vsMu       sync.Mutex
+	vsSrv      *vscodeServer
+	vsErr      error
+	vsRev      int
+	nvimShown  map[string]bool
+	vsOpen     map[string]vscodeOpened
 }
 
 func main() {
@@ -44,8 +53,10 @@ func main() {
 		deleted:    map[string]bool{},
 		stopping:   map[editorKey]bool{},
 		watches:    map[string]workspaceWatch{},
+		nvimShown:  map[string]bool{},
+		vsOpen:     map[string]vscodeOpened{},
 	}
-	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
+	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged, Shutdown: a.shutdown})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
@@ -71,6 +82,14 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	if _, err := h.Subscribe(ctx, themeTopic, themeSeq); err != nil {
+		return err
+	}
+	settings, err := a.loadSettings(ctx, h)
+	if err != nil {
+		return err
+	}
+	a.vscode.Store(settings.Editor == editorVSCode)
+	if err := a.renderSettings(ctx, h, settings); err != nil {
 		return err
 	}
 	workspaces := present
@@ -120,7 +139,7 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 		a.drop(p.Workspace)
 		a.unwatch(ctx, h, p.Workspace)
 	case themeTopic:
-		a.themeChanged(ev.Payload)
+		a.themeChanged(ctx, h, ev.Payload)
 		if err := h.StorageSet(ctx, themeSeqKey, ev.Seq); err != nil {
 			logError(themeTopic, err)
 		}
@@ -128,14 +147,28 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 }
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
-	if ev.Action != "restart" {
-		return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
+	if ev.Slot == settingsSlot {
+		return a.settingsEvent(ctx, h, ev)
 	}
-	e, err := a.active(ctx, h, ev.WorkspaceID)
-	if e == nil || err != nil {
-		return nil, err
+	switch ev.Action {
+	case "vscode-accept":
+		if _, err := a.server(h); err != nil || ev.Slot != mainSlot || !a.vscodeShown(ev.WorkspaceID) {
+			return nil, errNoConsent
+		}
+		return nil, a.acceptVSCode(ctx, h)
+	case "vscode-retry":
+		a.vscodeRetry(ctx, h)
+		return nil, nil
+	case "back-to-vscode":
+		return nil, a.backToVSCode(ctx, h, ev.WorkspaceID)
+	case "restart":
+		e, err := a.active(ctx, h, ev.WorkspaceID)
+		if e == nil || err != nil {
+			return nil, err
+		}
+		return nil, a.restart(ctx, h, e, false, false)
 	}
-	return nil, a.restart(ctx, h, e, false, false)
+	return nil, fmt.Errorf("%w: %q", errUnknownAction, ev.Action)
 }
 
 func logError(what string, err error) {

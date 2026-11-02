@@ -32,6 +32,7 @@ final class SessionRegistry {
         for (workspace, session) in sessions where SurfaceDeckPolicy.shouldCloseDeck(workspace: workspace, layout: layout) {
             sessions[workspace] = nil
             session.deck.closeAll()
+            session.webDeck.closeAll()
             Task { await session.close() }
         }
     }

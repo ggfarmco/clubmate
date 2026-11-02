@@ -102,6 +102,8 @@ func (a *app) drop(workspaceID string) {
 	}
 	delete(a.current, workspaceID)
 	delete(a.workspaces, workspaceID)
+	delete(a.nvimShown, workspaceID)
+	delete(a.vsOpen, workspaceID)
 	for k := range a.stopping {
 		if k.workspace == workspaceID {
 			delete(a.stopping, k)

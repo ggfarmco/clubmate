@@ -320,6 +320,14 @@ func Surface(sessionID string) Node {
 	return Node{Type: "surface", Props: map[string]any{"sessionId": sessionID}}
 }
 
+func WebView(key, url string, rev int) Node {
+	props := map[string]any{"key": key, "url": url}
+	if rev != 0 {
+		props["rev"] = rev
+	}
+	return Node{Type: "webview", Props: props}
+}
+
 func Empty(text string) Node {
 	return Node{Type: "empty", Props: map[string]any{"text": text}}
 }

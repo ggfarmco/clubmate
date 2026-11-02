@@ -52,7 +52,7 @@ final class KeyMonitorView: NSView {
     }
 
     func deliver(_ event: NSEvent) -> Bool {
-        guard monitor != nil, let window, event.window === window, !(window.firstResponder is TerminalSurfaceView) else { return false }
+        guard monitor != nil, let window, event.window === window, !(window.firstResponder is TerminalSurfaceView), !CodeWebView.owns(window.firstResponder) else { return false }
         return handle?(event) == true
     }
 

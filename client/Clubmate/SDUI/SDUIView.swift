@@ -199,7 +199,7 @@ struct SDUIView: View, Equatable {
     @Environment(\.theme) private var theme
 
     private var topInset: CGFloat {
-        slot.hasSuffix(".main") && node.type != "surface" ? theme.gutter : 0
+        slot.hasSuffix(".main") && !["surface", "webview"].contains(node.type) ? theme.gutter : 0
     }
 
     var body: some View {
@@ -258,6 +258,7 @@ struct SDUINodeView: View, Equatable {
         case "permissionCard": PermissionCardNodeView(node: node)
         case "composer": ComposerNodeView(node: node)
         case "surface": SurfaceHost(sessionID: node.string("sessionId") ?? "")
+        case "webview": WebViewHost(key: node.string("key") ?? "", url: node.string("url").flatMap(URL.init(string:)), rev: node.props["rev"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0)
         case "empty": EmptyNodeView(node: node)
         case "header": HeaderNodeView(node: node)
         default: UnsupportedNodeView(type: node.type)

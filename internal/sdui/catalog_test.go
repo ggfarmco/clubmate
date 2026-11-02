@@ -190,6 +190,37 @@ func TestValidateLimits(t *testing.T) {
 	assert.ErrorIs(t, internalsdui.Validate(sdui.VStack(wide...)), internalsdui.ErrInvalidTree)
 }
 
+func TestWebViewNode(t *testing.T) {
+	const page = "http://127.0.0.1:5000/?tkn=a&folder=%2Fx"
+	webview := func(props map[string]any) sdui.Node { return sdui.Node{Type: "webview", Props: props} }
+	tests := []struct {
+		name string
+		node sdui.Node
+		ok   bool
+	}{
+		{"loopback", sdui.WebView("code", page, 0), true},
+		{"rev", sdui.WebView("code", page, 3), true},
+		{"https", sdui.WebView("code", "https://127.0.0.1:5000/", 0), false},
+		{"localhost", sdui.WebView("code", "http://localhost:5000/", 0), false},
+		{"lan host", sdui.WebView("code", "http://10.0.0.1:5000/", 0), false},
+		{"no port", sdui.WebView("code", "http://127.0.0.1/", 0), false},
+		{"file", sdui.WebView("code", "file:///x", 0), false},
+		{"missing key", webview(map[string]any{"url": page}), false},
+		{"unknown prop", webview(map[string]any{"key": "code", "url": page, "zoom": 2}), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := internalsdui.Validate(tt.node)
+			if tt.ok {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, internalsdui.ErrInvalidTree)
+		})
+	}
+	assert.NotContains(t, sdui.WebView("code", page, 0).Props, "rev")
+}
+
 func TestValidateItemLimits(t *testing.T) {
 	items := make([]sdui.Item, 5001)
 	for i := range items {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -185,6 +186,7 @@ var (
 		},
 		"form":    {props: map[string]propCheck{"action": actionCheck, "autosave": isBool}, children: anyChildren, interactive: true},
 		"surface": {required: []string{"sessionId"}, props: map[string]propCheck{"sessionId": sessionIDCheck}, children: noChildren},
+		"webview": {required: []string{"key", "url"}, props: map[string]propCheck{"key": isString, "url": loopbackURL, "rev": countNumber}, children: noChildren},
 		"header": {
 			required: []string{"title"},
 			props: map[string]propCheck{
@@ -462,6 +464,18 @@ func sessionIDCheck(_ *validator, v any) error {
 	s, ok := v.(string)
 	if !ok || !id.Valid("ses", s) {
 		return errors.New("must be a valid session id")
+	}
+	return nil
+}
+
+func loopbackURL(_ *validator, v any) error {
+	s, ok := v.(string)
+	if !ok {
+		return errors.New("must be a string")
+	}
+	u, err := url.Parse(s)
+	if err != nil || u.Scheme != "http" || u.Hostname() != "127.0.0.1" || u.Port() == "" {
+		return errors.New("must be an http://127.0.0.1:<port> URL")
 	}
 	return nil
 }
