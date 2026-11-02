@@ -88,7 +88,7 @@ func (e *vscodeEditor) state() string {
 func (e *vscodeEditor) webview(t *testing.T, ok func(url.Values) bool) url.Values {
 	t.Helper()
 	var q url.Values
-	e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
+	e.h.WaitSlotWithin(t, e.workspaceID, mainSlot, restartWait, func(n sdui.Node) bool {
 		raw, _ := n.Props["url"].(string)
 		u, err := url.Parse(raw)
 		if n.Type != "webview" || n.Props["key"] != "vscode" || err != nil {
@@ -102,7 +102,7 @@ func (e *vscodeEditor) webview(t *testing.T, ok func(url.Values) bool) url.Value
 
 func (e *vscodeEditor) waitWebview(t *testing.T) sdui.Node {
 	t.Helper()
-	return e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool { return n.Type == "webview" })
+	return e.h.WaitSlotWithin(t, e.workspaceID, mainSlot, restartWait, func(n sdui.Node) bool { return n.Type == "webview" })
 }
 
 func (e *vscodeEditor) event(t *testing.T, slot, id string) {

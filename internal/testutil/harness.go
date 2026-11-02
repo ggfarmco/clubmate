@@ -125,6 +125,11 @@ func (h *PluginHarness) CreateWorkspace(t *testing.T, name string) workspace.Wor
 
 func (h *PluginHarness) WaitSlot(t *testing.T, workspaceID, slot string, cond func(sdui.Node) bool) sdui.Node {
 	t.Helper()
+	return h.WaitSlotWithin(t, workspaceID, slot, harnessWait, cond)
+}
+
+func (h *PluginHarness) WaitSlotWithin(t *testing.T, workspaceID, slot string, timeout time.Duration, cond func(sdui.Node) bool) sdui.Node {
+	t.Helper()
 	c := h.Client(t)
 	var found sdui.Node
 	require.Eventually(t, func() bool {
@@ -142,7 +147,7 @@ func (h *PluginHarness) WaitSlot(t *testing.T, workspaceID, slot string, cond fu
 			}
 		}
 		return false
-	}, harnessWait, 20*time.Millisecond)
+	}, timeout, 20*time.Millisecond)
 	return found
 }
 
