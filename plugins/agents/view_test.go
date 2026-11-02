@@ -251,6 +251,15 @@ func TestRunningActivityElapsed(t *testing.T) {
 	assert.Equal(t, "2 h 5 min", activity(sessionRow{Rec: row.Rec, Started: now.Add(-125 * time.Minute)}, now))
 }
 
+func TestAutoClosedActivity(t *testing.T) {
+	now := time.Now()
+	rec := record{ID: "agt_1", Status: statusClosed, UpdatedAt: now.Add(-2 * time.Hour)}
+
+	assert.Equal(t, "2 h ago", activity(sessionRow{Rec: rec}, now))
+	rec.AutoClosed = true
+	assert.Equal(t, "auto", activity(sessionRow{Rec: rec}, now))
+}
+
 func TestTickerRefreshesElapsedWhileRunning(t *testing.T) {
 	clock := &fakeClock{now: time.Unix(0, 0)}
 	row := sessionRow{Rec: record{ID: "agt_1", Status: statusRunning}, Started: clock.Now()}

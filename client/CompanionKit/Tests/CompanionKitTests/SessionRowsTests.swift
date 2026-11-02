@@ -26,6 +26,7 @@ final class SessionRowsTests: XCTestCase {
             (AgentSession(id: "i2", status: .error, failure: Self.exit1), .stopped, SessionStateLine(text: "exit 1", tone: .danger)),
             (AgentSession(id: "j", status: .done, updatedAt: ago(3_700)), .done, SessionStateLine(text: "Done", age: "1 h")),
             (AgentSession(id: "k", status: .closed, updatedAt: ago(200_000)), .closed, SessionStateLine(text: "Closed", age: "2 d")),
+            (AgentSession(id: "k2", status: .closed, updatedAt: ago(200_000), autoClosed: true), .closed, SessionStateLine(text: "Auto-closed", age: "2 d")),
         ]
         for (session, glyph, line) in cases {
             XCTAssertEqual(session.glyph, glyph, session.id)

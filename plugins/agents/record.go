@@ -54,6 +54,7 @@ type record struct {
 	Finish          string    `json:"finish,omitempty"`
 	AFK             bool      `json:"afk,omitempty"`
 	Suspended       bool      `json:"suspended,omitempty"`
+	AutoClosed      bool      `json:"autoClosed,omitempty"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 	Asks            bool      `json:"asks"`

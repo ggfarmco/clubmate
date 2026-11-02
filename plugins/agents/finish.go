@@ -211,6 +211,7 @@ func (a *app) closeIdle(ctx context.Context, s *session) bool {
 	}
 	s.recordLocked(actorClubmate, kindClose, acp.SessionRequest{SessionID: s.rec.AgentSessionID})
 	s.setStatusLocked(statusClosed, "")
+	s.rec.AutoClosed = true
 	s.mu.Unlock()
 	a.closeSession(ctx, s, false)
 	return true

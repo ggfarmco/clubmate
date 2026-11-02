@@ -145,7 +145,8 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		return err
 	}
 	close(a.loaded)
-	go a.suspendIdleLoop(suspendDelay())
+	go a.suspendIdleLoop(envDelay(suspendAfterEnv, suspendAfter))
+	go a.closeDoneLoop(envDelay(closeAfterEnv, closeAfter))
 	go a.continueCutOff(cut)
 	a.renderAll(ctx)
 	return nil

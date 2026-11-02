@@ -36,6 +36,7 @@ const (
 	childrenRunning = "childrenRunning"
 	childrenWaiting = "childrenWaiting"
 	stoppedDetail   = "error"
+	autoClosedLabel = "auto"
 )
 
 var (
@@ -431,6 +432,10 @@ func activity(row sessionRow, now time.Time) string {
 		return cmp.Or(strings.Join(nonEmpty(append(parts, row.Activity)...), " · "), label)
 	case statusError:
 		return failureOf(rec).Word
+	case statusClosed:
+		if rec.AutoClosed {
+			return autoClosedLabel
+		}
 	}
 	return ago(rec.UpdatedAt, now)
 }

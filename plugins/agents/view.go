@@ -131,7 +131,11 @@ func mainView(sc screen) sdui.Node {
 		if sc.Continue {
 			reopen = failureButton(sid, continueAction(sid))
 		}
-		children = append(children, sdui.HStack(sdui.MutedText("The session is closed; its transcript stays readable."), reopen))
+		closed := "The session is closed; its transcript stays readable."
+		if rec.AutoClosed {
+			closed = "Closed automatically an hour after it finished; its transcript stays readable."
+		}
+		children = append(children, sdui.HStack(sdui.MutedText(closed), reopen))
 		return sdui.VStack(children...)
 	}
 	if card, ok := dockedPermission(sc); ok {

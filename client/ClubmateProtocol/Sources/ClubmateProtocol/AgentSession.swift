@@ -34,6 +34,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let activity: SessionActivity?
     public let failure: SessionFailure?
     public let modeLabel: String?
+    public let autoClosed: Bool
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -42,7 +43,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         createdAt: Date = .distantPast, updatedAt: Date? = nil, asks: Bool = false,
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
-        needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, modeLabel: String? = nil
+        needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, modeLabel: String? = nil,
+        autoClosed: Bool = false
     ) {
         self.id = id
         self.workspace = workspace
@@ -77,6 +79,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.activity = activity
         self.failure = failure
         self.modeLabel = modeLabel
+        self.autoClosed = autoClosed
     }
 
     public var isClosed: Bool { status == .closed }
@@ -84,7 +87,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed
     }
 
     public init(from decoder: any Decoder) throws {
@@ -127,7 +130,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             needsYouSince: date(.needsYouSince),
             activity: try? c.decodeIfPresent(SessionActivity.self, forKey: .activity),
             failure: try? c.decodeIfPresent(SessionFailure.self, forKey: .failure),
-            modeLabel: try optional(.modeLabel)
+            modeLabel: try optional(.modeLabel),
+            autoClosed: try flag(.autoClosed)
         )
     }
 
@@ -168,6 +172,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encodeIfPresent(activity, forKey: .activity)
         try c.encodeIfPresent(failure, forKey: .failure)
         try c.encodeIfPresent(modeLabel, forKey: .modeLabel)
+        try c.encode(autoClosed, forKey: .autoClosed)
     }
 }
 

@@ -566,7 +566,7 @@ struct ComposerView: View {
         if session?.isClosed == true {
             HStack(spacing: 10) {
                 ComposerMic()
-                Label("This session is closed", systemImage: "archivebox")
+                Label(session?.autoClosed == true ? "Closed automatically" : "This session is closed", systemImage: "archivebox")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 18)

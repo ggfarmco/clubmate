@@ -91,7 +91,7 @@ start() {
     --env "XDG_CACHE_HOME=$dir/xdg/cache"
   )
   local passthrough=()
-  for v in $(env | grep -o '^CLUBMATE_AGENTS_COMMAND\|^CLUBMATE_VOICE_[A-Z_]*\|^HF_HOME\|^UV_CACHE_DIR\|^FAKEAGENT_[A-Z_]*' || true); do passthrough+=(--env "$v=${!v}"); done
+  for v in $(env | grep -o '^CLUBMATE_AGENTS_[A-Z_]*\|^CLUBMATE_VOICE_[A-Z_]*\|^HF_HOME\|^UV_CACHE_DIR\|^FAKEAGENT_[A-Z_]*' || true); do passthrough+=(--env "$v=${!v}"); done
   env -i HOME="$HOME" USER="$USER" LOGNAME="${LOGNAME:-$USER}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="${TMPDIR:-/tmp}" \
     open -n -g -j "${envs[@]}" ${passthrough[@]+"${passthrough[@]}"} "$app" --args -ApplePersistenceIgnoreState YES "$@"
   for _ in $(seq 1 100); do

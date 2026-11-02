@@ -149,15 +149,15 @@ func isShell(comm string) bool {
 	return slices.Contains(shells, strings.TrimPrefix(filepath.Base(comm), "-"))
 }
 
-func suspendDelay() time.Duration {
-	v := os.Getenv(suspendAfterEnv)
+func envDelay(name string, def time.Duration) time.Duration {
+	v := os.Getenv(name)
 	if v == "" {
-		return suspendAfter
+		return def
 	}
 	d, err := time.ParseDuration(v)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "agents:", suspendAfterEnv+":", err)
-		return suspendAfter
+		fmt.Fprintln(os.Stderr, "agents:", name+":", err)
+		return def
 	}
 	return d
 }

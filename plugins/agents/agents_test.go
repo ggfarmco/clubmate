@@ -60,6 +60,7 @@ type record struct {
 		Text string `json:"text"`
 	} `json:"pendingSummary"`
 	Suspended       bool     `json:"suspended"`
+	AutoClosed      bool     `json:"autoClosed"`
 	DisallowedTools []string `json:"disallowedTools"`
 	Failure         *struct {
 		Badge   string `json:"badge"`
