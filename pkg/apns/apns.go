@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -162,6 +163,9 @@ func (c *Client) Send(ctx context.Context, env, deviceToken string, p Push) (Rep
 	}
 	req.Header.Set("content-type", "application/json")
 	res, err := c.HTTP.Do(req)
+	if ue, ok := errors.AsType[*url.Error](err); ok {
+		return Reply{}, fmt.Errorf("apns %s: %w", ue.Op, ue.Err)
+	}
 	if err != nil {
 		return Reply{}, err
 	}

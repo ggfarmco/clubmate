@@ -57,6 +57,25 @@ func TestSendAddressesAndSignsThePush(t *testing.T) {
 	verifyJWT(t, &key.PublicKey, got.header.Get("authorization"))
 }
 
+func TestSendErrorLeavesOutTheDeviceToken(t *testing.T) {
+	_, raw := newKey(t)
+	parsed, err := ParseKey(raw)
+	require.NoError(t, err)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := http.NewResponseController(w).Hijack()
+		require.NoError(t, err)
+		conn.Close()
+	}))
+	t.Cleanup(ts.Close)
+	c := NewClient(parsed, "ABC123", "TEAM")
+	c.Hosts = map[string]string{EnvDevelopment: ts.URL}
+
+	_, err = c.Send(t.Context(), EnvDevelopment, "aa01bb02", Push{Type: TypeAlert, Priority: 10, Payload: []byte(`{}`)})
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "aa01bb02")
+}
+
 func TestBearerIsReusedForFiftyMinutes(t *testing.T) {
 	key, _ := newKey(t)
 	now := time.Unix(1_800_000_000, 0)

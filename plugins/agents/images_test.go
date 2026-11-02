@@ -36,7 +36,8 @@ func TestImagesListMentionedImagesInOrder(t *testing.T) {
 	outside := filepath.Join(other, "x.jpg")
 	require.NoError(t, os.WriteFile(outside, []byte("not a jpeg"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(wt, "plan.md"), []byte("# Plan\n"), 0o600))
-	text := "[shot](shots/a.png), `shots/a.png`, `" + outside + "`, `missing.png`, `b.PNG#x`, `plan.md`, `b.PNG`, `c.gif`, `d.webp`."
+	require.NoError(t, os.Symlink(filepath.Join(wt, "plan.md"), filepath.Join(wt, "key.png")))
+	text := "[shot](shots/a.png), `shots/a.png`, `" + outside + "`, `missing.png`, `b.PNG#x`, `plan.md`, `key.png`, `b.PNG`, `c.gif`, `d.webp`."
 
 	links, cards, images := docRefs(text, wt)
 
@@ -69,4 +70,16 @@ func TestImageCommandServesOnlyNamedImages(t *testing.T) {
 
 	_, err = a.imageCommand(t.Context(), run, imageArgs{Session: "s1", Path: unnamed})
 	assert.ErrorIs(t, err, errImageUnnamed)
+
+	secret := filepath.Join(dir, "id_rsa")
+	require.NoError(t, os.WriteFile(secret, []byte("PRIVATE KEY"), 0o600))
+	require.NoError(t, os.Remove(named))
+	require.NoError(t, os.Symlink(secret, named))
+	_, err = a.imageCommand(t.Context(), run, imageArgs{Session: "s1", Path: named})
+	assert.ErrorIs(t, err, errNotImage)
+
+	require.NoError(t, os.Remove(named))
+	require.NoError(t, os.WriteFile(named, []byte("PRIVATE KEY"), 0o600))
+	_, err = a.imageCommand(t.Context(), run, imageArgs{Session: "s1", Path: named})
+	assert.ErrorIs(t, err, errNotImage)
 }

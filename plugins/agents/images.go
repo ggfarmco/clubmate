@@ -9,6 +9,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ var (
 	imageExts       = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
 	errImageUnnamed = errors.New("no agent message of this session names that image")
 	errImageLarge   = fmt.Errorf("image is larger than %d MiB", maxImageBytes>>20)
+	errNotImage     = errors.New("not an image")
 )
 
 type imageArgs struct {
@@ -46,7 +48,11 @@ func isImage(path string) bool {
 
 func resolveImage(target, root string) (string, bool) {
 	path, anchor, ok := resolveTarget(target, root)
-	if !ok || anchor != "" || !isImage(path) || !isFile(path) {
+	if !ok || anchor != "" {
+		return "", false
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil || !isImage(resolved) || !isFile(resolved) {
 		return "", false
 	}
 	return path, true
@@ -71,18 +77,37 @@ func (a *app) imageCommand(_ context.Context, cmd pluginsdk.CommandRun, args ima
 	if !s.namesImage(args.Path) {
 		return nil, errImageUnnamed
 	}
-	info, err := os.Stat(args.Path)
+	resolved, err := filepath.EvalSymlinks(args.Path)
 	if err != nil {
 		return nil, err
 	}
-	if info.Size() > maxImageBytes {
+	if !isImage(resolved) {
+		return nil, errNotImage
+	}
+	f, err := os.Open(resolved)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errNotImage
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxImageBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxImageBytes {
 		return nil, errImageLarge
 	}
-	data, err := os.ReadFile(args.Path)
-	if err != nil {
-		return nil, err
+	mime := http.DetectContentType(data)
+	if !strings.HasPrefix(mime, "image/") {
+		return nil, errNotImage
 	}
-	return imageResult{MimeType: http.DetectContentType(data), Data: base64.StdEncoding.EncodeToString(data)}, nil
+	return imageResult{MimeType: mime, Data: base64.StdEncoding.EncodeToString(data)}, nil
 }
 
 func (s *session) namesImage(path string) bool {
