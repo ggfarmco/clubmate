@@ -59,8 +59,9 @@ func (a *app) newSession(ctx context.Context, h *pluginsdk.Host, workspaceID, fr
 		rec.Run = &api.Run{ID: args.Run, Title: args.RunTitle, After: args.RunAfter}
 	}
 	if parent, err := a.lookup(workspaceID, from); err == nil {
-		prec := parent.snapshot()
-		rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree
+		if prec := parent.snapshot(); !prec.restricted() {
+			rec.ParentSession, rec.Advisor, root = prec.ID, a.sessionAdvisor(ctx, prec), prec.Worktree
+		}
 	}
 	var plan worktreeNewArgs
 	var ready *setup

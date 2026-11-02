@@ -290,6 +290,7 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.ModeLabel = modeWord(rec.Mode, nil)
 		}
 		info.NeedsYou = needsYou(info.record)
+		info.Service = rec.restricted()
 		if rec.Status == statusError {
 			failure := failureOf(rec)
 			a.uiMu.Lock()

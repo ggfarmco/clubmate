@@ -7,6 +7,7 @@ public enum SessionGroup: String, Sendable, CaseIterable, Identifiable {
     case running
     case idle
     case closed
+    case service
 
     public var id: String { rawValue }
 
@@ -16,7 +17,12 @@ public enum SessionGroup: String, Sendable, CaseIterable, Identifiable {
         case .running: "Running"
         case .idle: "Done"
         case .closed: "Closed"
+        case .service: "Service"
         }
+    }
+
+    public var folds: Bool {
+        self == .closed || self == .service
     }
 }
 
@@ -56,6 +62,7 @@ extension AgentSession {
     public var group: SessionGroup {
         if isClosed { return .closed }
         if needsYou { return .needsInput }
+        if service { return .service }
         if status == .running { return .running }
         return .idle
     }
@@ -103,7 +110,7 @@ public struct SessionNode: Sendable, Equatable, Identifiable {
         for kid in kids[session.id] ?? [] where !seen.contains(kid.id) {
             children.append(build(kid, kids: kids, seen: &seen))
         }
-        let groups = Set(children.map(\.group).filter { $0 == .needsInput || $0 == .running } + [session.group])
+        let groups = Set(children.map(\.group).filter { $0 == .needsInput || $0 == .running && session.group != .service } + [session.group])
         return SessionNode(
             session: session,
             children: children.sorted(by: newerFirst),

@@ -7,7 +7,7 @@ public struct AgentTally: Sendable, Equatable {
     public let needYou: Int
 
     public init(_ sessions: [AgentSession]) {
-        active = sessions.count { $0.status == .running || $0.status == .waiting }
+        active = sessions.count { !$0.service && ($0.status == .running || $0.status == .waiting) }
         needYou = sessions.count(where: \.needsYou)
     }
 }

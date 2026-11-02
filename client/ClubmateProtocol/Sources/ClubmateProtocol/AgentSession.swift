@@ -37,6 +37,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let autoClosed: Bool
     public let review: Bool
     public let asksParent: Bool
+    public let service: Bool
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -46,7 +47,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, modeLabel: String? = nil,
-        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false
+        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false
     ) {
         self.id = id
         self.workspace = workspace
@@ -84,6 +85,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.autoClosed = autoClosed
         self.review = review
         self.asksParent = asksParent
+        self.service = service
     }
 
     public var isClosed: Bool { status == .closed }
@@ -91,7 +93,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review, asksParent
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review, asksParent, service
     }
 
     public init(from decoder: any Decoder) throws {
@@ -137,7 +139,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             modeLabel: try optional(.modeLabel),
             autoClosed: try flag(.autoClosed),
             review: try flag(.review),
-            asksParent: try flag(.asksParent)
+            asksParent: try flag(.asksParent),
+            service: try flag(.service)
         )
     }
 
@@ -181,6 +184,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(autoClosed, forKey: .autoClosed)
         try c.encode(review, forKey: .review)
         try c.encode(asksParent, forKey: .asksParent)
+        try c.encode(service, forKey: .service)
     }
 }
 

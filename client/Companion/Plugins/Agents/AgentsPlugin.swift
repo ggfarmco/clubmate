@@ -75,7 +75,7 @@ struct AgentsListView: View {
 struct SessionListView: View {
     let context: PluginContext
     let store: AgentsStore
-    @State private var closedExpanded = false
+    @State private var unfolded: Set<SessionGroup> = []
 
     var body: some View {
         List(selection: Binding(get: { context.navigation.detail }, set: { id in
@@ -91,18 +91,21 @@ struct SessionListView: View {
             ForEach(store.groups, id: \.group) { group in
                 let items = group.sessions.flatMap { $0.rows(expanded: store.expanded) }
                 let count = group.sessions.reduce(0) { $0 + 1 + $1.descendants }
-                if group.group == .closed {
-                    Section(isExpanded: $closedExpanded) {
+                if group.group.folds {
+                    let open = unfolded.contains(group.group)
+                    Section(isExpanded: Binding(get: { open }, set: { _ in })) {
                         rows(items)
                     } header: {
                         Button {
-                            Motion.disclose { closedExpanded.toggle() }
+                            Motion.disclose {
+                                if unfolded.remove(group.group) == nil { unfolded.insert(group.group) }
+                            }
                         } label: {
                             HStack {
                                 Text("\(group.group.title) · \(count)")
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .rotationEffect(.degrees(closedExpanded ? 90 : 0))
+                                    .rotationEffect(.degrees(open ? 90 : 0))
                             }
                             .contentShape(.rect)
                         }

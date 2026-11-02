@@ -105,6 +105,10 @@ Oldest first. A session that needs you also carries `needsYouSince` in `agents.s
 
 A session that needs you is never folded. In the Mac sidebar the worktree group, the graph run and every parent above it are expanded while it needs you, whatever the user folded. On the phone a subagent or child that asks is a nested row under its parent, one step in (24pt) with no separator between them, never hidden in a folded group.
 
+## Service sessions
+
+A session started with its own system prompt or tool limits (`systemPrompt`, `disallowedTools`, `mode` or `model` on `agents.new`; today only the voice session) is a service session: `service: true` in `agents.sessions`. The Mac sidebar lists it in a "Service · N" group at the bottom of its worktree, after Closed, folded by default; the phone in a "Service · N" section after Closed, folded too. It is not counted in "All" or "Running", nor in the Mac status bar's "N agents". While it needs you it counts under "Needs you" and is never folded: on the Mac its group opens, on the phone it moves to "Needs you". A session a service session starts with `agents.new` is not its child: it is a top-level session of yours, in the workspace's root, with your defaults, and it is selected like one you started.
+
 ## Permission card
 
 A pending permission request shows the same content on the Mac and the phone; the agents plugin builds it once: the Mac gets it as the `permissionCard` node ([SDUI](sdui-protocol.md#node-types)), the phone as `card` `{text, title, command?, caption?, options}` on each permission entry of `agents.transcript` (left out for agent callers), with the same option fields:

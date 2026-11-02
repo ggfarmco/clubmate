@@ -54,6 +54,21 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(groups[1].sessions.map(\.id), ["archived"])
     }
 
+    func testServiceSessionsGoLastUnlessTheyNeedYou() throws {
+        let json = #"""
+        [
+          {"id":"voice","status":"running","service":true},
+          {"id":"kid","parentSession":"voice","status":"running"},
+          {"id":"asking","status":"waiting","service":true,"needsYou":true},
+          {"id":"old","status":"closed"}
+        ]
+        """#
+        let groups = AgentSession.grouped(try JSONDecoder.clubmate.decode([AgentSession].self, from: Data(json.utf8)))
+        XCTAssertEqual(groups.map(\.group), [.needsInput, .closed, .service])
+        XCTAssertEqual(groups[0].sessions.map(\.id), ["asking"])
+        XCTAssertEqual(groups[2].sessions.map(\.id), ["voice"])
+    }
+
     func testParentWithActiveChildrenShowsAsWorking() throws {
         let json = #"""
         [

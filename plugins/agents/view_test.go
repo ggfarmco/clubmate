@@ -855,6 +855,34 @@ func TestSidebarNeverFoldsSessionThatNeedsYou(t *testing.T) {
 	assert.Equal(t, "agt_c", parent.Children[0].ID)
 }
 
+func TestSidebarFoldsServiceSessions(t *testing.T) {
+	now := time.Now()
+	rows := []sessionRow{
+		{Rec: record{ID: "agt_1", Worktree: "/r/a", Agent: agentClaude, Status: statusRunning}},
+		{Rec: record{ID: "agt_2", Worktree: "/r/a", Agent: agentClaude, Status: statusClosed, UpdatedAt: now}},
+		{Rec: record{ID: "agt_v", Worktree: "/r/a", Agent: agentClaude, Title: "Voice", Status: statusRunning, SystemPrompt: "route"}},
+	}
+	groups := func(rows []sessionRow) []sdui.TreeItem {
+		tree := sidebarView(rows, "", map[string]bool{"/r/a": true}, now, false, "")
+		require.NoError(t, internalsdui.Validate(tree))
+		return nodesOf(tree, "tree")[0].Props["items"].([]sdui.TreeItem)
+	}
+	tabs := nodesOf(sidebarView(rows, "", nil, now, false, ""), "tabs")[0].Props["items"].([]sdui.Item)
+	assert.Equal(t, []string{"1", "0", "1"}, []string{tabs[0].Badge, tabs[1].Badge, tabs[2].Badge})
+
+	quiet := groups(rows)[0]
+	assert.False(t, quiet.Expanded)
+
+	rows[2].Rec.Status, rows[2].Since = statusWaiting, now
+	waiting := groups(rows)[0]
+	require.True(t, waiting.Expanded)
+	assert.Equal(t, []string{"agt_1", groupPrefix + closedKey + "/r/a", groupPrefix + serviceKey + "/r/a"}, []string{waiting.Children[0].ID, waiting.Children[1].ID, waiting.Children[2].ID})
+	service := waiting.Children[2]
+	assert.Equal(t, "Service · 1", service.Label)
+	assert.True(t, service.Expanded)
+	assert.Equal(t, "agt_v", service.Children[0].ID)
+}
+
 func TestChildAskingParentShowsAsAskingParent(t *testing.T) {
 	parent := record{ID: "agt_p", Status: statusDone}
 	kid := record{ID: "agt_c", Status: statusWaiting, AsksParent: true, lineage: lineage{ParentSession: "agt_p"}}

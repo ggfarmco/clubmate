@@ -591,6 +591,9 @@ func (a *app) selectSession(ctx context.Context, workspaceID, sid string) error 
 			open[runGroupKey(a.runScope(rec), rec.Run.ID)] = false
 		}
 		parent := rec.ParentSession
+		if parent == "" && rec.restricted() && !rec.closed() {
+			open[serviceKey+rec.Worktree] = false
+		}
 		if parent == "" || seen[parent] {
 			break
 		}
@@ -607,6 +610,8 @@ func (a *app) runScope(rec record) string {
 		return rec.ParentSession
 	case rec.closed() && rec.ParentSession == "":
 		return closedKey + rec.Worktree
+	case rec.restricted() && rec.ParentSession == "":
+		return serviceKey + rec.Worktree
 	}
 	return rec.Worktree
 }

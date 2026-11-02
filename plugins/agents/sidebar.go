@@ -17,6 +17,8 @@ const (
 	groupPrefix  = "wt:"
 	expandPrefix = "s:"
 	closedKey    = "closed:"
+	serviceKey   = "service:"
+	serviceIcon  = "gearshape.2"
 	runPrefix    = "run:"
 	graphIcon    = "point.3.connected.trianglepath.dotted"
 	graphRun     = "Graph run"
@@ -144,9 +146,9 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		return sdui.VStack(top, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
 	}
 	type bucket struct {
-		label        string
-		detached     bool
-		open, closed []sessionRow
+		label                 string
+		detached              bool
+		open, closed, service []sessionRow
 	}
 	var order []string
 	buckets := map[string]*bucket{}
@@ -158,11 +160,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			buckets[wt] = b
 			order = append(order, wt)
 		}
-		if row.Rec.closed() && row.Rec.ParentSession == "" {
+		switch {
+		case row.Rec.closed() && row.Rec.ParentSession == "":
 			b.closed = append(b.closed, row)
-			continue
+		case row.Rec.restricted():
+			b.service = append(b.service, row)
+		default:
+			b.open = append(b.open, row)
 		}
-		b.open = append(b.open, row)
 	}
 	var groups []sdui.TreeItem
 	for _, wt := range order {
@@ -174,7 +179,13 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			closed := runItems(b.closed, key, kids, collapsed, now, map[string]bool{}, oldest)
 			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), statusIcons[statusClosed], closed, ok && !folded))
 		}
-		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt] || anyNeeds(b.open, oldest))
+		if len(b.service) > 0 {
+			key := serviceKey + wt
+			folded, ok := collapsed[key]
+			service := runItems(b.service, key, kids, collapsed, now, map[string]bool{}, oldest)
+			children = append(children, groupItem(key, fmt.Sprintf("Service · %d", len(b.service)), serviceIcon, service, ok && !folded || anyNeeds(b.service, oldest)))
+		}
+		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt] || anyNeeds(b.open, oldest) || anyNeeds(b.service, oldest))
 		group.Truncate = "middle"
 		group.Faint = b.detached
 		groups = append(groups, group)
@@ -186,6 +197,12 @@ func filterTabs(roots []sessionRow, filter string) sdui.Node {
 	counts := map[string]int{}
 	for _, row := range roots {
 		if row.Rec.closed() {
+			continue
+		}
+		if row.Rec.restricted() {
+			if matchesFilter(row, filterNeeds) {
+				counts[filterNeeds]++
+			}
 			continue
 		}
 		for _, f := range []string{filterAll, filterNeeds, filterRunning} {
@@ -210,7 +227,7 @@ func matchesFilter(row sessionRow, filter string) bool {
 	case filterNeeds:
 		return needsYou(row.Rec) || row.Children == statusWaiting
 	case filterRunning:
-		return row.Rec.Status == statusRunning || row.Children == statusRunning
+		return !row.Rec.restricted() && (row.Rec.Status == statusRunning || row.Children == statusRunning)
 	}
 	return true
 }

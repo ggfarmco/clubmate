@@ -62,6 +62,7 @@ type record struct {
 	} `json:"pendingSummary"`
 	Suspended       bool     `json:"suspended"`
 	AutoClosed      bool     `json:"autoClosed"`
+	Service         bool     `json:"service"`
 	Review          bool     `json:"review"`
 	NeedsYou        bool     `json:"needsYou"`
 	AsksParent      bool     `json:"asksParent"`
@@ -2216,8 +2217,16 @@ func TestNewSessionFromVoiceNotSelected(t *testing.T) {
 		}
 		raw, err := json.Marshal(trees[0].Props["items"])
 		require.NoError(t, err)
-		return strings.Contains(string(raw), voice) && trees[0].Props["selected"] == first
+		return strings.Contains(string(raw), "Service · 1") && trees[0].Props["selected"] == first
 	})
+	assert.True(t, f.session(t, workspace, voice).Service)
+
+	var out struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, f.runAs(t, workspace, voice, "agents.new", map[string]any{"prompt": "hi"}, &out))
+	assert.Empty(t, f.session(t, workspace, out.Session).ParentSession)
+	assert.False(t, f.session(t, workspace, out.Session).Service)
 }
 
 func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
@@ -2227,7 +2236,7 @@ func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
 
 	require.NoError(t, f.h.PluginCall(t, "voice", "command.run", params))
 
-	voice := listedIDs(t, f, workspace)[0]
+	require.Len(t, listedIDs(t, f, workspace), 1)
 	f.h.WaitSlot(t, workspace, "agents.sidebar", func(n sdui.Node) bool {
 		trees := cardsOf(n, "tree")
 		if len(trees) == 0 {
@@ -2236,7 +2245,7 @@ func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
 		raw, err := json.Marshal(trees[0].Props["items"])
 		require.NoError(t, err)
 		_, selected := trees[0].Props["selected"]
-		return strings.Contains(string(raw), voice) && !selected
+		return strings.Contains(string(raw), "Service · 1") && !selected
 	})
 }
 
