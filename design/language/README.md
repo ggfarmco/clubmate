@@ -10,7 +10,7 @@ Claude Design's answer to `design/brief/prompt.md`: the review, the design langu
   - `K1-Check-Mac`, `K2-Check-Companion`: the build check of 1 Nov 2026 (divergences per screen with impact, class a–d and fix; verdicts; decisions). The fix list that goes with them is `design/check/fix-list.md`.
   - `Main` and `Layers` present the icon.
 - `html/`: the same boards as standalone pages, with fonts and styles in `assets/`. `assets/cm.css` holds the theme roles and the Mac colour tokens (`--id-*`); swap the `.th-*` class on a board's root to try another palette.
-- `source/`: the raw canvas files (`.dc.html`, `canvas.json`, `cm.css`, `c.css`) as they live in the Claude Design artifact.
+- `source/`: the raw canvas files (`.dc.html`, `canvas.json`) as they live in the Claude Design project, plus `cm.css` and `c.css` that the boards link as assets. `design/README.md` says how to pull them.
 
 `Handoff` lists the work in order. Changes split into (a) theme tokens and renderers, (b) four SDUI additions (`header` node; `button` variant/disabled/shortcut; `table` column truncate/align/priority; `empty` icon/title/action/hint) and (c) plugin content.
 

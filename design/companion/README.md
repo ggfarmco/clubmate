@@ -15,4 +15,4 @@
 Same boards as standalone HTML; open in a browser. `assets/c.css` holds the companion roles (`.th-cdark` / `.th-clight`) on top of `assets/cm.css`; the Mac colour tokens (`--id-*`) are in `cm.css`.
 
 ## source/
-Raw canvas files as they live in the Claude Design artifact. `*-Light.dc.html` import the dark board with `theme="clight"`.
+Raw canvas files as they live in the Claude Design project (pulled as in `design/README.md`). `*-Light.dc.html` import the dark board with `theme="clight"`.
