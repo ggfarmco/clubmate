@@ -1,11 +1,9 @@
 DEPS = {
-    "nemotron": ["transformers==5.22.1", "torch==2.15.0", "librosa==1.0.0"],
-    "whisper": ["mlx-whisper==0.4.3"],
+    "transcribe": ["transcribe-cpp==0.4.1", "huggingface-hub==2.4.0"],
 }
 
 MODELS = {
-    "nemotron": "nvidia/nemotron-3.5-asr-streaming-0.6b",
-    "whisper": "mlx-community/whisper-large-v3-turbo",
+    "transcribe": "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf",
 }
 
 
@@ -45,12 +43,8 @@ class FakeEngine(Engine):
 
 def load(name, model, chunk_ms):
     model = model or MODELS.get(name)
-    if name == "nemotron":
-        from nemotron_engine import NemotronEngine
+    if name == "transcribe":
+        from transcribe_engine import TranscribeEngine
 
-        return NemotronEngine(model, chunk_ms)
-    if name == "whisper":
-        from whisper_engine import WhisperEngine
-
-        return WhisperEngine(model)
+        return TranscribeEngine(model, chunk_ms)
     return FakeEngine()

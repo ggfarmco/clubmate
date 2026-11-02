@@ -87,7 +87,7 @@ def serve(engine, emit, lines):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--engine", choices=["nemotron", "whisper", "fake"], required=True)
+    p.add_argument("--engine", choices=["transcribe", "fake"], required=True)
     p.add_argument("--model")
     p.add_argument("--chunk-ms", type=int, default=320)
     a = p.parse_args()

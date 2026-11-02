@@ -260,11 +260,11 @@ func TestSettingsTurnVoiceOnSwitchModelAndOff(t *testing.T) {
 	assert.Equal(t, "fake 320", res.Heard)
 
 	nemotron := v.recognizer().(*procRecognizer)
-	small := "whisper-small"
+	small := "whisper-turbo"
 	got, err := v.setSettings(t.Context(), settingsArgs{Model: &small})
 	require.NoError(t, err)
 	assert.Equal(t, settings{Enabled: true, Model: small}, got.settings)
-	assert.Equal(t, []string{"nemotron", "whisper-small"}, spawned)
+	assert.Equal(t, []string{"nemotron", "whisper-turbo"}, spawned)
 	assert.Eventually(t, func() bool { return !nemotron.Ready() }, 5*time.Second, 10*time.Millisecond)
 
 	off := false

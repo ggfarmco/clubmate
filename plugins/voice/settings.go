@@ -17,9 +17,8 @@ var (
 	errVoiceOff = errors.New("voice is off; turn it on in Settings → General → Voice")
 
 	models = []model{
-		{ID: "nemotron", Title: "Nemotron 0.6B", Detail: "Shows text while you speak · about 2.5 GB of memory", engine: "nemotron", repo: "nvidia/nemotron-3.5-asr-streaming-0.6b"},
-		{ID: "whisper-turbo", Title: "Whisper large-v3 turbo", Detail: "Most accurate · about 1.8 GB of memory", engine: "whisper", repo: "mlx-community/whisper-large-v3-turbo"},
-		{ID: "whisper-small", Title: "Whisper small", Detail: "Least memory · about 0.9 GB", engine: "whisper", repo: "mlx-community/whisper-small-mlx"},
+		{ID: "nemotron", Title: "Nemotron 0.6B", Detail: "Shows text while you speak · about 0.35 GB of memory", engine: "transcribe", repo: "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/nemotron-3.5-asr-streaming-0.6b-Q8_0.gguf"},
+		{ID: "whisper-turbo", Title: "Whisper large-v3 turbo", Detail: "Most accurate, text comes once a second · about 0.75 GB of memory", engine: "transcribe", repo: "handy-computer/whisper-large-v3-turbo-gguf/whisper-large-v3-turbo-Q8_0.gguf"},
 	}
 )
 

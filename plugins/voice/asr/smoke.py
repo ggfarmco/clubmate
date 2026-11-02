@@ -18,13 +18,14 @@ def main():
     p.add_argument("--chunk-ms", type=int, default=320)
     p.add_argument("--lang", default="ru")
     p.add_argument("--hint", default="")
+    p.add_argument("--model")
     p.add_argument("pcm")
     a = p.parse_args()
     audio = pathlib.Path(a.pcm).read_bytes()
     size = RATE * 2 * a.chunk_ms // 1000
     t0 = time.perf_counter()
     proc = subprocess.Popen(
-        ["uv", "run", "--quiet", "--script", str(SERVER), "--engine", a.engine, "--chunk-ms", str(a.chunk_ms)],
+        ["uv", "run", "--quiet", "--script", str(SERVER), "--engine", a.engine, "--chunk-ms", str(a.chunk_ms), *(["--model", a.model] if a.model else [])],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,

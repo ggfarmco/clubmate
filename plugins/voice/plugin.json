@@ -237,7 +237,7 @@
         "args": {
           "properties": {
             "enabled": {"type": "boolean", "description": "Turn voice input on or off."},
-            "model": {"type": "string", "description": "Model id from voice.settings: nemotron, whisper-turbo or whisper-small."}
+            "model": {"type": "string", "description": "Model id from voice.settings: nemotron or whisper-turbo."}
           }
         }
       }
