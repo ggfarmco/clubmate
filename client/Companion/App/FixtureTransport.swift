@@ -89,7 +89,6 @@ actor FixtureServer {
     private var subscribers: [AsyncThrowingStream<Data, any Error>.Continuation] = []
     private var uiSections: JSONValue = .array([])
     private var uiViews: [String: (rev: Int, tree: JSONValue)] = [:]
-    private var openedDoc: JSONValue = .null
     private var streams = 0
     private var seq = 100
     private var notified = false
@@ -181,9 +180,8 @@ actor FixtureServer {
         let sdui = decode("sdui.json")
         uiSections = sdui["sections"] ?? .array([])
         for (slot, tree) in sdui["views"]?.objectValue ?? [:] {
-            uiViews[slot] = (1, slot == "docs.popup" ? .object(["type": .string("empty")]) : tree)
+            uiViews[slot] = (1, tree)
         }
-        openedDoc = sdui["views"]?["docs.popup"] ?? .null
         voice = decode("voice-states.json")
         guard mac.id != FixtureMac.studio.id else { return }
         uiViews = [:]
@@ -245,8 +243,6 @@ actor FixtureServer {
         case "uiWatch":
             return (200, Self.json(["result": .null]))
         case "uiEvent":
-            let slot = params["slot"]?.stringValue ?? ""
-            if slot.hasSuffix(".popup"), params["action"]?.stringValue == "close" { showUI(slot, .object(["type": .string("empty")])) }
             return (200, Self.json(["result": .null]))
         case "workspaces":
             return (200, Self.json(["result": .array(mac.workspaces.map { item in
@@ -596,7 +592,6 @@ actor FixtureServer {
             Task {
                 try? await Task.sleep(for: .seconds(3))
                 publish("docs.opened", ["workspace": .string(workspace), "session": session, "path": .string("/Users/me/src/shop/docs/checkout-retries.md")])
-                showUI("docs.popup", openedDoc)
             }
         }
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null
@@ -608,16 +603,6 @@ actor FixtureServer {
 
     private func slotView(_ slot: String, rev: Int, tree: JSONValue) -> JSONValue {
         .object(["workspaceId": .string(workspace), "slot": .string(slot), "owner": .string(String(slot.prefix { $0 != "." })), "rev": .number(Double(rev)), "tree": tree])
-    }
-
-    private func showUI(_ slot: String, _ tree: JSONValue) {
-        let rev = (uiViews[slot]?.rev ?? 0) + 1
-        uiViews[slot] = (rev, tree)
-        let frame = Self.json(["workspace": .string(workspace), "slot": .string(slot), "rev": .number(Double(rev)), "tree": tree])
-        let wire = Data("event: ui\ndata: ".utf8) + frame + Data("\n\n".utf8)
-        for subscriber in subscribers {
-            subscriber.yield(wire)
-        }
     }
 
     private func publish(_ topic: String, _ payload: [String: JSONValue]) {

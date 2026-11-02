@@ -253,7 +253,7 @@ final class CompanionUITests: XCTestCase {
     }
 
     func testDocOpensFromTheBannerAndAToolRow() {
-        let app = launch(open: "agents/agt_0000000000000001", ["-docOpened", "YES", "-noUIBridge", "YES"])
+        let app = launch(open: "agents/agt_0000000000000001", ["-docOpened", "YES"])
         let banner = app.buttons["Opened checkout-retries.md"]
         XCTAssertTrue(banner.waitForExistence(timeout: 10))
         add(screenshot(app, "doc-banner"))

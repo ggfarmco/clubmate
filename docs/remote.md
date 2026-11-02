@@ -102,7 +102,7 @@ The Companion app talks plain HTTP to the Mac's `remote` plugin. Its `Info.plist
 
 - A Mac whose `hello` has `ui: true` gets a fourth segment, **More**, next to Agents, Backlog and Docs on the workspace screen. It lists the workspace sections from `uiSections` by `order`, without the ones the phone has its own screen for (`agents`, `backlog`, `docs`), the terminal-only ones (`terminals`, `editor-nvim`) and hosted or `rail: false` sections.
 - A section opens on its `<section>.sidebar` slot; tapping a row sends the row's event and pushes `<section>.main`. A section without a sidebar view (or one cleared to an `empty` with no text) opens on `main`. The section screen watches both slots while it is open; `status` is not shown.
-- While a workspace screen is on display the phone watches `*.popup` of that workspace. The latest non-empty popup shows as a sheet (large only when its tree has a `document`, else medium/large); swiping it down or Done sends `close` (nodeId `""`) and hides it at once; an `empty` tree from the plugin closes it.
+- The phone does not watch `*.popup`: a popup open on the Mac (a doc in `docs.popup`) stays on the Mac, and nothing the phone does closes it. A doc an agent opens shows on the phone as the "Opened <file name>" banner, which opens the phone's own doc sheet (see [docs viewer § Entry points](docs-viewer.md#entry-points)).
 
 ## Companion app: notifications
 

@@ -4,14 +4,10 @@ import Observation
 @MainActor
 @Observable
 public final class WorkspaceUI {
-    public static let popups = "*." + Popups.name
-
     public let workspace: String
     public private(set) var sections: [SectionInfo] = []
     public private(set) var failure: String?
     private var views: [String: SlotView] = [:]
-    private var popupOrder: [String] = []
-    private var dismissed: Set<String> = []
 
     @ObservationIgnored private weak var connection: ComputerConnection?
     @ObservationIgnored private var owners: [AnyHashable: Set<String>] = [:]
@@ -30,10 +26,6 @@ public final class WorkspaceUI {
         views[slot]
     }
 
-    public var popup: String? {
-        Popups.current(views.filter { !dismissed.contains($0.key) }, order: popupOrder)
-    }
-
     public func show(_ slots: Set<String>, owner: AnyHashable) {
         owners[owner] = slots
         sync()
@@ -49,16 +41,6 @@ public final class WorkspaceUI {
         return try await connection.uiEvent(workspace: workspace, slot: slot, nodeId: nodeId, action: action, value: value)
     }
 
-    public func dismissPopup(_ slot: String) async throws {
-        dismissed.insert(slot)
-        do {
-            _ = try await send(slot: slot, nodeId: "", action: "close", value: nil)
-        } catch {
-            dismissed.remove(slot)
-            throw error
-        }
-    }
-
     func reload() {
         stale = Set(views.keys)
         sync()
@@ -66,11 +48,11 @@ public final class WorkspaceUI {
 
     func receive(_ view: SlotView) {
         guard stale.remove(view.slot) != nil || view.rev > views[view.slot]?.rev ?? 0 else { return }
-        store(view)
+        views[view.slot] = view
     }
 
     private var desired: Set<String> {
-        owners.isEmpty ? [] : owners.values.reduce(into: [Self.popups]) { $0.formUnion($1) }
+        owners.values.reduce(into: []) { $0.formUnion($1) }
     }
 
     private func sync() {
@@ -91,10 +73,8 @@ public final class WorkspaceUI {
                     sectionsStream = stream
                 }
                 let previous = sentStream == stream ? sent : []
-                let slots = target.subtracting([Self.popups])
-                try await connection.uiWatch(stream: stream, workspace: workspace, slots: target.isEmpty ? [] : slots.sorted() + [Self.popups])
-                var fetch = slots.subtracting(previous)
-                if !previous.contains(Self.popups), target.contains(Self.popups) { fetch.formUnion(Popups.slots(sections)) }
+                try await connection.uiWatch(stream: stream, workspace: workspace, slots: target.sorted())
+                let fetch = target.subtracting(previous)
                 if !fetch.isEmpty {
                     let found = try await connection.uiGet(workspace: workspace, slots: fetch.sorted())
                     for view in found where view.workspaceId == workspace {
@@ -109,14 +89,5 @@ public final class WorkspaceUI {
                 return
             }
         }
-    }
-
-    private func store(_ view: SlotView) {
-        if view.slot.hasSuffix("." + Popups.name), Popups.isOpen(view), views[view.slot].map(Popups.isOpen) != true || dismissed.contains(view.slot) {
-            popupOrder.removeAll { $0 == view.slot }
-            popupOrder.append(view.slot)
-        }
-        dismissed.remove(view.slot)
-        views[view.slot] = view
     }
 }

@@ -269,7 +269,7 @@ struct SessionDetailView: View {
     }
 
     @ViewBuilder private var docBanner: some View {
-        if !context.connection.supportsUI, let path = store.openedDocs[sessionID] {
+        if let path = store.openedDocs[sessionID] {
             DocOpenedBanner(name: URL(filePath: path).lastPathComponent) {
                 open(doc: path)
             } dismiss: {

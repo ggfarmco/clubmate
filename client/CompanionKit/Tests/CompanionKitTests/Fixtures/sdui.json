@@ -1315,31 +1315,6 @@
      ]
     }
    ]
-  },
-  "docs.popup": {
-   "type": "stack",
-   "props": {
-    "direction": "vertical"
-   },
-   "children": [
-    {
-     "type": "header",
-     "props": {
-      "title": "Checkout retries"
-     }
-    },
-    {
-     "type": "document",
-     "id": "doc",
-     "props": {
-      "html": "<h1 id=\"checkout-retries\">Checkout retries</h1>\n<p>Status: draft for approval. Follows the <a href=\"clubmate-doc:/Users/me/src/shop/docs/payments.md#charge\">payments overview</a>.</p>\n<h2 id=\"why\">Why</h2>\n<p>The <strong>charge</strong> step fails about 0.4% of the time on a provider timeout. Today the cart is released and the user starts over.</p>\n<ul>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> measure timeouts per provider</li>\n<li><input disabled=\"\" type=\"checkbox\"> retry with the same idempotency key</li>\n<li><input disabled=\"\" type=\"checkbox\"> surface <del>a generic error</del> the provider's reason</li>\n</ul>\n<h2 id=\"flow\">Flow</h2>\n<pre class=\"mermaid\">flowchart LR\n  V[validate] --&gt; R[reserve] --&gt; C{charge}\n  C --&gt;|ok| D[done]\n  C --&gt;|timeout| W[wait 2 s] --&gt; C\n  C --&gt;|declined| X[release stock]</pre>\n<pre class=\"mermaid\">sequenceDiagram\n  participant App\n  participant Shop\n  participant Provider\n  App-&gt;&gt;Shop: POST /checkout\n  Shop-&gt;&gt;Provider: charge(key)\n  Provider--&gt;&gt;Shop: timeout\n  Shop-&gt;&gt;Provider: charge(key) again\n  Provider--&gt;&gt;Shop: ok\n  Shop--&gt;&gt;App: 200</pre>\n<h2 id=\"limits\">Limits</h2>\n<table>\n<thead>\n<tr>\n<th>Provider</th>\n<th style=\"text-align:right\">Timeout</th>\n<th style=\"text-align:right\">Retries</th>\n<th>Backoff</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Stripe</td>\n<td style=\"text-align:right\">10 s</td>\n<td style=\"text-align:right\">2</td>\n<td>2 s, 5 s</td>\n</tr>\n<tr>\n<td>Adyen</td>\n<td style=\"text-align:right\">15 s</td>\n<td style=\"text-align:right\">1</td>\n<td>5 s</td>\n</tr>\n</tbody>\n</table>\n<h2 id=\"code\">Code</h2>\n<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\"><span class=\"kd\">func</span><span class=\"w\"> </span><span class=\"nf\">charge</span><span class=\"p\">(</span><span class=\"nx\">ctx</span><span class=\"w\"> </span><span class=\"nx\">context</span><span class=\"p\">.</span><span class=\"nx\">Context</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">p</span><span class=\"w\"> </span><span class=\"nx\">Provider</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">key</span><span class=\"w\"> </span><span class=\"kt\">string</span><span class=\"p\">)</span><span class=\"w\"> </span><span class=\"kt\">error</span><span class=\"w\"> </span><span class=\"p\">{</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t</span><span class=\"k\">for</span><span class=\"w\"> </span><span class=\"nx\">attempt</span><span class=\"w\"> </span><span class=\"o\">:=</span><span class=\"w\"> </span><span class=\"k\">range</span><span class=\"w\"> </span><span class=\"mi\">3</span><span class=\"w\"> </span><span class=\"p\">{</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t</span><span class=\"k\">if</span><span class=\"w\"> </span><span class=\"nx\">err</span><span class=\"w\"> </span><span class=\"o\">:=</span><span class=\"w\"> </span><span class=\"nx\">p</span><span class=\"p\">.</span><span class=\"nf\">Charge</span><span class=\"p\">(</span><span class=\"nx\">ctx</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">key</span><span class=\"p\">);</span><span class=\"w\"> </span><span class=\"p\">!</span><span class=\"nx\">errors</span><span class=\"p\">.</span><span class=\"nf\">Is</span><span class=\"p\">(</span><span class=\"nx\">err</span><span class=\"p\">,</span><span class=\"w\"> </span><span class=\"nx\">ErrTimeout</span><span class=\"p\">)</span><span class=\"w\"> </span><span class=\"p\">{</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t\t</span><span class=\"k\">return</span><span class=\"w\"> </span><span class=\"nx\">err</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t</span><span class=\"p\">}</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t\t</span><span class=\"nx\">time</span><span class=\"p\">.</span><span class=\"nf\">Sleep</span><span class=\"p\">(</span><span class=\"nx\">backoff</span><span class=\"p\">[</span><span class=\"nx\">attempt</span><span class=\"p\">])</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t</span><span class=\"p\">}</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"w\">\t</span><span class=\"k\">return</span><span class=\"w\"> </span><span class=\"nx\">ErrTimeout</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"p\">}</span><span class=\"w\">\n</span></span></span></code></pre><h2 id=\"open-questions\">Open questions</h2>\n<pre class=\"mermaid\">flowchart TD\n  A --&gt; </pre>\n<p>Should a declined card retry once? See the <a href=\"https://stripe.com/docs/error-codes\">provider docs</a> and <code>cart/charge.go</code>.<sup id=\"fnref:1\"><a href=\"#fn:1\" class=\"footnote-ref\" role=\"doc-noteref\">1</a></sup></p>\n<div class=\"footnotes\" role=\"doc-endnotes\">\n<hr>\n<ol>\n<li id=\"fn:1\">\n<p>Retries never change the amount.&#160;<a href=\"#fnref:1\" class=\"footnote-backref\" role=\"doc-backlink\">&#x21a9;&#xfe0e;</a></p>\n</li>\n</ol>\n</div>\n",
-      "kind": "markdown",
-      "path": "/Users/me/src/shop/docs/checkout-retries.md",
-      "rev": 1,
-      "size": "fill"
-     }
-    }
-   ]
   }
  }
 }

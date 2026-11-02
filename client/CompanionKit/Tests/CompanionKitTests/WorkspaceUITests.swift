@@ -6,7 +6,7 @@ import CompanionKit
 
 @MainActor
 final class WorkspaceUITests: XCTestCase {
-    func testShowWatchesTheUnionPlusPopupsAndFetchesOnlyWhatIsNew() async throws {
+    func testShowWatchesTheUnionAndFetchesOnlyWhatIsNew() async throws {
         let server = try UIServer()
         let ui = server.connection.workspaceUI("w")
         XCTAssertTrue(ui === server.connection.workspaceUI("w"))
@@ -15,7 +15,6 @@ final class WorkspaceUITests: XCTestCase {
         try await waitUntil { ui.view("cron.sidebar") != nil }
         XCTAssertTrue(server.connection.supportsUI)
         XCTAssertEqual(ui.sections.map(\.id), ["editor-nvim", "terminals", "agents", "backlog", "processes", "cron", "triggers", "docs"])
-        XCTAssertEqual(ui.view("docs.popup")?.tree.children.last?.type, "document")
 
         ui.show(["cron.main"], owner: "detail")
         try await waitUntil { ui.view("cron.main") != nil }
@@ -24,9 +23,9 @@ final class WorkspaceUITests: XCTestCase {
         ui.hide(owner: "detail")
         try await waitUntil { server.watches.last?.slots == [] }
 
-        XCTAssertEqual(server.watches.map(\.slots), [["cron.sidebar", "*.popup"], ["cron.main", "cron.sidebar", "*.popup"], ["cron.main", "*.popup"], []])
+        XCTAssertEqual(server.watches.map(\.slots), [["cron.sidebar"], ["cron.main", "cron.sidebar"], ["cron.main"], []])
         XCTAssertEqual(Set(server.watches.map(\.stream)), ["s1"])
-        XCTAssertEqual(server.gets, [["cron.sidebar", "docs.popup"], ["cron.main"]])
+        XCTAssertEqual(server.gets, [["cron.sidebar"], ["cron.main"]])
         server.connection.stop()
     }
 
@@ -42,19 +41,6 @@ final class WorkspaceUITests: XCTestCase {
         server.connection.stop()
     }
 
-    func testPopupIsTheLatestOpenedAndAnEmptyTreeClosesIt() async throws {
-        let server = try UIServer()
-        let ui = try await server.started(["cron.main"])
-        XCTAssertEqual(ui.popup, "docs.popup")
-        server.push("triggers.popup", rev: 1, tree: #"{"type":"stack"}"#)
-        try await waitUntil { ui.popup == "triggers.popup" }
-        server.push("triggers.popup", rev: 2, tree: #"{"type":"empty"}"#)
-        try await waitUntil { ui.popup == "docs.popup" }
-        server.push("docs.popup", rev: 2, tree: #"{"type":"empty"}"#)
-        try await waitUntil { ui.popup == nil }
-        server.connection.stop()
-    }
-
     func testReconnectRewatches() async throws {
         let server = try UIServer()
         let ui = try await server.started(["cron.main"])
@@ -64,8 +50,8 @@ final class WorkspaceUITests: XCTestCase {
         server.drop()
 
         try await waitUntil { server.watches.last?.stream == "s2" && ui.view("cron.main")?.rev == 1 }
-        XCTAssertEqual(server.watches.last?.slots, ["cron.main", "*.popup"])
-        XCTAssertEqual(server.gets.last, ["cron.main", "docs.popup"])
+        XCTAssertEqual(server.watches.last?.slots, ["cron.main"])
+        XCTAssertEqual(server.gets.last, ["cron.main"])
         XCTAssertEqual(ui.view("cron.main")?.tree.type, "stack")
         server.connection.stop()
     }
@@ -84,23 +70,6 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertEqual(PhoneSections.root("cron", sidebar: cleared, main: main), "cron.main")
         XCTAssertEqual(PhoneSections.root("cron", sidebar: nil, main: main), "cron.main")
         XCTAssertNil(PhoneSections.root("cron", sidebar: nil, main: nil))
-    }
-
-    func testAWorkspaceScreenWatchesPopupsAndDismissingSendsClose() async throws {
-        let server = try UIServer()
-        let ui = server.connection.workspaceUI("w")
-        ui.show([], owner: "workspace")
-        server.connection.start()
-        try await waitUntil { ui.popup == "docs.popup" }
-        XCTAssertEqual(server.watches.map(\.slots), [["*.popup"]])
-
-        try await ui.dismissPopup("docs.popup")
-        XCTAssertNil(ui.popup)
-        XCTAssertEqual(server.events.last, .object(["workspace": .string("w"), "slot": .string("docs.popup"), "nodeId": .string(""), "action": .string("close"), "value": .null]))
-
-        server.push("docs.popup", rev: 2, tree: #"{"type":"stack"}"#)
-        try await waitUntil { ui.popup == "docs.popup" }
-        server.connection.stop()
     }
 
     func testSendPassesTheEventAndItsResult() async throws {
