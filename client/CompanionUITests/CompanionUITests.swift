@@ -121,6 +121,11 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["shop"].exists)
     }
 
+    func testAPluginSectionOpensFromMore() {
+        let app = launch(open: "more/processes")
+        XCTAssertTrue(app.staticTexts["Terminal 1"].waitForExistence(timeout: 10))
+    }
+
     func testBackToMacsNeverShowsChooseAMac() {
         let app = launch(open: "sidebar")
         let macs = app.navigationBars["Macs"]
