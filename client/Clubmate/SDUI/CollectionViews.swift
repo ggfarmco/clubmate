@@ -15,6 +15,15 @@ struct TabsNodeView: View {
         ViewThatFits(in: .horizontal) {
             chips(items, compact: false)
             chips(items, compact: true)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    chips(items, compact: true)
+                }
+                .clipped()
+                .onChange(of: selected, initial: true) { _, id in
+                    proxy.scrollTo(id)
+                }
+            }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, theme.gutter)
@@ -31,6 +40,7 @@ struct TabsNodeView: View {
                     selected = item.id
                     dispatch(node, .select(item.id))
                 }
+                .id(item.id)
             }
         }
         .fixedSize()

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -23,6 +24,8 @@ const (
 
 	maxTitleChars = 200
 	maxDescBytes  = 32 << 10
+	maxTagChars   = 32
+	maxTags       = 10
 )
 
 var (
@@ -33,6 +36,9 @@ var (
 	errBadStatus    = errors.New("status must be one of idea, todo, in_progress, done, not_now")
 	errBadPriority  = errors.New("priority must be high, normal or low")
 	errTaskNotFound = errors.New("task not found")
+	errTagChars     = errors.New("a tag must be one word of letters, digits, - _ . or /")
+	errTagLong      = fmt.Errorf("a tag must be at most %d characters", maxTagChars)
+	errTooManyTags  = fmt.Errorf("a task takes at most %d tags", maxTags)
 )
 
 type Task struct {
@@ -41,6 +47,7 @@ type Task struct {
 	Description   string    `json:"description,omitempty"`
 	Status        string    `json:"status"`
 	Priority      string    `json:"priority"`
+	Tags          []string  `json:"tags,omitempty"`
 	ClaimedBy     string    `json:"claimedBy,omitempty"`
 	ClaimedAt     time.Time `json:"claimedAt,omitzero"`
 	ClaimedFrom   string    `json:"claimedFrom,omitempty"`
@@ -70,6 +77,30 @@ func cleanTitle(title string) (string, error) {
 		return "", errTitleLong
 	}
 	return title, nil
+}
+
+func cleanTags(tags []string) ([]string, error) {
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(tag), "#"))
+		switch {
+		case tag == "" || slices.Contains(out, tag):
+			continue
+		case strings.ContainsFunc(tag, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("-_./", r) }):
+			return nil, errTagChars
+		case utf8.RuneCountInString(tag) > maxTagChars:
+			return nil, errTagLong
+		}
+		out = append(out, tag)
+	}
+	if len(out) > maxTags {
+		return nil, errTooManyTags
+	}
+	return out, nil
+}
+
+func splitTags(text string) []string {
+	return strings.FieldsFunc(text, func(r rune) bool { return r == ',' || unicode.IsSpace(r) })
 }
 
 func checkDescription(d string) error {

@@ -28,13 +28,15 @@ type workspaceUI struct {
 	collapsed  map[string]bool
 	formRev    int
 	sent       map[string][32]byte
-	titleError fieldError
+	fieldError fieldError
 	editing    int
+	tagFilter  string
 }
 
 type fieldError struct {
-	task int
-	text string
+	task  int
+	field string
+	text  string
 }
 
 func (b *backlog) workspace(workspaceID string) *workspaceUI {
@@ -125,7 +127,10 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		return err
 	}
 	b.mu.Lock()
-	selected, collapsed, rev, titleError, editing := w.selected, maps.Clone(w.collapsed), w.formRev, w.titleError, w.editing
+	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
+		w.tagFilter = ""
+	}
+	selected, collapsed, rev, fieldErr, editing, filter := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldError, w.editing, w.tagFilter
 	b.mu.Unlock()
 	var current *Task
 	for i := range tasks {
@@ -138,13 +143,14 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 		selectedID = strconv.Itoa(current.ID)
 	}
 	owners := b.ownerLabels(ctx, workspaceID, current)
-	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev)); err != nil {
+	if err := b.push(ctx, w, workspaceID, sidebarSlot, sidebarView(tasks, selectedID, collapsed, rev, filter)); err != nil {
 		return err
 	}
-	if titleError.task != selected {
-		titleError.text = ""
+	var errs map[string]string
+	if fieldErr.task == selected && fieldErr.text != "" {
+		errs = map[string]string{fieldErr.field: fieldErr.text}
 	}
-	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0, titleError.text, current != nil && editing == current.ID))
+	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0, errs, current != nil && editing == current.ID))
 }
 
 func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot string, n sdui.Node) error {
@@ -222,20 +228,46 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			return fmt.Errorf("save task id %q: %w", value, err)
 		}
 		var args commandArgs
+		var form struct {
+			TagsText *string `json:"tagsText"`
+		}
 		if err := json.Unmarshal(ev.Value, &args); err != nil {
 			return fmt.Errorf("save value: %w", err)
 		}
+		if err := json.Unmarshal(ev.Value, &form); err != nil {
+			return fmt.Errorf("save value: %w", err)
+		}
 		args.ID = id
-		args.Note, args.Owner, args.keepClaim = nil, "", true
+		args.Note, args.Owner, args.Tags, args.keepClaim = nil, "", nil, true
+		if form.TagsText != nil {
+			tags := splitTags(*form.TagsText)
+			args.Tags = &tags
+		}
 		_, err = b.updateCmd(ctx, user, args)
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		w.titleError = fieldError{}
-		if errors.Is(err, errTitleEmpty) || errors.Is(err, errTitleLine) || errors.Is(err, errTitleLong) {
-			w.titleError = fieldError{task: id, text: caption(err)}
+		w.fieldError = fieldError{}
+		switch {
+		case errors.Is(err, errTitleEmpty) || errors.Is(err, errTitleLine) || errors.Is(err, errTitleLong):
+			w.fieldError = fieldError{task: id, field: "title", text: caption(err)}
+			return nil
+		case errors.Is(err, errTagChars) || errors.Is(err, errTagLong) || errors.Is(err, errTooManyTags):
+			w.fieldError = fieldError{task: id, field: tagsField, text: caption(err)}
 			return nil
 		}
 		return err
+	case ev.NodeID == tagsNode && ev.Action == actFilter:
+		var item string
+		if err := json.Unmarshal(ev.Value, &item); err != nil {
+			return fmt.Errorf("filter value: %w", err)
+		}
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		w.tagFilter, _ = strings.CutPrefix(item, tagPrefix)
+		if item == tagAll {
+			w.tagFilter = ""
+		}
+		return nil
 	case ev.Slot == mainSlot && ev.Action == actDescribe:
 		b.mu.Lock()
 		defer b.mu.Unlock()

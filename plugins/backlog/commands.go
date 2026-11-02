@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,7 +35,7 @@ var (
 	errStartViaClaim  = errors.New("status in_progress is set by backlog.claim")
 	errNotHolder      = errors.New("only the owner, an ancestor of the owner or the user can do this")
 	errNotClaimed     = errors.New("task is not in progress")
-	errForeignStatus  = errors.New("task is claimed by someone else; you may change only its title, description, priority and note")
+	errForeignStatus  = errors.New("task is claimed by someone else; you may change only its title, description, priority, tags and note")
 	errAddStatus      = errors.New("status must be idea, todo or not_now")
 	errReservedOwner  = errors.New("owner user, agent and agt_… are reserved; pass a name unique to you")
 )
@@ -81,14 +82,16 @@ type renderedTask struct {
 }
 
 type commandArgs struct {
-	ID          int     `json:"id"`
-	Status      *string `json:"status"`
-	Limit       int     `json:"limit"`
-	Title       *string `json:"title"`
-	Description *string `json:"description"`
-	Priority    *string `json:"priority"`
-	Note        *string `json:"note"`
-	Owner       string  `json:"owner"`
+	ID          int       `json:"id"`
+	Status      *string   `json:"status"`
+	Limit       int       `json:"limit"`
+	Title       *string   `json:"title"`
+	Description *string   `json:"description"`
+	Priority    *string   `json:"priority"`
+	Tags        *[]string `json:"tags"`
+	Tag         string    `json:"tag"`
+	Note        *string   `json:"note"`
+	Owner       string    `json:"owner"`
 	keepClaim   bool
 }
 
@@ -139,8 +142,12 @@ func (b *backlog) listCmd(ctx context.Context, workspaceID string, args commandA
 	if err != nil {
 		return nil, err
 	}
+	tag := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(args.Tag), "#"))
 	tasks := make([]Task, 0, len(all))
 	for _, t := range all {
+		if tag != "" && !slices.Contains(t.Tags, tag) {
+			continue
+		}
 		if filter == t.Status || filter == statusOpen && (t.Status == statusIdea || t.Status == statusTodo || t.Status == statusInProgress) {
 			tasks = append(tasks, t)
 		}
@@ -180,7 +187,13 @@ func (b *backlog) addCmd(ctx context.Context, cmd pluginsdk.CommandRun, args com
 	if !validPriority(priority) {
 		return nil, errBadPriority
 	}
-	t, err := b.store.add(ctx, cmd.WorkspaceID, Task{Title: title, Description: deref(args.Description), Status: status, Priority: priority, CreatedBy: createdBy})
+	var tags []string
+	if args.Tags != nil {
+		if tags, err = cleanTags(*args.Tags); err != nil {
+			return nil, err
+		}
+	}
+	t, err := b.store.add(ctx, cmd.WorkspaceID, Task{Title: title, Description: deref(args.Description), Status: status, Priority: priority, Tags: tags, CreatedBy: createdBy})
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +222,13 @@ func (b *backlog) updateCmd(ctx context.Context, cmd pluginsdk.CommandRun, args 
 				return errBadPriority
 			}
 			t.Priority = *args.Priority
+		}
+		if args.Tags != nil {
+			tags, err := cleanTags(*args.Tags)
+			if err != nil {
+				return err
+			}
+			t.Tags = tags
 		}
 		if args.Note != nil {
 			t.Note = *args.Note

@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"fmt"
 	"hash/fnv"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -16,6 +18,11 @@ const (
 	mainSlot    = "backlog.main"
 	sectionID   = "backlog"
 	groupPrefix = "group:"
+	tagsNode    = "tags"
+	tagsField   = "tagsText"
+	tagAll      = "all"
+	tagPrefix   = "tag:"
+	actFilter   = "filter"
 	noTasks     = "No tasks yet — add one on the left"
 	formLines   = 8
 	actReveal   = "reveal"
@@ -54,16 +61,46 @@ func labelOf(owners map[string]string, owner string) string {
 	return ownerLabel(owner, "", false)
 }
 
-func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int) sdui.Node {
+func tagCounts(tasks []Task) map[string]int {
+	counts := map[string]int{}
+	for _, t := range tasks {
+		for _, tag := range t.Tags {
+			counts[tag]++
+		}
+	}
+	return counts
+}
+
+func tagTabs(tasks []Task, counts map[string]int, filter string) sdui.Node {
+	items := []sdui.Item{{ID: tagAll, Label: "All", Badge: strconv.Itoa(len(tasks))}}
+	tags := slices.Collect(maps.Keys(counts))
+	slices.SortFunc(tags, func(a, b string) int { return cmp.Or(cmp.Compare(counts[b], counts[a]), cmp.Compare(a, b)) })
+	for _, tag := range tags {
+		items = append(items, sdui.Item{ID: tagPrefix + tag, Label: tag, Badge: strconv.Itoa(counts[tag])})
+	}
+	selected := tagAll
+	if filter != "" {
+		selected = tagPrefix + filter
+	}
+	return sdui.WithAction(sdui.Tabs(tagsNode, items, selected), actFilter)
+}
+
+func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formRev int, filter string) sdui.Node {
 	add := sdui.WithAction(sdui.Form("new", sdui.TextField("title", "", "New task…"), sdui.Button("add", "Add", "plus")), "add")
 	form := sdui.VStack(add)
 	form.ID = fmt.Sprintf("new-%d", formRev)
 	if len(tasks) == 0 {
 		return sdui.VStack(form, sdui.Empty("No tasks yet"))
 	}
+	top := []sdui.Node{form}
+	if counts := tagCounts(tasks); len(counts) > 0 {
+		top = append(top, tagTabs(tasks, counts, filter))
+	}
 	byStatus := map[string][]sdui.TreeItem{}
 	for _, t := range tasks {
-		byStatus[t.Status] = append(byStatus[t.Status], taskItem(t))
+		if filter == "" || slices.Contains(t.Tags, filter) {
+			byStatus[t.Status] = append(byStatus[t.Status], taskItem(t))
+		}
 	}
 	groups := make([]sdui.TreeItem, 0, len(groupOrder))
 	for _, status := range groupOrder {
@@ -83,7 +120,7 @@ func sidebarView(tasks []Task, selected string, collapsed map[string]bool, formR
 		}
 		groups = append(groups, g)
 	}
-	return sdui.VStack(form, sdui.Scroll(sdui.Tree("tasks", groups, selected)))
+	return sdui.VStack(append(top, sdui.Scroll(sdui.Tree("tasks", groups, selected)))...)
 }
 
 func taskItem(t Task) sdui.TreeItem {
@@ -124,7 +161,7 @@ func parseAction(action string) (string, string) {
 	return verb, strings.ReplaceAll(value, "-", "_")
 }
 
-func mainView(t *Task, owners map[string]string, hasTasks bool, titleError string, editing bool) sdui.Node {
+func mainView(t *Task, owners map[string]string, hasTasks bool, errs map[string]string, editing bool) sdui.Node {
 	switch {
 	case t == nil && hasTasks:
 		return sdui.Empty("Select a task")
@@ -145,10 +182,10 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 		meta = append(meta, t.Note)
 	}
 	saved := sdui.Button("save", "Saved", "checkmark")
-	if titleError != "" {
+	if len(errs) > 0 {
 		saved = sdui.Button("save", "Not saved", "")
 	}
-	header := sdui.Header(t.Title, sdui.HeaderProps{Icon: statusIcons[t.Status], Meta: strings.Join(meta, "\n"), Field: "title", Error: titleError}, actions(t)...)
+	header := sdui.Header(t.Title, sdui.HeaderProps{Icon: statusIcons[t.Status], Meta: strings.Join(meta, "\n"), Field: "title", Error: errs["title"]}, actions(t)...)
 	header.ID = "heading"
 	fields := []sdui.Node{header}
 	described := t.Description != "" && !editing
@@ -166,6 +203,11 @@ func mainView(t *Task, owners map[string]string, hasTasks bool, titleError strin
 		fields = append(fields, sdui.HStack(sdui.MutedText("Status"), sdui.Select("status", options(editStatuses, statusLabels), t.Status)))
 	}
 	fields = append(fields, sdui.HStack(sdui.MutedText("Priority"), sdui.Select("priority", options(priorities, priorityText), t.Priority)))
+	tags := sdui.TextField(tagsField, strings.Join(t.Tags, ", "), "voice, phone")
+	if errs[tagsField] != "" {
+		tags = sdui.WithError(tags, errs[tagsField])
+	}
+	fields = append(fields, sdui.HStack(sdui.MutedText("Tags"), tags))
 	if !described {
 		fields = append(fields, sdui.HStack(sdui.MutedText("Description"), sdui.WithLines(sdui.TextField("description", t.Description, "Markdown details an agent needs"), formLines)))
 	}

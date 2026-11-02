@@ -19,15 +19,16 @@ import (
 )
 
 type task struct {
-	ID              int    `json:"id"`
-	Title           string `json:"title"`
-	Status          string `json:"status"`
-	Priority        string `json:"priority"`
-	ClaimedBy       string `json:"claimedBy"`
-	ClaimedFrom     string `json:"claimedFrom"`
-	LastClaimedBy   string `json:"lastClaimedBy"`
-	Note            string `json:"note"`
-	DescriptionHTML string `json:"descriptionHtml"`
+	ID              int      `json:"id"`
+	Title           string   `json:"title"`
+	Status          string   `json:"status"`
+	Priority        string   `json:"priority"`
+	Tags            []string `json:"tags"`
+	ClaimedBy       string   `json:"claimedBy"`
+	ClaimedFrom     string   `json:"claimedFrom"`
+	LastClaimedBy   string   `json:"lastClaimedBy"`
+	Note            string   `json:"note"`
+	DescriptionHTML string   `json:"descriptionHtml"`
 }
 
 type env struct {
@@ -256,6 +257,33 @@ func TestAddFromSidebar(t *testing.T) {
 	assert.Equal(t, "Renamed", got.Title)
 	assert.Equal(t, "high", got.Priority)
 	assert.Equal(t, "agt_a", got.ClaimedBy)
+}
+
+func TestTags(t *testing.T) {
+	e := newEnv(t)
+	voice := e.add("Mic", map[string]any{"tags": []string{" Voice ", "#phone", "voice"}})
+	assert.Equal(t, []string{"voice", "phone"}, voice.Tags)
+	e.add("Other", nil)
+	var list struct {
+		Tasks []task `json:"tasks"`
+	}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.list", "workspaceId": e.p, "args": map[string]any{"tag": "voice"}}, &list))
+	require.Len(t, list.Tasks, 1)
+	assert.Equal(t, voice.ID, list.Tasks[0].ID)
+
+	assert.Equal(t, []string{"voice", "phone"}, e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": voice.ID, "note": "x"})).Tags)
+	_, err := e.agent("agt_a", "backlog.update", map[string]any{"id": voice.ID, "tags": []string{"two words"}})
+	assert.ErrorContains(t, err, "one word")
+	assert.Empty(t, e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": voice.ID, "tags": []string{}})).Tags)
+
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", "1")
+	e.h.Event(t, e.p, "backlog.main", "edit", "save.1", map[string]any{"title": "Mic", "tagsText": "ui, Mac  ui"})
+	e.h.WaitSlot(t, e.p, "backlog.sidebar", func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		return err == nil && strings.Contains(string(raw), `"id":"tag:mac"`)
+	})
+	assert.Equal(t, []string{"ui", "mac"}, e.must(e.user("backlog.get", map[string]any{"id": 1})).Tags)
 }
 
 func TestEmptyTitleIsAFieldError(t *testing.T) {
