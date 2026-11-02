@@ -32,6 +32,7 @@ class WhisperEngine(Engine):
 
     def run(self, audio, s, **opts):
         out = transcribe(audio, path_or_hf_repo=self.model, language=s.lang, initial_prompt=s.hint, verbose=None, **opts)
+        mx.clear_cache()
         return out["text"].strip()
 
     def start(self, id, lang, hint):

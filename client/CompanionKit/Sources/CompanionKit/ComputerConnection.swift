@@ -37,6 +37,8 @@ public final class ComputerConnection: CommandRunner {
     }
 
     public static let identityTopic = "remote.identity"
+    public static let voiceSettings = "voice.settings"
+    public static let voiceSettingsTopic = "voice.settings-changed"
     public static let backoff: [Duration] = [1, 2, 5, 10, 30].map { .seconds($0) }
 
     public private(set) var computer: Computer
@@ -45,6 +47,7 @@ public final class ComputerConnection: CommandRunner {
     public private(set) var workspaces: [Workspace] = []
     public private(set) var lastEventID: Int?
     public private(set) var lastSeen: Date?
+    public private(set) var voiceEnabled: Bool?
     @ObservationIgnored public private(set) var streamID: String?
 
     @ObservationIgnored public private(set) var client: RemoteClient
@@ -193,6 +196,11 @@ public final class ComputerConnection: CommandRunner {
         hello?.commands.contains(command) ?? false
     }
 
+    public var voiceAvailable: Bool {
+        guard hello != nil else { return true }
+        return supports("voice.start") && (!supports(Self.voiceSettings) || voiceEnabled == true)
+    }
+
     private func run() async {
         var failures = 0
         while !Task.isCancelled {
@@ -204,6 +212,8 @@ public final class ComputerConnection: CommandRunner {
                 self.hello = hello
                 workspaces = list
                 identify(hello.computer)
+                await loadVoiceSettings()
+                if Task.isCancelled { return }
                 for try await item in try await client.events(after: lastEventID) {
                     if Task.isCancelled { return }
                     failures = 0
@@ -218,6 +228,11 @@ public final class ComputerConnection: CommandRunner {
                             if Task.isCancelled { return }
                             self.hello = fresh
                             identify(fresh.computer)
+                            await loadVoiceSettings()
+                            if Task.isCancelled { return }
+                        }
+                        if event.topic == Self.voiceSettingsTopic {
+                            voiceEnabled = event.payload["enabled"]?.boolValue
                         }
                         if event.topic == Self.identityTopic, let info = try? event.payload["computer"]?.decode(ComputerInfo.self) {
                             identify(info)
@@ -260,10 +275,20 @@ public final class ComputerConnection: CommandRunner {
         if let colour = info.colour { computer.colour = colour }
     }
 
+    private func loadVoiceSettings() async {
+        guard supports(Self.voiceSettings) else {
+            voiceEnabled = nil
+            return
+        }
+        guard let settings = try? await client.command(Self.voiceSettings, workspace: nil), !Task.isCancelled else { return }
+        voiceEnabled = settings["enabled"]?.boolValue
+    }
+
     private func revoke() {
         state = .unauthorized
         streamID = nil
         hello = nil
+        voiceEnabled = nil
         workspaces = []
         task?.cancel()
         task = nil

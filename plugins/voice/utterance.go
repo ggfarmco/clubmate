@@ -132,11 +132,11 @@ func (v *voice) start(ctx context.Context, workspace string, args startArgs) (st
 	where, err := resolve(ctx, v.h, workspace, args.Pointer)
 	logError("resolve context", err)
 	uid := id.New(utterancePrefix)
-	if err := v.rec.Start(uid, lang, hintWords(where)); err != nil {
+	if err := v.recognizer().Start(uid, lang, hintWords(where)); err != nil {
 		return startResult{}, err
 	}
 	phase := phaseLoading
-	if v.rec.Ready() {
+	if v.recognizer().Ready() {
 		phase = phaseListening
 	}
 	u := &utterance{workspace: workspace, where: where, done: make(chan struct{}), state: State{Utterance: uid, Phase: phase, Rev: 1}}
@@ -167,14 +167,14 @@ func (v *voice) audio(workspace string, args audioArgs) (audioResult, error) {
 	u.audioBytes += len(pcm)
 	u.peak = max(u.peak, peakLevel(pcm))
 	v.mu.Unlock()
-	partial, err := v.rec.Feed(u.state.Utterance, pcm)
+	partial, err := v.recognizer().Feed(u.state.Utterance, pcm)
 	if err != nil {
 		v.fail(u, err)
 		return audioResult{}, err
 	}
 	v.mu.Lock()
 	u.state.Partial = partial
-	loaded := u.state.Phase == phaseLoading && v.rec.Ready()
+	loaded := u.state.Phase == phaseLoading && v.recognizer().Ready()
 	v.mu.Unlock()
 	if loaded {
 		v.update(u, func(s *State) { s.Phase = phaseListening })
@@ -203,7 +203,7 @@ func (v *voice) cancel(workspace, uid string) error {
 		return nil
 	}
 	if recognizing {
-		v.rec.Cancel(uid)
+		v.recognizer().Cancel(uid)
 	}
 	return nil
 }
@@ -239,7 +239,7 @@ func (v *voice) finish(ctx context.Context, u *utterance) (string, error) {
 	v.mu.Unlock()
 	u.feed.Unlock()
 	began := v.now()
-	text, err := v.rec.Finish(ctx, u.state.Utterance)
+	text, err := v.recognizer().Finish(ctx, u.state.Utterance)
 	if err != nil {
 		v.fail(u, err)
 		return "", err
@@ -286,7 +286,7 @@ func (v *voice) fail(u *utterance, err error) {
 	switch {
 	case errors.Is(err, errRecognizerStopped):
 		msg = msgRecognizerStopped
-	case errors.Is(err, context.DeadlineExceeded) && !v.rec.Ready():
+	case errors.Is(err, context.DeadlineExceeded) && !v.recognizer().Ready():
 		msg = msgStillLoading
 	}
 	v.mu.Lock()
@@ -296,7 +296,7 @@ func (v *voice) fail(u *utterance, err error) {
 		s.Phase = phaseError
 		s.Error = msg
 	}) && recognizing && !errors.Is(err, errRecognizerStopped) {
-		v.rec.Cancel(u.state.Utterance)
+		v.recognizer().Cancel(u.state.Utterance)
 	}
 }
 

@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -28,6 +30,7 @@ type fakeHost struct {
 	mu        sync.Mutex
 	storage   map[string]json.RawMessage
 	published []changedEvent
+	settings  []settingsResult
 	commands  map[string]func(args json.RawMessage) (any, error)
 	methods   map[string]func(params any) (any, error)
 	runs      []commandCall
@@ -206,6 +209,75 @@ func TestRecognizerCrashEndsUtterance(t *testing.T) {
 	assert.Equal(t, "fake 320", res.Heard)
 }
 
+func TestIdleRecognizerUnloadsAndRespawnsOnNextUtterance(t *testing.T) {
+	v, _, _ := newTestVoice(t)
+	proc := newProcRecognizer(fakeASRCommand, v.lost)
+	proc.idle = 50 * time.Millisecond
+	t.Cleanup(proc.stop)
+	v.rec = proc
+	abandoned := start(t, v)
+	feed(t, v, abandoned, 320)
+	proc.mu.Lock()
+	first := proc.proc
+	proc.mu.Unlock()
+	require.NotNil(t, first)
+
+	require.Eventually(t, func() bool {
+		return errors.Is(first.cmd.Process.Signal(syscall.Signal(0)), os.ErrProcessDone)
+	}, 5*time.Second, 10*time.Millisecond)
+	assert.False(t, proc.Ready())
+	require.Eventually(t, func() bool {
+		st, err := v.state(testWorkspace, abandoned)
+		return err == nil && st.Phase == phaseError
+	}, 5*time.Second, 10*time.Millisecond)
+
+	next := start(t, v)
+	feed(t, v, next, 320)
+	res, err := v.end(t.Context(), testWorkspace, next)
+	require.NoError(t, err)
+	assert.Equal(t, "fake 320", res.Heard)
+}
+
+func TestSettingsTurnVoiceOnSwitchModelAndOff(t *testing.T) {
+	v, h, _ := newTestVoice(t)
+	var spawned []string
+	v.asr = func(m model) func() (*exec.Cmd, error) {
+		spawned = append(spawned, m.ID)
+		return fakeASRCommand
+	}
+	v.apply(settings{Model: defaultModel})
+	t.Cleanup(func() { v.shutdown(t.Context(), nil) })
+	_, err := v.start(t.Context(), testWorkspace, startArgs{})
+	require.ErrorIs(t, err, errVoiceOff)
+
+	on := true
+	_, err = v.setSettings(t.Context(), settingsArgs{Enabled: &on})
+	require.NoError(t, err)
+	uid := start(t, v)
+	feed(t, v, uid, 320)
+	res, err := v.end(t.Context(), testWorkspace, uid)
+	require.NoError(t, err)
+	assert.Equal(t, "fake 320", res.Heard)
+
+	nemotron := v.recognizer().(*procRecognizer)
+	small := "whisper-small"
+	got, err := v.setSettings(t.Context(), settingsArgs{Model: &small})
+	require.NoError(t, err)
+	assert.Equal(t, settings{Enabled: true, Model: small}, got.settings)
+	assert.Equal(t, []string{"nemotron", "whisper-small"}, spawned)
+	assert.Eventually(t, func() bool { return !nemotron.Ready() }, 5*time.Second, 10*time.Millisecond)
+
+	off := false
+	_, err = v.setSettings(t.Context(), settingsArgs{Enabled: &off})
+	require.NoError(t, err)
+	_, err = v.start(t.Context(), testWorkspace, startArgs{})
+	require.ErrorIs(t, err, errVoiceOff)
+	stored, err := v.settings(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, settings{Model: small}, stored.settings)
+	assert.Len(t, h.settings, 3)
+}
+
 func newTestVoice(t *testing.T) (*voice, *fakeHost, *fakeRecognizer) {
 	h := &fakeHost{
 		storage:  map[string]json.RawMessage{},
@@ -325,6 +397,11 @@ func (h *fakeHost) Publish(_ context.Context, topic string, payload any) (plugin
 	if ev, ok := payload.(changedEvent); ok && topic == changedTopic {
 		h.mu.Lock()
 		h.published = append(h.published, ev)
+		h.mu.Unlock()
+	}
+	if res, ok := payload.(settingsResult); ok && topic == settingsTopic {
+		h.mu.Lock()
+		h.settings = append(h.settings, res)
 		h.mu.Unlock()
 	}
 	return pluginsdk.Event{Topic: topic}, nil

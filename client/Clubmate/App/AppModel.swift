@@ -23,6 +23,7 @@ final class AppModel {
     @ObservationIgnored private var usageChanges: Task<Void, Never>?
     @ObservationIgnored private var remoteChanges: Task<Void, Never>?
     @ObservationIgnored private var voiceChanges: Task<Void, Never>?
+    @ObservationIgnored private var voiceSettingsChanges: Task<Void, Never>?
     private var launchWorkspace = launchWorkspaceID(CommandLine.arguments)
     @ObservationIgnored private var presence: [String: WorkspacePresence] = [:]
     @ObservationIgnored private var publishedTheme: (client: ObjectIdentifier, event: ThemeEvent)?
@@ -41,7 +42,8 @@ final class AppModel {
     @ObservationIgnored private lazy var focus: NotificationFocus = NotificationFocus(windows: windows, sessions: sessions)
 
     @ObservationIgnored private lazy var voiceHotkeys = VoiceHotkeys { [weak self] in
-        self?.windows.activeWorkspace.flatMap { self?.sessions.existing($0)?.voice }
+        guard let self, voiceSettings.isOn else { return nil }
+        return windows.activeWorkspace.flatMap { self.sessions.existing($0)?.voice }
     }
 
     @ObservationIgnored private(set) lazy var actions: WorkspaceActions = WorkspaceActions(supervisor: supervisor, windows: windows, sessions: sessions) { [weak self] id in
@@ -53,6 +55,10 @@ final class AppModel {
     }
 
     @ObservationIgnored private(set) lazy var remoteDevices = makeRemoteDevices()
+
+    @ObservationIgnored private(set) lazy var voiceSettings = VoiceSettingsModel { [weak self] invocation in
+        await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
+    }
 
     @ObservationIgnored private(set) lazy var usage = SubscriptionUsageModel { [weak self] invocation in
         await self?.runCommand(invocation, in: "") ?? .failure(.notRunning)
@@ -282,6 +288,11 @@ final class AppModel {
             guard let remote = self?.remoteDevices else { return }
             await remote.follow(client)
         }
+        voiceSettingsChanges?.cancel()
+        voiceSettingsChanges = Task { [weak self] in
+            guard let voiceSettings = self?.voiceSettings else { return }
+            await voiceSettings.follow(client)
+        }
         voiceChanges?.cancel()
         voiceChanges = Task { [weak self] in
             guard let events = try? await client.busEvents(pattern: VoiceController.changedTopic) else { return }
@@ -298,6 +309,7 @@ final class AppModel {
                 await self?.reloadCommands(client)
                 await self?.usage.load()
                 await self?.remoteDevices.load()
+                await self?.voiceSettings.load()
             }
         }
         browserClosing.forEach { $0.cancel() }

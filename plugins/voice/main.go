@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -23,7 +24,11 @@ type host interface {
 
 type voice struct {
 	h          host
+	asr        func(model) func() (*exec.Cmd, error)
+	recMu      sync.Mutex
 	rec        recognizer
+	applied    *settings
+	settingsMu sync.Mutex
 	ctx        context.Context
 	now        func() time.Time
 	after      func(time.Duration, func()) stopper
@@ -44,21 +49,21 @@ func main() {
 }
 
 func newVoice() *voice {
-	return &voice{now: time.Now, after: afterFunc, utterances: map[string]*utterance{}}
+	return &voice{asr: asrCommand, rec: offRecognizer{}, now: time.Now, after: afterFunc, utterances: map[string]*utterance{}}
 }
 
 func (v *voice) init(ctx context.Context, h *pluginsdk.Host) error {
 	v.h = h
 	v.ctx = ctx
-	p := newProcRecognizer(asrCommand, v.lost)
-	v.rec = p
-	logError("start recognizer", p.warm())
-	_, err := h.Publish(ctx, h.PluginID()+".ready", nil)
+	s, err := v.loadSettings(ctx)
+	logError("load settings", err)
+	v.apply(s)
+	_, err = h.Publish(ctx, h.PluginID()+".ready", nil)
 	return err
 }
 
 func (v *voice) shutdown(context.Context, *pluginsdk.Host) {
-	if p, ok := v.rec.(*procRecognizer); ok {
+	if p, ok := v.recognizer().(*procRecognizer); ok {
 		p.stop()
 	}
 }
@@ -105,6 +110,14 @@ func (v *voice) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Co
 		return v.agentCommand(ctx, cmd)
 	case "voice.dictionary":
 		return v.dictionary(ctx)
+	case "voice.settings":
+		return v.settings(ctx)
+	case "voice.settings-set":
+		var args settingsArgs
+		if err := decode(cmd.Args, &args); err != nil {
+			return nil, err
+		}
+		return v.setSettings(ctx, args)
 	case "voice.dictionary-set":
 		var args dictionary
 		if err := decode(cmd.Args, &args); err != nil {

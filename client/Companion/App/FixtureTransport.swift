@@ -228,8 +228,8 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm"].map(JSONValue.string)
-            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
+            return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
         case "uiGet":
@@ -389,6 +389,8 @@ actor FixtureServer {
             return .object(task)
         case "backlog.update", "backlog.claim", "backlog.release", "backlog.done":
             return updateTask(id, args)
+        case "voice.settings":
+            return .object(["enabled": .bool(!UserDefaults.standard.bool(forKey: "voiceOff")), "model": .string("nemotron"), "models": .array([])])
         case "voice.start":
             voicePhase = UserDefaults.standard.string(forKey: "voicePhase") ?? "listening"
             voiceRev = 1

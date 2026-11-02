@@ -30,13 +30,14 @@ class NemotronEngine(Engine):
         if chunk_ms not in LOOKAHEAD:
             raise ValueError(f"nemotron supports --chunk-ms {sorted(LOOKAHEAD)}")
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.dtype = torch.float16 if self.device == "mps" else torch.float32
         self.lookahead = LOOKAHEAD[chunk_ms]
         self.processor = AutoProcessor.from_pretrained(model)
         self.processor.set_num_lookahead_tokens(self.lookahead)
         self.features = self.processor.feature_extractor
-        self.model = AutoModelForRNNT.from_pretrained(model).to(self.device).eval()
-        self.model.decoder.to("cpu")
-        self.model.joint.to("cpu")
+        self.model = AutoModelForRNNT.from_pretrained(model, dtype=self.dtype).to(self.device).eval()
+        self.model.decoder.to("cpu", torch.float32)
+        self.model.joint.to("cpu", torch.float32)
         self.blank = self.model.config.blank_token_id
         self.first_frames = self.processor.num_mel_frames_first_audio_chunk
         self.chunk_frames = self.processor.num_mel_frames_per_audio_chunk
@@ -95,7 +96,7 @@ class NemotronEngine(Engine):
         mel = self.features(audio, sampling_rate=RATE, center=first, return_tensors="pt")["input_features"][:, :frames]
         with torch.inference_mode():
             out = self.model.get_audio_features(
-                input_features=mel.to(self.device),
+                input_features=mel.to(self.device, self.dtype),
                 num_lookahead_tokens=self.lookahead,
                 use_cache=True,
                 output_attention_mask=False,
@@ -103,7 +104,7 @@ class NemotronEngine(Engine):
                 **s.encoder,
             )
             s.encoder = {"past_key_values": out.past_key_values, "padding_cache": out.padding_cache}
-            self.decode(s, out.pooler_output.to("cpu"))
+            self.decode(s, out.pooler_output.to("cpu", torch.float32))
         s.frames += frames
 
     def decode(self, s, hidden):

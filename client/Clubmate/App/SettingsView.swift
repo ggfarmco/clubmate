@@ -49,6 +49,9 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            Section("Voice") {
+                VoiceSettingsRows(model: app.voiceSettings)
+            }
             if app.claude.phase != .missing {
                 Section("Agents") {
                     LabeledContent("Claude Code") {
@@ -91,6 +94,7 @@ struct SettingsView: View {
         }
         .task { await app.claude.refresh() }
         .task { await app.agentFinish.load() }
+        .task { await app.voiceSettings.load() }
         .formStyle(.grouped)
     }
 
@@ -274,6 +278,48 @@ private struct PluginRow: View {
         case "starting", "backoff": .orange
         case "failed": .red
         default: .secondary
+        }
+    }
+}
+
+private struct VoiceSettingsRows: View {
+    let model: VoiceSettingsModel
+
+    var body: some View {
+        Toggle("Voice input", isOn: enabled)
+            .disabled(model.enabled == nil)
+        Picker("Model", selection: chosen) {
+            ForEach(model.models) { option in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(option.title)
+                    Text(option.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .tag(Optional(option.id))
+            }
+        }
+        .pickerStyle(.radioGroup)
+        .disabled(model.model == nil)
+        Text("Hold ⌥Space or click the mic in the status bar to talk. Off stops the recognizer and frees its memory.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        if let error = model.error {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .textSelection(.enabled)
+        }
+    }
+
+    private var enabled: Binding<Bool> {
+        Binding { model.isOn } set: { on in Task { await model.setEnabled(on) } }
+    }
+
+    private var chosen: Binding<String?> {
+        Binding { model.model } set: { id in
+            guard let id else { return }
+            Task { await model.setModel(id) }
         }
     }
 }

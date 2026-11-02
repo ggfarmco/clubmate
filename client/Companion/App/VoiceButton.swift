@@ -161,7 +161,7 @@ extension AppNavigation {
         let item = onSidebar ? nil : sidebar
         let single = model.computers.count == 1 ? model.computers.first?.id : nil
         guard let computer = item?.computer ?? (onSidebar ? nil : macDetails) ?? single,
-              let connection = model.connection(computer), connection.hello == nil || connection.supports("voice.start") else { return nil }
+              let connection = model.connection(computer), connection.voiceAvailable else { return nil }
         let workspace = workspace(for: connection)?.id
         guard workspace != nil || connection.state != .online else { return nil }
         let detailShown = layout != .compact || preferredColumn == .detail

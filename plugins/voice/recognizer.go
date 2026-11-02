@@ -14,23 +14,18 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 )
 
 const (
-	defaultEngine = "nemotron"
-	chunkMS       = "320"
-	maxEventLine  = 1 << 20
+	chunkMS      = "320"
+	maxEventLine = 1 << 20
+	idleUnload   = 10 * time.Minute
 )
 
 var (
 	errUVMissing = errors.New("voice needs uv (https://docs.astral.sh/uv/)")
 	errCancelled = errors.New("utterance cancelled")
-
-	engineModels = map[string]string{
-		"nemotron": "nvidia/nemotron-3.5-asr-streaming-0.6b",
-		"whisper":  "mlx-community/whisper-large-v3-turbo",
-		"fake":     "fake",
-	}
 )
 
 type recognizer interface {
@@ -44,9 +39,12 @@ type recognizer interface {
 type procRecognizer struct {
 	command func() (*exec.Cmd, error)
 	lost    func(id string)
+	idle    time.Duration
 	mu      sync.Mutex
 	proc    *process
 	streams map[string]*stream
+	unload  *time.Timer
+	last    time.Time
 	closed  bool
 }
 
@@ -96,7 +94,7 @@ type recognizerEvent struct {
 }
 
 func newProcRecognizer(command func() (*exec.Cmd, error), lost func(id string)) *procRecognizer {
-	return &procRecognizer{command: command, lost: lost, streams: map[string]*stream{}}
+	return &procRecognizer{command: command, lost: lost, idle: idleUnload, streams: map[string]*stream{}}
 }
 
 func (r *procRecognizer) Start(id, lang, hint string) error {
@@ -107,6 +105,7 @@ func (r *procRecognizer) Start(id, lang, hint string) error {
 		return err
 	}
 	r.streams[id] = &stream{}
+	r.touch()
 	r.mu.Unlock()
 	return r.send(p, id, startRequest{Op: "start", ID: id, Lang: lang, Hint: hint})
 }
@@ -157,6 +156,7 @@ func (r *procRecognizer) Cancel(id string) {
 	r.mu.Lock()
 	p, s := r.proc, r.streams[id]
 	delete(r.streams, id)
+	r.touch()
 	r.mu.Unlock()
 	if s == nil {
 		return
@@ -183,12 +183,39 @@ func (r *procRecognizer) stop() {
 	r.mu.Lock()
 	r.closed = true
 	p := r.proc
+	if r.unload != nil {
+		r.unload.Stop()
+	}
 	r.mu.Unlock()
-	if p == nil {
+	p.kill()
+}
+
+func (r *procRecognizer) touch() {
+	r.last = time.Now()
+	if r.proc == nil || r.closed {
 		return
 	}
-	_ = p.stdin.Close()
-	_ = p.cmd.Process.Signal(syscall.SIGTERM)
+	if r.unload == nil {
+		r.unload = time.AfterFunc(r.idle, r.unloadIdle)
+		return
+	}
+	r.unload.Reset(r.idle)
+}
+
+func (r *procRecognizer) unloadIdle() {
+	r.mu.Lock()
+	if r.proc == nil || r.closed || time.Since(r.last) < r.idle {
+		r.mu.Unlock()
+		return
+	}
+	p, streams := r.proc, r.streams
+	r.proc, r.streams = nil, map[string]*stream{}
+	r.mu.Unlock()
+	p.kill()
+	for id, s := range streams {
+		s.resolve(finalResult{err: errRecognizerStopped})
+		r.lost(id)
+	}
 }
 
 func (r *procRecognizer) ensure() (*process, error) {
@@ -216,6 +243,7 @@ func (r *procRecognizer) ensure() (*process, error) {
 	}
 	p := &process{cmd: cmd, stdin: stdin}
 	r.proc = p
+	r.touch()
 	go r.read(p, stdout)
 	return p, nil
 }
@@ -258,11 +286,13 @@ func (r *procRecognizer) handle(p *process, ev recognizerEvent) {
 		s.partial = ev.Text
 	case "final":
 		delete(r.streams, ev.ID)
+		r.touch()
 		s.resolve(finalResult{text: ev.Text})
 	case "error":
 		s.err = errors.New(ev.Message)
 		if s.final != nil {
 			delete(r.streams, ev.ID)
+			r.touch()
 			s.resolve(finalResult{err: s.err})
 		}
 	}
@@ -291,6 +321,7 @@ func (r *procRecognizer) died(p *process) {
 func (r *procRecognizer) lookup(id string) (*process, *stream) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.touch()
 	return r.proc, r.streams[id]
 }
 
@@ -308,6 +339,14 @@ func (r *procRecognizer) send(p *process, id string, msg any) error {
 		return fmt.Errorf("%w: %s: %v", errRecognizerStopped, id, err)
 	}
 	return nil
+}
+
+func (p *process) kill() {
+	if p == nil {
+		return
+	}
+	_ = p.stdin.Close()
+	_ = p.cmd.Process.Signal(syscall.SIGTERM)
 }
 
 func (p *process) send(msg any) error {
@@ -352,7 +391,7 @@ func (s *stream) resolve(res finalResult) {
 	}
 }
 
-func asrCommand() (*exec.Cmd, error) {
+func asrCmd(m model) (*exec.Cmd, error) {
 	uv, err := findUV()
 	if err != nil {
 		return nil, err
@@ -361,12 +400,11 @@ func asrCommand() (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	engine := cmp.Or(os.Getenv("CLUBMATE_VOICE_ENGINE"), defaultEngine)
-	model, ok := engineModels[engine]
-	if !ok {
-		return nil, fmt.Errorf("unknown recognizer engine %q", engine)
+	args := []string{"run", "--script", filepath.Join(dir, "server.py"), "--engine", m.engine, "--model", m.repo, "--chunk-ms", chunkMS}
+	if engine := os.Getenv("CLUBMATE_VOICE_ENGINE"); engine != "" {
+		args = []string{"run", "--script", filepath.Join(dir, "server.py"), "--engine", engine, "--chunk-ms", chunkMS}
 	}
-	return exec.Command(uv, "run", "--script", filepath.Join(dir, "server.py"), "--engine", engine, "--model", model, "--chunk-ms", chunkMS), nil
+	return exec.Command(uv, args...), nil
 }
 
 func asrDir() (string, error) {

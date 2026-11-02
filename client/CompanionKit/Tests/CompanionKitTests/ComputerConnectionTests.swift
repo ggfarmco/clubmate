@@ -87,6 +87,43 @@ final class ComputerConnectionTests: XCTestCase {
         connection.stop()
     }
 
+    func testVoiceFollowsTheMacsSettings() async throws {
+        let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()
+        let transport = FakeTransport(reply: { request in
+            switch FakeTransport.rpc(request) {
+            case "workspaces": (FakeTransport.result(workspacesJSON), 200)
+            case "voice.settings": (FakeTransport.result(#"{"enabled":true,"model":"nemotron","models":[]}"#), 200)
+            default: (FakeTransport.result(#"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.16","commands":["voice.start","voice.settings"],"topics":[]}"#), 200)
+            }
+        }, stream: { _ in
+            (200, AsyncThrowingStream {
+                $0.yield(Data(": connected\n\n".utf8))
+                held.add($0)
+            })
+        })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online && held.values.count == 1 }
+        XCTAssertTrue(connection.voiceAvailable)
+
+        held.values[0].yield(Data("id: 4\nevent: bus\ndata: {\"seq\":4,\"topic\":\"voice.settings-changed\",\"payload\":{\"enabled\":false,\"model\":\"nemotron\",\"models\":[]}}\n\n".utf8))
+
+        try await waitUntil { !connection.voiceAvailable }
+        connection.stop()
+    }
+
+    func testVoiceIsOnForAMacWithoutVoiceSettings() async throws {
+        let transport = FakeTransport(reply: { request in
+            (FakeTransport.result(FakeTransport.rpc(request) == "workspaces" ? workspacesJSON : #"{"computer":{"id":"mac1","name":"Mac Studio"},"version":"0.0.15","commands":["voice.start"],"topics":[]}"#), 200)
+        }, stream: { _ in (200, AsyncThrowingStream { $0.yield(Data(": connected\n\n".utf8)) }) })
+        let connection = ComputerConnection(computer: computer, token: "t", transport: transport, sleep: { _ in })
+        connection.start()
+        try await waitUntil { connection.state == .online }
+        XCTAssertTrue(connection.voiceAvailable)
+        XCTAssertFalse(transport.requests.contains { FakeTransport.rpc($0) == "voice.settings" })
+        connection.stop()
+    }
+
     func testCancelledRunLeavesTheNewerStateAlone() async throws {
         let hellos = Recorder<Int>()
         let held = Recorder<AsyncThrowingStream<Data, any Error>.Continuation>()

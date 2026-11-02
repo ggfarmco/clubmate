@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	forwardedTopics = []string{"agents.changed", "backlog.changed", "docs.changed", "docs.opened", "notify.posted", "plugin.changed", "remote.identity", "voice.changed"}
+	forwardedTopics = []string{"agents.changed", "backlog.changed", "docs.changed", "docs.opened", "notify.posted", "plugin.changed", "remote.identity", "voice.changed", "voice.settings-changed"}
 	busPattern      = strings.Join(forwardedTopics, ",")
 
 	errBadCursor = errors.New("invalid Last-Event-ID or after")

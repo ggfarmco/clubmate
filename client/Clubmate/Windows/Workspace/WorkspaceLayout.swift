@@ -75,10 +75,14 @@ struct WorkspaceLayout: View {
                 }
             }
         }
+        .onChange(of: app.voiceSettings.isOn) { _, on in
+            if !on { app.sessions.existing(store.workspaceID)?.voice.cancel() }
+        }
     }
 
     private var voice: VoiceController? {
-        app.sessions.existing(store.workspaceID)?.voice
+        guard app.voiceSettings.isOn else { return nil }
+        return app.sessions.existing(store.workspaceID)?.voice
     }
 
     private var connection: ConnectionStatus {

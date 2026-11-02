@@ -201,6 +201,45 @@
           },
           "required": ["entries"]
         }
+      },
+      {
+        "id": "voice.settings",
+        "title": "Voice settings",
+        "hidden": true,
+        "remote": true,
+        "scope": "app",
+        "description": "Whether voice input is on and which recognizer model it uses: {enabled, model, models: [{id, title, detail}]}. Off by default; while off no recognizer runs and voice.start fails with \"voice is off\". Changes publish voice.settings-changed with the same shape.",
+        "result": {
+          "properties": {
+            "enabled": {"type": "boolean", "description": "Voice input is on."},
+            "model": {"type": "string", "description": "Id of the chosen model."},
+            "models": {
+              "type": "array",
+              "description": "Models to choose from.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {"type": "string", "description": "Model id."},
+                  "title": {"type": "string", "description": "Name to show, e.g. Whisper small."},
+                  "detail": {"type": "string", "description": "What it is good at and about how much memory it takes."}
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "voice.settings-set",
+        "title": "Set voice settings",
+        "hidden": true,
+        "scope": "app",
+        "description": "Turn voice input on or off and choose its model; returns the settings as stored. Turning it off stops the recognizer and frees its memory; a new model restarts it.",
+        "args": {
+          "properties": {
+            "enabled": {"type": "boolean", "description": "Turn voice input on or off."},
+            "model": {"type": "string", "description": "Model id from voice.settings: nemotron, whisper-turbo or whisper-small."}
+          }
+        }
       }
     ]
   }
