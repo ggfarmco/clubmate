@@ -24,8 +24,8 @@ Mac colours (`--id-*` in `cm.css`, spec in `design/companion/png/C-MacColour.png
 | surface-2 | mix(fg 7%, bg) | cards, composer, buttons, pills |
 | surface-3 | mix(fg 11%, bg) + shadow | palette, popovers, menus |
 | text | fg | labels, content |
-| text-2 | lowest fg ratio ≥ 4.5:1 on surface-1 | property values, secondary labels |
-| muted | lowest fg ratio ≥ 3:1 (was fixed 55%) | row detail, timestamps, section labels, hints, keycaps |
+| text-2 | lowest fg ratio ≥ 4.5:1 on surface-3 (so on every surface) | property values, secondary labels |
+| muted | lowest fg ratio ≥ 3:1 on surface-3 (was fixed 55%) | row detail, timestamps, section labels, hints, keycaps |
 | faint | fg 42% dark / 52% light | placeholders, disabled, line numbers; never needed information |
 | border / border-strong | fg 12% / fg 22% | dividers, card outlines / fields, buttons, keycaps |
 | hover / pressed | fg 6% / fg 11% overlay | pointer over a row; mouse down, open menu trigger |

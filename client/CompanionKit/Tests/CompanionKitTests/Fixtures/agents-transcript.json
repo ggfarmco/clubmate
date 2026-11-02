@@ -291,7 +291,8 @@
             "kind": "allow_always",
             "shortcut": "opt+2",
             "rule": "Bash(go test:*)",
-            "scope": "in demo on this Mac"
+            "scope": "in demo on this Mac",
+            "workspace": "demo"
           },
           {
             "id": "deny",

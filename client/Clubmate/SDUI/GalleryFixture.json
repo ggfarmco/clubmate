@@ -63,7 +63,7 @@
             ]}},
             {"type": "permissionCard", "id": "gallery-permission", "props": {"request": "permission-1", "text": "Claude wants to run go test ./internal/notify/...", "title": "Run a command?", "command": "go test ./internal/notify/...", "caption": "Claude says: Run the notify tests", "options": [
               {"id": "allow-once", "label": "Allow once", "kind": "allow_once", "shortcut": "opt+1"},
-              {"id": "allow-with-updates", "label": "Always allow…", "kind": "allow_always", "shortcut": "opt+2", "rule": "Bash(go test:*)", "scope": "in shop on this Mac"},
+              {"id": "allow-with-updates", "label": "Always allow…", "kind": "allow_always", "shortcut": "opt+2", "rule": "Bash(go test:*)", "scope": "in shop on this Mac", "workspace": "shop"},
               {"id": "reject", "label": "Reject", "kind": "reject_once", "shortcut": "opt+3"},
               {"id": "reject-always", "label": "Always reject", "kind": "reject_always", "menu": true}
             ]}},

@@ -32,6 +32,8 @@ struct Theme: Sendable {
 
     init(background: RGB, foreground: RGB, accent: RGB, success: RGB, warning: RGB, danger: RGB, fontFamily: String?, name: String? = nil, palette: [String] = []) {
         let surface1 = background.mixed(with: foreground, amount: 0.04)
+        let surface3 = background.mixed(with: foreground, amount: 0.11)
+        let mutedAlpha = ThemeContrast.alpha(of: foreground, over: surface3, reaching: 3)
         func inkRGB(_ tone: RGB) -> RGB { ThemeContrast.ink(tone, toward: foreground, on: background, reaching: 4.5) }
         func ink(_ tone: RGB) -> Color { Color(inkRGB(tone)) }
         func mix(_ amount: Double) -> String { background.mixed(with: foreground, amount: amount).eventHex }
@@ -52,15 +54,15 @@ struct Theme: Sendable {
         self.palette = palette
         self.surface1 = Color(surface1)
         self.surface2 = Color(background.mixed(with: foreground, amount: 0.07))
-        self.surface3 = Color(background.mixed(with: foreground, amount: 0.11))
-        self.text2 = Color(foreground).opacity(ThemeContrast.alpha(of: foreground, over: surface1, reaching: 4.5))
-        self.muted = Color(foreground).opacity(ThemeContrast.alpha(of: foreground, over: surface1, reaching: 3))
+        self.surface3 = Color(surface3)
+        self.text2 = Color(foreground).opacity(ThemeContrast.alpha(of: foreground, over: surface3, reaching: 4.5))
+        self.muted = Color(foreground).opacity(mutedAlpha)
         self.accentInk = ink(accent)
         self.onAccent = Color(ThemeContrast.on(accent, candidates: [background, RGB(hex: 0xFFFFFF)], reaching: 4.5))
         let font = fontFamily.flatMap { $0.isEmpty ? nil : "\"\($0)\", \(DocumentTheme.monoFont)" } ?? DocumentTheme.monoFont
         self.documentBase = DocumentTheme(
             background: background.eventHex, text: foreground.eventHex,
-            muted: mix(ThemeContrast.alpha(of: foreground, over: surface1, reaching: 3)), accent: inkRGB(accent).eventHex,
+            muted: mix(mutedAlpha), accent: inkRGB(accent).eventHex,
             border: mix(0.12), codeBackground: mix(0.07),
             success: inkRGB(success).eventHex, warning: inkRGB(warning).eventHex, danger: inkRGB(danger).eventHex,
             font: font, codeFont: font, dark: dark

@@ -599,7 +599,7 @@ func cardActionCheck(c *validator, v any) error {
 
 func permissionOptionCheck(c *validator, v any) error {
 	return objectCheck([]string{"id", "label"}, map[string]propCheck{
-		"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds), "shortcut": shortcutCheck, "menu": isBool, "rule": isString, "scope": isString,
+		"id": uniqueItemID, "label": isString, "kind": oneOf(permissionKinds), "shortcut": shortcutCheck, "menu": isBool, "rule": isString, "scope": isString, "workspace": isString,
 	})(c, v)
 }
 

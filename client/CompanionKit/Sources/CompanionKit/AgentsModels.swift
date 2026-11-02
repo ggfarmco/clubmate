@@ -583,6 +583,7 @@ public struct PermissionCardContent: Decodable, Sendable, Equatable {
         public var menu = false
         public var rule: String?
         public var scope: String?
+        public var workspace: String?
 
         public init(id: String, label: String, kind: PermissionKind, menu: Bool = false) {
             self.id = id
@@ -592,7 +593,7 @@ public struct PermissionCardContent: Decodable, Sendable, Equatable {
         }
 
         enum CodingKeys: String, CodingKey {
-            case id, label, kind, shortcut, menu, rule, scope
+            case id, label, kind, shortcut, menu, rule, scope, workspace
         }
 
         public init(from decoder: any Decoder) throws {
@@ -604,6 +605,7 @@ public struct PermissionCardContent: Decodable, Sendable, Equatable {
             menu = try c.decodeIfPresent(Bool.self, forKey: .menu) ?? false
             rule = try c.decodeIfPresent(String.self, forKey: .rule).flatMap { $0.isEmpty ? nil : $0 }
             scope = try c.decodeIfPresent(String.self, forKey: .scope).flatMap { $0.isEmpty ? nil : $0 }
+            workspace = try c.decodeIfPresent(String.self, forKey: .workspace).flatMap { $0.isEmpty ? nil : $0 }
         }
     }
 

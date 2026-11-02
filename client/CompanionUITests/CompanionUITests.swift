@@ -190,7 +190,7 @@ final class CompanionUITests: XCTestCase {
         always.tap()
         XCTAssertTrue(app.staticTexts["Always allow this command?"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Bash(go test:*)"].exists)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "in demo on this Mac")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "in demo without asking, on this Mac")).firstMatch.exists)
         add(screenshot(app, "always-allow"))
         app.buttons["Always allow"].tap()
         XCTAssertTrue(app.staticTexts["Always allowed · go test ./..."].waitForExistence(timeout: 5))

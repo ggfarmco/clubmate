@@ -275,6 +275,7 @@ public struct AlwaysConfirm: Sendable, Equatable, Identifiable {
     public let label: String
     public let rule: String?
     public let scope: String?
+    public var workspace: String?
     public let forSession: Bool
     public let guessed: Bool
 
@@ -342,7 +343,7 @@ extension PermissionRequest {
         if let card {
             guard let option = card.options.first(where: { $0.id == id }), option.kind == .allowAlways else { return nil }
             let label = raw?.name ?? option.label
-            return AlwaysConfirm(optionID: id, label: label, rule: option.rule, scope: option.scope, forSession: Self.forSession(label), guessed: false)
+            return AlwaysConfirm(optionID: id, label: label, rule: option.rule, scope: option.scope, workspace: option.workspace, forSession: Self.forSession(label), guessed: false)
         }
         guard let raw, raw.kind == .allowAlways else { return nil }
         return AlwaysConfirm(optionID: id, label: raw.name, rule: rule(from: raw.name), scope: nil, forSession: Self.forSession(raw.name), guessed: true)

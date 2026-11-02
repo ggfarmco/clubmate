@@ -102,10 +102,11 @@ public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
     public let menu: Bool
     public let rule: String?
     public let scope: String?
+    public let workspace: String?
 
     public var confirms: Bool { kind == .allowAlways }
 
-    public init(id: String, label: String, kind: PermissionKind, shortcut: String? = nil, menu: Bool = false, rule: String? = nil, scope: String? = nil) {
+    public init(id: String, label: String, kind: PermissionKind, shortcut: String? = nil, menu: Bool = false, rule: String? = nil, scope: String? = nil, workspace: String? = nil) {
         self.id = id
         self.label = label
         self.kind = kind
@@ -113,12 +114,13 @@ public struct SDUIPermissionOption: Sendable, Equatable, Identifiable {
         self.menu = menu
         self.rule = rule
         self.scope = scope
+        self.workspace = workspace
     }
 
     init?(_ value: JSONValue) {
         guard let fields = value.objectValue, let id = fields["id"]?.stringValue, let label = fields["label"]?.stringValue else { return nil }
         let text = { (key: String) in fields[key]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } }
-        self.init(id: id, label: label, kind: PermissionKind(fields["kind"]?.stringValue), shortcut: text("shortcut"), menu: fields["menu"]?.boolValue ?? false, rule: text("rule"), scope: text("scope"))
+        self.init(id: id, label: label, kind: PermissionKind(fields["kind"]?.stringValue), shortcut: text("shortcut"), menu: fields["menu"]?.boolValue ?? false, rule: text("rule"), scope: text("scope"), workspace: text("workspace"))
     }
 }
 

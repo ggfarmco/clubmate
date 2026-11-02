@@ -1388,6 +1388,10 @@ struct AlwaysAllowSheet: View {
 
     private var scope: AttributedString {
         let what = request.toolCall.kind == .execute ? "run matching commands" : "do this"
+        if let workspace = option.workspace {
+            let name = workspace.replacingOccurrences(of: "-", with: "-\u{2060}")
+            return Markdown.inline("\(agentName) will \(what) in **\(name)** without asking, on this Mac, until you remove the rule.")
+        }
         if let scope = option.scope {
             return Markdown.inline("\(agentName) will \(what) without asking, \(scope), until you remove the rule.")
         }

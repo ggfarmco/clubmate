@@ -603,6 +603,7 @@ func permissionOptions(workspace string, en *entry, f toolFields) []sdui.Permiss
 			if o.Kind == "allow_always" {
 				o.Rule = allowRule(f, en.ToolCall, o.Label)
 				o.Scope = allowScope(workspace)
+				o.Workspace = workspace
 			}
 			o.Label = optionLabels[o.Kind]
 			o.Menu = o.Kind == "reject_always"

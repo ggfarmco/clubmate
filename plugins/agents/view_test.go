@@ -946,7 +946,7 @@ func TestPermissionCardForACommand(t *testing.T) {
 	assert.Equal(t, []any{"Run a command?", "go test ./internal/notify/...", "Claude says: Run the notify tests"}, []any{card.Props["title"], card.Props["command"], card.Props["caption"]})
 	assert.Equal(t, []sdui.PermissionOption{
 		{ID: "allow-once", Label: "Allow once", Kind: "allow_once", Shortcut: "opt+1"},
-		{ID: "allow-with-updates", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(go test:*) Bash(go vet:*)", Scope: "in shop on this Mac"},
+		{ID: "allow-with-updates", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(go test:*) Bash(go vet:*)", Scope: "in shop on this Mac", Workspace: "shop"},
 		{ID: "reject", Label: "Reject", Kind: "reject_once", Shortcut: "opt+3"},
 		{ID: "never", Label: "Always reject", Kind: "reject_always", Menu: true},
 	}, card.Props["options"])

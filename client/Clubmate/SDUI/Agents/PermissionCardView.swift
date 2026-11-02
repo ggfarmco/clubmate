@@ -184,7 +184,7 @@ private struct AlwaysAllowConfirm: View {
             Text(option.rule == nil ? "Always allow?" : "Always allow this command?")
                 .font(theme.strong)
                 .foregroundStyle(theme.foreground)
-            Text(detail)
+            detail
                 .foregroundStyle(theme.text2)
                 .fixedSize(horizontal: false, vertical: true)
             if let rule = option.rule {
@@ -202,7 +202,7 @@ private struct AlwaysAllowConfirm: View {
                 if let shortcut {
                     Text("Press \(shortcut) again to confirm.")
                         .font(theme.uiSmall)
-                        .foregroundStyle(theme.muted)
+                        .foregroundStyle(theme.text2)
                         .lineLimit(1)
                         .layoutPriority(-1)
                 }
@@ -220,10 +220,12 @@ private struct AlwaysAllowConfirm: View {
         }
     }
 
-    private var detail: String {
-        guard option.rule != nil else { return option.label }
-        let scope = option.scope.map { " \($0)" } ?? ""
-        return "Claude will run matching commands\(scope) without asking, until you remove the rule from the allow list."
+    private var detail: Text {
+        guard option.rule != nil else { return Text(option.label) }
+        let rest = Text(" without asking, on this Mac, until you remove the rule from the allow list.")
+        guard let workspace = option.workspace else { return Text("Claude will run matching commands") + rest }
+        let name = workspace.replacingOccurrences(of: "-", with: "-\u{2060}")
+        return Text("Claude will run matching commands in ") + Text(name).font(theme.strong).foregroundStyle(theme.foreground) + rest
     }
 
     private var confirmLabel: String {

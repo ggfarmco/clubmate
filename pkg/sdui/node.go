@@ -133,13 +133,14 @@ type ToolCardProps struct {
 }
 
 type PermissionOption struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	Kind     string `json:"kind,omitempty"`
-	Shortcut string `json:"shortcut,omitempty"`
-	Menu     bool   `json:"menu,omitempty"`
-	Rule     string `json:"rule,omitempty"`
-	Scope    string `json:"scope,omitempty"`
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	Kind      string `json:"kind,omitempty"`
+	Shortcut  string `json:"shortcut,omitempty"`
+	Menu      bool   `json:"menu,omitempty"`
+	Rule      string `json:"rule,omitempty"`
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
 }
 
 type PermissionCardProps struct {
