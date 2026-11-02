@@ -9,9 +9,14 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
     private var opened: ((_ computer: String, _ workspace: String, _ session: String?) -> Void)?
     private var background: UIBackgroundTaskIdentifier = .invalid
     private weak var model: CompanionModel?
+    private var pending: (computer: String, workspace: String, session: String?)?
+
+    override init() {
+        super.init()
+        center.delegate = self
+    }
 
     func attach(model: CompanionModel, navigation: AppNavigation) {
-        center.delegate = self
         self.model = model
         opened = { computer, workspace, session in
             if let session {
@@ -20,6 +25,10 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
             } else {
                 navigation.open(computer: computer, plugin: InboxPluginInfo.id)
             }
+        }
+        if let pending {
+            self.pending = nil
+            opened?(pending.computer, pending.workspace, pending.session)
         }
         model.posted = { [weak self, weak model] item in
             guard let self, let model, UIApplication.shared.applicationState != .active else { return }
@@ -85,10 +94,18 @@ final class LocalNotifier: NSObject, UNUserNotificationCenterDelegate {
         nonisolated(unsafe) let done = completionHandler
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
-                if let computer { self.opened?(computer, workspace, session) }
+                if let computer { self.open(computer, workspace, session) }
             }
             done()
         }
+    }
+
+    private func open(_ computer: String, _ workspace: String, _ session: String?) {
+        guard let opened else {
+            pending = (computer, workspace, session)
+            return
+        }
+        opened(computer, workspace, session)
     }
 
     private func post(_ alert: LocalAlert) {
