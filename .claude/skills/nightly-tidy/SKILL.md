@@ -43,7 +43,8 @@ Plus one deep dive over the whole repo, by weekday: Mon security, Tue performanc
 5. **Merge.** For each child: its branch tip equals the sha it reported; right before, in the main checkout, the index is empty (`git diff --cached --quiet`) and no uncommitted file is one the branch changes (other sessions' work in progress lives there; otherwise stop merging, leave the branches, say so in the report). Squash and commit in one guarded command: `git merge --squash <branch> && git commit -m "<type>(<scope>): …"`. After the last squash run the tests on `main`; red → `git revert` the tidy commits of this run and file why.
 6. **File the rest**: `backlog_add` as `idea` with tag `tidy`, one item per finding with file:line and the suggested fix; add tag `needs-you` when the user has to decide or act (say what exactly in the description), `security` for security findings.
 7. **Report** `$NOTES/tidy/<date>.md`: per lens — fixed (sha), filed (backlog id), CLAUDE.md proposals, benchmark deltas; at most a screen. Commit it in clubmate-notes. `docs_present` it, then `notify_post` one line: `Tidy: N fixed, M filed[, K need you][, S security]`.
-8. **Clean up last** (an approval may stall here, the report is already out): remove the triage tree, each merged worktree and `git branch -D` its branch; leave a worktree with uncommitted changes or a running process.
+8. **Hand over**: `triggers_emit name=tidy.done payload={"changed":<true when at least one tidy commit of this run stays on main>,"commits":[<shas>]}`. With `changed: true` it starts the release (`nightly-release` skill).
+9. **Clean up last** (an approval may stall here, the report is already out): remove the triage tree, each merged worktree and `git branch -D` its branch; leave a worktree with uncommitted changes or a running process.
 
 ## Cron job
 
