@@ -62,6 +62,14 @@ final class ClubmateProtocolTests: XCTestCase {
         XCTAssertEqual(links.map(\.1), ["/w/docs/plan.md#goals", "/w/my plan.md", nil])
     }
 
+    func testMessageDocCardsDecodeWithTheirKindWords() throws {
+        let json = #"{"type":"message","props":{"role":"agent","text":"x","docCards":[{"path":"/w/docs/plan.md","kind":"markdown","title":"Plan","rel":"docs/plan.md"},{"path":"/w/flow.mmd","kind":"mermaid","title":"flow","rel":"flow.mmd"},{"path":"/tmp/r.html","kind":"artifact","title":"Report","rel":"/tmp/r.html"},{"kind":"markdown"}]}}"#
+        let node = try JSONDecoder().decode(SDUINode.self, from: Data(json.utf8))
+        XCTAssertEqual(node.docCards.map(\.title), ["Plan", "flow", "Report"])
+        XCTAssertEqual(node.docCards.map(\.subtitle), ["Document · docs/plan.md", "Diagram · flow.mmd", "Artifact · /tmp/r.html"])
+        XCTAssertEqual(node.docCards.map(\.kind.symbol), ["doc.richtext", "flowchart", "chart.bar.doc.horizontal"])
+    }
+
     func testDiffLineKinds() {
         let text = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n ctx\n\n"
         XCTAssertEqual(DiffLine.parse(text), [

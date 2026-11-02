@@ -18,6 +18,7 @@ import (
 
 	"clubmate/pkg/docext"
 	"clubmate/pkg/pluginsdk"
+	"clubmate/pkg/sdui"
 )
 
 type docsArgs struct {
@@ -83,23 +84,32 @@ func (s *session) docs() []docRef {
 	return out
 }
 
+const maxDocCards = 4
+
 func (s *session) linkDocs(turn int) {
 	for _, en := range s.entries {
 		if en.Kind != entryAgent || en.Turn != turn {
 			continue
 		}
-		if links := docLinks(en.Text, s.rec.Worktree); !maps.Equal(links, en.DocLinks) {
-			en.DocLinks, en.node = links, nil
+		if links, cards := docRefs(en.Text, s.rec.Worktree); !maps.Equal(links, en.DocLinks) || !slices.Equal(cards, en.DocCards) {
+			en.DocLinks, en.DocCards, en.node = links, cards, nil
 		}
 	}
 }
 
-func docLinks(markdown, root string) map[string]string {
+func docRefs(markdown, root string) (map[string]string, []sdui.DocCard) {
 	src := []byte(markdown)
 	links := map[string]string{}
+	var cards []sdui.DocCard
 	add := func(target string) {
-		if path, ok := resolveDoc(target, root); ok {
-			links[target] = path
+		path, ok := resolveDoc(target, root)
+		if !ok {
+			return
+		}
+		links[target] = path
+		file, _, _ := strings.Cut(path, "#")
+		if len(cards) < maxDocCards && !slices.ContainsFunc(cards, func(c sdui.DocCard) bool { return c.Path == file }) {
+			cards = append(cards, docCard(file, root))
 		}
 	}
 	_ = ast.Walk(goldmark.DefaultParser().Parse(text.NewReader(src)), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -129,9 +139,19 @@ func docLinks(markdown, root string) map[string]string {
 		return ast.WalkContinue, nil
 	})
 	if len(links) == 0 {
-		return nil
+		return nil, nil
 	}
-	return links
+	return links, cards
+}
+
+func docCard(path, root string) sdui.DocCard {
+	rel := path
+	if root != "" {
+		if r, err := filepath.Rel(root, path); err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+			rel = r
+		}
+	}
+	return sdui.DocCard{Path: path, Kind: docext.Kind(path), Title: docext.Title(path), Rel: rel}
 }
 
 func resolveDoc(target, root string) (string, bool) {

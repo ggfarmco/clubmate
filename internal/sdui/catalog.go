@@ -81,6 +81,10 @@ var (
 	attachmentFields = map[string]propCheck{"id": uniqueItemID, "kind": oneOf(attachmentKinds), "path": isString, "startLine": countNumber, "endLine": countNumber}
 	attachmentsCheck = listOf(objectCheck([]string{"kind", "path"}, attachmentFields))
 
+	docCardKinds  = []string{"markdown", "mermaid", "artifact"}
+	docCardFields = map[string]propCheck{"path": nonEmptyString, "kind": oneOf(docCardKinds), "title": isString, "rel": isString}
+	docCardsCheck = listOf(objectCheck([]string{"path", "kind", "title", "rel"}, docCardFields))
+
 	documentSizes = []string{"fill", "fit"}
 	documentKinds = []string{"markdown", "artifact"}
 
@@ -196,7 +200,7 @@ var (
 		"transcript": {props: map[string]propCheck{"center": isBool}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
-			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString, "docLinks": stringMap},
+			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString, "docLinks": stringMap, "docCards": docCardsCheck},
 			children: noChildren,
 		},
 		"plan": {required: []string{"entries"}, props: map[string]propCheck{"entries": listOf(planEntryCheck)}, children: noChildren},

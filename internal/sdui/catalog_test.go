@@ -113,6 +113,7 @@ func TestValidateAgentNodes(t *testing.T) {
 	}
 	linked := sdui.Message("agent", "**hi** `a.md`", nil)
 	linked.Props["docLinks"] = map[string]string{"a.md": "/r/a.md"}
+	linked.Props["docCards"] = []sdui.DocCard{{Path: "/r/a.md", Kind: "markdown", Title: "A", Rel: "a.md"}, {Path: "/r/f.mmd", Kind: "mermaid", Title: "f", Rel: "f.mmd"}}
 	attachments := []sdui.Attachment{{Kind: "file", Path: "a.go"}, {ID: "s1", Kind: "selection", Path: "b.go", StartLine: 12, EndLine: 40}, {Kind: "image", Path: "image"}}
 	nodes := map[string]sdui.Node{
 		"transcript": sdui.Transcript("t", linked),
@@ -142,6 +143,7 @@ func TestValidateAgentNodes(t *testing.T) {
 	invalid := map[string]sdui.Node{
 		"bad role":             sdui.Message("system", "x", nil),
 		"bad doc link":         {Type: "message", Props: map[string]any{"role": "agent", "text": "x", "docLinks": map[string]any{"a.md": 1}}},
+		"bad doc card kind":    {Type: "message", Props: map[string]any{"role": "agent", "text": "x", "docCards": []any{map[string]any{"path": "/r/a.go", "kind": "code", "title": "a", "rel": "a.go"}}}},
 		"bad plan status":      sdui.Plan([]sdui.PlanEntry{{Content: "x", Status: "done"}}),
 		"card without id":      sdui.ToolCard("", sdui.ToolCardProps{Kind: "read", Title: "x"}),
 		"bad body format":      sdui.ToolCard("c", sdui.ToolCardProps{Kind: "read", Title: "x", Body: &sdui.ToolBody{Format: "html", Text: "x"}}),

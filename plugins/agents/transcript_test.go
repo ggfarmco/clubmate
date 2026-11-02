@@ -144,4 +144,32 @@ func TestDocLinksResolveWhenTheTurnEnds(t *testing.T) {
 	}, after.Entries[0].DocLinks)
 	node, _ := buildEntryNode(screen{View: after}, after.Entries[0], "")
 	assert.Equal(t, after.Entries[0].DocLinks, node.Props["docLinks"])
+	assert.Len(t, after.Entries[0].DocCards, 3)
+	assert.Equal(t, after.Entries[0].DocCards, node.Props["docCards"])
+}
+
+func TestDocCardsListMentionedDocsInOrder(t *testing.T) {
+	wt, other := t.TempDir(), t.TempDir()
+	files := map[string]string{
+		filepath.Join(wt, "docs", "plan.md"):    "intro\n\n# Retry plan\n",
+		filepath.Join(wt, "flow.mmd"):           "graph TD; A-->B\n",
+		filepath.Join(wt, "out", "report.html"): "<title>Q3 report</title>",
+		filepath.Join(other, "x.md"):            "no heading\n",
+		filepath.Join(wt, "notes.md"):           "# Notes\n",
+	}
+	for p, src := range files {
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(src), 0o600))
+	}
+	outside := filepath.Join(other, "x.md")
+	text := "[plan](docs/plan.md#goals), `docs/plan.md`, `flow.mmd`, [report](out/report.html), `" + outside + "`, `notes.md`."
+
+	_, cards := docRefs(text, wt)
+
+	assert.Equal(t, []sdui.DocCard{
+		{Path: filepath.Join(wt, "docs", "plan.md"), Kind: "markdown", Title: "Retry plan", Rel: "docs/plan.md"},
+		{Path: filepath.Join(wt, "flow.mmd"), Kind: "mermaid", Title: "flow", Rel: "flow.mmd"},
+		{Path: filepath.Join(wt, "out", "report.html"), Kind: "artifact", Title: "Q3 report", Rel: "out/report.html"},
+		{Path: outside, Kind: "markdown", Title: "x", Rel: outside},
+	}, cards)
 }

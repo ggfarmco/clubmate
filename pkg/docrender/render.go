@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"html"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
@@ -41,14 +40,14 @@ func Render(src []byte, opts Options) Doc {
 		opts.IsDoc = viewable
 	}
 	if strings.EqualFold(filepath.Ext(opts.Path), ".mmd") {
-		return Doc{Title: fileTitle(opts.Path), HTML: mermaidHTML(src)}
+		return Doc{Title: docext.FileTitle(opts.Path), HTML: mermaidHTML(src)}
 	}
 	ctx := parser.NewContext()
 	ctx.Set(stateKey, &state{opts: opts})
 	root := markdown.Parser().Parse(text.NewReader(src), parser.WithContext(ctx))
-	title := headingTitle(root, src)
+	title := docext.HeadingTitle(root, src)
 	if title == "" {
-		title = fileTitle(opts.Path)
+		title = docext.FileTitle(opts.Path)
 	}
 	var buf bytes.Buffer
 	if err := markdown.Renderer().Render(&buf, src, root); err != nil {
@@ -58,13 +57,7 @@ func Render(src []byte, opts Options) Doc {
 }
 
 func Artifact(src []byte, path string) Doc {
-	title := fileTitle(path)
-	if m := titleTag.FindSubmatch(src); m != nil {
-		if t := strings.Join(strings.Fields(html.UnescapeString(string(m[1]))), " "); t != "" {
-			title = t
-		}
-	}
-	return Doc{Title: title, HTML: string(src)}
+	return Doc{Title: docext.ArtifactTitle(src, path), HTML: string(src)}
 }
 
 func viewable(path string) bool {
@@ -135,7 +128,6 @@ func (nodeRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 }
 
 var (
-	titleTag    = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
 	stateKey    = parser.NewContextKey()
 	kindMermaid = ast.NewNodeKind("DocMermaid")
 	markdown    = goldmark.New(
@@ -172,47 +164,6 @@ func lines(n ast.Node, src []byte) []byte {
 		buf.Write(seg.Value(src))
 	}
 	return buf.Bytes()
-}
-
-func headingTitle(root ast.Node, src []byte) string {
-	var title string
-	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		h, ok := n.(*ast.Heading)
-		if !entering || !ok || h.Level != 1 {
-			return ast.WalkContinue, nil
-		}
-		title = plainText(h, src)
-		return ast.WalkStop, nil
-	})
-	return strings.TrimSpace(title)
-}
-
-func fileTitle(path string) string {
-	if path == "" {
-		return ""
-	}
-	base := filepath.Base(path)
-	return strings.TrimSuffix(base, filepath.Ext(base))
-}
-
-func plainText(n ast.Node, src []byte) string {
-	var b strings.Builder
-	_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		switch c := c.(type) {
-		case *ast.Text:
-			b.Write(c.Value(src))
-			if c.SoftLineBreak() || c.HardLineBreak() {
-				b.WriteByte(' ')
-			}
-		case *ast.String:
-			b.Write(c.Value)
-		}
-		return ast.WalkContinue, nil
-	})
-	return string(util.ResolveNumericReferences(util.ResolveEntityNames(util.UnescapePunctuations([]byte(b.String())))))
 }
 
 func unwrap(n ast.Node, extra ...ast.Node) {

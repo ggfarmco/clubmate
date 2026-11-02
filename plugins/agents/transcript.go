@@ -95,6 +95,7 @@ type entry struct {
 	Compaction *compaction       `json:"compaction,omitempty"`
 	Doc        string            `json:"doc,omitempty"`
 	DocLinks   map[string]string `json:"docLinks,omitempty"`
+	DocCards   []sdui.DocCard    `json:"docCards,omitempty"`
 	Voice      *voicePrompt      `json:"voice,omitempty"`
 
 	node   *nodeCache

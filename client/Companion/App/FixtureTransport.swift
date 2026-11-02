@@ -146,7 +146,11 @@ actor FixtureServer {
         if sessions.count > 1, let id = sessions[1]["id"]?.stringValue {
             transcripts[id] = ["entries": .array([
                 Self.entry("user", "prompt-1", text: "Explain the checkout flow"),
-                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge* ([the retries plan](docs/checkout-retries.md)).\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider, see `docs/payments.md`\n\nShould I add retries to the charge step?", docLinks: ["docs/checkout-retries.md": "/Users/me/src/shop/docs/checkout-retries.md", "docs/payments.md": "/Users/me/src/shop/docs/payments.md"]),
+                Self.entry("agent", "agent-1", text: "Checkout runs in three steps: *validate*, *reserve*, *charge* ([the retries plan](docs/checkout-retries.md)).\n\n- **validate** checks the cart\n- **reserve** holds stock for 10 minutes\n- **charge** calls the payment provider, see `docs/payments.md`\n\nThe flow is drawn in `docs/checkout-flow.mmd`, the numbers are in `docs/conversion.html`.\n\nShould I add retries to the charge step?", docLinks: ["docs/checkout-retries.md": "/Users/me/src/shop/docs/checkout-retries.md", "docs/payments.md": "/Users/me/src/shop/docs/payments.md", "docs/checkout-flow.mmd": "/Users/me/src/shop/docs/checkout-flow.mmd", "docs/conversion.html": "/Users/me/src/shop/docs/conversion.html"], docCards: [
+                    Self.docCard("/Users/me/src/shop/docs/checkout-retries.md", kind: "markdown", title: "Checkout retries"),
+                    Self.docCard("/Users/me/src/shop/docs/checkout-flow.mmd", kind: "mermaid", title: "checkout-flow"),
+                    Self.docCard("/Users/me/src/shop/docs/conversion.html", kind: "artifact", title: "Checkout conversion"),
+                ]),
             ])]
         }
         transcripts["agt_00000000000000a1"] = ["session": .object(Self.session(sessions.first ?? [:], id: "agt_00000000000000a1", title: "Voice", status: "idle", ago: 60)), "entries": .array([
@@ -650,10 +654,15 @@ actor FixtureServer {
         return .object(["kind": .string("user"), "id": .string(id), "turn": .number(1), "from": .string("voice"), "text": .string(text), "voice": .object(["heard": .string(heard), "utterance": .string("vu_fixture")])])
     }
 
-    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:]) -> JSONValue {
+    private static func entry(_ kind: String, _ id: String, text: String, docLinks: [String: String] = [:], docCards: [JSONValue] = []) -> JSONValue {
         var fields: [String: JSONValue] = ["kind": .string(kind), "id": .string(id), "turn": .number(1), "text": .string(text)]
         if !docLinks.isEmpty { fields["docLinks"] = .object(docLinks.mapValues(JSONValue.string)) }
+        if !docCards.isEmpty { fields["docCards"] = .array(docCards) }
         return .object(fields)
+    }
+
+    private static func docCard(_ path: String, kind: String, title: String) -> JSONValue {
+        .object(["path": .string(path), "kind": .string(kind), "title": .string(title), "rel": .string(path.replacingOccurrences(of: "/Users/me/src/shop/", with: ""))])
     }
 
     private static func session(_ template: [String: JSONValue], id: String, title: String, status: String, ago: TimeInterval, activity: String? = nil) -> [String: JSONValue] {

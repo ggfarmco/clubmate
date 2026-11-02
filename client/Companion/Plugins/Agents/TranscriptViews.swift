@@ -12,8 +12,8 @@ struct RowView: View {
         case .entry(let entry):
             EntryView(entry: entry)
                 .opacity(entry.isOutgoing ? 0.6 : 1)
-        case .agent(_, let blocks, let docLinks):
-            MarkdownView(blocks: blocks, docLinks: docLinks)
+        case .agent(_, let blocks, let docLinks, let docCards):
+            AgentMessage(cards: docCards) { MarkdownView(blocks: blocks, docLinks: docLinks) }
         case .tools(_, let group):
             if group.calls.count == 1 {
                 ToolRow(tool: group.calls[0])
@@ -40,7 +40,7 @@ struct EntryView: View {
         case .voice(let prompt):
             VoicePromptRow(prompt: prompt)
         case .agent(let text):
-            MarkdownView(text: text, docLinks: entry.docLinks)
+            AgentMessage(cards: entry.docCards) { MarkdownView(text: text, docLinks: entry.docLinks) }
         case .thought(let text):
             ThoughtView(text: text, title: "Thought")
         case .tool(let tool):
@@ -210,6 +210,80 @@ private struct UserText: View {
             Text(Markdown.inline(text))
                 .textSelection(.enabled)
         }
+    }
+}
+
+struct AgentMessage<Content: View>: View {
+    let cards: [DocCard]
+    @ViewBuilder let text: Content
+    @Environment(\.openDoc) private var openDoc
+
+    var body: some View {
+        if cards.isEmpty || openDoc == nil {
+            text
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                text
+                ForEach(cards) { card in
+                    DocCardButton(card: card) { openDoc?(card.path) }
+                }
+            }
+        }
+    }
+}
+
+private struct DocCardButton: View {
+    let card: DocCard
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: card.kind.symbol)
+                    .font(.body)
+                    .foregroundStyle(.tint)
+                    .frame(width: 40, height: 40)
+                    .background(.tint.opacity(0.18), in: .rect(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(card.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    HStack(spacing: 0) {
+                        Text("\(card.kind.label) · ")
+                            .fixedSize()
+                        Text(card.rel)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+                Image(systemName: "arrow.up.forward.square")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .background(Color.surface1, in: .rect(cornerRadius: 20))
+            .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(.separator, lineWidth: 0.5) }
+            .contentShape(.rect(cornerRadius: 20))
+        }
+        .buttonStyle(DocCardPressStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Open \(card.title)")
+        .accessibilityValue(card.subtitle)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+private struct DocCardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 

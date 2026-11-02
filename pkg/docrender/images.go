@@ -12,6 +12,8 @@ import (
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/util"
+
+	"clubmate/pkg/docext"
 )
 
 type inlineImage struct {
@@ -50,7 +52,7 @@ func (s *state) image(n *ast.Image, src []byte) {
 	uri, tooLarge := s.load(string(n.Destination))
 	switch {
 	case uri != "":
-		img := &inlineImage{src: []byte(uri), alt: []byte(plainText(n, src)), title: n.Title}
+		img := &inlineImage{src: []byte(uri), alt: []byte(docext.PlainText(n, src)), title: n.Title}
 		n.Parent().ReplaceChild(n.Parent(), n, img)
 	case tooLarge:
 		unwrap(n, &notice{text: "image too large"})

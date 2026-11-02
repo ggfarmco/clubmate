@@ -24,11 +24,16 @@ struct MessageNodeView: View, Equatable {
         case .thought:
             ThoughtView(text: text, seconds: node.props["seconds"]?.numberValue.map(Int.init))
         case .agent:
-            MarkdownText(text: text, docLinks: node.docLinks) { [node, dispatch] target in
-                dispatch(node, .named("openDoc", .string(target)))
+            let open = { [node, dispatch] (target: String) in dispatch(node, .named("openDoc", .string(target))) }
+            VStack(alignment: .leading, spacing: theme.spacing.l) {
+                MarkdownText(text: text, docLinks: node.docLinks, openDoc: open)
+                    .equatable()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                let cards = node.docCards
+                if !cards.isEmpty {
+                    DocCards(cards: cards, open: open)
+                }
             }
-            .equatable()
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

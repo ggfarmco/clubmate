@@ -275,6 +275,10 @@ extension SDUINode {
         props["docLinks"]?.objectValue?.compactMapValues(\.stringValue) ?? [:]
     }
 
+    public var docCards: [DocCard] {
+        DocCard.list(props["docCards"])
+    }
+
     public func items() -> [SDUIItem] {
         props["items"]?.arrayValue?.compactMap(SDUIItem.init) ?? []
     }

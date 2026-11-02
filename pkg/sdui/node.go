@@ -90,6 +90,13 @@ type Attachment struct {
 	EndLine   int    `json:"endLine,omitempty"`
 }
 
+type DocCard struct {
+	Path  string `json:"path"`
+	Kind  string `json:"kind"`
+	Title string `json:"title"`
+	Rel   string `json:"rel"`
+}
+
 type PlanEntry struct {
 	Content string `json:"content"`
 	Status  string `json:"status"`
