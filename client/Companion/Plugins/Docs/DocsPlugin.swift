@@ -66,6 +66,7 @@ private struct DocsListContent: View {
         let agent = docs.filter(\.agent)
         let other = docs.filter { !$0.agent }
         List {
+            WorkspaceTabs(context: context)
             if context.connection.state != .online {
                 Section {
                     ConnectionBanner(connection: context.connection)

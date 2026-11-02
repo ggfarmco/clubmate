@@ -82,6 +82,7 @@ struct SessionListView: View {
             context.navigation.detail = id
             if id != nil { context.navigation.preferredColumn = .detail }
         })) {
+            WorkspaceTabs(context: context)
             if context.connection.state != .online {
                 Section {
                     ConnectionBanner(connection: context.connection)

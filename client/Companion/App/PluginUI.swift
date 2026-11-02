@@ -45,16 +45,20 @@ struct WorkspaceTabs: View {
     let context: PluginContext
 
     var body: some View {
-        let tabs = CompanionPlugins.inWorkspace(context.connection)
+        let tabs = context.navigation.layout == .compact ? CompanionPlugins.inWorkspace(context.connection) : []
         if tabs.count > 1 {
-            Picker("Section", selection: context.section) {
-                ForEach(tabs, id: \.id) { plugin in
-                    Text(plugin.title).tag(plugin.id)
+            Section {
+            } header: {
+                Picker("Section", selection: context.section) {
+                    ForEach(tabs, id: \.id) { plugin in
+                        Text(plugin.title).tag(plugin.id)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 8)
+                .listRowInsets(EdgeInsets())
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.bottom, 8)
+            .listSectionSpacing(0)
         }
     }
 }
@@ -66,7 +70,6 @@ struct WorkspaceChrome: ViewModifier {
     func body(content: Content) -> some View {
         if context.navigation.layout == .compact {
             content
-                .safeAreaBar(edge: .top) { WorkspaceTabs(context: context) }
                 .navigationTitle(title)
                 .navigationSubtitle("\(context.connection.computer.name) · \(context.connection.presence)")
                 .toolbar { MacSubtitle(text: context.model.tag(context.connection.computer.id)?.lead(context.connection.presence)) }
