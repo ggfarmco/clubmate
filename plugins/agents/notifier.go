@@ -16,6 +16,9 @@ const (
 	changeCreated  = api.ChangeCreated
 	changeDeleted  = api.ChangeDeleted
 	changeResolved = api.ChangeResolved
+
+	notifyPermission = "permission"
+	notifyQuestion   = "question"
 )
 
 type notifier struct {
@@ -25,7 +28,16 @@ type notifier struct {
 	seen  map[change]bool
 	saves map[*session]bool
 	turns []api.Turn
+	asks  []change
 	wake  chan struct{}
+}
+
+type notifyPost struct {
+	WorkspaceID string `json:"workspaceId"`
+	Session     string `json:"session"`
+	Title       string `json:"title,omitempty"`
+	Message     string `json:"message"`
+	Kind        string `json:"kind"`
 }
 
 type change struct {
@@ -66,6 +78,13 @@ func (n *notifier) resolved(s *session, kind, request string) {
 	n.poke()
 }
 
+func (n *notifier) requested(s *session, kind, request string) {
+	n.mu.Lock()
+	n.asks = append(n.asks, change{session: s, request: request, requestKind: kind})
+	n.mu.Unlock()
+	n.poke()
+}
+
 func (n *notifier) turn(p api.Turn) {
 	n.mu.Lock()
 	n.turns = append(n.turns, p)
@@ -83,8 +102,8 @@ func (n *notifier) poke() {
 func (n *notifier) run() {
 	for range n.wake {
 		n.mu.Lock()
-		order, saves, turns := n.order, n.saves, n.turns
-		n.order, n.seen, n.saves, n.turns = nil, map[change]bool{}, map[*session]bool{}, nil
+		order, saves, turns, asks := n.order, n.saves, n.turns, n.asks
+		n.order, n.seen, n.saves, n.turns, n.asks = nil, map[change]bool{}, map[*session]bool{}, nil, nil
 		n.mu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		for s := range saves {
@@ -101,7 +120,29 @@ func (n *notifier) run() {
 				fmt.Fprintln(os.Stderr, "agents: publish:", err)
 			}
 		}
+		for _, c := range asks {
+			n.notify(ctx, c)
+		}
 		cancel()
+	}
+}
+
+func (n *notifier) notify(ctx context.Context, c change) {
+	summary := c.session.requestSummary(c.requestKind, c.request)
+	if summary == nil {
+		return
+	}
+	rec := c.session.snapshot()
+	kind, message := notifyPermission, "Permission needed"
+	if c.requestKind == entryElicitation {
+		kind, message = notifyQuestion, "Question"
+	}
+	if summary.Text != "" {
+		message = summary.Text
+	}
+	req := notifyPost{WorkspaceID: rec.Workspace, Session: rec.ID, Title: rec.Title, Message: message, Kind: kind}
+	if err := n.host.Call(ctx, "notify.post", req, nil); err != nil {
+		fmt.Fprintln(os.Stderr, "agents: notify:", err)
 	}
 }
 

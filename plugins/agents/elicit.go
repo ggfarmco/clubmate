@@ -189,6 +189,9 @@ func (s *session) requestElicitation(ctx context.Context, request string, params
 	s.mu.Unlock()
 	s.turned(waiting)
 	s.changed(changeStatus, true)
+	if s.requested != nil {
+		s.requested(entryElicitation, id)
+	}
 	out := acp.ElicitationResponse{Action: acp.ElicitationCancel}
 	select {
 	case out = <-perm.elicit:

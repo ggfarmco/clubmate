@@ -573,6 +573,41 @@ func TestAnsweredPermissionPublishesResolved(t *testing.T) {
 	f.waitResolved(t, api.Changed{Workspace: workspace, Session: session, Kind: api.ChangeResolved, Request: perms[0].ID, RequestKind: api.RequestPermission})
 }
 
+func TestPendingRequestsPostNotifications(t *testing.T) {
+	f := start(t, map[string]any{"prompt": []map[string]any{{"permission": permissionScript()}, {"elicitation": askScript(false)}}})
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+
+	f.prompt(t, workspace, session, "go")
+	f.waitStatus(t, workspace, session, "waiting")
+	perms := ofKind(f.transcript(t, workspace, session).Entries, "permission")
+	require.Len(t, perms, 1)
+	f.answerPermission(t, workspace, session, perms[0].ID)
+	f.waitStatus(t, workspace, session, "waiting")
+
+	title := f.session(t, workspace, session).Title
+	type posted struct {
+		Workspace, Session, Title, Message, Kind string
+	}
+	want := []posted{
+		{workspace, session, title, "Run tests", "permission"},
+		{workspace, session, title, "Which store?", "question"},
+	}
+	var got []posted
+	testutil.Eventually(t, func() bool {
+		events, err := f.h.Bus.Read(t.Context(), "notify.posted", 0, 100)
+		require.NoError(t, err)
+		got = got[:0]
+		for _, e := range events {
+			var p posted
+			require.NoError(t, json.Unmarshal(e.Payload, &p))
+			got = append(got, p)
+		}
+		return len(got) == len(want)
+	}, wait)
+	assert.Equal(t, want, got)
+}
+
 func (f *fixture) waitResolved(t *testing.T, want api.Changed) {
 	t.Helper()
 	testutil.Eventually(t, func() bool {

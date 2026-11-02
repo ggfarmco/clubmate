@@ -37,6 +37,9 @@ func (s *session) requestPermission(ctx context.Context, request string, params 
 	s.mu.Unlock()
 	s.turned(waiting)
 	s.changed(changeStatus, true)
+	if s.requested != nil {
+		s.requested(entryPermission, id)
+	}
 	var out acp.PermissionOutcome
 	select {
 	case out = <-perm.reply:
@@ -83,13 +86,32 @@ func (s *session) permissionSummary() *pendingSummary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, en := range s.entries {
-		perm := s.perms[en.ID]
-		if perm != nil && en.Kind == entryElicitation && en.Elicitation != nil {
-			return &pendingSummary{Kind: pendingQuestion, Text: clipRunes(firstLine(en.Elicitation.Message), summaryRunes), At: perm.at}
+		if summary := s.summaryLocked(en); summary != nil {
+			return summary
 		}
-		if en.Kind != entryPermission || perm == nil {
-			continue
-		}
+	}
+	return nil
+}
+
+func (s *session) requestSummary(kind, id string) *pendingSummary {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i, ok := s.index[key(kind, id)]
+	if !ok {
+		return nil
+	}
+	return s.summaryLocked(s.entries[i])
+}
+
+func (s *session) summaryLocked(en *entry) *pendingSummary {
+	perm := s.perms[en.ID]
+	if perm == nil {
+		return nil
+	}
+	switch {
+	case en.Kind == entryElicitation && en.Elicitation != nil:
+		return &pendingSummary{Kind: pendingQuestion, Text: clipRunes(firstLine(en.Elicitation.Message), summaryRunes), At: perm.at}
+	case en.Kind == entryPermission:
 		var call toolFields
 		_ = json.Unmarshal(en.ToolCall, &call)
 		text := call.Title

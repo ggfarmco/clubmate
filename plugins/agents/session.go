@@ -22,6 +22,7 @@ type session struct {
 	turned    func(api.Turn)
 	idled     func()
 	resolved  func(kind, request string)
+	requested func(kind, request string)
 	setup     *setup
 
 	transcriptState
