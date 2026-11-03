@@ -47,6 +47,7 @@ struct ClubmateApp: App {
         Settings {
             SettingsView(settings: app.settings)
                 .environment(app)
+                .modifier(SettingsTheme(settings: app.settings))
         }
     }
 }

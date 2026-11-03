@@ -7,6 +7,7 @@ struct SettingsView: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.appearsActive) private var appearsActive
+    @Environment(\.theme) private var theme
     @State private var page = SettingsPage.initial
     @State private var plugins = SettingsPlugins()
 
@@ -26,13 +27,21 @@ struct SettingsView: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(theme.surface1)
             .frame(width: 190)
-            Divider()
+            Rectangle().fill(theme.border).frame(width: 1)
             detail
+                .scrollContentBackground(.hidden)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(theme.background)
         }
         .frame(width: 720, height: 560)
+        .tint(theme.accentInk)
+        .background(WindowObserver { } onAttach: { [surface = NSColor(theme.surface1), dark = theme.isDark] window in
+            window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            window.titlebarAppearsTransparent = true
+            window.backgroundColor = surface
+        } onClose: { })
         .onAppear { if page == .general { page = .initial } }
         .task(id: SettingsFollowKey(client: app.supervisor.client.map(ObjectIdentifier.init), active: appearsActive)) {
             await plugins.follow(app.supervisor.client, active: appearsActive)

@@ -24,6 +24,7 @@ struct WorkspaceWindow: View {
             .toolbar { toolbarItems }
             .toolbarBackground(theme.surface1, for: .windowToolbar)
             .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+            .background(FullScreenTitlebar(color: NSColor(theme.surface1)))
             .modifier(WorkspacePresenters(windowID: $windowID))
             .focusedSceneValue(\.workspaceWindowID, windowID)
             .background(WindowObserver { [app, windowID] in
