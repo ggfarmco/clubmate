@@ -51,11 +51,12 @@ func TestSidebarFiltersByTag(t *testing.T) {
 		{ID: 1, Title: "Mic", Status: statusTodo, Priority: priorityNormal, Tags: []string{"audio", "phone"}},
 		{ID: 2, Title: "Push", Status: statusTodo, Priority: priorityNormal, Tags: []string{"phone"}},
 		{ID: 3, Title: "Plain", Status: statusIdea, Priority: priorityNormal},
+		{ID: 4, Title: "Shipped", Status: statusDone, Priority: priorityNormal, Tags: []string{"phone", "old"}},
 	}
 	side := sidebarView(tasks, "", nil, 0, "audio")
 	tabs, ok := findNode(side, "tags")
 	require.True(t, ok)
-	assert.Equal(t, []sdui.Item{{ID: "all", Label: "All", Badge: "3"}, {ID: "tag:phone", Label: "phone", Badge: "2"}, {ID: "tag:audio", Label: "audio", Badge: "1"}}, tabs.Props["items"])
+	assert.Equal(t, []sdui.Item{{ID: "all", Label: "All", Badge: "4"}, {ID: "tag:phone", Label: "phone", Badge: "2"}, {ID: "tag:audio", Label: "audio", Badge: "1"}}, tabs.Props["items"])
 	assert.Equal(t, "tag:audio", tabs.Props["selected"])
 	tree, ok := findNode(side, "tasks")
 	require.True(t, ok)

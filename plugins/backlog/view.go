@@ -64,6 +64,9 @@ func labelOf(owners map[string]string, owner string) string {
 func tagCounts(tasks []Task) map[string]int {
 	counts := map[string]int{}
 	for _, t := range tasks {
+		if t.Status == statusDone {
+			continue
+		}
 		for _, tag := range t.Tags {
 			counts[tag]++
 		}
