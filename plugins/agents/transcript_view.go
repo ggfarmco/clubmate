@@ -158,7 +158,11 @@ func transcript(sc screen) sdui.Node {
 		}
 		nodes = slices.Insert(nodes, 0, sdui.WithAction(sdui.Button(sid+"/earlier", label, "chevron.up"), actShowEarlier))
 	}
-	return sdui.Transcript(sid+"/transcript", nodes...)
+	n := sdui.Transcript(sid+"/transcript", nodes...)
+	if sc.Anchor != "" {
+		n = sdui.WithAnchorRev(sdui.WithAnchor(n, sc.Anchor), sc.AnchorRev)
+	}
+	return n
 }
 
 func shownPrompt(text string) string {

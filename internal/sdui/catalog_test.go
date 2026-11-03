@@ -288,3 +288,11 @@ func TestTableValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestGraphRejectsUnknownEdgeState(t *testing.T) {
+	n := sdui.Graph("run", sdui.GraphProps{
+		Nodes: []sdui.GraphNode{{ID: "a", Label: "A", State: "not started", Outs: []sdui.GraphOut{{ID: "done", Label: "done", State: "never"}}}},
+		Edges: []sdui.GraphEdge{{From: "a", Out: "done", To: "a", State: "maybe"}},
+	})
+	assert.ErrorContains(t, internalsdui.Validate(n), "prop edges: [0]: state")
+}

@@ -30,6 +30,7 @@ const (
 	actRemove   = "remove"
 	timeLayout  = "2006-01-02T15:04:05Z"
 	whenLayout  = "Jan 2 15:04"
+	clockLayout = "15:04"
 	maxBrief    = 160
 	descLines   = 3
 )
@@ -172,8 +173,7 @@ func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
 		definition = "Built into Clubmate"
 	}
 	rows = append(rows, automation.Property("Definition", definition, ""))
-	nodes := sdui.Table(tableID, nodeColumns, nodeRows(r, sessions), "", sdui.Sort{})
-	return sdui.VStack(runHeader(r, sessions), automation.Properties(rows...), sdui.Scroll(nodes))
+	return sdui.VStack(runHeader(r, sessions), automation.Properties(rows...), runDiagram(r, sessions))
 }
 
 func emptyView() sdui.Node {
@@ -217,31 +217,6 @@ func attentionNode(r *Run, sessions map[string]api.Session) (*RunNode, string) {
 	return nil, ""
 }
 
-var nodeColumns = []sdui.Column{
-	{ID: "node", Title: "Node"},
-	{ID: "state", Title: "State"},
-	{ID: "session", Title: "Session", Priority: 1},
-}
-
-func nodeRows(r *Run, sessions map[string]api.Session) []sdui.TableRow {
-	rows := make([]sdui.TableRow, 0, len(r.Nodes)+len(r.Edges))
-	for _, n := range r.Nodes {
-		s := sessions[n.Session]
-		status := nodeStatus(s, sessions != nil)
-		label := n.Role
-		if n.Start {
-			label += " · start"
-		}
-		rows = append(rows, sdui.TableRow{
-			ID:    n.ID,
-			Muted: r.Status != statusRunning,
-			Cells: []sdui.Cell{{Text: label}, {Text: stateLabel(status, false), Tone: cellTone(status)}, {Text: sessionLabel(s, status)}},
-		})
-		rows = append(rows, edgeRows(r, n.ID)...)
-	}
-	return rows
-}
-
 func edgeRows(r *Run, from string) []sdui.TableRow {
 	var targets []string
 	ons := map[string][]string{}
@@ -266,14 +241,11 @@ func edgeRows(r *Run, from string) []sdui.TableRow {
 	return rows
 }
 
-func sessionLabel(s api.Session, status string) string {
-	switch status {
-	case "idle":
-		return "not started"
-	case "gone", "unknown":
-		return ""
+func edgeLabel(e RunEdge) string {
+	if e.On == onOutcome {
+		return "on outcome " + e.Outcome
 	}
-	return s.Title
+	return "on " + e.On
 }
 
 func roleOf(r *Run, id string) string {
@@ -292,8 +264,6 @@ func stateLabel(status string, short bool) string {
 		return "waiting for you"
 	case "error":
 		return "failed"
-	case "gone":
-		return "session closed"
 	}
 	return status
 }
@@ -326,14 +296,24 @@ func runIcon(r *Run, live string) (string, string) {
 	switch {
 	case r.Status != statusRunning:
 		return "stop.circle", ""
-	case live == "waiting":
-		return "exclamationmark.circle", statusTone(live)
-	case live == "error":
-		return "xmark.circle", statusTone(live)
-	case live == "running":
-		return "play.circle", statusTone(live)
+	case slices.Contains(liveOrder, live):
+		return statusIcon(live), statusTone(live)
 	}
 	return graphIcon, ""
+}
+
+func statusIcon(status string) string {
+	switch status {
+	case "waiting":
+		return "exclamationmark.circle"
+	case "error":
+		return "xmark.circle"
+	case "running":
+		return "play.circle"
+	case "idle":
+		return "circle.dashed"
+	}
+	return "checkmark.circle"
 }
 
 func runMenu(r *Run) []sdui.MenuEntry {
@@ -351,13 +331,6 @@ func removeConfirm(r *Run) string {
 	return "Remove graph run “" + r.Title + "” from the list? Its sessions stay open."
 }
 
-func edgeLabel(e RunEdge) string {
-	if e.On == onOutcome {
-		return "on outcome " + e.Outcome
-	}
-	return "on " + e.On
-}
-
 func statusTone(status string) string {
 	switch status {
 	case "running":
@@ -372,18 +345,6 @@ func statusTone(status string) string {
 	return "neutral"
 }
 
-func cellTone(status string) string {
-	switch status {
-	case "waiting":
-		return "warn"
-	case "done":
-		return "ok"
-	case "error", "gone":
-		return "danger"
-	}
-	return ""
-}
-
 func firstLine(s string) string {
 	line, _, cut := strings.Cut(strings.TrimSpace(s), "\n")
 	if runes := []rune(line); len(runes) > maxBrief {
@@ -393,4 +354,167 @@ func firstLine(s string) string {
 		line += "…"
 	}
 	return line
+}
+
+func runDiagram(r *Run, sessions map[string]api.Session) sdui.Node {
+	last, counts, end := r.lastEdges(), r.edgeCounts(), r.endMove()
+	nodes := make([]sdui.GraphNode, 0, len(r.Nodes))
+	for _, n := range r.Nodes {
+		nodes = append(nodes, graphNode(r, n, sessions, end, last, counts))
+	}
+	edges := make([]sdui.GraphEdge, 0, len(r.Edges))
+	for i, e := range r.Edges {
+		edges = append(edges, sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: edgeState(slices.Contains(last, i), counts[i])})
+	}
+	return sdui.Graph(r.ID+"/graph", sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end), Reached: end >= 0})
+}
+
+func graphNode(r *Run, n RunNode, sessions map[string]api.Session, end int, last, counts []int) sdui.GraphNode {
+	s := sessions[n.Session]
+	status := nodeStatus(s, sessions != nil)
+	turns, moved := 0, false
+	for _, m := range r.Moves {
+		if m.Node == n.ID {
+			moved = true
+			if !m.Open {
+				turns++
+			}
+		}
+	}
+	outcome := ""
+	if end >= 0 && r.Moves[end].Node == n.ID {
+		outcome = r.Moves[end].End
+	}
+	state, glyph := nodeState(status, turnsLabel(r, turns), !moved && (len(r.Moves) > 0 || status == "idle"), outcome)
+	return sdui.GraphNode{
+		ID:        n.ID,
+		Label:     n.Role,
+		State:     state,
+		Tone:      statusTone(glyph),
+		Icon:      statusIcon(glyph),
+		Attention: glyph == "waiting",
+		Pending:   glyph == "idle",
+		Start:     n.Start,
+		Tooltip:   s.Title,
+		Outs:      graphOuts(r, n.ID, end, last, counts),
+	}
+}
+
+func nodeState(status, turns string, pending bool, outcome string) (string, string) {
+	switch {
+	case outcome != "":
+		return outcome, "done"
+	case status == "waiting" || status == "error":
+		return stateLabel(status, false), status
+	case status == "running":
+		return status, status
+	case status == "gone" || status == api.StatusClosed:
+		return "closed" + turns, "done"
+	case pending:
+		return "not started", "idle"
+	}
+	return "idle" + turns, "done"
+}
+
+func turnsLabel(r *Run, turns int) string {
+	if len(r.Moves) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" · %d turns", turns)
+}
+
+func graphOuts(r *Run, node string, end int, last, counts []int) []sdui.GraphOut {
+	var spec *Node
+	if r.Spec != nil {
+		spec = r.Spec.node(node)
+	}
+	var ids []string
+	if spec != nil {
+		ids = slices.Clone(spec.Outcomes)
+	}
+	for _, e := range r.Edges {
+		if e.From == node && !slices.Contains(ids, edgeOut(e)) {
+			ids = append(ids, edgeOut(e))
+		}
+	}
+	outs := make([]sdui.GraphOut, 0, len(ids))
+	for _, id := range ids {
+		o := sdui.GraphOut{ID: id, Label: id, End: spec != nil && slices.Contains(spec.End, id)}
+		lit := false
+		for i, e := range r.Edges {
+			if e.From == node && edgeOut(e) == id {
+				o.Count = max(o.Count, counts[i])
+				lit = lit || slices.Contains(last, i)
+			}
+		}
+		if o.End {
+			ended := 0
+			for _, m := range r.Moves {
+				if m.Node == node && m.End == id {
+					ended++
+				}
+			}
+			o.Count = max(o.Count, ended)
+			lit = lit || end >= 0 && r.Moves[end].Node == node && r.Moves[end].End == id
+		}
+		o.State = edgeState(lit, o.Count)
+		outs = append(outs, o)
+	}
+	return outs
+}
+
+func graphMoves(r *Run, last []int, end int) []sdui.GraphMove {
+	running := r.Status == statusRunning
+	final := -1
+	for i, m := range r.Moves {
+		if m.Edge >= 0 {
+			final = i
+		}
+	}
+	moves := make([]sdui.GraphMove, 0, len(r.Moves))
+	for i, m := range r.Moves {
+		g := sdui.GraphMove{
+			Node:    m.Node,
+			Cause:   m.Cause,
+			Tooltip: fmt.Sprintf("move %d · %s · %s", i+1, roleOf(r, m.Node), m.At.Local().Format(clockLayout)),
+			Current: m.Open && running,
+			User:    m.User,
+		}
+		if m.User {
+			g.Label = "you"
+		}
+		if m.Edge >= 0 && m.Edge < len(r.Edges) {
+			g.Out = edgeOut(r.Edges[m.Edge])
+			g.Last = slices.Contains(last, m.Edge) && (g.Current || i == final)
+		}
+		if i == end {
+			g.End = m.End
+		}
+		moves = append(moves, g)
+	}
+	return moves
+}
+
+func (r *Run) endMove() int {
+	if r.Status == statusRunning {
+		return -1
+	}
+	return slices.IndexFunc(r.Moves, func(m Move) bool { return m.End != "" })
+}
+
+func edgeOut(e RunEdge) string {
+	if e.On == onOutcome {
+		return e.Outcome
+	}
+	return e.On
+}
+
+func edgeState(last bool, count int) string {
+	switch {
+	case last:
+		return "last"
+	case count > 0:
+		return "taken"
+	}
+	return "never"
 }

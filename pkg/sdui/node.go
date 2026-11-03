@@ -292,6 +292,69 @@ func Document(id string, p DocumentProps) Node {
 	return Node{Type: "document", ID: id, Props: props}
 }
 
+type GraphNode struct {
+	ID        string     `json:"id"`
+	Label     string     `json:"label"`
+	State     string     `json:"state"`
+	Tone      string     `json:"tone,omitempty"`
+	Icon      string     `json:"icon,omitempty"`
+	Attention bool       `json:"attention,omitempty"`
+	Pending   bool       `json:"pending,omitempty"`
+	Start     bool       `json:"start,omitempty"`
+	Tooltip   string     `json:"tooltip,omitempty"`
+	Outs      []GraphOut `json:"outs"`
+}
+
+type GraphOut struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Count int    `json:"count,omitempty"`
+	State string `json:"state"`
+	End   bool   `json:"end,omitempty"`
+}
+
+type GraphEdge struct {
+	From  string `json:"from"`
+	Out   string `json:"out"`
+	To    string `json:"to"`
+	State string `json:"state"`
+}
+
+type GraphMove struct {
+	Node    string `json:"node"`
+	Cause   int    `json:"cause"`
+	Label   string `json:"label,omitempty"`
+	Tooltip string `json:"tooltip"`
+	Out     string `json:"out,omitempty"`
+	Current bool   `json:"current,omitempty"`
+	User    bool   `json:"user,omitempty"`
+	Last    bool   `json:"last,omitempty"`
+	End     string `json:"end,omitempty"`
+}
+
+type GraphProps struct {
+	Nodes   []GraphNode
+	Edges   []GraphEdge
+	Moves   []GraphMove
+	Reached bool
+}
+
+func Graph(id string, p GraphProps) Node {
+	nodes := make([]GraphNode, len(p.Nodes))
+	for i, n := range p.Nodes {
+		n.Outs = nonNil(n.Outs)
+		nodes[i] = n
+	}
+	props := map[string]any{"nodes": nodes, "edges": nonNil(p.Edges)}
+	if len(p.Moves) > 0 {
+		props["moves"] = p.Moves
+	}
+	if p.Reached {
+		props["reached"] = true
+	}
+	return Node{Type: "graph", ID: id, Props: props}
+}
+
 func Button(id, label, icon string) Node {
 	return Node{Type: "button", ID: id, Props: withOptional(map[string]any{"label": label}, "icon", icon)}
 }
@@ -529,6 +592,14 @@ func WithLive(n Node) Node {
 
 func WithCopy(n Node, text string) Node {
 	return withProp(n, "copy", text)
+}
+
+func WithAnchor(n Node, id string) Node {
+	return withProp(n, "anchor", id)
+}
+
+func WithAnchorRev(n Node, rev int) Node {
+	return withProp(n, "anchorRev", rev)
 }
 
 func withProp(n Node, key string, value any) Node {

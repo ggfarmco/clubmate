@@ -137,6 +137,13 @@ func (s *session) turnStart() time.Time {
 	return s.started
 }
 
+func (s *session) currentTurn() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	return s.turn
+}
+
 func (s *session) activity() string {
 	title, _ := s.current()
 	return title

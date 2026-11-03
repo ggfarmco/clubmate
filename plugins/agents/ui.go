@@ -88,6 +88,9 @@ type sessionUI struct {
 	nextID      int
 	gen         int
 	signIn      string
+	anchor      string
+	anchorTurn  int
+	anchorRev   int
 
 	context         bool
 	contextSelected string
@@ -439,13 +442,19 @@ func (a *app) screen(ctx context.Context, workspaceID string, s *session) screen
 	advisor := a.sessionAdvisor(ctx, v.Session)
 	branch := branchLabel(a.branches.name(ctx, v.Session.Worktree))
 	ctxScreen := a.contextScreen(st, v.Session)
+	current := s.currentTurn()
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
+	if st.anchorTurn != current {
+		st.anchor, st.anchorTurn = "", 0
+	}
 	needsAuth, cannotResume := a.recoveryLocked(v.Session)
 	return screen{
 		View:        v,
 		Pending:     pending,
 		Window:      st.window,
+		Anchor:      st.anchor,
+		AnchorRev:   st.anchorRev,
 		Expanded:    maps.Clone(st.expanded),
 		Attachments: slices.Clone(st.attachments),
 		Queue:       queue,
@@ -629,6 +638,23 @@ func (a *app) reveal(ctx context.Context, workspaceID, sid string) error {
 		return err
 	}
 	return a.host.Focus(ctx, workspaceID, sectionID, mainSlot)
+}
+
+func (a *app) anchorTurn(workspaceID string, s *session, turn int) error {
+	v := s.view(turn)
+	i := slices.IndexFunc(v.Entries, func(en *entry) bool { return en.Kind == entryUser && en.Turn == turn })
+	if i < 0 {
+		return fmt.Errorf("%w: %d", errNoTurn, turn)
+	}
+	sid := v.Session.ID
+	st := a.sessionState(workspaceID, sid)
+	current := s.currentTurn()
+	a.uiMu.Lock()
+	defer a.uiMu.Unlock()
+	st.anchor, st.anchorTurn = sid+"/msg/"+entryUser+"/"+v.Entries[i].ID, current
+	st.anchorRev++
+	st.window = max(st.window, current-turn+1)
+	return nil
 }
 
 func (a *app) restoreCollapsed(ctx context.Context, workspaceID string) error {

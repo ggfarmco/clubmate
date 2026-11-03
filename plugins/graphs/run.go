@@ -44,6 +44,7 @@ type Run struct {
 	StoppedAt *time.Time `json:"stoppedAt,omitempty"`
 	Nodes     []RunNode  `json:"nodes"`
 	Edges     []RunEdge  `json:"edges"`
+	Moves     []Move     `json:"moves,omitempty"`
 	Spec      *Graph     `json:"spec,omitempty"`
 }
 
@@ -132,6 +133,11 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 	}
 	shape := runShape(g)
 	r.Nodes, r.Edges = shape.Nodes, shape.Edges
+	for _, n := range r.Nodes {
+		if n.Start {
+			r.startMove(n.ID, now)
+		}
+	}
 	return r, nil
 }
 

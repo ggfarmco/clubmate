@@ -366,7 +366,8 @@
         "description": "Select the session in the Agents section and focus its transcript; Cron and Backlog call it to show an owner or claimer.",
         "args": {
           "properties": {
-            "session": {"type": "string", "description": "Session id."}
+            "session": {"type": "string", "description": "Session id."},
+            "turn": {"type": "integer", "description": "Scroll the transcript to this turn (1-based) and keep it there until the session starts a new turn."}
           },
           "required": ["session"]
         }

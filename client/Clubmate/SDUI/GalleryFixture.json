@@ -46,7 +46,7 @@
         {
           "type": "transcript",
           "id": "gallery-transcript",
-          "props": {"center": true},
+          "props": {"center": true, "anchor": "m1", "anchorRev": 1},
           "children": [
             {"type": "message", "id": "m1", "props": {"role": "user", "text": "Fix the dark theme: my messages render as blank beige bars with invisible text."}},
             {"type": "message", "id": "m1-long", "props": {"role": "user", "text": "Crash after relaunch, log below\n1   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 8\n2   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 16\n3   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 24\n4   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 32\n5   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 40\n6   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 48\n7   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 56\n8   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 64\n9   libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 72\n10  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 80\n11  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 88\n12  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 96\n13  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 104\n14  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 112\n15  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 120\n16  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 128\n17  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 136\n18  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 144\n19  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 152\n20  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 160\n21  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 168\n22  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 176\n23  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 184\n24  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 192\n25  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 200\n26  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 208\n27  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 216\n28  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 224\n29  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 232\n30  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 240\n31  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 248\n32  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 256\n33  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 264\n34  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 272\n35  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 280\n36  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 288\n37  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 296\n38  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 304\n39  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 312\n40  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 320\n41  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 328\n42  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 336\n43  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 344\n44  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 352\n45  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 360\n46  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 368\n47  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 376\n48  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 384\n49  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 392\n50  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 400\n51  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 408\n52  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 416\n53  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 424\n54  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 432\n55  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 440\n56  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 448\n57  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 456\n58  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 464\n59  libsystem_kernel.dylib  0x10085cb5c mach_msg2_trap + 472"}},
@@ -233,6 +233,55 @@
                         "selected": "102"
                       }
                     },
+                    {"type": "graph", "id": "gallery-graph", "props": {
+                      "nodes": [
+                        {"id": "slicer", "label": "Slicer", "state": "idle · 3 turns", "tone": "success", "icon": "checkmark.circle", "start": true, "tooltip": "PR walkthrough · Slicer", "outs": [
+                          {"id": "step", "label": "step", "count": 3, "state": "last"},
+                          {"id": "complete", "label": "complete", "state": "never"}
+                        ]},
+                        {"id": "quizzer", "label": "Quizzer", "state": "waiting for you", "tone": "warning", "icon": "exclamationmark.circle", "attention": true, "tooltip": "PR walkthrough · Quizzer", "outs": [
+                          {"id": "understood", "label": "understood", "count": 1, "state": "taken"},
+                          {"id": "gaps", "label": "gaps", "count": 1, "state": "taken"},
+                          {"id": "finish", "label": "finish", "state": "never"}
+                        ]},
+                        {"id": "reconciler", "label": "Reconciler", "state": "not started", "pending": true, "outs": [
+                          {"id": "reported", "label": "reported", "state": "never", "end": true}
+                        ]}
+                      ],
+                      "edges": [
+                        {"from": "slicer", "out": "step", "to": "quizzer", "state": "last"},
+                        {"from": "slicer", "out": "complete", "to": "reconciler", "state": "never"},
+                        {"from": "quizzer", "out": "understood", "to": "slicer", "state": "taken"},
+                        {"from": "quizzer", "out": "gaps", "to": "slicer", "state": "taken"},
+                        {"from": "quizzer", "out": "finish", "to": "reconciler", "state": "never"}
+                      ],
+                      "moves": [
+                        {"node": "slicer", "cause": -1, "tooltip": "move 1 · Slicer · 23:20"},
+                        {"node": "quizzer", "cause": 0, "out": "step", "tooltip": "move 2 · Quizzer · 23:22"},
+                        {"node": "slicer", "cause": 1, "out": "understood", "tooltip": "move 3 · Slicer · 23:23"},
+                        {"node": "quizzer", "cause": 2, "out": "step", "tooltip": "move 4 · Quizzer · 23:25"},
+                        {"node": "slicer", "cause": 3, "out": "gaps", "tooltip": "move 5 · Slicer · 23:26"},
+                        {"node": "quizzer", "cause": 4, "out": "step", "tooltip": "move 6 · Quizzer · 23:27", "current": true, "last": true}
+                      ]
+                    }},
+                    {"type": "graph", "id": "gallery-graph-stopped", "props": {
+                      "nodes": [
+                        {"id": "coder", "label": "Coder", "state": "idle · 1 turns", "tone": "success", "icon": "checkmark.circle", "start": true, "outs": [{"id": "done", "label": "done", "count": 1, "state": "last"}]},
+                        {"id": "reviewer", "label": "Reviewer", "state": "approved", "tone": "success", "icon": "checkmark.circle", "outs": [
+                          {"id": "changes", "label": "changes", "state": "never"},
+                          {"id": "approved", "label": "approved", "count": 1, "state": "last", "end": true}
+                        ]}
+                      ],
+                      "edges": [
+                        {"from": "coder", "out": "done", "to": "reviewer", "state": "last"},
+                        {"from": "reviewer", "out": "changes", "to": "coder", "state": "never"}
+                      ],
+                      "moves": [
+                        {"node": "coder", "cause": -1, "tooltip": "move 1 · Coder · 10:02"},
+                        {"node": "reviewer", "cause": 0, "out": "done", "tooltip": "move 2 · Reviewer · 10:05", "last": true, "end": "approved"}
+                      ],
+                      "reached": true
+                    }},
                     {
                       "type": "stack",
                       "props": {"direction": "horizontal"},

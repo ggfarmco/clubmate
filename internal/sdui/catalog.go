@@ -28,6 +28,10 @@ const (
 	maxTreeSparkTotal = 100_000
 	minLines          = 2
 	maxLines          = 50
+
+	maxGraphNodes = 8
+	maxGraphEdges = 32
+	maxGraphMoves = 1000
 )
 
 var (
@@ -104,6 +108,23 @@ var (
 	countNumber    = number(func(n float64) bool { return n >= 0 && n == math.Trunc(n) }, "a non-negative integer")
 	priorityNumber = number(func(n float64) bool { return n >= 0 && n <= maxTableColumns && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxTableColumns))
 	depthNumber    = number(func(n float64) bool { return n >= 0 && n <= maxDepth && n == math.Trunc(n) }, fmt.Sprintf("an integer within 0…%d", maxDepth))
+	causeNumber    = number(func(n float64) bool { return n >= -1 && n == math.Trunc(n) }, "an integer ≥ -1")
+
+	graphStates = []string{"taken", "last", "never"}
+	graphOut    = objectCheck([]string{"id", "label", "state"}, map[string]propCheck{
+		"id": nonEmptyString, "label": isString, "count": countNumber, "state": oneOf(graphStates), "end": isBool,
+	})
+	graphNode = objectCheck([]string{"id", "label", "state", "outs"}, map[string]propCheck{
+		"id": uniqueItemID, "label": isString, "state": isString, "tone": oneOf(badgeTones), "icon": isString,
+		"attention": isBool, "pending": isBool, "start": isBool, "tooltip": isString, "outs": listOf(graphOut),
+	})
+	graphEdge = objectCheck([]string{"from", "out", "to", "state"}, map[string]propCheck{
+		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(graphStates),
+	})
+	graphMove = objectCheck([]string{"node", "cause", "tooltip"}, map[string]propCheck{
+		"node": nonEmptyString, "cause": causeNumber, "label": isString, "tooltip": isString, "out": isString,
+		"current": isBool, "user": isBool, "last": isBool, "end": nonEmptyString,
+	})
 
 	sparkValues = maxLen(maxSparkValues, sparkBudget(arrayOf(anyNumber)))
 	sparkFields = map[string]propCheck{"values": sparkValues, "max": positive}
@@ -202,7 +223,7 @@ var (
 			children: childRule{min: 0, max: 1, only: []string{"button"}},
 		},
 
-		"transcript": {props: map[string]propCheck{"center": isBool}, children: anyChildren},
+		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber}, children: anyChildren},
 		"message": {
 			required: []string{"role", "text"},
 			props:    map[string]propCheck{"role": oneOf(messageRoles), "text": isString, "attachments": attachmentsCheck, "from": isString, "seconds": countNumber, "heard": isString, "docLinks": stringMap, "docCards": docCardsCheck, "images": imageRefsCheck},
@@ -224,6 +245,17 @@ var (
 			props: map[string]propCheck{
 				"request": isString, "text": isString, "title": isString, "command": isString, "caption": isString,
 				"options": listOf(permissionOptionCheck), "outcome": isString, "action": actionCheck,
+			},
+			children:    noChildren,
+			interactive: true,
+		},
+		"graph": {
+			required: []string{"nodes", "edges"},
+			props: map[string]propCheck{
+				"nodes":   maxLen(maxGraphNodes, listOf(graphNode)),
+				"edges":   maxLen(maxGraphEdges, listOf(graphEdge)),
+				"moves":   maxLen(maxGraphMoves, listOf(graphMove)),
+				"reached": isBool,
 			},
 			children:    noChildren,
 			interactive: true,

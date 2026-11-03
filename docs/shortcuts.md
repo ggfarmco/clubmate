@@ -120,6 +120,20 @@ A click on a row, or focus moving to the main pane, focuses the table; the selec
 
 Keys with ⌘, ⌃, ⌥ or ⇧ pass through (⇧K stays the plugin's Kill). Defined in `SDUI/TableView.swift`, rows in `ClubmateKit/TableKeys.swift`.
 
+## Graph diagram (Graphs main pane focused)
+
+Focus moving to the Graphs main pane focuses the run's diagram; the focused card gets an accent ring (the node that needs you first, else the first card).
+
+| Keys | Action |
+|---|---|
+| j / k | Focus the next / previous card: layer by layer from the start, top to bottom inside a layer |
+| ↩ | Open the focused card's session (a click on a card does the same) |
+| - / + (=) / 0 | Zoom the diagram out / in (×1.25, 50…200%) / back to fit the pane width (never below 80%); the − + Fit buttons at its top-right do the same |
+| h | Open or close History under the diagram |
+| Pinch, ⌘/⌃+wheel | Zoom the diagram |
+
+Keys with ⌘, ⌃ or ⌥ pass through. The zoom level and History stay per run until the app quits. Defined in `SDUI/GraphNodeView.swift` (`ClubmateKit/GraphViewState.swift`).
+
 ## Agent composer (Agents section or Code chat panel, prompt focused)
 
 Focus moving to the Agents main pane (switching to the section, Esc or ⌃L/⌃H from the sessions tree) lands in the prompt when the session shows one. Switching back to a section returns focus to where it was when you left it (the prompt, the sessions tree, the terminal), unless that sidebar has been hidden since.

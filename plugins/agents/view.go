@@ -56,6 +56,8 @@ type screen struct {
 	Workspace   string
 	Pending     map[string]bool
 	Window      int
+	Anchor      string
+	AnchorRev   int
 	Expanded    map[string]bool
 	Attachments []pendingAttachment
 	Queue       []queuedPrompt

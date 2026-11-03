@@ -51,7 +51,7 @@ var (
 		"agents.close":          withSession((*app).closeCommand),
 		"agents.delete":         withSession((*app).deleteCommand),
 		"agents.resume":         withSession((*app).resumeCommand),
-		"agents.reveal":         withSession((*app).revealCommand),
+		"agents.reveal":         withArgs((*app).revealCommand),
 		"agents.reviewed":       withSession((*app).reviewedCommand),
 	}
 
@@ -72,6 +72,11 @@ type sessionArgs struct {
 type sessionsArgs struct {
 	Session string  `json:"session"`
 	Since   *string `json:"since"`
+}
+
+type revealArgs struct {
+	Session string `json:"session"`
+	Turn    int    `json:"turn"`
 }
 
 type subagentArgs struct {
@@ -453,7 +458,16 @@ func (a *app) resumeCommand(_ context.Context, _ pluginsdk.CommandRun, s *sessio
 	return nil, nil
 }
 
-func (a *app) revealCommand(ctx context.Context, cmd pluginsdk.CommandRun, s *session) (any, error) {
+func (a *app) revealCommand(ctx context.Context, cmd pluginsdk.CommandRun, args revealArgs) (any, error) {
+	s, err := a.lookup(cmd.WorkspaceID, args.Session)
+	if err != nil {
+		return nil, err
+	}
+	if args.Turn > 0 {
+		if err := a.anchorTurn(cmd.WorkspaceID, s, args.Turn); err != nil {
+			return nil, err
+		}
+	}
 	return nil, a.reveal(ctx, cmd.WorkspaceID, s.snapshot().ID)
 }
 

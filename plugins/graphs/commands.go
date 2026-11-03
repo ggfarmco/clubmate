@@ -254,6 +254,10 @@ func cloneRun(r *Run) *Run {
 	c := *r
 	c.Nodes = slices.Clone(r.Nodes)
 	c.Edges = slices.Clone(r.Edges)
+	c.Moves = slices.Clone(r.Moves)
+	for i := range c.Moves {
+		c.Moves[i].Fired = slices.Clone(c.Moves[i].Fired)
+	}
 	return &c
 }
 

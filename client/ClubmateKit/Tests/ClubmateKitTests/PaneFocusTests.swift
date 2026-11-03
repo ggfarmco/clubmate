@@ -25,6 +25,7 @@ final class PaneFocusTests: XCTestCase {
     func testHintsFollowThePaneState() {
         XCTAssertEqual(FocusedPane.tree(field: false).hints, "j/k · ↩ open")
         XCTAssertEqual(FocusedPane.list.hints, "j/k · ↩ open")
+        XCTAssertEqual(FocusedPane.graph.hints, "j/k · ↩ open · h history")
         XCTAssertEqual(FocusedPane.composer(running: false, queues: false).hints, "⌘↩ send")
         XCTAssertEqual(FocusedPane.composer(running: true, queues: true).hints, "⌘↩ queue · Esc stop")
         XCTAssertNil(FocusedPane.terminal.hints)

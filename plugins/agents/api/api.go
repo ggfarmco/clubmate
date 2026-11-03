@@ -46,6 +46,7 @@ type RunAfter struct {
 type Turn struct {
 	Workspace string `json:"workspace"`
 	Session   string `json:"session"`
+	Turn      int    `json:"turn"`
 	Status    string `json:"status"`
 	Asks      bool   `json:"asks"`
 	Finished  bool   `json:"finished"`

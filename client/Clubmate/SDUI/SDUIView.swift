@@ -261,6 +261,7 @@ struct SDUINodeView: View, Equatable {
         case "webview": WebViewHost(key: node.string("key") ?? "", url: node.string("url").flatMap(URL.init(string:)), rev: node.props["rev"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0)
         case "empty": EmptyNodeView(node: node)
         case "header": HeaderNodeView(node: node)
+        case "graph": GraphNodeView(node: node)
         default: UnsupportedNodeView(type: node.type)
         }
     }

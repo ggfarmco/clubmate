@@ -1405,6 +1405,51 @@ func TestRevealOpensTheGraphRunRow(t *testing.T) {
 	})
 }
 
+func TestRevealTurnAnchorsTranscript(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	for i, text := range []string{"one", "two"} {
+		f.prompt(t, workspace, session, text)
+		testutil.Eventually(t, func() bool { return len(f.turns(t, session)) == i+1 }, wait)
+	}
+	entries := f.transcript(t, workspace, session).Entries
+	second := entries[slices.IndexFunc(entries, func(e entry) bool { return e.Kind == "user" && e.Turn == 2 })]
+	anchor := func(n sdui.Node) any {
+		transcripts := cardsOf(n, "transcript")
+		if len(transcripts) == 0 {
+			return nil
+		}
+		return transcripts[0].Props["anchor"]
+	}
+
+	require.NoError(t, f.run(t, workspace, "agents.reveal", map[string]any{"session": session, "turn": 2}, nil))
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return anchor(n) == session+"/msg/user/"+second.ID })
+	require.NoError(t, f.run(t, workspace, "agents.reveal", map[string]any{"session": session}, nil))
+	assert.Equal(t, session+"/msg/user/"+second.ID, anchor(f.h.WaitSlot(t, workspace, "agents.main", func(sdui.Node) bool { return true })))
+
+	f.prompt(t, workspace, session, "three")
+	f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "transcript")) == 1 && anchor(n) == nil })
+}
+
+func TestRevealSameTurnAgainBumpsAnchorRev(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+	f.prompt(t, workspace, session, "one")
+	testutil.Eventually(t, func() bool { return len(f.turns(t, session)) == 1 }, wait)
+	rev := func() any {
+		require.NoError(t, f.run(t, workspace, "agents.reveal", map[string]any{"session": session, "turn": 1}, nil))
+		n := f.h.WaitSlot(t, workspace, "agents.main", func(n sdui.Node) bool { return len(cardsOf(n, "transcript")) == 1 })
+		return cardsOf(n, "transcript")[0].Props["anchorRev"]
+	}
+
+	first, second := rev(), rev()
+
+	assert.NotNil(t, first)
+	assert.NotEqual(t, first, second)
+}
+
 func waitFocus(t *testing.T, c *rpc.Client, section, slot string) {
 	t.Helper()
 	deadline := time.After(wait)
@@ -2794,6 +2839,23 @@ func (f *fixture) turns(t *testing.T, session string) []api.Turn {
 	return out
 }
 
+func TestTurnEventCarriesTurnNumber(t *testing.T) {
+	f := start(t, nil)
+	workspace := f.workspace(t, newRepo(t))
+	session := f.newSession(t, workspace)
+
+	for i, text := range []string{"one", "two"} {
+		f.prompt(t, workspace, session, text)
+		testutil.Eventually(t, func() bool { return len(f.turns(t, session)) == i+1 }, wait)
+	}
+
+	var got []int
+	for _, turn := range f.turns(t, session) {
+		got = append(got, turn.Turn)
+	}
+	assert.Equal(t, []int{1, 2}, got)
+}
+
 func TestCronStartedSessionCarriesFlagsAndOrigin(t *testing.T) {
 	t.Parallel()
 	f := start(t, nil, testutil.BuildPluginDir(t, "clubmate/plugins/cron", "plugins/cron/plugin.json"))
@@ -2824,7 +2886,7 @@ func TestCronStartedSessionCarriesFlagsAndOrigin(t *testing.T) {
 	assert.True(t, started.AFK)
 	assert.Contains(t, string(f.calls(t, "session/prompt")[0].Params), "[Clubmate AFK mode]")
 	testutil.Eventually(t, func() bool { return len(f.turns(t, started.ID)) > 0 }, wait)
-	assert.Equal(t, api.Turn{Workspace: workspace, Session: started.ID, Status: "done", Finished: true, CronJob: job.ID}, f.turns(t, started.ID)[0])
+	assert.Equal(t, api.Turn{Workspace: workspace, Session: started.ID, Turn: 1, Status: "done", Finished: true, CronJob: job.ID}, f.turns(t, started.ID)[0])
 }
 
 func TestTurnFinishedOnlyWithoutActiveChildren(t *testing.T) {

@@ -27,6 +27,7 @@ const (
 var (
 	errNoStateDir = errors.New("no plugin state dir")
 	errNoSession  = errors.New("unknown agent session")
+	errNoTurn     = errors.New("the session has no such turn")
 	errClosed     = errors.New("the session is closed")
 )
 

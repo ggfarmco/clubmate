@@ -197,7 +197,7 @@ func (s *session) permissionLocked() *waitPermission {
 }
 
 func (s *session) turnLocked() api.Turn {
-	return api.Turn{Workspace: s.rec.Workspace, Session: s.rec.ID, Status: s.rec.Status, Asks: s.asksLocked(), Reply: s.replyLocked(), CronJob: s.rec.CronJob, Trigger: s.rec.Trigger}
+	return api.Turn{Workspace: s.rec.Workspace, Session: s.rec.ID, Turn: s.turn, Status: s.rec.Status, Asks: s.asksLocked(), Reply: s.replyLocked(), CronJob: s.rec.CronJob, Trigger: s.rec.Trigger}
 }
 
 func (s *session) replyLocked() string {

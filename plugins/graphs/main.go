@@ -31,6 +31,8 @@ const (
 	workspaceTopics = "workspace.*"
 	outcomeTopics   = eventPrefix + graphTopic + "*"
 	selectedPrefix  = "selected/"
+	graphSuffix     = "/graph"
+	actOpenMove     = "openMove"
 )
 
 var errNotYours = errors.New("this run was not started by this agent session or its child sessions")
@@ -55,6 +57,7 @@ type app struct {
 	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
 	render     func(ctx context.Context, workspace string) error
 	choose     func(ctx context.Context, workspace, id string) error
+	revealTurn func(ctx context.Context, workspace, session string, turn int) error
 }
 
 type draft struct {
@@ -91,6 +94,7 @@ func newApp() *app {
 	a.workspaces = a.listWorkspaces
 	a.render = a.renderWorkspace
 	a.choose = a.storeSelected
+	a.revealTurn = a.revealSession
 	return a
 }
 
@@ -188,6 +192,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	case <-a.ready:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	}
+	if run, ok := strings.CutSuffix(ev.NodeID, graphSuffix); ok && ev.Slot == mainSlot {
+		return nil, a.openGraph(ctx, ev, run)
 	}
 	var id string
 	switch ev.Slot {
@@ -317,17 +324,64 @@ func (a *app) openAttention(ctx context.Context, workspace, id string) error {
 	if n == nil {
 		return fmt.Errorf("graph run %q has no open session", id)
 	}
-	return agentcall.Reveal(ctx, a.host, workspace, n.Session)
+	return a.revealTurn(ctx, workspace, n.Session, 0)
+}
+
+func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) error {
+	r, err := a.lookup(ev.WorkspaceID, id)
+	if err != nil {
+		return err
+	}
+	var node string
+	turn := 0
+	switch ev.Action {
+	case actOpen:
+		if err := json.Unmarshal(ev.Value, &node); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+	case actOpenMove:
+		var i int
+		if err := json.Unmarshal(ev.Value, &i); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		if i < 0 || i >= len(r.Moves) {
+			return fmt.Errorf("graph run %q has no move %d", id, i)
+		}
+		node, turn = r.Moves[i].Node, r.Moves[i].Turn
+	default:
+		return fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
+	}
+	n := r.node(node)
+	if n == nil || n.Session == "" {
+		return fmt.Errorf("graph run %q has no session for node %q", id, node)
+	}
+	return a.revealTurn(ctx, ev.WorkspaceID, n.Session, turn)
+}
+
+func (a *app) revealSession(ctx context.Context, workspace, session string, turn int) error {
+	if turn == 0 {
+		return agentcall.Reveal(ctx, a.host, workspace, session)
+	}
+	return agentcall.RevealTurn(ctx, a.host, workspace, session, turn)
 }
 
 func (a *app) countTurn(ctx context.Context, p api.Turn) {
 	a.mu.Lock()
 	var spent []*Run
 	for _, r := range a.runs {
-		if r.Workspace != p.Workspace || r.Status != statusRunning || r.nodeBySession(p.Session) == nil {
+		n := r.nodeBySession(p.Session)
+		if r.Workspace != p.Workspace || n == nil {
+			continue
+		}
+		if r.Status != statusRunning {
+			if turnOver(p) && r.closeMove(n.ID, p.Turn) >= 0 {
+				a.touch(r.Workspace)
+				logError(a.store.Save(ctx, r))
+			}
 			continue
 		}
 		r.Turns++
+		r.endTurn(p, a.now())
 		a.touch(r.Workspace)
 		if r.Turns >= r.MaxTurns {
 			r.stop(fmt.Sprintf(reasonBudget, r.MaxTurns), a.now())
@@ -351,17 +405,23 @@ func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcome
 		return
 	}
 	n, spec := r.node(nodeID), r.Spec.node(nodeID)
-	if n == nil || spec == nil || n.Session != p.By || !slices.Contains(spec.End, p.Outcome) {
+	if n == nil || spec == nil || n.Session != p.By {
 		a.mu.Unlock()
 		return
 	}
-	r.stop(fmt.Sprintf(reasonEnd, nodeID, p.Outcome), a.now())
+	r.outcome(nodeID, p.Outcome, a.now())
+	var ended *Run
+	if slices.Contains(spec.End, p.Outcome) {
+		r.stop(fmt.Sprintf(reasonEnd, nodeID, p.Outcome), a.now())
+		ended = cloneRun(r)
+	}
 	a.touch(r.Workspace)
 	logError(a.store.Save(ctx, r))
-	ended := cloneRun(r)
 	a.mu.Unlock()
-	x := &runner{call: a.runCommand, run: ended}
-	logError(errors.Join(x.unwind(ctx)...))
+	if ended != nil {
+		x := &runner{call: a.runCommand, run: ended}
+		logError(errors.Join(x.unwind(ctx)...))
+	}
 	a.flush(ctx)
 }
 

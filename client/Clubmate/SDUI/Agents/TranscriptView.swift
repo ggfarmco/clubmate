@@ -50,11 +50,15 @@ struct TranscriptNodeView: View {
             guard let opened, let last = items.last, last.contains(opened) else { return }
             Task { Motion.disclose { position.scrollTo(edge: .bottom) } }
         }
+        .onChange(of: TranscriptAnchor(node)) {
+            scrollToAnchor()
+        }
         .onAppear {
             watchUntil = .now + .seconds(3)
             let saved = node.id.flatMap { TranscriptScroll.saved[$0] }
             let savedOffset = saved?.offset ?? 0
             transcriptLog.notice("appear \(node.id ?? "", privacy: .public) items=\(items.count) savedPinned=\(saved?.pinned ?? true) savedOffset=\(savedOffset, format: .fixed(precision: 0))")
+            if scrollToAnchor() { return }
             guard let saved, !saved.pinned else { return }
             pinned = false
             position.scrollTo(y: saved.offset)
@@ -74,6 +78,20 @@ struct TranscriptNodeView: View {
 
     private var watching: Bool {
         ContinuousClock.now < watchUntil
+    }
+
+    @discardableResult
+    private func scrollToAnchor() -> Bool {
+        guard let id = node.id else { return false }
+        guard let anchor = TranscriptAnchor(node) else {
+            TranscriptScroll.anchors[id] = nil
+            return false
+        }
+        guard TranscriptScroll.anchors[id] != anchor else { return false }
+        TranscriptScroll.anchors[id] = anchor
+        pinned = false
+        Task { position.scrollTo(id: anchor.id, anchor: .top) }
+        return true
     }
 }
 
@@ -117,6 +135,18 @@ private struct TranscriptScroll: Equatable {
     let pinned: Bool
 
     @MainActor static var saved = RecentCache<String, TranscriptScroll>(limit: 32)
+    @MainActor static var anchors = RecentCache<String, TranscriptAnchor>(limit: 32)
+}
+
+private struct TranscriptAnchor: Equatable {
+    let id: String
+    let rev: Int
+
+    init?(_ node: SDUINode) {
+        guard let id = node.string("anchor") else { return nil }
+        self.id = id
+        rev = node.props["anchorRev"]?.numberValue.flatMap { Int(exactly: $0) } ?? 0
+    }
 }
 
 @MainActor

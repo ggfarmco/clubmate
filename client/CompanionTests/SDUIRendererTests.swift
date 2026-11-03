@@ -14,6 +14,7 @@ final class SDUIRendererTests: XCTestCase {
     }
 
     func testGalleryRendersEveryKnownType() throws {
+        let macOnly: Set<String> = ["graph"]
         let url = try XCTUnwrap(Bundle.main.url(forResource: "GalleryFixture", withExtension: "json"))
         let tree = try JSONDecoder().decode(SDUINode.self, from: Data(contentsOf: url))
         var types: Set<String> = []
@@ -22,7 +23,7 @@ final class SDUIRendererTests: XCTestCase {
             node.children.forEach(walk)
         }
         walk(tree)
-        XCTAssertEqual(types.filter { SDUIKind(rawValue: $0) == nil }, [])
+        XCTAssertEqual(types.subtracting(macOnly).filter { SDUIKind(rawValue: $0) == nil }, [])
     }
 
     func testUnknownTypePlaceholder() {

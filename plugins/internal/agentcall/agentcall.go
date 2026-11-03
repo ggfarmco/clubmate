@@ -39,6 +39,13 @@ func Reveal(ctx context.Context, h *pluginsdk.Host, workspace, session string) e
 	return nil
 }
 
+func RevealTurn(ctx context.Context, h *pluginsdk.Host, workspace, session string, turn int) error {
+	if err := h.RunCommand(ctx, "agents.reveal", workspace, map[string]any{"session": session, "turn": turn}, nil); err != nil {
+		return fmt.Errorf("reveal turn %d of agent session %s: %w", turn, session, err)
+	}
+	return nil
+}
+
 func Find(sessions []api.Session, id string) (api.Session, bool) {
 	i := slices.IndexFunc(sessions, func(s api.Session) bool { return s.ID == id })
 	if i < 0 {
