@@ -7,9 +7,13 @@ import ClubmateKit
 enum GhosttyConfigReader {
     static let defaults = "theme = dark:Clubmate,light:Clubmate Light"
 
-    static func theme(from config: ghostty_config_t, overlay: URL, dark: Bool) -> Theme {
+    static var systemConfig: URL? {
+        systemSources.first { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }
+    }
+
+    static func theme(from config: ghostty_config_t, file: URL, dark: Bool) -> Theme {
         var theme = Theme.mate(dark: dark)
-        let text = GhosttyConfigText([defaults] + sources(overlay: overlay).compactMap(read))
+        let text = GhosttyConfigText([defaults] + [file].compactMap(read))
         theme.fontFamily = string(config, "font-family") ?? text.first("font-family")
         guard let background = color(config, "background"), let foreground = color(config, "foreground"), let palette = palette(config), palette.count >= 16 else { return theme }
         theme.terminal = ThemeEvent(
@@ -59,14 +63,13 @@ enum GhosttyConfigReader {
         }
     }
 
-    private static func sources(overlay: URL) -> [URL] {
+    private static var systemSources: [URL] {
         let support = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support/com.mitchellh.ghostty")
         return [
             configHome.appending(path: "ghostty/config"),
             configHome.appending(path: "ghostty/config.ghostty"),
             support.appending(path: "config"),
             support.appending(path: "config.ghostty"),
-            overlay,
         ]
     }
 

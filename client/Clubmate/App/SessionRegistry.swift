@@ -14,7 +14,6 @@ final class SessionRegistry {
         self.supervisor = supervisor
         self.settings = settings
         self.workspace = workspace
-        trackTerminalFontSize()
     }
 
     func existing(_ workspaceID: String) -> WorkspaceSession? {
@@ -45,7 +44,6 @@ final class SessionRegistry {
 
     private func open(_ workspaceID: String, legacyChat: LegacyChat?) {
         let session = WorkspaceSession(workspaceID: workspaceID, legacyChat: legacyChat) { [workspace] in workspace(workspaceID) }
-        session.deck.fontSize = settings.terminalFontSize
         sessions[workspaceID] = session
         if let client = supervisor.client { adopt(session, client) }
     }
@@ -53,15 +51,5 @@ final class SessionRegistry {
     private func adopt(_ session: WorkspaceSession, _ client: CoreClient) {
         guard let store = session.adopt(client, settings) else { return }
         supervisor.attach(store)
-    }
-
-    private func trackTerminalFontSize() {
-        withObservationTracking { _ = settings.terminalFontSize } onChange: { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                for session in self.sessions.values { session.deck.fontSize = self.settings.terminalFontSize }
-                self.trackTerminalFontSize()
-            }
-        }
     }
 }

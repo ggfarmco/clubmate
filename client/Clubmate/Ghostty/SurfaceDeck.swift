@@ -8,9 +8,6 @@ import ClubmateKit
 @Observable
 final class SurfaceDeck {
     private(set) var owner: UUID?
-    @ObservationIgnored var fontSize: Double? {
-        didSet { views.values.forEach { $0.setFontSize(fontSize) } }
-    }
 
     @ObservationIgnored weak var panes: PaneFocus?
     @ObservationIgnored let container = SurfaceDeckView()
@@ -62,7 +59,7 @@ final class SurfaceDeck {
     }
 
     private func mount(_ sessionID: String) {
-        let view = TerminalSurfaceView(sessionID: sessionID, fontSize: fontSize)
+        let view = TerminalSurfaceView(sessionID: sessionID)
         view.onClose = { [weak self] in self?.surfaceClosed(sessionID) }
         view.onFocus = { [weak self] focused in self?.panes?.report(.terminal, from: "terminal:" + sessionID, slot: self?.slots[sessionID], focused: focused) }
         view.frame = container.bounds

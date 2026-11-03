@@ -17,6 +17,7 @@ final class GhosttyApp {
     private(set) var theme = Theme.fallback
     private(set) var failure: String?
     private(set) var configFontSize: Double = 13
+    private(set) var configText = ""
     private(set) var colorScheme: ghostty_color_scheme_e
 
     @ObservationIgnored private var config: ghostty_config_t?
@@ -91,7 +92,7 @@ final class GhosttyApp {
         ghostty_app_update_config(app, config)
         let derived = GhosttyCallbacks.takeDerivedConfig()
         let applied = derived ?? config
-        theme = GhosttyConfigReader.theme(from: applied, overlay: Self.overlayURL, dark: colorScheme == GHOSTTY_COLOR_SCHEME_DARK)
+        theme = GhosttyConfigReader.theme(from: applied, file: Self.configURL, dark: colorScheme == GHOSTTY_COLOR_SCHEME_DARK)
         configFontSize = GhosttyConfigReader.fontSize(applied) ?? configFontSize
         if let derived { ghostty_config_free(derived) }
     }
@@ -104,8 +105,53 @@ final class GhosttyApp {
         dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT
     }
 
-    private static var overlayURL: URL {
+    static var configURL: URL {
         ClubmatePaths.resolve().state.appending(path: "ghostty.conf")
+    }
+
+    static func configFileForEditing() -> URL {
+        let url = configURL
+        if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? "# Clubmate's Ghostty config: any Ghostty option (https://ghostty.org/docs/config). Settings → Terminals → Reload applies edits.\n".write(to: url, atomically: true, encoding: .utf8)
+        }
+        return url
+    }
+
+    var imported: Bool {
+        configText.contains(GhosttyConfigFile.importHeader)
+    }
+
+    func setConfig(_ key: String, _ value: String?) {
+        write(GhosttyConfigFile.setting(key, to: value, in: Self.readConfig()))
+    }
+
+    func importSystemConfig() throws {
+        guard let source = GhosttyConfigReader.systemConfig else { return }
+        let text = try String(contentsOf: source, encoding: .utf8)
+        write(GhosttyConfigFile.appending(GhosttyConfigFile.imported(source, text: text, on: .now), to: Self.readConfig()))
+    }
+
+    func reloadConfig() {
+        guard let app, let old = config, let fresh = loadConfig() else { return }
+        config = fresh
+        applyConfig(app, fresh)
+        ghostty_config_free(old)
+    }
+
+    private static func readConfig() -> String {
+        (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+    }
+
+    private func write(_ text: String) {
+        do {
+            try FileManager.default.createDirectory(at: Self.configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: Self.configURL, atomically: true, encoding: .utf8)
+        } catch {
+            fail("cannot write \(Self.configURL.path(percentEncoded: false)): \(error.localizedDescription)")
+            return
+        }
+        reloadConfig()
     }
 
     private func fail(_ message: String) {
@@ -116,12 +162,11 @@ final class GhosttyApp {
     private func loadConfig() -> ghostty_config_t? {
         guard let config = ghostty_config_new() else { return nil }
         if let error = Self.load([GhosttyConfigReader.defaults], into: config) { fail(error) }
-        ghostty_config_load_default_files(config)
-        ghostty_config_load_recursive_files(config)
-        let overlay = Self.overlayURL.path(percentEncoded: false)
-        if FileManager.default.fileExists(atPath: overlay) {
-            overlay.withCString { ghostty_config_load_file(config, $0) }
+        configText = Self.readConfig()
+        if !configText.isEmpty {
+            Self.configURL.path(percentEncoded: false).withCString { ghostty_config_load_file(config, $0) }
         }
+        ghostty_config_load_recursive_files(config)
         if let error = Self.forceOverrides(config) { fail(error) }
         ghostty_config_finalize(config)
         for index in 0..<ghostty_config_diagnostics_count(config) {

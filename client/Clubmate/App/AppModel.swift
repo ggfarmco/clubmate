@@ -123,6 +123,40 @@ final class AppModel {
     func launch(_ openWindow: OpenWindowAction) {
         windows.launch(openWindow)
         supervisor.start()
+        adoptTerminalSettings()
+    }
+
+    private func adoptTerminalSettings() {
+        let ghostty = GhosttyApp.shared
+        if let size = settings.takeLegacyTerminalFontSize(), GhosttyConfigText([ghostty.configText]).last("font-size") == nil {
+            ghostty.setConfig("font-size", Self.points(size))
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            offerGhosttyImport()
+        }
+    }
+
+    private func offerGhosttyImport() {
+        let ghostty = GhosttyApp.shared
+        guard !settings.ghosttyImportOffered, !onboarding.show, !ghostty.imported, let source = GhosttyConfigReader.systemConfig, !TestMode.current else { return }
+        settings.ghosttyImportOffered = true
+        let alert = NSAlert()
+        alert.messageText = "Bring your Ghostty settings into Clubmate?"
+        alert.informativeText = "Clubmate's terminals no longer read \(source.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~")). Import copies your font, keys and other options into Clubmate's own config; colours stay on the Clubmate theme. Settings → Terminals can do it later too."
+        alert.addButton(withTitle: "Import")
+        alert.addButton(withTitle: "Not Now")
+        NSApp.activate()
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try ghostty.importSystemConfig()
+        } catch {
+            AppAlert.warning("Import failed: \(error.localizedDescription)")
+        }
+    }
+
+    static func points(_ size: Double) -> String {
+        String(format: "%g", size)
     }
 
     func retry() {
@@ -143,12 +177,12 @@ final class AppModel {
     }
 
     var terminalFontSize: Double {
-        settings.terminalFontSize ?? GhosttyApp.shared.configFontSize
+        GhosttyApp.shared.configFontSize
     }
 
     func stepFont(_ delta: Double, panes: PaneFocus?, store: WorkspaceUIStore?) {
         guard let pane = fontPane(panes, store) else {
-            settings.terminalFontSize = AppSettings.fontSteps(current: terminalFontSize, delta: delta, range: AppSettings.terminalFontRange)
+            GhosttyApp.shared.setConfig("font-size", Self.points(AppSettings.fontSteps(current: terminalFontSize, delta: delta, range: AppSettings.terminalFontRange)))
             return
         }
         settings.stepPaneFont(pane, by: delta)
@@ -156,7 +190,7 @@ final class AppModel {
 
     func resetFont(panes: PaneFocus?, store: WorkspaceUIStore?) {
         guard let pane = fontPane(panes, store) else {
-            settings.terminalFontSize = nil
+            GhosttyApp.shared.setConfig("font-size", nil)
             return
         }
         settings.resetPaneFont(pane)

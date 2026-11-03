@@ -293,6 +293,7 @@ private struct PluginNativeRows: View {
     let select: (SettingsPage) -> Void
 
     @Environment(AppModel.self) private var app
+    @Environment(EventBanner.self) private var banner: EventBanner?
 
     static func has(_ plugin: String) -> Bool {
         ["terminals", "agents", "editor-nvim"].contains(plugin)
@@ -301,9 +302,34 @@ private struct PluginNativeRows: View {
     var body: some View {
         switch plugin {
         case "terminals":
-            SettingsToggle(title: "Use ghostty config", detail: "Font and size come from your ghostty config.", isOn: usesGhosttyConfig)
+            SettingsRow(title: "Family", detail: "Every terminal and nvim, and the interface's monospaced text.") {
+                Picker("Font", selection: fontFamily) {
+                    Text("Default").tag("")
+                    ForEach(MonospacedFonts.families, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
             SettingsStepper(title: "Font size", detail: "Every terminal and nvim. ⌘+ in a terminal changes this too.", value: terminalFontSize, range: AppSettings.terminalFontRange)
-                .disabled(settings.terminalFontSize == nil)
+            SettingsRow(title: "Config file", detail: "Clubmate's own Ghostty config; ~/.config/ghostty is not read. Font and size above are written here.") {
+                HStack(spacing: 6) {
+                    Button("Open") { NSWorkspace.shared.open(GhosttyApp.configFileForEditing()) }
+                    Button("Reload") { GhosttyApp.shared.reloadConfig() }
+                }
+                .fixedSize()
+            }
+            if let source = GhosttyConfigReader.systemConfig {
+                SettingsRow(title: "Import from Ghostty", detail: "Copies \(source.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~")) into Clubmate's config, except its theme and colours.") {
+                    Button(GhosttyApp.shared.imported ? "Import Again" : "Import") {
+                        do {
+                            try GhosttyApp.shared.importSystemConfig()
+                        } catch {
+                            banner?.show("Import failed: \(error.localizedDescription)")
+                        }
+                    }
+                    .fixedSize()
+                }
+            }
         case "agents":
             SettingsRow(title: "Chat font size", detail: "Every agent chat. ⌘+ in the chat changes this too.") {
                 HStack(spacing: 10) {
@@ -328,11 +354,11 @@ private struct PluginNativeRows: View {
     }
 
     private var terminalFontSize: Binding<Double> {
-        Binding { app.terminalFontSize } set: { settings.terminalFontSize = $0 }
+        Binding { app.terminalFontSize } set: { GhosttyApp.shared.setConfig("font-size", AppModel.points($0)) }
     }
 
-    private var usesGhosttyConfig: Binding<Bool> {
-        Binding { settings.terminalFontSize == nil } set: { settings.terminalFontSize = $0 ? nil : app.terminalFontSize }
+    private var fontFamily: Binding<String> {
+        Binding { GhosttyApp.shared.theme.fontFamily ?? "" } set: { GhosttyApp.shared.setConfig("font-family", $0.isEmpty ? nil : "\"\($0)\"") }
     }
 }
 
@@ -389,4 +415,12 @@ private struct ClaudeCodeSettings: View {
             hooksCopied = false
         }
     }
+}
+
+@MainActor
+enum MonospacedFonts {
+    static let families: [String] = {
+        let names = NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? []
+        return Array(Set(names.compactMap { NSFont(name: $0, size: 12)?.familyName })).filter { !$0.hasPrefix(".") }.sorted()
+    }()
 }

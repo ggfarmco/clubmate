@@ -25,8 +25,8 @@ public final class AppSettings {
     public var interfaceFontSize: Double {
         didSet { defaults.set(interfaceFontSize, forKey: Key.interfaceFontSize) }
     }
-    public var terminalFontSize: Double? {
-        didSet { save(terminalFontSize, Key.terminalFontSize) }
+    public var ghosttyImportOffered: Bool {
+        didSet { defaults.set(ghosttyImportOffered, forKey: Key.ghosttyImportOffered) }
     }
     public private(set) var paneFontSizes: [String: Double] {
         didSet { save(paneFontSizes.isEmpty ? nil : paneFontSizes, Key.paneFontSizes) }
@@ -44,7 +44,7 @@ public final class AppSettings {
         self.defaults = defaults
         sidebarSide = defaults.string(forKey: Key.sidebarSide).flatMap(SidebarSide.init(rawValue:)) ?? .left
         interfaceFontSize = defaults.object(forKey: Key.interfaceFontSize) as? Double ?? 12
-        terminalFontSize = defaults.object(forKey: Key.terminalFontSize) as? Double
+        ghosttyImportOffered = defaults.bool(forKey: Key.ghosttyImportOffered)
         paneFontSizes = defaults.dictionary(forKey: Key.paneFontSizes) as? [String: Double] ?? [:]
         recentsClearedAt = defaults.object(forKey: Key.recentsClearedAt) as? Date
         sectionOrder = defaults.stringArray(forKey: Key.sectionOrder)
@@ -55,6 +55,11 @@ public final class AppSettings {
 
     public static func fontSteps(current: Double, delta: Double, range: ClosedRange<Double>) -> Double {
         min(max(current + delta, range.lowerBound), range.upperBound)
+    }
+
+    public func takeLegacyTerminalFontSize() -> Double? {
+        defer { defaults.removeObject(forKey: Key.terminalFontSize) }
+        return defaults.object(forKey: Key.terminalFontSize) as? Double
     }
 
     public func paneFontSize(_ pane: String) -> Double {
@@ -90,6 +95,7 @@ public final class AppSettings {
         static let sidebarSide = "sidebarSide"
         static let interfaceFontSize = "interfaceFontSize"
         static let terminalFontSize = "terminalFontSize"
+        static let ghosttyImportOffered = "ghosttyImportOffered"
         static let paneFontSizes = "paneFontSizes"
         static let recentsClearedAt = "recentsClearedAt"
         static let sectionOrder = "sectionOrder"

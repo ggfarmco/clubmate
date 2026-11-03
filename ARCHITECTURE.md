@@ -85,7 +85,7 @@ Clubmate is a native macOS IDE built around your own Neovim, real terminals and 
 - **Sections:** plugins declare them in `plugin.json`, with an icon, order and slots (`<section>.sidebar`, `<section>.main`, plus extra slots a section declares). The rail shows sections in the user's order. A section may name another as its `host`; it then has no rail icon of its own.
 - **Rendering:** a plugin renders a tree of nodes (`pkg/sdui` builders) into a slot. The core validates and stores it, then pushes it to every client watching that workspace.
 - **Events:** the app sends user events back as `ui.event {slot, node, action, value}`. Typed text and other client-only state stay in ClubmateKit (e.g. composer drafts).
-- **Terminals:** a terminal is a `surface` node. The app hosts a libghostty surface (`client/GhosttyKit.xcframework`) attached to the session's socket.
+- **Terminals:** a terminal is a `surface` node. The app hosts a libghostty surface (`client/GhosttyKit.xcframework`) attached to the session's socket. Ghostty's config is Clubmate's own: `theme = dark:Clubmate,light:Clubmate Light`, then `<state>/ghostty.conf` (Settings → Terminals writes font family and size there; Import copies a system Ghostty config in once, colours commented out), then the app's forced keybinds; `~/.config/ghostty` and Ghostty's Application Support config are never read, like `~/.config/nvim`.
 - **Reference:** the contract for every node, prop and event is in `docs/sdui-protocol.md`.
 
 ## Agents and integrations

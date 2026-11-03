@@ -12,19 +12,19 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
         XCTAssertEqual(settings.sidebarSide, .left)
         XCTAssertEqual(settings.interfaceFontSize, 12)
-        XCTAssertNil(settings.terminalFontSize)
+        XCTAssertFalse(settings.ghosttyImportOffered)
 
         settings.sidebarSide = .right
         settings.interfaceFontSize = 14
-        settings.terminalFontSize = 15
+        settings.ghosttyImportOffered = true
         let saved = AppSettings(defaults: defaults)
         XCTAssertEqual(saved.sidebarSide, .right)
         XCTAssertEqual(saved.interfaceFontSize, 14)
-        XCTAssertEqual(saved.terminalFontSize, 15)
+        XCTAssertTrue(saved.ghosttyImportOffered)
 
-        saved.terminalFontSize = nil
-        let cleared = AppSettings(defaults: defaults)
-        XCTAssertNil(cleared.terminalFontSize)
+        defaults.set(15.0, forKey: "terminalFontSize")
+        XCTAssertEqual(saved.takeLegacyTerminalFontSize(), 15)
+        XCTAssertNil(saved.takeLegacyTerminalFontSize())
     }
 
     func testPaneFontStepsOnlyThatPaneAndResetFollowsInterface() throws {
