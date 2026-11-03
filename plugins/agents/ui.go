@@ -253,7 +253,8 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 	if search.query != "" {
 		search.results = a.search(workspaceID, search.query)
 	}
-	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), branchOpen, filter, search)); err != nil {
+	home, _, _ := workRoot(workspace)
+	if err := a.push(ctx, p, workspaceID, sidebarSlot, sidebarView(rows, selected, collapsed, time.Now(), home, branchOpen, filter, search)); err != nil {
 		return err
 	}
 	var shown *screen

@@ -2353,7 +2353,7 @@ func TestNewSessionFromVoiceNotSelected(t *testing.T) {
 		}
 		raw, err := json.Marshal(trees[0].Props["items"])
 		require.NoError(t, err)
-		return strings.Contains(string(raw), "Service · 1") && trees[0].Props["selected"] == first
+		return strings.Contains(string(raw), `"label":"Service"`) && trees[0].Props["selected"] == first
 	})
 	assert.True(t, f.session(t, workspace, voice).Service)
 
@@ -2382,7 +2382,7 @@ func TestVoiceSessionNeverSelectedByFallback(t *testing.T) {
 		raw, err := json.Marshal(trees[0].Props["items"])
 		require.NoError(t, err)
 		_, selected := trees[0].Props["selected"]
-		return strings.Contains(string(raw), "Service · 1") && !selected
+		return strings.Contains(string(raw), `"label":"Service"`) && !selected
 	})
 }
 

@@ -6,6 +6,7 @@ Claude Design's answer to `design/brief/prompt.md`: the review, the design langu
   - `Audit`, `Principles`, `Tokens`, `Components`, `AgentNodes`, `Patterns` and `Handoff` hold the review and the language.
   - `*-1280` are mockups in Kanagawa (dark); `*-640` are mockups in Catppuccin Latte (light); `Agents-Mate-1280` is the Agents screen in the Mate theme with the Mac's colour dot in the workspace pill.
   - `Mac-Settings-Remote`: the Settings → Remote page as built (native form; Remote is one plugin page in the Settings sidebar) with this Mac's name and colour, the title-bar option and paired devices.
+  - `Agents-OneTree-1280-Mate` and `Agents-Drawer-640-MateLight` (source only, under "Agents sidebar, 3 Nov"): the sidebar with every open session in the window's worktree (no branch row; Closed open with worktree names and "N more", Service opened by a waiting voice session), at 1280 and as the ⌘B drawer at 640.
   - `Mac-AlwaysAllow`: the Mac confirm for Always allow… (⌥2 opens it, ⌥2 again stores the rule). `Mac-ChatGraphStep`: the Code chat on a graph step, off until the loop runs it.
   - `K1-Check-Mac`, `K2-Check-Companion`: the build check of 1 Nov 2026 (divergences per screen with impact, class a–d and fix; verdicts; decisions). The fix list that goes with them is `design/check/fix-list.md`.
   - `Main` and `Layers` present the icon.
