@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,16 +20,27 @@ import (
 )
 
 type task struct {
-	ID              int      `json:"id"`
-	Title           string   `json:"title"`
-	Status          string   `json:"status"`
-	Priority        string   `json:"priority"`
-	Tags            []string `json:"tags"`
-	ClaimedBy       string   `json:"claimedBy"`
-	ClaimedFrom     string   `json:"claimedFrom"`
-	LastClaimedBy   string   `json:"lastClaimedBy"`
-	Note            string   `json:"note"`
-	DescriptionHTML string   `json:"descriptionHtml"`
+	ID       int      `json:"id"`
+	Title    string   `json:"title"`
+	Status   string   `json:"status"`
+	Priority string   `json:"priority"`
+	Tags     []string `json:"tags"`
+	Links    []struct {
+		Kind   string `json:"kind"`
+		Task   int    `json:"task"`
+		Title  string `json:"title"`
+		Status string `json:"status"`
+	} `json:"links"`
+	Attachments []map[string]string `json:"attachments"`
+	Owners      []struct {
+		Owner string `json:"owner"`
+		Why   string `json:"why"`
+	} `json:"owners"`
+	ClaimedBy       string `json:"claimedBy"`
+	ClaimedFrom     string `json:"claimedFrom"`
+	LastClaimedBy   string `json:"lastClaimedBy"`
+	Note            string `json:"note"`
+	DescriptionHTML string `json:"descriptionHtml"`
 }
 
 type env struct {
@@ -37,7 +49,7 @@ type env struct {
 	t *testing.T
 }
 
-const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true},{"id":"agents.reveal","title":"Reveal","hidden":true}]},"echoResults":{"agents.reveal":null,"agents.sessions":[{"id":"agt_dead","status":"closed"},{"id":"agt_live","status":"running"},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
+const agentsManifest = `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true},{"id":"agents.reveal","title":"Reveal","hidden":true},{"id":"agents.new","title":"New","hidden":true}]},"echoResults":{"agents.reveal":null,"agents.new":{"session":"agt_new"},"agents.sessions":[{"id":"agt_dead","status":"closed"},{"id":"agt_live","status":"running"},{"id":"agt_parent","status":"running"},{"id":"agt_child","status":"running","parentSession":"agt_parent"}]}}`
 
 func newEnv(t *testing.T, extra ...string) env {
 	dirs := append([]string{testutil.BuildPluginDir(t, "clubmate/plugins/backlog", "plugins/backlog/plugin.json")}, extra...)
@@ -309,10 +321,10 @@ func TestShowSessionRevealsTheClaimer(t *testing.T) {
 	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", "1")
 	e.h.WaitSlot(t, e.p, "backlog.main", func(n sdui.Node) bool {
 		raw, err := json.Marshal(n)
-		return err == nil && strings.Contains(string(raw), `"id":"claimer"`)
+		return err == nil && strings.Contains(string(raw), `"label":"Open agt_live"`)
 	})
 
-	e.h.Event(t, e.p, "backlog.main", "claimer", "reveal", nil)
+	e.h.Event(t, e.p, "backlog.main", "open", "reveal", nil)
 
 	require.Eventually(t, func() bool {
 		events, err := e.h.Bus.Read(t.Context(), "echo.command", 0, 100)
@@ -342,4 +354,142 @@ func TestDescriptionRendersAsDocument(t *testing.T) {
 	slotHas(`\u003cstrong\u003ebold`)
 	e.h.Event(t, e.p, "backlog.main", "describe", "describe", nil)
 	slotHas(`"label":"Done editing"`)
+}
+
+func (e env) slotHas(slot, text string) {
+	e.h.WaitSlot(e.t, e.p, slot, func(n sdui.Node) bool {
+		raw, err := json.Marshal(n)
+		return err == nil && strings.Contains(string(raw), text)
+	})
+}
+
+func (e env) echoed(id, text string) bool {
+	events, err := e.h.Bus.Read(e.t.Context(), "echo.command", 0, 100)
+	require.NoError(e.t, err)
+	return slices.ContainsFunc(events, func(ev bus.Event) bool {
+		return strings.Contains(string(ev.Payload), `"id":"`+id+`"`) && strings.Contains(string(ev.Payload), text)
+	})
+}
+
+func (e env) owners(id int) []string {
+	var out []string
+	for _, m := range e.must(e.user("backlog.get", map[string]any{"id": id})).Owners {
+		out = append(out, m.Owner+" "+m.Why)
+	}
+	return out
+}
+
+func TestLinksStaySymmetric(t *testing.T) {
+	e := newEnv(t)
+	a, b, c := e.add("A", nil), e.add("B", nil), e.add("C", nil)
+	e.must(e.agent("agt_a", "backlog.update", map[string]any{"id": a.ID, "links": []map[string]any{{"kind": "blocks", "task": b.ID}, {"kind": "relates", "task": c.ID}}}))
+	got := e.must(e.user("backlog.get", map[string]any{"id": b.ID}))
+	require.Len(t, got.Links, 1)
+	assert.Equal(t, "blocked_by", got.Links[0].Kind)
+	assert.Equal(t, "A", got.Links[0].Title)
+	assert.Equal(t, "todo", got.Links[0].Status)
+	assert.Equal(t, "relates", e.must(e.user("backlog.get", map[string]any{"id": c.ID})).Links[0].Kind)
+
+	e.must(e.user("backlog.update", map[string]any{"id": b.ID, "links": []map[string]any{}}))
+	assert.Len(t, e.must(e.user("backlog.get", map[string]any{"id": a.ID})).Links, 1)
+
+	_, err := e.user("backlog.update", map[string]any{"id": a.ID, "links": []map[string]any{{"kind": "blocks", "task": 99}}})
+	assert.ErrorContains(t, err, "#99")
+	_, err = e.user("backlog.update", map[string]any{"id": a.ID, "links": []map[string]any{{"kind": "blocks", "task": a.ID}}})
+	assert.ErrorContains(t, err, "itself")
+
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "delete", strconv.Itoa(c.ID))
+	require.Eventually(t, func() bool {
+		return len(e.must(e.user("backlog.get", map[string]any{"id": a.ID})).Links) == 0
+	}, 10*time.Second, 20*time.Millisecond)
+}
+
+func TestAttachmentsValidated(t *testing.T) {
+	e := newEnv(t)
+	tk := e.add("Files", map[string]any{"attachments": []map[string]any{{"kind": "file", "ref": "design/check/fix-list.md"}, {"kind": "url", "ref": "https://example.com/a", "title": "Spec"}}})
+	assert.Equal(t, []map[string]string{{"kind": "file", "ref": "design/check/fix-list.md"}, {"kind": "url", "ref": "https://example.com/a", "title": "Spec"}}, tk.Attachments)
+	for _, bad := range []map[string]any{{"kind": "file", "ref": "/etc/passwd"}, {"kind": "file", "ref": "../x"}, {"kind": "url", "ref": "ftp://x"}} {
+		_, err := e.user("backlog.update", map[string]any{"id": tk.ID, "attachments": []map[string]any{bad}})
+		assert.Error(t, err, bad)
+	}
+}
+
+func TestOwnerMovesAreRecorded(t *testing.T) {
+	e := newEnv(t)
+	tk := e.add("Work", nil)
+	e.must(e.agent("agt_a", "backlog.claim", map[string]any{"id": tk.ID}))
+	e.must(e.agent("agt_a", "backlog.release", map[string]any{"id": tk.ID}))
+	e.must(e.user("backlog.claim", map[string]any{"id": tk.ID}))
+	e.must(e.user("backlog.done", map[string]any{"id": tk.ID}))
+	assert.Equal(t, []string{"user created", "agt_a claimed", "user released"}, e.owners(tk.ID))
+}
+
+func TestStartAgentHandsTheTaskToASession(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	dep := e.add("Record missed runs", nil)
+	tk := e.add("Show missed runs", map[string]any{"description": "Builds on #1.", "links": []map[string]any{{"kind": "blocked_by", "task": dep.ID}}, "attachments": []map[string]any{{"kind": "file", "ref": "design/check/fix-list.md"}}})
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", strconv.Itoa(tk.ID))
+	e.slotHas("backlog.main", `"label":"Start agent · description, 1 link, 1 file"`)
+
+	e.h.Event(t, e.p, "backlog.main", "start", "start", nil)
+
+	require.Eventually(t, func() bool {
+		return e.echoed("agents.new", `Builds on #1.`) && e.echoed("agents.new", `blocked by #1 Record missed runs (todo)`) && e.echoed("agents.new", `file design/check/fix-list.md`)
+	}, 10*time.Second, 20*time.Millisecond)
+	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
+	assert.Equal(t, "in_progress", got.Status)
+	assert.Equal(t, "agt_new", got.ClaimedBy)
+	assert.Equal(t, []string{"user created", "agt_new started"}, e.owners(tk.ID))
+}
+
+func TestTakeBack(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	tk := e.add("Work", nil)
+	e.must(e.agent("agt_live", "backlog.claim", map[string]any{"id": tk.ID}))
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", strconv.Itoa(tk.ID))
+
+	e.h.Event(t, e.p, "backlog.main", "takeback", "takeback", nil)
+
+	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
+	assert.Equal(t, "in_progress", got.Status)
+	assert.Equal(t, "user", got.ClaimedBy)
+	assert.Equal(t, "agt_live", got.LastClaimedBy)
+	assert.Equal(t, []string{"user created", "agt_live claimed", "user taken back"}, e.owners(tk.ID))
+}
+
+func TestClosedSessionHandsTheTaskBack(t *testing.T) {
+	e := newEnv(t)
+	tk := e.add("Work", nil)
+	e.must(e.agent("agt_gone", "backlog.claim", map[string]any{"id": tk.ID}))
+
+	_, err := e.h.Bus.Publish(t.Context(), "agents.changed", "test", json.RawMessage(`{"workspace":"`+e.p+`","session":"agt_gone","kind":"status","status":"closed"}`))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).Status == "todo"
+	}, 10*time.Second, 20*time.Millisecond)
+	assert.Equal(t, []string{"user created", "agt_gone claimed", "user stopped"}, e.owners(tk.ID))
+}
+
+func TestLinksFromTheForm(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.subscribe", map[string]string{"workspaceId": e.p}, nil))
+	dep := e.add("Dep", nil)
+	tk := e.add("Main", map[string]any{"description": "See #1"})
+	e.h.Event(t, e.p, "backlog.sidebar", "tasks", "select", strconv.Itoa(tk.ID))
+	e.slotHas("backlog.main", `href=\"clubmate-doc:/task/1\"`)
+
+	e.h.Event(t, e.p, "backlog.main", "linkText", "link", "blocks #1")
+	e.slotHas("backlog.main", `"label":"#1 Dep"`)
+	e.h.Event(t, e.p, "backlog.main", "linkText", "link", "blocks nothing")
+	e.slotHas("backlog.main", `"error":"Write a link as blocks #3, blocked by #5 or relates #7"`)
+	e.h.Event(t, e.p, "backlog.main", "attachText", "attach", "design/a.md")
+	e.slotHas("backlog.main", `"label":"design/a.md"`)
+
+	e.h.Event(t, e.p, "backlog.main", "doc", "openDoc", "/task/1")
+	e.slotHas("backlog.main", `"title":"Dep"`)
+	assert.Equal(t, "blocked_by", e.must(e.user("backlog.get", map[string]any{"id": dep.ID})).Links[0].Kind)
 }

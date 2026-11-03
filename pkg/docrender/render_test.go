@@ -153,3 +153,11 @@ func writePNG(t *testing.T, path string) {
 	require.NoError(t, png.Encode(&buf, image.NewGray(image.Rect(0, 0, 1, 1))))
 	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o600))
 }
+
+func TestTaskLinks(t *testing.T) {
+	tasks := map[int]string{3: "Parser", 4: "Lexer"}
+	opts := docrender.Options{Task: func(id int) (string, bool) { title, ok := tasks[id]; return title, ok }}
+	doc := docrender.Render([]byte("Builds on #3, not #9 or a#3; `#4` stays code\n"), opts)
+	assert.Contains(t, doc.HTML, `Builds on <a href="clubmate-doc:/task/3" title="Parser">#3</a>, not #9 or a#3; <code>#4</code>`)
+	assert.NotContains(t, docrender.Render([]byte("#3"), docrender.Options{}).HTML, "<a")
+}

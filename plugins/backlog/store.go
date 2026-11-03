@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -82,13 +83,17 @@ func (s *store) add(ctx context.Context, workspaceID string, t Task) (Task, erro
 	now := time.Now().UTC()
 	t.ID = seq
 	t.CreatedAt, t.UpdatedAt = now, now
+	t.move(OwnerMove{Owner: userOwner, At: now, Why: whyCreated})
+	if err := s.checkLinks(ctx, workspaceID, t.ID, t.Links); err != nil {
+		return Task{}, err
+	}
 	if err := s.h.StorageSet(ctx, seqKey(workspaceID), seq); err != nil {
 		return Task{}, err
 	}
 	if err := s.h.StorageSet(ctx, taskKey(workspaceID, t.ID), t); err != nil {
 		return Task{}, err
 	}
-	return t, nil
+	return t, s.syncLinks(ctx, workspaceID, t.ID, nil, t.Links)
 }
 
 func (s *store) mutate(ctx context.Context, workspaceID string, id int, fn func(*Task) error) (Task, error) {
@@ -97,19 +102,70 @@ func (s *store) mutate(ctx context.Context, workspaceID string, id int, fn func(
 	if err != nil {
 		return Task{}, err
 	}
+	old := slices.Clone(t.Links)
 	if err := fn(&t); err != nil {
+		return Task{}, err
+	}
+	if err := s.checkLinks(ctx, workspaceID, id, t.Links); err != nil {
 		return Task{}, err
 	}
 	t.UpdatedAt = time.Now().UTC()
 	if err := s.h.StorageSet(ctx, taskKey(workspaceID, id), t); err != nil {
 		return Task{}, err
 	}
-	return t, nil
+	return t, s.syncLinks(ctx, workspaceID, id, old, t.Links)
 }
 
 func (s *store) remove(ctx context.Context, workspaceID string, id int) error {
 	defer s.lock(workspaceID)()
-	return s.h.StorageDelete(ctx, taskKey(workspaceID, id))
+	t, err := s.load(ctx, workspaceID, id)
+	if err != nil {
+		return err
+	}
+	if err := s.h.StorageDelete(ctx, taskKey(workspaceID, id)); err != nil {
+		return err
+	}
+	return s.syncLinks(ctx, workspaceID, id, t.Links, nil)
+}
+
+func (s *store) checkLinks(ctx context.Context, workspaceID string, id int, links []Link) error {
+	for _, l := range links {
+		if _, err := s.load(ctx, workspaceID, l.Task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *store) syncLinks(ctx context.Context, workspaceID string, id int, old, cur []Link) error {
+	want := map[int]string{}
+	for _, l := range old {
+		want[l.Task] = ""
+	}
+	for _, l := range cur {
+		want[l.Task] = inverse(l.Kind)
+	}
+	var errs []error
+	for task, kind := range want {
+		if kind != "" && slices.Contains(old, Link{Kind: inverse(kind), Task: task}) {
+			continue
+		}
+		other, err := s.load(ctx, workspaceID, task)
+		if errors.Is(err, errTaskNotFound) {
+			continue
+		}
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		other.Links = slices.DeleteFunc(other.Links, func(l Link) bool { return l.Task == id })
+		if kind != "" {
+			other.Links = append(other.Links, Link{Kind: kind, Task: id})
+		}
+		other.UpdatedAt = time.Now().UTC()
+		errs = append(errs, s.h.StorageSet(ctx, taskKey(workspaceID, task), other))
+	}
+	return errors.Join(errs...)
 }
 
 func (s *store) dropWorkspace(ctx context.Context, workspaceID string) error {

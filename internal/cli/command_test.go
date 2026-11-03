@@ -63,10 +63,10 @@ func TestSplitLine(t *testing.T) {
 }
 
 func TestCommandRunCoercesKeyValues(t *testing.T) {
-	startEcho(t, `{"id":"alpha.say","title":"Say","args":{"properties":{"n":{"type":"integer"},"ok":{"type":"boolean"},"tags":{"type":"array","items":{"type":"string"}},"s":{"type":"string"}}}},{"id":"alpha.bare","title":"Bare"}`)
+	startEcho(t, `{"id":"alpha.say","title":"Say","args":{"properties":{"n":{"type":"integer"},"ok":{"type":"boolean"},"tags":{"type":"array","items":{"type":"string"}},"links":{"type":"array","items":{"type":"object","properties":{"task":{"type":"integer"}}}},"s":{"type":"string"}}}},{"id":"alpha.bare","title":"Bare"}`)
 	var out echoed
-	require.NoError(t, json.Unmarshal(run(t, "command", "run", "alpha.say", "n=3", "ok=true", "tags=a,b", "s=x=y"), &out))
-	assert.Equal(t, map[string]any{"n": 3.0, "ok": true, "tags": []any{"a", "b"}, "s": "x=y"}, out.Args)
+	require.NoError(t, json.Unmarshal(run(t, "command", "run", "alpha.say", "n=3", "ok=true", "tags=a,b", `links=[{"task":1},{"task":2}]`, "s=x=y"), &out))
+	assert.Equal(t, map[string]any{"n": 3.0, "ok": true, "tags": []any{"a", "b"}, "links": []any{map[string]any{"task": 1.0}, map[string]any{"task": 2.0}}, "s": "x=y"}, out.Args)
 	var stdout, stderr bytes.Buffer
 	for _, id := range []string{"alpha.say", "alpha.bare"} {
 		root := cli.NewRoot(&stdout, &stderr)

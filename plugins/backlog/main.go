@@ -21,7 +21,7 @@ type liveness interface {
 	drop(workspaceID string)
 	stale(ctx context.Context, workspaceID, owner string) bool
 	ancestor(ctx context.Context, workspaceID, ancestor, owner string) bool
-	title(ctx context.Context, workspaceID, id string) (string, bool)
+	session(ctx context.Context, workspaceID, id string) (agentSession, bool)
 }
 
 type backlog struct {
@@ -97,9 +97,7 @@ func (b *backlog) agentsEvent(ctx context.Context, ev pluginsdk.Event) {
 	if ev.Topic != api.TopicChanged && ev.Topic != api.TopicTurn {
 		return
 	}
-	var p struct {
-		Workspace string `json:"workspace"`
-	}
+	var p api.Changed
 	if err := json.Unmarshal(ev.Payload, &p); err != nil {
 		logError(ev.Topic, err)
 		return
@@ -108,6 +106,9 @@ func (b *backlog) agentsEvent(ctx context.Context, ev pluginsdk.Event) {
 		return
 	}
 	b.live.invalidate(p.Workspace)
+	if ev.Topic == api.TopicChanged && p.Session != "" && (p.Status == api.StatusClosed || p.Kind == api.ChangeDeleted) {
+		b.sessionStopped(ctx, p.Workspace, p.Session)
+	}
 	b.render(ctx, p.Workspace)
 }
 

@@ -8,7 +8,7 @@
   ],
   "contributes": {
     "shortcuts": [
-      {"keys": "cmd+return", "action": "Start an agent on the task"},
+      {"keys": "cmd+return", "action": "Start an agent on the task while you own it; open the session or graph run that owns it"},
       {"keys": "d", "action": "Mark the task done"},
       {"keys": "cmd+s", "action": "Save the task now (the form also autosaves)"},
       {"keys": "cmd+delete", "action": "Delete the task (confirmed)"}
@@ -150,7 +150,7 @@
         "title": "Get backlog task",
         "hidden": true,
         "agent": true,
-        "description": "Read one backlog task with its full description and note.",
+        "description": "Read one backlog task with its full description, note, links (with the other tasks' titles and statuses), attachments and owner history.",
         "args": {
           "properties": {
             "id": {
@@ -206,6 +206,72 @@
                 "type": "string"
               },
               "description": "Lowercase one-word tags."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Links to other tasks: kind blocked_by, blocks or relates; backlog.get adds the other task's title and status."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "run": {
+                    "type": "string"
+                  },
+                  "runTitle": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Owner history, oldest first: who owned the task from when (owner user, an agent session id or an external name; title the session's title and run/runTitle its graph run then) and why (created, started, claimed, released, done, taken back, stopped). Tasks from before the history read as you since creation, then the last and the current owner."
             },
             "claimedBy": {
               "type": "string",
@@ -275,6 +341,63 @@
               },
               "description": "Tags, one word each of letters, digits, - _ . or / (lowercased, # dropped), up to 10 of 32 characters, e.g. [\"voice\", \"phone\"]."
             },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "blocked_by",
+                      "blocks",
+                      "relates"
+                    ],
+                    "description": "blocked_by: this task waits for the other; blocks: the other waits for this one; relates: related."
+                  },
+                  "task": {
+                    "type": "integer",
+                    "description": "The other task's number."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "task"
+                ]
+              },
+              "description": "Links to other tasks of the workspace, e.g. [{\"kind\": \"blocked_by\", \"task\": 8}], at most 20, one per task. The other task gets the inverse link (blocks ⇄ blocked_by, relates ⇄ relates). On update the list replaces the links ([] clears)."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "file",
+                      "artifact",
+                      "image",
+                      "url"
+                    ],
+                    "description": "file: a path relative to the worktree; image and artifact (a design board or another HTML artifact): a worktree path or an http(s) URL; url: an http(s) link."
+                  },
+                  "ref": {
+                    "type": "string",
+                    "description": "The path or URL."
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Optional name to show instead of ref."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ]
+              },
+              "description": "Attachments, e.g. [{\"kind\": \"file\", \"ref\": \"design/check/fix-list.md\"}], at most 20. On update the list replaces them ([] clears). Start agent passes them to the session."
+            },
             "status": {
               "type": "string",
               "enum": [
@@ -330,6 +453,72 @@
               },
               "description": "Lowercase one-word tags."
             },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Links to other tasks: kind blocked_by, blocks or relates; backlog.get adds the other task's title and status."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "run": {
+                    "type": "string"
+                  },
+                  "runTitle": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Owner history, oldest first (see backlog.get)."
+            },
             "claimedBy": {
               "type": "string",
               "description": "Owner while in_progress."
@@ -371,7 +560,7 @@
         "title": "Update backlog task",
         "hidden": true,
         "agent": true,
-        "description": "Change a task's title, description, priority, tags, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not change the status of a task claimed by someone else. Delete is not available; use not_now.",
+        "description": "Change a task's title, description, priority, tags, links, attachments, note or status. Cannot set in_progress (use backlog.claim); moving a task out of in_progress drops its claim. Agents may not change the status of a task claimed by someone else. Delete is not available; use not_now.",
         "args": {
           "properties": {
             "id": {
@@ -401,6 +590,63 @@
                 "type": "string"
               },
               "description": "New tags, replacing the old ones; [] clears them."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "blocked_by",
+                      "blocks",
+                      "relates"
+                    ],
+                    "description": "blocked_by: this task waits for the other; blocks: the other waits for this one; relates: related."
+                  },
+                  "task": {
+                    "type": "integer",
+                    "description": "The other task's number."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "task"
+                ]
+              },
+              "description": "Links to other tasks of the workspace, e.g. [{\"kind\": \"blocked_by\", \"task\": 8}], at most 20, one per task. The other task gets the inverse link (blocks ⇄ blocked_by, relates ⇄ relates). On update the list replaces the links ([] clears)."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "file",
+                      "artifact",
+                      "image",
+                      "url"
+                    ],
+                    "description": "file: a path relative to the worktree; image and artifact (a design board or another HTML artifact): a worktree path or an http(s) URL; url: an http(s) link."
+                  },
+                  "ref": {
+                    "type": "string",
+                    "description": "The path or URL."
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Optional name to show instead of ref."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ]
+              },
+              "description": "Attachments, e.g. [{\"kind\": \"file\", \"ref\": \"design/check/fix-list.md\"}], at most 20. On update the list replaces them ([] clears). Start agent passes them to the session."
             },
             "status": {
               "type": "string",
@@ -461,6 +707,72 @@
                 "type": "string"
               },
               "description": "Lowercase one-word tags."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Links to other tasks: kind blocked_by, blocks or relates; backlog.get adds the other task's title and status."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "run": {
+                    "type": "string"
+                  },
+                  "runTitle": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Owner history, oldest first (see backlog.get)."
             },
             "claimedBy": {
               "type": "string",
@@ -559,6 +871,72 @@
                 "type": "string"
               },
               "description": "Lowercase one-word tags."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Links to other tasks: kind blocked_by, blocks or relates; backlog.get adds the other task's title and status."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "run": {
+                    "type": "string"
+                  },
+                  "runTitle": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Owner history, oldest first (see backlog.get)."
             },
             "claimedBy": {
               "type": "string",
@@ -662,6 +1040,72 @@
               },
               "description": "Lowercase one-word tags."
             },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Links to other tasks: kind blocked_by, blocks or relates; backlog.get adds the other task's title and status."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "run": {
+                    "type": "string"
+                  },
+                  "runTitle": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Owner history, oldest first (see backlog.get)."
+            },
             "claimedBy": {
               "type": "string",
               "description": "Owner while in_progress."
@@ -763,6 +1207,72 @@
                 "type": "string"
               },
               "description": "Lowercase one-word tags."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "task": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Links to other tasks: kind blocked_by, blocks or relates; backlog.get adds the other task's title and status."
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "run": {
+                    "type": "string"
+                  },
+                  "runTitle": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Owner history, oldest first (see backlog.get)."
             },
             "claimedBy": {
               "type": "string",

@@ -190,6 +190,12 @@ func coerceValue(p schema.Prop, value string) (any, error) {
 		if value == "" {
 			return items, nil
 		}
+		if p.Items.Type == "object" {
+			if err := json.Unmarshal([]byte(value), &items); err != nil {
+				return nil, fmt.Errorf("want a JSON array of objects, got %q", value)
+			}
+			return items, nil
+		}
 		for part := range strings.SplitSeq(value, ",") {
 			item, err := coerceValue(*p.Items, part)
 			if err != nil {

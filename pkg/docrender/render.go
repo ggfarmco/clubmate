@@ -28,6 +28,7 @@ type Options struct {
 	Path    string
 	Allowed func(abs string) bool
 	IsDoc   func(abs string) bool
+	Task    func(id int) (title string, ok bool)
 }
 
 type Doc struct {
@@ -103,6 +104,9 @@ func (transformer) Transform(root *ast.Document, reader text.Reader, pc parser.C
 		case *ast.Image:
 			s.image(n, src)
 		}
+	}
+	if s.opts.Task != nil {
+		s.taskLinks(root, src)
 	}
 }
 

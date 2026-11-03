@@ -7,18 +7,22 @@ import (
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
-	"clubmate/plugins/internal/agentcall"
 )
+
+type agentSession struct {
+	api.Session
+	Run *api.Run `json:"run,omitempty"`
+}
 
 type sessions struct {
 	h     *pluginsdk.Host
 	mu    sync.Mutex
-	cache map[string]map[string]api.Session
+	cache map[string]map[string]agentSession
 	gen   map[string]int
 	epoch int
 }
 
-func (s *sessions) lookup(ctx context.Context, workspaceID string) (map[string]api.Session, bool) {
+func (s *sessions) lookup(ctx context.Context, workspaceID string) (map[string]agentSession, bool) {
 	s.mu.Lock()
 	m, ok := s.cache[workspaceID]
 	s.mu.Unlock()
@@ -28,16 +32,16 @@ func (s *sessions) lookup(ctx context.Context, workspaceID string) (map[string]a
 	return s.fetch(ctx, workspaceID)
 }
 
-func (s *sessions) fetch(ctx context.Context, workspaceID string) (map[string]api.Session, bool) {
+func (s *sessions) fetch(ctx context.Context, workspaceID string) (map[string]agentSession, bool) {
 	s.mu.Lock()
 	gen, epoch := s.gen[workspaceID], s.epoch
 	s.mu.Unlock()
 
-	list, err := agentcall.Sessions(ctx, s.h, workspaceID)
-	if err != nil {
+	var list []agentSession
+	if err := s.h.RunCommand(ctx, "agents.sessions", workspaceID, struct{}{}, &list); err != nil {
 		return nil, false
 	}
-	m := make(map[string]api.Session, len(list))
+	m := make(map[string]agentSession, len(list))
 	for _, a := range list {
 		m[a.ID] = a
 	}
@@ -45,7 +49,7 @@ func (s *sessions) fetch(ctx context.Context, workspaceID string) (map[string]ap
 	defer s.mu.Unlock()
 	if s.gen[workspaceID] == gen && s.epoch == epoch {
 		if s.cache == nil {
-			s.cache = map[string]map[string]api.Session{}
+			s.cache = map[string]map[string]agentSession{}
 		}
 		s.cache[workspaceID] = m
 	}
@@ -108,11 +112,11 @@ func (s *sessions) ancestor(ctx context.Context, workspaceID, ancestor, owner st
 	return false
 }
 
-func (s *sessions) title(ctx context.Context, workspaceID, id string) (string, bool) {
+func (s *sessions) session(ctx context.Context, workspaceID, id string) (agentSession, bool) {
 	m, ok := s.lookup(ctx, workspaceID)
 	if !ok {
-		return "", false
+		return agentSession{}, false
 	}
 	a, found := m[id]
-	return a.Title, found
+	return a, found
 }

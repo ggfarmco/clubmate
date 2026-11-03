@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"sync"
 
 	"clubmate/pkg/contract"
+	"clubmate/pkg/docrender"
 	"clubmate/pkg/pluginsdk"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/agentcall"
@@ -27,6 +29,7 @@ type workspaceUI struct {
 	selected   int
 	collapsed  map[string]bool
 	formRev    int
+	fieldRev   int
 	sent       map[string][32]byte
 	fieldError fieldError
 	editing    int
@@ -130,10 +133,12 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if w.tagFilter != "" && tagCounts(tasks)[w.tagFilter] == 0 {
 		w.tagFilter = ""
 	}
-	selected, collapsed, rev, fieldErr, editing, filter := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldError, w.editing, w.tagFilter
+	selected, collapsed, rev, fieldRev, fieldErr, editing, filter := w.selected, maps.Clone(w.collapsed), w.formRev, w.fieldRev, w.fieldError, w.editing, w.tagFilter
 	b.mu.Unlock()
 	var current *Task
+	byID := make(map[int]Task, len(tasks))
 	for i := range tasks {
+		byID[tasks[i].ID] = tasks[i]
 		if tasks[i].ID == selected {
 			current = &tasks[i]
 		}
@@ -150,7 +155,8 @@ func (b *backlog) renderNow(ctx context.Context, workspaceID string) error {
 	if fieldErr.task == selected && fieldErr.text != "" {
 		errs = map[string]string{fieldErr.field: fieldErr.text}
 	}
-	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, owners, len(tasks) > 0, errs, current != nil && editing == current.ID))
+	d := detail{owners: owners, linked: byID, hasTasks: len(tasks) > 0, errs: errs, editing: current != nil && editing == current.ID, rev: rev + fieldRev}
+	return b.push(ctx, w, workspaceID, mainSlot, mainView(current, d))
 }
 
 func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot string, n sdui.Node) error {
@@ -174,7 +180,7 @@ func (b *backlog) push(ctx context.Context, w *workspaceUI, workspaceID, slot st
 	return nil
 }
 
-func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, current *Task) map[string]string {
+func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, current *Task) map[string]owner {
 	ids := map[string]bool{}
 	if current != nil && current.Status == statusInProgress {
 		ids[current.ClaimedBy] = true
@@ -182,14 +188,21 @@ func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, current *
 	if current != nil && current.LastClaimedBy != "" {
 		ids[current.LastClaimedBy] = true
 	}
-	owners := make(map[string]string, len(ids))
+	owners := make(map[string]owner, len(ids))
 	for id := range ids {
 		if !strings.HasPrefix(id, sessionPfx) {
-			owners[id] = ownerLabel(id, "", false)
+			owners[id] = owner{label: ownerLabel(id, "", false)}
 			continue
 		}
-		title, _ := b.live.title(ctx, workspaceID, id)
-		owners[id] = ownerLabel(id, title, b.live.stale(ctx, workspaceID, id))
+		s, _ := b.live.session(ctx, workspaceID, id)
+		o := owner{session: true, stale: b.live.stale(ctx, workspaceID, id)}
+		title := s.Title
+		if s.Run != nil {
+			o.run, o.runTitle = s.Run.ID, s.Run.Title
+			title = cmp.Or(s.Run.Title+" · "+s.Title, title)
+		}
+		o.label = ownerLabel(id, title, o.stale)
+		owners[id] = o
 	}
 	return owners
 }
@@ -268,6 +281,18 @@ func (b *backlog) act(ctx context.Context, ev pluginsdk.UIEvent) error {
 			w.tagFilter = ""
 		}
 		return nil
+	case ev.Slot == mainSlot && (ev.NodeID == linkField || ev.NodeID == attachField):
+		var text string
+		if err := json.Unmarshal(ev.Value, &text); err != nil {
+			return fmt.Errorf("%s value: %w", ev.NodeID, err)
+		}
+		return b.addRef(ctx, ev.WorkspaceID, w, ev.NodeID, text)
+	case ev.Slot == mainSlot && (ev.NodeID == linksNode || ev.NodeID == attachNode || ev.Action == actOpenDoc):
+		var item string
+		if err := json.Unmarshal(ev.Value, &item); err != nil {
+			return fmt.Errorf("%s value: %w", ev.Action, err)
+		}
+		return b.refAction(ctx, ev.WorkspaceID, w, ev.NodeID, ev.Action, item)
 	case ev.Slot == mainSlot && ev.Action == actDescribe:
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -323,8 +348,10 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	args := commandArgs{ID: id}
 	var err error
 	switch verb, value := parseAction(action); verb {
-	case "start":
-		_, err = b.claimCmd(ctx, user, args)
+	case actStart:
+		err = b.startAgent(ctx, workspaceID, id)
+	case actTakeBack:
+		err = b.takeBack(ctx, workspaceID, id)
 	case "release":
 		_, err = b.releaseCmd(ctx, user, args)
 	case "done":
@@ -343,6 +370,9 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 		if t.Status != statusInProgress || !strings.HasPrefix(t.ClaimedBy, sessionPfx) {
 			return fmt.Errorf("task #%d is not claimed by an agent session", id)
 		}
+		if s, ok := b.live.session(ctx, workspaceID, t.ClaimedBy); ok && s.Run != nil {
+			return b.h.RunCommand(ctx, "graphs.reveal", workspaceID, map[string]string{"id": s.Run.ID}, nil)
+		}
 		err = agentcall.Reveal(ctx, b.h, workspaceID, t.ClaimedBy)
 	case "delete":
 		if err = b.store.remove(ctx, workspaceID, id); err != nil {
@@ -358,4 +388,81 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 		err = fmt.Errorf("%w: %q", errUnknownAction, action)
 	}
 	return err
+}
+
+func (b *backlog) addRef(ctx context.Context, workspaceID string, w *workspaceUI, field, text string) error {
+	id := b.selected(w)
+	t, err := b.store.get(ctx, workspaceID, id)
+	if err != nil {
+		return err
+	}
+	args := commandArgs{ID: id, keepClaim: true}
+	if field == linkField {
+		l, perr := parseLink(text)
+		err = perr
+		links := append(slices.Clone(t.Links), l)
+		args.Links = &links
+	} else {
+		attachments := append(slices.Clone(t.Attachments), parseAttachment(text))
+		args.Attachments = &attachments
+	}
+	if err == nil {
+		_, err = b.updateCmd(ctx, pluginsdk.CommandRun{WorkspaceID: workspaceID}, args)
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	w.fieldError = fieldError{}
+	if err != nil {
+		w.fieldError = fieldError{task: id, field: field, text: caption(err)}
+		return nil
+	}
+	w.fieldRev++
+	return nil
+}
+
+func (b *backlog) refAction(ctx context.Context, workspaceID string, w *workspaceUI, node, action, item string) error {
+	id := b.selected(w)
+	if action == actOpenDoc {
+		n, ok := strings.CutPrefix(item, docrender.TaskPath)
+		if !ok {
+			return fmt.Errorf("%w: %s %q", errUnknownAction, action, item)
+		}
+		item, action, node = n, "select", linksNode
+	}
+	n, err := strconv.Atoi(item)
+	if err != nil {
+		return fmt.Errorf("%s item %q: %w", node, item, err)
+	}
+	switch {
+	case action == "select" && node == linksNode:
+		if _, err := b.store.get(ctx, workspaceID, n); err != nil {
+			return err
+		}
+		b.mu.Lock()
+		w.selected = n
+		b.mu.Unlock()
+		return nil
+	case action == "select":
+		return nil
+	case action == actUnlink:
+		t, err := b.store.get(ctx, workspaceID, id)
+		if err != nil {
+			return err
+		}
+		links := slices.DeleteFunc(slices.Clone(t.Links), func(l Link) bool { return l.Task == n })
+		_, err = b.updateCmd(ctx, pluginsdk.CommandRun{WorkspaceID: workspaceID}, commandArgs{ID: id, Links: &links, keepClaim: true})
+		return err
+	case action == actDetach:
+		t, err := b.store.get(ctx, workspaceID, id)
+		if err != nil {
+			return err
+		}
+		if n < 0 || n >= len(t.Attachments) {
+			return fmt.Errorf("task #%d has no attachment %d", id, n)
+		}
+		attachments := slices.Delete(slices.Clone(t.Attachments), n, n+1)
+		_, err = b.updateCmd(ctx, pluginsdk.CommandRun{WorkspaceID: workspaceID}, commandArgs{ID: id, Attachments: &attachments, keepClaim: true})
+		return err
+	}
+	return fmt.Errorf("%w: %s %q", errUnknownAction, node, action)
 }
