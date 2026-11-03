@@ -161,6 +161,9 @@ func (a *app) pause(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error)
 		return nil, err
 	}
 	return a.registry.Mutate(ctx, cmd, args.ID, func(j *Job) error {
+		if j.Enabled {
+			j.Paused = automation.Pause(j.Paused, a.now(), "")
+		}
 		j.Enabled = false
 		return nil
 	})
@@ -180,6 +183,7 @@ func (a *app) resume(ctx context.Context, cmd pluginsdk.CommandRun) (*Job, error
 		j.Failures = 0
 		j.LastError = ""
 		j.NextRun = next
+		j.Paused = automation.Resume(j.Paused, a.now())
 		return nil
 	})
 }

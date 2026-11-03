@@ -16,20 +16,21 @@ const (
 type Run = automation.Run
 
 type Job struct {
-	ID        string          `json:"id"`
-	Name      string          `json:"name"`
-	Workspace string          `json:"workspace"`
-	Schedule  Schedule        `json:"schedule"`
-	Command   string          `json:"command"`
-	Args      json.RawMessage `json:"args,omitempty"`
-	Enabled   bool            `json:"enabled"`
-	Owner     string          `json:"owner,omitempty"`
-	CreatedBy string          `json:"createdBy,omitempty"`
-	Missed    string          `json:"missed"`
-	NextRun   time.Time       `json:"nextRun,omitzero"`
-	Failures  int             `json:"failures,omitempty"`
-	LastError string          `json:"lastError,omitempty"`
-	History   []Run           `json:"history,omitempty"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Workspace string            `json:"workspace"`
+	Schedule  Schedule          `json:"schedule"`
+	Command   string            `json:"command"`
+	Args      json.RawMessage   `json:"args,omitempty"`
+	Enabled   bool              `json:"enabled"`
+	Owner     string            `json:"owner,omitempty"`
+	CreatedBy string            `json:"createdBy,omitempty"`
+	Missed    string            `json:"missed"`
+	NextRun   time.Time         `json:"nextRun,omitzero"`
+	Failures  int               `json:"failures,omitempty"`
+	LastError string            `json:"lastError,omitempty"`
+	History   []Run             `json:"history,omitempty"`
+	Paused    []automation.Span `json:"paused,omitempty"`
 }
 
 func (j *Job) Action() automation.Action {
@@ -51,5 +52,6 @@ func (j *Job) StorageKey() (workspace, id string) {
 func (j *Job) Clone() *Job {
 	c := *j
 	c.History = slices.Clone(j.History)
+	c.Paused = slices.Clone(j.Paused)
 	return &c
 }

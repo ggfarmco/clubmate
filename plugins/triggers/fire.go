@@ -17,6 +17,7 @@ import (
 
 const (
 	sessionField  = "session"
+	triggerNoun   = "Trigger"
 	reasonForeign = "emitted by another agent session"
 	maxFires      = 10
 	fireWindow    = time.Minute
@@ -54,6 +55,7 @@ func (a *app) dispatch(ctx context.Context, ev pluginsdk.Event) {
 		updated := t.Clone()
 		if record(updated, r) || r.Reason == reasonLoop {
 			updated.Enabled = false
+			updated.Paused = automation.Pause(updated.Paused, r.At, r.Reason)
 			tripped = append(tripped, updated)
 		}
 		logError(a.put(ctx, updated))
@@ -127,6 +129,7 @@ func (a *app) fire(ctx context.Context, t *Trigger, ev pluginsdk.Event) Run {
 	x := a.executor()
 	act := t.Action()
 	sessions, reason := x.Guard(ctx, act)
+	r.Chain = a.chain(ctx, t.Workspace, ev, sessions)
 	if reason == "" && foreign(t, ev, sessions) {
 		reason = reasonForeign
 	}
@@ -172,8 +175,11 @@ func (a *app) settle(ctx context.Context, id string, r Run, refire bool) error {
 	err := a.put(ctx, updated)
 	a.mu.Unlock()
 	a.registry.Flush(ctx)
-	if paused {
+	switch {
+	case paused:
 		a.notify(ctx, updated)
+	case updated.Run == "":
+		a.registry.NotifyRun(ctx, triggerNoun, updated.Action(), r)
 	}
 	return err
 }
@@ -193,7 +199,7 @@ func (a *app) drop(ctx context.Context, t *Trigger) error {
 }
 
 func (a *app) notifyPaused(ctx context.Context, t *Trigger) {
-	a.registry.NotifyPaused(ctx, a.host, "Trigger paused", t.Action(), t.LastError)
+	a.registry.NotifyPaused(ctx, triggerNoun+" paused", t.Action(), t.LastError)
 }
 
 func (a *app) executor() automation.Executor {
@@ -201,11 +207,13 @@ func (a *app) executor() automation.Executor {
 }
 
 func record(t *Trigger, r Run) (paused bool) {
-	if !automation.Record(&t.History, &t.Failures, &t.LastError, r) {
-		return false
+	paused = automation.Record(&t.History, &t.Failures, &t.LastError, r)
+	t.Paused = automation.KeepSpans(t.Paused, t.History)
+	if paused {
+		t.Enabled = false
+		t.Paused = automation.Pause(t.Paused, r.At, t.LastError)
 	}
-	t.Enabled = false
-	return true
+	return paused
 }
 
 func logError(err error) {

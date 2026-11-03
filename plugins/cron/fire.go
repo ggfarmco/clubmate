@@ -9,7 +9,10 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-const reasonMissed = "missed"
+const (
+	reasonMissed = automation.ReasonMissed
+	jobNoun      = "Cron job"
+)
 
 func (a *app) tick(ctx context.Context) time.Duration {
 	now := a.now()
@@ -25,7 +28,10 @@ func (a *app) tick(ctx context.Context) time.Duration {
 		start := false
 		switch {
 		case d == skipMissed:
-			record(updated, Run{At: now, Status: automation.StatusSkipped, Reason: reasonMissed})
+			r := Run{At: now, Status: automation.StatusSkipped, Reason: reasonMissed}
+			record(updated, r)
+			act := updated.Action()
+			a.runs.Go(func() { a.registry.NotifyRun(context.WithoutCancel(ctx), jobNoun, act, r) })
 		case busy:
 			record(updated, Run{At: now, Status: automation.StatusSkipped, Reason: automation.ReasonInFlight})
 		default:
@@ -80,8 +86,11 @@ func (a *app) settle(ctx context.Context, id string, r Run, spent bool) error {
 	a.mu.Unlock()
 	a.wake()
 	a.registry.Flush(ctx)
-	if paused {
-		a.registry.NotifyPaused(ctx, a.host, "Cron job paused", j.Action(), j.LastError)
+	switch {
+	case paused:
+		a.registry.NotifyPaused(ctx, jobNoun+" paused", j.Action(), j.LastError)
+	case j != nil:
+		a.registry.NotifyRun(ctx, jobNoun, j.Action(), r)
 	}
 	return err
 }

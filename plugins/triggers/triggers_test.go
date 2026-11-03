@@ -21,6 +21,10 @@ type trigger struct {
 		Topic  string `json:"topic"`
 		Status string `json:"status"`
 		Reason string `json:"reason"`
+		Chain  struct {
+			CronJob  string `json:"cronJob"`
+			CronName string `json:"cronName"`
+		} `json:"chain"`
 	} `json:"history"`
 }
 
@@ -75,6 +79,8 @@ func TestCronEmitFiresTrigger(t *testing.T) {
 	}, wait)
 	assert.Equal(t, "event.ping", shown.History[0].Topic)
 	assert.Equal(t, "ok", shown.History[0].Status, shown.History[0].Reason)
+	assert.Equal(t, []string{job.ID, "tick"}, []string{shown.History[0].Chain.CronJob, shown.History[0].Chain.CronName})
+	assert.ErrorContains(t, f.run(t, "triggers.emit", map[string]any{"name": "ping", "cronJob": job.ID}, nil), "only the cron plugin may set cronJob")
 	var events []struct {
 		Payload struct {
 			Message string `json:"message"`

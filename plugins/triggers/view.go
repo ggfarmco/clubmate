@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
@@ -18,12 +19,10 @@ const (
 	sidebarSlot  = "triggers.sidebar"
 	mainSlot     = "triggers.main"
 	listID       = "triggers"
-	historyID    = "history"
 	groupPrefix  = "graph:"
 	actGraph     = "graph"
 	graphIcon    = "point.3.connected.trianglepath.dotted"
 	graphOutcome = emitPrefix + "graph."
-	whenLayout   = "Jan 2 15:04:05"
 )
 
 func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool, titles map[string]string) sdui.Node {
@@ -68,14 +67,14 @@ func triggerItem(t *Trigger, titles map[string]string) sdui.TreeItem {
 	}
 }
 
-func mainView(t *Trigger, titles map[string]string, open automation.Open) sdui.Node {
+func mainView(t *Trigger, titles map[string]string, open automation.Open, runs automation.RunsView) sdui.Node {
 	if t == nil {
 		return sdui.Empty("Select a trigger")
 	}
 	props := sdui.HeaderProps{Icon: headerIcon(t), Badges: automation.StateBadges(t.Enabled, t.History)}
-	actions := []sdui.Node{
-		automation.ActionNode(t.ID, automation.RunAction(sdui.VariantSecondary)),
-		automation.ActionNode(t.ID, automation.PauseAction(t.Enabled)),
+	var actions []sdui.Node
+	for _, act := range automation.StateActions(t.Enabled, t.Run == "") {
+		actions = append(actions, automation.ActionNode(t.ID, act))
 	}
 	if t.Run != "" {
 		props.Meta = "created by graph " + runName(t)
@@ -90,14 +89,20 @@ func mainView(t *Trigger, titles map[string]string, open automation.Open) sdui.N
 	when := whenLine(t, titles)
 	rows := []sdui.Node{automation.Property("When", when, "")}
 	if !t.Enabled && t.LastError != "" {
-		rows = append(rows, automation.Property("Paused", t.LastError, ""))
+		rows = append(rows, automation.Property("Paused", automation.ErrorWords(t.LastError), ""))
 	}
 	rows = append(rows, automation.Property("Owner", ownerLine(t, titles), ""))
 	rows = append(rows, automation.Does(t.ID, t.Command, t.Args, titles, open)...)
 	if len(t.History) == 0 {
 		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "No runs yet. It runs when "+when+".", ""))...))
 	}
-	return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "", ""))...), historyView(t, titles))
+	cells := func(r Run) ([]string, string) {
+		return []string{eventWords(r, titles)}, automation.Words(t.Command, t.Args, r, titles)
+	}
+	event := []sdui.Column{{ID: "event", Title: "Event", Priority: 1}}
+	table, run := automation.RunsTable(t.History, time.Local, event, cells, runs)
+	rows = append(rows, automation.RunsRows(t.ID, t.History, run, open.RunJSON)...)
+	return sdui.VStack(header, automation.Properties(rows...), sdui.Scroll(table))
 }
 
 func whenLine(t *Trigger, titles map[string]string) string {
@@ -175,7 +180,7 @@ func triggerDetail(t *Trigger, titles map[string]string) string {
 	if t.LastError == "" {
 		return "paused"
 	}
-	return "paused · " + t.LastError
+	return "paused · " + automation.ErrorWords(t.LastError)
 }
 
 func headerIcon(t *Trigger) string {
@@ -202,24 +207,4 @@ func triggerMenu(t *Trigger) []sdui.MenuEntry {
 		toggle,
 		{Action: automation.ActDelete, Label: "Delete", Confirm: deleteConfirm(t)},
 	}
-}
-
-func historyView(t *Trigger, titles map[string]string) sdui.Node {
-	runs := automation.NewestFirst(t.History)
-	rows := make([]sdui.TableRow, 0, len(runs))
-	for i, r := range runs {
-		rows = append(rows, sdui.TableRow{ID: "r" + strconv.Itoa(i), Cells: []sdui.Cell{
-			{Text: r.At.Local().Format(whenLayout)},
-			{Text: topicPhrase(r.Topic)},
-			{Text: r.Status, Tone: automation.StatusTone(r.Status)},
-			{Text: automation.Names(cmp.Or(r.Reason, r.Result), titles)},
-		}})
-	}
-	columns := []sdui.Column{
-		{ID: "when", Title: "When", Width: 120},
-		{ID: "event", Title: "Event", Width: 140},
-		{ID: "status", Title: "Status", Width: 72},
-		{ID: "detail", Title: "Reason / Result"},
-	}
-	return sdui.Scroll(sdui.Table(historyID, columns, rows, "", sdui.Sort{}))
 }

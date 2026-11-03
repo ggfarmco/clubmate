@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"clubmate/pkg/sdui"
@@ -22,7 +21,7 @@ const (
 	clockLayout  = "15:04"
 	dayLayout    = "Jan 2 15:04"
 	nextLayout   = "Mon, Jan 2 · 15:04"
-	whenLayout   = "Jan 2 15:04:05"
+	pausedLayout = "Jan 2"
 )
 
 var missedOptions = []sdui.Option{
@@ -49,19 +48,21 @@ func sidebarView(jobs []*Job, selected string, now time.Time) sdui.Node {
 	return sdui.List(jobsList, items, selected)
 }
 
-func mainView(j *Job, titles map[string]string, open automation.Open, d draft, now time.Time) sdui.Node {
+func mainView(j *Job, titles map[string]string, open automation.Open, runs automation.RunsView, d draft, now time.Time) sdui.Node {
 	if j == nil {
 		return sdui.Empty("Select a cron job")
 	}
 	if open.Edit {
 		return editView(j, d)
 	}
-	actions := []sdui.Node{
-		automation.ActionNode(j.ID, automation.RunAction(sdui.VariantPrimary)),
-		automation.ActionNode(j.ID, automation.PauseAction(j.Enabled)),
+	var actions []sdui.Node
+	for _, act := range automation.StateActions(j.Enabled, true) {
+		actions = append(actions, automation.ActionNode(j.ID, act))
+	}
+	actions = append(actions,
 		automation.ActionNode(j.ID, automation.DetailAction{Action: automation.ActEdit, Label: "Edit", Icon: "pencil", Variant: sdui.VariantGhost, Shortcut: "e"}),
 		automation.ActionNode(j.ID, automation.DetailAction{Action: actDuplicate, Label: "Duplicate", Icon: "plus.square.on.square", Variant: sdui.VariantGhost}),
-	}
+	)
 	if _, ok := titles[j.Owner]; ok {
 		actions = append(actions, automation.ActionNode(j.ID, automation.DetailAction{Action: automation.ActReveal, Label: "Show session", Icon: "sparkles", Variant: sdui.VariantGhost}))
 	}
@@ -76,7 +77,7 @@ func mainView(j *Job, titles map[string]string, open automation.Open, d draft, n
 	rows := []sdui.Node{automation.Property("Schedule", automation.Capitalize(j.Schedule.Describe()), j.Schedule.Cron)}
 	switch {
 	case !j.Enabled:
-		rows = append(rows, automation.Property("Paused", cmp.Or(j.LastError, "by you"), ""))
+		rows = append(rows, automation.Property("Next run", "none while paused", pausedLine(j, loc)))
 	case !j.NextRun.IsZero():
 		rows = append(rows, automation.Property("Next run", j.NextRun.In(loc).Format(nextLayout), automation.Until(j.NextRun, now)))
 	}
@@ -95,7 +96,26 @@ func mainView(j *Job, titles map[string]string, open automation.Open, d draft, n
 	if len(j.History) == 0 {
 		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", noRuns(j, now), ""))...))
 	}
-	return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "", ""))...), historyView(j, titles))
+	cells := func(r Run) ([]string, string) { return nil, automation.Words(j.Command, j.Args, r, titles) }
+	table, run := automation.RunsTable(j.History, loc, nil, cells, runs)
+	rows = append(rows, automation.RunsRows(j.ID, j.History, run, open.RunJSON)...)
+	return sdui.VStack(header, automation.Properties(rows...), sdui.Scroll(table))
+}
+
+func pausedLine(j *Job, loc *time.Location) string {
+	span, open := automation.OpenSpan(j.Paused)
+	why := automation.ErrorWords(cmp.Or(span.Reason, j.LastError))
+	line := "paused by you"
+	if why != "" {
+		line = "paused"
+	}
+	if open {
+		line += ", " + span.From.In(loc).Format(pausedLayout)
+	}
+	if why != "" {
+		line += " · " + why
+	}
+	return line
 }
 
 func missedRuns(history []Run) (int, time.Time) {
@@ -167,25 +187,6 @@ func jobMenu(j *Job) []sdui.MenuEntry {
 		{Action: actDuplicate, Label: "Duplicate"},
 		{Action: automation.ActDelete, Label: "Delete", Confirm: "Delete cron job “" + j.Name + "”?"},
 	}
-}
-
-func historyView(j *Job, titles map[string]string) sdui.Node {
-	runs := automation.NewestFirst(j.History)
-	loc := jobLocation(j)
-	rows := make([]sdui.TableRow, 0, len(runs))
-	for i, r := range runs {
-		rows = append(rows, sdui.TableRow{ID: "r" + strconv.Itoa(i), Cells: []sdui.Cell{
-			{Text: r.At.In(loc).Format(whenLayout)},
-			{Text: r.Status, Tone: automation.StatusTone(r.Status)},
-			{Text: automation.Names(cmp.Or(r.Reason, r.Result), titles)},
-		}})
-	}
-	columns := []sdui.Column{
-		{ID: "when", Title: "When", Width: 120},
-		{ID: "status", Title: "Status", Width: 72},
-		{ID: "detail", Title: "Reason / Result"},
-	}
-	return sdui.Scroll(sdui.Table(historyID, columns, rows, "", sdui.Sort{}))
 }
 
 func plural(n int, one, many string) string {

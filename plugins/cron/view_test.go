@@ -36,21 +36,24 @@ func TestSidebarDetailAndMenu(t *testing.T) {
 
 func TestMainHistoryNewestFirst(t *testing.T) {
 	at := time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC)
-	j := &Job{ID: "cj_a", Name: "a", Schedule: Schedule{Every: "1m"}, Owner: "agt_1", History: []Run{
+	j := &Job{ID: "cj_a", Name: "a", Schedule: Schedule{Every: "1m", Timezone: "UTC"}, Owner: "agt_1", Command: agentNewCommand, Paused: []automation.Span{{From: at}}, History: []Run{
 		{At: at.Add(time.Minute), Status: automation.StatusSkipped, Reason: automation.ReasonInFlight},
 		{At: at, Status: automation.StatusOK, Result: `{"session":"agt_2"}`},
 		{At: at.Add(2 * time.Minute), Status: automation.StatusError, Reason: "boom"},
 	}}
-	view := mainView(j, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, automation.Open{}, draft{}, at)
+	view := mainView(j, map[string]string{"agt_1": "Orchestrator", "agt_2": "Child"}, automation.Open{}, automation.RunsView{}, draft{}, at)
 	require.NoError(t, isdui.Validate(view))
 	assert.Contains(t, texts(view), "Orchestrator")
 	assert.Equal(t, "header", view.Children[0].Type)
-	assert.Equal(t, []string{"cj_a/run", "cj_a/resume", "cj_a/edit", "cj_a/duplicate", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
+	assert.Equal(t, []string{"cj_a/resume", "cj_a/run", "cj_a/edit", "cj_a/duplicate", "cj_a/reveal", "cj_a/delete"}, childIDs(view.Children[0]))
+	assert.Equal(t, sdui.VariantPrimary, view.Children[0].Children[0].Props["variant"])
+	assert.Contains(t, texts(view), "none while paused")
+	assert.Contains(t, texts(view), "paused by you, Oct 30")
 	rows := tableRows(t, view)
 	require.Len(t, rows, 3)
-	assert.Equal(t, "boom", rows[0].Cells[2].Text)
-	assert.Equal(t, automation.ReasonInFlight, rows[1].Cells[2].Text)
-	assert.Equal(t, `{"session":"Child"}`, rows[2].Cells[2].Text)
+	assert.Equal(t, []sdui.Cell{{Text: "Oct 30 09:02:00"}, {Text: "failed", Tone: "danger"}, {Text: "boom"}}, rows[0].Cells)
+	assert.Equal(t, "not run — the previous run was still running", rows[1].Cells[2].Text)
+	assert.Equal(t, "started Child", rows[2].Cells[2].Text)
 }
 
 func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
@@ -63,7 +66,7 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 			{At: now.Add(-11 * time.Hour), Status: automation.StatusSkipped, Reason: reasonMissed},
 		}}
 
-	view := mainView(j, nil, automation.Open{}, draft{}, now)
+	view := mainView(j, nil, automation.Open{}, automation.RunsView{}, draft{}, now)
 	require.NoError(t, isdui.Validate(view))
 	assert.Equal(t, []sdui.HeaderBadge{{Text: "active"}, {Text: "missed 1 run", Tone: "warning"}}, view.Children[0].Props["badges"])
 	got := texts(view)
@@ -73,14 +76,14 @@ func TestMainSplitsMissedRunsFromThePolicy(t *testing.T) {
 	policy := view.Children[1].Children[3].Children[1]
 	assert.Equal(t, []any{"select", missedSkip, actMissed}, []any{policy.Type, policy.Props["value"], policy.Props["action"]})
 	assert.Contains(t, got, "the main checkout")
-	assert.Contains(t, got, "nobody — results go to the inbox")
+	assert.Contains(t, got, "nobody — failures go to the inbox")
 	assert.Contains(t, got, "Start an agent · Claude · new session")
 	assert.Contains(t, childIDs(view.Children[1].Children[2]), "cj_a/runMissed")
 }
 
 func TestEmptyStates(t *testing.T) {
 	assert.Equal(t, "empty", sidebarView(nil, "", time.Now()).Type)
-	assert.Equal(t, "empty", mainView(nil, nil, automation.Open{}, draft{}, time.Now()).Type)
+	assert.Equal(t, "empty", mainView(nil, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now()).Type)
 }
 
 func listItems(t *testing.T, n sdui.Node) []sdui.Item {
@@ -160,5 +163,5 @@ func TestEditArgsKeepTheAgentArgsAndSendOnlyChanges(t *testing.T) {
 
 func TestViewShortcutsDeclared(t *testing.T) {
 	j := &Job{ID: "cj_a", Name: "a", Enabled: true, Command: agentNewCommand, Schedule: Schedule{Every: "1m"}}
-	shortcuttest.RequireDeclared(t, mainView(j, nil, automation.Open{}, draft{}, time.Now()), editView(j, draft{}))
+	shortcuttest.RequireDeclared(t, mainView(j, nil, automation.Open{}, automation.RunsView{}, draft{}, time.Now()), editView(j, draft{}))
 }

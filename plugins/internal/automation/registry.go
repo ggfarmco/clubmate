@@ -26,6 +26,7 @@ type Registry[P Entry[P]] struct {
 	Drop           func(ctx context.Context, p P) error
 	Changed        func()
 	SessionDeleted func(session string)
+	Notify         func(ctx context.Context, req NotifyRequest) error
 	Log            func(error)
 	renderMu       sync.Mutex
 	dirty          map[string]bool
@@ -313,10 +314,41 @@ func (r *Registry[P]) Flush(ctx context.Context) {
 	}
 }
 
-func (r *Registry[P]) NotifyPaused(ctx context.Context, h *pluginsdk.Host, title string, act Action, lastError string) {
-	req := notifyRequest{WorkspaceID: act.Workspace, Title: title, Message: act.Name + ": " + lastError, Kind: "stuck"}
-	if err := h.Call(ctx, "notify.post", req, nil); err != nil {
+func (r *Registry[P]) NotifyPaused(ctx context.Context, title string, act Action, lastError string) {
+	req := NotifyRequest{WorkspaceID: act.Workspace, Title: title, Message: act.Name + ": " + ErrorWords(lastError), Kind: "stuck"}
+	if err := r.Notify(ctx, req); err != nil {
 		r.Log(fmt.Errorf("notify paused %s %s: %w", r.Noun, act.ID, err))
+	}
+}
+
+func (r *Registry[P]) NotifyRun(ctx context.Context, what string, act Action, run Run) {
+	req, ok := InboxPost(what, act, run)
+	if !ok {
+		return
+	}
+	if err := r.Notify(ctx, req); err != nil {
+		r.Log(fmt.Errorf("notify %s run %s: %w", r.Noun, act.ID, err))
+	}
+}
+
+func InboxPost(what string, act Action, run Run) (NotifyRequest, bool) {
+	req := NotifyRequest{WorkspaceID: act.Workspace, Title: act.Name}
+	switch {
+	case act.Owner != "":
+		return NotifyRequest{}, false
+	case run.Status == StatusError:
+		req.Kind, req.Message = "stuck", what+" failed: "+ErrorWords(run.Reason)
+	case run.Reason == ReasonMissed:
+		req.Kind, req.Message = "info", what+" missed a run: "+reasons[ReasonMissed]
+	default:
+		return NotifyRequest{}, false
+	}
+	return req, true
+}
+
+func HostNotify(h func() *pluginsdk.Host) func(ctx context.Context, req NotifyRequest) error {
+	return func(ctx context.Context, req NotifyRequest) error {
+		return h().Call(ctx, "notify.post", req, nil)
 	}
 }
 

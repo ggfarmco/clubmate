@@ -30,3 +30,16 @@ client/Clubmate/Resources/terminfo
 /scripts/voicebench/data/
 /scripts/voicebench/fixtures/*.wav
 __pycache__/
+/plugins/backlog/backlog
+/plugins/cron/cron
+/plugins/docs/docs
+/plugins/editor-nvim/editor-nvim
+/plugins/editor-vscode/editor-vscode
+/plugins/git/git
+/plugins/graphs/graphs
+/plugins/processes/processes
+/plugins/remote/remote
+/plugins/search/search
+/plugins/terminals/terminals
+/plugins/triggers/triggers
+/plugins/voice/voice

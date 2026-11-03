@@ -45,7 +45,7 @@
         "title": "Show trigger",
         "hidden": true,
         "agent": true,
-        "description": "Show one trigger with its last 20 runs: history [{at, topic, seq, status, reason?, result?}], status ok, error or skipped (busy, no app, previous run still running, owner gone, owner unknown, emitted by another agent session; skips are not failures). Non-destructive.",
+        "description": "Show one trigger with its last 100 runs: history [{at, topic, seq, status, reason?, result?, chain?}] (chain: the session, cron job or trigger that led to the event) and paused [{from, to?, reason?}], status ok, error or skipped (busy, no app, previous run still running, owner gone, owner unknown, emitted by another agent session; skips are not failures). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Trigger id (tr_…)."}
@@ -119,7 +119,8 @@
         "args": {
           "properties": {
             "name": {"type": "string", "description": "Event name: lowercase dot-separated words, e.g. nightly or build.done; the topic is event.<name>."},
-            "payload": {"type": "string", "default": "{}", "description": "Event payload as JSON text (a string holding a JSON object); its workspace field is always this workspace."}
+            "payload": {"type": "string", "default": "{}", "description": "Event payload as JSON text (a string holding a JSON object); its workspace field is always this workspace."},
+            "cronJob": {"type": "string", "description": "Id of the cron job (cj_…) that emits the event, put in the payload as cronJob; the cron plugin sets it and nobody else may."}
           },
           "required": ["name"]
         }

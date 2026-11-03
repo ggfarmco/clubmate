@@ -41,8 +41,9 @@ type DetailAction struct {
 }
 
 type Open struct {
-	JSON bool
-	Edit bool
+	JSON    bool
+	Edit    bool
+	RunJSON bool
 }
 
 func ActionNode(id string, a DetailAction) sdui.Node {
@@ -65,6 +66,20 @@ func ActionTarget(nodeID, action string) (string, bool) {
 
 func RunAction(variant string) DetailAction {
 	return DetailAction{Action: ActRun, Label: "Run now", Icon: "play.fill", Variant: variant, Shortcut: "cmd+r"}
+}
+
+func StateActions(enabled, primary bool) []DetailAction {
+	run, toggle := RunAction(sdui.VariantSecondary), PauseAction(enabled)
+	if enabled {
+		if primary {
+			run.Variant = sdui.VariantPrimary
+		}
+		return []DetailAction{run, toggle}
+	}
+	if primary {
+		toggle.Variant = sdui.VariantPrimary
+	}
+	return []DetailAction{toggle, run}
 }
 
 func PauseAction(enabled bool) DetailAction {

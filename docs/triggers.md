@@ -17,7 +17,8 @@ The `triggers` plugin calls an agent-visible command when a bus event arrives: a
 | `createdBy` | The agent session that added it; empty when added by the user or the CLI. |
 | `run`, `runTitle` | The graph run that made the trigger for one of its edges and that run's title; empty for other triggers. Only the Graphs plugin can set them; `triggers.add` drops them from any other caller, so an agent can't pass its trigger off as a graph's. The Triggers section groups and labels a run's triggers by them. |
 | `failures`, `lastError` | Errors in a row and the last error message. |
-| `history` | The last 20 runs: `{at, topic, seq, status, reason?, result?}`, `topic` and `seq` of the event, `status` `ok`, `error` or `skipped`; `result` is the command's result cut to 200 characters. Only `triggers.show` returns it. |
+| `history` | The last 100 runs: `{at, topic, seq, status, reason?, result?, chain?}`, `topic` and `seq` of the event, `status` `ok`, `error` or `skipped`; `result` is the command's raw result cut to 200 characters; `chain` is what led to the event (see [Chain](#chain)). Only `triggers.show` returns it. |
+| `paused` | When it was paused, as for a [cron job](cron.md#job). |
 
 ## Filter
 
@@ -59,7 +60,7 @@ A run is skipped, never counted as a failure, with one of these reasons:
 
 ## Emitted events
 
-`triggers.emit` sets the payload's `workspace` to the calling workspace and `by` to the calling agent session (`agent` for an agent call without one; no `by` for the user, the CLI or a cron job without owner). An owned trigger runs as its owner, and some commands trust the caller (`agents.permission` and `agents.cancel` act only on the caller's descendants), so an owned trigger whose `args` use placeholders skips an `event.*` emitted by an agent session other than its owner or the owner's descendants. Placeholders otherwise copy event data verbatim: fill caller-checked fields such as `session` only from events you trust.
+`triggers.emit` sets the payload's `workspace` to the calling workspace and `by` to the calling agent session (`agent` for an agent call without one; no `by` for the user or the CLI), and `cronJob` to the cron job that emits it (only the cron plugin may pass `cronJob`; anyone else gets `invalid_params: only the cron plugin may set cronJob`, and a `by` or `cronJob` in `payload` is dropped). An owned trigger runs as its owner, and some commands trust the caller (`agents.permission` and `agents.cancel` act only on the caller's descendants), so an owned trigger whose `args` use placeholders skips an `event.*` emitted by an agent session other than its owner or the owner's descendants. Placeholders otherwise copy event data verbatim: fill caller-checked fields such as `session` only from events you trust.
 
 ## Loops and limits
 
@@ -70,6 +71,12 @@ A trigger's command can publish the very event it listens to (`notify.post` on `
 - A trigger that starts 10 runs within 1 minute is paused at the 11th matching event, with the error `fired 10 times in 1m0s; paused to stop a loop`, and a `stuck` notification is posted to the workspace.
 
 Three errors in a row also pause it, keep the last error and post a `stuck` notification. `triggers.resume` clears the count.
+
+A trigger without an owner, other than a graph's (the graph run reports its own steps), posts each failed run to the inbox (kind `stuck`, `Trigger failed: <error>`, titled with its name); ok runs only stay in its history. The failure that pauses it posts only the paused notification.
+
+## Chain
+
+Each run keeps what led to its event as `chain`: `session` (and its `title`) for an `agents.*` event or an `event.*` emitted by an agent session, `turn` and `status` of an `agents.turn`, and what started that session or emitted the event: `cronJob` (with `cronName`, from `cron.show`) or `trigger` (with `triggerName`), taken from the event and else from the session in `agents.sessions`. A Run now has `{user: true}`; an event that names none of these has no chain.
 
 ## Owner
 
@@ -131,4 +138,4 @@ cm command run triggers.show id=tr_1a2b3c4d
 
 ## Triggers section
 
-The sidebar lists the triggers by name with what they wait for in words (`an agent turn finishes · status done · session Review loop · Coder`), or `paused · <last error>`; a trigger whose last run failed has a danger ✕ icon. Triggers a graph run created (`run`, `runTitle` set by `graphs.run`) are grouped under `from graph <title> · N`, labelled without the `<title>: ` prefix. A row's context menu has Run now, Pause or Resume and Delete; for a graph's trigger Delete warns that the run stops at that step. The main view shows the selected trigger: a header with `active` or `paused` and `failed`, Run now (⌘R, fires it at once with an empty event, so its `{{…}}` placeholders are left empty) and Pause (P), then Delete (⌘⌫) for the user's and agents' triggers, or `created by graph <title>` and Open graph (G, selects the run in Graphs) for a graph's, whose Delete (⌘⌫) is in the header's ••• menu with the warning that the run stops at that step; then When in words, Owner (`graph <title>` for a graph's), Does in words with the prompt in a card clamped to 3 lines (Show all) and Show as JSON, and the run history, newest first. Session and graph run ids are shown as their titles.
+The sidebar lists the triggers by name with what they wait for in words (`an agent turn finishes · status done · session Review loop · Coder`), or `paused · <last error>`; a trigger whose last run failed has a danger ✕ icon. Triggers a graph run created (`run`, `runTitle` set by `graphs.run`) are grouped under `from graph <title> · N`, labelled without the `<title>: ` prefix. A row's context menu has Run now, Pause or Resume and Delete; for a graph's trigger Delete warns that the run stops at that step. The main view shows the selected trigger: a header with `active` or `paused` and `failed`, Run now (⌘R, fires it at once with an empty event, so its `{{…}}` placeholders are left empty) and Pause (P), Run now primary while active and Resume (P, first) primary while paused, neither for a graph's trigger, then Delete (⌘⌫) for the user's and agents' triggers, or `created by graph <title>` and Open graph (G, selects the run in Graphs) for a graph's, whose Delete (⌘⌫) is in the header's ••• menu with the warning that the run stops at that step; then When in words, Owner (`graph <title>` for a graph's), Does in words with the prompt in a card clamped to 3 lines (Show all) and Show as JSON, and Runs as in a [cron job](cron.md#cron-section) (counts, results in words, identical runs folded, Show the selected run as JSON), with an Event column that names the event and its chain in words (`Coder's turn 2 ended · done`, `“tidy.done” emitted by Nightly tidy · from cron Nightly tidy`, `run now by you`). An `agents.prompt` run reads `prompted <session>`. Session and graph run ids are shown as their titles.

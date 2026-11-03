@@ -75,13 +75,13 @@ func TestPausesAfterThreeErrors(t *testing.T) {
 func TestHistoryCapped(t *testing.T) {
 	at := time.Date(2026, 10, 30, 15, 0, 0, 0, time.UTC)
 	j := &Job{Enabled: true}
-	for i := range 25 {
+	for i := range 105 {
 		record(j, Run{At: at, Status: "ok", Result: fmt.Sprint(i)})
 	}
 
-	require.Len(t, j.History, 20)
+	require.Len(t, j.History, 100)
 	assert.Equal(t, "5", j.History[0].Result)
-	assert.Equal(t, "24", j.History[19].Result)
+	assert.Equal(t, "104", j.History[99].Result)
 }
 
 func TestOneShotRemovedAfterRun(t *testing.T) {

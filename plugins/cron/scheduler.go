@@ -40,15 +40,18 @@ func advance(j *Job, now time.Time) (keep bool) {
 	}
 	j.Enabled = false
 	j.LastError = "schedule has no next run"
+	j.Paused = automation.Pause(j.Paused, now, j.LastError)
 	return true
 }
 
 func record(j *Job, r Run) (paused bool) {
-	if !automation.Record(&j.History, &j.Failures, &j.LastError, r) {
-		return false
+	paused = automation.Record(&j.History, &j.Failures, &j.LastError, r)
+	j.Paused = automation.KeepSpans(j.Paused, j.History)
+	if paused {
+		j.Enabled = false
+		j.Paused = automation.Pause(j.Paused, r.At, j.LastError)
 	}
-	j.Enabled = false
-	return true
+	return paused
 }
 
 func wakeAfter(jobs []*Job, now time.Time) time.Duration {

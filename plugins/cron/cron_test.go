@@ -435,3 +435,53 @@ func TestEditFormSavesThroughTheUpdate(t *testing.T) {
 	require.NoError(t, f.run(t, "cron.show", map[string]any{"id": added.ID}, &shown))
 	assert.Equal(t, []string{"ping 2", "skip", "yo", "15m"}, []string{shown.Name, shown.Missed, shown.Args["message"], shown.Schedule["every"]})
 }
+
+func TestRunsGroupAndShowTheSelectedRunAsJSON(t *testing.T) {
+	f := newFixture(t)
+	var added job
+	require.NoError(t, f.run(t, "cron.add", ping(nil), &added))
+	for range 3 {
+		require.NoError(t, f.run(t, "cron.run", map[string]any{"id": added.ID}, nil))
+	}
+	var group sdui.TableRow
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
+		rows := historyRows(t, n)
+		if len(rows) != 1 || !rows[0].HasChildren {
+			return false
+		}
+		group = rows[0]
+		return strings.HasPrefix(group.Cells[1].Text, "ok ×3") && strings.HasPrefix(group.Cells[2].Text, "same result: ")
+	})
+
+	f.h.Event(t, f.workspace, "cron.main", "history", "expand", group.ID)
+	var child sdui.TableRow
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
+		rows := historyRows(t, n)
+		if len(rows) != 4 {
+			return false
+		}
+		child = rows[2]
+		return child.Depth == 1
+	})
+	f.h.Event(t, f.workspace, "cron.main", "history", "select", child.ID)
+	f.h.Event(t, f.workspace, "cron.main", added.ID+"/runJson", "runJson", nil)
+	f.h.WaitSlot(t, f.workspace, "cron.main", func(n sdui.Node) bool {
+		return len(nodesWhere(n, func(c sdui.Node) bool {
+			text, _ := c.Props["text"].(string)
+			return strings.Contains(text, `"at": "`) && strings.Contains(text, child.Cells[0].Text[len(child.Cells[0].Text)-8:])
+		})) == 1
+	})
+}
+
+func historyRows(t *testing.T, n sdui.Node) []sdui.TableRow {
+	t.Helper()
+	tables := nodesWithType(n, "table")
+	if len(tables) != 1 {
+		return nil
+	}
+	raw, err := json.Marshal(tables[0].Props["rows"])
+	require.NoError(t, err)
+	var rows []sdui.TableRow
+	require.NoError(t, json.Unmarshal(raw, &rows))
+	return rows
+}

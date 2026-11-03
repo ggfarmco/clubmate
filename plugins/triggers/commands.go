@@ -14,7 +14,12 @@ import (
 	"clubmate/plugins/internal/automation"
 )
 
-var errNoName = errors.New("name is required")
+const cronPlugin = "cron"
+
+var (
+	errNoName   = errors.New("name is required")
+	errCronOnly = errors.New("invalid_params: only the cron plugin may set cronJob")
+)
 
 type triggerArgs struct {
 	ID       string  `json:"id"`
@@ -31,6 +36,7 @@ type triggerArgs struct {
 type emitArgs struct {
 	Name    string `json:"name"`
 	Payload string `json:"payload"`
+	CronJob string `json:"cronJob"`
 }
 
 type emitResult struct {
@@ -181,6 +187,9 @@ func (a *app) pause(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, er
 		return nil, err
 	}
 	return a.registry.Mutate(ctx, cmd, args.ID, func(t *Trigger) error {
+		if t.Enabled {
+			t.Paused = automation.Pause(t.Paused, a.now(), "")
+		}
 		t.Enabled = false
 		return nil
 	})
@@ -195,6 +204,7 @@ func (a *app) resume(ctx context.Context, cmd pluginsdk.CommandRun) (*Trigger, e
 		t.Enabled = true
 		t.Failures = 0
 		t.LastError = ""
+		t.Paused = automation.Resume(t.Paused, a.now())
 		return nil
 	})
 }
@@ -224,6 +234,9 @@ func (a *app) emit(ctx context.Context, cmd pluginsdk.CommandRun) (emitResult, e
 	if args.Name == "" {
 		return emitResult{}, errNoName
 	}
+	if args.CronJob != "" && cmd.Via != cronPlugin {
+		return emitResult{}, errCronOnly
+	}
 	payload := map[string]any{}
 	if strings.TrimSpace(args.Payload) != "" {
 		if err := json.Unmarshal([]byte(args.Payload), &payload); err != nil {
@@ -235,8 +248,12 @@ func (a *app) emit(ctx context.Context, cmd pluginsdk.CommandRun) (emitResult, e
 	}
 	payload["workspace"] = cmd.WorkspaceID
 	delete(payload, byField)
+	delete(payload, cronField)
 	if cmd.Agent {
 		payload[byField] = cmp.Or(cmd.Caller, byAgent)
+	}
+	if args.CronJob != "" {
+		payload[cronField] = args.CronJob
 	}
 	topic := emitPrefix + args.Name
 	ev, err := a.host.Publish(ctx, topic, payload)

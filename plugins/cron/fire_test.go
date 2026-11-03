@@ -51,6 +51,7 @@ func testApp(now *time.Time, run func(context.Context, automation.CommandRequest
 	a.now = func() time.Time { return *now }
 	a.runCommand = run
 	a.render = func(context.Context, string) error { return nil }
+	a.registry.Notify = func(context.Context, automation.NotifyRequest) error { return nil }
 	for _, j := range jobs {
 		a.jobs[j.ID] = j
 		st.jobs[j.ID] = true
@@ -244,4 +245,36 @@ func TestAgentsCallDoesNotBlockScheduler(t *testing.T) {
 
 	require.NoError(t, <-done)
 	assert.False(t, a.jobs["cj_1"].Enabled)
+}
+
+func TestOwnerlessJobPostsOnlyFailuresAndMissedRuns(t *testing.T) {
+	now := time.Date(2026, 10, 30, 15, 0, 0, 0, time.UTC)
+	results := []error{nil, errors.New("jsonrpc2: code -32000 message: GitHub answered 403"), errors.New("boom"), errors.New("boom")}
+	a, _ := testApp(&now, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+		err := results[0]
+		results = results[1:]
+		return json.RawMessage(`null`), err
+	}, &Job{ID: "cj_1", Name: "Poll CI", Workspace: "ws", Command: "notify.post", Enabled: true, Schedule: Schedule{Every: "1h"}, Missed: missedSkip, NextRun: now.Add(-5 * time.Minute)})
+	var posts []string
+	a.registry.Notify = func(_ context.Context, req automation.NotifyRequest) error {
+		posts = append(posts, req.Kind+" "+req.Message)
+		return nil
+	}
+
+	a.tick(t.Context())
+	a.runs.Wait()
+	for range 4 {
+		_, err := a.runNow(t.Context(), pluginsdk.CommandRun{ID: "cron.run", WorkspaceID: "ws", Args: json.RawMessage(`{"id":"cj_1"}`)})
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, []string{
+		"info Cron job missed a run: Clubmate was closed or the Mac asleep; the policy skips it",
+		"stuck Cron job failed: GitHub answered 403",
+		"stuck Cron job failed: boom",
+		"stuck Poll CI: boom",
+	}, posts)
+	j := a.jobs["cj_1"]
+	assert.False(t, j.Enabled)
+	assert.Equal(t, []automation.Span{{From: now, Reason: "boom"}}, j.Paused)
 }

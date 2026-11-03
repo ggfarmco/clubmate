@@ -30,6 +30,7 @@ type app struct {
 	held       map[string]heldEvent
 	fired      map[string][]time.Time
 	runs       sync.WaitGroup
+	runRows    automation.Runs
 	lastSeq    atomic.Int64
 	registry   *automation.Registry[*Trigger]
 	store      automation.Storage[*Trigger]
@@ -41,6 +42,7 @@ type app struct {
 	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
 	render     func(ctx context.Context, workspace string) error
 	notify     func(ctx context.Context, t *Trigger)
+	cronName   func(ctx context.Context, workspace, id string) string
 }
 
 func main() {
@@ -63,6 +65,7 @@ func newApp() *app {
 	a.workspaces = a.listWorkspaces
 	a.render = a.renderWorkspace
 	a.notify = a.notifyPaused
+	a.cronName = a.cronJobName
 	a.registry = &automation.Registry[*Trigger]{
 		Mu:             &a.mu,
 		Items:          a.triggers,
@@ -74,6 +77,7 @@ func newApp() *app {
 		Save:           func(ctx context.Context, t *Trigger) error { return a.store.Save(ctx, t) },
 		Drop:           a.drop,
 		SessionDeleted: a.unhold,
+		Notify:         automation.HostNotify(func() *pluginsdk.Host { return a.host }),
 		Log:            logError,
 	}
 	return a
@@ -134,6 +138,14 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	var id string
 	switch ev.Slot {
 	case mainSlot:
+		if ev.NodeID == automation.HistoryID {
+			if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
+				return nil, err
+			}
+			a.registry.Invalidate(ev.WorkspaceID)
+			a.registry.Flush(ctx)
+			return nil, nil
+		}
 		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
 		if !ok {
 			return nil, nil
@@ -195,6 +207,10 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
+	runs, err := a.runRows.View(ctx, a.host, workspace)
+	if err != nil {
+		return fmt.Errorf("render %s: %w", workspace, err)
+	}
 	titles := a.registry.Titles(ctx, workspace, triggers)
 	for _, t := range triggers {
 		if t.Run == "" || t.RunTitle == "" {
@@ -210,7 +226,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(triggers, selected, a.folds(workspace), titles)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, runs)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil

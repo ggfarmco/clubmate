@@ -18,7 +18,7 @@ const (
 	OriginCronJob = "cronJob"
 	OriginTrigger = "trigger"
 	OwnerNone     = "none"
-	nobody        = "nobody — results go to the inbox"
+	nobody        = "nobody — failures go to the inbox"
 )
 
 const (
@@ -117,7 +117,7 @@ func (x Executor) Execute(ctx context.Context, act Action, r Run) Run {
 }
 
 func (x Executor) withOrigin(act Action) (json.RawMessage, error) {
-	if x.Origin == "" || act.Command != agentNew {
+	if x.Origin == "" || act.Command != agentNew && (act.Command != agentEmit || x.Origin != OriginCronJob) {
 		return act.Args, nil
 	}
 	fields := map[string]json.RawMessage{}

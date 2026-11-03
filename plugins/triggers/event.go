@@ -20,6 +20,10 @@ const (
 	emitPrefix   = "event."
 	payloadField = "payload"
 	byField      = "by"
+	cronField    = "cronJob"
+	triggerField = "trigger"
+	turnField    = "turn"
+	statusField  = "status"
 	byAgent      = "agent"
 	manualTopic  = "run now"
 )

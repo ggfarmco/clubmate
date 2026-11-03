@@ -5,7 +5,7 @@ const (
 	TopicWorkspaceDeleted = "workspace.deleted"
 )
 
-type notifyRequest struct {
+type NotifyRequest struct {
 	WorkspaceID string `json:"workspaceId"`
 	Title       string `json:"title"`
 	Message     string `json:"message"`

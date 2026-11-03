@@ -27,3 +27,15 @@ func TestRunJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestPauseSpansCloseOnResumeAndOutliveNoKeptRun(t *testing.T) {
+	at := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
+	spans := Pause(nil, at, "")
+	spans = Pause(spans, at.Add(time.Hour), "boom")
+	spans = Resume(spans, at.Add(2*time.Hour))
+	spans = Pause(spans, at.Add(4*time.Hour), "boom")
+	assert.Equal(t, []Span{{From: at, To: at.Add(2 * time.Hour)}, {From: at.Add(4 * time.Hour), Reason: "boom"}}, spans)
+
+	assert.Equal(t, spans[1:], KeepSpans(spans, []Run{{At: at.Add(3 * time.Hour)}}))
+	assert.Equal(t, spans, KeepSpans(spans, []Run{{At: at.Add(time.Hour)}}))
+}

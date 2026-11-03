@@ -33,6 +33,7 @@ type app struct {
 	inFlight   map[string]bool
 	drafts     map[string]draft
 	runs       sync.WaitGroup
+	runRows    automation.Runs
 	registry   *automation.Registry[*Job]
 	store      automation.Storage[*Job]
 	host       *pluginsdk.Host
@@ -74,6 +75,7 @@ func newApp() *app {
 		Save:       func(ctx context.Context, j *Job) error { return a.store.Save(ctx, j) },
 		Drop:       a.drop,
 		Changed:    a.wake,
+		Notify:     automation.HostNotify(func() *pluginsdk.Host { return a.host }),
 		Log:        logError,
 	}
 	return a
@@ -143,6 +145,14 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	var id string
 	switch ev.Slot {
 	case mainSlot:
+		if ev.NodeID == automation.HistoryID {
+			if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
+				return nil, err
+			}
+			a.registry.Invalidate(ev.WorkspaceID)
+			a.registry.Flush(ctx)
+			return nil, nil
+		}
 		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
 		if !ok {
 			return nil, nil
@@ -254,6 +264,10 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
+	runs, err := a.runRows.View(ctx, a.host, workspace)
+	if err != nil {
+		return fmt.Errorf("render %s: %w", workspace, err)
+	}
 	titles := a.registry.Titles(ctx, workspace, jobs)
 	a.mu.Lock()
 	d := a.drafts[workspace]
@@ -262,7 +276,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(jobs, selected, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, d, now)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, runs, d, now)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil
@@ -278,6 +292,7 @@ func (a *app) duplicate(ctx context.Context, workspace, jobID string) error {
 	c := j.Clone()
 	c.Name += " copy"
 	c.Enabled, c.Failures, c.LastError, c.History = false, 0, "", nil
+	c.Paused = automation.Pause(nil, a.now(), "")
 	for c.ID == j.ID || a.jobs[c.ID] != nil {
 		c.ID = id.New(idPrefix)
 	}

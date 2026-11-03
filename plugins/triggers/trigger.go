@@ -16,21 +16,22 @@ const (
 type Run = automation.Run
 
 type Trigger struct {
-	ID        string          `json:"id"`
-	Name      string          `json:"name"`
-	Workspace string          `json:"workspace"`
-	On        string          `json:"on"`
-	Match     json.RawMessage `json:"match,omitempty"`
-	Command   string          `json:"command"`
-	Args      json.RawMessage `json:"args,omitempty"`
-	Enabled   bool            `json:"enabled"`
-	Owner     string          `json:"owner,omitempty"`
-	CreatedBy string          `json:"createdBy,omitempty"`
-	Run       string          `json:"run,omitempty"`
-	RunTitle  string          `json:"runTitle,omitempty"`
-	Failures  int             `json:"failures,omitempty"`
-	LastError string          `json:"lastError,omitempty"`
-	History   []Run           `json:"history,omitempty"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Workspace string            `json:"workspace"`
+	On        string            `json:"on"`
+	Match     json.RawMessage   `json:"match,omitempty"`
+	Command   string            `json:"command"`
+	Args      json.RawMessage   `json:"args,omitempty"`
+	Enabled   bool              `json:"enabled"`
+	Owner     string            `json:"owner,omitempty"`
+	CreatedBy string            `json:"createdBy,omitempty"`
+	Run       string            `json:"run,omitempty"`
+	RunTitle  string            `json:"runTitle,omitempty"`
+	Failures  int               `json:"failures,omitempty"`
+	LastError string            `json:"lastError,omitempty"`
+	History   []Run             `json:"history,omitempty"`
+	Paused    []automation.Span `json:"paused,omitempty"`
 }
 
 func (t *Trigger) Action() automation.Action {
@@ -52,5 +53,6 @@ func (t *Trigger) StorageKey() (workspace, id string) {
 func (t *Trigger) Clone() *Trigger {
 	c := *t
 	c.History = slices.Clone(t.History)
+	c.Paused = slices.Clone(t.Paused)
 	return &c
 }

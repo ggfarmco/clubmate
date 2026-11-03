@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ func testApp(t *testing.T, run func(context.Context, automation.CommandRequest) 
 	a.render = func(context.Context, string) error { return nil }
 	var notified []string
 	a.notify = func(_ context.Context, tr *Trigger) { notified = append(notified, tr.LastError) }
+	a.registry.Notify = func(context.Context, automation.NotifyRequest) error { return nil }
 	a.triggers["tr_1"] = &Trigger{ID: "tr_1", Workspace: "ws1", On: "event.ping", Command: "notify.post", Args: json.RawMessage(`{"message":"{{payload.n}}"}`), Enabled: true}
 	return a, &notified
 }
@@ -131,4 +133,57 @@ func TestForeignEmitterSkipsOwnedTemplatedTrigger(t *testing.T) {
 			assert.Equal(t, tt.want, foreign(tt.trigger, tt.ev, sessions))
 		})
 	}
+}
+
+func TestRunsKeepTheChainThatLedToThem(t *testing.T) {
+	a, _ := testApp(t, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+		return json.RawMessage(`null`), nil
+	})
+	a.triggers["tr_0"] = &Trigger{ID: "tr_0", Name: "Release after tidy", Workspace: "ws1"}
+	a.triggers["tr_1"].On = "event.*,agents.turn"
+	a.sessions = func(context.Context, string) ([]api.Session, error) {
+		return []api.Session{{ID: "agt_t", Title: "Tidy", CronJob: "cj_1"}, {ID: "agt_c", Title: "Coder"}}, nil
+	}
+	a.cronName = func(_ context.Context, _, id string) string { return map[string]string{"cj_1": "Nightly tidy"}[id] }
+
+	for i, payload := range []string{
+		`{"workspace":"ws1","by":"agt_t","n":"x"}`,
+		`{"workspace":"ws1","session":"agt_c","turn":2,"status":"done","trigger":"tr_0"}`,
+		`{"workspace":"ws1","by":"agent","cronJob":"cj_9","n":"x"}`,
+	} {
+		topic := "event.tidy.done"
+		if i == 1 {
+			topic = api.TopicTurn
+		}
+		a.dispatch(t.Context(), pluginsdk.Event{Seq: int64(i), Topic: topic, Payload: json.RawMessage(payload)})
+		a.runs.Wait()
+	}
+
+	var got []string
+	for _, r := range a.triggers["tr_1"].History {
+		got = append(got, eventWords(r, nil))
+	}
+	assert.Equal(t, []string{
+		"“tidy.done” emitted by Tidy · from cron Nightly tidy",
+		"Coder's turn 2 ended · done · from trigger Release after tidy",
+		"“tidy.done” emitted · from cron a deleted cron job",
+	}, got)
+}
+
+func TestOnlyAUsersOwnerlessTriggerPostsItsFailures(t *testing.T) {
+	a, _ := testApp(t, func(context.Context, automation.CommandRequest) (json.RawMessage, error) {
+		return nil, errors.New("boom")
+	})
+	a.triggers["tr_2"] = &Trigger{ID: "tr_2", Name: "Review loop: Coder done → Reviewer", Workspace: "ws1", On: "event.ping", Command: "notify.post", Enabled: true, Run: "gr_1"}
+	a.triggers["tr_1"].Name = "Relay"
+	var posts []string
+	a.registry.Notify = func(_ context.Context, req automation.NotifyRequest) error {
+		posts = append(posts, req.Title+": "+req.Message)
+		return nil
+	}
+
+	a.dispatch(t.Context(), ping(1))
+	a.runs.Wait()
+
+	assert.Equal(t, []string{"Relay: Trigger failed: boom"}, posts)
 }

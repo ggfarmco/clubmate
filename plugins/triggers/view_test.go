@@ -30,11 +30,12 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	assert.False(t, items[1].Expanded)
 	assert.Equal(t, "Coder done → Reviewer", items[1].Children[0].Label)
 
-	view := mainView(edge, titles, automation.Open{})
+	view := mainView(edge, titles, automation.Open{}, automation.RunsView{})
 	require.NoError(t, isdui.Validate(view))
 	header := view.Children[0]
 	assert.Equal(t, "created by graph Review loop", header.Props["meta"])
 	assert.Equal(t, []string{"tr_1/run", "tr_1/pause", "tr_1/graph", "tr_1/delete"}, childIDs(header))
+	assert.Equal(t, sdui.VariantSecondary, header.Children[0].Props["variant"])
 	assert.Equal(t, true, header.Children[3].Props["overflow"])
 	assert.Contains(t, header.Children[3].Props["confirm"], "without it the run stops at this step")
 	got := texts(view)
@@ -42,7 +43,9 @@ func TestGraphTriggersGroupUnderTheirRun(t *testing.T) {
 	assert.Contains(t, got, "graph Review loop")
 	assert.Contains(t, got, "Send a prompt to Review loop · Reviewer")
 
-	assert.Equal(t, "tr_2/delete", childIDs(mainView(mine, nil, automation.Open{}).Children[0])[2])
+	own := mainView(mine, nil, automation.Open{}, automation.RunsView{}).Children[0]
+	assert.Equal(t, "tr_2/delete", childIDs(own)[2])
+	assert.Equal(t, sdui.VariantPrimary, own.Children[0].Props["variant"])
 	shortcuttest.RequireDeclared(t, view)
 }
 

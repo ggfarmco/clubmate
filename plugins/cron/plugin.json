@@ -48,7 +48,7 @@
         "title": "Show cron job",
         "hidden": true,
         "agent": true,
-        "description": "Show one cron job with its last 20 runs: history [{at, status, reason?, result?}], status ok, error or skipped (busy, no app, missed, previous run still running, owner gone, owner unknown; skips are not failures). Non-destructive.",
+        "description": "Show one cron job with its last 100 runs: history [{at, status, reason?, result?}] and paused [{from, to?, reason?}], status ok, error or skipped (busy, no app, missed, previous run still running, owner gone, owner unknown; skips are not failures). Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Job id (cj_…)."}
