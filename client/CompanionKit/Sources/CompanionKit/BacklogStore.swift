@@ -82,6 +82,17 @@ public final class BacklogStore {
         try await mutate(BacklogCommand.claim, id)
     }
 
+    @discardableResult
+    public func start(_ id: Int) async throws -> String? {
+        let result = try await runner?.command(BacklogCommand.start, workspace: workspace, args: .object(["id": .number(Double(id))]))
+        await refresh()
+        return result?["session"]?.stringValue
+    }
+
+    public func takeBack(_ id: Int) async throws {
+        try await mutate(BacklogCommand.takeBack, id)
+    }
+
     public func release(_ id: Int) async throws {
         try await mutate(BacklogCommand.release, id)
     }

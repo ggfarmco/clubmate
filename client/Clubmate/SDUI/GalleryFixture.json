@@ -403,7 +403,7 @@
                 {"type": "surface", "props": {"sessionId": "ses_0123456789abcdef"}},
                 {
                   "type": "empty",
-                  "props": {"text": "Graphs chain agents: when one finishes, the next starts.", "title": "No graph runs yet", "icon": "point.3.connected.trianglepath.dotted", "hint": ".clubmate/graphs/<name>.json"},
+                  "props": {"text": "Graphs chain agents: when one finishes, the next starts.", "title": "No graph runs yet", "icon": "point.3.connected.trianglepath.dotted", "hint": ".clubmate/graphs/<name>.json", "center": true},
                   "children": [{"type": "button", "id": "start", "props": {"label": "Run a graph", "variant": "primary", "shortcut": "cmd+shift+r"}}]
                 }
               ]

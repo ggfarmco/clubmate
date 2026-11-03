@@ -32,6 +32,15 @@ final class BacklogTests: XCTestCase {
         XCTAssertEqual(store.tasks.map(\.id), [7, 9, 4, 11, 3, 2])
     }
 
+    func testDecodesPrimaryLinksAndAttachmentsFromGet() throws {
+        let json = #"{"id": 3, "title": "t", "status": "in_progress", "links": [{"kind": "blocked_by", "task": 8, "title": "Record", "status": "done"}], "attachments": [{"kind": "file", "ref": "a.md", "path": "/r/a.md", "opens": "doc"}, {"kind": "url", "ref": "https://x.y", "opens": "teleport"}], "primary": {"action": "reveal", "label": "Open Coder", "session": "agt_1"}}"#
+        let task = try JSONDecoder().decode(BacklogTask.self, from: Data(json.utf8))
+        XCTAssertEqual(task.primary, BacklogPrimary(action: .reveal, label: "Open Coder", session: "agt_1"))
+        XCTAssertEqual(task.links.first?.detail, "blocked by · done")
+        XCTAssertEqual(task.attachments.map(\.opens), [.doc, .other])
+        XCTAssertEqual(task.attachments.first?.path, "/r/a.md")
+    }
+
     func testDraftSendsOnlyChangedFieldsAndNeverInProgress() {
         let task = BacklogTask(id: 7, title: "Retry", description: "x", status: .inProgress, priority: .high)
         var draft = BacklogDraft(task)

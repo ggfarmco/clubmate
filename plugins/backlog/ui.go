@@ -22,7 +22,10 @@ import (
 
 const kindDeleted = "deleted"
 
-var errUnknownAction = errors.New("unknown action")
+var (
+	errUnknownAction = errors.New("unknown action")
+	sessionStates    = map[string]string{"done": "turn done", "error": "failed"}
+)
 
 type workspaceUI struct {
 	render     sync.Mutex
@@ -203,6 +206,12 @@ func (b *backlog) ownerLabels(ctx context.Context, workspaceID string, current *
 			title = cmp.Or(s.Run.Title+" · "+s.Title, title)
 		}
 		o.label = ownerLabel(id, title, o.stale)
+		if !o.stale {
+			o.state = cmp.Or(sessionStates[s.Status], s.Status)
+			if s.NeedsYou {
+				o.state = "needs you"
+			}
+		}
 		owners[id] = o
 	}
 	return owners
@@ -360,7 +369,7 @@ func (b *backlog) taskAction(ctx context.Context, workspaceID string, w *workspa
 	verb, value := parseAction(action)
 	switch verb {
 	case actStart:
-		err = b.startAgent(ctx, workspaceID, id)
+		_, err = b.startAgent(ctx, workspaceID, id)
 	case actTakeBack:
 		err = b.takeBack(ctx, workspaceID, id)
 	case "release":
@@ -454,7 +463,14 @@ func (b *backlog) refAction(ctx context.Context, workspaceID string, w *workspac
 		b.mu.Unlock()
 		return nil
 	case action == "select":
-		return nil
+		t, err := b.store.get(ctx, workspaceID, id)
+		if err != nil {
+			return err
+		}
+		if n < 0 || n >= len(t.Attachments) {
+			return fmt.Errorf("task #%d has no attachment %d", id, n)
+		}
+		return b.openAttachment(ctx, workspaceID, t.Attachments[n])
 	case action == actUnlink:
 		t, err := b.store.get(ctx, workspaceID, id)
 		if err != nil {

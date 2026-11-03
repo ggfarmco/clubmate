@@ -261,8 +261,8 @@ var (
 		},
 		"empty": {
 			required: []string{"text"},
-			props:    map[string]propCheck{"text": isString, "title": isString, "icon": isString, "hint": isString},
-			children: childRule{min: 0, max: 1, only: []string{"button", "flow"}},
+			props:    map[string]propCheck{"text": isString, "title": isString, "icon": isString, "hint": isString, "center": isBool},
+			children: childRule{min: 0, max: 3, only: []string{"button", "flow", "form", "stack"}, once: []string{"button", "flow", "form", "stack"}},
 		},
 
 		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber}, children: anyChildren},

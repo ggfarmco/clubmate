@@ -41,6 +41,12 @@ type task struct {
 	LastClaimedBy   string `json:"lastClaimedBy"`
 	Note            string `json:"note"`
 	DescriptionHTML string `json:"descriptionHtml"`
+	Primary         *struct {
+		Action  string `json:"action"`
+		Label   string `json:"label"`
+		Summary string `json:"summary"`
+		Session string `json:"session"`
+	} `json:"primary"`
 }
 
 type env struct {
@@ -461,6 +467,36 @@ func TestTakeBack(t *testing.T) {
 
 	e.h.Event(t, e.p, "backlog.main", "owners", "openMove", "agt_live")
 	require.Eventually(t, func() bool { return e.echoed("agents.reveal", `"session":"agt_live"`) }, 10*time.Second, 20*time.Millisecond)
+}
+
+func TestPhoneStartsAndTakesBack(t *testing.T) {
+	e := newEnv(t, testutil.EchoPluginDirAs(t, agentsManifest))
+	tk := e.add("Work", map[string]any{"description": "Builds on #1."})
+	got := e.must(e.user("backlog.get", map[string]any{"id": tk.ID}))
+	require.NotNil(t, got.Primary)
+	assert.Equal(t, "start", got.Primary.Action)
+	assert.Equal(t, "description", got.Primary.Summary)
+	assert.Contains(t, got.DescriptionHTML, `href="clubmate-doc:/task/1"`)
+	assert.Nil(t, e.must(e.agent("agt_a", "backlog.get", map[string]any{"id": tk.ID})).Primary)
+
+	_, err := e.agent("agt_a", "backlog.start", map[string]any{"id": tk.ID})
+	assert.Error(t, err)
+	var started struct {
+		Session string `json:"session"`
+	}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "backlog.start", "workspaceId": e.p, "args": map[string]any{"id": tk.ID}}, &started))
+	assert.Equal(t, "agt_new", started.Session)
+	assert.Equal(t, "agt_new", e.must(e.user("backlog.get", map[string]any{"id": tk.ID})).ClaimedBy)
+
+	other := e.add("Other", nil)
+	e.must(e.agent("agt_live", "backlog.claim", map[string]any{"id": other.ID}))
+	got = e.must(e.user("backlog.get", map[string]any{"id": other.ID}))
+	require.NotNil(t, got.Primary)
+	assert.Equal(t, "reveal", got.Primary.Action)
+	assert.Equal(t, "agt_live", got.Primary.Session)
+
+	assert.Equal(t, "user", e.must(e.user("backlog.takeback", map[string]any{"id": other.ID})).ClaimedBy)
+	assert.Equal(t, "start", e.must(e.user("backlog.get", map[string]any{"id": other.ID})).Primary.Action)
 }
 
 func TestClosedSessionHandsTheTaskBack(t *testing.T) {

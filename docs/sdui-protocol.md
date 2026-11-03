@@ -77,7 +77,7 @@ Interactive types (`tabs list tree table button textField folderField toggle sel
 | surface | sessionId* (`ses_` id) | none | no |
 | webview | key* (string), url* (`http://127.0.0.1:<port>` URL), rev (int ≥ 0) | none | no |
 | header | title* (string), icon (string), meta (string), badges (`[{text*, tone}]`), status (session state), agent, branch, mode (strings), field (non-empty string, a form field id), error (string) | 0-9: `button`, at most one `textField` | no |
-| empty | text* (string), title (string), icon (string), hint (string) | 0-1 `button` or `flow` | no |
+| empty | text* (string), title (string), icon (string), hint (string), center (bool) | 0-3: at most one each of `button`, `flow`, `form`, `stack` | no |
 | transcript | center (bool), anchor (string, a child id), anchorRev (int ≥ 0) | any | no |
 | message | role* (`user`\|`agent`\|`thought`), text* (markdown), attachments (attachment[]), from (string), seconds (int ≥ 0), docLinks (object of string → string), docCards ([{path*, kind* (`markdown`\|`mermaid`\|`artifact`), title*, rel*, presented (bool)}]), images ([{path*, rel*, width (int ≥ 0), height (int ≥ 0)}], folded image rows, see [Agents](agents.md#docs-in-the-transcript)) | none | no |
 | plan | entries* (plan entry[]) | none | no |
@@ -138,7 +138,7 @@ Agent chat nodes (the `agents` section):
 
 Inside a `form`, a horizontal `stack` whose first child is a muted `text` is a property row: that text is the key column (120pt, 88pt when the form is narrower than 480pt) and the rest is the value. An empty muted text continues the row above.
 
-`empty` fills its pane, top-left in the content column: an optional `icon` and `title`, the `text` (one sentence), an optional `hint` in monospace (a path or command) and at most one child: a `button`, the action that fills the pane, or a `flow` of ghost cards, the shape of what the section holds (Triggers). A flow whose cards are all ghosts does not take the pane's focus.
+`empty` fills its pane, top-left in the content column: an optional `icon` and `title`, the `text` (one sentence), an optional `hint` in monospace (a path or command) and its children in order: a `button`, the action that fills the pane, a `form` (the field that fills it, e.g. Backlog's New task row), a `flow` of ghost cards, the shape of what the section holds (Triggers), and a `stack` of further rows (Backlog's lifecycle: disabled status chips Idea → Todo → In progress → Done). A flow whose cards are all ghosts does not take the pane's focus. With `center: true` it is a column at most 560pt wide, centred, text centred, placed a little below the top (a section with nothing in it, as Backlog's).
 
 Input fields are uncontrolled: `value`/`values` on `textField`, `folderField`, `toggle` and `select` are initial values. The client keeps what the user entered while the node keeps its identity. A changed `value` in a later render replaces it, but re-rendering an unchanged one does not. To reset a form (e.g. after a successful submit), the plugin renders it with a new node `id`. The client then discards the form's field state and starts again from the props. Actions are routed by `action`, not by `id`, so rotating ids (e.g. `create-<n>`) does not change event handling.
 

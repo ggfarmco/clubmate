@@ -576,8 +576,10 @@ struct EmptyNodeView: View {
 
     @Environment(\.theme) private var theme
 
+    private var center: Bool { node.bool("center") == true }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.m) {
+        VStack(alignment: center ? .center : .leading, spacing: theme.spacing.m) {
             if let icon = node.string("icon") {
                 Image(systemName: SymbolName.resolve(icon))
                     .font(.system(size: 16))
@@ -591,6 +593,7 @@ struct EmptyNodeView: View {
             Text(node.string("text") ?? "")
                 .font(theme.ui)
                 .foregroundStyle(theme.muted)
+                .multilineTextAlignment(center ? .center : .leading)
                 .fixedSize(horizontal: false, vertical: true)
             if let hint = node.string("hint") {
                 Text(hint)
@@ -603,9 +606,13 @@ struct EmptyNodeView: View {
             }
             SDUIChildren(node: node)
         }
+        .frame(maxWidth: center ? Self.centredWidth : nil)
         .padding(theme.gutter * 2)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.top, center ? theme.spacing.section * 2 : 0)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: center ? .top : .topLeading)
     }
+
+    static let centredWidth: CGFloat = 560
 }
 
 struct UnsupportedNodeView: View {

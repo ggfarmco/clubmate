@@ -597,10 +597,14 @@ type EmptyProps struct {
 	Icon   string
 	Hint   string
 	Action *Node
+	Center bool
 }
 
 func EmptyState(text string, p EmptyProps) Node {
 	props := withOptional(withOptional(withOptional(map[string]any{"text": text}, "title", p.Title), "icon", p.Icon), "hint", p.Hint)
+	if p.Center {
+		props["center"] = true
+	}
 	n := Node{Type: "empty", Props: props}
 	if p.Action != nil {
 		n.Children = []Node{*p.Action}

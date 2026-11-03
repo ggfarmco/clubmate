@@ -241,10 +241,16 @@
                   },
                   "title": {
                     "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "opens": {
+                    "type": "string"
                   }
                 }
               },
-              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL."
+              "description": "Attachments: kind file, artifact, image or url, ref a worktree path or URL; backlog.get adds path (ref resolved against the workspace's first folder) and opens: url (a web link), doc (the docs viewer), editor or system (the Mac's default app)."
             },
             "owners": {
               "type": "array",
@@ -807,6 +813,50 @@
               "description": "RFC 3339."
             }
           }
+        }
+      },
+      {
+        "id": "backlog.start",
+        "remote": true,
+        "title": "Start agent on backlog task",
+        "hidden": true,
+        "description": "The user's Start agent: start an agent session on the task (agents.new with the title, description, links and attachments as the prompt) and hand the task to it. Allowed on idea and todo tasks, tasks you own and tasks whose owner session ended. Not for agents.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "result": {
+          "properties": {
+            "session": {
+              "type": "string",
+              "description": "The new agent session that owns the task."
+            }
+          }
+        }
+      },
+      {
+        "id": "backlog.takeback",
+        "remote": true,
+        "title": "Take back backlog task",
+        "hidden": true,
+        "description": "The user's Take back: the user becomes the owner of an in-progress task owned by someone else; the task stays in progress. Not for agents.",
+        "args": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Task number, as in #12."
+            }
+          },
+          "required": [
+            "id"
+          ]
         }
       },
       {

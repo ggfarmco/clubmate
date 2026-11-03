@@ -167,16 +167,24 @@ struct TaskListView: View {
                 }
                 .swipeActions(edge: .leading) {
                     if task.status == .todo || task.status == .idea {
-                        Button("Start", systemImage: "play.fill") { perform { try await store.claim(task.id) } }
+                        Button(agentStart ? "Start agent" : "Start", systemImage: "play.fill") { perform { try await start(task) } }
                             .tint(.accentColor)
                     } else if task.status == .inProgress {
                         Button("Release", systemImage: "arrow.uturn.backward") { perform { try await store.release(task.id) } }
                     }
                 }
                 .contextMenu {
-                    TaskActions(task: task, store: store, failure: $failure)
+                    TaskActions(task: task, store: store, agentStart: agentStart, failure: $failure)
                 }
         }
+    }
+
+    private var agentStart: Bool {
+        context.connection.supports(BacklogCommand.start)
+    }
+
+    private func start(_ task: BacklogTask) async throws {
+        if agentStart { try await store.start(task.id) } else { try await store.claim(task.id) }
     }
 
     private func toggle(_ status: BacklogStatus) {
@@ -191,11 +199,16 @@ struct TaskListView: View {
 struct TaskActions: View {
     let task: BacklogTask
     let store: BacklogStore
+    let agentStart: Bool
     @Binding var failure: String?
 
     var body: some View {
         if task.status == .todo || task.status == .idea {
-            Button("Start", systemImage: "play") { perform { try await store.claim(task.id) } }
+            if agentStart {
+                Button("Start agent", systemImage: "play") { perform { try await store.start(task.id) } }
+            } else {
+                Button("Start", systemImage: "play") { perform { try await store.claim(task.id) } }
+            }
         }
         if task.status == .inProgress {
             Button("Release", systemImage: "arrow.uturn.backward") { perform { try await store.release(task.id) } }
@@ -290,8 +303,8 @@ struct PriorityTag: View {
     }
 }
 
-private struct RenderedDescription: Equatable {
-    let html: String?
+private struct TaskDetail: Equatable {
+    let task: BacklogTask?
 }
 
 struct TaskDetailView: View {
@@ -300,7 +313,7 @@ struct TaskDetailView: View {
     let taskID: Int
     @State private var editing = false
     @State private var failure: String?
-    @State private var rendered: RenderedDescription?
+    @State private var detail: TaskDetail?
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openURL) private var openURL
 
@@ -315,7 +328,7 @@ struct TaskDetailView: View {
                         }
                         ToolbarItem(placement: .primaryAction) {
                             Menu("More", systemImage: "ellipsis") {
-                                TaskActions(task: task, store: store, failure: $failure)
+                                TaskActions(task: task, store: store, agentStart: context.connection.supports(BacklogCommand.start), failure: $failure)
                             }
                             .disabled(context.connection.state != .online)
                         }
@@ -362,14 +375,36 @@ struct TaskDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
                 }
-                if !task.description.isEmpty, let rendered {
-                    if let html = rendered.html {
-                        DocumentWebView(content: DocumentContent(path: "", html: html, rev: html.hashValue), theme: .system(dark: scheme == .dark), size: .fit) { link in
-                            if case .external(let url) = link { openURL(url) }
-                        }
+                if !task.description.isEmpty, let detail {
+                    if let html = detail.task?.descriptionHtml {
+                        DocumentWebView(content: DocumentContent(path: "", html: html, rev: html.hashValue), theme: .system(dark: scheme == .dark), size: .fit, onLink: follow)
                     } else {
                         MarkdownView(text: task.description)
                             .textSelection(.enabled)
+                    }
+                }
+                if let full = detail?.task, !full.links.isEmpty {
+                    TaskSection(title: "Links", count: full.links.count) {
+                        ForEach(full.links) { link in
+                            Button { context.navigation.detail = String(link.task) } label: {
+                                TaskRefRow(symbol: (link.status ?? .other).symbol, label: "#\(link.task) \(link.title ?? "")", detail: link.detail, chevron: true, stacked: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                if let full = detail?.task, !full.attachments.isEmpty {
+                    TaskSection(title: "Attachments", count: full.attachments.count) {
+                        ForEach(Array(full.attachments.enumerated()), id: \.offset) { _, attachment in
+                            if opensHere(attachment) {
+                                Button { open(attachment) } label: {
+                                    TaskRefRow(symbol: attachment.symbol, label: attachment.label, detail: attachment.kindWord, chevron: true)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                TaskRefRow(symbol: attachment.symbol, label: attachment.label, detail: "on the Mac", chevron: false)
+                            }
+                        }
                     }
                 }
                 Text(footer(task))
@@ -381,22 +416,117 @@ struct TaskDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .refreshable { await store.refresh() }
-        .task(id: task.description) {
-            guard !task.description.isEmpty else { return }
-            let html = (try? await store.get(task.id))?.descriptionHtml
+        .task(id: task) {
+            let full = try? await store.get(task.id)
             guard !Task.isCancelled else { return }
-            rendered = RenderedDescription(html: html)
+            detail = TaskDetail(task: full)
+        }
+    }
+
+    private func follow(_ link: DocumentLink) {
+        switch link {
+        case .external(let url):
+            openURL(url)
+        case .doc(let path, _):
+            if let id = path.split(separator: "/").last.flatMap({ Int($0) }), path.hasPrefix("/task/") {
+                context.navigation.detail = String(id)
+            }
+        case .file, .anchor, .ignore:
+            break
+        }
+    }
+
+    private func opensHere(_ attachment: BacklogAttachment) -> Bool {
+        switch attachment.opens {
+        case .url: URL(string: attachment.ref) != nil
+        case .doc: attachment.path != nil && context.navigation.workspace(for: context.connection) != nil
+        default: false
+        }
+    }
+
+    private func open(_ attachment: BacklogAttachment) {
+        switch attachment.opens {
+        case .url:
+            if let url = URL(string: attachment.ref) { openURL(url) }
+        case .doc:
+            guard let path = attachment.path, let workspace = context.navigation.workspace(for: context.connection) else { return }
+            context.navigation.openDoc(computer: context.connection.computer.id, workspace: workspace.id, path: path)
+        default:
+            break
         }
     }
 
     @ViewBuilder
     private func buttons(_ task: BacklogTask) -> some View {
         let online = context.connection.state == .online
+        Group {
+            if let primary = detail?.task?.primary, [.todo, .idea, .inProgress].contains(task.status) {
+                VStack(alignment: .leading, spacing: 8) {
+                    primaryButton(primary, task)
+                    if primary.action == .start, let summary = primary.summary, !summary.isEmpty {
+                        Text("Passes the \(summary)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 10) {
+                        if task.status == .inProgress {
+                            if task.claimedByUser {
+                                Button("Release", systemImage: "arrow.uturn.backward") { perform { try await store.release(task.id) } }
+                                    .buttonStyle(.glass)
+                            } else if primary.action != .takeback {
+                                Button("Take back", systemImage: "person") { perform { try await store.takeBack(task.id) } }
+                                    .buttonStyle(.glass)
+                            }
+                        }
+                        Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
+                            .buttonStyle(.glass)
+                    }
+                }
+            } else {
+                legacyButtons(task)
+            }
+        }
+        .disabled(!online)
+    }
+
+    @ViewBuilder
+    private func primaryButton(_ primary: BacklogPrimary, _ task: BacklogTask) -> some View {
+        switch primary.action {
+        case .start:
+            Button(primary.label, systemImage: "play.fill") { perform { try await store.start(task.id) } }
+                .buttonStyle(.glassProminent)
+        case .reveal:
+            Button { reveal(primary) } label: {
+                Label(primary.label, systemImage: primary.run == nil ? "sparkles" : "point.3.connected.trianglepath.dotted")
+                    .lineLimit(1)
+            }
+            .buttonStyle(.glassProminent)
+            .disabled(primary.session == nil)
+        case .takeback:
+            Button(primary.label, systemImage: "person") { perform { try await store.takeBack(task.id) } }
+                .buttonStyle(.glassProminent)
+        case .other:
+            EmptyView()
+        }
+    }
+
+    private func reveal(_ primary: BacklogPrimary) {
+        guard let session = primary.session else { return }
+        context.navigation.open(computer: context.connection.computer.id, plugin: AgentsPluginInfo.id, detail: session)
+    }
+
+    @ViewBuilder
+    private func legacyButtons(_ task: BacklogTask) -> some View {
         HStack(spacing: 10) {
             switch task.status {
             case .todo, .idea:
-                Button("Start", systemImage: "play.fill") { perform { try await store.claim(task.id) } }
-                    .buttonStyle(.glassProminent)
+                if context.connection.supports(BacklogCommand.start) {
+                    Button("Start agent", systemImage: "play.fill") { perform { try await store.start(task.id) } }
+                        .buttonStyle(.glassProminent)
+                } else {
+                    Button("Start", systemImage: "play.fill") { perform { try await store.claim(task.id) } }
+                        .buttonStyle(.glassProminent)
+                }
                 Button("Done", systemImage: "checkmark") { perform { try await store.done(task.id) } }
                     .buttonStyle(.glass)
             case .inProgress:
@@ -414,7 +544,6 @@ struct TaskDetailView: View {
                 EmptyView()
             }
         }
-        .disabled(!online)
     }
 
     private func footer(_ task: BacklogTask) -> String {
@@ -431,6 +560,69 @@ struct TaskDetailView: View {
 
     private func perform(_ action: @escaping @MainActor () async throws -> Void) {
         attempt($failure, action)
+    }
+}
+
+struct TaskSection<Content: View>: View {
+    let title: String
+    let count: Int
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(title) · \(count)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 6)
+            VStack(alignment: .leading, spacing: 0) {
+                content()
+            }
+            .padding(.horizontal, 12)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
+        }
+    }
+}
+
+struct TaskRefRow: View {
+    let symbol: String
+    let label: String
+    let detail: String
+    let chevron: Bool
+    var stacked = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            if stacked {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .lineLimit(2)
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 6)
+            } else {
+                Text(label)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            if chevron {
+                RowChevron()
+            }
+        }
+        .frame(minHeight: 44)
+        .contentShape(.rect)
     }
 }
 

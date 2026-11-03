@@ -380,6 +380,7 @@ struct ItemRow<Leading: View>: View {
     @State private var hovering = false
     @State private var detailWidth = CGFloat.infinity
     @State private var detailIdeal = CGFloat.zero
+    @State private var labelIdeal = CGFloat.zero
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -403,6 +404,15 @@ struct ItemRow<Leading: View>: View {
                 .lineLimit(1)
                 .truncationMode(Text.TruncationMode(item.truncate))
                 .help(item.label)
+                .frame(minWidth: item.detail == nil ? nil : min(labelIdeal, keptLabel), alignment: .leading)
+                .background {
+                    if item.detail != nil {
+                        Text(item.label)
+                            .fixedSize()
+                            .hidden()
+                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { labelIdeal = $0 }
+                    }
+                }
                 .layoutPriority(1)
             Spacer(minLength: theme.gutter)
             ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
@@ -426,6 +436,7 @@ struct ItemRow<Leading: View>: View {
                             .hidden()
                             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailIdeal = $0 }
                     }
+                    .layoutPriority(2)
             }
             if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accentInk)
@@ -453,6 +464,8 @@ struct ItemRow<Leading: View>: View {
     }
 
     private var keptDetail: CGFloat { theme.uiSize * 6 }
+
+    private var keptLabel: CGFloat { theme.uiSize * 10 }
 
     private var guides: some View {
         ForEach(0..<depth, id: \.self) { level in

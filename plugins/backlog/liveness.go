@@ -11,7 +11,8 @@ import (
 
 type agentSession struct {
 	api.Session
-	Run *api.Run `json:"run,omitempty"`
+	Run      *api.Run `json:"run,omitempty"`
+	NeedsYou bool     `json:"needsYou,omitempty"`
 }
 
 type sessions struct {

@@ -75,6 +75,7 @@ type owner struct {
 	stale    bool
 	run      string
 	runTitle string
+	state    string
 }
 
 type detail struct {
@@ -266,8 +267,15 @@ func ownerRows(t *Task, owners map[string]owner) []sdui.Node {
 		current = t.ClaimedBy
 	}
 	row := sdui.HStack(sdui.MutedText("Owner"), ownerChip("owner", actReveal, current, owners))
+	var status []string
+	if state := owners[current].state; state != "" {
+		status = append(status, state)
+	}
 	if current != userOwner && !t.ClaimedAt.IsZero() {
-		row.Children = append(row.Children, sdui.MutedText("since "+t.ClaimedAt.Local().Format(dayLayout)))
+		status = append(status, "since "+t.ClaimedAt.Local().Format(dayLayout))
+	}
+	if len(status) > 0 {
+		row.Children = append(row.Children, sdui.MutedText(strings.Join(status, " · ")))
 	}
 	rows := []sdui.Node{row}
 	if t.LastClaimedBy != "" {
@@ -383,9 +391,28 @@ func ownerLanes(t *Task, owners map[string]owner) sdui.Node {
 
 func emptyView(rev int) sdui.Node {
 	add := sdui.WithAction(sdui.Form("new", sdui.HStack(sdui.TextField("title", "", "New task…"), sdui.WithVariant(sdui.Button("add", "Add", "plus"), sdui.VariantPrimary))), "add")
-	view := sdui.VStack(sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "Nothing in the backlog", Icon: "checklist"}), add)
+	empty := sdui.EmptyState(emptyText, sdui.EmptyProps{Title: "Nothing in the backlog", Icon: "checklist", Center: true})
+	empty.Children = []sdui.Node{add, lifecycle()}
+	view := sdui.VStack(empty)
 	view.ID = fmt.Sprintf("empty-%d", rev)
 	return sdui.Scroll(view)
+}
+
+func lifecycle() sdui.Node {
+	chip := func(status string) sdui.Node {
+		return sdui.WithDisabled(sdui.WithVariant(sdui.Button("step-"+status, statusLabels[status], statusIcons[status]), sdui.VariantSecondary))
+	}
+	var steps []sdui.Node
+	for i, status := range []string{statusIdea, statusTodo, statusInProgress, statusDone} {
+		if i > 0 {
+			steps = append(steps, sdui.MutedText("→"))
+		}
+		steps = append(steps, chip(status))
+	}
+	parks := sdui.HStack(sdui.MutedText("or parks in"), chip(statusNotNow), sdui.MutedText("· In progress is owned by you or a session"))
+	v := sdui.VStack(sdui.MutedText("A task moves through"), sdui.HStack(steps...), parks)
+	v.ID = "lifecycle"
+	return v
 }
 
 func linksView(t *Task, d detail) sdui.Node {
@@ -456,29 +483,57 @@ func descriptionRev(desc string) int {
 	return int(h.Sum32()&0x7fffffff) | 1
 }
 
+type primaryView struct {
+	Action  string `json:"action"`
+	Label   string `json:"label"`
+	Summary string `json:"summary,omitempty"`
+	Session string `json:"session,omitempty"`
+	Run     string `json:"run,omitempty"`
+}
+
+func primary(t *Task, cur owner) *primaryView {
+	start := &primaryView{Action: actStart, Label: "Start agent", Summary: startSummary(t)}
+	switch {
+	case t.Status == statusTodo || t.Status == statusIdea:
+		return start
+	case t.Status != statusInProgress:
+		return nil
+	case t.ClaimedBy == userOwner:
+		return start
+	case cur.session && !cur.stale:
+		return &primaryView{Action: actReveal, Label: "Open " + clip(cmp.Or(cur.runTitle, cur.label), maxOpenName), Session: t.ClaimedBy, Run: cur.run}
+	case cur.session:
+		return start
+	}
+	return &primaryView{Action: actTakeBack, Label: "Take back"}
+}
+
 func actions(t *Task, cur owner) []sdui.Node {
 	button := func(id, label, icon, variant string) sdui.Node {
 		return sdui.WithVariant(sdui.WithAction(sdui.Button(id, label, icon), id), variant)
 	}
-	start := sdui.WithShortcut(button(actStart, startLabel(t), "play.fill", sdui.VariantPrimary), "cmd+return")
 	takeBack := button(actTakeBack, "Take back", "person", sdui.VariantGhost)
 	var buttons []sdui.Node
+	p := primary(t, cur)
 	switch {
-	case t.Status == statusTodo || t.Status == statusIdea:
-		buttons = append(buttons, start)
+	case p == nil:
+	case p.Action == actStart:
+		label := p.Label
+		if p.Summary != "" {
+			label += " · " + p.Summary
+		}
+		buttons = append(buttons, sdui.WithShortcut(button(actStart, label, "play.fill", sdui.VariantPrimary), "cmd+return"))
+	case p.Action == actReveal:
+		icon := "sparkles"
+		if p.Run != "" {
+			icon = graphIcon
+		}
+		buttons = append(buttons, sdui.WithShortcut(sdui.WithVariant(sdui.WithAction(sdui.Button("open", p.Label, icon), actReveal), sdui.VariantPrimary), "cmd+return"))
+	}
+	switch {
 	case t.Status != statusInProgress:
 	case t.ClaimedBy == userOwner:
-		buttons = append(buttons, start, button("release", "Release", "arrow.uturn.backward", sdui.VariantSecondary))
-	case cur.session && !cur.stale:
-		name := cmp.Or(cur.runTitle, cur.label)
-		icon := "sparkles"
-		if cur.run != "" {
-			icon = "point.3.connected.trianglepath.dotted"
-		}
-		open := sdui.WithVariant(sdui.WithAction(sdui.Button("open", "Open "+clip(name, maxOpenName), icon), actReveal), sdui.VariantPrimary)
-		buttons = append(buttons, sdui.WithShortcut(open, "cmd+return"), takeBack)
-	case cur.session:
-		buttons = append(buttons, start, takeBack)
+		buttons = append(buttons, button("release", "Release", "arrow.uturn.backward", sdui.VariantSecondary))
 	default:
 		buttons = append(buttons, takeBack)
 	}
@@ -489,7 +544,7 @@ func actions(t *Task, cur owner) []sdui.Node {
 	return buttons
 }
 
-func startLabel(t *Task) string {
+func startSummary(t *Task) string {
 	var parts []string
 	if strings.TrimSpace(t.Description) != "" {
 		parts = append(parts, "description")
@@ -505,10 +560,7 @@ func startLabel(t *Task) string {
 		}
 		parts = append(parts, plural(n, words[0], words[1]))
 	}
-	if len(parts) == 0 {
-		return "Start agent"
-	}
-	return "Start agent · " + strings.Join(parts, ", ")
+	return strings.Join(parts, ", ")
 }
 
 func plural(n int, one, many string) string {

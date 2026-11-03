@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	isdui "clubmate/internal/sdui"
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/internal/shortcuttest"
 )
@@ -83,11 +86,45 @@ func TestMainOmitsStatusWhileInProgress(t *testing.T) {
 
 func TestMainEmptyState(t *testing.T) {
 	assert.Equal(t, "Select a task", mainView(nil, detail{hasTasks: true}).Props["text"])
-	empty := mainView(nil, detail{}).Children[0]
+	empty := mainView(nil, detail{}).Children[0].Children[0]
+	assert.Equal(t, "Nothing in the backlog", empty.Props["title"])
+	assert.Equal(t, true, empty.Props["center"])
 	require.Len(t, empty.Children, 2)
-	assert.Equal(t, "Nothing in the backlog", empty.Children[0].Props["title"])
-	assert.Equal(t, "new", empty.Children[1].ID)
-	assert.Equal(t, "add", empty.Children[1].Props["action"])
+	assert.Equal(t, "new", empty.Children[0].ID)
+	assert.Equal(t, "add", empty.Children[0].Props["action"])
+	assert.Equal(t, "lifecycle", empty.Children[1].ID)
+	require.NoError(t, isdui.Validate(mainView(nil, detail{})))
+}
+
+func TestImageOpensOnlyInsideTheRoot(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a.png"), nil, 0o600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(root, "b.png")))
+	_, err := insideRoot(root, filepath.Join(root, "a.png"))
+	assert.NoError(t, err)
+	_, err = insideRoot(root, filepath.Join(root, "b.png"))
+	assert.ErrorIs(t, err, errNotInRoot)
+	_, err = insideRoot("", filepath.Join(root, "a.png"))
+	assert.ErrorIs(t, err, errNotInRoot)
+}
+
+func TestAttachmentOpens(t *testing.T) {
+	for _, tt := range []struct {
+		a     Attachment
+		opens string
+		path  string
+	}{
+		{Attachment{Kind: attachURL, Ref: "https://x.y/a"}, opensURL, ""},
+		{Attachment{Kind: attachArtifact, Ref: "https://claude.ai/artifact/1"}, opensURL, ""},
+		{Attachment{Kind: attachFile, Ref: "design/check/fix-list.md"}, opensDoc, "/r/design/check/fix-list.md"},
+		{Attachment{Kind: attachArtifact, Ref: "design/board.html"}, opensDoc, "/r/design/board.html"},
+		{Attachment{Kind: attachImage, Ref: "shots/missed-run.png"}, opensSystem, "/r/shots/missed-run.png"},
+		{Attachment{Kind: attachFile, Ref: "plugins/backlog/view.go"}, opensEditor, "/r/plugins/backlog/view.go"},
+	} {
+		v := attachmentOf(tt.a, "/r")
+		assert.Equal(t, tt.opens, v.Opens, tt.a.Ref)
+		assert.Equal(t, tt.path, v.Path, tt.a.Ref)
+	}
 }
 
 func TestPrimaryFollowsOwner(t *testing.T) {
@@ -193,6 +230,7 @@ func TestOwnerRowsAndLanes(t *testing.T) {
 	chip, ok := findNode(main, "owner")
 	require.True(t, ok)
 	assert.Equal(t, "Review loop · Coder", chip.Props["label"])
+	assert.Contains(t, mustText(t, mainView(task, detail{owners: map[string]owner{"agt_c": {label: "Coder", session: true, state: "running"}}, hasTasks: true})), "running")
 	assert.Equal(t, actReveal, chip.Props["action"])
 	last, ok := findNode(main, "lastOwner")
 	require.True(t, ok)

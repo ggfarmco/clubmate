@@ -70,6 +70,104 @@ public enum BacklogPriority: String, Sendable, Codable, CaseIterable, Identifiab
     }
 }
 
+public struct BacklogLink: Sendable, Equatable, Identifiable, Decodable {
+    public let kind: String
+    public let task: Int
+    public let title: String?
+    public let status: BacklogStatus?
+
+    public var id: Int { task }
+
+    public init(kind: String, task: Int, title: String? = nil, status: BacklogStatus? = nil) {
+        self.kind = kind
+        self.task = task
+        self.title = title
+        self.status = status
+    }
+
+    public var words: String {
+        switch kind {
+        case "blocked_by": "blocked by"
+        case "blocks": "blocks"
+        default: "relates to"
+        }
+    }
+
+    public var detail: String {
+        ([words] + [status.map { $0.label.lowercased() }].compactMap { $0 }).joined(separator: " · ")
+    }
+}
+
+public struct BacklogAttachment: Sendable, Equatable, Decodable {
+    public enum Opens: String, Sendable, Decodable {
+        case url, doc, editor, system, other
+
+        public init(from decoder: any Decoder) throws {
+            self = Opens(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .other
+        }
+    }
+
+    public let kind: String
+    public let ref: String
+    public let title: String?
+    public let path: String?
+    public let opens: Opens?
+
+    public init(kind: String, ref: String, title: String? = nil, path: String? = nil, opens: Opens? = nil) {
+        self.kind = kind
+        self.ref = ref
+        self.title = title
+        self.path = path
+        self.opens = opens
+    }
+
+    public var label: String {
+        title.flatMap { $0.isEmpty ? nil : $0 } ?? ref
+    }
+
+    public var symbol: String {
+        switch kind {
+        case "image": "photo"
+        case "artifact": "square.on.square"
+        case "url": "link"
+        default: "doc"
+        }
+    }
+
+    public var kindWord: String {
+        switch kind {
+        case "image": "image"
+        case "artifact": "artifact"
+        case "url": "link"
+        default: "worktree"
+        }
+    }
+}
+
+public struct BacklogPrimary: Sendable, Equatable, Decodable {
+    public enum Action: String, Sendable, Decodable {
+        case start, reveal, takeback, other
+
+        public init(from decoder: any Decoder) throws {
+            self = Action(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .other
+        }
+    }
+
+    public let action: Action
+    public let label: String
+    public let summary: String?
+    public let session: String?
+    public let run: String?
+
+    public init(action: Action, label: String, summary: String? = nil, session: String? = nil, run: String? = nil) {
+        self.action = action
+        self.label = label
+        self.summary = summary
+        self.session = session
+        self.run = run
+    }
+}
+
 public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     public let id: Int
     public let title: String
@@ -83,8 +181,11 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
     public let createdBy: String
     public let createdAt: Date?
     public let updatedAt: Date?
+    public let links: [BacklogLink]
+    public let attachments: [BacklogAttachment]
+    public let primary: BacklogPrimary?
 
-    public init(id: Int, title: String, description: String = "", descriptionHtml: String? = nil, status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil) {
+    public init(id: Int, title: String, description: String = "", descriptionHtml: String? = nil, status: BacklogStatus, priority: BacklogPriority = .normal, claimedBy: String? = nil, claimedAt: Date? = nil, note: String = "", createdBy: String = "user", createdAt: Date? = nil, updatedAt: Date? = nil, links: [BacklogLink] = [], attachments: [BacklogAttachment] = [], primary: BacklogPrimary? = nil) {
         self.id = id
         self.title = title
         self.description = description
@@ -97,10 +198,13 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
         self.createdBy = createdBy
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.links = links
+        self.attachments = attachments
+        self.primary = primary
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, description, descriptionHtml, status, priority, claimedBy, claimedAt, note, createdBy, createdAt, updatedAt
+        case id, title, description, descriptionHtml, status, priority, claimedBy, claimedAt, note, createdBy, createdAt, updatedAt, links, attachments, primary
     }
 
     public init(from decoder: any Decoder) throws {
@@ -120,7 +224,10 @@ public struct BacklogTask: Sendable, Equatable, Identifiable, Decodable {
             note: try text(.note),
             createdBy: try text(.createdBy),
             createdAt: date(.createdAt),
-            updatedAt: date(.updatedAt)
+            updatedAt: date(.updatedAt),
+            links: try c.decodeIfPresent([BacklogLink].self, forKey: .links) ?? [],
+            attachments: try c.decodeIfPresent([BacklogAttachment].self, forKey: .attachments) ?? [],
+            primary: try c.decodeIfPresent(BacklogPrimary.self, forKey: .primary)
         )
     }
 

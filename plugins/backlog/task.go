@@ -178,6 +178,11 @@ func cleanAttachments(in []Attachment) ([]Attachment, error) {
 	return out, nil
 }
 
+func imageExt(ref string) bool {
+	ext := strings.ToLower(filepath.Ext(strings.SplitN(ref, "?", 2)[0]))
+	return slices.Contains([]string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic"}, ext)
+}
+
 func relativePath(p string) bool {
 	if filepath.IsAbs(p) || strings.HasPrefix(p, "~") || strings.Contains(p, "://") {
 		return false
@@ -327,7 +332,7 @@ func parseAttachment(text string) Attachment {
 	switch {
 	case webURL(ref) && strings.Contains(ref, "/artifact/"):
 		return Attachment{Kind: attachArtifact, Ref: ref}
-	case slices.Contains([]string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic"}, ext):
+	case imageExt(ref):
 		return Attachment{Kind: attachImage, Ref: ref}
 	case webURL(ref):
 		return Attachment{Kind: attachURL, Ref: ref}

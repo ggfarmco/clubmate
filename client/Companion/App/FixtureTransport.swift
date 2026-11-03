@@ -240,7 +240,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -400,7 +400,7 @@ actor FixtureServer {
                 return .object(task)
             })])
         case "backlog.get":
-            return tasks.first { $0["id"] == args["id"] }.map(JSONValue.object) ?? .null
+            return tasks.first { $0["id"] == args["id"] }.map { .object(fullTask($0)) } ?? .null
         case "backlog.add":
             let id = (tasks.compactMap { $0["id"]?.numberValue }.max() ?? 0) + 1
             var task: [String: JSONValue] = ["id": .number(id), "title": args["title"] ?? .string(""), "status": args["status"] ?? .string("todo"), "priority": args["priority"] ?? .string("normal"), "createdBy": .string("user"), "createdAt": Self.stamp(ago: 0), "updatedAt": Self.stamp(ago: 0)]
@@ -408,8 +408,12 @@ actor FixtureServer {
             tasks.insert(task, at: 0)
             publish("backlog.changed", ["workspace": .string(self.workspace), "id": .number(id), "kind": .string("added")])
             return .object(task)
-        case "backlog.update", "backlog.claim", "backlog.release", "backlog.done":
+        case "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.takeback":
             return updateTask(id, args)
+        case "backlog.start":
+            let session = sessions.first?["id"] ?? .null
+            _ = updateTask("backlog.start", args)
+            return .object(["session": session])
         case "voice.settings":
             return .object(["enabled": .bool(!UserDefaults.standard.bool(forKey: "voiceOff")), "model": .string("nemotron"), "models": .array([])])
         case "voice.start":
@@ -525,6 +529,41 @@ actor FixtureServer {
         }
     }
 
+    private func fullTask(_ task: [String: JSONValue]) -> [String: JSONValue] {
+        var task = task
+        task["links"] = .array((task["links"]?.arrayValue ?? []).map { link in
+            guard case .object(var fields) = link else { return link }
+            let other = tasks.first { $0["id"] == fields["task"] }
+            fields["title"] = other?["title"]
+            fields["status"] = other?["status"]
+            return .object(fields)
+        })
+        task["attachments"] = .array((task["attachments"]?.arrayValue ?? []).map { attachment in
+            guard case .object(var fields) = attachment, let ref = fields["ref"]?.stringValue else { return attachment }
+            if ref.hasPrefix("http") {
+                fields["opens"] = .string("url")
+            } else {
+                fields["path"] = .string("/Users/me/src/shop/" + ref)
+                fields["opens"] = .string(ref.hasSuffix(".md") || ref.hasSuffix(".html") || ref.hasSuffix(".mmd") ? "doc" : "editor")
+            }
+            return .object(fields)
+        })
+        let status = task["status"]?.stringValue ?? ""
+        let owner = task["claimedBy"]?.stringValue ?? ""
+        if status == "todo" || status == "idea" || status == "in_progress" && owner == "user" {
+            var parts: [String] = []
+            if !(task["description"]?.stringValue ?? "").isEmpty { parts.append("description") }
+            if let n = task["links"]?.arrayValue?.count, n > 0 { parts.append(n == 1 ? "1 link" : "\(n) links") }
+            if let n = task["attachments"]?.arrayValue?.count, n > 0 { parts.append(n == 1 ? "1 attachment" : "\(n) attachments") }
+            task["primary"] = .object(["action": .string("start"), "label": .string("Start agent"), "summary": .string(parts.joined(separator: ", "))])
+        } else if status == "in_progress", let session = sessions.first(where: { $0["id"]?.stringValue == owner }) {
+            task["primary"] = .object(["action": .string("reveal"), "label": .string("Open " + (session["title"]?.stringValue ?? owner)), "session": .string(owner)])
+        } else if status == "in_progress" {
+            task["primary"] = .object(["action": .string("takeback"), "label": .string("Take back")])
+        }
+        return task
+    }
+
     private func updateTask(_ command: String, _ args: JSONValue) -> JSONValue {
         guard let index = tasks.firstIndex(where: { $0["id"] == args["id"] }) else { return .null }
         var task = tasks[index]
@@ -532,6 +571,12 @@ actor FixtureServer {
         case "backlog.claim":
             task["claimedFrom"] = task["status"]
             task["status"] = .string("in_progress")
+            task["claimedBy"] = .string("user")
+        case "backlog.start":
+            task["claimedFrom"] = task["status"]
+            task["status"] = .string("in_progress")
+            task["claimedBy"] = sessions.first?["id"] ?? .null
+        case "backlog.takeback":
             task["claimedBy"] = .string("user")
         case "backlog.release":
             task["status"] = task["claimedFrom"] ?? .string("idea")

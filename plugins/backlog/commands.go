@@ -85,8 +85,14 @@ type linkView struct {
 
 type taskView struct {
 	Task
-	Links           []linkView `json:"links,omitempty"`
-	DescriptionHTML string     `json:"descriptionHtml,omitempty"`
+	Links           []linkView       `json:"links,omitempty"`
+	Attachments     []attachmentView `json:"attachments,omitempty"`
+	Primary         *primaryView     `json:"primary,omitempty"`
+	DescriptionHTML string           `json:"descriptionHtml,omitempty"`
+}
+
+type startResult struct {
+	Session string `json:"session"`
 }
 
 type commandArgs struct {
@@ -130,6 +136,17 @@ func (b *backlog) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.
 		return b.releaseCmd(ctx, cmd, args)
 	case "backlog.done":
 		return b.doneCmd(ctx, cmd, args)
+	case "backlog.start":
+		session, err := b.startAgent(ctx, cmd.WorkspaceID, args.ID)
+		if err != nil {
+			return nil, err
+		}
+		return startResult{Session: session}, nil
+	case "backlog.takeback":
+		if err := b.takeBack(ctx, cmd.WorkspaceID, args.ID); err != nil {
+			return nil, err
+		}
+		return b.store.get(ctx, cmd.WorkspaceID, args.ID)
 	case "backlog.new":
 		return nil, b.h.FocusField(ctx, cmd.WorkspaceID, sectionID)
 	}
@@ -146,13 +163,27 @@ func (b *backlog) getCmd(ctx context.Context, cmd pluginsdk.CommandRun, args com
 		return nil, err
 	}
 	t.Owners = ownerHistory(t)
-	out := taskView{Task: t, Links: make([]linkView, 0, len(t.Links))}
+	out := taskView{Task: t, Links: make([]linkView, 0, len(t.Links)), Attachments: make([]attachmentView, 0, len(t.Attachments))}
 	for _, l := range t.Links {
 		out.Links = append(out.Links, linkView{Link: l, Title: linked[l.Task].Title, Status: linked[l.Task].Status})
 	}
-	if _, agent := creatorOf(cmd); !agent {
-		out.DescriptionHTML = describe(t.Description, nil)
+	root := b.root(ctx, cmd.WorkspaceID)
+	for _, a := range t.Attachments {
+		out.Attachments = append(out.Attachments, attachmentOf(a, root))
 	}
+	if _, agent := creatorOf(cmd); agent {
+		return out, nil
+	}
+	out.Primary = primary(&t, b.ownerLabels(ctx, cmd.WorkspaceID, &t)[t.ClaimedBy])
+	all, err := b.store.list(ctx, cmd.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[int]Task, len(all))
+	for _, o := range all {
+		byID[o.ID] = o
+	}
+	out.DescriptionHTML = describe(t.Description, byID)
 	return out, nil
 }
 
@@ -365,32 +396,30 @@ func (b *backlog) takeBack(ctx context.Context, workspaceID string, id int) erro
 	return nil
 }
 
-func (b *backlog) startAgent(ctx context.Context, workspaceID string, id int) error {
+func (b *backlog) startAgent(ctx context.Context, workspaceID string, id int) (string, error) {
 	t, err := b.store.get(ctx, workspaceID, id)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := startable(ctx, b.live, workspaceID, &t); err != nil {
-		return err
+		return "", err
 	}
 	linked, err := b.linked(ctx, workspaceID, t)
 	if err != nil {
-		return err
+		return "", err
 	}
-	var res struct {
-		Session string `json:"session"`
-	}
+	var res startResult
 	if err := b.h.RunCommand(ctx, "agents.new", workspaceID, map[string]string{"prompt": startPrompt(t, linked), "title": t.Title}, &res); err != nil {
-		return err
+		return "", err
 	}
 	if res.Session == "" {
-		return errNoSession
+		return "", errNoSession
 	}
 	b.live.invalidate(workspaceID)
 	_, err = b.claim(ctx, workspaceID, id, OwnerMove{Owner: res.Session, Title: t.Title, Why: whyStarted}, func(t *Task) error {
 		return startable(ctx, b.live, workspaceID, t)
 	})
-	return err
+	return res.Session, err
 }
 
 func startable(ctx context.Context, live liveness, workspaceID string, t *Task) error {
