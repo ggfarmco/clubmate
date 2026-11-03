@@ -35,6 +35,8 @@ public final class AgentsStore {
     public private(set) var searchError: String?
     public private(set) var openImages: Set<String> = []
     public private(set) var images: [String: TranscriptImage] = [:]
+    public private(set) var runs: [String: GraphRun] = [:]
+    public private(set) var runErrors: [String: String] = [:]
     private var outgoing: [String: [Outgoing]] = [:]
     private var elicitationDrafts: [String: [String: ElicitationDraft]] = [:]
 
@@ -51,6 +53,7 @@ public final class AgentsStore {
     @ObservationIgnored private var inflight: Set<String> = []
     @ObservationIgnored private var again: Set<String> = []
     @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var watchedRuns: [String: Int] = [:]
 
     public init(workspace: String, runner: any CommandRunner, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.workspace = workspace
@@ -96,6 +99,9 @@ public final class AgentsStore {
             Task { await refresh() }
             if let session = event.payload["session"]?.stringValue, watched[session] != nil {
                 Task { await loadTranscript(session, incremental: true) }
+            }
+            for run in watchedRuns.keys {
+                Task { await loadRun(run) }
             }
         case .event(let event) where event.topic == Topic.docsOpened:
             let target = event.payload["workspace"]?.stringValue ?? event.workspace
@@ -143,6 +149,9 @@ public final class AgentsStore {
         await refresh()
         for session in watched.keys {
             await loadTranscript(session, incremental: true)
+        }
+        for run in watchedRuns.keys {
+            await loadRun(run)
         }
     }
 
@@ -211,6 +220,49 @@ public final class AgentsStore {
         }
         watched[session] = nil
         followers.removeValue(forKey: session)?.cancel()
+    }
+
+    public func watchRun(_ id: String) {
+        watchedRuns[id, default: 0] += 1
+    }
+
+    public func unwatchRun(_ id: String) {
+        guard let count = watchedRuns[id] else { return }
+        watchedRuns[id] = count == 1 ? nil : count - 1
+    }
+
+    public func loadRun(_ id: String) async {
+        await coalesced("run/" + id) { [weak self] in
+            guard let self, let runner else { return }
+            do {
+                let run = try await runner.command(GraphCommand.show, workspace: workspace, args: .object(["id": .string(id)]), as: GraphRun.self)
+                if runs[id] != run { runs[id] = run }
+                runErrors[id] = nil
+            } catch {
+                if Task.isCancelled { return }
+                runErrors[id] = Self.message(error)
+            }
+        }
+    }
+
+    public func approve(run id: String, node: String, decision: String) async throws {
+        try await run(GraphCommand.approve, ["id": .string(id), "node": .string(node), "decision": .string(decision)])
+        await refreshRun(id)
+    }
+
+    public func continueRun(_ id: String, edge: Int) async throws {
+        try await run(GraphCommand.continue, ["id": .string(id), "edge": .number(Double(edge))])
+        await refreshRun(id)
+    }
+
+    public func stopRun(_ id: String) async throws {
+        try await run(GraphCommand.stop, ["id": .string(id)])
+        await refreshRun(id)
+    }
+
+    private func refreshRun(_ id: String) async {
+        await refresh()
+        await loadRun(id)
     }
 
     public func loadTranscript(_ session: String, incremental: Bool = false) async {

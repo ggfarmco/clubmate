@@ -63,6 +63,11 @@ type app struct {
 	proc        procRunner
 	spawn       func(f func())
 	pending     map[string]pendingStep
+	stepSel     map[string]string
+	trusting    map[string]string
+	shownHash   map[string]string
+	sentNeeds   map[string][]runNeed
+	resync      bool
 	callStep    func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
 	kvGet       func(ctx context.Context, key string, out any) (bool, error)
 	kvSet       func(ctx context.Context, key string, v any) error
@@ -114,6 +119,10 @@ func newApp() *app {
 	a.revealTurn = a.revealSession
 	a.proc = shellRunner{grace: 5 * time.Second}
 	a.pending = map[string]pendingStep{}
+	a.stepSel = map[string]string{}
+	a.trusting = map[string]string{}
+	a.shownHash = map[string]string{}
+	a.sentNeeds = map[string][]runNeed{}
 	a.callStep = func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 		return automation.CallCommand(ctx, a.host, req)
 	}
@@ -156,6 +165,9 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 		}
 	}
 	a.recoverSteps(ctx)
+	a.mu.Lock()
+	a.resync = true
+	a.mu.Unlock()
 	close(a.ready)
 	a.renderAll(ctx)
 	return nil
@@ -180,6 +192,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 			a.sessionChanged(ctx, p)
 		}
 	case api.TopicReady:
+		a.readyAgain()
 		a.renderAll(ctx)
 	case automation.TopicWorkspaceCreated:
 		var p contract.WorkspaceChanged
@@ -259,11 +272,24 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		return nil, nil
 	case ev.Action == actRun:
 		return nil, a.runFromSection(ctx, ev, strings.TrimPrefix(id, graphPrefix))
+	case ev.Agent && slices.Contains(userOnly, ev.Action):
+		return nil, fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
+	case ev.Action == actTrust || ev.Action == actTrustCancel || ev.Action == actTrustConfirm:
+		return nil, a.trustEvent(ctx, ev, strings.TrimPrefix(id, graphPrefix))
 	}
 	cmd := pluginsdk.CommandRun{WorkspaceID: ev.WorkspaceID}
 	switch ev.Action {
 	case actOpen:
 		return nil, a.openAttention(ctx, ev.WorkspaceID, id)
+	case actApprove:
+		return nil, a.approveFromSection(ctx, ev, id)
+	case actContinue:
+		return nil, a.continueFromSection(ctx, ev.WorkspaceID, id)
+	case actFullOutput:
+		a.mu.Lock()
+		node := a.stepSel[id]
+		a.mu.Unlock()
+		return nil, a.fullOutput(ctx, ev.WorkspaceID, id, node)
 	case "select":
 		a.mu.Lock()
 		delete(a.drafts, ev.WorkspaceID)
@@ -373,7 +399,7 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 	var node string
 	turn := 0
 	switch ev.Action {
-	case actOpen:
+	case actOpen, actOutput:
 		if err := json.Unmarshal(ev.Value, &node); err != nil {
 			return fmt.Errorf("%s value: %w", ev.Action, err)
 		}
@@ -403,6 +429,14 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 	}
 	n := r.node(node)
 	if n != nil && n.Step {
+		if ev.Action == actOutput {
+			return a.fullOutput(ctx, ev.WorkspaceID, id, node)
+		}
+		a.mu.Lock()
+		a.stepSel[id] = node
+		a.touch(ev.WorkspaceID)
+		a.mu.Unlock()
+		a.flush(ctx)
 		return nil
 	}
 	if n == nil || n.Session == "" {
@@ -713,6 +747,7 @@ func (a *app) flush(ctx context.Context) {
 	a.mu.Unlock()
 	for ws := range dirty {
 		logError(a.render(ctx, ws))
+		a.feedNeeds(ctx, ws)
 	}
 }
 
@@ -738,7 +773,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	}
 	main := emptyView()
 	if i := slices.IndexFunc(runs, func(r *Run) bool { return r.ID == selected }); i >= 0 {
-		main = mainView(runs[i], statuses)
+		main = mainView(runs[i], statuses, a.extras(runs[i].ID))
 	} else if i := slices.IndexFunc(graphs, func(g graphFile) bool { return graphPrefix+g.Name == selected }); i >= 0 {
 		g := graphs[i]
 		var spec *Graph
@@ -746,7 +781,13 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 			spec, _, err = loadGraph(dirs, g.Name)
 			logError(err)
 		}
-		main = graphView(g, spec, d, starting)
+		tv := a.trustFor(ctx, workspace, dirs, g, spec)
+		a.mu.Lock()
+		if tv.confirming {
+			a.shownHash[workspace+"/"+g.Name] = tv.hash
+		}
+		a.mu.Unlock()
+		main = graphView(g, spec, d, starting, tv)
 	}
 	if _, err := a.host.Render(ctx, workspace, mainSlot, main); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)

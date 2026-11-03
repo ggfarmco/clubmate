@@ -400,6 +400,20 @@
         }
       },
       {
+        "id": "agents.run-needs",
+        "title": "Set graph runs that need you",
+        "hidden": true,
+        "description": "The graphs plugin's list of this workspace's graph runs that need you (a step waiting for approval, an edge past its round cap); agents.sessions lists each as a run entry. Only the graphs plugin may call it.",
+        "args": {
+          "properties": {
+            "runs": {"type": "array", "description": "Runs that need you: {run, title, kind (step|cap), request, node, edge?, text, command?, since}.", "items": {"type": "object", "properties": {
+              "run": {"type": "string"}, "title": {"type": "string"}, "kind": {"type": "string"}, "request": {"type": "string"}, "node": {"type": "string"},
+              "edge": {"type": "integer"}, "text": {"type": "string"}, "command": {"type": "string"}, "since": {"type": "string"}
+            }}}
+          }
+        }
+      },
+      {
         "id": "agents.reviewed",
         "title": "Mark agent session reviewed",
         "hidden": true,

@@ -57,7 +57,8 @@ A plugin button with a `shortcut` prints it (`⌘R`) and presses on it while the
 | ⌘R | Run the cron job or trigger now | cron, triggers |
 | P | Pause or resume the job or trigger | cron, triggers |
 | ⌘⌫ | Delete the job, trigger or task, or remove the graph run (confirmed) | cron, triggers, backlog, graphs |
-| ⌘↩ | Start an agent on the task while you own it, else open the session or graph run that owns it; open the session of the graph node that needs you (else the running or start node); run the selected graph with its input (↩ in the Input field too) | backlog, graphs |
+| ⌘↩ | Start an agent on the task while you own it, else open the session or graph run that owns it; on a graph run held at a round cap Continue it, else open the session of the graph node that needs you (else the running or start node); run the selected graph with its input (↩ in the Input field too); on an untrusted graph Trust… (then Trust in its confirm) | backlog, graphs |
+| ⌥1 / ⌥2 / ⌥3 | A graph step waiting for approval: Allow once / Always allow… (asks first) / Reject | graphs |
 | ⌘. | Stop the graph run (confirmed) | graphs |
 | G | Open the graph run that created the trigger | triggers |
 | D | Mark the task done | backlog |
@@ -131,6 +132,7 @@ Focus moving to the Graphs main pane focuses the diagram of the run or graph; th
 | ↩ | Open the focused card's session (a click on a card does the same); on a graph's definition page cards open nothing. With an edge selected (Tab): select that edge's trigger in Triggers (a click on the edge does the same; a definition's edges open nothing) |
 | Tab / ⇧Tab | Select the next / previous edge, left to right, and show what it does in words (hovering an edge does the same); j/k go back to the cards |
 | - / + (=) / 0 | Zoom the diagram out / in (×1.25, 50…200%) / back to fit the pane width (never below 80%); the − + Fit buttons at its top-right do the same |
+| o | Open the focused step card's full output in Neovim (Full output in its output panel does the same; the board's ⌘O is Open Folder…, so Full output has no ⌘ key) |
 | h | Open or close History under the diagram (only when the run has moves) |
 | Pinch, ⌘/⌃+wheel | Zoom the diagram |
 

@@ -92,16 +92,17 @@ type Edge struct {
 }
 
 type graphFile struct {
-	Name        string   `json:"name"`
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Path        string   `json:"path"`
-	Nodes       int      `json:"nodes"`
-	Builtin     bool     `json:"builtin,omitempty"`
-	Untrusted   bool     `json:"untrusted,omitempty"`
-	Hash        string   `json:"hash,omitempty"`
-	Changed     []string `json:"changed,omitempty"`
-	Error       string   `json:"error,omitempty"`
+	Name        string        `json:"name"`
+	Title       string        `json:"title,omitempty"`
+	Description string        `json:"description,omitempty"`
+	Path        string        `json:"path"`
+	Nodes       int           `json:"nodes"`
+	Builtin     bool          `json:"builtin,omitempty"`
+	Untrusted   bool          `json:"untrusted,omitempty"`
+	Hash        string        `json:"hash,omitempty"`
+	Changed     []string      `json:"changed,omitempty"`
+	Trusted     *trustedSteps `json:"trusted,omitempty"`
+	Error       string        `json:"error,omitempty"`
 }
 
 func loadGraph(dirs []string, name string) (*Graph, bool, error) {

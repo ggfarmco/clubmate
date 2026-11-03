@@ -223,7 +223,10 @@ private struct AlwaysAllowConfirm: View {
     private var detail: Text {
         guard option.rule != nil else { return Text(option.label) }
         let rest = Text(" without asking, on this Mac, until you remove the rule from the allow list.")
-        guard let workspace = option.workspace else { return Text("Claude will run matching commands") + rest }
+        guard let workspace = option.workspace else {
+            guard let scope = option.scope else { return Text("Claude will run matching commands") + rest }
+            return Text("Matching commands will run without asking " + scope + ", until you remove the rule from the allow list.")
+        }
         let name = workspace.replacingOccurrences(of: "-", with: "-\u{2060}")
         return Text("Claude will run matching commands in ") + Text(name).font(theme.strong).foregroundStyle(theme.foreground) + rest
     }

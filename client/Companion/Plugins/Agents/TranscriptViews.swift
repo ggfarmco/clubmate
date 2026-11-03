@@ -1055,13 +1055,14 @@ struct DockCard<Content: View>: View {
 
 struct DockBadge: View {
     let symbol: String
+    var square = false
 
     var body: some View {
         Image(systemName: symbol)
             .font(.footnote.weight(.bold))
             .foregroundStyle(Color.onAccent)
             .frame(width: 28, height: 28)
-            .background(Color.warning, in: .circle)
+            .background(Color.warning, in: square ? AnyShape(.rect(cornerRadius: 7)) : AnyShape(.circle))
     }
 }
 

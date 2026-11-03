@@ -5,7 +5,7 @@ public enum FocusedPane: Equatable, Sendable {
     case tree(field: Bool)
     case list
     case table
-    case graph(history: Bool, edges: Bool = false)
+    case graph(history: Bool, edges: Bool = false, output: Bool = false)
     case lanes(title: Bool)
     case runstrip
     case composer(running: Bool, queues: Bool)
@@ -17,7 +17,7 @@ public enum FocusedPane: Equatable, Sendable {
         case .tree(let field): field ? "j/k · ↩ open · gc field" : "j/k · ↩ open"
         case .list: "j/k · ↩ open"
         case .table: "j/k · h/l fold"
-        case .graph(let history, let edges): "j/k · ↩ open" + (edges ? " · tab edge" : "") + (history ? " · h history" : "")
+        case .graph(let history, let edges, let output): "j/k · ↩ open" + (edges ? " · tab edge" : "") + (output ? " · o output" : "") + (history ? " · h history" : "")
         case .lanes(let title): title ? "←/→ · ↩ open · h fold" : "←/→ · ↩ open"
         case .runstrip: "←/→ run"
         case .composer(let running, let queues): queues ? "⌘↩ queue · Esc stop" : running ? "⌘↩ send · Esc stop" : "⌘↩ send"

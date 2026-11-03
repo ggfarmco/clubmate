@@ -45,6 +45,7 @@ type app struct {
 	watchdog  watchdog
 
 	sessionRevs sessionRevs
+	runNeeds    runNeeds
 
 	spawnMu    sync.Mutex
 	worktreeMu sync.Mutex
@@ -317,6 +318,9 @@ func (a *app) infos(workspaceID string) []sessionInfo {
 			info.NeedsYouSince = &since
 		}
 		out = append(out, info)
+	}
+	for _, n := range a.runNeeds.list(workspaceID) {
+		out = append(out, runInfo(workspaceID, n))
 	}
 	setGroups(out)
 	return out

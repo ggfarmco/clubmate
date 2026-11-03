@@ -11,6 +11,7 @@ public struct SDUIFlow: Sendable, Equatable {
         case selected
         case dim
         case ghost
+        case held
 
         init(_ raw: String?) {
             self = raw.flatMap(EdgeState.init(rawValue:)) ?? .never
@@ -49,9 +50,14 @@ public struct SDUIFlow: Sendable, Equatable {
         public let ghost: Bool
         public let start: Bool
         public let tooltip: String?
+        public let kind: String?
+        public let command: String?
+        public let since: Date?
+        public let timeout: Int
+        public let tag: String?
         public let outs: [Out]
 
-        public init(id: String, label: String, state: String, tone: String? = nil, icon: String? = nil, attention: Bool = false, pending: Bool = false, ghost: Bool = false, start: Bool = false, tooltip: String? = nil, outs: [Out]) {
+        public init(id: String, label: String, state: String, tone: String? = nil, icon: String? = nil, attention: Bool = false, pending: Bool = false, ghost: Bool = false, start: Bool = false, tooltip: String? = nil, kind: String? = nil, command: String? = nil, since: Date? = nil, timeout: Int = 0, tag: String? = nil, outs: [Out]) {
             self.id = id
             self.label = label
             self.state = state
@@ -62,8 +68,15 @@ public struct SDUIFlow: Sendable, Equatable {
             self.ghost = ghost
             self.start = start
             self.tooltip = tooltip
+            self.kind = kind
+            self.command = command
+            self.since = since
+            self.timeout = timeout
+            self.tag = tag
             self.outs = outs
         }
+
+        public var isStep: Bool { kind == "check" || kind == "action" }
 
         init?(_ value: JSONValue) {
             guard let fields = value.objectValue, let id = fields["id"]?.stringValue, !id.isEmpty else { return nil }
@@ -78,6 +91,11 @@ public struct SDUIFlow: Sendable, Equatable {
                 ghost: fields["ghost"]?.boolValue ?? false,
                 start: fields["start"]?.boolValue ?? false,
                 tooltip: fields["tooltip"]?.stringValue,
+                kind: fields["kind"]?.stringValue,
+                command: fields["command"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 },
+                since: SDUIRunstrip.date(fields["since"]),
+                timeout: max(0, SDUIFlow.int(fields["timeout"]) ?? 0),
+                tag: fields["tag"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 },
                 outs: fields["outs"]?.arrayValue?.compactMap(Out.init) ?? []
             )
         }
@@ -118,14 +136,16 @@ public struct SDUIFlow: Sendable, Equatable {
         public let state: EdgeState
         public let ref: String?
         public let tooltip: String?
+        public let label: String?
 
-        public init(from: String, out: String?, to: String, state: EdgeState, ref: String? = nil, tooltip: String? = nil) {
+        public init(from: String, out: String?, to: String, state: EdgeState, ref: String? = nil, tooltip: String? = nil, label: String? = nil) {
             self.from = from
             self.out = out
             self.to = to
             self.state = state
             self.ref = ref
             self.tooltip = tooltip
+            self.label = label
         }
 
         init?(_ value: JSONValue) {
@@ -136,7 +156,8 @@ public struct SDUIFlow: Sendable, Equatable {
                 to: to,
                 state: EdgeState(fields["state"]?.stringValue),
                 ref: fields["ref"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 },
-                tooltip: fields["tooltip"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+                tooltip: fields["tooltip"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 },
+                label: fields["label"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
             )
         }
 

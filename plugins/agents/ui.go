@@ -224,9 +224,13 @@ func (a *app) renderSlots(ctx context.Context, workspaceID string, slots []strin
 		return err
 	}
 	rows := make([]sessionRow, 0, len(recs))
+	needs := a.runNeeds.byRun(workspaceID)
 	for _, rec := range recs {
 		branch := a.branches.name(ctx, rec.Worktree)
 		row := sessionRow{Rec: rec, Notify: a.effectiveNotify(rec), Children: children[rec.ID], Branch: branchLabel(branch), Detached: detachedBranch(branch)}
+		if n, ok := needs[runID(rec)]; ok {
+			row.RunNeed = &n
+		}
 		if s := a.session(rec.ID); s != nil {
 			row.Activity = s.activity()
 			row.Asking = s.asking()

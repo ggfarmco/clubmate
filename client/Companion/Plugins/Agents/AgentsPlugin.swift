@@ -25,6 +25,9 @@ struct AgentsPlugin: CompanionPluginUI {
         if selection == AgentsPluginInfo.newSession {
             return AnyView(NewSessionView(context: context, store: store))
         }
+        if GraphRun.isRun(selection) {
+            return AnyView(RunDetailView(context: context, store: store, runID: selection).id(selection))
+        }
         return AnyView(SessionDetailView(context: context, store: store, sessionID: selection).id(selection))
     }
 
@@ -367,14 +370,20 @@ struct SessionGlyphView: View {
             .font(.system(size: size * 0.5, weight: .semibold))
             .foregroundStyle(muted ? .secondary : foreground)
             .frame(width: size, height: size)
-            .background(muted ? Color(.tertiarySystemFill) : background, in: .circle)
+            .background(muted ? Color(.tertiarySystemFill) : background, in: shape)
             .accessibilityHidden(true)
+    }
+
+    private var shape: AnyShape {
+        glyph == .step ? AnyShape(.rect(cornerRadius: size * 0.22)) : AnyShape(.circle)
     }
 
     private var symbol: String {
         switch glyph {
         case .permission: "hand.raised.fill"
         case .question: "questionmark.bubble.fill"
+        case .step: "dollarsign"
+        case .cap: "exclamationmark"
         case .childWaiting: "exclamationmark"
         case .asksParent: "arrow.up"
         case .running: "play.fill"
@@ -387,7 +396,7 @@ struct SessionGlyphView: View {
 
     private var foreground: Color {
         switch glyph {
-        case .permission, .question: Color.onWarning
+        case .permission, .question, .step, .cap: Color.onWarning
         case .childWaiting: Color.warningInk
         case .asksParent, .running, .review: .accentColor
         case .stopped: Color.dangerInk
@@ -397,7 +406,7 @@ struct SessionGlyphView: View {
 
     private var background: Color {
         switch glyph {
-        case .permission, .question: Color.warning
+        case .permission, .question, .step, .cap: Color.warning
         case .childWaiting: Color.warning.opacity(0.18)
         case .asksParent, .running, .review: Color.accentColor.opacity(0.18)
         case .stopped: Color.dangerInk.opacity(0.18)

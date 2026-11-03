@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"clubmate/internal/sdui"
 	"clubmate/pkg/pluginsdk"
+	sdk "clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
 )
 
@@ -156,4 +158,71 @@ func TestTrustRefusesAnotherVersion(t *testing.T) {
 	assert.True(t, listed(t, a, "gate").Untrusted)
 	require.NoError(t, trust(listed(t, a, "gate").Hash))
 	assert.False(t, listed(t, a, "gate").Untrusted)
+}
+
+func changedGate(t *testing.T) (*app, graphFile, *Graph, []string) {
+	t.Helper()
+	data, err := os.ReadFile("testdata/.clubmate/graphs/gate.json")
+	require.NoError(t, err)
+	a, path := graphHome(t, "gate", string(data))
+	require.NoError(t, trustGraph(t, a, "gate"))
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), `"run": "make test"`, `"run": "make test && ./up.sh"`, 1)), 0o644))
+	dirs, err := a.graphDirs(t.Context(), "ws1", false, "")
+	require.NoError(t, err)
+	spec, _, err := loadGraph(dirs, "gate")
+	require.NoError(t, err)
+	return a, listed(t, a, "gate"), spec, dirs
+}
+
+func TestListExposesTrusted(t *testing.T) {
+	_, g, _, _ := changedGate(t)
+	require.NotNil(t, g.Trusted)
+	assert.Equal(t, "make test", g.Trusted.Steps[0].Run)
+}
+
+func TestUntrustedDefinitionView(t *testing.T) {
+	a, g, spec, dirs := changedGate(t)
+	tv := a.trustFor(t.Context(), "ws1", dirs, g, spec)
+	view := graphView(g, spec, draft{}, "", tv)
+	require.NoError(t, sdui.Validate(view))
+	header := view.Children[0].Children[0]
+	assert.Equal(t, []sdk.HeaderBadge{{Text: "untrusted", Tone: "warning"}}, header.Props["badges"])
+	assert.Equal(t, []string{"graph:gate/trust", "Trust…", "cmd+return"}, []string{header.Children[0].ID, header.Children[0].Props["label"].(string), header.Children[0].Props["shortcut"].(string)})
+	assert.Equal(t, "changed", view.Children[1].Props["nodes"].([]sdk.GraphNode)[1].Tag)
+	assert.Equal(t, []string{"What changed since you trusted it", "1 step · the rest is the same", "Tests · command", "− make test", "+ make test && ./up.sh"}, texts(view.Children[2])[:5])
+}
+
+func TestTrustConfirmView(t *testing.T) {
+	a, g, spec, dirs := changedGate(t)
+	ev := pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actTrust}
+	require.NoError(t, a.trustEvent(t.Context(), ev, "gate"))
+	tv := a.trustFor(t.Context(), "ws1", dirs, g, spec)
+	view := graphView(g, spec, draft{}, "", tv)
+	require.NoError(t, sdui.Validate(view))
+	assert.Empty(t, view.Children[0].Children[0].Children)
+	confirm := texts(view.Children[0].Children[1])
+	assert.Equal(t, "Trust Review gate?", confirm[0])
+	assert.Contains(t, confirm, "was: make test")
+	assert.Contains(t, confirm, "$ make test && ./up.sh")
+	a.shownHash["ws1/gate"] = tv.hash
+	_, err := a.uiEvent(t.Context(), nil, pluginsdk.UIEvent{WorkspaceID: "ws1", Slot: mainSlot, NodeID: "graph:gate/" + actTrustConfirm, Action: actTrustConfirm, Agent: true})
+	require.Error(t, err)
+	assert.True(t, listed(t, a, "gate").Untrusted)
+	ev.Action = actTrustConfirm
+	require.NoError(t, a.trustEvent(t.Context(), ev, "gate"))
+	assert.False(t, listed(t, a, "gate").Untrusted)
+}
+
+func TestNeverTrustedTagsNothing(t *testing.T) {
+	a := testApp(t, &fakeCore{})
+	dirs, err := a.graphDirs(t.Context(), "ws1", false, "")
+	require.NoError(t, err)
+	spec, _, err := loadGraph(dirs, "gate")
+	require.NoError(t, err)
+	g := listed(t, a, "gate")
+	view := graphView(g, spec, draft{}, "", a.trustFor(t.Context(), "ws1", dirs, g, spec))
+	for _, n := range view.Children[1].Props["nodes"].([]sdk.GraphNode) {
+		assert.Empty(t, n.Tag)
+	}
+	assert.Len(t, view.Children, 2)
 }

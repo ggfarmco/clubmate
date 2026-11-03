@@ -30,7 +30,8 @@ const (
 	minLines          = 2
 	maxLines          = 50
 
-	maxGraphNodes = 8
+	maxGraphNodes = 16
+	maxFlowCards  = 8
 	maxGraphEdges = 32
 	maxGraphMoves = 1000
 
@@ -118,15 +119,18 @@ var (
 	causeNumber    = number(func(n float64) bool { return n >= -1 && n == math.Trunc(n) }, "an integer ≥ -1")
 
 	graphStates = []string{"taken", "last", "never", "plain"}
+	graphKinds  = []string{"agent", "check", "action"}
+	edgeStates  = []string{"taken", "last", "never", "plain", "held"}
 	graphOut    = objectCheck([]string{"id", "label", "state"}, map[string]propCheck{
 		"id": nonEmptyString, "label": isString, "count": countNumber, "state": oneOf(graphStates), "end": isBool,
 	})
 	graphNode = objectCheck([]string{"id", "label", "state", "outs"}, map[string]propCheck{
 		"id": uniqueItemID, "label": isString, "state": isString, "tone": oneOf(badgeTones), "icon": isString,
 		"attention": isBool, "pending": isBool, "start": isBool, "tooltip": isString, "outs": listOf(graphOut),
+		"kind": oneOf(graphKinds), "command": isString, "since": timeString, "timeout": countNumber, "tag": isString,
 	})
 	graphEdge = objectCheck([]string{"from", "out", "to", "state"}, map[string]propCheck{
-		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(graphStates), "ref": nonEmptyString, "tooltip": isString,
+		"from": nonEmptyString, "out": nonEmptyString, "to": nonEmptyString, "state": oneOf(edgeStates), "ref": nonEmptyString, "tooltip": isString, "label": isString,
 	})
 
 	flowStates = []string{"taken", "last", "never", "plain", "selected", "dim", "ghost"}
@@ -299,13 +303,13 @@ var (
 				"moves":   maxLen(maxGraphMoves, listOf(graphMove)),
 				"reached": isBool,
 			},
-			children:    noChildren,
+			children:    childRule{min: 0, max: 3},
 			interactive: true,
 		},
 		"flow": {
 			required: []string{"cards", "edges"},
 			props: map[string]propCheck{
-				"cards":   maxLen(maxGraphNodes, listOf(flowCard)),
+				"cards":   maxLen(maxFlowCards, listOf(flowCard)),
 				"markers": maxLen(maxFlowMarkers, listOf(flowMarker)),
 				"edges":   maxLen(maxGraphEdges, listOf(flowEdge)),
 			},

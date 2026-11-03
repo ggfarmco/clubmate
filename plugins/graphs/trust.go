@@ -108,8 +108,8 @@ func (a *app) trustState(ctx context.Context, workspace, dir string, g *Graph, b
 	if found && trusted {
 		return false, nil, nil
 	}
-	var last trustedSteps
-	if _, err := a.kvGet(ctx, repoKey(trustedPrefix, root, g.Name), &last); err != nil {
+	last, _, err := a.lastTrusted(ctx, root, g.Name)
+	if err != nil {
 		return true, nil, err
 	}
 	var changed []string
@@ -167,4 +167,10 @@ func (a *app) storageGet(ctx context.Context, key string, out any) (bool, error)
 
 func (a *app) storageSet(ctx context.Context, key string, v any) error {
 	return a.host.StorageSet(ctx, key, v)
+}
+
+func (a *app) lastTrusted(ctx context.Context, root, name string) (trustedSteps, bool, error) {
+	var last trustedSteps
+	found, err := a.kvGet(ctx, repoKey(trustedPrefix, root, name), &last)
+	return last, found && last.Hash != "", err
 }

@@ -5,6 +5,8 @@ import ClubmateProtocol
 public enum SessionGlyph: Sendable, Equatable {
     case permission
     case question
+    case step
+    case cap
     case childWaiting
     case asksParent
     case running
@@ -14,7 +16,7 @@ public enum SessionGlyph: Sendable, Equatable {
     case closed
 
     public var needsYou: Bool {
-        self == .permission || self == .question
+        self == .permission || self == .question || self == .step || self == .cap
     }
 }
 
@@ -44,6 +46,7 @@ public struct SessionStateLine: Sendable, Equatable {
 extension AgentSession {
     public var glyph: SessionGlyph {
         if isClosed { return .closed }
+        if isRun { return pending.contains { $0.hasPrefix(GraphRun.stepRequest) } ? .step : .cap }
         if needsYou {
             if pendingSummary?.kind == .question, pending.contains(where: AgentSession.isQuestion) { return .question }
             return status == .waiting || !pending.isEmpty ? .permission : .question
@@ -72,6 +75,10 @@ extension AgentSession {
     public func stateLine(now: Date, waitingChildren: Int = 0) -> SessionStateLine {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
         switch glyph(waitingChildren: waitingChildren) {
+        case .step:
+            return SessionStateLine(lead: "Wants to run", text: pendingSummary?.text ?? "", mono: true, tone: .primary, age: pendingSummary.map { age($0.at) })
+        case .cap:
+            return SessionStateLine(lead: (pendingSummary?.text ?? SessionState.waitingForYou.label) + " ·", text: "continue or stop")
         case .permission:
             guard let summary = pendingSummary, summary.kind == .permission, !summary.text.isEmpty else {
                 return SessionStateLine(text: SessionState.waitingForYou.label, tone: .needsYou, age: age(updatedAt))
@@ -187,6 +194,8 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
     public var title: String {
         if let command { return "Run \(command)?" }
         switch session.glyph {
+        case .cap:
+            return session.pendingSummary?.text ?? SessionState.waitingForYou.label
         case .question:
             return session.askedQuestion ?? SessionState.askingYou.label
         default:
@@ -201,6 +210,7 @@ public struct NeedsYouItem: Sendable, Equatable, Identifiable {
 
     public var wants: String {
         if let command { return "wants to run \(command)" }
+        if session.glyph == .cap { return session.pendingSummary.map { "\($0.text) · continue or stop" } ?? "waiting for you" }
         if session.glyph == .question { return session.askedQuestion.map { "asks: \($0)" } ?? "asking you" }
         guard let text = session.pendingSummary?.text, !text.isEmpty else { return "waiting for you" }
         return "wants: \(text)"

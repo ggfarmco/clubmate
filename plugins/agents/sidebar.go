@@ -109,6 +109,7 @@ type sessionRow struct {
 	Detached bool
 	Asking   bool
 	Since    time.Time
+	RunNeed  *runNeed
 }
 
 type sidebarSearch struct {
@@ -155,8 +156,14 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		oldestNeed(row, kids, oldest, map[string]bool{})
 	}
 	filter = cmp.Or(filter, filterAll)
-	tabs := filterTabs(roots, filter)
-	roots = slices.DeleteFunc(roots, func(row sessionRow) bool { return !matchesFilter(row, filter) })
+	runs := map[string][]string{}
+	for _, row := range roots {
+		runs[row.Rec.ID] = runsNeeding(row, kids, map[string]bool{})
+	}
+	tabs := filterTabs(roots, filter, runs)
+	roots = slices.DeleteFunc(roots, func(row sessionRow) bool {
+		return !matchesFilter(row, filter) && (filter != filterNeeds || len(runs[row.Rec.ID]) == 0)
+	})
 	if filter == filterNeeds {
 		slices.SortStableFunc(roots, func(x, y sessionRow) int { return compareSince(oldest[x.Rec.ID], oldest[y.Rec.ID]) })
 	}
@@ -280,9 +287,18 @@ func hitSession(id string) (string, bool) {
 	return session, true
 }
 
-func filterTabs(roots []sessionRow, filter string) sdui.Node {
+func filterTabs(roots []sessionRow, filter string, runs map[string][]string) sdui.Node {
 	counts := map[string]int{}
+	counted := map[string]bool{}
 	for _, row := range roots {
+		fresh := false
+		for _, run := range runs[row.Rec.ID] {
+			fresh = fresh || !counted[run]
+			counted[run] = true
+		}
+		if fresh && !ownNeeds(row) {
+			counts[filterNeeds]++
+		}
 		if row.Rec.closed() {
 			continue
 		}
@@ -309,10 +325,28 @@ func filterTabs(roots []sessionRow, filter string) sdui.Node {
 	}, filter), actFilter)
 }
 
+func ownNeeds(row sessionRow) bool {
+	return needsYou(row.Rec) || row.Children == statusWaiting
+}
+
+func runsNeeding(row sessionRow, kids map[string][]sessionRow, seen map[string]bool) []string {
+	seen[row.Rec.ID] = true
+	var out []string
+	if row.RunNeed != nil {
+		out = append(out, row.RunNeed.Run)
+	}
+	for _, kid := range kids[row.Rec.ID] {
+		if !seen[kid.Rec.ID] {
+			out = append(out, runsNeeding(kid, kids, seen)...)
+		}
+	}
+	return out
+}
+
 func matchesFilter(row sessionRow, filter string) bool {
 	switch filter {
 	case filterNeeds:
-		return needsYou(row.Rec) || row.Children == statusWaiting
+		return ownNeeds(row)
 	case filterRunning:
 		return !row.Rec.restricted() && (row.Rec.Status == statusRunning || row.Children == statusRunning)
 	}
@@ -324,6 +358,9 @@ func oldestNeed(row sessionRow, kids map[string][]sessionRow, oldest map[string]
 	var at time.Time
 	if needsYou(row.Rec) {
 		at = cmp.Or(row.Since, row.Rec.UpdatedAt)
+	}
+	if n := row.RunNeed; n != nil && (at.IsZero() || n.Since.Before(at)) {
+		at = n.Since
 	}
 	for _, kid := range kids[row.Rec.ID] {
 		if seen[kid.Rec.ID] {
@@ -418,6 +455,9 @@ func runItems(rows []sessionRow, scope string, kids map[string][]sessionRow, col
 		key := runGroupKey(scope, e.run.ID)
 		run := groupItem(key, cmp.Or(e.run.Title, graphRun), graphIcon, nodes, !collapsed[key] || anyNeeds(e.rows, oldest))
 		run.Detail = runActivity(e.rows, now)
+		if n := e.rows[0].RunNeed; n != nil {
+			run.Detail, run.Tone = n.Text, statusTones[statusWaiting]
+		}
 		items = append(items, run)
 	}
 	return items

@@ -53,6 +53,7 @@ var (
 		"agents.resume":         withSession((*app).resumeCommand),
 		"agents.reveal":         withArgs((*app).revealCommand),
 		"agents.reviewed":       withSession((*app).reviewedCommand),
+		"agents.run-needs":      withArgs((*app).runNeedsCommand),
 	}
 
 	errUnknownCmd    = errors.New("unknown command")

@@ -123,7 +123,7 @@ struct FlowDiagram: View {
     }
 
     private func drawEdges(_ context: inout GraphicsContext) {
-        let rank: [SDUIFlow.EdgeState: Int] = [.never: 0, .ghost: 0, .dim: 1, .plain: 2, .taken: 2, .last: 3, .selected: 3]
+        let rank: [SDUIFlow.EdgeState: Int] = [.never: 0, .ghost: 0, .dim: 1, .plain: 2, .taken: 2, .last: 3, .selected: 3, .held: 3]
         let routes = frame.layout.routes.filter { flow.edges.indices.contains($0.edge) }.sorted {
             let a = flow.edges[$0.edge], b = flow.edges[$1.edge]
             return (lit($0.edge, a) ? 4 : rank[a.state] ?? 0, $0.edge) < (lit($1.edge, b) ? 4 : rank[b.state] ?? 0, $1.edge)
@@ -143,6 +143,21 @@ struct FlowDiagram: View {
             context.stroke(path, with: .color(color), style: style)
             arrow(&context, tip: tip, from: points[points.count - 2], color: color, width: style.lineWidth)
         }
+        for route in routes where route.points.count >= 4 {
+            guard let label = flow.edges[route.edge].label else { continue }
+            chip(&context, label, at: route.middle, held: flow.edges[route.edge].state == .held)
+        }
+    }
+
+    private func chip(_ context: inout GraphicsContext, _ label: String, at center: CGPoint, held: Bool) {
+        let text = context.resolve(Text(label).font(theme.uiSmall.monospacedDigit()).foregroundStyle(held ? theme.warning : theme.text2))
+        let size = text.measure(in: CGSize(width: 400 * k, height: 40 * k))
+        let rect = CGRect(x: center.x - size.width / 2 - 7 * k, y: center.y - size.height / 2 - 2.5 * k, width: size.width + 14 * k, height: size.height + 5 * k)
+        let shape = Path(roundedRect: rect, cornerRadius: rect.height / 2)
+        context.fill(shape, with: .color(theme.background))
+        if held { context.fill(shape, with: .color(theme.toneBg(theme.warningFill))) }
+        context.stroke(shape, with: .color(held ? theme.warningFill : theme.borderStrong), lineWidth: k)
+        context.draw(text, at: center)
     }
 
     private func drawMarkers(_ context: inout GraphicsContext) {
@@ -164,7 +179,7 @@ struct FlowDiagram: View {
         for card in flow.cards {
             guard let rect = frame.layout.cards[card.id] else { continue }
             for (index, out) in card.outs.enumerated() where out.end {
-                let port = CGPoint(x: rect.maxX, y: portY(rect, index))
+                let port = CGPoint(x: rect.maxX, y: portY(rect, index, card))
                 let center = CGPoint(x: port.x + 46 * k, y: port.y)
                 let (color, style) = stroke(out.state, lit: false)
                 var line = Path()
@@ -182,7 +197,7 @@ struct FlowDiagram: View {
             let input = CGPoint(x: card.rect.minX, y: card.rect.minY + frame.metrics.headHeight / 2)
             context.fill(dot(input, 3.5 * k), with: .color(card.card.ghost ? theme.faint : theme.muted))
             for (index, out) in card.card.outs.enumerated() {
-                let point = CGPoint(x: card.rect.maxX, y: portY(card.rect, index))
+                let point = CGPoint(x: card.rect.maxX, y: portY(card.rect, index, card.card))
                 if hovered == FlowHop(node: card.card.id, out: out.id) {
                     context.fill(dot(point, 5.5 * k), with: .color(theme.foreground))
                     continue
@@ -191,6 +206,7 @@ struct FlowDiagram: View {
                 case .last, .selected: context.fill(dot(point, 4 * k), with: .color(theme.accent))
                 case .taken, .plain: context.fill(dot(point, 4 * k), with: .color(theme.muted))
                 case .dim: context.fill(dot(point, 4 * k), with: .color(theme.faint))
+                case .held: context.fill(dot(point, 4 * k), with: .color(theme.warningFill))
                 case .never, .ghost:
                     context.fill(dot(point, 4 * k), with: .color(theme.background))
                     context.stroke(dot(point, 4 * k), with: .color(theme.borderStrong), lineWidth: 1.25 * k)
@@ -203,8 +219,8 @@ struct FlowDiagram: View {
         }
     }
 
-    private func portY(_ rect: CGRect, _ index: Int) -> CGFloat {
-        rect.minY + frame.metrics.headHeight + frame.metrics.rowHeight / 3 + frame.metrics.rowHeight * (CGFloat(index) + 0.5)
+    private func portY(_ rect: CGRect, _ index: Int, _ card: SDUIFlow.Card) -> CGFloat {
+        rect.minY + frame.metrics.top(card) + frame.metrics.rowHeight / 3 + frame.metrics.rowHeight * (CGFloat(index) + 0.5)
     }
 
     private func dot(_ center: CGPoint, _ radius: CGFloat) -> Path {
@@ -218,6 +234,7 @@ struct FlowDiagram: View {
         case .taken, .plain: return (theme.muted, StrokeStyle(lineWidth: 1.25 * k, lineCap: .round, lineJoin: .round))
         case .dim: return (theme.faint, StrokeStyle(lineWidth: k, lineCap: .round, lineJoin: .round))
         case .never, .ghost: return (theme.faint, StrokeStyle(lineWidth: k, lineCap: .round, lineJoin: .round, dash: [3 * k, 4 * k]))
+        case .held: return (theme.warningFill, StrokeStyle(lineWidth: 2 * k, lineCap: .round, lineJoin: .round, dash: [5 * k, 4 * k]))
         }
     }
 
@@ -419,7 +436,7 @@ struct FlowCardView: View {
 
     var body: some View {
         let k = theme.uiSize / 12
-        let shape = RoundedRectangle(cornerRadius: theme.radius.l)
+        let shape = RoundedRectangle(cornerRadius: card.isStep ? 3 * k : theme.radius.l)
         let quiet = card.pending || card.ghost
         Button(action: open) {
             VStack(alignment: .leading, spacing: 0) {
@@ -433,18 +450,34 @@ struct FlowCardView: View {
                             .foregroundStyle(quiet ? theme.muted : theme.foreground)
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .layoutPriority(1)
+                        Spacer(minLength: 4 * k)
+                        kindWord(k)
                     }
                     if !card.state.isEmpty {
-                        Text(card.state)
-                            .font(theme.uiSmall)
-                            .foregroundStyle(card.ghost ? theme.faint : theme.tone(card.tone) ?? (card.pending ? theme.muted : theme.text2))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                        FlowStateLine(card: card, k: k)
                     }
                 }
                 .padding(.horizontal, 11 * k)
                 .frame(maxWidth: .infinity, minHeight: metrics.headHeight, maxHeight: metrics.headHeight, alignment: .leading)
                 .overlay(alignment: .bottom) { (card.ghost ? theme.border.opacity(0.6) : theme.border).frame(height: 1) }
+                if let command = card.command {
+                    HStack(spacing: 6 * k) {
+                        Text("$")
+                            .font(theme.monoSmall)
+                            .foregroundStyle(theme.faint)
+                        Text(command)
+                            .font(theme.monoSmall)
+                            .foregroundStyle(quiet ? theme.muted : theme.text2)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .padding(.horizontal, 11 * k)
+                    .frame(maxWidth: .infinity, minHeight: metrics.strip(card), maxHeight: metrics.strip(card), alignment: .leading)
+                    .background(theme.background.opacity(0.55))
+                    .overlay(alignment: .bottom) { theme.border.frame(height: 1) }
+                    .help(command)
+                }
                 VStack(spacing: 0) {
                     ForEach(Array(card.outs.enumerated()), id: \.offset) { _, out in
                         HStack(spacing: theme.spacing.m) {
@@ -472,10 +505,15 @@ struct FlowCardView: View {
             }
             .background(shape.fill(fill))
             .background(shape.fill(hovering ? theme.hover : .clear))
+            .overlay(alignment: .leading) {
+                if card.isStep {
+                    rule.frame(width: 2.5 * k).clipShape(UnevenRoundedRectangle(topLeadingRadius: 3 * k, bottomLeadingRadius: 3 * k))
+                }
+            }
             .overlay(border(shape, k: k))
             .overlay {
                 if focused {
-                    RoundedRectangle(cornerRadius: theme.radius.l + 2)
+                    RoundedRectangle(cornerRadius: (card.isStep ? 3 * k : theme.radius.l) + 2)
                         .stroke(theme.accent, lineWidth: theme.focusRing)
                         .padding(-2 - theme.focusRing / 2)
                 }
@@ -499,10 +537,41 @@ struct FlowCardView: View {
         card.attention ? theme.toneBg(theme.warningFill) : card.pending || card.ghost ? .clear : theme.surface1
     }
 
+    private var failed: Bool { card.isStep && card.tone == "danger" }
+
+    private var rule: Color {
+        if card.attention { return theme.warningFill }
+        if failed { return theme.danger }
+        if card.tone == "accent" { return theme.accent }
+        return theme.borderStrong
+    }
+
     @ViewBuilder
-    private func border(_ shape: RoundedRectangle, k: CGFloat) -> some View {
+    private func kindWord(_ k: CGFloat) -> some View {
+        if let tag = card.tag {
+            Text(tag)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.warning)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 6 * k)
+                .padding(.vertical, 1.5 * k)
+                .background(Capsule().fill(theme.toneBg(theme.warningFill)))
+        } else if let kind = card.kind {
+            Text(kind)
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.faint)
+                .lineLimit(1)
+                .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private func border(_ shape: some InsettableShape, k: CGFloat) -> some View {
         if card.attention {
             shape.strokeBorder(theme.warningFill, lineWidth: 1.5)
+        } else if failed {
+            shape.strokeBorder(theme.danger, lineWidth: 1.25)
         } else if card.ghost {
             shape.strokeBorder(theme.border, style: StrokeStyle(lineWidth: 1, dash: [4 * k, 3 * k]))
         } else if card.pending {
@@ -510,6 +579,48 @@ struct FlowCardView: View {
         } else {
             shape.strokeBorder(theme.borderStrong, lineWidth: 1)
         }
+    }
+}
+
+private struct FlowStateLine: View {
+    let card: SDUIFlow.Card
+    let k: CGFloat
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if let since = card.since {
+            TimelineView(.periodic(from: since, by: 1)) { context in
+                line(Self.elapsed(context.date.timeIntervalSince(since)), fraction: card.timeout > 0 ? context.date.timeIntervalSince(since) / Double(card.timeout) : nil)
+            }
+        } else {
+            line(nil, fraction: nil)
+        }
+    }
+
+    private func line(_ elapsed: String?, fraction: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 3 * k) {
+            Text(elapsed.map { "\(card.state) · \($0)" } ?? card.state)
+                .font(theme.uiSmall.monospacedDigit())
+                .foregroundStyle(card.ghost ? theme.faint : theme.tone(card.tone) ?? (card.pending ? theme.muted : theme.text2))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if let fraction {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(theme.border)
+                        Capsule().fill(theme.accent).frame(width: geo.size.width * min(max(fraction, 0), 1))
+                    }
+                }
+                .frame(height: 3 * k)
+            }
+        }
+    }
+
+    static func elapsed(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        let h = total / 3600, m = total / 60 % 60, s = total % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 }
 

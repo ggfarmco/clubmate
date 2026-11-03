@@ -84,14 +84,25 @@ struct GraphNodeView: View {
                         if let card { withAnimation(Motion.disclosure) { proxy.scrollTo(card) } }
                     }
                 }
+                let aside = !node.children.isEmpty
+                let beside = aside && open && !graph.moves.isEmpty && width >= 800
+                if aside && !beside {
+                    GraphAside(node: node)
+                }
                 if !graph.moves.isEmpty {
                     let lanes = graph.lanes
                     LanesRow(title: lanes.title ?? "History", moves: graph.moves.count, open: open) { views.toggleHistory(id) }
                     if open {
-                        LanesView(lanes: lanes, k: frame.k, headerWidth: frame.metrics.cardWidth * 0.75, hovered: $hovered, cursor: nil) { move in
-                            dispatch(node, .named("openMove", .number(Double(move))))
+                        HStack(alignment: .top, spacing: theme.spacing.l) {
+                            LanesView(lanes: lanes, k: frame.k, headerWidth: frame.metrics.cardWidth * 0.75, hovered: $hovered, cursor: nil) { move in
+                                dispatch(node, .named("openMove", .number(Double(move))))
+                            }
+                            .environment(\.theme, frame.theme)
+                            if beside {
+                                GraphAside(node: node)
+                                    .frame(width: max(320, width * 0.4))
+                            }
                         }
-                        .environment(\.theme, frame.theme)
                     }
                 }
             }
@@ -102,7 +113,7 @@ struct GraphNodeView: View {
             .focusEffectDisabled()
             .focused($focused)
             .keyMonitor(active: focused) { handle($0, flow: flow, history: !graph.moves.isEmpty, order: frame.order, edges: edges, zoom: zoom) }
-            .reportsFocus(.graph(history: !graph.moves.isEmpty, edges: !edges.isEmpty), focused)
+            .reportsFocus(.graph(history: !graph.moves.isEmpty, edges: !edges.isEmpty, output: flow.cards.contains { $0.isStep && $0.id == cursor }), focused)
             .onChange(of: paneFocused) { _, value in
                 if value, focusOwner == nil || focusOwner == node.id { focused = true }
             }
@@ -141,9 +152,25 @@ struct GraphNodeView: View {
         case "+", "=": views.zoom(id, steps: 1, from: zoom)
         case "0": views.fit(id)
         case "h" where history: views.toggleHistory(id)
+        case "o":
+            guard let cursor, flow.cards.contains(where: { $0.isStep && $0.id == cursor }) else { return false }
+            dispatch(node, .named("output", .string(cursor)))
         default: return false
         }
         return true
+    }
+}
+
+private struct GraphAside: View {
+    let node: SDUINode
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.m) {
+            SDUIChildren(node: node)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 

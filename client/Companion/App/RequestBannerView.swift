@@ -34,7 +34,7 @@ struct RequestBannerView: View {
         let item = banner.item
         Button(action: open) {
             HStack(spacing: 12) {
-                Image(systemName: item.session.glyph == .question ? "questionmark.bubble" : "hand.raised")
+                Image(systemName: Self.symbol(item.session.glyph))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.warningInk)
                     .frame(width: 28, height: 28)
@@ -70,6 +70,15 @@ struct RequestBannerView: View {
         .background(Color.surface1, in: .rect(cornerRadius: 20))
         .overlay {
             RoundedRectangle(cornerRadius: 20).strokeBorder(Color(.separator), lineWidth: 1)
+        }
+    }
+
+    private static func symbol(_ glyph: SessionGlyph) -> String {
+        switch glyph {
+        case .question: "questionmark.bubble"
+        case .step: "dollarsign"
+        case .cap: "exclamationmark"
+        default: "hand.raised"
         }
     }
 }

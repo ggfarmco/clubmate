@@ -98,6 +98,7 @@ actor FixtureServer {
     private var voiceMode = "assistant"
     private var voiceRev = 0
     private var voiceChunks = 0
+    private var runAnswers: [String: String] = [:]
 
     init(directory: URL, mac: FixtureMac) {
         self.mac = mac
@@ -240,7 +241,7 @@ actor FixtureServer {
         let params = request["params"] ?? .null
         switch request["method"]?.stringValue {
         case "hello":
-            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings"].map(JSONValue.string)
+            let commands = ["agents.sessions", "agents.transcript", "agents.prompt", "agents.cancel", "agents.stop-subagent", "agents.permission", "agents.elicitation", "agents.new", "agents.close", "agents.reviewed", "agents.resume", "agents.handoff", "agents.mode", "agents.config", "agents.notify", "agents.search", "backlog.list", "backlog.get", "backlog.add", "backlog.update", "backlog.claim", "backlog.release", "backlog.done", "backlog.start", "backlog.takeback", "docs.read", "docs.list", "agents.image", "voice.start", "voice.audio", "voice.end", "voice.cancel", "voice.state", "voice.confirm", "voice.settings", "graphs.show", "graphs.approve", "graphs.continue", "graphs.stop"].map(JSONValue.string)
             return (200, Self.json(["result": .object(["computer": computer, "version": .string("0.0.13"), "commands": .array(commands), "topics": .array([.string("agents.changed"), .string("backlog.changed"), .string("docs.changed"), .string("docs.opened"), .string("notify.posted"), .string("voice.changed"), .string("voice.settings-changed")]), "ui": .bool(!UserDefaults.standard.bool(forKey: "noUIBridge"))])]))
         case "uiSections":
             return (200, Self.json(["result": uiSections]))
@@ -284,7 +285,18 @@ actor FixtureServer {
         let session = args["session"]?.stringValue ?? ""
         switch id {
         case "agents.sessions":
-            return .array((workspace == self.workspace ? sessions : others).map(JSONValue.object))
+            return .array((workspace == self.workspace ? sessions : others).map(JSONValue.object) + (workspace == self.workspace ? [] : runEntries))
+        case "graphs.show":
+            return shownRun(args["id"]?.stringValue ?? "")
+        case "graphs.approve":
+            resolveRun(args["id"]?.stringValue ?? "", answer: args["decision"]?.stringValue ?? "once")
+            return .null
+        case "graphs.continue":
+            resolveRun(args["id"]?.stringValue ?? "", answer: "continue")
+            return .null
+        case "graphs.stop":
+            resolveRun(args["id"]?.stringValue ?? "", answer: "stop")
+            return .null
         case "agents.transcript":
             var transcript = transcripts[session] ?? [:]
             if args["compact"] == .bool(true) {
@@ -658,6 +670,85 @@ actor FixtureServer {
         publish("agents.changed", ["workspace": .string(workspace), "session": .string(session), "kind": .string("status")])
     }
 
+    private static let stepRun = "gr_0000000000000004"
+    private static let capRun = "gr_0000000000000001"
+    private static let squash = "git merge --squash review/fix-flaky-switcher && git commit -m \"Fix the flaky switcher test\""
+
+    private var runsWorkspace: String {
+        mac.workspaces[mac.workspaces.count > 1 ? 1 : 0].id
+    }
+
+    private var runEntries: [JSONValue] {
+        guard UserDefaults.standard.bool(forKey: "runs"), mac.id == FixtureMac.studio.id else { return [] }
+        let needs: [(id: String, request: String, kind: String, text: String, ago: Double)] = [
+            (Self.stepRun, "step-squash", "permission", Self.squash, 240),
+            (Self.capRun, "cap-1", "question", "Tests → Coder ran 2 of 2 rounds", 900),
+        ]
+        return needs.filter { runAnswers[$0.id] == nil }.map { need in
+            var summary: [String: JSONValue] = ["kind": .string(need.kind), "text": .string(need.text), "at": Self.stamp(ago: need.ago)]
+            if need.kind == "permission" { summary["tool"] = .string("execute") }
+            return .object([
+                "id": .string(need.id), "kind": .string("run"), "workspace": .string(runsWorkspace), "title": .string("Review gate"), "status": .string("waiting"),
+                "run": .object(["id": .string(need.id), "title": .string("Review gate")]), "pending": .array([.string(need.request)]), "pendingSummary": .object(summary),
+                "needsYou": .bool(true), "needsYouSince": Self.stamp(ago: need.ago), "group": .string("needsYou"), "createdAt": Self.stamp(ago: need.ago), "updatedAt": Self.stamp(ago: need.ago),
+            ])
+        }
+    }
+
+    private func shownRun(_ id: String) -> JSONValue {
+        let answer = runAnswers[id]
+        let stopped = answer == "reject" || answer == "stop"
+        let node = { (id: String, role: String, step: Bool, status: String, last: [String: JSONValue]?, pending: [String: JSONValue]?) -> JSONValue in
+            var fields: [String: JSONValue] = ["id": .string(id), "role": .string(role), "session": .string(step ? "" : "agt_" + id), "status": .string(status)]
+            if step { fields["step"] = .bool(true) }
+            if let last { fields["last"] = .object(last) }
+            if let pending { fields["pending"] = .object(pending) }
+            return .object(fields)
+        }
+        let finished = { (command: String, outcome: String, ms: Double) -> [String: JSONValue] in
+            ["status": .string("finished"), "outcome": .string(outcome), "exitCode": .number(outcome == "fail" ? 1 : 0), "command": .string(command), "durationMs": .number(ms)]
+        }
+        let dir = JSONValue.string("/Users/me/src/clubmate")
+        let nodes: [JSONValue]
+        var held: [JSONValue] = []
+        if id == Self.stepRun {
+            let squash: [String: JSONValue] = switch answer {
+            case nil: ["status": .string("waiting"), "command": .string(Self.squash), "dir": dir, "waitingAt": Self.stamp(ago: 240)]
+            case "reject", "stop": ["status": .string("finished"), "outcome": .string("error"), "reason": .string("rejected"), "command": .string(Self.squash), "durationMs": .number(0)]
+            default: finished(Self.squash, "done", 2_100)
+            }
+            nodes = [
+                node("coder", "Coder", false, "done", nil, nil),
+                node("tests", "Tests", true, "pass", finished("make test", "pass", 70_000), nil),
+                node("reviewer", "Reviewer", false, "done", nil, nil),
+                node("squash", "Squash into main", true, squash["outcome"]?.stringValue ?? "waiting", squash, answer == nil ? ["command": .string(Self.squash), "dir": dir, "main": dir, "rule": .string("Bash(\(Self.squash))")] : nil),
+            ]
+        } else {
+            if answer == nil { held = [.object(["edge": .number(1), "move": .number(6), "at": Self.stamp(ago: 900)])] }
+            nodes = [
+                node("coder", "Coder", false, answer == "continue" ? "running" : "idle", nil, nil),
+                node("tests", "Tests", true, "fail", finished("make test", "fail", 52_000), nil),
+            ]
+        }
+        var run: [String: JSONValue] = [
+            "id": .string(id), "graph": .string("review-gate"), "title": .string("Review gate"), "status": .string(stopped ? "stopped" : "running"),
+            "input": .string(id == Self.stepRun ? "Fix the flaky switcher test" : "Make the switcher test pass"), "turns": .number(id == Self.stepRun ? 4 : 7), "maxTurns": .number(12),
+            "startedAt": Self.stamp(ago: 1_800), "edges": .array([
+                .object(["from": .string("coder"), "to": .string("tests"), "on": .string("done")]),
+                .object(["from": .string("tests"), "to": .string("coder"), "on": .string("outcome"), "outcome": .string("fail")]),
+            ]),
+            "moves": .array([]), "held": .array(held), "nodes": .array(nodes),
+        ]
+        if stopped { run["reason"] = .string(answer == "reject" ? "Squash into main error · rejected" : "stopped"); run["stoppedAt"] = Self.stamp(ago: 0) }
+        return .object(run)
+    }
+
+    private func resolveRun(_ id: String, answer: String) {
+        guard runAnswers[id] == nil else { return }
+        runAnswers[id] = answer
+        publish("agents.changed", ["workspace": .string(runsWorkspace), "session": .string(id), "kind": .string("resolved"), "request": .string(id == Self.stepRun ? "step-squash" : "cap-1")])
+    }
+
     private func notifyAll() {
         if mac.id == FixtureMac.pro.id {
             publish("notify.posted", ["id": .string("ntf_p1"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run terraform plan in infra."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 240)])
@@ -670,6 +761,9 @@ actor FixtureServer {
             }
         }
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null
+        if !runEntries.isEmpty {
+            publish("notify.posted", ["id": .string("ntf_r1"), "workspace": .string(runsWorkspace), "session": .string(Self.stepRun), "title": .string("Review gate"), "message": .string("A graph step wants to run a command"), "kind": .string("permission"), "ts": Self.stamp(ago: 240)])
+        }
         publish("notify.posted", ["id": .string("ntf_0"), "workspace": .string(workspace), "title": .string("Stuck"), "message": .string("No output for 15 minutes"), "kind": .string("stuck"), "ts": Self.stamp(ago: 3600)])
         publish("notify.posted", ["id": .string("ntf_1"), "workspace": .string(workspace), "title": .string("Build finished"), "message": .string("make test passed in 42 s."), "kind": .string("done"), "ts": Self.stamp(ago: 600)])
         publish("notify.posted", ["id": .string("ntf_2"), "workspace": .string(workspace), "session": sessions.first?["id"] ?? .null, "title": .string("Permission needed"), "message": .string("Claude wants to run go test ./... in shop."), "kind": .string("permission"), "agent": .bool(true), "ts": Self.stamp(ago: 60)])

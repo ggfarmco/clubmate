@@ -31,6 +31,8 @@ type StepMove struct {
 	Command   string    `json:"command,omitempty"`
 	Tail      string    `json:"tail,omitempty"`
 	Output    string    `json:"output,omitempty"`
+	WaitingAt time.Time `json:"waitingAt,omitzero"`
+	StartedAt time.Time `json:"startedAt,omitzero"`
 	EndedAt   time.Time `json:"endedAt,omitzero"`
 	Duration  int64     `json:"durationMs,omitempty"`
 }

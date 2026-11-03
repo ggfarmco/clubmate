@@ -201,6 +201,6 @@ extension AppNavigation {
         let workspace = workspace(for: connection)?.id
         guard workspace != nil || connection.state != .online else { return nil }
         let detailShown = layout != .compact || preferredColumn == .detail
-        return .phone(computer: computer, workspace: workspace ?? "", plugin: item?.plugin, detail: item != nil && detailShown ? detail : nil)
+        return .phone(computer: computer, workspace: workspace ?? "", plugin: item?.plugin, detail: item != nil && detailShown && !GraphRun.isRun(detail ?? "") ? detail : nil)
     }
 }

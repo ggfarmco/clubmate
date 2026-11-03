@@ -475,7 +475,8 @@ func TestCapHoldsThirdRound(t *testing.T) {
 	assert.Equal(t, 1, a.runs[r.ID].Held[0].Edge)
 	notes := called(core, "notify.post")
 	require.Len(t, notes, 1)
-	assert.Contains(t, string(notes[0]), `"kind":"needs-input"`)
+	assert.Contains(t, string(notes[0]), `"kind":"permission"`)
+	assert.Contains(t, string(notes[0]), `"session":"`+r.ID+`"`)
 	assert.Contains(t, string(notes[0]), "Tests → Coder reached its limit of 2 rounds")
 }
 

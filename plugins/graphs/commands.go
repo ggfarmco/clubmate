@@ -45,7 +45,8 @@ type shownNode struct {
 	RunNode
 	Title  string    `json:"title,omitempty"`
 	Status string    `json:"status"`
-	Last   *StepMove `json:"last,omitempty"`
+	Last    *StepMove    `json:"last,omitempty"`
+	Pending *pendingInfo `json:"pending,omitempty"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -94,6 +95,11 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 			f.Hash = stepsHash(g)
 			f.Untrusted, f.Changed, err = a.trustState(ctx, cmd.WorkspaceID, filepath.Dir(filepath.Dir(filepath.Dir(f.Path))), g, false)
 			logError(err)
+			if last, ok, err := a.lastTrusted(ctx, a.repoRoot(ctx, cmd.WorkspaceID, filepath.Dir(filepath.Dir(filepath.Dir(f.Path)))), f.Name); f.Untrusted && ok {
+				f.Trusted = &last
+			} else {
+				logError(err)
+			}
 		}
 	}
 	for _, r := range a.workspaceRuns(cmd.WorkspaceID) {
@@ -180,10 +186,17 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 	sessions := a.sessionMap(ctx, cmd.WorkspaceID)
 	r.Spec = nil
 	out := shownRun{Run: r}
+	a.mu.Lock()
+	pending := maps.Clone(a.pending)
+	a.mu.Unlock()
 	for _, n := range r.Nodes {
 		if n.Step {
 			last := r.lastStep(n.ID)
-			out.Nodes = append(out.Nodes, shownNode{RunNode: n, Status: stepStatus(last), Last: last})
+			shown := shownNode{RunNode: n, Status: stepStatus(last), Last: last}
+			if p, ok := pending[r.ID+"/"+n.ID]; ok {
+				shown.Pending = pendingOf(p)
+			}
+			out.Nodes = append(out.Nodes, shown)
 			continue
 		}
 		s := sessions[n.Session]

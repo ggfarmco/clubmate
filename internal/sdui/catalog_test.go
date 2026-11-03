@@ -347,3 +347,18 @@ func TestRunstripNode(t *testing.T) {
 	strip.Props["now"] = "16:25"
 	assert.ErrorContains(t, internalsdui.Validate(strip), "prop now: must be an RFC 3339 time")
 }
+
+func TestGraphStepProps(t *testing.T) {
+	graph := func(kind string) sdui.Node {
+		nodes := []sdui.GraphNode{{ID: "tests", Label: "Tests", State: "running", Kind: kind, Command: "make test", Since: "2026-11-03T16:40:00Z", Timeout: 600, Tag: "changed", Outs: []sdui.GraphOut{{ID: "fail", Label: "fail", State: "taken"}}}}
+		for i := range 15 {
+			nodes = append(nodes, sdui.GraphNode{ID: "n" + strconv.Itoa(i), Label: "N", Kind: sdui.KindAgent})
+		}
+		return sdui.Graph("run", sdui.GraphProps{
+			Nodes: nodes,
+			Edges: []sdui.GraphEdge{{From: "tests", Out: "fail", To: "n0", State: sdui.EdgeHeld, Label: "×2/2 · waits for you"}},
+		}, sdui.Card("warning", "", sdui.Text("Tests → Coder ran 2 of 2 rounds")))
+	}
+	assert.NoError(t, internalsdui.Validate(graph(sdui.KindCheck)))
+	assert.ErrorContains(t, internalsdui.Validate(graph("robot")), "prop nodes: [0]: kind")
+}

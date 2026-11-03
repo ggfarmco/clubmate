@@ -31,6 +31,29 @@ final class SDUIFlowTests: XCTestCase {
         XCTAssertEqual(flow.edges[1].ref, "trg_1")
     }
 
+    func testGraphStepCardDecodesAndReservesItsStrip() throws {
+        let graph = try XCTUnwrap(node("""
+        {"type": "graph", "id": "g", "props": {
+          "nodes": [{"id": "tests", "label": "Tests", "state": "running", "kind": "check", "command": "make test", "since": "2026-11-03T16:40:00Z", "timeout": 600, "tag": "changed", "outs": [{"id": "fail", "label": "fail", "state": "taken"}]},
+                    {"id": "coder", "label": "Coder", "state": "done", "kind": "agent", "outs": []}],
+          "edges": [{"from": "tests", "out": "fail", "to": "coder", "state": "held", "label": "×2/2 · waits for you"}]
+        }}
+        """).graph())
+        let tests = graph.nodes[0]
+        XCTAssertEqual([tests.kind, tests.command, tests.tag], ["check", "make test", "changed"])
+        XCTAssertEqual(tests.since, ISO8601DateFormatter().date(from: "2026-11-03T16:40:00Z"))
+        XCTAssertEqual(tests.timeout, 600)
+        XCTAssertTrue(tests.isStep)
+        XCTAssertFalse(graph.nodes[1].isStep)
+        XCTAssertEqual(graph.edges[0].state, .held)
+        XCTAssertEqual(graph.edges[0].label, "×2/2 · waits for you")
+        let m = GraphMetrics()
+        let layout = GraphLayout(flow: graph.flow, metrics: m)
+        let rect = try XCTUnwrap(layout.cards["tests"])
+        XCTAssertEqual(rect.height, m.headHeight + m.strip(tests) + 2 * m.rowHeight / 3 + m.rowHeight)
+        XCTAssertEqual(layout.port(node: "tests", out: "fail").y, rect.minY + m.top(tests) + m.rowHeight / 3 + m.rowHeight / 2)
+    }
+
     func testEdgeAtFindsTheNearestRoute() throws {
         let flow = SDUIFlow(
             cards: [SDUIFlow.Card(id: "a", label: "A", state: "", outs: [SDUIFlow.Out(id: "x", label: "x", state: .plain)]), SDUIFlow.Card(id: "b", label: "B", state: "", outs: [])],

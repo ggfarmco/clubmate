@@ -259,6 +259,10 @@ func MutedText(text string) Node {
 	return Node{Type: "text", Props: map[string]any{"text": text, "style": "muted"}}
 }
 
+func MonoText(text string) Node {
+	return Node{Type: "text", Props: map[string]any{"text": text, "style": "mono"}}
+}
+
 func Badge(text, tone string) Node {
 	return Node{Type: "badge", Props: withOptional(map[string]any{"text": text}, "tone", tone)}
 }
@@ -312,6 +316,11 @@ type GraphNode struct {
 	Pending   bool       `json:"pending,omitempty"`
 	Start     bool       `json:"start,omitempty"`
 	Tooltip   string     `json:"tooltip,omitempty"`
+	Kind      string     `json:"kind,omitempty"`
+	Command   string     `json:"command,omitempty"`
+	Since     string     `json:"since,omitempty"`
+	Timeout   int        `json:"timeout,omitempty"`
+	Tag       string     `json:"tag,omitempty"`
 	Outs      []GraphOut `json:"outs"`
 }
 
@@ -330,6 +339,7 @@ type GraphEdge struct {
 	State   string `json:"state"`
 	Ref     string `json:"ref,omitempty"`
 	Tooltip string `json:"tooltip,omitempty"`
+	Label   string `json:"label,omitempty"`
 }
 
 type GraphMove struct {
@@ -351,7 +361,7 @@ type GraphProps struct {
 	Reached bool
 }
 
-func Graph(id string, p GraphProps) Node {
+func Graph(id string, p GraphProps, children ...Node) Node {
 	nodes := make([]GraphNode, len(p.Nodes))
 	for i, n := range p.Nodes {
 		n.Outs = nonNil(n.Outs)
@@ -364,7 +374,7 @@ func Graph(id string, p GraphProps) Node {
 	if p.Reached {
 		props["reached"] = true
 	}
-	return Node{Type: "graph", ID: id, Props: props}
+	return Node{Type: "graph", ID: id, Props: props, Children: children}
 }
 
 const (
@@ -375,6 +385,13 @@ const (
 	EdgeSelected = "selected"
 	EdgeDim      = "dim"
 	EdgeGhost    = "ghost"
+	EdgeHeld     = "held"
+)
+
+const (
+	KindAgent  = "agent"
+	KindCheck  = "check"
+	KindAction = "action"
 )
 
 const (

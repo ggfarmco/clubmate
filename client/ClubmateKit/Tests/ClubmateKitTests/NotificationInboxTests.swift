@@ -54,6 +54,20 @@ final class NotificationInboxTests: XCTestCase {
         XCTAssertEqual(hub.bellCount, 1)
     }
 
+    func testGraphRunNeedsYouPinsOnceAndOpensTheRun() throws {
+        var hub = NotificationHub()
+        let away = HubFocus(appActive: false, workspace: nil)
+        let run = AgentSession(id: "gr_1", workspace: "w", title: "Review gate", status: .waiting, pending: ["cap-1"], pendingSummary: PendingSummary(kind: .question, text: "Tests → Coder ran 2 of 2 rounds", at: now), needsYou: true)
+        hub.waiting.update(workspace: "w", session: nil, sessions: [run])
+        let alert = try XCTUnwrap(AgentNotifier.requests([run]).first)
+        XCTAssertEqual([alert.title, alert.body, HubNotification(alert).source(workspaceName: "shop")], ["Question · Tests → Coder ran 2 of 2 rounds", "Review gate", "shop · Graph run"])
+        XCTAssertFalse(hub.receive(HubNotification(id: "n1", workspace: "w", session: "gr_1", message: "x", kind: .permission, date: now), focus: away, now: now))
+        XCTAssertEqual(hub.pinned.map(\.id), ["gr_1/cap-1"])
+        let reveal = try XCTUnwrap(NotificationHub.reveal(workspace: "w", session: "gr_1", owner: AgentNotifier.section))
+        XCTAssertEqual(reveal.section, "graphs")
+        XCTAssertEqual(reveal.event, GraphRun.selectEvent(workspace: "w", run: "gr_1"))
+    }
+
     func testPinsOldestFirstByWhenItNeededYou() {
         var hub = NotificationHub()
         let away = HubFocus(appActive: false, workspace: nil)

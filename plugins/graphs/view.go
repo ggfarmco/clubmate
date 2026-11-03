@@ -34,6 +34,7 @@ const (
 	maxBrief    = 160
 	descLines   = 3
 	statePlain  = "plain"
+	tagChanged  = "changed"
 )
 
 var liveOrder = []string{"waiting", "running", "error"}
@@ -53,11 +54,15 @@ func sidebarView(graphs []graphFile, runs []*Run, selected string, sessions map[
 	if len(runs) > 0 {
 		items := make([]sdui.TreeItem, 0, len(runs))
 		for _, r := range runs {
-			icon, tone := runIcon(r, runLive(r, sessions))
+			live, detail := runLive(r, sessions), runDetail(r)
+			if n := r.need(); n != nil {
+				live, detail = stepWaiting, needDetail(r, n)
+			}
+			icon, tone := runIcon(r, live)
 			items = append(items, sdui.TreeItem{
 				ID:     r.ID,
 				Label:  r.Title,
-				Detail: runDetail(r),
+				Detail: detail,
 				Icon:   icon,
 				Tone:   tone,
 				Menu:   runMenu(r),
@@ -83,21 +88,34 @@ func graphItem(g graphFile) sdui.TreeItem {
 	return item
 }
 
-func graphView(g graphFile, spec *Graph, d draft, starting string) sdui.Node {
+func graphView(g graphFile, spec *Graph, d draft, starting string, tv trustView) sdui.Node {
 	id := graphPrefix + g.Name
 	props := sdui.HeaderProps{Icon: graphIcon}
 	if g.Title != "" {
 		props.Meta = g.Name
 	}
 	var rows []sdui.Node
+	switch {
+	case tv.confirming:
+		rows = append(rows, trustConfirm(id, cmp.Or(g.Title, g.Name), spec, tv))
+	case tv.untrusted:
+		rows = append(rows, trustNotice(tv))
+	}
 	if g.Description != "" {
 		rows = append(rows, sdui.HStack(sdui.MutedText("Description"), sdui.Card("", "", sdui.WithLines(sdui.Text(g.Description), descLines))))
 	}
 	var actions []sdui.Node
-	if g.Error != "" {
+	switch {
+	case g.Error != "":
 		props.Badges = []sdui.HeaderBadge{{Text: "invalid", Tone: "danger"}}
 		rows = append(rows, sdui.HStack(sdui.MutedText("Error"), sdui.WithTone(sdui.Text(g.Error), "danger")))
-	} else {
+	case tv.untrusted:
+		props.Badges = []sdui.HeaderBadge{{Text: "untrusted", Tone: "warning"}}
+		if !tv.confirming {
+			actions = append(actions, automation.ActionNode(id, automation.DetailAction{Action: actTrust, Label: "Trust…", Icon: "checkmark", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
+		}
+		rows = append(rows, sdui.HStack(sdui.MutedText("Input"), sdui.TextField(fieldInput, "", "Trust the file to run it")))
+	default:
 		run := sdui.WithShortcut(sdui.WithVariant(sdui.Button(id+"/submit", "Run", "play.fill"), sdui.VariantPrimary), "cmd+return")
 		if starting == g.Name {
 			run = sdui.WithLoading(run, "Starting…")
@@ -118,6 +136,9 @@ func graphView(g graphFile, spec *Graph, d draft, starting string) sdui.Node {
 	if g.Builtin {
 		definition = "Built into Clubmate"
 	}
+	if tv.untrusted {
+		definition = trustDefinition(definition, tv)
+	}
 	rows = append(rows, automation.Property("Definition", definition, ""))
 	if spec != nil {
 		rows = append(rows, automation.Property("Turns", fmt.Sprintf("at most %d", spec.maxTurns()), ""))
@@ -127,10 +148,18 @@ func graphView(g graphFile, spec *Graph, d draft, starting string) sdui.Node {
 	if spec == nil {
 		return sdui.VStack(form)
 	}
-	return sdui.VStack(form, definitionDiagram(id, runShape(spec)))
+	var changed []string
+	if tv.last != nil {
+		changed = tv.changed
+	}
+	out := []sdui.Node{form, definitionDiagram(id, runShape(spec), changed)}
+	if card, ok := changedCard(spec, tv); ok {
+		out = append(out, card)
+	}
+	return sdui.VStack(out...)
 }
 
-func definitionDiagram(id string, r *Run) sdui.Node {
+func definitionDiagram(id string, r *Run, changed []string) sdui.Node {
 	nodes := make([]sdui.GraphNode, 0, len(r.Nodes))
 	for _, n := range r.Nodes {
 		ids, ends := nodeOuts(r, n.ID)
@@ -138,16 +167,28 @@ func definitionDiagram(id string, r *Run) sdui.Node {
 		for _, o := range ids {
 			outs = append(outs, sdui.GraphOut{ID: o, Label: o, State: statePlain, End: slices.Contains(ends, o)})
 		}
-		nodes = append(nodes, sdui.GraphNode{ID: n.ID, Label: n.Role, Start: n.Start, Outs: outs})
+		node := sdui.GraphNode{ID: n.ID, Label: n.Role, Start: n.Start, Kind: nodeKind(r.Spec, n.ID), Outs: outs}
+		if n.Step {
+			node.Command = cmpCommand(r.Spec.node(n.ID))
+			node.Tooltip = node.Command
+		}
+		if slices.Contains(changed, n.ID) {
+			node.Tag = tagChanged
+		}
+		nodes = append(nodes, node)
 	}
 	edges := make([]sdui.GraphEdge, 0, len(r.Edges))
-	for _, e := range r.Edges {
-		edges = append(edges, sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: statePlain, Tooltip: edgeTooltip(r, e)})
+	for i, e := range r.Edges {
+		edge := sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: statePlain, Tooltip: edgeTooltip(r, e)}
+		if max := r.Spec.Edges[i].MaxFires; max > 0 {
+			edge.Label = fmt.Sprintf("at most %d", max)
+		}
+		edges = append(edges, edge)
 	}
 	return sdui.Graph(id+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges})
 }
 
-func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
+func mainView(r *Run, sessions map[string]api.Session, x runExtras) sdui.Node {
 	if r == nil {
 		return emptyView()
 	}
@@ -168,24 +209,46 @@ func mainView(r *Run, sessions map[string]api.Session) sdui.Node {
 		definition = "Built into Clubmate"
 	}
 	rows = append(rows, automation.Property("Definition", definition, ""))
-	return sdui.VStack(runHeader(r, sessions), automation.Properties(rows...), runDiagram(r, sessions))
+	need := r.need()
+	var children []sdui.Node
+	switch {
+	case need == nil:
+	case need.Kind == needCap:
+		children = append(children, capCard(r, need))
+	default:
+		children = append(children, approvalCard(r, need, x.pending[need.Node]))
+	}
+	if node, move := r.outputStep(x.selected); move >= 0 {
+		children = append(children, outputPanel(r, node, move))
+	}
+	return sdui.VStack(runHeader(r, sessions, need), automation.Properties(rows...), runDiagram(r, sessions, children...))
 }
 
 func emptyView() sdui.Node {
 	return sdui.EmptyState("Graphs chain agents: when one finishes, the next starts. Add a graph file, then select it here and run it.", sdui.EmptyProps{Title: "No graphs yet", Icon: graphIcon, Hint: graphsDir + "/<name>" + graphExt})
 }
 
-func runHeader(r *Run, sessions map[string]api.Session) sdui.Node {
+func runHeader(r *Run, sessions map[string]api.Session, need *runNeed) sdui.Node {
 	state := "stopped"
 	if r.Status == statusRunning {
 		state = "running"
 	}
 	badges := []sdui.HeaderBadge{{Text: fmt.Sprintf("%s · turn %d of %d", state, r.Turns, r.MaxTurns)}}
+	switch {
+	case need != nil && need.Kind == needCap:
+		badges = append(badges, sdui.HeaderBadge{Text: stateLabel(stepWaiting, false) + " · round cap", Tone: statusTone(stepWaiting)})
+	case need != nil:
+		badges = append(badges, sdui.HeaderBadge{Text: stateLabel(stepWaiting, false), Tone: statusTone(stepWaiting)})
+	}
 	if n, status := attentionNode(r, sessions); n != nil && (status == "waiting" || status == "error") {
 		badges = append(badges, sdui.HeaderBadge{Text: n.Role + " " + stateLabel(status, true), Tone: statusTone(status)})
 	}
 	var actions []sdui.Node
-	if n, _ := attentionNode(r, sessions); n != nil {
+	switch n, _ := attentionNode(r, sessions); {
+	case need != nil && need.Kind == needCap:
+		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actContinue, Label: "Continue", Icon: "play.fill", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
+	case need != nil:
+	case n != nil:
 		actions = append(actions, automation.ActionNode(r.ID, automation.DetailAction{Action: actOpen, Label: "Open " + n.Role, Icon: "sparkles", Variant: sdui.VariantPrimary, Shortcut: "cmd+return"}))
 	}
 	if r.Status == statusRunning {
@@ -320,7 +383,7 @@ func firstLine(s string) string {
 	return line
 }
 
-func runDiagram(r *Run, sessions map[string]api.Session) sdui.Node {
+func runDiagram(r *Run, sessions map[string]api.Session, children ...sdui.Node) sdui.Node {
 	last, counts, end := r.lastEdges(), r.edgeCounts(), r.endMove()
 	nodes := make([]sdui.GraphNode, 0, len(r.Nodes))
 	for _, n := range r.Nodes {
@@ -328,13 +391,17 @@ func runDiagram(r *Run, sessions map[string]api.Session) sdui.Node {
 	}
 	edges := make([]sdui.GraphEdge, 0, len(r.Edges))
 	for i, e := range r.Edges {
-		edge := sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: edgeState(slices.Contains(last, i), counts[i]), Tooltip: edgeTooltip(r, e)}
+		held := r.Status == statusRunning && r.heldEdge(i)
+		edge := sdui.GraphEdge{From: e.From, Out: edgeOut(e), To: e.To, State: edgeState(slices.Contains(last, i), counts[i]), Tooltip: edgeTooltip(r, e), Label: edgeLabel(r, i, counts[i], held)}
+		if held {
+			edge.State = sdui.EdgeHeld
+		}
 		if r.Status == statusRunning {
 			edge.Ref = e.Trigger
 		}
 		edges = append(edges, edge)
 	}
-	return sdui.Graph(r.ID+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end), Reached: end >= 0})
+	return sdui.Graph(r.ID+graphSuffix, sdui.GraphProps{Nodes: nodes, Edges: edges, Moves: graphMoves(r, last, end), Reached: end >= 0}, children...)
 }
 
 func graphNode(r *Run, n RunNode, sessions map[string]api.Session, end int, last, counts []int) sdui.GraphNode {
@@ -367,6 +434,7 @@ func graphNode(r *Run, n RunNode, sessions map[string]api.Session, end int, last
 		Pending:   glyph == "idle",
 		Start:     n.Start,
 		Tooltip:   s.Title,
+		Kind:      nodeKind(r.Spec, n.ID),
 		Outs:      graphOuts(r, n.ID, end, last, counts),
 	}
 }
@@ -519,21 +587,14 @@ func edgeState(last bool, count int) string {
 
 func stepNode(r *Run, n RunNode, end int, last, counts []int) sdui.GraphNode {
 	st := r.lastStep(n.ID)
-	status := stepStatus(st)
-	glyph := "fail"
-	switch status {
-	case stepWaiting, stepRunning:
-		glyph = status
-	case onError:
-		glyph = "error"
-	case notStarted:
-		glyph = "idle"
-	case outPass, onDone:
-		glyph = "done"
-	}
-	command := ""
+	glyph := stepGlyph(stepStatus(st))
+	command, timeout := "", 0
 	if r.Spec != nil {
-		command = cmpCommand(r.Spec.node(n.ID))
+		spec := r.Spec.node(n.ID)
+		command = cmpCommand(spec)
+		if st != nil && st.Status == stepRunning {
+			timeout = int(spec.timeout().Seconds())
+		}
 	}
 	return sdui.GraphNode{
 		ID:        n.ID,
@@ -544,6 +605,10 @@ func stepNode(r *Run, n RunNode, end int, last, counts []int) sdui.GraphNode {
 		Attention: glyph == stepWaiting,
 		Pending:   glyph == "idle",
 		Tooltip:   command,
+		Kind:      nodeKind(r.Spec, n.ID),
+		Command:   command,
+		Since:     stepSince(st),
+		Timeout:   timeout,
 		Outs:      graphOuts(r, n.ID, end, last, counts),
 	}
 }

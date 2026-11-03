@@ -102,7 +102,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     private func agentsChanged(_ event: BusEvent) async {
         guard !event.workspace.isEmpty, let fields = event.payload.objectValue else { return }
         switch fields["kind"]?.stringValue {
-        case "status":
+        case "status", "resolved":
             await checkAgents(event.workspace, session: fields["session"]?.stringValue)
         case "deleted":
             if let session = fields["session"]?.stringValue { agentDeleted(event.workspace, session) }

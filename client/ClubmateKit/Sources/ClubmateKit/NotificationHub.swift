@@ -67,6 +67,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     static func sessionLabel(session: String, owner: String?) -> String {
+        if GraphRun.matches(session) { return "Graph run" }
         if AgentSessionID.matches(session) || owner == AgentNotifier.section { return "Agent" }
         switch owner {
         case TerminalsSection.id: return "Terminal"
@@ -81,7 +82,7 @@ public struct HubNotification: Sendable, Equatable, Codable {
     }
 
     var coveredByAgentsSection: Bool {
-        source == .bus && !viaAgent && (kind == .permission || kind == .question) && isAgentSession
+        source == .bus && !viaAgent && (kind == .permission || kind == .question) && (isAgentSession || session.map(GraphRun.matches) == true)
     }
 
     public func headline(workspaceName: String?) -> String {
@@ -188,6 +189,9 @@ public struct NotificationHub: Sendable {
     }
 
     public static func reveal(workspace: String, session: String, owner: String?) -> HubReveal? {
+        if GraphRun.matches(session) {
+            return HubReveal(section: GraphRun.section, event: GraphRun.selectEvent(workspace: workspace, run: session), focusMain: true)
+        }
         let section = owner ?? (AgentSessionID.matches(session) ? AgentNotifier.section : nil)
         switch section {
         case nil:

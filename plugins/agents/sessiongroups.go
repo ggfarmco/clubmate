@@ -58,7 +58,7 @@ func setGroups(infos []sessionInfo) {
 		return infos[i].Group
 	}
 	for i := range infos {
-		infos[i].Active = !infos[i].Service && (infos[i].Status == statusRunning || infos[i].Status == statusWaiting)
+		infos[i].Active = !infos[i].Service && infos[i].Kind == "" && (infos[i].Status == statusRunning || infos[i].Status == statusWaiting)
 		clear(visiting)
 		lift(i)
 	}

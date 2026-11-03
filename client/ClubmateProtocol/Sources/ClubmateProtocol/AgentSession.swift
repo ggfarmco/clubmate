@@ -40,6 +40,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let service: Bool
     public let group: SessionGroup
     public let active: Bool
+    public let kind: String?
 
     public init(
         id: String, workspace: String = "", worktree: String = "", agent: String = "", agentSessionId: String = "",
@@ -49,7 +50,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, modeLabel: String? = nil,
-        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false
+        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil
     ) {
         self.id = id
         self.workspace = workspace
@@ -90,6 +91,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.service = service
         self.group = group ?? (status == .closed ? .closed : self.needsYou ? .needsInput : service ? .service : status == .running ? .running : .idle)
         self.active = active
+        self.kind = kind
     }
 
     public var isClosed: Bool { status == .closed }
@@ -97,7 +99,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review, asksParent, service, group, active
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review, asksParent, service, group, active, kind
     }
 
     public init(from decoder: any Decoder) throws {
@@ -146,7 +148,8 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             asksParent: try flag(.asksParent),
             service: try flag(.service),
             group: try c.decodeIfPresent(SessionGroup.self, forKey: .group),
-            active: try flag(.active)
+            active: try flag(.active),
+            kind: try optional(.kind)
         )
     }
 
@@ -193,6 +196,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(service, forKey: .service)
         try c.encode(group, forKey: .group)
         try c.encode(active, forKey: .active)
+        try c.encodeIfPresent(kind, forKey: .kind)
     }
 }
 

@@ -40,6 +40,7 @@ const (
 	allowedBypass        = "mode bypass"
 	codeDenied           = -32014
 	waitMessage          = "A graph step wants to run a command"
+	notifyKind           = "permission"
 	reasonRejectDecision = "reject"
 	noOutput             = "(no output)"
 	envPrefix            = "CLUBMATE_"
@@ -76,6 +77,7 @@ type notifyArgs struct {
 	Kind    string `json:"kind"`
 	Title   string `json:"title"`
 	Message string `json:"message"`
+	Session string `json:"session,omitempty"`
 }
 
 type HeldEdge struct {
@@ -152,7 +154,7 @@ func (a *app) deliver(ctx context.Context, d delivery) {
 		a.touch(workspace)
 		logError(a.store.Save(ctx, r))
 		a.mu.Unlock()
-		a.notify(ctx, workspace, "needs-input", title, msg)
+		a.notify(ctx, workspace, d.run, title, msg)
 		a.flush(ctx)
 		return
 	}
@@ -248,7 +250,7 @@ func (a *app) setAllowed(ctx context.Context, runID string, move int, allowedBy 
 	defer a.mu.Unlock()
 	if r := a.runs[runID]; r != nil && r.Status == statusRunning && r.Moves[move].Step != nil {
 		st := r.Moves[move].Step
-		st.Status, st.AllowedBy, st.Dir, st.Output = stepRunning, allowedBy, spec.Dir, spec.OutPath
+		st.Status, st.AllowedBy, st.Dir, st.Output, st.StartedAt = stepRunning, allowedBy, spec.Dir, spec.OutPath, a.now()
 		a.touch(r.Workspace)
 		logError(a.store.Save(ctx, r))
 	}
@@ -262,18 +264,18 @@ func (a *app) waitApproval(ctx context.Context, runID, node string, move int, sp
 		a.stepDone(ctx, runID, node, move, stepResult{ExitCode: exitUnknown, Reason: reasonStopped})
 		return
 	}
-	r.Moves[move].Step.Status, r.Moves[move].Step.Dir = stepWaiting, spec.Dir
+	r.Moves[move].Step.Status, r.Moves[move].Step.Dir, r.Moves[move].Step.WaitingAt = stepWaiting, spec.Dir, a.now()
 	a.pending[runID+"/"+node] = pendingStep{move: move, spec: spec}
 	title, workspace := cmp.Or(r.Title, r.Graph), r.Workspace
 	a.touch(workspace)
 	logError(a.store.Save(ctx, r))
 	a.mu.Unlock()
-	a.notify(ctx, workspace, "permission", title, waitMessage)
+	a.notify(ctx, workspace, runID, title, waitMessage)
 	a.flush(ctx)
 }
 
-func (a *app) notify(ctx context.Context, workspace, kind, title, message string) {
-	args, err := json.Marshal(notifyArgs{Kind: kind, Title: title, Message: message})
+func (a *app) notify(ctx context.Context, workspace, run, title, message string) {
+	args, err := json.Marshal(notifyArgs{Kind: notifyKind, Title: title, Message: message, Session: run})
 	if err == nil {
 		_, err = a.runCommand(ctx, automation.CommandRequest{ID: "notify.post", WorkspaceID: workspace, Args: args})
 	}

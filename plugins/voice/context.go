@@ -101,6 +101,7 @@ type PermissionOption struct {
 
 type agentSession struct {
 	api.Session
+	Kind           string     `json:"kind,omitempty"`
 	Asks           bool       `json:"asks"`
 	Question       string     `json:"question"`
 	NeedsYou       bool       `json:"needsYou"`
@@ -170,6 +171,7 @@ func resolve(ctx context.Context, h host, workspace string, p Pointer) (Context,
 	if err := h.RunCommand(ctx, "agents.sessions", workspace, struct{}{}, &sessions); err != nil {
 		errs = append(errs, fmt.Errorf("agent sessions: %w", err))
 	}
+	sessions = slices.DeleteFunc(sessions, func(s agentSession) bool { return s.Kind != "" })
 	for _, s := range sessions {
 		if s.NeedsYou && !s.Closed() && len(c.NeedsYou) < maxSessions {
 			c.NeedsYou = append(c.NeedsYou, brief(s))

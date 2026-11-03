@@ -277,6 +277,22 @@
                         {"node": "quizzer", "cause": 4, "out": "step", "tooltip": "move 6 · Quizzer · 23:27", "current": true, "last": true}
                       ]
                     }},
+                    {"type": "graph", "id": "gallery-graph-steps", "props": {
+                      "nodes": [
+                        {"id": "coder", "label": "Coder", "state": "running", "tone": "accent", "icon": "play.circle", "start": true, "kind": "agent", "outs": [{"id": "done", "label": "done", "count": 2, "state": "taken"}, {"id": "error", "label": "error", "state": "never"}]},
+                        {"id": "tests", "label": "Tests", "state": "fail · 58 s", "icon": "xmark.circle", "kind": "check", "command": "make test ./internal/... -race -count=1", "outs": [{"id": "pass", "label": "pass", "state": "never"}, {"id": "fail", "label": "fail", "count": 3, "state": "last"}, {"id": "error", "label": "error", "state": "never"}]},
+                        {"id": "ship", "label": "Ship", "state": "running", "tone": "accent", "icon": "play.circle", "kind": "action", "command": "./scripts/ship.sh --wait", "since": "2026-11-03T16:19:00Z", "timeout": 7200, "outs": [{"id": "done", "label": "done", "state": "never", "end": true}, {"id": "error", "label": "error", "state": "never"}]},
+                        {"id": "merge", "label": "Squash into main", "state": "waiting for you", "tone": "warning", "icon": "exclamationmark.circle", "attention": true, "kind": "action", "tag": "changed", "command": "git merge --squash review/fix-flaky-switcher", "outs": [{"id": "done", "label": "done", "state": "never", "end": true}, {"id": "error", "label": "error", "state": "never"}]}
+                      ],
+                      "edges": [
+                        {"from": "coder", "out": "done", "to": "tests", "state": "taken"},
+                        {"from": "tests", "out": "fail", "to": "coder", "state": "held", "label": "×2/2 · waits for you"},
+                        {"from": "tests", "out": "pass", "to": "ship", "state": "never", "label": "at most 3"},
+                        {"from": "tests", "out": "pass", "to": "merge", "state": "never"}
+                      ]
+                    }, "children": [
+                      {"type": "card", "props": {"tone": "warning", "icon": "exclamationmark.circle"}, "children": [{"type": "text", "props": {"text": "Tests → Coder reached its limit of 2 rounds. Continue allows one more round; Stop run ends the run.", "tone": "warning"}}]}
+                    ]},
                     {"type": "graph", "id": "gallery-graph-stopped", "props": {
                       "nodes": [
                         {"id": "coder", "label": "Coder", "state": "idle · 1 turns", "tone": "success", "icon": "checkmark.circle", "start": true, "outs": [{"id": "done", "label": "done", "count": 1, "state": "last"}]},

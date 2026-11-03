@@ -17,7 +17,11 @@ public struct AgentAlert: Sendable, Equatable, Identifiable {
     public let date: Date
 
     public var id: String { "\(session)/\(request)" }
-    public var kind: NotificationKind { AgentSession.isQuestion(request) ? .question : .permission }
+    public var kind: NotificationKind { Self.isQuestion(request) ? .question : .permission }
+
+    static func isQuestion(_ request: String) -> Bool {
+        AgentSession.isQuestion(request) || request.hasPrefix(GraphRun.capPrefix)
+    }
 
     static func title(question: Bool, summary: PendingSummary?) -> String {
         let heading = question ? "Question" : "Permission"
@@ -43,7 +47,7 @@ public struct AgentNotifier: Sendable {
                     workspace: session.workspace,
                     session: session.id,
                     request: request,
-                    title: AgentAlert.title(question: AgentSession.isQuestion(request), summary: summary),
+                    title: AgentAlert.title(question: AgentAlert.isQuestion(request), summary: summary),
                     body: session.title.isEmpty ? "New session" : session.title,
                     date: session.needsYouSince ?? summary?.at ?? session.updatedAt
                 )
@@ -65,5 +69,21 @@ public struct AgentNotifier: Sendable {
 
     public static func selectEvent(workspace: String, session: String) -> UIEvent {
         UIEvent(workspaceId: workspace, slot: sidebarSlot, nodeId: sessionsNode, action: "select", value: .string(session))
+    }
+}
+
+public enum GraphRun {
+    public static let prefix = "gr_"
+    public static let capPrefix = "cap-"
+    public static let section = "graphs"
+    public static let sidebarSlot = "graphs.sidebar"
+    public static let runsNode = "runs"
+
+    public static func matches(_ id: String) -> Bool {
+        id.hasPrefix(prefix)
+    }
+
+    public static func selectEvent(workspace: String, run: String) -> UIEvent {
+        UIEvent(workspaceId: workspace, slot: sidebarSlot, nodeId: runsNode, action: "select", value: .string(run))
     }
 }

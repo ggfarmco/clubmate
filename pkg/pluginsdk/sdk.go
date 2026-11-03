@@ -29,6 +29,7 @@ type UIEvent struct {
 	NodeID      string          `json:"nodeId"`
 	Action      string          `json:"action"`
 	Value       json.RawMessage `json:"value"`
+	Agent       bool            `json:"agent,omitempty"`
 }
 
 type SlotView struct {

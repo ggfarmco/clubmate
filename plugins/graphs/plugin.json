@@ -6,7 +6,10 @@
   "command": ["graphs"],
   "contributes": {
     "shortcuts": [
-      {"keys": "cmd+return", "action": "Open the session of the step that needs you (else the running or start step); on a graph, run it with its input"},
+      {"keys": "cmd+return", "action": "Trust an untrusted graph (Trust… then Trust); continue an edge held at its round cap, else open the session of the step that needs you (else the running or start step); on a graph, run it with its input"},
+      {"keys": "opt+1", "action": "Allow a waiting step once"},
+      {"keys": "opt+2", "action": "Always allow a waiting step's command (asks first)"},
+      {"keys": "opt+3", "action": "Reject a waiting step"},
       {"keys": "cmd+.", "action": "Stop the run (confirmed)"},
       {"keys": "cmd+delete", "action": "Remove the finished run (confirmed)"}
     ],
@@ -37,6 +40,7 @@
         "id": "graphs.show",
         "title": "Show agent graph run",
         "hidden": true,
+        "remote": true,
         "agent": true,
         "description": "Show one graph run with each node's session title and live status (running, waiting, done, idle, error, closed, gone): {id, graph, title, status, reason?, input?, turns, maxTurns, startedAt, stoppedAt?, nodes: [{id, role, start?, session, title?, status}], edges: [{from, to, on, outcome?, trigger}]}. Non-destructive.",
         "args": {
@@ -50,6 +54,7 @@
         "id": "graphs.stop",
         "title": "Stop agent graph run",
         "hidden": true,
+        "remote": true,
         "agent": true,
         "description": "Stop a graph run: delete its edge triggers so no node prompts another. Running turns go on and the sessions stay open; cancel their turns with agents.cancel. An agent may stop only runs started by itself or its child sessions. Returns the run. Non-destructive.",
         "args": {
@@ -63,6 +68,7 @@
         "id": "graphs.approve",
         "title": "Answer a graph step's approval",
         "hidden": true,
+        "remote": true,
         "description": "Answer a step of a graph run that waits for your approval: once runs it now, always also adds the exact command as a Bash allow rule to the step folder's .claude/settings.local.json, reject ends the step with error · rejected. Not for agents.",
         "args": {
           "properties": {
@@ -77,6 +83,7 @@
         "id": "graphs.continue",
         "title": "Continue a graph edge past its limit",
         "hidden": true,
+        "remote": true,
         "description": "A graph edge with maxFires that reached its limit holds its next firing and the run waits for you; continue delivers that firing and allows the edge one more round. Not for agents.",
         "args": {
           "properties": {

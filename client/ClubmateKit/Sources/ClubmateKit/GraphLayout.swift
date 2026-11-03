@@ -21,6 +21,16 @@ public struct GraphMetrics: Sendable, Equatable {
     }
 }
 
+extension GraphMetrics {
+    public func strip(_ card: SDUIFlow.Card) -> CGFloat {
+        card.command == nil ? 0 : (rowHeight * 1.15).rounded()
+    }
+
+    public func top(_ card: SDUIFlow.Card) -> CGFloat {
+        headHeight + strip(card)
+    }
+}
+
 public struct GraphRoute: Sendable, Equatable {
     public enum Kind: Sendable {
         case forward
@@ -91,7 +101,7 @@ public struct GraphLayout: Sendable {
         let row = Dictionary(uniqueKeysWithValues: stacks.flatMap { $0.enumerated().map { ($0.element, $0.offset) } })
         func extent(_ item: Item) -> CGSize {
             switch item {
-            case .card(let card): CGSize(width: m.cardWidth, height: m.headHeight + 2 * m.rowHeight / 3 + m.rowHeight * CGFloat(card.outs.count))
+            case .card(let card): CGSize(width: m.cardWidth, height: m.top(card) + 2 * m.rowHeight / 3 + m.rowHeight * CGFloat(card.outs.count))
             case .marker(let marker): sizes[marker.id] ?? CGSize(width: m.rowHeight, height: m.headHeight)
             }
         }
@@ -137,7 +147,7 @@ public struct GraphLayout: Sendable {
                     inputs[card.id] = CGPoint(x: rect.minX, y: rect.minY + m.headHeight / 2)
                     var outs: [String: CGPoint] = [:]
                     for (k, out) in card.outs.enumerated() where outs[out.id] == nil {
-                        outs[out.id] = CGPoint(x: rect.maxX, y: rect.minY + m.headHeight + pad + m.rowHeight * (CGFloat(k) + 0.5))
+                        outs[out.id] = CGPoint(x: rect.maxX, y: rect.minY + m.top(card) + pad + m.rowHeight * (CGFloat(k) + 0.5))
                     }
                     ports[card.id] = outs
                     y = rect.maxY + m.nodeGap

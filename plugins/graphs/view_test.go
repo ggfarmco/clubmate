@@ -47,7 +47,7 @@ func TestExecutionView(t *testing.T) {
 	assert.Empty(t, items[0].Badge)
 	assert.Equal(t, []sdk.MenuEntry{{Action: actStop, Label: "Stop", Confirm: stopConfirm(r)}}, items[0].Menu)
 
-	view := mainView(r, sessions)
+	view := mainView(r, sessions, runExtras{})
 	require.NoError(t, sdui.Validate(view))
 	header := view.Children[0]
 	assert.Equal(t, []sdk.HeaderBadge{{Text: "running · turn 3 of 12"}, {Text: "Reviewer needs you", Tone: "warning"}}, header.Props["badges"])
@@ -72,7 +72,7 @@ func TestExecutionView(t *testing.T) {
 		{From: "reviewer", Out: "changes", To: "coder", State: "never", Ref: "trg_3", Tooltip: "when Reviewer reports changes → prompt Coder"},
 	}, g.Props["edges"])
 
-	assert.Equal(t, "empty", mainView(nil, nil).Type)
+	assert.Equal(t, "empty", mainView(nil, nil, runExtras{}).Type)
 }
 
 func TestStoppedRunOffersRemove(t *testing.T) {
@@ -83,7 +83,7 @@ func TestStoppedRunOffersRemove(t *testing.T) {
 	items := groups[0].Children
 	assert.Equal(t, []string{actRemove}, []string{items[0].Menu[0].Action})
 	assert.Equal(t, "", items[0].Tone)
-	header := mainView(r, nil).Children[0]
+	header := mainView(r, nil, runExtras{}).Children[0]
 	remove := header.Children[len(header.Children)-1]
 	assert.Equal(t, "gr_1/remove", remove.ID)
 	assert.Equal(t, true, remove.Props["overflow"])
@@ -92,13 +92,13 @@ func TestStoppedRunOffersRemove(t *testing.T) {
 func TestViewShortcutsDeclared(t *testing.T) {
 	running := &Run{ID: "gr_1", Title: "Review loop", Status: statusRunning, Nodes: []RunNode{{ID: "coder", Role: "Coder", Start: true, Session: "agt_1"}}}
 	stopped := &Run{ID: "gr_2", Title: "Review loop", Status: statusStopped}
-	shortcuttest.RequireDeclared(t, mainView(running, map[string]api.Session{"agt_1": {ID: "agt_1", Status: "waiting"}}), mainView(stopped, nil), graphView(graphFile{Name: "review-loop"}, nil, draft{}, ""))
+	shortcuttest.RequireDeclared(t, mainView(running, map[string]api.Session{"agt_1": {ID: "agt_1", Status: "waiting"}}, runExtras{}), mainView(stopped, nil, runExtras{}), graphView(graphFile{Name: "review-loop"}, nil, draft{}, "", trustView{}))
 }
 
 func TestBuiltinRunDefinition(t *testing.T) {
 	r := &Run{ID: "gr_1", Graph: "pr-walkthrough", Title: "PR walkthrough", Status: statusRunning, Builtin: true, StartedAt: time.Now()}
 
-	props := mainView(r, nil).Children[1].Children
+	props := mainView(r, nil, runExtras{}).Children[1].Children
 	assert.Equal(t, automation.Property("Definition", "Built into Clubmate", ""), props[len(props)-1])
 }
 
@@ -128,7 +128,7 @@ func TestGraphViewRunsWithInput(t *testing.T) {
 	require.NoError(t, err)
 	g := graphFile{Name: "pr-walkthrough", Title: spec.Title, Description: spec.Description, Builtin: builtin}
 
-	view := graphView(g, spec, draft{graph: "pr-walkthrough", input: "{{x}}", err: "Input: must not contain {{."}, "pr-walkthrough")
+	view := graphView(g, spec, draft{graph: "pr-walkthrough", input: "{{x}}", err: "Input: must not contain {{."}, "pr-walkthrough", trustView{})
 	require.NoError(t, sdui.Validate(view))
 	form := view.Children[0]
 	assert.Equal(t, []any{"graph:pr-walkthrough/run", actRun}, []any{form.ID, form.Props["action"]})
@@ -142,13 +142,13 @@ func TestGraphViewRunsWithInput(t *testing.T) {
 	assert.NotContains(t, diagram.Props, "moves")
 	nodes, ok := diagram.Props["nodes"].([]sdk.GraphNode)
 	require.True(t, ok)
-	assert.Equal(t, sdk.GraphNode{ID: "slicer", Label: "Slicer", Start: true, Outs: []sdk.GraphOut{{ID: "step", Label: "step", State: "plain"}, {ID: "complete", Label: "complete", State: "plain"}}}, nodes[0])
+	assert.Equal(t, sdk.GraphNode{ID: "slicer", Label: "Slicer", Start: true, Kind: sdk.KindAgent, Outs: []sdk.GraphOut{{ID: "step", Label: "step", State: "plain"}, {ID: "complete", Label: "complete", State: "plain"}}}, nodes[0])
 	assert.Equal(t, []sdk.GraphOut{{ID: "reported", Label: "reported", State: "plain", End: true}}, nodes[2].Outs)
 	edges, ok := diagram.Props["edges"].([]sdk.GraphEdge)
 	require.True(t, ok)
 	assert.Equal(t, sdk.GraphEdge{From: "quizzer", Out: "finish", To: "reconciler", State: "plain", Tooltip: "when Quizzer reports finish → prompt Reconciler"}, edges[len(edges)-1])
 
-	invalid := graphView(graphFile{Name: "broken", Error: "invalid graph JSON"}, nil, draft{}, "")
+	invalid := graphView(graphFile{Name: "broken", Error: "invalid graph JSON"}, nil, draft{}, "", trustView{})
 	assert.Empty(t, invalid.Children[0].Children[0].Children)
 }
 
@@ -333,4 +333,91 @@ func TestOpenStepCardDoesNothing(t *testing.T) {
 	}
 	assert.NoError(t, a.openGraph(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actOpen, Value: json.RawMessage(`"tests"`)}, r.ID))
 	assert.False(t, revealed)
+}
+
+func runView(t *testing.T, a *app, id string) sdk.Node {
+	t.Helper()
+	a.mu.Lock()
+	r := cloneRun(a.runs[id])
+	a.mu.Unlock()
+	view := mainView(r, nil, a.extras(id))
+	require.NoError(t, sdui.Validate(view))
+	return view
+}
+
+func graphChildren(view sdk.Node) []sdk.Node {
+	return view.Children[2].Children
+}
+
+func TestStepCardProps(t *testing.T) {
+	a, _, p, r := approvalApp(t, "default")
+	turnDone(t, a, "agt_1", 1)
+	nodes := diagramNodes(t, a, r.ID)
+	assert.Equal(t, []string{sdk.KindAgent, sdk.KindCheck, sdk.KindAction}, []string{nodes["coder"].Kind, nodes["tests"].Kind, nodes["merge"].Kind})
+	assert.Equal(t, []string{"make test", "git merge --squash x"}, []string{nodes["tests"].Command, nodes["merge"].Command})
+	assert.Equal(t, "2026-10-31T03:00:00Z", nodes["tests"].Since)
+	assert.Zero(t, nodes["tests"].Timeout)
+	p.block = true
+	go func() { _ = approve(t, a, r, "tests", "once") }()
+	require.Eventually(t, func() bool { return diagramNodes(t, a, r.ID)["tests"].Timeout == 600 }, 5*time.Second, 10*time.Millisecond)
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.stop", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
+	require.NoError(t, err)
+}
+
+func TestApprovalCard(t *testing.T) {
+	a, _, _, r := approvalApp(t, "default")
+	turnDone(t, a, "agt_1", 1)
+	view := runView(t, a, r.ID)
+	assert.Equal(t, []sdk.HeaderBadge{{Text: "running · turn 1 of 12"}, {Text: "waiting for you", Tone: "warning"}}, view.Children[0].Props["badges"])
+	require.Len(t, view.Children[0].Children, 1)
+	card := graphChildren(view)[0].Children[0]
+	assert.Equal(t, "permissionCard", card.Type)
+	assert.Equal(t, []any{r.ID + "/approve", "tests", "Run a command?", "make test", "Tests · a step of Review gate", "approve"}, []any{card.ID, card.Props["request"], card.Props["title"], card.Props["command"], card.Props["caption"], card.Props["action"]})
+	assert.Equal(t, []sdk.PermissionOption{
+		{ID: "once", Label: "Allow once", Kind: "allow_once", Shortcut: "opt+1"},
+		{ID: "always", Label: "Always allow…", Kind: "allow_always", Shortcut: "opt+2", Rule: "Bash(make test)", Scope: "in the main checkout (/repo)"},
+		{ID: "reject", Label: "Reject", Kind: "reject_once", Shortcut: "opt+3"},
+	}, card.Props["options"])
+	require.NoError(t, a.approveFromSection(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actApprove, Value: json.RawMessage(`{"request":"tests","option":"reject"}`)}, r.ID))
+	assert.Equal(t, reasonRejected, stepMoves(a, r.ID, "tests")[0].Step.Reason)
+}
+
+func TestHeldEdgeView(t *testing.T) {
+	a, core, _, r := stepApp(t, stepResult{ExitCode: 1, Tail: "FAIL a"}, stepResult{ExitCode: 1, Tail: "FAIL b"}, stepResult{ExitCode: 1, Tail: "one\ntwo\n"})
+	for turn := 1; turn <= 3; turn++ {
+		turnDone(t, a, "agt_1", turn)
+	}
+	view := runView(t, a, r.ID)
+	header := view.Children[0]
+	assert.Equal(t, sdk.HeaderBadge{Text: "waiting for you · round cap", Tone: "warning"}, header.Props["badges"].([]sdk.HeaderBadge)[1])
+	row := sidebarView(nil, []*Run{a.runs[r.ID]}, r.ID, nil, nil).Props["items"].([]sdk.TreeItem)[0].Children[0]
+	assert.Equal(t, []string{"2 of 2", "exclamationmark.circle", "warning"}, []string{row.Detail, row.Icon, row.Tone})
+	assert.Equal(t, []string{r.ID + "/continue", "Continue", "cmd+return"}, []string{header.Children[0].ID, header.Children[0].Props["label"].(string), header.Children[0].Props["shortcut"].(string)})
+	edges := view.Children[2].Props["edges"].([]sdk.GraphEdge)
+	assert.Equal(t, []string{sdk.EdgeHeld, "×2/2 · waits for you"}, []string{edges[1].State, edges[1].Label})
+	children := graphChildren(view)
+	require.Len(t, children, 2)
+	assert.Equal(t, []any{"card", "warning"}, []any{children[0].Type, children[0].Props["tone"]})
+	assert.Equal(t, "Tests → Coder reached its limit of 2 rounds. Continue allows one more round; Stop run ends the run.", texts(children[0])[0])
+	assert.Equal(t, []string{"Tests", "round 3 · fail · exit 1 · 0 s", "one\ntwo"}, texts(children[1])[:3])
+	require.NoError(t, a.continueFromSection(t.Context(), "ws1", r.ID))
+	assert.Len(t, prompts(t, core, "agt_1"), 4)
+}
+
+func TestOutputPanelWhenEmpty(t *testing.T) {
+	a, _, _, r := stepApp(t, stepResult{ExitCode: 0})
+	turnDone(t, a, "agt_1", 1)
+	panel := graphChildren(runView(t, a, r.ID))[0]
+	assert.Equal(t, []string{"Tests", "pass · exit 0 · 0 s", "No output — the command printed nothing.", "make test in /wt/coder"}, texts(panel))
+}
+
+func texts(n sdk.Node) []string {
+	var out []string
+	if n.Type == "text" {
+		out = append(out, n.Props["text"].(string))
+	}
+	for _, c := range n.Children {
+		out = append(out, texts(c)...)
+	}
+	return out
 }
