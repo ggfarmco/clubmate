@@ -260,6 +260,7 @@ struct SDUINodeView: View, Equatable {
         case "textField": TextFieldNodeView(node: node)
         case "folderField": FolderFieldNodeView(node: node)
         case "toggle": ToggleNodeView(node: node)
+        case "progress": ProgressNodeView(node: node)
         case "select": SelectNodeView(node: node)
         case "form": FormNodeView(node: node)
         case "transcript": TranscriptNodeView(node: node)

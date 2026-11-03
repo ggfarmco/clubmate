@@ -129,6 +129,11 @@ private struct WorkspaceCommands: Commands {
         session?.store
     }
 
+    private var toggleTitle: String {
+        guard let store, store.togglesChat else { return "Toggle Sidebar" }
+        return store.isOpen(CodeSection.reviewSlot) ? "Toggle Review" : "Toggle Chat"
+    }
+
     private var active: String? {
         windowID.flatMap(windows.window)?.active
     }
@@ -198,9 +203,12 @@ private struct WorkspaceCommands: Commands {
             Button("Command Palette") { shortcut(.palette) }
                 .keyboardShortcut(AppShortcuts.palette)
                 .disabled(session == nil)
-            Button(store?.togglesChat == true ? "Toggle Chat" : "Toggle Sidebar") { store?.toggleSidebar() }
+            Button(toggleTitle) { store?.toggleSidebar() }
                 .keyboardShortcut(AppShortcuts.toggleSidebar)
                 .disabled(store == nil)
+            Button("Switch Review / Chat") { store?.switchCodeTab() }
+                .keyboardShortcut(AppShortcuts.switchCodeTab)
+                .disabled(store?.togglesChat != true || store?.hasCodeTabs != true)
             Divider()
             Button("Increase Font Size") { app.stepFont(1, panes: session?.panes, store: store) }
                 .keyboardShortcut(AppShortcuts.fontIncrease)

@@ -2,7 +2,11 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"clubmate/internal/testutil"
 	"clubmate/pkg/contract"
 	"clubmate/pkg/pluginsdk"
 )
@@ -56,4 +61,106 @@ func TestDialWaitsUntilSocketListens(t *testing.T) {
 	case <-time.After(socketWait):
 		require.Fail(t, "dial did not finish after listen")
 	}
+}
+
+func TestReviewClientRoundTrip(t *testing.T) {
+	c, events := distroClient(t)
+	repo := reviewRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.go"), []byte("package a\n\nvar x = 2\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a_test.go"), []byte("package a\n"), 0o600))
+	tab, err := c.reviewOpen(reviewOpenArgs{Cwd: repo, Base: "HEAD", Left: "Before turn 3"})
+	require.NoError(t, err)
+	info, err := c.reviewInfo(tab)
+	require.NoError(t, err)
+	assert.Equal(t, reviewLabels{Left: "Before turn 3", Right: "Working tree"}, info.Labels)
+	assert.True(t, info.Editable)
+	var entries []reviewEntry
+	testutil.Eventually(t, func() bool {
+		entries, err = c.reviewEntries(tab)
+		require.NoError(t, err)
+		return len(entries) == 1
+	}, 10*time.Second)
+	assert.Equal(t, "a.go", entries[0].Path)
+	assert.Equal(t, "modified", entries[0].Kind)
+	assert.False(t, entries[0].Reviewed)
+	require.NoError(t, c.reviewSetReviewed(tab, "a.go", true))
+	entries, err = c.reviewEntries(tab)
+	require.NoError(t, err)
+	assert.True(t, entries[0].Reviewed)
+	testutil.Eventually(t, func() bool { return events.has(nvimEvent{Event: "review", Kind: "reviewed", Path: "a.go", Tab: tab}) }, 5*time.Second)
+	counts, err := c.reviewFilter(tab, "", false)
+	require.NoError(t, err)
+	assert.Equal(t, reviewCategories{Tests: 1, HideTests: true, HideGenerated: true}, counts)
+	counts, err = c.reviewFilter(tab, "tests", false)
+	require.NoError(t, err)
+	assert.False(t, counts.HideTests)
+	entries, err = c.reviewEntries(tab)
+	require.NoError(t, err)
+	assert.Len(t, entries, 2)
+}
+
+type eventLog struct {
+	mu     sync.Mutex
+	events []nvimEvent
+}
+
+func (l *eventLog) add(ev nvimEvent) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.events = append(l.events, ev)
+}
+
+func (l *eventLog) has(want nvimEvent) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.ContainsFunc(l.events, func(ev nvimEvent) bool {
+		return ev.Event == want.Event && ev.Kind == want.Kind && ev.Path == want.Path && ev.Tab == want.Tab
+	})
+}
+
+func distroClient(t *testing.T) (*client, *eventLog) {
+	t.Helper()
+	res := os.Getenv("CLUBMATE_TEST_RESOURCES")
+	if res == "" {
+		t.Skip("CLUBMATE_TEST_RESOURCES is not set; run make nvim-test")
+	}
+	home, err := os.MkdirTemp("/tmp", "cmrev")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
+	sock := filepath.Join(home, "n.sock")
+	env := []string{"HOME=" + home, "NVIM_APPNAME=clubmate-test", "PATH=" + strings.Join([]string{filepath.Join(res, "tools"), "/usr/bin", "/bin"}, ":"), "TMPDIR=" + os.TempDir(), "GIT_CONFIG_GLOBAL=" + os.DevNull, "GIT_CONFIG_NOSYSTEM=1"}
+	for k, rel := range map[string]string{"XDG_CONFIG_HOME": ".config", "XDG_DATA_HOME": ".local/share", "XDG_STATE_HOME": ".local/state", "XDG_CACHE_HOME": ".cache"} {
+		dir := filepath.Join(home, rel)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		env = append(env, k+"="+dir)
+	}
+	cmd := exec.Command(filepath.Join(res, "nvim", "bin", "nvim"), "--headless", "-u", filepath.Join(res, "nvim-distro", "init.lua"), "--listen", sock)
+	cmd.Env, cmd.Dir = env, home
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	events := &eventLog{}
+	c, err := connect(t.Context(), sock, events.add)
+	require.NoError(t, err)
+	t.Cleanup(c.close)
+	testutil.Eventually(t, func() bool {
+		var entered int
+		require.NoError(t, c.v.Eval("v:vim_did_enter", &entered))
+		return entered == 1
+	}, 15*time.Second)
+	return c, events
+}
+
+func reviewRepo(t *testing.T) string {
+	t.Helper()
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	git := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	git("init", "-q", "-b", "main")
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "a.go"), []byte("package a\n\nvar x = 1\n"), 0o600))
+	git("add", ".")
+	git("commit", "-qm", "init")
+	return repo
 }

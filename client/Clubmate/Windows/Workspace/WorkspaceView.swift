@@ -31,6 +31,11 @@ struct WorkspaceView: View {
             .onChange(of: session.store?.focusRequest) { _, request in
                 guard let request, !request.slot.isEmpty else { return }
                 session.closeOverlay()
+                if request.slot == CodeSection.reviewSlot {
+                    session.store?.showCodeTab(.review)
+                } else if request.slot == CodeSection.chatSlot {
+                    session.store?.showCodeTab(.chat)
+                }
                 if request.slot.hasSuffix(Self.sidebarSuffix) {
                     session.store?.revealSidebar(String(request.slot.dropLast(Self.sidebarSuffix.count)))
                 }
@@ -62,15 +67,15 @@ struct WorkspaceView: View {
                 guard let new, new.hidden, old?.section == new.section, old?.hidden == false else { return }
                 focus.request("\(new.section).main")
             }
-            .onChange(of: chatShown) { old, shown in
+            .onChange(of: columnShown) { old, shown in
                 guard old != nil, let shown else { return }
-                focus.request(shown ? CodeSection.chatSlot : "\(CodeSection.id).main")
+                focus.request(shown ? session.store?.columnSlot ?? CodeSection.chatSlot : "\(CodeSection.id).main")
             }
     }
 
-    private var chatShown: Bool? {
+    private var columnShown: Bool? {
         guard let store = session.store, store.togglesChat else { return nil }
-        return store.chatShown
+        return store.columnShown
     }
 
     private static let sidebarSuffix = ".sidebar"

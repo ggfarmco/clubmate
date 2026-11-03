@@ -254,7 +254,7 @@ struct TreeNodeView: View {
     }
 
     private func itemRow(_ row: Row, selected: Bool, cursor: Bool, action: @escaping () -> Void) -> some View {
-        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, depth: row.depth, action: action) {
+        ItemRow(item: row.item.item, selected: selected, active: focused, cursor: cursor, muted: row.item.muted, faint: row.item.faint, tone: row.item.tone, depth: row.depth, badges: row.item.badges, changes: row.item.changes, action: action) {
             Disclosure(hasChildren: row.item.hasChildren, expanded: row.item.expanded) { expanded in
                 dispatch(node, expanded ? .collapse(row.id) : .expand(row.id))
             }
@@ -280,6 +280,7 @@ struct TreeNodeView: View {
             leader = true
             return true
         }
+        if plain, let key = event.charactersIgnoringModifiers, menuKey(key) { return true }
         let rows = TreeCursor.rows(node.treeItems())
         guard let action = TreeKeys.action(keyCode: event.keyCode, control: flags.contains(.control), command: flags.contains(.command), side: side, shift: flags.contains(.shift)) else { return false }
         switch TreeCursor.resolve(action, cursor: cursor, in: rows) {
@@ -293,6 +294,12 @@ struct TreeNodeView: View {
         case .cycleTabs(let delta): cycleTabs(by: delta)
         case nil: break
         }
+        return true
+    }
+
+    private func menuKey(_ key: String) -> Bool {
+        guard let id = cursor ?? selected, let row = rows.first(where: { $0.id == id }), let entry = row.item.item.menu.first(where: { $0.key == key }) else { return false }
+        dispatch.choose(entry, item: id, in: node)
         return true
     }
 
@@ -365,6 +372,8 @@ struct ItemRow<Leading: View>: View {
     var faint = false
     var tone: String?
     var depth = 0
+    var badges: [SDUIHeaderBadge] = []
+    var changes: SDUIChanges?
     let action: () -> Void
     @ViewBuilder let leading: () -> Leading
 
@@ -396,6 +405,10 @@ struct ItemRow<Leading: View>: View {
                 .help(item.label)
                 .layoutPriority(1)
             Spacer(minLength: theme.gutter)
+            ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
+                    .fixedSize()
+            }
             if let detail = item.detail {
                 Text(detail)
                     .font(theme.uiSmall)
@@ -417,6 +430,9 @@ struct ItemRow<Leading: View>: View {
             if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accentInk)
                     .fixedSize()
+            }
+            if let changes {
+                ChangeCounts(changes: changes)
             }
         }
         .font(theme.ui)
@@ -452,6 +468,23 @@ struct ItemRow<Leading: View>: View {
     }
 }
 
+struct ChangeCounts: View {
+    let changes: SDUIChanges
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: theme.spacing.xs) {
+            Text("+\(changes.added)").foregroundStyle(theme.success)
+            Text("−\(changes.removed)").foregroundStyle(theme.danger)
+        }
+        .font(theme.uiSmall)
+        .monospacedDigit()
+        .lineLimit(1)
+        .fixedSize()
+    }
+}
+
 extension View {
     func itemMenu(_ entries: [SDUIMenuEntry], choose: @escaping (SDUIMenuEntry) -> Void) -> some View {
         modifier(ItemMenu(entries: entries, choose: choose))
@@ -469,7 +502,12 @@ private struct ItemMenu: ViewModifier {
             content.contextMenu {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     if entry.confirm != nil, index > 0 { Divider() }
-                    Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                    if let key = entry.key.flatMap(\.first) {
+                        Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                            .keyboardShortcut(KeyEquivalent(key), modifiers: [])
+                    } else {
+                        Button(entry.label, role: entry.confirm != nil ? .destructive : nil) { choose(entry) }
+                    }
                 }
             }
         }

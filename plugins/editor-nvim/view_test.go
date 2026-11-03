@@ -24,3 +24,17 @@ func TestStatusViewLeavesNvimItemsToItsStatusline(t *testing.T) {
 	}
 	assert.Equal(t, []string{"light", chatHint}, texts)
 }
+
+func TestStatusHintFollowsReview(t *testing.T) {
+	for _, tc := range []struct {
+		st   status
+		want string
+	}{
+		{status{Statusline: true}, chatHint},
+		{status{Statusline: true, Review: true}, filesHint},
+		{status{Statusline: true, Review: true, Inline: true}, "r reviewed · ]f next · ,rc comment · ⌘B files"},
+	} {
+		n := statusView(tc.st, nil)
+		assert.Equal(t, tc.want, n.Children[len(n.Children)-1].Props["text"])
+	}
+}

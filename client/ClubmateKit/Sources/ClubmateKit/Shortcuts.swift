@@ -55,6 +55,7 @@ public enum AppShortcuts {
     public static let close = Shortcut("app.close", ["cmd+w"], "Close terminal session, popup or window")
     public static let palette = Shortcut("app.palette", ["cmd+k"], "Command Palette")
     public static let toggleSidebar = Shortcut("app.toggle-sidebar", ["cmd+b", "ctrl+cmd+s"], "Toggle Sidebar; in Code, Toggle Chat")
+    public static let switchCodeTab = Shortcut("app.switch-code-tab", ["cmd+shift+b"], "Switch Review / Chat", when: "Code, while a review is open")
     public static let fontIncrease = Shortcut("app.font-increase", ["cmd+=", "⌘+"], "Increase font size where focus is")
     public static let fontDecrease = Shortcut("app.font-decrease", ["cmd+-"], "Decrease font size where focus is")
     public static let fontReset = Shortcut("app.font-reset", ["cmd+0"], "Reset font size where focus is")
@@ -70,7 +71,7 @@ public enum AppShortcuts {
 
     public static let groups: [ShortcutGroup] = [
         ShortcutGroup(id: "app", title: "App and windows", shortcuts: [
-            new, newHomeTerminal, openFolder, openDoc, close, closeSession, palette, toggleSidebar,
+            new, newHomeTerminal, openFolder, openDoc, close, closeSession, palette, toggleSidebar, switchCodeTab,
             fontIncrease, fontDecrease, fontReset, section, nextWorkspace, previousWorkspace, workspaceSwitcher, notifications,
             Shortcut("voice.talk", ["opt+space"], "Voice: hold to talk, release to send", when: "While voice is on"),
             Shortcut("voice.confirm", ["return", "esc"], "Voice confirmation: yes, no", when: "Voice panel"),

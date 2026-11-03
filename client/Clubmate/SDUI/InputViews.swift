@@ -491,10 +491,7 @@ struct ToggleNodeView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Toggle("", isOn: Binding(get: { isOn }, set: change))
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .labelsHidden()
+        control
             .tint(theme.accent)
             .padding(.horizontal, theme.gutter)
             .onChange(of: node.bool("value"), initial: true) { _, value in
@@ -504,6 +501,37 @@ struct ToggleNodeView: View {
                 guard let id = node.id else { return }
                 form?.values[id] = .bool(value)
             }
+    }
+
+    @ViewBuilder private var control: some View {
+        let label = node.string("label") ?? ""
+        if node.string("style") == "checkbox" {
+            Toggle(isOn: Binding(get: { isOn }, set: change)) {
+                Text(label)
+                    .font(theme.ui)
+                    .foregroundStyle(theme.text2)
+                    .lineLimit(1)
+            }
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
+            .fixedSize()
+        } else if label.isEmpty {
+            Toggle("", isOn: Binding(get: { isOn }, set: change))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+        } else {
+            HStack(spacing: theme.spacing.s) {
+                Text(label)
+                    .font(theme.ui)
+                    .foregroundStyle(theme.text2)
+                    .lineLimit(1)
+                Toggle("", isOn: Binding(get: { isOn }, set: change))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+            }
+        }
     }
 
     private func change(_ value: Bool) {

@@ -15,6 +15,15 @@
             {"type": "badge", "props": {"text": "3", "tone": "accent"}}
           ]
         },
+        {
+          "type": "stack",
+          "props": {"direction": "horizontal"},
+          "children": [
+            {"type": "progress", "id": "rv-progress", "props": {"value": 4, "total": 15}},
+            {"type": "text", "props": {"text": "4 / 15 reviewed"}},
+            {"type": "toggle", "id": "rv-tests", "props": {"value": false, "label": "tests 3", "style": "checkbox"}}
+          ]
+        },
         {"type": "text", "props": {"text": "FILES", "style": "muted"}},
         {
           "type": "tree",
@@ -36,6 +45,10 @@
               {"id": "wt-long", "label": "feat/agents-sidebar-worktree-groups-middle-truncation", "icon": "arrow.triangle.branch", "truncate": "middle"},
               {"id": "wt-detached", "label": "detached · 03a9ff5f", "icon": "arrow.triangle.branch", "faint": true},
               {"id": "readme", "label": "README.md", "icon": "doc.richtext", "badge": "M"},
+              {"id": "rv-dir", "label": "plugins/agents", "detail": "0/2", "hasChildren": true, "expanded": true, "badges": [{"text": "1", "tone": "warning"}], "children": [
+                {"id": "rv-new", "label": "rule_label.go", "icon": "circle", "badges": [{"text": "new", "tone": "success"}], "changes": {"added": 10, "removed": 0}, "menu": [{"action": "toggleReviewed", "label": "Mark reviewed", "key": "r"}]},
+                {"id": "rv-stale", "label": "transcript_view.go", "icon": "circle.inset.filled", "tone": "warning", "badges": [{"text": "2", "tone": "warning"}], "changes": {"added": 1, "removed": 12}}
+              ]},
               {"id": "agt-run", "label": "Мобильное приложение для управления агентами", "icon": "circle.dotted", "tone": "accent", "detail": "4 min · Read view.go"},
               {"id": "agt-wait", "label": "Cron плагин для MCP", "icon": "exclamationmark.circle.fill", "tone": "warning", "detail": "Waiting for permission · go test"},
               {"id": "agt-done", "label": "Отказ от надстроек nvim", "icon": "checkmark.circle", "tone": "success", "detail": "just now"},

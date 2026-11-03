@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"clubmate/pkg/pluginsdk"
+	"clubmate/plugins/internal/gitrepo"
 )
 
 const (
@@ -43,8 +44,10 @@ type openArgs struct {
 }
 
 type diffviewArgs struct {
-	Cwd string `json:"cwd"`
-	Rev string `json:"rev"`
+	Cwd     string `json:"cwd"`
+	Rev     string `json:"rev"`
+	Session string `json:"session"`
+	Turn    int    `json:"turn"`
 }
 
 type rootArgs struct {
@@ -93,6 +96,8 @@ func (a *app) command(ctx context.Context, h *pluginsdk.Host, cmd pluginsdk.Comm
 			return nil, fmt.Errorf("diffview args: %w", err)
 		}
 		return struct{}{}, a.diffview(ctx, h, cmd.WorkspaceID, args)
+	case "review":
+		return a.reviewCommand(ctx, h, cmd)
 	case "checktime":
 		if _, err := decodeRoot(name, cmd.Args, errChecktimeRoot); err != nil {
 			return nil, err
@@ -184,15 +189,19 @@ func (a *app) diffview(ctx context.Context, h *pluginsdk.Host, workspaceID strin
 		return errDiffviewRev
 	}
 	cwd := filepath.Clean(args.Cwd)
-	e, c, err := a.attach(ctx, h, workspaceID, cwd)
-	if c == nil || err != nil {
-		return err
+	if top, ok := gitrepo.RepoRoot(cwd); ok {
+		cwd = gitrepo.Canonical(top)
 	}
-	if err := c.diffview(cwd, args.Rev); err != nil {
-		return err
+	req := openReviewReq{Key: reviewKey{Worktree: cwd, Base: args.Rev}, BaseRev: args.Rev}
+	if args.Turn > 0 {
+		req.Left = fmt.Sprintf("Before turn %d", args.Turn)
 	}
-	focusMain(ctx, h, e.id)
-	return nil
+	if args.Session != "" {
+		s := a.agentSession(ctx, h, workspaceID, args.Session)
+		req.Opener, req.OpenerTitle = args.Session, s.Title
+	}
+	_, err := a.openReview(ctx, h, workspaceID, req)
+	return err
 }
 
 func (a *app) checktime(workspaceID string) error {

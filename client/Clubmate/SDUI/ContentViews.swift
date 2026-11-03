@@ -116,6 +116,28 @@ struct BadgeLabel: View {
     }
 }
 
+struct ProgressNodeView: View {
+    let node: SDUINode
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let total = node.props["total"]?.numberValue ?? 0
+        let fraction = total > 0 ? min(1, max(0, (node.props["value"]?.numberValue ?? 0) / total)) : 0
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(theme.hover)
+                Capsule().fill(theme.tone(node.string("tone")) ?? theme.accent)
+                    .frame(width: proxy.size.width * fraction)
+            }
+        }
+        .frame(minWidth: 40, maxWidth: .infinity)
+        .frame(height: 4)
+        .accessibilityElement()
+        .accessibilityValue("\(Int(node.props["value"]?.numberValue ?? 0)) of \(Int(total))")
+    }
+}
+
 struct IconNodeView: View {
     let node: SDUINode
 

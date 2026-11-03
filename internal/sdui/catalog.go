@@ -41,6 +41,7 @@ const (
 
 var (
 	actionPattern   = regexp.MustCompile(`^[a-z][a-zA-Z0-9.-]*$`)
+	menuKeyPattern  = regexp.MustCompile("^[a-z0-9]$")
 	shortcutPattern = regexp.MustCompile("^((cmd|ctrl|opt|shift)\\+){0,4}(return|tab|space|delete|esc|left|right|down|up|[a-z0-9=\\-\\[\\]';\\\\,/.`])$")
 )
 
@@ -66,9 +67,10 @@ var (
 	anyChildren = childRule{min: 0, max: -1}
 	noChildren  = childRule{min: 0, max: 0}
 
-	directions = []string{"vertical", "horizontal"}
-	textStyles = []string{"body", "muted", "title", "mono"}
-	variants   = []string{"primary", "secondary", "ghost", "danger"}
+	directions   = []string{"vertical", "horizontal"}
+	textStyles   = []string{"body", "muted", "title", "mono"}
+	variants     = []string{"primary", "secondary", "ghost", "danger"}
+	toggleStyles = []string{"switch", "checkbox"}
 
 	reservedKeys = []string{"esc", "return", "tab"}
 	badgeTones   = []string{"neutral", "accent", "success", "warning", "danger"}
@@ -233,7 +235,12 @@ var (
 			children:    noChildren,
 			interactive: true,
 		},
-		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck}, children: noChildren, interactive: true},
+		"toggle": {required: []string{"value"}, props: map[string]propCheck{"value": isBool, "action": actionCheck, "label": isString, "style": oneOf(toggleStyles)}, children: noChildren, interactive: true},
+		"progress": {
+			required: []string{"value", "total"},
+			props:    map[string]propCheck{"value": countNumber, "total": countNumber, "tone": oneOf(badgeTones)},
+			children: noChildren,
+		},
 		"select": {
 			required:    []string{"options"},
 			props:       map[string]propCheck{"options": listOf(optionCheck), "value": isString, "error": isString, "action": actionCheck},
@@ -693,7 +700,19 @@ func optionCheck(c *validator, v any) error {
 }
 
 func menuEntryCheck(c *validator, v any) error {
-	return objectCheck([]string{"action", "label"}, map[string]propCheck{"action": actionCheck, "label": isString, "confirm": isString})(c, v)
+	return objectCheck([]string{"action", "label"}, map[string]propCheck{"action": actionCheck, "label": isString, "confirm": isString, "key": menuKeyCheck})(c, v)
+}
+
+func menuKeyCheck(_ *validator, v any) error {
+	s, ok := v.(string)
+	if !ok || !menuKeyPattern.MatchString(s) {
+		return fmt.Errorf("must be one lowercase letter or digit")
+	}
+	return nil
+}
+
+func changesCheck(c *validator, v any) error {
+	return objectCheck([]string{"added", "removed"}, map[string]propCheck{"added": countNumber, "removed": countNumber})(c, v)
 }
 
 func planEntryCheck(c *validator, v any) error {
@@ -755,6 +774,7 @@ func treeItemCheck(c *validator, v any) error {
 	}
 	fields := map[string]propCheck{
 		"muted": isBool, "faint": isBool, "hasChildren": isBool, "expanded": isBool, "children": listOf(treeItemCheck),
+		"badges": listOf(headerBadgeCheck), "changes": changesCheck,
 	}
 	for k, f := range itemFields {
 		fields[k] = f

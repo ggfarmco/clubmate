@@ -17,6 +17,8 @@ import (
 const (
 	mainSlot     = "editor-nvim.main"
 	statusSlot   = "editor-nvim.status"
+	reviewSlot   = "editor-nvim.review"
+	reviewTopic  = "editor-nvim.review"
 	sessionTitle = "nvim"
 )
 
@@ -32,6 +34,16 @@ type app struct {
 	themeMu  sync.Mutex
 	heads    *editorroot.Heads
 	branchMu sync.Mutex
+
+	reviewMu         sync.Mutex
+	reviews          map[string]*review
+	reviewSel        map[string]string
+	reviewLayouts    map[string]string
+	reviewPublished  map[string]reviewPayload
+	reviewSeq        int
+	reviewWatched    map[*client]bool
+	reviewStatusHint func(workspaceID string)
+	switchRoot       func(ctx context.Context, r *review)
 }
 
 func main() {
@@ -39,12 +51,24 @@ func main() {
 		editors:  map[editorKey]*editor{},
 		roots:    editorroot.NewRoots(),
 		stopping: map[editorKey]bool{},
+
+		reviews:         map[string]*review{},
+		reviewSel:       map[string]string{},
+		reviewLayouts:   map[string]string{},
+		reviewPublished: map[string]reviewPayload{},
+		reviewWatched:   map[*client]bool{},
 	}
 	a.heads = editorroot.NewHeads(a.isDeleted)
 	pluginsdk.Main(pluginsdk.Plugin{Init: a.init, UIEvent: a.uiEvent, Command: a.command, BusEvent: a.busEvent, FSChanged: a.fsChanged})
 }
 
 func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
+	a.reviewStatusHint = func(workspaceID string) { a.refreshStatus(h, workspaceID) }
+	a.switchRoot = func(ctx context.Context, r *review) {
+		if _, err := a.target(ctx, h, r.Workspace, r.Root); err != nil {
+			logError("review switch", err)
+		}
+	}
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
 		return err
@@ -124,6 +148,9 @@ func (a *app) busEvent(ctx context.Context, h *pluginsdk.Host, _ string, ev plug
 }
 
 func (a *app) uiEvent(ctx context.Context, h *pluginsdk.Host, ev pluginsdk.UIEvent) (any, error) {
+	if ev.Slot == reviewSlot {
+		return nil, a.reviewUIEvent(ctx, h, ev)
+	}
 	switch ev.Action {
 	case "restart":
 		e, err := a.active(ctx, h, ev.WorkspaceID)

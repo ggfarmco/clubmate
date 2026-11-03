@@ -35,6 +35,20 @@ public enum SectionHosting {
 }
 
 extension SDUINode {
+    public func node(id: String) -> SDUINode? {
+        if self.id == id { return self }
+        for child in children {
+            if let found = child.node(id: id) { return found }
+        }
+        return nil
+    }
+
+    public func removing(id: String) -> SDUINode {
+        var node = self
+        node.children = children.filter { $0.id != id }.map { $0.removing(id: id) }
+        return node
+    }
+
     public var hasTextField: Bool {
         type == "textField" || children.contains { $0.hasTextField }
     }

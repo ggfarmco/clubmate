@@ -88,6 +88,18 @@ func TestUIFocusRailOffSectionOnlyPopup(t *testing.T) {
 	assert.ErrorIs(t, focus("echo", "echo.popup"), rpc.ErrInvalidParams)
 }
 
+func TestUIFocusDeclaredExtraSlot(t *testing.T) {
+	h := testutil.NewHarness(t)
+	h.Start(t, testutil.EchoPluginDirAs(t, manifestJSON("echo", `{"sections":[{"id":"echo","title":"Echo","slots":["review"]}]}`)))
+	p := h.CreateWorkspace(t, "p")
+	c := h.Client(t)
+	focus := func(slot string) error {
+		return c.Call(t.Context(), "ui.focus", map[string]string{"workspaceId": p.ID, "section": "echo", "slot": slot}, nil)
+	}
+	require.NoError(t, focus("echo.review"))
+	assert.ErrorIs(t, focus("echo.other"), rpc.ErrInvalidParams)
+}
+
 func nextFocus(c *rpc.Client, wait time.Duration) (rpc.Notification, bool) {
 	deadline := time.After(wait)
 	for {

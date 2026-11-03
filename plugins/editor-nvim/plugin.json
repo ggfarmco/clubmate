@@ -5,7 +5,7 @@
   "protocol": 1,
   "command": ["editor-nvim"],
   "contributes": {
-    "sections": [{"id": "editor-nvim", "title": "Neovim", "icon": "chevron.left.forwardslash.chevron.right", "order": 10}],
+    "sections": [{"id": "editor-nvim", "title": "Neovim", "icon": "chevron.left.forwardslash.chevron.right", "order": 10, "slots": ["review"]}],
     "commands": [
       {
         "id": "editor-nvim.open",
@@ -53,15 +53,31 @@
         }
       },
       {
+        "id": "editor-nvim.review",
+        "title": "Open review",
+        "hidden": true,
+        "agent": true,
+        "description": "Open a review of head against base for the user in the Code section's Review panel and its worktree's Neovim, and show it at once (Code section, Review tab). base defaults to main; a branch base is compared from its merge-base with head. head defaults to your worktree's working tree; a branch checked out in a worktree of the repo means that worktree's working tree (editable, its nrev comments and marks); a branch or commit checked out nowhere is its tip, read-only, opened in your worktree. You become the review's opener: the user's Send hands the review comments back to you as one message. Asking again for the same worktree, base and head reuses the open review and makes you the opener. Returns {id, worktree, base, head}.",
+        "args": {
+          "properties": {
+            "base": {"type": "string", "description": "Left side: a branch (compared from its merge-base with head) or a commit; default main."},
+            "head": {"type": "string", "description": "Right side: a branch or commit; absent for the working tree of your worktree (or of cwd)."},
+            "cwd": {"type": "string", "description": "Absolute path inside the worktree the review is for, instead of your own worktree."}
+          }
+        }
+      },
+      {
         "id": "editor-nvim.diffview",
         "title": "Open Diffview",
         "hidden": true,
         "agent": false,
-        "description": "Switch the workspace folder to the git worktree containing cwd when it is not the selected one, run DiffviewOpen -C<cwd> <rev> --untracked-scoped in that worktree's Neovim and show the Neovim section. The working tree, uncommitted and untracked files included, is compared against rev. When DiffviewOpen fails, for example because diffview is not installed, Neovim's error shows as the open failed badge.",
+        "description": "Open a review of the working tree of the git worktree containing cwd (uncommitted and untracked files included) against rev in that worktree's Neovim, switching the workspace folder to it when it is not the selected one, and show it in the Code section's Review panel. With turn the left side reads Before turn <turn>; session becomes the review's opener. Reuses an open review of the same worktree and rev. When the diffview host API is missing, Neovim's error shows as the open failed badge and the command fails.",
         "args": {
           "properties": {
             "cwd": {"type": "string", "description": "Absolute path of the worktree root."},
-            "rev": {"type": "string", "description": "Commit sha, 7 to 40 lowercase hex digits."}
+            "rev": {"type": "string", "description": "Commit sha, 7 to 40 lowercase hex digits."},
+            "session": {"type": "string", "description": "Agent session whose turn is reviewed; it becomes the review's opener."},
+            "turn": {"type": "integer", "description": "Turn number of that session; the left side is labelled Before turn <turn>."}
           },
           "required": ["cwd", "rev"]
         }

@@ -3,20 +3,37 @@ import SwiftUI
 
 import ClubmateKit
 
+enum SlotPart {
+    case whole
+    case without(String)
+    case only(String)
+
+    func pick(_ tree: SDUINode) -> SDUINode? {
+        switch self {
+        case .whole: tree
+        case .without(let id): tree.removing(id: id)
+        case .only(let id): tree.node(id: id)
+        }
+    }
+}
+
 struct SlotPane: View {
     let store: WorkspaceUIStore
     let slot: String
+    var part: SlotPart = .whole
 
     @Environment(AppModel.self) private var app
     @Environment(\.theme) private var theme
 
     var body: some View {
         if let view = store.slot(slot) {
-            SDUIView(node: view.tree, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store] event in
-                await store.send(event)
+            if let node = part.pick(view.tree) {
+                SDUIView(node: node, slot: slot, workspaceID: store.workspaceID, rev: view.rev, drafts: store.drafts) { [store] event in
+                    await store.send(event)
+                }
+                .equatable()
+                .environment(\.theme, theme.interface(family: app.settings.paneFontFamily(fontKey), size: app.settings.paneFontSize(fontKey)))
             }
-            .equatable()
-            .environment(\.theme, theme.interface(family: app.settings.paneFontFamily(fontKey), size: app.settings.paneFontSize(fontKey)))
         } else {
             EmptyNodeView(text: "")
         }
@@ -47,34 +64,119 @@ struct SidebarPane: View {
     }
 }
 
-struct ChatPane: View {
+struct CodeColumn: View {
     let store: WorkspaceUIStore
+    let slot: String
     let stacked: Bool
-    let saved: Double?
+    let width: CGFloat
     let limit: CGFloat
     let commit: (Double) -> Void
 
     @Environment(\.theme) private var theme
 
-    private static let minWidth: CGFloat = 280
+    private static let minWidth = CGFloat(CodeSection.columnMinWidth)
 
     var body: some View {
         if stacked {
             VStack(spacing: 0) {
                 theme.border.frame(height: 1)
-                slot
+                CodeColumnContent(store: store, slot: slot)
             }
             .frame(maxHeight: .infinity)
         } else {
-            ResizablePane(side: .right, saved: saved.map { CGFloat($0) } ?? 380, range: Self.minWidth...max(Self.minWidth, limit), commit: commit) {
-                slot
+            ResizablePane(side: .right, saved: width, range: Self.minWidth...max(Self.minWidth, limit), commit: commit) {
+                CodeColumnContent(store: store, slot: slot)
             }
         }
     }
+}
 
-    private var slot: some View {
-        SlotPane(store: store, slot: CodeSection.chatSlot)
-            .environment(\.composerFocusSlot, CodeSection.chatSlot)
+struct CodeColumnContent: View {
+    let store: WorkspaceUIStore
+    let slot: String
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if store.hasCodeTabs {
+                CodeTabBar(store: store)
+                theme.border.frame(height: 1)
+            }
+            SlotPane(store: store, slot: slot, part: slot == CodeSection.reviewSlot ? .without(CodeSection.reviewStrip) : .whole)
+                .environment(\.composerFocusSlot, slot)
+                .environment(\.sidebarSlot, slot == CodeSection.reviewSlot ? slot : nil)
+        }
+    }
+}
+
+struct CodeTabBar: View {
+    let store: WorkspaceUIStore
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: theme.spacing.s) {
+            tab(.review, "Review")
+            tab(.chat, "Chat")
+            Spacer(minLength: theme.spacing.s)
+            Text(AppShortcuts.switchCodeTab.labels.first ?? "")
+                .font(theme.uiSmall)
+                .foregroundStyle(theme.muted)
+                .lineLimit(1)
+                .help(AppShortcuts.switchCodeTab.action)
+        }
+        .frame(minWidth: 0, maxWidth: .infinity)
+        .padding(.horizontal, theme.gutter)
+        .padding(.vertical, theme.spacing.s)
+    }
+
+    @ViewBuilder private func tab(_ tab: CodeTab, _ label: String) -> some View {
+        if let item = SDUIItem(.object(["id": .string(tab.rawValue), "label": .string(label)])) {
+            TabButton(item: item, compact: false, selected: store.codeTab == tab) {
+                if store.codeTab != tab { store.switchCodeTab() }
+            }
+        }
+    }
+}
+
+struct ReviewStrip: View {
+    let store: WorkspaceUIStore
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        if store.slot(CodeSection.reviewSlot)?.tree.node(id: CodeSection.reviewStrip) != nil {
+            VStack(spacing: 0) {
+                SlotPane(store: store, slot: CodeSection.reviewSlot, part: .only(CodeSection.reviewStrip))
+                    .fixedSize(horizontal: false, vertical: true)
+                theme.border.frame(height: 1)
+            }
+            .background(theme.surface1, ignoresSafeAreaEdges: [])
+        }
+    }
+}
+
+struct ReviewDrawer: View {
+    let store: WorkspaceUIStore
+    let slot: String
+    let width: CGFloat
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Color.black.opacity(theme.isDark ? 0.45 : 0.25)
+                .contentShape(Rectangle())
+                .onTapGesture { store.toggleSidebar() }
+            HStack(spacing: 0) {
+                CodeColumnContent(store: store, slot: slot)
+                    .frame(width: width)
+                    .background(theme.background, ignoresSafeAreaEdges: [])
+                theme.border.frame(width: 1)
+            }
+            .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+        }
     }
 }
 

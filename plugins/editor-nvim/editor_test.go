@@ -25,9 +25,22 @@ import (
 )
 
 const (
-	stubDiffview  = `vim.api.nvim_create_user_command("DiffviewOpen", function(ctx) vim.g.dv_log = vim.list_extend(vim.g.dv_log or {}, { ctx.args }) end, { nargs = "*" })`
+	stubDiffview = `package.loaded["diffview.clubmate"] = {
+  version = 2,
+  open = function(opts)
+    vim.g.dv_log = vim.list_extend(vim.g.dv_log or {}, { vim.json.encode(opts) })
+    vim.cmd("tabnew")
+    return vim.api.nvim_get_current_tabpage()
+  end,
+  info = function() return { labels = { left = "main", right = "Working tree" }, editable = true } end,
+  entries = function() return { { path = "a.go", status = "M", kind = "modified", category = "code", additions = 1, deletions = 0, reviewed = false, stale = false, comments = 0 } } end,
+  comments = function() return { { id = 1, file = "a.go", side = "new", line_start = 1, line_end = 1, type = "issue", text = "x", status = "open", line_text = "line" } } end,
+  subscribe = function() end,
+  set_layout = function() end,
+}`
 	mainSlot      = "editor-nvim.main"
 	statusSlot    = "editor-nvim.status"
+	reviewSlot    = "editor-nvim.review"
 	restartWait   = 15 * time.Second
 	blockedBudget = 3 * time.Second
 )
@@ -358,18 +371,26 @@ func TestDiffviewOpensCheckpoint(t *testing.T) {
 	c := e.h.Client(t)
 	sha := strings.Repeat("0123456789", 4)
 	drain(c)
-	e.run(t, "diffview", map[string]any{"cwd": e.repo, "rev": sha}, nil)
-	want := eval[string](t, v, "'-C' . fnameescape('"+e.repo+"') . ' "+sha+" --untracked-scoped'")
-	testutil.Eventually(t, func() bool { return slices.Equal([]string{want}, eval[[]string](t, v, "get(g:, 'dv_log', [])")) }, 5*time.Second)
-	n, ok := nextFocus(c, 5*time.Second)
-	require.True(t, ok, "no ui.focus notification")
-	var focus struct {
-		Section string `json:"section"`
-		Slot    string `json:"slot"`
+	e.run(t, "diffview", map[string]any{"cwd": e.repo, "rev": sha, "turn": 3}, nil)
+	want := map[string]any{"cwd": e.repo, "base": sha, "labels": map[string]any{"left": "Before turn 3"}}
+	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'dv_log', [])")) == 1 }, 5*time.Second)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(eval[[]string](t, v, "g:dv_log")[0]), &got))
+	assert.Equal(t, want, got)
+	var slots []string
+	for len(slots) < 2 {
+		n, ok := nextFocus(c, 5*time.Second)
+		require.True(t, ok, "no ui.focus notification")
+		var focus struct {
+			Section string `json:"section"`
+			Slot    string `json:"slot"`
+		}
+		require.NoError(t, json.Unmarshal(n.Params, &focus))
+		assert.Equal(t, "editor-nvim", focus.Section)
+		slots = append(slots, focus.Slot)
 	}
-	require.NoError(t, json.Unmarshal(n.Params, &focus))
-	assert.Equal(t, "editor-nvim", focus.Section)
-	assert.Equal(t, mainSlot, focus.Slot)
+	assert.Equal(t, []string{mainSlot, reviewSlot}, slots)
+	e.h.WaitSlot(t, e.workspaceID, reviewSlot, func(n sdui.Node) bool { return n.ID == "review" })
 }
 
 func TestDiffviewRejectsRange(t *testing.T) {
@@ -397,8 +418,45 @@ func TestDiffviewSwitchesWorktree(t *testing.T) {
 
 func TestDiffviewMissingShowsOpenFailed(t *testing.T) {
 	e := startEditor(t)
-	e.run(t, "diffview", map[string]any{"cwd": e.repo, "rev": "abcdef0"}, nil)
-	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: Command not found: DiffviewOpen") })
+	err := e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.diffview", "workspaceId": e.workspaceID, "args": map[string]any{"cwd": e.repo, "rev": "abcdef0"}}, nil)
+	require.ErrorContains(t, err, "diffview host API v2 is not available")
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasBadge(n, "open failed: diffview host API v2 is not available") })
+}
+
+func TestReviewCommandOpensMergeBaseForTheCaller(t *testing.T) {
+	e, wt := startWorktreeEditor(t, setup{initLua: stubDiffview, plugins: []string{fakeAgentsWith(t, "")}})
+	fork := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "HEAD"))
+	base := strings.TrimSpace(gitIn(t, e.top, "rev-parse", "--abbrev-ref", "HEAD"))
+	require.NoError(t, os.WriteFile(filepath.Join(wt, "b.go"), []byte("b\n"), 0o600))
+	gitIn(t, wt, "add", ".")
+	gitIn(t, wt, "commit", "-qm", "b")
+	var res struct {
+		ID       string `json:"id"`
+		Worktree string `json:"worktree"`
+		Base     string `json:"base"`
+		Head     string `json:"head"`
+	}
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "command.run", map[string]any{"id": "editor-nvim.review", "workspaceId": e.workspaceID, "agent": true, "caller": "agt_1", "args": map[string]any{"head": "feat", "base": base}}, &res))
+	assert.Regexp(t, `^rv_[0-9a-f]{8}$`, res.ID)
+	assert.Equal(t, []string{wt, base, ""}, []string{res.Worktree, res.Base, res.Head})
+	feat := e.h.WaitSlot(t, e.workspaceID, mainSlot, func(n sdui.Node) bool {
+		return n.Type == "surface" && n.Props["sessionId"] != e.sessionID
+	})
+	v := dial(t, listenSocket(e.h.GetSession(t, feat.Props["sessionId"].(string))))
+	testutil.Eventually(t, func() bool { return len(eval[[]string](t, v, "get(g:, 'dv_log', [])")) == 1 }, 5*time.Second)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(eval[[]string](t, v, "g:dv_log")[0]), &got))
+	assert.Equal(t, map[string]any{"cwd": wt, "base": fork, "labels": map[string]any{"left": base}}, got)
+	view := e.h.WaitSlot(t, e.workspaceID, reviewSlot, func(n sdui.Node) bool { return n.ID == "review" })
+	assert.True(t, hasText(view, "1 open comment"))
+	events, err := e.h.Bus.Read(t.Context(), "editor-nvim.review", 0, 10)
+	require.NoError(t, err)
+	require.NotEmpty(t, events)
+	var p map[string]any
+	require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &p))
+	assert.Equal(t, map[string]any{"workspaceId": e.workspaceID, "id": res.ID, "worktree": wt, "base": base, "head": "", "opener": "agt_1", "recipient": "", "reviewed": 0.0, "total": 1.0, "open": 1.0, "sent": 0.0, "closed": false}, p)
+	require.NoError(t, e.h.Client(t).Call(t.Context(), "ui.event", map[string]any{"workspaceId": e.workspaceID, "slot": reviewSlot, "nodeId": "review", "action": "layout", "value": "inline"}, nil))
+	e.h.WaitSlot(t, e.workspaceID, statusSlot, func(n sdui.Node) bool { return hasText(n, "r reviewed · ]f next · ,rc comment · ⌘B files") })
 }
 
 func TestRestartIgnoresScratchBuffers(t *testing.T) {
@@ -1051,6 +1109,13 @@ func distroWith(t *testing.T, initLua string) {
 func fakeAgents(t *testing.T) string {
 	t.Helper()
 	return testutil.EchoPluginDirAs(t, `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"agents","title":"Agents","icon":"sparkles","order":25}],"commands":[{"id":"agents.new","title":"New Agent Session","hidden":true}]},"echoResults":{"agents.new":{"session":"agt_1","worktree":"/x"}}}`)
+}
+
+func fakeAgentsWith(t *testing.T, worktree string) string {
+	t.Helper()
+	sessions, err := json.Marshal([]map[string]string{{"id": "agt_1", "worktree": worktree, "title": "Coder"}})
+	require.NoError(t, err)
+	return testutil.EchoPluginDirAs(t, `{"id":"agents","name":"Agents","version":"0.1.0","protocol":1,"command":["echo"],"contributes":{"sections":[{"id":"agents","title":"Agents","icon":"sparkles","order":25}],"commands":[{"id":"agents.sessions","title":"Sessions","hidden":true,"agent":true}]},"echoResults":{"agents.sessions":`+string(sessions)+`}}`)
 }
 
 func agentCalls(t *testing.T, e *editor) []agentsNew {

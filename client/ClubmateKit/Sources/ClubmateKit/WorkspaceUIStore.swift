@@ -33,6 +33,13 @@ public final class WorkspaceUIStore {
             updateState("sidebarHidden", .object(sidebarHidden.mapValues { .bool($0) }))
         }
     }
+    public private(set) var codeTab: CodeTab = .chat
+    public var reviewWidth: Double? {
+        didSet {
+            guard !restoring, reviewWidth != oldValue, let reviewWidth else { return }
+            updateState("reviewWidth", .number(reviewWidth))
+        }
+    }
     public var chatWidth: Double? {
         didSet {
             guard !restoring, chatWidth != oldValue, let chatWidth else { return }
@@ -166,6 +173,10 @@ public final class WorkspaceUIStore {
         return cell.surface
     }
 
+    public func isOpen(_ name: String) -> Bool {
+        cell(name).open
+    }
+
     public func hasTextField(_ name: String) -> Bool {
         let cell = cell(name)
         cell.track(.textField)
@@ -229,11 +240,38 @@ public final class WorkspaceUIStore {
     }
 
     public var togglesChat: Bool {
-        selectedSection == CodeSection.id && hasSlot(CodeSection.chatSlot)
+        selectedSection == CodeSection.id && (hasSlot(CodeSection.chatSlot) || isOpen(CodeSection.reviewSlot))
+    }
+
+    public var columnShown: Bool {
+        togglesChat && !isSidebarHidden(CodeSection.id)
+    }
+
+    public var columnSlot: String? {
+        guard columnShown else { return nil }
+        return CodeSection.columnSlot(tab: codeTab, review: isOpen(CodeSection.reviewSlot), chat: hasSlot(CodeSection.chatSlot))
     }
 
     public var chatShown: Bool {
-        togglesChat && !isSidebarHidden(CodeSection.id)
+        columnSlot == CodeSection.chatSlot
+    }
+
+    public var hasCodeTabs: Bool {
+        isOpen(CodeSection.reviewSlot) && hasSlot(CodeSection.chatSlot)
+    }
+
+    public func switchCodeTab() {
+        guard togglesChat else { return }
+        codeTab = codeTab.switched(review: isOpen(CodeSection.reviewSlot), chat: hasSlot(CodeSection.chatSlot))
+        revealSidebar(CodeSection.id)
+        guard let columnSlot else { return }
+        focusSerial += 1
+        focusRequest = FocusRequest(slot: columnSlot, serial: focusSerial)
+    }
+
+    public func showCodeTab(_ tab: CodeTab) {
+        codeTab = tab
+        revealSidebar(CodeSection.id)
     }
 
     public func toggleSidebar() {
@@ -393,7 +431,7 @@ public final class WorkspaceUIStore {
 
     private func replace(with views: [SlotView]) {
         let mine = Dictionary(views.filter { $0.workspaceId == workspaceID }.map { ($0.slot, $0) }) { _, last in last }
-        for (name, cell) in cells where mine[name] == nil { cell.set(nil) }
+        for name in cells.keys where mine[name] == nil { set(nil, in: name) }
         for (name, view) in mine { store(view, in: name) }
         revs = mine.mapValues(\.rev)
     }
@@ -412,7 +450,15 @@ public final class WorkspaceUIStore {
             popupOrder.removeAll { $0 == name }
             popupOrder.append(name)
         }
+        set(view, in: name)
+    }
+
+    private func set(_ view: SlotView?, in name: String) {
+        let cell = cell(name)
+        let was = cell.open
         cell.set(view)
+        guard name == CodeSection.reviewSlot, was != cell.open else { return }
+        codeTab = codeTab.following(review: was, to: cell.open)
     }
 
     private func restore(from state: JSONValue?) {
@@ -423,6 +469,7 @@ public final class WorkspaceUIStore {
         sidebarWidth = saved["sidebarWidth"]?.numberValue
         sidebarHidden = saved["sidebarHidden"]?.objectValue?.compactMapValues(\.boolValue) ?? [:]
         chatWidth = saved["chatWidth"]?.numberValue
+        reviewWidth = saved["reviewWidth"]?.numberValue
         restoring = false
         adoptLegacyChat()
         if let selectedSection, saved["section"]?.stringValue != selectedSection { updateState("section", .string(selectedSection)) }
@@ -450,6 +497,7 @@ public final class WorkspaceUIStore {
 private final class SlotCell {
     private(set) var view: SlotView?
     private(set) var present = false
+    private(set) var open = false
     private(set) var surface: String?
     private(set) var hasTextField = false
     private(set) var hasComposer = false
@@ -462,6 +510,8 @@ private final class SlotCell {
         self.view = view
         tree = view?.tree
         if present != (view != nil) { present = view != nil }
+        let open = view.map(Popups.isOpen) ?? false
+        if self.open != open { self.open = open }
         refresh(tracked)
     }
 

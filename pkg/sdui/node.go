@@ -24,22 +24,30 @@ type MenuEntry struct {
 	Action  string `json:"action"`
 	Label   string `json:"label"`
 	Confirm string `json:"confirm,omitempty"`
+	Key     string `json:"key,omitempty"`
+}
+
+type Changes struct {
+	Added   int `json:"added"`
+	Removed int `json:"removed"`
 }
 
 type TreeItem struct {
-	ID          string      `json:"id"`
-	Label       string      `json:"label"`
-	Detail      string      `json:"detail,omitempty"`
-	Icon        string      `json:"icon,omitempty"`
-	Tone        string      `json:"tone,omitempty"`
-	Badge       string      `json:"badge,omitempty"`
-	Menu        []MenuEntry `json:"menu,omitempty"`
-	Muted       bool        `json:"muted,omitempty"`
-	Faint       bool        `json:"faint,omitempty"`
-	HasChildren bool        `json:"hasChildren,omitempty"`
-	Expanded    bool        `json:"expanded,omitempty"`
-	Children    []TreeItem  `json:"children,omitempty"`
-	Truncate    string      `json:"truncate,omitempty"`
+	ID          string        `json:"id"`
+	Label       string        `json:"label"`
+	Detail      string        `json:"detail,omitempty"`
+	Icon        string        `json:"icon,omitempty"`
+	Tone        string        `json:"tone,omitempty"`
+	Badge       string        `json:"badge,omitempty"`
+	Menu        []MenuEntry   `json:"menu,omitempty"`
+	Muted       bool          `json:"muted,omitempty"`
+	Faint       bool          `json:"faint,omitempty"`
+	HasChildren bool          `json:"hasChildren,omitempty"`
+	Expanded    bool          `json:"expanded,omitempty"`
+	Children    []TreeItem    `json:"children,omitempty"`
+	Truncate    string        `json:"truncate,omitempty"`
+	Badges      []HeaderBadge `json:"badges,omitempty"`
+	Changes     *Changes      `json:"changes,omitempty"`
 }
 
 type Option struct {
@@ -522,6 +530,14 @@ func FolderField(id, label string, values []string) Node {
 
 func Toggle(id string, value bool) Node {
 	return Node{Type: "toggle", ID: id, Props: map[string]any{"value": value}}
+}
+
+func Checkbox(id, label string, value bool) Node {
+	return Node{Type: "toggle", ID: id, Props: map[string]any{"value": value, "label": label, "style": "checkbox"}}
+}
+
+func Progress(id string, value, total int, tone string) Node {
+	return Node{Type: "progress", ID: id, Props: withOptional(map[string]any{"value": value, "total": total}, "tone", tone)}
 }
 
 func Select(id string, options []Option, value string) Node {

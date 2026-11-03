@@ -424,12 +424,19 @@ func (s *Server) requireWorkspace(ctx context.Context, workspaceID string) error
 
 func focusSlots(sections *sdui.Sections, section string) []string {
 	var slots []string
-	if sections.InRail(section) {
+	rail := sections.InRail(section)
+	if rail {
 		slots = append(slots, "", section+".sidebar", section+".main")
 	}
-	popup := section + ".popup"
-	if owner, ok := sections.SlotSection(popup); ok && owner == section {
-		slots = append(slots, popup)
+	for _, sec := range sections.List() {
+		if sec.ID != section {
+			continue
+		}
+		for _, name := range sec.Slots {
+			if rail || name == "popup" {
+				slots = append(slots, section+"."+name)
+			}
+		}
 	}
 	return slots
 }

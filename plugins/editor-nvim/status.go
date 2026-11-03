@@ -11,6 +11,7 @@ import (
 
 const (
 	openErrorEvent = "open_error"
+	reviewEvent    = "review"
 	docOpenEvent   = "docOpen"
 	openErrorMax   = 80
 	fileTopic      = "editor-nvim.file"
@@ -33,6 +34,10 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 		go a.importFromEditor(h, e)
 		return
 	}
+	if ev.Event == reviewEvent {
+		a.reviewEvent(h, e, ev)
+		return
+	}
 	if ev.Event == docOpenEvent {
 		go a.openDoc(h, e, ev.File)
 		return
@@ -46,6 +51,14 @@ func (a *app) nvimEvent(h *pluginsdk.Host, e *editor, ev nvimEvent) {
 	if ev.Event == "BufEnter" && e.share(ev.File) {
 		if _, err := h.Publish(ctx, fileTopic, fileEvent{Workspace: e.id, Root: e.root, Path: ev.File}); err != nil {
 			logError("publish file", err)
+		}
+	}
+}
+
+func (a *app) refreshStatus(h *pluginsdk.Host, workspaceID string) {
+	for _, e := range a.workspaceEditors(workspaceID) {
+		if a.isCurrent(e) {
+			a.scheduleStatus(h, e)
 		}
 	}
 }

@@ -40,6 +40,9 @@ type nvimEvent struct {
 	Light      bool     `msgpack:"light"`
 	Statusline bool     `msgpack:"statusline"`
 	Message    string   `msgpack:"message"`
+	Kind       string   `msgpack:"kind"`
+	Path       string   `msgpack:"path"`
+	Tab        int      `msgpack:"tab"`
 }
 
 type client struct {
@@ -132,10 +135,6 @@ func (c *client) quickfix(title string, items []quickfixItem) error {
 	return c.exec(quickfixLua, nil, title, items)
 }
 
-func (c *client) diffview(cwd, rev string) error {
-	return c.exec(diffviewLua, nil, cwd, rev)
-}
-
 func (c *client) selection() (*selectionResult, error) {
 	var sel *selectionResult
 	if err := c.exec(selectionLua, &sel); err != nil {
@@ -164,9 +163,13 @@ func (c *client) exec(code string, result any, args ...any) error {
 }
 
 func (c *client) call(fn func(*nvim.Nvim) error) error {
+	return c.callWithin(rpcTimeout, fn)
+}
+
+func (c *client) callWithin(timeout time.Duration, fn func(*nvim.Nvim) error) error {
 	errc := make(chan error, 1)
 	go func() { errc <- fn(c.v) }()
-	timer := time.NewTimer(rpcTimeout)
+	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case err := <-errc:

@@ -24,15 +24,6 @@ local m = type(package.loaded["clubmate"]) == "table" and package.loaded["clubma
 package.loaded["clubmate"] = m
 m.chan = chan`
 
-const diffviewLua = `local cwd, rev = ...
-local m = package.loaded["clubmate"]
-vim.schedule(function()
-  local ok, err = pcall(vim.cmd, { cmd = "DiffviewOpen", args = { "-C" .. vim.fn.fnameescape(cwd), vim.fn.fnameescape(rev), "--untracked-scoped" } })
-  if not ok and type(m) == "table" and m.chan then
-    pcall(vim.rpcnotify, m.chan, "clubmate", { event = "open_error", message = tostring(err) })
-  end
-end)`
-
 const selectionLua = `local buf = vim.api.nvim_get_current_buf()
 if vim.bo[buf].buftype ~= "" then return nil end
 local mode = vim.api.nvim_get_mode().mode

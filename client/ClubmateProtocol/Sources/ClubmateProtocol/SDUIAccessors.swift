@@ -33,6 +33,7 @@ public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
     public let action: String
     public let label: String
     public let confirm: String?
+    public let key: String?
 
     public var id: String { action }
 
@@ -41,6 +42,7 @@ public struct SDUIMenuEntry: Sendable, Equatable, Identifiable {
         self.action = action
         self.label = label
         confirm = fields["confirm"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+        key = fields["key"]?.stringValue.flatMap { $0.count == 1 ? $0 : nil }
     }
 }
 
@@ -52,6 +54,8 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
     public let hasChildren: Bool
     public let expanded: Bool
     public let children: [SDUITreeItem]
+    public let badges: [SDUIHeaderBadge]
+    public let changes: SDUIChanges?
 
     public var id: String { item.id }
 
@@ -68,6 +72,19 @@ public struct SDUITreeItem: Sendable, Equatable, Identifiable {
         hasChildren = fields["hasChildren"]?.boolValue ?? false
         expanded = fields["expanded"]?.boolValue ?? false
         children = fields["children"]?.arrayValue?.compactMap(SDUITreeItem.init) ?? []
+        badges = fields["badges"]?.arrayValue?.compactMap(SDUIHeaderBadge.init) ?? []
+        changes = fields["changes"].flatMap(SDUIChanges.init)
+    }
+}
+
+public struct SDUIChanges: Sendable, Equatable {
+    public let added: Int
+    public let removed: Int
+
+    public init?(_ json: JSONValue) {
+        guard let fields = json.objectValue, let added = fields["added"]?.numberValue, let removed = fields["removed"]?.numberValue else { return nil }
+        self.added = Int(added)
+        self.removed = Int(removed)
     }
 }
 

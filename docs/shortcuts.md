@@ -15,7 +15,8 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
 | ⇧⌘W | Close Session: the terminal session shown in the main pane; in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
-| ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
+| ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the right column (the agent chat panel, or Review \| Chat while a review is open; per window). While the editor is narrower than 900pt with a review open, it opens and closes the column as a drawer over the editor instead | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
+| ⇧⌘B | Switch Review / Chat: the other tab of the Code section's right column while a review is open (shows the column if it is hidden; switching to Chat focuses its composer) | `ClubmateApp.swift`, `WorkspacePanes.swift` (`CodeTabBar`) |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. the Backlog sidebar) that plugin's font, both its sidebar and its main pane. The terminal font is Settings → Terminals → Font size, the chat font Settings → Agents → Chat font size and a plugin's font its own Settings page → Font size; a plugin follows Settings → General → Interface font size until zoomed or set there, ⌘0 puts it back (General → Plugin fonts resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
 | ⌘1…⌘9 | Switch to the Nth section in the rail, in your order (drag icons to reorder; right-click the rail to reset) | `ClubmateApp.swift` |
 | ⌃⌘→, ⌃⌘← | Next, previous workspace | `ClubmateApp.swift` |
@@ -35,7 +36,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⇧⌘O | Pop the popup out into its own window; later popups of that workspace open there until it is closed | `PopupPanel.swift` |
 
 Inside terminals, Ghostty's own bindings apply, except ⌘W, which is unbound so the app gets it (`GhosttyApp.swift`).
-⇧⌘I, ⇧⌘D and ⌘J are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
+⇧⌘I, ⇧⌘D, ⇧⌘B and ⌘J are app menu keys, so they shadow any mapping of them in terminals (Ghostty's default ⇧⌘D split) and nvim.
 
 ## First-launch editor sheet
 
@@ -216,6 +217,18 @@ Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.
 | Esc | In the voice panel while an utterance waits its 1 s before going to the assistant (any screen): Cancel |
 
 Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`; the voice keys in `client/Companion/App/VoicePanel.swift`.
+
+## Review panel (Code section, Review tab focused)
+
+The file tree and the comment list are trees, so the tree keys above apply; on top of them:
+
+| Keys | Action | Where defined |
+|---|---|---|
+| ↩, click | Open the file's diff in nvim (a comment: jump to its line) | `plugins/editor-nvim/review.go` |
+| r | Mark the file under the cursor reviewed, or not reviewed (the row's menu entry key; nvim's `r` does the same and the panel follows) | `plugins/editor-nvim/review_view.go`, `SDUI/CollectionViews.swift` |
+| ‹ ›, click | In the narrow strip above the editor: previous / next file of the panel's list | `plugins/editor-nvim/review_view.go` |
+
+The panel prints the nvim keys (`r`, `]f`, `,rc`, `]a`, `,rl`, `,re`) as hints; they work in the diff panes, see nvim below. ⌘↩ on Send and Copy arrive with the Send sheet.
 
 ## Code chat panel starters (session with no turns yet)
 

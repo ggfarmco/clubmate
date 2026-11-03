@@ -14,7 +14,9 @@ struct WorkspaceLayout: View {
     var body: some View {
         let side = app.settings.sidebarSide
         let sidebar = store.sidebarSlot
-        let stacked = store.chatShown && CodeSection.stacksChat(width: Double(rowWidth))
+        let column = store.columnSlot
+        let narrow = reviewNarrow
+        let stacked = column != nil && !narrow && CodeSection.stacksChat(width: Double(rowWidth))
         let content = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -31,17 +33,27 @@ struct WorkspaceLayout: View {
                     SidebarPane(store: store, slot: sidebar, side: .left)
                 }
                 content {
-                    SlotPane(store: store, slot: "\(section).main")
-                        .modifier(MainFocus(store: store, slot: "\(section).main"))
-                        .overlay(alignment: .top) {
-                            if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
+                    VStack(spacing: 0) {
+                        if narrow {
+                            ReviewStrip(store: store)
                         }
+                        SlotPane(store: store, slot: "\(section).main")
+                            .modifier(MainFocus(store: store, slot: "\(section).main"))
+                            .overlay(alignment: .top) {
+                                if let failure = store.failure { BannerLabel(text: failure, edge: .bottom) }
+                            }
+                    }
+                    .overlay(alignment: .leading) {
+                        if narrow, let column {
+                            ReviewDrawer(store: store, slot: column, width: drawerWidth)
+                        }
+                    }
                     if let sidebar, side == .right {
                         SidebarPane(store: store, slot: sidebar, side: .right)
                     }
-                    if store.chatShown {
-                        ChatPane(store: store, stacked: stacked, saved: store.chatWidth, limit: rowWidth > 0 ? rowWidth / 2 : 640) { [store] width in
-                            store.chatWidth = width
+                    if let column, !narrow {
+                        CodeColumn(store: store, slot: column, stacked: stacked, width: columnWidth(limit: Double(columnLimit)), limit: columnLimit) { [store] width in
+                            if column == CodeSection.reviewSlot { store.reviewWidth = width } else { store.chatWidth = width }
                         }
                     }
                 }
@@ -76,9 +88,45 @@ struct WorkspaceLayout: View {
             }
         }
         .environment(\.voice, voice)
+        .onChange(of: reviewLayout, initial: true) { _, layout in
+            guard let layout else { return }
+            Task { [store] in
+                _ = await store.send(UIEvent(workspaceId: store.workspaceID, slot: CodeSection.reviewSlot, nodeId: "review", action: "layout", value: .string(layout)))
+            }
+        }
         .onChange(of: app.voiceSettings.isOn) { _, on in
             if !on { app.sessions.existing(store.workspaceID)?.voice.cancel() }
         }
+    }
+
+    private var columnLimit: CGFloat {
+        rowWidth > 0 ? rowWidth / 2 : 640
+    }
+
+    private var editorArea: CGFloat {
+        rowWidth - theme.rail - 1
+    }
+
+    private func columnWidth(limit: Double) -> CGFloat {
+        let review = store.columnSlot == CodeSection.reviewSlot
+        return CGFloat(CodeSection.columnWidth(saved: review ? store.reviewWidth : store.chatWidth, review: review, limit: limit))
+    }
+
+    private var editorWidth: Double {
+        CodeSection.editorWidth(row: Double(rowWidth), rail: Double(theme.rail), column: store.columnShown ? Double(columnWidth(limit: Double(columnLimit))) : nil)
+    }
+
+    private var reviewNarrow: Bool {
+        section == CodeSection.id && store.isOpen(CodeSection.reviewSlot) && CodeSection.reviewNarrow(width: editorWidth)
+    }
+
+    private var reviewLayout: String? {
+        guard rowWidth > 0, section == CodeSection.id, store.isOpen(CodeSection.reviewSlot) else { return nil }
+        return CodeSection.reviewLayout(width: editorWidth)
+    }
+
+    private var drawerWidth: CGFloat {
+        min(columnWidth(limit: .infinity), max(CGFloat(CodeSection.columnMinWidth), editorArea - theme.spacing.overlay))
     }
 
     private var voice: VoiceController? {

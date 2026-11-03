@@ -9,10 +9,56 @@ public enum SidebarSide: String, Sendable, CaseIterable {
 public enum CodeSection {
     public static let id = "editor-nvim"
     public static let chatSlot = "editor-nvim.sidebar"
+    public static let reviewSlot = "editor-nvim.review"
+    public static let reviewStrip = "review/strip"
     public static let stackedBelow: Double = 1100
+    public static let narrowBelow: Double = 900
+    public static let columnMinWidth: Double = 280
+    public static let chatWidth: Double = 380
+    public static let reviewWidth: Double = 300
 
     public static func stacksChat(width: Double) -> Bool {
         width > 0 && width < stackedBelow
+    }
+
+    public static func reviewNarrow(width: Double) -> Bool {
+        width > 0 && width < narrowBelow
+    }
+
+    public static func columnWidth(saved: Double?, review: Bool, limit: Double) -> Double {
+        min(max(saved ?? (review ? reviewWidth : chatWidth), columnMinWidth), max(columnMinWidth, limit))
+    }
+
+    public static func editorWidth(row: Double, rail: Double, column: Double?) -> Double {
+        row - rail - 1 - (column.map { $0 + 1 } ?? 0)
+    }
+
+    public static func reviewLayout(width: Double) -> String {
+        reviewNarrow(width: width) ? "inline" : "split"
+    }
+
+    public static func columnSlot(tab: CodeTab, review: Bool, chat: Bool) -> String? {
+        switch (review, chat) {
+        case (true, true): tab == .review ? reviewSlot : chatSlot
+        case (true, false): reviewSlot
+        case (false, true): chatSlot
+        case (false, false): nil
+        }
+    }
+}
+
+public enum CodeTab: String, Sendable {
+    case review
+    case chat
+
+    public func following(review was: Bool, to open: Bool) -> CodeTab {
+        guard was != open else { return self }
+        return open ? .review : .chat
+    }
+
+    public func switched(review: Bool, chat: Bool) -> CodeTab {
+        guard review, chat else { return self }
+        return self == .review ? .chat : .review
     }
 }
 

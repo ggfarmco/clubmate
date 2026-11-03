@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	renderDelay = 30 * time.Millisecond
-	chatHint    = "⌘B chat"
+	renderDelay  = 30 * time.Millisecond
+	chatHint     = "⌘B chat"
+	filesHint    = "⌘B files"
+	reviewHotkey = "r reviewed · ]f next · ,rc comment · " + filesHint
 )
 
 type status struct {
@@ -24,6 +26,8 @@ type status struct {
 	Light      bool
 	Statusline bool
 	OpenError  string
+	Review     bool
+	Inline     bool
 }
 
 var modeNames = map[byte]string{
@@ -61,6 +65,9 @@ func (a *app) scheduleStatus(h *pluginsdk.Host, e *editor) {
 		e.pending = false
 		st := e.status
 		e.mu.Unlock()
+		layout := ""
+		st.Review, layout = a.reviewOpen(e.id)
+		st.Inline = layout == layoutInline
 		if err := a.render(context.Background(), h, e, statusSlot, statusView(st, a.workspaceFolders(e.id))); err != nil {
 			logError("render status", err)
 		}
@@ -125,7 +132,17 @@ func appItems(st status) []sdui.Node {
 	if st.OpenError != "" {
 		items = append(items, sdui.Badge("open failed: "+st.OpenError, "danger"))
 	}
-	return append(items, sdui.MutedText(chatHint))
+	return append(items, sdui.MutedText(columnHint(st)))
+}
+
+func columnHint(st status) string {
+	switch {
+	case st.Review && st.Inline:
+		return reviewHotkey
+	case st.Review:
+		return filesHint
+	}
+	return chatHint
 }
 
 func modeName(mode string) string {
