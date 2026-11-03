@@ -43,10 +43,23 @@ type ring struct {
 
 type history struct {
 	series map[seriesKey]*series
+	tree   subtreeScratch
+}
+
+type subtreeScratch struct {
+	nodes []*pluginsdk.ProcessNode
+	heads map[link]int
+	next  []int
+	roots []int
+}
+
+type link struct {
+	session string
+	pid     int
 }
 
 func newHistory() *history {
-	return &history{series: map[seriesKey]*series{}}
+	return &history{series: map[seriesKey]*series{}, tree: subtreeScratch{heads: map[link]int{}}}
 }
 
 func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, workspaces []string, now time.Time) {
@@ -96,50 +109,50 @@ func (h *history) record(sessions []group, nodes, core []pluginsdk.ProcessNode, 
 }
 
 func (h *history) recordSubtrees(now time.Time, sets ...[]pluginsdk.ProcessNode) {
-	type link struct {
-		session string
-		pid     int
-	}
-	var nodes []*pluginsdk.ProcessNode
+	t := &h.tree
 	for _, set := range sets {
 		for i := range set {
-			nodes = append(nodes, &set[i])
+			t.nodes = append(t.nodes, &set[i])
 		}
 	}
-	present := make(map[link]bool, len(nodes))
-	for _, n := range nodes {
-		present[link{n.SessionID, n.Process.PID}] = true
+	for _, n := range t.nodes {
+		t.heads[link{session: n.SessionID, pid: n.Process.PID}] = -1
 	}
-	children := make(map[link][]*pluginsdk.ProcessNode, len(nodes))
-	var roots []*pluginsdk.ProcessNode
-	for _, n := range nodes {
-		parent := link{n.SessionID, n.Process.PPID}
-		if present[parent] && n.Process.PPID != n.Process.PID {
-			children[parent] = append(children[parent], n)
+	t.next = slices.Grow(t.next[:0], len(t.nodes))[:len(t.nodes)]
+	for i, n := range slices.Backward(t.nodes) {
+		parent := link{session: n.SessionID, pid: n.Process.PPID}
+		if head, ok := t.heads[parent]; ok && n.Process.PPID != n.Process.PID {
+			t.next[i] = head
+			t.heads[parent] = i
 			continue
 		}
-		roots = append(roots, n)
+		t.roots = append(t.roots, i)
 	}
-	var walk func(n *pluginsdk.ProcessNode) (cpu, mb float64)
-	walk = func(n *pluginsdk.ProcessNode) (float64, float64) {
-		cpu, mb := n.Process.CPU, float64(n.Process.RSSKiB)/kibPerMiB
-		kids := children[link{n.SessionID, n.Process.PID}]
-		for _, k := range kids {
-			c, m := walk(k)
-			cpu, mb = cpu+c, mb+m
-		}
-		key := subtreeKey(*n)
-		if _, ok := h.series[key]; !ok && len(kids) > 0 {
-			h.series[key] = h.series[processKey(*n)].clone()
-		}
-		if _, ok := h.series[key]; ok {
-			h.push(key, cpu, mb, now)
-		}
-		return cpu, mb
+	for _, i := range slices.Backward(t.roots) {
+		h.walkSubtree(i, now)
 	}
-	for _, n := range roots {
-		walk(n)
+	clear(t.nodes)
+	t.nodes, t.roots = t.nodes[:0], t.roots[:0]
+	clear(t.heads)
+}
+
+func (h *history) walkSubtree(i int, now time.Time) (cpu, mb float64) {
+	t := &h.tree
+	n := t.nodes[i]
+	cpu, mb = n.Process.CPU, float64(n.Process.RSSKiB)/kibPerMiB
+	head := t.heads[link{session: n.SessionID, pid: n.Process.PID}]
+	for k := head; k >= 0; k = t.next[k] {
+		c, m := h.walkSubtree(k, now)
+		cpu, mb = cpu+c, mb+m
 	}
+	key := subtreeKey(*n)
+	if _, ok := h.series[key]; !ok && head >= 0 {
+		h.series[key] = h.series[processKey(*n)].clone()
+	}
+	if _, ok := h.series[key]; ok {
+		h.push(key, cpu, mb, now)
+	}
+	return cpu, mb
 }
 
 func (h *history) push(key seriesKey, cpu, memMB float64, now time.Time) {
