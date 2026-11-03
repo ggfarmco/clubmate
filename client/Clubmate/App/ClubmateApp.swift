@@ -180,7 +180,12 @@ private struct WorkspaceCommands: Commands {
                 .disabled(active == nil)
             Divider()
             Button("Close Session") {
-                run { .close(section: $0.selectedSection, main: $0.selectedSection.flatMap($0.mainTree), commands: $1) }
+                run { store, commands in
+                    guard store.selectedSection != AgentsSection.id else {
+                        return AgentsSection.close(sidebar: store.slot(AgentsSection.sidebarSlot)?.tree, commands: commands)
+                    }
+                    return .close(section: store.selectedSection, main: store.selectedSection.flatMap(store.mainTree), commands: commands)
+                }
             }
             .keyboardShortcut(AppShortcuts.closeSession)
             .disabled(store == nil)

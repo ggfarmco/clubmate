@@ -566,6 +566,18 @@ final class StoresTests: XCTestCase {
         XCTAssertNil(TerminalsSection.close(sidebar: SDUINode(type: "list", id: "terminals"), commands: commands))
     }
 
+    func testAgentClose() throws {
+        let commands = try JSONDecoder().decode([Command].self, from: Data(#"""
+        [{"id":"agents.close","title":"Close","plugin":"agents","hidden":true}]
+        """#.utf8))
+        let tree = { (id: String, selected: String) in SDUINode(type: "stack", children: [SDUINode(type: "tree", id: id, props: ["selected": .string(selected)])]) }
+        let close = CommandInvocation(id: "agents.close", args: .object(["session": .string("agt_1")]))
+
+        XCTAssertEqual(AgentsSection.close(sidebar: tree("sessions", "agt_1"), commands: commands), close)
+        XCTAssertEqual(AgentsSection.close(sidebar: tree("searchResults", "agt_1"), commands: commands), close)
+        XCTAssertNil(AgentsSection.close(sidebar: tree("sessions", ""), commands: commands))
+    }
+
     func testTerminalBusyMessage() {
         XCTAssertEqual(TerminalsSection.busyMessage(.object(["busy": .bool(true), "process": .string("sleep")])), "“sleep” is running. Close the terminal?")
         XCTAssertNil(TerminalsSection.busyMessage(.object(["busy": .bool(false), "process": .string("")])))

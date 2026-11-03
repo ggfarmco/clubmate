@@ -76,6 +76,19 @@ public enum TerminalsSection {
     }
 }
 
+public enum AgentsSection {
+    public static let id = "agents"
+    public static let closeCommand = "agents.close"
+    public static let sidebarSlot = "agents.sidebar"
+    static let trees = ["sessions", "searchResults"]
+
+    public static func close(sidebar: SDUINode?, commands: [Command]) -> CommandInvocation? {
+        guard let selected = trees.lazy.compactMap({ sidebar?.node(type: "tree", id: $0)?.string("selected") }).first(where: { !$0.isEmpty }),
+              commands.contains(where: { $0.id == closeCommand }) else { return nil }
+        return CommandInvocation(id: closeCommand, args: .object(["session": .string(selected)]))
+    }
+}
+
 extension SDUINode {
     func node(type: String, id: String) -> SDUINode? {
         if self.type == type, self.id == id { return self }

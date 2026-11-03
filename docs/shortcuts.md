@@ -13,7 +13,7 @@ Plugin keys are declared in each plugin's `plugin.json` (`contributes.shortcuts`
 | ⌘O | Open Folder… | `ClubmateApp.swift` |
 | ⇧⌘D | Open Doc…: fuzzy picker over `docs.list` (agent-written docs first), ↩ opens the doc in the popup | `ClubmateApp.swift` |
 | ⌘W | Close terminal session, or the window when no terminal is focused (the popup when it has focus, see below; VS Code when it has focus, see VS Code) | `ClubmateApp.swift` (`CloseKeyOwner`) |
-| ⇧⌘W | Close Session | `ClubmateApp.swift` |
+| ⇧⌘W | Close Session: the terminal session shown in the main pane; in Agents the selected agent session with its child sessions, as its row's Close Session (a closed one stays as it is) | `ClubmateApp.swift`, `ClubmateKit/CommandInvocation.swift` (`AgentsSection`) |
 | ⌘K | Command Palette | `ClubmateApp.swift` |
 | ⌘B, ⌃⌘S | Toggle Sidebar; in Neovim, Toggle Chat: the agent chat panel on the right (per window) | `ClubmateApp.swift`, `WorkspaceLayout.swift` |
 | ⌘= (⌘+), ⌘-, ⌘0 | Font size up, down, reset where focus is: in a terminal or nvim (or with nothing focused) the terminal font for all terminals; in the agent chat (composer) the chat font, shared by every chat; in another pane (e.g. a sidebar tree) only that pane. The terminal font is Settings → Terminals → Font size and the chat font Settings → Agents → Chat font size; any other pane follows Settings → General → Interface font size until zoomed, ⌘0 puts it back (General → Zoomed panes resets them all); sizes are kept across restarts. While the popup shows a doc and has focus it zooms the doc instead, see below | `ClubmateApp.swift`, `WorkspaceLayout.swift`, `WorkspacePanes.swift` (`ClubmateKit/PaneFocus.swift`, `AppSettings.swift`) |
