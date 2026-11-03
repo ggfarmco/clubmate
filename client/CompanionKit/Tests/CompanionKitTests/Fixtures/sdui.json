@@ -945,6 +945,77 @@
          }
         },
         {
+         "type": "flow",
+         "id": "cj_nightly/does",
+         "props": {
+          "cards": [
+           {
+            "id": "check",
+            "label": "Check CI status",
+            "state": "GitHub · branch main",
+            "icon": "powerplug",
+            "tooltip": "Run the check-ci command",
+            "outs": [
+             {
+              "id": "ok",
+              "label": "ok",
+              "count": 19,
+              "state": "taken"
+             },
+             {
+              "id": "failed",
+              "label": "failed",
+              "count": 1,
+              "state": "last"
+             }
+            ]
+           }
+          ],
+          "markers": [
+           {
+            "id": "when",
+            "kind": "schedule",
+            "label": "every 2 min"
+           },
+           {
+            "id": "inbox",
+            "kind": "inbox",
+            "label": "Inbox"
+           }
+          ],
+          "edges": [
+           {
+            "from": "when",
+            "to": "check",
+            "state": "taken"
+           },
+           {
+            "from": "check",
+            "out": "failed",
+            "to": "inbox",
+            "state": "last",
+            "ref": "trg_gallery",
+            "tooltip": "failed runs post to the inbox"
+           }
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "type": "stack",
+       "props": {
+        "direction": "horizontal"
+       },
+       "children": [
+        {
+         "type": "text",
+         "props": {
+          "style": "muted",
+          "text": ""
+         }
+        },
+        {
          "type": "card",
          "children": [
           {
@@ -997,9 +1068,56 @@
          }
         },
         {
-         "type": "text",
+         "type": "runstrip",
+         "id": "cj_nightly/runs",
          "props": {
-          "text": ""
+          "runs": [
+           {
+            "at": "2026-11-03T15:46:00Z",
+            "status": "ok",
+            "tooltip": "15:46 · ok · main is green · 14 checks passed",
+            "ref": "run-946"
+           },
+           {
+            "at": "2026-11-03T15:48:00Z",
+            "status": "ok",
+            "tooltip": "15:48 · ok · main is green · 14 checks passed",
+            "ref": "run-948"
+           },
+           {
+            "at": "2026-11-03T15:50:00Z",
+            "status": "ok",
+            "tooltip": "15:50 · ok · main is green · 14 checks passed",
+            "ref": "run-950"
+           },
+           {
+            "at": "2026-11-03T16:00:00Z",
+            "status": "ok",
+            "tooltip": "16:00 · ok · main is green · 14 checks passed",
+            "ref": "run-960"
+           },
+           {
+            "at": "2026-11-03T16:02:00Z",
+            "status": "ok",
+            "tooltip": "16:02 · ok · main is green · 14 checks passed",
+            "ref": "run-962"
+           },
+           {
+            "at": "2026-11-03T16:04:00Z",
+            "status": "ok",
+            "tooltip": "16:04 · ok · main is green · 14 checks passed",
+            "ref": "run-964"
+           }
+          ],
+          "now": "2026-11-03T16:28:20Z",
+          "next": "2026-11-03T16:30:00Z",
+          "paused": [
+           {
+            "from": "2026-11-03T15:51:00Z",
+            "to": "2026-11-03T15:59:00Z"
+           }
+          ],
+          "selected": "run-failed"
          }
         }
        ]

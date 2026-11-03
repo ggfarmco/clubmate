@@ -142,6 +142,8 @@ The boards' "Open in Triggers ⌘7" is not bound: ⌘7 stays the Triggers sectio
 
 Cron's Does, a trigger's chain and empty lists are `flow`s; owners and runs as moves are `lanes`; Cron's runs are a `runstrip`.
 
+When a pane holds several of them (or a table or graph), focus moving to the pane goes to the first one, top to bottom (a ghost-only `flow` takes none); a click on another one gives it the keys. No key moves between them.
+
 | Keys | Where | Action |
 |---|---|---|
 | j / k | flow | Focus the next / previous card (the focused card gets an accent ring) |

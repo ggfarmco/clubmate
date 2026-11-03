@@ -14,7 +14,6 @@ final class SDUIRendererTests: XCTestCase {
     }
 
     func testGalleryRendersEveryKnownType() throws {
-        let macOnly: Set<String> = ["graph", "flow", "lanes", "runstrip"]
         let url = try XCTUnwrap(Bundle.main.url(forResource: "GalleryFixture", withExtension: "json"))
         let tree = try JSONDecoder().decode(SDUINode.self, from: Data(contentsOf: url))
         var types: Set<String> = []
@@ -23,7 +22,7 @@ final class SDUIRendererTests: XCTestCase {
             node.children.forEach(walk)
         }
         walk(tree)
-        XCTAssertEqual(types.subtracting(macOnly).filter { SDUIKind(rawValue: $0) == nil }, [])
+        XCTAssertEqual(types.subtracting(MacOnlyCaption.types).filter { SDUIKind(rawValue: $0) == nil }, [])
     }
 
     func testUnknownTypePlaceholder() {
@@ -34,6 +33,12 @@ final class SDUIRendererTests: XCTestCase {
         ])
         XCTAssertEqual(tree.children.map { SDUIKind(rawValue: $0.type) }, [.text, nil, .button])
         XCTAssertEqual(SDUIPlaceholder.title(for: "futureWidget"), "futureWidget isn't supported on the phone")
+    }
+
+    func testGhostOnlyFlowDrawsNothing() {
+        let card: (Bool) -> JSONValue = { .object(["id": .string("when"), "label": .string("When"), "ghost": .bool($0), "outs": .array([])]) }
+        XCTAssertTrue(MacOnlyCaption.ghostOnly(SDUINode(type: "flow", id: "f", props: ["cards": .array([card(true)])])))
+        XCTAssertFalse(MacOnlyCaption.ghostOnly(SDUINode(type: "flow", id: "f", props: ["cards": .array([card(true), card(false)])])))
     }
 
     func testSidebarRowTapSendsSelectAndOpensMain() async {

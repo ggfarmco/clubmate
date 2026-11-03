@@ -209,6 +209,20 @@ struct SparklineNode: View {
     }
 }
 
+struct ProgressNode: View {
+    let node: SDUINode
+    @Environment(\.sduiInset) private var inset
+
+    var body: some View {
+        let total = node.props["total"]?.numberValue ?? 0
+        let value = node.props["value"]?.numberValue ?? 0
+        ProgressView(value: total > 0 ? min(max(value, 0), total) : 0, total: max(total, 1))
+            .tint(SDUITone.fill(node.string("tone")) ?? (node.string("tone") == "neutral" ? .secondary : .accentColor))
+            .padding(.horizontal, inset)
+            .accessibilityValue("\(Int(value)) of \(Int(total))")
+    }
+}
+
 struct SparkChart: View {
     let spark: SDUISpark
     var tint: Color = .accentColor

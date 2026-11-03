@@ -37,7 +37,7 @@ struct SDUIContext {
 }
 
 enum SDUIKind: String {
-    case stack, split, scroll, tabs, list, tree, table, sparkline, text, badge, icon, markdown, document, diff
+    case stack, split, scroll, tabs, list, tree, table, sparkline, progress, text, badge, icon, markdown, document, diff
     case button, textField, folderField, toggle, select, form, surface, header, empty, card
     case transcript, message, plan, toolCard, permissionCard, composer
 }
@@ -54,6 +54,8 @@ struct SDUINodeView: View {
     var body: some View {
         if let kind = SDUIKind(rawValue: node.type) {
             content(kind)
+        } else if MacOnlyCaption.types.contains(node.type) {
+            if !MacOnlyCaption.ghostOnly(node) { MacOnlyCaption(type: node.type) }
         } else {
             SDUIPlaceholder(type: node.type)
         }
@@ -78,6 +80,7 @@ struct SDUINodeView: View {
         case .diff: DiffNode(node: node)
         case .document: DocumentNode(node: node, context: context)
         case .sparkline: SparklineNode(node: node)
+        case .progress: ProgressNode(node: node)
         case .header: HeaderNode(node: node, context: context)
         case .empty: EmptyNode(node: node, context: context)
         case .surface: SurfacePlaceholder()
