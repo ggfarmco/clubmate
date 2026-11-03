@@ -39,7 +39,35 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
    - Board: `Mac-ChatGraphStep`. `Code-1280` now shows a regular new chat.
 5. **⌥1–3 mean permission answers only.** Chat suggestions use bare 1 2 3 while the composer is empty, or no keys at all.
 
+6. **The interface is always Mate; the terminal and editor themes belong to the user.**
+   - Every window and plugin panel uses the Mate palette, dark or light following the macOS appearance. The interface no longer takes its roles from Ghostty's palette.
+   - Clubmate ships `themes/ghostty/Clubmate`, `themes/ghostty/Clubmate Light` and `themes/clubmate.nvim` (with a lualine theme). The embedded Ghostty and the Code editor use them by default, switching with the appearance.
+   - If the user's Ghostty config sets `theme =` or their nvim sets a colorscheme, theirs wins and the interface stays Mate.
+   - Boards: `T-Themes`, `Principles`, and the section "Mac interface in Mate" (`Agents-Mate-1280`, `*-1280-Mate`, `*-640-MateLight`).
+
+7. **Drawn views: cards, ports, edges, lanes (3 Nov).** The Graphs drawn view (main 43f02ac2) is the bar. The same parts now draw Cron, Triggers and Backlog where the thing has a shape; everything else stays a form or a list.
+   - Graphs: the run view is on `Graphs-1280-Mate` / `Graphs-640-MateLight` as built; the definition is on `Graphs-Def-*`, where each edge opens as its trigger.
+   - Cron: "Does" is drawn (schedule → action card with outcome ports → owner session or Inbox), and Runs are a time strip (ok, failed, missed, next, now, paused). Identical consecutive results collapse to one row. Boards: `Cron-Runs-1280-Mate`, `Cron-Paused-640-MateLight`, `Cron-Empty-640-MateLight`.
+   - Triggers: a trigger is an edge, cause card → effect card. A graph's trigger is drawn inside its graph; a user's trigger shows where its event came from last time. Runs are lanes, cause → effect. Boards: `Triggers-Edge-1280-Mate`, `Triggers-Chain-640-MateLight`, `Triggers-Empty-640-MateLight`.
+   - Backlog: the list and the form stay; Owners are lanes (you, sessions, graph runs). A task has Links to other tasks (blocked by, blocks, relates to; `#n` in the description renders as a link) and Attachments (worktree files, design boards and other artifacts, images, URLs); Start agent passes the description, links and attachments to the session. The primary action follows the owner: Start agent while you own it, Open ‹owner› ⌘↩ while a session or graph run does, Take back returns it. Boards: `Backlog-Owned-1280-Mate`, `Backlog-Start-640-MateLight`, `Backlog-Empty-640-MateLight`.
+   - The vocabulary, the per-screen table and the rules are on `Drawn-Views`.
+
+8. **Agents sidebar tree (main cdc26f6a, 3 Nov): accepted, with three rules.**
+   - Closed (archivebox, folded) and Service (gearshape.2, folded; opens on its own while a service session needs you, its count in warning ink) sit once at the root, after every branch.
+   - A branch row shows when open sessions live in two or more worktrees, **or** when they all live in one worktree that is not the window's worktree (the one in the title pill). Otherwise the list has no header: the pill and the session header already name the branch.
+   - When Closed holds sessions from two or more worktrees, each closed row's detail is its worktree's short name (`design-brief`, `3.1`, `main`) instead of the age. Closed lists the newest first and shows a handful, then "N more · search to find one".
+   - Boards: `Agents-1280`, `Agents-Mate-1280` (two worktrees), `Agents-OneTree-1280-Mate` (one worktree, Closed and Service open), `Agents-Drawer-640-MateLight` (⌘B at 640). The phone does not change.
+
 ## 3. Work list, by priority
+
+### P1b: drawn views (decision 7)
+
+- **SDUI nodes** *(b)*: `flow` (cards, rows with ports, edges with a state: taken · last · untaken · definition · selected · dim · ghost; markers: start, end, schedule), `lanes` (actors, moves, causes), `runstrip` (runs on a time axis, now, next, paused span). One renderer serves Graphs, Cron, Triggers and Backlog.
+- **Results in words** *(c)*: no `null` or JSON blobs in runs tables; Show as JSON per run. Group identical consecutive results ("ok ×18 · same result").
+- **Trigger chain** *(c)*: for a user's trigger, the session that emitted the event last time, and the cron job or trigger that started it.
+- **Task owners** *(c)*: owner and last owner on every task (you, a session, a graph run), with the moves between them.
+- **Task links and attachments** *(c)*: `links` (blocked by, blocks, relates to) and `attachments` (file, artifact, image, url) on a task, passed to the session by Start agent; `#n` in Markdown renders as a task link.
+- **Empty lists** *(a)*: ghost cards plus 2–3 templates, as on the `*-Empty-640-MateLight` boards.
 
 ### P0: wrong state or meaning, fix first
 
@@ -162,6 +190,7 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
 8. The phone gets the Mac's recovery actions under a failed session where they work remotely (from the `failure` field the Go plugin sends); Mac-local flows such as sign-in read "Sign in on ‹Mac›".
 9. The "Notifications" row in `C-MacInfo` is not built: no per-Mac notification setting exists yet (board change / later; backlog #115).
 10. Remaining Title Case in themed UI (Welcome, workspace switcher) goes to sentence case; app menus and system dialogs keep Title Case.
+11. Cron owner "nobody" (3 Nov): only failures and missed runs go to the inbox; ok results stay in Runs.
 
 ## 6. Done when
 
