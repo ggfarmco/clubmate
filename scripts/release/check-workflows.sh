@@ -32,6 +32,9 @@ DMG_STEP="$(step_index scripts/release/dmg.sh)"
 DELETE_STEP="$(step_index delete-keychain)"
 ((BUILD_STEP >= 0 && IMPORT_STEP > BUILD_STEP)) || fail "release.yml must import the signing certificate after build.sh"
 ((DMG_STEP >= 0 && DELETE_STEP > DMG_STEP)) || fail "release.yml must delete the keychain after dmg.sh"
+WAIT_CI_STEP="$(step_index scripts/release/wait-ci.sh)"
+PUBLISH_STEP="$(step_index 'gh release create')"
+((WAIT_CI_STEP >= 0 && PUBLISH_STEP > WAIT_CI_STEP)) || fail "release.yml must wait for ci before gh release create"
 [[ "$(yq '.jobs[].steps[] | select((.run // "") | contains("delete-keychain")) | .if' "$RELEASE")" == 'always()' ]] || fail "release.yml must delete the keychain with if: always()"
 
 for f in "$DIR"/*.yml; do

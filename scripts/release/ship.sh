@@ -40,7 +40,6 @@ echo "=== $(date) ship v$VERSION on $SHA"
 CI_RUN="$(run_of --workflow ci.yml --commit "$SHA")"
 [[ -n "$CI_RUN" ]] || stuck "no ci run for $SHA; no tag pushed"
 echo "ci run $CI_RUN"
-gh run watch "$CI_RUN" -R "$REPO" --exit-status --interval 60 >/dev/null || stuck "ci run $CI_RUN failed; no tag pushed"
 
 git fetch -q --tags origin
 git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && stuck "tag v$VERSION already exists; not tagging"
@@ -50,6 +49,12 @@ git push -q origin "v$VERSION" || stuck "tag push failed"
 RUN="$(run_of --workflow release.yml --branch "v$VERSION")"
 [[ -n "$RUN" ]] || stuck "no release run for v$VERSION"
 echo "release run $RUN"
-gh run watch "$RUN" -R "$REPO" --exit-status --interval 60 >/dev/null || stuck "release run $RUN failed"
+if ! gh run watch "$RUN" -R "$REPO" --exit-status --interval 60 >/dev/null; then
+  gh release view "v$VERSION" -R "$REPO" >/dev/null 2>&1 && stuck "release run $RUN failed after publishing v$VERSION"
+  git push -q origin ":refs/tags/v$VERSION" && git tag -d "v$VERSION" >/dev/null
+  ci="$(gh run view "$CI_RUN" -R "$REPO" --json conclusion -q .conclusion)"
+  [[ -z "$ci" || "$ci" == success ]] || stuck "ci run $CI_RUN ended ${ci:-unknown}; release run $RUN stopped before publishing, tag v$VERSION deleted"
+  stuck "release run $RUN failed; tag v$VERSION deleted"
+fi
 gh release view "v$VERSION" -R "$REPO" >/dev/null || stuck "release v$VERSION not published"
 notify "done" "v$VERSION published (release run $RUN)"

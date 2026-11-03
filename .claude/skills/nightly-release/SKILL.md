@@ -14,7 +14,7 @@ Pushing a `v*` tag publishes at once (the `release` environment has no reviewers
 3. `git push origin main`. Rejected (not a fast-forward) → never force; file it and stop.
 4. Ship detached, so it outlives this session:
    `python3 -c 'import os,sys; os.setsid(); os.execv("/bin/bash", ["bash"] + sys.argv[1:])' scripts/release/ship.sh <version> $SHA $CLUBMATE_WORKSPACE_ID >>~/Library/Logs/clubmate-ship.log 2>&1 </dev/null &`
-   It waits for the ci run on `SHA`, tags, pushes the tag, waits for the release run and notifies `done` or `stuck`.
+   Once the ci run on `SHA` exists it tags and pushes the tag, so the release builds, signs and notarizes while CI runs; `release.yml` publishes only after that ci run passed (`scripts/release/wait-ci.sh`). It waits for the release run and notifies `done` or `stuck`; when the release run fails before publishing, it deletes the tag.
 5. Reply in one line: version, sha, log path. Don't install the update on this Mac (it restarts the core and kills running agent sessions); Sparkle offers it when the user is back.
 
 ## Trigger

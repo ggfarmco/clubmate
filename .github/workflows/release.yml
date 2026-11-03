@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 defaults:
   run:
@@ -165,6 +166,12 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           BUILD: ${{ steps.version.outputs.build }}
         run: scripts/release/appcast.sh "dist/Clubmate-$VERSION.dmg" "$VERSION" "$BUILD"
+
+      - name: Wait for CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: scripts/release/wait-ci.sh "$GITHUB_SHA"
 
       - name: Publish release
         env:
