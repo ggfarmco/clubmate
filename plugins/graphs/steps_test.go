@@ -769,3 +769,23 @@ func TestBypassAsksOnQuotedCommandWithDeny(t *testing.T) {
 	assert.Zero(t, p.ran())
 	assert.Equal(t, stepWaiting, stepMoves(a, r.ID, "tests")[0].Step.Status)
 }
+
+func TestStepSec_C9_UnknownFolderTrustsNoProjectRules(t *testing.T) {
+	a, p, r, _, wt := splitApp(t, "default")
+	a.runCommand = (&fakeCore{worktrees: `[]`}).run
+	writeSettings(t, filepath.Join(wt, ".claude", "settings.local.json"), map[string]any{"permissions": map[string]any{"allow": []string{"Bash(make test)"}}})
+	a.runs[r.ID].Spec.node("tests").In = ""
+	turnDone(t, a, "agt_1", 1)
+	assert.Zero(t, p.ran())
+	assert.Equal(t, stepWaiting, stepMoves(a, r.ID, "tests")[0].Step.Status)
+	assert.ErrorContains(t, approve(t, a, r, "tests", "always"), "no main checkout")
+}
+
+func TestBypassAsksOnCompoundCommandWithDeny(t *testing.T) {
+	a, _, p, r := approvalApp(t, modeBypass)
+	writeSettings(t, filepath.Join(a.home, ".claude", "settings.json"), map[string]any{"permissions": map[string]any{"deny": []string{"Bash(rm:*)"}}})
+	a.runs[r.ID].Spec.node("tests").Run = "make test && echo ok"
+	turnDone(t, a, "agt_1", 1)
+	assert.Zero(t, p.ran())
+	assert.Equal(t, stepWaiting, stepMoves(a, r.ID, "tests")[0].Step.Status)
+}

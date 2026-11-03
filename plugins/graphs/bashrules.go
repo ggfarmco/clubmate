@@ -128,8 +128,8 @@ func (rs ruleSet) denied(command string) (string, bool) {
 }
 
 func (rs ruleSet) suspicious(command string) (string, bool) {
-	if strings.ContainsAny(command, "'\"\\$`") && len(rs.Deny)+len(rs.Ask) > 0 {
-		return "a quoted or expanded command", true
+	if (!simpleCommand(command) || strings.ContainsAny(command, "'\"\\$`")) && len(rs.Deny)+len(rs.Ask) > 0 {
+		return "a command that isn't plain words", true
 	}
 	words := commandWords(command)
 	for _, rule := range rs.Deny {

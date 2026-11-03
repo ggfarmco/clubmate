@@ -33,6 +33,7 @@ type stepSpec struct {
 	Env     []string
 	Timeout time.Duration
 	OutPath string
+	Main    string
 }
 
 type stepResult struct {

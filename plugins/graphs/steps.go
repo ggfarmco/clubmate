@@ -212,7 +212,7 @@ func (a *app) approval(ctx context.Context, r *Run, n *Node, spec stepSpec) (str
 	if n.Command != "" {
 		return allowedCommand, false, nil
 	}
-	project := filepath.Clean(spec.Dir) == filepath.Clean(a.repoRoot(ctx, r.Workspace, spec.Dir))
+	project := spec.Main != "" && filepath.Clean(spec.Dir) == filepath.Clean(spec.Main)
 	rules := loadRules(a.managedPath, a.home, spec.Dir, project)
 	mode := rules.DefaultMode
 	if r.Agent && r.Caller != "" {
@@ -342,6 +342,10 @@ func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
 		a.mu.Unlock()
 		return fmt.Errorf("node %s is not waiting", args.Node)
 	}
+	if args.Decision == "always" && p.spec.Main == "" {
+		a.mu.Unlock()
+		return fmt.Errorf("always: no main checkout for %s; allow it once instead", p.spec.Dir)
+	}
 	delete(a.pending, key)
 	n := r.Spec.node(args.Node)
 	a.mu.Unlock()
@@ -358,7 +362,7 @@ func (a *app) approveStep(ctx context.Context, cmd pluginsdk.CommandRun) error {
 			a.stepDone(ctx, args.ID, args.Node, p.move, stepResult{ExitCode: exitUnknown, Reason: reasonStopped})
 			return errors.New("run is stopped")
 		}
-		if err := addAllowRule(a.repoRoot(ctx, cmd.WorkspaceID, p.spec.Dir), n.Run); err != nil {
+		if err := addAllowRule(p.spec.Main, n.Run); err != nil {
 			return err
 		}
 	}
@@ -766,6 +770,7 @@ func (a *app) resolveStep(ctx context.Context, r *Run, n *Node, move int) (stepS
 	}
 	return stepSpec{
 		Dir:     dir,
+		Main:    mainCheckout(trees, dir),
 		Shell:   n.Run,
 		Env:     stepEnv(r, move, trees, worktreeOf),
 		Timeout: n.timeout(),
