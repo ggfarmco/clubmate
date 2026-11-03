@@ -146,6 +146,9 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 			a.registry.Flush(ctx)
 			return nil, nil
 		}
+		if strings.HasSuffix(ev.NodeID, flowSuffix) || strings.HasSuffix(ev.NodeID, lanesSuffix) {
+			return nil, a.drawnEvent(ctx, ev)
+		}
 		target, ok := automation.ActionTarget(ev.NodeID, ev.Action)
 		if !ok {
 			return nil, nil
@@ -174,12 +177,7 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 		a.registry.Flush(ctx)
 		return nil, nil
 	case ev.Action == "select":
-		if err := a.host.StorageSet(ctx, automation.SelectedKey(ev.WorkspaceID), id); err != nil {
-			return nil, err
-		}
-		a.registry.Invalidate(ev.WorkspaceID)
-		a.registry.Flush(ctx)
-		return nil, nil
+		return nil, a.selectTrigger(ctx, ev.WorkspaceID, id)
 	case ev.Action == automation.ActRun:
 		return nil, a.runNow(context.WithoutCancel(ctx), ev.WorkspaceID, id)
 	case ev.Action == actGraph:
@@ -195,6 +193,44 @@ func (a *app) uiEvent(ctx context.Context, _ *pluginsdk.Host, ev pluginsdk.UIEve
 	}
 	_, err = a.command(ctx, nil, pluginsdk.CommandRun{ID: cmdID, WorkspaceID: ev.WorkspaceID, Args: args})
 	return nil, err
+}
+
+func (a *app) selectTrigger(ctx context.Context, workspace, id string) error {
+	if err := a.host.StorageSet(ctx, automation.SelectedKey(workspace), id); err != nil {
+		return err
+	}
+	a.registry.Invalidate(workspace)
+	a.registry.Flush(ctx)
+	return nil
+}
+
+func (a *app) drawnEvent(ctx context.Context, ev pluginsdk.UIEvent) error {
+	var value string
+	if err := json.Unmarshal(ev.Value, &value); err != nil {
+		return fmt.Errorf("%s value: %w", ev.Action, err)
+	}
+	switch {
+	case ev.Action == actOpenMove:
+		ev.Action = "select"
+		if err := a.runRows.Handle(ctx, a.host, ev); err != nil {
+			return err
+		}
+		a.registry.Invalidate(ev.WorkspaceID)
+		a.registry.Flush(ctx)
+		return nil
+	case ev.Action != actOpen && ev.Action != actOpenEdge:
+		return nil
+	case strings.HasPrefix(value, sessionPrefix):
+		return agentcall.Reveal(ctx, a.host, ev.WorkspaceID, value)
+	}
+	a.mu.Lock()
+	t, ok := a.triggers[value]
+	ok = ok && t.Workspace == ev.WorkspaceID
+	a.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	return a.selectTrigger(ctx, ev.WorkspaceID, value)
 }
 
 func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
@@ -226,7 +262,7 @@ func (a *app) renderWorkspace(ctx context.Context, workspace string) error {
 	if _, err := a.host.Render(ctx, workspace, sidebarSlot, sidebarView(triggers, selected, a.folds(workspace), titles)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
-	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, titles, open, runs)); err != nil {
+	if _, err := a.host.Render(ctx, workspace, mainSlot, mainView(current, triggers, titles, open, runs)); err != nil {
 		return fmt.Errorf("render %s: %w", workspace, err)
 	}
 	return nil

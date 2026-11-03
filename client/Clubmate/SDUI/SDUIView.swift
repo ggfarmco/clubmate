@@ -108,6 +108,17 @@ extension EnvironmentValues {
     }
 }
 
+private struct PaneFocusOwnerKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+extension EnvironmentValues {
+    var paneFocusOwner: String? {
+        get { self[PaneFocusOwnerKey.self] }
+        set { self[PaneFocusOwnerKey.self] = newValue }
+    }
+}
+
 private struct PaneFocusReport: ViewModifier {
     let pane: FocusedPane
     let focused: Bool
@@ -209,6 +220,7 @@ struct SDUIView: View, Equatable {
             .environment(\.sduiDispatch, SDUIDispatch(slot: slot, workspaceID: workspaceID, sink: send, banner: banner))
             .environment(\.composerDrafts, drafts)
             .environment(\.sduiParent, slot)
+            .environment(\.paneFocusOwner, node.paneFocusOwner ?? "")
     }
 }
 

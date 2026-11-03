@@ -36,6 +36,7 @@ struct GraphNodeView: View {
     @State private var pinch: CGFloat?
     @FocusState private var focused: Bool
     @Environment(\.isFocused) private var paneFocused
+    @Environment(\.paneFocusOwner) private var focusOwner
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
@@ -103,7 +104,7 @@ struct GraphNodeView: View {
             .keyMonitor(active: focused) { handle($0, flow: flow, history: !graph.moves.isEmpty, order: frame.order, edges: edges, zoom: zoom) }
             .reportsFocus(.graph(history: !graph.moves.isEmpty, edges: !edges.isEmpty), focused)
             .onChange(of: paneFocused) { _, value in
-                if value { focused = true }
+                if value, focusOwner == nil || focusOwner == node.id { focused = true }
             }
             .onChange(of: focused) { _, value in
                 guard value, cursor.map(frame.order.contains) != true else { return }
@@ -153,6 +154,7 @@ struct FlowNodeView: View {
     @State private var edgeCursor: Int?
     @FocusState private var focused: Bool
     @Environment(\.isFocused) private var paneFocused
+    @Environment(\.paneFocusOwner) private var focusOwner
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
@@ -189,7 +191,7 @@ struct FlowNodeView: View {
         }
         .reportsFocus(.graph(history: false, edges: !edges.isEmpty), focused)
         .onChange(of: paneFocused) { _, value in
-            if value { focused = true }
+            if value, focusOwner == nil || focusOwner == node.id { focused = true }
         }
         .onChange(of: focused) { _, value in
             guard value, cursor.map(frame.order.contains) != true else { return }

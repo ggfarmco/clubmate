@@ -10,6 +10,7 @@ struct LanesNodeView: View {
     @State private var hovered: FlowHop?
     @FocusState private var focused: Bool
     @Environment(\.isFocused) private var paneFocused
+    @Environment(\.paneFocusOwner) private var focusOwner
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.theme) private var theme
 
@@ -38,7 +39,7 @@ struct LanesNodeView: View {
         .keyMonitor(active: focused) { handle($0, lanes: lanes, refs: refs, open: open) }
         .reportsFocus(.lanes(title: lanes.title != nil), focused)
         .onChange(of: paneFocused) { _, value in
-            if value { focused = true }
+            if value, focusOwner == nil || focusOwner == node.id { focused = true }
         }
     }
 

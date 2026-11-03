@@ -255,7 +255,7 @@ var (
 		"empty": {
 			required: []string{"text"},
 			props:    map[string]propCheck{"text": isString, "title": isString, "icon": isString, "hint": isString},
-			children: childRule{min: 0, max: 1, only: []string{"button"}},
+			children: childRule{min: 0, max: 1, only: []string{"button", "flow"}},
 		},
 
 		"transcript": {props: map[string]propCheck{"center": isBool, "anchor": isString, "anchorRev": countNumber}, children: anyChildren},

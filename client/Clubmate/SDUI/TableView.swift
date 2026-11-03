@@ -11,6 +11,7 @@ struct TableNodeView: View {
     @State private var width: CGFloat = 0
     @FocusState private var focused: Bool
     @Environment(\.isFocused) private var paneFocused
+    @Environment(\.paneFocusOwner) private var focusOwner
     @Environment(\.sduiDispatch) private var dispatch
     @Environment(\.scrollProxy) private var scroll
     @Environment(\.theme) private var theme
@@ -49,7 +50,7 @@ struct TableNodeView: View {
         .reportsFocus(.table, focused)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onChange(of: paneFocused) { _, value in
-            if value { focused = true }
+            if value, focusOwner == nil || focusOwner == node.id { focused = true }
         }
         .onChange(of: node.tableSort(), initial: true) { _, value in
             sort = value

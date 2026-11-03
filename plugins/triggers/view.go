@@ -27,7 +27,7 @@ const (
 
 func sidebarView(triggers []*Trigger, selected string, collapsed map[string]bool, titles map[string]string) sdui.Node {
 	if len(triggers) == 0 {
-		return sdui.Empty("No triggers yet. Agents add them, and each graph run adds one per edge.")
+		return sdui.Empty("No triggers yet")
 	}
 	var items, groups []sdui.TreeItem
 	index := map[string]int{}
@@ -67,7 +67,10 @@ func triggerItem(t *Trigger, titles map[string]string) sdui.TreeItem {
 	}
 }
 
-func mainView(t *Trigger, titles map[string]string, open automation.Open, runs automation.RunsView) sdui.Node {
+func mainView(t *Trigger, triggers []*Trigger, titles map[string]string, open automation.Open, runs automation.RunsView) sdui.Node {
+	if len(triggers) == 0 {
+		return emptyView()
+	}
 	if t == nil {
 		return sdui.Empty("Select a trigger")
 	}
@@ -86,6 +89,7 @@ func mainView(t *Trigger, titles map[string]string, open automation.Open, runs a
 		actions = append(actions, automation.ActionNode(t.ID, automation.DeleteAction(deleteConfirm(t))))
 	}
 	header := sdui.Header(t.Name, props, actions...)
+	titles = chainTitles(t, titles)
 	when := whenLine(t, titles)
 	rows := []sdui.Node{automation.Property("When", when, "")}
 	if !t.Enabled && t.LastError != "" {
@@ -93,16 +97,30 @@ func mainView(t *Trigger, titles map[string]string, open automation.Open, runs a
 	}
 	rows = append(rows, automation.Property("Owner", ownerLine(t, titles), ""))
 	rows = append(rows, automation.Does(t.ID, t.Command, t.Args, titles, open)...)
+	caption, flow, lanes, drawn := drawnRuns(t, triggers, titles, time.Local)
+	var body []sdui.Node
+	if drawn {
+		body = append(body, sdui.MutedText(caption), flow)
+	}
 	if len(t.History) == 0 {
-		return sdui.VStack(header, automation.Properties(append(rows, automation.Property("Runs", "No runs yet. It runs when "+when+".", ""))...))
+		body = append(body, automation.Properties(append(rows, automation.Property("Runs", "No runs yet. It runs when "+when+".", ""))...))
+		return sdui.VStack(header, sdui.Scroll(sdui.VStack(body...)))
 	}
 	cells := func(r Run) ([]string, string) {
 		return []string{eventWords(r, titles)}, automation.Words(t.Command, t.Args, r, titles)
 	}
 	event := []sdui.Column{{ID: "event", Title: "Event", Priority: 1}}
 	table, run := automation.RunsTable(t.History, time.Local, event, cells, runs)
+	if runs.Selected == "" {
+		table.Props = maps.Clone(table.Props)
+		delete(table.Props, "selected")
+	}
 	rows = append(rows, automation.RunsRows(t.ID, t.History, run, open.RunJSON)...)
-	return sdui.VStack(header, automation.Properties(rows...), sdui.Scroll(table))
+	body = append(body, automation.Properties(rows...))
+	if drawn {
+		body = append(body, lanes)
+	}
+	return sdui.VStack(header, sdui.Scroll(sdui.VStack(append(body, table)...)))
 }
 
 func whenLine(t *Trigger, titles map[string]string) string {
@@ -158,6 +176,9 @@ func matchPart(key string, v any, titles map[string]string) string {
 			values = append(values, automation.Names(fmt.Sprint(e), titles))
 		}
 		return key + " " + strings.Join(values, " or ")
+	}
+	if s, ok := v.(string); ok && key == cronField {
+		return "cron job " + cmp.Or(titles[s], s)
 	}
 	return key + " " + automation.Names(fmt.Sprint(v), titles)
 }
