@@ -191,6 +191,8 @@ Your task: implement every **a**, **b** and **c** item, in the priority order be
 9. The "Notifications" row in `C-MacInfo` is not built: no per-Mac notification setting exists yet (board change / later; backlog #115).
 10. Remaining Title Case in themed UI (Welcome, workspace switcher) goes to sentence case; app menus and system dialogs keep Title Case.
 11. Cron owner "nobody" (3 Nov): only failures and missed runs go to the inbox; ok results stay in Runs.
+12. Graphs-Def (3 Nov): a definition has no triggers until it runs, so its edges show a tooltip only; an edge opens its trigger on the run view. "Open in Triggers ⌘7" is not bound (⌘7 is the Triggers section).
+13. Empty Cron and Triggers lists (3 Nov): ghost cards and one sentence, no templates; there is no create UI for jobs or triggers yet.
 
 ## 6. Done when
 
