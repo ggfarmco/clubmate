@@ -134,7 +134,7 @@ struct ProgressNodeView: View {
         .frame(minWidth: 40, maxWidth: .infinity)
         .frame(height: 4)
         .accessibilityElement()
-        .accessibilityValue("\(Int(node.props["value"]?.numberValue ?? 0)) of \(Int(total))")
+        .accessibilityValue("\((node.props["value"]?.numberValue ?? 0).formatted()) of \(total.formatted())")
     }
 }
 

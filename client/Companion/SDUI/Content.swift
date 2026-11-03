@@ -219,7 +219,7 @@ struct ProgressNode: View {
         ProgressView(value: total > 0 ? min(max(value, 0), total) : 0, total: max(total, 1))
             .tint(SDUITone.fill(node.string("tone")) ?? (node.string("tone") == "neutral" ? .secondary : .accentColor))
             .padding(.horizontal, inset)
-            .accessibilityValue("\(Int(value)) of \(Int(total))")
+            .accessibilityValue("\(value.formatted()) of \(total.formatted())")
     }
 }
 
