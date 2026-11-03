@@ -381,7 +381,6 @@ struct ItemRow<Leading: View>: View {
     @State private var hovering = false
     @State private var detailWidth = CGFloat.infinity
     @State private var detailIdeal = CGFloat.zero
-    @State private var labelIdeal = CGFloat.zero
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -400,45 +399,36 @@ struct ItemRow<Leading: View>: View {
                         .frame(width: 14)
                 }
             }
-            Text(item.label)
-                .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
-                .lineLimit(1)
-                .truncationMode(Text.TruncationMode(item.truncate))
-                .help(item.label)
-                .frame(minWidth: item.detail == nil ? nil : min(labelIdeal, keptLabel), alignment: .leading)
-                .background {
-                    if item.detail != nil {
-                        Text(item.label)
-                            .fixedSize()
-                            .hidden()
-                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { labelIdeal = $0 }
-                    }
-                }
-                .layoutPriority(1)
-            Spacer(minLength: theme.gutter)
-            ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
-                    .fixedSize()
-            }
-            if let detail = item.detail {
-                Text(detail)
-                    .font(theme.uiSmall)
-                    .foregroundStyle(theme.tone(detailTone ?? tone) ?? theme.muted)
+            RowLayout(hasDetail: item.detail != nil, lead: theme.gutter + theme.spacing.m * 2, spacing: theme.spacing.m, keptLabel: keptLabel, keptDetail: keptDetail) {
+                Text(item.label)
+                    .foregroundStyle(faint ? theme.faint : muted ? theme.muted : theme.foreground)
                     .lineLimit(1)
-                    .truncationMode(.label)
-                    .help(detail)
-                    .frame(minWidth: detailIdeal <= keptDetail ? detailIdeal : nil)
-                    .opacity(detailWidth + 0.5 < min(detailIdeal, keptDetail) ? 0 : 1)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
-                    .background {
-                        Text(detail)
-                            .font(theme.uiSmall)
-                            .fixedSize()
-                            .hidden()
-                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailIdeal = $0 }
-                    }
-                    .layoutPriority(2)
+                    .truncationMode(Text.TruncationMode(item.truncate))
+                    .help(item.label)
+                ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                    BadgeLabel(text: badge.text, tone: theme.tone(badge.tone))
+                        .fixedSize()
+                }
+                if let detail = item.detail {
+                    Text(detail)
+                        .font(theme.uiSmall)
+                        .foregroundStyle(theme.tone(detailTone ?? tone) ?? theme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.label)
+                        .help(detail)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
+                        .opacity(detailWidth + 0.5 < min(detailIdeal, keptDetail) ? 0 : 1)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
+                        .background {
+                            Text(detail)
+                                .font(theme.uiSmall)
+                                .fixedSize()
+                                .hidden()
+                                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailIdeal = $0 }
+                        }
+                }
             }
+            .frame(maxWidth: .infinity)
             if let badge = item.badge {
                 BadgeLabel(text: badge, tone: theme.accentInk)
                     .fixedSize()
