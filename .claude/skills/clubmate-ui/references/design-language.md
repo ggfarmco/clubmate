@@ -38,7 +38,7 @@ Mac colours (`--id-*` in `cm.css`, spec in `design/companion/png/C-MacColour.png
 
 ## Type, space, size
 
-One interface family (Settings → General → Interface font; by default the terminal font (SF Mono while Terminals → Family is unset), or System, System monospaced or any installed family, proportional ones such as Inter included; a plugin's pane font picks from the same list, Terminals → Family only from monospaced ones), with code, commands, diffs, paths and anything that must line up in the terminal font (`mono`/`monoSmall`/`nsMono`, never `ui.monospaced()`, which does nothing on a custom family); a plugin's Settings page may give its panes their own family and size (the chat is the `chat` key, shared by Agents and the Code chat; the Settings window and Onboarding are system). Hierarchy from weight and text level, not size.
+One interface family (Settings → General → Interface font; by default the terminal font (SF Mono while Terminals → Family is unset), or System, System monospaced or any installed family, proportional ones such as Inter included (the menu lists System, System monospaced and the monospaced families, the rest in one More fonts submenu); a plugin's pane font picks from the same list, Terminals → Family only from monospaced ones), with code, commands, diffs, paths and anything that must line up in the terminal font (`mono`/`monoSmall`/`nsMono`, never `ui.monospaced()`, which does nothing on a custom family); a plugin's Settings page may give its panes their own family and size (the chat is the `chat` key, shared by Agents and the Code chat; the Settings window and Onboarding are system). Hierarchy from weight and text level, not size.
 
 | Token | Value |
 |---|---|

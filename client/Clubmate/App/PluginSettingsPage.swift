@@ -456,19 +456,40 @@ struct FontFamilyPicker: View {
     let inherited: String?
 
     var body: some View {
-        Picker("Font", selection: $selection) {
-            if let inherited {
-                Text("General · \(Self.name(inherited))").tag(String?.none)
+        Menu {
+            Picker("Font", selection: $selection) {
+                if let inherited {
+                    Text("General · \(Self.name(inherited))").tag(String?.none)
+                    Divider()
+                }
+                ForEach([FontFamily.terminal, FontFamily.system, FontFamily.systemMonospaced], id: \.self) { Text(Self.name($0)).tag(String?.some($0)) }
                 Divider()
+                ForEach(FontFamilies.monospaced, id: \.self) { Text($0).tag(String?.some($0)) }
             }
-            ForEach([FontFamily.terminal, FontFamily.system, FontFamily.systemMonospaced], id: \.self) { Text(Self.name($0)).tag(String?.some($0)) }
+            .pickerStyle(.inline)
+            .labelsHidden()
             Divider()
-            ForEach(FontFamilies.monospaced, id: \.self) { Text($0).tag(String?.some($0)) }
-            Divider()
-            ForEach(FontFamilies.proportional, id: \.self) { Text($0).tag(String?.some($0)) }
+            Menu(moreFontsTitle) {
+                Picker("More fonts", selection: $selection) {
+                    ForEach(FontFamilies.proportional, id: \.self) { Text($0).tag(String?.some($0)) }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+        } label: {
+            Text(title)
         }
-        .labelsHidden()
         .fixedSize()
+    }
+
+    private var title: String {
+        guard let selection else { return inherited.map { "General · \(Self.name($0))" } ?? Self.name(FontFamily.system) }
+        return Self.name(selection)
+    }
+
+    private var moreFontsTitle: String {
+        guard let selection, FontFamilies.proportional.contains(selection) else { return "More fonts" }
+        return "More fonts · \(selection)"
     }
 
     static func name(_ family: String) -> String {
