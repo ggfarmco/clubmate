@@ -5,23 +5,21 @@ import GhosttyKit
 import ClubmateKit
 
 enum GhosttyConfigReader {
+    static let defaults = "theme = dark:Clubmate,light:Clubmate Light"
+
     static func theme(from config: ghostty_config_t, overlay: URL, dark: Bool) -> Theme {
-        let fallback = Theme.mate(dark: dark)
-        let palette = palette(config)
-        let text = GhosttyConfigText(sources(overlay: overlay).compactMap(read))
-        guard let background = color(config, "background").map(rgb), let foreground = color(config, "foreground").map(rgb), let palette, palette.count >= 5 else { return fallback }
-        let colors = palette.map(rgb)
-        return Theme(
-            background: background,
-            foreground: foreground,
-            accent: colors[4],
-            success: colors[2],
-            warning: colors[3],
-            danger: colors[1],
-            fontFamily: string(config, "font-family") ?? text.first("font-family"),
+        var theme = Theme.mate(dark: dark)
+        let text = GhosttyConfigText([defaults] + sources(overlay: overlay).compactMap(read))
+        theme.fontFamily = string(config, "font-family") ?? text.first("font-family")
+        guard let background = color(config, "background"), let foreground = color(config, "foreground"), let palette = palette(config), palette.count >= 16 else { return theme }
+        theme.terminal = ThemeEvent(
             name: GhosttyThemeName.resolve(text.last("theme"), dark: dark),
+            dark: rgb(background).isDark,
+            background: hex(background),
+            foreground: hex(foreground),
             palette: palette.map(hex)
         )
+        return theme
     }
 
     static func fontSize(_ config: ghostty_config_t) -> Double? {

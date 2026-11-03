@@ -4,14 +4,14 @@ Distilled from the boards in `design/language/` (open `png/<Board>.png` or `html
 
 ## Principles (earlier wins)
 
-1. **The palette is borrowed; the proportions are ours.** No hex in views. A colour is a role: fg, bg or a tone at a fixed ratio, computed once per theme. Looks wrong in one theme → fix the ratio, never the theme.
+1. **The palette is Mate; the proportions are ours.** No hex in views. A colour is a role: fg, bg or a tone at a fixed ratio, computed once per palette. Looks wrong → fix the ratio, never the palette.
 2. **One line per thing.** Rows are one `rowHeight`. Space separates groups, never items. A second line only where items are compared by more than their name (notifications, detail properties).
 3. **Colour is state, never decoration.** accent = focus, selection, the one primary action. warning = needs you. danger = failed or destructive. success = finished, shown once, then muted. Running is normal: no tone.
 4. **Cards are for things that ask or change.** Plan, diff, permission request, composer. Lists, properties, messages, settings stay flat; group with a section label, not a card.
 5. **Every action is visible once and has a key.** A context-menu action is also in the pane's action bar or the palette, with its key printed. Focus is always visible.
 6. **Names over ids; keep the end that differs.** Show what a person named or what the thing does; ids go behind "Copy id". The plugin writes a name when the user gave none ("Review loop: Coder done → Reviewer").
 
-Brand mate green: only in the app icon, onboarding, docs and the Mate fallback theme. Never as accent, selection, success, title bar, rail or status-bar tint inside a themed window. The Mate theme's accent and tones equal the companion's (dark warning `#F2B84B`, danger `#FF6B5E`; light accent `#357A27`, danger `#C93A30`).
+The interface is always Mate (`Theme.mate`), dark or light with macOS, in every window and plugin panel; the Ghostty theme no longer colours it, only the terminal and, through `theme.changed`, nvim and VS Code. Ghostty starts on Clubmate / Clubmate Light (`client/ghostty-themes/`, nvim side `nvim-distro/lua/clubmate/mate.lua`, boards `T-Themes`, `T-Nvim-Clubmate`); a `theme =` the user sets wins, and the chrome around their terminal then won't match. Mate's accent and tones equal the companion's (dark warning `#F2B84B`, danger `#FF6B5E`; light accent `#357A27`, danger `#C93A30`); success is teal, never the accent.
 
 Mac colours (`--id-*` in `cm.css`, spec in `design/companion/png/C-MacColour.png`): one of six tokens per Mac, a name tag next to the Mac's name, never a role. On the Mac it is only the 8pt dot in the workspace title pill (`Agents-Mate-1280`) while `remote.status` says `titleDot`, and the picker in Settings → Remote (`Mac-Settings-Remote`).
 

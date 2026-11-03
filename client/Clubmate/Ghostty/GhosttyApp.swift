@@ -115,6 +115,7 @@ final class GhosttyApp {
 
     private func loadConfig() -> ghostty_config_t? {
         guard let config = ghostty_config_new() else { return nil }
+        if let error = Self.load([GhosttyConfigReader.defaults], into: config) { fail(error) }
         ghostty_config_load_default_files(config)
         ghostty_config_load_recursive_files(config)
         let overlay = Self.overlayURL.path(percentEncoded: false)
@@ -139,6 +140,10 @@ final class GhosttyApp {
         } else {
             failure = "cannot read shell-integration-features; ssh shell features left as configured"
         }
+        return load(lines, into: config) ?? failure
+    }
+
+    private static func load(_ lines: [String], into config: ghostty_config_t) -> String? {
         let file = FileManager.default.temporaryDirectory.appending(path: "clubmate-ghostty-\(UUID().uuidString).conf")
         do {
             try lines.map { $0 + "\n" }.joined().write(to: file, atomically: true, encoding: .utf8)
@@ -147,7 +152,7 @@ final class GhosttyApp {
         }
         file.path(percentEncoded: false).withCString { ghostty_config_load_file(config, $0) }
         try? FileManager.default.removeItem(at: file)
-        return failure
+        return nil
     }
 
     private static func sshFeaturesOff(_ config: ghostty_config_t) -> String? {

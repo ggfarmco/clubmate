@@ -16,11 +16,10 @@ struct Theme: Sendable {
     var fontFamily: String?
     var systemFonts = false
     var uiSize: CGFloat = 12
-    var name: String?
     var isDark: Bool
     var backgroundHex: String
     var foregroundHex: String
-    var palette: [String]
+    var terminal: ThemeEvent?
     var surface1: Color
     var surface2: Color
     var surface3: Color
@@ -30,7 +29,7 @@ struct Theme: Sendable {
     var onAccent: Color
     private var documentBase: DocumentTheme
 
-    init(background: RGB, foreground: RGB, accent: RGB, success: RGB, warning: RGB, danger: RGB, fontFamily: String?, name: String? = nil, palette: [String] = []) {
+    init(background: RGB, foreground: RGB, accent: RGB, success: RGB, warning: RGB, danger: RGB, fontFamily: String?) {
         let surface1 = background.mixed(with: foreground, amount: 0.04)
         let surface3 = background.mixed(with: foreground, amount: 0.11)
         let mutedAlpha = ThemeContrast.alpha(of: foreground, over: surface3, reaching: 3)
@@ -43,15 +42,13 @@ struct Theme: Sendable {
         self.success = ink(success)
         self.warning = ink(warning)
         self.warningFill = Color(warning)
-        let dark = 0.2126 * background.red + 0.7152 * background.green + 0.0722 * background.blue < 128.0 / 255
+        let dark = background.isDark
         self.onWarning = Color(ThemeContrast.on(warning, candidates: [dark ? background : foreground, RGB(hex: 0x1A1A1A)], reaching: 4.5))
         self.danger = ink(danger)
         self.fontFamily = fontFamily
-        self.name = name
         self.isDark = dark
         self.backgroundHex = background.eventHex
         self.foregroundHex = foreground.eventHex
-        self.palette = palette
         self.surface1 = Color(surface1)
         self.surface2 = Color(background.mixed(with: foreground, amount: 0.07))
         self.surface3 = Color(surface3)
@@ -128,10 +125,7 @@ struct Theme: Sendable {
         let xl: CGFloat = 10
     }
 
-    var event: ThemeEvent? {
-        guard palette.count >= 16 else { return nil }
-        return ThemeEvent(name: name, dark: isDark, background: backgroundHex, foreground: foregroundHex, palette: palette)
-    }
+    var event: ThemeEvent? { terminal }
 
     func tone(_ name: String?) -> Color? {
         switch name {
@@ -209,6 +203,10 @@ struct Theme: Sendable {
 }
 
 extension RGB {
+    var isDark: Bool {
+        0.2126 * red + 0.7152 * green + 0.0722 * blue < 128.0 / 255
+    }
+
     var eventHex: String {
         ThemeEvent.hex(red: UInt8((red * 255).rounded()), green: UInt8((green * 255).rounded()), blue: UInt8((blue * 255).rounded()))
     }
