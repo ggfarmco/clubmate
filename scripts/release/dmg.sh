@@ -26,7 +26,7 @@ cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$ROOT/THIRD_PARTY_LICENSES.md" "$STAGE/"
 mkdir -p "$ROOT/dist"
 rm -f "$DMG"
 for attempt in 1 2 3 4 5; do
-  if hdiutil create -volname Clubmate -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null; then
+  if hdiutil create -volname Clubmate -srcfolder "$STAGE" -fs HFS+ -format ULFO -ov "$DMG" >/dev/null; then
     break
   fi
   if [[ $attempt -eq 5 ]]; then
