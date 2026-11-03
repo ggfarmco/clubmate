@@ -48,9 +48,10 @@ type Session struct {
 }
 
 type Run struct {
-	ID    string     `json:"id"`
-	Title string     `json:"title"`
-	After []RunAfter `json:"after,omitempty"`
+	ID     string     `json:"id"`
+	Title  string     `json:"title"`
+	Number int        `json:"number,omitempty"`
+	After  []RunAfter `json:"after,omitempty"`
 }
 
 type RunAfter struct {

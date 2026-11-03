@@ -19,6 +19,7 @@ type Move struct {
 	Open  bool      `json:"open,omitempty"`
 	Step  *StepMove `json:"step,omitempty"`
 	Held  bool      `json:"held,omitempty"`
+	Ended time.Time `json:"ended,omitzero"`
 }
 
 type StepMove struct {
@@ -47,7 +48,7 @@ func (r *Run) endTurn(p api.Turn, now time.Time) {
 	if n == nil || !turnOver(p) {
 		return
 	}
-	i := r.closeMove(n.ID, p.Turn)
+	i := r.closeMove(n.ID, p.Turn, now)
 	if i < 0 {
 		r.Moves = append(r.Moves, Move{Node: n.ID, Cause: -1, Edge: -1, User: true, At: now, Turn: p.Turn})
 		i = len(r.Moves) - 1
@@ -119,12 +120,40 @@ func (r *Run) oldestOpen(node string) int {
 	return slices.IndexFunc(r.Moves, func(m Move) bool { return m.Node == node && m.Open })
 }
 
-func (r *Run) closeMove(node string, turn int) int {
+func (r *Run) closeMove(node string, turn int, now time.Time) int {
 	i := r.oldestOpen(node)
 	if i >= 0 {
-		r.Moves[i].Open, r.Moves[i].Turn = false, turn
+		r.Moves[i].Open, r.Moves[i].Turn, r.Moves[i].Ended = false, turn, now
 	}
 	return i
+}
+
+func (r *Run) agentMoves(node string) (outcome string, spent time.Duration, open time.Time) {
+	for _, m := range r.Moves {
+		switch {
+		case m.Node != node:
+		case m.Open:
+			open = m.At
+		default:
+			if !m.Ended.IsZero() {
+				spent += m.Ended.Sub(m.At)
+			}
+			outcome = r.moveOutcome(m)
+		}
+	}
+	return outcome, spent, open
+}
+
+func (r *Run) moveOutcome(m Move) string {
+	if m.End != "" {
+		return m.End
+	}
+	for _, e := range m.Fired {
+		if e < len(r.Edges) && r.Edges[e].On == onOutcome {
+			return r.Edges[e].Outcome
+		}
+	}
+	return ""
 }
 
 func turnOver(p api.Turn) bool {

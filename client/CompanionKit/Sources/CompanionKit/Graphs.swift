@@ -21,6 +21,10 @@ public struct GraphRun: Decodable, Sendable, Equatable, Identifiable {
         public let session: String
         public let title: String?
         public let status: String
+        public let command: String?
+        public let outcome: String?
+        public let durationMs: Int?
+        public let startedAt: Date?
         public let last: StepMove?
         public let pending: StepPending?
 
@@ -61,6 +65,7 @@ public struct GraphRun: Decodable, Sendable, Equatable, Identifiable {
     public let id: String
     public let graph: String
     public let title: String
+    public let number: Int?
     public let status: String
     public let reason: String?
     public let input: String?
@@ -80,6 +85,15 @@ public struct GraphRun: Decodable, Sendable, Equatable, Identifiable {
         status == "running"
     }
 
+    public var displayTitle: String {
+        Self.numbered(title, number)
+    }
+
+    public static func numbered(_ title: String, _ number: Int?) -> String {
+        guard let number, number > 0 else { return title }
+        return "\(title) · #\(number)"
+    }
+
     public var inputLine: String {
         let turn = maxTurns > 0 ? "turn \(turns) of \(maxTurns)" : nil
         return [input.flatMap { $0.isEmpty ? nil : $0 }, turn].compactMap { $0 }.joined(separator: " · ")
@@ -95,7 +109,8 @@ public struct GraphRun: Decodable, Sendable, Equatable, Identifiable {
     public func lines(now: Date) -> [RunNodeLine] {
         nodes.map { node in
             guard node.isStep else {
-                return RunNodeLine(id: node.id, role: node.role, step: false, detail: "agent", word: node.status, tone: Self.agentTone(node.status), time: nil)
+                let time: String? = node.status == "running" ? node.startedAt.map { ShortAge.since($0, now: now) } : node.durationMs.flatMap { $0 > 0 ? Self.duration($0) : nil }
+                return RunNodeLine(id: node.id, role: node.role, step: false, detail: "agent", word: node.outcome ?? node.status, tone: node.outcome == nil ? Self.agentTone(node.status) : .success, time: time)
             }
             let last = node.last
             let time: String? = switch node.status {
@@ -103,7 +118,7 @@ public struct GraphRun: Decodable, Sendable, Equatable, Identifiable {
             case "running": last?.startedAt.map { ShortAge.since($0, now: now) }
             default: last?.durationMs.map(Self.duration)
             }
-            let command = last?.command ?? node.pending?.command
+            let command = last?.command ?? node.pending?.command ?? node.command
             return RunNodeLine(id: node.id, role: node.role, step: true, detail: command ?? "step", word: node.status, tone: Self.stepTone(node.status), time: time)
         }
     }

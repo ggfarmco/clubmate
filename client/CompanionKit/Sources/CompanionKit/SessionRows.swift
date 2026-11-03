@@ -76,6 +76,9 @@ extension AgentSession {
         let age = { (date: Date) in ShortAge.since(date, now: now) }
         switch glyph(waitingChildren: waitingChildren) {
         case .step:
+            if let role = pendingSummary?.role {
+                return SessionStateLine(lead: "\(role) wants to run", text: pendingSummary?.text ?? "", mono: true, tone: .primary)
+            }
             return SessionStateLine(lead: "Wants to run", text: pendingSummary?.text ?? "", mono: true, tone: .primary, age: pendingSummary.map { age($0.at) })
         case .cap:
             return SessionStateLine(lead: (pendingSummary?.text ?? SessionState.waitingForYou.label) + " ·", text: "continue or stop")

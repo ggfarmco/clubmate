@@ -42,7 +42,7 @@
         "hidden": true,
         "remote": true,
         "agent": true,
-        "description": "Show one graph run with each node's session title and live status (running, waiting, done, idle, error, closed, gone): {id, graph, title, status, reason?, input?, turns, maxTurns, startedAt, stoppedAt?, nodes: [{id, role, start?, session, title?, status}], edges: [{from, to, on, outcome?, trigger}]}. Non-destructive.",
+        "description": "Show one graph run with each node's session title and live status (running, waiting, done, idle, error, closed, gone): {id, graph, title, number, status, reason?, input?, turns, maxTurns, startedAt, stoppedAt?, nodes: [{id, role, start?, step?, session, title?, status, command?, outcome?, durationMs?, startedAt?, last?, pending?}], edges: [{from, to, on, outcome?, trigger}]}. Non-destructive.",
         "args": {
           "properties": {
             "id": {"type": "string", "description": "Run id (gr_…)."}

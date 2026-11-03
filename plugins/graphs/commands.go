@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"clubmate/pkg/pluginsdk"
 	"clubmate/plugins/agents/api"
@@ -42,10 +43,14 @@ type shownRun struct {
 
 type shownNode struct {
 	RunNode
-	Title   string       `json:"title,omitempty"`
-	Status  string       `json:"status"`
-	Last    *StepMove    `json:"last,omitempty"`
-	Pending *pendingInfo `json:"pending,omitempty"`
+	Title      string       `json:"title,omitempty"`
+	Status     string       `json:"status"`
+	Command    string       `json:"command,omitempty"`
+	Outcome    string       `json:"outcome,omitempty"`
+	DurationMs int64        `json:"durationMs,omitempty"`
+	StartedAt  *time.Time   `json:"startedAt,omitempty"`
+	Last       *StepMove    `json:"last,omitempty"`
+	Pending    *pendingInfo `json:"pending,omitempty"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -185,6 +190,7 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 		return shownRun{}, err
 	}
 	sessions := a.sessionMap(ctx, cmd.WorkspaceID)
+	spec := r.Spec
 	r.Spec = nil
 	out := shownRun{Run: r}
 	a.mu.Lock()
@@ -194,6 +200,11 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 		if n.Step {
 			last := r.lastStep(n.ID)
 			shown := shownNode{RunNode: n, Status: stepStatus(last), Last: last}
+			if spec != nil {
+				if node := spec.node(n.ID); node != nil {
+					shown.Command = cmpCommand(node)
+				}
+			}
 			if p, ok := pending[r.ID+"/"+n.ID]; ok {
 				shown.Pending = pendingOf(p)
 			}
@@ -201,7 +212,19 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 			continue
 		}
 		s := sessions[n.Session]
-		out.Nodes = append(out.Nodes, shownNode{RunNode: n, Title: s.Title, Status: nodeStatus(s, sessions != nil)})
+		shown := shownNode{RunNode: n, Title: s.Title, Status: nodeStatus(s, sessions != nil)}
+		outcome, spent, open := r.agentMoves(n.ID)
+		shown.DurationMs = spent.Milliseconds()
+		switch shown.Status {
+		case "running":
+			if !open.IsZero() {
+				shown.StartedAt = &open
+			}
+		case "waiting", "error":
+		default:
+			shown.Outcome = outcome
+		}
+		out.Nodes = append(out.Nodes, shown)
 	}
 	return out, nil
 }
@@ -250,12 +273,36 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 func (a *app) put(ctx context.Context, r *Run) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if r.Number == 0 {
+		r.Number = a.nextNumber(r)
+	}
 	if err := a.store.Save(ctx, r); err != nil {
 		return err
 	}
 	a.runs[r.ID] = r
 	a.touch(r.Workspace)
 	return nil
+}
+
+func (a *app) nextNumber(r *Run) int {
+	n := 0
+	for _, o := range a.runs {
+		if o.Workspace == r.Workspace && o.Graph == r.Graph {
+			n = max(n, o.Number)
+		}
+	}
+	return n + 1
+}
+
+func (a *app) numberRuns(ctx context.Context) {
+	runs := slices.Collect(maps.Values(a.runs))
+	slices.SortFunc(runs, func(x, y *Run) int { return cmp.Or(x.StartedAt.Compare(y.StartedAt), cmp.Compare(x.ID, y.ID)) })
+	for _, r := range runs {
+		if r.Number == 0 {
+			r.Number = a.nextNumber(r)
+			logError(a.store.Save(ctx, r))
+		}
+	}
 }
 
 func (a *app) lookup(workspace, id string) (*Run, error) {

@@ -680,16 +680,16 @@ actor FixtureServer {
 
     private var runEntries: [JSONValue] {
         guard UserDefaults.standard.bool(forKey: "runs"), mac.id == FixtureMac.studio.id else { return [] }
-        let needs: [(id: String, request: String, kind: String, text: String, ago: Double)] = [
-            (Self.stepRun, "step-squash", "permission", Self.squash, 240),
-            (Self.capRun, "cap-1", "question", "Tests → Coder ran 2 of 2 rounds", 900),
+        let needs: [(id: String, number: Double, request: String, kind: String, text: String, ago: Double)] = [
+            (Self.stepRun, 4, "step-squash", "permission", Self.squash, 240),
+            (Self.capRun, 1, "cap-1", "question", "Tests → Coder ran 2 of 2 rounds", 900),
         ]
         return needs.filter { runAnswers[$0.id] == nil }.map { need in
             var summary: [String: JSONValue] = ["kind": .string(need.kind), "text": .string(need.text), "at": Self.stamp(ago: need.ago)]
-            if need.kind == "permission" { summary["tool"] = .string("execute") }
+            if need.kind == "permission" { summary["tool"] = .string("execute"); summary["role"] = .string("Squash into main") }
             return .object([
                 "id": .string(need.id), "kind": .string("run"), "workspace": .string(runsWorkspace), "title": .string("Review gate"), "status": .string("waiting"),
-                "run": .object(["id": .string(need.id), "title": .string("Review gate")]), "pending": .array([.string(need.request)]), "pendingSummary": .object(summary),
+                "run": .object(["id": .string(need.id), "title": .string("Review gate"), "number": .number(need.number)]), "pending": .array([.string(need.request)]), "pendingSummary": .object(summary),
                 "needsYou": .bool(true), "needsYouSince": Self.stamp(ago: need.ago), "group": .string("needsYou"), "createdAt": Self.stamp(ago: need.ago), "updatedAt": Self.stamp(ago: need.ago),
             ])
         }
@@ -698,8 +698,8 @@ actor FixtureServer {
     private func shownRun(_ id: String) -> JSONValue {
         let answer = runAnswers[id]
         let stopped = answer == "reject" || answer == "stop"
-        let node = { (id: String, role: String, step: Bool, status: String, last: [String: JSONValue]?, pending: [String: JSONValue]?) -> JSONValue in
-            var fields: [String: JSONValue] = ["id": .string(id), "role": .string(role), "session": .string(step ? "" : "agt_" + id), "status": .string(status)]
+        let node = { (id: String, role: String, step: Bool, status: String, last: [String: JSONValue]?, pending: [String: JSONValue]?, extra: [String: JSONValue]) -> JSONValue in
+            var fields: [String: JSONValue] = ["id": .string(id), "role": .string(role), "session": .string(step ? "" : "agt_" + id), "status": .string(status)].merging(extra) { $1 }
             if step { fields["step"] = .bool(true) }
             if let last { fields["last"] = .object(last) }
             if let pending { fields["pending"] = .object(pending) }
@@ -718,20 +718,22 @@ actor FixtureServer {
             default: finished(Self.squash, "done", 2_100)
             }
             nodes = [
-                node("coder", "Coder", false, "done", nil, nil),
-                node("tests", "Tests", true, "pass", finished("make test", "pass", 70_000), nil),
-                node("reviewer", "Reviewer", false, "done", nil, nil),
-                node("squash", "Squash into main", true, squash["outcome"]?.stringValue ?? "waiting", squash, answer == nil ? ["command": .string(Self.squash), "dir": dir, "main": dir, "rule": .string("Bash(\(Self.squash))")] : nil),
+                node("coder", "Coder", false, "done", nil, nil, ["durationMs": .number(480_000)]),
+                node("tests", "Tests", true, "pass", finished("make test", "pass", 70_000), nil, [:]),
+                node("reviewer", "Reviewer", false, "done", nil, nil, ["outcome": .string("approved"), "durationMs": .number(180_000)]),
+                node("squash", "Squash into main", true, squash["outcome"]?.stringValue ?? "waiting", squash, answer == nil ? ["command": .string(Self.squash), "dir": dir, "main": dir, "rule": .string("Bash(\(Self.squash))")] : nil, ["command": .string(Self.squash)]),
             ]
         } else {
             if answer == nil { held = [.object(["edge": .number(1), "move": .number(6), "at": Self.stamp(ago: 900)])] }
             nodes = [
-                node("coder", "Coder", false, answer == "continue" ? "running" : "idle", nil, nil),
-                node("tests", "Tests", true, "fail", finished("make test", "fail", 52_000), nil),
+                node("coder", "Coder", false, answer == "continue" ? "running" : "idle", nil, nil, answer == "continue" ? ["startedAt": Self.stamp(ago: 0), "durationMs": .number(840_000)] : ["durationMs": .number(840_000)]),
+                node("tests", "Tests", true, "fail", finished("make test", "fail", 52_000), nil, ["command": .string("make test")]),
+                node("reviewer", "Reviewer", false, "idle", nil, nil, [:]),
+                node("squash", "Squash into main", true, "not started", nil, nil, ["command": .string(Self.squash)]),
             ]
         }
         var run: [String: JSONValue] = [
-            "id": .string(id), "graph": .string("review-gate"), "title": .string("Review gate"), "status": .string(stopped ? "stopped" : "running"),
+            "id": .string(id), "graph": .string("review-gate"), "title": .string("Review gate"), "number": .number(id == Self.stepRun ? 4 : 1), "status": .string(stopped ? "stopped" : "running"),
             "input": .string(id == Self.stepRun ? "Fix the flaky switcher test" : "Make the switcher test pass"), "turns": .number(id == Self.stepRun ? 4 : 7), "maxTurns": .number(12),
             "startedAt": Self.stamp(ago: 1_800), "edges": .array([
                 .object(["from": .string("coder"), "to": .string("tests"), "on": .string("done")]),
@@ -761,6 +763,13 @@ actor FixtureServer {
             }
         }
         let asking = sessions.count > 1 ? sessions[1]["id"] ?? .null : .null
+        let answeredAfter = UserDefaults.standard.double(forKey: "runAnsweredAfter")
+        if answeredAfter > 0, !runEntries.isEmpty {
+            Task {
+                try? await Task.sleep(for: .seconds(answeredAfter))
+                resolveRun(Self.stepRun, answer: "once")
+            }
+        }
         if !runEntries.isEmpty {
             publish("notify.posted", ["id": .string("ntf_r1"), "workspace": .string(runsWorkspace), "session": .string(Self.stepRun), "title": .string("Review gate"), "message": .string("A graph step wants to run a command"), "kind": .string("permission"), "ts": Self.stamp(ago: 240)])
         }

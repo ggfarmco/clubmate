@@ -43,6 +43,7 @@ struct RunDetailView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollPosition($position)
+        .contentMargins(.bottom, navigation.floatingMic(context.model) && request == nil ? VoiceButton.floating + 16 : 0, for: .scrollContent)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -140,10 +141,11 @@ struct RunDetailView: View {
         } message: {
             Text(failure ?? "")
         }
-        .task(id: request?.id) {
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            max(geometry.contentSize.height - geometry.containerSize.height, 0)
+        } action: { _, bottom in
             guard request != nil else { return }
-            try? await Task.sleep(for: .milliseconds(150))
-            withAnimation { position.scrollTo(edge: .bottom) }
+            position.scrollTo(y: bottom)
         }
         .task(id: runID) {
             store.watchRun(runID)
@@ -164,7 +166,7 @@ struct RunDetailView: View {
     }
 
     private func title(_ run: GraphRun?, _ entry: AgentSession?) -> String {
-        run?.title ?? entry?.displayTitle ?? "Graph Run"
+        run?.displayTitle ?? entry?.displayTitle ?? "Graph Run"
     }
 
     private func subtitle(_ run: GraphRun?, _ entry: AgentSession?) -> Text {
@@ -292,6 +294,7 @@ struct RunRequestCard: View {
     @State private var armed = false
     @State private var confirmingAlways = false
     @State private var confirmingStop = false
+    @State private var commandHeight: CGFloat = 0
 
     var body: some View {
         DockCard {
@@ -300,17 +303,11 @@ struct RunRequestCard: View {
                 case .step(_, let role, let command, let place, let rule):
                     header(symbol: nil, title: "Run a command?", detail: "\(role) · a step of \(graph)")
                     ScrollView {
-                        Text(command)
-                            .font(.callout.monospaced())
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        CommandText(text: command)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { commandHeight = $0 }
                     }
                     .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxHeight: 160)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(height: min(max(commandHeight, 44), 160))
                     .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
                     Text(blocked ?? place)
                         .font(.footnote)
@@ -354,6 +351,7 @@ struct RunRequestCard: View {
             try? await Task.sleep(for: .milliseconds(600))
             armed = true
         }
+        .focusedSceneValue(\.sessionKeys, keys)
         .sheet(isPresented: $confirmingAlways) {
             if case .step(_, let role, _, _, let rule?) = request {
                 RunAlwaysAllowSheet(rule: rule, role: role) {
@@ -371,6 +369,17 @@ struct RunRequestCard: View {
 
     private var enabled: Bool {
         blocked == nil
+    }
+
+    private var keys: SessionKeyActions {
+        switch request {
+        case .step(_, _, _, _, let rule):
+            var answers = [1: KeyedAction(label: "Allow once") { pick("once") { try await approve("once") } }, 3: KeyedAction(label: "Reject") { pick("reject") { try await approve("reject") } }]
+            if rule != nil { answers[2] = KeyedAction(label: "Always allow…") { confirmingAlways = true } }
+            return SessionKeyActions(enabled: answerable, answers: answers, send: nil)
+        case .cap(let edge, _):
+            return SessionKeyActions(enabled: answerable, answers: [:], send: KeyedAction(label: "Continue") { pick("continue") { try await proceed(edge) } })
+        }
     }
 
     private var answerable: Bool {
@@ -414,6 +423,20 @@ struct RunRequestCard: View {
     }
 }
 
+struct CommandText: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.callout.monospaced())
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct PrimaryCapsule: View {
     let title: String
     let action: () -> Void
@@ -450,7 +473,8 @@ struct RunAlwaysAllowSheet: View {
                 Text("Rule it stores")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                CodeBlock(text: rule)
+                CommandText(text: rule)
+                    .background(Color(.systemGroupedBackground), in: .rect(cornerRadius: 16))
             }
             VStack(spacing: 6) {
                 PlainCapsule(title: "Always allow", tint: .primary, action: confirm)

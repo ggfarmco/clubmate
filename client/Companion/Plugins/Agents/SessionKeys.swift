@@ -7,12 +7,15 @@ struct AlwaysAsk: Equatable {
     let nonce = UUID()
 }
 
+struct KeyedAction {
+    let label: String
+    let run: () -> Void
+}
+
 struct SessionKeyActions {
     let enabled: Bool
-    let pending: PermissionRequest?
-    let answer: (PermissionRequest, String) -> Void
-    let confirmAlways: (String) -> Void
-    let send: () -> Void
+    let answers: [Int: KeyedAction]
+    let send: KeyedAction?
 }
 
 extension FocusedValues {
@@ -36,15 +39,29 @@ struct SessionKeysModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .focusedSceneValue(\.sessionKeys, SessionKeyActions(enabled: enabled, pending: pending?.id == answered || pending?.id != armed ? nil : pending, answer: { request, option in
-                answered = request.id
-                answer(request, option)
-            }, confirmAlways: confirmAlways, send: send))
+            .focusedSceneValue(\.sessionKeys, SessionKeyActions(enabled: enabled, answers: answers, send: KeyedAction(label: "Send", run: send)))
             .task(id: pending?.id) {
                 armed = nil
                 try? await Task.sleep(for: .milliseconds(600))
                 armed = pending?.id
             }
+    }
+
+    private var answers: [Int: KeyedAction] {
+        guard let pending, pending.id != answered, pending.id == armed else { return [:] }
+        var out: [Int: KeyedAction] = [:]
+        for digit in 1...PermissionRequest.keyCount {
+            guard let option = pending.keyed(digit) else { continue }
+            out[digit] = KeyedAction(label: option.label) {
+                if option.kind == .allowAlways {
+                    confirmAlways(option.id)
+                } else {
+                    answered = pending.id
+                    answer(pending, option.id)
+                }
+            }
+        }
+        return out
     }
 }
 
@@ -53,15 +70,13 @@ struct SessionCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Session") {
-            Button("Send") { keys?.send() }
+            Button(keys?.send?.label ?? "Send") { keys?.send?.run() }
                 .keyboardShortcut(.return, modifiers: .command)
-                .disabled(keys?.enabled != true)
-            if let keys, let pending = keys.pending {
+                .disabled(keys?.enabled != true || keys?.send == nil)
+            if let keys {
                 ForEach(1...PermissionRequest.keyCount, id: \.self) { digit in
-                    if let option = pending.keyed(digit) {
-                        Button(option.label) {
-                            if option.kind == .allowAlways { keys.confirmAlways(option.id) } else { keys.answer(pending, option.id) }
-                        }
+                    if let action = keys.answers[digit] {
+                        Button(action.label, action: action.run)
                             .keyboardShortcut(KeyEquivalent(Character(String(digit))), modifiers: .option)
                             .disabled(!keys.enabled)
                     }

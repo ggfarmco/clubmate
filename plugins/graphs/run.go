@@ -31,6 +31,7 @@ type Run struct {
 	ID        string      `json:"id"`
 	Graph     string      `json:"graph"`
 	Title     string      `json:"title"`
+	Number    int         `json:"number,omitempty"`
 	Workspace string      `json:"workspace"`
 	Input     string      `json:"input,omitempty"`
 	Builtin   bool        `json:"builtin,omitempty"`

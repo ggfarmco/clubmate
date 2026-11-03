@@ -41,6 +41,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     public let group: SessionGroup
     public let active: Bool
     public let kind: String?
+    public let run: SessionRun?
     public let reviewProgress: ReviewProgress?
 
     public init(
@@ -51,7 +52,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         notify: NotificationPolicy? = nil, error: String? = nil, pending: [String] = [], notifyEffective: NotificationPolicy = .all,
         childStatus: AgentSessionStatus? = nil, pendingSummary: PendingSummary? = nil, question: String? = nil, turnStartedAt: Date? = nil, needsYou: Bool? = nil,
         needsYouSince: Date? = nil, activity: SessionActivity? = nil, failure: SessionFailure? = nil, modeLabel: String? = nil,
-        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil,
+        autoClosed: Bool = false, review: Bool = false, asksParent: Bool = false, service: Bool = false, group: SessionGroup? = nil, active: Bool = false, kind: String? = nil, run: SessionRun? = nil,
         reviewProgress: ReviewProgress? = nil
     ) {
         self.id = id
@@ -94,6 +95,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         self.group = group ?? (status == .closed ? .closed : self.needsYou ? .needsInput : service ? .service : status == .running ? .running : .idle)
         self.active = active
         self.kind = kind
+        self.run = run
         self.reviewProgress = reviewProgress
     }
 
@@ -102,7 +104,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, workspace, worktree, agent, agentSessionId, parentSession, advisor, fork, handoffFrom, handoffTo, importedFrom
         case title, titleSet, status, mode, finish, afk, createdAt, updatedAt, asks, notify, error, pending, notifyEffective, childStatus
-        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review, asksParent, service, group, active, kind, reviewProgress
+        case pendingSummary, question, turnStartedAt, needsYou, needsYouSince, activity, failure, modeLabel, autoClosed, review, asksParent, service, group, active, kind, run, reviewProgress
     }
 
     public init(from decoder: any Decoder) throws {
@@ -153,6 +155,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
             group: try c.decodeIfPresent(SessionGroup.self, forKey: .group),
             active: try flag(.active),
             kind: try optional(.kind),
+            run: try? c.decodeIfPresent(SessionRun.self, forKey: .run),
             reviewProgress: try? c.decodeIfPresent(ReviewProgress.self, forKey: .reviewProgress)
         )
     }
@@ -201,6 +204,7 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
         try c.encode(group, forKey: .group)
         try c.encode(active, forKey: .active)
         try c.encodeIfPresent(kind, forKey: .kind)
+        try c.encodeIfPresent(run, forKey: .run)
         try c.encodeIfPresent(reviewProgress, forKey: .reviewProgress)
     }
 }
@@ -293,6 +297,18 @@ public struct SessionActivity: Codable, Sendable, Hashable {
     }
 }
 
+public struct SessionRun: Codable, Sendable, Hashable {
+    public let id: String
+    public let title: String
+    public let number: Int?
+
+    public init(id: String, title: String = "", number: Int? = nil) {
+        self.id = id
+        self.title = title
+        self.number = number
+    }
+}
+
 public struct PendingSummary: Codable, Sendable, Hashable {
     public enum Kind: String, Codable, Sendable {
         case permission
@@ -302,12 +318,14 @@ public struct PendingSummary: Codable, Sendable, Hashable {
     public let kind: Kind
     public let text: String
     public let tool: String?
+    public let role: String?
     public let at: Date
 
-    public init(kind: Kind, text: String, tool: String? = nil, at: Date) {
+    public init(kind: Kind, text: String, tool: String? = nil, role: String? = nil, at: Date) {
         self.kind = kind
         self.text = text
         self.tool = tool
+        self.role = role
         self.at = at
     }
 
@@ -316,7 +334,7 @@ public struct PendingSummary: Codable, Sendable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case kind, text, tool, at
+        case kind, text, tool, role, at
     }
 
     public init(from decoder: any Decoder) throws {
@@ -326,6 +344,7 @@ public struct PendingSummary: Codable, Sendable, Hashable {
             kind: try c.decode(Kind.self, forKey: .kind),
             text: try c.decodeIfPresent(String.self, forKey: .text) ?? "",
             tool: try c.decodeIfPresent(String.self, forKey: .tool).flatMap { $0.isEmpty ? nil : $0 },
+            role: try c.decodeIfPresent(String.self, forKey: .role).flatMap { $0.isEmpty ? nil : $0 },
             at: at ?? .distantPast
         )
     }
@@ -337,6 +356,7 @@ public struct PendingSummary: Codable, Sendable, Hashable {
         try c.encode(kind, forKey: .kind)
         try c.encode(text, forKey: .text)
         try c.encodeIfPresent(tool, forKey: .tool)
+        try c.encodeIfPresent(role, forKey: .role)
         try c.encode(formatter.string(from: at), forKey: .at)
     }
 }

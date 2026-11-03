@@ -220,11 +220,13 @@ Defined by the `button` `shortcut` props in `plugins/agents/elicit_view.go`.
 |---|---|
 | ⌥1 ⌥2 ⌥3 | The pending permission card's keys from the agents plugin (`shortcut` in its `card`): ⌥1 Allow once, ⌥2 opens the Always allow confirm sheet (nothing is stored until its Always allow button), ⌥3 Reject; Always reject in ••• has no key |
 | ⌘↩ | Send the composer's message (Session menu) |
+| ⌥1 ⌥2 ⌥3 | On a graph run's screen, a step waiting for approval: ⌥1 Allow once, ⌥2 opens the Always allow confirm sheet (only when the step's command can be a rule), ⌥3 Reject |
+| ⌘↩ | On a graph run's screen held at a round cap: Continue (Session menu) |
 | ⌘F | In an open doc sheet: the system find bar (WebKit's find interaction; also the Find button in the doc's toolbar) |
 | ⌥↩, Esc | In the voice panel's confirmation of a dangerous action (any screen): Yes, No. ⌥↩ is ignored for the first 0.6 s, like a tap on Yes |
 | Esc | In the voice panel while an utterance waits its 1 s before going to the assistant (any screen): Cancel |
 
-Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`; the voice keys in `client/Companion/App/VoicePanel.swift`.
+Listed in the iPad menu bar under Session. Defined in `client/Companion/Plugins/Agents/SessionKeys.swift`, key mapping in CompanionKit `PermissionRequest.keyed`, the run card's in `RunRequestCard` (`client/Companion/Plugins/Agents/RunDetailView.swift`); the voice keys in `client/Companion/App/VoicePanel.swift`.
 
 ## Review panel (Code section, Review tab focused)
 

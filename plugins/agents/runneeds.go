@@ -22,9 +22,11 @@ const (
 type runNeed struct {
 	Run     string    `json:"run"`
 	Title   string    `json:"title"`
+	Number  int       `json:"number,omitempty"`
 	Kind    string    `json:"kind"`
 	Request string    `json:"request"`
 	Node    string    `json:"node"`
+	Role    string    `json:"role,omitempty"`
 	Edge    int       `json:"edge,omitempty"`
 	Text    string    `json:"text"`
 	Command string    `json:"command,omitempty"`
@@ -103,10 +105,10 @@ func runInfo(workspace string, n runNeed) sessionInfo {
 	since := n.Since
 	summary := &pendingSummary{Kind: pendingQuestion, Text: n.Text, At: since}
 	if n.Kind == needStep {
-		summary.Kind, summary.Text, summary.Tool = entryPermission, n.Command, toolExecute
+		summary.Kind, summary.Text, summary.Tool, summary.Role = entryPermission, n.Command, toolExecute, n.Role
 	}
 	return sessionInfo{
-		record:          record{ID: n.Run, Workspace: workspace, Title: n.Title, Status: statusWaiting, Run: &api.Run{ID: n.Run, Title: n.Title}, CreatedAt: since, UpdatedAt: since},
+		record:          record{ID: n.Run, Workspace: workspace, Title: n.Title, Status: statusWaiting, Run: &api.Run{ID: n.Run, Title: n.Title, Number: n.Number}, CreatedAt: since, UpdatedAt: since},
 		Kind:            kindRun,
 		Pending:         []string{n.Request},
 		PendingSummary:  summary,

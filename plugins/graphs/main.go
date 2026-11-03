@@ -153,6 +153,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 	for _, r := range runs {
 		a.runs[r.ID] = r
 	}
+	a.numberRuns(ctx)
 	a.mu.Unlock()
 	ready, err := h.Publish(ctx, h.PluginID()+".ready", nil)
 	if err != nil {
@@ -476,7 +477,7 @@ func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
 			continue
 		}
 		if r.Status != statusRunning {
-			if turnOver(p) && r.closeMove(n.ID, p.Turn) >= 0 {
+			if turnOver(p) && r.closeMove(n.ID, p.Turn, a.now()) >= 0 {
 				a.touch(r.Workspace)
 				logError(a.store.Save(ctx, r))
 			}

@@ -97,7 +97,7 @@ func TestEndOutcomeMoveClosesAfterStop(t *testing.T) {
 
 	live := a.runs[r.ID]
 	require.Len(t, live.Moves, 2)
-	assert.Equal(t, Move{Node: "reviewer", Cause: 0, Edge: 0, End: "approved", At: live.Moves[1].At, Turn: 2}, live.Moves[1])
+	assert.Equal(t, Move{Node: "reviewer", Cause: 0, Edge: 0, End: "approved", At: live.Moves[1].At, Turn: 2, Ended: a.now()}, live.Moves[1])
 }
 
 func TestStoppedRunShowsLastFiredEdge(t *testing.T) {
@@ -124,7 +124,7 @@ func TestOutcomeWithoutOpenMoveIsUserMove(t *testing.T) {
 
 	require.Len(t, r.Moves, 4)
 	assert.Nil(t, r.Moves[1].Fired)
-	assert.Equal(t, Move{Node: "reviewer", Cause: -1, Edge: -1, User: true, Fired: []int{1}, At: now, Turn: 2}, r.Moves[2])
+	assert.Equal(t, Move{Node: "reviewer", Cause: -1, Edge: -1, User: true, Fired: []int{1}, At: now, Turn: 2, Ended: now}, r.Moves[2])
 }
 
 func TestWaitingTurnKeepsMoveOpen(t *testing.T) {

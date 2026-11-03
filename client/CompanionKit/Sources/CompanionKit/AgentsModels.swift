@@ -20,7 +20,8 @@ extension SessionGroup {
 
 extension AgentSession {
     public var displayTitle: String {
-        title.isEmpty ? "New Session" : title
+        if title.isEmpty { return "New Session" }
+        return GraphRun.numbered(title, run?.number)
     }
 
     public var worktreeName: String {

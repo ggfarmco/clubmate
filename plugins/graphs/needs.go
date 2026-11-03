@@ -23,9 +23,11 @@ const (
 type runNeed struct {
 	Run     string    `json:"run"`
 	Title   string    `json:"title"`
+	Number  int       `json:"number,omitempty"`
 	Kind    string    `json:"kind"`
 	Request string    `json:"request"`
 	Node    string    `json:"node"`
+	Role    string    `json:"role,omitempty"`
 	Edge    int       `json:"edge,omitempty"`
 	Text    string    `json:"text"`
 	Command string    `json:"command,omitempty"`
@@ -58,14 +60,15 @@ func (r *Run) need() *runNeed {
 		if m.Step == nil || m.Step.Status != stepWaiting {
 			continue
 		}
-		pick(runNeed{Run: r.ID, Title: title, Kind: needStep, Request: "step-" + m.Node, Node: m.Node, Text: roleOf(r, m.Node) + " wants to run " + m.Step.Command, Command: m.Step.Command, Since: m.Step.WaitingAt})
+		role := roleOf(r, m.Node)
+		pick(runNeed{Run: r.ID, Title: title, Number: r.Number, Kind: needStep, Request: "step-" + m.Node, Node: m.Node, Role: role, Text: role + " wants to run " + m.Step.Command, Command: m.Step.Command, Since: m.Step.WaitingAt})
 	}
 	for _, h := range r.Held {
 		if r.Spec == nil || h.Edge >= len(r.Spec.Edges) {
 			continue
 		}
 		e := r.Spec.Edges[h.Edge]
-		pick(runNeed{Run: r.ID, Title: title, Kind: needCap, Request: "cap-" + strconv.Itoa(h.Edge), Node: e.From, Edge: h.Edge, Text: capText(r, h.Edge), Since: h.At})
+		pick(runNeed{Run: r.ID, Title: title, Number: r.Number, Kind: needCap, Request: "cap-" + strconv.Itoa(h.Edge), Node: e.From, Edge: h.Edge, Text: capText(r, h.Edge), Since: h.At})
 	}
 	return best
 }

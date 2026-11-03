@@ -16,7 +16,7 @@ import (
 func TestRunNeedsOnlyFromGraphs(t *testing.T) {
 	t.Parallel()
 	a := &app{registry: newRegistry(), uiState: newUIState()}
-	need := runNeedsArgs{Runs: []runNeed{{Run: "gr_1", Title: "Review gate", Kind: needStep, Request: "step-tests", Node: "tests", Text: "Tests wants to run make test", Command: "make test", Since: time.Unix(100, 0)}}}
+	need := runNeedsArgs{Runs: []runNeed{{Run: "gr_1", Title: "Review gate", Number: 4, Kind: needStep, Request: "step-tests", Node: "tests", Role: "Tests", Text: "Tests wants to run make test", Command: "make test", Since: time.Unix(100, 0)}}}
 	for _, cmd := range []pluginsdk.CommandRun{{ID: "agents.run-needs", WorkspaceID: "ws", Via: graphsPlugin, Agent: true}, {ID: "agents.run-needs", WorkspaceID: "ws", Via: "remote"}} {
 		_, err := a.runNeedsCommand(t.Context(), cmd, need)
 		assert.ErrorIs(t, err, errUnknownCmd)
@@ -27,7 +27,8 @@ func TestRunNeedsOnlyFromGraphs(t *testing.T) {
 	require.Len(t, infos, 1)
 	got := infos[0]
 	assert.Equal(t, []any{"gr_1", kindRun, statusWaiting, true, groupNeedsYou, []string{"step-tests"}, false}, []any{got.ID, got.Kind, got.Status, got.NeedsYou, got.Group, got.Pending, got.Active})
-	assert.Equal(t, pendingSummary{Kind: entryPermission, Text: "make test", Tool: toolExecute, At: time.Unix(100, 0)}, *got.PendingSummary)
+	assert.Equal(t, pendingSummary{Kind: entryPermission, Text: "make test", Tool: toolExecute, Role: "Tests", At: time.Unix(100, 0)}, *got.PendingSummary)
+	assert.Equal(t, api.Run{ID: "gr_1", Title: "Review gate", Number: 4}, *got.Run)
 
 	full := a.sessionRevs.page("ws", infos, "")
 	_, err = a.runNeedsCommand(t.Context(), pluginsdk.CommandRun{ID: "agents.run-needs", WorkspaceID: "ws", Via: graphsPlugin}, runNeedsArgs{})
