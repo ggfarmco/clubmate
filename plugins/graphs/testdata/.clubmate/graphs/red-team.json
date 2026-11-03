@@ -1,0 +1,17 @@
+{
+  "title": "Red team",
+  "description": "A coder, a check it can't fake, a reviewer, and a merge that must only follow a real pass.",
+  "nodes": [
+    {"id": "coder", "role": "Coder", "start": true, "prompt": "Make the check pass."},
+    {"id": "tests", "role": "Tests", "run": "sh check.sh"},
+    {"id": "reviewer", "role": "Reviewer", "prompt": "Review.", "outcomes": ["approved", "changes"]},
+    {"id": "merge", "role": "Merge", "run": "touch merged", "end": ["done"]}
+  ],
+  "edges": [
+    {"from": "coder", "to": "tests", "on": "done"},
+    {"from": "tests", "to": "coder", "on": "outcome", "outcome": "fail", "text": "The check failed:\n{{payload.output}}"},
+    {"from": "tests", "to": "reviewer", "on": "outcome", "outcome": "pass"},
+    {"from": "reviewer", "to": "merge", "on": "outcome", "outcome": "approved"},
+    {"from": "reviewer", "to": "coder", "on": "outcome", "outcome": "changes"}
+  ]
+}

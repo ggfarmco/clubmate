@@ -1,9 +1,12 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -22,18 +25,32 @@ func (memStore) Save(context.Context, *Run) error { return nil }
 func (memStore) Remove(context.Context, *Run) error { return nil }
 
 type fakeCore struct {
-	calls []automation.CommandRequest
-	next  int
+	calls     []automation.CommandRequest
+	next      int
+	worktrees string
+	errs      map[string]error
+	block     map[string]bool
 }
 
-func (f *fakeCore) run(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+func (f *fakeCore) run(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
 	f.calls = append(f.calls, req)
-	f.next++
+	if f.block[req.ID] {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	if err := f.errs[req.ID]; err != nil {
+		return nil, err
+	}
+	if req.ID != "git.worktrees" {
+		f.next++
+	}
 	switch req.ID {
 	case "agents.new":
 		return json.RawMessage(fmt.Sprintf(`{"session":"agt_%d"}`, f.next)), nil
 	case "triggers.add":
 		return json.RawMessage(fmt.Sprintf(`{"id":"tr_%d"}`, f.next)), nil
+	case "git.worktrees":
+		return json.RawMessage(cmp.Or(f.worktrees, `[]`)), nil
 	}
 	return json.RawMessage(`{}`), nil
 }
@@ -52,6 +69,22 @@ func testApp(t *testing.T, core *fakeCore) *app {
 	a.store = memStore{}
 	a.now = func() time.Time { return time.Date(2026, 10, 31, 3, 0, 0, 0, time.UTC) }
 	a.runCommand = core.run
+	a.callStep = core.run
+	kv := map[string]json.RawMessage{}
+	a.kvGet = func(_ context.Context, key string, out any) (bool, error) {
+		raw, ok := kv[key]
+		if !ok {
+			return false, nil
+		}
+		return true, json.Unmarshal(raw, out)
+	}
+	a.kvSet = func(_ context.Context, key string, v any) error {
+		raw, err := json.Marshal(v)
+		kv[key] = raw
+		return err
+	}
+	a.home = t.TempDir()
+	a.managedPath = filepath.Join(a.home, "managed.json")
 	a.render = func(context.Context, string) error { return nil }
 	a.sessions = func(context.Context, string) ([]api.Session, error) {
 		return []api.Session{{ID: "agt_boss", Worktree: "testdata"}}, nil
@@ -65,10 +98,29 @@ func testApp(t *testing.T, core *fakeCore) *app {
 
 func runGraph(t *testing.T, a *app) *Run {
 	t.Helper()
+	return runNamed(t, a, "review-loop")
+}
+
+func runNamed(t *testing.T, a *app, graph string) *Run {
+	t.Helper()
+	return runWith(t, a, graph, "add a flag")
+}
+
+func trustGraph(t *testing.T, a *app, graph string) error {
+	t.Helper()
+	_, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.trust", WorkspaceID: "ws1", Args: json.RawMessage(`{"graph":"` + graph + `"}`)})
+	return err
+}
+
+func runWith(t *testing.T, a *app, graph, input string) *Run {
+	t.Helper()
+	require.NoError(t, trustGraph(t, a, graph))
+	args, err := json.Marshal(runArgs{Graph: graph, Input: input})
+	require.NoError(t, err)
 	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{
 		ID:          "graphs.run",
 		WorkspaceID: "ws1",
-		Args:        json.RawMessage(`{"graph":"review-loop","input":"add a flag"}`),
+		Args:        args,
 		Agent:       true,
 		Caller:      "agt_boss",
 	})
@@ -112,6 +164,29 @@ func TestRunInstantiatesGraph(t *testing.T) {
 	assert.Contains(t, toReviewer.Text, "Its last reply (possibly cut; the whole transcript is in the clubmate tool agents_transcript {\"session\":\"agt_1\"}):\n\n{{payload.reply}}")
 	assert.Equal(t, "agt_1", kickoff.Session)
 	assert.Contains(t, kickoff.Text, "Task: add a flag")
+}
+
+func TestRunCreatesNoSessionOrTriggerForSteps(t *testing.T) {
+	core := &fakeCore{}
+	a := testApp(t, core)
+	r := runNamed(t, a, "gate")
+	assert.Equal(t, []string{"agents.new", "agents.new", "triggers.add", "agents.prompt"}, slices.DeleteFunc(core.ids(), func(id string) bool { return id == "git.worktrees" }))
+	assert.JSONEq(t, `true`, string(mustField(t, called(core, "agents.new")[0], "afk")))
+	assert.Empty(t, r.node("tests").Session)
+	assert.True(t, r.node("tests").Step)
+	assert.True(t, r.Edges[0].Owned)
+	assert.Empty(t, r.Edges[0].Trigger)
+	assert.False(t, r.Edges[5].Owned)
+	assert.NotEmpty(t, r.Edges[5].Trigger)
+	assert.Equal(t, 50, r.MaxSteps)
+}
+
+func mustField(t *testing.T, raw json.RawMessage, key string) json.RawMessage {
+	t.Helper()
+	var m map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &m))
+	require.Contains(t, m, key)
+	return m[key]
 }
 
 func TestDoneEdgeLeavesQuestionsToAsksEdge(t *testing.T) {
@@ -158,7 +233,7 @@ func TestRunStopsAtTurnBudget(t *testing.T) {
 	core.calls = nil
 
 	for range r.MaxTurns {
-		a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2"})
+		a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2"}, agentsSource)
 	}
 
 	assert.Equal(t, statusStopped, a.runs[r.ID].Status)
@@ -173,10 +248,10 @@ func TestEndOutcomeFinishesRun(t *testing.T) {
 	core.calls = nil
 	topic := eventPrefix + r.outcomeEvent("reviewer")
 
-	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Topic: topic, Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_1","outcome":"approved"}`)})
+	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Source: triggersSource, Topic: topic, Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_1","outcome":"approved"}`)})
 	assert.Equal(t, statusRunning, a.runs[r.ID].Status)
 
-	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Topic: topic, Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"approved"}`)})
+	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Source: triggersSource, Topic: topic, Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"approved"}`)})
 	assert.Equal(t, statusStopped, a.runs[r.ID].Status)
 	assert.Equal(t, "reviewer reported approved", a.runs[r.ID].Reason)
 	assert.Equal(t, []string{"triggers.delete", "triggers.delete", "triggers.delete"}, core.ids())

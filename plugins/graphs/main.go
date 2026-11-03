@@ -40,27 +40,41 @@ const (
 var errNotYours = errors.New("this run was not started by this agent session or its child sessions")
 
 type app struct {
-	mu         sync.Mutex
-	renderMu   sync.Mutex
-	runs       map[string]*Run
-	dirty      map[string]bool
-	drafts     map[string]draft
-	starting   map[string]string
-	collapsed  map[string]map[string]bool
-	lastSeq    atomic.Int64
-	subs       map[string]string
-	store      automation.Storage[*Run]
-	host       *pluginsdk.Host
-	ready      chan struct{}
-	now        func() time.Time
-	runCommand func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
-	sessions   func(ctx context.Context, workspace string) ([]api.Session, error)
-	workspace  func(ctx context.Context, workspace string) (pluginsdk.Workspace, error)
-	workspaces func(ctx context.Context) ([]pluginsdk.Workspace, error)
-	render     func(ctx context.Context, workspace string) error
-	choose     func(ctx context.Context, workspace, id string) error
-	revealTurn func(ctx context.Context, workspace, session string, turn int) error
-	selectTrig func(ctx context.Context, workspace, trigger string) error
+	mu          sync.Mutex
+	renderMu    sync.Mutex
+	runs        map[string]*Run
+	dirty       map[string]bool
+	drafts      map[string]draft
+	starting    map[string]string
+	collapsed   map[string]map[string]bool
+	lastSeq     atomic.Int64
+	subs        map[string]string
+	store       automation.Storage[*Run]
+	host        *pluginsdk.Host
+	ready       chan struct{}
+	now         func() time.Time
+	runCommand  func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
+	sessions    func(ctx context.Context, workspace string) ([]api.Session, error)
+	workspace   func(ctx context.Context, workspace string) (pluginsdk.Workspace, error)
+	workspaces  func(ctx context.Context) ([]pluginsdk.Workspace, error)
+	render      func(ctx context.Context, workspace string) error
+	choose      func(ctx context.Context, workspace, id string) error
+	revealTurn  func(ctx context.Context, workspace, session string, turn int) error
+	proc        procRunner
+	spawn       func(f func())
+	pending     map[string]pendingStep
+	callStep    func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error)
+	kvGet       func(ctx context.Context, key string, out any) (bool, error)
+	kvSet       func(ctx context.Context, key string, v any) error
+	cancels     map[string]context.CancelFunc
+	roots       func(ctx context.Context, workspace string) ([]pluginsdk.ProcessRoot, error)
+	kill        func(ctx context.Context, req pluginsdk.KillRequest) error
+	register    func(ctx context.Context, workspace string, pid int, label string)
+	unregister  func(ctx context.Context, pid int)
+	home        string
+	managedPath string
+	publish     func(ctx context.Context, topic string, payload any) error
+	selectTrig  func(ctx context.Context, workspace, trigger string) error
 }
 
 type draft struct {
@@ -98,6 +112,22 @@ func newApp() *app {
 	a.render = a.renderWorkspace
 	a.choose = a.storeSelected
 	a.revealTurn = a.revealSession
+	a.proc = shellRunner{grace: 5 * time.Second}
+	a.pending = map[string]pendingStep{}
+	a.callStep = func(ctx context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+		return automation.CallCommand(ctx, a.host, req)
+	}
+	a.kvGet = a.storageGet
+	a.kvSet = a.storageSet
+	a.cancels = map[string]context.CancelFunc{}
+	a.roots = a.processRoots
+	a.kill = a.killProcesses
+	a.register = a.registerProcess
+	a.unregister = a.unregisterProcess
+	a.home, _ = os.UserHomeDir()
+	a.managedPath = managedPath
+	a.spawn = func(f func()) { go f() }
+	a.publish = a.publishEvent
 	a.selectTrig = a.selectTrigger
 	return a
 }
@@ -125,6 +155,7 @@ func (a *app) init(ctx context.Context, h *pluginsdk.Host) error {
 			return err
 		}
 	}
+	a.recoverSteps(ctx)
 	close(a.ready)
 	a.renderAll(ctx)
 	return nil
@@ -141,7 +172,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	case api.TopicTurn:
 		var p api.Turn
 		if decode(ev, &p) {
-			a.countTurn(ctx, p)
+			a.countTurn(ctx, p, ev.Source)
 		}
 	case api.TopicChanged:
 		var p api.Changed
@@ -164,7 +195,7 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 	default:
 		var p outcomePayload
 		if run, node, ok := parseOutcomeTopic(ev.Topic); ok && decode(ev, &p) {
-			a.reportOutcome(ctx, run, node, p)
+			a.reportOutcome(ctx, run, node, p, ev.Source)
 		}
 	}
 }
@@ -371,6 +402,9 @@ func (a *app) openGraph(ctx context.Context, ev pluginsdk.UIEvent, id string) er
 		return fmt.Errorf("%w: action %q", agentcall.ErrUnknownCommand, ev.Action)
 	}
 	n := r.node(node)
+	if n != nil && n.Step {
+		return nil
+	}
 	if n == nil || n.Session == "" {
 		return fmt.Errorf("graph run %q has no session for node %q", id, node)
 	}
@@ -395,9 +429,13 @@ func (a *app) revealSession(ctx context.Context, workspace, session string, turn
 	return agentcall.RevealTurn(ctx, a.host, workspace, session, turn)
 }
 
-func (a *app) countTurn(ctx context.Context, p api.Turn) {
+func (a *app) countTurn(ctx context.Context, p api.Turn, source string) {
+	if source != agentsSource {
+		return
+	}
 	a.mu.Lock()
 	var spent []*Run
+	var owed []delivery
 	for _, r := range a.runs {
 		n := r.nodeBySession(p.Session)
 		if r.Workspace != p.Workspace || n == nil {
@@ -410,8 +448,10 @@ func (a *app) countTurn(ctx context.Context, p api.Turn) {
 			}
 			continue
 		}
+		before := len(r.Moves)
 		r.Turns++
 		r.endTurn(p, a.now())
+		owed = append(owed, r.owedSince(before, ownedCause{Reply: p.Reply})...)
 		a.touch(r.Workspace)
 		if r.Turns >= r.MaxTurns {
 			r.stop(fmt.Sprintf(reasonBudget, r.MaxTurns), a.now())
@@ -421,13 +461,18 @@ func (a *app) countTurn(ctx context.Context, p api.Turn) {
 	}
 	a.mu.Unlock()
 	for _, r := range spent {
-		x := &runner{call: a.runCommand, run: r}
-		logError(errors.Join(x.unwind(ctx)...))
+		a.finish(ctx, r)
+	}
+	for _, d := range owed {
+		a.deliver(ctx, d)
 	}
 	a.flush(ctx)
 }
 
-func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcomePayload) {
+func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcomePayload, source string) {
+	if source != triggersSource {
+		return
+	}
 	a.mu.Lock()
 	r := a.runs[runID]
 	if r == nil || r.Workspace != p.Workspace || r.Status != statusRunning || r.Spec == nil {
@@ -435,11 +480,13 @@ func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcome
 		return
 	}
 	n, spec := r.node(nodeID), r.Spec.node(nodeID)
-	if n == nil || spec == nil || n.Session != p.By {
+	if n == nil || spec == nil || spec.step() || p.By == "" || n.Session != p.By {
 		a.mu.Unlock()
 		return
 	}
+	before := len(r.Moves)
 	r.outcome(nodeID, p.Outcome, a.now())
+	owed := r.owedSince(before, ownedCause{Outcome: p.Outcome})
 	var ended *Run
 	if slices.Contains(spec.End, p.Outcome) {
 		r.stop(fmt.Sprintf(reasonEnd, nodeID, p.Outcome), a.now())
@@ -449,8 +496,10 @@ func (a *app) reportOutcome(ctx context.Context, runID, nodeID string, p outcome
 	logError(a.store.Save(ctx, r))
 	a.mu.Unlock()
 	if ended != nil {
-		x := &runner{call: a.runCommand, run: ended}
-		logError(errors.Join(x.unwind(ctx)...))
+		a.finish(ctx, ended)
+	}
+	for _, d := range owed {
+		a.deliver(ctx, d)
 	}
 	a.flush(ctx)
 }
@@ -550,12 +599,17 @@ func (a *app) checkCaller(ctx context.Context, p api.Changed) {
 		}
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
+	var stopped []string
 	for _, r := range a.runs {
 		if r.Workspace == p.Workspace && r.Status == statusRunning && r.Caller == p.Session {
 			r.stop(reasonCaller, a.now())
 			logError(a.store.Save(ctx, r))
+			stopped = append(stopped, r.ID)
 		}
+	}
+	a.mu.Unlock()
+	for _, id := range stopped {
+		a.cancelSteps(ctx, id)
 	}
 }
 
@@ -569,14 +623,20 @@ func (a *app) dropWorkspace(ctx context.Context, workspace string) {
 		return
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
+	var dropped []string
 	for id, r := range a.runs {
 		if r.Workspace == workspace {
 			delete(a.runs, id)
 			logError(a.store.Remove(ctx, r))
+			dropped = append(dropped, id)
+			removeOutput(id)
 		}
 	}
 	delete(a.dirty, workspace)
+	a.mu.Unlock()
+	for _, id := range dropped {
+		a.cancelSteps(ctx, id)
+	}
 }
 
 func (a *app) graphDirs(ctx context.Context, workspace string, agent bool, caller string) ([]string, error) {

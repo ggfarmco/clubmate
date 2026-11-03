@@ -1,0 +1,19 @@
+{
+  "title": "Review gate",
+  "description": "A coder implements, tests run, a reviewer reviews, then the branch is squashed into main.",
+  "maxTurns": 12,
+  "nodes": [
+    {"id": "coder", "role": "Coder", "start": true, "afk": true, "prompt": "Implement the task in this worktree with tests and commit. Task: {{input}}"},
+    {"id": "tests", "role": "Tests", "run": "make test", "in": "coder", "exits": {"3": "flaky"}},
+    {"id": "reviewer", "role": "Reviewer", "prompt": "Review the latest commits of session {{node.coder}}. Do not edit code.", "outcomes": ["approved", "changes"]},
+    {"id": "merge", "role": "Squash into main", "run": "git merge --squash x", "in": "main", "end": ["done"]}
+  ],
+  "edges": [
+    {"from": "coder", "to": "tests", "on": "done"},
+    {"from": "tests", "to": "coder", "on": "outcome", "outcome": "fail", "maxFires": 2, "text": "Tests failed:\n{{payload.output}}\nFix them and commit."},
+    {"from": "tests", "to": "reviewer", "on": "outcome", "outcome": "pass"},
+    {"from": "tests", "to": "coder", "on": "outcome", "outcome": "flaky"},
+    {"from": "reviewer", "to": "merge", "on": "outcome", "outcome": "approved"},
+    {"from": "reviewer", "to": "coder", "on": "outcome", "outcome": "changes"}
+  ]
+}

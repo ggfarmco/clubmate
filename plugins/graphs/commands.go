@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"path/filepath"
 	"slices"
 
 	"clubmate/pkg/pluginsdk"
@@ -41,8 +43,9 @@ type shownRun struct {
 
 type shownNode struct {
 	RunNode
-	Title  string `json:"title,omitempty"`
-	Status string `json:"status"`
+	Title  string    `json:"title,omitempty"`
+	Status string    `json:"status"`
+	Last   *StepMove `json:"last,omitempty"`
 }
 
 func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.CommandRun) (any, error) {
@@ -66,6 +69,12 @@ func (a *app) command(ctx context.Context, _ *pluginsdk.Host, cmd pluginsdk.Comm
 		return nil, err
 	case "graphs.reveal":
 		return nil, a.reveal(ctx, cmd)
+	case "graphs.approve":
+		return nil, a.approveStep(ctx, cmd)
+	case "graphs.continue":
+		return nil, a.continueEdge(ctx, cmd)
+	case "graphs.trust":
+		return nil, a.trustGraph(ctx, cmd)
 	}
 	return nil, fmt.Errorf("%w: %q", agentcall.ErrUnknownCommand, cmd.ID)
 }
@@ -76,6 +85,17 @@ func (a *app) list(ctx context.Context, cmd pluginsdk.CommandRun) (listResult, e
 		return listResult{}, err
 	}
 	res := listResult{Graphs: listGraphs(dirs)}
+	for i := range res.Graphs {
+		f := &res.Graphs[i]
+		if f.Error != "" || f.Builtin {
+			continue
+		}
+		if g, _, err := loadGraph(dirs, f.Name); err == nil {
+			f.Hash = stepsHash(g)
+			f.Untrusted, f.Changed, err = a.trustState(ctx, cmd.WorkspaceID, filepath.Dir(filepath.Dir(filepath.Dir(f.Path))), g, false)
+			logError(err)
+		}
+	}
 	for _, r := range a.workspaceRuns(cmd.WorkspaceID) {
 		res.Runs = append(res.Runs, runRow{
 			ID:        r.ID,
@@ -109,11 +129,18 @@ func (a *app) start(ctx context.Context, cmd pluginsdk.CommandRun) (*Run, error)
 	if err != nil {
 		return nil, err
 	}
+	switch untrusted, _, err := a.trustState(ctx, cmd.WorkspaceID, graphDir(dirs, args.Graph), g, builtin); {
+	case err != nil:
+		return nil, err
+	case untrusted:
+		return nil, fmt.Errorf(errUntrusted, args.Graph)
+	}
 	r, err := newRun(g, cmd.WorkspaceID, args.Input, cmd.Agent, caller, a.now())
 	if err != nil {
 		return nil, err
 	}
 	r.Builtin = builtin
+	r.Dir = graphDir(dirs, args.Graph)
 	x := &runner{call: a.runCommand, run: r}
 	if err := x.start(ctx, g); err != nil {
 		cleanup := context.WithoutCancel(ctx)
@@ -154,6 +181,11 @@ func (a *app) show(ctx context.Context, cmd pluginsdk.CommandRun) (shownRun, err
 	r.Spec = nil
 	out := shownRun{Run: r}
 	for _, n := range r.Nodes {
+		if n.Step {
+			last := r.lastStep(n.ID)
+			out.Nodes = append(out.Nodes, shownNode{RunNode: n, Status: stepStatus(last), Last: last})
+			continue
+		}
 		s := sessions[n.Session]
 		out.Nodes = append(out.Nodes, shownNode{RunNode: n, Title: s.Title, Status: nodeStatus(s, sessions != nil)})
 	}
@@ -178,6 +210,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 			return nil, err
 		}
 	}
+	defer a.cancelSteps(context.WithoutCancel(ctx), r.ID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	live, ok := a.runs[r.ID]
@@ -187,6 +220,7 @@ func (a *app) stopRun(ctx context.Context, cmd pluginsdk.CommandRun, forget bool
 	if forget {
 		delete(a.runs, r.ID)
 		a.touch(r.Workspace)
+		removeOutput(r.ID)
 		return nil, a.store.Remove(ctx, live)
 	}
 	if live.Status == statusRunning {
@@ -257,7 +291,13 @@ func cloneRun(r *Run) *Run {
 	c.Moves = slices.Clone(r.Moves)
 	for i := range c.Moves {
 		c.Moves[i].Fired = slices.Clone(c.Moves[i].Fired)
+		if st := c.Moves[i].Step; st != nil {
+			copied := *st
+			c.Moves[i].Step = &copied
+		}
 	}
+	c.Held = slices.Clone(r.Held)
+	c.Extra = maps.Clone(r.Extra)
 	return &c
 }
 

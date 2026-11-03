@@ -28,30 +28,36 @@ const (
 var errInputPlaceholder = errors.New("input: must not contain {{")
 
 type Run struct {
-	ID        string     `json:"id"`
-	Graph     string     `json:"graph"`
-	Title     string     `json:"title"`
-	Workspace string     `json:"workspace"`
-	Input     string     `json:"input,omitempty"`
-	Builtin   bool       `json:"builtin,omitempty"`
-	Agent     bool       `json:"agent,omitempty"`
-	Caller    string     `json:"caller,omitempty"`
-	Status    string     `json:"status"`
-	Reason    string     `json:"reason,omitempty"`
-	MaxTurns  int        `json:"maxTurns"`
-	Turns     int        `json:"turns"`
-	StartedAt time.Time  `json:"startedAt"`
-	StoppedAt *time.Time `json:"stoppedAt,omitempty"`
-	Nodes     []RunNode  `json:"nodes"`
-	Edges     []RunEdge  `json:"edges"`
-	Moves     []Move     `json:"moves,omitempty"`
-	Spec      *Graph     `json:"spec,omitempty"`
+	ID        string      `json:"id"`
+	Graph     string      `json:"graph"`
+	Title     string      `json:"title"`
+	Workspace string      `json:"workspace"`
+	Input     string      `json:"input,omitempty"`
+	Builtin   bool        `json:"builtin,omitempty"`
+	Dir       string      `json:"dir,omitempty"`
+	Agent     bool        `json:"agent,omitempty"`
+	Caller    string      `json:"caller,omitempty"`
+	Status    string      `json:"status"`
+	Reason    string      `json:"reason,omitempty"`
+	MaxTurns  int         `json:"maxTurns"`
+	Turns     int         `json:"turns"`
+	MaxSteps  int         `json:"maxSteps,omitempty"`
+	Steps     int         `json:"steps,omitempty"`
+	StartedAt time.Time   `json:"startedAt"`
+	StoppedAt *time.Time  `json:"stoppedAt,omitempty"`
+	Nodes     []RunNode   `json:"nodes"`
+	Edges     []RunEdge   `json:"edges"`
+	Moves     []Move      `json:"moves,omitempty"`
+	Held      []HeldEdge  `json:"held,omitempty"`
+	Extra     map[int]int `json:"extra,omitempty"`
+	Spec      *Graph      `json:"spec,omitempty"`
 }
 
 type RunNode struct {
 	ID        string `json:"id"`
 	Role      string `json:"role"`
 	Start     bool   `json:"start,omitempty"`
+	Step      bool   `json:"step,omitempty"`
 	Session   string `json:"session"`
 	HandedOff bool   `json:"handedOff,omitempty"`
 }
@@ -61,12 +67,14 @@ type RunEdge struct {
 	To      string `json:"to"`
 	On      string `json:"on"`
 	Outcome string `json:"outcome,omitempty"`
-	Trigger string `json:"trigger"`
+	Owned   bool   `json:"owned,omitempty"`
+	Trigger string `json:"trigger,omitempty"`
 }
 
 type newArgs struct {
 	Title    string         `json:"title"`
 	Branch   string         `json:"branch,omitempty"`
+	Afk      bool           `json:"afk,omitempty"`
 	Run      string         `json:"run"`
 	RunTitle string         `json:"runTitle"`
 	RunAfter []api.RunAfter `json:"runAfter,omitempty"`
@@ -128,6 +136,7 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 		Caller:    caller,
 		Status:    statusRunning,
 		MaxTurns:  g.maxTurns(),
+		MaxSteps:  g.maxSteps(),
 		StartedAt: now,
 		Spec:      g,
 	}
@@ -144,17 +153,20 @@ func newRun(g *Graph, workspace, input string, agent bool, caller string, now ti
 func runShape(g *Graph) *Run {
 	r := &Run{Graph: g.Name, Title: graphTitle(g), Spec: g}
 	for _, n := range g.Nodes {
-		r.Nodes = append(r.Nodes, RunNode{ID: n.ID, Role: n.label(), Start: n.Start})
+		r.Nodes = append(r.Nodes, RunNode{ID: n.ID, Role: n.label(), Start: n.Start, Step: n.step()})
 	}
 	for _, e := range g.Edges {
-		r.Edges = append(r.Edges, RunEdge{From: e.From, To: e.To, On: e.On, Outcome: e.Outcome})
+		r.Edges = append(r.Edges, RunEdge{From: e.From, To: e.To, On: e.On, Outcome: e.Outcome, Owned: g.owned(e)})
 	}
 	return r
 }
 
 func (x *runner) start(ctx context.Context, g *Graph) error {
 	for i, n := range g.Nodes {
-		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
+		if n.step() {
+			continue
+		}
+		args := newArgs{Title: x.run.Title + " · " + n.label(), Branch: x.render(n.Branch), Afk: n.Afk, Run: x.run.ID, RunTitle: cmp.Or(x.run.Title, x.run.Graph), RunAfter: g.after(n.ID)}
 		var out newResult
 		if err := x.do(ctx, "agents.new", args, &out); err != nil {
 			return fmt.Errorf("start node %s: %w", n.ID, err)
@@ -162,6 +174,9 @@ func (x *runner) start(ctx context.Context, g *Graph) error {
 		x.run.Nodes[i].Session = out.Session
 	}
 	for i, e := range g.Edges {
+		if g.owned(e) {
+			continue
+		}
 		args, err := x.edgeTrigger(g, e)
 		if err != nil {
 			return err
@@ -194,6 +209,9 @@ func (x *runner) kickoff(ctx context.Context, g *Graph) error {
 func (x *runner) repoint(ctx context.Context) []error {
 	var errs []error
 	for i, e := range x.run.Spec.Edges {
+		if x.run.Spec.owned(e) {
+			continue
+		}
 		args, err := x.edgeTrigger(x.run.Spec, e)
 		if err == nil {
 			err = x.do(ctx, "triggers.update", updateArgs{ID: x.run.Edges[i].Trigger, Match: args.Match, Args: args.Args}, nil)
@@ -250,11 +268,7 @@ func (x *runner) edgeTrigger(g *Graph, e Edge) (triggerArgs, error) {
 	if text == "" {
 		text = x.defaultEdgeText(from, e)
 	}
-	if target := g.node(e.To); !target.Start || to.HandedOff {
-		text = x.brief(target) + "\n\n" + text
-	} else {
-		text = x.header(target) + "\n\n" + text
-	}
+	text = x.wrap(g, e.To, text)
 	matchText, err := json.Marshal(match)
 	if err != nil {
 		return triggerArgs{}, err
@@ -305,7 +319,11 @@ func (x *runner) brief(n *Node) string {
 	b.WriteString(x.render(n.Prompt))
 	var peers []string
 	for _, rn := range x.run.Nodes {
-		if rn.ID != n.ID {
+		switch {
+		case rn.ID == n.ID:
+		case rn.Step:
+			peers = append(peers, fmt.Sprintf("%s (%s) is a step Clubmate runs", rn.ID, rn.Role))
+		default:
 			peers = append(peers, fmt.Sprintf("%s (%s) is session %s", rn.ID, rn.Role, rn.Session))
 		}
 	}
@@ -418,7 +436,7 @@ func (r *Run) nodeBySession(session string) *RunNode {
 }
 
 func (r *Run) stop(reason string, now time.Time) {
-	r.Status, r.Reason, r.StoppedAt = statusStopped, reason, &now
+	r.Status, r.Reason, r.StoppedAt, r.Held = statusStopped, reason, &now, nil
 }
 
 func graphTitle(g *Graph) string {

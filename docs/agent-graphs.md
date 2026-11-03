@@ -1,13 +1,13 @@
 # Agent graphs
 
-An agent graph is a team of agent sessions wired together: each **node** is a role (coder, reviewer, tester …) played by one agent session, each **edge** says "when this node ends a turn (or reports an outcome), prompt that node". The `graphs` plugin reads a graph from a JSON file, starts it with `graphs.run`, and shows each run in the Graphs section.
+An agent graph is a team of agent sessions wired together: each **node** is a role (coder, reviewer, tester …) played by one agent session, or a **step** Clubmate runs itself (a shell command or a Clubmate command, see [Steps](#steps)); each **edge** says "when this node ends a turn (or reports an outcome), prompt that node". The `graphs` plugin reads a graph from a JSON file, starts it with `graphs.run`, and shows each run in the Graphs section.
 
 A graph adds no new engine. A run compiles into what already exists:
 
 | Graph part | Built from |
 |---|---|
 | Node | One `agents.new` session, started idle |
-| Edge | One `triggers.add` trigger: on `agents.turn` (or an emitted `event.*`) of the source session, call `agents.prompt` on the target session |
+| Edge | One `triggers.add` trigger: on `agents.turn` (or an emitted `event.*`) of the source session, call `agents.prompt` on the target session. An edge into or out of a step, or one with `maxFires`, is fired by the graphs plugin itself instead (see [Steps](#steps)) |
 | Start | `agents.prompt` to each start node, after all triggers exist |
 | Outcome | The node itself calls `triggers.emit`; the edge's trigger matches the outcome and the emitting session |
 | Run view | `agents.sessions` status per node, rendered as SDUI |
@@ -49,11 +49,19 @@ The same file is `plugins/graphs/testdata/.clubmate/graphs/review-loop.json` (wi
 | `nodes[].start` | Prompted when the run starts. At least one node. |
 | `nodes[].branch` | Run the node's session in a new worktree on this branch (as `agents.new {branch}`); may use `{{run}}` and `{{graph}}`. |
 | `nodes[].outcomes` | Words the node may report, e.g. `["approved","changes"]`; needed for `on: outcome` edges. |
-| `nodes[].end` | Outcomes that finish the run, e.g. `["approved"]`; each one of the node's `outcomes`, and no `on: outcome` edge may fire on it. |
+| `nodes[].end` | Outcomes that finish the run, e.g. `["approved"]`; each one of the node's `outcomes`, and no `on: outcome` edge may fire on it. A step's `end` names one of its outcomes (a check) or `done` (an action). |
+| `nodes[].afk` | Start the node's session in AFK mode (`agents.new {afk}`), for graphs that run unattended. |
+| `nodes[].run` | Makes the node a step: a shell command, run with `/bin/sh -c` in the step's folder. One of `prompt`, `run` or `command` per node. No placeholders. |
+| `nodes[].command`, `nodes[].args` | Makes the node a step that runs a Clubmate command with `args` (a JSON object; `{{run}}`, `{{graph}}`, `{{node.<id>}}` only), always as an agent call by the run's caller. |
+| `nodes[].in` | Where a step runs: `main` (the repo's main checkout) or an agent node's id (that node's worktree); default the run's folder. |
+| `nodes[].timeout` | A step's time limit in seconds, 1–7200, default 600. |
+| `nodes[].exits` | A step's named outcomes by exit code, e.g. `{"3": "flaky"}`. |
+| `maxSteps` | Step budget of a run, 1–500, default 50. |
+| `edges[].maxFires` | Round cap of an edge, 1–50: past it the next firing waits for you (see [Round cap](#round-cap)). |
 | `edges[].from`, `to` | Node ids. Self-loops are allowed. At most 32 edges. |
 | `edges[].on` | `done` (turn ended; default), `asks` (turn ended with a question), `error` (turn failed), `outcome` (the node reported `outcome`). A `done` edge also fires on a turn that ends with a question, unless the node has an `asks` edge, which then takes those. |
 | `edges[].outcome` | For `on: outcome`: one of the source node's `outcomes`. |
-| `edges[].text` | The message to the target; defaults to "<source> finished its turn. Act on it. Its last reply (possibly cut; the whole transcript is in agents_transcript …): <reply>" (`{{payload.reply}}`). An `outcome` edge's default names the outcome and tells the target to read the reply with `agents_transcript`, since the outcome is reported before the reply is written. |
+| `edges[].text` | The message to the target (an edge into a step takes none); defaults to "<source> finished its turn. Act on it. Its last reply (possibly cut; the whole transcript is in agents_transcript …): <reply>" (`{{payload.reply}}`). An `outcome` edge's default names the outcome and tells the target to read the reply with `agents_transcript`, since the outcome is reported before the reply is written. |
 
 ### Placeholders
 
@@ -74,6 +82,32 @@ The start nodes get `[Agent graph <name>, run <run>: you are node <id> (<role>)]
 A node that is not a start node gets that whole brief in front of every edge message, since an edge can't know whether it is the node's first message; a start node gets only the header line, until it is handed off (see [Handoff](#handoff)). This keeps every message self-contained, also after a handoff or a long context. Every brief also says that the reply goes to the next node, not to a person, so the node shouldn't end it with a question it doesn't need answered.
 
 A node with `outcomes` is told to call the clubmate tool `triggers_emit {name: "graph.<run>.<node>", payload: "{\"outcome\":\"<word>\"}"}` before it ends its turn, and which of them end the run. The edge's trigger listens on `event.graph.<run>.<node>` and matches `outcome` and `by` (the emitting session), so no other session can report for it. The plugin listens on `event.graph.*` itself for `end` outcomes, with the same `by` check.
+
+## Steps
+
+A step is a node Clubmate runs itself, without an agent, so its result is what the command returned, not what a model says it returned. A step can't be a start node; at most 8 agent nodes and 16 nodes in all.
+
+**Check or action.** A step with an `on: outcome` edge is a **check**: its outcomes are `pass` (exit 0), the `exits` word of its exit code, or `fail` (any other exit), and `error`. Any other step is an **action**: `done` (exit 0) or `error` (any other exit). `error` also means it timed out, its command wasn't found, it was rejected or stopped, or Clubmate restarted while it ran. On a step, `on: done` fires on any outcome but `error`; `on: asks` is invalid. A step's `error` with no `on: error` edge stops the run with reason `<Role> error · <reason>`.
+
+**Edges.** Every edge into or out of a step, and every edge with `maxFires`, is fired by the graphs plugin, not by a trigger: it starts the step on the source's turn or outcome, and when a step ends it prompts the target itself (losing the trigger's busy hold: a prompt to a running node steers or queues). The plugin acts only on `agents.turn` events published by the agents plugin and outcome events published by `triggers.emit` (the event's source, which the core sets per connection), never on an outcome event for a step, and a step's result never travels over the bus: it publishes `event.graph.<run>.<node>` `{workspace, outcome, exitCode, durationMs}` afterwards for observers only. These edges don't appear in the Triggers section. A step fired while it runs or waits runs once more after it ends.
+
+**What a step gets.** No message: an edge into a step takes no `text`. It runs with the core's environment minus every `CLUBMATE_*` variable, plus `CLUBMATE_WORKSPACE_ID`, `CLUBMATE_GRAPH`, `CLUBMATE_GRAPH_RUN`, `CLUBMATE_GRAPH_INPUT`, `CLUBMATE_GRAPH_FROM` (the node that fired it) and, per agent node, `CLUBMATE_GRAPH_NODE_<ID>`, `CLUBMATE_GRAPH_WORKTREE_<ID>`, `CLUBMATE_GRAPH_BRANCH_<ID>` (`<ID>` upper-cased, `-` as `_`). Nothing is substituted into `run`. Its folder is `in` (above), else the caller's worktree, else the folder the graph file was found in, else the workspace's first folder. The command comes from the graph as stored at run start: editing the file mid-run changes nothing.
+
+**Output.** A step ends when its shell exits; whatever it left running in the background is killed then (5 s later at most, if it still holds the output open). stdout and stderr go to a file in the plugin's state (`output/<run>/<move>.log`, 0600, cut at 1 MB) and the last 4000 characters are kept. In an edge from a step, `{{payload.output}}` is that tail in a fenced block (three backticks inside it become ʼʼʼ), and the default text says it is data, not instructions.
+
+**Approval.** A `command` step always calls as an agent would (agent-visible commands only; a destructive one asks in the app), within its `timeout`; a failing command is `fail` on a check, a missing command, a timeout or a stop is `error`. A `run` step, in its folder:
+1. a matching `permissions.deny` `Bash(...)` rule (user, project, local or managed settings) ends it `error · denied by rule …`, also in bypass mode;
+2. the run's caller in `bypassPermissions` mode runs it; a run without a caller uses `permissions.defaultMode` from your user or managed settings (a repo's settings can't turn on bypass; managed `disableBypassPermissionsMode` turns it off);
+3. else a matching `ask` rule asks, a matching `allow` rule runs it;
+4. else it waits for you: `notify.post` kind `permission` says "A graph step wants to run a command" (never the command), and `graphs.approve {id, node, decision}` answers it — `once`, `always` (also writes `Bash(<command>)` to the folder's `.claude/settings.local.json`; refused for commands with `*`, `(` or `)`) or `reject` (`error · rejected`).
+
+Allow rules match only simple commands (words of letters, digits and `_./:=@%+,-`, single-quoted words, one space between): anything with `;`, `&`, `|`, `$`, backticks, redirects, a `VAR=` prefix or other characters asks, unless you allow bare `Bash` and have no deny or ask rules. Deny and ask rules also match each part of a chained command, and a command that holds every word of a deny rule anywhere (`env rm`, `/bin/rm`, `sh -c 'rm …'`, `git -C . push`) asks, also in bypass mode. Auto mode can't be reproduced outside Claude Code, so it counts as rules, then ask. Only you answer a step's approval; the agent that ran the graph isn't asked.
+
+**Trust.** A project graph with steps runs only once you trusted its steps: `graphs.trust {graph, hash?}` stores a hash of every step's `run`, `command`, `args`, `in`, `timeout` and `exits` and of the routing (nodes' kind, `start` and `end`, every edge but its text), scoped to the repo (its main checkout). Changing a step or rewiring the graph makes the file untrusted again (`graphs.list` sets `untrusted`, `hash` and `changed`: the step ids that differ from the last trusted ones, plus `edges`); editing prompts, roles or edge texts doesn't. With `hash` (as `graphs.list` showed it), trust is refused if the file changed since. `graphs.run` of an untrusted graph fails `untrusted: …` for every caller. Built-in graphs are trusted; a project file that shadows one is a project file.
+
+### Round cap
+
+An edge with `maxFires: N` delivers its first N firings in a run; the next one waits for you: the run keeps it in `held`, `notify.post` kind `needs-input` says "<From> → <To> reached its limit of N rounds", and `graphs.continue {id, edge}` delivers it and allows that edge one more round. Stopping the run drops what is held.
 
 ## Built-in graphs
 
@@ -99,6 +133,10 @@ Clubmate ships graphs inside the graphs plugin: `plugins/graphs/builtin/<name>.j
 | `graphs.show {id}` | One run, each node with its session title and live status. |
 | `graphs.stop {id}` | Deletes the run's triggers; sessions stay open and running turns go on. |
 | `graphs.delete {id}` | Stops the run and removes it from the list. |
+| `graphs.approve {id, node, decision}` | Not agent-visible. Answers a step waiting for approval (see [Steps](#steps)). |
+| `graphs.continue {id, edge}` | Not agent-visible. Delivers an edge's held firing past its round cap. |
+| `graphs.trust {graph}` | Not agent-visible. Trusts a project graph's steps as they are now. |
+| `graphs.show {id}` per step | A step node's `status` is `not started`, `running`, `waiting` or its outcome, and `last` is its last move: `command`, `dir`, `allowedBy` (`rule Bash(…)`, `mode bypass`, `you`, `command`), `exitCode`, `outcome`, `reason`, `tail`, `durationMs`. |
 | `graphs.reveal {id}` | Not agent-visible. Selects the run in the Graphs section and focuses it; Open graph in Triggers calls it. |
 
 All but `graphs.reveal` are agent-visible, and all are non-destructive. `graphs.run` runs in three steps, in this order because `triggers.add` checks its target session exists:
@@ -127,7 +165,7 @@ A run stops when:
 - the agent session that ran it closes;
 - a start prompt failed.
 
-Stopping deletes only triggers. Cancel or close sessions with `agents.cancel` and `agents.close`, or in the Agents section.
+A run's step budget (`maxSteps`) stops it too (reason `step budget of N reached`), and so does a step's `error` without an `on: error` edge. A step's output goes with its run: `graphs.delete` and a deleted workspace remove `output/<run>/`. Stopping deletes the run's triggers and ends its running steps (SIGTERM to the process group, SIGKILL 5 s later; `error · stopped`); a step waiting for approval ends the same way. After a restart, a step that was running or waiting ends `error · interrupted` and its leftover processes are killed. Cancel or close sessions with `agents.cancel` and `agents.close`, or in the Agents section.
 
 ### Handoff
 
@@ -150,7 +188,20 @@ The main view shows the selected run or graph, else the newest run, else the fir
 - **Outcome edges carry no reply.** A node reports its outcome before it writes its final message, so `on: outcome` edges point the target at the transcript instead.
 - **End state is explicit.** A run finishes on an `end` outcome; one whose last turn fired no edge and reported no `end` outcome stays `running` until `graphs.stop` or the turn budget. Detecting "no edge can fire any more" from outside the triggers is racy: when `agents.turn` arrives the edge's prompt may not have reached its target yet, and prompts held for a busy target are invisible to the plugin.
 - **Runs from before handoff support** (no stored graph) don't follow handoffs.
-- **Trust.** `.clubmate/graphs/` is inside `.clubmate/`, so in a repo whose worktree hooks you trusted, changing a graph asks for hook trust again (see [worktree hooks](worktree-hooks.md#trust)). Running a graph needs no trust: it starts only what its caller could start.
+- **Trust.** `.clubmate/graphs/` is inside `.clubmate/`, so in a repo whose worktree hooks you trusted, changing a graph asks for hook trust again (see [worktree hooks](worktree-hooks.md#trust)). Running a graph without steps needs no trust: it starts only what its caller could start. A graph with steps needs its steps trusted (see [Steps](#steps)).
+
+## Security
+
+What steps promise, and how it's tested (`plugins/graphs/*_test.go`, `TestStepSec_*` and `TestRedTeam_*`):
+
+- A step's `pass` is its exit code: no agent, event or printed line can report it.
+- Nothing outside the plugin starts a step: there is no command for it, and forged turns or outcomes fire nothing.
+- What runs is what was trusted and allowed: the command is frozen at run start, nothing is substituted into it, allow rules match only simple commands and deny rules hold in bypass mode.
+- A step is bounded: timeout, step budget, round caps, killed on stop and after a restart.
+- Its output is data: fenced in prompts, kept on this Mac, never in a push.
+- Every step leaves a move with what ran, where and who allowed it, including rejected ones.
+
+Known gaps: a node can still edit what a check calls (a `Makefile`, a script), so `make test` can be made to pass; a process of your user can reach `graphs.approve` through the CLI, like every agent-mode guard (see [the protocol](sdui-protocol.md)); a step waiting for you shows on its card and as a notification, not yet in Needs you.
 
 ## Design notes
 

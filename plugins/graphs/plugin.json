@@ -24,7 +24,7 @@
         "title": "Run agent graph",
         "hidden": true,
         "agent": true,
-        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json, else of the built-in graph <graph> (see graphs.list): one idle agent session per node (your child sessions when you call it), one trigger per edge (on the source node's turn end or reported outcome, prompt the target node), then the start nodes get their prompt with input. The run stops itself when a node reports an outcome listed in its end, after the graph's maxTurns turns (default 20) or when your session closes; graphs.stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, builtin?, status, turns, maxTurns, nodes: [{id, role, start?, session}], edges: [{from, to, on, outcome?, trigger}]}. Watch nodes with agents.wait on their sessions. Non-destructive.",
+        "description": "Start a run of the agent graph .clubmate/graphs/<graph>.json, else of the built-in graph <graph> (see graphs.list): one idle agent session per agent node (your child sessions when you call it), one trigger per edge between agent nodes; steps (nodes with run or command) are run by Clubmate itself after the edges into them and route by exit code, and a graph with steps fails untrusted until the user trusts it, then the start nodes get their prompt with input. The run stops itself when a node reports an outcome listed in its end, after the graph's maxTurns turns (default 20) or when your session closes; graphs.stop stops it earlier. Sessions stay open after a run stops. Returns the run: {id, graph, title, builtin?, status, turns, maxTurns, nodes: [{id, role, start?, session}], edges: [{from, to, on, outcome?, trigger}]}. Watch nodes with agents.wait on their sessions. Non-destructive.",
         "args": {
           "properties": {
             "graph": {"type": "string", "description": "Graph name: the file name in .clubmate/graphs/ without .json, e.g. review-loop."},
@@ -57,6 +57,46 @@
             "id": {"type": "string", "description": "Run id (gr_…)."}
           },
           "required": ["id"]
+        }
+      },
+      {
+        "id": "graphs.approve",
+        "title": "Answer a graph step's approval",
+        "hidden": true,
+        "description": "Answer a step of a graph run that waits for your approval: once runs it now, always also adds the exact command as a Bash allow rule to the step folder's .claude/settings.local.json, reject ends the step with error · rejected. Not for agents.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."},
+            "node": {"type": "string", "description": "Id of the waiting step node."},
+            "decision": {"type": "string", "enum": ["once", "always", "reject"], "description": "once, always or reject."}
+          },
+          "required": ["id", "node", "decision"]
+        }
+      },
+      {
+        "id": "graphs.continue",
+        "title": "Continue a graph edge past its limit",
+        "hidden": true,
+        "description": "A graph edge with maxFires that reached its limit holds its next firing and the run waits for you; continue delivers that firing and allows the edge one more round. Not for agents.",
+        "args": {
+          "properties": {
+            "id": {"type": "string", "description": "Run id (gr_…)."},
+            "edge": {"type": "integer", "description": "Index of the held edge in the graph's edges."}
+          },
+          "required": ["id", "edge"]
+        }
+      },
+      {
+        "id": "graphs.trust",
+        "title": "Trust a graph's shell steps",
+        "hidden": true,
+        "description": "Trust the shell steps of a project graph as they are now: graphs.run refuses a project graph whose steps (run, command, args, in, timeout, exits) changed since you last trusted them. Not for agents.",
+        "args": {
+          "properties": {
+            "graph": {"type": "string", "description": "Graph name."},
+            "hash": {"type": "string", "description": "The graph's hash as graphs.list showed it; trust is refused if the file changed since."}
+          },
+          "required": ["graph"]
         }
       },
       {

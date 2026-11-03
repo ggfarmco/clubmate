@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"clubmate/pkg/sdui"
 	"clubmate/plugins/agents/api"
@@ -269,7 +270,7 @@ func statusIcon(status string) string {
 	switch status {
 	case "waiting":
 		return "exclamationmark.circle"
-	case "error":
+	case "error", "fail":
 		return "xmark.circle"
 	case "running":
 		return "play.circle"
@@ -337,6 +338,9 @@ func runDiagram(r *Run, sessions map[string]api.Session) sdui.Node {
 }
 
 func graphNode(r *Run, n RunNode, sessions map[string]api.Session, end int, last, counts []int) sdui.GraphNode {
+	if n.Step {
+		return stepNode(r, n, end, last, counts)
+	}
 	s := sessions[n.Session]
 	status := nodeStatus(s, sessions != nil)
 	turns, moved := 0, false
@@ -395,6 +399,9 @@ func nodeOuts(r *Run, node string) ([]string, []string) {
 	if r.Spec != nil {
 		if spec := r.Spec.node(node); spec != nil {
 			ids, ends = slices.Clone(spec.Outcomes), spec.End
+			if spec.step() {
+				return append(r.Spec.waysOut(node), onError), ends
+			}
 		}
 	}
 	for _, e := range r.Edges {
@@ -508,4 +515,59 @@ func edgeState(last bool, count int) string {
 		return "taken"
 	}
 	return "never"
+}
+
+func stepNode(r *Run, n RunNode, end int, last, counts []int) sdui.GraphNode {
+	st := r.lastStep(n.ID)
+	status := stepStatus(st)
+	glyph := "fail"
+	switch status {
+	case stepWaiting, stepRunning:
+		glyph = status
+	case onError:
+		glyph = "error"
+	case notStarted:
+		glyph = "idle"
+	case outPass, onDone:
+		glyph = "done"
+	}
+	command := ""
+	if r.Spec != nil {
+		command = cmpCommand(r.Spec.node(n.ID))
+	}
+	return sdui.GraphNode{
+		ID:        n.ID,
+		Label:     n.Role,
+		State:     stepState(st),
+		Tone:      statusTone(glyph),
+		Icon:      statusIcon(glyph),
+		Attention: glyph == stepWaiting,
+		Pending:   glyph == "idle",
+		Tooltip:   command,
+		Outs:      graphOuts(r, n.ID, end, last, counts),
+	}
+}
+
+func stepState(st *StepMove) string {
+	switch status := stepStatus(st); status {
+	case notStarted, stepRunning:
+		return status
+	case stepWaiting:
+		return stateLabel(stepWaiting, false)
+	case onError:
+		return onError + " · " + cmp.Or(st.Reason, "failed")
+	default:
+		return status + " · " + humanDuration(time.Duration(st.Duration)*time.Millisecond)
+	}
+}
+
+func humanDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%d s", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%d min %02d s", int(d.Minutes()), int(d.Seconds())%60)
+	}
+	return fmt.Sprintf("%d h %02d min", int(d.Hours()), int(d.Minutes())%60)
 }

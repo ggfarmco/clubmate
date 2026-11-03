@@ -34,9 +34,9 @@ func TestMovesFollowEdges(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	r := runGraph(t, a)
 
-	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"})
-	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Topic: eventPrefix + r.outcomeEvent("reviewer"), Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"changes"}`)})
-	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Turn: 1, Status: "done"})
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"}, agentsSource)
+	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Source: triggersSource, Topic: eventPrefix + r.outcomeEvent("reviewer"), Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"changes"}`)})
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Turn: 1, Status: "done"}, agentsSource)
 
 	live := a.runs[r.ID]
 	var nodes []string
@@ -90,10 +90,10 @@ func TestDoneAndAsksFireOne(t *testing.T) {
 func TestEndOutcomeMoveClosesAfterStop(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	r := runGraph(t, a)
-	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"})
-	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Topic: eventPrefix + r.outcomeEvent("reviewer"), Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"approved"}`)})
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"}, agentsSource)
+	a.busEvent(t.Context(), nil, "", pluginsdk.Event{Source: triggersSource, Topic: eventPrefix + r.outcomeEvent("reviewer"), Payload: json.RawMessage(`{"workspace":"ws1","by":"agt_2","outcome":"approved"}`)})
 
-	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Turn: 2, Status: "done"})
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_2", Turn: 2, Status: "done"}, agentsSource)
 
 	live := a.runs[r.ID]
 	require.Len(t, live.Moves, 2)
@@ -131,11 +131,11 @@ func TestWaitingTurnKeepsMoveOpen(t *testing.T) {
 	a := testApp(t, &fakeCore{})
 	r := runGraph(t, a)
 
-	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "waiting"})
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "waiting"}, agentsSource)
 	require.Len(t, a.runs[r.ID].Moves, 1)
 	assert.True(t, a.runs[r.ID].Moves[0].Open)
 
-	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"})
+	a.countTurn(t.Context(), api.Turn{Workspace: "ws1", Session: "agt_1", Turn: 1, Status: "done"}, agentsSource)
 	live := a.runs[r.ID]
 	require.Len(t, live.Moves, 2)
 	assert.False(t, live.Moves[0].Open)

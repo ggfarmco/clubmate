@@ -17,6 +17,22 @@ type Move struct {
 	At    time.Time `json:"at"`
 	Turn  int       `json:"turn,omitempty"`
 	Open  bool      `json:"open,omitempty"`
+	Step  *StepMove `json:"step,omitempty"`
+	Held  bool      `json:"held,omitempty"`
+}
+
+type StepMove struct {
+	Status    string    `json:"status"`
+	Outcome   string    `json:"outcome,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	ExitCode  *int      `json:"exitCode,omitempty"`
+	AllowedBy string    `json:"allowedBy,omitempty"`
+	Dir       string    `json:"dir,omitempty"`
+	Command   string    `json:"command,omitempty"`
+	Tail      string    `json:"tail,omitempty"`
+	Output    string    `json:"output,omitempty"`
+	EndedAt   time.Time `json:"endedAt,omitzero"`
+	Duration  int64     `json:"durationMs,omitempty"`
 }
 
 func (r *Run) startMove(node string, now time.Time) {

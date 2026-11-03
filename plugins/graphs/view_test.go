@@ -254,3 +254,83 @@ func outIDs(n sdk.GraphNode) []string {
 	}
 	return ids
 }
+
+func diagramNodes(t *testing.T, a *app, id string) map[string]sdk.GraphNode {
+	t.Helper()
+	a.mu.Lock()
+	r := cloneRun(a.runs[id])
+	a.mu.Unlock()
+	tree, err := json.Marshal(runDiagram(r, nil))
+	require.NoError(t, err)
+	var props struct {
+		Props sdk.GraphProps `json:"props"`
+	}
+	require.NoError(t, json.Unmarshal(tree, &props))
+	out := map[string]sdk.GraphNode{}
+	for _, n := range props.Props.Nodes {
+		out[n.ID] = n
+	}
+	return out
+}
+
+func TestStepCardRendersWithoutSession(t *testing.T) {
+	a, _, _, r := stepApp(t, stepResult{ExitCode: 1, Duration: 64 * time.Second})
+	nodes := diagramNodes(t, a, r.ID)
+	assert.Equal(t, "not started", nodes["tests"].State)
+	turnDone(t, a, "agt_1", 1)
+	nodes = diagramNodes(t, a, r.ID)
+	assert.Equal(t, []string{"pass", "fail", "flaky", "error"}, outIDs(nodes["tests"]))
+	assert.Equal(t, []string{"done", "error"}, outIDs(nodes["merge"]))
+	assert.Equal(t, "fail · 1 min 04 s", nodes["tests"].State)
+	assert.Equal(t, "xmark.circle", nodes["tests"].Icon)
+	assert.Equal(t, "neutral", nodes["tests"].Tone)
+	assert.Equal(t, "make test", nodes["tests"].Tooltip)
+}
+
+func showNodes(t *testing.T, a *app, r *Run) map[string]shownNode {
+	t.Helper()
+	out, err := a.command(t.Context(), nil, pluginsdk.CommandRun{ID: "graphs.show", WorkspaceID: "ws1", Args: json.RawMessage(`{"id":"` + r.ID + `"}`)})
+	require.NoError(t, err)
+	nodes := map[string]shownNode{}
+	for _, n := range out.(shownRun).Nodes {
+		nodes[n.ID] = n
+	}
+	return nodes
+}
+
+func TestStepSec_A1_ShowCarriesAudit(t *testing.T) {
+	a, _, p, r := approvalApp(t, "auto", "Bash(make test)")
+	p.results = []stepResult{{ExitCode: 1, Tail: "FAIL"}}
+	turnDone(t, a, "agt_1", 1)
+	st := showNodes(t, a, r)["tests"]
+	assert.Equal(t, outFail, st.Status)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, "make test", st.Last.Command)
+	assert.Equal(t, "/wt/coder", st.Last.Dir)
+	assert.Equal(t, "rule Bash(make test)", st.Last.AllowedBy)
+	require.NotNil(t, st.Last.ExitCode)
+	assert.Equal(t, 1, *st.Last.ExitCode)
+	assert.Equal(t, "FAIL", st.Last.Tail)
+}
+
+func TestStepSec_A2_RejectedIsAMove(t *testing.T) {
+	a, _, _, r := approvalApp(t, "default")
+	turnDone(t, a, "agt_1", 1)
+	assert.Equal(t, stepWaiting, showNodes(t, a, r)["tests"].Status)
+	require.NoError(t, approve(t, a, r, "tests", "reject"))
+	st := showNodes(t, a, r)["tests"]
+	assert.Equal(t, onError, st.Status)
+	assert.Equal(t, reasonRejected, st.Last.Reason)
+	assert.Equal(t, "error · rejected", diagramNodes(t, a, r.ID)["tests"].State)
+}
+
+func TestOpenStepCardDoesNothing(t *testing.T) {
+	a, _, _, r := stepApp(t)
+	revealed := false
+	a.revealTurn = func(context.Context, string, string, int) error {
+		revealed = true
+		return nil
+	}
+	assert.NoError(t, a.openGraph(t.Context(), pluginsdk.UIEvent{WorkspaceID: "ws1", Action: actOpen, Value: json.RawMessage(`"tests"`)}, r.ID))
+	assert.False(t, revealed)
+}
