@@ -1387,10 +1387,8 @@ func TestRevealOpensTheGraphRunRow(t *testing.T) {
 		require.NoError(t, err)
 		var groups []sdui.TreeItem
 		require.NoError(t, json.Unmarshal(raw, &groups))
-		for _, g := range groups {
-			if i := slices.IndexFunc(g.Children, func(item sdui.TreeItem) bool { return item.ID == row }); i >= 0 {
-				return g.Children[i], true
-			}
+		if i := slices.IndexFunc(groups, func(item sdui.TreeItem) bool { return item.ID == row }); i >= 0 {
+			return groups[i], true
 		}
 		return sdui.TreeItem{}, false
 	}
@@ -2088,13 +2086,11 @@ func TestChildrenFoldedUntilOpenedAndRemembered(t *testing.T) {
 		}
 		raw, err := json.Marshal(trees[0].Props["items"])
 		require.NoError(t, err)
-		var groups []sdui.TreeItem
-		require.NoError(t, json.Unmarshal(raw, &groups))
-		for _, g := range groups {
-			for _, item := range g.Children {
-				if item.ID == parent && item.HasChildren {
-					return item.Expanded, true
-				}
+		var items []sdui.TreeItem
+		require.NoError(t, json.Unmarshal(raw, &items))
+		for _, item := range items {
+			if item.ID == parent && item.HasChildren {
+				return item.Expanded, true
 			}
 		}
 		return false, false

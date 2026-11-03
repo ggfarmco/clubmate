@@ -161,13 +161,22 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 		return sdui.VStack(top, field, tabs, sdui.EmptyState(filterEmpty[filter], sdui.EmptyProps{Action: &all}))
 	}
 	type bucket struct {
-		label                 string
-		detached              bool
-		open, closed, service []sessionRow
+		label    string
+		detached bool
+		open     []sessionRow
 	}
 	var order []string
+	var closed, service []sessionRow
 	buckets := map[string]*bucket{}
 	for _, row := range roots {
+		switch {
+		case row.Rec.closed() && row.Rec.ParentSession == "":
+			closed = append(closed, row)
+			continue
+		case row.Rec.restricted():
+			service = append(service, row)
+			continue
+		}
 		wt := row.Rec.Worktree
 		b, ok := buckets[wt]
 		if !ok {
@@ -175,35 +184,30 @@ func sidebarView(rows []sessionRow, selected string, collapsed map[string]bool, 
 			buckets[wt] = b
 			order = append(order, wt)
 		}
-		switch {
-		case row.Rec.closed() && row.Rec.ParentSession == "":
-			b.closed = append(b.closed, row)
-		case row.Rec.restricted():
-			b.service = append(b.service, row)
-		default:
-			b.open = append(b.open, row)
-		}
+		b.open = append(b.open, row)
 	}
 	var groups []sdui.TreeItem
 	for _, wt := range order {
 		b := buckets[wt]
 		children := runItems(b.open, wt, kids, collapsed, now, map[string]bool{}, oldest)
-		if len(b.closed) > 0 {
-			key := closedKey + wt
-			folded, ok := collapsed[key]
-			closed := runItems(b.closed, key, kids, collapsed, now, map[string]bool{}, oldest)
-			children = append(children, groupItem(key, fmt.Sprintf("Closed · %d", len(b.closed)), statusIcons[statusClosed], closed, ok && !folded))
+		if len(order) == 1 {
+			groups = children
+			break
 		}
-		if len(b.service) > 0 {
-			key := serviceKey + wt
-			folded, ok := collapsed[key]
-			service := runItems(b.service, key, kids, collapsed, now, map[string]bool{}, oldest)
-			children = append(children, groupItem(key, fmt.Sprintf("Service · %d", len(b.service)), serviceIcon, service, ok && !folded || anyNeeds(b.service, oldest)))
-		}
-		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt] || anyNeeds(b.open, oldest) || anyNeeds(b.service, oldest))
+		group := groupItem(wt, b.label, "arrow.triangle.branch", children, !collapsed[wt] || anyNeeds(b.open, oldest))
 		group.Truncate = "middle"
 		group.Faint = b.detached
 		groups = append(groups, group)
+	}
+	if len(closed) > 0 {
+		folded, ok := collapsed[closedKey]
+		items := runItems(closed, closedKey, kids, collapsed, now, map[string]bool{}, oldest)
+		groups = append(groups, groupItem(closedKey, fmt.Sprintf("Closed · %d", len(closed)), statusIcons[statusClosed], items, ok && !folded))
+	}
+	if len(service) > 0 {
+		folded, ok := collapsed[serviceKey]
+		items := runItems(service, serviceKey, kids, collapsed, now, map[string]bool{}, oldest)
+		groups = append(groups, groupItem(serviceKey, fmt.Sprintf("Service · %d", len(service)), serviceIcon, items, ok && !folded || anyNeeds(service, oldest)))
 	}
 	return sdui.VStack(top, field, tabs, sdui.Tree("sessions", groups, selected))
 }
