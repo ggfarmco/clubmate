@@ -8,6 +8,7 @@ usage() {
   cat >&2 <<EOF
 usage: $0 start [name] [app] [-- app args]   start an invisible test instance
        $0 cm [name] -- <cm args>             run the CLI against it
+       $0 relaunch [name] [app] [-- app args] restart only its app (core and data stay), e.g. after a theme change
        $0 stop [name]                        quit it and remove its dirs
        $0 list                               running instances
 name defaults to the current branch; app to the Debug build of this checkout
@@ -81,6 +82,30 @@ start() {
   mkdir -p "$dir"/{state,run,xdg/config,xdg/data,xdg/state,xdg/cache}
   chmod 700 "$dir/run"
   echo "$app/Contents/Resources/bin/clubmate" > "$dir/cli"
+  launch "$dir" "$app" "$@"
+  for _ in $(seq 1 100); do
+    if [[ ! -f "$dir/app.pid" ]]; then
+      local pid; pid="$(app_pid "$dir")"
+      if [[ -n "$pid" ]]; then echo "$pid" > "$dir/app.pid"; fi
+    fi
+    alive "$dir" && break
+    if [[ -f "$dir/app.pid" ]] && ! ps -p "$(cat "$dir/app.pid")" >/dev/null 2>&1; then
+      echo "instance $name: app exited before the core started (crash? see ~/Library/Logs/DiagnosticReports or run its binary under lldb)" >&2; exit 1
+    fi
+    sleep 0.2
+  done
+  alive "$dir" || { kill_app "$dir"; echo "instance $name: core did not start; app stopped" >&2; exit 1; }
+  wait_ui "$dir"
+  if [[ " $* " != *" --sdui-gallery "* ]]; then
+    open_workspace "$dir"
+  fi
+  echo "instance $name"
+  echo "export CLUBMATE_STATE_DIR=$dir/state CLUBMATE_RUNTIME_DIR=$dir/run"
+  echo "snapshots: $0 cm $name -- ui snapshot --out $dir/snapshots"
+}
+
+launch() {
+  local dir="$1" app="$2"; shift 2
   local envs=(
     --env CLUBMATE_TEST_MODE=1
     --env "CLUBMATE_STATE_DIR=$dir/state"
@@ -94,28 +119,52 @@ start() {
   for v in $(env | grep -o '^CLUBMATE_AGENTS_[A-Z_]*\|^CLUBMATE_VOICE_[A-Z_]*\|^HF_HOME\|^UV_CACHE_DIR\|^FAKEAGENT_[A-Z_]*\|^CLUBMATE_ONBOARDING' || true); do passthrough+=(--env "$v=${!v}"); done
   env -i HOME="$HOME" USER="$USER" LOGNAME="${LOGNAME:-$USER}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="${TMPDIR:-/tmp}" \
     open -n -g -j "${envs[@]}" ${passthrough[@]+"${passthrough[@]}"} "$app" --args -ApplePersistenceIgnoreState YES "$@"
-  for _ in $(seq 1 100); do
-    if [[ ! -f "$dir/app.pid" ]]; then
-      local pid; pid="$(app_pid "$dir")"
-      if [[ -n "$pid" ]]; then echo "$pid" > "$dir/app.pid"; fi
-    fi
-    alive "$dir" && break
-    if [[ -f "$dir/app.pid" ]] && ! ps -p "$(cat "$dir/app.pid")" >/dev/null 2>&1; then
-      echo "instance $name: app exited before the core started (crash? see ~/Library/Logs/DiagnosticReports or run its binary under lldb)" >&2; exit 1
-    fi
-    sleep 0.2
-  done
-  alive "$dir" || { kill_app "$dir"; echo "instance $name: core did not start; app stopped" >&2; exit 1; }
+}
+
+wait_ui() {
+  local dir="$1"
   for _ in $(seq 1 50); do
     cli "$dir" ui sections >/dev/null 2>&1 && break
     sleep 0.2
   done
-  if [[ " $* " != *" --sdui-gallery "* ]]; then
-    cli "$dir" --json workspace open "$ROOT" | sed -n 's/.*"id": "\(prj_[a-z0-9]*\)".*/\1/p' > "$dir/workspace"
-  fi
-  echo "instance $name"
-  echo "export CLUBMATE_STATE_DIR=$dir/state CLUBMATE_RUNTIME_DIR=$dir/run"
-  echo "snapshots: $0 cm $name -- ui snapshot --out $dir/snapshots"
+}
+
+open_workspace() {
+  local dir="$1"
+  cli "$dir" --json workspace open "$ROOT" | sed -n 's/.*"id": "\(prj_[a-z0-9]*\)".*/\1/p' > "$dir/workspace"
+}
+
+relaunch() {
+  local name="" app=""
+  [[ $# -gt 0 && "$1" != "--" ]] && { name="$1"; shift; }
+  [[ $# -gt 0 && "$1" != "--" ]] && { app="$1"; shift; }
+  [[ $# -gt 0 && "$1" == "--" ]] && shift
+  name="${name:-$(default_name)}"
+  check_name "$name"
+  local dir; dir="$(dir_of "$name")"
+  alive "$dir" || { echo "instance $name is not running" >&2; exit 1; }
+  app="${app:-$(dirname "$(dirname "$(dirname "$(dirname "$(cat "$dir/cli")")")")")}"
+  local old; old="$(cat "$dir/app.pid" 2>/dev/null || true)"
+  kill_app "$dir"
+  for _ in $(seq 1 50); do
+    [[ -z "$(app_pid "$dir")" ]] && break
+    sleep 0.2
+  done
+  [[ -z "$(app_pid "$dir")" ]] || { echo "instance $name: the old app did not quit" >&2; exit 1; }
+  launch "$dir" "$app" "$@"
+  local pid=""
+  for _ in $(seq 1 100); do
+    pid="$(app_pid "$dir")"
+    [[ -n "$pid" && "$pid" != "$old" ]] && break
+    pid=""
+    sleep 0.2
+  done
+  [[ -n "$pid" ]] || { echo "instance $name: the app did not start again" >&2; exit 1; }
+  echo "$pid" > "$dir/app.pid"
+  wait_ui "$dir"
+  sleep 2
+  open_workspace "$dir"
+  echo "relaunched $name: app pid $old -> $pid"
 }
 
 stop() {
@@ -162,6 +211,7 @@ cm() {
 cmd="$1"; shift
 case "$cmd" in
   start) start "$@" ;;
+  relaunch) relaunch "$@" ;;
   stop) stop "$@" ;;
   list) list ;;
   cm) cm "$@" ;;

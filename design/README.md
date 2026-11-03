@@ -22,4 +22,4 @@ The `Artifact` tool reads and writes the project. The interactive `claude` has i
 
 ## Nightly check
 
-The "Nightly design check" cron job runs the `nightly-design-check` skill: it captures the screens whose UI changed (every board on Sundays), judges them against the boards with Claude Design's craft rules, fixes small token and copy drift, files the rest with tag `design-check` and leaves a request for the Design chat in `clubmate-notes/design-check/<date>.md`.
+The "Nightly design check" cron job runs the `design-check` graph (`.clubmate/graphs/design-check.json`, `docs/agent-graphs.md` § Design check), whose nodes follow the `nightly-design-check` skill: it captures the screens whose UI changed (every board on Sundays), judges them against the boards with Claude Design's craft rules, fixes small token and copy drift, files the rest with tag `design-check` and leaves a request for the Design chat in `clubmate-notes/design-check/<date>.md`.
