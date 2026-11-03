@@ -27,8 +27,23 @@ An event fires a trigger when all of these hold:
 1. Its topic matches `on`.
 2. It names the trigger's workspace in `workspace`, `workspaceId` or `session.workspaceId` (the first one present). An event naming no workspace (e.g. `agents.ready`, `session.killed`) fires no trigger.
 3. Every key of `match`, a dotted path into the payload (e.g. `session`, `info.name`), is present and equals its value. An array value matches any of its elements: `{"status":["done","error"]}`.
+4. It comes from its topic's owner (see [Sources](#sources)).
 
 `match` is JSON text holding an object; `""` or `{}` matches every event on the topic.
+
+## Sources
+
+The core stamps every bus event with its `source`: `plugin:<id>`, `core`, `agent` (`notify.post` from an agent) or `cli` (anything else on the socket, `clubmate bus publish` included). The payload says nothing trustworthy, so a trigger fires only on an event from the owner of its topic, the topic's first segment:
+
+| Topic | Fires only from |
+|---|---|
+| `event.*` | `plugin:triggers` (`triggers.emit`) |
+| `event.graph.*` | also `plugin:graphs` (a graph step's outcome) |
+| `workspace.*`, `session.*`, `ui.*` | `core` |
+| `notify.*` | `agent` or a plugin (`notify.post`) |
+| `<id>.*`, e.g. `agents.turn`, `cron.ready`, `git.changed` | `plugin:<id>` |
+
+So an agent's `clubmate bus publish agents.turn …` or `event.graph.<run>.<node> {"outcome":…}` fires nothing, and neither does `cm notify` (source `cli`; the `notify_post` MCP tool and `cm command run notify.post --agent` are `agent`). Such an event is only logged to the plugin's stderr (`ignore <topic> from <source>: only its owner fires triggers`), not recorded in any trigger's history, and the plugin ignores it entirely, so a forged `agents.turn` can't release a held event either. To fire a trigger by hand use `triggers.emit` (`cm command run triggers.emit …`, see [CLI](#cli)) or Run now. Every process of your user can still reach the core socket and call `triggers.emit` itself (see [the protocol](sdui-protocol.md)); what this stops is an event passing for another plugin's.
 
 ## Placeholders
 
@@ -60,7 +75,7 @@ A run is skipped, never counted as a failure, with one of these reasons:
 
 ## Emitted events
 
-`triggers.emit` sets the payload's `workspace` to the calling workspace and `by` to the calling agent session (`agent` for an agent call without one; no `by` for the user or the CLI), and `cronJob` to the cron job that emits it (only the cron plugin may pass `cronJob`; anyone else gets `invalid_params: only the cron plugin may set cronJob`, and a `by` or `cronJob` in `payload` is dropped). An owned trigger runs as its owner, and some commands trust the caller (`agents.permission` and `agents.cancel` act only on the caller's descendants), so an owned trigger whose `args` use placeholders skips an `event.*` emitted by an agent session other than its owner or the owner's descendants. Placeholders otherwise copy event data verbatim: fill caller-checked fields such as `session` only from events you trust.
+`triggers.emit` sets the payload's `workspace` to the calling workspace and `by` to the calling agent session (`agent` for an agent call without one; no `by` for the user or the CLI), and `cronJob` to the cron job that emits it (only the cron plugin may pass `cronJob`; anyone else gets `invalid_params: only the cron plugin may set cronJob`, and a `by` or `cronJob` in `payload` is dropped). Only `triggers.emit` (and a graph step, for `event.graph.*`) publishes an `event.*` that fires triggers (see [Sources](#sources)), so `by` and `cronJob` are the plugin's own. An owned trigger runs as its owner, and some commands trust the caller (`agents.permission` and `agents.cancel` act only on the caller's descendants), so an owned trigger whose `args` use placeholders skips an `event.*` emitted by an agent session other than its owner or the owner's descendants. Placeholders otherwise copy event data verbatim: fill caller-checked fields such as `session` only from events you trust.
 
 ## Loops and limits
 

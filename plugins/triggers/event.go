@@ -26,11 +26,17 @@ const (
 	statusField  = "status"
 	byAgent      = "agent"
 	manualTopic  = "run now"
+	graphPrefix  = emitPrefix + "graph."
+	pluginSource = "plugin:"
+	coreSource   = "core"
+	agentSource  = "agent"
+	notifyOwner  = "notify"
 )
 
 var (
 	placeholderRe   = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}`)
 	workspacePaths  = []string{"workspace", "workspaceId", "session.workspaceId"}
+	coreOwners      = []string{"workspace", "session", "ui"}
 	errNotInEvent   = errors.New("not in the event")
 	errBadOnPattern = errors.New(`on: give a topic like agents.turn, a prefix like event.* or a comma-separated list of those; "*" is not allowed`)
 )
@@ -40,6 +46,21 @@ func checkPattern(on string) error {
 		return errBadOnPattern
 	}
 	return nil
+}
+
+func fromOwner(ev pluginsdk.Event) bool {
+	owner, _, _ := strings.Cut(ev.Topic, ".")
+	switch {
+	case strings.HasPrefix(ev.Topic, graphPrefix) && ev.Source == pluginSource+"graphs":
+		return true
+	case owner+"." == emitPrefix:
+		return ev.Source == pluginSource+"triggers"
+	case owner == notifyOwner:
+		return ev.Source == agentSource || strings.HasPrefix(ev.Source, pluginSource)
+	case slices.Contains(coreOwners, owner):
+		return ev.Source == coreSource
+	}
+	return ev.Source == pluginSource+owner
 }
 
 func parseMatch(text string) (json.RawMessage, error) {

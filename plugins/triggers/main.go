@@ -118,6 +118,10 @@ func (a *app) busEvent(ctx context.Context, _ *pluginsdk.Host, _ string, ev plug
 		return
 	}
 	a.lastSeq.Store(ev.Seq)
+	if !fromOwner(ev) {
+		logError(fmt.Errorf("ignore %s from %s: only its owner fires triggers", ev.Topic, ev.Source))
+		return
+	}
 	a.dispatch(ctx, ev)
 	a.registry.BusEvent(ctx, ev)
 }

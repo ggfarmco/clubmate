@@ -106,6 +106,34 @@ func TestBusySkipRefiresWhenTargetTurnEnds(t *testing.T) {
 	assert.Equal(t, Run{At: h[1].At, Topic: "event.ping", Seq: 1, Status: automation.StatusOK, Result: "{}"}, h[1])
 }
 
+func TestBusEventFiresOnlyOnEventsFromTheTopicsOwner(t *testing.T) {
+	var sent []automation.CommandRequest
+	a, _ := testApp(t, func(_ context.Context, req automation.CommandRequest) (json.RawMessage, error) {
+		sent = append(sent, req)
+		return json.RawMessage(`{}`), nil
+	})
+	a.triggers["tr_1"].On = "agents.turn,event.graph.*"
+	a.sessions = func(context.Context, string) ([]api.Session, error) { return nil, nil }
+	close(a.ready)
+	turn := pluginsdk.Event{Seq: 1, Topic: api.TopicTurn, Payload: json.RawMessage(`{"workspace":"ws1","session":"agt_1","status":"done","n":"turn"}`)}
+	outcome := pluginsdk.Event{Seq: 2, Topic: "event.graph.r.n", Payload: json.RawMessage(`{"workspace":"ws1","outcome":"approved","by":"agt_2","n":"outcome"}`)}
+
+	for _, ev := range []pluginsdk.Event{turn, outcome} {
+		ev.Source = "cli"
+		a.busEvent(t.Context(), nil, "", ev)
+		a.runs.Wait()
+	}
+	assert.Empty(t, sent)
+	assert.Empty(t, a.triggers["tr_1"].History)
+
+	turn.Source, outcome.Source = "plugin:agents", "plugin:triggers"
+	for _, ev := range []pluginsdk.Event{turn, outcome} {
+		a.busEvent(t.Context(), nil, "", ev)
+		a.runs.Wait()
+	}
+	require.Len(t, sent, 2)
+}
+
 func TestForeignEmitterSkipsOwnedTemplatedTrigger(t *testing.T) {
 	sessions := []api.Session{{ID: "agt_owner"}, {ID: "agt_child", ParentSession: "agt_owner"}, {ID: "agt_other"}}
 	templated := &Trigger{Owner: "agt_owner", Args: json.RawMessage(`{"session":"{{payload.session}}"}`)}
